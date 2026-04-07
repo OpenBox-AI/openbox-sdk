@@ -12,6 +12,8 @@ export type SpanType = 'llm' | 'file_read' | 'file_write' | 'shell' | 'http' | '
 
 export interface SpanOptions {
   type: SpanType;
+  // Override the default activity_type (e.g. "PromptSubmission", "FileRead")
+  activityType?: string;
   // LLM
   prompt?: string;
   model?: string;
@@ -59,7 +61,7 @@ export function buildTestPayload(opts: SpanOptions): BuiltPayload {
   const traceId = hex(32);
   const nowNs = Date.now() * 1_000_000;
 
-  const { activityType, activityInput, span } = buildSpan(opts, spanId, traceId, nowNs);
+  const { activityType: defaultActivityType, activityInput, span } = buildSpan(opts, spanId, traceId, nowNs);
 
   return {
     source: 'workflow-telemetry',
@@ -68,7 +70,7 @@ export function buildTestPayload(opts: SpanOptions): BuiltPayload {
     run_id: runId,
     workflow_type: 'TestWorkflow',
     activity_id: activityId,
-    activity_type: activityType,
+    activity_type: opts.activityType || defaultActivityType,
     task_queue: 'cli-test',
     attempt: 1,
     timestamp: new Date().toISOString(),
@@ -103,7 +105,7 @@ function buildSpan(
     case 'llm': {
       const input = { prompt: opts.prompt || 'test prompt' };
       return {
-        activityType: 'LLMCall',
+        activityType: 'PromptSubmission',
         activityInput: input,
         span: {
           ...base,
