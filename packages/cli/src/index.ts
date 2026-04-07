@@ -19,6 +19,7 @@ import { registerMemberCommands } from './commands/member';
 import { registerAuditCommands } from './commands/audit';
 import { registerHealthCommands } from './commands/health';
 import { registerCoreCommands } from './commands/core';
+import { registerSetupCommands } from './commands/setup';
 
 const program = new Command();
 
@@ -43,6 +44,7 @@ registerMemberCommands(program);
 registerAuditCommands(program);
 registerHealthCommands(program);
 registerCoreCommands(program);
+registerSetupCommands(program);
 
 program.parseAsync(process.argv).catch((err) => {
   console.error(err.message || err);
