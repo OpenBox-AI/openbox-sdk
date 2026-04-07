@@ -1,0 +1,15 @@
+{
+  "name": "openbox-sdk",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "clean": "rm -rf packages/*/dist",
+    "lint": "eslint packages/*/src/",
+    "format": "prettier --write packages/*/src/"
+  },
+  "author": "salamisandwich77",
+  "license": "MIT"
+}
