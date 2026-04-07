@@ -50,6 +50,7 @@ export function registerCoreCommands(program: Command) {
     .description('Evaluate a governance event (raw JSON or --type shorthand)')
     .option('--json <json>', 'GovernanceEventPayload as JSON (raw mode)')
     .option('--type <type>', 'Span type shorthand: llm, file_read, file_write, shell, http, db, mcp')
+    .option('--activity-type <name>', 'Override activity_type (default depends on --type, e.g. PromptSubmission, FileRead)')
     .option('--prompt <text>', 'Prompt text, or @file.txt to read from file (for --type llm)')
     .option('--model <model>', 'Model name (for --type llm)')
     .option('--file-path <path>', 'File path (for --type file_read/file_write)')
@@ -94,6 +95,7 @@ export function registerCoreCommands(program: Command) {
 
           payload = buildTestPayload({
             type: opts.type as SpanType,
+            activityType: opts.activityType,
             prompt,
             model: opts.model,
             filePath: opts.filePath,
