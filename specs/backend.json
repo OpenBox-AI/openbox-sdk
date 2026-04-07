@@ -1,0 +1,6521 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "AppController_getHello",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/auth/profile": {
+      "get": {
+        "operationId": "AuthController_getProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/forgot-password": {
+      "post": {
+        "operationId": "AuthController_forgotPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "operationId": "AuthController_resetPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/change-password": {
+      "post": {
+        "operationId": "AuthController_changePassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refreshToken",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/user/roles": {
+      "get": {
+        "operationId": "UserController_getRoles",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/agent/violations": {
+      "get": {
+        "operationId": "AgentController_getViolations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/metrics": {
+      "get": {
+        "operationId": "AgentController_getAgentsMetrics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/list": {
+      "get": {
+        "operationId": "AgentController_getAgents",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Search in agent name and description",
+            "schema": {
+              "example": "chatbot",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "team_id",
+            "required": false,
+            "in": "query",
+            "description": "Team ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tiers",
+            "required": false,
+            "in": "query",
+            "description": "Tier list",
+            "schema": {
+              "example": [
+                "1",
+                "2"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/aivss": {
+      "post": {
+        "operationId": "AgentController_getAivssScore",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AivssConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/create": {
+      "post": {
+        "operationId": "AgentController_createAgent",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAgentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}": {
+      "get": {
+        "operationId": "AgentController_getAgent",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      },
+      "put": {
+        "operationId": "AgentController_updateAgent",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAgentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      },
+      "delete": {
+        "operationId": "AgentController_deleteAgent",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/violations": {
+      "get": {
+        "operationId": "AgentController_getAgentEvaluations",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetAgentViolationsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/violations/{violationId}/false-positive": {
+      "patch": {
+        "operationId": "AgentController_markAsFalsePositive",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "violationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkFalsePositiveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/logs": {
+      "get": {
+        "operationId": "AgentController_getAgentLogs",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/logs/drift": {
+      "get": {
+        "operationId": "AgentController_getDriftEvents",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/assessments": {
+      "get": {
+        "operationId": "AgentController_getAssessments",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events starting from this time",
+            "schema": {
+              "example": "2024-12-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events ending before this time",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/aivss": {
+      "put": {
+        "operationId": "AgentController_updateAivssConfig",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAgentAivssConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/goal-alignment": {
+      "put": {
+        "operationId": "AgentController_updateGoalAlignmentConfig",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoalAlignmentConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/aivss/recalculate": {
+      "post": {
+        "operationId": "AgentController_recalculateTrustScore",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/guardrails": {
+      "post": {
+        "operationId": "AgentController_createGuardrail",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGuardrailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      },
+      "get": {
+        "operationId": "AgentController_getGuardrails",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "processing_stage",
+            "required": false,
+            "in": "query",
+            "description": "Processing stage of the guardrail",
+            "schema": {
+              "example": "pre-processing",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/guardrails/metrics": {
+      "get": {
+        "operationId": "AgentController_getGuardrailMetrics",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events starting from this time",
+            "schema": {
+              "example": "2024-12-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events ending before this time",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/guardrails/violation-logs": {
+      "get": {
+        "operationId": "AgentController_getGuardrailViolationLogs",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter evaluations created after this time (ISO date string)",
+            "schema": {
+              "example": "2025-01-01T00:00:00.000Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter evaluations created before this time (ISO date string)",
+            "schema": {
+              "example": "2025-12-31T23:59:59.999Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "guardrail_type",
+            "required": false,
+            "in": "query",
+            "description": "Filter by guardrail type",
+            "schema": {
+              "example": "content_filter",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/guardrails/{guardrailId}": {
+      "get": {
+        "operationId": "AgentController_getGuardrail",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guardrailId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      },
+      "put": {
+        "operationId": "AgentController_updateGuardrails",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guardrailId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGuardrailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      },
+      "delete": {
+        "operationId": "AgentController_deleteGuardrails",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guardrailId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/guardrails/{guardrailId}/reorder": {
+      "patch": {
+        "operationId": "AgentController_reorderGuardrail",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guardrailId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderGuardrailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/policies": {
+      "post": {
+        "operationId": "AgentController_createPolicy",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePolicyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      },
+      "get": {
+        "operationId": "AgentController_getPolicies",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/policies/metrics": {
+      "get": {
+        "operationId": "AgentController_getPolicesMetrics",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events starting from this time",
+            "schema": {
+              "example": "2024-12-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events ending before this time",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/policies/current": {
+      "get": {
+        "operationId": "AgentController_getCurrentPolicy",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/policies/{policyId}": {
+      "get": {
+        "operationId": "AgentController_getPolicy",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "policyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      },
+      "put": {
+        "operationId": "AgentController_updatePolicy",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "policyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePolicyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/policies/{policyId}/evaluations": {
+      "get": {
+        "operationId": "AgentController_getPolicyEvaluations",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "policyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/sessions": {
+      "get": {
+        "operationId": "AgentController_getSessions",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by session status",
+            "schema": {
+              "example": "completed",
+              "type": "string",
+              "enum": [
+                "pending",
+                "completed",
+                "failed",
+                "blocked",
+                "halted"
+              ]
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter sessions starting from this time",
+            "schema": {
+              "example": "2024-12-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter sessions ending before this time",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "duration",
+            "required": false,
+            "in": "query",
+            "description": "Filter by duration range",
+            "schema": {
+              "example": "1-5mins",
+              "type": "string",
+              "enum": [
+                "<1min",
+                "1-5mins",
+                "5-15mins",
+                ">15mins"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Search by workflow_id or run_id",
+            "schema": {
+              "example": "workflow-123",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/active-sessions": {
+      "get": {
+        "operationId": "AgentController_getActiveSessions",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/sessions/{sessionId}": {
+      "get": {
+        "operationId": "AgentController_getSession",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/sessions/{sessionId}/logs": {
+      "get": {
+        "operationId": "AgentController_getSessionLogs",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "event_type",
+            "required": false,
+            "in": "query",
+            "description": "Event type",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/sessions/{sessionId}/goal-alignment-stats": {
+      "get": {
+        "operationId": "AgentController_getSessionGoalAlignmentStats",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/sessions/{sessionId}/reasoning-trace": {
+      "get": {
+        "operationId": "AgentController_getSessionReasoningTrace",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/sessions/{sessionId}/terminate": {
+      "patch": {
+        "operationId": "AgentController_terminateSession",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/goal-alignment/trend": {
+      "get": {
+        "operationId": "AgentController_getGoalAlignmentTrend",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events starting from this time",
+            "schema": {
+              "example": "2024-12-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events ending before this time",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/goal-alignment/recent-drifts": {
+      "get": {
+        "operationId": "AgentController_getRecentDriftEvents",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/rotate-api-key": {
+      "post": {
+        "operationId": "AgentController_rotateApiKey",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/revoke-api-key": {
+      "post": {
+        "operationId": "AgentController_revokeApiKey",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/observability": {
+      "get": {
+        "operationId": "AgentController_getObservability",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Start time (ISO format). Default: 24 hours ago",
+            "schema": {
+              "example": "2024-12-16T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "End time (ISO format). Default: now",
+            "schema": {
+              "example": "2024-12-17T00:00:00Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/issues": {
+      "get": {
+        "operationId": "AgentController_getIssues",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/behavior-rule/semantic-types": {
+      "get": {
+        "operationId": "AgentController_getSemanticTypes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/behavior-rule": {
+      "get": {
+        "operationId": "AgentController_getBehaviorRuleList",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "verdict",
+            "required": false,
+            "in": "query",
+            "description": "Filter by verdict",
+            "schema": {
+              "type": "number",
+              "enum": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            }
+          },
+          {
+            "name": "is_active",
+            "required": false,
+            "in": "query",
+            "description": "Filter by status",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "trigger",
+            "required": false,
+            "in": "query",
+            "description": "Filter by trigger",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "http_get",
+                "http_post",
+                "http_put",
+                "http_patch",
+                "http_delete",
+                "http",
+                "llm_completion",
+                "llm_embedding",
+                "llm_tool_call",
+                "database_select",
+                "database_insert",
+                "database_update",
+                "database_delete",
+                "database_query",
+                "file_read",
+                "file_write",
+                "file_open",
+                "file_delete",
+                "internal"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      },
+      "post": {
+        "operationId": "AgentController_createBehaviorRule",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBehaviorRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/behavior-rule/current": {
+      "get": {
+        "operationId": "AgentController_getCurrentBehaviorRule",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/behavior-rule/{behaviorRuleId}": {
+      "get": {
+        "operationId": "AgentController_getBehaviorRule",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "behaviorRuleId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      },
+      "put": {
+        "operationId": "AgentController_updateBehaviorRule",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "behaviorRuleId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBehavioralRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      },
+      "delete": {
+        "operationId": "AgentController_deleteBehaviorRule",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "behaviorRuleId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      },
+      "post": {
+        "operationId": "AgentController_rollbackBehaviorRule",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "behaviorRuleId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/behavior-rule/{behaviorRuleId}/status": {
+      "put": {
+        "operationId": "AgentController_changeBehaviorRuleStatus",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "behaviorRuleId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeBehaviorRuleStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/behavior-rule/{behaviorGroupdId}/versions": {
+      "get": {
+        "operationId": "AgentController_getBehavioralRuleHistories",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "behaviorGroupdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/behavior/metrics": {
+      "get": {
+        "operationId": "AgentController_getBehaviorMetrics",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events starting from this time",
+            "schema": {
+              "example": "2024-12-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events ending before this time",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/trust/histories": {
+      "get": {
+        "operationId": "AgentController_getAgentTrustHistories",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "duration",
+            "required": true,
+            "in": "query",
+            "description": "Time duration for history",
+            "schema": {
+              "default": "7d",
+              "type": "string",
+              "enum": [
+                "7d",
+                "30d",
+                "90d",
+                "1y"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/trust/events": {
+      "get": {
+        "operationId": "AgentController_getAgentTrustScoreEvents",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events starting from this time",
+            "schema": {
+              "example": "2024-12-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events ending before this time",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/trust/recovery-status": {
+      "get": {
+        "operationId": "AgentController_getAgentTrustRecoveryStatus",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/approvals/metrics": {
+      "get": {
+        "operationId": "AgentController_getAgentApprovalsMetrics",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events starting from this time",
+            "schema": {
+              "example": "2024-12-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events ending before this time",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/approvals/pending": {
+      "get": {
+        "operationId": "AgentController_getPendingApprovals",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by status",
+            "schema": {
+              "example": "pending",
+              "type": "string",
+              "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "expired"
+              ]
+            }
+          },
+          {
+            "name": "tiers",
+            "required": false,
+            "in": "query",
+            "description": "Tier list",
+            "schema": {
+              "example": [
+                "1",
+                "2"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "agent_id",
+            "required": false,
+            "in": "query",
+            "description": "Team ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Start time (ISO format)",
+            "schema": {
+              "example": "2026-01-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "End time (ISO format)",
+            "schema": {
+              "example": "2026-01-07T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "organization_id",
+            "required": false,
+            "in": "query",
+            "description": "Organization ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/approvals/history": {
+      "get": {
+        "operationId": "AgentController_getApprovalHistory",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by status",
+            "schema": {
+              "example": "pending",
+              "type": "string",
+              "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "expired"
+              ]
+            }
+          },
+          {
+            "name": "tiers",
+            "required": false,
+            "in": "query",
+            "description": "Tier list",
+            "schema": {
+              "example": [
+                "1",
+                "2"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "agent_id",
+            "required": false,
+            "in": "query",
+            "description": "Team ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Start time (ISO format)",
+            "schema": {
+              "example": "2026-01-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "End time (ISO format)",
+            "schema": {
+              "example": "2026-01-07T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "organization_id",
+            "required": false,
+            "in": "query",
+            "description": "Organization ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/approvals/{eventId}/decide": {
+      "put": {
+        "operationId": "AgentController_decideApproval",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": true,
+            "in": "query",
+            "description": "Approve/reject request",
+            "schema": {
+              "example": "approve",
+              "type": "string",
+              "enum": [
+                "approve",
+                "reject"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/insights/metrics": {
+      "get": {
+        "operationId": "AgentController_getInsightMetrics",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events starting from this time",
+            "schema": {
+              "example": "2024-12-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events ending before this time",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/behavior/violations": {
+      "get": {
+        "operationId": "AgentController_getBehaviorViolations",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/agent/{agentId}/trust-tier-changes": {
+      "get": {
+        "operationId": "AgentController_getTrustTierChanges",
+        "parameters": [
+          {
+            "name": "agentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter histories starting from this time",
+            "schema": {
+              "example": "2024-12-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter histories ending before this time",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Agent"
+        ]
+      }
+    },
+    "/guardrails/run-test": {
+      "post": {
+        "operationId": "GuardrailController_runTest",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestGuardrailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Guardrail"
+        ]
+      }
+    },
+    "/policy/evaluate": {
+      "post": {
+        "operationId": "PolicyController_evaluate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluateRegoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Policy"
+        ]
+      }
+    },
+    "/organization/register": {
+      "post": {
+        "operationId": "OrganizationController_createOrganization",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrganizationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/settings": {
+      "get": {
+        "operationId": "OrganizationController_getOrgSetting",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      },
+      "put": {
+        "operationId": "OrganizationController_updateOrgSetting",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrganizationSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/members": {
+      "get": {
+        "operationId": "OrganizationController_getMembers",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      },
+      "delete": {
+        "operationId": "OrganizationController_removeMembers",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveMembersDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/users": {
+      "post": {
+        "operationId": "OrganizationController_createUser",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/send-welcome-email": {
+      "post": {
+        "operationId": "OrganizationController_sendWelcomeEmail",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendWelcomeEmailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/invitations": {
+      "post": {
+        "operationId": "OrganizationController_inviteUser",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/members/{userId}/roles": {
+      "post": {
+        "operationId": "OrganizationController_assignRoles",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignRolesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      },
+      "delete": {
+        "operationId": "OrganizationController_removeRoles",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignRolesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/members/{userId}": {
+      "put": {
+        "operationId": "OrganizationController_updateMember",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemberDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/teams": {
+      "post": {
+        "operationId": "OrganizationController_createTeam",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTeamDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      },
+      "get": {
+        "operationId": "OrganizationController_getTeams",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      },
+      "delete": {
+        "operationId": "OrganizationController_deleteTeams",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteTeamsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/teams/stats": {
+      "get": {
+        "operationId": "OrganizationController_getTeamStats",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/teams/{teamId}": {
+      "get": {
+        "operationId": "OrganizationController_getTeam",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "teamId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      },
+      "put": {
+        "operationId": "OrganizationController_updateTeam",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "teamId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTeamDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/teams/{teamId}/members": {
+      "post": {
+        "operationId": "OrganizationController_addMembers",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "teamId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddTeamMembersDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      },
+      "get": {
+        "operationId": "OrganizationController_getTeamMembers",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "teamId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      },
+      "delete": {
+        "operationId": "OrganizationController_removeTeamMembers",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "teamId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteTeamMembersDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/audit-logs": {
+      "get": {
+        "operationId": "OrganizationController_getAuditLogs",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "eventType",
+            "required": false,
+            "in": "query",
+            "description": "Filter by event type",
+            "schema": {
+              "example": "policy_change",
+              "type": "string",
+              "enum": [
+                "policy_change",
+                "guardrail_change",
+                "agent_session",
+                "agent_risk_configuration_change",
+                "agent_goal_alignment_configuration_change",
+                "role_change",
+                "security_event",
+                "settings_update",
+                "team_management",
+                "member_management",
+                "invitation"
+              ]
+            }
+          },
+          {
+            "name": "actorId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by actor ID (user ID)",
+            "schema": {
+              "example": "auth0|123456",
+              "type": "string"
+            }
+          },
+          {
+            "name": "result",
+            "required": false,
+            "in": "query",
+            "description": "Filter by result",
+            "schema": {
+              "example": "success",
+              "type": "string",
+              "enum": [
+                "success",
+                "failed",
+                "denied",
+                "warning",
+                "approved",
+                "allowed"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Search in action text",
+            "schema": {
+              "example": "refund",
+              "type": "string"
+            }
+          },
+          {
+            "name": "startDate",
+            "required": false,
+            "in": "query",
+            "description": "Start date for filtering (ISO 8601 format)",
+            "schema": {
+              "example": "2024-01-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "endDate",
+            "required": false,
+            "in": "query",
+            "description": "End date for filtering (ISO 8601 format)",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/audit-logs/export/preview": {
+      "post": {
+        "operationId": "OrganizationController_previewExport",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewExportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/audit-logs/export": {
+      "post": {
+        "operationId": "OrganizationController_exportAuditLogs",
+        "parameters": [],
+        "requestBody": {
+          "required": false,
+          "description": "Optional filters for audit log export. Leave empty to export all logs.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportAuditLogsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/audit-logs/exports": {
+      "get": {
+        "operationId": "OrganizationController_getExportHistory",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by export status",
+            "schema": {
+              "example": "completed",
+              "type": "string",
+              "enum": [
+                "pending",
+                "processing",
+                "completed",
+                "failed"
+              ]
+            }
+          },
+          {
+            "name": "startDate",
+            "required": false,
+            "in": "query",
+            "description": "Start date for filtering (ISO 8601 format)",
+            "schema": {
+              "example": "2024-01-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "endDate",
+            "required": false,
+            "in": "query",
+            "description": "End date for filtering (ISO 8601 format)",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/audit-logs/export/{exportId}": {
+      "get": {
+        "operationId": "OrganizationController_getExportStatus",
+        "parameters": [
+          {
+            "name": "exportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      },
+      "delete": {
+        "operationId": "OrganizationController_deleteExport",
+        "parameters": [
+          {
+            "name": "exportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/audit-logs/export/{exportId}/download": {
+      "get": {
+        "operationId": "OrganizationController_downloadExport",
+        "parameters": [
+          {
+            "name": "exportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/audit-logs/{logId}": {
+      "get": {
+        "operationId": "OrganizationController_getAuditLogById",
+        "parameters": [
+          {
+            "name": "logId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/dashboard": {
+      "get": {
+        "operationId": "OrganizationController_getObservability",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Start time (ISO format). Default: 24 hours ago",
+            "schema": {
+              "example": "2024-12-16T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "End time (ISO format). Default: now",
+            "schema": {
+              "example": "2024-12-17T00:00:00Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/approvals/metrics": {
+      "get": {
+        "operationId": "OrganizationController_getApprovalsMetrics",
+        "parameters": [
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events starting from this time",
+            "schema": {
+              "example": "2024-12-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter events ending before this time",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/approvals/sla": {
+      "get": {
+        "operationId": "OrganizationController_getSlaPerformance",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/approvals": {
+      "get": {
+        "operationId": "OrganizationController_getApprovals",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by status",
+            "schema": {
+              "example": "pending",
+              "type": "string",
+              "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "expired"
+              ]
+            }
+          },
+          {
+            "name": "tiers",
+            "required": false,
+            "in": "query",
+            "description": "Tier list",
+            "schema": {
+              "example": [
+                "1",
+                "2"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "agent_id",
+            "required": false,
+            "in": "query",
+            "description": "Team ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Start time (ISO format)",
+            "schema": {
+              "example": "2026-01-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "End time (ISO format)",
+            "schema": {
+              "example": "2026-01-07T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "organization_id",
+            "required": false,
+            "in": "query",
+            "description": "Organization ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/approvals/history": {
+      "get": {
+        "operationId": "OrganizationController_getRecentDecisions",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/dashboard/tier-trends": {
+      "get": {
+        "operationId": "OrganizationController_getTrustTierTrends",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}/sessions": {
+      "get": {
+        "operationId": "OrganizationController_getSessions",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (starts from 0)",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "minimum": 1,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by session status",
+            "schema": {
+              "example": "completed",
+              "type": "string",
+              "enum": [
+                "pending",
+                "completed",
+                "failed",
+                "blocked",
+                "halted"
+              ]
+            }
+          },
+          {
+            "name": "fromTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter sessions starting from this time",
+            "schema": {
+              "example": "2024-12-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "toTime",
+            "required": false,
+            "in": "query",
+            "description": "Filter sessions ending before this time",
+            "schema": {
+              "example": "2024-12-31T23:59:59Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "duration",
+            "required": false,
+            "in": "query",
+            "description": "Filter by duration range",
+            "schema": {
+              "example": "1-5mins",
+              "type": "string",
+              "enum": [
+                "<1min",
+                "1-5mins",
+                "5-15mins",
+                ">15mins"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Search by workflow_id or run_id",
+            "schema": {
+              "example": "workflow-123",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    },
+    "/organization/{organizationId}": {
+      "get": {
+        "operationId": "OrganizationController_getOrganization",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Organization"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "OpenBox API",
+    "description": "OpenBox Backend API - Reverse Engineered from platform.openbox.ai",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [
+    {
+      "url": "https://api.openbox.ai",
+      "description": "Production"
+    },
+    {
+      "url": "https://openbox-api.node.lat",
+      "description": "Staging"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "realm": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "recaptchaToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "realm",
+          "username",
+          "password",
+          "recaptchaToken"
+        ]
+      },
+      "LogoutDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ForgotPasswordDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "realm": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "realm"
+        ]
+      },
+      "ResetPasswordDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "newPassword"
+        ]
+      },
+      "ChangePasswordDto": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string"
+          },
+          "orgId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword",
+          "orgId"
+        ]
+      },
+      "RefreshDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "BaseSecurityDto": {
+        "type": "object",
+        "properties": {
+          "attack_vector": {
+            "type": "number",
+            "description": "Attack Vector: 1-4 (Network to Physical)",
+            "minimum": 1,
+            "maximum": 4,
+            "example": 1
+          },
+          "attack_complexity": {
+            "type": "number",
+            "description": "Attack Complexity: 1-2 (Low to High)",
+            "minimum": 1,
+            "maximum": 2,
+            "example": 1
+          },
+          "privileges_required": {
+            "type": "number",
+            "description": "Privileges Required: 1-3 (None to High)",
+            "minimum": 1,
+            "maximum": 3,
+            "example": 1
+          },
+          "user_interaction": {
+            "type": "number",
+            "description": "User Interaction: 1-2 (None to Required)",
+            "minimum": 1,
+            "maximum": 2,
+            "example": 1
+          },
+          "scope": {
+            "type": "number",
+            "description": "Scope: 1-2 (Unchanged to Changed)",
+            "minimum": 1,
+            "maximum": 2,
+            "example": 1
+          }
+        },
+        "required": [
+          "attack_vector",
+          "attack_complexity",
+          "privileges_required",
+          "user_interaction",
+          "scope"
+        ]
+      },
+      "AISpecificDto": {
+        "type": "object",
+        "properties": {
+          "model_robustness": {
+            "type": "number",
+            "description": "Model Robustness: 1-5 (Very High to Very Low)",
+            "minimum": 1,
+            "maximum": 5,
+            "example": 2
+          },
+          "data_sensitivity": {
+            "type": "number",
+            "description": "Data Sensitivity: 1-5 (Public to Critical)",
+            "minimum": 1,
+            "maximum": 5,
+            "example": 3
+          },
+          "ethical_impact": {
+            "type": "number",
+            "description": "Ethical Impact: 1-5 (Negligible to Severe)",
+            "minimum": 1,
+            "maximum": 5,
+            "example": 2
+          },
+          "decision_criticality": {
+            "type": "number",
+            "description": "Decision Criticality: 1-5 (Non-critical to Safety-critical)",
+            "minimum": 1,
+            "maximum": 5,
+            "example": 3
+          },
+          "adaptability": {
+            "type": "number",
+            "description": "Adaptability: 1-5 (Static to Highly adaptive)",
+            "minimum": 1,
+            "maximum": 5,
+            "example": 4
+          }
+        },
+        "required": [
+          "model_robustness",
+          "data_sensitivity",
+          "ethical_impact",
+          "decision_criticality",
+          "adaptability"
+        ]
+      },
+      "ImpactDto": {
+        "type": "object",
+        "properties": {
+          "confidentiality_impact": {
+            "type": "number",
+            "description": "Confidentiality Impact: 1-5 (None to Critical)",
+            "minimum": 1,
+            "maximum": 5,
+            "example": 2
+          },
+          "integrity_impact": {
+            "type": "number",
+            "description": "Integrity Impact: 1-5 (None to Critical)",
+            "minimum": 1,
+            "maximum": 5,
+            "example": 2
+          },
+          "availability_impact": {
+            "type": "number",
+            "description": "Availability Impact: 1-5 (None to Critical)",
+            "minimum": 1,
+            "maximum": 5,
+            "example": 2
+          },
+          "safety_impact": {
+            "type": "number",
+            "description": "Safety Impact: 1-5 (None to Critical)",
+            "minimum": 1,
+            "maximum": 5,
+            "example": 2
+          }
+        },
+        "required": [
+          "confidentiality_impact",
+          "integrity_impact",
+          "availability_impact",
+          "safety_impact"
+        ]
+      },
+      "AivssConfigDto": {
+        "type": "object",
+        "properties": {
+          "base_security": {
+            "description": "Base Security parameters (25% weight)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BaseSecurityDto"
+              }
+            ]
+          },
+          "ai_specific": {
+            "description": "AI-Specific parameters (45% weight)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AISpecificDto"
+              }
+            ]
+          },
+          "impact": {
+            "description": "Impact parameters (30% weight)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImpactDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "base_security",
+          "ai_specific",
+          "impact"
+        ]
+      },
+      "CreateAivssConfigDto": {
+        "type": "object",
+        "properties": {
+          "base_security": {
+            "description": "Base Security parameters (25% weight)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BaseSecurityDto"
+              }
+            ]
+          },
+          "ai_specific": {
+            "description": "AI-Specific parameters (45% weight)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AISpecificDto"
+              }
+            ]
+          },
+          "impact": {
+            "description": "Impact parameters (30% weight)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImpactDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "base_security",
+          "ai_specific",
+          "impact"
+        ]
+      },
+      "GoalAlignmentConfigDto": {
+        "type": "object",
+        "properties": {
+          "alignment_threshold": {
+            "type": "number",
+            "description": "Alignment threshold percentage",
+            "example": 70,
+            "minimum": 0,
+            "maximum": 100
+          },
+          "llama_firewall_model": {
+            "type": "string",
+            "description": "LlamaFirewall model used for drift detection",
+            "enum": [
+              "gpt-4o-mini",
+              "gpt-4o",
+              "claude-3-haiku"
+            ],
+            "example": "gpt-4o-mini"
+          },
+          "drift_detection_action": {
+            "type": "string",
+            "description": "Action when drift is detected",
+            "enum": [
+              "alert_only",
+              "constrain",
+              "terminate"
+            ],
+            "example": "constrain"
+          },
+          "evaluation_frequency": {
+            "type": "string",
+            "description": "How often to evaluate goal alignment",
+            "enum": [
+              "every_action",
+              "every_5_actions",
+              "every_10_actions",
+              "session_end_only"
+            ],
+            "example": "every_action",
+            "default": "every_action"
+          }
+        },
+        "required": [
+          "alignment_threshold",
+          "llama_firewall_model",
+          "drift_detection_action"
+        ]
+      },
+      "CreateAgentDto": {
+        "type": "object",
+        "properties": {
+          "agent_name": {
+            "type": "string",
+            "description": "Name of the agent",
+            "example": "My Assistant Agent"
+          },
+          "agent_type": {
+            "type": "string",
+            "description": "Type of the agent",
+            "example": "chatbot"
+          },
+          "model_name": {
+            "type": "string",
+            "description": "Model name used by the agent",
+            "example": "gpt-4"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the agent",
+            "example": "This agent helps with customer support"
+          },
+          "config": {
+            "type": "object",
+            "description": "Configuration object for the agent",
+            "example": {
+              "temperature": 0.7,
+              "max_tokens": 1000
+            }
+          },
+          "team_ids": {
+            "description": "Array of team IDs",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tags": {
+            "description": "Array of tags for categorizing the agent",
+            "example": [
+              "customer-facing",
+              "support",
+              "production"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "icon": {
+            "type": "string",
+            "description": "Icon URL of agent",
+            "example": "icon"
+          },
+          "key": {
+            "type": "string",
+            "description": "Agent API key with obx_live_ or obx_test_ prefix",
+            "example": "obx_test_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4"
+          },
+          "attestation_mode": {
+            "type": "string",
+            "description": "Attestation mode: kms (AWS KMS) or external (external server)",
+            "example": "kms",
+            "enum": [
+              "kms",
+              "external"
+            ],
+            "default": "kms"
+          },
+          "attestation_domain": {
+            "type": "string",
+            "description": "External attestation server domain (required when attestation_mode is external)",
+            "example": "attestation.example.com"
+          },
+          "attestation_token": {
+            "type": "string",
+            "description": "Bearer token for external attestation server (optional when attestation_mode is external)",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "aivss_config": {
+            "description": "AIVSS baseline trust parameters configuration",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CreateAivssConfigDto"
+              }
+            ]
+          },
+          "goal_alignment_config": {
+            "description": "Goal alignment & drift detection configuration",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GoalAlignmentConfigDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "agent_name",
+          "team_ids",
+          "icon",
+          "aivss_config",
+          "goal_alignment_config"
+        ]
+      },
+      "UpdateAgentDto": {
+        "type": "object",
+        "properties": {
+          "agent_name": {
+            "type": "string",
+            "description": "Name of the agent",
+            "example": "My Assistant Agent"
+          },
+          "agent_type": {
+            "type": "string",
+            "description": "Type of the agent",
+            "example": "chatbot"
+          },
+          "model_name": {
+            "type": "string",
+            "description": "Model name used by the agent",
+            "example": "gpt-4"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the agent",
+            "example": "This agent helps with customer support"
+          },
+          "config": {
+            "type": "object",
+            "description": "Configuration object for the agent",
+            "example": {
+              "temperature": 0.7,
+              "max_tokens": 1000
+            }
+          },
+          "tags": {
+            "description": "Array of tags for categorizing the agent",
+            "example": [
+              "customer-facing",
+              "support",
+              "production"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "team_ids": {
+            "description": "Array of team IDs",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "GetAgentViolationsDto": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "description": "Page number (starts from 0)",
+            "example": 0,
+            "default": 0,
+            "minimum": 0
+          },
+          "perPage": {
+            "type": "number",
+            "description": "Number of items per page",
+            "example": 10,
+            "default": 10,
+            "minimum": 1
+          },
+          "pattern": {
+            "type": "string",
+            "description": "Filter violations by pattern",
+            "example": "Controls access to sensitive resources based on user roles",
+            "maxLength": 255
+          },
+          "sourceType": {
+            "type": "string",
+            "description": "Source type of violations",
+            "example": "behavior"
+          }
+        }
+      },
+      "MarkFalsePositiveDto": {
+        "type": "object",
+        "properties": {
+          "sourceType": {
+            "type": "string",
+            "description": "Source type of violations",
+            "example": "behavior"
+          }
+        },
+        "required": [
+          "sourceType"
+        ]
+      },
+      "UpdateAivssConfigDto": {
+        "type": "object",
+        "properties": {
+          "base_security": {
+            "description": "Base Security parameters (25% weight)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BaseSecurityDto"
+              }
+            ]
+          },
+          "ai_specific": {
+            "description": "AI-Specific parameters (45% weight)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AISpecificDto"
+              }
+            ]
+          },
+          "impact": {
+            "description": "Impact parameters (30% weight)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImpactDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "base_security",
+          "ai_specific",
+          "impact"
+        ]
+      },
+      "UpdateAgentAivssConfigDto": {
+        "type": "object",
+        "properties": {
+          "aivss_config": {
+            "description": "AIVSS baseline trust parameters configuration",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UpdateAivssConfigDto"
+              }
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Reason for change AIVSS configuration"
+          }
+        },
+        "required": [
+          "aivss_config",
+          "reason"
+        ]
+      },
+      "CreateGuardrailDto": {
+        "type": "object",
+        "properties": {
+          "guardrail_type": {
+            "type": "string",
+            "description": "Guardrail Type",
+            "example": "Content Filtering"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the guardrail",
+            "example": "Content Filter"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the guardrail",
+            "example": "Filters inappropriate content from responses"
+          },
+          "processing_stage": {
+            "type": "string",
+            "description": "Processing stage of the guardrail",
+            "example": "pre-processing"
+          },
+          "params": {
+            "type": "object",
+            "description": "Parameters for the guardrail",
+            "example": {
+              "blockedTopics": [
+                "violence",
+                "adult"
+              ],
+              "maxTokens": 1000
+            }
+          },
+          "settings": {
+            "type": "object",
+            "description": "Settings for the guardrail",
+            "example": {
+              "temperature": 0.7,
+              "strictMode": true
+            }
+          },
+          "trust_impact": {
+            "type": "string",
+            "description": "Controls whether violations affect trust score and severity. none = excluded from trust evaluation.",
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high"
+            ],
+            "default": "none"
+          },
+          "trust_threshold": {
+            "type": "object",
+            "description": "Max triggers in rolling window before penalty applies. null = use system default based on trust_impact.",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "guardrail_type",
+          "name",
+          "processing_stage"
+        ]
+      },
+      "UpdateGuardrailDto": {
+        "type": "object",
+        "properties": {
+          "guardrail_type": {
+            "type": "string",
+            "description": "Guardrail Type",
+            "example": "Content Filtering"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the guardrail",
+            "example": "Content Filter"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the guardrail",
+            "example": "Filters inappropriate content from responses"
+          },
+          "processing_stage": {
+            "type": "string",
+            "description": "Processing stage of the guardrail",
+            "example": "pre-processing"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Active status of the guardrail",
+            "example": true
+          },
+          "params": {
+            "type": "object",
+            "description": "Parameters for the guardrail"
+          },
+          "settings": {
+            "type": "object",
+            "description": "Settings for the guardrail"
+          },
+          "trust_impact": {
+            "type": "string",
+            "description": "Controls whether violations affect trust score and severity. none = excluded from trust evaluation.",
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "trust_threshold": {
+            "type": "object",
+            "description": "Max triggers in rolling window before penalty applies. null = use system default.",
+            "minimum": 1
+          }
+        }
+      },
+      "ReorderGuardrailDto": {
+        "type": "object",
+        "properties": {
+          "order": {
+            "type": "number",
+            "description": "New order position (0-based) for the guardrail",
+            "example": 2
+          }
+        },
+        "required": [
+          "order"
+        ]
+      },
+      "CreatePolicyDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the policy",
+            "example": "Access Control Policy",
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "description": "A description of what this policy does",
+            "example": "Controls access to sensitive resources based on user roles",
+            "maxLength": 255
+          },
+          "rego_code": {
+            "type": "string",
+            "description": "The Rego policy code",
+            "example": "default allow = false\n\nallow {\n  input.user.role == \"admin\"\n}"
+          },
+          "input": {
+            "type": "object",
+            "description": "The Rego test input",
+            "example": {
+              "user": "admin"
+            }
+          },
+          "config": {
+            "type": "object",
+            "description": "Additional configuration for the policy",
+            "example": {
+              "timeout": 5000,
+              "retries": 3
+            }
+          },
+          "trust_impact": {
+            "type": "string",
+            "description": "Controls whether violations affect trust score and severity. none = excluded from trust evaluation.",
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high"
+            ],
+            "default": "none"
+          },
+          "trust_threshold": {
+            "type": "object",
+            "description": "Max triggers in rolling window before penalty applies. null = use system default based on trust_impact.",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "name",
+          "rego_code",
+          "input"
+        ]
+      },
+      "UpdatePolicyDto": {
+        "type": "object",
+        "properties": {
+          "is_active": {
+            "type": "boolean"
+          },
+          "trust_impact": {
+            "type": "string",
+            "description": "Controls whether violations affect trust score and severity. none = excluded from trust evaluation.",
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "trust_threshold": {
+            "type": "object",
+            "description": "Max triggers in rolling window before penalty applies. null = use system default.",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "is_active"
+        ]
+      },
+      "CreateBehaviorRuleDto": {
+        "type": "object",
+        "properties": {
+          "rule_name": {
+            "type": "string",
+            "description": "Rule name",
+            "example": "Block PII Data Access"
+          },
+          "description": {
+            "type": "string",
+            "description": "Rule description",
+            "example": "Blocks any attempt to access PII data without approval"
+          },
+          "priority": {
+            "type": "number",
+            "description": "Priority (1-100, higher = more important)",
+            "minimum": 1,
+            "maximum": 100,
+            "example": 80
+          },
+          "trigger": {
+            "type": "string",
+            "description": "Trigger event",
+            "enum": [
+              "http_get",
+              "http_post",
+              "http_put",
+              "http_patch",
+              "http_delete",
+              "http",
+              "llm_completion",
+              "llm_embedding",
+              "llm_tool_call",
+              "database_select",
+              "database_insert",
+              "database_update",
+              "database_delete",
+              "database_query",
+              "file_read",
+              "file_write",
+              "file_open",
+              "file_delete",
+              "internal"
+            ],
+            "example": "http_get"
+          },
+          "states": {
+            "type": "array",
+            "description": "States (multiple select)",
+            "example": [
+              "file_read",
+              "database_query"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "http_get",
+                "http_post",
+                "http_put",
+                "http_patch",
+                "http_delete",
+                "http",
+                "llm_completion",
+                "llm_embedding",
+                "llm_tool_call",
+                "database_select",
+                "database_insert",
+                "database_update",
+                "database_delete",
+                "database_query",
+                "file_read",
+                "file_write",
+                "file_open",
+                "file_delete",
+                "internal"
+              ]
+            }
+          },
+          "dependency_base_rule_id": {
+            "type": "string",
+            "description": "The base_rule_id of the rule that this rule depends on (must be within the same agent)",
+            "example": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            "format": "uuid"
+          },
+          "time_window": {
+            "type": "number",
+            "description": "Time window (in seconds, minimum 1)",
+            "minimum": 1,
+            "example": 60
+          },
+          "verdict": {
+            "type": "number",
+            "description": "Verdict action",
+            "enum": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "example": 2
+          },
+          "reject_message": {
+            "type": "string",
+            "description": "Reject message",
+            "example": "Access to PII data requires approval"
+          },
+          "approval_timeout": {
+            "type": "number",
+            "description": "Approval timeout (in seconds, required if verdict is REQUIRE_APPROVAL)",
+            "minimum": 1,
+            "example": 300
+          },
+          "trust_impact": {
+            "type": "string",
+            "description": "Controls whether violations affect trust score and severity. none = excluded from trust evaluation.",
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high"
+            ],
+            "default": "none"
+          },
+          "trust_threshold": {
+            "type": "object",
+            "description": "Max triggers in rolling window before penalty applies. null = use system default based on trust_impact.",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "rule_name",
+          "priority",
+          "trigger",
+          "states",
+          "time_window",
+          "verdict",
+          "reject_message"
+        ]
+      },
+      "ChangeBehaviorRuleStatusDto": {
+        "type": "object",
+        "properties": {
+          "is_active": {
+            "type": "boolean",
+            "description": "New status",
+            "example": false
+          }
+        },
+        "required": [
+          "is_active"
+        ]
+      },
+      "UpdateBehavioralRuleDto": {
+        "type": "object",
+        "properties": {
+          "rule_name": {
+            "type": "string",
+            "description": "Rule name",
+            "example": "Block PII Data Access"
+          },
+          "description": {
+            "type": "string",
+            "description": "Rule description",
+            "example": "Blocks any attempt to access PII data without approval"
+          },
+          "priority": {
+            "type": "number",
+            "description": "Priority (1-100, higher = more important)",
+            "minimum": 1,
+            "maximum": 100,
+            "example": 80
+          },
+          "trigger": {
+            "type": "string",
+            "description": "Trigger event",
+            "enum": [
+              "http_get",
+              "http_post",
+              "http_put",
+              "http_patch",
+              "http_delete",
+              "http",
+              "llm_completion",
+              "llm_embedding",
+              "llm_tool_call",
+              "database_select",
+              "database_insert",
+              "database_update",
+              "database_delete",
+              "database_query",
+              "file_read",
+              "file_write",
+              "file_open",
+              "file_delete",
+              "internal"
+            ],
+            "example": "http_get"
+          },
+          "states": {
+            "type": "array",
+            "description": "States (multiple select)",
+            "example": [
+              "file_read",
+              "database_query"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "http_get",
+                "http_post",
+                "http_put",
+                "http_patch",
+                "http_delete",
+                "http",
+                "llm_completion",
+                "llm_embedding",
+                "llm_tool_call",
+                "database_select",
+                "database_insert",
+                "database_update",
+                "database_delete",
+                "database_query",
+                "file_read",
+                "file_write",
+                "file_open",
+                "file_delete",
+                "internal"
+              ]
+            }
+          },
+          "dependency_base_rule_id": {
+            "type": "string",
+            "description": "The base_rule_id of the rule that this rule depends on (must be within the same agent)",
+            "example": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            "format": "uuid"
+          },
+          "time_window": {
+            "type": "number",
+            "description": "Time window (in seconds, minimum 1)",
+            "minimum": 1,
+            "example": 60
+          },
+          "verdict": {
+            "type": "number",
+            "description": "Verdict action",
+            "enum": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "example": 2
+          },
+          "reject_message": {
+            "type": "string",
+            "description": "Reject message",
+            "example": "Access to PII data requires approval"
+          },
+          "approval_timeout": {
+            "type": "number",
+            "description": "Approval timeout (in seconds, required if verdict is REQUIRE_APPROVAL)",
+            "minimum": 1,
+            "example": 300
+          },
+          "trust_impact": {
+            "type": "string",
+            "description": "Controls whether violations affect trust score and severity. none = excluded from trust evaluation.",
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high"
+            ],
+            "default": "none"
+          },
+          "trust_threshold": {
+            "type": "object",
+            "description": "Max triggers in rolling window before penalty applies. null = use system default based on trust_impact.",
+            "minimum": 1
+          },
+          "change_log": {
+            "type": "string",
+            "description": "Change log",
+            "example": "Changes:\nIncreased timeout from 15 to 30 minutes\nAdded escalation to security_team after 15 minutes"
+          }
+        },
+        "required": [
+          "rule_name",
+          "priority",
+          "trigger",
+          "states",
+          "time_window",
+          "verdict",
+          "reject_message",
+          "change_log"
+        ]
+      },
+      "TestGuardrailDto": {
+        "type": "object",
+        "properties": {
+          "guardrail_type": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          },
+          "settings": {
+            "type": "object"
+          },
+          "logs": {
+            "type": "object"
+          }
+        }
+      },
+      "EvaluateRegoDto": {
+        "type": "object",
+        "properties": {
+          "policy": {
+            "type": "string",
+            "description": "Rego policy code",
+            "example": "default allow = false\n\nallow {\n  input.user.role == \"admin\"\n}\n\nallow {\n  input.user.role == \"user\"\n  input.resource.owner == input.user.id\n}"
+          },
+          "input": {
+            "type": "object",
+            "description": "Input data",
+            "example": {
+              "user": {
+                "id": "123",
+                "role": "admin"
+              },
+              "resource": {
+                "id": "resource-1",
+                "owner": "123"
+              }
+            },
+            "properties": {}
+          }
+        },
+        "required": [
+          "policy",
+          "input"
+        ]
+      },
+      "CreateOrganizationDto": {
+        "type": "object",
+        "properties": {
+          "orgName": {
+            "type": "string",
+            "example": "Zerobank"
+          },
+          "orgId": {
+            "type": "string",
+            "example": "zerobank"
+          },
+          "contactName": {
+            "type": "string",
+            "example": "Lê Thành Đạt"
+          },
+          "contactEmail": {
+            "type": "string",
+            "example": "lethanhdatdev1503@gmail.com"
+          },
+          "contactPhone": {
+            "type": "string",
+            "example": "+84984517001"
+          },
+          "address": {
+            "type": "string",
+            "example": "Thôn Đoài, Tam Giang, Yên Phong"
+          },
+          "websiteUrl": {
+            "type": "string",
+            "example": "https://openbox.ai"
+          },
+          "useCase": {
+            "type": "string",
+            "example": "Fintech solution for SMBs"
+          },
+          "comments": {
+            "type": "string",
+            "example": "Initial setup request"
+          },
+          "description": {
+            "type": "string",
+            "example": "createagent"
+          }
+        },
+        "required": [
+          "contactName",
+          "contactEmail"
+        ]
+      },
+      "UpdateOrganizationSettingsDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Organization name",
+            "example": "Acme Corporation"
+          },
+          "domain": {
+            "type": "string",
+            "description": "Organization domain",
+            "example": "acme.com"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Organization timezone",
+            "example": "America/New_York (EST)",
+            "enum": [
+              "America/New_York (EST)",
+              "America/Los_Angeles (PST)",
+              "Europe/London (GMT)"
+            ]
+          }
+        }
+      },
+      "UserRoleDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "CreateUserDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "emailVerified": {
+            "type": "boolean"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserRoleDto"
+            }
+          }
+        },
+        "required": [
+          "username",
+          "email",
+          "emailVerified",
+          "firstName",
+          "lastName",
+          "password",
+          "roles"
+        ]
+      },
+      "SendWelcomeEmailDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "welcome",
+              "auto_password"
+            ]
+          },
+          "email": {
+            "type": "string"
+          },
+          "orgId": {
+            "type": "string"
+          },
+          "realm": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "email",
+          "orgId",
+          "realm"
+        ]
+      },
+      "InviteUserDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email address of user to invite",
+            "example": "john@example.com"
+          },
+          "roles": {
+            "description": "Array of role IDs to assign",
+            "example": [
+              "rol_abc123"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "AssignRolesDto": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "description": "Array of Role IDs",
+            "example": [
+              "rol_abc123",
+              "rol_xyz789"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "roles"
+        ]
+      },
+      "UpdateMemberDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "Role ID"
+          },
+          "team_ids": {
+            "description": "Array of team IDs",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "role",
+          "team_ids"
+        ]
+      },
+      "RemoveMembersDto": {
+        "type": "object",
+        "properties": {
+          "memberIds": {
+            "description": "Array of User IDs to remove from organization",
+            "example": [
+              "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+              "f81d4fae-7dec-11d0-a765-00a0c91e6bf7"
+            ],
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "memberIds"
+        ]
+      },
+      "CreateTeamDto": {
+        "type": "object",
+        "properties": {
+          "icon": {
+            "type": "string",
+            "description": "Icon URL of agent",
+            "example": "https://example.com/images/agent-icon.png"
+          }
+        },
+        "required": [
+          "icon"
+        ]
+      },
+      "UpdateTeamDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "DeleteTeamsDto": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "description": "Array of team IDs",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ids"
+        ]
+      },
+      "AddTeamMembersDto": {
+        "type": "object",
+        "properties": {
+          "user_ids": {
+            "description": "Array of user IDs",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "user_ids"
+        ]
+      },
+      "DeleteTeamMembersDto": {
+        "type": "object",
+        "properties": {
+          "user_ids": {
+            "description": "Array of user IDs",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "user_ids"
+        ]
+      },
+      "PreviewExportDto": {
+        "type": "object",
+        "properties": {
+          "eventTypes": {
+            "type": "array",
+            "description": "Filter by event types (multiple selection supported)",
+            "example": [
+              "security_event",
+              "policy_change"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "policy_change",
+                "guardrail_change",
+                "agent_session",
+                "agent_risk_configuration_change",
+                "agent_goal_alignment_configuration_change",
+                "role_change",
+                "security_event",
+                "settings_update",
+                "team_management",
+                "member_management",
+                "invitation"
+              ]
+            }
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Start date for filtering (ISO 8601 format)",
+            "example": "2024-01-01T00:00:00Z"
+          },
+          "endDate": {
+            "type": "string",
+            "description": "End date for filtering (ISO 8601 format)",
+            "example": "2024-12-31T23:59:59Z"
+          }
+        }
+      },
+      "ExportAuditLogsDto": {
+        "type": "object",
+        "properties": {
+          "exportName": {
+            "type": "string",
+            "description": "Name for this export (e.g., \"December 2024 Security Events\")",
+            "example": "December 2024 Security Events"
+          },
+          "eventTypes": {
+            "type": "array",
+            "description": "Filter by event types (multiple selection supported)",
+            "example": [
+              "security_event",
+              "policy_change"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "policy_change",
+                "guardrail_change",
+                "agent_session",
+                "agent_risk_configuration_change",
+                "agent_goal_alignment_configuration_change",
+                "role_change",
+                "security_event",
+                "settings_update",
+                "team_management",
+                "member_management",
+                "invitation"
+              ]
+            }
+          },
+          "actorId": {
+            "type": "string",
+            "description": "Filter by actor ID (user ID)",
+            "example": "auth0|123456"
+          },
+          "result": {
+            "type": "string",
+            "description": "Filter by result",
+            "enum": [
+              "success",
+              "failed",
+              "denied",
+              "warning",
+              "approved",
+              "allowed"
+            ],
+            "example": "success"
+          },
+          "search": {
+            "type": "string",
+            "description": "Search in action text",
+            "example": "refund"
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Start date for filtering (ISO 8601 format)",
+            "example": "2024-01-01T00:00:00Z"
+          },
+          "endDate": {
+            "type": "string",
+            "description": "End date for filtering (ISO 8601 format)",
+            "example": "2024-12-31T23:59:59Z"
+          }
+        },
+        "required": [
+          "exportName"
+        ]
+      }
+    }
+  }
+}
