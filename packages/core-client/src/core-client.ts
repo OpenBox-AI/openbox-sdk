@@ -12,6 +12,7 @@ import { TokenBucket } from '@openbox/client';
 export type GovernanceEventType =
   | 'WorkflowStarted'
   | 'WorkflowCompleted'
+  | 'WorkflowFailed'
   | 'ActivityStarted'
   | 'ActivityCompleted'
   | 'LLMStarted'
@@ -36,7 +37,11 @@ export interface SpanAttributes {
   // File - requires file.path as gate attribute
   'file.path'?: string;
   'file.operation'?: string;
-  // LLM - requires gen_ai.system or matching span name
+  // LLM - gen_ai.system is a gate attribute for LLM semantic detection.
+  // NOTE: Core currently only detects LLM spans via HTTP POST to known domains
+  // (session.go:264). Setting gen_ai.system alone is NOT sufficient until Core
+  // is updated to honor this attribute. Use hook_type 'gen_ai' in the
+  // openbox-typescript-sdk for proper LLM classification.
   'gen_ai.system'?: string;
   [key: string]: unknown;
 }

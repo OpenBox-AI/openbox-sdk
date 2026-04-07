@@ -6,6 +6,10 @@ export type GovernanceEventType =
   | 'WorkflowFailed'
   | 'ActivityStarted'
   | 'ActivityCompleted'
+  | 'LLMStarted'
+  | 'LLMCompleted'
+  | 'ToolStarted'
+  | 'ToolCompleted'
   | 'SignalReceived';
 
 export type GovernanceVerdict =
@@ -90,7 +94,8 @@ export interface GovernanceEventPayload {
   activity_id?: string;
   activity_type?: string;
   attempt?: number;
-  activity_input?: unknown;
+  // MUST be an array. AGE rejects objects with 422: "Input should be a valid list".
+  activity_input?: unknown[];
   activity_output?: unknown;
   signal_name?: string;
   signal_args?: unknown;
