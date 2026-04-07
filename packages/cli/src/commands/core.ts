@@ -1,8 +1,20 @@
+import { readFileSync, existsSync } from 'fs';
 import { Command } from 'commander';
 import { getCoreClient } from '../config.js';
 import { output } from '../output.js';
 import { parseJsonInput } from '../input.js';
 import { buildTestPayload, type SpanType } from '../span-builder.js';
+
+// Resolve @file references in option values. If value starts with @, read the file.
+function resolveValue(value: string | undefined): string | undefined {
+  if (!value || !value.startsWith('@')) return value;
+  const filePath = value.slice(1);
+  if (!existsSync(filePath)) {
+    console.error(`File not found: ${filePath}`);
+    process.exit(1);
+  }
+  return readFileSync(filePath, 'utf-8');
+}
 
 export function registerCoreCommands(program: Command) {
   const core = program.command('core').description('Core governance API');
@@ -38,20 +50,20 @@ export function registerCoreCommands(program: Command) {
     .description('Evaluate a governance event (raw JSON or --type shorthand)')
     .option('--json <json>', 'GovernanceEventPayload as JSON (raw mode)')
     .option('--type <type>', 'Span type shorthand: llm, file_read, file_write, shell, http, db, mcp')
-    .option('--prompt <text>', 'Prompt text (for --type llm)')
+    .option('--prompt <text>', 'Prompt text, or @file.txt to read from file (for --type llm)')
     .option('--model <model>', 'Model name (for --type llm)')
     .option('--file-path <path>', 'File path (for --type file_read/file_write)')
-    .option('--content <text>', 'File content (for --type file_read/file_write)')
-    .option('--command <cmd>', 'Shell command (for --type shell)')
+    .option('--content <text>', 'File content, or @file.txt to read from file. Auto-reads --file-path if omitted.')
+    .option('--command <cmd>', 'Shell command, or @script.sh to read from file (for --type shell)')
     .option('--cwd <dir>', 'Working directory (for --type shell)')
     .option('--method <method>', 'HTTP method (for --type http)')
     .option('--url <url>', 'HTTP URL (for --type http)')
     .option('--db-system <system>', 'Database system (for --type db)')
     .option('--db-operation <op>', 'Database operation (for --type db)')
-    .option('--db-statement <sql>', 'SQL statement (for --type db)')
+    .option('--db-statement <sql>', 'SQL statement, or @query.sql to read from file (for --type db)')
     .option('--tool-name <name>', 'MCP tool name (for --type mcp)')
     .option('--server <name>', 'MCP server name (for --type mcp)')
-    .option('--tool-input <input>', 'MCP tool input (for --type mcp)')
+    .option('--tool-input <input>', 'MCP tool input, or @input.json to read from file (for --type mcp)')
     .option('--show-payload', 'Print the constructed payload instead of evaluating')
     .action(async (opts) => {
       try {
@@ -65,22 +77,37 @@ export function registerCoreCommands(program: Command) {
             console.error(`Invalid --type: ${opts.type}. Must be one of: ${validTypes.join(', ')}`);
             process.exit(1);
           }
+          // Resolve @file references in string options
+          const prompt = resolveValue(opts.prompt);
+          const content = resolveValue(opts.content);
+          const command = resolveValue(opts.command);
+          const dbStatement = resolveValue(opts.dbStatement);
+          const toolInput = resolveValue(opts.toolInput);
+
+          // Auto-read file content for file_read/file_write when --content not given
+          let fileContent = content;
+          if (!fileContent && opts.filePath && (opts.type === 'file_read' || opts.type === 'file_write')) {
+            if (existsSync(opts.filePath)) {
+              fileContent = readFileSync(opts.filePath, 'utf-8');
+            }
+          }
+
           payload = buildTestPayload({
             type: opts.type as SpanType,
-            prompt: opts.prompt,
+            prompt,
             model: opts.model,
             filePath: opts.filePath,
-            content: opts.content,
-            command: opts.command,
+            content: fileContent,
+            command,
             cwd: opts.cwd,
             method: opts.method,
             url: opts.url,
             dbSystem: opts.dbSystem,
             dbOperation: opts.dbOperation,
-            dbStatement: opts.dbStatement,
+            dbStatement,
             toolName: opts.toolName,
             server: opts.server,
-            toolInput: opts.toolInput,
+            toolInput,
           });
         } else {
           console.error('Either --json or --type is required');
