@@ -24,9 +24,17 @@ npm run build
 
 ```bash
 npm link -w packages/cli
+
+# Browser login (opens Chrome, grabs token after you log in)
+openbox auth login
+
+# Or set token manually
 openbox auth set-token <jwt>
+
 openbox agent list
 ```
+
+Requires `playwright` for browser login: `npm install playwright`
 
 ## Usage
 
