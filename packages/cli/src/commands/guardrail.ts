@@ -29,55 +29,76 @@ export function registerGuardrailCommands(program: Command) {
   guardrail
     .command('create <agentId>')
     .description('Create a guardrail')
-    .requiredOption('-n, --name <name>', 'Guardrail name')
-    .requiredOption('--type <type>', 'Guardrail type (1=PII, 2=NSFW, 3=Toxicity, 4=BanList, 5=Regex, or numeric ID)')
-    .requiredOption('--stage <stage>', 'Processing stage (0=input, 1=output)')
+    .option('-n, --name <name>', 'Guardrail name (required unless --json provides it)')
+    .option('--type <type>', 'Guardrail type (1=PII, 2=NSFW, 3=Toxicity, 4=BanList, 5=Regex, or name)')
+    .option('--stage <stage>', 'Processing stage (0=input, 1=output). Must be 0 or 1.')
     .option('-d, --desc <text>', 'Description')
     .option('--trust-impact <impact>', 'Trust impact (none|low|medium|high)')
     .option('--trust-threshold <n>', 'Trust threshold')
-    .option('--json <json>', 'Full JSON body (overrides other options)')
+    .option('--json <json>', 'Full JSON body. Merged with flags (flags fill missing fields).')
     .action(async (agentId: string, opts) => {
       try {
-        let dto: any;
-        if (opts.json) {
-          dto = parseJsonInput(opts.json);
-        } else {
-          const GUARDRAIL_TYPE_MAP: Record<string, string> = {
-            pii_detection: '1', pii: '1',
-            nsfw: '2', nsfw_detection: '2', content_safety: '2',
-            toxicity: '3', toxicity_detection: '3',
-            ban_list: '4', ban_words: '4',
-            regex: '5', regex_match: '5',
-          };
-          const resolvedType = GUARDRAIL_TYPE_MAP[opts.type] || opts.type;
-          // BanList (4) requires banned_words, Regex (5) requires regex pattern
-          if (resolvedType === '4') {
-            console.error('Error: Ban list guardrail requires params.banned_words. Use --json to provide full payload:\n  --json \'{"params":{"banned_words":["word1","word2"]}}\'\nOr combine: -n "Ban Words" --type ban_list --stage 0 --json \'{"params":{"banned_words":["DROP TABLE","DELETE FROM"]}}\'');
-            process.exit(1);
-          }
-          if (resolvedType === '5') {
-            console.error('Error: Regex guardrail requires params.regex. Use --json to provide full payload:\n  --json \'{"params":{"regex":"pattern","match_type":"search"}}\'');
-            process.exit(1);
-          }
-          dto = {
-            name: opts.name,
-            guardrail_type: resolvedType,
-            processing_stage: opts.stage,
-            description: opts.desc,
-            trust_impact: opts.trustImpact,
-            trust_threshold: opts.trustThreshold ? parseInt(opts.trustThreshold) : undefined,
-            settings: {
-              on_fail: 1,
-              log_violation: true,
-              activities: [
-                { activity_type: 'PromptSubmission', fields_to_check: ['input.*.prompt'] },
-                { activity_type: 'FileRead', fields_to_check: ['input.*.content'] },
-                { activity_type: 'ShellExecution', fields_to_check: ['input.*.command'] },
-                { activity_type: 'MCPToolCall', fields_to_check: ['input.*.tool_input'] },
-              ],
-              timeout: 5000,
-              retry_attempts: 3,
-            },
+        const GUARDRAIL_TYPE_MAP: Record<string, string> = {
+          pii_detection: '1', pii: '1',
+          nsfw: '2', nsfw_detection: '2', content_safety: '2',
+          toxicity: '3', toxicity_detection: '3',
+          ban_list: '4', ban_words: '4',
+          regex: '5', regex_match: '5',
+        };
+
+        // Start with --json body if provided, then fill from flags
+        let dto: any = opts.json ? parseJsonInput(opts.json) : {};
+
+        // Flags fill missing fields (don't override what --json provides)
+        if (opts.name && !dto.name) dto.name = opts.name;
+        if (opts.type && !dto.guardrail_type) dto.guardrail_type = GUARDRAIL_TYPE_MAP[opts.type] || opts.type;
+        if (opts.stage != null && !dto.processing_stage) dto.processing_stage = opts.stage;
+        if (opts.desc && !dto.description) dto.description = opts.desc;
+        if (opts.trustImpact && !dto.trust_impact) dto.trust_impact = opts.trustImpact;
+        if (opts.trustThreshold && !dto.trust_threshold) dto.trust_threshold = parseInt(opts.trustThreshold);
+
+        // Validate required fields
+        if (!dto.name) { console.error('Error: --name or name in --json is required'); process.exit(1); }
+        if (!dto.guardrail_type) { console.error('Error: --type or guardrail_type in --json is required'); process.exit(1); }
+
+        // Validate processing_stage - MUST be '0' or '1', NOT 'both' or other strings.
+        // The guardrails service only handles '0' (input/ActivityStarted) and '1' (output/ActivityCompleted).
+        // Any other value silently skips all guardrail checks.
+        const stage = dto.processing_stage || '0';
+        if (stage !== '0' && stage !== '1') {
+          console.error(`Error: --stage must be 0 (input) or 1 (output). Got: "${stage}"\nNote: "both" is NOT supported by the guardrails service and silently disables all checks.`);
+          process.exit(1);
+        }
+        dto.processing_stage = stage;
+
+        // Resolve type alias
+        if (dto.guardrail_type && GUARDRAIL_TYPE_MAP[dto.guardrail_type]) {
+          dto.guardrail_type = GUARDRAIL_TYPE_MAP[dto.guardrail_type];
+        }
+
+        // Validate required params for specific types
+        if (dto.guardrail_type === '4' && !dto.params?.banned_words?.length) {
+          console.error('Error: Ban list guardrail requires params.banned_words.\nExample: --json \'{"params":{"banned_words":["password","secret"]}}\'');
+          process.exit(1);
+        }
+        if (dto.guardrail_type === '5' && !dto.params?.regex) {
+          console.error('Error: Regex guardrail requires params.regex.\nExample: --json \'{"params":{"regex":"pattern","match_type":"search"}}\'');
+          process.exit(1);
+        }
+
+        // Default settings if not provided
+        if (!dto.settings) {
+          dto.settings = {
+            on_fail: 1,
+            log_violation: true,
+            activities: [
+              { activity_type: 'PromptSubmission', fields_to_check: ['input.*.prompt'] },
+              { activity_type: 'FileRead', fields_to_check: ['input.*.content'] },
+              { activity_type: 'ShellExecution', fields_to_check: ['input.*.command'] },
+              { activity_type: 'MCPToolCall', fields_to_check: ['input.*.tool_input'] },
+            ],
+            timeout: 5000,
+            retry_attempts: 3,
           };
         }
         const data = await getClient().createGuardrail(agentId, dto);
@@ -107,25 +128,25 @@ export function registerGuardrailCommands(program: Command) {
     .option('-n, --name <name>', 'Guardrail name')
     .option('--active <bool>', 'Active status (true|false)')
     .option('--type <type>', 'Guardrail type')
-    .option('--stage <stage>', 'Processing stage')
+    .option('--stage <stage>', 'Processing stage (0=input, 1=output)')
     .option('-d, --desc <text>', 'Description')
     .option('--trust-impact <impact>', 'Trust impact (none|low|medium|high)')
     .option('--trust-threshold <n>', 'Trust threshold')
-    .option('--json <json>', 'Full JSON body')
+    .option('--json <json>', 'Full JSON body (merged with flags)')
     .action(async (agentId: string, guardrailId: string, opts) => {
       try {
-        let dto: any;
-        if (opts.json) {
-          dto = parseJsonInput(opts.json);
-        } else {
-          dto = {} as any;
-          if (opts.name) dto.name = opts.name;
-          if (opts.active !== undefined) dto.is_active = opts.active === 'true';
-          if (opts.type) dto.guardrail_type = opts.type;
-          if (opts.stage) dto.processing_stage = opts.stage;
-          if (opts.desc) dto.description = opts.desc;
-          if (opts.trustImpact) dto.trust_impact = opts.trustImpact;
-          if (opts.trustThreshold) dto.trust_threshold = parseInt(opts.trustThreshold);
+        let dto: any = opts.json ? parseJsonInput(opts.json) : {};
+        if (opts.name && !dto.name) dto.name = opts.name;
+        if (opts.active !== undefined && dto.is_active === undefined) dto.is_active = opts.active === 'true';
+        if (opts.type && !dto.guardrail_type) dto.guardrail_type = opts.type;
+        if (opts.stage != null && !dto.processing_stage) dto.processing_stage = opts.stage;
+        if (opts.desc && !dto.description) dto.description = opts.desc;
+        if (opts.trustImpact && !dto.trust_impact) dto.trust_impact = opts.trustImpact;
+        if (opts.trustThreshold && !dto.trust_threshold) dto.trust_threshold = parseInt(opts.trustThreshold);
+        // Validate processing_stage
+        if (dto.processing_stage && dto.processing_stage !== '0' && dto.processing_stage !== '1') {
+          console.error(`Error: --stage must be 0 (input) or 1 (output). Got: "${dto.processing_stage}"`);
+          process.exit(1);
         }
         const data = await getClient().updateGuardrail(agentId, guardrailId, dto);
         output(data);
