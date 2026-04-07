@@ -1,0 +1,230 @@
+import { Command } from 'commander';
+import { getClient } from '../config.js';
+import { output, outputList } from '../output.js';
+import { parseJsonInput } from '../input.js';
+
+export function registerBehaviorCommands(program: Command) {
+  const behavior = program.command('behavior').description('Behavior rule management');
+
+  behavior
+    .command('types')
+    .description('Get semantic types')
+    .action(async () => {
+      try {
+        const data = await getClient().getSemanticTypes();
+        output(data);
+      } catch (err: any) {
+        console.error(err.message || err);
+        process.exit(1);
+      }
+    });
+
+  behavior
+    .command('list <agentId>')
+    .description('List behavior rules for an agent')
+    .option('-p, --page <n>', 'Page number', '0')
+    .option('-l, --limit <n>', 'Items per page', '10')
+    .option('--verdict <n>', 'Filter by verdict (0-4)')
+    .option('--active <bool>', 'Filter by active status (true|false)')
+    .option('--trigger <trigger>', 'Filter by trigger type')
+    .action(async (agentId: string, opts) => {
+      try {
+        const data = await getClient().listBehaviorRules(agentId, {
+          page: parseInt(opts.page),
+          perPage: parseInt(opts.limit),
+          verdict: opts.verdict !== undefined ? parseInt(opts.verdict) : undefined,
+          is_active: opts.active !== undefined ? opts.active === 'true' : undefined,
+          trigger: opts.trigger,
+        });
+        outputList(data, 'behavior rules');
+      } catch (err: any) {
+        console.error(err.message || err);
+        process.exit(1);
+      }
+    });
+
+  behavior
+    .command('current <agentId>')
+    .description('Get current active behavior rules')
+    .action(async (agentId: string) => {
+      try {
+        const data = await getClient().getCurrentBehaviorRules(agentId);
+        output(data);
+      } catch (err: any) {
+        console.error(err.message || err);
+        process.exit(1);
+      }
+    });
+
+  behavior
+    .command('create <agentId>')
+    .description('Create a behavior rule')
+    .requiredOption('-n, --name <name>', 'Rule name')
+    .requiredOption('--trigger <trigger>', 'Trigger type')
+    .requiredOption('--states <states...>', 'State triggers')
+    .requiredOption('--window <n>', 'Time window (seconds)')
+    .requiredOption(
+      '--verdict <n>',
+      'Verdict (0=ALLOW, 1=CONSTRAIN, 2=REQUIRE_APPROVAL, 3=BLOCK, 4=HALT)',
+    )
+    .requiredOption('--message <text>', 'Reject message')
+    .option('--priority <n>', 'Priority', '1')
+    .option('-d, --desc <text>', 'Description')
+    .option('--trust-impact <impact>', 'Trust impact (none|low|medium|high)')
+    .option('--trust-threshold <n>', 'Trust threshold')
+    .option('--approval-timeout <n>', 'Approval timeout (seconds)')
+    .option('--json <json>', 'Full JSON body (overrides other options)')
+    .action(async (agentId: string, opts) => {
+      try {
+        let dto: any;
+        if (opts.json) {
+          dto = parseJsonInput(opts.json);
+        } else {
+          dto = {
+            rule_name: opts.name,
+            description: opts.desc,
+            priority: parseInt(opts.priority),
+            trigger: opts.trigger,
+            states: opts.states,
+            time_window: parseInt(opts.window),
+            verdict: parseInt(opts.verdict),
+            reject_message: opts.message,
+            trust_impact: opts.trustImpact,
+            trust_threshold: opts.trustThreshold ? parseInt(opts.trustThreshold) : undefined,
+            approval_timeout: opts.approvalTimeout ? parseInt(opts.approvalTimeout) : undefined,
+          };
+        }
+        const data = await getClient().createBehaviorRule(agentId, dto);
+        output(data);
+      } catch (err: any) {
+        console.error(err.message || err);
+        process.exit(1);
+      }
+    });
+
+  behavior
+    .command('get <agentId> <ruleId>')
+    .description('Get behavior rule details')
+    .action(async (agentId: string, ruleId: string) => {
+      try {
+        const data = await getClient().getBehaviorRule(agentId, ruleId);
+        output(data);
+      } catch (err: any) {
+        console.error(err.message || err);
+        process.exit(1);
+      }
+    });
+
+  behavior
+    .command('update <agentId> <ruleId>')
+    .description('Update a behavior rule')
+    .requiredOption('--json <json>', 'Full JSON body (required due to many fields)')
+    .action(async (agentId: string, ruleId: string, opts) => {
+      try {
+        const dto = parseJsonInput<any>(opts.json);
+        const data = await getClient().updateBehaviorRule(agentId, ruleId, dto);
+        output(data);
+      } catch (err: any) {
+        console.error(err.message || err);
+        process.exit(1);
+      }
+    });
+
+  behavior
+    .command('delete <agentId> <ruleId>')
+    .description('Delete a behavior rule')
+    .action(async (agentId: string, ruleId: string) => {
+      try {
+        const data = await getClient().deleteBehaviorRule(agentId, ruleId);
+        output(data);
+      } catch (err: any) {
+        console.error(err.message || err);
+        process.exit(1);
+      }
+    });
+
+  behavior
+    .command('restore <agentId> <ruleId>')
+    .description('Restore a deleted behavior rule')
+    .action(async (agentId: string, ruleId: string) => {
+      try {
+        const data = await getClient().restoreBehaviorRule(agentId, ruleId);
+        output(data);
+      } catch (err: any) {
+        console.error(err.message || err);
+        process.exit(1);
+      }
+    });
+
+  behavior
+    .command('toggle <agentId> <ruleId>')
+    .description('Toggle behavior rule active status')
+    .requiredOption('--active <bool>', 'Active status (true|false)')
+    .action(async (agentId: string, ruleId: string, opts) => {
+      try {
+        const data = await getClient().toggleBehaviorRuleStatus(
+          agentId,
+          ruleId,
+          opts.active === 'true',
+        );
+        output(data);
+      } catch (err: any) {
+        console.error(err.message || err);
+        process.exit(1);
+      }
+    });
+
+  behavior
+    .command('versions <agentId> <groupId>')
+    .description('Get behavior rule versions')
+    .option('-p, --page <n>', 'Page number', '0')
+    .option('-l, --limit <n>', 'Items per page', '10')
+    .action(async (agentId: string, groupId: string, opts) => {
+      try {
+        const data = await getClient().getBehaviorRuleVersions(agentId, groupId, {
+          page: parseInt(opts.page),
+          perPage: parseInt(opts.limit),
+        });
+        outputList(data, 'versions');
+      } catch (err: any) {
+        console.error(err.message || err);
+        process.exit(1);
+      }
+    });
+
+  behavior
+    .command('metrics <agentId>')
+    .description('Get behavior metrics')
+    .option('--from <date>', 'Start date (ISO)')
+    .option('--to <date>', 'End date (ISO)')
+    .action(async (agentId: string, opts) => {
+      try {
+        const data = await getClient().getBehaviorMetrics(agentId, {
+          fromTime: opts.from,
+          toTime: opts.to,
+        });
+        output(data);
+      } catch (err: any) {
+        console.error(err.message || err);
+        process.exit(1);
+      }
+    });
+
+  behavior
+    .command('violations <agentId>')
+    .description('Get behavior violations')
+    .option('-p, --page <n>', 'Page number', '0')
+    .option('-l, --limit <n>', 'Items per page', '10')
+    .action(async (agentId: string, opts) => {
+      try {
+        const data = await getClient().getBehaviorViolations(agentId, {
+          page: parseInt(opts.page),
+          perPage: parseInt(opts.limit),
+        });
+        outputList(data, 'violations');
+      } catch (err: any) {
+        console.error(err.message || err);
+        process.exit(1);
+      }
+    });
+}
