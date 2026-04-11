@@ -105,13 +105,23 @@ export function registerAuthCommands(program: Command) {
 
   auth
     .command('refresh')
-    .description('Refresh access token')
+    .description(
+      'Rotate access token (pre-expiry only - requires still-valid JWT). For post-expiry recovery use `auth login --browser`.',
+    )
     .action(async () => {
       try {
         const data = await getClient().refreshTokens();
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
+        const msg: string = err?.message ?? String(err);
+        if (msg.includes('401') || /refresh.*failed/i.test(msg)) {
+          console.error(
+            'Refresh failed: the backend /auth/refresh endpoint requires a still-valid JWT.\n' +
+              'Your access token is probably expired. Run `openbox auth login --browser` to sign in again.',
+          );
+        } else {
+          console.error(msg);
+        }
         process.exit(1);
       }
     });

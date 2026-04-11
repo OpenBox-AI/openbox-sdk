@@ -91,20 +91,35 @@ export function registerPolicyCommands(program: Command) {
 
   policy
     .command('update <agentId> <policyId>')
-    .description('Update a policy')
-    .option('--active <bool>', 'Active status (true|false)')
+    .description(
+      'Toggle active / roll back a policy version. Rego is immutable - use `policy create` to rotate.',
+    )
+    .option('--active <bool>', 'Active status (true|false) - required unless using --json')
     .option('--trust-impact <impact>', 'Trust impact (none|low|medium|high)')
     .option('--trust-threshold <n>', 'Trust threshold')
-    .option('--json <json>', 'Full JSON body')
+    .option('--json <json>', 'Full JSON body (must include is_active)')
     .action(async (agentId: string, policyId: string, opts) => {
       try {
         let dto: any;
         if (opts.json) {
           dto = parseJsonInput(opts.json);
+          if (typeof dto.is_active !== 'boolean') {
+            throw new Error(
+              '--json body must include "is_active": true|false - backend requires it',
+            );
+          }
+          if ('rego_code' in dto) {
+            throw new Error(
+              'rego_code is immutable after creation - run `openbox policy create` to rotate the policy instead',
+            );
+          }
         } else {
-          dto = {
-            is_active: opts.active === 'true',
-          } as any;
+          if (opts.active !== 'true' && opts.active !== 'false') {
+            throw new Error(
+              '--active is required and must be "true" or "false". Pass --json for a raw body.',
+            );
+          }
+          dto = { is_active: opts.active === 'true' };
           if (opts.trustImpact) dto.trust_impact = opts.trustImpact;
           if (opts.trustThreshold) dto.trust_threshold = parseInt(opts.trustThreshold);
         }
