@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { loadPermissions } from './config.js';
+import { loadFeatures, loadPermissions } from './config.js';
 import { resolveEnv } from './environments.js';
-import { COMMAND_PERMISSIONS, missingPermissions } from './permissions.js';
+import {
+  COMMAND_FEATURES,
+  COMMAND_PERMISSIONS,
+  missingFeatures,
+  missingPermissions,
+} from './permissions.js';
 import { registerAuthCommands } from './commands/auth.js';
 import { registerAgentCommands } from './commands/agent.js';
 import { registerApiKeyCommands } from './commands/api-key.js';
@@ -38,16 +43,37 @@ program
     const flag = thisCommand.opts().env as string | undefined;
     if (flag) process.env.OPENBOX_ENV = flag;
 
-    // Pre-flight permission check: each env's live role may differ. Catch
-    // missing permissions locally instead of firing a request and getting 403.
+    // Pre-flight gates: each env's live role AND feature flags may differ.
+    // Catch problems locally instead of firing a request and getting 403.
     const commandPath = buildCommandKey(actionCommand);
+    const env = resolveEnv();
+
+    // 1. Feature-flag check (`@RequireFeature` on the-backend-service controllers).
+    const requiredFeatures = COMMAND_FEATURES[commandPath];
+    if (requiredFeatures && requiredFeatures.length > 0) {
+      const features = loadFeatures(env);
+      if (Object.keys(features).length > 0) {
+        const missingF = missingFeatures(requiredFeatures, features);
+        if (missingF.length > 0) {
+          console.error(
+            `This env (${env}) has feature(s) disabled for \`openbox ${commandPath}\`: ${missingF.join(', ')}`,
+          );
+          console.error(
+            `Check feature state: run \`openbox auth features --all\`.`,
+          );
+          console.error(
+            `To fix: ask your admin to enable the feature on the ${env} org.`,
+          );
+          process.exit(4);
+        }
+      }
+    }
+
+    // 2. Permission check (granular Keycloak role permissions).
     const required = COMMAND_PERMISSIONS[commandPath];
     if (!required || required.length === 0) return;
-
-    const env = resolveEnv();
     const have = loadPermissions(env);
     if (have.length === 0) return;
-
     const missing = missingPermissions(required, have);
     if (missing.length === 0) return;
 

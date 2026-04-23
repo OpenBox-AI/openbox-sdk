@@ -1,5 +1,13 @@
 import { Command } from 'commander';
-import { getClient, loadPermissions, saveTokens, savePermissions } from '../config.js';
+import {
+  getClient,
+  loadFeatures,
+  loadPermissions,
+  saveFeatures,
+  saveTokens,
+  savePermissions,
+} from '../config.js';
+import type { FeatureMap } from '../config.js';
 import { resolveEnv, resolveUrls } from '../environments.js';
 import { output } from '../output.js';
 import type { EnvName } from '../environments.js';
@@ -8,7 +16,7 @@ async function fetchAndCachePermissions(
   env: EnvName,
   accessToken: string,
   apiUrl: string,
-): Promise<string[] | undefined> {
+): Promise<{ orgId?: string; permissions?: string[] } | undefined> {
   try {
     const res = await fetch(`${apiUrl}/auth/profile`, {
       headers: {
@@ -18,13 +26,49 @@ async function fetchAndCachePermissions(
     });
     if (!res.ok) return undefined;
     const body = (await res.json()) as { permissions?: unknown };
-    // TransformInterceptor may wrap in { data: {...} }
-    const data = (body as { data?: { permissions?: unknown } }).data ?? body;
+    const data = (body as { data?: { permissions?: unknown; orgId?: string } }).data ?? body;
     const perms = (data as { permissions?: unknown }).permissions;
-    if (!Array.isArray(perms)) return undefined;
-    const list = perms.filter((p): p is string => typeof p === 'string');
-    savePermissions(env, list);
-    return list;
+    const orgId = (data as { orgId?: unknown }).orgId;
+    const list = Array.isArray(perms)
+      ? perms.filter((p): p is string => typeof p === 'string')
+      : undefined;
+    if (list) savePermissions(env, list);
+    return {
+      orgId: typeof orgId === 'string' ? orgId : undefined,
+      permissions: list,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+async function fetchAndCacheFeatures(
+  env: EnvName,
+  accessToken: string,
+  apiUrl: string,
+  orgId: string,
+): Promise<FeatureMap | undefined> {
+  try {
+    const res = await fetch(
+      `${apiUrl}/organization/${encodeURIComponent(orgId)}/features`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'X-Openbox-Client': 'openbox-cli',
+        },
+      },
+    );
+    if (!res.ok) return undefined;
+    const body = (await res.json()) as { data?: unknown };
+    const data = body.data ?? body;
+    if (!data || typeof data !== 'object') return undefined;
+    const features: FeatureMap = {};
+    for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
+      if (typeof v === 'boolean') features[k] = v;
+    }
+    if (Object.keys(features).length === 0) return undefined;
+    saveFeatures(env, features);
+    return features;
   } catch {
     return undefined;
   }
@@ -191,12 +235,26 @@ async function browserLogin(platformUrl: string, env: EnvName, verbose = false) 
     saveTokens(env, accessToken, refreshToken);
 
     // Cache permissions so pre-flight checks can surface "you lack X" locally.
-    const perms = await fetchAndCachePermissions(env, accessToken, apiUrl);
+    const profile = await fetchAndCachePermissions(env, accessToken, apiUrl);
+    const perms = profile?.permissions;
+
+    // Cache feature flags per env - these gate api-key / webhook / sso
+    // controllers server-side via @RequireFeature in the-backend-service.
+    let features: FeatureMap | undefined;
+    if (profile?.orgId) {
+      features = await fetchAndCacheFeatures(env, accessToken, apiUrl, profile.orgId);
+    }
 
     if (refreshToken) {
       console.error(`Login successful! Token saved for environment: ${env}`);
       if (perms) {
         console.error(`  Cached ${perms.length} permissions for pre-flight checks.`);
+      }
+      if (features) {
+        const fmt = Object.entries(features)
+          .map(([k, v]) => `${k}=${v ? 'on' : 'off'}`)
+          .join(', ');
+        console.error(`  Features for this env: ${fmt}`);
       }
       console.error(
         '  Note: refresh token captured and stored, but auto-refresh is currently DISABLED',
@@ -290,6 +348,46 @@ export function registerAuthCommands(program: Command) {
           for (const p of onlyA) console.log(`  + ${p}`);
           console.log(`only in ${other} (${onlyB.length}):`);
           for (const p of onlyB) console.log(`  - ${p}`);
+        }
+      } catch (err: any) {
+        console.error(err.message || err);
+        process.exit(1);
+      }
+    });
+
+  auth
+    .command('features')
+    .description('Show cached per-env feature flags (api_keys / webhooks / sso)')
+    .option('--all', 'Show features for every cached env')
+    .option('--refresh', 'Re-fetch from /organization/{orgId}/features before printing')
+    .action(async (opts) => {
+      try {
+        const envs: EnvName[] = opts.all ? ['production', 'staging'] : [resolveEnv()];
+        if (opts.refresh) {
+          for (const env of envs) {
+            try {
+              const tokens = (await import('../config.js')).loadTokens(env);
+              const { apiUrl } = resolveUrls(env);
+              const profile = await fetchAndCachePermissions(env, tokens.accessToken, apiUrl);
+              if (profile?.orgId) {
+                await fetchAndCacheFeatures(env, tokens.accessToken, apiUrl, profile.orgId);
+              }
+            } catch (err: unknown) {
+              const msg = err instanceof Error ? err.message : String(err);
+              console.error(`[${env}] refresh failed: ${msg}`);
+            }
+          }
+        }
+        for (const env of envs) {
+          const features = loadFeatures(env);
+          const keys = Object.keys(features).sort();
+          console.log(`# ${env} (${keys.length} feature${keys.length === 1 ? '' : 's'})`);
+          if (keys.length === 0) {
+            console.log('  (none cached - run `openbox auth login` or re-run with --refresh)');
+          } else {
+            for (const k of keys) console.log(`  ${k.padEnd(18)} ${features[k] ? 'on' : 'off'}`);
+          }
+          console.log('');
         }
       } catch (err: any) {
         console.error(err.message || err);
