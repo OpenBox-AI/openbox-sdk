@@ -11,8 +11,8 @@ info:
 servers:
   - url: https://core.openbox.ai
     description: Production
-  - url: https://openbox-api.node.lat
-    description: Staging (core runs on same infra)
+  - url: https://the-core-service.node.lat
+    description: Staging
 
 paths:
   /:

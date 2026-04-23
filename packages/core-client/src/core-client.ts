@@ -66,32 +66,70 @@ export interface SpanObject {
   events?: Record<string, unknown>[];
 }
 
+export interface ErrorInfo {
+  type: string;
+  message: string;
+  stack_trace?: string;
+}
+
+/**
+ * Mirror of `GovernanceEventPayload` in the-core-service
+ * (`internal/content/governance.go`). Fields marked `// <env>-added` are
+ * present in the Go struct but not yet documented in any static spec.
+ */
 export interface GovernanceEventPayload {
+  // Common fields (all events)
+  source?: string; // e.g. "workflow-telemetry"
   event_type: GovernanceEventType;
   workflow_id: string;
   run_id: string;
   workflow_type?: string;
-  activity_id?: string;
-  activity_type?: string;
-  // IMPORTANT: activity_input MUST be an array, not an object.
-  // The OpenAPI spec says oneOf: [array, object] but the AGE service
-  // (age.go) rejects objects with 422: "Input should be a valid list".
-  // The official SDKs wrap input as a single-element array:
-  //   activity_input: [{ message: "..." }]
-  activity_input?: unknown[];
-  activity_output?: unknown;
-  source?: string;
-  // The spec enums langgraph/temporal/mastra but the implementation
+  // Enumerated langgraph/temporal/mastra in docs but the implementation
   // accepts any string value as a framework identifier.
   task_queue?: string;
   timestamp?: string;
-  hook_trigger?: boolean;
-  goal?: string;
+
+  // Workflow events (WorkflowStarted, WorkflowCompleted)
+  parent_workflow_id?: string;
+  status?: string; // completed, failed, cancelled, terminated
+
+  // Activity events (ActivityStarted, ActivityCompleted)
+  activity_id?: string;
+  activity_type?: string;
+  attempt?: number;
+  // IMPORTANT: activity_input MUST be an array, not an object.
+  // The AGE service rejects objects with 422: "Input should be a valid list".
+  // Official SDKs wrap input as a single-element array:
+  //   activity_input: [{ message: "..." }]
+  activity_input?: unknown[];
+  activity_output?: unknown;
+
+  // Signal events (SignalReceived)
+  signal_name?: string;
+  signal_args?: unknown;
+
+  // Timing (WorkflowCompleted, ActivityCompleted)
+  start_time?: number;
+  end_time?: number;
+  duration_ms?: number;
+
+  // Spans (WorkflowCompleted, ActivityCompleted)
   span_count?: number;
   spans?: SpanObject[];
-  error?: { type?: string; message?: string };
-  duration_ms?: number;
-  attempt?: number;
+
+  // Hook trigger (mid-activity, per-HTTP-request evaluation)
+  hook_trigger?: boolean;
+
+  // SDK metadata (set server-side from X-OpenBox-SDK-Version header, semver)
+  sdk_version?: string;
+
+  // Error (WorkflowCompleted, ActivityCompleted when failed)
+  error?: ErrorInfo;
+
+  // Client-added convenience fields (not in core's Go struct, tolerated by
+  // extra-field unmarshalling on the Go side but not parsed). Keep for
+  // backwards compat; drop once all emitters stop sending them.
+  goal?: string;
   __openbox?: { tool_type?: string; subagent_name?: string };
 }
 
