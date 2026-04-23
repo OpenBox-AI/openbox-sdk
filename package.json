@@ -12,7 +12,10 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:e2e": "vitest run --project e2e",
-    "test:watch": "vitest watch"
+    "test:watch": "vitest watch",
+    "generate:types:backend": "openapi-typescript specs/backend.json -o packages/types/src/generated/backend.ts",
+    "generate:types:core": "openapi-typescript specs/core.yaml    -o packages/types/src/generated/core.ts",
+    "generate:types": "npm run generate:types:backend && npm run generate:types:core"
   },
   "author": "the-maintainer",
   "license": "MIT",
@@ -20,6 +23,7 @@
     "@vitest/coverage-v8": "^4.1.5",
     "dotenv": "^17.4.2",
     "eslint": "^10.2.1",
+    "openapi-typescript": "^7.13.0",
     "typescript-eslint": "^8.59.0",
     "vitest": "^4.1.2"
   }
