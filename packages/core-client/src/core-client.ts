@@ -48,22 +48,62 @@ export interface SpanAttributes {
   [key: string]: unknown;
 }
 
+export interface SpanStatus {
+  code?: string;
+  description?: string;
+}
+
+/**
+ * Mirror of `SpanData` in openbox-core
+ * (`internal/content/governance.go`). All fields optional at the TS layer;
+ * Go requires `name`, `span_id`, `trace_id`, `start_time`, `end_time` but
+ * the wire is tolerant of missing values on non-billing paths.
+ */
 export interface SpanObject {
-  name?: string;
-  trace_id?: string;
+  // Identity
   span_id?: string;
+  trace_id?: string;
   parent_span_id?: string;
+  name?: string;
   kind?: string;
+
+  // Timing - Go uses int64 nanoseconds for start/end, float/int64 for duration
   start_time?: number;
   end_time?: number;
   duration_ns?: number;
+
+  // Core attributes
   attributes?: SpanAttributes;
+  status?: SpanStatus;
+  events?: Record<string, unknown>[];
+
+  // HTTP payload (for HTTP spans)
   request_headers?: Record<string, string>;
   response_headers?: Record<string, string>;
   request_body?: string;
   response_body?: string;
-  status?: { code?: string; description?: string };
-  events?: Record<string, unknown>[];
+
+  // SDK v2 root-level fields (previously stuffed in attributes or hook_trigger)
+  semantic_type?: string; // e.g. http_get, llm_completion, database_select
+  stage?: 'started' | 'completed' | string;
+  data?: unknown; // attestation map / file-op string / arbitrary
+  hook_type?: 'http_request' | 'db_query' | 'file_operation' | 'function_call' | string;
+  attribute_key_identifiers?: string[];
+  error?: string;
+
+  // HTTP root fields (SDK v2)
+  http_method?: string;
+  http_url?: string;
+  http_status_code?: number;
+
+  // DB root fields (SDK v2)
+  db_system?: string;
+  db_operation?: string;
+  db_statement?: string;
+
+  // File root fields (SDK v2)
+  file_path?: string;
+  file_operation?: string;
 }
 
 export interface ErrorInfo {
@@ -140,10 +180,18 @@ export interface GuardrailFieldResult {
   reason?: string | null;
 }
 
-export interface GuardrailTypeResult {
-  guardrail_type?: string;
-  results?: GuardrailFieldResult[];
+/**
+ * Mirror of Go's `GuardrailsVerdictResult` in
+ * `internal/content/governance.go`. `GuardrailTypeResult` is kept as an
+ * alias for backwards compatibility with earlier SDK versions.
+ */
+export interface GuardrailsVerdictResult {
+  guardrail_type: string;
+  results: GuardrailFieldResult[];
 }
+
+/** @deprecated Use `GuardrailsVerdictResult` - same shape, Go-aligned name. */
+export type GuardrailTypeResult = GuardrailsVerdictResult;
 
 export interface GuardrailReason {
   type: string;
@@ -151,12 +199,20 @@ export interface GuardrailReason {
   reason: string;
 }
 
+/**
+ * Mirror of Go's `GuardrailsResult` in `internal/content/governance.go`.
+ * Go makes `input_type` / `validation_passed` required; TS marks them
+ * optional because the wrapper sometimes omits the field when guardrails
+ * short-circuit.
+ */
 export interface GuardrailsResult {
-  validation_passed?: boolean;
   input_type?: 'activity_input' | 'activity_output';
   redacted_input?: unknown;
-  reasons?: GuardrailReason[];
   raw_logs?: Record<string, unknown>;
+  validation_passed?: boolean;
+  reasons?: GuardrailReason[];
+  /** Detailed per-guardrail-type results (added in Go; was missing in TS). */
+  results?: GuardrailsVerdictResult[];
 }
 
 export interface BehavioralResult {
@@ -172,15 +228,35 @@ export interface BehavioralResult {
   would_violate?: boolean;
 }
 
+/** Mirror of Go's `AGEAlignmentResult`. */
+export interface AgeAlignmentResult {
+  is_aligned: boolean;
+  score: number;
+}
+
+/** Mirror of Go's `AGETrustScore`. Score breakdown after evaluation. */
+export interface AgeTrustScore {
+  trust_score: number;
+  trust_tier: number;
+  behavioral_compliance: number;
+  alignment_consistency: number;
+  aivss_baseline: number;
+}
+
+/**
+ * Mirror of Go's `AGESpanResult`. Note: `trust_score_after` is an OBJECT
+ * (score breakdown), not a number - the previous TS type was wrong.
+ */
 export interface SpanResult {
   span_id?: string;
   semantic_type?: string;
-  behavioral_result?: BehavioralResult;
-  alignment_result?: { is_aligned?: boolean; score?: number };
-  trust_score_after?: number | null;
+  behavioral_result?: BehavioralResult | null;
+  alignment_result?: AgeAlignmentResult | null;
+  trust_score_after?: AgeTrustScore | null;
   timestamp?: string;
 }
 
+/** Mirror of Go's `AGEResult`. `final_trust_score` was wrongly typed as number. */
 export interface AgeResult {
   allowed?: boolean;
   verdict?: string;
@@ -188,27 +264,40 @@ export interface AgeResult {
   fallback_used?: boolean;
   goal_alignment_checked?: boolean;
   goal_drifted?: boolean;
-  final_trust_score?: number | null;
+  final_trust_score?: AgeTrustScore | null;
   span_results?: SpanResult[];
   total_spans?: number;
   violations_count?: number;
   response_time_ms?: number;
 }
 
-// Full response shape from core governance evaluation.
-// Based on GovernanceVerdictResponse in governance.go:284-323.
+/**
+ * Public response from `POST /api/v1/governance/evaluate`. Mirror of
+ * `GovernanceVerdictPublicResponse.ToPublicResponse()` in
+ * `internal/content/governance.go`. Required fields on the wire:
+ * `governance_event_id`, `verdict`, `risk_score`, `action`.
+ */
 export interface GovernanceVerdictResponse {
+  // Required (always present from Go's public response)
   governance_event_id?: string;
   verdict: string;
   risk_score?: number;
-  action?: string; // legacy compat field
-  reason?: string;
-  policy_id?: string;
-  approval_id?: string;
+  action?: string; // v1.0 compat field: continue | stop | require-approval
+
+  // v1.1 optional fields
   trust_tier?: number;
   behavioral_violations?: string[];
+  approval_id?: string;
+  /** List of constraints emitted for the CONSTRAIN verdict (new in v1.1). */
+  constraints?: string[];
   approval_expiration_time?: string;
+
+  // Fallback tracking
   fallback_used?: boolean;
+
+  // v1.0 optional fields
+  reason?: string;
+  policy_id?: string;
   metadata?: Record<string, unknown>;
   guardrails_result?: GuardrailsResult;
   age_result?: AgeResult;
@@ -220,11 +309,22 @@ export interface ApprovalPollRequest {
   activity_id: string;
 }
 
+/**
+ * Mirror of Go's `ApprovalStatusResponse` in
+ * `internal/services/governance.go:215`. The wire emits `id` but earlier
+ * TS had `verdict`+`expired` which Go doesn't produce - `verdict` never
+ * populated, `expired` was a client-side helper. Kept here as optional
+ * for backwards compat so old callers compile; new callers should use
+ * `id` and derive expiry from `approval_expiration_time`.
+ */
 export interface ApprovalPollResponse {
-  verdict?: string;
+  id?: string;
   action?: string;
   reason?: string;
   approval_expiration_time?: string;
+  /** @deprecated Not emitted by Go; always undefined on the wire. */
+  verdict?: string;
+  /** @deprecated Client-side helper - derive from `approval_expiration_time` instead. */
   expired?: boolean;
 }
 
