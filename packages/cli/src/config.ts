@@ -12,11 +12,15 @@ function getTokenPath(): string {
   return resolve(homeDir, 'tokens');
 }
 
+export type FeatureMap = Record<string, boolean>;
+
 type TokenEntry = {
   accessToken?: string;
   refreshToken?: string;
   updatedAt?: string;
   permissions?: string[];
+  /** Per-env feature flags from GET /organization/{orgId}/features (api_keys, webhooks, sso). */
+  features?: FeatureMap;
 };
 type TokenStore = Partial<Record<EnvName, TokenEntry>>;
 
@@ -45,6 +49,15 @@ function parseStore(content: string): TokenStore {
     else if (field === 'PERMISSIONS') {
       entry.permissions = value.split(',').map((s) => s.trim()).filter(Boolean);
     }
+    else if (field === 'FEATURES') {
+      // serialized as "name:true,other:false" - matches `/organization/{id}/features` shape
+      const features: FeatureMap = {};
+      for (const pair of value.split(',')) {
+        const [k, v] = pair.split(':').map((s) => s.trim());
+        if (k) features[k] = v === 'true';
+      }
+      entry.features = features;
+    }
   }
   if (legacy.accessToken && !store.production) {
     store.production = legacy;
@@ -62,6 +75,10 @@ function serializeStore(store: TokenStore): string {
     lines.push(`${envName}.UPDATED_AT=${entry.updatedAt ?? ''}`);
     if (entry.permissions && entry.permissions.length > 0) {
       lines.push(`${envName}.PERMISSIONS=${entry.permissions.join(',')}`);
+    }
+    if (entry.features && Object.keys(entry.features).length > 0) {
+      const pairs = Object.entries(entry.features).map(([k, v]) => `${k}:${v}`);
+      lines.push(`${envName}.FEATURES=${pairs.join(',')}`);
     }
   }
   return lines.join('\n') + '\n';
@@ -90,6 +107,11 @@ function loadPermissions(env: EnvName): string[] {
   return store[env]?.permissions ?? [];
 }
 
+function loadFeatures(env: EnvName): FeatureMap {
+  const store = readStore();
+  return store[env]?.features ?? {};
+}
+
 function saveTokens(
   env: EnvName,
   accessToken: string,
@@ -104,6 +126,7 @@ function saveTokens(
     refreshToken: refreshToken || undefined,
     updatedAt: new Date().toISOString(),
     permissions: permissions ?? existing.permissions,
+    features: existing.features,
   };
   writeFileSync(path, serializeStore(store));
 }
@@ -113,6 +136,14 @@ function savePermissions(env: EnvName, permissions: string[]) {
   const store = readStore();
   if (!store[env]?.accessToken) return;
   store[env] = { ...store[env], permissions };
+  writeFileSync(path, serializeStore(store));
+}
+
+function saveFeatures(env: EnvName, features: FeatureMap) {
+  const path = getTokenPath();
+  const store = readStore();
+  if (!store[env]?.accessToken) return;
+  store[env] = { ...store[env], features };
   writeFileSync(path, serializeStore(store));
 }
 
@@ -148,7 +179,9 @@ export {
   getCoreClient,
   saveTokens,
   savePermissions,
+  saveFeatures,
   loadTokens,
   loadPermissions,
+  loadFeatures,
   getTokenPath,
 };

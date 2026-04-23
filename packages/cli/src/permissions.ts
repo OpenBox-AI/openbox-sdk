@@ -64,3 +64,29 @@ export function missingPermissions(required: string[], have: string[]): string[]
   const haveSet = new Set(have);
   return required.filter((p) => !haveSet.has(p));
 }
+
+/**
+ * Maps CLI command paths to the backend feature flags they need. Matches
+ * `@RequireFeature(Feature.*)` decorators in openbox-backend:
+ *   - Feature.ApiKeys -> api_keys
+ *   - Feature.Webhooks -> webhooks
+ *   - Feature.Sso -> sso
+ *
+ * Each env's `FEATURES` cache (populated at login from
+ * `GET /organization/{orgId}/features`) decides which commands the CLI
+ * will even attempt to fire. Feature-disabled commands fail locally with
+ * a clear "feature disabled on this env" message.
+ */
+export const COMMAND_FEATURES: Record<CommandKey, string[]> = {
+  // Placeholders: add entries here once CLI commands for api-key / webhook /
+  // sso groups exist. Populating the map is a no-op until then since
+  // feature-gated endpoints aren't in the current CLI surface.
+};
+
+export function missingFeatures(
+  required: string[],
+  have: Record<string, boolean>,
+): string[] {
+  if (required.length === 0) return [];
+  return required.filter((f) => have[f] !== true);
+}
