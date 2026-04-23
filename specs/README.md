@@ -1,30 +1,30 @@
 # specs/
 
-Checked-in snapshot of the live backend's OpenAPI spec.
+The authoritative OpenAPI snapshot for the OpenBox backend surface.
 
-- `backend.json` - pulled from `https://api.openbox.ai/api/docs-json`
-- `core.yaml` - curated from `the-core-service` source
+- `backend.json` - pulled from `https://api.openbox.ai/api/docs-json`. Both
+  production and staging serve the same schema today; re-pull from whichever
+  env is ahead if they diverge.
+- `core.yaml` - curated from the `the-core-service` Go source.
 
-## Source of truth
+This is the single source of truth for the SDK's client/type surface. Sibling
+repos (e.g. `runtime/mcp-skunkworks`, `openbox-sdk`,
+`skill/`) submodule this repo at `specs-ref/` to read from here.
 
-The `api-ref/` submodule at the repo root pins the exact `the-backend-service`
-commit these snapshots should correspond to. Bump the submodule pointer
-and re-pull the spec when the backend publishes a new surface:
+## Refresh
+
+When the backend's spec changes:
 
 ```bash
-# refresh the backend source pointer
-git submodule update --remote api-ref
-
-# re-pull the live swagger (requires a valid access token):
 TOKEN=$(grep '^production.ACCESS_TOKEN=' ~/.openbox/tokens | cut -d= -f2-)
-curl -sS -H "Authorization: Bearer $TOKEN" -H "X-Openbox-Client: openbox-cli" \
-  https://api.openbox.ai/api/docs-json | python3 -m json.tool > specs/backend.json
+curl -sS \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Openbox-Client: openbox-cli" \
+  https://api.openbox.ai/api/docs-json \
+  | python3 -m json.tool > specs/backend.json
 
-# commit both changes together so the submodule pointer and spec stay aligned.
+# then update DTOs / client methods if new endpoints appeared
 ```
 
-## Why checked in?
-
-- Monorepo builds don't need network access
-- Hand-curated DTOs in `openbox-sdk/types` are easier to diff/review against a
-  version-pinned file than an on-demand fetch
+After committing an update here, bump the `specs-ref` submodule pointer in
+each sibling repo that references it.
