@@ -375,3 +375,63 @@ export interface ChangePasswordDto {
   newPassword: string;
   orgId: string;
 }
+
+// ---------------------------------------------------------------------------
+// API keys (/api-key/*)   - added to match live backend (post-PR #237)
+// ---------------------------------------------------------------------------
+
+export interface CreateApiKeyDto {
+  name: string;
+  permissions: string[];
+  valid_from?: string;
+  expires_at?: string;
+  ip_whitelist?: string[];
+  description?: string;
+}
+
+export interface UpdateApiKeyDto {
+  name?: string;
+  permissions?: string[];
+  valid_from?: string | null;
+  expires_at?: string | null;
+  ip_whitelist?: string[] | null;
+  is_active?: boolean;
+  description?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Webhooks (/webhook/*)
+// ---------------------------------------------------------------------------
+
+export type WebhookChannel = 'http' | 'slack';
+
+export interface CreateWebhookDto {
+  name: string;
+  channel: WebhookChannel;
+  url: string;
+  secret?: string;
+  event_types: string[];
+  agent_ids?: string[];
+  description?: string;
+}
+
+export interface UpdateWebhookDto {
+  name?: string;
+  channel?: WebhookChannel;
+  url?: string;
+  event_types?: string[];
+  agent_ids?: string[];
+  is_active?: boolean;
+  description?: string;
+}
+
+// ---------------------------------------------------------------------------
+// SSO (/sso/*)
+// ---------------------------------------------------------------------------
+
+// The backend's ConfigureOidcDto / ConfigureSamlDto / EnforceSsoDto are
+// published as empty objects in the current swagger - they accept any shape.
+// Typed as open records until the server stabilizes the contract.
+export type ConfigureOidcDto = Record<string, unknown>;
+export type ConfigureSamlDto = Record<string, unknown>;
+export type EnforceSsoDto = Record<string, unknown>;

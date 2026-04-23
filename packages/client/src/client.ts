@@ -28,6 +28,13 @@ import type {
   PreviewExportDto,
   GetAgentViolationsQuery,
   ChangePasswordDto,
+  CreateApiKeyDto,
+  UpdateApiKeyDto,
+  CreateWebhookDto,
+  UpdateWebhookDto,
+  ConfigureOidcDto,
+  ConfigureSamlDto,
+  EnforceSsoDto,
   PaginatedResponse,
   MessageResponse,
   UserProfile,
@@ -52,6 +59,12 @@ import type {
   Member,
   AuditLog,
   AuditExport,
+  ApiKey,
+  Webhook,
+  WebhookDelivery,
+  SsoStatus,
+  OrgFeatures,
+  CsrfToken,
 } from 'openbox-sdk/types';
 
 // ---------------------------------------------------------------------------
@@ -823,6 +836,125 @@ export class OpenBoxClient {
 
   async health(): Promise<unknown> {
     return this.get('/health');
+  }
+
+  // =========================================================================
+  // API keys - live backend, org-scoped, gated on create/read/update/delete:api_key
+  // =========================================================================
+
+  async listApiKeys(): Promise<PaginatedResponse<ApiKey>> {
+    return this.get('/api-key') as Promise<PaginatedResponse<ApiKey>>;
+  }
+
+  async createApiKey(dto: CreateApiKeyDto): Promise<ApiKey> {
+    return this.post('/api-key', dto) as Promise<ApiKey>;
+  }
+
+  async getApiKey(id: string): Promise<ApiKey> {
+    return this.get(`/api-key/${id}`) as Promise<ApiKey>;
+  }
+
+  async updateApiKey(id: string, dto: UpdateApiKeyDto): Promise<ApiKey> {
+    return this.patch(`/api-key/${id}`, dto) as Promise<ApiKey>;
+  }
+
+  async deleteApiKey(id: string): Promise<MessageResponse> {
+    return this.del(`/api-key/${id}`) as Promise<MessageResponse>;
+  }
+
+  // =========================================================================
+  // Webhooks - live backend, gated on create/read/update/delete:webhook
+  // =========================================================================
+
+  async listWebhooks(): Promise<PaginatedResponse<Webhook>> {
+    return this.get('/webhook') as Promise<PaginatedResponse<Webhook>>;
+  }
+
+  async createWebhook(dto: CreateWebhookDto): Promise<Webhook> {
+    return this.post('/webhook', dto) as Promise<Webhook>;
+  }
+
+  async getWebhook(id: string): Promise<Webhook> {
+    return this.get(`/webhook/${id}`) as Promise<Webhook>;
+  }
+
+  async updateWebhook(id: string, dto: UpdateWebhookDto): Promise<Webhook> {
+    return this.patch(`/webhook/${id}`, dto) as Promise<Webhook>;
+  }
+
+  async deleteWebhook(id: string): Promise<MessageResponse> {
+    return this.del(`/webhook/${id}`) as Promise<MessageResponse>;
+  }
+
+  async getWebhookDeliveries(
+    id: string,
+    query?: PaginationQuery,
+  ): Promise<PaginatedResponse<WebhookDelivery>> {
+    return this.get(`/webhook/${id}/deliveries`, query) as Promise<
+      PaginatedResponse<WebhookDelivery>
+    >;
+  }
+
+  async regenerateWebhookSecret(id: string): Promise<{ secret: string } & MessageResponse> {
+    return this.post(`/webhook/${id}/regenerate-secret`) as Promise<
+      { secret: string } & MessageResponse
+    >;
+  }
+
+  async testWebhook(id: string): Promise<MessageResponse> {
+    return this.post(`/webhook/${id}/test`) as Promise<MessageResponse>;
+  }
+
+  // =========================================================================
+  // SSO - live backend, gated on manage:sso
+  // =========================================================================
+
+  async getSsoConfig(): Promise<unknown> {
+    return this.get('/sso');
+  }
+
+  async deleteSsoConfig(): Promise<MessageResponse> {
+    return this.del('/sso') as Promise<MessageResponse>;
+  }
+
+  async getSsoStatus(): Promise<SsoStatus> {
+    return this.get('/sso/status') as Promise<SsoStatus>;
+  }
+
+  async getSsoMetadata(): Promise<unknown> {
+    return this.get('/sso/metadata');
+  }
+
+  async configureSsoOidc(dto: ConfigureOidcDto): Promise<MessageResponse> {
+    return this.post('/sso/oidc', dto) as Promise<MessageResponse>;
+  }
+
+  async configureSsoSaml(dto: ConfigureSamlDto): Promise<MessageResponse> {
+    return this.post('/sso/saml', dto) as Promise<MessageResponse>;
+  }
+
+  async verifySsoConfig(): Promise<MessageResponse> {
+    return this.post('/sso/verify') as Promise<MessageResponse>;
+  }
+
+  async enforceSso(dto: EnforceSsoDto = {}): Promise<MessageResponse> {
+    return this.put('/sso/enforce', dto) as Promise<MessageResponse>;
+  }
+
+  // =========================================================================
+  // Miscellaneous live-backend endpoints (unwrapped pre-port)
+  // =========================================================================
+
+  async getCsrfToken(): Promise<CsrfToken> {
+    return this.get('/auth/csrf') as Promise<CsrfToken>;
+  }
+
+  async getDemoSetupStatus(): Promise<unknown> {
+    return this.get('/organization/demo-setup-status');
+  }
+
+  async getOrgFeatures(organizationId: string): Promise<OrgFeatures> {
+    return this.get(`/organization/${organizationId}/features`) as Promise<OrgFeatures>;
   }
 
   // =========================================================================
