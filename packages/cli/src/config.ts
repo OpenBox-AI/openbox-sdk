@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { resolve } from 'path';
 import { OpenBoxClient } from '@openbox/client';
 import { OpenBoxCoreClient } from '@openbox/core-client';
+import { EnvName, resolveEnv, resolveUrls } from './environments.js';
 
 function getTokenPath(): string {
   const projectTokens = resolve(process.cwd(), '.tokens');
@@ -11,53 +12,143 @@ function getTokenPath(): string {
   return resolve(homeDir, 'tokens');
 }
 
-function loadTokens(): { accessToken: string; refreshToken?: string } {
-  const path = getTokenPath();
-  if (!existsSync(path)) {
-    console.error('No tokens found. Run: openbox auth set-token <token>');
-    process.exit(1);
-  }
-  const content = readFileSync(path, 'utf-8');
-  const tokens: Record<string, string> = {};
+type TokenEntry = {
+  accessToken?: string;
+  refreshToken?: string;
+  updatedAt?: string;
+  permissions?: string[];
+};
+type TokenStore = Partial<Record<EnvName, TokenEntry>>;
+
+function parseStore(content: string): TokenStore {
+  const store: TokenStore = {};
+  const legacy: TokenEntry = {};
   for (const line of content.split('\n')) {
-    const m = line.match(/^(\w+)=(.*)$/);
-    if (m) tokens[m[1]] = m[2];
+    const m = line.match(/^(\w+(?:\.\w+)?)=(.*)$/);
+    if (!m) continue;
+    const key = m[1];
+    const value = m[2];
+    const dot = key.indexOf('.');
+    if (dot === -1) {
+      if (key === 'ACCESS_TOKEN') legacy.accessToken = value;
+      else if (key === 'REFRESH_TOKEN') legacy.refreshToken = value || undefined;
+      else if (key === 'UPDATED_AT') legacy.updatedAt = value;
+      continue;
+    }
+    const envName = key.slice(0, dot);
+    const field = key.slice(dot + 1);
+    if (envName !== 'production' && envName !== 'staging') continue;
+    const entry = (store[envName] ??= {});
+    if (field === 'ACCESS_TOKEN') entry.accessToken = value;
+    else if (field === 'REFRESH_TOKEN') entry.refreshToken = value || undefined;
+    else if (field === 'UPDATED_AT') entry.updatedAt = value;
+    else if (field === 'PERMISSIONS') {
+      entry.permissions = value.split(',').map((s) => s.trim()).filter(Boolean);
+    }
   }
-  if (!tokens.ACCESS_TOKEN) {
-    console.error('No ACCESS_TOKEN in tokens file. Run: openbox auth set-token <token>');
+  if (legacy.accessToken && !store.production) {
+    store.production = legacy;
+  }
+  return store;
+}
+
+function serializeStore(store: TokenStore): string {
+  const lines: string[] = [];
+  for (const envName of ['production', 'staging'] as const) {
+    const entry = store[envName];
+    if (!entry?.accessToken) continue;
+    lines.push(`${envName}.ACCESS_TOKEN=${entry.accessToken}`);
+    lines.push(`${envName}.REFRESH_TOKEN=${entry.refreshToken ?? ''}`);
+    lines.push(`${envName}.UPDATED_AT=${entry.updatedAt ?? ''}`);
+    if (entry.permissions && entry.permissions.length > 0) {
+      lines.push(`${envName}.PERMISSIONS=${entry.permissions.join(',')}`);
+    }
+  }
+  return lines.join('\n') + '\n';
+}
+
+function readStore(): TokenStore {
+  const path = getTokenPath();
+  if (!existsSync(path)) return {};
+  return parseStore(readFileSync(path, 'utf-8'));
+}
+
+function loadTokens(env: EnvName): { accessToken: string; refreshToken?: string } {
+  const store = readStore();
+  const entry = store[env];
+  if (!entry?.accessToken) {
+    console.error(`No tokens found for environment '${env}'.`);
+    console.error(`Run: openbox ${env === 'production' ? '' : `--env ${env} `}auth login`);
+    console.error(`Or:  openbox ${env === 'production' ? '' : `--env ${env} `}auth set-token <token>`);
     process.exit(1);
   }
-  return { accessToken: tokens.ACCESS_TOKEN, refreshToken: tokens.REFRESH_TOKEN || undefined };
+  return { accessToken: entry.accessToken, refreshToken: entry.refreshToken };
 }
 
-function saveTokens(accessToken: string, refreshToken?: string) {
+function loadPermissions(env: EnvName): string[] {
+  const store = readStore();
+  return store[env]?.permissions ?? [];
+}
+
+function saveTokens(
+  env: EnvName,
+  accessToken: string,
+  refreshToken?: string,
+  permissions?: string[],
+) {
   const path = getTokenPath();
-  const content = `ACCESS_TOKEN=${accessToken}\nREFRESH_TOKEN=${refreshToken || ''}\nUPDATED_AT=${new Date().toISOString()}\n`;
-  writeFileSync(path, content);
+  const store = readStore();
+  const existing = store[env] ?? {};
+  store[env] = {
+    accessToken,
+    refreshToken: refreshToken || undefined,
+    updatedAt: new Date().toISOString(),
+    permissions: permissions ?? existing.permissions,
+  };
+  writeFileSync(path, serializeStore(store));
 }
 
-function getClient(): OpenBoxClient {
-  const tokens = loadTokens();
-  const apiUrl = process.env.OPENBOX_API_URL || 'https://api.openbox.ai';
+function savePermissions(env: EnvName, permissions: string[]) {
+  const path = getTokenPath();
+  const store = readStore();
+  if (!store[env]?.accessToken) return;
+  store[env] = { ...store[env], permissions };
+  writeFileSync(path, serializeStore(store));
+}
+
+function getClient(env?: EnvName): OpenBoxClient {
+  const resolved = env ?? resolveEnv();
+  const tokens = loadTokens(resolved);
+  const { apiUrl } = resolveUrls(resolved);
   return new OpenBoxClient({
     apiUrl,
+    env: resolved,
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken,
     onTokenRefresh: (newTokens) => {
-      saveTokens(newTokens.accessToken, newTokens.refreshToken);
+      saveTokens(resolved, newTokens.accessToken, newTokens.refreshToken);
       console.error('[token refreshed]');
     },
   });
 }
 
-function getCoreClient(): OpenBoxCoreClient {
+function getCoreClient(env?: EnvName): OpenBoxCoreClient {
+  const resolved = env ?? resolveEnv();
   const apiKey = process.env.OPENBOX_API_KEY || '';
   if (!apiKey) {
     console.error('No OPENBOX_API_KEY found. Set it in your environment.');
     process.exit(1);
   }
-  const apiUrl = process.env.OPENBOX_CORE_URL || 'https://core.openbox.ai';
-  return new OpenBoxCoreClient({ apiUrl, apiKey });
+  const { coreUrl } = resolveUrls(resolved);
+  return new OpenBoxCoreClient({ apiUrl: coreUrl, apiKey, env: resolved });
 }
 
-export { getClient, getCoreClient, saveTokens, loadTokens, getTokenPath };
+export {
+  getClient,
+  getCoreClient,
+  saveTokens,
+  savePermissions,
+  loadTokens,
+  loadPermissions,
+  getTokenPath,
+};

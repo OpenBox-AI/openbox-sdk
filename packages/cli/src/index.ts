@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import { loadPermissions } from './config.js';
+import { resolveEnv } from './environments.js';
+import { COMMAND_PERMISSIONS, missingPermissions } from './permissions.js';
 import { registerAuthCommands } from './commands/auth.js';
 import { registerAgentCommands } from './commands/agent.js';
 import { registerApiKeyCommands } from './commands/api-key.js';
@@ -23,7 +26,52 @@ import { registerSetupCommands } from './commands/setup.js';
 
 const program = new Command();
 
-program.name('openbox').description('OpenBox AI Platform CLI').version('1.0.0');
+program
+  .name('openbox')
+  .description('OpenBox AI Platform CLI')
+  .version('1.0.0')
+  .option(
+    '--env <env>',
+    "Environment: 'production' or 'staging' (default: $OPENBOX_ENV or 'production')",
+  )
+  .hook('preAction', (thisCommand, actionCommand) => {
+    const flag = thisCommand.opts().env as string | undefined;
+    if (flag) process.env.OPENBOX_ENV = flag;
+
+    // Pre-flight permission check: each env's live role may differ. Catch
+    // missing permissions locally instead of firing a request and getting 403.
+    const commandPath = buildCommandKey(actionCommand);
+    const required = COMMAND_PERMISSIONS[commandPath];
+    if (!required || required.length === 0) return;
+
+    const env = resolveEnv();
+    const have = loadPermissions(env);
+    if (have.length === 0) return;
+
+    const missing = missingPermissions(required, have);
+    if (missing.length === 0) return;
+
+    console.error(
+      `This env (${env}) lacks required permission(s) for \`openbox ${commandPath}\`: ${missing.join(', ')}`,
+    );
+    console.error(
+      `Your role has ${have.length} permission(s) - run \`openbox auth permissions\` to inspect.`,
+    );
+    console.error(
+      `To fix: ask your admin to grant the missing permission(s) on the ${env} Keycloak role.`,
+    );
+    process.exit(3);
+  });
+
+function buildCommandKey(cmd: Command): string {
+  const parts: string[] = [];
+  let c: Command | null = cmd;
+  while (c && c.parent) {
+    parts.unshift(c.name());
+    c = c.parent;
+  }
+  return parts.join(' ');
+}
 
 registerAuthCommands(program);
 registerAgentCommands(program);
