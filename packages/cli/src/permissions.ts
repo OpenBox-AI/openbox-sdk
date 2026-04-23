@@ -46,6 +46,8 @@ export const COMMAND_PERMISSIONS: Record<CommandKey, string[]> = {
   'session goal-alignment': ['read:agent_session'],
   'session reasoning':      ['read:agent_session'],
   'session terminate':      ['manage:agent_session'],
+  'session inspect':        ['read:agent_session'],
+  'session prune':          ['read:agent_session', 'manage:agent_session'],
 
   'observe logs':           ['read:agent_log'],
   'observe drift':          ['read:agent_log'],
