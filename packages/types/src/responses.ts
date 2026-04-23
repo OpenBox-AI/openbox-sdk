@@ -276,3 +276,66 @@ export interface AuditExport {
   created_at?: string;
   [key: string]: unknown;
 }
+
+// ---------------------------------------------------------------------------
+// API keys / webhooks / SSO - live backend (post-PR #237)
+// Permissive shapes because the swagger doesn't publish full response schemas.
+// ---------------------------------------------------------------------------
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  permissions: string[];
+  valid_from?: string | null;
+  expires_at?: string | null;
+  ip_whitelist?: string[] | null;
+  is_active?: boolean;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
+  last_used_at?: string | null;
+  /** Only present on create - the raw `obx_key_*` secret, shown once. */
+  key?: string;
+  [key: string]: unknown;
+}
+
+export interface Webhook {
+  id: string;
+  name: string;
+  channel: 'http' | 'slack';
+  url: string;
+  event_types: string[];
+  agent_ids?: string[] | null;
+  is_active?: boolean;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
+  [key: string]: unknown;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  webhook_id: string;
+  event_type?: string;
+  status?: string;
+  status_code?: number;
+  attempt_count?: number;
+  delivered_at?: string;
+  [key: string]: unknown;
+}
+
+export interface SsoStatus {
+  enabled?: boolean;
+  method?: 'oidc' | 'saml' | null;
+  enforced?: boolean;
+  [key: string]: unknown;
+}
+
+export interface OrgFeatures {
+  [feature: string]: boolean | string | number | null;
+}
+
+export interface CsrfToken {
+  token?: string;
+  [key: string]: unknown;
+}
