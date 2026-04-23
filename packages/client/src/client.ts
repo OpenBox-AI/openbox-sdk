@@ -74,6 +74,8 @@ export interface RateLimitConfig {
   burst?: number;
 }
 
+export type EnvName = 'production' | 'staging';
+
 export interface ClientConfig {
   /** Base URL of the OpenBox API. Defaults to https://api.openbox.ai */
   apiUrl?: string;
@@ -89,6 +91,8 @@ export interface ClientConfig {
   retry?: RetryConfig;
   /** Client-side rate limiting */
   rateLimit?: RateLimitConfig;
+  /** Target environment. Branch on this.env when prod/staging diverge. Defaults to 'production'. */
+  env?: EnvName;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,12 +118,22 @@ export class OpenBoxApiError extends Error {
 export class OpenBoxClient {
   private baseUrl: string;
   private config: ClientConfig;
+  protected readonly env: EnvName;
   private refreshPromise: Promise<void> | null = null;
   private rateLimiter: TokenBucket | null = null;
+
+  // Auto-refresh is currently DISABLED because the upstream /auth/refresh
+  // endpoint is broken end-to-end (the-backend-service passes user.sub as the
+  // Keycloak realm instead of user.orgId; the-dashboard-fe sends snake_case
+  // {refresh_token} but the DTO is camelCase {refreshToken}). Flip to true
+  // once both fixes ship. The capture path in the CLI continues to save
+  // refresh tokens so no re-login is needed after re-enabling.
+  private static readonly REFRESH_ENABLED = false;
 
   constructor(config: ClientConfig) {
     this.config = { ...config };
     this.baseUrl = this.config.apiUrl ?? 'https://api.openbox.ai';
+    this.env = this.config.env ?? 'production';
     if (config.rateLimit) {
       this.rateLimiter = new TokenBucket(
         config.rateLimit.requestsPerSecond,
@@ -826,6 +840,17 @@ export class OpenBoxClient {
       return;
     }
 
+    if (!OpenBoxClient.REFRESH_ENABLED) {
+      console.error(
+        '[auth] Access token expired. Auto-refresh is disabled - upstream /auth/refresh is broken. Run: openbox auth login',
+      );
+      throw new OpenBoxApiError(
+        'Access token expired; auto-refresh disabled pending upstream fixes (see client.ts:ensureValidToken)',
+        401,
+        null,
+      );
+    }
+
     if (!this.config.refreshToken) {
       throw new OpenBoxApiError(
         'Access token is expired and no refresh token was provided',
@@ -850,7 +875,11 @@ export class OpenBoxClient {
       const url = `${this.baseUrl}/auth/refresh`;
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Openbox-Client': 'openbox-cli',
+          Authorization: `Bearer ${this.config.accessToken}`,
+        },
         body: JSON.stringify({ refreshToken: this.config.refreshToken }),
       });
 
@@ -864,14 +893,22 @@ export class OpenBoxClient {
       }
 
       const body = await response.json();
-      const data = body?.data ?? body;
+      // Response may be wrapped ({data: {...}}), flat ({...}), or use snake_case
+      // depending on whether we hit the NestJS wrapper or Keycloak directly.
+      const data = body?.data ?? body ?? {};
+      const newAccess: string | undefined = data.accessToken ?? data.access_token;
+      const newRefresh: string | undefined = data.refreshToken ?? data.refresh_token;
 
-      if (data?.accessToken) {
-        this.config.accessToken = data.accessToken;
+      if (!newAccess) {
+        throw new OpenBoxApiError(
+          `Token refresh returned no access token (keys: ${Object.keys(data).join(',')})`,
+          500,
+          body,
+        );
       }
-      if (data?.refreshToken) {
-        this.config.refreshToken = data.refreshToken;
-      }
+
+      this.config.accessToken = newAccess;
+      if (newRefresh) this.config.refreshToken = newRefresh;
 
       if (this.config.onTokenRefresh) {
         this.config.onTokenRefresh({
@@ -991,20 +1028,39 @@ export class OpenBoxClient {
     }
 
     const timeoutMs = this.config.timeoutMs ?? 30_000;
-    const fetchOptions: RequestInit = {
+    const buildOptions = (): RequestInit => ({
       method,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.config.accessToken}`,
+        // Required by the backend's auth guard - presence-only check, value is arbitrary.
+        'X-Openbox-Client': 'openbox-cli',
       },
       signal: AbortSignal.timeout(timeoutMs),
-    };
+      body: options?.data !== undefined ? JSON.stringify(options.data) : undefined,
+    });
 
-    if (options?.data) {
-      fetchOptions.body = JSON.stringify(options.data);
+    let response = await this.executeWithRetry(url, buildOptions());
+
+    // Reactive refresh path: DISABLED. See ensureValidToken() for context.
+    // Leaving the code shape here so flipping REFRESH_ENABLED is a single
+    // boolean change.
+    if (
+      OpenBoxClient.REFRESH_ENABLED &&
+      response.status === 401 &&
+      this.config.refreshToken
+    ) {
+      try {
+        await this.performTokenRefresh();
+        response = await this.executeWithRetry(url, buildOptions());
+      } catch {
+        /* fall through to the original 401 */
+      }
+    } else if (response.status === 401) {
+      console.error(
+        '[auth] 401 from backend. Auto-refresh is disabled - upstream /auth/refresh is broken. Run: openbox auth login',
+      );
     }
-
-    const response = await this.executeWithRetry(url, fetchOptions);
 
     const contentType = response.headers.get('content-type');
     const isJson = contentType?.includes('application/json');

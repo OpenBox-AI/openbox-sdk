@@ -194,6 +194,8 @@ export interface ApprovalPollResponse {
 // Configuration
 // ---------------------------------------------------------------------------
 
+export type EnvName = 'production' | 'staging';
+
 export interface CoreClientConfig {
   /** Base URL of the Core API. Defaults to https://core.openbox.ai */
   apiUrl?: string;
@@ -205,6 +207,8 @@ export interface CoreClientConfig {
   retry?: { maxRetries?: number; initialDelayMs?: number; maxDelayMs?: number };
   /** Client-side rate limiting */
   rateLimit?: { requestsPerSecond: number; burst?: number };
+  /** Target environment. Branch on this.env when prod/staging diverge. Defaults to 'production'. */
+  env?: EnvName;
 }
 
 // ---------------------------------------------------------------------------
@@ -230,11 +234,13 @@ export class CoreApiError extends Error {
 export class OpenBoxCoreClient {
   private baseUrl: string;
   private config: CoreClientConfig;
+  protected readonly env: EnvName;
   private rateLimiter: TokenBucket | null = null;
 
   constructor(config: CoreClientConfig) {
     this.config = { ...config };
     this.baseUrl = this.config.apiUrl ?? 'https://core.openbox.ai';
+    this.env = this.config.env ?? 'production';
     if (config.rateLimit) {
       this.rateLimiter = new TokenBucket(
         config.rateLimit.requestsPerSecond,
