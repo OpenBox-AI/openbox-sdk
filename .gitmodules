@@ -1,0 +1,3 @@
+[submodule "api-ref"]
+	path = api-ref
+	url = https://github.com/OpenBox-AI/the-backend-service.git
