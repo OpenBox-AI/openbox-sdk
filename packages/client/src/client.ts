@@ -609,8 +609,14 @@ export class OpenBoxClient {
     agentId: string,
     query?: GetAgentViolationsQuery,
   ): Promise<PaginatedResponse<Violation>> {
-    // The API spec uses a request body for GET which is unusual; we send as body
-    return this.request('GET', `/agent/${agentId}/violations`, { data: query }) as Promise<
+    // Backend controller uses `@Body()` on a GET route - unusual, and Node's
+    // fetch (and the HTTP spec) forbids GET-with-body. We send the filters as
+    // query params instead; backend ignores them today, but at least the call
+    // reaches the server and returns the full list instead of a client-side
+    // "Request with GET/HEAD method cannot have body" TypeError. Filters
+    // (pattern / sourceType) are functionally dropped until the backend moves
+    // to `@Query()` - document as a known limitation in the CLI command.
+    return this.get(`/agent/${agentId}/violations`, query) as Promise<
       PaginatedResponse<Violation>
     >;
   }
