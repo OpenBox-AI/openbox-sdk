@@ -100,8 +100,10 @@ export interface ClientConfig {
   accessToken: string;
   /** Optional refresh token for automatic token renewal */
   refreshToken?: string;
-  /** Callback invoked when tokens are refreshed so the caller can persist them */
-  onTokenRefresh?: (tokens: { accessToken: string; refreshToken: string }) => void;
+  /** Callback invoked when tokens are refreshed so the caller can persist them.
+   * `refreshToken` may be undefined when Keycloak rotation is disabled - in that
+   * case the stored refresh token should stay as-is, not be overwritten. */
+  onTokenRefresh?: (tokens: { accessToken: string; refreshToken: string | undefined }) => void;
   /** Request timeout in milliseconds. Default: 30000 (30s) */
   timeoutMs?: number;
   /** Retry configuration for failed requests */
@@ -1082,9 +1084,12 @@ export class OpenBoxClient {
       if (newRefresh) this.config.refreshToken = newRefresh;
 
       if (this.config.onTokenRefresh) {
+        // Pass the live refresh token (may be undefined if rotation is off and
+        // we've never had one). Coercing to '' used to round-trip through
+        // saveTokens as undefined and clobber the stored RT.
         this.config.onTokenRefresh({
           accessToken: this.config.accessToken,
-          refreshToken: this.config.refreshToken ?? '',
+          refreshToken: this.config.refreshToken,
         });
       }
     } catch (err) {
