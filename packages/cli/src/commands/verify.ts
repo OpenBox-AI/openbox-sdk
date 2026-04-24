@@ -47,11 +47,21 @@ function walk(root: string, out: string[] = []): string[] {
 // Rules
 // ---------------------------------------------------------------------------
 
-// Helper: find all line indexes matching a regex.
-function matchLines(lines: string[], re: RegExp): Array<{ line: number; snippet: string }> {
+// Helper: find all line indexes matching a regex. By default strips comments
+// before matching (so "// missing X-Openbox-Client" in a note can't fool an
+// identifier-presence rule), but reports snippets from the ORIGINAL lines so
+// the user sees real context. Pass { raw: true } to skip comment stripping
+// - use this for rules where the pattern itself is a string literal inside
+// code (invented-verdict's "deny" is in source, not a comment).
+function matchLines(
+  origLines: string[],
+  re: RegExp,
+  opts: { raw?: boolean } = {},
+): Array<{ line: number; snippet: string }> {
   const out: Array<{ line: number; snippet: string }> = [];
-  for (let i = 0; i < lines.length; i++) {
-    if (re.test(lines[i])) out.push({ line: i + 1, snippet: lines[i].trim().slice(0, 160) });
+  const scanLines = opts.raw ? origLines : stripComments(origLines.join('\n')).split('\n');
+  for (let i = 0; i < scanLines.length; i++) {
+    if (re.test(scanLines[i])) out.push({ line: i + 1, snippet: origLines[i].trim().slice(0, 160) });
   }
   return out;
 }
@@ -72,17 +82,13 @@ const rules: Rule[] = [
     message: '`activity_input` must be an ARRAY, not an object. Sending a bare object returns 422 at core (or 500 downstream from AGE).',
     fix: 'Wrap as [{...}]. Single payloads: `"activity_input": [{ "prompt": "..." }]`.',
     appliesTo: () => true,
-    detect: (content) => {
-      const out: Array<{ line: number; snippet: string }> = [];
-      const lines = content.split('\n');
-      // Look for "activity_input": { (object literal start, not [)
-      const re = /["']?activity_input["']?\s*[:=]\s*\{/;
-      for (let i = 0; i < lines.length; i++) {
-        if (re.test(lines[i]) && !/\[\s*\{/.test(lines[i])) {
-          out.push({ line: i + 1, snippet: lines[i].trim().slice(0, 160) });
-        }
-      }
-      return out;
+    detect: (_content, lines) => {
+      // Match "activity_input": {  (object literal start, not [{).
+      // Comment-stripping via matchLines prevents JSDoc / annotation text
+      // from firing. We skip lines that already show the array wrap on the
+      // same line.
+      const all = matchLines(lines, /["']?activity_input["']?\s*[:=]\s*\{/);
+      return all.filter((hit) => !/\[\s*\{/.test(hit.snippet));
     },
   },
   {
@@ -91,18 +97,13 @@ const rules: Rule[] = [
     message: 'Invented verdict string. The four production verdicts are `allow`, `require_approval`, `block`, `halt`. `deny`/`ask`/`constrain` are not emitted by the live server.',
     fix: 'Use one of the four production verdicts. `constrain` is defined in the spec but never returned; remove it from switch statements.',
     appliesTo: () => true,
-    detect: (content) => {
-      const out: Array<{ line: number; snippet: string }> = [];
-      const lines = content.split('\n');
-      // Only flag in contexts that look like verdict comparison: === "deny" / case "ask" / "verdict": "constrain"
-      const re = /(["'])(deny|ask)\1\s*(===|==|,|:\s*\/\/|\))/;
-      const constrainRe = /(verdict|decision|action)\s*[:=]\s*["']constrain["']|case\s+["']constrain["']|===\s*["']constrain["']|==\s*["']constrain["']/;
-      for (let i = 0; i < lines.length; i++) {
-        if (re.test(lines[i]) || constrainRe.test(lines[i])) {
-          out.push({ line: i + 1, snippet: lines[i].trim().slice(0, 160) });
-        }
-      }
-      return out;
+    detect: (_content, lines) => {
+      // Only flag in verdict-comparison contexts. Tightened from the original
+      // which matched ", " and "(" as triggers - too broad; caught normal English
+      // usage of "deny"/"ask" in unrelated prose. Now requires the string to be
+      // next to a comparison operator (===, ==, case) or inside a verdict field.
+      const re = /(verdict|decision|action)\s*[:=]\s*["'](deny|ask|constrain)["']|case\s+["'](deny|ask|constrain)["']|(===|==)\s*["'](deny|ask|constrain)["']/;
+      return matchLines(lines, re);
     },
   },
   {
@@ -133,17 +134,16 @@ const rules: Rule[] = [
     message: '`/api/v1/governance/approval` wire response is `{ id, action, reason, approval_expiration_time }` - `action`, not `verdict`. The TS SDK normalizes; raw-HTTP callers must read `.action`.',
     fix: 'Read `response.action` for raw HTTP polling, or `response.verdict || response.action` to work with both shapes.',
     appliesTo: () => true,
-    detect: (content) => {
+    detect: (content, origLines) => {
       const out: Array<{ line: number; snippet: string }> = [];
-      // Only flag if file mentions /governance/approval
-      if (!/\/governance\/approval/.test(content)) return out;
-      const lines = content.split('\n');
+      const stripped = stripComments(content);
+      if (!/\/governance\/approval/.test(stripped)) return out;
+      const lines = stripped.split('\n');
       for (let i = 0; i < lines.length; i++) {
         if (/\.verdict\b/.test(lines[i]) && !/\.verdict\s*\|\|\s*.*\.action/.test(lines[i])) {
-          // Check there's an approval context nearby (within 20 lines back)
           const start = Math.max(0, i - 20);
           if (lines.slice(start, i + 1).some((l) => /approval/i.test(l))) {
-            out.push({ line: i + 1, snippet: lines[i].trim().slice(0, 160) });
+            out.push({ line: i + 1, snippet: origLines[i].trim().slice(0, 160) });
           }
         }
       }
@@ -182,15 +182,16 @@ const rules: Rule[] = [
     severity: 'warn',
     message: 'UUID literal that looks like an agent/team/org ID. These are user-specific and must be resolved at runtime.',
     fix: 'Derive from `openbox auth profile` (orgId, teamIds) or `openbox agent list`; pass via env var / config.',
-    appliesTo: (path) => !/test|spec|\.md$|fixture|seed/i.test(path),
-    detect: (content) => {
+    appliesTo: (path) => !/test|spec|\.md$|fixture|seed|examples?\//i.test(path),
+    detect: (_content, origLines) => {
+      // Strip comments so UUIDs inside commented-out code or TODO notes don't fire.
+      const strippedLines = stripComments(origLines.join('\n')).split('\n');
       const out: Array<{ line: number; snippet: string }> = [];
-      const lines = content.split('\n');
       const uuidRe = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
       const contextRe = /(agent|team|org|organization|policy|guardrail).{0,20}(id|_id|Id)/i;
-      for (let i = 0; i < lines.length; i++) {
-        if (uuidRe.test(lines[i]) && contextRe.test(lines[i])) {
-          out.push({ line: i + 1, snippet: lines[i].trim().slice(0, 160) });
+      for (let i = 0; i < strippedLines.length; i++) {
+        if (uuidRe.test(strippedLines[i]) && contextRe.test(strippedLines[i])) {
+          out.push({ line: i + 1, snippet: origLines[i].trim().slice(0, 160) });
         }
       }
       return out;
@@ -224,19 +225,22 @@ const rules: Rule[] = [
     message: 'A path emits `ActivityStarted` without an obvious paired `ActivityCompleted` in the same scope. Orphan activities break output-stage guardrails and trust scoring.',
     fix: 'Every Started must be Completed - on success AND failure. See references/governance-flow.md § "Nothing dangles".',
     appliesTo: (path) => /\.(ts|tsx|js|jsx|mjs|cjs|py|go)$/.test(path),
-    detect: (content, lines) => {
+    detect: (content, origLines) => {
+      // Strip comments so docstrings mentioning "ActivityStarted" but not
+      // "ActivityCompleted" don't fire.
+      const stripped = stripComments(content);
+      const strippedLines = stripped.split('\n');
       const out: Array<{ line: number; snippet: string }> = [];
       const startRe = /\bActivityStarted\b|activity_?started\b/;
       const completedRe = /\bActivityCompleted\b|activity_?completed\b/;
-      if (!startRe.test(content)) return out;
-      for (let i = 0; i < lines.length; i++) {
-        if (startRe.test(lines[i])) {
-          // Look within ±40 lines for a completion.
+      if (!startRe.test(stripped)) return out;
+      for (let i = 0; i < strippedLines.length; i++) {
+        if (startRe.test(strippedLines[i])) {
           const start = Math.max(0, i - 40);
-          const end = Math.min(lines.length, i + 40);
-          const window = lines.slice(start, end).join('\n');
+          const end = Math.min(strippedLines.length, i + 40);
+          const window = strippedLines.slice(start, end).join('\n');
           if (!completedRe.test(window)) {
-            out.push({ line: i + 1, snippet: lines[i].trim().slice(0, 160) });
+            out.push({ line: i + 1, snippet: origLines[i].trim().slice(0, 160) });
           }
         }
       }
@@ -249,16 +253,16 @@ const rules: Rule[] = [
     message: 'Non-canonical `event_type` string. Core accepts exactly six: WorkflowStarted, SignalReceived, ActivityStarted, ActivityCompleted, WorkflowCompleted, WorkflowFailed.',
     fix: 'Use one of the six canonical event types. Unknown strings silently no-op downstream classifiers (no guardrail / AGE / trust evaluation).',
     appliesTo: () => true,
-    detect: (content) => {
+    detect: (_content, origLines) => {
+      // Strip comments so a doc note like `// event_type: "Foo"` doesn't fire.
+      const strippedLines = stripComments(origLines.join('\n')).split('\n');
       const out: Array<{ line: number; snippet: string }> = [];
-      const lines = content.split('\n');
       const canonical = new Set(['WorkflowStarted', 'SignalReceived', 'ActivityStarted', 'ActivityCompleted', 'WorkflowCompleted', 'WorkflowFailed']);
-      // Match: event_type: "SomeValue" or "event_type": "SomeValue" or .event_type = "SomeValue"
       const re = /["']?event_type["']?\s*[:=]\s*["']([A-Za-z_]+)["']/g;
-      for (let i = 0; i < lines.length; i++) {
-        for (const m of lines[i].matchAll(re)) {
+      for (let i = 0; i < strippedLines.length; i++) {
+        for (const m of strippedLines[i].matchAll(re)) {
           if (!canonical.has(m[1])) {
-            out.push({ line: i + 1, snippet: lines[i].trim().slice(0, 160) });
+            out.push({ line: i + 1, snippet: origLines[i].trim().slice(0, 160) });
           }
         }
       }
@@ -301,17 +305,13 @@ const rules: Rule[] = [
     message: '`workflow_id` or `run_id` appears to be generated inline per event instead of generated once and reused. IDs must stay constant across every event in a session, otherwise core creates orphan workflows and trust scoring never finalizes.',
     fix: 'Generate workflow_id + run_id once at session start, store them, reuse on every subsequent event. activity_id is per-action.',
     appliesTo: () => true,
-    detect: (content, lines) => {
-      const out: Array<{ line: number; snippet: string }> = [];
-      // Pattern: workflow_id: uuid()/randomUUID()/uuid4() - inline generation.
-      // False-positive-ok: some libraries have utility wrappers, but inline gen on the ID-assignment line is the specific anti-pattern.
+    detect: (_content, lines) => {
+      // Pattern: workflow_id: uuid()/randomUUID()/uuid4() - inline generation
+      // on the assignment line. Can't reliably distinguish "correct: generated
+      // once at session start" from "wrong: inside a loop" - the warn flags
+      // inline generation and lets the reader decide.
       const re = /(["']?)(workflow_id|run_id)\1\s*[:=]\s*(uuid4\(\)|uuid\.uuid4\(\)|uuid\(\)|randomUUID\(\)|crypto\.randomUUID\(\)|nanoid\(\))/;
-      for (let i = 0; i < lines.length; i++) {
-        if (re.test(lines[i])) {
-          out.push({ line: i + 1, snippet: lines[i].trim().slice(0, 160) });
-        }
-      }
-      return out;
+      return matchLines(lines, re);
     },
   },
   {
