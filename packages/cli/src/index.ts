@@ -30,6 +30,7 @@ import { registerCoreCommands } from './commands/core.js';
 import { registerSetupCommands } from './commands/setup.js';
 import { registerDoctorCommand } from './commands/doctor.js';
 import { registerVerifyCommand } from './commands/verify.js';
+import { registerVersionsCommand } from './commands/versions.js';
 
 const program = new Command();
 
@@ -123,6 +124,7 @@ registerCoreCommands(program);
 registerSetupCommands(program);
 registerDoctorCommand(program);
 registerVerifyCommand(program);
+registerVersionsCommand(program);
 
 program.parseAsync(process.argv).catch((err) => {
   console.error(err.message || err);
