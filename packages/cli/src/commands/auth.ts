@@ -6,6 +6,8 @@ import {
   saveFeatures,
   saveTokens,
   savePermissions,
+  clearTokens,
+  hasTokens,
 } from '../config.js';
 import type { FeatureMap } from '../config.js';
 import { resolveEnv, resolveUrls } from '../environments.js';
@@ -319,6 +321,40 @@ export function registerAuthCommands(program: Command) {
         const env = resolveEnv();
         const platformUrl = opts.url || resolveUrls(env).platformUrl;
         await browserLogin(platformUrl, env, !!opts.verbose);
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
+
+  auth
+    .command('logout')
+    .description('Invalidate the session on the server and clear local tokens')
+    .option('--all', 'Log out from every cached env (production + staging)')
+    .action(async (opts) => {
+      try {
+        const envs: EnvName[] = opts.all ? ['production', 'staging'] : [resolveEnv()];
+        for (const env of envs) {
+          // Skip the server call when no tokens exist for this env - calling
+          // `getClient` would hard-exit via `loadTokens`, which would prevent
+          // `--all` from reaching the next env. This is also the right UX:
+          // "nothing to log out" is a no-op, not an error.
+          if (!hasTokens(env)) {
+            console.error(`[${env}] no local tokens - skipping`);
+            continue;
+          }
+          // Best-effort server-side revoke. If the token is already expired
+          // or the network is down, the local cleanup still needs to run -
+          // otherwise a user in a stuck state can never `auth logout`.
+          try {
+            await getClient(env).logout();
+            console.error(`[${env}] server session invalidated`);
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(`[${env}] server logout failed (${msg}) - clearing local tokens anyway`);
+          }
+          clearTokens(env);
+          console.error(`[${env}] local tokens cleared`);
+        }
       } catch (err: any) {
         reportAndExit(err);
       }
