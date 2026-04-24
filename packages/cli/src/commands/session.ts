@@ -36,7 +36,7 @@ type EventLog = {
   [key: string]: unknown;
 };
 
-type InspectFinding = { level: 'ok' | 'warn' | 'fail'; message: string };
+type InspectFinding = { level: 'ok' | 'info' | 'warn' | 'fail'; message: string };
 
 // Canonical activity_type values emitted by first-party SDKs. Backend accepts
 // free-form strings, so non-canonical values are `warn` (work, but drift from
@@ -86,10 +86,15 @@ function inspectEvents(events: EventLog[]): InspectFinding[] {
   const completes = new Map<string, EventLog>(); // activity_id -> ActivityCompleted
   let hasTerminal = false;
 
-  const nonCanonicalActivityTypes = new Set<string>();
   const nonCanonicalEventTypes = new Set<string>();
   const badVerdicts = new Set<string>();
   let badActivityInput = 0;
+  // Split activity_type counts by canonical vs custom. Custom is not a
+  // protocol violation (backend accepts free-form strings, and custom agents
+  // legitimately name their own activities). The inventory is emitted as an
+  // info-level report so the user can see what guardrails need to target.
+  const canonicalActivity: Record<string, number> = {};
+  const customActivity: Record<string, number> = {};
 
   for (const e of events) {
     const t = e.event_type || 'unknown';
@@ -103,8 +108,11 @@ function inspectEvents(events: EventLog[]): InspectFinding[] {
     if (e.event_type && !CANONICAL_EVENT_TYPES.has(e.event_type)) {
       nonCanonicalEventTypes.add(e.event_type);
     }
-    if (e.activity_type && !CANONICAL_ACTIVITY_TYPES.has(e.activity_type)) {
-      nonCanonicalActivityTypes.add(e.activity_type);
+    if (e.activity_type) {
+      const bucket = CANONICAL_ACTIVITY_TYPES.has(e.activity_type)
+        ? canonicalActivity
+        : customActivity;
+      bucket[e.activity_type] = (bucket[e.activity_type] || 0) + 1;
     }
     const verdict = e.verdict ?? e.action;
     if (typeof verdict === 'string' && !CANONICAL_VERDICTS.has(verdict)) {
@@ -191,14 +199,26 @@ function inspectEvents(events: EventLog[]): InspectFinding[] {
     });
   }
 
-  // 7. Canonical activity_type. Soft rule: backend accepts free-form, so warn.
-  // Drifters still run but won't match guardrails configured against the
-  // canonical names.
-  if (nonCanonicalActivityTypes.size > 0) {
-    findings.push({
-      level: 'warn',
-      message: `non-canonical activity_type value(s): ${[...nonCanonicalActivityTypes].join(', ')} - accepted by backend but off-spec; guardrails targeting canonical names won't match`,
-    });
+  // 7. Activity_type inventory. Not a protocol violation - activity_type is
+  // free-form on the wire. For a custom agent, custom names are by design.
+  // For hook/tool emitter correctness, use `openbox verify` on the source.
+  // What matters here: show the vocabulary so the user can line up guardrails.
+  const canonicalEntries = Object.entries(canonicalActivity).sort((a, b) => b[1] - a[1]);
+  const customEntries = Object.entries(customActivity).sort((a, b) => b[1] - a[1]);
+  if (canonicalEntries.length > 0 || customEntries.length > 0) {
+    const fmt = (entries: Array<[string, number]>) =>
+      entries.map(([k, v]) => `${k} (${v})`).join(', ');
+    const lines: string[] = ['activity_type inventory:'];
+    if (canonicalEntries.length > 0) {
+      lines.push(`  canonical:    ${fmt(canonicalEntries)}`);
+    }
+    if (customEntries.length > 0) {
+      lines.push(`  custom:       ${fmt(customEntries)}`);
+      lines.push(
+        `  Configure guardrails against the exact strings above - custom names won't match guardrails targeting canonical values.`,
+      );
+    }
+    findings.push({ level: 'info', message: lines.join('\n  ') });
   }
 
   // 8. Verdict enum. A stray `constrain` or invented value means a stale SDK
@@ -390,7 +410,10 @@ export function registerSessionCommands(program: Command) {
         const findings = inspectEvents(all);
         console.log('protocol check:');
         for (const f of findings) {
-          const mark = f.level === 'ok' ? '✓' : f.level === 'warn' ? '!' : '✗';
+          const mark =
+            f.level === 'ok' ? '✓' :
+            f.level === 'info' ? 'i' :
+            f.level === 'warn' ? '!' : '✗';
           console.log(`  ${mark} ${f.message}`);
         }
 

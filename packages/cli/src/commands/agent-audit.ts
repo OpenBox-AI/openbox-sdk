@@ -43,7 +43,7 @@ export type AuditOptions = {
 
 export type AuditFinding = {
   rule: string;
-  level: 'warn' | 'fail';
+  level: 'info' | 'warn' | 'fail';
   message: string;
 };
 
@@ -278,11 +278,30 @@ function buildEventFindings(events: AuditReport['events']): AuditFinding[] {
       message: `non-canonical event_type(s): ${events.nonCanonicalEventTypes.join(', ')} - must be one of ${[...CANONICAL_EVENT_TYPES].join('|')}`,
     });
   }
-  if (events.nonCanonicalActivityTypes.length > 0) {
+  // activity_type inventory - informational, not a violation. Build from
+  // the distribution that already includes every seen value.
+  const canonicalEntries: Array<[string, number]> = [];
+  const customEntries: Array<[string, number]> = [];
+  for (const [t, c] of Object.entries(events.activityTypeDistribution)) {
+    (CANONICAL_ACTIVITY_TYPES.has(t) ? canonicalEntries : customEntries).push([t, c]);
+  }
+  canonicalEntries.sort((a, b) => b[1] - a[1]);
+  customEntries.sort((a, b) => b[1] - a[1]);
+  if (canonicalEntries.length > 0 || customEntries.length > 0) {
+    const fmt = (entries: Array<[string, number]>) =>
+      entries.map(([k, v]) => `${k} (${v})`).join(', ');
+    const lines: string[] = [];
+    if (canonicalEntries.length > 0) lines.push(`canonical: ${fmt(canonicalEntries)}`);
+    if (customEntries.length > 0) {
+      lines.push(`custom:    ${fmt(customEntries)}`);
+      lines.push(
+        `Configure guardrails against the exact strings above - custom names won't match guardrails targeting canonical values.`,
+      );
+    }
     findings.push({
-      rule: 'activity_type.canonical',
-      level: 'warn',
-      message: `non-canonical activity_type(s): ${events.nonCanonicalActivityTypes.join(', ')} - accepted by backend but off-spec; guardrails targeting canonical names won't match`,
+      rule: 'activity_type.inventory',
+      level: 'info',
+      message: `activity_type inventory across audited sessions:\n    ${lines.join('\n    ')}`,
     });
   }
   if (events.nonCanonicalVerdicts.length > 0) {
@@ -425,9 +444,12 @@ export function renderAuditReport(agentId: string, report: AuditReport): void {
   }
 
   if (report.findings.length > 0) {
-    console.log(`Canonical-value drift findings:`);
+    console.log(`Protocol findings:`);
     for (const f of report.findings) {
-      const color = f.level === 'fail' ? '\x1b[31m' : '\x1b[33m';
+      const color =
+        f.level === 'fail' ? '\x1b[31m' :
+        f.level === 'warn' ? '\x1b[33m' :
+        '\x1b[36m'; // cyan for info
       console.log(`  ${color}[${f.level}] ${f.rule}:\x1b[0m ${f.message}`);
     }
     console.log();
