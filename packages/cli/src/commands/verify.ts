@@ -120,7 +120,10 @@ const rules: Rule[] = [
     fix: 'Use the canonical names from references/governance-flow.md § "Canonical activity_type Names" so guardrail bindings match.',
     appliesTo: () => true,
     detect: (content, lines) => {
-      const invented = /\b(LLMCompletion|LLMInvocation|ToolInvocation|ToolCall|FileReading|FileWriting|ShellCommand|MCPInvocation|PromptSubmitted)\b/;
+      // Context-aware: only flag these strings when they appear as an activity_type
+      // value (in JSON payload, CLI --json, or SDK config). A file coincidentally using
+      // `ToolCall` as a workflow-name or type alias isn't an integration bug.
+      const invented = /(["']?activity[_-]?type["']?\s*[:=]\s*["']|["']?activityType["']?\s*[:=]\s*["']|--type\s+["']?)(LLMCompletion|LLMInvocation|ToolInvocation|FileReading|FileWriting|ShellCommand|MCPInvocation|PromptSubmitted)/;
       return matchLines(lines, invented);
     },
   },
