@@ -332,6 +332,28 @@ export interface UpdateTeamDto {
   icon?: string;
 }
 
+export interface CreateTeamDto {
+  name?: string;
+  description?: string;
+  icon?: string;
+  // Backend accepts additional fields via the raw OpenAPI shape; the generated
+  // CreateTeamDto only requires `icon`. Permissive by design - callers using
+  // --json can pass any backend-accepted field.
+  [key: string]: unknown;
+}
+
+export interface DeleteTeamsDto {
+  ids: string[];
+}
+
+export interface AddTeamMembersDto {
+  user_ids: string[];
+}
+
+export interface DeleteTeamMembersDto {
+  user_ids: string[];
+}
+
 // ---------------------------------------------------------------------------
 // Audit export DTOs
 // ---------------------------------------------------------------------------

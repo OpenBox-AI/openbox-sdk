@@ -24,6 +24,10 @@ import type {
   UpdateMemberDto,
   InviteUserDto,
   UpdateTeamDto,
+  CreateTeamDto,
+  DeleteTeamsDto,
+  AddTeamMembersDto,
+  DeleteTeamMembersDto,
   ExportAuditLogsDto,
   PreviewExportDto,
   GetAgentViolationsQuery,
@@ -167,6 +171,14 @@ export class OpenBoxClient {
     return this.post('/auth/refresh', {
       refreshToken: this.config.refreshToken,
     }) as Promise<TokenPair>;
+  }
+
+  // Backend `LogoutDto` is an empty body - the bearer token identifies the
+  // session. Server-side invalidation plus local token wipe is the proper
+  // logout path; dropping tokens locally alone leaves the session live on
+  // Keycloak until the JWT expires.
+  async logout(): Promise<void> {
+    await this.post('/auth/logout', {});
   }
 
   async changePassword(dto: ChangePasswordDto): Promise<MessageResponse> {
@@ -701,6 +713,33 @@ export class OpenBoxClient {
     return this.get(`/organization/${orgId}/teams/${teamId}/members`, query) as Promise<
       PaginatedResponse<Member>
     >;
+  }
+
+  async createTeam(orgId: string, dto: CreateTeamDto): Promise<Team> {
+    return this.post(`/organization/${orgId}/teams`, dto) as Promise<Team>;
+  }
+
+  async deleteTeams(orgId: string, dto: DeleteTeamsDto): Promise<unknown> {
+    // DELETE with body - backend takes `{ids: string[]}` in the request body.
+    return this.request('DELETE', `/organization/${orgId}/teams`, { data: dto });
+  }
+
+  async addTeamMembers(
+    orgId: string,
+    teamId: string,
+    dto: AddTeamMembersDto,
+  ): Promise<unknown> {
+    return this.post(`/organization/${orgId}/teams/${teamId}/members`, dto);
+  }
+
+  async removeTeamMembers(
+    orgId: string,
+    teamId: string,
+    dto: DeleteTeamMembersDto,
+  ): Promise<unknown> {
+    return this.request('DELETE', `/organization/${orgId}/teams/${teamId}/members`, {
+      data: dto,
+    });
   }
 
   // =========================================================================
