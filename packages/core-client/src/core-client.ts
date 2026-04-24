@@ -332,7 +332,7 @@ export interface ApprovalPollResponse {
 // Configuration
 // ---------------------------------------------------------------------------
 
-export type EnvName = 'production' | 'staging';
+export type EnvName = 'production' | 'staging' | 'local';
 
 export interface CoreClientConfig {
   /** Base URL of the Core API. Defaults to https://core.openbox.ai */

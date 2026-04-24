@@ -91,7 +91,7 @@ export interface RateLimitConfig {
   burst?: number;
 }
 
-export type EnvName = 'production' | 'staging';
+export type EnvName = 'production' | 'staging' | 'local';
 
 export interface ClientConfig {
   /** Base URL of the OpenBox API. Defaults to https://api.openbox.ai */

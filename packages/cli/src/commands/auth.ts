@@ -329,10 +329,10 @@ export function registerAuthCommands(program: Command) {
   auth
     .command('logout')
     .description('Invalidate the session on the server and clear local tokens')
-    .option('--all', 'Log out from every cached env (production + staging)')
+    .option('--all', 'Log out from every cached env (production + staging + local)')
     .action(async (opts) => {
       try {
-        const envs: EnvName[] = opts.all ? ['production', 'staging'] : [resolveEnv()];
+        const envs: EnvName[] = opts.all ? ['production', 'staging', 'local'] : [resolveEnv()];
         for (const env of envs) {
           // Skip the server call when no tokens exist for this env - calling
           // `getClient` would hard-exit via `loadTokens`, which would prevent
@@ -369,7 +369,7 @@ export function registerAuthCommands(program: Command) {
     .option('--refresh', 'Re-fetch permissions from /auth/profile before printing')
     .action(async (opts) => {
       try {
-        const envs: EnvName[] = opts.all ? ['production', 'staging'] : [resolveEnv()];
+        const envs: EnvName[] = opts.all ? ['production', 'staging', 'local'] : [resolveEnv()];
 
         if (opts.refresh) {
           for (const env of envs) {
@@ -395,8 +395,8 @@ export function registerAuthCommands(program: Command) {
 
         if (opts.compare) {
           const other = opts.compare as EnvName;
-          if (other !== 'production' && other !== 'staging') {
-            console.error(`--compare must be 'production' or 'staging', got '${other}'`);
+          if (other !== 'production' && other !== 'staging' && other !== 'local') {
+            console.error(`--compare must be 'production' | 'staging' | 'local', got '${other}'`);
             process.exit(1);
           }
           const current = resolveEnv();
@@ -422,7 +422,7 @@ export function registerAuthCommands(program: Command) {
     .option('--refresh', 'Re-fetch from /organization/{orgId}/features before printing')
     .action(async (opts) => {
       try {
-        const envs: EnvName[] = opts.all ? ['production', 'staging'] : [resolveEnv()];
+        const envs: EnvName[] = opts.all ? ['production', 'staging', 'local'] : [resolveEnv()];
         if (opts.refresh) {
           for (const env of envs) {
             try {
