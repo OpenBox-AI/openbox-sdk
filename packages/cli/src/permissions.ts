@@ -69,43 +69,48 @@ export const COMMAND_PERMISSIONS: Record<CommandKey, string[]> = {
   'observe logs':           ['read:agent_log'],
   'observe drift':          ['read:agent_log'],
 
-  // ─── Entries below are pattern-matched to the existing namespace convention
-  // (read:agent_* / manage:agent_* / update:agent_* / read:team / manage:member).
-  // Cross-check against the backend `@Permissions(...)` decorators on first
-  // release - if any string is off, the pre-flight will produce a spurious
-  // "you lack X" error against a correctly-granted role. Worst-case it's
-  // self-correcting: remove the wrong entry when a user reports the false
-  // positive, and the backend's real 403 will list the actual needed perm.
+  // ─── Entries below mirror the actual @Permissions(...) decorators in
+  // the-backend-service (verified against src/modules/*/*.controller.ts and
+  // src/modules/auth/enums/permissions.enum.ts). The backend uses a
+  // coarse-grained scheme - most agent sub-resources (aivss, trust, goal,
+  // approvals, violations) gate on the generic `read:agent` / `update:agent`
+  // rather than fine-grained `read:agent_assessment` etc. (those don't exist
+  // in the enum). Members use the `user` resource, not `member`.
+  //
+  // Two endpoints that LOOK like they should be gated but aren't - no
+  // @Permissions decorator on the backend, so no entry here:
+  //   - POST /agent/aivss       (aivss calculate - pure calculator)
+  //   - PATCH /agent/:id/violations/:vid/false-positive
 
   // AIVSS - agent risk assessment
-  'aivss assessments':      ['read:agent_assessment'],
-  'aivss calculate':        ['read:agent_assessment'],
-  'aivss recalculate':      ['manage:agent_assessment'],
-  'aivss update':           ['update:agent_assessment'],
+  'aivss assessments':      ['read:agent'],
+  'aivss recalculate':      ['update:agent'],
+  'aivss update':           ['update:agent'],
 
-  // Approvals - per-agent HITL queue
-  'approval decide':        ['manage:agent_approval'],
-  'approval history':       ['read:agent_approval'],
-  'approval metrics':       ['read:agent_approval'],
-  'approval pending':       ['read:agent_approval'],
+  // Approvals - per-agent HITL queue. All four read with `read:agent`,
+  // including `decide` (backend gates the decide endpoint on ReadAgent too).
+  'approval decide':        ['read:agent'],
+  'approval history':       ['read:agent'],
+  'approval metrics':       ['read:agent'],
+  'approval pending':       ['read:agent'],
 
   // Goal alignment
-  'goal drifts':            ['read:agent_goal_alignment'],
-  'goal trend':             ['read:agent_goal_alignment'],
-  'goal update':            ['update:agent_goal_alignment'],
+  'goal drifts':            ['read:agent'],
+  'goal trend':             ['read:agent'],
+  'goal update':            ['update:agent'],
 
   // Trust tier / history (per-agent, read-mostly)
-  'trust events':           ['read:agent_trust'],
-  'trust histories':        ['read:agent_trust'],
-  'trust recovery':         ['read:agent_trust'],
-  'trust tier-changes':     ['read:agent_trust'],
+  'trust events':           ['read:agent'],
+  'trust histories':        ['read:agent'],
+  'trust recovery':         ['read:agent'],
+  'trust tier-changes':     ['read:agent'],
 
-  // Violations (per-agent read + mark-false-positive admin op)
-  'violation agent':        ['read:agent_violation'],
-  'violation false-positive': ['manage:agent_violation'],
-  'violation list':         ['read:agent_violation'],
+  // Violations
+  'violation agent':        ['read:agent'],
+  'violation list':         ['read:agent'],
 
-  // Teams (org-scoped - `team` resource, not `agent_team`)
+  // Teams (org-scoped). Backend uses UpdateTeam for member add/remove, not a
+  // separate manage:team permission.
   'team get':               ['read:team'],
   'team list':              ['read:team'],
   'team stats':             ['read:team'],
@@ -113,17 +118,18 @@ export const COMMAND_PERMISSIONS: Record<CommandKey, string[]> = {
   'team update':            ['update:team'],
   'team create':            ['create:team'],
   'team delete':            ['delete:team'],
-  'team add-members':       ['manage:team'],
-  'team remove-members':    ['manage:team'],
+  'team add-members':       ['update:team'],
+  'team remove-members':    ['update:team'],
 
-  // Members (org users)
-  'member list':            ['read:member'],
-  'member create':          ['create:member'],
-  'member invite':          ['create:member'],
-  'member update':          ['update:member'],
-  'member remove':          ['delete:member'],
-  'member assign-roles':    ['manage:member'],
-  'member remove-roles':    ['manage:member'],
+  // Members - backend uses the `user` resource (read:user / create:user /
+  // update:user / delete:user). There is no `member` permission scope.
+  'member list':            ['read:user'],
+  'member create':          ['create:user'],
+  'member invite':          ['create:user'],
+  'member update':          ['update:user'],
+  'member remove':          ['delete:user'],
+  'member assign-roles':    ['update:user'],
+  'member remove-roles':    ['update:user'],
 };
 
 /**
