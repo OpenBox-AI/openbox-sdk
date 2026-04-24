@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
 import { parseJsonInput } from '../input.js';
-import { reportAndExit, validateUuid, warn, block } from '../validators/index.js';
+import { reportAndExit, validateUuid, warn, block, parsePagination } from '../validators/index.js';
 import { runAgentAudit, renderAuditReport, auditHasIssues } from './agent-audit.js';
 
 export function registerAgentCommands(program: Command) {
@@ -20,8 +20,7 @@ export function registerAgentCommands(program: Command) {
     .action(async (opts) => {
       try {
         const data = await getClient().listAgents({
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           search: opts.search,
           status: opts.status ? parseInt(opts.status) : undefined,
           team_id: opts.team,
@@ -29,8 +28,7 @@ export function registerAgentCommands(program: Command) {
         });
         outputList(data, 'agents');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -145,8 +143,7 @@ export function registerAgentCommands(program: Command) {
         const data = await getClient().getAgent(agentId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -177,8 +174,7 @@ export function registerAgentCommands(program: Command) {
         const data = await getClient().updateAgent(agentId, dto);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -190,8 +186,7 @@ export function registerAgentCommands(program: Command) {
         const data = await getClient().deleteAgent(agentId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 

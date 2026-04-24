@@ -10,6 +10,7 @@ import {
   validateApprovalTimeout,
   validateInt,
   validateEnum,
+  parsePagination,
 } from '../validators/index.js';
 
 export function registerBehaviorCommands(program: Command) {
@@ -23,8 +24,7 @@ export function registerBehaviorCommands(program: Command) {
         const data = await getClient().getSemanticTypes();
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -39,16 +39,14 @@ export function registerBehaviorCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         const data = await getClient().listBehaviorRules(agentId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           verdict: opts.verdict !== undefined ? parseInt(opts.verdict) : undefined,
           is_active: opts.active !== undefined ? opts.active === 'true' : undefined,
           trigger: opts.trigger,
         });
         outputList(data, 'behavior rules');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -60,8 +58,7 @@ export function registerBehaviorCommands(program: Command) {
         const data = await getClient().getCurrentBehaviorRules(agentId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -136,8 +133,7 @@ export function registerBehaviorCommands(program: Command) {
         const data = await getClient().getBehaviorRule(agentId, ruleId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -169,8 +165,7 @@ export function registerBehaviorCommands(program: Command) {
         const data = await getClient().deleteBehaviorRule(agentId, ruleId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -182,8 +177,7 @@ export function registerBehaviorCommands(program: Command) {
         const data = await getClient().restoreBehaviorRule(agentId, ruleId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -200,8 +194,7 @@ export function registerBehaviorCommands(program: Command) {
         );
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -213,13 +206,11 @@ export function registerBehaviorCommands(program: Command) {
     .action(async (agentId: string, groupId: string, opts) => {
       try {
         const data = await getClient().getBehaviorRuleVersions(agentId, groupId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
         });
         outputList(data, 'versions');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -236,8 +227,7 @@ export function registerBehaviorCommands(program: Command) {
         });
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -249,13 +239,11 @@ export function registerBehaviorCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         const data = await getClient().getBehaviorViolations(agentId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
         });
         outputList(data, 'violations');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }

@@ -133,6 +133,25 @@ export function validateEnum<T extends string>(value: unknown, allowed: readonly
   return value as T;
 }
 
+// Pagination is threaded through every list command; this helper centralizes
+// the parseInt+range check so a user passing `--page abc` gets a clean local
+// error instead of leaking NaN into the backend query string. Commander's
+// numeric defaults ('0'/'10') mean the opts fields are always strings when
+// unset - `validateInt` accepts strings and converts.
+//
+// page: backend uses @Min(0) zero-indexed pagination.
+// perPage: backend has no @Max - don't impose a client-side ceiling that
+// silently rejects calls the server would accept.
+export function parsePagination(opts: { page?: unknown; limit?: unknown }): {
+  page: number;
+  perPage: number;
+} {
+  return {
+    page: validateInt(opts.page ?? '0', '--page', { min: 0 }),
+    perPage: validateInt(opts.limit ?? '10', '--limit', { min: 1 }),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Guardrail validators
 // ---------------------------------------------------------------------------

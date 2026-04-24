@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
+import { reportAndExit, parsePagination } from '../validators/index.js';
 
 export function registerApprovalCommands(program: Command) {
   const approval = program.command('approval').description('Approval management');
@@ -18,8 +19,7 @@ export function registerApprovalCommands(program: Command) {
         });
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -36,8 +36,7 @@ export function registerApprovalCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         const data = await getClient().getPendingApprovals(agentId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           search: opts.search,
           status: opts.status,
           tiers: opts.tiers,
@@ -46,8 +45,7 @@ export function registerApprovalCommands(program: Command) {
         });
         outputList(data, 'pending approvals');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -64,8 +62,7 @@ export function registerApprovalCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         const data = await getClient().getApprovalHistory(agentId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           search: opts.search,
           status: opts.status,
           tiers: opts.tiers,
@@ -74,8 +71,7 @@ export function registerApprovalCommands(program: Command) {
         });
         outputList(data, 'approval history');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -95,8 +91,7 @@ export function registerApprovalCommands(program: Command) {
         );
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }

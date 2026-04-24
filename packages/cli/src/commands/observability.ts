@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
+import { reportAndExit, parsePagination } from '../validators/index.js';
 
 export function registerObservabilityCommands(program: Command) {
   const observe = program.command('observe').description('Observability');
@@ -18,8 +19,7 @@ export function registerObservabilityCommands(program: Command) {
         });
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -31,13 +31,11 @@ export function registerObservabilityCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         const data = await getClient().getIssues(agentId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
         });
         outputList(data, 'issues');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -54,8 +52,7 @@ export function registerObservabilityCommands(program: Command) {
         });
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -67,13 +64,11 @@ export function registerObservabilityCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         const data = await getClient().getAgentLogs(agentId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
         });
         outputList(data, 'logs');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -85,13 +80,11 @@ export function registerObservabilityCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         const data = await getClient().getDriftLogs(agentId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
         });
         outputList(data, 'drift logs');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -103,8 +96,7 @@ export function registerObservabilityCommands(program: Command) {
         const data = await getClient().getAgentMetrics();
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }

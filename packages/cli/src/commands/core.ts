@@ -4,6 +4,7 @@ import { getCoreClient } from '../config.js';
 import { output } from '../output.js';
 import { parseJsonInput } from '../input.js';
 import { buildTestPayload, type SpanType } from '../span-builder.js';
+import { reportAndExit } from '../validators/index.js';
 
 // Resolve @file references in option values. If value starts with @, read the file.
 function resolveValue(value: string | undefined): string | undefined {
@@ -27,8 +28,7 @@ export function registerCoreCommands(program: Command) {
         const data = await getCoreClient().health();
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -40,8 +40,7 @@ export function registerCoreCommands(program: Command) {
         const data = await getCoreClient().validateApiKey();
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -124,8 +123,7 @@ export function registerCoreCommands(program: Command) {
         const data = await getCoreClient().evaluate(payload);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -144,8 +142,7 @@ export function registerCoreCommands(program: Command) {
         });
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }

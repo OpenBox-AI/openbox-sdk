@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output } from '../output.js';
+import { reportAndExit } from '../validators/index.js';
 
 export function registerApiKeyCommands(program: Command) {
   const apiKey = program.command('api-key').description('API key management');
@@ -13,8 +14,7 @@ export function registerApiKeyCommands(program: Command) {
         const data = await getClient().rotateApiKey(agentId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -26,8 +26,7 @@ export function registerApiKeyCommands(program: Command) {
         const data = await getClient().revokeApiKey(agentId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }

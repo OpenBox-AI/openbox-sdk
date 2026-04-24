@@ -9,6 +9,7 @@ import {
   validateEnum,
   validateInt,
   block,
+  parsePagination,
 } from '../validators/index.js';
 
 export function registerPolicyCommands(program: Command) {
@@ -22,13 +23,11 @@ export function registerPolicyCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         const data = await getClient().listPolicies(agentId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
         });
         outputList(data, 'policies');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -94,8 +93,7 @@ export function registerPolicyCommands(program: Command) {
         const data = await getClient().getCurrentPolicies(agentId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -107,8 +105,7 @@ export function registerPolicyCommands(program: Command) {
         const data = await getClient().getPolicy(agentId, policyId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -149,8 +146,7 @@ export function registerPolicyCommands(program: Command) {
         const data = await getClient().updatePolicy(agentId, policyId, dto);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -162,13 +158,11 @@ export function registerPolicyCommands(program: Command) {
     .action(async (agentId: string, policyId: string, opts) => {
       try {
         const data = await getClient().getPolicyEvaluations(agentId, policyId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
         });
         outputList(data, 'evaluations');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -185,8 +179,7 @@ export function registerPolicyCommands(program: Command) {
         });
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -203,8 +196,7 @@ export function registerPolicyCommands(program: Command) {
         });
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }
