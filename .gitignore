@@ -1,3 +1,7 @@
 node_modules
 dist
 *.tsbuildinfo
+# Local auth state - never commit.
+.tokens
+.env
+.env.local
