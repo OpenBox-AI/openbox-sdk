@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
+import { reportAndExit, parsePagination } from '../validators/index.js';
 
 // Parse "30s" / "5m" / "2h" / "1d" / bare seconds into milliseconds.
 // Dangling cleanup must set this explicitly - no default, per user requirement.
@@ -18,8 +19,12 @@ type EventLog = {
   event_type?: string;
   workflow_id?: string;
   run_id?: string;
+  session_id?: string;
   activity_id?: string;
   activity_type?: string;
+  activity_input?: unknown;
+  verdict?: string;
+  action?: string;
   status?: string;
   created_at?: string;
   timestamp?: string;
@@ -27,6 +32,44 @@ type EventLog = {
 };
 
 type InspectFinding = { level: 'ok' | 'warn' | 'fail'; message: string };
+
+// Canonical activity_type values emitted by first-party SDKs. Backend accepts
+// free-form strings, so non-canonical values are `warn` (work, but drift from
+// the skill contract and won't match guardrails configured against these
+// canonical names). See governance-flow.md § Canonical activity_type Names.
+const CANONICAL_ACTIVITY_TYPES = new Set([
+  'PromptSubmission',
+  'FileRead',
+  'FileEdit',
+  'FileDelete',
+  'ShellExecution',
+  'ShellOutput',
+  'HTTPRequest',
+  'MCPToolCall',
+  'MCPToolResponse',
+  'AgentResponse',
+  'AgentThinking',
+  'AgentSpawn',
+  'ClaudeCodeSession',
+  'CursorSession',
+  'LLMCompleted',
+  'ToolCompleted',
+  'DefaultActivity',
+]);
+
+// Six canonical event_types - enforced hard. Anything else is a protocol bug.
+const CANONICAL_EVENT_TYPES = new Set([
+  'WorkflowStarted',
+  'SignalReceived',
+  'ActivityStarted',
+  'ActivityCompleted',
+  'WorkflowCompleted',
+  'WorkflowFailed',
+]);
+
+// Production verdicts. `constrain` was removed - any value outside this set
+// on the wire is a bug somewhere (stale SDK, hand-rolled client, etc.).
+const CANONICAL_VERDICTS = new Set(['allow', 'require_approval', 'block', 'halt']);
 
 function inspectEvents(events: EventLog[]): InspectFinding[] {
   const findings: InspectFinding[] = [];
@@ -38,6 +81,11 @@ function inspectEvents(events: EventLog[]): InspectFinding[] {
   const completes = new Map<string, EventLog>(); // activity_id -> ActivityCompleted
   let hasTerminal = false;
 
+  const nonCanonicalActivityTypes = new Set<string>();
+  const nonCanonicalEventTypes = new Set<string>();
+  const badVerdicts = new Set<string>();
+  let badActivityInput = 0;
+
   for (const e of events) {
     const t = e.event_type || 'unknown';
     counts[t] = (counts[t] || 0) + 1;
@@ -46,6 +94,23 @@ function inspectEvents(events: EventLog[]): InspectFinding[] {
     if (t === 'ActivityStarted' && e.activity_id) starts.set(e.activity_id, e);
     if (t === 'ActivityCompleted' && e.activity_id) completes.set(e.activity_id, e);
     if (t === 'WorkflowCompleted' || t === 'WorkflowFailed') hasTerminal = true;
+
+    if (e.event_type && !CANONICAL_EVENT_TYPES.has(e.event_type)) {
+      nonCanonicalEventTypes.add(e.event_type);
+    }
+    if (e.activity_type && !CANONICAL_ACTIVITY_TYPES.has(e.activity_type)) {
+      nonCanonicalActivityTypes.add(e.activity_type);
+    }
+    const verdict = e.verdict ?? e.action;
+    if (typeof verdict === 'string' && !CANONICAL_VERDICTS.has(verdict)) {
+      badVerdicts.add(verdict);
+    }
+    // session_id is NOT a wire-contract field per governance-flow.md - it's a
+    // DB-side identifier assigned at ingestion. Don't flag its absence as a
+    // protocol violation; that would fire against every conformant SDK.
+    if ('activity_input' in e && e.activity_input != null && !Array.isArray(e.activity_input)) {
+      badActivityInput += 1;
+    }
   }
 
   // 1. Workflow/run ID consistency.
@@ -113,6 +178,66 @@ function inspectEvents(events: EventLog[]): InspectFinding[] {
     });
   }
 
+  // 6. Canonical event_type. Hard rule: the 6 canonical values are exhaustive.
+  if (nonCanonicalEventTypes.size > 0) {
+    findings.push({
+      level: 'fail',
+      message: `non-canonical event_type value(s): ${[...nonCanonicalEventTypes].join(', ')} - must be one of ${[...CANONICAL_EVENT_TYPES].join('|')}`,
+    });
+  }
+
+  // 7. Canonical activity_type. Soft rule: backend accepts free-form, so warn.
+  // Drifters still run but won't match guardrails configured against the
+  // canonical names.
+  if (nonCanonicalActivityTypes.size > 0) {
+    findings.push({
+      level: 'warn',
+      message: `non-canonical activity_type value(s): ${[...nonCanonicalActivityTypes].join(', ')} - accepted by backend but off-spec; guardrails targeting canonical names won't match`,
+    });
+  }
+
+  // 8. Verdict enum. A stray `constrain` or invented value means a stale SDK
+  // or hand-rolled client is emitting values that newer rules don't branch on.
+  if (badVerdicts.size > 0) {
+    findings.push({
+      level: 'fail',
+      message: `non-canonical verdict(s): ${[...badVerdicts].join(', ')} - must be allow|require_approval|block|halt`,
+    });
+  }
+
+  // 9. activity_input must be an array when present.
+  if (badActivityInput > 0) {
+    findings.push({
+      level: 'fail',
+      message: `${badActivityInput} event(s) have activity_input that is not an array (must be an array per governance-flow.md)`,
+    });
+  }
+
+  // 10. Timestamp monotonicity - events should be non-decreasing by created_at.
+  // We check receive-order (not sorted) because the intent is "did the
+  // server/pagination return events in timestamp order." If the list WERE
+  // sorted first, a true clock-skew bug would be silently re-ordered away.
+  // A receive-order regression is either: (a) pagination returned a later
+  // page with earlier timestamps, or (b) a real client-side clock skew.
+  let tsRegression = 0;
+  let prevMs = -Infinity;
+  for (const e of events) {
+    const raw = e.created_at ?? e.timestamp;
+    if (!raw) continue;
+    const ms = Date.parse(raw);
+    if (!Number.isFinite(ms)) continue;
+    if (ms < prevMs) {
+      tsRegression += 1;
+    }
+    prevMs = ms;
+  }
+  if (tsRegression > 0) {
+    findings.push({
+      level: 'warn',
+      message: `${tsRegression} timestamp regression(s) in receive order - either a pagination-order quirk or a client-clock-skew bug; re-sort and re-inspect if the sequence matters`,
+    });
+  }
+
   return findings;
 }
 
@@ -132,8 +257,7 @@ export function registerSessionCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         const data = await getClient().listSessions(agentId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           status: opts.status,
           fromTime: opts.from,
           toTime: opts.to,
@@ -142,8 +266,7 @@ export function registerSessionCommands(program: Command) {
         });
         outputList(data, 'sessions');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -155,8 +278,7 @@ export function registerSessionCommands(program: Command) {
         const data = await getClient().getActiveSessions(agentId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -168,8 +290,7 @@ export function registerSessionCommands(program: Command) {
         const data = await getClient().getSession(agentId, sessionId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -182,14 +303,12 @@ export function registerSessionCommands(program: Command) {
     .action(async (agentId: string, sessionId: string, opts) => {
       try {
         const data = await getClient().getSessionLogs(agentId, sessionId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           event_type: opts.eventType,
         });
         outputList(data, 'logs');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -201,8 +320,7 @@ export function registerSessionCommands(program: Command) {
         const data = await getClient().getSessionGoalAlignmentStats(agentId, sessionId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -214,8 +332,7 @@ export function registerSessionCommands(program: Command) {
         const data = await getClient().getSessionReasoningTrace(agentId, sessionId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -227,8 +344,7 @@ export function registerSessionCommands(program: Command) {
         const data = await getClient().terminateSession(agentId, sessionId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -263,8 +379,11 @@ export function registerSessionCommands(program: Command) {
           const data = ((resp as any).data ?? (resp as any)) as EventLog[];
           const arr: EventLog[] = Array.isArray(data) ? data : ((data as any).data ?? []);
           all.push(...arr);
-          const total = (resp as any).total ?? all.length;
-          if (all.length >= total || arr.length === 0) break;
+          // Backend may omit `total` - treating it as `all.length` creates a
+          // self-fulfilling exit after page 1. Rely on `arr.length === 0` as
+          // the real terminator; use `total` only when the backend provides it.
+          const total = (resp as any).total;
+          if (arr.length === 0 || (typeof total === 'number' && all.length >= total)) break;
           page += 1;
           if (page > 200) break; // sanity guard - 20k events is plenty
         }
@@ -291,8 +410,7 @@ export function registerSessionCommands(program: Command) {
           process.exit(2);
         }
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -352,8 +470,7 @@ export function registerSessionCommands(program: Command) {
         console.log(`done: ${ok} terminated, ${failed} failed. ${candidates.length - toTerminate.length} deferred by --limit.`);
         if (failed > 0) process.exit(1);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }
