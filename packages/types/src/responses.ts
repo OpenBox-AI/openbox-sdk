@@ -136,9 +136,17 @@ export interface Session {
   id: string;
   session_id?: string;
   agent_id?: string;
+  workflow_id?: string;
+  run_id?: string;
   status?: string;
   started_at?: string;
-  ended_at?: string;
+  /** Backend field is `completed_at` - use this, not `ended_at` (which doesn't exist). */
+  completed_at?: string;
+  flagged?: boolean;
+  flag_reason?: string;
+  detail?: string;
+  trust_evaluated_at?: string;
+  metadata?: Record<string, unknown>;
   [key: string]: unknown;
 }
 

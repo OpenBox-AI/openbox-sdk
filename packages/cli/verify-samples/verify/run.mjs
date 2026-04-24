@@ -35,7 +35,9 @@ function runVerify(fixture) {
   return JSON.parse(stdout);
 }
 
-function assertFires(fixture, mustFire) {
+function assertFires(fixture, spec) {
+  const mustFire = spec.must_fire;
+  const mustFireAtLine = spec.must_fire_at_line || {};
   const result = runVerify(fixture);
   const fired = new Set(result.findings.map((f) => f.rule));
   const missing = mustFire.filter((r) => !fired.has(r));
@@ -46,7 +48,22 @@ function assertFires(fixture, mustFire) {
     failures += 1;
     return;
   }
-  console.log(`\x1b[32m✓ ${fixture}\x1b[0m - all ${mustFire.length} expected rule(s) fired`);
+  // Verify line-number accuracy for rules that specify must_fire_at_line.
+  // This catches regressions where comment-stripping shifts line indices.
+  const lineMismatches = [];
+  for (const [rule, expectedLine] of Object.entries(mustFireAtLine)) {
+    const hit = result.findings.find((f) => f.rule === rule);
+    if (hit && hit.line !== expectedLine) {
+      lineMismatches.push(`${rule}: expected line ${expectedLine}, got ${hit.line}`);
+    }
+  }
+  if (lineMismatches.length > 0) {
+    console.error(`\x1b[31m✗ ${fixture}\x1b[0m - line-number drift:`);
+    for (const m of lineMismatches) console.error(`    - ${m}`);
+    failures += 1;
+    return;
+  }
+  console.log(`\x1b[32m✓ ${fixture}\x1b[0m - all ${mustFire.length} expected rule(s) fired${Object.keys(mustFireAtLine).length > 0 ? ' (line numbers verified)' : ''}`);
 }
 
 function assertClean(fixture) {
@@ -64,7 +81,7 @@ console.log('openbox verify - regression suite\n');
 
 for (const [fixture, spec] of Object.entries(expected)) {
   if (spec.must_not_fire_any) assertClean(fixture);
-  else assertFires(fixture, spec.must_fire);
+  else assertFires(fixture, spec);
 }
 
 console.log();

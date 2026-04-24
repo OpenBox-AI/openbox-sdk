@@ -144,14 +144,14 @@ export function registerBehaviorCommands(program: Command) {
   behavior
     .command('update <agentId> <ruleId>')
     .description('Update a behavior rule')
-    .requiredOption('--json <json>', 'Full JSON body (required due to many fields)')
-    .requiredOption('--change-log <text>', 'Human-readable change reason. Required by the backend UpdateBehavioralRuleDto (change_log is @IsNotEmpty) - omitting it returns 422.')
+    .requiredOption('--json <json>', 'Full JSON body (required due to many fields). If it omits change_log, the --change-log flag fills it in.')
+    .option('--change-log <text>', 'Human-readable change reason. Required by the backend (UpdateBehavioralRuleDto.change_log is non-empty). The value is read from --json first; this flag is the fallback when your --json doesn\'t include it.')
     .action(async (agentId: string, ruleId: string, opts) => {
       try {
         const dto = parseJsonInput<any>(opts.json);
-        if (!dto.change_log) dto.change_log = opts.changeLog;
+        if (!dto.change_log && opts.changeLog) dto.change_log = opts.changeLog;
         if (!dto.change_log) {
-          console.error('Error: change_log is required (pass via --change-log or include in --json).');
+          console.error('Error: change_log is required (include in --json or pass --change-log <text>).');
           process.exit(2);
         }
         const data = await getClient().updateBehaviorRule(agentId, ruleId, dto);

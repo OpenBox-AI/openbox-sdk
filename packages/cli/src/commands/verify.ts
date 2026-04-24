@@ -68,9 +68,20 @@ function matchLines(
 
 // Strip comments so identifier-presence rules don't get fooled by "// missing X-Openbox-Client" etc.
 // Handles //, /* */, and # (Python). Naive - does not respect strings; good enough for a lint.
+//
+// CRITICAL: preserves newline count. Multiline /* ... */ blocks are replaced
+// with blank lines (one '\n' per line the block spanned) so downstream code
+// that iterates lines by index stays aligned with the original file. A prior
+// version collapsed multiline blocks into empty strings and silently shifted
+// every subsequent line's reported line number - caught by Phase T regression
+// audit. Do not regress this.
 function stripComments(content: string): string {
   return content
-    .replace(/\/\*[\s\S]*?\*\//g, '')     // block /* ... */
+    .replace(/\/\*[\s\S]*?\*\//g, (match) => {
+      // Replace the block with newlines matching the number it occupied.
+      const nl = (match.match(/\n/g) || []).length;
+      return '\n'.repeat(nl);
+    })
     .replace(/(^|[^:])\/\/[^\n]*/g, '$1') // line // ...   (guard against http://)
     .replace(/^\s*#[^\n]*/gm, '');        // Python / shell #
 }
