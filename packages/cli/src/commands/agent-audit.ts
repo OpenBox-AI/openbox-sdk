@@ -41,6 +41,12 @@ export type AuditOptions = {
   maxEvents?: number;
 };
 
+export type AuditFinding = {
+  rule: string;
+  level: 'warn' | 'fail';
+  message: string;
+};
+
 export type AuditReport = {
   agent: Record<string, unknown> | null;
   sessions: {
@@ -56,6 +62,16 @@ export type AuditReport = {
     orphanCompletes: number;
     sessionsMissingTerminal: number;
     failedActivityCount: number;
+    // Drift from canonical values - aggregated across every session in the
+    // audit window so systemic issues (one bad SDK, one legacy client) show up
+    // instead of hiding as a per-session blip.
+    nonCanonicalEventTypes: string[];
+    nonCanonicalActivityTypes: string[];
+    nonCanonicalVerdicts: string[];
+    duplicateActivityIds: number;
+    timestampRegressions: number;
+    eventsMissingSessionId: number;
+    eventsWithNonArrayInput: number;
   };
   config: {
     active_guardrails: number;
@@ -63,7 +79,42 @@ export type AuditReport = {
     active_behaviors: number;
   };
   mismatches: Array<{ guardrail: string; configuredType: string; seenCount: number }>;
+  findings: AuditFinding[];
 };
+
+// Canonical sets - kept in sync with session.ts; duplicated rather than
+// shared because the two commands live in different modules and pulling a
+// dependency out for a handful of constants isn't worth the indirection.
+const CANONICAL_ACTIVITY_TYPES = new Set([
+  'PromptSubmission',
+  'FileRead',
+  'FileEdit',
+  'FileDelete',
+  'ShellExecution',
+  'ShellOutput',
+  'HTTPRequest',
+  'MCPToolCall',
+  'MCPToolResponse',
+  'AgentResponse',
+  'AgentThinking',
+  'AgentSpawn',
+  'ClaudeCodeSession',
+  'CursorSession',
+  'LLMCompleted',
+  'ToolCompleted',
+  'DefaultActivity',
+]);
+
+const CANONICAL_EVENT_TYPES = new Set([
+  'WorkflowStarted',
+  'SignalReceived',
+  'ActivityStarted',
+  'ActivityCompleted',
+  'WorkflowCompleted',
+  'WorkflowFailed',
+]);
+
+const CANONICAL_VERDICTS = new Set(['allow', 'require_approval', 'block', 'halt']);
 
 function pickArray<T = unknown>(resp: unknown): T[] {
   if (Array.isArray(resp)) return resp as T[];
@@ -74,6 +125,17 @@ function pickArray<T = unknown>(resp: unknown): T[] {
   return [];
 }
 
+// Backend may omit `total` - falling back to `all.length` turns every loop
+// into a page-1 terminator. Only honor `total` when it's actually a number;
+// otherwise rely on empty-page detection.
+function pickTotal(resp: unknown): number | undefined {
+  const direct = (resp as any)?.total;
+  if (typeof direct === 'number') return direct;
+  const nested = (resp as any)?.data?.total;
+  if (typeof nested === 'number') return nested;
+  return undefined;
+}
+
 async function fetchRecentSessions(client: OpenBoxClient, agentId: string, limit: number): Promise<Session[]> {
   const all: Session[] = [];
   let page = 0;
@@ -82,8 +144,8 @@ async function fetchRecentSessions(client: OpenBoxClient, agentId: string, limit
     const rows = pickArray<Session>(resp);
     if (rows.length === 0) break;
     all.push(...rows);
-    const total = (resp as any).total ?? (resp as any).data?.total ?? all.length;
-    if (all.length >= total) break;
+    const total = pickTotal(resp);
+    if (total != null && all.length >= total) break;
     page += 1;
     if (page > 50) break;
   }
@@ -96,9 +158,10 @@ async function fetchSessionEvents(client: OpenBoxClient, agentId: string, sessio
   while (all.length < cap) {
     const resp = await client.getSessionLogs(agentId, sessionId, { page, perPage: Math.min(100, cap - all.length) });
     const rows = pickArray<EventLog>(resp);
+    if (rows.length === 0) break;
     all.push(...rows);
-    const total = (resp as any).total ?? (resp as any).data?.total ?? all.length;
-    if (all.length >= total || rows.length === 0) break;
+    const total = pickTotal(resp);
+    if (total != null && all.length >= total) break;
     page += 1;
     if (page > 100) break;
   }
@@ -135,27 +198,139 @@ function analyzeEvents(sessionEvents: Record<string, EventLog[]>): AuditReport['
   let sessionsMissingTerminal = 0;
   let failedActivityCount = 0;
 
+  // Cross-session drift trackers.
+  const nonCanonicalEvent = new Set<string>();
+  const nonCanonicalActivity = new Set<string>();
+  const nonCanonicalVerdict = new Set<string>();
+  let duplicateActivityIds = 0;
+  let timestampRegressions = 0;
+  let eventsMissingSessionId = 0;
+  let eventsWithNonArrayInput = 0;
+
   for (const [, events] of Object.entries(sessionEvents)) {
-    const starts = new Set<string>();
-    const completes = new Set<string>();
+    // Use counts rather than sets so a duplicate ActivityStarted for the same
+    // activity_id (itself a protocol violation) doesn't silently merge.
+    const starts = new Map<string, number>();
+    const completes = new Map<string, number>();
     let hasTerminal = false;
+    let prevMs = -Infinity;
+
     for (const e of events) {
       if (e.activity_type) activityDist[e.activity_type] = (activityDist[e.activity_type] || 0) + 1;
       const v = (e as any).verdict ?? (e as any).action;
       if (typeof v === 'string') verdictDist[v] = (verdictDist[v] || 0) + 1;
-      if (e.event_type === 'ActivityStarted' && e.activity_id) starts.add(e.activity_id);
+      if (e.event_type === 'ActivityStarted' && e.activity_id) {
+        starts.set(e.activity_id, (starts.get(e.activity_id) ?? 0) + 1);
+      }
       if (e.event_type === 'ActivityCompleted' && e.activity_id) {
-        completes.add(e.activity_id);
+        completes.set(e.activity_id, (completes.get(e.activity_id) ?? 0) + 1);
         if (e.status === 'failed') failedActivityCount += 1;
       }
       if (e.event_type === 'WorkflowCompleted' || e.event_type === 'WorkflowFailed') hasTerminal = true;
+
+      if (e.event_type && !CANONICAL_EVENT_TYPES.has(e.event_type)) {
+        nonCanonicalEvent.add(e.event_type);
+      }
+      if (e.activity_type && !CANONICAL_ACTIVITY_TYPES.has(e.activity_type)) {
+        nonCanonicalActivity.add(e.activity_type);
+      }
+      if (typeof v === 'string' && !CANONICAL_VERDICTS.has(v)) {
+        nonCanonicalVerdict.add(v);
+      }
+      if (!(e as any).session_id) eventsMissingSessionId += 1;
+      if ('activity_input' in e && e.activity_input != null && !Array.isArray(e.activity_input)) {
+        eventsWithNonArrayInput += 1;
+      }
+      const ts = (e as any).created_at ?? (e as any).timestamp;
+      if (typeof ts === 'string') {
+        const ms = Date.parse(ts);
+        if (Number.isFinite(ms)) {
+          if (ms < prevMs) timestampRegressions += 1;
+          prevMs = ms;
+        }
+      }
     }
-    for (const aid of starts) if (!completes.has(aid)) orphanStarts += 1;
-    for (const aid of completes) if (!starts.has(aid)) orphanCompletes += 1;
+
+    for (const [aid, n] of starts) {
+      if (n > 1) duplicateActivityIds += n - 1;
+      if (!completes.has(aid)) orphanStarts += 1;
+    }
+    for (const [aid] of completes) if (!starts.has(aid)) orphanCompletes += 1;
     if (events.length > 0 && !hasTerminal) sessionsMissingTerminal += 1;
   }
 
-  return { verdictDistribution: verdictDist, activityTypeDistribution: activityDist, orphanStarts, orphanCompletes, sessionsMissingTerminal, failedActivityCount };
+  return {
+    verdictDistribution: verdictDist,
+    activityTypeDistribution: activityDist,
+    orphanStarts,
+    orphanCompletes,
+    sessionsMissingTerminal,
+    failedActivityCount,
+    nonCanonicalEventTypes: [...nonCanonicalEvent].sort(),
+    nonCanonicalActivityTypes: [...nonCanonicalActivity].sort(),
+    nonCanonicalVerdicts: [...nonCanonicalVerdict].sort(),
+    duplicateActivityIds,
+    timestampRegressions,
+    eventsMissingSessionId,
+    eventsWithNonArrayInput,
+  };
+}
+
+// Promote the drift counters into findings for the rendered report. Kept as
+// a separate pass so callers that only need the raw distribution (tests,
+// programmatic consumers) don't have to sift text.
+function buildEventFindings(events: AuditReport['events']): AuditFinding[] {
+  const findings: AuditFinding[] = [];
+  if (events.nonCanonicalEventTypes.length > 0) {
+    findings.push({
+      rule: 'event_type.canonical',
+      level: 'fail',
+      message: `non-canonical event_type(s): ${events.nonCanonicalEventTypes.join(', ')} - must be one of ${[...CANONICAL_EVENT_TYPES].join('|')}`,
+    });
+  }
+  if (events.nonCanonicalActivityTypes.length > 0) {
+    findings.push({
+      rule: 'activity_type.canonical',
+      level: 'warn',
+      message: `non-canonical activity_type(s): ${events.nonCanonicalActivityTypes.join(', ')} - accepted by backend but off-spec; guardrails targeting canonical names won't match`,
+    });
+  }
+  if (events.nonCanonicalVerdicts.length > 0) {
+    findings.push({
+      rule: 'verdict.canonical',
+      level: 'fail',
+      message: `non-canonical verdict(s): ${events.nonCanonicalVerdicts.join(', ')} - must be allow|require_approval|block|halt`,
+    });
+  }
+  if (events.duplicateActivityIds > 0) {
+    findings.push({
+      rule: 'activity_id.unique',
+      level: 'fail',
+      message: `${events.duplicateActivityIds} duplicate ActivityStarted event(s) share an activity_id - each activity_id must appear in exactly one ActivityStarted`,
+    });
+  }
+  if (events.timestampRegressions > 0) {
+    findings.push({
+      rule: 'timestamp.monotonic',
+      level: 'fail',
+      message: `${events.timestampRegressions} timestamp regression(s) across audited sessions`,
+    });
+  }
+  if (events.eventsMissingSessionId > 0) {
+    findings.push({
+      rule: 'session_id.present',
+      level: 'fail',
+      message: `${events.eventsMissingSessionId} event(s) missing session_id`,
+    });
+  }
+  if (events.eventsWithNonArrayInput > 0) {
+    findings.push({
+      rule: 'activity_input.array',
+      level: 'fail',
+      message: `${events.eventsWithNonArrayInput} event(s) have activity_input that is not an array`,
+    });
+  }
+  return findings;
 }
 
 function findMismatchedActivityTypes(guardrails: GuardrailRow[], seen: Set<string>): AuditReport['mismatches'] {
@@ -195,6 +370,8 @@ export async function runAgentAudit(client: OpenBoxClient, agentId: string, opts
   const seenTypes = new Set(Object.keys(eventStats.activityTypeDistribution));
   const mismatches = findMismatchedActivityTypes(guardrails, seenTypes);
 
+  const findings = buildEventFindings(eventStats);
+
   return {
     agent: agent as any,
     sessions: sessionStats,
@@ -205,6 +382,7 @@ export async function runAgentAudit(client: OpenBoxClient, agentId: string, opts
       active_behaviors: Array.isArray(behaviors) ? behaviors.length : 0,
     },
     mismatches,
+    findings,
   };
 }
 
@@ -270,6 +448,15 @@ export function renderAuditReport(agentId: string, report: AuditReport): void {
     console.log();
   }
 
+  if (report.findings.length > 0) {
+    console.log(`Canonical-value drift findings:`);
+    for (const f of report.findings) {
+      const color = f.level === 'fail' ? '\x1b[31m' : '\x1b[33m';
+      console.log(`  ${color}[${f.level}] ${f.rule}:\x1b[0m ${f.message}`);
+    }
+    console.log();
+  }
+
   console.log(`Next actions:`);
   console.log(`  openbox session inspect ${agentId} <id>       # drill into one session`);
   if (s.dangling > 0) console.log(`  openbox session prune ${agentId} --older-than 1h --dry-run  # clean dangling`);
@@ -280,7 +467,8 @@ export function auditHasIssues(report: AuditReport): boolean {
   const e = report.events;
   return e.orphanStarts + e.orphanCompletes + e.sessionsMissingTerminal > 0
     || report.mismatches.length > 0
-    || report.sessions.dangling > 0;
+    || report.sessions.dangling > 0
+    || report.findings.some((f) => f.level === 'fail');
 }
 
 function fmtMs(ms: number | null): string {
