@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
 import { parseJsonInput } from '../input.js';
-import { reportAndExit, parsePagination } from '../validators/index.js';
+import { reportAndExit, parsePagination, validateIsoDate } from '../validators/index.js';
 
 export function registerAivssCommands(program: Command) {
   const aivss = program.command('aivss').description('AIVSS risk assessment');
@@ -16,6 +16,8 @@ export function registerAivssCommands(program: Command) {
     .option('--to <date>', 'End date (ISO)')
     .action(async (agentId: string, opts) => {
       try {
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getAssessments(agentId, {
           ...parsePagination(opts),
           fromTime: opts.from,

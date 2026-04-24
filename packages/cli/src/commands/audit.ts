@@ -2,7 +2,25 @@ import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
 import { parseJsonInput } from '../input.js';
-import { reportAndExit, parsePagination } from '../validators/index.js';
+import { reportAndExit, parsePagination, validateEnum, validateIsoDate } from '../validators/index.js';
+
+// Canonical enums from packages/types/src/requests.ts - kept in sync by hand.
+// If the type union there changes, update these tuples too.
+const AUDIT_EVENT_TYPES = [
+  'policy_change',
+  'guardrail_change',
+  'agent_session',
+  'agent_risk_configuration_change',
+  'agent_goal_alignment_configuration_change',
+  'role_change',
+  'security_event',
+  'settings_update',
+  'team_management',
+  'member_management',
+  'invitation',
+] as const;
+const AUDIT_RESULTS = ['success', 'failed', 'denied', 'warning', 'approved', 'allowed'] as const;
+const AUDIT_EXPORT_STATUSES = ['pending', 'processing', 'completed', 'failed'] as const;
 
 export function registerAuditCommands(program: Command) {
   const audit = program.command('audit').description('Audit log management');
@@ -12,14 +30,18 @@ export function registerAuditCommands(program: Command) {
     .description('List audit logs')
     .option('-p, --page <n>', 'Page number', '0')
     .option('-l, --limit <n>', 'Items per page', '10')
-    .option('--event-type <type>', 'Event type filter')
+    .option('--event-type <type>', `Event type filter (${AUDIT_EVENT_TYPES.join('|')})`)
     .option('--actor <id>', 'Actor ID filter')
-    .option('--result <result>', 'Result filter (success|failed|denied|warning|approved|allowed)')
+    .option('--result <result>', `Result filter (${AUDIT_RESULTS.join('|')})`)
     .option('-s, --search <text>', 'Search')
     .option('--from <date>', 'Start date (ISO)')
     .option('--to <date>', 'End date (ISO)')
     .action(async (opts) => {
       try {
+        if (opts.eventType) validateEnum(opts.eventType, AUDIT_EVENT_TYPES, '--event-type');
+        if (opts.result) validateEnum(opts.result, AUDIT_RESULTS, '--result');
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getAuditLogs({
           ...parsePagination(opts),
           eventType: opts.eventType,
@@ -60,6 +82,15 @@ export function registerAuditCommands(program: Command) {
     .option('--json <json>', 'Full JSON body (merged with flags - flags fill missing fields)')
     .action(async (opts) => {
       try {
+        // Validate flag inputs before building the DTO - values inside --json
+        // are the user's responsibility (they chose to hand-write a body).
+        if (opts.eventTypes) {
+          for (const t of opts.eventTypes) validateEnum(t, AUDIT_EVENT_TYPES, '--event-types entry');
+        }
+        if (opts.result) validateEnum(opts.result, AUDIT_RESULTS, '--result');
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
+
         // Merge flags over --json rather than letting --json wholesale replace
         // the DTO. Previously, passing --json silently dropped the required
         // --name, so the backend received a nameless body despite CLI claiming
@@ -86,12 +117,17 @@ export function registerAuditCommands(program: Command) {
   audit
     .command('preview')
     .description('Preview audit log export')
-    .option('--event-types <types...>', 'Event types')
+    .option('--event-types <types...>', `Event types (${AUDIT_EVENT_TYPES.join('|')})`)
     .option('--from <date>', 'Start date (ISO)')
     .option('--to <date>', 'End date (ISO)')
     .option('--json <json>', 'Full JSON body')
     .action(async (opts) => {
       try {
+        if (opts.eventTypes) {
+          for (const t of opts.eventTypes) validateEnum(t, AUDIT_EVENT_TYPES, '--event-types entry');
+        }
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         let dto: any;
         if (opts.json) {
           dto = parseJsonInput(opts.json);
@@ -114,11 +150,14 @@ export function registerAuditCommands(program: Command) {
     .description('List export history')
     .option('-p, --page <n>', 'Page number', '0')
     .option('-l, --limit <n>', 'Items per page', '10')
-    .option('--status <status>', 'Status filter (pending|processing|completed|failed)')
+    .option('--status <status>', `Status filter (${AUDIT_EXPORT_STATUSES.join('|')})`)
     .option('--from <date>', 'Start date (ISO)')
     .option('--to <date>', 'End date (ISO)')
     .action(async (opts) => {
       try {
+        if (opts.status) validateEnum(opts.status, AUDIT_EXPORT_STATUSES, '--status');
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getExportHistory({
           ...parsePagination(opts),
           status: opts.status,

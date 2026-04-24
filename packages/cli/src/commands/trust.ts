@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
-import { reportAndExit, validateEnum, parsePagination } from '../validators/index.js';
+import { reportAndExit, validateEnum, parsePagination, validateIsoDate } from '../validators/index.js';
 
 // Backend accepts only these four duration window strings. Anything else
 // returns an empty result silently - a local validateEnum catches the typo
@@ -34,6 +34,8 @@ export function registerTrustCommands(program: Command) {
     .option('--to <date>', 'End date (ISO)')
     .action(async (agentId: string, opts) => {
       try {
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getTrustEvents(agentId, {
           ...parsePagination(opts),
           fromTime: opts.from,
@@ -54,6 +56,8 @@ export function registerTrustCommands(program: Command) {
     .option('--to <date>', 'End date (ISO)')
     .action(async (agentId: string, opts) => {
       try {
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getTrustTierChanges(agentId, {
           ...parsePagination(opts),
           fromTime: opts.from,

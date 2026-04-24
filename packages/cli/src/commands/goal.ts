@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
 import { parseJsonInput } from '../input.js';
-import { reportAndExit, validateInt, validateEnum } from '../validators/index.js';
+import { reportAndExit, validateInt, validateEnum, validateIsoDate } from '../validators/index.js';
 
 export function registerGoalCommands(program: Command) {
   const goal = program.command('goal').description('Goal alignment management');
@@ -68,6 +68,8 @@ export function registerGoalCommands(program: Command) {
     .option('--to <date>', 'End date (ISO)')
     .action(async (agentId: string, opts) => {
       try {
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getGoalAlignmentTrend(agentId, {
           fromTime: opts.from,
           toTime: opts.to,

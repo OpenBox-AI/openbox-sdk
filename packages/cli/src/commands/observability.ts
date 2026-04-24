@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
-import { reportAndExit, parsePagination } from '../validators/index.js';
+import { reportAndExit, parsePagination, validateIsoDate } from '../validators/index.js';
 
 export function registerObservabilityCommands(program: Command) {
   const observe = program.command('observe').description('Observability');
@@ -13,6 +13,8 @@ export function registerObservabilityCommands(program: Command) {
     .option('--to <date>', 'End date (ISO)')
     .action(async (agentId: string, opts) => {
       try {
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getObservability(agentId, {
           fromTime: opts.from,
           toTime: opts.to,
@@ -46,6 +48,8 @@ export function registerObservabilityCommands(program: Command) {
     .option('--to <date>', 'End date (ISO)')
     .action(async (agentId: string, opts) => {
       try {
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getInsightsMetrics(agentId, {
           fromTime: opts.from,
           toTime: opts.to,
