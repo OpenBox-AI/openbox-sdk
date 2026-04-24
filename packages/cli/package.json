@@ -7,6 +7,10 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:e2e": "vitest run --project e2e",
+    "test:watch": "vitest watch",
     "test:verify": "node verify-samples/verify/run.mjs"
   },
   "dependencies": {
@@ -21,7 +25,9 @@
   "author": "salamisandwich77",
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "^25.5.2",
-    "typescript": "^5.7.0"
+    "@types/node": "^25.6.0",
+    "dotenv": "^17.4.2",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.9"
   }
 }
