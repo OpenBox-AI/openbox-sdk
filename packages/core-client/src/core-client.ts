@@ -428,30 +428,23 @@ export class OpenBoxCoreClient {
 
     const url = `${this.baseUrl}${path}`;
     const timeoutMs = this.config.timeoutMs ?? 30_000;
-    const fetchOptions: RequestInit = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.config.apiKey}`,
-      },
-      signal: AbortSignal.timeout(timeoutMs),
+    const baseHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${this.config.apiKey}`,
     };
+    const body = options?.data ? JSON.stringify(options.data) : undefined;
 
-    if (options?.data) {
-      fetchOptions.body = JSON.stringify(options.data);
-    }
-
-    const response = await this.executeWithRetry(url, fetchOptions);
+    const response = await this.executeWithRetry({ url, method, headers: baseHeaders, body, timeoutMs });
 
     const contentType = response.headers.get('content-type');
     const isJson = contentType?.includes('application/json');
 
     if (!response.ok) {
-      const body = isJson ? await response.json() : await response.text();
+      const errBody = isJson ? await response.json() : await response.text();
       throw new CoreApiError(
         `Request failed: ${response.status} ${response.statusText}`,
         response.status,
-        body,
+        errBody,
       );
     }
 
@@ -459,22 +452,28 @@ export class OpenBoxCoreClient {
       return response.text();
     }
 
-    const json = await response.json();
-    // Core API uses { data } envelope on some endpoints
-    if (json !== null && typeof json === 'object' && 'data' in json) {
-      return json.data;
-    }
-    return json;
+    // Core endpoints return flat JSON (not {status, data} - that's backend).
+    // No envelope unwrap here: a legitimate response like { id, action, data: {...} }
+    // on a future endpoint would otherwise be silently discarded.
+    return response.json();
   }
 
-  private async executeWithRetry(url: string, fetchOptions: RequestInit): Promise<Response> {
+  private async executeWithRetry(req: { url: string; method: string; headers: Record<string, string>; body?: string; timeoutMs: number }): Promise<Response> {
     const maxRetries = this.config.retry?.maxRetries ?? 3;
     const initialDelay = this.config.retry?.initialDelayMs ?? 500;
     const maxDelay = this.config.retry?.maxDelayMs ?? 30_000;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      // Create a fresh AbortSignal per attempt - reusing a single timeout signal
+      // across retries would fail every retry instantly once it tripped once.
+      const fetchOptions: RequestInit = {
+        method: req.method,
+        headers: req.headers,
+        body: req.body,
+        signal: AbortSignal.timeout(req.timeoutMs),
+      };
       try {
-        const response = await fetch(url, fetchOptions);
+        const response = await fetch(req.url, fetchOptions);
         if (response.ok || !OpenBoxCoreClient.RETRYABLE_STATUSES.has(response.status)) {
           return response;
         }
@@ -482,7 +481,11 @@ export class OpenBoxCoreClient {
         const delay = this.calculateBackoff(attempt, initialDelay, maxDelay);
         await new Promise((r) => setTimeout(r, delay));
       } catch (err) {
-        if (attempt === maxRetries || !(err instanceof TypeError)) throw err;
+        // Retry on fetch network errors (TypeError) and on per-attempt timeouts
+        // (AbortError from AbortSignal.timeout - a DOMException, not a TypeError).
+        const isNetworkError = err instanceof TypeError;
+        const isTimeout = err instanceof Error && err.name === 'AbortError';
+        if (attempt === maxRetries || (!isNetworkError && !isTimeout)) throw err;
         const delay = this.calculateBackoff(attempt, initialDelay, maxDelay);
         await new Promise((r) => setTimeout(r, delay));
       }
