@@ -12,7 +12,7 @@ type Session = Record<string, unknown> & {
   workflow_id?: string;
   run_id?: string;
   started_at?: string;
-  ended_at?: string;
+  completed_at?: string;
   created_at?: string;
 };
 
@@ -113,7 +113,7 @@ function analyzeSessions(sessions: Session[], nowMs = Date.now()): AuditReport['
     const status = (s.status ?? 'unknown').toLowerCase();
     byStatus[status] = (byStatus[status] || 0) + 1;
     const started = s.started_at ?? s.created_at;
-    const ended = s.ended_at;
+    const ended = s.completed_at;
     if (started && ended) {
       const d = new Date(ended as string).getTime() - new Date(started as string).getTime();
       if (Number.isFinite(d) && d >= 0) durations.push(d);

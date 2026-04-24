@@ -164,7 +164,17 @@ export function validateGuardrailParams(typeId: string, params: unknown): void {
   }
 }
 
-/** Canonical `activity_type` strings used by first-party SDKs. Non-canonical names won't match guardrail bindings. */
+/**
+ * Canonical `activity_type` strings. Union of what first-party SDKs emit
+ * (claude-hooks ACTIVITY_TYPES + cursor-hooks ACTIVITY_TYPES) plus the
+ * SDK-default `DefaultActivity` and the aspirational names the skill
+ * recommends for hand-rolled integrations. Non-canonical names still work
+ * server-side (activity_type is free-string) but won't match guardrails
+ * configured against this canonical set.
+ *
+ * Note: `ActivityCompleted` is an event_type, not an activity_type -
+ * deliberately excluded here even though the skill used to include it.
+ */
 export const CANONICAL_ACTIVITY_TYPES = [
   'PromptSubmission',
   'LLMCompleted',
@@ -175,9 +185,14 @@ export const CANONICAL_ACTIVITY_TYPES = [
   'ShellExecution',
   'HTTPRequest',
   'MCPToolCall',
-  'AgentSpawn',
-  'ActivityCompleted',
-  'DefaultActivity',  // SDK default
+  'MCPToolResponse',     // cursor-hooks
+  'AgentResponse',       // cursor-hooks
+  'AgentThinking',       // cursor-hooks
+  'ShellOutput',         // cursor-hooks
+  'AgentSpawn',          // claude-hooks
+  'ClaudeCodeSession',   // claude-hooks session marker
+  'CursorSession',       // cursor-hooks session marker
+  'DefaultActivity',     // openbox-typescript-sdk default (won't match specific-type guardrails - override via config.activityType)
 ] as const;
 
 export function validateActivitiesConfig(activities: unknown, stage: '0' | '1'): void {
@@ -292,35 +307,40 @@ export function validateRegoSource(rego: string): void {
     );
   }
 
-  // Should define result (default + at least one rule).
+  // Must define result (default + at least one rule). Core's opa.go reads
+  // result.decision / result.reason only; `deny[msg]` rules and any other
+  // shape are ignored and the policy silently ALLOWs.
   const hasResult = /\bresult\s*(:=|=)\s*\{/.test(src);
   const hasDenyPattern = /\bdeny\s*\[/.test(src);
   if (!hasResult) {
+    const denyHint = hasDenyPattern
+      ? ` Looks like your policy uses the \`deny[msg]\` pattern - that's not what core reads. Rewrite as \`result := {"decision": "BLOCK", "reason": "<msg>"} if { <conditions> }\`.`
+      : '';
     block(
       'rego-no-result',
-      `Rego source must define \`result := {"decision": ..., "reason": ...}\`. Core reads result.decision / result.reason; other shapes silently ALLOW.`,
+      `Rego source must define \`result := {"decision": ..., "reason": ...}\`. Core reads only result.decision / result.reason; other shapes silently fall through to ALLOW.${denyHint}`,
       `Use the template in references/rego-reference.md § "Template".`,
       'references/rego-reference.md § "Policy Format"',
     );
   }
-  if (hasDenyPattern && !hasResult) {
-    block(
-      'rego-uses-deny-msg',
-      `Your Rego uses \`deny[msg]\` pattern. OpenBox's OPA evaluator reads result.decision + result.reason only - \`deny[msg]\` rules are ignored and the policy silently ALLOWs.`,
-      `Rewrite as \`result := {"decision": "BLOCK", "reason": "<msg>"} if { <conditions> }\`.`,
-      'references/rego-reference.md § "Policy Format"',
-    );
-  }
 
-  // decision values must be uppercase ALLOW/REQUIRE_APPROVAL/BLOCK/HALT.
+  // Decision values: opa.go lowercases the string before switching, and accepts
+  // several aliases (per internal/services/opa.go:236-249):
+  //   allow | continue          → ALLOW
+  //   block | stop              → BLOCK
+  //   halt                       → HALT
+  //   require_approval | require-approval → REQUIRE_APPROVAL
+  //   anything else → falls through to ALLOW silently
+  // We accept the case-insensitive set and flag anything outside it.
+  const acceptedDecisions = /^(allow|continue|block|stop|halt|require[_-]approval)$/i;
   const decisionMatches = [...src.matchAll(/"decision"\s*:\s*"([^"]+)"/g)];
   for (const m of decisionMatches) {
     const val = m[1];
-    if (!/^(ALLOW|REQUIRE_APPROVAL|BLOCK|HALT)$/.test(val)) {
+    if (!acceptedDecisions.test(val)) {
       block(
         'rego-invalid-decision',
-        `Rego rule uses invalid decision "${val}". Valid decisions: ALLOW | REQUIRE_APPROVAL | BLOCK | HALT (uppercase, exact).`,
-        `Lowercase variants or invented names (DENY, REJECT, CONSTRAIN, etc.) are not recognized and silently fall through to ALLOW.`,
+        `Rego rule uses unrecognized decision "${val}". Accepted (case-insensitive): allow | continue | block | stop | halt | require_approval | require-approval. Convention is uppercase (ALLOW, BLOCK, HALT, REQUIRE_APPROVAL).`,
+        `Unknown values (e.g. "DENY", "REJECT", "CONSTRAIN") silently fall through to ALLOW - the policy then does nothing.`,
         'references/rego-reference.md § "Policy Format"',
       );
     }

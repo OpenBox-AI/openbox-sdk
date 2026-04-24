@@ -5,8 +5,9 @@ import { output, outputList } from '../output.js';
 // Parse "30s" / "5m" / "2h" / "1d" / bare seconds into milliseconds.
 // Dangling cleanup must set this explicitly - no default, per user requirement.
 function parseDuration(spec: string): number {
-  const m = spec.match(/^(\d+)\s*(s|m|h|d|ms)?$/i);
-  if (!m) throw new Error(`invalid duration: "${spec}" (use 30s, 5m, 2h, 1d, or bare seconds)`);
+  // Order matters: `ms` must be tested before `m` so "30ms" doesn't match the `m` minute case first.
+  const m = spec.match(/^(\d+)\s*(ms|s|m|h|d)?$/i);
+  if (!m) throw new Error(`invalid duration: "${spec}" (use 30ms, 30s, 5m, 2h, 1d, or bare seconds)`);
   const n = parseInt(m[1], 10);
   const unit = (m[2] || 's').toLowerCase();
   const mult: Record<string, number> = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
@@ -273,7 +274,7 @@ export function registerSessionCommands(program: Command) {
         console.log(`  workflow_id:  ${session.workflow_id ?? '-'}`);
         console.log(`  run_id:       ${session.run_id ?? '-'}`);
         console.log(`  started_at:   ${session.started_at ?? session.created_at ?? '-'}`);
-        console.log(`  ended_at:     ${session.ended_at ?? '-'}`);
+        console.log(`  completed_at: ${session.completed_at ?? '-'}`);
         console.log(`  events:       ${all.length}`);
         console.log();
 
