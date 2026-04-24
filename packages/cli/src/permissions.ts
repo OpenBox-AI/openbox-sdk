@@ -68,6 +68,62 @@ export const COMMAND_PERMISSIONS: Record<CommandKey, string[]> = {
   'observe insights':       ['read:agent'],
   'observe logs':           ['read:agent_log'],
   'observe drift':          ['read:agent_log'],
+
+  // ─── Entries below are pattern-matched to the existing namespace convention
+  // (read:agent_* / manage:agent_* / update:agent_* / read:team / manage:member).
+  // Cross-check against the backend `@Permissions(...)` decorators on first
+  // release - if any string is off, the pre-flight will produce a spurious
+  // "you lack X" error against a correctly-granted role. Worst-case it's
+  // self-correcting: remove the wrong entry when a user reports the false
+  // positive, and the backend's real 403 will list the actual needed perm.
+
+  // AIVSS - agent risk assessment
+  'aivss assessments':      ['read:agent_assessment'],
+  'aivss calculate':        ['read:agent_assessment'],
+  'aivss recalculate':      ['manage:agent_assessment'],
+  'aivss update':           ['update:agent_assessment'],
+
+  // Approvals - per-agent HITL queue
+  'approval decide':        ['manage:agent_approval'],
+  'approval history':       ['read:agent_approval'],
+  'approval metrics':       ['read:agent_approval'],
+  'approval pending':       ['read:agent_approval'],
+
+  // Goal alignment
+  'goal drifts':            ['read:agent_goal_alignment'],
+  'goal trend':             ['read:agent_goal_alignment'],
+  'goal update':            ['update:agent_goal_alignment'],
+
+  // Trust tier / history (per-agent, read-mostly)
+  'trust events':           ['read:agent_trust'],
+  'trust histories':        ['read:agent_trust'],
+  'trust recovery':         ['read:agent_trust'],
+  'trust tier-changes':     ['read:agent_trust'],
+
+  // Violations (per-agent read + mark-false-positive admin op)
+  'violation agent':        ['read:agent_violation'],
+  'violation false-positive': ['manage:agent_violation'],
+  'violation list':         ['read:agent_violation'],
+
+  // Teams (org-scoped - `team` resource, not `agent_team`)
+  'team get':               ['read:team'],
+  'team list':              ['read:team'],
+  'team stats':             ['read:team'],
+  'team members':           ['read:team'],
+  'team update':            ['update:team'],
+  'team create':            ['create:team'],
+  'team delete':            ['delete:team'],
+  'team add-members':       ['manage:team'],
+  'team remove-members':    ['manage:team'],
+
+  // Members (org users)
+  'member list':            ['read:member'],
+  'member create':          ['create:member'],
+  'member invite':          ['create:member'],
+  'member update':          ['update:member'],
+  'member remove':          ['delete:member'],
+  'member assign-roles':    ['manage:member'],
+  'member remove-roles':    ['manage:member'],
 };
 
 /**
