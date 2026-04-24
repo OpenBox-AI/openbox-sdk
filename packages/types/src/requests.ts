@@ -256,7 +256,12 @@ export interface CreateBehaviorRuleDto {
   trust_threshold?: number | null;
 }
 
-export interface UpdateBehaviorRuleDto {
+/**
+ * Matches backend `UpdateBehavioralRuleDto` (note: the backend class name is
+ * adjectival - "Behavioral", not "Behavior"). We expose both names so
+ * consumers can use either form; they're the same shape.
+ */
+export interface UpdateBehavioralRuleDto {
   rule_name: string;
   description?: string;
   priority: number;
@@ -271,6 +276,9 @@ export interface UpdateBehaviorRuleDto {
   trust_threshold?: number | null;
   change_log: string;
 }
+
+/** @deprecated Use `UpdateBehavioralRuleDto`. Kept as an alias for back-compat. */
+export type UpdateBehaviorRuleDto = UpdateBehavioralRuleDto;
 
 // ---------------------------------------------------------------------------
 // Test / Evaluate DTOs

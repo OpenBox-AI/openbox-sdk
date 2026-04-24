@@ -24,6 +24,10 @@
   "bad-self-hosted.ts": {
     "must_fire": ["missing-x-openbox-client-header"]
   },
+  "bad-block-comments.ts": {
+    "must_fire": ["activity_input-must-be-array"],
+    "must_fire_at_line": { "activity_input-must-be-array": 20 }
+  },
   "clean.ts": {
     "must_fire": [],
     "must_not_fire_any": true

@@ -8,7 +8,7 @@
 export type CommandKey = string;
 
 export const COMMAND_PERMISSIONS: Record<CommandKey, string[]> = {
-  // agent sub-resources - granular permission set added in backend PR #237.
+  // Guardrails
   'guardrail list':         ['read:agent_guardrail'],
   'guardrail get':          ['read:agent_guardrail'],
   'guardrail create':       ['create:agent_guardrail'],
@@ -17,17 +17,19 @@ export const COMMAND_PERMISSIONS: Record<CommandKey, string[]> = {
   'guardrail reorder':      ['update:agent_guardrail'],
   'guardrail metrics':      ['read:agent_guardrail'],
   'guardrail violations':   ['read:agent_guardrail'],
-  'guardrail test':         ['read:agent_guardrail'],
+  // 'guardrail test' endpoint has no @Permissions() on the backend - not gated here.
 
+  // Policies
   'policy list':            ['read:agent_policy'],
   'policy get':             ['read:agent_policy'],
   'policy current':         ['read:agent_policy'],
   'policy create':          ['create:agent_policy'],
   'policy update':          ['update:agent_policy'],
-  'policy evaluate':        ['read:agent_policy'],
   'policy evaluations':     ['read:agent_policy'],
   'policy metrics':         ['read:agent_policy'],
+  // 'policy evaluate' endpoint has no @Permissions() on the backend - not gated here.
 
+  // Behavior rules
   'behavior list':          ['read:agent_behavior_rule'],
   'behavior get':           ['read:agent_behavior_rule'],
   'behavior current':       ['read:agent_behavior_rule'],
@@ -35,28 +37,37 @@ export const COMMAND_PERMISSIONS: Record<CommandKey, string[]> = {
   'behavior update':        ['update:agent_behavior_rule'],
   'behavior delete':        ['delete:agent_behavior_rule'],
   'behavior toggle':        ['update:agent_behavior_rule'],
-  'behavior semantic-types':['read:agent_behavior_rule'],
+  'behavior restore':       ['update:agent_behavior_rule'],
+  'behavior versions':      ['read:agent_behavior_rule'],
+  'behavior types':         ['read:agent_behavior_rule'],
   'behavior metrics':       ['read:agent_behavior_rule'],
   'behavior violations':    ['read:agent_behavior_rule'],
 
+  // Sessions - note `session logs` hits a DIFFERENT endpoint requiring read:agent_log.
   'session list':           ['read:agent_session'],
   'session active':         ['read:agent_session'],
   'session get':            ['read:agent_session'],
-  'session logs':           ['read:agent_session'],
-  'session goal-alignment': ['read:agent_session'],
-  'session reasoning':      ['read:agent_session'],
+  'session logs':           ['read:agent_log'],
+  'session goal-stats':     ['read:agent_session'],
+  'session trace':          ['read:agent_session'],
   'session terminate':      ['manage:agent_session'],
-  'session inspect':        ['read:agent_session'],
+  'session inspect':        ['read:agent_session', 'read:agent_log'],
   'session prune':          ['read:agent_session', 'manage:agent_session'],
 
-  'agent audit':            ['read:agent', 'read:agent_session', 'read:agent_guardrail', 'read:agent_policy'],
+  // Agent cross-session scan uses session + logs + guardrails + behavior rules + policies.
+  'agent audit':            ['read:agent', 'read:agent_session', 'read:agent_log', 'read:agent_guardrail', 'read:agent_policy', 'read:agent_behavior_rule'],
 
+  // API keys (rotate/revoke hit agent-controller endpoints, gated by update:agent).
+  'api-key rotate':         ['update:agent'],
+  'api-key revoke':         ['update:agent'],
+
+  // Observability - most endpoints gate on read:agent, not read:agent_log.
+  'observe data':           ['read:agent'],
+  'observe issues':         ['read:agent'],
+  'observe metrics':        ['read:agent'],
+  'observe insights':       ['read:agent'],
   'observe logs':           ['read:agent_log'],
   'observe drift':          ['read:agent_log'],
-  'observe issues':         ['read:agent_log'],
-  'observe metrics':        ['read:agent_log'],
-  'observe insights':       ['read:agent_log'],
-  'observe agent-metrics':  ['read:agent_log'],
 };
 
 /**

@@ -41,8 +41,54 @@ export function reportAndExit(err: unknown): never {
     if (err.reference) console.error(`  see: ${err.reference}`);
     process.exit(2);
   }
+
+  // OpenBoxApiError (from openbox-sdk/client) - surface status + body so users
+  // don't see a bare "Request failed: 403 Forbidden" with no context.
+  const apiErr = err as { name?: string; message?: string; status?: number; body?: unknown };
+  if (apiErr && apiErr.name === 'OpenBoxApiError' && typeof apiErr.status === 'number') {
+    console.error(`\x1b[31merror:\x1b[0m ${apiErr.message}`);
+    const detail = extractApiErrorDetail(apiErr.body);
+    if (detail) console.error(`  detail: ${detail}`);
+    // Status-specific hint helps the user decide whether to fix the input,
+    // the permission, or the resource ID.
+    const hint = hintForStatus(apiErr.status);
+    if (hint) console.error(`  hint: ${hint}`);
+    process.exit(apiErr.status === 403 ? 3 : 1);
+  }
+
   console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
+}
+
+function extractApiErrorDetail(body: unknown): string | null {
+  if (!body || typeof body !== 'object') return null;
+  const b = body as Record<string, unknown>;
+  // NestJS errors often shape as { message, error, statusCode } or with nested data.
+  if (typeof b.message === 'string') return b.message;
+  if (Array.isArray(b.message)) return (b.message as string[]).join('; ');
+  const data = b.data as Record<string, unknown> | undefined;
+  if (data && typeof data === 'object') {
+    if (typeof data.message === 'string') return data.message;
+    if (Array.isArray(data.message)) return (data.message as string[]).join('; ');
+  }
+  return null;
+}
+
+function hintForStatus(status: number): string | null {
+  switch (status) {
+    case 401:
+      return 'Auth failed - token expired or missing. Run `openbox auth login` or `openbox doctor` to diagnose.';
+    case 403:
+      return 'Denied by the backend. Either the resource ID doesn\'t belong to your org/team, or your role lacks the required permission. Check `openbox auth permissions` and `openbox auth profile`.';
+    case 404:
+      return 'Resource not found. Check the ID (agent, team, org, etc.) - `openbox agent list` / `openbox team list <orgId>`.';
+    case 422:
+      return 'Validation failed server-side. Inspect the detail field above for the exact field(s) the backend rejected.';
+    case 500:
+      return 'Backend error. If the detail message is opaque, check logs or escalate; this often indicates a bug or downstream service outage.';
+    default:
+      return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
