@@ -1,24 +1,23 @@
 // `openbox versions` - report the deployed commit/tag for each service
 // (backend, core, guardrails) in each env (production, staging, local).
 //
-// Source of truth: the k8s manifest repos owned by OpenBox-AI.
-//   openbox-manifest-k8s-cluster   - staging deployment
-//   openbox-k8s-cluster-prod       - production deployment
+// Source resolution order per env/service:
+//   1. Live `/version` endpoint on the service (works for everyone; the
+//      deployed response carries the commit SHA and build time).
+//   2. Fallback: read `image.tag:` from the k8s manifest repo via
+//      `gh api` (openbox-manifest-k8s-cluster for staging,
+//      openbox-k8s-cluster-prod for production). Those repos are
+//      PRIVATE - so this fallback only works for OpenBox-AI
+//      maintainers with `gh auth login` + repo access. Public users
+//      get a targeted "no /version on this deployment yet; file an
+//      issue upstream" message.
+//   3. For the `local` column: read the current HEAD of each service
+//      clone if the workspace exists.
 //
-// Each has per-service values.yaml with an `image.tag:` pinned to a
-// git SHA or release tag. We read both via `gh api contents/<path>`
-// (requires the user to be `gh auth login`-ed with read access). If
-// gh isn't available or access is denied, the column prints the
-// reason instead of a value.
-//
-// For the `local` column, we report the current dev/local-patches HEAD
-// of the local clone (the workspace) - that IS
-// the "pinned version" of local dev.
-//
-// Future: once the-backend-service + the-core-service expose a /version
-// endpoint, this command can probe /version on each env and cross-check
-// against the manifest tag. Today that endpoint doesn't exist on any
-// deployed service, so manifest is the only source.
+// Status: no deployed openbox service currently exposes /version.
+// Adding those endpoints is tracked as a follow-up PR on the-backend-service
+// + the-core-service. Until then, public users will see "no /version; ask
+// upstream" for prod/staging; maintainers see the manifest tag.
 
 import type { Command } from 'commander';
 import { execFileSync } from 'node:child_process';
@@ -74,7 +73,11 @@ function manifestVersion(env: 'production' | 'staging', service: ServiceName): V
   const repo = MANIFEST_REPO[env];
   const content = ghRead(repo, `${service}/values.yaml`);
   if (content === null) {
-    return { tag: '(gh api failed)', source: `${repo}/${service}/values.yaml` };
+    // Private repo; most users will land here. Make the message actionable.
+    return {
+      tag: '(no /version; manifest private)',
+      source: `${repo}/${service}/values.yaml (requires gh auth + repo access)`,
+    };
   }
   const tag = extractTag(content);
   return {
@@ -82,6 +85,43 @@ function manifestVersion(env: 'production' | 'staging', service: ServiceName): V
     source: `${repo}/${service}/values.yaml`,
   };
 }
+
+// Try /version on the service first. Works for anyone once the
+// endpoint is added upstream. Today it always 404s - we fall back to
+// the manifest read.
+function liveVersion(baseUrl: string): VersionCell | null {
+  try {
+    const raw = execFileSync(
+      'curl',
+      ['-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', `${baseUrl}/version`],
+      { encoding: 'utf8', timeout: 7000 },
+    ).trim();
+    if (raw !== '200') return null;
+    const body = execFileSync(
+      'curl',
+      ['-sS', '--max-time', '5', `${baseUrl}/version`],
+      { encoding: 'utf8', timeout: 7000 },
+    );
+    const parsed = JSON.parse(body) as { commit?: string; version?: string };
+    const tag = parsed.commit ?? parsed.version;
+    return tag ? { tag, source: `${baseUrl}/version` } : null;
+  } catch {
+    return null;
+  }
+}
+
+const ENV_URLS: Record<'production' | 'staging', Record<ServiceName, string>> = {
+  production: {
+    'the-backend-service': 'https://api.openbox.ai',
+    'the-core-service': 'https://core.openbox.ai',
+    'the-guardrails-service': '',
+  },
+  staging: {
+    'the-backend-service': 'https://openbox-api.node.lat',
+    'the-core-service': 'https://the-core-service.node.lat',
+    'the-guardrails-service': '',
+  },
+};
 
 function localHead(service: ServiceName): VersionCell {
   const dir = LOCAL_CLONE[service];
@@ -103,6 +143,13 @@ function localHead(service: ServiceName): VersionCell {
 
 function cellFor(env: EnvName, service: ServiceName): VersionCell {
   if (env === 'local') return localHead(service);
+  // Resolution order: /version endpoint (works for anyone) -> manifest
+  // (maintainer-only fallback).
+  const baseUrl = ENV_URLS[env][service];
+  if (baseUrl) {
+    const live = liveVersion(baseUrl);
+    if (live) return live;
+  }
   return manifestVersion(env, service);
 }
 
@@ -160,9 +207,13 @@ export function registerVersionsCommand(program: Command): void {
         }
       }
       console.log(
-        '\nnote: production + staging read from k8s manifest repos via `gh api`.\n' +
-          '      local reads the current git HEAD of each service clone.\n' +
-          '      no deployed service exposes /version today - file an issue to add it.',
+        '\nresolution order:\n' +
+          '  1. live /version endpoint on the service (works for anyone once deployed)\n' +
+          '  2. manifest tag via `gh api` (maintainer-only; private repos)\n' +
+          '  3. local HEAD of the service clone\n' +
+          '\nno deployed service exposes /version today - follow-up: PR to add\n' +
+          'GET /version on the-backend-service + the-core-service. Until then public\n' +
+          'users will see "no /version" for production + staging columns.',
       );
     });
 }
