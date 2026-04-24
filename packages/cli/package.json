@@ -6,7 +6,8 @@
     "openbox": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "test:verify": "node verify-samples/verify/run.mjs"
   },
   "dependencies": {
     "openbox-sdk/client": "*",
