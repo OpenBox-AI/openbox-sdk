@@ -237,6 +237,138 @@ const rules: Rule[] = [
       return out;
     },
   },
+  {
+    name: 'non-canonical-event-type',
+    severity: 'error',
+    message: 'Non-canonical `event_type` string. Core accepts exactly six: WorkflowStarted, SignalReceived, ActivityStarted, ActivityCompleted, WorkflowCompleted, WorkflowFailed.',
+    fix: 'Use one of the six canonical event types. Unknown strings silently no-op downstream classifiers (no guardrail / AGE / trust evaluation).',
+    appliesTo: () => true,
+    detect: (content) => {
+      const out: Array<{ line: number; snippet: string }> = [];
+      const lines = content.split('\n');
+      const canonical = new Set(['WorkflowStarted', 'SignalReceived', 'ActivityStarted', 'ActivityCompleted', 'WorkflowCompleted', 'WorkflowFailed']);
+      // Match: event_type: "SomeValue" or "event_type": "SomeValue" or .event_type = "SomeValue"
+      const re = /["']?event_type["']?\s*[:=]\s*["']([A-Za-z_]+)["']/g;
+      for (let i = 0; i < lines.length; i++) {
+        for (const m of lines[i].matchAll(re)) {
+          if (!canonical.has(m[1])) {
+            out.push({ line: i + 1, snippet: lines[i].trim().slice(0, 160) });
+          }
+        }
+      }
+      return out;
+    },
+  },
+  {
+    name: 'span-missing-gate-attribute',
+    severity: 'warn',
+    message: 'Span construction missing the gate attribute its classifier needs - core will fall through to `internal` semantic type and behavior rules won\'t fire.',
+    fix: 'HTTP spans need `http.method`; DB spans need `db.system`; file spans need `file.path`; LLM spans need http.method=POST + http.url matching a known LLM domain (gen_ai.system alone is NOT sufficient).',
+    appliesTo: () => true,
+    detect: (content, lines) => {
+      const out: Array<{ line: number; snippet: string }> = [];
+      const stripped = stripComments(content);
+      // Heuristic: if a spans: / "spans": [ array is being built with hook_type like "http_request" / "db_query" / "file_read", the gate attr should be nearby.
+      const hookTypes: Array<[string, RegExp, string]> = [
+        ['http_request', /http\.method/, 'http.method'],
+        ['db_query',     /db\.system/,   'db.system'],
+        ['file_read',    /file\.path/,   'file.path'],
+        ['file_write',   /file\.path/,   'file.path'],
+      ];
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        for (const [hook, attrRe, attrName] of hookTypes) {
+          if (new RegExp(`hook_type["']?\\s*[:=]\\s*["']${hook}["']`).test(line)) {
+            const window = stripped.split('\n').slice(Math.max(0, i - 8), Math.min(lines.length, i + 12)).join('\n');
+            if (!attrRe.test(window)) {
+              out.push({ line: i + 1, snippet: `${line.trim().slice(0, 120)} - missing gate attr \`${attrName}\` nearby` });
+            }
+          }
+        }
+      }
+      return out;
+    },
+  },
+  {
+    name: 'id-generated-per-event-not-reused',
+    severity: 'warn',
+    message: '`workflow_id` or `run_id` appears to be generated inline per event instead of generated once and reused. IDs must stay constant across every event in a session, otherwise core creates orphan workflows and trust scoring never finalizes.',
+    fix: 'Generate workflow_id + run_id once at session start, store them, reuse on every subsequent event. activity_id is per-action.',
+    appliesTo: () => true,
+    detect: (content, lines) => {
+      const out: Array<{ line: number; snippet: string }> = [];
+      // Pattern: workflow_id: uuid()/randomUUID()/uuid4() - inline generation.
+      // False-positive-ok: some libraries have utility wrappers, but inline gen on the ID-assignment line is the specific anti-pattern.
+      const re = /(["']?)(workflow_id|run_id)\1\s*[:=]\s*(uuid4\(\)|uuid\.uuid4\(\)|uuid\(\)|randomUUID\(\)|crypto\.randomUUID\(\)|nanoid\(\))/;
+      for (let i = 0; i < lines.length; i++) {
+        if (re.test(lines[i])) {
+          out.push({ line: i + 1, snippet: lines[i].trim().slice(0, 160) });
+        }
+      }
+      return out;
+    },
+  },
+  {
+    name: 'approval-poll-unbounded',
+    severity: 'warn',
+    message: 'Approval polling loop with no obvious timeout/max-wait bound. An indefinite poll on `/governance/approval` can hang forever if the human decision is never made.',
+    fix: 'Bound the loop: use the SDK\'s `hitlMaxWait` (default 300s), or check `approval_expiration_time` against now(), or track elapsed time and give up after N seconds and treat as block.',
+    appliesTo: () => true,
+    detect: (content) => {
+      const out: Array<{ line: number; snippet: string }> = [];
+      if (!/\/governance\/approval/.test(content)) return out;
+      // Strip comments so "// no timeout" (documentation noise) doesn't fool the check.
+      const strippedLines = stripComments(content).split('\n');
+      const lines = content.split('\n');
+      const boundRe = /(maxWait|max_wait|hitlMaxWait|approval_expiration_time|elapsed|\btimeout\b|AbortSignal|deadline|Date\.now\(\)\s*[-+])/i;
+      for (let i = 0; i < lines.length; i++) {
+        if (/\/governance\/approval/.test(lines[i])) {
+          const start = Math.max(0, i - 15);
+          const end = Math.min(strippedLines.length, i + 30);
+          const window = strippedLines.slice(start, end).join('\n');
+          if (!boundRe.test(window)) {
+            out.push({ line: i + 1, snippet: lines[i].trim().slice(0, 160) });
+            break;
+          }
+        }
+      }
+      return out;
+    },
+  },
+  {
+    name: 'require-approval-no-hitl-enabled',
+    severity: 'warn',
+    message: 'Code branches on the `require_approval` verdict but doesn\'t set `hitlEnabled: true` on the SDK config - the SDK will throw `ApprovalDisabledError` instead of polling.',
+    fix: 'Set `hitlEnabled: true` in the SDK config, or if using raw HTTP, make sure the approval-polling loop is wired (see references/governance-flow.md § "Approval Polling").',
+    appliesTo: () => true,
+    detect: (content) => {
+      const out: Array<{ line: number; snippet: string }> = [];
+      // Strip comments so notes like "// no hitl" don't affect detection.
+      const stripped = stripComments(content);
+      const branchesOnApproval = /["']require_approval["']/.test(stripped);
+      if (!branchesOnApproval) return out;
+      const usesSdk = /from ['"]openbox-typescript-sdk['"]|govern\s*\(/.test(stripped);
+      const hasHitlEnabled = /hitlEnabled\s*:\s*true/.test(stripped);
+      const hasPollingLoop = /\/governance\/approval/.test(stripped);
+      const lines = content.split('\n');
+      if (usesSdk && !hasHitlEnabled) {
+        for (let i = 0; i < lines.length; i++) {
+          if (/["']require_approval["']/.test(lines[i])) {
+            out.push({ line: i + 1, snippet: lines[i].trim().slice(0, 160) });
+            return out;
+          }
+        }
+      } else if (!usesSdk && !hasPollingLoop) {
+        for (let i = 0; i < lines.length; i++) {
+          if (/["']require_approval["']/.test(lines[i])) {
+            out.push({ line: i + 1, snippet: `${lines[i].trim().slice(0, 120)} - no approval-poll loop visible` });
+            return out;
+          }
+        }
+      }
+      return out;
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
