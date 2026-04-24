@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
 import { parseJsonInput } from '../input.js';
+import { reportAndExit, parsePagination } from '../validators/index.js';
 
 export function registerMemberCommands(program: Command) {
   const member = program.command('member').description('Member management');
@@ -14,13 +15,11 @@ export function registerMemberCommands(program: Command) {
     .action(async (orgId: string, opts) => {
       try {
         const data = await getClient().listMembers(orgId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
         });
         outputList(data, 'members');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -53,8 +52,7 @@ export function registerMemberCommands(program: Command) {
         const data = await getClient().createUser(orgId, dto);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -78,8 +76,7 @@ export function registerMemberCommands(program: Command) {
         const data = await getClient().updateMember(orgId, userId, dto);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -92,8 +89,7 @@ export function registerMemberCommands(program: Command) {
         const data = await getClient().assignRoles(orgId, userId, opts.roles);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -106,8 +102,7 @@ export function registerMemberCommands(program: Command) {
         const data = await getClient().removeRoles(orgId, userId, opts.roles);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -120,8 +115,7 @@ export function registerMemberCommands(program: Command) {
         const data = await getClient().removeMembers(orgId, opts.ids);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -129,17 +123,21 @@ export function registerMemberCommands(program: Command) {
     .command('invite <orgId>')
     .description('Invite a user')
     .requiredOption('--email <email>', 'Email address')
-    .option('--roles <roles...>', 'Role names')
+    .requiredOption('--roles <roles...>', 'Role names (backend requires at least one)')
     .action(async (orgId: string, opts) => {
       try {
+        // InviteUserDto.roles is `@ArrayNotEmpty` - empty/missing returns a 400.
+        if (!opts.roles || opts.roles.length === 0) {
+          console.error('Error: --roles requires at least one role name.');
+          process.exit(2);
+        }
         const data = await getClient().inviteUser(orgId, {
           email: opts.email,
           roles: opts.roles,
         });
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }

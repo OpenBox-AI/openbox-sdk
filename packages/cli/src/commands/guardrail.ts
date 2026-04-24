@@ -9,6 +9,7 @@ import {
   validateGuardrailParams,
   validateActivitiesConfig,
   validateEnum,
+  parsePagination,
 } from '../validators/index.js';
 
 export function registerGuardrailCommands(program: Command) {
@@ -23,14 +24,12 @@ export function registerGuardrailCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         const data = await getClient().listGuardrails(agentId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           processing_stage: opts.stage,
         });
         outputList(data, 'guardrails');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -103,8 +102,7 @@ export function registerGuardrailCommands(program: Command) {
         const data = await getClient().getGuardrail(agentId, guardrailId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -137,8 +135,7 @@ export function registerGuardrailCommands(program: Command) {
         const data = await getClient().updateGuardrail(agentId, guardrailId, dto);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -150,8 +147,7 @@ export function registerGuardrailCommands(program: Command) {
         const data = await getClient().deleteGuardrail(agentId, guardrailId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -163,8 +159,7 @@ export function registerGuardrailCommands(program: Command) {
         const data = await getClient().reorderGuardrail(agentId, guardrailId, parseInt(order));
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -181,8 +176,7 @@ export function registerGuardrailCommands(program: Command) {
         });
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -197,16 +191,14 @@ export function registerGuardrailCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         const data = await getClient().getGuardrailViolationLogs(agentId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           fromTime: opts.from,
           toTime: opts.to,
           guardrail_type: opts.type,
         });
         outputList(data, 'violations');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -250,8 +242,7 @@ export function registerGuardrailCommands(program: Command) {
         const data = await getClient().runGuardrailTest(dto);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }

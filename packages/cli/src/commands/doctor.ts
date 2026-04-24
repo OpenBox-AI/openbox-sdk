@@ -81,10 +81,12 @@ export function registerDoctorCommand(program: Command) {
         }
       }
 
-      // 4. Backend reachable + JWT valid.
+      // 4. Backend reachable + JWT valid. The URL line is informational -
+      // emit it as a `skip` with a `-` mark so a user doesn't see a green
+      // check next to something that wasn't actually probed.
       checks.push({
         name: `backend URL`,
-        status: 'pass',
+        status: 'skip',
         detail: urls.apiUrl,
       });
       if (accessToken) {
@@ -104,28 +106,30 @@ export function registerDoctorCommand(program: Command) {
         }
       }
 
-      // 5. Core reachable (only if api key present - otherwise skip).
-      checks.push({ name: 'core URL', status: 'pass', detail: urls.coreUrl });
+      // 5. Core reachable. `/health` is a public endpoint - always probe it.
+      // Only the API key validation step needs a key.
+      checks.push({ name: 'core URL', status: 'skip', detail: urls.coreUrl });
       const apiKey = process.env.OPENBOX_API_KEY;
+      try {
+        const core = new OpenBoxCoreClient({ apiUrl: urls.coreUrl, apiKey: apiKey ?? '', env });
+        await core.health();
+        checks.push({ name: 'core /health', status: 'pass', detail: '200 OK' });
+      } catch (err: any) {
+        checks.push({ name: 'core /health', status: 'fail', detail: err.message || String(err) });
+      }
       if (!apiKey) {
         checks.push({
-          name: 'core /health',
+          name: 'core API key',
           status: 'skip',
-          detail: 'set OPENBOX_API_KEY to check core reachability',
+          detail: 'set OPENBOX_API_KEY to validate core credentials',
         });
       } else {
         try {
           const core = new OpenBoxCoreClient({ apiUrl: urls.coreUrl, apiKey, env });
-          await core.health();
-          checks.push({ name: 'core /health', status: 'pass', detail: '200 OK' });
-          try {
-            await core.validateApiKey();
-            checks.push({ name: 'core API key', status: 'pass', detail: 'valid' });
-          } catch (err: any) {
-            checks.push({ name: 'core API key', status: 'fail', detail: err.message || String(err) });
-          }
+          await core.validateApiKey();
+          checks.push({ name: 'core API key', status: 'pass', detail: 'valid' });
         } catch (err: any) {
-          checks.push({ name: 'core /health', status: 'fail', detail: err.message || String(err) });
+          checks.push({ name: 'core API key', status: 'fail', detail: err.message || String(err) });
         }
       }
 

@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
 import { parseJsonInput } from '../input.js';
+import { reportAndExit, parsePagination } from '../validators/index.js';
 
 export function registerAuditCommands(program: Command) {
   const audit = program.command('audit').description('Audit log management');
@@ -20,8 +21,7 @@ export function registerAuditCommands(program: Command) {
     .action(async (opts) => {
       try {
         const data = await getClient().getAuditLogs({
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           eventType: opts.eventType,
           actorId: opts.actor,
           result: opts.result,
@@ -31,8 +31,7 @@ export function registerAuditCommands(program: Command) {
         });
         outputList(data, 'audit logs');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -44,43 +43,43 @@ export function registerAuditCommands(program: Command) {
         const data = await getClient().getAuditLog(logId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
   audit
     .command('export')
     .description('Export audit logs')
-    .requiredOption('-n, --name <name>', 'Export name')
+    .requiredOption('-n, --name <name>', 'Export name (required; if --json omits exportName, this fills it)')
     .option('--event-types <types...>', 'Event types')
     .option('--actor <id>', 'Actor ID')
     .option('--result <result>', 'Result filter')
     .option('-s, --search <text>', 'Search')
     .option('--from <date>', 'Start date (ISO)')
     .option('--to <date>', 'End date (ISO)')
-    .option('--json <json>', 'Full JSON body')
+    .option('--json <json>', 'Full JSON body (merged with flags - flags fill missing fields)')
     .action(async (opts) => {
       try {
-        let dto: any;
-        if (opts.json) {
-          dto = parseJsonInput(opts.json);
-        } else {
-          dto = {
-            exportName: opts.name,
-            eventTypes: opts.eventTypes,
-            actorId: opts.actor,
-            result: opts.result,
-            search: opts.search,
-            startDate: opts.from,
-            endDate: opts.to,
-          };
+        // Merge flags over --json rather than letting --json wholesale replace
+        // the DTO. Previously, passing --json silently dropped the required
+        // --name, so the backend received a nameless body despite CLI claiming
+        // --name was required. Now flags always fill missing fields.
+        let dto: any = opts.json ? parseJsonInput(opts.json) : {};
+        if (opts.name && !dto.exportName) dto.exportName = opts.name;
+        if (opts.eventTypes && !dto.eventTypes) dto.eventTypes = opts.eventTypes;
+        if (opts.actor && !dto.actorId) dto.actorId = opts.actor;
+        if (opts.result && !dto.result) dto.result = opts.result;
+        if (opts.search && !dto.search) dto.search = opts.search;
+        if (opts.from && !dto.startDate) dto.startDate = opts.from;
+        if (opts.to && !dto.endDate) dto.endDate = opts.to;
+        if (!dto.exportName) {
+          console.error('Error: exportName is required (pass --name or include it in --json).');
+          process.exit(2);
         }
         const data = await getClient().exportAuditLogs(dto);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -106,8 +105,7 @@ export function registerAuditCommands(program: Command) {
         const data = await getClient().previewAuditExport(dto);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -122,16 +120,14 @@ export function registerAuditCommands(program: Command) {
     .action(async (opts) => {
       try {
         const data = await getClient().getExportHistory({
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           status: opts.status,
           startDate: opts.from,
           endDate: opts.to,
         });
         outputList(data, 'exports');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -143,8 +139,7 @@ export function registerAuditCommands(program: Command) {
         const data = await getClient().downloadExport(exportId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -156,8 +151,7 @@ export function registerAuditCommands(program: Command) {
         const data = await getClient().deleteExport(exportId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }

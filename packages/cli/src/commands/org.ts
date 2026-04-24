@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
 import { parseJsonInput } from '../input.js';
+import { reportAndExit, parsePagination } from '../validators/index.js';
 
 export function registerOrgCommands(program: Command) {
   const org = program.command('org').description('Organization management');
@@ -14,8 +15,7 @@ export function registerOrgCommands(program: Command) {
         const data = await getClient().getOrganization(orgId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -27,8 +27,7 @@ export function registerOrgCommands(program: Command) {
         const data = await getClient().getOrgSettings(orgId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -53,8 +52,7 @@ export function registerOrgCommands(program: Command) {
         const data = await getClient().updateOrgSettings(orgId, dto);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -71,8 +69,7 @@ export function registerOrgCommands(program: Command) {
         });
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -84,8 +81,7 @@ export function registerOrgCommands(program: Command) {
         const data = await getClient().getDashboardTierTrends(orgId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -101,8 +97,7 @@ export function registerOrgCommands(program: Command) {
     .action(async (orgId: string, opts) => {
       try {
         const data = await getClient().getOrgSessions(orgId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           status: opts.status,
           fromTime: opts.from,
           toTime: opts.to,
@@ -110,8 +105,7 @@ export function registerOrgCommands(program: Command) {
         });
         outputList(data, 'sessions');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -127,8 +121,7 @@ export function registerOrgCommands(program: Command) {
     .action(async (orgId: string, opts) => {
       try {
         const data = await getClient().getOrgApprovals(orgId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           search: opts.search,
           status: opts.status,
           fromTime: opts.from,
@@ -136,8 +129,7 @@ export function registerOrgCommands(program: Command) {
         });
         outputList(data, 'approvals');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -154,8 +146,7 @@ export function registerOrgCommands(program: Command) {
         });
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -167,8 +158,7 @@ export function registerOrgCommands(program: Command) {
         const data = await getClient().getOrgApprovalSla(orgId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -180,13 +170,11 @@ export function registerOrgCommands(program: Command) {
     .action(async (orgId: string, opts) => {
       try {
         const data = await getClient().getOrgApprovalHistory(orgId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
         });
         outputList(data, 'approval history');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }

@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
 import { parseJsonInput } from '../input.js';
+import { reportAndExit, parsePagination } from '../validators/index.js';
 
 export function registerAivssCommands(program: Command) {
   const aivss = program.command('aivss').description('AIVSS risk assessment');
@@ -16,15 +17,13 @@ export function registerAivssCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         const data = await getClient().getAssessments(agentId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           fromTime: opts.from,
           toTime: opts.to,
         });
         outputList(data, 'assessments');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -42,8 +41,7 @@ export function registerAivssCommands(program: Command) {
         });
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -55,8 +53,7 @@ export function registerAivssCommands(program: Command) {
         const data = await getClient().recalculateAivss(agentId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -70,8 +67,7 @@ export function registerAivssCommands(program: Command) {
         const data = await getClient().calculateAivss(config);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }

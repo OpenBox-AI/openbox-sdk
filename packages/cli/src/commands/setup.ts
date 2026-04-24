@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { execSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { resolve, join } from 'path';
 import { homedir } from 'os';
@@ -8,7 +8,7 @@ const SKILL_REPO = 'https://github.com/OpenBox-AI/skill/.git';
 const MCP_REPO = 'https://github.com/OpenBox-AI/runtime/mcp-skunkworks.git';
 
 export function registerSetupCommands(program: Command) {
-  const setup = program.command('setup').description('Install skill, MCP server, and extension');
+  const setup = program.command('setup').description('Install OpenBox skill and MCP server');
 
   setup
     .command('skill')
@@ -73,9 +73,26 @@ export function registerSetupCommands(program: Command) {
 
   setup
     .command('all')
-    .description('Install skill + MCP server')
-    .action(() => {
-      execSync('node ' + process.argv[1] + ' setup skill', { stdio: 'inherit' });
-      execSync('node ' + process.argv[1] + ' setup mcp', { stdio: 'inherit' });
+    .description('Install skill + MCP server (flags forwarded to each subcommand)')
+    .option('--claude', 'Install skill for Claude Code')
+    .option('--cursor', 'Install skill for Cursor')
+    .option('--dir <path>', 'MCP install directory', join(homedir(), 'workspace', 'runtime/mcp-skunkworks'))
+    .action((opts) => {
+      // Forward target flags so `setup all --cursor` doesn't silently install for every editor.
+      const skillFlags: string[] = [];
+      if (opts.claude) skillFlags.push('--claude');
+      if (opts.cursor) skillFlags.push('--cursor');
+      const mcpFlags = opts.dir ? ['--dir', opts.dir] : [];
+      // Use spawnSync with argv array - no shell, so paths with $ or backticks
+      // can't be interpolated. Using process.execPath + process.argv[1] lets
+      // the child inherit the same node binary even under pnpm/yarn shims.
+      const node = process.execPath;
+      const bin = process.argv[1];
+      const runSub = (args: string[]) => {
+        const res = spawnSync(node, [bin, ...args], { stdio: 'inherit' });
+        if (res.status !== 0) process.exit(res.status ?? 1);
+      };
+      runSub(['setup', 'skill', ...skillFlags]);
+      runSub(['setup', 'mcp', ...mcpFlags]);
     });
 }

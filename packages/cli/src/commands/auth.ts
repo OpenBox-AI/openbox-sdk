@@ -11,6 +11,7 @@ import type { FeatureMap } from '../config.js';
 import { resolveEnv, resolveUrls } from '../environments.js';
 import { output } from '../output.js';
 import type { EnvName } from '../environments.js';
+import { reportAndExit } from '../validators/index.js';
 
 async function fetchAndCachePermissions(
   env: EnvName,
@@ -96,6 +97,14 @@ function deepFindToken(
 const RT_KEYS = ['refresh_token', 'refreshToken', 'refreshtoken'];
 const AT_KEYS = ['access_token', 'accessToken', 'accesstoken'];
 
+function safeOrigin(u: string): string | undefined {
+  try {
+    return new URL(u).origin;
+  } catch {
+    return undefined;
+  }
+}
+
 async function browserLogin(platformUrl: string, env: EnvName, verbose = false) {
   const { chromium } = await import('playwright');
 
@@ -119,10 +128,27 @@ async function browserLogin(platformUrl: string, env: EnvName, verbose = false) 
     userClosed = true;
   });
 
-  // Capture refresh token from ANY JSON response whose body contains one.
-  // No URL filter - Keycloak, NextAuth callbacks, BFF proxies all end up here.
+  // Capture tokens only from responses whose origin we trust. Without this,
+  // any third-party script/iframe emitting a token-shaped JSON field would be
+  // scraped into ~/.openbox/tokens. Trusted origins: the platform URL (where
+  // the auth UI lives), the backend API URL, and the Keycloak realm origin
+  // the platform SPA redirects to. Everything else is dropped.
+  const trustedOrigins = new Set<string>();
+  const platformOrigin = safeOrigin(platformUrl);
+  const apiOrigin = safeOrigin(apiUrl);
+  if (platformOrigin) trustedOrigins.add(platformOrigin);
+  if (apiOrigin) trustedOrigins.add(apiOrigin);
+  // Keycloak token exchange hits the realm's /protocol/openid-connect/token;
+  // add any origin the platform page navigates to that matches `*/realms/*`.
+  page.on('framenavigated', (frame) => {
+    const o = safeOrigin(frame.url());
+    if (o && frame.url().includes('/realms/')) trustedOrigins.add(o);
+  });
+
   context.on('response', async (res) => {
     try {
+      const origin = safeOrigin(res.url());
+      if (!origin || !trustedOrigins.has(origin)) return;
       const ct = res.headers()['content-type'] ?? '';
       if (!ct.includes('json')) return;
       const body = await res.json().catch(() => null);
@@ -294,8 +320,7 @@ export function registerAuthCommands(program: Command) {
         const platformUrl = opts.url || resolveUrls(env).platformUrl;
         await browserLogin(platformUrl, env, !!opts.verbose);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -350,8 +375,7 @@ export function registerAuthCommands(program: Command) {
           for (const p of onlyB) console.log(`  - ${p}`);
         }
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -390,8 +414,7 @@ export function registerAuthCommands(program: Command) {
           console.log('');
         }
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -412,8 +435,7 @@ export function registerAuthCommands(program: Command) {
         }
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -426,8 +448,7 @@ export function registerAuthCommands(program: Command) {
         saveTokens(env, token, refreshToken);
         console.error(`Token saved for environment: ${env}`);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -470,8 +491,7 @@ export function registerAuthCommands(program: Command) {
         });
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -483,8 +503,7 @@ export function registerAuthCommands(program: Command) {
         const data = await getClient().getUserRoles();
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }

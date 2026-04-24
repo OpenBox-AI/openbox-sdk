@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output } from '../output.js';
+import { reportAndExit } from '../validators/index.js';
 
 export function registerHealthCommands(program: Command) {
   program
@@ -11,8 +12,7 @@ export function registerHealthCommands(program: Command) {
         const data = await getClient().health();
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }

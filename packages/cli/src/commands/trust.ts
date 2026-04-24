@@ -1,6 +1,12 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
+import { reportAndExit, validateEnum, parsePagination } from '../validators/index.js';
+
+// Backend accepts only these four duration window strings. Anything else
+// returns an empty result silently - a local validateEnum catches the typo
+// before the user is confused by an empty response.
+const TRUST_DURATIONS = ['7d', '30d', '90d', '1y'] as const;
 
 export function registerTrustCommands(program: Command) {
   const trust = program.command('trust').description('Trust management');
@@ -8,14 +14,14 @@ export function registerTrustCommands(program: Command) {
   trust
     .command('histories <agentId>')
     .description('Get trust score histories')
-    .option('--duration <dur>', 'Duration (7d|30d|90d|1y)', '7d')
+    .option('--duration <dur>', `Duration (${TRUST_DURATIONS.join('|')})`, '7d')
     .action(async (agentId: string, opts) => {
       try {
+        validateEnum(opts.duration, TRUST_DURATIONS, '--duration');
         const data = await getClient().getTrustHistories(agentId, opts.duration);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -29,15 +35,13 @@ export function registerTrustCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         const data = await getClient().getTrustEvents(agentId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           fromTime: opts.from,
           toTime: opts.to,
         });
         outputList(data, 'trust events');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -51,15 +55,13 @@ export function registerTrustCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         const data = await getClient().getTrustTierChanges(agentId, {
-          page: parseInt(opts.page),
-          perPage: parseInt(opts.limit),
+          ...parsePagination(opts),
           fromTime: opts.from,
           toTime: opts.to,
         });
         outputList(data, 'tier changes');
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
@@ -71,8 +73,7 @@ export function registerTrustCommands(program: Command) {
         const data = await getClient().getTrustRecoveryStatus(agentId);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 }
