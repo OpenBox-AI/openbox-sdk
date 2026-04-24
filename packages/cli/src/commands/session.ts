@@ -218,30 +218,11 @@ function inspectEvents(events: EventLog[]): InspectFinding[] {
     });
   }
 
-  // 10. Timestamp monotonicity - events should be non-decreasing by created_at.
-  // We check receive-order (not sorted) because the intent is "did the
-  // server/pagination return events in timestamp order." If the list WERE
-  // sorted first, a true clock-skew bug would be silently re-ordered away.
-  // A receive-order regression is either: (a) pagination returned a later
-  // page with earlier timestamps, or (b) a real client-side clock skew.
-  let tsRegression = 0;
-  let prevMs = -Infinity;
-  for (const e of events) {
-    const raw = e.created_at ?? e.timestamp;
-    if (!raw) continue;
-    const ms = Date.parse(raw);
-    if (!Number.isFinite(ms)) continue;
-    if (ms < prevMs) {
-      tsRegression += 1;
-    }
-    prevMs = ms;
-  }
-  if (tsRegression > 0) {
-    findings.push({
-      level: 'warn',
-      message: `${tsRegression} timestamp regression(s) in receive order - either a pagination-order quirk or a client-clock-skew bug; re-sort and re-inspect if the sequence matters`,
-    });
-  }
+  // No receive-order timestamp check: backend routinely paginates events in
+  // DESC order, which would flag every consecutive pair as a "regression" and
+  // drown real findings in noise. A true monotonicity check would need to
+  // sort first and detect mixed-direction sequences - low-value given the
+  // protocol doesn't mandate a direction. Drop.
 
   return findings;
 }

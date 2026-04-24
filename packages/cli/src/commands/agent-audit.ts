@@ -69,8 +69,6 @@ export type AuditReport = {
     nonCanonicalActivityTypes: string[];
     nonCanonicalVerdicts: string[];
     duplicateActivityIds: number;
-    timestampRegressions: number;
-    eventsMissingSessionId: number;
     eventsWithNonArrayInput: number;
   };
   config: {
@@ -198,13 +196,17 @@ function analyzeEvents(sessionEvents: Record<string, EventLog[]>): AuditReport['
   let sessionsMissingTerminal = 0;
   let failedActivityCount = 0;
 
-  // Cross-session drift trackers.
+  // Cross-session drift trackers. Intentionally NOT tracked:
+  //   - timestamp monotonicity: backend paginates events DESC by timestamp,
+  //     so a naive "prev > curr" check flags every event as regressed. Real
+  //     clock skew is rare enough to not justify the sort-then-diff
+  //     complexity.
+  //   - session_id presence: not a wire-contract field (see governance-flow.md
+  //     § Wire Format); fires against every conformant SDK.
   const nonCanonicalEvent = new Set<string>();
   const nonCanonicalActivity = new Set<string>();
   const nonCanonicalVerdict = new Set<string>();
   let duplicateActivityIds = 0;
-  let timestampRegressions = 0;
-  let eventsMissingSessionId = 0;
   let eventsWithNonArrayInput = 0;
 
   for (const [, events] of Object.entries(sessionEvents)) {
@@ -213,7 +215,6 @@ function analyzeEvents(sessionEvents: Record<string, EventLog[]>): AuditReport['
     const starts = new Map<string, number>();
     const completes = new Map<string, number>();
     let hasTerminal = false;
-    let prevMs = -Infinity;
 
     for (const e of events) {
       if (e.activity_type) activityDist[e.activity_type] = (activityDist[e.activity_type] || 0) + 1;
@@ -237,17 +238,8 @@ function analyzeEvents(sessionEvents: Record<string, EventLog[]>): AuditReport['
       if (typeof v === 'string' && !CANONICAL_VERDICTS.has(v)) {
         nonCanonicalVerdict.add(v);
       }
-      if (!(e as any).session_id) eventsMissingSessionId += 1;
       if ('activity_input' in e && e.activity_input != null && !Array.isArray(e.activity_input)) {
         eventsWithNonArrayInput += 1;
-      }
-      const ts = (e as any).created_at ?? (e as any).timestamp;
-      if (typeof ts === 'string') {
-        const ms = Date.parse(ts);
-        if (Number.isFinite(ms)) {
-          if (ms < prevMs) timestampRegressions += 1;
-          prevMs = ms;
-        }
       }
     }
 
@@ -270,8 +262,6 @@ function analyzeEvents(sessionEvents: Record<string, EventLog[]>): AuditReport['
     nonCanonicalActivityTypes: [...nonCanonicalActivity].sort(),
     nonCanonicalVerdicts: [...nonCanonicalVerdict].sort(),
     duplicateActivityIds,
-    timestampRegressions,
-    eventsMissingSessionId,
     eventsWithNonArrayInput,
   };
 }
@@ -307,20 +297,6 @@ function buildEventFindings(events: AuditReport['events']): AuditFinding[] {
       rule: 'activity_id.unique',
       level: 'fail',
       message: `${events.duplicateActivityIds} duplicate ActivityStarted event(s) share an activity_id - each activity_id must appear in exactly one ActivityStarted`,
-    });
-  }
-  if (events.timestampRegressions > 0) {
-    findings.push({
-      rule: 'timestamp.monotonic',
-      level: 'fail',
-      message: `${events.timestampRegressions} timestamp regression(s) across audited sessions`,
-    });
-  }
-  if (events.eventsMissingSessionId > 0) {
-    findings.push({
-      rule: 'session_id.present',
-      level: 'fail',
-      message: `${events.eventsMissingSessionId} event(s) missing session_id`,
     });
   }
   if (events.eventsWithNonArrayInput > 0) {
