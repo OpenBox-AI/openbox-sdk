@@ -3,6 +3,7 @@ import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
 import { parseJsonInput } from '../input.js';
 import { reportAndExit, validateUuid, warn, block } from '../validators/index.js';
+import { runAgentAudit, renderAuditReport, auditHasIssues } from './agent-audit.js';
 
 export function registerAgentCommands(program: Command) {
   const agent = program.command('agent').description('Agent management');
@@ -191,6 +192,26 @@ export function registerAgentCommands(program: Command) {
       } catch (err: any) {
         console.error(err.message || err);
         process.exit(1);
+      }
+    });
+
+  agent
+    .command('audit <agentId>')
+    .description('Cross-session health report: status mix, protocol pairing, verdict / activity_type distribution, guardrail↔event mismatches')
+    .option('--sessions <n>', 'Number of recent sessions to analyze', '50')
+    .option('--max-events <n>', 'Cap events fetched per session', '500')
+    .option('--json', 'Emit the report as JSON instead of human-readable', false)
+    .action(async (agentId: string, opts) => {
+      try {
+        const report = await runAgentAudit(getClient(), agentId, {
+          sessions: parseInt(opts.sessions, 10),
+          maxEvents: parseInt(opts.maxEvents, 10),
+        });
+        if (opts.json) console.log(JSON.stringify(report, null, 2));
+        else renderAuditReport(agentId, report);
+        if (auditHasIssues(report)) process.exit(2);
+      } catch (err: any) {
+        reportAndExit(err);
       }
     });
 }

@@ -49,6 +49,8 @@ export const COMMAND_PERMISSIONS: Record<CommandKey, string[]> = {
   'session inspect':        ['read:agent_session'],
   'session prune':          ['read:agent_session', 'manage:agent_session'],
 
+  'agent audit':            ['read:agent', 'read:agent_session', 'read:agent_guardrail', 'read:agent_policy'],
+
   'observe logs':           ['read:agent_log'],
   'observe drift':          ['read:agent_log'],
   'observe issues':         ['read:agent_log'],
