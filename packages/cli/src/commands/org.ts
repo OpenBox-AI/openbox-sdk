@@ -2,7 +2,12 @@ import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
 import { parseJsonInput } from '../input.js';
-import { reportAndExit, parsePagination } from '../validators/index.js';
+import { reportAndExit, parsePagination, validateEnum, validateIsoDate } from '../validators/index.js';
+
+// Session status enum from packages/types/src/requests.ts:26.
+const SESSION_STATUSES = ['pending', 'completed', 'failed', 'blocked', 'halted'] as const;
+// Approval status - same shape as approval.ts; mirrors requests.ts:17.
+const APPROVAL_STATUSES = ['pending', 'approved', 'rejected', 'expired'] as const;
 
 export function registerOrgCommands(program: Command) {
   const org = program.command('org').description('Organization management');
@@ -63,6 +68,8 @@ export function registerOrgCommands(program: Command) {
     .option('--to <date>', 'End date (ISO)')
     .action(async (orgId: string, opts) => {
       try {
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getDashboard(orgId, {
           fromTime: opts.from,
           toTime: opts.to,
@@ -90,12 +97,15 @@ export function registerOrgCommands(program: Command) {
     .description('Get organization sessions')
     .option('-p, --page <n>', 'Page number', '0')
     .option('-l, --limit <n>', 'Items per page', '10')
-    .option('--status <status>', 'Status filter')
+    .option('--status <status>', `Status filter (${SESSION_STATUSES.join('|')})`)
     .option('--from <date>', 'Start date (ISO)')
     .option('--to <date>', 'End date (ISO)')
     .option('-s, --search <text>', 'Search')
     .action(async (orgId: string, opts) => {
       try {
+        if (opts.status) validateEnum(opts.status, SESSION_STATUSES, '--status');
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getOrgSessions(orgId, {
           ...parsePagination(opts),
           status: opts.status,
@@ -115,11 +125,14 @@ export function registerOrgCommands(program: Command) {
     .option('-p, --page <n>', 'Page number', '0')
     .option('-l, --limit <n>', 'Items per page', '10')
     .option('-s, --search <text>', 'Search')
-    .option('--status <status>', 'Status filter')
+    .option('--status <status>', `Status filter (${APPROVAL_STATUSES.join('|')})`)
     .option('--from <date>', 'Start date (ISO)')
     .option('--to <date>', 'End date (ISO)')
     .action(async (orgId: string, opts) => {
       try {
+        if (opts.status) validateEnum(opts.status, APPROVAL_STATUSES, '--status');
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getOrgApprovals(orgId, {
           ...parsePagination(opts),
           search: opts.search,
@@ -140,6 +153,8 @@ export function registerOrgCommands(program: Command) {
     .option('--to <date>', 'End date (ISO)')
     .action(async (orgId: string, opts) => {
       try {
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getOrgApprovalMetrics(orgId, {
           fromTime: opts.from,
           toTime: opts.to,

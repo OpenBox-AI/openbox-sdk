@@ -10,6 +10,7 @@ import {
   validateActivitiesConfig,
   validateEnum,
   parsePagination,
+  validateIsoDate,
 } from '../validators/index.js';
 
 export function registerGuardrailCommands(program: Command) {
@@ -170,6 +171,8 @@ export function registerGuardrailCommands(program: Command) {
     .option('--to <date>', 'End date (ISO)')
     .action(async (agentId: string, opts) => {
       try {
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getGuardrailMetrics(agentId, {
           fromTime: opts.from,
           toTime: opts.to,
@@ -190,6 +193,8 @@ export function registerGuardrailCommands(program: Command) {
     .option('--type <type>', 'Guardrail type filter')
     .action(async (agentId: string, opts) => {
       try {
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getGuardrailViolationLogs(agentId, {
           ...parsePagination(opts),
           fromTime: opts.from,

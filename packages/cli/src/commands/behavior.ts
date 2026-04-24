@@ -11,6 +11,7 @@ import {
   validateInt,
   validateEnum,
   parsePagination,
+  validateIsoDate,
 } from '../validators/index.js';
 
 export function registerBehaviorCommands(program: Command) {
@@ -221,6 +222,8 @@ export function registerBehaviorCommands(program: Command) {
     .option('--to <date>', 'End date (ISO)')
     .action(async (agentId: string, opts) => {
       try {
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().getBehaviorMetrics(agentId, {
           fromTime: opts.from,
           toTime: opts.to,

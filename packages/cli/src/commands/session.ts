@@ -1,7 +1,12 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
-import { reportAndExit, parsePagination } from '../validators/index.js';
+import { reportAndExit, parsePagination, validateEnum, validateIsoDate } from '../validators/index.js';
+
+// Session status enum from packages/types/src/requests.ts:26.
+const SESSION_STATUSES = ['pending', 'completed', 'failed', 'blocked', 'halted'] as const;
+// Duration buckets accepted by GetSessionsDto.
+const SESSION_DURATIONS = ['<1min', '1-5mins', '5-15mins', '>15mins'] as const;
 
 // Parse "30s" / "5m" / "2h" / "1d" / bare seconds into milliseconds.
 // Dangling cleanup must set this explicitly - no default, per user requirement.
@@ -249,13 +254,17 @@ export function registerSessionCommands(program: Command) {
     .description('List sessions for an agent')
     .option('-p, --page <n>', 'Page number', '0')
     .option('-l, --limit <n>', 'Items per page', '10')
-    .option('--status <status>', 'Filter by status (pending|completed|failed|blocked|halted)')
+    .option('--status <status>', `Filter by status (${SESSION_STATUSES.join('|')})`)
     .option('--from <date>', 'Start date (ISO)')
     .option('--to <date>', 'End date (ISO)')
-    .option('--duration <dur>', 'Duration filter (<1min|1-5mins|5-15mins|>15mins)')
+    .option('--duration <dur>', `Duration filter (${SESSION_DURATIONS.join('|')})`)
     .option('-s, --search <text>', 'Search')
     .action(async (agentId: string, opts) => {
       try {
+        if (opts.status) validateEnum(opts.status, SESSION_STATUSES, '--status');
+        if (opts.duration) validateEnum(opts.duration, SESSION_DURATIONS, '--duration');
+        if (opts.from) validateIsoDate(opts.from, '--from');
+        if (opts.to) validateIsoDate(opts.to, '--to');
         const data = await getClient().listSessions(agentId, {
           ...parsePagination(opts),
           status: opts.status,

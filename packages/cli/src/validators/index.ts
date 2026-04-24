@@ -133,6 +133,25 @@ export function validateEnum<T extends string>(value: unknown, allowed: readonly
   return value as T;
 }
 
+// Catches obviously-bad --from/--to values locally instead of letting the
+// backend silently return empty results for unparseable strings. Accepts ISO
+// 8601 timestamps (YYYY-MM-DD, YYYY-MM-DDTHH:MM:SSZ, offsets, etc.) - anything
+// Date.parse can parse to a finite number.
+export function validateIsoDate(value: unknown, label: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    block('invalid-date', `${label} must be an ISO 8601 date string. Got: ${JSON.stringify(value)}`);
+  }
+  const ms = Date.parse(value as string);
+  if (!Number.isFinite(ms)) {
+    block(
+      'invalid-date',
+      `${label} is not a valid ISO 8601 date. Got: ${JSON.stringify(value)}`,
+      `Use formats like 2026-04-24, 2026-04-24T15:30:00Z, or 2026-04-24T15:30:00-07:00.`,
+    );
+  }
+  return value as string;
+}
+
 // Pagination is threaded through every list command; this helper centralizes
 // the parseInt+range check so a user passing `--page abc` gets a clean local
 // error instead of leaking NaN into the backend query string. Commander's
