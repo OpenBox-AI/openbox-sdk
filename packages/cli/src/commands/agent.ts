@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
 import { parseJsonInput } from '../input.js';
+import { reportAndExit, validateUuid, warn, block } from '../validators/index.js';
 
 export function registerAgentCommands(program: Command) {
   const agent = program.command('agent').description('Agent management');
@@ -37,9 +38,10 @@ export function registerAgentCommands(program: Command) {
     .description('Create a new agent')
     .requiredOption('-n, --name <name>', 'Agent name')
     .option('-d, --desc <text>', 'Description')
-    .option('-t, --team <ids...>', 'Team IDs')
+    .option('-t, --team <ids...>', 'Team IDs (UUIDs). Required - without it, the agent is orphaned and every call returns 403.')
     .option('--type <type>', 'Agent type', 'temporal')
     .option('--icon <icon>', 'Icon', 'robot')
+    .option('--skip-preflight', 'Skip team-exists + name-conflict pre-flight GETs (faster but you own the failure mode)', false)
     .option('--json <json>', 'Full JSON body (overrides other options)')
     .action(async (opts) => {
       try {
@@ -47,11 +49,60 @@ export function registerAgentCommands(program: Command) {
         let dto: any;
         if (opts.json) {
           dto = parseJsonInput(opts.json);
+          // Validate team UUIDs on the json path too.
+          if (Array.isArray(dto.team_ids)) dto.team_ids.forEach((id: unknown, i: number) => validateUuid(id, `team_ids[${i}]`));
         } else {
+          const teams = opts.team || [];
+          if (teams.length === 0) {
+            block(
+              'agent-missing-team',
+              `Agent creation requires at least one team ID via -t/--team. Without it the agent is orphaned (403 on every subsequent call).`,
+              `Resolve a teamId: \`openbox auth profile\` gives your orgId, then \`openbox team list <orgId>\` lists available teams.`,
+              'references/commands.md § "agent create"',
+            );
+          }
+          teams.forEach((id: string, i: number) => validateUuid(id, `--team[${i}]`));
+
+          // Pre-flight: confirm each team exists and confirm no agent name collision.
+          if (!opts.skipPreflight) {
+            let orgId: string | undefined;
+            try {
+              const profile = await client.getProfile();
+              orgId = (profile as any).orgId ?? (profile as any).org_id ?? (profile as any).user?.orgId;
+            } catch {
+              warn(`Pre-flight getProfile() failed - skipping team existence check. Pass --skip-preflight to silence this.`);
+            }
+            if (orgId) {
+              for (const teamId of teams) {
+                try {
+                  await client.getTeam(orgId, teamId);
+                } catch (e: any) {
+                  const status = e?.status ?? e?.response?.status;
+                  if (status === 404 || status === 403) {
+                    block(
+                      'team-not-found',
+                      `Team ${teamId} does not exist or you lack access in org ${orgId}. Creating the agent now would orphan it (403 on every subsequent call).`,
+                      `List accessible teams: \`openbox team list ${orgId}\`. Use --skip-preflight only if you're sure the team exists and this check is mis-reporting.`,
+                    );
+                  }
+                  warn(`Pre-flight GET /team/${teamId} failed (${e.message}). Continuing; the create will fail if the team is missing.`);
+                }
+              }
+            }
+            try {
+              const existing = await client.listAgents({ search: opts.name });
+              const rows = (existing as any).data ?? existing;
+              const arr = Array.isArray(rows) ? rows : (rows?.data ?? []);
+              if (arr.some((a: any) => a.agent_name === opts.name)) {
+                warn(`An agent named "${opts.name}" already exists in this org. The backend may accept duplicate names, but subsequent lookups by name will be ambiguous. Consider a unique name.`);
+              }
+            } catch { /* non-fatal */ }
+          }
+
           dto = {
             agent_name: opts.name,
             description: opts.desc,
-            team_ids: opts.team || [],
+            team_ids: teams,
             agent_type: opts.type,
             icon: opts.icon,
             aivss_config: {
@@ -81,8 +132,7 @@ export function registerAgentCommands(program: Command) {
         const data = await client.createAgent(dto);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
