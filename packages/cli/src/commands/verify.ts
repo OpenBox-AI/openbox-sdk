@@ -150,19 +150,22 @@ const rules: Rule[] = [
   {
     name: 'missing-x-openbox-client-header',
     severity: 'error',
-    message: '`X-Openbox-Client` header is required on every backend call (edge proxy enforces it). Missing it → 401 even with a valid bearer.',
+    message: '`X-Openbox-Client` header is required on every backend call (enforced at the edge on hosted deploys, and by middleware on self-hosted deploys that run feat/x-openbox-client-middleware). Missing it → 401 even with a valid bearer.',
     fix: 'Add `X-Openbox-Client: <your-client-name>` alongside `Authorization: Bearer`.',
     appliesTo: () => true,
     detect: (content) => {
       const out: Array<{ line: number; snippet: string }> = [];
       const stripped = stripComments(content);
-      const backendHost = /api\.openbox\.ai|openbox-api\.node\.lat/;
-      if (!backendHost.test(stripped)) return out;
-      // If the file mentions the backend host but never has the header outside comments, flag once.
+      // Universal: detect calls to any OpenBox backend endpoint by PATH pattern,
+      // not host - so self-hosted deploys on arbitrary domains are covered too.
+      // These paths are on the backend API (not core); any HTTP call whose URL
+      // contains one of them is a backend call that needs the header.
+      const backendPath = /\/(auth\/(profile|refresh|login|set-token|roles|change-password|permissions|features)|agent(\/|s\?|s$)|guardrail|policy|behavior-rule|session|team|org|member|trust|violation|observability|aivss|goal|approval|audit|api-key|health\?|health$)/;
+      if (!backendPath.test(stripped)) return out;
       if (!/X-Openbox-Client/i.test(stripped)) {
         const lines = content.split('\n');
         for (let i = 0; i < lines.length; i++) {
-          if (backendHost.test(lines[i])) {
+          if (backendPath.test(lines[i])) {
             out.push({ line: i + 1, snippet: lines[i].trim().slice(0, 160) });
             break;
           }
