@@ -37,6 +37,19 @@ export function registerViolationCommands(program: Command) {
         if (opts.sourceType) {
           validateEnum(opts.sourceType, VIOLATION_SOURCE_TYPES, '--source-type');
         }
+        // Backend controller is `@Body()` on a GET route (non-spec). Node's
+        // fetch forbids GET-with-body, so the client now sends filters as
+        // query params instead - but the backend doesn't read them. Until
+        // the backend switches to `@Query()`, warn the user that filter
+        // flags are silently ignored rather than letting them think they
+        // worked.
+        if (opts.pattern || opts.sourceType) {
+          console.error(
+            "warning: --pattern / --source-type are accepted but currently ignored by the backend " +
+              "(GET /agent/:id/violations reads filters from @Body(), which HTTP GET can't carry). " +
+              "The full list is returned; filter client-side until the backend is fixed.",
+          );
+        }
         const data = await getClient().getAgentViolations(agentId, {
           ...parsePagination(opts),
           pattern: opts.pattern,
