@@ -3,6 +3,13 @@ import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
 import { parseJsonInput } from '../input.js';
+import {
+  reportAndExit,
+  validateRegoSource,
+  validateEnum,
+  validateInt,
+  block,
+} from '../validators/index.js';
 
 export function registerPolicyCommands(program: Command) {
   const policy = program.command('policy').description('Policy management');
@@ -39,13 +46,23 @@ export function registerPolicyCommands(program: Command) {
     .action(async (agentId: string, opts) => {
       try {
         let dto: any;
+        let regoCode: string;
         if (opts.json) {
           dto = parseJsonInput(opts.json);
-        } else {
-          let regoCode = opts.rego || '';
-          if (opts.regoFile) {
-            regoCode = readFileSync(opts.regoFile, 'utf-8');
+          regoCode = dto.rego_code;
+          if (!regoCode && (opts.rego || opts.regoFile)) {
+            // Allow --rego/--rego-file to fill rego_code if --json omits it.
+            regoCode = opts.rego || readFileSync(opts.regoFile, 'utf-8');
+            dto.rego_code = regoCode;
           }
+        } else {
+          if (!opts.rego && !opts.regoFile) {
+            block('rego-required', 'Policy requires --rego <code> or --rego-file <path>.', 'Provide the Rego source one of two ways.');
+          }
+          if (opts.rego && opts.regoFile) {
+            block('rego-conflict', 'Pass only one of --rego and --rego-file, not both.');
+          }
+          regoCode = opts.rego || readFileSync(opts.regoFile, 'utf-8');
           dto = {
             name: opts.name,
             description: opts.desc,
@@ -55,11 +72,17 @@ export function registerPolicyCommands(program: Command) {
             trust_threshold: opts.trustThreshold ? parseInt(opts.trustThreshold) : undefined,
           };
         }
+
+        // Validate the Rego source before POSTing. Catches deny[msg], missing result, invalid
+        // decision enums, and warns about package-name rewrite.
+        validateRegoSource(regoCode);
+        if (opts.trustImpact) validateEnum(opts.trustImpact, ['none', 'low', 'medium', 'high'] as const, '--trust-impact');
+        if (opts.trustThreshold) validateInt(opts.trustThreshold, '--trust-threshold', { min: 0, max: 100 });
+
         const data = await getClient().createPolicy(agentId, dto);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 

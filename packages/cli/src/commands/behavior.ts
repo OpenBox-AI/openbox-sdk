@@ -2,6 +2,15 @@ import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output, outputList } from '../output.js';
 import { parseJsonInput } from '../input.js';
+import {
+  reportAndExit,
+  validateBehaviorTrigger,
+  validateBehaviorStates,
+  validateVerdict,
+  validateApprovalTimeout,
+  validateInt,
+  validateEnum,
+} from '../validators/index.js';
 
 export function registerBehaviorCommands(program: Command) {
   const behavior = program.command('behavior').description('Behavior rule management');
@@ -79,15 +88,33 @@ export function registerBehaviorCommands(program: Command) {
         let dto: any;
         if (opts.json) {
           dto = parseJsonInput(opts.json);
+          // Validate --json body too - can't trust user JSON any more than flags.
+          if (dto.trigger) validateBehaviorTrigger(dto.trigger);
+          if (dto.states) validateBehaviorStates(dto.states);
+          if (dto.verdict != null) validateVerdict(dto.verdict);
+          if (dto.priority != null) validateInt(dto.priority, 'priority', { min: 1, max: 100 });
+          if (dto.time_window != null) validateInt(dto.time_window, 'time_window', { min: 1 });
+          if (dto.verdict != null) validateApprovalTimeout(Number(dto.verdict), dto.approval_timeout);
+          if (dto.trust_impact) validateEnum(dto.trust_impact, ['none', 'low', 'medium', 'high'] as const, 'trust_impact');
         } else {
+          // Flag path - validate each piece before assembling the dto.
+          const trigger = validateBehaviorTrigger(opts.trigger);
+          const states = validateBehaviorStates(opts.states);
+          const window = validateInt(opts.window, '--window', { min: 1 });
+          const verdict = validateVerdict(opts.verdict);
+          const priority = validateInt(opts.priority, '--priority', { min: 1, max: 100 });
+          validateApprovalTimeout(verdict, opts.approvalTimeout);
+          if (opts.trustImpact) validateEnum(opts.trustImpact, ['none', 'low', 'medium', 'high'] as const, '--trust-impact');
+          if (opts.trustThreshold) validateInt(opts.trustThreshold, '--trust-threshold');
+
           dto = {
             rule_name: opts.name,
             description: opts.desc,
-            priority: parseInt(opts.priority),
-            trigger: opts.trigger,
-            states: opts.states,
-            time_window: parseInt(opts.window),
-            verdict: parseInt(opts.verdict),
+            priority,
+            trigger,
+            states,
+            time_window: window,
+            verdict,
             reject_message: opts.message,
             trust_impact: opts.trustImpact,
             trust_threshold: opts.trustThreshold ? parseInt(opts.trustThreshold) : undefined,
@@ -97,8 +124,7 @@ export function registerBehaviorCommands(program: Command) {
         const data = await getClient().createBehaviorRule(agentId, dto);
         output(data);
       } catch (err: any) {
-        console.error(err.message || err);
-        process.exit(1);
+        reportAndExit(err);
       }
     });
 
