@@ -147,6 +147,25 @@ function saveFeatures(env: EnvName, features: FeatureMap) {
   writeFileSync(path, serializeStore(store));
 }
 
+// Remove all persisted state for a single env (tokens, refresh, permissions,
+// features). Other envs' entries are preserved. Used by `auth logout`.
+function clearTokens(env: EnvName): boolean {
+  const path = getTokenPath();
+  const store = readStore();
+  if (!store[env]) return false;
+  delete store[env];
+  writeFileSync(path, serializeStore(store));
+  return true;
+}
+
+// Non-hard-exiting check - unlike `loadTokens`, this lets callers that can
+// tolerate missing tokens (e.g. `auth logout --all`) act on presence without
+// being killed by process.exit.
+function hasTokens(env: EnvName): boolean {
+  const store = readStore();
+  return !!store[env]?.accessToken;
+}
+
 function getClient(env?: EnvName): OpenBoxClient {
   const resolved = env ?? resolveEnv();
   const tokens = loadTokens(resolved);
@@ -180,6 +199,8 @@ export {
   saveTokens,
   savePermissions,
   saveFeatures,
+  clearTokens,
+  hasTokens,
   loadTokens,
   loadPermissions,
   loadFeatures,
