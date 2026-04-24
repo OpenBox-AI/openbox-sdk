@@ -39,7 +39,7 @@ program
   .version('1.0.0')
   .option(
     '--env <env>',
-    "Environment: 'production' or 'staging' (default: $OPENBOX_ENV or 'production')",
+    "Environment: 'production' | 'staging' | 'local' (default: $OPENBOX_ENV or 'production')",
   )
   .hook('preAction', (thisCommand, actionCommand) => {
     const flag = thisCommand.opts().env as string | undefined;

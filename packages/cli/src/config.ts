@@ -41,7 +41,7 @@ function parseStore(content: string): TokenStore {
     }
     const envName = key.slice(0, dot);
     const field = key.slice(dot + 1);
-    if (envName !== 'production' && envName !== 'staging') continue;
+    if (envName !== 'production' && envName !== 'staging' && envName !== 'local') continue;
     const entry = (store[envName] ??= {});
     if (field === 'ACCESS_TOKEN') entry.accessToken = value;
     else if (field === 'REFRESH_TOKEN') entry.refreshToken = value || undefined;
@@ -67,7 +67,7 @@ function parseStore(content: string): TokenStore {
 
 function serializeStore(store: TokenStore): string {
   const lines: string[] = [];
-  for (const envName of ['production', 'staging'] as const) {
+  for (const envName of ['production', 'staging', 'local'] as const) {
     const entry = store[envName];
     if (!entry?.accessToken) continue;
     lines.push(`${envName}.ACCESS_TOKEN=${entry.accessToken}`);
