@@ -257,6 +257,7 @@ export class OpenBoxClient {
     status?: number;
     team_id?: string;
     tiers?: string[];
+    owner_id?: string;
   }): Promise<PaginatedResponse<Agent>> {
     return this.get('/agent/list', query) as Promise<PaginatedResponse<Agent>>;
   }
