@@ -16,6 +16,7 @@
   "dependencies": {
     "@openbox/client": "*",
     "@openbox/core-client": "*",
+    "@openbox/env": "*",
     "@openbox/types": "*",
     "commander": "^14.0.0"
   },

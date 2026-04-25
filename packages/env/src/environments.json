@@ -1,0 +1,17 @@
+{
+  "production": {
+    "apiUrl": "https://api.openbox.ai",
+    "coreUrl": "https://core.openbox.ai",
+    "platformUrl": "https://platform.openbox.ai"
+  },
+  "staging": {
+    "apiUrl": "https://openbox-api.node.lat",
+    "coreUrl": "https://openbox-core.node.lat",
+    "platformUrl": "https://openbox.node.lat"
+  },
+  "local": {
+    "apiUrl": "http://localhost:3000",
+    "coreUrl": "http://localhost:8086",
+    "platformUrl": "http://localhost:3233"
+  }
+}
