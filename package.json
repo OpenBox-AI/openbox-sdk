@@ -6,7 +6,8 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces",
-    "clean": "rm -rf packages/*/dist",
+    "clean": "rm -rf packages/*/dist dist-pack",
+    "pack:all": "npm run build && rm -rf dist-pack && mkdir -p dist-pack && npm pack -w @openbox/client -w @openbox/core-client -w @openbox/types -w @openbox/env --pack-destination dist-pack",
     "lint": "eslint packages/*/src/",
     "format": "prettier --write packages/*/src/",
     "test": "vitest run",
