@@ -472,6 +472,12 @@ export class OpenBoxCoreClient {
       const timer = setTimeout(() => controller.abort(), req.timeoutMs);
       const fetchOptions: RequestInit = {
         method: req.method,
+        // credentials: 'omit' prevents RN/iOS from auto-sending cookies that
+        // leaked from a WKWebView via sharedCookiesEnabled. The backend's
+        // CSRF guard fires when an XSRF-TOKEN cookie is present without a
+        // matching X-XSRF-TOKEN header - Bearer-auth clients don't carry
+        // that header and shouldn't send cookies in the first place.
+        credentials: 'omit',
         headers: req.headers,
         body: req.body,
         signal: controller.signal,

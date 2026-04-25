@@ -1070,6 +1070,9 @@ export class OpenBoxClient {
       const url = `${this.baseUrl}/auth/refresh`;
       const response = await fetch(url, {
         method: 'POST',
+        // See request() above for the credentials: 'omit' rationale -
+        // same CSRF-cookie-leak applies to the refresh endpoint.
+        credentials: 'omit',
         headers: {
           'Content-Type': 'application/json',
           'X-Openbox-Client': this.clientName,
@@ -1237,6 +1240,14 @@ export class OpenBoxClient {
       return {
         init: {
           method,
+          // credentials: 'omit' prevents RN/iOS from auto-sending cookies
+          // leaked from a WKWebView via sharedCookiesEnabled. The backend's
+          // CSRF guard (jwt-auth.guard.ts) fires when an XSRF-TOKEN cookie
+          // is present without a matching X-XSRF-TOKEN header - JWT-only
+          // clients (CLI, mobile SDK) don't have the header, so they 401.
+          // Omitting cookies entirely is the right behavior for a Bearer-auth
+          // API client; cookies should never affect SDK requests.
+          credentials: 'omit',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${this.config.accessToken}`,
