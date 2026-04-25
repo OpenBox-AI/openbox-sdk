@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { OpenBoxClient } from 'openbox-sdk/client';
 import {
   getClient,
   loadFeatures,
@@ -10,10 +11,21 @@ import {
   hasTokens,
 } from '../config.js';
 import type { FeatureMap } from '../config.js';
-import { resolveEnv, resolveUrls, resolveClientName } from 'openbox-sdk/env';
+import { resolveEnv, resolveUrls } from 'openbox-sdk/env';
 import { output } from '../output.js';
 import type { EnvName } from 'openbox-sdk/env';
 import { reportAndExit } from '../validators/index.js';
+
+// Build an OpenBoxClient against a freshly-captured token (saveTokens
+// hasn't been called yet, so getClient() can't do this for us).
+function clientFor(env: EnvName, apiUrl: string, accessToken: string): OpenBoxClient {
+  return new OpenBoxClient({
+    apiUrl,
+    env,
+    accessToken,
+    clientName: 'openbox-cli',
+  });
+}
 
 async function fetchAndCachePermissions(
   env: EnvName,
@@ -21,17 +33,12 @@ async function fetchAndCachePermissions(
   apiUrl: string,
 ): Promise<{ orgId?: string; permissions?: string[] } | undefined> {
   try {
-    const res = await fetch(`${apiUrl}/auth/profile`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'X-Openbox-Client': resolveClientName('openbox-cli'),
-      },
-    });
-    if (!res.ok) return undefined;
-    const body = (await res.json()) as { permissions?: unknown };
-    const data = (body as { data?: { permissions?: unknown; orgId?: string } }).data ?? body;
-    const perms = (data as { permissions?: unknown }).permissions;
-    const orgId = (data as { orgId?: unknown }).orgId;
+    const profile = (await clientFor(env, apiUrl, accessToken).getProfile()) as {
+      permissions?: unknown;
+      orgId?: unknown;
+    };
+    const perms = profile?.permissions;
+    const orgId = profile?.orgId;
     const list = Array.isArray(perms)
       ? perms.filter((p): p is string => typeof p === 'string')
       : undefined;
@@ -52,21 +59,13 @@ async function fetchAndCacheFeatures(
   orgId: string,
 ): Promise<FeatureMap | undefined> {
   try {
-    const res = await fetch(
-      `${apiUrl}/organization/${encodeURIComponent(orgId)}/features`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'X-Openbox-Client': resolveClientName('openbox-cli'),
-        },
-      },
-    );
-    if (!res.ok) return undefined;
-    const body = (await res.json()) as { data?: unknown };
-    const data = body.data ?? body;
+    const data = (await clientFor(env, apiUrl, accessToken).getOrgFeatures(orgId)) as
+      | Record<string, unknown>
+      | null
+      | undefined;
     if (!data || typeof data !== 'object') return undefined;
     const features: FeatureMap = {};
-    for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
+    for (const [k, v] of Object.entries(data)) {
       if (typeof v === 'boolean') features[k] = v;
     }
     if (Object.keys(features).length === 0) return undefined;
