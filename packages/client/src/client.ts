@@ -1256,11 +1256,10 @@ export class OpenBoxClient {
       } catch {
         /* fall through to the original 401 */
       }
-    } else if (response.status === 401) {
-      console.error(
-        '[auth] 401 from backend. Auto-refresh is disabled - upstream /auth/refresh is broken. Run: openbox auth login',
-      );
     }
+    // (No console.error on the 401 branch either - same reason as
+    // ensureValidToken's expired-token branch above. The OpenBoxApiError
+    // thrown below carries the status; consumers handle the surface.)
 
     const contentType = response.headers.get('content-type');
     const isJson = contentType?.includes('application/json');
