@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "noEmit": true,
+    "paths": {
+      "openbox-sdk/client": ["./packages/client/src/index.ts"],
+      "openbox-sdk/core-client": ["./packages/core-client/src/index.ts"],
+      "openbox-sdk/env": ["./packages/env/src/index.ts"],
+      "openbox-sdk/types": ["./packages/types/src/index.ts"]
+    }
+  },
+  "include": ["src", "packages/*/src"]
+}
