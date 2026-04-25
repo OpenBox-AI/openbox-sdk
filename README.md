@@ -20,10 +20,33 @@ npm install
 npm run build
 ```
 
-Not published to npm. Consume locally via `npm link`:
+Not published to npm. Consume locally via `npm link` (works for Node-resolved
+consumers like a VS Code extension) or via tarballs (works for everything,
+including bundlers that don't follow symlinks well - Metro, esbuild in some
+configs):
 
 ```bash
-npm link -w packages/cli   # puts `openbox` on PATH
+# A. Symlink: from this repo, link the CLI binary onto PATH
+npm link -w packages/cli
+
+# B. Tarball: build all four consumable packages into dist-pack/ as .tgz
+npm run pack:all
+ls dist-pack/
+# openbox-client-0.1.0.tgz
+# the-core-service-client-0.1.0.tgz
+# openbox-env-0.1.0.tgz
+# openbox-types-0.1.0.tgz
+```
+
+A consuming app then either `npm link openbox-sdk/client openbox-sdk/env` (for
+A) or installs the tarballs directly (for B):
+
+```bash
+# In the consumer repo (e.g. the-mobile-app):
+npm install \
+  file:../openbox-sdk/dist-pack/openbox-client-0.1.0.tgz \
+  file:../openbox-sdk/dist-pack/openbox-env-0.1.0.tgz
+# Re-run `npm run pack:all` in openbox-sdk + `npm install` here on every SDK change.
 ```
 
 Browser login uses `playwright` - install it if you don't have it: `npm install playwright`.
