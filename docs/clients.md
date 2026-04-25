@@ -5,7 +5,7 @@ This is the canonical recipe for any new app that talks to OpenBox - VS Code / C
 - `openbox-cli` (in this repo, `packages/cli/`) - Node CLI
 - `openbox-extension` - VS Code / Cursor extension
 - `openbox-mobile` - Expo / React Native iOS app
-- `openbox-mcp-skunkworks` - MCP server
+- `openbox-mcp` - MCP server
 - `openbox-approver` - Tauri (Rust) tray app
 
 ## 1. Install
@@ -99,7 +99,7 @@ Backend's auth guard is presence-only - any value passes. The value is purely a 
 
 `OPENBOX_CLIENT_VARIANT` in the environment auto-suffixes the value (e.g. `openbox-cli/claude-code`) so backend logs can distinguish skill-driven traffic from human use. Honored automatically by `OpenBoxClient` - you don't have to wire it.
 
-For MCP servers, read `mcp.server.getClientVersion()?.name` after `server.connect()` and feed it into a per-request `X-Openbox-Client: openbox-mcp/<caller>` header. Reference: `openbox-mcp-skunkworks/src/config.ts:setMcpClientName`.
+For MCP servers, read `mcp.server.getClientVersion()?.name` after `server.connect()` and feed it into a per-request `X-Openbox-Client: openbox-mcp/<caller>` header. Reference: `openbox-mcp/src/config.ts:setMcpClientName`.
 
 ## 7. Env switcher UI - dev only
 

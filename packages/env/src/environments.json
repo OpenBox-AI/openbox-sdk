@@ -5,9 +5,9 @@
     "platformUrl": "https://platform.openbox.ai"
   },
   "staging": {
-    "apiUrl": "https://openbox-api.node.lat",
-    "coreUrl": "https://openbox-core.node.lat",
-    "platformUrl": "https://openbox.node.lat"
+    "apiUrl": "",
+    "coreUrl": "",
+    "platformUrl": ""
   },
   "local": {
     "apiUrl": "http://localhost:3000",

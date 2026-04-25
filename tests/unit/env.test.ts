@@ -10,8 +10,8 @@ import {
 
 describe('@openbox/env environments', () => {
   describe('ENVIRONMENTS', () => {
-    it('exposes all three envs with the expected URL shape', () => {
-      for (const env of ['production', 'staging', 'local'] as const) {
+    it('exposes URLs for production and local with the expected shape', () => {
+      for (const env of ['production', 'local'] as const) {
         const cfg = ENVIRONMENTS[env];
         expect(cfg.apiUrl).toMatch(/^https?:\/\//);
         expect(cfg.coreUrl).toMatch(/^https?:\/\//);
@@ -19,13 +19,18 @@ describe('@openbox/env environments', () => {
       }
     });
 
-    it('has distinct URLs across envs (no copy-paste drift)', () => {
+    it('staging URLs default to empty strings (configured at runtime via env vars)', () => {
+      expect(ENVIRONMENTS.staging.apiUrl).toBe('');
+      expect(ENVIRONMENTS.staging.coreUrl).toBe('');
+      expect(ENVIRONMENTS.staging.platformUrl).toBe('');
+    });
+
+    it('production and local have distinct URLs (no copy-paste drift)', () => {
       const apiUrls = new Set([
         ENVIRONMENTS.production.apiUrl,
-        ENVIRONMENTS.staging.apiUrl,
         ENVIRONMENTS.local.apiUrl,
       ]);
-      expect(apiUrls.size).toBe(3);
+      expect(apiUrls.size).toBe(2);
     });
   });
 

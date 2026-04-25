@@ -42,10 +42,16 @@ export function reportAndExit(err: unknown): never {
     process.exit(2);
   }
 
-  // OpenBoxApiError (from @openbox/client) - surface status + body so users
-  // don't see a bare "Request failed: 403 Forbidden" with no context.
+  // OpenBoxApiError (from @openbox/client) and CoreApiError (from
+  // @openbox/core-client) - surface status + body so users don't see
+  // a bare "Request failed: 500 Internal Server Error" with no context.
+  // Both share the same { name, status, body } shape; check by name.
   const apiErr = err as { name?: string; message?: string; status?: number; body?: unknown };
-  if (apiErr && apiErr.name === 'OpenBoxApiError' && typeof apiErr.status === 'number') {
+  if (
+    apiErr &&
+    (apiErr.name === 'OpenBoxApiError' || apiErr.name === 'CoreApiError') &&
+    typeof apiErr.status === 'number'
+  ) {
     console.error(`\x1b[31merror:\x1b[0m ${apiErr.message}`);
     const detail = extractApiErrorDetail(apiErr.body);
     if (detail) console.error(`  detail: ${detail}`);

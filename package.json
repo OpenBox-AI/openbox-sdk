@@ -37,6 +37,8 @@
     "build:bundle": "tsup",
     "build": "npm run build:workspaces && npm run build:bundle",
     "prepare": "npm run build",
+    "check:publish": "bash scripts/check-publish-safety.sh",
+    "prepublishOnly": "npm run build && npm run check:publish",
     "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo dist dist-pack",
     "lint": "eslint packages/*/src/",
     "format": "prettier --write packages/*/src/",
@@ -48,7 +50,6 @@
     "generate:types:core": "openapi-typescript specs/core.yaml    -o packages/types/src/generated/core.ts",
     "generate:types": "npm run generate:types:backend && npm run generate:types:core"
   },
-  "author": "salamisandwich77",
   "license": "MIT",
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.5",

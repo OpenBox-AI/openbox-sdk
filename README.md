@@ -1,6 +1,6 @@
 # OpenBox SDK
 
-Modular TypeScript SDK for the OpenBox AI governance platform - a universal client surface that runs the same command set against both production and staging.
+Modular TypeScript SDK for the OpenBox AI governance platform - a universal client surface for managing agents, approvals, guardrails, policies, and behavior rules.
 
 ## Public surface
 
@@ -42,28 +42,25 @@ Browser login uses `playwright` - install it if you don't have it: `npm install 
 
 ```bash
 # First-time login (opens Chrome, captures JWT + refresh token from the SPA)
-openbox auth login                    # production (default)
-openbox --env staging auth login      # staging
+openbox auth login
 
 # Use the API
 openbox auth profile
-openbox --env staging agent list
-openbox --env staging guardrail create <agent-id> -n MyGuard --type pii --stage 0
+openbox agent list
+openbox guardrail create <agent-id> -n MyGuard --type pii --stage 0
 
 # Inspect cached permissions
-openbox auth permissions              # current env
-openbox auth permissions --all        # both envs
-openbox auth permissions --compare staging    # diff
+openbox auth permissions
 ```
 
 ### Environments
 
-The CLI ships with registered hostnames for both envs in `packages/cli/src/environments.ts`:
+The CLI ships with registered hostnames for production in `packages/cli/src/environments.ts`:
 
 | Env | Backend API | Core API | Platform (login) |
 |---|---|---|---|
 | production | `https://api.openbox.ai` | `https://core.openbox.ai` | `https://platform.openbox.ai` |
-| staging | `https://openbox-api.node.lat` | `https://openbox-core.node.lat` | `https://openbox.node.lat` |
+| local | `http://localhost:3000` | `http://localhost:8086` | `http://localhost:3233` |
 
 Selection precedence: `--env <name>` flag → `OPENBOX_ENV` env var → default `production`. Individual URL overrides via `OPENBOX_API_URL` / `OPENBOX_CORE_URL` / `OPENBOX_PLATFORM_URL` still work on top of the selected env.
 
@@ -93,8 +90,8 @@ import { OpenBoxClient } from 'openbox-sdk/client';
 import { ENVIRONMENTS } from 'openbox-sdk/env';
 
 const client = new OpenBoxClient({
-  env: 'staging',                        // optional - branches when prod/staging diverge
-  apiUrl: ENVIRONMENTS.staging.apiUrl,
+  env: 'production',                     // optional - branches when env-specific behavior is needed
+  apiUrl: ENVIRONMENTS.production.apiUrl,
   accessToken: '<jwt>',
   refreshToken: '<rt>',                  // optional; auto-refresh is currently disabled, see DEFERRED.md
   clientName: 'my-app',                  // optional - sent as X-Openbox-Client (default 'openbox-cli')
@@ -111,8 +108,8 @@ import { OpenBoxCoreClient } from 'openbox-sdk/core-client';
 import { ENVIRONMENTS } from 'openbox-sdk/env';
 
 const core = new OpenBoxCoreClient({
-  env: 'staging',
-  apiUrl: ENVIRONMENTS.staging.coreUrl,
+  env: 'production',
+  apiUrl: ENVIRONMENTS.production.coreUrl,
   apiKey: 'obx_live_...',
 });
 

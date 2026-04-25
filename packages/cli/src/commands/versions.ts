@@ -22,8 +22,8 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { OpenBoxClient } from '@openbox/client';
+import { resolveUrls, type EnvName } from '@openbox/env';
 
-type EnvName = 'production' | 'staging' | 'local';
 type ServiceName = 'openbox-backend' | 'openbox-core' | 'openbox-guardrails';
 
 const SERVICES: ServiceName[] = ['openbox-backend', 'openbox-core', 'openbox-guardrails'];
@@ -34,25 +34,21 @@ const LOCAL_CLONE: Record<ServiceName, string> = {
   'openbox-guardrails': resolve(homedir(), 'workspace/openbox-repos/openbox-guardrails'),
 };
 
-// URLs per env. Kept in sync with openbox-sdk/packages/cli/src/environments.ts
-// - the single source of truth for env URLs. Don't invent these.
-const ENV_URLS: Record<EnvName, Record<ServiceName, string>> = {
-  production: {
-    'openbox-backend': 'https://api.openbox.ai',
-    'openbox-core': 'https://core.openbox.ai',
-    'openbox-guardrails': '',
-  },
-  staging: {
-    'openbox-backend': 'https://openbox-api.node.lat',
-    'openbox-core': 'https://openbox-core.node.lat',
-    'openbox-guardrails': '',
-  },
-  local: {
-    'openbox-backend': 'http://localhost:3000',
-    'openbox-core': 'http://localhost:8086',
-    'openbox-guardrails': '',
-  },
-};
+// Resolve service URLs per env from the canonical env config (@openbox/env).
+// Single source of truth - no hardcoded duplication. Returns empty string for
+// services that don't have a registered URL in this env.
+function urlFor(env: EnvName, service: ServiceName): string {
+  const urls = resolveUrls(env);
+  switch (service) {
+    case 'openbox-backend':
+      return urls.apiUrl ?? '';
+    case 'openbox-core':
+      return urls.coreUrl ?? '';
+    case 'openbox-guardrails':
+      // Not in @openbox/env yet; honor OPENBOX_GUARDRAILS_URL if set, else empty.
+      return process.env.OPENBOX_GUARDRAILS_URL ?? '';
+  }
+}
 
 interface VersionCell {
   tag: string;
@@ -84,9 +80,10 @@ function localHead(service: ServiceName): VersionCell {
 }
 
 async function cellFor(env: EnvName, service: ServiceName): Promise<VersionCell> {
+  const baseUrl = urlFor(env, service);
   // 1. Live /version via OpenBoxClient.getVersion - public endpoint,
   //    works for everyone once envs are redeployed with the patch.
-  const live = await liveVersion(ENV_URLS[env][service]);
+  const live = await liveVersion(baseUrl);
   if (live) return live;
 
   // 2. Local column: git HEAD of the clone.
@@ -97,7 +94,7 @@ async function cellFor(env: EnvName, service: ServiceName): Promise<VersionCell>
   // read from private k8s manifest repos (was a maintainer-only path).
   return {
     tag: '(no /version)',
-    source: `${ENV_URLS[env][service] || service} - /version not deployed`,
+    source: `${baseUrl || service} - /version not deployed`,
   };
 }
 

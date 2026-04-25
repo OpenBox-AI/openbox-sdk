@@ -14,9 +14,9 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "bash ../../scripts/check-publish-safety.sh \"$PWD\""
   },
-  "author": "salamisandwich77",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^25.5.2",
