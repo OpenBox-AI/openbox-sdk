@@ -112,6 +112,11 @@ export interface ClientConfig {
   rateLimit?: RateLimitConfig;
   /** Target environment. Branch on this.env when prod/staging diverge. Defaults to 'production'. */
   env?: EnvName;
+  /** Value sent in the `X-Openbox-Client` header on every backend request.
+   * Backend auth guard is presence-only, so any value passes - this is for
+   * telemetry / log filtering. Each consumer (CLI, extension, mobile, MCP, ...)
+   * should set its own. Defaults to 'openbox-cli'. */
+  clientName?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +143,7 @@ export class OpenBoxClient {
   private baseUrl: string;
   private config: ClientConfig;
   protected readonly env: EnvName;
+  protected readonly clientName: string;
   private refreshPromise: Promise<void> | null = null;
   private rateLimiter: TokenBucket | null = null;
 
@@ -153,6 +159,7 @@ export class OpenBoxClient {
     this.config = { ...config };
     this.baseUrl = this.config.apiUrl ?? 'https://api.openbox.ai';
     this.env = this.config.env ?? 'production';
+    this.clientName = this.config.clientName ?? 'openbox-cli';
     if (config.rateLimit) {
       this.rateLimiter = new TokenBucket(
         config.rateLimit.requestsPerSecond,
@@ -1056,7 +1063,7 @@ export class OpenBoxClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Openbox-Client': 'openbox-cli',
+          'X-Openbox-Client': this.clientName,
           Authorization: `Bearer ${this.config.accessToken}`,
         },
         body: JSON.stringify({ refreshToken: this.config.refreshToken }),
@@ -1216,7 +1223,8 @@ export class OpenBoxClient {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.config.accessToken}`,
         // Required by the backend's auth guard - presence-only check, value is arbitrary.
-        'X-Openbox-Client': 'openbox-cli',
+        // Each consumer sets its own via ClientConfig.clientName.
+        'X-Openbox-Client': this.clientName,
       },
       signal: AbortSignal.timeout(timeoutMs),
       body: options?.data !== undefined ? JSON.stringify(options.data) : undefined,

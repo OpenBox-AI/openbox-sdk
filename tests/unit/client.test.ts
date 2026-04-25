@@ -68,6 +68,26 @@ describe('OpenBoxClient', () => {
         expect.anything(),
       );
     });
+
+    it('sends X-Openbox-Client: openbox-cli by default', async () => {
+      const client = createClient();
+      fetchMock.mockResolvedValueOnce(mockResponse(200, { data: 'ok' }));
+
+      await client.health();
+
+      const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+      expect(headers['X-Openbox-Client']).toBe('openbox-cli');
+    });
+
+    it('sends X-Openbox-Client with the configured clientName', async () => {
+      const client = createClient({ clientName: 'apps/extension' });
+      fetchMock.mockResolvedValueOnce(mockResponse(200, { data: 'ok' }));
+
+      await client.health();
+
+      const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+      expect(headers['X-Openbox-Client']).toBe('apps/extension');
+    });
   });
 
   // =========================================================================
