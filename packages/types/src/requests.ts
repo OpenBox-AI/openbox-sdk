@@ -17,6 +17,7 @@ export interface ApprovalListQuery extends PaginationQuery {
   status?: 'pending' | 'approved' | 'rejected' | 'expired';
   tiers?: string[];
   agent_id?: string;
+  team_ids?: string[];
   fromTime?: string;
   toTime?: string;
   organization_id?: string;
