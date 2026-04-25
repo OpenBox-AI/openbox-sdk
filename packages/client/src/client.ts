@@ -1035,11 +1035,13 @@ export class OpenBoxClient {
     }
 
     if (!OpenBoxClient.REFRESH_ENABLED) {
-      console.error(
-        '[auth] Access token expired. Auto-refresh is disabled - upstream /auth/refresh is broken. Run: openbox auth login',
-      );
+      // No console.* here - callers are expected to handle the throw.
+      // A console.error in a library pops React Native's LogBox red
+      // overlay even when the consumer's catch handles the error
+      // gracefully (e.g. clear stale tokens + route to login). The
+      // remediation hint lives in the OpenBoxApiError message instead.
       throw new OpenBoxApiError(
-        'Access token expired; auto-refresh disabled pending upstream fixes (see client.ts:ensureValidToken)',
+        'Access token expired; auto-refresh disabled pending upstream fixes (see client.ts:ensureValidToken). Re-authenticate to continue.',
         401,
         null,
       );
