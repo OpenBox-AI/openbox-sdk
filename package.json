@@ -1,13 +1,43 @@
 {
   "name": "openbox-sdk",
-  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
+    "./core-client": {
+      "types": "./dist/core-client.d.ts",
+      "import": "./dist/core-client.js"
+    },
+    "./env": {
+      "types": "./dist/env.d.ts",
+      "import": "./dist/env.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
-    "clean": "rm -rf packages/*/dist dist-pack",
-    "pack:all": "npm run build && rm -rf dist-pack && mkdir -p dist-pack && npm pack -w @openbox/client -w @openbox/core-client -w @openbox/types -w @openbox/env --pack-destination dist-pack",
+    "build:workspaces": "npm run build --workspaces",
+    "build:bundle": "tsup",
+    "build": "npm run build:workspaces && npm run build:bundle",
+    "prepare": "npm run build",
+    "clean": "rm -rf packages/*/dist dist dist-pack",
     "lint": "eslint packages/*/src/",
     "format": "prettier --write packages/*/src/",
     "test": "vitest run",
@@ -25,6 +55,8 @@
     "dotenv": "^17.4.2",
     "eslint": "^10.2.1",
     "openapi-typescript": "^7.13.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.0",
     "typescript-eslint": "^8.59.0",
     "vitest": "^4.1.2"
   }

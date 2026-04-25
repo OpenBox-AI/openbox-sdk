@@ -2,6 +2,10 @@ node_modules
 dist
 dist-pack
 *.tsbuildinfo
+# tsup/tsc occasionally emits .d.ts next to source when composite mode
+# resolves @openbox/* path mappings into the workspace src/. Don't commit.
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
 # Local auth state - never commit.
 .tokens
 .env
