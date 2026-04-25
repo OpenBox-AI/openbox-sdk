@@ -33,11 +33,11 @@
     "packages/*"
   ],
   "scripts": {
-    "build:workspaces": "npm run build --workspaces",
+    "build:workspaces": "npm run build -w @openbox/types && npm run build -w @openbox/env && npm run build -w @openbox/client && npm run build -w @openbox/core-client && npm run build -w @openbox/cli",
     "build:bundle": "tsup",
     "build": "npm run build:workspaces && npm run build:bundle",
     "prepare": "npm run build",
-    "clean": "rm -rf packages/*/dist dist dist-pack",
+    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo dist dist-pack",
     "lint": "eslint packages/*/src/",
     "format": "prettier --write packages/*/src/",
     "test": "vitest run",
