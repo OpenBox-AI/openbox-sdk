@@ -97,7 +97,7 @@ export function createMockClient() {
     getDashboard: vi.fn().mockResolvedValue({}),
     getDashboardTierTrends: vi.fn().mockResolvedValue({}),
     getOrgSessions: vi.fn().mockResolvedValue({ data: [] }),
-    getOrgApprovals: vi.fn().mockResolvedValue({ data: [] }),
+    getOrgApprovals: vi.fn().mockResolvedValue({ approvals: { data: [] }, metrics: { pending_count: 0 } }),
     getOrgApprovalMetrics: vi.fn().mockResolvedValue({}),
     getOrgApprovalSla: vi.fn().mockResolvedValue({}),
     getOrgApprovalHistory: vi.fn().mockResolvedValue({ data: [] }),
