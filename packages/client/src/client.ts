@@ -57,6 +57,7 @@ import type {
   TrustTierChange,
   Assessment,
   Approval,
+  OrgApprovalsResponse,
   Violation,
   Organization,
   OrgSettings,
@@ -678,12 +679,15 @@ export class OpenBoxClient {
     >;
   }
 
+  // Backend returns `{ approvals: PaginatedResponse<Approval>, metrics }`
+  // here, NOT a flat PaginatedResponse - list + count queries run in
+  // parallel server-side and both surface (organization.service.ts:487).
   async getOrgApprovals(
     orgId: string,
     query?: ApprovalListQuery,
-  ): Promise<PaginatedResponse<Approval>> {
+  ): Promise<OrgApprovalsResponse> {
     return this.get(`/organization/${orgId}/approvals`, query) as Promise<
-      PaginatedResponse<Approval>
+      OrgApprovalsResponse
     >;
   }
 

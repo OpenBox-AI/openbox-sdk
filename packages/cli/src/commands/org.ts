@@ -133,14 +133,20 @@ export function registerOrgCommands(program: Command) {
         if (opts.status) validateEnum(opts.status, APPROVAL_STATUSES, '--status');
         if (opts.from) validateIsoDate(opts.from, '--from');
         if (opts.to) validateIsoDate(opts.to, '--to');
-        const data = await getClient().getOrgApprovals(orgId, {
+        const result = await getClient().getOrgApprovals(orgId, {
           ...parsePagination(opts),
           search: opts.search,
           status: opts.status,
           fromTime: opts.from,
           toTime: opts.to,
         });
-        outputList(data, 'approvals');
+        // Result is { approvals: PaginatedResponse<Approval>, metrics }.
+        // Print the full envelope (counts are useful) but keep the array
+        // recognizable for grep/jq pipelines.
+        outputList(result.approvals, 'approvals');
+        if (result.metrics) {
+          console.error(`metrics: ${JSON.stringify(result.metrics)}`);
+        }
       } catch (err: any) {
         reportAndExit(err);
       }

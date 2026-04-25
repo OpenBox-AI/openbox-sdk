@@ -205,6 +205,22 @@ export interface Approval {
   [key: string]: unknown;
 }
 
+/** Counts surfaced alongside `getOrgApprovals` - backend computes these from
+ * the same approvals query so clients don't need a second roundtrip. */
+export interface ApprovalsMetrics {
+  pending_count?: number;
+  expired_count?: number;
+  [key: string]: unknown;
+}
+
+/** `getOrgApprovals` returns `{ approvals, metrics }` (after the {status,data}
+ * envelope), not a flat PaginatedResponse - backend's organization.service.ts
+ * runs the list + count queries in parallel and surfaces both. */
+export interface OrgApprovalsResponse {
+  approvals: PaginatedResponse<Approval>;
+  metrics: ApprovalsMetrics;
+}
+
 // ---------------------------------------------------------------------------
 // Violation
 // ---------------------------------------------------------------------------
