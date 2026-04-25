@@ -464,13 +464,17 @@ export class OpenBoxCoreClient {
     const maxDelay = this.config.retry?.maxDelayMs ?? 30_000;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      // Create a fresh AbortSignal per attempt - reusing a single timeout signal
-      // across retries would fail every retry instantly once it tripped once.
+      // Fresh AbortController per attempt - reusing a single timeout
+      // signal across retries would fail every retry instantly. Using
+      // controller + setTimeout instead of AbortSignal.timeout because
+      // Hermes (React Native) doesn't ship the latter.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), req.timeoutMs);
       const fetchOptions: RequestInit = {
         method: req.method,
         headers: req.headers,
         body: req.body,
-        signal: AbortSignal.timeout(req.timeoutMs),
+        signal: controller.signal,
       };
       try {
         const response = await fetch(req.url, fetchOptions);
@@ -482,12 +486,14 @@ export class OpenBoxCoreClient {
         await new Promise((r) => setTimeout(r, delay));
       } catch (err) {
         // Retry on fetch network errors (TypeError) and on per-attempt timeouts
-        // (AbortError from AbortSignal.timeout - a DOMException, not a TypeError).
+        // (AbortError from the manual abort - a DOMException, not a TypeError).
         const isNetworkError = err instanceof TypeError;
         const isTimeout = err instanceof Error && err.name === 'AbortError';
         if (attempt === maxRetries || (!isNetworkError && !isTimeout)) throw err;
         const delay = this.calculateBackoff(attempt, initialDelay, maxDelay);
         await new Promise((r) => setTimeout(r, delay));
+      } finally {
+        clearTimeout(timer);
       }
     }
     throw new Error('Retry loop exited unexpectedly');

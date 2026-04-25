@@ -1226,20 +1226,38 @@ export class OpenBoxClient {
     }
 
     const timeoutMs = this.config.timeoutMs ?? 30_000;
-    const buildOptions = (): RequestInit => ({
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.config.accessToken}`,
-        // Required by the backend's auth guard - presence-only check, value is arbitrary.
-        // Each consumer sets its own via ClientConfig.clientName.
-        'X-Openbox-Client': this.clientName,
-      },
-      signal: AbortSignal.timeout(timeoutMs),
-      body: options?.data !== undefined ? JSON.stringify(options.data) : undefined,
-    });
+    // AbortController + setTimeout instead of AbortSignal.timeout -
+    // Hermes (React Native's JS engine) doesn't ship AbortSignal.timeout.
+    // The controller pattern is supported across Node, browsers, and RN.
+    // executeWithRetry handles request lifecycle so the timer is cleared
+    // after the response (or its error) lands.
+    const buildOptions = (): { init: RequestInit; cancel: () => void } => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      return {
+        init: {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.config.accessToken}`,
+            // Required by the backend's auth guard - presence-only check, value is arbitrary.
+            // Each consumer sets its own via ClientConfig.clientName.
+            'X-Openbox-Client': this.clientName,
+          },
+          signal: controller.signal,
+          body: options?.data !== undefined ? JSON.stringify(options.data) : undefined,
+        },
+        cancel: () => clearTimeout(timer),
+      };
+    };
 
-    let response = await this.executeWithRetry(url, buildOptions());
+    const first = buildOptions();
+    let response: Response;
+    try {
+      response = await this.executeWithRetry(url, first.init);
+    } finally {
+      first.cancel();
+    }
 
     // Reactive refresh path: DISABLED. See ensureValidToken() for context.
     // Leaving the code shape here so flipping REFRESH_ENABLED is a single
@@ -1251,7 +1269,12 @@ export class OpenBoxClient {
     ) {
       try {
         await this.performTokenRefresh();
-        response = await this.executeWithRetry(url, buildOptions());
+        const retry = buildOptions();
+        try {
+          response = await this.executeWithRetry(url, retry.init);
+        } finally {
+          retry.cancel();
+        }
       } catch {
         /* fall through to the original 401 */
       }
