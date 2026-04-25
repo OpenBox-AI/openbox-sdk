@@ -104,6 +104,18 @@ function hasTokens(env: EnvName): boolean {
   return !!store[env]?.accessToken;
 }
 
+// Honors OPENBOX_TIMEOUT_MS so users can stretch the per-request timeout
+// for slow operations (staging core's verdict-2 evaluate workflow blocks
+// for the rule's approval-timeout window before returning, easily 60s+).
+// Falsy / non-finite values fall through to the SDK default (30_000).
+function resolveTimeoutMs(): number | undefined {
+  const raw = process.env.OPENBOX_TIMEOUT_MS;
+  if (!raw) return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return n;
+}
+
 function getClient(env?: EnvName): OpenBoxClient {
   const resolved = env ?? resolveEnv();
   const tokens = loadTokens(resolved);
@@ -113,6 +125,7 @@ function getClient(env?: EnvName): OpenBoxClient {
     env: resolved,
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken,
+    timeoutMs: resolveTimeoutMs(),
     onTokenRefresh: (newTokens) => {
       saveTokens(resolved, newTokens.accessToken, newTokens.refreshToken);
       console.error('[token refreshed]');
@@ -128,7 +141,12 @@ function getCoreClient(env?: EnvName): OpenBoxCoreClient {
     process.exit(1);
   }
   const { coreUrl } = resolveUrls(resolved);
-  return new OpenBoxCoreClient({ apiUrl: coreUrl, apiKey, env: resolved });
+  return new OpenBoxCoreClient({
+    apiUrl: coreUrl,
+    apiKey,
+    env: resolved,
+    timeoutMs: resolveTimeoutMs(),
+  });
 }
 
 export {

@@ -21,7 +21,7 @@ async function fire() {
 
 async function pollForever(workflowId: string, runId: string, activityId: string) {
   while (true) {
-    const r = await fetch('https://openbox-api.node.lat/api/v1/governance/approval', {
+    const r = await fetch('https://api.openbox.ai/api/v1/governance/approval', {
       method: 'POST',
       headers: { 'X-Openbox-Client': 'test' },
       body: JSON.stringify({ workflow_id: workflowId, run_id: runId, activity_id: activityId }),

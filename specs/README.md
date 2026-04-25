@@ -8,7 +8,7 @@ The authoritative OpenAPI snapshot for the OpenBox backend surface.
 - `core.yaml` - curated from the `the-core-service` Go source.
 
 This is the single source of truth for the SDK's client/type surface. Sibling
-repos (e.g. `runtime/mcp-skunkworks`, `openbox-sdk`,
+repos (e.g. `runtime/mcp`, `openbox-sdk`,
 `skill/`) submodule this repo at `specs-ref/` to read from here.
 
 ## Refresh

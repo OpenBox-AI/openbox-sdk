@@ -5,7 +5,7 @@ import { resolve, join } from 'path';
 import { homedir } from 'os';
 
 const SKILL_REPO = 'https://github.com/OpenBox-AI/skill/.git';
-const MCP_REPO = 'https://github.com/OpenBox-AI/runtime/mcp-skunkworks.git';
+const MCP_REPO = 'https://github.com/OpenBox-AI/runtime/mcp.git';
 
 export function registerSetupCommands(program: Command) {
   const setup = program.command('setup').description('Install OpenBox skill and MCP server');
@@ -41,7 +41,7 @@ export function registerSetupCommands(program: Command) {
   setup
     .command('mcp')
     .description('Install OpenBox MCP server and register in Cursor')
-    .option('--dir <path>', 'Install directory', join(homedir(), 'workspace', 'runtime/mcp-skunkworks'))
+    .option('--dir <path>', 'Install directory', join(homedir(), 'workspace', 'runtime/mcp'))
     .action((opts) => {
       const dir = resolve(opts.dir);
 
@@ -76,7 +76,7 @@ export function registerSetupCommands(program: Command) {
     .description('Install skill + MCP server (flags forwarded to each subcommand)')
     .option('--claude', 'Install skill for Claude Code')
     .option('--cursor', 'Install skill for Cursor')
-    .option('--dir <path>', 'MCP install directory', join(homedir(), 'workspace', 'runtime/mcp-skunkworks'))
+    .option('--dir <path>', 'MCP install directory', join(homedir(), 'workspace', 'runtime/mcp'))
     .action((opts) => {
       // Forward target flags so `setup all --cursor` doesn't silently install for every editor.
       const skillFlags: string[] = [];
