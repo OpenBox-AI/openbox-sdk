@@ -56,6 +56,8 @@ describe('behavior commands', () => {
       '60',
       '--verdict',
       '2',
+      '--approval-timeout',
+      '300',
       '--message',
       'blocked',
     ]);

@@ -50,7 +50,17 @@ describe('agent commands', () => {
   it('create calls createAgent with name', async () => {
     const program = createTestProgram();
     registerAgentCommands(program);
-    await program.parseAsync(['node', 'openbox', 'agent', 'create', '-n', 'MyAgent']);
+    await program.parseAsync([
+      'node',
+      'openbox',
+      'agent',
+      'create',
+      '-n',
+      'MyAgent',
+      '-t',
+      '00000000-0000-0000-0000-000000000001',
+      '--skip-preflight',
+    ]);
     expect(mockClient.createAgent).toHaveBeenCalledWith(
       expect.objectContaining({ agent_name: 'MyAgent', icon: 'robot' }),
     );

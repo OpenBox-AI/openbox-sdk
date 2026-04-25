@@ -112,6 +112,8 @@ describe('member commands', () => {
       'org-1',
       '--email',
       'new@t.com',
+      '--roles',
+      'viewer',
     ]);
     expect(mockClient.inviteUser).toHaveBeenCalledWith(
       'org-1',
