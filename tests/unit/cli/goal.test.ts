@@ -29,6 +29,10 @@ describe('goal commands', () => {
       '80',
       '--action',
       'alert_only',
+      '--frequency',
+      'every_action',
+      '--model',
+      'llama-firewall-v1',
     ]);
     expect(mockClient.updateGoalAlignment).toHaveBeenCalledWith(
       'agent-1',

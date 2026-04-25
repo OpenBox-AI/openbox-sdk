@@ -40,7 +40,7 @@ describe('policy commands', () => {
       '-n',
       'Pol1',
       '--rego',
-      'package p',
+      'package p\nresult := {"decision": "ALLOW", "reason": "test"}',
       '--input',
       '{}',
     ]);
