@@ -187,7 +187,14 @@ export class OpenBoxClient {
           : raw;
       const commit = typeof payload.commit === 'string' ? payload.commit : undefined;
       const version = typeof payload.version === 'string' ? payload.version : undefined;
-      const builtAt = typeof payload.builtAt === 'string' ? payload.builtAt : undefined;
+      // Backend serializes as `builtAt`; core (Go/Echo) as `built_at`.
+      // Accept both so the same SDK call works against either service.
+      const builtAt =
+        typeof payload.builtAt === 'string'
+          ? payload.builtAt
+          : typeof payload.built_at === 'string'
+            ? payload.built_at
+            : undefined;
       if (!commit && !version && !builtAt) return null;
       return { commit, version, builtAt };
     } catch {
