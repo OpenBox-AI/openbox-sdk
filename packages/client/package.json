@@ -14,6 +14,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@openbox/env": "*",
     "@openbox/types": "*"
   },
   "author": "salamisandwich77",

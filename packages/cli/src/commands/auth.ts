@@ -10,7 +10,7 @@ import {
   hasTokens,
 } from '../config.js';
 import type { FeatureMap } from '../config.js';
-import { resolveEnv, resolveUrls } from '@openbox/env';
+import { resolveEnv, resolveUrls, resolveClientName } from '@openbox/env';
 import { output } from '../output.js';
 import type { EnvName } from '@openbox/env';
 import { reportAndExit } from '../validators/index.js';
@@ -24,7 +24,7 @@ async function fetchAndCachePermissions(
     const res = await fetch(`${apiUrl}/auth/profile`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        'X-Openbox-Client': 'openbox-cli',
+        'X-Openbox-Client': resolveClientName('openbox-cli'),
       },
     });
     if (!res.ok) return undefined;
@@ -57,7 +57,7 @@ async function fetchAndCacheFeatures(
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          'X-Openbox-Client': 'openbox-cli',
+          'X-Openbox-Client': resolveClientName('openbox-cli'),
         },
       },
     );

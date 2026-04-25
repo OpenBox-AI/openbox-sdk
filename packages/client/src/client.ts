@@ -1,4 +1,5 @@
 import { isTokenExpired } from '@openbox/types';
+import { resolveClientName } from '@openbox/env';
 import { TokenBucket } from './rate-limiter.js';
 import type {
   PaginationQuery,
@@ -159,7 +160,10 @@ export class OpenBoxClient {
     this.config = { ...config };
     this.baseUrl = this.config.apiUrl ?? 'https://api.openbox.ai';
     this.env = this.config.env ?? 'production';
-    this.clientName = this.config.clientName ?? 'openbox-cli';
+    // Apply OPENBOX_CLIENT_VARIANT (if set) on top of the configured base name.
+    // Lets a skill running inside Claude Code / Codex / Cursor identify itself
+    // in backend telemetry without each app having to plumb the variant.
+    this.clientName = resolveClientName(this.config.clientName ?? 'openbox-cli');
     if (config.rateLimit) {
       this.rateLimiter = new TokenBucket(
         config.rateLimit.requestsPerSecond,
