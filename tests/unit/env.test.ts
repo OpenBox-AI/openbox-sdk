@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   ENVIRONMENTS,
   resolveEnv,
   resolveUrls,
   parseTokenStore,
   serializeTokenStore,
+  resolveClientName,
 } from '../../packages/env/src/index.js';
 
 describe('openbox-sdk/env environments', () => {
@@ -173,5 +174,53 @@ describe('openbox-sdk/env token-codec', () => {
       });
       expect(out).not.toContain('PERMISSIONS');
     });
+  });
+});
+
+describe('openbox-sdk/env resolveClientName', () => {
+  const orig = process.env.OPENBOX_CLIENT_VARIANT;
+  beforeEach(() => {
+    delete process.env.OPENBOX_CLIENT_VARIANT;
+  });
+  afterEach(() => {
+    if (orig === undefined) delete process.env.OPENBOX_CLIENT_VARIANT;
+    else process.env.OPENBOX_CLIENT_VARIANT = orig;
+  });
+
+  it('returns the bare base when no variant is set', () => {
+    expect(resolveClientName('openbox-cli')).toBe('openbox-cli');
+  });
+
+  it('appends an explicit variant argument', () => {
+    expect(resolveClientName('openbox-cli', 'claude-code')).toBe('openbox-cli/claude-code');
+  });
+
+  it('falls back to OPENBOX_CLIENT_VARIANT', () => {
+    process.env.OPENBOX_CLIENT_VARIANT = 'codex';
+    expect(resolveClientName('openbox-cli')).toBe('openbox-cli/codex');
+  });
+
+  it('explicit argument wins over the env var', () => {
+    process.env.OPENBOX_CLIENT_VARIANT = 'cursor';
+    expect(resolveClientName('openbox-cli', 'claude-code')).toBe('openbox-cli/claude-code');
+  });
+
+  it('treats empty / whitespace variant as no variant', () => {
+    expect(resolveClientName('openbox-cli', '  ')).toBe('openbox-cli');
+    process.env.OPENBOX_CLIENT_VARIANT = '';
+    expect(resolveClientName('openbox-cli')).toBe('openbox-cli');
+  });
+
+  it('rejects variants with disallowed chars and warns', () => {
+    const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(resolveClientName('openbox-cli', 'bad variant!')).toBe('openbox-cli');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('accepts the documented allowed character set', () => {
+    expect(resolveClientName('openbox-cli', 'claude-code.v2_alpha+1')).toBe(
+      'openbox-cli/claude-code.v2_alpha+1',
+    );
   });
 });

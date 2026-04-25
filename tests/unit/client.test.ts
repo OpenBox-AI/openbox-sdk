@@ -88,6 +88,23 @@ describe('OpenBoxClient', () => {
       const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
       expect(headers['X-Openbox-Client']).toBe('apps/extension');
     });
+
+    it('appends OPENBOX_CLIENT_VARIANT to the header', async () => {
+      const orig = process.env.OPENBOX_CLIENT_VARIANT;
+      process.env.OPENBOX_CLIENT_VARIANT = 'claude-code';
+      try {
+        const client = createClient({ clientName: 'runtime/mcp' });
+        fetchMock.mockResolvedValueOnce(mockResponse(200, { data: 'ok' }));
+
+        await client.health();
+
+        const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+        expect(headers['X-Openbox-Client']).toBe('runtime/mcp/claude-code');
+      } finally {
+        if (orig === undefined) delete process.env.OPENBOX_CLIENT_VARIANT;
+        else process.env.OPENBOX_CLIENT_VARIANT = orig;
+      }
+    });
   });
 
   // =========================================================================

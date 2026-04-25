@@ -5,11 +5,13 @@
     "rootDir": "src",
     "composite": true,
     "paths": {
-      "openbox-sdk/types": ["../types/src/index.ts"]
+      "openbox-sdk/types": ["../types/src/index.ts"],
+      "openbox-sdk/env": ["../env/src/index.ts"]
     }
   },
   "include": ["src"],
   "references": [
-    { "path": "../types" }
+    { "path": "../types" },
+    { "path": "../env" }
   ]
 }
