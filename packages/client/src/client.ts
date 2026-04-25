@@ -157,6 +157,46 @@ export class OpenBoxClient {
   // refresh tokens so no re-login is needed after re-enabling.
   private static readonly REFRESH_ENABLED = false;
 
+  /**
+   * Fetch a service's `/version` payload. Public endpoint - no auth, no
+   * client construction. Works for any OpenBox HTTP service that exposes
+   * `/version` (backend, core, future services). Backend wraps as
+   * { status, data: {...} }; core returns flat - both shapes are normalized.
+   *
+   * Returns null on any error (timeout, network, non-OK, malformed body).
+   * Callers fall through to whatever fallback they have.
+   */
+  static async getVersion(
+    baseUrl: string,
+    options?: { timeoutMs?: number },
+  ): Promise<{ commit?: string; version?: string; builtAt?: string } | null> {
+    if (!baseUrl) return null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), options?.timeoutMs ?? 5_000);
+    try {
+      const res = await fetch(`${baseUrl}/version`, {
+        method: 'GET',
+        credentials: 'omit',
+        signal: controller.signal,
+      });
+      if (!res.ok) return null;
+      const raw = (await res.json()) as Record<string, unknown>;
+      const payload =
+        raw.data && typeof raw.data === 'object'
+          ? (raw.data as Record<string, unknown>)
+          : raw;
+      const commit = typeof payload.commit === 'string' ? payload.commit : undefined;
+      const version = typeof payload.version === 'string' ? payload.version : undefined;
+      const builtAt = typeof payload.builtAt === 'string' ? payload.builtAt : undefined;
+      if (!commit && !version && !builtAt) return null;
+      return { commit, version, builtAt };
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   constructor(config: ClientConfig) {
     this.config = { ...config };
     this.baseUrl = this.config.apiUrl ?? 'https://api.openbox.ai';
