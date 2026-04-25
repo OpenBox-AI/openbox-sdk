@@ -1030,21 +1030,20 @@ export class OpenBoxClient {
    * to avoid redundant refresh requests.
    */
   private async ensureValidToken(): Promise<void> {
-    if (!isTokenExpired(this.config.accessToken)) {
+    // When refresh is disabled, skip the pre-emptive expiry gate
+    // entirely - the 60s safety buffer in isTokenExpired makes
+    // freshly-issued tokens (e.g. just captured from an SSO callback,
+    // or short Keycloak lifespans) look "expired" even though the
+    // server would accept them. Without a refresh path there's nothing
+    // we'd do here anyway; let the request fly and trust the server's
+    // 401 if the token is genuinely dead. CLI bypasses this whole
+    // method via raw fetch() and works fine - same intent here.
+    if (!OpenBoxClient.REFRESH_ENABLED) {
       return;
     }
 
-    if (!OpenBoxClient.REFRESH_ENABLED) {
-      // No console.* here - callers are expected to handle the throw.
-      // A console.error in a library pops React Native's LogBox red
-      // overlay even when the consumer's catch handles the error
-      // gracefully (e.g. clear stale tokens + route to login). The
-      // remediation hint lives in the OpenBoxApiError message instead.
-      throw new OpenBoxApiError(
-        'Access token expired; auto-refresh disabled pending upstream fixes (see client.ts:ensureValidToken). Re-authenticate to continue.',
-        401,
-        null,
-      );
+    if (!isTokenExpired(this.config.accessToken)) {
+      return;
     }
 
     if (!this.config.refreshToken) {
