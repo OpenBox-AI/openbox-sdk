@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { existsSync, readFileSync } from 'fs';
 import { OpenBoxCoreClient } from '@openbox/core-client';
 import { getClient, getTokenPath, loadTokens } from '../config.js';
-import { resolveEnv, resolveUrls } from '../environments.js';
+import { resolveEnv, resolveUrls } from '@openbox/env';
 
 type Check = {
   name: string;

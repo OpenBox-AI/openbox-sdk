@@ -2,7 +2,15 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { resolve } from 'path';
 import { OpenBoxClient } from '@openbox/client';
 import { OpenBoxCoreClient } from '@openbox/core-client';
-import { EnvName, resolveEnv, resolveUrls } from './environments.js';
+import {
+  EnvName,
+  FeatureMap,
+  TokenStore,
+  parseTokenStore,
+  serializeTokenStore,
+  resolveEnv,
+  resolveUrls,
+} from '@openbox/env';
 
 function getTokenPath(): string {
   const projectTokens = resolve(process.cwd(), '.tokens');
@@ -12,82 +20,12 @@ function getTokenPath(): string {
   return resolve(homeDir, 'tokens');
 }
 
-export type FeatureMap = Record<string, boolean>;
-
-type TokenEntry = {
-  accessToken?: string;
-  refreshToken?: string;
-  updatedAt?: string;
-  permissions?: string[];
-  /** Per-env feature flags from GET /organization/{orgId}/features (api_keys, webhooks, sso). */
-  features?: FeatureMap;
-};
-type TokenStore = Partial<Record<EnvName, TokenEntry>>;
-
-function parseStore(content: string): TokenStore {
-  const store: TokenStore = {};
-  const legacy: TokenEntry = {};
-  for (const line of content.split('\n')) {
-    const m = line.match(/^(\w+(?:\.\w+)?)=(.*)$/);
-    if (!m) continue;
-    const key = m[1];
-    const value = m[2];
-    const dot = key.indexOf('.');
-    if (dot === -1) {
-      if (key === 'ACCESS_TOKEN') legacy.accessToken = value;
-      else if (key === 'REFRESH_TOKEN') legacy.refreshToken = value || undefined;
-      else if (key === 'UPDATED_AT') legacy.updatedAt = value;
-      continue;
-    }
-    const envName = key.slice(0, dot);
-    const field = key.slice(dot + 1);
-    if (envName !== 'production' && envName !== 'staging' && envName !== 'local') continue;
-    const entry = (store[envName] ??= {});
-    if (field === 'ACCESS_TOKEN') entry.accessToken = value;
-    else if (field === 'REFRESH_TOKEN') entry.refreshToken = value || undefined;
-    else if (field === 'UPDATED_AT') entry.updatedAt = value;
-    else if (field === 'PERMISSIONS') {
-      entry.permissions = value.split(',').map((s) => s.trim()).filter(Boolean);
-    }
-    else if (field === 'FEATURES') {
-      // serialized as "name:true,other:false" - matches `/organization/{id}/features` shape
-      const features: FeatureMap = {};
-      for (const pair of value.split(',')) {
-        const [k, v] = pair.split(':').map((s) => s.trim());
-        if (k) features[k] = v === 'true';
-      }
-      entry.features = features;
-    }
-  }
-  if (legacy.accessToken && !store.production) {
-    store.production = legacy;
-  }
-  return store;
-}
-
-function serializeStore(store: TokenStore): string {
-  const lines: string[] = [];
-  for (const envName of ['production', 'staging', 'local'] as const) {
-    const entry = store[envName];
-    if (!entry?.accessToken) continue;
-    lines.push(`${envName}.ACCESS_TOKEN=${entry.accessToken}`);
-    lines.push(`${envName}.REFRESH_TOKEN=${entry.refreshToken ?? ''}`);
-    lines.push(`${envName}.UPDATED_AT=${entry.updatedAt ?? ''}`);
-    if (entry.permissions && entry.permissions.length > 0) {
-      lines.push(`${envName}.PERMISSIONS=${entry.permissions.join(',')}`);
-    }
-    if (entry.features && Object.keys(entry.features).length > 0) {
-      const pairs = Object.entries(entry.features).map(([k, v]) => `${k}:${v}`);
-      lines.push(`${envName}.FEATURES=${pairs.join(',')}`);
-    }
-  }
-  return lines.join('\n') + '\n';
-}
+export type { FeatureMap };
 
 function readStore(): TokenStore {
   const path = getTokenPath();
   if (!existsSync(path)) return {};
-  return parseStore(readFileSync(path, 'utf-8'));
+  return parseTokenStore(readFileSync(path, 'utf-8'));
 }
 
 function loadTokens(env: EnvName): { accessToken: string; refreshToken?: string } {
@@ -128,7 +66,7 @@ function saveTokens(
     permissions: permissions ?? existing.permissions,
     features: existing.features,
   };
-  writeFileSync(path, serializeStore(store));
+  writeFileSync(path, serializeTokenStore(store));
 }
 
 function savePermissions(env: EnvName, permissions: string[]) {
@@ -136,7 +74,7 @@ function savePermissions(env: EnvName, permissions: string[]) {
   const store = readStore();
   if (!store[env]?.accessToken) return;
   store[env] = { ...store[env], permissions };
-  writeFileSync(path, serializeStore(store));
+  writeFileSync(path, serializeTokenStore(store));
 }
 
 function saveFeatures(env: EnvName, features: FeatureMap) {
@@ -144,7 +82,7 @@ function saveFeatures(env: EnvName, features: FeatureMap) {
   const store = readStore();
   if (!store[env]?.accessToken) return;
   store[env] = { ...store[env], features };
-  writeFileSync(path, serializeStore(store));
+  writeFileSync(path, serializeTokenStore(store));
 }
 
 // Remove all persisted state for a single env (tokens, refresh, permissions,
@@ -154,7 +92,7 @@ function clearTokens(env: EnvName): boolean {
   const store = readStore();
   if (!store[env]) return false;
   delete store[env];
-  writeFileSync(path, serializeStore(store));
+  writeFileSync(path, serializeTokenStore(store));
   return true;
 }
 

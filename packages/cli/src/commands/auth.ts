@@ -10,9 +10,9 @@ import {
   hasTokens,
 } from '../config.js';
 import type { FeatureMap } from '../config.js';
-import { resolveEnv, resolveUrls } from '../environments.js';
+import { resolveEnv, resolveUrls } from '@openbox/env';
 import { output } from '../output.js';
-import type { EnvName } from '../environments.js';
+import type { EnvName } from '@openbox/env';
 import { reportAndExit } from '../validators/index.js';
 
 async function fetchAndCachePermissions(
