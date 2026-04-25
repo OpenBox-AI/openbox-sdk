@@ -2,51 +2,38 @@
 
 Modular TypeScript SDK for the OpenBox AI governance platform - a universal client surface that runs the same command set against both production and staging.
 
-## Packages
+## Public surface
 
-| Package | Description |
+The whole SDK installs and imports as a single package, `openbox-sdk`. Pick the entry that matches what you need; bundlers tree-shake the rest.
+
+| Import path | What it gives you |
 |---|---|
-| `@openbox/types` | Shared types and response models |
-| `@openbox/client` | Backend API client (`api.openbox.ai`) |
-| `@openbox/core-client` | Governance API client (`core.openbox.ai`) |
-| `@openbox/cli` | `openbox` CLI tool |
+| `'openbox-sdk'` | Everything (root facade) |
+| `'openbox-sdk/client'` | `OpenBoxClient` - backend API (`api.openbox.ai`) |
+| `'openbox-sdk/core-client'` | `OpenBoxCoreClient` - governance API (`core.openbox.ai`) |
+| `'openbox-sdk/env'` | `ENVIRONMENTS`, `resolveEnv`, `resolveUrls`, `parseTokenStore`, `serializeTokenStore`, `resolveClientName` |
+| `'openbox-sdk/types'` | Hand-curated DTOs + auto-generated `Backend` / `Core` namespaces |
 
-## Setup
+Internally a workspace monorepo (`packages/{client,core-client,env,types,cli}/`); externally consumers never see that.
+
+## Install - for consumer apps
+
+```jsonc
+// consumer's package.json
+"dependencies": {
+  "openbox-sdk": "github:OpenBox-AI/openbox-sdk"
+}
+```
+
+Then `npm install` clones the repo, runs the `prepare` hook (builds the workspaces + bundles via tsup into `dist/`), and drops the result into `node_modules/openbox-sdk/`. Not on npm. Tree-shaking handles unused entries.
+
+## Develop - for SDK contributors
 
 ```bash
 git clone https://github.com/OpenBox-AI/openbox-sdk.git
 cd openbox-sdk
-npm install
-npm run build
-```
-
-Not published to npm. Consume locally via `npm link` (works for Node-resolved
-consumers like a VS Code extension) or via tarballs (works for everything,
-including bundlers that don't follow symlinks well - Metro, esbuild in some
-configs):
-
-```bash
-# A. Symlink: from this repo, link the CLI binary onto PATH
-npm link -w packages/cli
-
-# B. Tarball: build all four consumable packages into dist-pack/ as .tgz
-npm run pack:all
-ls dist-pack/
-# openbox-client-0.1.0.tgz
-# openbox-core-client-0.1.0.tgz
-# openbox-env-0.1.0.tgz
-# openbox-types-0.1.0.tgz
-```
-
-A consuming app then either `npm link @openbox/client @openbox/env` (for
-A) or installs the tarballs directly (for B):
-
-```bash
-# In the consumer repo (e.g. openbox-mobile):
-npm install \
-  file:../openbox-sdk/dist-pack/openbox-client-0.1.0.tgz \
-  file:../openbox-sdk/dist-pack/openbox-env-0.1.0.tgz
-# Re-run `npm run pack:all` in openbox-sdk + `npm install` here on every SDK change.
+npm install   # workspaces resolve internally
+npm run build # workspaces in topo order, then tsup bundles dist/
 ```
 
 Browser login uses `playwright` - install it if you don't have it: `npm install playwright`.
@@ -102,33 +89,37 @@ Legacy flat-format files (unprefixed `ACCESS_TOKEN=...`) are read as `production
 ## Library usage
 
 ```typescript
-import { OpenBoxClient } from '@openbox/client';
+import { OpenBoxClient } from 'openbox-sdk/client';
+import { ENVIRONMENTS } from 'openbox-sdk/env';
 
 const client = new OpenBoxClient({
   env: 'staging',                        // optional - branches when prod/staging diverge
-  apiUrl: 'https://openbox-api.node.lat',
+  apiUrl: ENVIRONMENTS.staging.apiUrl,
   accessToken: '<jwt>',
   refreshToken: '<rt>',                  // optional; auto-refresh is currently disabled, see DEFERRED.md
+  clientName: 'my-app',                  // optional - sent as X-Openbox-Client (default 'openbox-cli')
 });
 
 const agents = await client.listAgents({ search: 'my-agent' });
-const pending = await client.getPendingApprovals(agents.data[0].id);
+const result = await client.getOrgApprovals(orgId, { status: 'pending' });
+const pending = result.approvals.data;
 await client.decideApproval(agents.data[0].id, eventId, 'approve');
 ```
 
 ```typescript
-import { OpenBoxCoreClient } from '@openbox/core-client';
+import { OpenBoxCoreClient } from 'openbox-sdk/core-client';
+import { ENVIRONMENTS } from 'openbox-sdk/env';
 
 const core = new OpenBoxCoreClient({
   env: 'staging',
-  apiUrl: 'https://openbox-core.node.lat',
+  apiUrl: ENVIRONMENTS.staging.coreUrl,
   apiKey: 'obx_live_...',
 });
 
 const verdict = await core.evaluate(payload);
 ```
 
-Every request includes the `X-Openbox-Client: openbox-cli` header (backend's auth guard requires the header to be present; the value is arbitrary).
+Every backend request includes an `X-Openbox-Client` header (backend's auth guard requires the header to be present; the value is purely a telemetry dimension). `clientName` defaults to `openbox-cli`; each consumer should set its own (`openbox-extension`, `openbox-mobile`, `openbox-mcp`, ...). Setting `OPENBOX_CLIENT_VARIANT=claude-code` in the environment auto-suffixes the value (e.g. `openbox-cli/claude-code`) so backend logs can distinguish skill-driven traffic from human-typed traffic.
 
 ## Tests
 
