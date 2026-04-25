@@ -1,3 +1,10 @@
+// Single source of truth for env URLs is `environments.json` in this same
+// directory. The JSON file is kept separate so non-TS consumers (the Rust
+// approver app, future Go/Python tooling) can parse the same data without
+// going through tsc.
+
+import environmentsJson from './environments.json' with { type: 'json' };
+
 export type EnvName = 'production' | 'staging' | 'local';
 
 export interface EnvConfig {
@@ -6,26 +13,10 @@ export interface EnvConfig {
   platformUrl: string;
 }
 
-export const ENVIRONMENTS: Record<EnvName, EnvConfig> = {
-  production: {
-    apiUrl: 'https://api.openbox.ai',
-    coreUrl: 'https://core.openbox.ai',
-    platformUrl: 'https://platform.openbox.ai',
-  },
-  staging: {
-    apiUrl: 'https://openbox-api.node.lat',
-    coreUrl: 'https://the-core-service.node.lat',
-    platformUrl: 'https://openbox.node.lat',
-  },
-  // Local dev stack (see the-local-stack-dev-repo). Tokens, permissions, and cached
-  // features under this env are namespaced separately from prod/staging in
-  // ~/.openbox/tokens so they never clobber real credentials.
-  local: {
-    apiUrl: 'http://localhost:3000',
-    coreUrl: 'http://localhost:8086',
-    platformUrl: 'http://localhost:3233',
-  },
-};
+export const ENVIRONMENTS: Record<EnvName, EnvConfig> = environmentsJson as Record<
+  EnvName,
+  EnvConfig
+>;
 
 export function resolveEnv(cliFlag?: string): EnvName {
   const raw = cliFlag ?? process.env.OPENBOX_ENV ?? 'production';

@@ -16,6 +16,7 @@
   "dependencies": {
     "openbox-sdk/client": "*",
     "openbox-sdk/core-client": "*",
+    "openbox-sdk/env": "*",
     "openbox-sdk/types": "*",
     "commander": "^14.0.0"
   },

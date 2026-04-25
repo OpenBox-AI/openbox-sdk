@@ -1,0 +1,27 @@
+{
+  "name": "openbox-sdk/env",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./environments.json": "./src/environments.json"
+  },
+  "files": [
+    "dist",
+    "src/environments.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "author": "the-maintainer",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "typescript": "^5.7.0"
+  }
+}

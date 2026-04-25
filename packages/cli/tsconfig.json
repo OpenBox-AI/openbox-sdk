@@ -6,13 +6,15 @@
     "paths": {
       "openbox-sdk/types": ["../types/src/index.ts"],
       "openbox-sdk/client": ["../client/src/index.ts"],
-      "openbox-sdk/core-client": ["../core-client/src/index.ts"]
+      "openbox-sdk/core-client": ["../core-client/src/index.ts"],
+      "openbox-sdk/env": ["../env/src/index.ts"]
     }
   },
   "include": ["src"],
   "references": [
     { "path": "../types" },
     { "path": "../client" },
-    { "path": "../core-client" }
+    { "path": "../core-client" },
+    { "path": "../env" }
   ]
 }

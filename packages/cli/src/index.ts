@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { loadFeatures, loadPermissions } from './config.js';
-import { resolveEnv } from './environments.js';
+import { resolveEnv } from 'openbox-sdk/env';
 import {
   COMMAND_FEATURES,
   COMMAND_PERMISSIONS,
