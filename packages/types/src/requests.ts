@@ -18,6 +18,11 @@ export interface ApprovalListQuery extends PaginationQuery {
   tiers?: string[];
   agent_id?: string;
   team_ids?: string[];
+  // Free-form activity_type values (governance_events.activity_type).
+  // Backend support added in proposal/approvals-activity-type-filter;
+  // until that ships, the param is silently ignored server-side and
+  // consumers should keep filtering locally.
+  activity_types?: string[];
   fromTime?: string;
   toTime?: string;
   organization_id?: string;
