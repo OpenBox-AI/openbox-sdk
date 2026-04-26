@@ -1,5 +1,7 @@
 # OpenBox SDK
 
+_Last updated: 2026-04-26_
+
 Modular TypeScript SDK for the OpenBox AI governance platform - a universal client surface for managing agents, approvals, guardrails, policies, and behavior rules.
 
 ## Public surface
