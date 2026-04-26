@@ -1268,7 +1268,17 @@ export class OpenBoxClient {
     if (options?.params) {
       const searchParams = new URLSearchParams();
       for (const [key, value] of Object.entries(options.params)) {
-        if (value !== undefined && value !== null) {
+        if (value === undefined || value === null) continue;
+        if (Array.isArray(value)) {
+          // Repeat the key per element so the backend parses it as an
+          // array (`tiers=2&tiers=3`) instead of a comma-joined scalar
+          // string from `String([...])`. Without this, server-side
+          // array filters like `tiers[]` and `team_ids[]` silently
+          // miss and return unfiltered results.
+          for (const v of value) {
+            if (v !== undefined && v !== null) searchParams.append(key, String(v));
+          }
+        } else {
           searchParams.append(key, String(value));
         }
       }
