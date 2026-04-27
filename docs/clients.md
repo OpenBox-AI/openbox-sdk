@@ -2,7 +2,7 @@
 
 This is the canonical recipe for any new app that talks to OpenBox - VS Code / Cursor extensions, Expo / React Native apps, MCP servers, Tauri tray apps, CLIs. Reference implementations:
 
-- `openbox-cli` (in this repo, `packages/cli/`) - Node CLI
+- `openbox-cli` (in this repo, `ts/cli/`) - Node CLI
 - `openbox-extension` - VS Code / Cursor extension
 - `openbox-mobile` - Expo / React Native iOS app
 - `openbox-mcp` - MCP server
@@ -19,7 +19,7 @@ This is the canonical recipe for any new app that talks to OpenBox - VS Code / C
 
 `npm install` clones the repo, runs the SDK's `prepare` hook (builds workspaces + bundles via tsup), drops `dist/` into `node_modules`. **Not on npm**, so don't try `npm i openbox-sdk` from the registry.
 
-For non-TS clients (Rust, Go, Python): port the env table + token codec from `packages/env/src/environments.json` and `packages/env/src/token-codec.ts`. The Rust port in `openbox-approver/src-tauri/src/env.rs` is the reference.
+For non-TS clients (Rust, Go, Python): port the env table + token codec from `ts/env/src/environments.json` and `ts/env/src/token-codec.ts`. The Rust port in `openbox-approver/src-tauri/src/env.rs` is the reference.
 
 ## 2. Imports
 
@@ -115,7 +115,7 @@ End users on a release build should never see a way to point the app at staging 
 
 ## 8. Don't reinvent
 
-- **Env table**: `ENVIRONMENTS` from `'openbox-sdk/env'` is the source of truth. If you need it in non-TS code, port from `packages/env/src/environments.json` and document the manual sync.
+- **Env table**: `ENVIRONMENTS` from `'openbox-sdk/env'` is the source of truth. If you need it in non-TS code, port from `ts/env/src/environments.json` and document the manual sync.
 - **Token codec**: `parseTokenStore` / `serializeTokenStore`. Don't write your own KV parser - the legacy migration logic is non-obvious and matters.
 - **HTTP**: `OpenBoxClient.request()` handles retries, timeouts, the auth header, the envelope unwrap, and (eventually) reactive token refresh. Don't shell out to `fetch` unless you have a concrete reason.
 - **Approval flow**: `client.getProfile()`, `client.listAgents(query)`, `client.getOrgApprovals(orgId, query)`, `client.decideApproval(agentId, eventId, action)`. Don't construct paths by hand.

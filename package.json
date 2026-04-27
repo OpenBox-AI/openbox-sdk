@@ -30,7 +30,7 @@
     "dist"
   ],
   "workspaces": [
-    "packages/*"
+    "ts/*"
   ],
   "scripts": {
     "build:workspaces": "npm run build -w @openbox/types && npm run build -w @openbox/env && npm run build -w @openbox/client && npm run build -w @openbox/core-client && npm run build -w @openbox/cli",
@@ -39,15 +39,15 @@
     "prepare": "npm run build",
     "check:publish": "bash scripts/check-publish-safety.sh",
     "prepublishOnly": "npm run build && npm run check:publish",
-    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo dist dist-pack",
-    "lint": "eslint packages/*/src/",
-    "format": "prettier --write packages/*/src/",
+    "clean": "rm -rf ts/*/dist ts/*/tsconfig.tsbuildinfo dist dist-pack",
+    "lint": "eslint ts/*/src/",
+    "format": "prettier --write ts/*/src/",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:e2e": "vitest run --project e2e",
     "test:watch": "vitest watch",
-    "generate:types:backend": "openapi-typescript specs/backend.json -o packages/types/src/generated/backend.ts",
-    "generate:types:core": "openapi-typescript specs/core.yaml    -o packages/types/src/generated/core.ts",
+    "generate:types:backend": "openapi-typescript specs/backend.json -o ts/types/src/generated/backend.ts",
+    "generate:types:core": "openapi-typescript specs/core.yaml    -o ts/types/src/generated/core.ts",
     "generate:types": "npm run generate:types:backend && npm run generate:types:core"
   },
   "license": "MIT",

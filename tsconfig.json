@@ -4,11 +4,11 @@
     "outDir": "dist",
     "noEmit": true,
     "paths": {
-      "@openbox/client": ["./packages/client/src/index.ts"],
-      "@openbox/core-client": ["./packages/core-client/src/index.ts"],
-      "@openbox/env": ["./packages/env/src/index.ts"],
-      "@openbox/types": ["./packages/types/src/index.ts"]
+      "@openbox/client": ["./ts/client/src/index.ts"],
+      "@openbox/core-client": ["./ts/core-client/src/index.ts"],
+      "@openbox/env": ["./ts/env/src/index.ts"],
+      "@openbox/types": ["./ts/types/src/index.ts"]
     }
   },
-  "include": ["src", "packages/*/src"]
+  "include": ["src", "ts/*/src"]
 }
