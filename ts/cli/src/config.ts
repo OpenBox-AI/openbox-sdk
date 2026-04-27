@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
 import { OpenBoxClient } from '@openbox/client';
 import { OpenBoxCoreClient } from '@openbox/core-client';
 import {
@@ -10,15 +10,22 @@ import {
   serializeTokenStore,
   resolveEnv,
   resolveUrls,
+  resolveOsPath,
   validateApiKeyFormat as generatedValidateApiKey,
 } from '@openbox/env';
 
+// Per-OS user-data path comes from `@openbox/env`'s spec-driven
+// `resolveOsPath` (Linux/macOS = ~/.openbox/tokens, Windows =
+// %APPDATA%\openbox\tokens, override via OPENBOX_HOME). The optional
+// `.tokens` file in the cwd is a CI/dev-loop convenience that wins
+// over the user-data path; the user-data path is the production case.
 function getTokenPath(): string {
   const projectTokens = resolve(process.cwd(), '.tokens');
   if (existsSync(projectTokens)) return projectTokens;
-  const homeDir = resolve(process.env.HOME || '~', '.openbox');
-  if (!existsSync(homeDir)) mkdirSync(homeDir, { recursive: true });
-  return resolve(homeDir, 'tokens');
+  const path = resolveOsPath('tokens');
+  const dir = dirname(path);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  return path;
 }
 
 export type { FeatureMap };

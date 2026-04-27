@@ -85,7 +85,14 @@ export interface TokenCodec {
 export interface ClientNameResolver {
   resolveClientName(base: string, variant?: string): string;
 }
+export interface OsPathResolver {
+  resolveOsPath(scope: OsPathScope): string;
+}
+export type OsPathScope = "tokens" | "config" | "cache";
 export const CLIENT_VARIANT_PATTERN = /^[A-Za-z0-9._+-]+$/;
+
+
+
 
 
 

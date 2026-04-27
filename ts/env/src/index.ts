@@ -6,6 +6,11 @@ export { parseTokenStore, serializeTokenStore } from './token-codec.js';
 
 export { resolveClientName } from './client-name.js';
 
+// Per-OS data-path resolver. Implements OsPathResolver from the spec;
+// pinned by tests/unit/os-paths.test.ts on Linux / macOS / Windows.
+export { resolveOsPath, openboxDataRoot } from './os-paths.js';
+export type { OsPathResolver, OsPathScope } from './os-paths.js';
+
 // Generated bindings (env-var lookup table, API-key validator, OS-path
 // fields, client-construction shapes) emitted from
 // specs/typespec/env/main.tsp.

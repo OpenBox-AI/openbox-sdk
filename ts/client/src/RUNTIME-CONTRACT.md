@@ -27,6 +27,7 @@ spec-driven; what's hand-written is *how those shapes get on the wire*.
 | Token bucket (rate limiting) | Pure algorithm, but concurrency primitives differ per language. |
 | CSRF token round-trip | Browser-cookie semantics + `XSRF-TOKEN` cookie + `X-XSRF-TOKEN` header - the *protocol* is stable, the *implementation* uses platform cookie APIs. |
 | JWT refresh callback (`onTokenRefresh`) | TS uses a callback pattern. Rust would use a channel; Python a Future; Go a chan. |
+| **Per-OS path resolution** (`resolveOsPath`) | `os.homedir()` / `process.platform` / `%APPDATA%` / `XDG_DATA_HOME` are platform APIs. The contract is in spec (`OsPathResolver` + `OsPathScope` enum); the impl + the per-OS output is locked by `tests/unit/os-paths.test.ts` mocking `process.platform` for Linux / macOS / Windows. |
 
 ## What the contract MUST guarantee
 
@@ -50,6 +51,19 @@ fails:
   inner `data`. A bare body is returned as-is.
 - **Non-2xx**: throws `OpenBoxApiError` carrying the response status
   and parsed body. The thrown value `instanceof OpenBoxApiError`.
+
+## Per-OS path contract (separate test file)
+
+`tests/unit/os-paths.test.ts` pins down `resolveOsPath` for all three
+host platforms by mocking `process.platform` and the relevant env
+vars. Any reimplementation must produce:
+
+| Platform | `resolveOsPath('tokens')` |
+|---|---|
+| Linux | `$XDG_DATA_HOME/openbox/tokens` if set, else `~/.openbox/tokens` |
+| macOS | `~/.openbox/tokens` (deliberately not `~/Library/Application Support/...`) |
+| Windows | `%APPDATA%\openbox\tokens` if set, else `~\AppData\Roaming\openbox\tokens` |
+| any | `$OPENBOX_HOME/tokens` (override always wins, used by CI / sandboxes) |
 
 ## Reproducibility
 

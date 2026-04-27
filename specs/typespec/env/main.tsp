@@ -176,6 +176,43 @@ model ClientVariant {
   value: string;
 }
 
+/**
+ * Per-OS data scopes. Each maps to a different subdirectory under
+ * the user-data directory:
+ *
+ *   - `tokens`: persistent OAuth tokens + per-env API keys
+ *   - `config`: declarative settings (default env, output format)
+ *   - `cache`: ephemeral state (decoded JWT claims, last-known
+ *     feature flags) safe to delete
+ *
+ * Linux (XDG_DATA_HOME or ~/.openbox/<scope>),
+ * macOS (~/.openbox/<scope> - we deliberately don't follow Apple's
+ *   `~/Library/Application Support/openbox/` because the file is
+ *   intended to be findable + editable from the terminal),
+ * Windows (%APPDATA%\openbox\<scope>).
+ */
+enum OsPathScope {
+  tokens: "tokens",
+  config: "config",
+  cache: "cache",
+}
+
+/**
+ * Resolves filesystem paths under the per-OS user-data directory.
+ * Every property tagged `@os_path` somewhere in the spec resolves
+ * via this contract. The implementation is hand-written per
+ * language (Node uses `os.homedir()`, browser/mobile uses platform
+ * SecureStore APIs) but the OUTPUT is deterministic given the
+ * platform - see `tests/unit/os-paths.test.ts` for the lockdown.
+ */
+interface OsPathResolver {
+  /**
+   * Returns the absolute path for a given data scope under
+   * the openbox user-data directory.
+   */
+  resolveOsPath(scope: OsPathScope): string;
+}
+
 interface ClientNameResolver {
   /**
    * Compose the `X-Openbox-Client` header value. Returns `base`
