@@ -10,3 +10,9 @@ packages/*/src/**/*.d.ts.map
 .tokens
 .env
 .env.local
+# Rust workspace build artifacts. Generated codegen output lives in
+# target/ and is rebuilt by rust/build.rs each cargo build - never
+# checked in. Cargo.lock at the workspace root is excluded because this
+# is a library (consumer apps own the lockfile).
+/target
+/Cargo.lock
