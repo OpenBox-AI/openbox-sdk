@@ -1,0 +1,42 @@
+{
+  "$schema": "../snapshots/cli-auth.schema.json",
+  "name": "cli-auth",
+  "description": "The `openbox auth` command tree behaves identically across language ports - same flags, same JSON output shape, same rejection of malformed input.",
+  "cases": [
+    {
+      "name": "profile-json-shape",
+      "argv": ["auth", "profile", "--json"],
+      "env": {
+        "OPENBOX_API_KEY": "obx_live_aabbccddeeff00112233445566778899aabbccddeeff0011",
+        "OPENBOX_ENV": "production"
+      },
+      "expectedExitCode": 0,
+      "expectedJsonShape": {
+        "user": { "id": "string", "email": "string", "fullName": "string" },
+        "org": { "id": "string", "realm": "string" },
+        "env": "production"
+      }
+    },
+    {
+      "name": "login-rejects-bad-env",
+      "argv": ["auth", "login", "--env", "preview"],
+      "env": {},
+      "expectedExitCode": 1,
+      "expectedStderrContains": "Unknown environment: preview"
+    },
+    {
+      "name": "logout-clears-store",
+      "argv": ["auth", "logout"],
+      "env": {},
+      "expectedExitCode": 0,
+      "expectedSideEffect": "tokenStore: deleted"
+    },
+    {
+      "name": "api-key-validator-rejects-malformed",
+      "argv": ["auth", "profile", "--json"],
+      "env": { "OPENBOX_API_KEY": "sk-not-an-openbox-key" },
+      "expectedExitCode": 1,
+      "expectedStderrContains": "OPENBOX_API_KEY must match obx_(live|test)_<48hex>"
+    }
+  ]
+}

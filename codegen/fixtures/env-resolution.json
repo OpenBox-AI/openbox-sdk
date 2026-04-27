@@ -1,0 +1,77 @@
+{
+  "$schema": "../snapshots/env-resolution.schema.json",
+  "name": "env-resolution",
+  "description": "loadRuntime() returns the same RuntimeConfig given a fixed env-var snapshot, in every language.",
+  "cases": [
+    {
+      "name": "default-production",
+      "env": {},
+      "tokenStore": null,
+      "expected": {
+        "env": "production",
+        "apiUrl": "https://api.openbox.ai",
+        "coreUrl": "https://core.openbox.ai",
+        "platformUrl": "https://app.openbox.ai"
+      }
+    },
+    {
+      "name": "openbox-env-overrides-default",
+      "env": { "OPENBOX_ENV": "staging" },
+      "tokenStore": null,
+      "expected": {
+        "env": "staging",
+        "apiUrl": "https://api.staging.openbox.ai",
+        "coreUrl": "https://core.staging.openbox.ai",
+        "platformUrl": "https://app.staging.openbox.ai"
+      }
+    },
+    {
+      "name": "explicit-url-overrides-env",
+      "env": {
+        "OPENBOX_ENV": "staging",
+        "OPENBOX_API_URL": "https://internal.example/api",
+        "OPENBOX_CORE_URL": "https://internal.example/core"
+      },
+      "tokenStore": null,
+      "expected": {
+        "env": "staging",
+        "apiUrl": "https://internal.example/api",
+        "coreUrl": "https://internal.example/core",
+        "platformUrl": "https://app.staging.openbox.ai"
+      }
+    },
+    {
+      "name": "token-format-rejects-malformed",
+      "env": { "OPENBOX_API_KEY": "sk-not-an-openbox-key" },
+      "tokenStore": null,
+      "expected": {
+        "error": "OPENBOX_API_KEY must match obx_(live|test)_<48hex>"
+      }
+    },
+    {
+      "name": "token-format-accepts-live",
+      "env": {
+        "OPENBOX_API_KEY": "obx_live_aabbccddeeff00112233445566778899aabbccddeeff0011"
+      },
+      "tokenStore": null,
+      "expected": {
+        "env": "production",
+        "apiUrl": "https://api.openbox.ai",
+        "coreUrl": "https://core.openbox.ai",
+        "platformUrl": "https://app.openbox.ai",
+        "apiKey": "obx_live_aabbccddeeff00112233445566778899aabbccddeeff0011"
+      }
+    },
+    {
+      "name": "token-format-accepts-test",
+      "env": {
+        "OPENBOX_API_KEY": "obx_test_aabbccddeeff00112233445566778899aabbccddeeff0011"
+      },
+      "tokenStore": null,
+      "expected": {
+        "env": "production",
+        "apiKey": "obx_test_aabbccddeeff00112233445566778899aabbccddeeff0011"
+      }
+    }
+  ]
+}

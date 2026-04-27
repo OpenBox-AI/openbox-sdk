@@ -10,6 +10,7 @@ import {
   serializeTokenStore,
   resolveEnv,
   resolveUrls,
+  validateApiKeyFormat as generatedValidateApiKey,
 } from 'openbox-sdk/env';
 
 function getTokenPath(): string {
@@ -144,7 +145,11 @@ function getClient(env?: EnvName): OpenBoxClient {
 // right field, instead of letting core return a generic 500
 // ("invalid API key format. Expected format: obx_live_... or obx_test_...").
 function validateApiKeyFormat(key: string): void {
-  if (key.startsWith('obx_live_') || key.startsWith('obx_test_')) return;
+  // Canonical regex lives in specs/typespec/env/main.tsp via @token_format.
+  // We just call the generated checker; the wrapper below adds CLI-flavored
+  // hints that don't belong in the spec.
+  const result = generatedValidateApiKey(key);
+  if (result === true) return;
   const looksLikeAgentToken = /^[a-f0-9]{32,}$/i.test(key);
   console.error(
     `Invalid OPENBOX_API_KEY format: must start with 'obx_live_' or 'obx_test_'.`,

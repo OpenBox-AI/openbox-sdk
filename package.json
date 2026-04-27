@@ -30,7 +30,9 @@
     "dist"
   ],
   "workspaces": [
-    "ts/*"
+    "ts/*",
+    "codegen/typespec-libs/*",
+    "codegen/emitters/ts"
   ],
   "scripts": {
     "build:workspaces": "npm run build -w openbox-sdk/types && npm run build -w openbox-sdk/env && npm run build -w openbox-sdk/client && npm run build -w openbox-sdk/core-client && npm run build -w openbox-sdk/cli",
@@ -48,14 +50,25 @@
     "test:watch": "vitest watch",
     "generate:types:backend": "openapi-typescript specs/backend.json -o ts/types/src/generated/backend.ts",
     "generate:types:core": "openapi-typescript specs/core.yaml    -o ts/types/src/generated/core.ts",
-    "generate:types": "npm run generate:types:backend && npm run generate:types:core"
+    "generate:types": "npm run generate:types:backend && npm run generate:types:core",
+    "specs:libs": "npm run build -w openbox-sdk/typespec-env -w openbox-sdk/typespec-cli -w openbox-sdk/typespec-workflow -w openbox-sdk/typespec-emitter-ts",
+    "specs:compile": "npm run specs:libs && tsp compile specs/typespec",
+    "specs:all": "npm run specs:compile && npm run generate:types",
+    "specs:watch": "tsp compile specs/typespec --watch"
   },
   "license": "MIT",
   "devDependencies": {
+    "@typespec/compiler": "^1.11.0",
+    "@typespec/http": "^1.11.0",
+    "@typespec/json-schema": "^1.11.0",
+    "@typespec/openapi": "^1.11.0",
+    "@typespec/openapi3": "^1.11.0",
+    "@typespec/rest": "^0.81.0",
     "@vitest/coverage-v8": "^4.1.5",
     "dotenv": "^17.4.2",
     "eslint": "^10.2.1",
     "openapi-typescript": "^7.13.0",
+    "ts-morph": "^28.0.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.59.0",
