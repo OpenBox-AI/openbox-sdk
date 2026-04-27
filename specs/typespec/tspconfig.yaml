@@ -1,0 +1,29 @@
+# TypeSpec compiler config - drives `npx tsp compile specs/typespec`.
+#
+# Two emitter outputs land under specs/generated/:
+#   - openapi3/<service>.json  - re-emitted OpenAPI 3.x for each service
+#   - json-schema/             - standalone JSON Schemas (used by the
+#                                cross-language conformance fixtures)
+#
+# The hand-written specs/backend.json and specs/core.yaml stay the
+# source of truth until codegen reaches the emitter outputs into the
+# downstream codegen pipeline. Until then this config exists so we can
+# round-trip TypeSpec -> OpenAPI and diff against the originals.
+
+emit:
+  - "@typespec/openapi3"
+  - "@typespec/json-schema"
+  - "@openbox/typespec-emitter-ts"
+
+options:
+  "@typespec/openapi3":
+    emitter-output-dir: "{project-root}/../generated/openapi3"
+    output-file: "{service-name}.json"
+    file-type: "json"
+  "@typespec/json-schema":
+    emitter-output-dir: "{project-root}/../generated/json-schema"
+  "@openbox/typespec-emitter-ts":
+    # The emitter ignores its emitter-output-dir and writes directly
+    # to ts/<package>/src/generated/. We still set it so the runtime
+    # has a sane base path; the emitter walks back to repo root.
+    emitter-output-dir: "{project-root}/../generated/ts-emit-anchor"

@@ -1,0 +1,31 @@
+{
+  "name": "@openbox/typespec-emitter-ts",
+  "version": "0.0.0",
+  "description": "TypeSpec emitter that generates ts/<package>/src/generated/ from the OpenBox programming-model specs",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p ."
+  },
+  "peerDependencies": {
+    "@typespec/compiler": "^1.11.0"
+  },
+  "devDependencies": {
+    "@openbox/typespec-cli": "0.0.0",
+    "@openbox/typespec-env": "0.0.0",
+    "@openbox/typespec-workflow": "0.0.0",
+    "@typespec/compiler": "^1.11.0",
+    "ts-morph": "^28.0.0",
+    "typescript": "^5.9.3"
+  }
+}
