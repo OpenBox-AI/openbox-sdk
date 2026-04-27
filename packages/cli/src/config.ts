@@ -107,7 +107,10 @@ function hasTokens(env: EnvName): boolean {
 // Honors OPENBOX_TIMEOUT_MS so users can stretch the per-request timeout
 // for slow operations (staging core's verdict-2 evaluate workflow blocks
 // for the rule's approval-timeout window before returning, easily 60s+).
-// Falsy / non-finite values fall through to the SDK default (30_000).
+// Falsy / non-finite values fall through to the SDK default (35_000),
+// which sits 5s above core's 30s WorkflowExecutionTimeout so a
+// workflow timeout surfaces as the server's 500 instead of an
+// AbortController cancel.
 function resolveTimeoutMs(): number | undefined {
   const raw = process.env.OPENBOX_TIMEOUT_MS;
   if (!raw) return undefined;
