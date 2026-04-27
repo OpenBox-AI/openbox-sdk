@@ -38,6 +38,42 @@ export interface TokenStore {
   local?: TokenEntry;
 }
 export type FeatureMap = NonNullable<TokenEntry['features']>;
+export interface RetryConfig {
+  maxRetries?: number;
+  initialDelayMs?: number;
+  maxDelayMs?: number;
+}
+export interface RateLimitConfig {
+  requestsPerSecond: number;
+  burst?: number;
+}
+export interface TokenPair {
+  accessToken: string;
+  refreshToken?: string;
+}
+export interface BackendClientConfig {
+  apiUrl?: string;
+  accessToken: string;
+  refreshToken?: string;
+  env?: EnvName;
+  clientName?: string;
+  timeoutMs?: number;
+  retry?: RetryConfig;
+  rateLimit?: RateLimitConfig;
+}
+export interface CoreClientConfig {
+  apiUrl?: string;
+  apiKey: string;
+  env?: EnvName;
+  timeoutMs?: number;
+  retry?: RetryConfig;
+  rateLimit?: RateLimitConfig;
+}
+export interface ApiError {
+  message: string;
+  status: number;
+  body: unknown;
+}
 export interface EnvLoader {
   resolveEnv(cliFlag?: string): EnvName;
   resolveUrls(env: EnvName): EnvConfig;
@@ -50,6 +86,18 @@ export interface ClientNameResolver {
   resolveClientName(base: string, variant?: string): string;
 }
 export const CLIENT_VARIANT_PATTERN = /^[A-Za-z0-9._+-]+$/;
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

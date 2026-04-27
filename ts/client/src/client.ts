@@ -1,5 +1,6 @@
 import { isTokenExpired } from 'openbox-sdk/types';
 import { resolveClientName } from 'openbox-sdk/env';
+import type { TokenPair } from 'openbox-sdk/env';
 import { TokenBucket } from './rate-limiter.js';
 import type {
   PaginationQuery,
@@ -33,6 +34,11 @@ import type {
   PreviewExportDto,
   GetAgentViolationsQuery,
   ChangePasswordDto,
+  LoginDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  CreateOrganizationDto,
+  SendWelcomeEmailDto,
   CreateApiKeyDto,
   UpdateApiKeyDto,
   CreateWebhookDto,
@@ -43,7 +49,6 @@ import type {
   PaginatedResponse,
   MessageResponse,
   UserProfile,
-  TokenPair,
   UserRole,
   Agent,
   CreateAgentResponse,
@@ -75,57 +80,49 @@ import type {
 
 // ---------------------------------------------------------------------------
 // Configuration
+//
+// Spec source: specs/typespec/env/main.tsp (BackendClientConfig,
+// RetryConfig, RateLimitConfig, ApiError). Re-exported here under the
+// legacy public names so existing consumers keep compiling. The
+// `onTokenRefresh` callback below is the only TS-language-specific
+// extension - it has no runtime equivalent in Rust/Python/Go (those
+// languages use a poll-and-rewrite pattern instead) and stays
+// hand-written.
 // ---------------------------------------------------------------------------
 
-export interface RetryConfig {
-  /** Maximum number of retry attempts. Default: 3 */
-  maxRetries?: number;
-  /** Initial delay in ms before first retry. Default: 500 */
-  initialDelayMs?: number;
-  /** Maximum delay in ms between retries. Default: 30000 */
-  maxDelayMs?: number;
-}
-
-export interface RateLimitConfig {
-  /** Maximum requests per second */
-  requestsPerSecond: number;
-  /** Burst capacity (defaults to requestsPerSecond) */
-  burst?: number;
-}
+import type {
+  BackendClientConfig as SpecBackendClientConfig,
+  RetryConfig,
+  RateLimitConfig,
+} from 'openbox-sdk/env';
 
 export type EnvName = 'production' | 'staging' | 'local';
 
-export interface ClientConfig {
-  /** Base URL of the OpenBox API. Defaults to https://api.openbox.ai */
-  apiUrl?: string;
-  /** Bearer access token (JWT) */
-  accessToken: string;
-  /** Optional refresh token for automatic token renewal */
-  refreshToken?: string;
-  /** Callback invoked when tokens are refreshed so the caller can persist them.
-   * `refreshToken` may be undefined when Keycloak rotation is disabled - in that
-   * case the stored refresh token should stay as-is, not be overwritten. */
+/**
+ * Backend HTTP client configuration. Mirrors `BackendClientConfig` in
+ * `specs/typespec/env/main.tsp`; the `onTokenRefresh` callback is a
+ * TS-only extension (other languages handle rotation differently and
+ * don't need the user-side hook).
+ */
+export interface ClientConfig extends SpecBackendClientConfig {
+  /**
+   * Callback invoked when tokens are refreshed so the caller can
+   * persist them. `refreshToken` may be undefined when Keycloak
+   * rotation is disabled - in that case the stored refresh token
+   * should stay as-is, not be overwritten.
+   */
   onTokenRefresh?: (tokens: { accessToken: string; refreshToken: string | undefined }) => void;
-  /** Request timeout in milliseconds. Default: 30000 (30s) */
-  timeoutMs?: number;
-  /** Retry configuration for failed requests */
-  retry?: RetryConfig;
-  /** Client-side rate limiting */
-  rateLimit?: RateLimitConfig;
-  /** Target environment. Branch on this.env when prod/staging diverge. Defaults to 'production'. */
-  env?: EnvName;
-  /** Value sent in the `X-Openbox-Client` header on every backend request.
-   * Backend auth guard is presence-only, so any value passes - this is for
-   * telemetry / log filtering. Each consumer (CLI, extension, mobile, MCP, ...)
-   * should set its own. Defaults to 'openbox-cli'. */
-  clientName?: string;
 }
 
 // ---------------------------------------------------------------------------
-// Error wrapper
+// Error wrapper - concrete class implementing the spec's `ApiError`
+// model. The class form is TS-specific (Error inheritance); the
+// fields (`message`, `status`, `body`) come from the spec.
 // ---------------------------------------------------------------------------
 
-export class OpenBoxApiError extends Error {
+import type { ApiError } from 'openbox-sdk/env';
+
+export class OpenBoxApiError extends Error implements ApiError {
   public readonly status: number;
   public readonly body: unknown;
 
@@ -244,6 +241,74 @@ export class OpenBoxClient {
 
   async changePassword(dto: ChangePasswordDto): Promise<MessageResponse> {
     return this.post('/auth/change-password', dto) as Promise<MessageResponse>;
+  }
+
+  /**
+   * Direct credential login. Bypasses the Keycloak browser redirect - useful
+   * for headless flows (CLI scripts, mobile sign-in screens, integration
+   * tests) where the caller already owns the username/password capture UI.
+   * Returns the same `{ accessToken, refreshToken }` pair the OAuth flow
+   * produces; persist them via the SDK's token store before further calls.
+   *
+   * The browser-redirect path (the one most apps actually use) lives outside
+   * the SDK by design - it's a Keycloak URL the host app navigates to and
+   * an OAuth code it captures on the way back. Once the code is exchanged,
+   * every subsequent backend call comes back through this client.
+   */
+  async login(dto: LoginDto): Promise<TokenPair> {
+    return this.post('/auth/login', dto) as Promise<TokenPair>;
+  }
+
+  /**
+   * Trigger a password-reset email. The backend mails a single-use token
+   * to the address; the caller's UI prompts the user for that token + the
+   * new password and then calls `resetPassword`.
+   */
+  async forgotPassword(dto: ForgotPasswordDto): Promise<MessageResponse> {
+    return this.post('/auth/forgot-password', dto) as Promise<MessageResponse>;
+  }
+
+  /**
+   * Complete the password-reset flow with the token from the email and the
+   * new password. The token is single-use and short-lived; failure means
+   * the caller should re-prompt for `forgotPassword`.
+   */
+  async resetPassword(dto: ResetPasswordDto): Promise<MessageResponse> {
+    return this.post('/auth/reset-password', dto) as Promise<MessageResponse>;
+  }
+
+  /**
+   * Service-health probe. Returns whatever the backend's AppController
+   * publishes at `/health` - typically `{ status: 'ok' }` plus version
+   * metadata. Use this for liveness checks; for build/version data prefer
+   * the static `OpenBoxClient.getVersion(baseUrl)` so you don't need a
+   * constructed client.
+   */
+  async getHealth(): Promise<unknown> {
+    return this.get('/health');
+  }
+
+  // =========================================================================
+  // Organization onboarding
+  // =========================================================================
+
+  /**
+   * Provision a new organization. Public endpoint - no bearer token
+   * required, throttled to 10 requests per hour per IP. Used by the
+   * marketing-site signup form and by integration scripts that bootstrap
+   * test orgs against staging.
+   */
+  async registerOrganization(dto: CreateOrganizationDto): Promise<unknown> {
+    return this.post('/organization/register', dto);
+  }
+
+  /**
+   * Re-fire the welcome email for a member. Admin-only path normally
+   * triggered server-side when a user is invited; surfaced here so admin
+   * tooling can resend without round-tripping through the dashboard.
+   */
+  async sendWelcomeEmail(orgId: string, dto: SendWelcomeEmailDto): Promise<unknown> {
+    return this.post(`/organization/${orgId}/send-welcome-email`, dto);
   }
 
   // =========================================================================

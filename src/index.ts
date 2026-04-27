@@ -15,13 +15,17 @@ export * from 'openbox-sdk/client';
 export * from 'openbox-sdk/env';
 export * from 'openbox-sdk/types';
 
-// `openbox-sdk/core-client` re-defines a handful of governance types that also
-// live in `openbox-sdk/types`. Re-export the runtime classes + the CoreClient-
-// specific types only, to avoid `export *` collisions.
+// `openbox-sdk/core-client` ships the wire types from
+// specs/typespec/core/. Re-export the classes + CoreClient-specific
+// types here. Wire-shape types like `GovernanceEventPayload` live on
+// `openbox-sdk/core-client` (single source of truth) and are consumed
+// from there directly to avoid `export *` collisions with
+// `openbox-sdk/types` (which re-exposes the same shapes via the
+// `Backend`/`Core` namespaces).
 export {
   OpenBoxCoreClient,
   CoreApiError,
   type CoreClientConfig,
-  type ApprovalPollRequest,
-  type ApprovalPollResponse,
+  type ApprovalStatusRequest,
+  type ApprovalStatusResponse,
 } from 'openbox-sdk/core-client';
