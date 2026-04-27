@@ -339,7 +339,12 @@ export interface CoreClientConfig {
   apiUrl?: string;
   /** Agent API key (obx_live_* or obx_test_*) */
   apiKey: string;
-  /** Request timeout in milliseconds. Default: 30000 */
+  /** Request timeout in milliseconds. Default: 35000.
+   *  Sits slightly above core's 30s WorkflowExecutionTimeout so when a
+   *  workflow hits the server-side deadline, the client waits long
+   *  enough to receive the 500 + actual error message instead of
+   *  AbortController-cancelling first and surfacing an opaque
+   *  "operation aborted". 5s margin covers handler+marshal overhead. */
   timeoutMs?: number;
   /** Retry configuration */
   retry?: { maxRetries?: number; initialDelayMs?: number; maxDelayMs?: number };
@@ -427,7 +432,7 @@ export class OpenBoxCoreClient {
     }
 
     const url = `${this.baseUrl}${path}`;
-    const timeoutMs = this.config.timeoutMs ?? 30_000;
+    const timeoutMs = this.config.timeoutMs ?? 35_000;
     const baseHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${this.config.apiKey}`,
