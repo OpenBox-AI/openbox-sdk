@@ -16,6 +16,135 @@ export interface Auth {
   logout(): void;
   profile(): AuthProfileOutput;
 }
+export interface AuthExtras {
+  permissions(): void;
+  features(): void;
+  refresh(): void;
+  changePassword(): void;
+  roles(): void;
+}
+export interface Agent {
+  list(): void;
+  create(): void;
+}
+export interface Aivss {
+  calculate(): void;
+}
+export interface ApiKey {
+  rotate(agentId: string): void;
+  revoke(agentId: string): void;
+}
+export interface Approval {
+  metrics(agentId: string): void;
+  pending(agentId: string): void;
+  history(agentId: string): void;
+  decide(agentId: string, eventId: string, action: string): void;
+}
+export interface Audit {
+  list(): void;
+  export(): void;
+  preview(): void;
+  exports(): void;
+}
+export interface Behavior {
+  types(): void;
+}
+export interface Core {
+  health(): void;
+  validate(): void;
+  evaluate(): void;
+  pollApproval(): void;
+}
+export interface Doctor {
+}
+export interface Goal {
+}
+export interface Guardrail {
+  test(): void;
+}
+export interface Health {
+}
+export interface Member {
+  list(orgId: string): void;
+  create(orgId: string): void;
+  update(orgId: string, userId: string): void;
+  assignRoles(orgId: string, userId: string): void;
+  removeRoles(orgId: string, userId: string): void;
+  remove(orgId: string): void;
+  invite(orgId: string): void;
+}
+export interface Observe {
+  data(agentId: string): void;
+  issues(agentId: string): void;
+  insights(agentId: string): void;
+  logs(agentId: string): void;
+  drift(agentId: string): void;
+  metrics(): void;
+}
+export interface Org {
+  get(orgId: string): void;
+  settings(orgId: string): void;
+  updateSettings(orgId: string): void;
+  dashboard(orgId: string): void;
+  trends(orgId: string): void;
+  sessions(orgId: string): void;
+  approvals(orgId: string): void;
+  approvalMetrics(orgId: string): void;
+  approvalSla(orgId: string): void;
+  approvalHistory(orgId: string): void;
+}
+export interface Policy {
+  list(agentId: string): void;
+  create(agentId: string): void;
+  current(agentId: string): void;
+  get(agentId: string, policyId: string): void;
+  update(agentId: string, policyId: string): void;
+  evaluations(agentId: string, policyId: string): void;
+  metrics(agentId: string): void;
+  evaluate(): void;
+}
+export interface Session {
+  list(agentId: string): void;
+  active(agentId: string): void;
+  get(agentId: string, sessionId: string): void;
+  logs(agentId: string, sessionId: string): void;
+  goalStats(agentId: string, sessionId: string): void;
+  trace(agentId: string, sessionId: string): void;
+  terminate(agentId: string, sessionId: string): void;
+  inspect(agentId: string, sessionIdOrWorkflowId: string): void;
+  prune(agentId: string): void;
+}
+export interface Setup {
+  skill(): void;
+  mcp(): void;
+  all(): void;
+}
+export interface Team {
+  list(orgId: string): void;
+  stats(orgId: string): void;
+  get(orgId: string, teamId: string): void;
+  update(orgId: string, teamId: string): void;
+  members(orgId: string, teamId: string): void;
+  create(orgId: string): void;
+  delete(orgId: string): void;
+  addMembers(orgId: string, teamId: string): void;
+  removeMembers(orgId: string, teamId: string): void;
+}
+export interface Trust {
+  histories(agentId: string): void;
+  events(agentId: string): void;
+  tierChanges(agentId: string): void;
+  recovery(agentId: string): void;
+}
+export interface Verify {
+}
+export interface Versions {
+}
+export interface Violation {
+  list(): void;
+  agent(agentId: string): void;
+  falsePositive(agentId: string, violationId: string, sourceType: string): void;
+}
 /**
  * Canonical CLI surface - every command-tree node declared in
  * specs/typespec/cli/. The hand-written commander registration in
@@ -59,9 +188,542 @@ export const CLI_COMMAND_MANIFEST = [
         "flags": []
       }
     ]
+  },
+  {
+    "command": "auth-extras",
+    "interfaceName": "AuthExtras",
+    "subcommands": [
+      {
+        "name": "permissions",
+        "flags": []
+      },
+      {
+        "name": "features",
+        "flags": []
+      },
+      {
+        "name": "refresh",
+        "flags": []
+      },
+      {
+        "name": "changePassword",
+        "flags": []
+      },
+      {
+        "name": "roles",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "agent",
+    "description": "Agent management.",
+    "interfaceName": "Agent",
+    "subcommands": [
+      {
+        "name": "list",
+        "flags": []
+      },
+      {
+        "name": "create",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "aivss",
+    "description": "Agent AIVSS scoring.",
+    "interfaceName": "Aivss",
+    "subcommands": [
+      {
+        "name": "calculate",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "api-key",
+    "description": "Agent API key rotation/revocation.",
+    "interfaceName": "ApiKey",
+    "subcommands": [
+      {
+        "name": "rotate",
+        "flags": []
+      },
+      {
+        "name": "revoke",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "approval",
+    "description": "Approval queue management.",
+    "interfaceName": "Approval",
+    "subcommands": [
+      {
+        "name": "metrics",
+        "flags": []
+      },
+      {
+        "name": "pending",
+        "flags": []
+      },
+      {
+        "name": "history",
+        "flags": []
+      },
+      {
+        "name": "decide",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "audit",
+    "description": "Audit log queries + exports.",
+    "interfaceName": "Audit",
+    "subcommands": [
+      {
+        "name": "list",
+        "flags": []
+      },
+      {
+        "name": "export",
+        "flags": []
+      },
+      {
+        "name": "preview",
+        "flags": []
+      },
+      {
+        "name": "exports",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "behavior",
+    "description": "Behavior rule management.",
+    "interfaceName": "Behavior",
+    "subcommands": [
+      {
+        "name": "types",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "core",
+    "description": "Direct access to the core governance API.",
+    "interfaceName": "Core",
+    "subcommands": [
+      {
+        "name": "health",
+        "flags": []
+      },
+      {
+        "name": "validate",
+        "flags": []
+      },
+      {
+        "name": "evaluate",
+        "flags": []
+      },
+      {
+        "name": "pollApproval",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "doctor",
+    "description": "Pre-flight checks for the local environment.",
+    "interfaceName": "Doctor",
+    "subcommands": []
+  },
+  {
+    "command": "goal",
+    "description": "Goal alignment configuration.",
+    "interfaceName": "Goal",
+    "subcommands": []
+  },
+  {
+    "command": "guardrail",
+    "description": "Guardrail management + testing.",
+    "interfaceName": "Guardrail",
+    "subcommands": [
+      {
+        "name": "test",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "health",
+    "description": "Backend health check.",
+    "interfaceName": "Health",
+    "subcommands": []
+  },
+  {
+    "command": "member",
+    "description": "Org member management.",
+    "interfaceName": "Member",
+    "subcommands": [
+      {
+        "name": "list",
+        "flags": []
+      },
+      {
+        "name": "create",
+        "flags": []
+      },
+      {
+        "name": "update",
+        "flags": []
+      },
+      {
+        "name": "assignRoles",
+        "flags": []
+      },
+      {
+        "name": "removeRoles",
+        "flags": []
+      },
+      {
+        "name": "remove",
+        "flags": []
+      },
+      {
+        "name": "invite",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "observe",
+    "description": "Observability dashboards + metrics.",
+    "interfaceName": "Observe",
+    "subcommands": [
+      {
+        "name": "data",
+        "flags": []
+      },
+      {
+        "name": "issues",
+        "flags": []
+      },
+      {
+        "name": "insights",
+        "flags": []
+      },
+      {
+        "name": "logs",
+        "flags": []
+      },
+      {
+        "name": "drift",
+        "flags": []
+      },
+      {
+        "name": "metrics",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "org",
+    "description": "Organization management.",
+    "interfaceName": "Org",
+    "subcommands": [
+      {
+        "name": "get",
+        "flags": []
+      },
+      {
+        "name": "settings",
+        "flags": []
+      },
+      {
+        "name": "updateSettings",
+        "flags": []
+      },
+      {
+        "name": "dashboard",
+        "flags": []
+      },
+      {
+        "name": "trends",
+        "flags": []
+      },
+      {
+        "name": "sessions",
+        "flags": []
+      },
+      {
+        "name": "approvals",
+        "flags": []
+      },
+      {
+        "name": "approvalMetrics",
+        "flags": []
+      },
+      {
+        "name": "approvalSla",
+        "flags": []
+      },
+      {
+        "name": "approvalHistory",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "policy",
+    "description": "Policy management.",
+    "interfaceName": "Policy",
+    "subcommands": [
+      {
+        "name": "list",
+        "flags": []
+      },
+      {
+        "name": "create",
+        "flags": []
+      },
+      {
+        "name": "current",
+        "flags": []
+      },
+      {
+        "name": "get",
+        "flags": []
+      },
+      {
+        "name": "update",
+        "flags": []
+      },
+      {
+        "name": "evaluations",
+        "flags": []
+      },
+      {
+        "name": "metrics",
+        "flags": []
+      },
+      {
+        "name": "evaluate",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "session",
+    "description": "Session inspection + cleanup.",
+    "interfaceName": "Session",
+    "subcommands": [
+      {
+        "name": "list",
+        "flags": []
+      },
+      {
+        "name": "active",
+        "flags": []
+      },
+      {
+        "name": "get",
+        "flags": []
+      },
+      {
+        "name": "logs",
+        "flags": []
+      },
+      {
+        "name": "goalStats",
+        "flags": []
+      },
+      {
+        "name": "trace",
+        "flags": []
+      },
+      {
+        "name": "terminate",
+        "flags": []
+      },
+      {
+        "name": "inspect",
+        "flags": []
+      },
+      {
+        "name": "prune",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "setup",
+    "description": "First-run helpers (skill / mcp / all).",
+    "interfaceName": "Setup",
+    "subcommands": [
+      {
+        "name": "skill",
+        "flags": []
+      },
+      {
+        "name": "mcp",
+        "flags": []
+      },
+      {
+        "name": "all",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "team",
+    "description": "Team management.",
+    "interfaceName": "Team",
+    "subcommands": [
+      {
+        "name": "list",
+        "flags": []
+      },
+      {
+        "name": "stats",
+        "flags": []
+      },
+      {
+        "name": "get",
+        "flags": []
+      },
+      {
+        "name": "update",
+        "flags": []
+      },
+      {
+        "name": "members",
+        "flags": []
+      },
+      {
+        "name": "create",
+        "flags": []
+      },
+      {
+        "name": "delete",
+        "flags": []
+      },
+      {
+        "name": "addMembers",
+        "flags": []
+      },
+      {
+        "name": "removeMembers",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "trust",
+    "description": "Agent trust history.",
+    "interfaceName": "Trust",
+    "subcommands": [
+      {
+        "name": "histories",
+        "flags": []
+      },
+      {
+        "name": "events",
+        "flags": []
+      },
+      {
+        "name": "tierChanges",
+        "flags": []
+      },
+      {
+        "name": "recovery",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "verify",
+    "description": "Lint an integration source file for governance bugs.",
+    "interfaceName": "Verify",
+    "subcommands": []
+  },
+  {
+    "command": "versions",
+    "description": "Show deployed commit/tag for each service per env.",
+    "interfaceName": "Versions",
+    "subcommands": []
+  },
+  {
+    "command": "violation",
+    "description": "Guardrail/policy/behavior violation queries.",
+    "interfaceName": "Violation",
+    "subcommands": [
+      {
+        "name": "list",
+        "flags": []
+      },
+      {
+        "name": "agent",
+        "flags": []
+      },
+      {
+        "name": "falsePositive",
+        "flags": []
+      }
+    ]
   }
 ] as const;
 export type CliCommandManifest = typeof CLI_COMMAND_MANIFEST;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

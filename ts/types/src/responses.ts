@@ -1,360 +1,99 @@
+// Response types for the OpenboxBackend API.
+//
+// Backend NestJS controllers don't carry `@ApiOkResponse({ type: ... })`
+// annotations on most endpoints, so the auto-generated OpenAPI document
+// has no response schemas. The SDK closes that gap by authoring the
+// shapes in `specs/typespec/backend/responses.tsp` - they ride through
+// the same TypeSpec → OpenAPI → openapi-typescript pipeline as the
+// request DTOs and surface as named entries in `Backend.components`.
+//
+// Each export below is a one-line alias of the generated schema. When
+// the upstream backend grows `@ApiOkResponse` decorators, drop the
+// matching model from `responses.tsp` - these aliases keep working
+// because `openapi-typescript` will pick the schema up from the live
+// backend OpenAPI instead.
+
+import type { components } from './generated/backend.js';
+
+type Schema<K extends keyof components['schemas']> = components['schemas'][K];
+
 // ---------------------------------------------------------------------------
 // Generic response wrappers
 // ---------------------------------------------------------------------------
 
+// `PaginatedResponse<T>` is generic and can't round-trip through the
+// OpenAPI schema bag (which has no template-binding mechanism). The
+// spec's `PaginatedResponse<T>` instantiations show up under composite
+// names, so we keep this as a hand-written generic that consumers
+// instantiate with the response-row schema.
 export interface PaginatedResponse<T> {
   data: T[];
   meta?: { total: number; page: number; perPage: number };
   total?: number;
 }
 
-export interface MessageResponse {
-  message: string;
-}
+export type MessageResponse = Schema<'MessageResponse'>;
 
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
 
-export interface UserProfile {
-  sub: string;
-  email: string;
-  name?: string;
-  preferred_username?: string;
-  email_verified?: boolean;
-  [key: string]: unknown;
-}
-
-export interface UserRole {
-  id: string;
-  name: string;
-  [key: string]: unknown;
-}
+export type UserProfile = Schema<'UserProfile'>;
+export type UserRole = Schema<'UserRole'>;
 
 // ---------------------------------------------------------------------------
-// Agent
+// Agent + API key
 // ---------------------------------------------------------------------------
 
-export interface Agent {
-  id: string;
-  agent_name: string;
-  agent_type?: string;
-  model_name?: string;
-  description?: string;
-  organization_id: string;
-  config?: Record<string, unknown>;
-  team_ids?: string[];
-  tags?: string[];
-  icon?: string;
-  trust_score?: number;
-  tier?: string;
-  status?: number;
-  created_at?: string;
-  updated_at?: string;
-  [key: string]: unknown;
-}
-
-export interface CreateAgentResponse {
-  agent: Agent;
-  token: string;
-}
+export type Agent = Schema<'Agent'>;
+export type CreateAgentResponse = Schema<'CreateAgentResponse'>;
+export type ApiKeyResponse = Schema<'ApiKeyResponse'>;
+export type ApiKey = Schema<'ApiKey'>;
 
 // ---------------------------------------------------------------------------
-// API Key
+// Guardrail / policy / behavior rule / session
 // ---------------------------------------------------------------------------
 
-export interface ApiKeyResponse {
-  token: string;
-  [key: string]: unknown;
-}
+export type Guardrail = Schema<'Guardrail'>;
+export type Policy = Schema<'Policy'>;
+export type BehaviorRule = Schema<'BehaviorRule'>;
+export type Session = Schema<'Session'>;
 
 // ---------------------------------------------------------------------------
-// Guardrail
+// Trust + AIVSS
 // ---------------------------------------------------------------------------
 
-export interface Guardrail {
-  id: string;
-  name: string;
-  guardrail_type: string;
-  description?: string;
-  processing_stage: string;
-  is_active: boolean;
-  params?: Record<string, unknown>;
-  settings?: Record<string, unknown>;
-  trust_impact?: string;
-  trust_threshold?: number | null;
-  order?: number;
-  [key: string]: unknown;
-}
+export type TrustHistory = Schema<'TrustHistory'>;
+export type TrustEvent = Schema<'TrustEvent'>;
+export type TrustTierChange = Schema<'TrustTierChange'>;
+export type Assessment = Schema<'Assessment'>;
 
 // ---------------------------------------------------------------------------
-// Policy
+// Approval + violation
 // ---------------------------------------------------------------------------
 
-export interface Policy {
-  id: string;
-  name: string;
-  description?: string;
-  rego_code: string;
-  input?: Record<string, unknown>;
-  is_active: boolean;
-  trust_impact?: string;
-  trust_threshold?: number | null;
-  [key: string]: unknown;
-}
+export type Approval = Schema<'Approval'>;
+export type ApprovalsMetrics = Schema<'ApprovalsMetrics'>;
+export type OrgApprovalsResponse = Schema<'OrgApprovalsResponse'>;
+export type Violation = Schema<'Violation'>;
 
 // ---------------------------------------------------------------------------
-// Behavior Rule
+// Organization / team / member / audit
 // ---------------------------------------------------------------------------
 
-export interface BehaviorRule {
-  id: string;
-  rule_name: string;
-  description?: string;
-  priority: number;
-  trigger: string;
-  states: string[];
-  time_window: number;
-  verdict: number;
-  reject_message: string;
-  is_active: boolean;
-  group_id?: string;
-  version?: number;
-  [key: string]: unknown;
-}
+export type Organization = Schema<'Organization'>;
+export type OrgSettings = Schema<'OrgSettings'>;
+export type Team = Schema<'Team'>;
+export type Member = Schema<'Member'>;
+export type AuditLog = Schema<'AuditLog'>;
+export type AuditExport = Schema<'AuditExport'>;
 
 // ---------------------------------------------------------------------------
-// Session
+// Webhooks / SSO / org features / CSRF
 // ---------------------------------------------------------------------------
 
-export interface Session {
-  id: string;
-  session_id?: string;
-  agent_id?: string;
-  workflow_id?: string;
-  run_id?: string;
-  status?: string;
-  started_at?: string;
-  /** Backend field is `completed_at` - use this, not `ended_at` (which doesn't exist). */
-  completed_at?: string;
-  flagged?: boolean;
-  flag_reason?: string;
-  detail?: string;
-  trust_evaluated_at?: string;
-  metadata?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-// ---------------------------------------------------------------------------
-// Trust
-// ---------------------------------------------------------------------------
-
-export interface TrustHistory {
-  trust_score: number;
-  tier?: string;
-  timestamp?: string;
-  [key: string]: unknown;
-}
-
-export interface TrustEvent {
-  id: string;
-  event_type?: string;
-  impact?: number;
-  timestamp?: string;
-  [key: string]: unknown;
-}
-
-export interface TrustTierChange {
-  id: string;
-  from_tier?: string;
-  to_tier?: string;
-  reason?: string;
-  timestamp?: string;
-  [key: string]: unknown;
-}
-
-// ---------------------------------------------------------------------------
-// AIVSS
-// ---------------------------------------------------------------------------
-
-export interface Assessment {
-  id: string;
-  score?: number;
-  severity?: string;
-  timestamp?: string;
-  [key: string]: unknown;
-}
-
-// ---------------------------------------------------------------------------
-// Approval
-// ---------------------------------------------------------------------------
-
-export interface Approval {
-  id: string;
-  event_id?: string;
-  agent_id?: string;
-  status?: string;
-  action_type?: string;
-  created_at?: string;
-  decided_at?: string;
-  [key: string]: unknown;
-}
-
-/** Counts surfaced alongside `getOrgApprovals` - backend computes these from
- * the same approvals query so clients don't need a second roundtrip. */
-export interface ApprovalsMetrics {
-  pending_count?: number;
-  expired_count?: number;
-  [key: string]: unknown;
-}
-
-/** `getOrgApprovals` returns `{ approvals, metrics }` (after the {status,data}
- * envelope), not a flat PaginatedResponse - backend's organization.service.ts
- * runs the list + count queries in parallel and surfaces both. */
-export interface OrgApprovalsResponse {
-  approvals: PaginatedResponse<Approval>;
-  metrics: ApprovalsMetrics;
-}
-
-// ---------------------------------------------------------------------------
-// Violation
-// ---------------------------------------------------------------------------
-
-export interface Violation {
-  id: string;
-  agent_id?: string;
-  source_type?: string;
-  pattern?: string;
-  is_false_positive?: boolean;
-  timestamp?: string;
-  [key: string]: unknown;
-}
-
-// ---------------------------------------------------------------------------
-// Organization
-// ---------------------------------------------------------------------------
-
-export interface Organization {
-  id: string;
-  name: string;
-  domain?: string;
-  [key: string]: unknown;
-}
-
-export interface OrgSettings {
-  name?: string;
-  domain?: string;
-  timezone?: string;
-  [key: string]: unknown;
-}
-
-// ---------------------------------------------------------------------------
-// Team
-// ---------------------------------------------------------------------------
-
-export interface Team {
-  id: string;
-  name: string;
-  description?: string;
-  icon?: string;
-  [key: string]: unknown;
-}
-
-// ---------------------------------------------------------------------------
-// Member
-// ---------------------------------------------------------------------------
-
-export interface Member {
-  id: string;
-  username?: string;
-  email?: string;
-  firstName?: string;
-  lastName?: string;
-  role?: string;
-  [key: string]: unknown;
-}
-
-// ---------------------------------------------------------------------------
-// Audit Log
-// ---------------------------------------------------------------------------
-
-export interface AuditLog {
-  id: string;
-  event_type?: string;
-  actor_id?: string;
-  result?: string;
-  details?: Record<string, unknown>;
-  created_at?: string;
-  [key: string]: unknown;
-}
-
-export interface AuditExport {
-  id: string;
-  export_name?: string;
-  status?: string;
-  created_at?: string;
-  [key: string]: unknown;
-}
-
-// ---------------------------------------------------------------------------
-// API keys / webhooks / SSO - live backend (post-PR #237)
-// Permissive shapes because the swagger doesn't publish full response schemas.
-// ---------------------------------------------------------------------------
-
-export interface ApiKey {
-  id: string;
-  name: string;
-  permissions: string[];
-  valid_from?: string | null;
-  expires_at?: string | null;
-  ip_whitelist?: string[] | null;
-  is_active?: boolean;
-  description?: string;
-  created_at?: string;
-  updated_at?: string;
-  last_used_at?: string | null;
-  /** Only present on create - the raw `obx_key_*` secret, shown once. */
-  key?: string;
-  [key: string]: unknown;
-}
-
-export interface Webhook {
-  id: string;
-  name: string;
-  channel: 'http' | 'slack';
-  url: string;
-  event_types: string[];
-  agent_ids?: string[] | null;
-  is_active?: boolean;
-  description?: string;
-  created_at?: string;
-  updated_at?: string;
-  [key: string]: unknown;
-}
-
-export interface WebhookDelivery {
-  id: string;
-  webhook_id: string;
-  event_type?: string;
-  status?: string;
-  status_code?: number;
-  attempt_count?: number;
-  delivered_at?: string;
-  [key: string]: unknown;
-}
-
-export interface SsoStatus {
-  enabled?: boolean;
-  method?: 'oidc' | 'saml' | null;
-  enforced?: boolean;
-  [key: string]: unknown;
-}
-
-export interface OrgFeatures {
-  [feature: string]: boolean | string | number | null;
-}
-
-export interface CsrfToken {
-  token?: string;
-  [key: string]: unknown;
-}
+export type Webhook = Schema<'Webhook'>;
+export type WebhookDelivery = Schema<'WebhookDelivery'>;
+export type SsoStatus = Schema<'SsoStatus'>;
+export type OrgFeatures = Schema<'OrgFeatures'>;
+export type CsrfToken = Schema<'CsrfToken'>;

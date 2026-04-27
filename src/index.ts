@@ -28,4 +28,20 @@ export {
   type CoreClientConfig,
   type ApprovalStatusRequest,
   type ApprovalStatusResponse,
+
+  // Spec-driven workflow runtime. `govern()` opens a workflow envelope,
+  // exposes a `GovernedAgent` to the body callback, and finalizes
+  // (Workflow{Completed,Failed}) on return. Each method on
+  // `GovernedAgent` (promptSubmission / llmCompleted / toolCompleted /
+  // fileRead / fileEdit / shellExecution / mcpToolCall) maps onto a
+  // canonical activity_type string from the spec's ACTIVITY_MANIFEST.
+  govern,
+  GovernedSession,
+  ACTIVITY_MANIFEST,
+  type GovernedAgent,
+  type GovernedSessionConfig,
+  type WorkflowVerdict,
+  type VerdictArm,
+  type GovernedPayload,
+  type ActivityName,
 } from 'openbox-sdk/core-client';

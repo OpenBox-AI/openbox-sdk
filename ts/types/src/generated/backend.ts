@@ -4,14 +4,30 @@
  */
 
 export interface paths {
-    "/health": {
+    "/agent/aivss": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["AppController_getHello"];
+        get?: never;
+        put?: never;
+        post: operations["AgentController_getAivssScore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/behavior-rule/semantic-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getSemanticTypes"];
         put?: never;
         post?: never;
         delete?: never;
@@ -20,39 +36,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/profile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AuthController_getProfile"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/csrf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AuthController_getCsrf"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/login": {
+    "/agent/create": {
         parameters: {
             query?: never;
             header?: never;
@@ -61,117 +45,21 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["AuthController_login"];
+        post: operations["AgentController_createAgent"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/auth/logout": {
+    "/agent/list": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
-        post: operations["AuthController_logout"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/forgot-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AuthController_forgotPassword"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/reset-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AuthController_resetPassword"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/change-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AuthController_changePassword"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/refresh": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AuthController_refreshToken"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/user/roles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["UserController_getRoles"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/violations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getViolations"];
+        get: operations["AgentController_getAgents"];
         put?: never;
         post?: never;
         delete?: never;
@@ -196,48 +84,16 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agent/list": {
+    "/agent/violations": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["AgentController_getAgents"];
+        get: operations["AgentController_getViolations"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/aivss": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AgentController_getAivssScore"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/create": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AgentController_createAgent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -260,78 +116,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agent/{agentId}/violations": {
+    "/agent/{agentId}/active-sessions": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["AgentController_getAgentEvaluations"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/violations/{violationId}/false-positive": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["AgentController_markAsFalsePositive"];
-        trace?: never;
-    };
-    "/agent/{agentId}/logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getAgentLogs"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/logs/drift": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getDriftEvents"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/assessments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getAssessments"];
+        get: operations["AgentController_getActiveSessions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -356,6 +148,214 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent/{agentId}/aivss/recalculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AgentController_recalculateTrustScore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/approvals/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getApprovalHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/approvals/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getAgentApprovalsMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/approvals/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getPendingApprovals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/approvals/{eventId}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["AgentController_decideApproval"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/assessments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getAssessments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/behavior-rule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getBehaviorRuleList"];
+        put?: never;
+        post: operations["AgentController_createBehaviorRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/behavior-rule/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getCurrentBehaviorRule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/behavior-rule/{behaviorGroupdId}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getBehavioralRuleHistories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/behavior-rule/{behaviorRuleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getBehaviorRule"];
+        put: operations["AgentController_updateBehaviorRule"];
+        post: operations["AgentController_rollbackBehaviorRule"];
+        delete: operations["AgentController_deleteBehaviorRule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/behavior-rule/{behaviorRuleId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["AgentController_changeBehaviorRuleStatus"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/behavior/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getBehaviorMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/behavior/violations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getBehaviorViolations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agent/{agentId}/goal-alignment": {
         parameters: {
             query?: never;
@@ -372,16 +372,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agent/{agentId}/aivss/recalculate": {
+    "/agent/{agentId}/goal-alignment/recent-drifts": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["AgentController_getRecentDriftEvents"];
         put?: never;
-        post: operations["AgentController_recalculateTrustScore"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/goal-alignment/trend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getGoalAlignmentTrend"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -468,6 +484,86 @@ export interface paths {
         patch: operations["AgentController_reorderGuardrail"];
         trace?: never;
     };
+    "/agent/{agentId}/insights/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getInsightMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getIssues"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getAgentLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/logs/drift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getDriftEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/observability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getObservability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agent/{agentId}/policies": {
         parameters: {
             query?: never;
@@ -484,22 +580,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agent/{agentId}/policies/metrics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getPolicesMetrics"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/agent/{agentId}/policies/current": {
         parameters: {
             query?: never;
@@ -508,6 +588,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["AgentController_getCurrentPolicy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/policies/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getPolicesMetrics"];
         put?: never;
         post?: never;
         delete?: never;
@@ -548,6 +644,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent/{agentId}/revoke-api-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AgentController_revokeApiKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/rotate-api-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AgentController_rotateApiKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agent/{agentId}/sessions": {
         parameters: {
             query?: never;
@@ -556,22 +684,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["AgentController_getSessions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/active-sessions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getActiveSessions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -596,22 +708,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agent/{agentId}/sessions/{sessionId}/logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getSessionLogs"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/agent/{agentId}/sessions/{sessionId}/goal-alignment-stats": {
         parameters: {
             query?: never;
@@ -620,6 +716,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["AgentController_getSessionGoalAlignmentStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/{agentId}/sessions/{sessionId}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getSessionLogs"];
         put?: never;
         post?: never;
         delete?: never;
@@ -660,222 +772,14 @@ export interface paths {
         patch: operations["AgentController_terminateSession"];
         trace?: never;
     };
-    "/agent/{agentId}/goal-alignment/trend": {
+    "/agent/{agentId}/trust-tier-changes": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["AgentController_getGoalAlignmentTrend"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/goal-alignment/recent-drifts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getRecentDriftEvents"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/rotate-api-key": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AgentController_rotateApiKey"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/revoke-api-key": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["AgentController_revokeApiKey"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/observability": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getObservability"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/issues": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getIssues"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/behavior-rule/semantic-types": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getSemanticTypes"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/behavior-rule": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getBehaviorRuleList"];
-        put?: never;
-        post: operations["AgentController_createBehaviorRule"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/behavior-rule/current": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getCurrentBehaviorRule"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/behavior-rule/{behaviorRuleId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getBehaviorRule"];
-        put: operations["AgentController_updateBehaviorRule"];
-        post: operations["AgentController_rollbackBehaviorRule"];
-        delete: operations["AgentController_deleteBehaviorRule"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/behavior-rule/{behaviorRuleId}/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put: operations["AgentController_changeBehaviorRuleStatus"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/behavior-rule/{behaviorGroupdId}/versions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getBehavioralRuleHistories"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/behavior/metrics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getBehaviorMetrics"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/trust/histories": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getAgentTrustHistories"];
+        get: operations["AgentController_getTrustTierChanges"];
         put?: never;
         post?: never;
         delete?: never;
@@ -900,6 +804,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent/{agentId}/trust/histories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AgentController_getAgentTrustHistories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agent/{agentId}/trust/recovery-status": {
         parameters: {
             query?: never;
@@ -916,14 +836,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agent/{agentId}/approvals/metrics": {
+    "/agent/{agentId}/violations": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["AgentController_getAgentApprovalsMetrics"];
+        get: operations["AgentController_getAgentEvaluations"];
         put?: never;
         post?: never;
         delete?: never;
@@ -932,39 +852,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agent/{agentId}/approvals/pending": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getPendingApprovals"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/approvals/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AgentController_getApprovalHistory"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent/{agentId}/approvals/{eventId}/decide": {
+    "/agent/{agentId}/violations/{violationId}/false-positive": {
         parameters: {
             query?: never;
             header?: never;
@@ -972,22 +860,70 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: operations["AgentController_decideApproval"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        patch: operations["AgentController_markAsFalsePositive"];
         trace?: never;
     };
-    "/agent/{agentId}/insights/metrics": {
+    "/api-key": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["AgentController_getInsightMetrics"];
+        get: operations["ApiKeyController_list"];
+        put?: never;
+        post: operations["ApiKeyController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api-key/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ApiKeyController_get"];
+        put?: never;
+        post?: never;
+        delete: operations["ApiKeyController_delete"];
+        options?: never;
+        head?: never;
+        patch: operations["ApiKeyController_update"];
+        trace?: never;
+    };
+    "/auth/change-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_changePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/csrf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AuthController_getCsrf"];
         put?: never;
         post?: never;
         delete?: never;
@@ -996,14 +932,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agent/{agentId}/behavior/violations": {
+    "/auth/forgot-password": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["AgentController_getBehaviorViolations"];
+        get?: never;
+        put?: never;
+        post: operations["AuthController_forgotPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AuthController_getProfile"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1012,16 +996,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agent/{agentId}/trust-tier-changes": {
+    "/auth/refresh": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["AgentController_getTrustTierChanges"];
+        get?: never;
         put?: never;
-        post?: never;
+        post: operations["AuthController_refreshToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_resetPassword"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1044,62 +1044,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/policy/evaluate": {
+    "/health": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
-        post: operations["PolicyController_evaluate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/webhook": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["WebhookController_list"];
-        put?: never;
-        post: operations["WebhookController_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/webhook/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["WebhookController_get"];
-        put?: never;
-        post?: never;
-        delete: operations["WebhookController_delete"];
-        options?: never;
-        head?: never;
-        patch: operations["WebhookController_update"];
-        trace?: never;
-    };
-    "/webhook/{id}/deliveries": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["WebhookController_getDeliveryLogs"];
+        get: operations["AppController_getHello"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1108,23 +1060,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/webhook/{id}/test": {
+    "/organization/audit-logs": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["OrganizationController_getAuditLogs"];
         put?: never;
-        post: operations["WebhookController_test"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/webhook/{id}/regenerate-secret": {
+    "/organization/audit-logs/export": {
         parameters: {
             query?: never;
             header?: never;
@@ -1133,14 +1085,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["WebhookController_regenerateSecret"];
+        post: operations["OrganizationController_exportAuditLogs"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/organization/register": {
+    "/organization/audit-logs/export/preview": {
         parameters: {
             query?: never;
             header?: never;
@@ -1149,7 +1101,71 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["OrganizationController_createOrganization"];
+        post: operations["OrganizationController_previewExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/audit-logs/export/{exportId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getExportStatus"];
+        put?: never;
+        post?: never;
+        delete: operations["OrganizationController_deleteExport"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/audit-logs/export/{exportId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_downloadExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/audit-logs/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getExportHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/audit-logs/{logId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getAuditLogById"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1172,15 +1188,127 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/organization/{organizationId}/settings": {
+    "/organization/register": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["OrganizationController_getOrgSetting"];
-        put: operations["OrganizationController_updateOrgSetting"];
+        get?: never;
+        put?: never;
+        post: operations["OrganizationController_createOrganization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/{organizationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getOrganization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/{organizationId}/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getApprovals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/{organizationId}/approvals/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getRecentDecisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/{organizationId}/approvals/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getApprovalsMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/{organizationId}/approvals/sla": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getSlaPerformance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/{organizationId}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getObservability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/{organizationId}/dashboard/tier-trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getTrustTierTrends"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -1204,6 +1332,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/organization/{organizationId}/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["OrganizationController_inviteUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/organization/{organizationId}/members": {
         parameters: {
             query?: never;
@@ -1220,7 +1364,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/organization/{organizationId}/users": {
+    "/organization/{organizationId}/members/{userId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1228,40 +1372,8 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
-        post: operations["OrganizationController_createUser"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/organization/{organizationId}/send-welcome-email": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["OrganizationController_sendWelcomeEmail"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/organization/{organizationId}/invitations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["OrganizationController_inviteUser"];
+        put: operations["OrganizationController_updateMember"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1284,7 +1396,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/organization/{organizationId}/members/{userId}": {
+    "/organization/{organizationId}/send-welcome-email": {
         parameters: {
             query?: never;
             header?: never;
@@ -1292,7 +1404,39 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: operations["OrganizationController_updateMember"];
+        put?: never;
+        post: operations["OrganizationController_sendWelcomeEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/{organizationId}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/{organizationId}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getOrgSetting"];
+        put: operations["OrganizationController_updateOrgSetting"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1364,23 +1508,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/organization/audit-logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OrganizationController_getAuditLogs"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/organization/audit-logs/export/preview": {
+    "/organization/{organizationId}/users": {
         parameters: {
             query?: never;
             header?: never;
@@ -1389,14 +1517,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["OrganizationController_previewExport"];
+        post: operations["OrganizationController_createUser"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/organization/audit-logs/export": {
+    "/policy/evaluate": {
         parameters: {
             query?: never;
             header?: never;
@@ -1405,235 +1533,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["OrganizationController_exportAuditLogs"];
+        post: operations["PolicyController_evaluate"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/organization/audit-logs/exports": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OrganizationController_getExportHistory"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/organization/audit-logs/export/{exportId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OrganizationController_getExportStatus"];
-        put?: never;
-        post?: never;
-        delete: operations["OrganizationController_deleteExport"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/organization/audit-logs/export/{exportId}/download": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OrganizationController_downloadExport"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/organization/audit-logs/{logId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OrganizationController_getAuditLogById"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/organization/{organizationId}/dashboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OrganizationController_getObservability"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/organization/{organizationId}/approvals/metrics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OrganizationController_getApprovalsMetrics"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/organization/{organizationId}/approvals/sla": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OrganizationController_getSlaPerformance"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/organization/{organizationId}/approvals": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OrganizationController_getApprovals"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/organization/{organizationId}/approvals/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OrganizationController_getRecentDecisions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/organization/{organizationId}/dashboard/tier-trends": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OrganizationController_getTrustTierTrends"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/organization/{organizationId}/sessions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OrganizationController_getSessions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/organization/{organizationId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OrganizationController_getOrganization"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api-key": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["ApiKeyController_list"];
-        put?: never;
-        post: operations["ApiKeyController_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api-key/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["ApiKeyController_get"];
-        put?: never;
-        post?: never;
-        delete: operations["ApiKeyController_delete"];
-        options?: never;
-        head?: never;
-        patch: operations["ApiKeyController_update"];
         trace?: never;
     };
     "/sso": {
@@ -1647,38 +1551,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["SsoController_removeConfig"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/sso/saml": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["SsoController_configureSaml"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/sso/oidc": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["SsoController_configureOidc"];
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1716,7 +1588,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/sso/verify": {
+    "/sso/oidc": {
         parameters: {
             query?: never;
             header?: never;
@@ -1725,7 +1597,23 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["SsoController_verifyConfiguration"];
+        post: operations["SsoController_configureOidc"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sso/saml": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SsoController_configureSaml"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1748,106 +1636,160 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sso/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SsoController_verifyConfiguration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/user/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["UserController_getRoles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WebhookController_list"];
+        put?: never;
+        post: operations["WebhookController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhook/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WebhookController_get"];
+        put?: never;
+        post?: never;
+        delete: operations["WebhookController_delete"];
+        options?: never;
+        head?: never;
+        patch: operations["WebhookController_update"];
+        trace?: never;
+    };
+    "/webhook/{id}/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["WebhookController_getDeliveryLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhook/{id}/regenerate-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["WebhookController_regenerateSecret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhook/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["WebhookController_test"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        LoginDto: {
-            realm: string;
-            username: string;
-            password: string;
-            recaptchaToken: string;
-        };
-        LogoutDto: Record<string, never>;
-        ForgotPasswordDto: {
-            email: string;
-            realm: string;
-        };
-        ResetPasswordDto: {
-            token: string;
-            newPassword: string;
-        };
-        ChangePasswordDto: {
-            currentPassword: string;
-            newPassword: string;
-            orgId: string;
-        };
-        RefreshDto: Record<string, never>;
-        BaseSecurityDto: {
-            /**
-             * @description Attack Vector: 1-4 (Network to Physical)
-             * @example 1
-             */
-            attack_vector: number;
-            /**
-             * @description Attack Complexity: 1-2 (Low to High)
-             * @example 1
-             */
-            attack_complexity: number;
-            /**
-             * @description Privileges Required: 1-3 (None to High)
-             * @example 1
-             */
-            privileges_required: number;
-            /**
-             * @description User Interaction: 1-2 (None to Required)
-             * @example 1
-             */
-            user_interaction: number;
-            /**
-             * @description Scope: 1-2 (Unchanged to Changed)
-             * @example 1
-             */
-            scope: number;
-        };
         AISpecificDto: {
-            /**
-             * @description Model Robustness: 1-5 (Very High to Very Low)
-             * @example 2
-             */
+            /** @description Model Robustness: 1-5 (Very High to Very Low) */
             model_robustness: number;
-            /**
-             * @description Data Sensitivity: 1-5 (Public to Critical)
-             * @example 3
-             */
+            /** @description Data Sensitivity: 1-5 (Public to Critical) */
             data_sensitivity: number;
-            /**
-             * @description Ethical Impact: 1-5 (Negligible to Severe)
-             * @example 2
-             */
+            /** @description Ethical Impact: 1-5 (Negligible to Severe) */
             ethical_impact: number;
-            /**
-             * @description Decision Criticality: 1-5 (Non-critical to Safety-critical)
-             * @example 3
-             */
+            /** @description Decision Criticality: 1-5 (Non-critical to Safety-critical) */
             decision_criticality: number;
-            /**
-             * @description Adaptability: 1-5 (Static to Highly adaptive)
-             * @example 4
-             */
+            /** @description Adaptability: 1-5 (Static to Highly adaptive) */
             adaptability: number;
         };
-        ImpactDto: {
-            /**
-             * @description Confidentiality Impact: 1-5 (None to Critical)
-             * @example 2
-             */
-            confidentiality_impact: number;
-            /**
-             * @description Integrity Impact: 1-5 (None to Critical)
-             * @example 2
-             */
-            integrity_impact: number;
-            /**
-             * @description Availability Impact: 1-5 (None to Critical)
-             * @example 2
-             */
-            availability_impact: number;
-            /**
-             * @description Safety Impact: 1-5 (None to Critical)
-             * @example 2
-             */
-            safety_impact: number;
+        AddTeamMembersDto: {
+            /** @description Array of user IDs */
+            user_ids: string[];
+        };
+        Agent: {
+            id: string;
+            agent_name: string;
+            agent_type?: string;
+            model_name?: string;
+            description?: string;
+            organization_id: string;
+            config?: {
+                [key: string]: unknown;
+            };
+            team_ids?: string[];
+            tags?: string[];
+            icon?: string;
+            /** Format: double */
+            trust_score?: number;
+            tier?: string;
+            /** Format: int32 */
+            status?: number;
+            created_at?: string;
+            updated_at?: string;
+        } & {
+            [key: string]: unknown;
         };
         AivssConfigDto: {
             /** @description Base Security parameters (25% weight) */
@@ -1857,6 +1799,171 @@ export interface components {
             /** @description Impact parameters (30% weight) */
             impact: components["schemas"]["ImpactDto"];
         };
+        ApiKey: {
+            id: string;
+            name: string;
+            permissions: string[];
+            valid_from?: string | null;
+            expires_at?: string | null;
+            ip_whitelist?: string[] | null;
+            is_active?: boolean;
+            description?: string;
+            created_at?: string;
+            updated_at?: string;
+            last_used_at?: string | null;
+            /** @description Only present on create - the raw `obx_key_*` secret, shown once. */
+            key?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        ApiKeyResponse: {
+            token: string;
+        } & {
+            [key: string]: unknown;
+        };
+        Approval: {
+            id: string;
+            event_id?: string;
+            agent_id?: string;
+            status?: string;
+            action_type?: string;
+            created_at?: string;
+            decided_at?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * @description Counts surfaced alongside `getOrgApprovals`. Backend computes these
+         *     from the same approvals query so clients don't need a second
+         *     roundtrip.
+         */
+        ApprovalsMetrics: {
+            /** Format: int32 */
+            pending_count?: number;
+            /** Format: int32 */
+            expired_count?: number;
+        } & {
+            [key: string]: unknown;
+        };
+        Assessment: {
+            id: string;
+            /** Format: double */
+            score?: number;
+            severity?: string;
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        AssignRolesDto: {
+            /** @description Array of Role IDs */
+            roles: string[];
+        };
+        AuditExport: {
+            id: string;
+            export_name?: string;
+            status?: string;
+            created_at?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        AuditLog: {
+            id: string;
+            event_type?: string;
+            actor_id?: string;
+            result?: string;
+            details?: {
+                [key: string]: unknown;
+            };
+            created_at?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        BaseSecurityDto: {
+            /** @description Attack Vector: 1-4 (Network to Physical) */
+            attack_vector: number;
+            /** @description Attack Complexity: 1-2 (Low to High) */
+            attack_complexity: number;
+            /** @description Privileges Required: 1-3 (None to High) */
+            privileges_required: number;
+            /** @description User Interaction: 1-2 (None to Required) */
+            user_interaction: number;
+            /** @description Scope: 1-2 (Unchanged to Changed) */
+            scope: number;
+        };
+        BehaviorRule: {
+            id: string;
+            rule_name: string;
+            description?: string;
+            /** Format: int32 */
+            priority: number;
+            trigger: string;
+            states: string[];
+            /** Format: int32 */
+            time_window: number;
+            /** Format: int32 */
+            verdict: number;
+            reject_message: string;
+            is_active: boolean;
+            group_id?: string;
+            /** Format: int32 */
+            version?: number;
+        } & {
+            [key: string]: unknown;
+        };
+        ChangeBehaviorRuleStatusDto: {
+            /** @description New status */
+            is_active: boolean;
+        };
+        ChangePasswordDto: {
+            currentPassword: string;
+            newPassword: string;
+            orgId: string;
+        };
+        ConfigureOidcDto: Record<string, never>;
+        ConfigureSamlDto: Record<string, never>;
+        CreateAgentDto: {
+            /** @description Name of the agent */
+            agent_name: string;
+            /** @description Type of the agent */
+            agent_type?: string;
+            /** @description Model name used by the agent */
+            model_name?: string;
+            /** @description Description of the agent */
+            description?: string;
+            /** @description Configuration object for the agent */
+            config?: Record<string, never>;
+            /** @description Array of team IDs */
+            team_ids: string[];
+            /** @description Array of tags for categorizing the agent */
+            tags?: string[];
+            /** @description Icon URL of agent */
+            icon: string;
+            /** @description Agent API key with obx_live_ or obx_test_ prefix */
+            key?: string;
+            /**
+             * @description Attestation mode: kms (AWS KMS) or external (external server)
+             * @default kms
+             * @enum {string}
+             */
+            attestation_mode: "kms" | "external";
+            /** @description External attestation server domain (required when attestation_mode is external) */
+            attestation_domain?: string;
+            /** @description Bearer token for external attestation server (optional when attestation_mode is external) */
+            attestation_token?: string;
+            /** @description AIVSS baseline trust parameters configuration */
+            aivss_config: components["schemas"]["CreateAivssConfigDto"];
+            /** @description Goal alignment & drift detection configuration */
+            goal_alignment_config: components["schemas"]["GoalAlignmentConfigDto"];
+        };
+        /**
+         * @description `POST /agent/create` returns the agent + the runtime API key. The
+         *     key is returned ONCE at this moment; it's never recoverable from
+         *     `agent get` later. Consumers must persist it immediately.
+         */
+        CreateAgentResponse: {
+            agent: components["schemas"]["Agent"];
+            token: string;
+        };
         CreateAivssConfigDto: {
             /** @description Base Security parameters (25% weight) */
             base_security: components["schemas"]["BaseSecurityDto"];
@@ -1865,229 +1972,71 @@ export interface components {
             /** @description Impact parameters (30% weight) */
             impact: components["schemas"]["ImpactDto"];
         };
-        GoalAlignmentConfigDto: {
-            /**
-             * @description Alignment threshold percentage
-             * @example 70
-             */
-            alignment_threshold: number;
-            /**
-             * @description LlamaFirewall model used for drift detection
-             * @example gpt-4o-mini
-             * @enum {string}
-             */
-            llama_firewall_model: "gpt-4o-mini" | "gpt-4o" | "claude-3-haiku";
-            /**
-             * @description Action when drift is detected
-             * @example constrain
-             * @enum {string}
-             */
-            drift_detection_action: "alert_only" | "constrain" | "terminate";
-            /**
-             * @description How often to evaluate goal alignment
-             * @default every_action
-             * @example every_action
-             * @enum {string}
-             */
-            evaluation_frequency: "every_action" | "every_5_actions" | "every_10_actions" | "session_end_only";
-        };
-        CreateAgentDto: {
-            /**
-             * @description Name of the agent
-             * @example My Assistant Agent
-             */
-            agent_name: string;
-            /**
-             * @description Type of the agent
-             * @example chatbot
-             */
-            agent_type?: string;
-            /**
-             * @description Model name used by the agent
-             * @example gpt-4
-             */
-            model_name?: string;
-            /**
-             * @description Description of the agent
-             * @example This agent helps with customer support
-             */
+        CreateApiKeyDto: {
+            /** @description API key name */
+            name: string;
+            /** @description Permissions granted to this key */
+            permissions: ("write:org" | "read:org" | "create:user" | "read:user" | "update:user" | "delete:user" | "create:agent" | "read:agent" | "update:agent" | "delete:agent" | "create:team" | "read:team" | "update:team" | "delete:team" | "create:webhook" | "read:webhook" | "update:webhook" | "delete:webhook" | "create:api_key" | "read:api_key" | "update:api_key" | "delete:api_key" | "manage:sso" | "read:agent_session" | "manage:agent_session" | "read:agent_log" | "create:agent_guardrail" | "read:agent_guardrail" | "update:agent_guardrail" | "delete:agent_guardrail" | "create:agent_policy" | "read:agent_policy" | "update:agent_policy" | "delete:agent_policy" | "create:agent_behavior_rule" | "read:agent_behavior_rule" | "update:agent_behavior_rule" | "delete:agent_behavior_rule")[];
+            /** @description Key is not valid before this timestamp (ISO 8601) */
+            valid_from?: string;
+            /** @description Key expires at this timestamp (ISO 8601) */
+            expires_at?: string;
+            /** @description Allowed IP addresses or CIDRs */
+            ip_whitelist?: string[];
+            /** @description Description */
             description?: string;
+        };
+        CreateBehaviorRuleDto: {
+            /** @description Rule name */
+            rule_name: string;
+            /** @description Rule description */
+            description?: string;
+            /** @description Priority (1-100, higher = more important) */
+            priority: number;
             /**
-             * @description Configuration object for the agent
-             * @example {
-             *       "temperature": 0.7,
-             *       "max_tokens": 1000
-             *     }
-             */
-            config?: Record<string, never>;
-            /** @description Array of team IDs */
-            team_ids: string[];
-            /**
-             * @description Array of tags for categorizing the agent
-             * @example [
-             *       "customer-facing",
-             *       "support",
-             *       "production"
-             *     ]
-             */
-            tags?: string[];
-            /**
-             * @description Icon URL of agent
-             * @example icon
-             */
-            icon: string;
-            /**
-             * @description Agent API key with obx_live_ or obx_test_ prefix
-             * @example obx_test_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4
-             */
-            key?: string;
-            /**
-             * @description Attestation mode: kms (AWS KMS) or external (external server)
-             * @default kms
-             * @example kms
+             * @description Trigger event
              * @enum {string}
              */
-            attestation_mode: "kms" | "external";
+            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            /** @description States (multiple select) */
+            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
             /**
-             * @description External attestation server domain (required when attestation_mode is external)
-             * @example attestation.example.com
+             * Format: uuid
+             * @description The base_rule_id of the rule that this rule depends on (must be within the same agent)
              */
-            attestation_domain?: string;
+            dependency_base_rule_id?: string;
+            /** @description Time window (in seconds, minimum 1) */
+            time_window: number;
             /**
-             * @description Bearer token for external attestation server (optional when attestation_mode is external)
-             * @example eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+             * @description Verdict action
+             * @enum {number}
              */
-            attestation_token?: string;
-            /** @description AIVSS baseline trust parameters configuration */
-            aivss_config: components["schemas"]["CreateAivssConfigDto"];
-            /** @description Goal alignment & drift detection configuration */
-            goal_alignment_config: components["schemas"]["GoalAlignmentConfigDto"];
-        };
-        UpdateAgentDto: {
+            verdict: 0 | 1 | 2 | 3 | 4;
+            /** @description Reject message */
+            reject_message: string;
+            /** @description Approval timeout (in seconds, required if verdict is REQUIRE_APPROVAL) */
+            approval_timeout?: number;
             /**
-             * @description Name of the agent
-             * @example My Assistant Agent
+             * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
+             * @default none
+             * @enum {string}
              */
-            agent_name?: string;
-            /**
-             * @description Type of the agent
-             * @example chatbot
-             */
-            agent_type?: string;
-            /**
-             * @description Model name used by the agent
-             * @example gpt-4
-             */
-            model_name?: string;
-            /**
-             * @description Description of the agent
-             * @example This agent helps with customer support
-             */
-            description?: string;
-            /**
-             * @description Configuration object for the agent
-             * @example {
-             *       "temperature": 0.7,
-             *       "max_tokens": 1000
-             *     }
-             */
-            config?: Record<string, never>;
-            /**
-             * @description Array of tags for categorizing the agent
-             * @example [
-             *       "customer-facing",
-             *       "support",
-             *       "production"
-             *     ]
-             */
-            tags?: string[];
-            /** @description Array of team IDs */
-            team_ids?: string[];
-        };
-        GetAgentViolationsDto: {
-            /**
-             * @description Page number (starts from 0)
-             * @default 0
-             * @example 0
-             */
-            page: number;
-            /**
-             * @description Number of items per page
-             * @default 10
-             * @example 10
-             */
-            perPage: number;
-            /**
-             * @description Filter violations by pattern
-             * @example Controls access to sensitive resources based on user roles
-             */
-            pattern?: string;
-            /**
-             * @description Source type of violations
-             * @example behavior
-             */
-            sourceType?: string;
-        };
-        MarkFalsePositiveDto: {
-            /**
-             * @description Source type of violations
-             * @example behavior
-             */
-            sourceType: string;
-        };
-        UpdateAivssConfigDto: {
-            /** @description Base Security parameters (25% weight) */
-            base_security: components["schemas"]["BaseSecurityDto"];
-            /** @description AI-Specific parameters (45% weight) */
-            ai_specific: components["schemas"]["AISpecificDto"];
-            /** @description Impact parameters (30% weight) */
-            impact: components["schemas"]["ImpactDto"];
-        };
-        UpdateAgentAivssConfigDto: {
-            /** @description AIVSS baseline trust parameters configuration */
-            aivss_config: components["schemas"]["UpdateAivssConfigDto"];
-            /** @description Reason for change AIVSS configuration */
-            reason: string;
+            trust_impact: "none" | "low" | "medium" | "high";
+            /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
+            trust_threshold?: Record<string, never>;
         };
         CreateGuardrailDto: {
-            /**
-             * @description Guardrail Type
-             * @example Content Filtering
-             */
+            /** @description Guardrail Type */
             guardrail_type: string;
-            /**
-             * @description Name of the guardrail
-             * @example Content Filter
-             */
+            /** @description Name of the guardrail */
             name: string;
-            /**
-             * @description Description of the guardrail
-             * @example Filters inappropriate content from responses
-             */
+            /** @description Description of the guardrail */
             description?: string;
-            /**
-             * @description Processing stage of the guardrail
-             * @example pre-processing
-             */
+            /** @description Processing stage of the guardrail */
             processing_stage: string;
-            /**
-             * @description Parameters for the guardrail
-             * @example {
-             *       "blockedTopics": [
-             *         "violence",
-             *         "adult"
-             *       ],
-             *       "maxTokens": 1000
-             *     }
-             */
+            /** @description Parameters for the guardrail */
             params?: Record<string, never>;
-            /**
-             * @description Settings for the guardrail
-             * @example {
-             *       "temperature": 0.7,
-             *       "strictMode": true
-             *     }
-             */
+            /** @description Settings for the guardrail */
             settings?: Record<string, never>;
             /**
              * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
@@ -2098,31 +2047,467 @@ export interface components {
             /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
             trust_threshold?: Record<string, never>;
         };
-        UpdateGuardrailDto: {
-            /**
-             * @description Guardrail Type
-             * @example Content Filtering
-             */
-            guardrail_type?: string;
-            /**
-             * @description Name of the guardrail
-             * @example Content Filter
-             */
-            name?: string;
-            /**
-             * @description Description of the guardrail
-             * @example Filters inappropriate content from responses
-             */
+        CreateOrganizationDto: {
+            orgName?: string;
+            orgId?: string;
+            contactName: string;
+            contactEmail: string;
+            contactPhone?: string;
+            address?: string;
+            websiteUrl?: string;
+            useCase?: string;
+            comments?: string;
             description?: string;
+        };
+        CreatePolicyDto: {
+            /** @description The name of the policy */
+            name: string;
+            /** @description A description of what this policy does */
+            description?: string;
+            /** @description The Rego policy code */
+            rego_code: string;
+            /** @description The Rego test input */
+            input: Record<string, never>;
+            /** @description Additional configuration for the policy */
+            config?: Record<string, never>;
             /**
-             * @description Processing stage of the guardrail
-             * @example pre-processing
+             * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
+             * @default none
+             * @enum {string}
              */
+            trust_impact: "none" | "low" | "medium" | "high";
+            /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
+            trust_threshold?: Record<string, never>;
+        };
+        CreateTeamDto: {
+            /** @description Icon URL of agent */
+            icon: string;
+        };
+        CreateUserDto: {
+            username: string;
+            email: string;
+            emailVerified: boolean;
+            firstName: string;
+            lastName: string;
+            password: string;
+            roles: components["schemas"]["UserRoleDto"][];
+        };
+        CreateWebhookDto: {
+            /** @description Webhook name */
+            name: string;
+            /**
+             * @description Delivery channel
+             * @enum {string}
+             */
+            channel: "http" | "slack";
+            /** @description Webhook endpoint URL */
+            url: string;
+            /** @description HMAC secret for HTTP channel (auto-generated if omitted) */
+            secret?: string;
+            /** @description Event types to subscribe to */
+            event_types: string[];
+            /** @description Agent IDs to filter (null/omitted = all agents) */
+            agent_ids?: string[];
+            /** @description Description */
+            description?: string;
+        };
+        CsrfToken: {
+            token?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        DeleteTeamMembersDto: {
+            /** @description Array of user IDs */
+            user_ids: string[];
+        };
+        DeleteTeamsDto: {
+            /** @description Array of team IDs */
+            ids: string[];
+        };
+        EnforceSsoDto: Record<string, never>;
+        EvaluateRegoDto: {
+            /** @description Rego policy code */
+            policy: string;
+            /** @description Input data */
+            input: Record<string, never>;
+        };
+        ExportAuditLogsDto: {
+            /** @description Name for this export (e.g., "December 2024 Security Events") */
+            exportName: string;
+            /** @description Filter by event types (multiple selection supported) */
+            eventTypes?: ("policy_change" | "guardrail_change" | "agent_session" | "agent_risk_configuration_change" | "agent_goal_alignment_configuration_change" | "role_change" | "security_event" | "settings_update" | "team_management" | "member_management" | "invitation")[];
+            /** @description Filter by actor ID (user ID) */
+            actorId?: string;
+            /**
+             * @description Filter by result
+             * @enum {string}
+             */
+            result?: "success" | "failed" | "denied" | "warning" | "approved" | "allowed";
+            /** @description Search in action text */
+            search?: string;
+            /** @description Start date for filtering (ISO 8601 format) */
+            startDate?: string;
+            /** @description End date for filtering (ISO 8601 format) */
+            endDate?: string;
+        };
+        ForgotPasswordDto: {
+            email: string;
+            realm: string;
+        };
+        GetAgentViolationsDto: {
+            /** @description Page number (starts from 0) */
+            page?: number;
+            /**
+             * @description Number of items per page
+             * @default 10
+             */
+            perPage: number;
+            /** @description Filter violations by pattern */
+            pattern?: string;
+            /** @description Source type of violations */
+            sourceType?: string;
+        };
+        GoalAlignmentConfigDto: {
+            /** @description Alignment threshold percentage */
+            alignment_threshold: number;
+            /**
+             * @description LlamaFirewall model used for drift detection
+             * @enum {string}
+             */
+            llama_firewall_model: "gpt-4o-mini" | "gpt-4o" | "claude-3-haiku";
+            /**
+             * @description Action when drift is detected
+             * @enum {string}
+             */
+            drift_detection_action: "alert_only" | "constrain" | "terminate";
+            /**
+             * @description How often to evaluate goal alignment
+             * @default every_action
+             * @enum {string}
+             */
+            evaluation_frequency: "every_action" | "every_5_actions" | "every_10_actions" | "session_end_only";
+        };
+        Guardrail: {
+            id: string;
+            name: string;
+            guardrail_type: string;
+            description?: string;
+            processing_stage: string;
+            is_active: boolean;
+            params?: {
+                [key: string]: unknown;
+            };
+            settings?: {
+                [key: string]: unknown;
+            };
+            trust_impact?: string;
+            /** Format: double */
+            trust_threshold?: number | null;
+            /** Format: int32 */
+            order?: number;
+        } & {
+            [key: string]: unknown;
+        };
+        ImpactDto: {
+            /** @description Confidentiality Impact: 1-5 (None to Critical) */
+            confidentiality_impact: number;
+            /** @description Integrity Impact: 1-5 (None to Critical) */
+            integrity_impact: number;
+            /** @description Availability Impact: 1-5 (None to Critical) */
+            availability_impact: number;
+            /** @description Safety Impact: 1-5 (None to Critical) */
+            safety_impact: number;
+        };
+        InviteUserDto: {
+            /** @description Email address of user to invite */
+            email: string;
+            /** @description Array of role IDs to assign */
+            roles?: string[];
+        };
+        LoginDto: {
+            realm: string;
+            username: string;
+            password: string;
+            recaptchaToken: string;
+        };
+        LogoutDto: Record<string, never>;
+        MarkFalsePositiveDto: {
+            /** @description Source type of violations */
+            sourceType: string;
+        };
+        Member: {
+            id: string;
+            username?: string;
+            email?: string;
+            firstName?: string;
+            lastName?: string;
+            role?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** @description Plain `{ message: string }` envelope used by mutation acks. */
+        MessageResponse: {
+            message: string;
+        };
+        /**
+         * @description `getOrgApprovals` returns `{ approvals, metrics }` (after the
+         *     `{status,data}` envelope). Backend's organization.service.ts runs
+         *     the list + count queries in parallel.
+         */
+        OrgApprovalsResponse: {
+            /**
+             * @description Generic `{ data: T[], meta? }` envelope. Most list endpoints return
+             *     this shape; some carry `total` at the root for back-compat.
+             */
+            approvals: {
+                data: components["schemas"]["Approval"][];
+                meta?: components["schemas"]["PaginationMeta"];
+                /** Format: int32 */
+                total?: number;
+            };
+            metrics: components["schemas"]["ApprovalsMetrics"];
+        };
+        OrgFeatures: {
+            [key: string]: (boolean | string | number) | null;
+        };
+        OrgSettings: {
+            name?: string;
+            domain?: string;
+            timezone?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        Organization: {
+            id: string;
+            name: string;
+            domain?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** @description Pagination meta block returned alongside list responses. */
+        PaginationMeta: {
+            /** Format: int32 */
+            total: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            perPage: number;
+        };
+        Policy: {
+            id: string;
+            name: string;
+            description?: string;
+            rego_code: string;
+            input?: {
+                [key: string]: unknown;
+            };
+            is_active: boolean;
+            trust_impact?: string;
+            /** Format: double */
+            trust_threshold?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
+        PreviewExportDto: {
+            /** @description Filter by event types (multiple selection supported) */
+            eventTypes?: ("policy_change" | "guardrail_change" | "agent_session" | "agent_risk_configuration_change" | "agent_goal_alignment_configuration_change" | "role_change" | "security_event" | "settings_update" | "team_management" | "member_management" | "invitation")[];
+            /** @description Start date for filtering (ISO 8601 format) */
+            startDate?: string;
+            /** @description End date for filtering (ISO 8601 format) */
+            endDate?: string;
+        };
+        RefreshDto: Record<string, never>;
+        RemoveMembersDto: {
+            /** @description Array of User IDs to remove from organization */
+            memberIds: string[];
+        };
+        ReorderGuardrailDto: {
+            /** @description New order position (0-based) for the guardrail */
+            order: number;
+        };
+        ResetPasswordDto: {
+            token: string;
+            newPassword: string;
+        };
+        SendWelcomeEmailDto: {
+            /** @enum {string} */
+            type: "welcome" | "auto_password";
+            email: string;
+            orgId: string;
+            realm: string;
+            firstName?: string;
+            lastName?: string;
+            username?: string;
+            password?: string;
+        };
+        Session: {
+            id: string;
+            session_id?: string;
+            agent_id?: string;
+            workflow_id?: string;
+            run_id?: string;
+            status?: string;
+            started_at?: string;
+            /**
+             * @description Backend field is `completed_at` - use this, not `ended_at` (which
+             *     doesn't exist).
+             */
+            completed_at?: string;
+            flagged?: boolean;
+            flag_reason?: string;
+            detail?: string;
+            trust_evaluated_at?: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        SsoStatus: {
+            enabled?: boolean;
+            /** @enum {string|null} */
+            method?: "oidc" | "saml" | null;
+            enforced?: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        Team: {
+            id: string;
+            name: string;
+            description?: string;
+            icon?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        TestGuardrailDto: {
+            guardrail_type?: string;
+            params?: Record<string, never>;
+            settings?: Record<string, never>;
+            logs?: Record<string, never>;
+        };
+        TrustEvent: {
+            id: string;
+            event_type?: string;
+            /** Format: double */
+            impact?: number;
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        TrustHistory: {
+            /** Format: double */
+            trust_score: number;
+            tier?: string;
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        TrustTierChange: {
+            id: string;
+            from_tier?: string;
+            to_tier?: string;
+            reason?: string;
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        UpdateAgentAivssConfigDto: {
+            /** @description AIVSS baseline trust parameters configuration */
+            aivss_config: components["schemas"]["UpdateAivssConfigDto"];
+            /** @description Reason for change AIVSS configuration */
+            reason: string;
+        };
+        UpdateAgentDto: {
+            /** @description Name of the agent */
+            agent_name?: string;
+            /** @description Type of the agent */
+            agent_type?: string;
+            /** @description Model name used by the agent */
+            model_name?: string;
+            /** @description Description of the agent */
+            description?: string;
+            /** @description Configuration object for the agent */
+            config?: Record<string, never>;
+            /** @description Array of tags for categorizing the agent */
+            tags?: string[];
+            /** @description Array of team IDs */
+            team_ids?: string[];
+        };
+        UpdateAivssConfigDto: {
+            /** @description Base Security parameters (25% weight) */
+            base_security: components["schemas"]["BaseSecurityDto"];
+            /** @description AI-Specific parameters (45% weight) */
+            ai_specific: components["schemas"]["AISpecificDto"];
+            /** @description Impact parameters (30% weight) */
+            impact: components["schemas"]["ImpactDto"];
+        };
+        UpdateApiKeyDto: {
+            /** @description API key name */
+            name?: string;
+            /** @description Permissions granted to this key */
+            permissions?: ("write:org" | "read:org" | "create:user" | "read:user" | "update:user" | "delete:user" | "create:agent" | "read:agent" | "update:agent" | "delete:agent" | "create:team" | "read:team" | "update:team" | "delete:team" | "create:webhook" | "read:webhook" | "update:webhook" | "delete:webhook" | "create:api_key" | "read:api_key" | "update:api_key" | "delete:api_key" | "manage:sso" | "read:agent_session" | "manage:agent_session" | "read:agent_log" | "create:agent_guardrail" | "read:agent_guardrail" | "update:agent_guardrail" | "delete:agent_guardrail" | "create:agent_policy" | "read:agent_policy" | "update:agent_policy" | "delete:agent_policy" | "create:agent_behavior_rule" | "read:agent_behavior_rule" | "update:agent_behavior_rule" | "delete:agent_behavior_rule")[];
+            /** @description Key is not valid before this timestamp (ISO 8601). Set to null to remove. */
+            valid_from?: Record<string, never>;
+            /** @description Key expires at this timestamp (ISO 8601). Set to null to remove. */
+            expires_at?: Record<string, never>;
+            /** @description Allowed IP addresses or CIDRs. Set to null to allow all IPs. */
+            ip_whitelist?: Record<string, never>;
+            /** @description Active status */
+            is_active?: boolean;
+            /** @description Description */
+            description?: string;
+        };
+        UpdateBehavioralRuleDto: {
+            /** @description Rule name */
+            rule_name: string;
+            /** @description Rule description */
+            description?: string;
+            /** @description Priority (1-100, higher = more important) */
+            priority: number;
+            /**
+             * @description Trigger event
+             * @enum {string}
+             */
+            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            /** @description States (multiple select) */
+            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
+            /**
+             * Format: uuid
+             * @description The base_rule_id of the rule that this rule depends on (must be within the same agent)
+             */
+            dependency_base_rule_id?: string;
+            /** @description Time window (in seconds, minimum 1) */
+            time_window: number;
+            /**
+             * @description Verdict action
+             * @enum {number}
+             */
+            verdict: 0 | 1 | 2 | 3 | 4;
+            /** @description Reject message */
+            reject_message: string;
+            /** @description Approval timeout (in seconds, required if verdict is REQUIRE_APPROVAL) */
+            approval_timeout?: number;
+            /**
+             * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
+             * @default none
+             * @enum {string}
+             */
+            trust_impact: "none" | "low" | "medium" | "high";
+            /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
+            trust_threshold?: Record<string, never>;
+            /** @description Change log */
+            change_log: string;
+        };
+        UpdateGuardrailDto: {
+            /** @description Guardrail Type */
+            guardrail_type?: string;
+            /** @description Name of the guardrail */
+            name?: string;
+            /** @description Description of the guardrail */
+            description?: string;
+            /** @description Processing stage of the guardrail */
             processing_stage?: string;
-            /**
-             * @description Active status of the guardrail
-             * @example true
-             */
+            /** @description Active status of the guardrail */
             is_active?: boolean;
             /** @description Parameters for the guardrail */
             params?: Record<string, never>;
@@ -2136,56 +2521,22 @@ export interface components {
             /** @description Max triggers in rolling window before penalty applies. null = use system default. */
             trust_threshold?: Record<string, never>;
         };
-        ReorderGuardrailDto: {
-            /**
-             * @description New order position (0-based) for the guardrail
-             * @example 2
-             */
-            order: number;
+        UpdateMemberDto: {
+            /** @description Role ID */
+            role: string;
+            /** @description Array of team IDs */
+            team_ids: string[];
         };
-        CreatePolicyDto: {
+        UpdateOrganizationSettingsDto: {
+            /** @description Organization name */
+            name?: string;
+            /** @description Organization domain */
+            domain?: string;
             /**
-             * @description The name of the policy
-             * @example Access Control Policy
-             */
-            name: string;
-            /**
-             * @description A description of what this policy does
-             * @example Controls access to sensitive resources based on user roles
-             */
-            description?: string;
-            /**
-             * @description The Rego policy code
-             * @example default allow = false
-             *
-             *     allow {
-             *       input.user.role == "admin"
-             *     }
-             */
-            rego_code: string;
-            /**
-             * @description The Rego test input
-             * @example {
-             *       "user": "admin"
-             *     }
-             */
-            input: Record<string, never>;
-            /**
-             * @description Additional configuration for the policy
-             * @example {
-             *       "timeout": 5000,
-             *       "retries": 3
-             *     }
-             */
-            config?: Record<string, never>;
-            /**
-             * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
-             * @default none
+             * @description Organization timezone
              * @enum {string}
              */
-            trust_impact: "none" | "low" | "medium" | "high";
-            /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
-            trust_threshold?: Record<string, never>;
+            timezone?: "America/New_York (EST)" | "America/Los_Angeles (PST)" | "Europe/London (GMT)";
         };
         UpdatePolicyDto: {
             is_active: boolean;
@@ -2197,220 +2548,7 @@ export interface components {
             /** @description Max triggers in rolling window before penalty applies. null = use system default. */
             trust_threshold?: Record<string, never>;
         };
-        CreateBehaviorRuleDto: {
-            /**
-             * @description Rule name
-             * @example Block PII Data Access
-             */
-            rule_name: string;
-            /**
-             * @description Rule description
-             * @example Blocks any attempt to access PII data without approval
-             */
-            description?: string;
-            /**
-             * @description Priority (1-100, higher = more important)
-             * @example 80
-             */
-            priority: number;
-            /**
-             * @description Trigger event
-             * @example http_get
-             * @enum {string}
-             */
-            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
-            /**
-             * @description States (multiple select)
-             * @example [
-             *       "file_read",
-             *       "database_query"
-             *     ]
-             */
-            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
-            /**
-             * Format: uuid
-             * @description The base_rule_id of the rule that this rule depends on (must be within the same agent)
-             * @example a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
-             */
-            dependency_base_rule_id?: string;
-            /**
-             * @description Time window (in seconds, minimum 1)
-             * @example 60
-             */
-            time_window: number;
-            /**
-             * @description Verdict action
-             * @example 2
-             * @enum {number}
-             */
-            verdict: 0 | 1 | 2 | 3 | 4;
-            /**
-             * @description Reject message
-             * @example Access to PII data requires approval
-             */
-            reject_message: string;
-            /**
-             * @description Approval timeout (in seconds, required if verdict is REQUIRE_APPROVAL)
-             * @example 300
-             */
-            approval_timeout?: number;
-            /**
-             * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
-             * @default none
-             * @enum {string}
-             */
-            trust_impact: "none" | "low" | "medium" | "high";
-            /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
-            trust_threshold?: Record<string, never>;
-        };
-        ChangeBehaviorRuleStatusDto: {
-            /**
-             * @description New status
-             * @example false
-             */
-            is_active: boolean;
-        };
-        UpdateBehavioralRuleDto: {
-            /**
-             * @description Rule name
-             * @example Block PII Data Access
-             */
-            rule_name: string;
-            /**
-             * @description Rule description
-             * @example Blocks any attempt to access PII data without approval
-             */
-            description?: string;
-            /**
-             * @description Priority (1-100, higher = more important)
-             * @example 80
-             */
-            priority: number;
-            /**
-             * @description Trigger event
-             * @example http_get
-             * @enum {string}
-             */
-            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
-            /**
-             * @description States (multiple select)
-             * @example [
-             *       "file_read",
-             *       "database_query"
-             *     ]
-             */
-            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
-            /**
-             * Format: uuid
-             * @description The base_rule_id of the rule that this rule depends on (must be within the same agent)
-             * @example a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
-             */
-            dependency_base_rule_id?: string;
-            /**
-             * @description Time window (in seconds, minimum 1)
-             * @example 60
-             */
-            time_window: number;
-            /**
-             * @description Verdict action
-             * @example 2
-             * @enum {number}
-             */
-            verdict: 0 | 1 | 2 | 3 | 4;
-            /**
-             * @description Reject message
-             * @example Access to PII data requires approval
-             */
-            reject_message: string;
-            /**
-             * @description Approval timeout (in seconds, required if verdict is REQUIRE_APPROVAL)
-             * @example 300
-             */
-            approval_timeout?: number;
-            /**
-             * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
-             * @default none
-             * @enum {string}
-             */
-            trust_impact: "none" | "low" | "medium" | "high";
-            /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
-            trust_threshold?: Record<string, never>;
-            /**
-             * @description Change log
-             * @example Changes:
-             *     Increased timeout from 15 to 30 minutes
-             *     Added escalation to security_team after 15 minutes
-             */
-            change_log: string;
-        };
-        TestGuardrailDto: {
-            guardrail_type?: string;
-            params?: Record<string, never>;
-            settings?: Record<string, never>;
-            logs?: Record<string, never>;
-        };
-        EvaluateRegoDto: {
-            /**
-             * @description Rego policy code
-             * @example default allow = false
-             *
-             *     allow {
-             *       input.user.role == "admin"
-             *     }
-             *
-             *     allow {
-             *       input.user.role == "user"
-             *       input.resource.owner == input.user.id
-             *     }
-             */
-            policy: string;
-            /**
-             * @description Input data
-             * @example {
-             *       "user": {
-             *         "id": "123",
-             *         "role": "admin"
-             *       },
-             *       "resource": {
-             *         "id": "resource-1",
-             *         "owner": "123"
-             *       }
-             *     }
-             */
-            input: Record<string, never>;
-        };
-        CreateWebhookDto: {
-            /**
-             * @description Webhook name
-             * @example Production Alerts
-             */
-            name: string;
-            /**
-             * @description Delivery channel
-             * @example http
-             * @enum {string}
-             */
-            channel: "http" | "slack";
-            /**
-             * @description Webhook endpoint URL
-             * @example https://example.com/webhook
-             */
-            url: string;
-            /** @description HMAC secret for HTTP channel (auto-generated if omitted) */
-            secret?: string;
-            /**
-             * @description Event types to subscribe to
-             * @example [
-             *       "governance.verdict.block",
-             *       "governance.verdict.halt"
-             *     ]
-             */
-            event_types: string[];
-            /** @description Agent IDs to filter (null/omitted = all agents) */
-            agent_ids?: string[];
-            /** @description Description */
-            description?: string;
-        };
+        UpdateTeamDto: Record<string, never>;
         UpdateWebhookDto: {
             /** @description Webhook name */
             name?: string;
@@ -2430,245 +2568,68 @@ export interface components {
             /** @description Description */
             description?: string;
         };
-        CreateOrganizationDto: {
-            /** @example Zerobank */
-            orgName?: string;
-            /** @example zerobank */
-            orgId?: string;
-            /** @example Lê Thành Đạt */
-            contactName: string;
-            /** @example lethanhdatdev1503@gmail.com */
-            contactEmail: string;
-            /** @example +84984517001 */
-            contactPhone?: string;
-            /** @example Thôn Đoài, Tam Giang, Yên Phong */
-            address?: string;
-            /** @example https://openbox.ai */
-            websiteUrl?: string;
-            /** @example Fintech solution for SMBs */
-            useCase?: string;
-            /** @example Initial setup request */
-            comments?: string;
-            /** @example createagent */
-            description?: string;
-        };
-        UpdateOrganizationSettingsDto: {
-            /**
-             * @description Organization name
-             * @example Acme Corporation
-             */
+        /**
+         * @description Profile decoded from the active JWT. Bag-shape because the JWT carries
+         *     realm-specific extra claims the SDK passes through verbatim.
+         */
+        UserProfile: {
+            sub: string;
+            email: string;
             name?: string;
-            /**
-             * @description Organization domain
-             * @example acme.com
-             */
-            domain?: string;
-            /**
-             * @description Organization timezone
-             * @example America/New_York (EST)
-             * @enum {string}
-             */
-            timezone?: "America/New_York (EST)" | "America/Los_Angeles (PST)" | "Europe/London (GMT)";
+            preferred_username?: string;
+            email_verified?: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        /** @description Single role row inside `UserProfile.roles[]`. */
+        UserRole: {
+            id: string;
+            name: string;
+        } & {
+            [key: string]: unknown;
         };
         UserRoleDto: {
             id: string;
             name: string;
         };
-        CreateUserDto: {
-            username: string;
-            email: string;
-            emailVerified: boolean;
-            firstName: string;
-            lastName: string;
-            password: string;
-            roles: components["schemas"]["UserRoleDto"][];
+        Violation: {
+            id: string;
+            agent_id?: string;
+            source_type?: string;
+            pattern?: string;
+            is_false_positive?: boolean;
+            timestamp?: string;
+        } & {
+            [key: string]: unknown;
         };
-        SendWelcomeEmailDto: {
-            /** @enum {string} */
-            type: "welcome" | "auto_password";
-            email: string;
-            orgId: string;
-            realm: string;
-            firstName?: string;
-            lastName?: string;
-            username?: string;
-            password?: string;
-        };
-        InviteUserDto: {
-            /**
-             * @description Email address of user to invite
-             * @example john@example.com
-             */
-            email: string;
-            /**
-             * @description Array of role IDs to assign
-             * @example [
-             *       "rol_abc123"
-             *     ]
-             */
-            roles?: string[];
-        };
-        AssignRolesDto: {
-            /**
-             * @description Array of Role IDs
-             * @example [
-             *       "rol_abc123",
-             *       "rol_xyz789"
-             *     ]
-             */
-            roles: string[];
-        };
-        UpdateMemberDto: {
-            /** @description Role ID */
-            role: string;
-            /** @description Array of team IDs */
-            team_ids: string[];
-        };
-        RemoveMembersDto: {
-            /**
-             * @description Array of User IDs to remove from organization
-             * @example [
-             *       "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
-             *       "f81d4fae-7dec-11d0-a765-00a0c91e6bf7"
-             *     ]
-             */
-            memberIds: string[];
-        };
-        CreateTeamDto: {
-            /**
-             * @description Icon URL of agent
-             * @example https://example.com/images/agent-icon.png
-             */
-            icon: string;
-        };
-        UpdateTeamDto: Record<string, never>;
-        DeleteTeamsDto: {
-            /** @description Array of team IDs */
-            ids: string[];
-        };
-        AddTeamMembersDto: {
-            /** @description Array of user IDs */
-            user_ids: string[];
-        };
-        DeleteTeamMembersDto: {
-            /** @description Array of user IDs */
-            user_ids: string[];
-        };
-        PreviewExportDto: {
-            /**
-             * @description Filter by event types (multiple selection supported)
-             * @example [
-             *       "security_event",
-             *       "policy_change"
-             *     ]
-             */
-            eventTypes?: ("policy_change" | "guardrail_change" | "agent_session" | "agent_risk_configuration_change" | "agent_goal_alignment_configuration_change" | "role_change" | "security_event" | "settings_update" | "team_management" | "member_management" | "invitation")[];
-            /**
-             * @description Start date for filtering (ISO 8601 format)
-             * @example 2024-01-01T00:00:00Z
-             */
-            startDate?: string;
-            /**
-             * @description End date for filtering (ISO 8601 format)
-             * @example 2024-12-31T23:59:59Z
-             */
-            endDate?: string;
-        };
-        ExportAuditLogsDto: {
-            /**
-             * @description Name for this export (e.g., "December 2024 Security Events")
-             * @example December 2024 Security Events
-             */
-            exportName: string;
-            /**
-             * @description Filter by event types (multiple selection supported)
-             * @example [
-             *       "security_event",
-             *       "policy_change"
-             *     ]
-             */
-            eventTypes?: ("policy_change" | "guardrail_change" | "agent_session" | "agent_risk_configuration_change" | "agent_goal_alignment_configuration_change" | "role_change" | "security_event" | "settings_update" | "team_management" | "member_management" | "invitation")[];
-            /**
-             * @description Filter by actor ID (user ID)
-             * @example auth0|123456
-             */
-            actorId?: string;
-            /**
-             * @description Filter by result
-             * @example success
-             * @enum {string}
-             */
-            result?: "success" | "failed" | "denied" | "warning" | "approved" | "allowed";
-            /**
-             * @description Search in action text
-             * @example refund
-             */
-            search?: string;
-            /**
-             * @description Start date for filtering (ISO 8601 format)
-             * @example 2024-01-01T00:00:00Z
-             */
-            startDate?: string;
-            /**
-             * @description End date for filtering (ISO 8601 format)
-             * @example 2024-12-31T23:59:59Z
-             */
-            endDate?: string;
-        };
-        CreateApiKeyDto: {
-            /**
-             * @description API key name
-             * @example CI/CD Pipeline Key
-             */
+        Webhook: {
+            id: string;
             name: string;
-            /**
-             * @description Permissions granted to this key
-             * @example [
-             *       "read:org",
-             *       "read:agent"
-             *     ]
-             */
-            permissions: ("write:org" | "read:org" | "create:user" | "read:user" | "update:user" | "delete:user" | "create:agent" | "read:agent" | "update:agent" | "delete:agent" | "create:team" | "read:team" | "update:team" | "delete:team" | "create:webhook" | "read:webhook" | "update:webhook" | "delete:webhook" | "create:api_key" | "read:api_key" | "update:api_key" | "delete:api_key" | "manage:sso" | "read:agent_session" | "manage:agent_session" | "read:agent_log" | "create:agent_guardrail" | "read:agent_guardrail" | "update:agent_guardrail" | "delete:agent_guardrail" | "create:agent_policy" | "read:agent_policy" | "update:agent_policy" | "delete:agent_policy" | "create:agent_behavior_rule" | "read:agent_behavior_rule" | "update:agent_behavior_rule" | "delete:agent_behavior_rule")[];
-            /**
-             * @description Key is not valid before this timestamp (ISO 8601)
-             * @example 2026-01-01T00:00:00Z
-             */
-            valid_from?: string;
-            /**
-             * @description Key expires at this timestamp (ISO 8601)
-             * @example 2027-01-01T00:00:00Z
-             */
-            expires_at?: string;
-            /**
-             * @description Allowed IP addresses or CIDRs
-             * @example [
-             *       "10.0.0.0/8",
-             *       "192.168.1.1"
-             *     ]
-             */
-            ip_whitelist?: string[];
-            /** @description Description */
-            description?: string;
-        };
-        UpdateApiKeyDto: {
-            /** @description API key name */
-            name?: string;
-            /** @description Permissions granted to this key */
-            permissions?: ("write:org" | "read:org" | "create:user" | "read:user" | "update:user" | "delete:user" | "create:agent" | "read:agent" | "update:agent" | "delete:agent" | "create:team" | "read:team" | "update:team" | "delete:team" | "create:webhook" | "read:webhook" | "update:webhook" | "delete:webhook" | "create:api_key" | "read:api_key" | "update:api_key" | "delete:api_key" | "manage:sso" | "read:agent_session" | "manage:agent_session" | "read:agent_log" | "create:agent_guardrail" | "read:agent_guardrail" | "update:agent_guardrail" | "delete:agent_guardrail" | "create:agent_policy" | "read:agent_policy" | "update:agent_policy" | "delete:agent_policy" | "create:agent_behavior_rule" | "read:agent_behavior_rule" | "update:agent_behavior_rule" | "delete:agent_behavior_rule")[];
-            /** @description Key is not valid before this timestamp (ISO 8601). Set to null to remove. */
-            valid_from?: Record<string, never>;
-            /** @description Key expires at this timestamp (ISO 8601). Set to null to remove. */
-            expires_at?: Record<string, never>;
-            /** @description Allowed IP addresses or CIDRs. Set to null to allow all IPs. */
-            ip_whitelist?: Record<string, never>;
-            /** @description Active status */
+            /** @enum {string} */
+            channel: "http" | "slack";
+            url: string;
+            event_types: string[];
+            agent_ids?: string[] | null;
             is_active?: boolean;
-            /** @description Description */
             description?: string;
+            created_at?: string;
+            updated_at?: string;
+        } & {
+            [key: string]: unknown;
         };
-        ConfigureSamlDto: Record<string, never>;
-        ConfigureOidcDto: Record<string, never>;
-        EnforceSsoDto: Record<string, never>;
+        WebhookDelivery: {
+            id: string;
+            webhook_id: string;
+            event_type?: string;
+            status?: string;
+            /** Format: int32 */
+            status_code?: number;
+            /** Format: int32 */
+            attempt_count?: number;
+            delivered_at?: string;
+        } & {
+            [key: string]: unknown;
+        };
     };
     responses: never;
     parameters: never;
@@ -2678,58 +2639,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    AppController_getHello: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AuthController_getProfile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AuthController_getCsrf: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AuthController_login: {
+    AgentController_getAivssScore: {
         parameters: {
             query?: never;
             header?: never;
@@ -2738,10 +2648,11 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LoginDto"];
+                "application/json": components["schemas"]["AivssConfigDto"];
             };
         };
         responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -2750,7 +2661,25 @@ export interface operations {
             };
         };
     };
-    AuthController_logout: {
+    AgentController_getSemanticTypes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_createAgent: {
         parameters: {
             query?: never;
             header?: never;
@@ -2759,146 +2688,12 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LogoutDto"];
+                "application/json": components["schemas"]["CreateAgentDto"];
             };
         };
         responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
             201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AuthController_forgotPassword: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ForgotPasswordDto"];
-            };
-        };
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AuthController_resetPassword: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ResetPasswordDto"];
-            };
-        };
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AuthController_changePassword: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChangePasswordDto"];
-            };
-        };
-        responses: {
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AuthController_refreshToken: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RefreshDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    UserController_getRoles: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getViolations: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getAgentsMetrics: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2929,6 +2724,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2937,20 +2733,17 @@ export interface operations {
             };
         };
     };
-    AgentController_getAivssScore: {
+    AgentController_getAgentsMetrics: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AivssConfigDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            201: {
+            /** @description The request has succeeded. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2958,20 +2751,17 @@ export interface operations {
             };
         };
     };
-    AgentController_createAgent: {
+    AgentController_getViolations: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateAgentDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            201: {
+            /** @description The request has succeeded. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2990,6 +2780,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3013,6 +2804,7 @@ export interface operations {
             };
         };
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3032,6 +2824,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3040,7 +2833,27 @@ export interface operations {
             };
         };
     };
-    AgentController_getAgentEvaluations: {
+    AgentController_getActiveSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_updateAivssConfig: {
         parameters: {
             query?: never;
             header?: never;
@@ -3051,10 +2864,11 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GetAgentViolationsDto"];
+                "application/json": components["schemas"]["UpdateAgentAivssConfigDto"];
             };
         };
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3063,23 +2877,19 @@ export interface operations {
             };
         };
     };
-    AgentController_markAsFalsePositive: {
+    AgentController_recalculateTrustScore: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 agentId: string;
-                violationId: string;
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MarkFalsePositiveDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            200: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3087,13 +2897,24 @@ export interface operations {
             };
         };
     };
-    AgentController_getAgentLogs: {
+    AgentController_getApprovalHistory: {
         parameters: {
             query?: {
                 /** @description Page number (starts from 0) */
                 page?: number;
                 /** @description Number of items per page */
                 perPage?: number;
+                search?: string;
+                /** @description Filter by status */
+                status?: "pending" | "approved" | "rejected" | "expired";
+                /** @description Tier list */
+                tiers?: string[];
+                /** @description Team ID */
+                agent_id?: string;
+                /** @description Start time (ISO format) */
+                fromTime?: string;
+                /** @description End time (ISO format) */
+                toTime?: string;
             };
             header?: never;
             path: {
@@ -3103,6 +2924,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3111,13 +2933,13 @@ export interface operations {
             };
         };
     };
-    AgentController_getDriftEvents: {
+    AgentController_getAgentApprovalsMetrics: {
         parameters: {
             query?: {
-                /** @description Page number (starts from 0) */
-                page?: number;
-                /** @description Number of items per page */
-                perPage?: number;
+                /** @description Filter events starting from this time */
+                fromTime?: string;
+                /** @description Filter events ending before this time */
+                toTime?: string;
             };
             header?: never;
             path: {
@@ -3127,6 +2949,67 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getPendingApprovals: {
+        parameters: {
+            query?: {
+                /** @description Page number (starts from 0) */
+                page?: number;
+                /** @description Number of items per page */
+                perPage?: number;
+                search?: string;
+                /** @description Filter by status */
+                status?: "pending" | "approved" | "rejected" | "expired";
+                /** @description Tier list */
+                tiers?: string[];
+                /** @description Team ID */
+                agent_id?: string;
+                /** @description Start time (ISO format) */
+                fromTime?: string;
+                /** @description End time (ISO format) */
+                toTime?: string;
+            };
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_decideApproval: {
+        parameters: {
+            query: {
+                /** @description Approve/reject request */
+                action: "approve" | "reject";
+            };
+            header?: never;
+            path: {
+                agentId: string;
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3155,6 +3038,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3163,7 +3047,38 @@ export interface operations {
             };
         };
     };
-    AgentController_updateAivssConfig: {
+    AgentController_getBehaviorRuleList: {
+        parameters: {
+            query?: {
+                /** @description Page number (starts from 0) */
+                page?: number;
+                /** @description Number of items per page */
+                perPage?: number;
+                /** @description Filter by verdict */
+                verdict?: 0 | 1 | 2 | 3 | 4;
+                /** @description Filter by status */
+                is_active?: boolean;
+                /** @description Filter by trigger */
+                trigger?: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            };
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_createBehaviorRule: {
         parameters: {
             query?: never;
             header?: never;
@@ -3174,10 +3089,220 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdateAgentAivssConfigDto"];
+                "application/json": components["schemas"]["CreateBehaviorRuleDto"];
             };
         };
         responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getCurrentBehaviorRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getBehavioralRuleHistories: {
+        parameters: {
+            query?: {
+                /** @description Page number (starts from 0) */
+                page?: number;
+                /** @description Number of items per page */
+                perPage?: number;
+            };
+            header?: never;
+            path: {
+                agentId: string;
+                behaviorGroupdId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getBehaviorRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentId: string;
+                behaviorRuleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_updateBehaviorRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentId: string;
+                behaviorRuleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBehavioralRuleDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_rollbackBehaviorRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentId: string;
+                behaviorRuleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_deleteBehaviorRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentId: string;
+                behaviorRuleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_changeBehaviorRuleStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentId: string;
+                behaviorRuleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeBehaviorRuleStatusDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getBehaviorMetrics: {
+        parameters: {
+            query?: {
+                /** @description Filter events starting from this time */
+                fromTime?: string;
+                /** @description Filter events ending before this time */
+                toTime?: string;
+            };
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getBehaviorViolations: {
+        parameters: {
+            query?: {
+                /** @description Page number (starts from 0) */
+                page?: number;
+                /** @description Number of items per page */
+                perPage?: number;
+            };
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3201,6 +3326,7 @@ export interface operations {
             };
         };
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3209,9 +3335,11 @@ export interface operations {
             };
         };
     };
-    AgentController_recalculateTrustScore: {
+    AgentController_getRecentDriftEvents: {
         parameters: {
-            query?: never;
+            query: {
+                limit: number;
+            };
             header?: never;
             path: {
                 agentId: string;
@@ -3220,7 +3348,33 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            201: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getGoalAlignmentTrend: {
+        parameters: {
+            query?: {
+                /** @description Filter events starting from this time */
+                fromTime?: string;
+                /** @description Filter events ending before this time */
+                toTime?: string;
+            };
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3246,6 +3400,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3269,6 +3424,7 @@ export interface operations {
             };
         };
         responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -3293,6 +3449,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3323,6 +3480,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3343,6 +3501,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3367,6 +3526,7 @@ export interface operations {
             };
         };
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3387,6 +3547,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3411,6 +3572,132 @@ export interface operations {
             };
         };
         responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getInsightMetrics: {
+        parameters: {
+            query?: {
+                /** @description Filter events starting from this time */
+                fromTime?: string;
+                /** @description Filter events ending before this time */
+                toTime?: string;
+            };
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getIssues: {
+        parameters: {
+            query?: {
+                /** @description Page number (starts from 0) */
+                page?: number;
+                /** @description Number of items per page */
+                perPage?: number;
+            };
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getAgentLogs: {
+        parameters: {
+            query?: {
+                /** @description Page number (starts from 0) */
+                page?: number;
+                /** @description Number of items per page */
+                perPage?: number;
+            };
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getDriftEvents: {
+        parameters: {
+            query?: {
+                /** @description Page number (starts from 0) */
+                page?: number;
+                /** @description Number of items per page */
+                perPage?: number;
+            };
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getObservability: {
+        parameters: {
+            query?: {
+                /** @description Start time (ISO format). Default: 24 hours ago */
+                fromTime?: string;
+                /** @description End time (ISO format). Default: now */
+                toTime?: string;
+            };
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3435,6 +3722,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3458,7 +3746,28 @@ export interface operations {
             };
         };
         responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getCurrentPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3482,25 +3791,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getCurrentPolicy: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3521,6 +3812,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3545,6 +3837,7 @@ export interface operations {
             };
         };
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3570,7 +3863,48 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_revokeApiKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_rotateApiKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3604,25 +3938,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getActiveSessions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3643,6 +3959,28 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getSessionGoalAlignmentStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3670,26 +4008,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getSessionGoalAlignmentStats: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
-                sessionId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3710,6 +4029,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3730,621 +4050,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getGoalAlignmentTrend: {
-        parameters: {
-            query?: {
-                /** @description Filter events starting from this time */
-                fromTime?: string;
-                /** @description Filter events ending before this time */
-                toTime?: string;
-            };
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getRecentDriftEvents: {
-        parameters: {
-            query: {
-                limit: number;
-            };
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_rotateApiKey: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_revokeApiKey: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getObservability: {
-        parameters: {
-            query?: {
-                /** @description Start time (ISO format). Default: 24 hours ago */
-                fromTime?: string;
-                /** @description End time (ISO format). Default: now */
-                toTime?: string;
-            };
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getIssues: {
-        parameters: {
-            query?: {
-                /** @description Page number (starts from 0) */
-                page?: number;
-                /** @description Number of items per page */
-                perPage?: number;
-            };
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getSemanticTypes: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getBehaviorRuleList: {
-        parameters: {
-            query?: {
-                /** @description Page number (starts from 0) */
-                page?: number;
-                /** @description Number of items per page */
-                perPage?: number;
-                /** @description Filter by verdict */
-                verdict?: 0 | 1 | 2 | 3 | 4;
-                /** @description Filter by status */
-                is_active?: boolean;
-                /** @description Filter by trigger */
-                trigger?: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
-            };
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_createBehaviorRule: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateBehaviorRuleDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getCurrentBehaviorRule: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getBehaviorRule: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
-                behaviorRuleId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_updateBehaviorRule: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
-                behaviorRuleId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateBehavioralRuleDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_rollbackBehaviorRule: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
-                behaviorRuleId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_deleteBehaviorRule: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
-                behaviorRuleId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_changeBehaviorRuleStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
-                behaviorRuleId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChangeBehaviorRuleStatusDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getBehavioralRuleHistories: {
-        parameters: {
-            query?: {
-                /** @description Page number (starts from 0) */
-                page?: number;
-                /** @description Number of items per page */
-                perPage?: number;
-            };
-            header?: never;
-            path: {
-                agentId: string;
-                behaviorGroupdId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getBehaviorMetrics: {
-        parameters: {
-            query?: {
-                /** @description Filter events starting from this time */
-                fromTime?: string;
-                /** @description Filter events ending before this time */
-                toTime?: string;
-            };
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getAgentTrustHistories: {
-        parameters: {
-            query: {
-                /** @description Time duration for history */
-                duration: "7d" | "30d" | "90d" | "1y";
-            };
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getAgentTrustScoreEvents: {
-        parameters: {
-            query?: {
-                /** @description Page number (starts from 0) */
-                page?: number;
-                /** @description Number of items per page */
-                perPage?: number;
-                /** @description Filter events starting from this time */
-                fromTime?: string;
-                /** @description Filter events ending before this time */
-                toTime?: string;
-            };
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getAgentTrustRecoveryStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getAgentApprovalsMetrics: {
-        parameters: {
-            query?: {
-                /** @description Filter events starting from this time */
-                fromTime?: string;
-                /** @description Filter events ending before this time */
-                toTime?: string;
-            };
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getPendingApprovals: {
-        parameters: {
-            query?: {
-                /** @description Page number (starts from 0) */
-                page?: number;
-                /** @description Number of items per page */
-                perPage?: number;
-                search?: string;
-                /** @description Filter by status */
-                status?: "pending" | "approved" | "rejected" | "expired";
-                /** @description Tier list */
-                tiers?: string[];
-                /** @description Team ID */
-                agent_id?: string;
-                /** @description Start time (ISO format) */
-                fromTime?: string;
-                /** @description End time (ISO format) */
-                toTime?: string;
-                /** @description Organization ID */
-                organization_id?: string;
-            };
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getApprovalHistory: {
-        parameters: {
-            query?: {
-                /** @description Page number (starts from 0) */
-                page?: number;
-                /** @description Number of items per page */
-                perPage?: number;
-                search?: string;
-                /** @description Filter by status */
-                status?: "pending" | "approved" | "rejected" | "expired";
-                /** @description Tier list */
-                tiers?: string[];
-                /** @description Team ID */
-                agent_id?: string;
-                /** @description Start time (ISO format) */
-                fromTime?: string;
-                /** @description End time (ISO format) */
-                toTime?: string;
-                /** @description Organization ID */
-                organization_id?: string;
-            };
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_decideApproval: {
-        parameters: {
-            query: {
-                /** @description Approve/reject request */
-                action: "approve" | "reject";
-            };
-            header?: never;
-            path: {
-                agentId: string;
-                eventId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getInsightMetrics: {
-        parameters: {
-            query?: {
-                /** @description Filter events starting from this time */
-                fromTime?: string;
-                /** @description Filter events ending before this time */
-                toTime?: string;
-            };
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AgentController_getBehaviorViolations: {
-        parameters: {
-            query?: {
-                /** @description Page number (starts from 0) */
-                page?: number;
-                /** @description Number of items per page */
-                perPage?: number;
-            };
-            header?: never;
-            path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4373,7 +4079,406 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getAgentTrustScoreEvents: {
+        parameters: {
+            query?: {
+                /** @description Page number (starts from 0) */
+                page?: number;
+                /** @description Number of items per page */
+                perPage?: number;
+                /** @description Filter events starting from this time */
+                fromTime?: string;
+                /** @description Filter events ending before this time */
+                toTime?: string;
+            };
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getAgentTrustHistories: {
+        parameters: {
+            query: {
+                /** @description Time duration for history */
+                duration: "7d" | "30d" | "90d" | "1y";
+            };
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getAgentTrustRecoveryStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_getAgentEvaluations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GetAgentViolationsDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AgentController_markAsFalsePositive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentId: string;
+                violationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkFalsePositiveDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ApiKeyController_list: {
+        parameters: {
+            query?: {
+                /** @description Page number (starts from 0) */
+                page?: number;
+                /** @description Number of items per page */
+                perPage?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ApiKeyController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateApiKeyDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ApiKeyController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ApiKeyController_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ApiKeyController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateApiKeyDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AuthController_changePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordDto"];
+            };
+        };
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AuthController_getCsrf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AuthController_forgotPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotPasswordDto"];
+            };
+        };
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AuthController_login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AuthController_logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogoutDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AuthController_getProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AuthController_refreshToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AuthController_resetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordDto"];
+            };
+        };
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4394,6 +4499,7 @@ export interface operations {
             };
         };
         responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -4402,215 +4508,7 @@ export interface operations {
             };
         };
     };
-    PolicyController_evaluate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EvaluateRegoDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    WebhookController_list: {
-        parameters: {
-            query?: {
-                /** @description Page number (starts from 0) */
-                page?: number;
-                /** @description Number of items per page */
-                perPage?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    WebhookController_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateWebhookDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    WebhookController_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    WebhookController_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    WebhookController_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateWebhookDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    WebhookController_getDeliveryLogs: {
-        parameters: {
-            query?: {
-                /** @description Page number (starts from 0) */
-                page?: number;
-                /** @description Number of items per page */
-                perPage?: number;
-            };
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    WebhookController_test: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    WebhookController_regenerateSecret: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_createOrganization: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateOrganizationDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_getDemoSetupStatus: {
+    AppController_getHello: {
         parameters: {
             query?: never;
             header?: never;
@@ -4619,450 +4517,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_getOrgSetting: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                organizationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_updateOrgSetting: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                organizationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateOrganizationSettingsDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_getFeatures: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                organizationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_getMembers: {
-        parameters: {
-            query?: {
-                /** @description Page number (starts from 0) */
-                page?: number;
-                /** @description Number of items per page */
-                perPage?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_removeMembers: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RemoveMembersDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_createUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                organizationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateUserDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_sendWelcomeEmail: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SendWelcomeEmailDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_inviteUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InviteUserDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_assignRoles: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AssignRolesDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_removeRoles: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AssignRolesDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_updateMember: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateMemberDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_getTeams: {
-        parameters: {
-            query?: {
-                /** @description Page number (starts from 0) */
-                page?: number;
-                /** @description Number of items per page */
-                perPage?: number;
-            };
-            header?: never;
-            path: {
-                organizationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_createTeam: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                organizationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateTeamDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_deleteTeams: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                organizationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DeleteTeamsDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_getTeamStats: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                organizationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_getTeam: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                organizationId: string;
-                teamId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_updateTeam: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                organizationId: string;
-                teamId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateTeamDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_getTeamMembers: {
-        parameters: {
-            query?: {
-                /** @description Page number (starts from 0) */
-                page?: number;
-                /** @description Number of items per page */
-                perPage?: number;
-            };
-            header?: never;
-            path: {
-                organizationId: string;
-                teamId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_addMembers: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                organizationId: string;
-                teamId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AddTeamMembersDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_removeTeamMembers: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                organizationId: string;
-                teamId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DeleteTeamMembersDto"];
-            };
-        };
-        responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5097,7 +4552,31 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_exportAuditLogs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Optional filters for audit log export. Leave empty to export all logs. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportAuditLogsDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5118,6 +4597,7 @@ export interface operations {
             };
         };
         responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -5126,21 +4606,59 @@ export interface operations {
             };
         };
     };
-    OrganizationController_exportAuditLogs: {
+    OrganizationController_getExportStatus: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                exportId: string;
+            };
             cookie?: never;
         };
-        /** @description Optional filters for audit log export. Leave empty to export all logs. */
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["ExportAuditLogsDto"];
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
+    };
+    OrganizationController_deleteExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exportId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
-            201: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_downloadExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exportId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5168,63 +4686,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_getExportStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                exportId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_deleteExport: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                exportId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_downloadExport: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                exportId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5244,6 +4706,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5252,53 +4715,7 @@ export interface operations {
             };
         };
     };
-    OrganizationController_getObservability: {
-        parameters: {
-            query?: {
-                /** @description Start time (ISO format). Default: 24 hours ago */
-                fromTime?: string;
-                /** @description End time (ISO format). Default: now */
-                toTime?: string;
-            };
-            header?: never;
-            path: {
-                organizationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_getApprovalsMetrics: {
-        parameters: {
-            query?: {
-                /** @description Filter events starting from this time */
-                fromTime?: string;
-                /** @description Filter events ending before this time */
-                toTime?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    OrganizationController_getSlaPerformance: {
+    OrganizationController_getDemoSetupStatus: {
         parameters: {
             query?: never;
             header?: never;
@@ -5307,6 +4724,49 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_createOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateOrganizationDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_getOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5333,15 +4793,16 @@ export interface operations {
                 fromTime?: string;
                 /** @description End time (ISO format) */
                 toTime?: string;
-                /** @description Organization ID */
-                organization_id?: string;
             };
             header?: never;
-            path?: never;
+            path: {
+                organizationId: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5359,11 +4820,84 @@ export interface operations {
                 perPage?: number;
             };
             header?: never;
-            path?: never;
+            path: {
+                organizationId: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_getApprovalsMetrics: {
+        parameters: {
+            query?: {
+                /** @description Filter events starting from this time */
+                fromTime?: string;
+                /** @description Filter events ending before this time */
+                toTime?: string;
+            };
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_getSlaPerformance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_getObservability: {
+        parameters: {
+            query?: {
+                /** @description Start time (ISO format). Default: 24 hours ago */
+                fromTime?: string;
+                /** @description End time (ISO format). Default: now */
+                toTime?: string;
+            };
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5376,12 +4910,207 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                organizationId: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_getFeatures: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_inviteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteUserDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_getMembers: {
+        parameters: {
+            query?: {
+                /** @description Page number (starts from 0) */
+                page?: number;
+                /** @description Number of items per page */
+                perPage?: number;
+            };
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_removeMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoveMembersDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_updateMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMemberDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_assignRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignRolesDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_removeRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignRolesDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_sendWelcomeEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendWelcomeEmailDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5408,11 +5137,14 @@ export interface operations {
                 search?: string;
             };
             header?: never;
-            path?: never;
+            path: {
+                organizationId: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5421,7 +5153,7 @@ export interface operations {
             };
         };
     };
-    OrganizationController_getOrganization: {
+    OrganizationController_getOrgSetting: {
         parameters: {
             query?: never;
             header?: never;
@@ -5432,6 +5164,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5440,7 +5173,31 @@ export interface operations {
             };
         };
     };
-    ApiKeyController_list: {
+    OrganizationController_updateOrgSetting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateOrganizationSettingsDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_getTeams: {
         parameters: {
             query?: {
                 /** @description Page number (starts from 0) */
@@ -5449,11 +5206,14 @@ export interface operations {
                 perPage?: number;
             };
             header?: never;
-            path?: never;
+            path: {
+                organizationId: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5462,19 +5222,22 @@ export interface operations {
             };
         };
     };
-    ApiKeyController_create: {
+    OrganizationController_createTeam: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                organizationId: string;
+            };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateApiKeyDto"];
+                "application/json": components["schemas"]["CreateTeamDto"];
             };
         };
         responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -5483,60 +5246,211 @@ export interface operations {
             };
         };
     };
-    ApiKeyController_get: {
+    OrganizationController_deleteTeams: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    ApiKeyController_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    ApiKeyController_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
+                organizationId: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdateApiKeyDto"];
+                "application/json": components["schemas"]["DeleteTeamsDto"];
             };
         };
         responses: {
+            /** @description The request has succeeded. */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_getTeamStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_getTeam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+                teamId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_updateTeam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+                teamId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTeamDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_getTeamMembers: {
+        parameters: {
+            query?: {
+                /** @description Page number (starts from 0) */
+                page?: number;
+                /** @description Number of items per page */
+                perPage?: number;
+            };
+            header?: never;
+            path: {
+                organizationId: string;
+                teamId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_addMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+                teamId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddTeamMembersDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_removeTeamMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+                teamId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteTeamMembersDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_createUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUserDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PolicyController_evaluate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvaluateRegoDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5553,6 +5467,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5570,49 +5485,8 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    SsoController_configureSaml: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConfigureSamlDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    SsoController_configureOidc: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConfigureOidcDto"];
-            };
-        };
-        responses: {
-            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5633,6 +5507,7 @@ export interface operations {
             };
         };
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5650,6 +5525,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5658,15 +5534,42 @@ export interface operations {
             };
         };
     };
-    SsoController_verifyConfiguration: {
+    SsoController_configureOidc: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigureOidcDto"];
+            };
+        };
         responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SsoController_configureSaml: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigureSamlDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -5686,7 +5589,218 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The request has succeeded. */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SsoController_verifyConfiguration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    UserController_getRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WebhookController_list: {
+        parameters: {
+            query?: {
+                /** @description Page number (starts from 0) */
+                page?: number;
+                /** @description Number of items per page */
+                perPage?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WebhookController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWebhookDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WebhookController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WebhookController_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WebhookController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateWebhookDto"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WebhookController_getDeliveryLogs: {
+        parameters: {
+            query?: {
+                /** @description Page number (starts from 0) */
+                page?: number;
+                /** @description Number of items per page */
+                perPage?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WebhookController_regenerateSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    WebhookController_test: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

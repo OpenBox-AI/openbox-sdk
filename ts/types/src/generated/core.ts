@@ -11,7 +11,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health check */
+        /**
+         * Health check
+         * @description Returns the literal string `hello world`. Used by load balancers and uptime probes.
+         */
         get: operations["healthCheck"];
         put?: never;
         post?: never;
@@ -28,34 +31,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Validate SDK API key */
+        /**
+         * Validate the bearer API key
+         * @description Verifies the `Authorization: Bearer <obx_live_*|obx_test_*>` header
+         *     against the agent registry. Returns the resolved agent identity
+         *     and the `live` vs `test` environment derived from the prefix.
+         */
         get: operations["validateApiKey"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/governance/evaluate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Evaluate governance event
-         * @description Core governance endpoint. Receives telemetry events from SDKs and returns
-         *     a verdict (allow/constrain/require_approval/block/halt).
-         *
-         *     Internally runs: token validation → session check → dedup → OPA policy →
-         *     guardrails → AGE behavioral compliance → goal alignment → attestation.
-         */
-        post: operations["evaluateGovernance"];
         delete?: never;
         options?: never;
         head?: never;
@@ -73,10 +57,48 @@ export interface paths {
         put?: never;
         /**
          * Poll approval status
-         * @description SDK polls this endpoint after receiving a REQUIRE_APPROVAL verdict.
-         *     Returns the current approval status (pending/approved/rejected/expired).
+         * @description SDK polls this after a `require_approval` verdict. Lookup is by
+         *     `(workflow_id, run_id, activity_id)` - the tuple uniquely
+         *     identifies the activity attempt awaiting human decision.
+         *
+         *     This endpoint does NOT require a bearer API key - the SDK
+         *     (and any third-party approver UI) needs to poll for status
+         *     without an agent token.
          */
         post: operations["pollApproval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/governance/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Evaluate a governance event
+         * @description Receives one event from a governed workflow and returns a verdict.
+         *     The wire format multiplexes five `event_type` values
+         *     (WorkflowStarted, WorkflowCompleted, WorkflowFailed,
+         *     ActivityStarted, ActivityCompleted, SignalReceived) onto a single
+         *     struct - populate only the fields relevant to the event type.
+         *
+         *     Internally fans out to: token validation -> session check ->
+         *     dedup -> OPA policy -> guardrails -> AGE behavioral compliance ->
+         *     goal alignment -> attestation. Verdict is the highest-priority
+         *     result across all branches. Default workflow timeout is 30s.
+         *
+         *     The SDK MUST propagate the original `WorkflowID` / `RunID` /
+         *     `ActivityID` across paired Started/Completed events for dedup
+         *     and approval polling to work.
+         */
+        post: operations["evaluateGovernance"];
         delete?: never;
         options?: never;
         head?: never;
@@ -87,111 +109,422 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        CoreError: {
-            /** @example 401 */
-            code?: number;
-            /** @example missing authorization token */
-            message?: string;
+        AGEAlignmentResult: {
+            is_aligned: boolean;
+            /** Format: double */
+            score: number;
         };
-        GovernanceEventPayload: {
-            /** @enum {string} */
-            event_type: "WorkflowStarted" | "WorkflowCompleted" | "ActivityStarted" | "ActivityCompleted" | "LLMStarted" | "LLMCompleted" | "ToolStarted" | "ToolCompleted" | "SignalReceived";
-            workflow_id: string;
-            workflow_type?: string;
-            run_id: string;
-            activity_id?: string;
-            activity_type?: string;
-            activity_input?: unknown[] | Record<string, never>;
-            activity_output?: unknown;
-            /** @default workflow-telemetry */
-            source: string;
-            /** @enum {string} */
-            task_queue?: "langgraph" | "temporal" | "mastra";
-            /** Format: date-time */
-            timestamp?: string;
-            /** @default false */
-            hook_trigger: boolean;
-            goal?: string;
-            span_count?: number;
-            spans?: components["schemas"]["SpanObject"][];
-            error?: {
-                type?: string;
-                message?: string;
-            };
-            duration_ms?: number;
-            attempt?: number;
-            __openbox?: {
-                tool_type?: string;
-                subagent_name?: string;
-            };
-        };
-        SpanObject: {
-            name?: string;
-            trace_id?: string;
-            span_id?: string;
-            parent_span_id?: string;
-            kind?: string;
-            /** @description Nanoseconds */
-            start_time?: number;
-            end_time?: number;
-            duration_ns?: number;
-            attributes?: {
-                "http.method"?: string;
-                "http.url"?: string;
-                "http.status_code"?: number;
-                "db.operation"?: string;
-                "db.statement"?: string;
-                "file.operation"?: string;
-                "file.path"?: string;
-            };
-            request_headers?: Record<string, never>;
-            response_headers?: Record<string, never>;
-            request_body?: string;
-            response_body?: string;
-            status?: {
-                code?: string;
-                description?: string;
-            };
-            events?: Record<string, never>[];
-        };
-        GovernanceVerdictResponse: {
-            /** @enum {string} */
-            verdict?: "ALLOW" | "CONSTRAIN" | "REQUIRE_APPROVAL" | "BLOCK" | "HALT";
-            /** @enum {string} */
-            action?: "allow" | "constrain" | "approval" | "block" | "halt";
+        /**
+         * @description Output of the AGE (Agent Governance Engine) evaluation -
+         *     behavioral compliance, alignment scoring, trust update.
+         */
+        AGEResult: {
+            allowed: boolean;
+            verdict: components["schemas"]["Verdict"];
             reason?: string;
-            policy_id?: string;
-            approval_id?: string;
-            guardrails_result?: {
-                validation_passed?: boolean;
-                /** @enum {string} */
-                input_type?: "activity_input" | "activity_output";
-                redacted_input?: unknown;
-                reasons?: string[];
-            };
-            age_result?: {
-                fallback_used?: boolean;
-                goal_alignment_checked?: boolean;
-                goal_drifted?: boolean;
-            };
+            /** @description True if LlamaFirewall ran for this event. */
+            goal_alignment_checked: boolean;
+            /** @description True if alignment score crossed the agent's threshold. */
+            goal_drifted: boolean;
+            fallback_used: boolean;
+            final_trust_score?: components["schemas"]["AGETrustScore"];
+            span_results: components["schemas"]["AGESpanResult"][];
+            /** Format: int32 */
+            total_spans: number;
+            /** Format: int32 */
+            violations_count: number;
+            /** Format: int64 */
+            response_time_ms: number;
         };
-        ApprovalPollRequest: {
+        AGESpanResult: {
+            span_id: string;
+            semantic_type: string;
+            /** @description Free-form behavioral evaluator output. Null when not evaluated. */
+            behavioral_result: unknown;
+            alignment_result?: components["schemas"]["AGEAlignmentResult"];
+            trust_score_after?: components["schemas"]["AGETrustScore"];
+            /** Format: date-time */
+            timestamp: string;
+        };
+        AGETrustScore: {
+            /** Format: double */
+            trust_score: number;
+            /** Format: int32 */
+            trust_tier: number;
+            /** Format: double */
+            behavioral_compliance: number;
+            /** Format: double */
+            alignment_consistency: number;
+            /** Format: double */
+            aivss_baseline: number;
+        };
+        /**
+         * @description Response from `/auth/validate`. `environment` is derived from the
+         *     token prefix (`obx_live_*` -> `live`, `obx_test_*` -> `test`,
+         *     anything else -> `unknown`).
+         */
+        AgentValidationResponse: {
+            valid: boolean;
+            /**
+             * @description False if the agent record exists but is suspended/disabled.
+             *     (The 401 path handles unknown / malformed tokens; this flag
+             *     distinguishes a known-but-inactive agent.)
+             */
+            active: boolean;
+            /** Format: uuid */
+            agent_id: string;
+            agent_name: string;
+            /** @enum {string} */
+            environment: "live" | "test" | "unknown";
+            message: string;
+        };
+        /**
+         * @description Lookup tuple for `/governance/approval`. The server only
+         *     validates non-empty strings - no auth, no bearer header.
+         */
+        ApprovalStatusRequest: {
             workflow_id: string;
             run_id: string;
             activity_id: string;
         };
-        ApprovalPollResponse: {
-            /** @enum {string} */
-            verdict?: "ALLOW" | "BLOCK" | "REQUIRE_APPROVAL" | "HALT";
-            action?: string;
+        ApprovalStatusResponse: {
+            /**
+             * Format: uuid
+             * @description Governance event ID.
+             */
+            id: string;
+            action: components["schemas"]["LegacyAction"];
             reason?: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Absent when the request hasn't entered the approval flow yet
+             *     or when no expiration was set on the policy.
+             */
             approval_expiration_time?: string;
-            expired?: boolean;
         };
+        CoreError: {
+            /** @description HTTP status echoed in the body. */
+            code: number;
+            message: string;
+        };
+        ErrorInfo: {
+            type: string;
+            message: string;
+            stack_trace?: string;
+            cause?: components["schemas"]["ErrorInfo"];
+            /** @description Application-level error classifier (e.g. Temporal's ApplicationError type). */
+            error_type?: string;
+            non_retryable?: boolean;
+        };
+        /**
+         * @description Discriminator for the unified `GovernanceEventPayload`.
+         * @enum {string}
+         */
+        EventType: "WorkflowStarted" | "WorkflowCompleted" | "WorkflowFailed" | "ActivityStarted" | "ActivityCompleted" | "SignalReceived";
+        /**
+         * @description Unified event payload - all six event types share this shape, and
+         *     only the fields relevant to that type are populated. The SDK
+         *     keeps `workflow_id` and `run_id` constant across one workflow
+         *     run; `activity_id` is per-action and pairs ActivityStarted with
+         *     ActivityCompleted.
+         *
+         *     The `required` block here lists every field the Go struct
+         *     always emits / accepts as a non-pointer string. The handler's
+         *     explicit validation is narrower (`event_type`, `workflow_id`,
+         *     `run_id` only) - clients that cannot fill the others should
+         *     send empty strings rather than omit the keys.
+         */
+        GovernanceEventPayload: {
+            /** @description Originating system. Conventionally `workflow-telemetry`. */
+            source: string;
+            event_type: components["schemas"]["EventType"];
+            workflow_id: string;
+            run_id: string;
+            /** @description Implementation-specific workflow class name. */
+            workflow_type: string;
+            /**
+             * @description Originating SDK / runtime.
+             * @enum {string}
+             */
+            task_queue: "langgraph" | "temporal" | "mastra" | "claude-code" | "cursor" | "generic";
+            /** Format: date-time */
+            timestamp: string;
+            /**
+             * @description Server-populated from the `X-OpenBox-SDK-Version` header on
+             *     ingest. Clients should set the header, not this field;
+             *     included here because the JSON shape carries it forward.
+             */
+            sdk_version?: string;
+            /** @description Set on `WorkflowStarted` for child workflows. */
+            parent_workflow_id?: string;
+            /**
+             * @description Set on `WorkflowCompleted`/`WorkflowFailed`.
+             * @enum {string}
+             */
+            status?: "completed" | "failed" | "cancelled" | "terminated";
+            /** @description Set on Activity* and SignalReceived events. */
+            activity_id?: string;
+            /**
+             * @description Canonical activity type (e.g. `PromptSubmission`, `LLMCompleted`,
+             *     `ToolCompleted`, `FileRead`, `FileEdit`, `ShellExecution`,
+             *     `MCPToolCall`). See sdk-implementation-guide for the full list.
+             */
+            activity_type?: string;
+            /**
+             * Format: int32
+             * @description Retry counter, set on Activity* events.
+             */
+            attempt?: number;
+            /**
+             * @description Activity input payload. The Go server accepts any JSON value
+             *     but the SDKs always wrap as an array (`[{...}]`) - passing a
+             *     bare object yields a 422 from the validation layer.
+             */
+            activity_input?: unknown[] | Record<string, never>;
+            /** @description Activity output payload, set on `ActivityCompleted`. */
+            activity_output?: unknown;
+            /** @description Set on `SignalReceived`. */
+            signal_name?: string;
+            /** @description Set on `SignalReceived`. */
+            signal_args?: unknown;
+            /** @description Activity start time in epoch milliseconds. */
+            start_time?: number;
+            /** @description Activity end time in epoch milliseconds. */
+            end_time?: number;
+            /** @description Convenience field; equals `end_time - start_time`. */
+            duration_ms?: number;
+            /**
+             * Format: int32
+             * @description Length of `spans` array. Server validates the count.
+             */
+            span_count?: number;
+            spans?: components["schemas"]["SpanData"][];
+            /**
+             * @description `true` if this evaluation was triggered mid-activity by an
+             *     HTTP/DB/file/function hook (claude-code/cursor hooks). Server
+             *     short-circuits dedup against the most recent span only.
+             */
+            hook_trigger?: boolean;
+            error?: components["schemas"]["ErrorInfo"];
+        };
+        /**
+         * @description Public verdict envelope returned from `/governance/evaluate`.
+         *     Mirrors `GovernanceVerdictPublicResponse` in the Go server -
+         *     the wire shape strips out internal `_governance_event_id` and
+         *     related fields used only for Temporal observability.
+         *
+         *     SDKs should branch on `verdict`. The legacy `action` field
+         *     carries the v1.0 string and is kept for backward compatibility
+         *     but tracks `verdict`.
+         */
+        GovernanceVerdictResponse: {
+            /**
+             * Format: uuid
+             * @description Stable identifier for this evaluation; key for approval polling.
+             */
+            governance_event_id: string;
+            verdict: components["schemas"]["Verdict"];
+            /**
+             * Format: double
+             * @description Aggregate risk in [0, 1] across all evaluation branches.
+             */
+            risk_score: number;
+            action: components["schemas"]["LegacyAction"];
+            /**
+             * Format: int32
+             * @description Agent trust tier at the moment of evaluation.
+             */
+            trust_tier?: number;
+            /** @description Behavior-rule names that triggered. */
+            behavioral_violations?: string[];
+            /** @description Set on `require_approval` - opaque ID returned to surface in approver UI. */
+            approval_id?: string;
+            /** @description Set on `constrain` - sandbox enforcement hints (future). */
+            constraints?: string[];
+            /**
+             * Format: date-time
+             * @description Wall-clock deadline for the approval; SDK stops polling after this.
+             */
+            approval_expiration_time?: string;
+            /** @description True if any sub-service (OPA / AGE) used a fallback path. */
+            fallback_used: boolean;
+            reason?: string;
+            /** @description Policy that produced the verdict, when applicable. */
+            policy_id?: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+            guardrails_result?: components["schemas"]["GuardrailsResult"];
+            age_result?: components["schemas"]["AGEResult"];
+        };
+        GuardrailFieldResult: {
+            field: string;
+            /** Format: int32 */
+            order: number;
+            /** @enum {string} */
+            status: "allowed" | "blocked" | "redacted" | "skipped";
+            reason?: string;
+        };
+        GuardrailReason: {
+            type: string;
+            field: string;
+            reason: string;
+        };
+        /** @description SDK-facing guardrail report; one entry per guardrail type that ran. */
+        GuardrailsResult: {
+            /** @enum {string} */
+            input_type: "activity_input" | "activity_output";
+            /**
+             * @description Redacted/transformed payload as decided by the guardrail
+             *     service. Free-form - string for text content, object for
+             *     structured (e.g. tool args).
+             */
+            redacted_input: unknown;
+            /** @description Raw guardrail-service output, retained for debugging. */
+            raw_logs: {
+                [key: string]: unknown;
+            };
+            /** @description False when any field result is `blocked`. */
+            validation_passed: boolean;
+            reasons: components["schemas"]["GuardrailReason"][];
+            results: components["schemas"]["GuardrailsVerdictResult"][];
+        };
+        GuardrailsVerdictResult: {
+            guardrail_type: string;
+            results: components["schemas"]["GuardrailFieldResult"][];
+        };
+        /**
+         * @description v1.0 action string, kept on responses for backwards compatibility
+         *     with older SDKs. New code should branch on `verdict`.
+         * @enum {string}
+         */
+        LegacyAction: "allow" | "constrain" | "require_approval" | "block" | "halt" | "continue" | "stop";
+        /**
+         * @description Single OTel-style span. Root-level fields (`http_method`,
+         *     `db_operation`, `file_path`, `function`, …) replace the earlier
+         *     attribute-bag layout - emitters MUST populate the typed fields
+         *     instead of stuffing them into `attributes`. `semantic_type` is
+         *     computed by the server (`ComputeSemanticTypeFromSpan`) when the
+         *     SDK doesn't set it.
+         */
+        SpanData: {
+            span_id: string;
+            trace_id: string;
+            parent_span_id?: string;
+            name: string;
+            /** @description OTel SpanKind. Conventionally one of CLIENT, SERVER, INTERNAL, PRODUCER, CONSUMER. */
+            kind?: string;
+            /**
+             * Format: int64
+             * @description Epoch nanoseconds.
+             */
+            start_time: number;
+            /**
+             * Format: int64
+             * @description Epoch nanoseconds.
+             */
+            end_time: number;
+            /** Format: int64 */
+            duration_ns?: number;
+            /** @description Free-form attribute bag for fields not yet promoted to root. */
+            attributes?: {
+                [key: string]: unknown;
+            };
+            status?: components["schemas"]["SpanStatus"];
+            events?: components["schemas"]["SpanEvent"][];
+            request_headers?: {
+                [key: string]: string;
+            };
+            response_headers?: {
+                [key: string]: string;
+            };
+            request_body?: string;
+            response_body?: string;
+            /**
+             * @description Server-computed bucket (e.g. `http_get`, `llm_completion`,
+             *     `database_select`, `file_read`, `shell_execution`).
+             *     SDK can pre-compute and send; server overrides if mismatched.
+             */
+            semantic_type?: string;
+            /**
+             * @default completed
+             * @enum {string}
+             */
+            stage: "started" | "completed";
+            /** @description Free-form payload (map for attestation, string for file ops). */
+            data?: unknown;
+            /**
+             * @description SDK v2 hook source.
+             * @enum {string}
+             */
+            hook_type?: "http_request" | "db_query" | "file_operation" | "function_call";
+            /** @description Per-span dedup keys. */
+            attribute_key_identifiers?: string[];
+            /** @description Per-span error string (separate from envelope `error`). */
+            error?: string;
+            http_method?: string;
+            http_url?: string;
+            /** Format: int32 */
+            http_status_code?: number;
+            db_system?: string;
+            db_name?: string;
+            db_operation?: string;
+            db_statement?: string;
+            server_address?: string;
+            /** Format: int32 */
+            server_port?: number;
+            /** Format: int32 */
+            rowcount?: number;
+            file_path?: string;
+            file_mode?: string;
+            file_operation?: string;
+            /** Format: int64 */
+            bytes_read?: number;
+            /** Format: int64 */
+            bytes_written?: number;
+            /** Format: int32 */
+            lines_count?: number;
+            function?: string;
+            module?: string;
+            /** @description Function call args. Free-form (object/array/null). */
+            args?: unknown;
+            /** @description Function call result. Free-form (any/null). */
+            result?: unknown;
+        };
+        SpanEvent: {
+            name: string;
+            /**
+             * Format: int64
+             * @description Epoch nanoseconds.
+             */
+            timestamp: number;
+            attributes: {
+                [key: string]: unknown;
+            };
+        };
+        SpanStatus: {
+            /** @enum {string} */
+            code: "OK" | "ERROR" | "UNSET";
+            description?: string;
+        };
+        /**
+         * @description Five-tier graduated response. Priority order (highest first):
+         *     `halt` > `block` > `require_approval` > `constrain` > `allow`.
+         *
+         *     Wire format is the lowercase string. The Go server also accepts
+         *     the integer form (0..4) on input for backward compatibility,
+         *     but always emits the string. `constrain` is reserved for a
+         *     sandbox-enforcement future and is not currently emitted by the
+         *     live server.
+         * @enum {string}
+         */
+        Verdict: "allow" | "constrain" | "require_approval" | "block" | "halt";
     };
     responses: never;
-    parameters: never;
+    parameters: {
+        /** @description SDK semver identifier; surfaces in observability. */
+        "Parameters.SdkVersionHeader": string;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -207,7 +540,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Service is healthy */
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -227,14 +560,16 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description API key is valid */
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AgentValidationResponse"];
+                };
             };
-            /** @description Missing or invalid API key */
+            /** @description Access is unauthorized. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -242,44 +577,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CoreError"];
                 };
-            };
-        };
-    };
-    evaluateGovernance: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GovernanceEventPayload"];
-            };
-        };
-        responses: {
-            /** @description Governance verdict */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GovernanceVerdictResponse"];
-                };
-            };
-            /** @description Invalid API key */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Evaluation timeout (30s default) */
-            408: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
@@ -292,17 +589,89 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ApprovalPollRequest"];
+                "application/json": components["schemas"]["ApprovalStatusRequest"];
             };
         };
         responses: {
-            /** @description Approval status */
+            /** @description The request has succeeded. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApprovalPollResponse"];
+                    "application/json": components["schemas"]["ApprovalStatusResponse"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoreError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoreError"];
+                };
+            };
+        };
+    };
+    evaluateGovernance: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description SDK semver identifier; surfaces in observability. */
+                "x-open-box-sdk-version"?: components["parameters"]["Parameters.SdkVersionHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GovernanceEventPayload"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GovernanceVerdictResponse"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoreError"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoreError"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoreError"];
                 };
             };
         };

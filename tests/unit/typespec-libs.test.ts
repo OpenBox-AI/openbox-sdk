@@ -155,6 +155,6 @@ describe('openbox-sdk/typespec-workflow', () => {
 
   test('@verdict singleton resolves', () => {
     const verdict = getVerdictModel(program);
-    expect(verdict?.name).toBe('Verdict');
+    expect(verdict?.name).toBe('WorkflowVerdict');
   });
 });
