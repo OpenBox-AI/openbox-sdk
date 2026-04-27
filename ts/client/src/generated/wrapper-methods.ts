@@ -504,6 +504,22 @@ export abstract class OpenBoxClientWrapperBase {
     return this.httpGet<ResponseOf<"/organization/{organizationId}/dashboard/tier-trends", "get">>(`/organization/${organizationId}/dashboard/tier-trends`);
   }
 
+  async getGovernanceFeed(organizationId: string, query?: Record<string, unknown>): Promise<ResponseOf<"/organization/{organizationId}/dashboard/governance-feed", "get">> {
+    return this.httpGet<ResponseOf<"/organization/{organizationId}/dashboard/governance-feed", "get">>(`/organization/${organizationId}/dashboard/governance-feed`, query);
+  }
+
+  async getTrustDriftLanes(organizationId: string, query?: Record<string, unknown>): Promise<ResponseOf<"/organization/{organizationId}/dashboard/trust-drift-lanes", "get">> {
+    return this.httpGet<ResponseOf<"/organization/{organizationId}/dashboard/trust-drift-lanes", "get">>(`/organization/${organizationId}/dashboard/trust-drift-lanes`, query);
+  }
+
+  async getGovernanceSlo(organizationId: string, query?: Record<string, unknown>): Promise<ResponseOf<"/organization/{organizationId}/dashboard/governance-slo", "get">> {
+    return this.httpGet<ResponseOf<"/organization/{organizationId}/dashboard/governance-slo", "get">>(`/organization/${organizationId}/dashboard/governance-slo`, query);
+  }
+
+  async getViolationHeatcal(organizationId: string, query?: Record<string, unknown>): Promise<ResponseOf<"/organization/{organizationId}/dashboard/violation-heatcal", "get">> {
+    return this.httpGet<ResponseOf<"/organization/{organizationId}/dashboard/violation-heatcal", "get">>(`/organization/${organizationId}/dashboard/violation-heatcal`, query);
+  }
+
   async getOrgSessions(organizationId: string, query?: Record<string, unknown>): Promise<ResponseOf<"/organization/{organizationId}/sessions", "get">> {
     return this.httpGet<ResponseOf<"/organization/{organizationId}/sessions", "get">>(`/organization/${organizationId}/sessions`, query);
   }

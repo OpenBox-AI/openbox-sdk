@@ -541,4 +541,38 @@ export function registerAuthCommands(program: Command) {
         reportAndExit(err);
       }
     });
+
+  auth
+    .command('forgot-password')
+    .description('Trigger password-reset email for an account')
+    .requiredOption('--email <email>', 'Account email')
+    .requiredOption('--realm <realm>', 'Keycloak realm slug')
+    .action(async (opts) => {
+      try {
+        const data = await getClient().forgotPassword({
+          email: opts.email,
+          realm: opts.realm,
+        });
+        output(data);
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
+
+  auth
+    .command('reset-password')
+    .description('Complete a password reset with the email token')
+    .requiredOption('--token <token>', 'Token received in the reset email')
+    .requiredOption('--new-password <password>', 'New password')
+    .action(async (opts) => {
+      try {
+        const data = await getClient().resetPassword({
+          token: opts.token,
+          newPassword: opts.newPassword,
+        });
+        output(data);
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
 }

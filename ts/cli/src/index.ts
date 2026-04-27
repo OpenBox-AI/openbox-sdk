@@ -31,6 +31,8 @@ import { registerSetupCommands } from './commands/setup.js';
 import { registerDoctorCommand } from './commands/doctor.js';
 import { registerVerifyCommand } from './commands/verify.js';
 import { registerVersionsCommand } from './commands/versions.js';
+import { registerWebhookCommands } from './commands/webhook.js';
+import { registerSsoCommands } from './commands/sso.js';
 
 const program = new Command();
 
@@ -125,6 +127,8 @@ registerSetupCommands(program);
 registerDoctorCommand(program);
 registerVerifyCommand(program);
 registerVersionsCommand(program);
+registerWebhookCommands(program);
+registerSsoCommands(program);
 
 program.parseAsync(process.argv).catch((err) => {
   console.error(err.message || err);
