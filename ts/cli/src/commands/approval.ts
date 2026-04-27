@@ -93,11 +93,9 @@ export function registerApprovalCommands(program: Command) {
     .action(async (agentId: string, eventId: string, action: string) => {
       try {
         validateEnum(action, APPROVAL_ACTIONS, '<action>');
-        const data = await getClient().decideApproval(
-          agentId,
-          eventId,
-          action as 'approve' | 'reject',
-        );
+        const data = await getClient().decideApproval(agentId, eventId, {
+          action: action as 'approve' | 'reject',
+        });
         output(data);
       } catch (err: any) {
         reportAndExit(err);

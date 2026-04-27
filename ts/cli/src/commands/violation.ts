@@ -69,7 +69,7 @@ export function registerViolationCommands(program: Command) {
     .action(async (agentId: string, violationId: string, sourceType: string) => {
       try {
         validateEnum(sourceType, VIOLATION_SOURCE_TYPES, '<sourceType>');
-        const data = await getClient().markFalsePositive(agentId, violationId, sourceType);
+        const data = await getClient().markFalsePositive(agentId, violationId, { sourceType });
         output(data);
       } catch (err: any) {
         reportAndExit(err);

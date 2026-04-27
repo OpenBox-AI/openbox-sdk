@@ -10,6 +10,7 @@
 // alongside @typespec/openapi3 - same compile pass, separate output
 // dirs.
 
+import { readFileSync } from 'fs';
 import { Project, IndentationText, NewLineKind, QuoteKind } from 'ts-morph';
 import type {
   EmitContext,
@@ -41,8 +42,282 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitEndpointManifest(program, project, repoRoot, 'OpenboxCore', 'CORE_ENDPOINT_MANIFEST', 'ts/core-client/src/generated/endpoint-manifest.ts');
   emitNamespaceTypes(program, project, repoRoot, 'OpenboxCore', 'ts/core-client/src/generated/core-types.ts');
   emitGovernProtocol(program, project, repoRoot);
+  emitWrapperMethods(program, project, repoRoot, {
+    namespaceName: 'OpenboxBackend',
+    outRel: 'ts/client/src/generated/wrapper-methods.ts',
+    pathsImport: 'openbox-sdk/types',
+    pathsAlias: 'Backend',
+    className: 'OpenBoxClientWrapperBase',
+  });
+  emitWrapperMethods(program, project, repoRoot, {
+    namespaceName: 'OpenboxCore',
+    outRel: 'ts/core-client/src/generated/wrapper-methods.ts',
+    pathsImport: 'openbox-sdk/types',
+    pathsAlias: 'Core',
+    className: 'OpenBoxCoreClientWrapperBase',
+  });
 
   await project.save();
+}
+
+// ---------------------------------------------------------------------------
+// HTTP wrapper-method body emit
+// ---------------------------------------------------------------------------
+//
+// For each endpoint declared on the namespace, generate a method body of
+// the form `this.<verb>(<path>, <body>?, <opts>?)`. The hand-written
+// wrapper class (OpenBoxClient / OpenBoxCoreClient) extends the
+// generated `<Service>WrapperBase` to inherit all the wire methods.
+// Adds 130+ methods to OpenBoxClient and 4 to OpenBoxCoreClient
+// without a code edit.
+
+interface WrapperMethodSpec {
+  name: string;
+  verb: string; // get / post / put / patch / delete
+  pathTemplate: string; // backtick-template form with ${arg} placeholders
+  pathParams: { name: string; tsType: string }[];
+  bodyParam: { name: string; tsType: string } | null;
+  queryParam: { name: string; tsType: string } | null;
+  responseTsType: string;
+}
+
+interface WrapperEmitOptions {
+  namespaceName: string;
+  outRel: string;
+  pathsImport: string; // e.g. 'openbox-sdk/types'
+  pathsAlias: string; // 'Backend' | 'Core' - namespace re-export alias
+  className: string;
+}
+
+function emitWrapperMethods(
+  program: Program,
+  project: Project,
+  repoRoot: string,
+  opts: WrapperEmitOptions,
+): void {
+  const ns = findNamespace(program, opts.namespaceName);
+  if (!ns) return;
+
+  const [ops] = listHttpOperationsIn(program, ns);
+  if (ops.length === 0) return;
+
+  const methods: WrapperMethodSpec[] = [];
+  const seen = new Set<string>();
+  for (const op of ops) {
+    const spec = wrapperMethodFor(op);
+    if (!spec) continue;
+    // Dedup by method name in case operationIds collide after stripping
+    // the controller prefix.
+    if (seen.has(spec.name)) continue;
+    seen.add(spec.name);
+    methods.push(spec);
+  }
+
+  if (methods.length === 0) return;
+
+  const out = project.createSourceFile(resolvePath(repoRoot, opts.outRel), '', { overwrite: true });
+  out.insertText(0, BANNER + '\n\n');
+
+  out.addStatements(emitWrapperBaseClass(opts, methods));
+}
+
+type HttpOp = ReturnType<typeof listHttpOperationsIn>[0][number];
+
+// Curated operationId → methodName map. Avoids collisions when multiple
+// controllers share a verb (e.g. AgentController_list, ApiKeyController_list,
+// WebhookController_list, MemberController_list all map to a unique
+// `listAgents` / `listApiKeys` / `listWebhooks` / `getMembers`). Lives in
+// codegen/method-names.json as a hand-curated artifact so consumers across
+// languages can converge on the same names.
+let CURATED_METHOD_NAMES: Record<string, string> = {};
+try {
+  const raw = readFileSync(resolvePath(process.cwd(), 'codegen/method-names.json'), 'utf8');
+  CURATED_METHOD_NAMES = JSON.parse(raw);
+} catch {
+  // First-run before the file exists; emitter falls back to the bare
+  // operationId-stripping heuristic below.
+}
+
+function wrapperMethodFor(op: HttpOp): WrapperMethodSpec | null {
+  const opId = op.operation.name;
+  let methodName: string;
+  if (CURATED_METHOD_NAMES[opId]) {
+    methodName = CURATED_METHOD_NAMES[opId];
+  } else {
+    // Fallback heuristic: strip the `<Tag>Controller_` prefix. Used only
+    // for new ops that haven't been added to method-names.json yet - they
+    // get the bare verb (e.g. `list`) and may collide; the next manual
+    // run of `node /tmp/build-name-map.mjs` (or hand-edit) curates a name.
+    methodName = opId;
+    const m = opId.match(/^([A-Z][a-zA-Z]*Controller)_(.+)$/);
+    if (m) methodName = m[2];
+  }
+
+  const pathParams: { name: string; tsType: string }[] = [];
+  let bodyParam: { name: string; tsType: string } | null = null;
+  let queryParam: { name: string; tsType: string } | null = null;
+
+  for (const p of op.parameters.parameters) {
+    if (p.type === 'path') {
+      pathParams.push({ name: p.name, tsType: tspTypeToTs(p.param.type) });
+    } else if (p.type === 'query') {
+      // Multiple query params get flattened by callers via a single options
+      // bag; surface as `Record<string, unknown>` for now (the openapi-typescript
+      // -typed helpers in the hand-written wrapper coerce it back to the right shape).
+      queryParam = { name: 'query', tsType: 'Record<string, unknown>' };
+    }
+  }
+
+  if (op.parameters.body && 'type' in op.parameters.body && op.parameters.body.type) {
+    bodyParam = { name: 'body', tsType: tspTypeToTs(op.parameters.body.type) };
+  }
+
+  // Response - pick the first 2xx body if any.
+  let responseTsType = 'unknown';
+  for (const r of op.responses) {
+    const status =
+      typeof r.statusCodes === 'number'
+        ? r.statusCodes
+        : typeof r.statusCodes === 'object' && r.statusCodes !== null
+          ? r.statusCodes.start
+          : 0;
+    if (status >= 200 && status < 300) {
+      for (const content of r.responses) {
+        if (content.body && 'type' in content.body && content.body.type) {
+          responseTsType = tspTypeToTs(content.body.type);
+          break;
+        }
+      }
+      break;
+    }
+  }
+
+  // Build a backtick-template path: `/agent/${agentId}/guardrails`
+  let pathTemplate = op.path;
+  for (const p of pathParams) {
+    pathTemplate = pathTemplate.replace(`{${p.name}}`, `\${${p.name}}`);
+  }
+
+  return {
+    name: methodName,
+    verb: op.verb.toLowerCase(),
+    pathTemplate,
+    pathParams,
+    bodyParam,
+    queryParam,
+    responseTsType,
+  };
+}
+
+function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSpec[]): string[] {
+  // Helper-fn name per verb. `delete` is reserved → `del` in our wrappers.
+  // Helpers are namespaced with `http` prefix to avoid clashing with
+  // method names that also start with `get` / `post` / etc. (e.g.
+  // `getProfile`, `postEvent`). TypeScript would otherwise read those
+  // as overloads of the abstract base method.
+  const verbToHelper: Record<string, string> = {
+    get: 'httpGet',
+    post: 'httpPost',
+    put: 'httpPut',
+    patch: 'httpPatch',
+    delete: 'httpDelete',
+  };
+
+  const lines: string[] = [];
+
+  // Import the openapi-typescript output once at the top so every
+  // method's response type can be expressed via indexed access:
+  //
+  //   Backend.paths['/auth/profile']['get']['responses']['200']['content']['application/json']
+  //
+  // This sidesteps the "PaginatedResponse<T> inlining" problem - we
+  // never need a named alias for the generic instantiation; the
+  // openapi-typescript path object already has the structural type.
+  lines.push(`import type { ${opts.pathsAlias} } from '${opts.pathsImport}';`);
+  lines.push('');
+
+  // Path -> verb -> argument shape derived from `paths`. Each
+  // method below references these via indexed access so changes to
+  // the spec flow through openapi-typescript regen automatically.
+  lines.push(`type Paths = ${opts.pathsAlias}.paths;`);
+  lines.push(`type RequestBodyOf<P extends keyof Paths, V extends keyof Paths[P]> =`);
+  lines.push(
+    `  Paths[P][V] extends { requestBody?: { content: { 'application/json': infer B } } } ? B : never;`,
+  );
+  lines.push(`type ResponseOf<P extends keyof Paths, V extends keyof Paths[P]> =`);
+  lines.push(
+    `  Paths[P][V] extends { responses: infer R } ? R extends Record<200 | 201, { content: { 'application/json': infer J } }> ? J : R extends Record<200 | 201, infer N> ? (N extends { description?: string } ? unknown : never) : unknown : unknown;`,
+  );
+  lines.push('');
+
+  lines.push(`/**`);
+  lines.push(
+    ` * AUTO-GENERATED wrapper base class - every HTTP operation declared on`,
+  );
+  lines.push(` * the ${opts.namespaceName} TypeSpec namespace becomes a typed method here.`);
+  lines.push(` * Hand-written wrappers (OpenBoxClient / OpenBoxCoreClient) extend this`);
+  lines.push(` * class and own construction + the protected helper methods that the`);
+  lines.push(` * generated bodies call into. Adding/removing/renaming an endpoint in`);
+  lines.push(` * the spec flows through here without a code edit on the impl side.`);
+  lines.push(` */`);
+  lines.push(`export abstract class ${opts.className} {`);
+  // Helpers exposed by the hand-written wrapper. The `http` prefix
+  // avoids name clashes with API methods like `getProfile` / `postEvent`.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  lines.push(`  protected abstract httpGet<T>(path: string, query?: any): Promise<T>;`);
+  lines.push(`  protected abstract httpPost<T>(path: string, body?: unknown): Promise<T>;`);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  lines.push(`  protected abstract httpPut<T>(path: string, body?: unknown, query?: any): Promise<T>;`);
+  lines.push(`  protected abstract httpPatch<T>(path: string, body?: unknown): Promise<T>;`);
+  lines.push(`  protected abstract httpDelete<T>(path: string, body?: unknown): Promise<T>;`);
+  lines.push('');
+  for (const method of methods) {
+    const helper = verbToHelper[method.verb];
+    if (!helper) continue;
+
+    // Build the literal-string `paths[<path>][<verb>]` lookup keys.
+    // openapi-typescript emits paths like `'/agent/list'` and verbs as
+    // `'get' | 'post' | ...` keys. We use the *path with placeholders*
+    // (e.g. `/agent/{agentId}`) - that's what openapi-typescript keys
+    // by, not the runtime substituted form.
+    const pathLiteral = JSON.stringify(method.pathTemplate.replace(/\$\{[^}]+\}/g, (_, n) => '{' + n + '}'));
+    // Recover the original `{x}` form from the `${x}` template.
+    // Actually pathTemplate started as `${x}` so we need to convert back.
+    const specPathLiteral = JSON.stringify(
+      method.pathTemplate.replace(/\$\{([^}]+)\}/g, '{$1}'),
+    );
+    const verbLiteral = JSON.stringify(method.verb);
+
+    const reqType = method.bodyParam
+      ? `RequestBodyOf<${specPathLiteral}, ${verbLiteral}>`
+      : null;
+    const respType = `ResponseOf<${specPathLiteral}, ${verbLiteral}>`;
+
+    const args: string[] = [];
+    for (const p of method.pathParams) args.push(`${p.name}: string`);
+    if (reqType) args.push(`body: ${reqType}`);
+    if (method.queryParam) args.push(`query?: Record<string, unknown>`);
+
+    const callArgs = [`\`${method.pathTemplate}\``];
+    if (method.verb === 'get') {
+      if (method.queryParam) callArgs.push('query');
+    } else if (method.verb === 'put') {
+      if (reqType) callArgs.push('body');
+      else callArgs.push('undefined');
+      if (method.queryParam) callArgs.push('query');
+    } else {
+      if (reqType) callArgs.push('body');
+    }
+
+    lines.push(`  async ${method.name}(${args.join(', ')}): Promise<${respType}> {`);
+    lines.push(`    return this.${helper}<${respType}>(${callArgs.join(', ')});`);
+    lines.push(`  }`);
+    lines.push('');
+    // suppress unused var warnings
+    void pathLiteral;
+  }
+  lines.push(`}`);
+  return lines;
 }
 
 function newTsMorphProject(): Project {

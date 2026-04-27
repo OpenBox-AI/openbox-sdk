@@ -102,12 +102,9 @@ describe('behavior commands', () => {
     expect(mockClient.deleteBehaviorRule).toHaveBeenCalledWith('agent-1', 'rule-1');
   });
 
-  it('restore calls restoreBehaviorRule', async () => {
-    const program = createTestProgram();
-    registerBehaviorCommands(program);
-    await program.parseAsync(['node', 'openbox', 'behavior', 'restore', 'agent-1', 'rule-1']);
-    expect(mockClient.restoreBehaviorRule).toHaveBeenCalledWith('agent-1', 'rule-1');
-  });
+  // `behavior restore` was removed - endpoint POST /agent/{agentId}/
+  // behavior-rule/{ruleId} isn't in the OpenAPI spec. Restore the
+  // subcommand + this test once the backend grows the endpoint.
 
   it('toggle calls toggleBehaviorRuleStatus', async () => {
     const program = createTestProgram();
@@ -122,7 +119,9 @@ describe('behavior commands', () => {
       '--active',
       'true',
     ]);
-    expect(mockClient.toggleBehaviorRuleStatus).toHaveBeenCalledWith('agent-1', 'rule-1', true);
+    expect(mockClient.toggleBehaviorRuleStatus).toHaveBeenCalledWith('agent-1', 'rule-1', {
+      is_active: true,
+    });
   });
 
   it('versions calls getBehaviorRuleVersions', async () => {

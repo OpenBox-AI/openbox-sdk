@@ -138,7 +138,9 @@ export class OpenBoxApiError extends Error implements ApiError {
 // Client
 // ---------------------------------------------------------------------------
 
-export class OpenBoxClient {
+import { OpenBoxClientWrapperBase } from './generated/wrapper-methods.js';
+
+export class OpenBoxClient extends OpenBoxClientWrapperBase {
   private baseUrl: string;
   private config: ClientConfig;
   protected readonly env: EnvName;
@@ -202,6 +204,7 @@ export class OpenBoxClient {
   }
 
   constructor(config: ClientConfig) {
+    super();
     this.config = { ...config };
     this.baseUrl = this.config.apiUrl ?? 'https://api.openbox.ai';
     this.env = this.config.env ?? 'production';
@@ -221,12 +224,10 @@ export class OpenBoxClient {
   // Auth
   // =========================================================================
 
-  async getProfile(): Promise<UserProfile> {
-    return this.get('/auth/profile') as Promise<UserProfile>;
-  }
+  // <removed: shadow of generated getProfile from wrapper-methods.ts>
 
   async refreshTokens(): Promise<TokenPair> {
-    return this.post('/auth/refresh', {
+    return this.httpPost('/auth/refresh', {
       refreshToken: this.config.refreshToken,
     }) as Promise<TokenPair>;
   }
@@ -236,12 +237,10 @@ export class OpenBoxClient {
   // logout path; dropping tokens locally alone leaves the session live on
   // Keycloak until the JWT expires.
   async logout(): Promise<void> {
-    await this.post('/auth/logout', {});
+    await this.httpPost('/auth/logout', {});
   }
 
-  async changePassword(dto: ChangePasswordDto): Promise<MessageResponse> {
-    return this.post('/auth/change-password', dto) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated changePassword from wrapper-methods.ts>
 
   /**
    * Direct credential login. Bypasses the Keycloak browser redirect - useful
@@ -255,27 +254,21 @@ export class OpenBoxClient {
    * an OAuth code it captures on the way back. Once the code is exchanged,
    * every subsequent backend call comes back through this client.
    */
-  async login(dto: LoginDto): Promise<TokenPair> {
-    return this.post('/auth/login', dto) as Promise<TokenPair>;
-  }
+  // <removed: shadow of generated login from wrapper-methods.ts>
 
   /**
    * Trigger a password-reset email. The backend mails a single-use token
    * to the address; the caller's UI prompts the user for that token + the
    * new password and then calls `resetPassword`.
    */
-  async forgotPassword(dto: ForgotPasswordDto): Promise<MessageResponse> {
-    return this.post('/auth/forgot-password', dto) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated forgotPassword from wrapper-methods.ts>
 
   /**
    * Complete the password-reset flow with the token from the email and the
    * new password. The token is single-use and short-lived; failure means
    * the caller should re-prompt for `forgotPassword`.
    */
-  async resetPassword(dto: ResetPasswordDto): Promise<MessageResponse> {
-    return this.post('/auth/reset-password', dto) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated resetPassword from wrapper-methods.ts>
 
   /**
    * Service-health probe. Returns whatever the backend's AppController
@@ -285,7 +278,7 @@ export class OpenBoxClient {
    * constructed client.
    */
   async getHealth(): Promise<unknown> {
-    return this.get('/health');
+    return this.httpGet('/health');
   }
 
   // =========================================================================
@@ -299,7 +292,7 @@ export class OpenBoxClient {
    * test orgs against staging.
    */
   async registerOrganization(dto: CreateOrganizationDto): Promise<unknown> {
-    return this.post('/organization/register', dto);
+    return this.httpPost('/organization/register', dto);
   }
 
   /**
@@ -308,7 +301,7 @@ export class OpenBoxClient {
    * tooling can resend without round-tripping through the dashboard.
    */
   async sendWelcomeEmail(orgId: string, dto: SendWelcomeEmailDto): Promise<unknown> {
-    return this.post(`/organization/${orgId}/send-welcome-email`, dto);
+    return this.httpPost(`/organization/${orgId}/send-welcome-email`, dto);
   }
 
   // =========================================================================
@@ -324,36 +317,24 @@ export class OpenBoxClient {
     tiers?: string[];
     owner_id?: string;
   }): Promise<PaginatedResponse<Agent>> {
-    return this.get('/agent/list', query) as Promise<PaginatedResponse<Agent>>;
+    return this.httpGet('/agent/list', query) as Promise<PaginatedResponse<Agent>>;
   }
 
-  async createAgent(dto: CreateAgentDto): Promise<CreateAgentResponse> {
-    return this.post('/agent/create', dto) as Promise<CreateAgentResponse>;
-  }
+  // <removed: shadow of generated createAgent from wrapper-methods.ts>
 
-  async getAgent(agentId: string): Promise<Agent> {
-    return this.get(`/agent/${agentId}`) as Promise<Agent>;
-  }
+  // <removed: shadow of generated getAgent from wrapper-methods.ts>
 
-  async updateAgent(agentId: string, dto: UpdateAgentDto): Promise<Agent> {
-    return this.put(`/agent/${agentId}`, dto) as Promise<Agent>;
-  }
+  // <removed: shadow of generated updateAgent from wrapper-methods.ts>
 
-  async deleteAgent(agentId: string): Promise<MessageResponse> {
-    return this.del(`/agent/${agentId}`) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated deleteAgent from wrapper-methods.ts>
 
   // =========================================================================
   // API Keys
   // =========================================================================
 
-  async rotateApiKey(agentId: string): Promise<ApiKeyResponse> {
-    return this.post(`/agent/${agentId}/rotate-api-key`) as Promise<ApiKeyResponse>;
-  }
+  // <removed: shadow of generated rotateApiKey from wrapper-methods.ts>
 
-  async revokeApiKey(agentId: string): Promise<MessageResponse> {
-    return this.post(`/agent/${agentId}/revoke-api-key`) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated revokeApiKey from wrapper-methods.ts>
 
   // =========================================================================
   // Guardrails
@@ -363,92 +344,74 @@ export class OpenBoxClient {
     agentId: string,
     query?: PaginationQuery & { processing_stage?: string },
   ): Promise<PaginatedResponse<Guardrail>> {
-    return this.get(`/agent/${agentId}/guardrails`, query) as Promise<PaginatedResponse<Guardrail>>;
+    return this.httpGet(`/agent/${agentId}/guardrails`, query) as Promise<PaginatedResponse<Guardrail>>;
   }
 
-  async createGuardrail(agentId: string, dto: CreateGuardrailDto): Promise<Guardrail> {
-    return this.post(`/agent/${agentId}/guardrails`, dto) as Promise<Guardrail>;
-  }
+  // <removed: shadow of generated createGuardrail from wrapper-methods.ts>
 
-  async getGuardrail(agentId: string, guardrailId: string): Promise<Guardrail> {
-    return this.get(`/agent/${agentId}/guardrails/${guardrailId}`) as Promise<Guardrail>;
-  }
+  // <removed: shadow of generated getGuardrail from wrapper-methods.ts>
 
   async updateGuardrail(
     agentId: string,
     guardrailId: string,
     dto: UpdateGuardrailDto,
   ): Promise<Guardrail> {
-    return this.put(`/agent/${agentId}/guardrails/${guardrailId}`, dto) as Promise<Guardrail>;
+    return this.httpPut(`/agent/${agentId}/guardrails/${guardrailId}`, dto) as Promise<Guardrail>;
   }
 
-  async deleteGuardrail(agentId: string, guardrailId: string): Promise<MessageResponse> {
-    return this.del(`/agent/${agentId}/guardrails/${guardrailId}`) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated deleteGuardrail from wrapper-methods.ts>
 
-  async reorderGuardrail(agentId: string, guardrailId: string, order: number): Promise<Guardrail> {
-    return this.patch(`/agent/${agentId}/guardrails/${guardrailId}/reorder`, {
-      order,
-    }) as Promise<Guardrail>;
-  }
+  // reorderGuardrail comes from the generated base - its body is `{ order }`.
+  // (Was previously a 3-arg wrapper that took `order` flat; consumers should
+  // now pass `{ order }` to match the spec.)
 
   async getGuardrailMetrics(agentId: string, query?: MetricsQuery): Promise<unknown> {
-    return this.get(`/agent/${agentId}/guardrails/metrics`, query);
+    return this.httpGet(`/agent/${agentId}/guardrails/metrics`, query);
   }
 
   async getGuardrailViolationLogs(
     agentId: string,
     query?: PaginationQuery & { fromTime?: string; toTime?: string; guardrail_type?: string },
   ): Promise<PaginatedResponse<Violation>> {
-    return this.get(`/agent/${agentId}/guardrails/violation-logs`, query) as Promise<
+    return this.httpGet(`/agent/${agentId}/guardrails/violation-logs`, query) as Promise<
       PaginatedResponse<Violation>
     >;
   }
 
   async runGuardrailTest(dto: TestGuardrailDto): Promise<unknown> {
-    return this.post('/guardrails/run-test', dto);
+    return this.httpPost('/guardrails/run-test', dto);
   }
 
   // =========================================================================
   // Policies
   // =========================================================================
 
-  async listPolicies(agentId: string, query?: PaginationQuery): Promise<PaginatedResponse<Policy>> {
-    return this.get(`/agent/${agentId}/policies`, query) as Promise<PaginatedResponse<Policy>>;
-  }
+  // <removed: shadow of generated listPolicies from wrapper-methods.ts>
 
-  async createPolicy(agentId: string, dto: CreatePolicyDto): Promise<Policy> {
-    return this.post(`/agent/${agentId}/policies`, dto) as Promise<Policy>;
-  }
+  // <removed: shadow of generated createPolicy from wrapper-methods.ts>
 
-  async getCurrentPolicies(agentId: string): Promise<Policy[]> {
-    return this.get(`/agent/${agentId}/policies/current`) as Promise<Policy[]>;
-  }
+  // <removed: shadow of generated getCurrentPolicies from wrapper-methods.ts>
 
-  async getPolicy(agentId: string, policyId: string): Promise<Policy> {
-    return this.get(`/agent/${agentId}/policies/${policyId}`) as Promise<Policy>;
-  }
+  // <removed: shadow of generated getPolicy from wrapper-methods.ts>
 
-  async updatePolicy(agentId: string, policyId: string, dto: UpdatePolicyDto): Promise<Policy> {
-    return this.put(`/agent/${agentId}/policies/${policyId}`, dto) as Promise<Policy>;
-  }
+  // <removed: shadow of generated updatePolicy from wrapper-methods.ts>
 
   async getPolicyEvaluations(
     agentId: string,
     policyId: string,
     query?: PaginationQuery,
   ): Promise<PaginatedResponse<unknown>> {
-    return this.get(`/agent/${agentId}/policies/${policyId}/evaluations`, query) as Promise<
+    return this.httpGet(`/agent/${agentId}/policies/${policyId}/evaluations`, query) as Promise<
       PaginatedResponse<unknown>
     >;
   }
 
   async getPolicyMetrics(agentId: string, query?: MetricsQuery): Promise<unknown> {
-    return this.get(`/agent/${agentId}/policies/metrics`, query);
+    return this.httpGet(`/agent/${agentId}/policies/metrics`, query);
   }
 
   async evaluateRego(dto: EvaluateRegoDto): Promise<unknown> {
-    return this.post('/policy/evaluate', dto);
+    return this.httpPost('/policy/evaluate', dto);
   }
 
   // =========================================================================
@@ -456,75 +419,59 @@ export class OpenBoxClient {
   // =========================================================================
 
   async getSemanticTypes(): Promise<unknown> {
-    return this.get('/agent/behavior-rule/semantic-types');
+    return this.httpGet('/agent/behavior-rule/semantic-types');
   }
 
   async listBehaviorRules(
     agentId: string,
     query?: PaginationQuery & { verdict?: number; is_active?: boolean; trigger?: string },
   ): Promise<PaginatedResponse<BehaviorRule>> {
-    return this.get(`/agent/${agentId}/behavior-rule`, query) as Promise<
+    return this.httpGet(`/agent/${agentId}/behavior-rule`, query) as Promise<
       PaginatedResponse<BehaviorRule>
     >;
   }
 
-  async getCurrentBehaviorRules(agentId: string): Promise<BehaviorRule[]> {
-    return this.get(`/agent/${agentId}/behavior-rule/current`) as Promise<BehaviorRule[]>;
-  }
+  // <removed: shadow of generated getCurrentBehaviorRules from wrapper-methods.ts>
 
-  async createBehaviorRule(agentId: string, dto: CreateBehaviorRuleDto): Promise<BehaviorRule> {
-    return this.post(`/agent/${agentId}/behavior-rule`, dto) as Promise<BehaviorRule>;
-  }
+  // <removed: shadow of generated createBehaviorRule from wrapper-methods.ts>
 
-  async getBehaviorRule(agentId: string, ruleId: string): Promise<BehaviorRule> {
-    return this.get(`/agent/${agentId}/behavior-rule/${ruleId}`) as Promise<BehaviorRule>;
-  }
+  // <removed: shadow of generated getBehaviorRule from wrapper-methods.ts>
 
   async updateBehaviorRule(
     agentId: string,
     ruleId: string,
     dto: UpdateBehaviorRuleDto,
   ): Promise<BehaviorRule> {
-    return this.put(`/agent/${agentId}/behavior-rule/${ruleId}`, dto) as Promise<BehaviorRule>;
+    return this.httpPut(`/agent/${agentId}/behavior-rule/${ruleId}`, dto) as Promise<BehaviorRule>;
   }
 
-  async deleteBehaviorRule(agentId: string, ruleId: string): Promise<MessageResponse> {
-    return this.del(`/agent/${agentId}/behavior-rule/${ruleId}`) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated deleteBehaviorRule from wrapper-methods.ts>
 
-  async restoreBehaviorRule(agentId: string, ruleId: string): Promise<BehaviorRule> {
-    return this.post(`/agent/${agentId}/behavior-rule/${ruleId}`) as Promise<BehaviorRule>;
-  }
+  // <removed: shadow of generated restoreBehaviorRule from wrapper-methods.ts>
 
-  async toggleBehaviorRuleStatus(
-    agentId: string,
-    ruleId: string,
-    isActive: boolean,
-  ): Promise<BehaviorRule> {
-    return this.put(`/agent/${agentId}/behavior-rule/${ruleId}/status`, {
-      is_active: isActive,
-    }) as Promise<BehaviorRule>;
-  }
+  // toggleBehaviorRuleStatus: spec body is `{ is_active }` - call as
+  // `toggleBehaviorRuleStatus(agentId, ruleId, { is_active: true })`.
+  // Hand-written 3-arg ergonomic wrapper dropped per no-legacy-support.
 
   async getBehaviorRuleVersions(
     agentId: string,
     groupId: string,
     query?: PaginationQuery,
   ): Promise<PaginatedResponse<BehaviorRule>> {
-    return this.get(`/agent/${agentId}/behavior-rule/${groupId}/versions`, query) as Promise<
+    return this.httpGet(`/agent/${agentId}/behavior-rule/${groupId}/versions`, query) as Promise<
       PaginatedResponse<BehaviorRule>
     >;
   }
 
   async getBehaviorMetrics(agentId: string, query?: MetricsQuery): Promise<unknown> {
-    return this.get(`/agent/${agentId}/behavior/metrics`, query);
+    return this.httpGet(`/agent/${agentId}/behavior/metrics`, query);
   }
 
   async getBehaviorViolations(
     agentId: string,
     query?: PaginationQuery,
   ): Promise<PaginatedResponse<Violation>> {
-    return this.get(`/agent/${agentId}/behavior/violations`, query) as Promise<
+    return this.httpGet(`/agent/${agentId}/behavior/violations`, query) as Promise<
       PaginatedResponse<Violation>
     >;
   }
@@ -537,37 +484,33 @@ export class OpenBoxClient {
     agentId: string,
     query?: SessionListQuery,
   ): Promise<PaginatedResponse<Session>> {
-    return this.get(`/agent/${agentId}/sessions`, query) as Promise<PaginatedResponse<Session>>;
+    return this.httpGet(`/agent/${agentId}/sessions`, query) as Promise<PaginatedResponse<Session>>;
   }
 
-  async getActiveSessions(agentId: string): Promise<Session[]> {
-    return this.get(`/agent/${agentId}/active-sessions`) as Promise<Session[]>;
-  }
+  // <removed: shadow of generated getActiveSessions from wrapper-methods.ts>
 
-  async getSession(agentId: string, sessionId: string): Promise<Session> {
-    return this.get(`/agent/${agentId}/sessions/${sessionId}`) as Promise<Session>;
-  }
+  // <removed: shadow of generated getSession from wrapper-methods.ts>
 
   async getSessionLogs(
     agentId: string,
     sessionId: string,
     query?: PaginationQuery & { event_type?: string },
   ): Promise<PaginatedResponse<unknown>> {
-    return this.get(`/agent/${agentId}/sessions/${sessionId}/logs`, query) as Promise<
+    return this.httpGet(`/agent/${agentId}/sessions/${sessionId}/logs`, query) as Promise<
       PaginatedResponse<unknown>
     >;
   }
 
   async getSessionGoalAlignmentStats(agentId: string, sessionId: string): Promise<unknown> {
-    return this.get(`/agent/${agentId}/sessions/${sessionId}/goal-alignment-stats`);
+    return this.httpGet(`/agent/${agentId}/sessions/${sessionId}/goal-alignment-stats`);
   }
 
   async getSessionReasoningTrace(agentId: string, sessionId: string): Promise<unknown> {
-    return this.get(`/agent/${agentId}/sessions/${sessionId}/reasoning-trace`);
+    return this.httpGet(`/agent/${agentId}/sessions/${sessionId}/reasoning-trace`);
   }
 
   async terminateSession(agentId: string, sessionId: string): Promise<MessageResponse> {
-    return this.patch(
+    return this.httpPatch(
       `/agent/${agentId}/sessions/${sessionId}/terminate`,
     ) as Promise<MessageResponse>;
   }
@@ -576,18 +519,14 @@ export class OpenBoxClient {
   // Trust
   // =========================================================================
 
-  async getTrustHistories(
-    agentId: string,
-    duration: '7d' | '30d' | '90d' | '1y' = '7d',
-  ): Promise<TrustHistory[]> {
-    return this.get(`/agent/${agentId}/trust/histories`, { duration }) as Promise<TrustHistory[]>;
-  }
+  // getTrustHistories: spec query is a Record<string, unknown> - call as
+  // `getTrustHistories(agentId, { duration: '7d' })`.
 
   async getTrustEvents(
     agentId: string,
     query?: PaginationQuery & { fromTime?: string; toTime?: string },
   ): Promise<PaginatedResponse<TrustEvent>> {
-    return this.get(`/agent/${agentId}/trust/events`, query) as Promise<
+    return this.httpGet(`/agent/${agentId}/trust/events`, query) as Promise<
       PaginatedResponse<TrustEvent>
     >;
   }
@@ -596,13 +535,13 @@ export class OpenBoxClient {
     agentId: string,
     query?: PaginationQuery & { fromTime?: string; toTime?: string },
   ): Promise<PaginatedResponse<TrustTierChange>> {
-    return this.get(`/agent/${agentId}/trust-tier-changes`, query) as Promise<
+    return this.httpGet(`/agent/${agentId}/trust-tier-changes`, query) as Promise<
       PaginatedResponse<TrustTierChange>
     >;
   }
 
   async getTrustRecoveryStatus(agentId: string): Promise<unknown> {
-    return this.get(`/agent/${agentId}/trust/recovery-status`);
+    return this.httpGet(`/agent/${agentId}/trust/recovery-status`);
   }
 
   // =========================================================================
@@ -613,7 +552,7 @@ export class OpenBoxClient {
     agentId: string,
     query?: PaginationQuery & { fromTime?: string; toTime?: string },
   ): Promise<PaginatedResponse<Assessment>> {
-    return this.get(`/agent/${agentId}/assessments`, query) as Promise<
+    return this.httpGet(`/agent/${agentId}/assessments`, query) as Promise<
       PaginatedResponse<Assessment>
     >;
   }
@@ -622,15 +561,15 @@ export class OpenBoxClient {
     agentId: string,
     dto: { aivss_config: AivssConfig; reason: string },
   ): Promise<unknown> {
-    return this.put(`/agent/${agentId}/aivss`, dto);
+    return this.httpPut(`/agent/${agentId}/aivss`, dto);
   }
 
   async recalculateAivss(agentId: string): Promise<unknown> {
-    return this.post(`/agent/${agentId}/aivss/recalculate`);
+    return this.httpPost(`/agent/${agentId}/aivss/recalculate`);
   }
 
   async calculateAivss(dto: AivssConfig): Promise<unknown> {
-    return this.post('/agent/aivss', dto);
+    return this.httpPost('/agent/aivss', dto);
   }
 
   // =========================================================================
@@ -638,30 +577,29 @@ export class OpenBoxClient {
   // =========================================================================
 
   async updateGoalAlignment(agentId: string, dto: GoalAlignmentConfig): Promise<unknown> {
-    return this.put(`/agent/${agentId}/goal-alignment`, dto);
+    return this.httpPut(`/agent/${agentId}/goal-alignment`, dto);
   }
 
   async getGoalAlignmentTrend(agentId: string, query?: MetricsQuery): Promise<unknown> {
-    return this.get(`/agent/${agentId}/goal-alignment/trend`, query);
+    return this.httpGet(`/agent/${agentId}/goal-alignment/trend`, query);
   }
 
-  async getGoalAlignmentRecentDrifts(agentId: string, limit: number = 10): Promise<unknown> {
-    return this.get(`/agent/${agentId}/goal-alignment/recent-drifts`, { limit });
-  }
+  // getGoalAlignmentRecentDrifts: spec query is a Record<string, unknown> -
+  // call as `getGoalAlignmentRecentDrifts(agentId, { limit: 10 })`.
 
   // =========================================================================
   // Approvals
   // =========================================================================
 
   async getApprovalMetrics(agentId: string, query?: MetricsQuery): Promise<unknown> {
-    return this.get(`/agent/${agentId}/approvals/metrics`, query);
+    return this.httpGet(`/agent/${agentId}/approvals/metrics`, query);
   }
 
   async getPendingApprovals(
     agentId: string,
     query?: ApprovalListQuery,
   ): Promise<PaginatedResponse<Approval>> {
-    return this.get(`/agent/${agentId}/approvals/pending`, query) as Promise<
+    return this.httpGet(`/agent/${agentId}/approvals/pending`, query) as Promise<
       PaginatedResponse<Approval>
     >;
   }
@@ -670,20 +608,13 @@ export class OpenBoxClient {
     agentId: string,
     query?: ApprovalListQuery,
   ): Promise<PaginatedResponse<Approval>> {
-    return this.get(`/agent/${agentId}/approvals/history`, query) as Promise<
+    return this.httpGet(`/agent/${agentId}/approvals/history`, query) as Promise<
       PaginatedResponse<Approval>
     >;
   }
 
-  async decideApproval(
-    agentId: string,
-    eventId: string,
-    action: 'approve' | 'reject',
-  ): Promise<Approval> {
-    return this.put(`/agent/${agentId}/approvals/${eventId}/decide`, undefined, {
-      action,
-    }) as Promise<Approval>;
-  }
+  // decideApproval comes from the generated base. The spec types its body as
+  // a query param object - call as `decideApproval(agentId, eventId, { action: 'approve' })`.
 
   // =========================================================================
   // Observability
@@ -693,42 +624,38 @@ export class OpenBoxClient {
     agentId: string,
     query?: { fromTime?: string; toTime?: string },
   ): Promise<unknown> {
-    return this.get(`/agent/${agentId}/observability`, query);
+    return this.httpGet(`/agent/${agentId}/observability`, query);
   }
 
-  async getIssues(agentId: string, query?: PaginationQuery): Promise<PaginatedResponse<unknown>> {
-    return this.get(`/agent/${agentId}/issues`, query) as Promise<PaginatedResponse<unknown>>;
-  }
+  // <removed: shadow of generated getIssues from wrapper-methods.ts>
 
   async getInsightsMetrics(agentId: string, query?: MetricsQuery): Promise<unknown> {
-    return this.get(`/agent/${agentId}/insights/metrics`, query);
+    return this.httpGet(`/agent/${agentId}/insights/metrics`, query);
   }
 
   async getAgentLogs(
     agentId: string,
     query?: PaginationQuery,
   ): Promise<PaginatedResponse<unknown>> {
-    return this.get(`/agent/${agentId}/logs`, query) as Promise<PaginatedResponse<unknown>>;
+    return this.httpGet(`/agent/${agentId}/logs`, query) as Promise<PaginatedResponse<unknown>>;
   }
 
   async getDriftLogs(
     agentId: string,
     query?: PaginationQuery,
   ): Promise<PaginatedResponse<unknown>> {
-    return this.get(`/agent/${agentId}/logs/drift`, query) as Promise<PaginatedResponse<unknown>>;
+    return this.httpGet(`/agent/${agentId}/logs/drift`, query) as Promise<PaginatedResponse<unknown>>;
   }
 
   async getAgentMetrics(): Promise<unknown> {
-    return this.get('/agent/metrics');
+    return this.httpGet('/agent/metrics');
   }
 
   // =========================================================================
   // Violations
   // =========================================================================
 
-  async getAllViolations(): Promise<Violation[]> {
-    return this.get('/agent/violations') as Promise<Violation[]>;
-  }
+  // <removed: shadow of generated getAllViolations from wrapper-methods.ts>
 
   async getAgentViolations(
     agentId: string,
@@ -741,53 +668,40 @@ export class OpenBoxClient {
     // "Request with GET/HEAD method cannot have body" TypeError. Filters
     // (pattern / sourceType) are functionally dropped until the backend moves
     // to `@Query()` - document as a known limitation in the CLI command.
-    return this.get(`/agent/${agentId}/violations`, query) as Promise<
+    return this.httpGet(`/agent/${agentId}/violations`, query) as Promise<
       PaginatedResponse<Violation>
     >;
   }
 
-  async markFalsePositive(
-    agentId: string,
-    violationId: string,
-    sourceType: string,
-  ): Promise<Violation> {
-    return this.patch(`/agent/${agentId}/violations/${violationId}/false-positive`, {
-      sourceType,
-    }) as Promise<Violation>;
-  }
+  // markFalsePositive: spec body is `{ sourceType }` - call as
+  // `markFalsePositive(agentId, violationId, { sourceType: '...' })`.
 
   // =========================================================================
   // Organization
   // =========================================================================
 
-  async getOrganization(orgId: string): Promise<Organization> {
-    return this.get(`/organization/${orgId}`) as Promise<Organization>;
-  }
+  // <removed: shadow of generated getOrganization from wrapper-methods.ts>
 
-  async getOrgSettings(orgId: string): Promise<OrgSettings> {
-    return this.get(`/organization/${orgId}/settings`) as Promise<OrgSettings>;
-  }
+  // <removed: shadow of generated getOrgSettings from wrapper-methods.ts>
 
-  async updateOrgSettings(orgId: string, dto: UpdateOrgSettingsDto): Promise<OrgSettings> {
-    return this.put(`/organization/${orgId}/settings`, dto) as Promise<OrgSettings>;
-  }
+  // <removed: shadow of generated updateOrgSettings from wrapper-methods.ts>
 
   async getDashboard(
     orgId: string,
     query?: { fromTime?: string; toTime?: string },
   ): Promise<unknown> {
-    return this.get(`/organization/${orgId}/dashboard`, query);
+    return this.httpGet(`/organization/${orgId}/dashboard`, query);
   }
 
   async getDashboardTierTrends(orgId: string): Promise<unknown> {
-    return this.get(`/organization/${orgId}/dashboard/tier-trends`);
+    return this.httpGet(`/organization/${orgId}/dashboard/tier-trends`);
   }
 
   async getOrgSessions(
     orgId: string,
     query?: SessionListQuery,
   ): Promise<PaginatedResponse<Session>> {
-    return this.get(`/organization/${orgId}/sessions`, query) as Promise<
+    return this.httpGet(`/organization/${orgId}/sessions`, query) as Promise<
       PaginatedResponse<Session>
     >;
   }
@@ -799,24 +713,24 @@ export class OpenBoxClient {
     orgId: string,
     query?: ApprovalListQuery,
   ): Promise<OrgApprovalsResponse> {
-    return this.get(`/organization/${orgId}/approvals`, query) as Promise<
+    return this.httpGet(`/organization/${orgId}/approvals`, query) as Promise<
       OrgApprovalsResponse
     >;
   }
 
   async getOrgApprovalMetrics(orgId: string, query?: MetricsQuery): Promise<unknown> {
-    return this.get(`/organization/${orgId}/approvals/metrics`, query);
+    return this.httpGet(`/organization/${orgId}/approvals/metrics`, query);
   }
 
   async getOrgApprovalSla(orgId: string): Promise<unknown> {
-    return this.get(`/organization/${orgId}/approvals/sla`);
+    return this.httpGet(`/organization/${orgId}/approvals/sla`);
   }
 
   async getOrgApprovalHistory(
     orgId: string,
     query?: PaginationQuery,
   ): Promise<PaginatedResponse<Approval>> {
-    return this.get(`/organization/${orgId}/approvals/history`, query) as Promise<
+    return this.httpGet(`/organization/${orgId}/approvals/history`, query) as Promise<
       PaginatedResponse<Approval>
     >;
   }
@@ -825,35 +739,27 @@ export class OpenBoxClient {
   // Teams
   // =========================================================================
 
-  async listTeams(orgId: string, query?: PaginationQuery): Promise<PaginatedResponse<Team>> {
-    return this.get(`/organization/${orgId}/teams`, query) as Promise<PaginatedResponse<Team>>;
-  }
+  // <removed: shadow of generated listTeams from wrapper-methods.ts>
 
   async getTeamStats(orgId: string): Promise<unknown> {
-    return this.get(`/organization/${orgId}/teams/stats`);
+    return this.httpGet(`/organization/${orgId}/teams/stats`);
   }
 
-  async getTeam(orgId: string, teamId: string): Promise<Team> {
-    return this.get(`/organization/${orgId}/teams/${teamId}`) as Promise<Team>;
-  }
+  // <removed: shadow of generated getTeam from wrapper-methods.ts>
 
-  async updateTeam(orgId: string, teamId: string, dto: UpdateTeamDto): Promise<Team> {
-    return this.put(`/organization/${orgId}/teams/${teamId}`, dto) as Promise<Team>;
-  }
+  // <removed: shadow of generated updateTeam from wrapper-methods.ts>
 
   async getTeamMembers(
     orgId: string,
     teamId: string,
     query?: PaginationQuery,
   ): Promise<PaginatedResponse<Member>> {
-    return this.get(`/organization/${orgId}/teams/${teamId}/members`, query) as Promise<
+    return this.httpGet(`/organization/${orgId}/teams/${teamId}/members`, query) as Promise<
       PaginatedResponse<Member>
     >;
   }
 
-  async createTeam(orgId: string, dto: CreateTeamDto): Promise<Team> {
-    return this.post(`/organization/${orgId}/teams`, dto) as Promise<Team>;
-  }
+  // <removed: shadow of generated createTeam from wrapper-methods.ts>
 
   async deleteTeams(orgId: string, dto: DeleteTeamsDto): Promise<unknown> {
     // DELETE with body - backend takes `{ids: string[]}` in the request body.
@@ -865,7 +771,7 @@ export class OpenBoxClient {
     teamId: string,
     dto: AddTeamMembersDto,
   ): Promise<unknown> {
-    return this.post(`/organization/${orgId}/teams/${teamId}/members`, dto);
+    return this.httpPost(`/organization/${orgId}/teams/${teamId}/members`, dto);
   }
 
   async removeTeamMembers(
@@ -882,83 +788,52 @@ export class OpenBoxClient {
   // Members
   // =========================================================================
 
-  async listMembers(orgId: string, query?: PaginationQuery): Promise<PaginatedResponse<Member>> {
-    return this.get(`/organization/${orgId}/members`, query) as Promise<PaginatedResponse<Member>>;
-  }
+  // <removed: shadow of generated listMembers from wrapper-methods.ts>
 
-  async createUser(orgId: string, dto: CreateUserDto): Promise<Member> {
-    return this.post(`/organization/${orgId}/users`, dto) as Promise<Member>;
-  }
+  // <removed: shadow of generated createUser from wrapper-methods.ts>
 
-  async updateMember(orgId: string, userId: string, dto: UpdateMemberDto): Promise<Member> {
-    return this.put(`/organization/${orgId}/members/${userId}`, dto) as Promise<Member>;
-  }
+  // <removed: shadow of generated updateMember from wrapper-methods.ts>
 
-  async assignRoles(orgId: string, userId: string, roles: string[]): Promise<MessageResponse> {
-    return this.post(`/organization/${orgId}/members/${userId}/roles`, {
-      roles,
-    }) as Promise<MessageResponse>;
-  }
+  // assignRoles / removeRoles / removeMembers come from the generated base.
+  // The spec types each body as `{ roles }` / `{ memberIds }` - call as
+  // `assignRoles(orgId, userId, { roles: ['admin'] })` rather than passing
+  // the array flat.
 
-  async removeRoles(orgId: string, userId: string, roles: string[]): Promise<MessageResponse> {
-    return this.del(`/organization/${orgId}/members/${userId}/roles`, {
-      roles,
-    }) as Promise<MessageResponse>;
-  }
-
-  async removeMembers(orgId: string, memberIds: string[]): Promise<MessageResponse> {
-    return this.del(`/organization/${orgId}/members`, { memberIds }) as Promise<MessageResponse>;
-  }
-
-  async inviteUser(orgId: string, dto: InviteUserDto): Promise<MessageResponse> {
-    return this.post(`/organization/${orgId}/invitations`, dto) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated inviteUser from wrapper-methods.ts>
 
   // =========================================================================
   // Audit Logs
   // =========================================================================
 
-  async getAuditLogs(query?: AuditLogQuery): Promise<PaginatedResponse<AuditLog>> {
-    return this.get('/organization/audit-logs', query) as Promise<PaginatedResponse<AuditLog>>;
-  }
+  // <removed: shadow of generated getAuditLogs from wrapper-methods.ts>
 
-  async getAuditLog(logId: string): Promise<AuditLog> {
-    return this.get(`/organization/audit-logs/${logId}`) as Promise<AuditLog>;
-  }
+  // <removed: shadow of generated getAuditLog from wrapper-methods.ts>
 
-  async exportAuditLogs(dto: ExportAuditLogsDto): Promise<AuditExport> {
-    return this.post('/organization/audit-logs/export', dto) as Promise<AuditExport>;
-  }
+  // <removed: shadow of generated exportAuditLogs from wrapper-methods.ts>
 
   async previewAuditExport(dto: PreviewExportDto): Promise<unknown> {
-    return this.post('/organization/audit-logs/export/preview', dto);
+    return this.httpPost('/organization/audit-logs/export/preview', dto);
   }
 
   async getExportHistory(query?: ExportHistoryQuery): Promise<PaginatedResponse<AuditExport>> {
-    return this.get('/organization/audit-logs/exports', query) as Promise<
+    return this.httpGet('/organization/audit-logs/exports', query) as Promise<
       PaginatedResponse<AuditExport>
     >;
   }
 
-  async getExport(exportId: string): Promise<AuditExport> {
-    return this.get(`/organization/audit-logs/export/${exportId}`) as Promise<AuditExport>;
-  }
+  // <removed: shadow of generated getExport from wrapper-methods.ts>
 
   async downloadExport(exportId: string): Promise<unknown> {
-    return this.get(`/organization/audit-logs/export/${exportId}/download`);
+    return this.httpGet(`/organization/audit-logs/export/${exportId}/download`);
   }
 
-  async deleteExport(exportId: string): Promise<MessageResponse> {
-    return this.del(`/organization/audit-logs/export/${exportId}`) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated deleteExport from wrapper-methods.ts>
 
   // =========================================================================
   // User
   // =========================================================================
 
-  async getUserRoles(): Promise<UserRole[]> {
-    return this.get('/user/roles') as Promise<UserRole[]>;
-  }
+  // <removed: shadow of generated getUserRoles from wrapper-methods.ts>
 
   // =========================================================================
   // Pagination helpers
@@ -1010,127 +885,89 @@ export class OpenBoxClient {
   // =========================================================================
 
   async health(): Promise<unknown> {
-    return this.get('/health');
+    return this.httpGet('/health');
   }
 
   // =========================================================================
   // API keys - live backend, org-scoped, gated on create/read/update/delete:api_key
   // =========================================================================
 
-  async listApiKeys(): Promise<PaginatedResponse<ApiKey>> {
-    return this.get('/api-key') as Promise<PaginatedResponse<ApiKey>>;
-  }
+  // <removed: shadow of generated listApiKeys from wrapper-methods.ts>
 
-  async createApiKey(dto: CreateApiKeyDto): Promise<ApiKey> {
-    return this.post('/api-key', dto) as Promise<ApiKey>;
-  }
+  // <removed: shadow of generated createApiKey from wrapper-methods.ts>
 
-  async getApiKey(id: string): Promise<ApiKey> {
-    return this.get(`/api-key/${id}`) as Promise<ApiKey>;
-  }
+  // <removed: shadow of generated getApiKey from wrapper-methods.ts>
 
-  async updateApiKey(id: string, dto: UpdateApiKeyDto): Promise<ApiKey> {
-    return this.patch(`/api-key/${id}`, dto) as Promise<ApiKey>;
-  }
+  // <removed: shadow of generated updateApiKey from wrapper-methods.ts>
 
-  async deleteApiKey(id: string): Promise<MessageResponse> {
-    return this.del(`/api-key/${id}`) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated deleteApiKey from wrapper-methods.ts>
 
   // =========================================================================
   // Webhooks - live backend, gated on create/read/update/delete:webhook
   // =========================================================================
 
-  async listWebhooks(): Promise<PaginatedResponse<Webhook>> {
-    return this.get('/webhook') as Promise<PaginatedResponse<Webhook>>;
-  }
+  // <removed: shadow of generated listWebhooks from wrapper-methods.ts>
 
-  async createWebhook(dto: CreateWebhookDto): Promise<Webhook> {
-    return this.post('/webhook', dto) as Promise<Webhook>;
-  }
+  // <removed: shadow of generated createWebhook from wrapper-methods.ts>
 
-  async getWebhook(id: string): Promise<Webhook> {
-    return this.get(`/webhook/${id}`) as Promise<Webhook>;
-  }
+  // <removed: shadow of generated getWebhook from wrapper-methods.ts>
 
-  async updateWebhook(id: string, dto: UpdateWebhookDto): Promise<Webhook> {
-    return this.patch(`/webhook/${id}`, dto) as Promise<Webhook>;
-  }
+  // <removed: shadow of generated updateWebhook from wrapper-methods.ts>
 
-  async deleteWebhook(id: string): Promise<MessageResponse> {
-    return this.del(`/webhook/${id}`) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated deleteWebhook from wrapper-methods.ts>
 
   async getWebhookDeliveries(
     id: string,
     query?: PaginationQuery,
   ): Promise<PaginatedResponse<WebhookDelivery>> {
-    return this.get(`/webhook/${id}/deliveries`, query) as Promise<
+    return this.httpGet(`/webhook/${id}/deliveries`, query) as Promise<
       PaginatedResponse<WebhookDelivery>
     >;
   }
 
   async regenerateWebhookSecret(id: string): Promise<{ secret: string } & MessageResponse> {
-    return this.post(`/webhook/${id}/regenerate-secret`) as Promise<
+    return this.httpPost(`/webhook/${id}/regenerate-secret`) as Promise<
       { secret: string } & MessageResponse
     >;
   }
 
-  async testWebhook(id: string): Promise<MessageResponse> {
-    return this.post(`/webhook/${id}/test`) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated testWebhook from wrapper-methods.ts>
 
   // =========================================================================
   // SSO - live backend, gated on manage:sso
   // =========================================================================
 
   async getSsoConfig(): Promise<unknown> {
-    return this.get('/sso');
+    return this.httpGet('/sso');
   }
 
-  async deleteSsoConfig(): Promise<MessageResponse> {
-    return this.del('/sso') as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated deleteSsoConfig from wrapper-methods.ts>
 
-  async getSsoStatus(): Promise<SsoStatus> {
-    return this.get('/sso/status') as Promise<SsoStatus>;
-  }
+  // <removed: shadow of generated getSsoStatus from wrapper-methods.ts>
 
   async getSsoMetadata(): Promise<unknown> {
-    return this.get('/sso/metadata');
+    return this.httpGet('/sso/metadata');
   }
 
-  async configureSsoOidc(dto: ConfigureOidcDto): Promise<MessageResponse> {
-    return this.post('/sso/oidc', dto) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated configureSsoOidc from wrapper-methods.ts>
 
-  async configureSsoSaml(dto: ConfigureSamlDto): Promise<MessageResponse> {
-    return this.post('/sso/saml', dto) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated configureSsoSaml from wrapper-methods.ts>
 
-  async verifySsoConfig(): Promise<MessageResponse> {
-    return this.post('/sso/verify') as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated verifySsoConfig from wrapper-methods.ts>
 
-  async enforceSso(dto: EnforceSsoDto = {}): Promise<MessageResponse> {
-    return this.put('/sso/enforce', dto) as Promise<MessageResponse>;
-  }
+  // <removed: shadow of generated enforceSso from wrapper-methods.ts>
 
   // =========================================================================
   // Miscellaneous live-backend endpoints (unwrapped pre-port)
   // =========================================================================
 
-  async getCsrfToken(): Promise<CsrfToken> {
-    return this.get('/auth/csrf') as Promise<CsrfToken>;
-  }
+  // <removed: shadow of generated getCsrfToken from wrapper-methods.ts>
 
   async getDemoSetupStatus(): Promise<unknown> {
-    return this.get('/organization/demo-setup-status');
+    return this.httpGet('/organization/demo-setup-status');
   }
 
-  async getOrgFeatures(organizationId: string): Promise<OrgFeatures> {
-    return this.get(`/organization/${organizationId}/features`) as Promise<OrgFeatures>;
-  }
+  // <removed: shadow of generated getOrgFeatures from wrapper-methods.ts>
 
   // =========================================================================
   // Private helpers
@@ -1439,25 +1276,38 @@ export class OpenBoxClient {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async get(path: string, params?: any): Promise<unknown> {
-    return this.request('GET', path, { params });
+  // HTTP helpers exposed to the generated wrapper base class (and to
+  // hand-written overrides for endpoints that need bespoke logic). The
+  // `http` prefix avoids name clashes with wire methods like
+  // `getProfile` / `postEvent` that TypeScript would otherwise read as
+  // overloads of an unprefixed `get` / `post`.
+  protected async httpGet<T>(
+    path: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    params?: any,
+  ): Promise<T> {
+    return this.request('GET', path, { params }) as Promise<T>;
   }
 
-  private async post(path: string, data?: unknown): Promise<unknown> {
-    return this.request('POST', path, { data });
+  protected async httpPost<T>(path: string, data?: unknown): Promise<T> {
+    return this.request('POST', path, { data }) as Promise<T>;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async put(path: string, data?: unknown, params?: any): Promise<unknown> {
-    return this.request('PUT', path, { data, params });
+  protected async httpPut<T>(
+    path: string,
+    data?: unknown,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    params?: any,
+  ): Promise<T> {
+    return this.request('PUT', path, { data, params }) as Promise<T>;
   }
 
-  private async patch(path: string, data?: unknown): Promise<unknown> {
-    return this.request('PATCH', path, { data });
+  protected async httpPatch<T>(path: string, data?: unknown): Promise<T> {
+    return this.request('PATCH', path, { data }) as Promise<T>;
   }
 
-  private async del(path: string, data?: unknown): Promise<unknown> {
-    return this.request('DELETE', path, { data });
+  protected async httpDelete<T>(path: string, data?: unknown): Promise<T> {
+    return this.request('DELETE', path, { data }) as Promise<T>;
   }
 
   /**

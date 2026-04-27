@@ -86,7 +86,9 @@ export function registerGoalCommands(program: Command) {
     .option('-l, --limit <n>', 'Number of drifts', '10')
     .action(async (agentId: string, opts) => {
       try {
-        const data = await getClient().getGoalAlignmentRecentDrifts(agentId, parseInt(opts.limit));
+        const data = await getClient().getGoalAlignmentRecentDrifts(agentId, {
+          limit: parseInt(opts.limit),
+        });
         outputList(data, 'drifts');
       } catch (err: any) {
         reportAndExit(err);

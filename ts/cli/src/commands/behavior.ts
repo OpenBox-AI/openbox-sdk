@@ -170,17 +170,11 @@ export function registerBehaviorCommands(program: Command) {
       }
     });
 
-  behavior
-    .command('restore <agentId> <ruleId>')
-    .description('Restore a deleted behavior rule')
-    .action(async (agentId: string, ruleId: string) => {
-      try {
-        const data = await getClient().restoreBehaviorRule(agentId, ruleId);
-        output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
+  // `behavior restore <agentId> <ruleId>` was removed - the endpoint
+  // POST /agent/{agentId}/behavior-rule/{ruleId} isn't in the OpenAPI
+  // spec, so the SDK no longer exposes a wrapper for it. If the
+  // backend adds @ApiOperation for the restore route, regenerate
+  // the spec and re-add this subcommand.
 
   behavior
     .command('toggle <agentId> <ruleId>')
@@ -188,11 +182,9 @@ export function registerBehaviorCommands(program: Command) {
     .requiredOption('--active <bool>', 'Active status (true|false)')
     .action(async (agentId: string, ruleId: string, opts) => {
       try {
-        const data = await getClient().toggleBehaviorRuleStatus(
-          agentId,
-          ruleId,
-          opts.active === 'true',
-        );
+        const data = await getClient().toggleBehaviorRuleStatus(agentId, ruleId, {
+          is_active: opts.active === 'true',
+        });
         output(data);
       } catch (err: any) {
         reportAndExit(err);

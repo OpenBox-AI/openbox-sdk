@@ -48,6 +48,16 @@ model MessageResponse {
   message: string;
 }
 
+/** OAuth-style token pair returned by `/auth/login` and the refresh endpoint.
+ * Same shape as `openbox-sdk/env`'s TokenPair (the env namespace exports it for
+ * runtime consumers); declared here so the backend OpenAPI carries it as a
+ * named schema. */
+model TokenPair {
+  accessToken: string;
+  /** Optional - Keycloak rotation may be disabled. */
+  refreshToken?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------

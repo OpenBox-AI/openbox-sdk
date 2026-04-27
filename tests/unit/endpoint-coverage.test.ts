@@ -24,9 +24,16 @@ interface Entry {
   pathPattern: string;
 }
 
-// Map the client's helper verb to the HTTP verb. `del` was named to avoid
-// the JS reserved word.
+// Map the client's helper verb to the HTTP verb. After the spec-driven
+// wrapper-base introduction, helpers are namespaced with an `http` prefix
+// (httpGet / httpPost / ...) so they don't clash with API method names
+// like `getProfile`. `del` is the legacy short-name on core-client.
 const VERB_ALIAS: Record<string, string> = {
+  httpGet: 'get',
+  httpPost: 'post',
+  httpPut: 'put',
+  httpPatch: 'patch',
+  httpDelete: 'delete',
   get: 'get',
   post: 'post',
   put: 'put',
@@ -37,8 +44,12 @@ const VERB_ALIAS: Record<string, string> = {
 function extractCoveredEndpoints(source: string): Set<string> {
   const out = new Set<string>();
 
-  // Pattern 1: `this.<verb>(\`<path>\`, ...)` or `this.<verb>('<path>', ...)`
-  const helperRe = /this\.(get|post|put|patch|del)\(\s*([`'"])([^`'"]+)\2/g;
+  // Pattern 1: `this.<helper>(\`<path>\`, ...)` - both `httpGet`/`httpPost`/...
+  // (post-spec-driven wrapper) and the legacy `get`/`post`/... shorthands.
+  // The optional `<...>` allows for explicit generic-type arguments emitted
+  // by the wrapper-base codegen, e.g. `this.httpPatch<ResponseOf<...>>('/path', body)`.
+  const helperRe =
+    /this\.(httpGet|httpPost|httpPut|httpPatch|httpDelete|get|post|put|patch|del)(?:<[^>]*(?:<[^>]*>[^>]*)*>)?\(\s*([`'"])([^`'"]+)\2/g;
   for (const m of source.matchAll(helperRe)) {
     const verb = VERB_ALIAS[m[1]];
     const rawPath = m[3];
@@ -75,26 +86,31 @@ interface CoverageCase {
 
 const repoRoot = resolve(import.meta.dirname, '..', '..');
 
+// Spec-driven wrapper methods now live in the generated base class
+// (`wrapper-methods.ts`); the hand-written client.ts only carries
+// helper methods + a few overrides. Scan both so the coverage check
+// sees every endpoint.
+function combinedSource(...paths: string[]): string {
+  return paths.map((p) => readFileSync(resolve(repoRoot, p), 'utf8')).join('\n');
+}
+
 const cases: CoverageCase[] = [
   {
     serviceName: 'OpenBoxClient',
     manifest: BACKEND_ENDPOINT_MANIFEST as readonly Entry[],
-    source: readFileSync(resolve(repoRoot, 'ts/client/src/client.ts'), 'utf8'),
-    // Empty by design. The previous round allowlisted six endpoints
-    // (the `/health` probe, three OAuth-flow POSTs, registration, and
-    // welcome-email firing) on the grounds that "the browser drives the
-    // flow." That argument doesn't hold - the SDK doesn't drive the
-    // browser, but every HTTP call before and after a redirect is still
-    // an HTTP call the SDK can wrap. Headless callers (CLI scripts,
-    // mobile sign-in screens, integration tests) need them and now have
-    // them. The Keycloak redirect URL itself is a navigation, not an
-    // endpoint, and never appears in BACKEND_ENDPOINT_MANIFEST.
+    source: combinedSource(
+      'ts/client/src/client.ts',
+      'ts/client/src/generated/wrapper-methods.ts',
+    ),
     allowlist: new Set<string>(),
   },
   {
     serviceName: 'OpenBoxCoreClient',
     manifest: CORE_ENDPOINT_MANIFEST as readonly Entry[],
-    source: readFileSync(resolve(repoRoot, 'ts/core-client/src/core-client.ts'), 'utf8'),
+    source: combinedSource(
+      'ts/core-client/src/core-client.ts',
+      'ts/core-client/src/generated/wrapper-methods.ts',
+    ),
     allowlist: new Set<string>(),
   },
 ];
