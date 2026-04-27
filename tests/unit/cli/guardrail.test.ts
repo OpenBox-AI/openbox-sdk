@@ -99,7 +99,7 @@ describe('guardrail commands', () => {
       'guard-1',
       '3',
     ]);
-    expect(mockClient.reorderGuardrail).toHaveBeenCalledWith('agent-1', 'guard-1', 3);
+    expect(mockClient.reorderGuardrail).toHaveBeenCalledWith('agent-1', 'guard-1', { order: 3 });
   });
 
   it('metrics calls getGuardrailMetrics', async () => {

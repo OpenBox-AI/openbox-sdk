@@ -51,6 +51,6 @@ describe('goal commands', () => {
     const program = createTestProgram();
     registerGoalCommands(program);
     await program.parseAsync(['node', 'openbox', 'goal', 'drifts', 'agent-1']);
-    expect(mockClient.getGoalAlignmentRecentDrifts).toHaveBeenCalledWith('agent-1', 10);
+    expect(mockClient.getGoalAlignmentRecentDrifts).toHaveBeenCalledWith('agent-1', { limit: 10 });
   });
 });

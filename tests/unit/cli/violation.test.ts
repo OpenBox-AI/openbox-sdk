@@ -42,6 +42,8 @@ describe('violation commands', () => {
       'viol-1',
       'guardrail',
     ]);
-    expect(mockClient.markFalsePositive).toHaveBeenCalledWith('agent-1', 'viol-1', 'guardrail');
+    expect(mockClient.markFalsePositive).toHaveBeenCalledWith('agent-1', 'viol-1', {
+      sourceType: 'guardrail',
+    });
   });
 });

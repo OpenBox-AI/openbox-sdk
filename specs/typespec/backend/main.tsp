@@ -832,7 +832,7 @@ op AppController_getHello(): OkResponse;
 @tag("Auth")
 @route("/auth/profile")
 @get
-op AuthController_getProfile(): OkResponse;
+op AuthController_getProfile(): Body<UserProfile>;
 
 @tag("Auth")
 @route("/auth/csrf")
@@ -842,7 +842,7 @@ op AuthController_getCsrf(): NoContentResponse;
 @tag("Auth")
 @route("/auth/login")
 @post
-op AuthController_login(@body body: LoginDto): CreatedResponse;
+op AuthController_login(@body body: LoginDto): Body<TokenPair>;
 
 @tag("Auth")
 @route("/auth/logout")
@@ -867,17 +867,17 @@ op AuthController_changePassword(@body body: ChangePasswordDto): NoContentRespon
 @tag("Auth")
 @route("/auth/refresh")
 @post
-op AuthController_refreshToken(@body body: RefreshDto): CreatedResponse;
+op AuthController_refreshToken(@body body: RefreshDto): Body<TokenPair>;
 
 @tag("User")
 @route("/user/roles")
 @get
-op UserController_getRoles(): OkResponse;
+op UserController_getRoles(): Body<UserRole[]>;
 
 @tag("Agent")
 @route("/agent/violations")
 @get
-op AgentController_getViolations(): OkResponse;
+op AgentController_getViolations(): Body<Violation[]>;
 
 @tag("Agent")
 @route("/agent/metrics")
@@ -907,7 +907,7 @@ op AgentController_getAgents(
 
   /** Tier list */
   @query(#{ explode: true }) tiers?: string[],
-): OkResponse;
+): Body<PaginatedResponse<Agent>>;
 
 @tag("Agent")
 @route("/agent/aivss")
@@ -917,22 +917,22 @@ op AgentController_getAivssScore(@body body: AivssConfigDto): CreatedResponse;
 @tag("Agent")
 @route("/agent/create")
 @post
-op AgentController_createAgent(@body body: CreateAgentDto): CreatedResponse;
+op AgentController_createAgent(@body body: CreateAgentDto): Body<CreateAgentResponse>;
 
 @tag("Agent")
 @route("/agent/{agentId}")
 @delete
-op AgentController_deleteAgent(@path agentId: string): OkResponse;
+op AgentController_deleteAgent(@path agentId: string): Body<MessageResponse>;
 
 @tag("Agent")
 @route("/agent/{agentId}")
 @get
-op AgentController_getAgent(@path agentId: string): OkResponse;
+op AgentController_getAgent(@path agentId: string): Body<Agent>;
 
 @tag("Agent")
 @route("/agent/{agentId}")
 @put
-op AgentController_updateAgent(@path agentId: string, @body body: UpdateAgentDto): OkResponse;
+op AgentController_updateAgent(@path agentId: string, @body body: UpdateAgentDto): Body<Agent>;
 
 @tag("Agent")
 @route("/agent/{agentId}/violations")
@@ -940,7 +940,7 @@ op AgentController_updateAgent(@path agentId: string, @body body: UpdateAgentDto
 op AgentController_getAgentEvaluations(
   @path agentId: string,
   @body body: GetAgentViolationsDto,
-): OkResponse;
+): Body<PaginatedResponse<Violation>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/violations/{violationId}/false-positive")
@@ -949,7 +949,7 @@ op AgentController_markAsFalsePositive(
   @path agentId: string,
   @path violationId: string,
   @body body: MarkFalsePositiveDto,
-): OkResponse;
+): Body<Violation>;
 
 @tag("Agent")
 @route("/agent/{agentId}/logs")
@@ -962,7 +962,7 @@ op AgentController_getAgentLogs(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-): OkResponse;
+): Body<PaginatedResponse<unknown>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/logs/drift")
@@ -975,7 +975,7 @@ op AgentController_getDriftEvents(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-): OkResponse;
+): Body<PaginatedResponse<unknown>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/assessments")
@@ -994,7 +994,7 @@ op AgentController_getAssessments(
 
   /** Filter events ending before this time */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<PaginatedResponse<Assessment>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/aivss")
@@ -1031,7 +1031,7 @@ op AgentController_getGuardrails(
 
   /** Processing stage of the guardrail */
   @query(#{ explode: true }) processing_stage?: string,
-): OkResponse;
+): Body<PaginatedResponse<Guardrail>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/guardrails")
@@ -1039,7 +1039,7 @@ op AgentController_getGuardrails(
 op AgentController_createGuardrail(
   @path agentId: string,
   @body body: CreateGuardrailDto,
-): CreatedResponse;
+): Body<Guardrail>;
 
 @tag("Agent")
 @route("/agent/{agentId}/guardrails/metrics")
@@ -1074,17 +1074,17 @@ op AgentController_getGuardrailViolationLogs(
 
   /** Filter by guardrail type */
   @query(#{ explode: true }) guardrail_type?: string,
-): OkResponse;
+): Body<PaginatedResponse<Violation>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/guardrails/{guardrailId}")
 @delete
-op AgentController_deleteGuardrails(@path agentId: string, @path guardrailId: string): OkResponse;
+op AgentController_deleteGuardrails(@path agentId: string, @path guardrailId: string): Body<MessageResponse>;
 
 @tag("Agent")
 @route("/agent/{agentId}/guardrails/{guardrailId}")
 @get
-op AgentController_getGuardrail(@path agentId: string, @path guardrailId: string): OkResponse;
+op AgentController_getGuardrail(@path agentId: string, @path guardrailId: string): Body<Guardrail>;
 
 @tag("Agent")
 @route("/agent/{agentId}/guardrails/{guardrailId}")
@@ -1093,7 +1093,7 @@ op AgentController_updateGuardrails(
   @path agentId: string,
   @path guardrailId: string,
   @body body: UpdateGuardrailDto,
-): OkResponse;
+): Body<Guardrail>;
 
 @tag("Agent")
 @route("/agent/{agentId}/guardrails/{guardrailId}/reorder")
@@ -1102,7 +1102,7 @@ op AgentController_reorderGuardrail(
   @path agentId: string,
   @path guardrailId: string,
   @body body: ReorderGuardrailDto,
-): OkResponse;
+): Body<Guardrail>;
 
 @tag("Agent")
 @route("/agent/{agentId}/policies")
@@ -1115,7 +1115,7 @@ op AgentController_getPolicies(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-): OkResponse;
+): Body<PaginatedResponse<Policy>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/policies")
@@ -1123,7 +1123,7 @@ op AgentController_getPolicies(
 op AgentController_createPolicy(
   @path agentId: string,
   @body body: CreatePolicyDto,
-): CreatedResponse;
+): Body<Policy>;
 
 @tag("Agent")
 @route("/agent/{agentId}/policies/metrics")
@@ -1141,12 +1141,12 @@ op AgentController_getPolicesMetrics(
 @tag("Agent")
 @route("/agent/{agentId}/policies/current")
 @get
-op AgentController_getCurrentPolicy(@path agentId: string): OkResponse;
+op AgentController_getCurrentPolicy(@path agentId: string): Body<Policy[]>;
 
 @tag("Agent")
 @route("/agent/{agentId}/policies/{policyId}")
 @get
-op AgentController_getPolicy(@path agentId: string, @path policyId: string): OkResponse;
+op AgentController_getPolicy(@path agentId: string, @path policyId: string): Body<Policy>;
 
 @tag("Agent")
 @route("/agent/{agentId}/policies/{policyId}")
@@ -1155,7 +1155,7 @@ op AgentController_updatePolicy(
   @path agentId: string,
   @path policyId: string,
   @body body: UpdatePolicyDto,
-): OkResponse;
+): Body<Policy>;
 
 @tag("Agent")
 @route("/agent/{agentId}/policies/{policyId}/evaluations")
@@ -1169,7 +1169,7 @@ op AgentController_getPolicyEvaluations(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-): OkResponse;
+): Body<PaginatedResponse<unknown>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/sessions")
@@ -1197,17 +1197,17 @@ op AgentController_getSessions(
 
   /** Search by workflow_id or run_id */
   @query(#{ explode: true }) search?: string,
-): OkResponse;
+): Body<PaginatedResponse<Session>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/active-sessions")
 @get
-op AgentController_getActiveSessions(@path agentId: string): OkResponse;
+op AgentController_getActiveSessions(@path agentId: string): Body<Session[]>;
 
 @tag("Agent")
 @route("/agent/{agentId}/sessions/{sessionId}")
 @get
-op AgentController_getSession(@path agentId: string, @path sessionId: string): OkResponse;
+op AgentController_getSession(@path agentId: string, @path sessionId: string): Body<Session>;
 
 @tag("Agent")
 @route("/agent/{agentId}/sessions/{sessionId}/logs")
@@ -1224,7 +1224,7 @@ op AgentController_getSessionLogs(
 
   /** Event type */
   @query(#{ explode: true }) event_type?: string,
-): OkResponse;
+): Body<PaginatedResponse<unknown>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/sessions/{sessionId}/goal-alignment-stats")
@@ -1245,7 +1245,7 @@ op AgentController_getSessionReasoningTrace(
 @tag("Agent")
 @route("/agent/{agentId}/sessions/{sessionId}/terminate")
 @patch
-op AgentController_terminateSession(@path agentId: string, @path sessionId: string): OkResponse;
+op AgentController_terminateSession(@path agentId: string, @path sessionId: string): Body<MessageResponse>;
 
 @tag("Agent")
 @route("/agent/{agentId}/goal-alignment/trend")
@@ -1271,12 +1271,12 @@ op AgentController_getRecentDriftEvents(
 @tag("Agent")
 @route("/agent/{agentId}/rotate-api-key")
 @post
-op AgentController_rotateApiKey(@path agentId: string): CreatedResponse;
+op AgentController_rotateApiKey(@path agentId: string): Body<ApiKeyResponse>;
 
 @tag("Agent")
 @route("/agent/{agentId}/revoke-api-key")
 @post
-op AgentController_revokeApiKey(@path agentId: string): CreatedResponse;
+op AgentController_revokeApiKey(@path agentId: string): Body<MessageResponse>;
 
 @tag("Agent")
 @route("/agent/{agentId}/observability")
@@ -1302,7 +1302,7 @@ op AgentController_getIssues(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-): OkResponse;
+): Body<PaginatedResponse<unknown>>;
 
 @tag("Agent")
 @route("/agent/behavior-rule/semantic-types")
@@ -1348,7 +1348,7 @@ op AgentController_getBehaviorRuleList(
     | "file_open"
     | "file_delete"
     | "internal",
-): OkResponse;
+): Body<PaginatedResponse<BehaviorRule>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/behavior-rule")
@@ -1356,12 +1356,12 @@ op AgentController_getBehaviorRuleList(
 op AgentController_createBehaviorRule(
   @path agentId: string,
   @body body: CreateBehaviorRuleDto,
-): CreatedResponse;
+): Body<BehaviorRule>;
 
 @tag("Agent")
 @route("/agent/{agentId}/behavior-rule/current")
 @get
-op AgentController_getCurrentBehaviorRule(@path agentId: string): OkResponse;
+op AgentController_getCurrentBehaviorRule(@path agentId: string): Body<BehaviorRule[]>;
 
 @tag("Agent")
 @route("/agent/{agentId}/behavior-rule/{behaviorRuleId}")
@@ -1369,12 +1369,12 @@ op AgentController_getCurrentBehaviorRule(@path agentId: string): OkResponse;
 op AgentController_deleteBehaviorRule(
   @path agentId: string,
   @path behaviorRuleId: string,
-): OkResponse;
+): Body<MessageResponse>;
 
 @tag("Agent")
 @route("/agent/{agentId}/behavior-rule/{behaviorRuleId}")
 @get
-op AgentController_getBehaviorRule(@path agentId: string, @path behaviorRuleId: string): OkResponse;
+op AgentController_getBehaviorRule(@path agentId: string, @path behaviorRuleId: string): Body<BehaviorRule>;
 
 @tag("Agent")
 @route("/agent/{agentId}/behavior-rule/{behaviorRuleId}")
@@ -1382,7 +1382,7 @@ op AgentController_getBehaviorRule(@path agentId: string, @path behaviorRuleId: 
 op AgentController_rollbackBehaviorRule(
   @path agentId: string,
   @path behaviorRuleId: string,
-): CreatedResponse;
+): Body<BehaviorRule>;
 
 @tag("Agent")
 @route("/agent/{agentId}/behavior-rule/{behaviorRuleId}")
@@ -1391,7 +1391,7 @@ op AgentController_updateBehaviorRule(
   @path agentId: string,
   @path behaviorRuleId: string,
   @body body: UpdateBehavioralRuleDto,
-): OkResponse;
+): Body<BehaviorRule>;
 
 @tag("Agent")
 @route("/agent/{agentId}/behavior-rule/{behaviorRuleId}/status")
@@ -1400,7 +1400,7 @@ op AgentController_changeBehaviorRuleStatus(
   @path agentId: string,
   @path behaviorRuleId: string,
   @body body: ChangeBehaviorRuleStatusDto,
-): OkResponse;
+): Body<BehaviorRule>;
 
 @tag("Agent")
 @route("/agent/{agentId}/behavior-rule/{behaviorGroupdId}/versions")
@@ -1414,7 +1414,7 @@ op AgentController_getBehavioralRuleHistories(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-): OkResponse;
+): Body<PaginatedResponse<BehaviorRule>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/behavior/metrics")
@@ -1437,7 +1437,7 @@ op AgentController_getAgentTrustHistories(
 
   /** Time duration for history */
   @query(#{ explode: true }) duration: "7d" | "30d" | "90d" | "1y" = "7d",
-): OkResponse;
+): Body<TrustHistory[]>;
 
 @tag("Agent")
 @route("/agent/{agentId}/trust/events")
@@ -1456,7 +1456,7 @@ op AgentController_getAgentTrustScoreEvents(
 
   /** Filter events ending before this time */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<PaginatedResponse<TrustEvent>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/trust/recovery-status")
@@ -1504,7 +1504,7 @@ op AgentController_getPendingApprovals(
 
   /** End time (ISO format) */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<PaginatedResponse<Approval>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/approvals/history")
@@ -1534,7 +1534,7 @@ op AgentController_getApprovalHistory(
 
   /** End time (ISO format) */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<PaginatedResponse<Approval>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/approvals/{eventId}/decide")
@@ -1545,7 +1545,7 @@ op AgentController_decideApproval(
 
   /** Approve/reject request */
   @query(#{ explode: true }) action: "approve" | "reject",
-): OkResponse;
+): Body<Approval>;
 
 @tag("Agent")
 @route("/agent/{agentId}/insights/metrics")
@@ -1571,7 +1571,7 @@ op AgentController_getBehaviorViolations(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-): OkResponse;
+): Body<PaginatedResponse<Violation>>;
 
 @tag("Agent")
 @route("/agent/{agentId}/trust-tier-changes")
@@ -1590,7 +1590,7 @@ op AgentController_getTrustTierChanges(
 
   /** Filter histories ending before this time */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<PaginatedResponse<TrustTierChange>>;
 
 @tag("Guardrail")
 @route("/guardrails/run-test")
@@ -1611,27 +1611,27 @@ op WebhookController_list(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-): OkResponse;
+): Body<PaginatedResponse<Webhook>>;
 
 @tag("Webhook")
 @route("/webhook")
 @post
-op WebhookController_create(@body body: CreateWebhookDto): CreatedResponse;
+op WebhookController_create(@body body: CreateWebhookDto): Body<Webhook>;
 
 @tag("Webhook")
 @route("/webhook/{id}")
 @delete
-op WebhookController_delete(@path id: string): OkResponse;
+op WebhookController_delete(@path id: string): Body<MessageResponse>;
 
 @tag("Webhook")
 @route("/webhook/{id}")
 @get
-op WebhookController_get(@path id: string): OkResponse;
+op WebhookController_get(@path id: string): Body<Webhook>;
 
 @tag("Webhook")
 @route("/webhook/{id}")
 @patch
-op WebhookController_update(@path id: string, @body body: UpdateWebhookDto): OkResponse;
+op WebhookController_update(@path id: string, @body body: UpdateWebhookDto): Body<Webhook>;
 
 @tag("Webhook")
 @route("/webhook/{id}/deliveries")
@@ -1644,17 +1644,17 @@ op WebhookController_getDeliveryLogs(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-): OkResponse;
+): Body<PaginatedResponse<WebhookDelivery>>;
 
 @tag("Webhook")
 @route("/webhook/{id}/test")
 @post
-op WebhookController_test(@path id: string): CreatedResponse;
+op WebhookController_test(@path id: string): Body<MessageResponse>;
 
 @tag("Webhook")
 @route("/webhook/{id}/regenerate-secret")
 @post
-op WebhookController_regenerateSecret(@path id: string): CreatedResponse;
+op WebhookController_regenerateSecret(@path id: string): Body<MessageResponse>;
 
 @tag("Organization")
 @route("/organization/register")
@@ -1669,7 +1669,7 @@ op OrganizationController_getDemoSetupStatus(): OkResponse;
 @tag("Organization")
 @route("/organization/{organizationId}/settings")
 @get
-op OrganizationController_getOrgSetting(@path organizationId: string): OkResponse;
+op OrganizationController_getOrgSetting(@path organizationId: string): Body<OrgSettings>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/settings")
@@ -1677,12 +1677,12 @@ op OrganizationController_getOrgSetting(@path organizationId: string): OkRespons
 op OrganizationController_updateOrgSetting(
   @path organizationId: string,
   @body body: UpdateOrganizationSettingsDto,
-): OkResponse;
+): Body<OrgSettings>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/features")
 @get
-op OrganizationController_getFeatures(@path organizationId: string): OkResponse;
+op OrganizationController_getFeatures(@path organizationId: string): Body<OrgFeatures>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/members")
@@ -1690,7 +1690,7 @@ op OrganizationController_getFeatures(@path organizationId: string): OkResponse;
 op OrganizationController_removeMembers(
   @path organizationId: string,
   @body body: RemoveMembersDto,
-): OkResponse;
+): Body<MessageResponse>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/members")
@@ -1703,7 +1703,7 @@ op OrganizationController_getMembers(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-): OkResponse;
+): Body<PaginatedResponse<Member>>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/users")
@@ -1711,7 +1711,7 @@ op OrganizationController_getMembers(
 op OrganizationController_createUser(
   @path organizationId: string,
   @body body: CreateUserDto,
-): CreatedResponse;
+): Body<Member>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/send-welcome-email")
@@ -1727,7 +1727,7 @@ op OrganizationController_sendWelcomeEmail(
 op OrganizationController_inviteUser(
   @path organizationId: string,
   @body body: InviteUserDto,
-): CreatedResponse;
+): Body<MessageResponse>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/members/{userId}/roles")
@@ -1736,7 +1736,7 @@ op OrganizationController_removeRoles(
   @path organizationId: string,
   @path userId: string,
   @body body: AssignRolesDto,
-): OkResponse;
+): Body<MessageResponse>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/members/{userId}/roles")
@@ -1745,7 +1745,7 @@ op OrganizationController_assignRoles(
   @path organizationId: string,
   @path userId: string,
   @body body: AssignRolesDto,
-): CreatedResponse;
+): Body<MessageResponse>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/members/{userId}")
@@ -1754,7 +1754,7 @@ op OrganizationController_updateMember(
   @path organizationId: string,
   @path userId: string,
   @body body: UpdateMemberDto,
-): OkResponse;
+): Body<Member>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/teams")
@@ -1775,7 +1775,7 @@ op OrganizationController_getTeams(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-): OkResponse;
+): Body<PaginatedResponse<Team>>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/teams")
@@ -1783,7 +1783,7 @@ op OrganizationController_getTeams(
 op OrganizationController_createTeam(
   @path organizationId: string,
   @body body: CreateTeamDto,
-): CreatedResponse;
+): Body<Team>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/teams/stats")
@@ -1793,7 +1793,7 @@ op OrganizationController_getTeamStats(@path organizationId: string): OkResponse
 @tag("Organization")
 @route("/organization/{organizationId}/teams/{teamId}")
 @get
-op OrganizationController_getTeam(@path organizationId: string, @path teamId: string): OkResponse;
+op OrganizationController_getTeam(@path organizationId: string, @path teamId: string): Body<Team>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/teams/{teamId}")
@@ -1802,7 +1802,7 @@ op OrganizationController_updateTeam(
   @path organizationId: string,
   @path teamId: string,
   @body body: UpdateTeamDto,
-): OkResponse;
+): Body<Team>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/teams/{teamId}/members")
@@ -1825,7 +1825,7 @@ op OrganizationController_getTeamMembers(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-): OkResponse;
+): Body<PaginatedResponse<Member>>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/teams/{teamId}/members")
@@ -1880,7 +1880,7 @@ op OrganizationController_getAuditLogs(
 
   /** End date for filtering (ISO 8601 format) */
   @query(#{ explode: true }) endDate?: string,
-): OkResponse;
+): Body<PaginatedResponse<AuditLog>>;
 
 @tag("Organization")
 @route("/organization/audit-logs/export/preview")
@@ -1893,7 +1893,7 @@ op OrganizationController_previewExport(@body body: PreviewExportDto): CreatedRe
 op OrganizationController_exportAuditLogs(
   /** Optional filters for audit log export. Leave empty to export all logs. */
   @body body: ExportAuditLogsDto,
-): CreatedResponse;
+): Body<AuditExport>;
 
 @tag("Organization")
 @route("/organization/audit-logs/exports")
@@ -1913,17 +1913,17 @@ op OrganizationController_getExportHistory(
 
   /** End date for filtering (ISO 8601 format) */
   @query(#{ explode: true }) endDate?: string,
-): OkResponse;
+): Body<PaginatedResponse<AuditExport>>;
 
 @tag("Organization")
 @route("/organization/audit-logs/export/{exportId}")
 @delete
-op OrganizationController_deleteExport(@path exportId: string): OkResponse;
+op OrganizationController_deleteExport(@path exportId: string): Body<MessageResponse>;
 
 @tag("Organization")
 @route("/organization/audit-logs/export/{exportId}")
 @get
-op OrganizationController_getExportStatus(@path exportId: string): OkResponse;
+op OrganizationController_getExportStatus(@path exportId: string): Body<AuditExport>;
 
 @tag("Organization")
 @route("/organization/audit-logs/export/{exportId}/download")
@@ -1933,7 +1933,7 @@ op OrganizationController_downloadExport(@path exportId: string): OkResponse;
 @tag("Organization")
 @route("/organization/audit-logs/{logId}")
 @get
-op OrganizationController_getAuditLogById(@path logId: string): OkResponse;
+op OrganizationController_getAuditLogById(@path logId: string): Body<AuditLog>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/dashboard")
@@ -1994,7 +1994,7 @@ op OrganizationController_getApprovals(
 
   /** End time (ISO format) */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<OrgApprovalsResponse>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/approvals/history")
@@ -2007,7 +2007,7 @@ op OrganizationController_getRecentDecisions(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-): OkResponse;
+): Body<PaginatedResponse<Approval>>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/dashboard/tier-trends")
@@ -2040,12 +2040,12 @@ op OrganizationController_getSessions(
 
   /** Search by workflow_id or run_id */
   @query(#{ explode: true }) search?: string,
-): OkResponse;
+): Body<PaginatedResponse<Session>>;
 
 @tag("Organization")
 @route("/organization/{organizationId}")
 @get
-op OrganizationController_getOrganization(@path organizationId: string): OkResponse;
+op OrganizationController_getOrganization(@path organizationId: string): Body<Organization>;
 
 @tag("API Keys")
 @route("/api-key")
@@ -2056,32 +2056,32 @@ op ApiKeyController_list(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-): OkResponse;
+): Body<PaginatedResponse<ApiKey>>;
 
 @tag("API Keys")
 @route("/api-key")
 @post
-op ApiKeyController_create(@body body: CreateApiKeyDto): CreatedResponse;
+op ApiKeyController_create(@body body: CreateApiKeyDto): Body<ApiKey>;
 
 @tag("API Keys")
 @route("/api-key/{id}")
 @delete
-op ApiKeyController_delete(@path id: string): OkResponse;
+op ApiKeyController_delete(@path id: string): Body<MessageResponse>;
 
 @tag("API Keys")
 @route("/api-key/{id}")
 @get
-op ApiKeyController_get(@path id: string): OkResponse;
+op ApiKeyController_get(@path id: string): Body<ApiKey>;
 
 @tag("API Keys")
 @route("/api-key/{id}")
 @patch
-op ApiKeyController_update(@path id: string, @body body: UpdateApiKeyDto): OkResponse;
+op ApiKeyController_update(@path id: string, @body body: UpdateApiKeyDto): Body<ApiKey>;
 
 @tag("SSO")
 @route("/sso")
 @delete
-op SsoController_removeConfig(): OkResponse;
+op SsoController_removeConfig(): Body<MessageResponse>;
 
 @tag("SSO")
 @route("/sso")
@@ -2091,17 +2091,17 @@ op SsoController_getConfig(): OkResponse;
 @tag("SSO")
 @route("/sso/saml")
 @post
-op SsoController_configureSaml(@body body: ConfigureSamlDto): CreatedResponse;
+op SsoController_configureSaml(@body body: ConfigureSamlDto): Body<MessageResponse>;
 
 @tag("SSO")
 @route("/sso/oidc")
 @post
-op SsoController_configureOidc(@body body: ConfigureOidcDto): CreatedResponse;
+op SsoController_configureOidc(@body body: ConfigureOidcDto): Body<MessageResponse>;
 
 @tag("SSO")
 @route("/sso/enforce")
 @put
-op SsoController_setEnforcement(@body body: EnforceSsoDto): OkResponse;
+op SsoController_setEnforcement(@body body: EnforceSsoDto): Body<MessageResponse>;
 
 @tag("SSO")
 @route("/sso/metadata")
@@ -2111,9 +2111,9 @@ op SsoController_getSpMetadata(): OkResponse;
 @tag("SSO")
 @route("/sso/verify")
 @post
-op SsoController_verifyConfiguration(): CreatedResponse;
+op SsoController_verifyConfiguration(): Body<MessageResponse>;
 
 @tag("SSO")
 @route("/sso/status")
 @get
-op SsoController_getPublicStatus(@query(#{ explode: true }) orgId: string): OkResponse;
+op SsoController_getPublicStatus(@query(#{ explode: true }) orgId: string): Body<SsoStatus>;

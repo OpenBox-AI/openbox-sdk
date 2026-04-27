@@ -492,7 +492,7 @@ describe('OpenBoxClient', () => {
 
     it('decideApproval sends PUT with action query param', async () => {
       fetchMock.mockResolvedValueOnce(mockResponse(200, { data: {} }));
-      await client.decideApproval('agent-1', 'event-1', 'approve');
+      await client.decideApproval('agent-1', 'event-1', { action: 'approve' });
       const url: string = fetchMock.mock.calls[0][0];
       expect(url).toContain('/agent/agent-1/approvals/event-1/decide');
       expect(url).toContain('action=approve');

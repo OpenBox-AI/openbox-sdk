@@ -157,7 +157,9 @@ export function registerGuardrailCommands(program: Command) {
     .description('Reorder a guardrail')
     .action(async (agentId: string, guardrailId: string, order: string) => {
       try {
-        const data = await getClient().reorderGuardrail(agentId, guardrailId, parseInt(order));
+        const data = await getClient().reorderGuardrail(agentId, guardrailId, {
+          order: parseInt(order),
+        });
         output(data);
       } catch (err: any) {
         reportAndExit(err);

@@ -49,6 +49,8 @@ describe('approval commands', () => {
       'evt-1',
       'approve',
     ]);
-    expect(mockClient.decideApproval).toHaveBeenCalledWith('agent-1', 'evt-1', 'approve');
+    expect(mockClient.decideApproval).toHaveBeenCalledWith('agent-1', 'evt-1', {
+      action: 'approve',
+    });
   });
 });
