@@ -130,6 +130,26 @@ export function registerAgentCommands(program: Command) {
         }
         const data = await client.createAgent(dto);
         output(data);
+        // Highlight the runtime API key in stderr so it's not lost in
+        // the JSON output. The response carries it under the top-level
+        // `token` field (the obx_live_/obx_test_ form, distinct from
+        // the agent.token field surfaced later by `agent list`/`get`).
+        // This is the ONLY moment the runtime key appears - `agent
+        // get`/`list` won't return it. Recovery requires `api-key
+        // rotate`, which invalidates the previous key.
+        const runtimeKey = (data as { token?: string } | null)?.token;
+        if (typeof runtimeKey === 'string' && (runtimeKey.startsWith('obx_live_') || runtimeKey.startsWith('obx_test_'))) {
+          const agentId = (data as { agent?: { id?: string } } | null)?.agent?.id ?? '<id>';
+          console.error('');
+          console.error('────────────────────────────────────────────────────────────');
+          console.error('  Runtime API key (capture now - only shown once):');
+          console.error(`    ${runtimeKey}`);
+          console.error('');
+          console.error('  Use this as OPENBOX_API_KEY for core/governance calls.');
+          console.error(`  To recover later: openbox api-key rotate ${agentId}`);
+          console.error('  (rotation invalidates the previous key).');
+          console.error('────────────────────────────────────────────────────────────');
+        }
       } catch (err: any) {
         reportAndExit(err);
       }
