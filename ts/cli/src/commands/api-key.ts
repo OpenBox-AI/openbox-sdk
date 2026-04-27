@@ -1,10 +1,84 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
-import { output } from '../output.js';
-import { reportAndExit } from '../validators/index.js';
+import { output, outputList } from '../output.js';
+import { parseJsonInput } from '../input.js';
+import { reportAndExit, parsePagination } from '../validators/index.js';
 
 export function registerApiKeyCommands(program: Command) {
   const apiKey = program.command('api-key').description('API key management');
+
+  // Org-level API key CRUD (the /api-key/* endpoints - distinct from
+  // the agent-level /agent/{id}/rotate-api-key + revoke-api-key
+  // below). These are admin-tooling for managing programmatic keys
+  // attached to the calling org.
+
+  apiKey
+    .command('list')
+    .description('List org-level API keys')
+    .option('-p, --page <n>', 'Page number', '0')
+    .option('-l, --limit <n>', 'Items per page', '10')
+    .action(async (opts) => {
+      try {
+        const data = await getClient().listApiKeys(parsePagination(opts));
+        outputList(data, 'api keys');
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
+
+  apiKey
+    .command('create')
+    .description('Create an org-level API key')
+    .requiredOption('--json <json>', 'CreateApiKeyDto body')
+    .action(async (opts) => {
+      try {
+        const data = await getClient().createApiKey(parseJsonInput(opts.json));
+        output(data);
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
+
+  apiKey
+    .command('get <id>')
+    .description('Get an org-level API key by id')
+    .action(async (id: string) => {
+      try {
+        const data = await getClient().getApiKey(id);
+        output(data);
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
+
+  apiKey
+    .command('update <id>')
+    .description('Update an org-level API key')
+    .requiredOption('--json <json>', 'UpdateApiKeyDto body')
+    .action(async (id: string, opts) => {
+      try {
+        const data = await getClient().updateApiKey(id, parseJsonInput(opts.json));
+        output(data);
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
+
+  apiKey
+    .command('delete <id>')
+    .description('Delete an org-level API key')
+    .action(async (id: string) => {
+      try {
+        const data = await getClient().deleteApiKey(id);
+        output(data);
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
+
+  // Agent-level API key rotation / revocation. Distinct from the
+  // org-level CRUD above - these target the runtime obx_live_/obx_test_
+  // key bound to a specific agent.
 
   apiKey
     .command('rotate <agentId>')

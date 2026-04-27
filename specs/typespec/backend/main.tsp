@@ -2015,6 +2015,46 @@ op OrganizationController_getRecentDecisions(
 op OrganizationController_getTrustTierTrends(@path organizationId: string): OkResponse;
 
 @tag("Organization")
+@route("/organization/{organizationId}/dashboard/governance-feed")
+@get
+op OrganizationController_getGovernanceFeed(
+  @path organizationId: string,
+
+  /** Page size for the feed (default 20). */
+  @query(#{ explode: true }) limit?: numeric,
+): OkResponse;
+
+@tag("Organization")
+@route("/organization/{organizationId}/dashboard/trust-drift-lanes")
+@get
+op OrganizationController_getTrustDriftLanes(
+  @path organizationId: string,
+
+  /** Number of agent lanes to return (default 8). */
+  @query(#{ explode: true }) limit?: numeric,
+): OkResponse;
+
+@tag("Organization")
+@route("/organization/{organizationId}/dashboard/governance-slo")
+@get
+op OrganizationController_getGovernanceSlo(
+  @path organizationId: string,
+
+  /** Aggregation window: "7d" / "30d" / "90d" (default "30d"). */
+  @query(#{ explode: true }) window?: string,
+): OkResponse;
+
+@tag("Organization")
+@route("/organization/{organizationId}/dashboard/violation-heatcal")
+@get
+op OrganizationController_getViolationHeatcal(
+  @path organizationId: string,
+
+  /** Aggregation window: "7d" / "30d" / "90d" (default "30d"). */
+  @query(#{ explode: true }) window?: string,
+): OkResponse;
+
+@tag("Organization")
 @route("/organization/{organizationId}/sessions")
 @get
 op OrganizationController_getSessions(

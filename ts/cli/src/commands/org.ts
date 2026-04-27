@@ -198,4 +198,88 @@ export function registerOrgCommands(program: Command) {
         reportAndExit(err);
       }
     });
+
+  // Dashboard sub-endpoints (added in proposal/openapi-organization-
+  // path-params; live on backend develop). Each is a thin GET wrapper.
+
+  org
+    .command('governance-feed <orgId>')
+    .description('Latest governance events for the dashboard activity feed')
+    .option('-l, --limit <n>', 'Number of events to return', '20')
+    .action(async (orgId: string, opts) => {
+      try {
+        const data = await getClient().getGovernanceFeed(orgId, {
+          limit: parseInt(opts.limit),
+        });
+        outputList(data, 'governance feed');
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
+
+  org
+    .command('trust-drift-lanes <orgId>')
+    .description('Per-agent 30-day trust score trajectory')
+    .option('-l, --limit <n>', 'Number of agent lanes to return', '8')
+    .action(async (orgId: string, opts) => {
+      try {
+        const data = await getClient().getTrustDriftLanes(orgId, {
+          limit: parseInt(opts.limit),
+        });
+        output(data);
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
+
+  org
+    .command('governance-slo <orgId>')
+    .description('Allowed/blocked/halted rates vs targets')
+    .option('--window <window>', 'Aggregation window (7d|30d|90d)', '30d')
+    .action(async (orgId: string, opts) => {
+      try {
+        const data = await getClient().getGovernanceSlo(orgId, { window: opts.window });
+        output(data);
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
+
+  org
+    .command('violation-heatcal <orgId>')
+    .description('7×24 day-of-week × hour-of-day violation density matrix')
+    .option('--window <window>', 'Aggregation window (7d|30d|90d)', '30d')
+    .action(async (orgId: string, opts) => {
+      try {
+        const data = await getClient().getViolationHeatcal(orgId, { window: opts.window });
+        output(data);
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
+
+  org
+    .command('register')
+    .description('Provision a new organization (public endpoint, throttled)')
+    .requiredOption('--json <json>', 'CreateOrganizationDto body')
+    .action(async (opts) => {
+      try {
+        const data = await getClient().registerOrganization(parseJsonInput(opts.json));
+        output(data);
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
+
+  org
+    .command('demo-status')
+    .description('Poll demo-agent setup status (used by FE during onboarding)')
+    .action(async () => {
+      try {
+        const data = await getClient().getDemoSetupStatus();
+        output(data);
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
 }

@@ -156,10 +156,43 @@ interface Aivss {
   calculate(): void;
 }
 
-@cli_command("api-key", "Agent API key rotation/revocation.")
+@cli_command("api-key", "Agent + org-level API key management.")
 interface ApiKey {
+  // Org-level (programmatic API keys)
+  list(): void;
+  create(): void;
+  get(id: string): void;
+  update(id: string): void;
+  delete(id: string): void;
+  // Agent-level (runtime obx_live_ keys)
   rotate(agentId: string): void;
   revoke(agentId: string): void;
+}
+
+@cli_command("webhook", "Webhook management (admin).")
+interface Webhook {
+  list(): void;
+  create(): void;
+  get(id: string): void;
+  update(id: string): void;
+  delete(id: string): void;
+  test(id: string): void;
+  regenerateSecret(id: string): void;
+  deliveries(id: string): void;
+}
+
+@cli_command("sso", "SSO configuration (admin).")
+interface Sso {
+  status(): void;
+  config(): void;
+  // `metadata` is a TypeSpec reserved keyword; the kebab-case
+  // command name on the CLI is `metadata` regardless.
+  getMetadata(): void;
+  configureOidc(): void;
+  configureSaml(): void;
+  enforce(): void;
+  delete(): void;
+  verify(): void;
 }
 
 @cli_command("approval", "Approval queue management.")
@@ -238,6 +271,10 @@ interface Org {
   approvalMetrics(orgId: string): void;
   approvalSla(orgId: string): void;
   approvalHistory(orgId: string): void;
+  governanceFeed(orgId: string): void;
+  trustDriftLanes(orgId: string): void;
+  governanceSlo(orgId: string): void;
+  violationHeatcal(orgId: string): void;
 }
 
 @cli_command("policy", "Policy management.")

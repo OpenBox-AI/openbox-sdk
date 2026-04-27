@@ -31,8 +31,33 @@ export interface Aivss {
   calculate(): void;
 }
 export interface ApiKey {
+  list(): void;
+  create(): void;
+  get(id: string): void;
+  update(id: string): void;
+  delete(id: string): void;
   rotate(agentId: string): void;
   revoke(agentId: string): void;
+}
+export interface Webhook {
+  list(): void;
+  create(): void;
+  get(id: string): void;
+  update(id: string): void;
+  delete(id: string): void;
+  test(id: string): void;
+  regenerateSecret(id: string): void;
+  deliveries(id: string): void;
+}
+export interface Sso {
+  status(): void;
+  config(): void;
+  getMetadata(): void;
+  configureOidc(): void;
+  configureSaml(): void;
+  enforce(): void;
+  delete(): void;
+  verify(): void;
 }
 export interface Approval {
   metrics(agentId: string): void;
@@ -92,6 +117,10 @@ export interface Org {
   approvalMetrics(orgId: string): void;
   approvalSla(orgId: string): void;
   approvalHistory(orgId: string): void;
+  governanceFeed(orgId: string): void;
+  trustDriftLanes(orgId: string): void;
+  governanceSlo(orgId: string): void;
+  violationHeatcal(orgId: string): void;
 }
 export interface Policy {
   list(agentId: string): void;
@@ -243,15 +272,113 @@ export const CLI_COMMAND_MANIFEST = [
   },
   {
     "command": "api-key",
-    "description": "Agent API key rotation/revocation.",
+    "description": "Agent + org-level API key management.",
     "interfaceName": "ApiKey",
     "subcommands": [
+      {
+        "name": "list",
+        "flags": []
+      },
+      {
+        "name": "create",
+        "flags": []
+      },
+      {
+        "name": "get",
+        "flags": []
+      },
+      {
+        "name": "update",
+        "flags": []
+      },
+      {
+        "name": "delete",
+        "flags": []
+      },
       {
         "name": "rotate",
         "flags": []
       },
       {
         "name": "revoke",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "webhook",
+    "description": "Webhook management (admin).",
+    "interfaceName": "Webhook",
+    "subcommands": [
+      {
+        "name": "list",
+        "flags": []
+      },
+      {
+        "name": "create",
+        "flags": []
+      },
+      {
+        "name": "get",
+        "flags": []
+      },
+      {
+        "name": "update",
+        "flags": []
+      },
+      {
+        "name": "delete",
+        "flags": []
+      },
+      {
+        "name": "test",
+        "flags": []
+      },
+      {
+        "name": "regenerateSecret",
+        "flags": []
+      },
+      {
+        "name": "deliveries",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "sso",
+    "description": "SSO configuration (admin).",
+    "interfaceName": "Sso",
+    "subcommands": [
+      {
+        "name": "status",
+        "flags": []
+      },
+      {
+        "name": "config",
+        "flags": []
+      },
+      {
+        "name": "getMetadata",
+        "flags": []
+      },
+      {
+        "name": "configureOidc",
+        "flags": []
+      },
+      {
+        "name": "configureSaml",
+        "flags": []
+      },
+      {
+        "name": "enforce",
+        "flags": []
+      },
+      {
+        "name": "delete",
+        "flags": []
+      },
+      {
+        "name": "verify",
         "flags": []
       }
     ]
@@ -475,6 +602,22 @@ export const CLI_COMMAND_MANIFEST = [
       {
         "name": "approvalHistory",
         "flags": []
+      },
+      {
+        "name": "governanceFeed",
+        "flags": []
+      },
+      {
+        "name": "trustDriftLanes",
+        "flags": []
+      },
+      {
+        "name": "governanceSlo",
+        "flags": []
+      },
+      {
+        "name": "violationHeatcal",
+        "flags": []
       }
     ]
   },
@@ -678,6 +821,10 @@ export const CLI_COMMAND_MANIFEST = [
   }
 ] as const;
 export type CliCommandManifest = typeof CLI_COMMAND_MANIFEST;
+
+
+
+
 
 
 

@@ -1300,6 +1300,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/organization/{organizationId}/dashboard/governance-feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getGovernanceFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/{organizationId}/dashboard/governance-slo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getGovernanceSlo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/organization/{organizationId}/dashboard/tier-trends": {
         parameters: {
             query?: never;
@@ -1308,6 +1340,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["OrganizationController_getTrustTierTrends"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/{organizationId}/dashboard/trust-drift-lanes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getTrustDriftLanes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organization/{organizationId}/dashboard/violation-heatcal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OrganizationController_getViolationHeatcal"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5162,9 +5226,101 @@ export interface operations {
             };
         };
     };
+    OrganizationController_getGovernanceFeed: {
+        parameters: {
+            query?: {
+                /** @description Page size for the feed (default 20). */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_getGovernanceSlo: {
+        parameters: {
+            query?: {
+                /** @description Aggregation window: "7d" / "30d" / "90d" (default "30d"). */
+                window?: string;
+            };
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     OrganizationController_getTrustTierTrends: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_getTrustDriftLanes: {
+        parameters: {
+            query?: {
+                /** @description Number of agent lanes to return (default 8). */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OrganizationController_getViolationHeatcal: {
+        parameters: {
+            query?: {
+                /** @description Aggregation window: "7d" / "30d" / "90d" (default "30d"). */
+                window?: string;
+            };
             header?: never;
             path: {
                 organizationId: string;

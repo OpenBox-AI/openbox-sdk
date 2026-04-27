@@ -735,6 +735,30 @@ export const BACKEND_ENDPOINT_MANIFEST = [
     "pathPattern": "/organization/{x}/dashboard/tier-trends"
   },
   {
+    "operationId": "OrganizationController_getGovernanceFeed",
+    "path": "/organization/{organizationId}/dashboard/governance-feed",
+    "verb": "get",
+    "pathPattern": "/organization/{x}/dashboard/governance-feed"
+  },
+  {
+    "operationId": "OrganizationController_getTrustDriftLanes",
+    "path": "/organization/{organizationId}/dashboard/trust-drift-lanes",
+    "verb": "get",
+    "pathPattern": "/organization/{x}/dashboard/trust-drift-lanes"
+  },
+  {
+    "operationId": "OrganizationController_getGovernanceSlo",
+    "path": "/organization/{organizationId}/dashboard/governance-slo",
+    "verb": "get",
+    "pathPattern": "/organization/{x}/dashboard/governance-slo"
+  },
+  {
+    "operationId": "OrganizationController_getViolationHeatcal",
+    "path": "/organization/{organizationId}/dashboard/violation-heatcal",
+    "verb": "get",
+    "pathPattern": "/organization/{x}/dashboard/violation-heatcal"
+  },
+  {
     "operationId": "OrganizationController_getSessions",
     "path": "/organization/{organizationId}/sessions",
     "verb": "get",
