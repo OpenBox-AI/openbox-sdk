@@ -126,3 +126,182 @@ model PersistedCredentials {
   /** Selected environment when the store was written. */
   env: EnvFlag;
 }
+
+// ---------------------------------------------------------------------------
+// Remaining command groups - surface-only spec for now. Each method
+// lists the positional arguments declared in `commands/<x>.ts`. The
+// `@cli_flag` decorators on flags will land in follow-up passes; the
+// coverage test in tests/unit/cli-coverage.test.ts asserts every method
+// here has a matching `.command(...)` registration in the impl.
+// ---------------------------------------------------------------------------
+
+@cli_command("auth-extras")
+interface AuthExtras {
+  permissions(): void;
+  features(): void;
+  refresh(): void;
+  // hyphenated subcommands - generated long form is `change-password`.
+  changePassword(): void;
+  roles(): void;
+}
+
+@cli_command("agent", "Agent management.")
+interface Agent {
+  list(): void;
+  create(): void;
+}
+
+@cli_command("aivss", "Agent AIVSS scoring.")
+interface Aivss {
+  calculate(): void;
+}
+
+@cli_command("api-key", "Agent API key rotation/revocation.")
+interface ApiKey {
+  rotate(agentId: string): void;
+  revoke(agentId: string): void;
+}
+
+@cli_command("approval", "Approval queue management.")
+interface Approval {
+  metrics(agentId: string): void;
+  pending(agentId: string): void;
+  history(agentId: string): void;
+  decide(agentId: string, eventId: string, action: string): void;
+}
+
+@cli_command("audit", "Audit log queries + exports.")
+interface Audit {
+  list(): void;
+  export(): void;
+  preview(): void;
+  exports(): void;
+}
+
+@cli_command("behavior", "Behavior rule management.")
+interface Behavior {
+  types(): void;
+}
+
+@cli_command("core", "Direct access to the core governance API.")
+interface Core {
+  health(): void;
+  validate(): void;
+  evaluate(): void;
+  pollApproval(): void;
+}
+
+@cli_command("doctor", "Pre-flight checks for the local environment.")
+interface Doctor {}
+
+@cli_command("goal", "Goal alignment configuration.")
+interface Goal {}
+
+@cli_command("guardrail", "Guardrail management + testing.")
+interface Guardrail {
+  test(): void;
+}
+
+@cli_command("health", "Backend health check.")
+interface Health {}
+
+@cli_command("member", "Org member management.")
+interface Member {
+  list(orgId: string): void;
+  create(orgId: string): void;
+  update(orgId: string, userId: string): void;
+  assignRoles(orgId: string, userId: string): void;
+  removeRoles(orgId: string, userId: string): void;
+  remove(orgId: string): void;
+  invite(orgId: string): void;
+}
+
+@cli_command("observe", "Observability dashboards + metrics.")
+interface Observe {
+  data(agentId: string): void;
+  issues(agentId: string): void;
+  insights(agentId: string): void;
+  logs(agentId: string): void;
+  drift(agentId: string): void;
+  metrics(): void;
+}
+
+@cli_command("org", "Organization management.")
+interface Org {
+  get(orgId: string): void;
+  settings(orgId: string): void;
+  updateSettings(orgId: string): void;
+  dashboard(orgId: string): void;
+  trends(orgId: string): void;
+  sessions(orgId: string): void;
+  approvals(orgId: string): void;
+  approvalMetrics(orgId: string): void;
+  approvalSla(orgId: string): void;
+  approvalHistory(orgId: string): void;
+}
+
+@cli_command("policy", "Policy management.")
+interface Policy {
+  list(agentId: string): void;
+  create(agentId: string): void;
+  current(agentId: string): void;
+  get(agentId: string, policyId: string): void;
+  update(agentId: string, policyId: string): void;
+  evaluations(agentId: string, policyId: string): void;
+  metrics(agentId: string): void;
+  evaluate(): void;
+}
+
+@cli_command("session", "Session inspection + cleanup.")
+interface Session {
+  list(agentId: string): void;
+  active(agentId: string): void;
+  get(agentId: string, sessionId: string): void;
+  logs(agentId: string, sessionId: string): void;
+  goalStats(agentId: string, sessionId: string): void;
+  trace(agentId: string, sessionId: string): void;
+  terminate(agentId: string, sessionId: string): void;
+  inspect(agentId: string, sessionIdOrWorkflowId: string): void;
+  prune(agentId: string): void;
+}
+
+@cli_command("setup", "First-run helpers (skill / mcp / all).")
+interface Setup {
+  skill(): void;
+  mcp(): void;
+  all(): void;
+}
+
+@cli_command("team", "Team management.")
+interface Team {
+  list(orgId: string): void;
+  stats(orgId: string): void;
+  get(orgId: string, teamId: string): void;
+  update(orgId: string, teamId: string): void;
+  members(orgId: string, teamId: string): void;
+  create(orgId: string): void;
+  delete(orgId: string): void;
+  addMembers(orgId: string, teamId: string): void;
+  removeMembers(orgId: string, teamId: string): void;
+}
+
+@cli_command("trust", "Agent trust history.")
+interface Trust {
+  histories(agentId: string): void;
+  events(agentId: string): void;
+  tierChanges(agentId: string): void;
+  recovery(agentId: string): void;
+}
+
+@cli_command("verify", "Lint an integration source file for governance bugs.")
+interface Verify {}
+
+@cli_command("versions", "Show deployed commit/tag for each service per env.")
+interface Versions {}
+
+@cli_command("violation", "Guardrail/policy/behavior violation queries.")
+interface Violation {
+  list(): void;
+  agent(agentId: string): void;
+  falsePositive(agentId: string, violationId: string, sourceType: string): void;
+}

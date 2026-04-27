@@ -44,8 +44,16 @@ enum VerdictArm {
   halt: "halt",
 }
 
+/**
+ * Public-facing workflow verdict - what `govern()` returns to callers.
+ * Distinct from `OpenboxCore.Verdict`, which is the wire enum
+ * (`"allow" | "constrain" | ...`). The workflow runtime maps
+ * `GovernanceVerdictResponse` (wire) → `WorkflowVerdict` (this) by
+ * promoting the arm into a structured payload alongside risk/trust
+ * data and the approval-polling handle.
+ */
 @verdict
-model Verdict {
+model WorkflowVerdict {
   arm: VerdictArm;
 
   /** Set on `require_approval`; opaque ID for the polling endpoint. */
@@ -83,31 +91,31 @@ model GovernedPayload {
 interface GovernedAgent {
   /** User prompt entering the agent. Pre-stage: PII / safety guardrails. */
   @activity("PromptSubmission", "pre")
-  promptSubmission(payload: GovernedPayload): Verdict;
+  promptSubmission(payload: GovernedPayload): WorkflowVerdict;
 
   /** LLM completion returned to the agent. Post-stage: output guardrails. */
   @activity("LLMCompleted", "post")
-  llmCompleted(payload: GovernedPayload): Verdict;
+  llmCompleted(payload: GovernedPayload): WorkflowVerdict;
 
   /** Tool call about to be invoked. Pre-stage: policy / approval gate. */
   @activity("ToolCompleted", "both")
-  toolCompleted(payload: GovernedPayload): Verdict;
+  toolCompleted(payload: GovernedPayload): WorkflowVerdict;
 
   /** File read by the agent. Pre-stage: redaction / DLP. */
   @activity("FileRead", "pre")
-  fileRead(payload: GovernedPayload): Verdict;
+  fileRead(payload: GovernedPayload): WorkflowVerdict;
 
   /** File write/edit. Pre-stage: write-access policy. */
   @activity("FileEdit", "pre")
-  fileEdit(payload: GovernedPayload): Verdict;
+  fileEdit(payload: GovernedPayload): WorkflowVerdict;
 
   /** Shell command. Pre-stage: command allowlist / approval. */
   @activity("ShellExecution", "pre")
-  shellExecution(payload: GovernedPayload): Verdict;
+  shellExecution(payload: GovernedPayload): WorkflowVerdict;
 
   /** MCP tool call. Pre-stage: per-tool policy. */
   @activity("MCPToolCall", "both")
-  mcpToolCall(payload: GovernedPayload): Verdict;
+  mcpToolCall(payload: GovernedPayload): WorkflowVerdict;
 }
 
 // ---------------------------------------------------------------------------

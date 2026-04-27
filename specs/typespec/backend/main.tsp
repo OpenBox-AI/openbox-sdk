@@ -1,6 +1,7 @@
 import "@typespec/http";
 import "@typespec/openapi";
 import "@typespec/openapi3";
+import "./responses.tsp";
 
 using Http;
 using OpenAPI;
