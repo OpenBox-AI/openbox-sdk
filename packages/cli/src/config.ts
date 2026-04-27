@@ -136,6 +136,40 @@ function getClient(env?: EnvName): OpenBoxClient {
   });
 }
 
+// Core only accepts API keys that start with `obx_live_` (production) or
+// `obx_test_` (test/staging). The most common misuse is to grab the
+// `token` field from `agent list`/`agent get` and pass it as
+// OPENBOX_API_KEY - that's an internal attestation token, not the
+// runtime key. Catching it here gives a clear hint pointing at the
+// right field, instead of letting core return a generic 500
+// ("invalid API key format. Expected format: obx_live_... or obx_test_...").
+function validateApiKeyFormat(key: string): void {
+  if (key.startsWith('obx_live_') || key.startsWith('obx_test_')) return;
+  const looksLikeAgentToken = /^[a-f0-9]{32,}$/i.test(key);
+  console.error(
+    `Invalid OPENBOX_API_KEY format: must start with 'obx_live_' or 'obx_test_'.`,
+  );
+  if (looksLikeAgentToken) {
+    console.error(
+      `\nThis looks like the 'token' field from 'agent list'/'agent get' - that's NOT the runtime API key.`,
+    );
+    console.error(
+      `The runtime API key is returned ONCE by 'agent create' (in the response body) or 'api-key rotate'.`,
+    );
+    console.error(
+      `\nTo recover for an existing agent: openbox api-key rotate <agentId>`,
+    );
+    console.error(
+      `(rotation invalidates the previous key - update any deployed clients).`,
+    );
+  } else {
+    console.error(
+      `\nGet a key from 'agent create' (returned once on create) or 'api-key rotate <agentId>'.`,
+    );
+  }
+  process.exit(1);
+}
+
 function getCoreClient(env?: EnvName): OpenBoxCoreClient {
   const resolved = env ?? resolveEnv();
   const apiKey = process.env.OPENBOX_API_KEY || '';
@@ -143,6 +177,7 @@ function getCoreClient(env?: EnvName): OpenBoxCoreClient {
     console.error('No OPENBOX_API_KEY found. Set it in your environment.');
     process.exit(1);
   }
+  validateApiKeyFormat(apiKey);
   const { coreUrl } = resolveUrls(resolved);
   return new OpenBoxCoreClient({
     apiUrl: coreUrl,
