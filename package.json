@@ -54,7 +54,8 @@
     "specs:libs": "npm run build -w @openbox/typespec-env -w @openbox/typespec-cli -w @openbox/typespec-workflow -w @openbox/typespec-emitter-ts",
     "specs:compile": "npm run specs:libs && tsp compile specs/typespec",
     "specs:all": "npm run specs:compile && npm run generate:types",
-    "specs:watch": "tsp compile specs/typespec --watch"
+    "specs:watch": "tsp compile specs/typespec --watch",
+    "lint:generated-banners": "node scripts/check-generated-banners.mjs"
   },
   "license": "MIT",
   "devDependencies": {

@@ -5,13 +5,12 @@ exports[`emitter: ts/env/src/generated/env-bindings.ts > content matches snapsho
 // Regenerate with: npm run specs:compile
 
 import environmentsJson from '../../../../specs/environments.json' with { type: 'json' };
-export type EnvName = 'production' | 'staging' | 'local';
+export type EnvName = "production" | "staging" | "local";
 export interface EnvConfig {
   apiUrl: string;
   coreUrl: string;
   platformUrl: string;
 }
-
 export const ENVIRONMENTS: Record<EnvName, EnvConfig> = environmentsJson as Record<
   EnvName,
   EnvConfig
@@ -29,6 +28,15 @@ export function validateApiKeyFormat(value: string): true | string {
   return true;
 }
 export const OS_PATH_FIELDS = ["path"] as const;
+export interface EnvLoader {
+  resolveEnv(cliFlag?: string): EnvName;
+  resolveUrls(env: EnvName): EnvConfig;
+}
+
+
+
+
+
 
 
 

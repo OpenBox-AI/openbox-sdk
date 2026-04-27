@@ -1,0 +1,128 @@
+# Spec-driven codegen pipeline check.
+#
+# DISABLED on push/PR before the codegen pipeline takes over (consumer migration) lands. Until
+# then the SDK still ships hand-written code as the source of truth
+# in ts/<package>/src/, and a stale generated/ folder shouldn't fail
+# CI for everyone. Re-enable by replacing `workflow_dispatch` with the
+# usual push/pull_request triggers below.
+#
+# Run on demand: GitHub Actions tab → Codegen Pipeline → Run workflow.
+
+name: Codegen Pipeline
+
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+  # pull_request:
+  #   branches: [main]
+  #   paths:
+  #     - "specs/**"
+  #     - "codegen/**"
+  #     - "ts/**"
+  #     - ".github/workflows/codegen.yml"
+
+jobs:
+  compile-and-snapshot:
+    name: TypeSpec compile + emitter snapshots
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build TypeSpec libraries + TS emitter
+        run: npm run specs:libs
+
+      - name: Compile TypeSpec sources
+        run: npx tsp compile specs/typespec
+
+      - name: Regenerate hand-written types from emitted OpenAPI
+        run: npm run generate:types
+
+      - name: Assert no uncommitted codegen drift
+        run: |
+          # Anything generated/* is reproducible from the .tsp + .json
+          # sources, so a diff means someone forgot to run the pipeline.
+          if ! git diff --quiet --exit-code -- ts/ specs/generated/; then
+            echo "::error::Generated code is out of sync with sources."
+            echo ""
+            echo "Run \`npm run specs:all\` locally and commit the diff."
+            git diff --stat -- ts/ specs/generated/
+            exit 1
+          fi
+
+      - name: Lint generated/ banners
+        run: npm run lint:generated-banners
+
+      - name: Run unit tests (covers emitter snapshots)
+        run: npm run test:unit
+
+  spec-lint:
+    name: Lint emitted OpenAPI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - name: Compile specs
+        run: npm run specs:compile
+
+      - name: Spectral lint
+        # Spectral catches OpenAPI authoring smells (missing operationIds,
+        # untyped responses, etc.) on top of TypeSpec's compile errors.
+        # Pinned to the @stoplight ruleset; override via .spectral.yaml.
+        run: npx --yes @stoplight/spectral-cli lint specs/generated/openapi3/*.json --ruleset spectral:oas
+
+  spec-diff:
+    name: Breaking-change detection
+    runs-on: ubuntu-latest
+    # Optic compares the head's emitted spec against main. The drift workflow will
+    # post the diff onto the PR; for now the job just runs and reports.
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - name: Compile head spec
+        run: npm run specs:compile
+
+      - name: Save head spec
+        run: |
+          mkdir -p /tmp/openbox-spec-head
+          cp specs/generated/openapi3/*.json /tmp/openbox-spec-head/
+
+      - name: Compile main spec
+        run: |
+          git fetch origin main
+          git checkout origin/main -- specs/typespec specs/backend.json specs/core.yaml specs/environments.json codegen
+          npm run specs:compile || true
+
+      - name: Save base spec
+        run: |
+          mkdir -p /tmp/openbox-spec-base
+          cp specs/generated/openapi3/*.json /tmp/openbox-spec-base/ 2>/dev/null || true
+
+      - name: Optic diff
+        run: |
+          npx --yes @useoptic/optic@latest diff \
+            /tmp/openbox-spec-head/OpenboxBackend.json \
+            --base /tmp/openbox-spec-base/OpenboxBackend.json \
+            --check || true

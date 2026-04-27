@@ -101,3 +101,28 @@ model Runtime {
   config: RuntimeConfig;
   tokens: TokenStore;
 }
+
+// ---------------------------------------------------------------------------
+// Runtime contract - hand-written implementations under
+// ts/env/src/*.ts (and the equivalents in rust/, py/, go/) MUST
+// satisfy the operations declared on this interface. The TypeScript
+// emitter lowers this to an exported `interface EnvLoader`; the
+// hand-written file annotates each export with `EnvLoader['<name>']`
+// so a signature drift between spec and impl fails `tsc --noEmit`.
+// ---------------------------------------------------------------------------
+
+interface EnvLoader {
+  /**
+   * Resolves the active environment from the CLI flag, the
+   * `OPENBOX_ENV` env-var, or the production default - in that
+   * order. Lower-cases the input and rejects unknown values.
+   */
+  resolveEnv(cliFlag?: string): EnvName;
+
+  /**
+   * Returns the URL bundle for the given environment, applying any
+   * runtime overrides declared on `RuntimeConfig` (`OPENBOX_API_URL`,
+   * `OPENBOX_CORE_URL`, `OPENBOX_PLATFORM_URL`).
+   */
+  resolveUrls(env: EnvName): EnvConfig;
+}

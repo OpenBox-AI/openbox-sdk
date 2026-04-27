@@ -1,0 +1,8 @@
+# Mark every emitter output as `linguist-generated` so GitHub collapses
+# the diff in PRs and language-stats don't count generated lines.
+# These files are reproducible from `npm run specs:compile` and must
+# never be hand-edited.
+
+ts/*/src/generated/**         linguist-generated=true
+specs/generated/openapi3/**   linguist-generated=true
+specs/generated/json-schema/**  linguist-generated=true

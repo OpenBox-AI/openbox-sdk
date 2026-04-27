@@ -1,23 +1,28 @@
-// Single source of truth for env URLs is specs/environments.json at the
-// monorepo root. Every language's env package reads the same file, so
-// URL data stays in lockstep across the codegen pipeline.
+// Hand-written runtime that satisfies the EnvLoader contract emitted
+// from specs/typespec/env/main.tsp.
+//
+// What's hand-written here vs generated:
+//   - Types (EnvName, EnvConfig, EnvLoader) and the URL data table
+//     (ENVIRONMENTS) come from ./generated/env-bindings.ts. Do not
+//     redeclare them here - TypeScript compile fails if you try.
+//   - The two functions below are the actual runtime: process.env
+//     lookups, error printing, the lower-case + validate dance.
+//     Per-language emitters lower the same EnvLoader interface to
+//     idiomatic implementations in Rust / Python / Go.
+//
+// Each export is annotated with `EnvLoader['<name>']` so a signature
+// drift between the spec and this file is a `tsc --noEmit` failure.
 
-import environmentsJson from '../../../specs/environments.json' with { type: 'json' };
+import {
+  ENVIRONMENTS,
+  ENV_VAR_BINDINGS,
+  type EnvLoader,
+} from './generated/env-bindings.js';
 
-export type EnvName = 'production' | 'staging' | 'local';
+export type { EnvName, EnvConfig, EnvLoader } from './generated/env-bindings.js';
+export { ENVIRONMENTS } from './generated/env-bindings.js';
 
-export interface EnvConfig {
-  apiUrl: string;
-  coreUrl: string;
-  platformUrl: string;
-}
-
-export const ENVIRONMENTS: Record<EnvName, EnvConfig> = environmentsJson as Record<
-  EnvName,
-  EnvConfig
->;
-
-export function resolveEnv(cliFlag?: string): EnvName {
+export const resolveEnv: EnvLoader['resolveEnv'] = (cliFlag) => {
   const raw = cliFlag ?? process.env.OPENBOX_ENV ?? 'production';
   const name = raw.toLowerCase();
   if (name !== 'production' && name !== 'staging' && name !== 'local') {
@@ -25,13 +30,13 @@ export function resolveEnv(cliFlag?: string): EnvName {
     process.exit(1);
   }
   return name;
-}
+};
 
-export function resolveUrls(env: EnvName): EnvConfig {
+export const resolveUrls: EnvLoader['resolveUrls'] = (env) => {
   const base = ENVIRONMENTS[env];
   return {
-    apiUrl: process.env.OPENBOX_API_URL || base.apiUrl,
-    coreUrl: process.env.OPENBOX_CORE_URL || base.coreUrl,
-    platformUrl: process.env.OPENBOX_PLATFORM_URL || base.platformUrl,
+    apiUrl: process.env[ENV_VAR_BINDINGS.apiUrl.name] || base.apiUrl,
+    coreUrl: process.env[ENV_VAR_BINDINGS.coreUrl.name] || base.coreUrl,
+    platformUrl: process.env[ENV_VAR_BINDINGS.platformUrl.name] || base.platformUrl,
   };
-}
+};

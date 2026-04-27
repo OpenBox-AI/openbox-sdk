@@ -13,9 +13,12 @@
 import { Project, IndentationText, NewLineKind, QuoteKind } from 'ts-morph';
 import type {
   EmitContext,
+  Interface,
   Model,
   Namespace,
+  Operation,
   Program,
+  Type,
 } from '@typespec/compiler';
 import { resolvePath } from '@typespec/compiler';
 import { getEnvVar, getTokenFormat, isOsPath } from '@openbox/typespec-env/decorators';
@@ -61,8 +64,11 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
   const envNamespace = findNamespace(program, 'OpenboxEnv');
   if (!envNamespace) return;
 
+  const envName = envNamespace.enums.get('EnvName');
+  const envConfig = envNamespace.models.get('EnvConfig');
   const runtimeConfig = envNamespace.models.get('RuntimeConfig');
   const tokenStore = envNamespace.models.get('TokenStore');
+  const envLoader = envNamespace.interfaces.get('EnvLoader');
 
   const out = project.createSourceFile(
     resolvePath(repoRoot, 'ts', 'env', 'src', 'generated', 'env-bindings.ts'),
@@ -79,15 +85,16 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
       `import environmentsJson from '../../../../specs/environments.json' with { type: 'json' };\n\n`,
   );
 
+  // EnvName + EnvConfig - generated from spec, imported (not redeclared)
+  // by hand-written code in the same package.
+  if (envName) {
+    const members = [...envName.members.values()].map((m) => JSON.stringify(m.value ?? m.name));
+    out.addStatements([`export type EnvName = ${members.join(' | ')};`, '']);
+  }
+  if (envConfig) {
+    out.addStatements([emitInterface('EnvConfig', envConfig), '']);
+  }
   out.addStatements([
-    `export type EnvName = 'production' | 'staging' | 'local';`,
-    '',
-    `export interface EnvConfig {
-  apiUrl: string;
-  coreUrl: string;
-  platformUrl: string;
-}`,
-    '',
     `export const ENVIRONMENTS: Record<EnvName, EnvConfig> = environmentsJson as Record<
   EnvName,
   EnvConfig
@@ -143,6 +150,89 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
         '',
       ]);
     }
+  }
+
+  // EnvLoader interface - runtime contract that hand-written
+  // ts/env/src/environments.ts must implement. Drift between spec
+  // and impl fails `tsc --noEmit`.
+  if (envLoader) {
+    out.addStatements([emitInterfaceFromOps('EnvLoader', envLoader), '']);
+  }
+}
+
+function emitInterface(name: string, model: Model): string {
+  const lines: string[] = [`export interface ${name} {`];
+  for (const [propName, prop] of model.properties) {
+    const optional = prop.optional ? '?' : '';
+    lines.push(`  ${quoteIdent(propName)}${optional}: ${tspTypeToTs(prop.type)};`);
+  }
+  lines.push('}');
+  return lines.join('\n');
+}
+
+function emitInterfaceFromOps(name: string, iface: Interface): string {
+  const lines: string[] = [`export interface ${name} {`];
+  for (const [opName, op] of iface.operations) {
+    lines.push(`  ${quoteIdent(opName)}${operationSignature(op)};`);
+  }
+  lines.push('}');
+  return lines.join('\n');
+}
+
+function operationSignature(op: Operation): string {
+  const params: string[] = [];
+  for (const [pname, p] of op.parameters.properties) {
+    const optional = p.optional ? '?' : '';
+    params.push(`${quoteIdent(pname)}${optional}: ${tspTypeToTs(p.type)}`);
+  }
+  const ret = tspTypeToTs(op.returnType);
+  return `(${params.join(', ')}): ${ret}`;
+}
+
+// Coarse Type → TS lowering. Sufficient for the env+cli surfaces; the
+// govern protocol uses richer types (`unknown[]`, `utcDateTime`,
+// `float64`) and will need this expanded when its emitter lands.
+function tspTypeToTs(type: Type): string {
+  switch (type.kind) {
+    case 'Scalar': {
+      const n = type.name;
+      if (n === 'string' || n === 'url') return 'string';
+      if (n === 'boolean') return 'boolean';
+      if (n === 'numeric' || n === 'int8' || n === 'int16' || n === 'int32' || n === 'int64')
+        return 'number';
+      if (n === 'float' || n === 'float32' || n === 'float64' || n === 'decimal') return 'number';
+      if (n === 'utcDateTime' || n === 'offsetDateTime' || n === 'plainDate') return 'string';
+      if (n === 'unknown') return 'unknown';
+      return 'string';
+    }
+    case 'Enum': {
+      // Named enums round-trip as their TS type alias; only inline the
+      // member union when the enum is anonymous.
+      if (type.name) return type.name;
+      const members = [...type.members.values()].map((m) =>
+        JSON.stringify(m.value ?? m.name),
+      );
+      return members.join(' | ');
+    }
+    case 'Model': {
+      if (type.name) return type.name;
+      // Anonymous inline model.
+      const props: string[] = [];
+      for (const [pn, p] of type.properties) {
+        const o = p.optional ? '?' : '';
+        props.push(`${quoteIdent(pn)}${o}: ${tspTypeToTs(p.type)}`);
+      }
+      return `{ ${props.join('; ')} }`;
+    }
+    case 'Intrinsic':
+      if (type.name === 'void') return 'void';
+      return 'unknown';
+    case 'Union': {
+      const variants = [...type.variants.values()].map((v) => tspTypeToTs(v.type));
+      return variants.join(' | ');
+    }
+    default:
+      return 'unknown';
   }
 }
 
