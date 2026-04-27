@@ -16,7 +16,7 @@ The whole SDK installs and imports as a single package, `openbox-sdk`. Pick the 
 | `'openbox-sdk/env'` | `ENVIRONMENTS`, `resolveEnv`, `resolveUrls`, `parseTokenStore`, `serializeTokenStore`, `resolveClientName` |
 | `'openbox-sdk/types'` | Hand-curated DTOs + auto-generated `Backend` / `Core` namespaces |
 
-Internally a workspace monorepo (`packages/{client,core-client,env,types,cli}/`); externally consumers never see that.
+Internally a workspace monorepo (`ts/{client,core-client,env,types,cli}/`); externally consumers never see that.
 
 ## Install - for consumer apps
 
@@ -57,7 +57,7 @@ openbox auth permissions
 
 ### Environments
 
-The CLI ships with registered hostnames for production in `packages/cli/src/environments.ts`:
+The CLI ships with registered hostnames for production in `ts/cli/src/environments.ts`:
 
 | Env | Backend API | Core API | Platform (login) |
 |---|---|---|---|
@@ -68,7 +68,7 @@ Selection precedence: `--env <name>` flag → `OPENBOX_ENV` env var → default 
 
 ### Permission pre-flight
 
-The CLI caches your role's permissions per env on login. Commands that require granular permissions (`guardrail *`, `policy *`, `behavior *`, `session *`, `observe *`) check locally first and refuse with an actionable message if the env's role is missing what's needed - instead of firing a request and getting 403. Permission requirements are mapped in `packages/cli/src/permissions.ts`.
+The CLI caches your role's permissions per env on login. Commands that require granular permissions (`guardrail *`, `policy *`, `behavior *`, `session *`, `observe *`) check locally first and refuse with an actionable message if the env's role is missing what's needed - instead of firing a request and getting 403. Permission requirements are mapped in `ts/cli/src/permissions.ts`.
 
 ### Token storage
 

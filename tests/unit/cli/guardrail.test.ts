@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { registerGuardrailCommands } from '../../../packages/cli/src/commands/guardrail';
+import { registerGuardrailCommands } from '../../../ts/cli/src/commands/guardrail';
 import { createMockClient, createTestProgram } from '../../helpers/cli';
 
-vi.mock('../../../packages/cli/src/config', () => ({ getClient: vi.fn() }));
-vi.mock('../../../packages/cli/src/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
+vi.mock('../../../ts/cli/src/config', () => ({ getClient: vi.fn() }));
+vi.mock('../../../ts/cli/src/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
 
-import { getClient } from '../../../packages/cli/src/config';
-import { output, outputList } from '../../../packages/cli/src/output';
+import { getClient } from '../../../ts/cli/src/config';
+import { output, outputList } from '../../../ts/cli/src/output';
 
 describe('guardrail commands', () => {
   let mockClient: ReturnType<typeof createMockClient>;

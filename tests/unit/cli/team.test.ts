@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { registerTeamCommands } from '../../../packages/cli/src/commands/team';
+import { registerTeamCommands } from '../../../ts/cli/src/commands/team';
 import { createMockClient, createTestProgram } from '../../helpers/cli';
 
-vi.mock('../../../packages/cli/src/config', () => ({ getClient: vi.fn() }));
-vi.mock('../../../packages/cli/src/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
+vi.mock('../../../ts/cli/src/config', () => ({ getClient: vi.fn() }));
+vi.mock('../../../ts/cli/src/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
 
-import { getClient } from '../../../packages/cli/src/config';
+import { getClient } from '../../../ts/cli/src/config';
 
 describe('team commands', () => {
   let mockClient: ReturnType<typeof createMockClient>;

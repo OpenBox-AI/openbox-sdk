@@ -1,7 +1,7 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
-import { parseJsonInput } from '../../packages/cli/src/input.js';
+import { parseJsonInput } from '../../ts/cli/src/input.js';
 
 describe('parseJsonInput', () => {
   const tmpFile = join(process.cwd(), 'test-input-tmp.json');

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { OpenBoxCoreClient, CoreApiError } from '../../packages/core-client/src/core-client.js';
+import { OpenBoxCoreClient, CoreApiError } from '../../ts/core-client/src/core-client.js';
 
 function mockResponse(status: number, body: unknown, contentType = 'application/json'): Response {
   return {

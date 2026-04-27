@@ -7,7 +7,7 @@
 //   import { OpenBoxClient, OpenBoxCoreClient, ENVIRONMENTS, parseTokenStore,
 //            resolveClientName } from 'openbox-sdk';
 //
-// Internal package layout (`packages/{client,core-client,env,types}/`) stays
+// Internal package layout (`ts/{client,core-client,env,types}/`) stays
 // for CLI development, but consumers never see it - they get one flat
 // module.
 

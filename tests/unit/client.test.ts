@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { OpenBoxClient, OpenBoxApiError } from '../../packages/client/src/client.js';
+import { OpenBoxClient, OpenBoxApiError } from '../../ts/client/src/client.js';
 import { makeValidToken, makeExpiredToken } from '../helpers/jwt';
 
 // ---------------------------------------------------------------------------

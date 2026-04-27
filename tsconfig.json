@@ -4,11 +4,11 @@
     "outDir": "dist",
     "noEmit": true,
     "paths": {
-      "openbox-sdk/client": ["./packages/client/src/index.ts"],
-      "openbox-sdk/core-client": ["./packages/core-client/src/index.ts"],
-      "openbox-sdk/env": ["./packages/env/src/index.ts"],
-      "openbox-sdk/types": ["./packages/types/src/index.ts"]
+      "openbox-sdk/client": ["./ts/client/src/index.ts"],
+      "openbox-sdk/core-client": ["./ts/core-client/src/index.ts"],
+      "openbox-sdk/env": ["./ts/env/src/index.ts"],
+      "openbox-sdk/types": ["./ts/types/src/index.ts"]
     }
   },
-  "include": ["src", "packages/*/src"]
+  "include": ["src", "ts/*/src"]
 }

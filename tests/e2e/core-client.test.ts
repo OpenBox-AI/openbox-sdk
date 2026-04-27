@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { OpenBoxCoreClient, CoreApiError } from '../../packages/core-client/src/core-client.js';
+import { OpenBoxCoreClient, CoreApiError } from '../../ts/core-client/src/core-client.js';
 
 function createCoreClient(): OpenBoxCoreClient {
   const apiKey = process.env.OPENBOX_API_KEY;
