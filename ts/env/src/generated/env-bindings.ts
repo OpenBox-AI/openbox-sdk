@@ -25,10 +25,41 @@ export function validateApiKeyFormat(value: string): true | string {
   return true;
 }
 export const OS_PATH_FIELDS = ["path"] as const;
+export interface TokenEntry {
+  accessToken?: string;
+  refreshToken?: string;
+  updatedAt?: string;
+  permissions?: string[];
+  features?: Record<string, boolean>;
+}
+export interface TokenStore {
+  production?: TokenEntry;
+  staging?: TokenEntry;
+  local?: TokenEntry;
+}
+export type FeatureMap = NonNullable<TokenEntry['features']>;
 export interface EnvLoader {
   resolveEnv(cliFlag?: string): EnvName;
   resolveUrls(env: EnvName): EnvConfig;
 }
+export interface TokenCodec {
+  parseTokenStore(content: string): TokenStore;
+  serializeTokenStore(store: TokenStore): string;
+}
+export interface ClientNameResolver {
+  resolveClientName(base: string, variant?: string): string;
+}
+export const CLIENT_VARIANT_PATTERN = /^[A-Za-z0-9._+-]+$/;
+
+
+
+
+
+
+
+
+
+
 
 
 

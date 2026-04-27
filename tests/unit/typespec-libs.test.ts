@@ -92,17 +92,20 @@ describe('@openbox/typespec-env', () => {
   });
 
   test('@token_format attaches the regex literally', () => {
-    const store = findModel('TokenStore');
-    expect(getTokenFormat(program, prop(store, 'apiKey'))).toBe(
+    const creds = findModel('Credentials');
+    expect(getTokenFormat(program, prop(creds, 'apiKey'))).toBe(
       '^obx_(?:live|test)_[0-9a-f]{48}$',
     );
-    expect(getTokenFormat(program, prop(store, 'env'))).toBeUndefined();
+    expect(getTokenFormat(program, prop(creds, 'env'))).toBeUndefined();
+
+    const variant = findModel('ClientVariant');
+    expect(getTokenFormat(program, prop(variant, 'value'))).toBe('^[A-Za-z0-9._+-]+$');
   });
 
   test('@os_path is a flag', () => {
-    const store = findModel('TokenStore');
-    expect(isOsPath(program, prop(store, 'path'))).toBe(true);
-    expect(isOsPath(program, prop(store, 'apiKey'))).toBe(false);
+    const creds = findModel('Credentials');
+    expect(isOsPath(program, prop(creds, 'path'))).toBe(true);
+    expect(isOsPath(program, prop(creds, 'apiKey'))).toBe(false);
   });
 });
 
