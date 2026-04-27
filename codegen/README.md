@@ -53,6 +53,18 @@ ts/<package>/src/
 
 **Authoring rule:** if you find yourself wanting to add a public type or runtime function signature to a hand-written file, add it to the spec at `specs/typespec/<package>/main.tsp` and rerun `npm run specs:compile` instead. That's the only way the contract grows. Hand-written files implement the contract; they don't extend it.
 
+## Per-package contract status
+
+| Package | Spec source | Generated outputs | Hand-written rule |
+|---|---|---|---|
+| `ts/env` | `specs/typespec/env/main.tsp` | `EnvName`, `EnvConfig`, `Credentials`, `TokenEntry`, `TokenStore`, `EnvLoader`, `TokenCodec`, `ClientNameResolver`, `ENVIRONMENTS`, `ENV_VAR_BINDINGS`, `validateApiKeyFormat`, `OS_PATH_FIELDS`, `CLIENT_VARIANT_PATTERN` | `environments.ts` / `token-codec.ts` / `client-name.ts` annotate every export with `EnvLoader['x']` / `TokenCodec['x']` / `ClientNameResolver['x']` - TypeScript catches signature drift at compile time. |
+| `ts/cli` | `specs/typespec/cli/main.tsp` | `EnvFlag`, `AuthProfileOutput`, `PersistedCredentials`, `Auth`, `CLI_COMMAND_MANIFEST`, `CliCommandManifest` | `commands/<name>.ts` handlers annotate with `Auth['login']` / `Auth['logout']` / `Auth['profile']`; the commander registration walks `CLI_COMMAND_MANIFEST` so flag/short/env-var/long-form drift propagates without a code edit. |
+| `ts/client` | `specs/backend.json` (once codegen swaps to TypeSpec-emitted) | Types via `openapi-typescript` → `ts/types/src/generated/backend.ts`. **No method-coverage manifest yet** - see the per-package README. | Every method MUST use `Backend.paths['/...']['<verb>']` row types from `openbox-sdk/types`. Adding a method whose path isn't in the spec is a review reject. |
+| `ts/core-client` | `specs/core.yaml` (will be replaced by the proposal in `the-core-service` once merged) | Same `openapi-typescript` flow → `ts/types/src/generated/core.ts`. **No method-coverage manifest yet.** | Same rule as `ts/client`, plus: verdict arms come from `specs/typespec/govern/main.tsp`'s `Verdict` enum. |
+| `ts/types` | OpenAPI specs (both) | `backend.ts` + `core.ts` (entirely generated). | No hand-written code in this package. |
+
+The two "no method-coverage manifest yet" rows are the only soft spots. Adding `BACKEND_ENDPOINT_MANIFEST` / `CORE_ENDPOINT_MANIFEST` emit, plus a test asserting every endpoint has a wrapper method, is the obvious follow-up.
+
 ## Adding a new language target
 
 1. Create `emitters/<lang>/` with the TS-side TypeSpec emitter that walks the semantic model and produces JSON IR

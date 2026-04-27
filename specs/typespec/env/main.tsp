@@ -68,7 +68,7 @@ model RuntimeConfig {
  * platform; only the lookup path differs (XDG / %APPDATA% /
  * ~/Library/Application Support).
  */
-model TokenStore {
+model Credentials {
   /**
    * Filesystem path to the token-store file. Resolved per-OS via the
    * platform's user-data directory helper (env-paths / dirs /
@@ -95,20 +95,106 @@ model TokenStore {
 /**
  * Top-level "what should this binary do at startup" record. Emitters
  * generate a `loadRuntime()` function that reads OPENBOX_ENV, falls
- * back to the persisted TokenStore.env, and returns this struct.
+ * back to the persisted Credentials.env, and returns this struct.
  */
 model Runtime {
   config: RuntimeConfig;
-  tokens: TokenStore;
+  credentials: Credentials;
 }
 
 // ---------------------------------------------------------------------------
-// Runtime contract - hand-written implementations under
-// ts/env/src/*.ts (and the equivalents in rust/, py/, go/) MUST
-// satisfy the operations declared on this interface. The TypeScript
-// emitter lowers this to an exported `interface EnvLoader`; the
-// hand-written file annotates each export with `EnvLoader['<name>']`
-// so a signature drift between spec and impl fails `tsc --noEmit`.
+// On-disk multi-env token store - wire format every language SDK
+// must parse identically. One ENV.FIELD=value line per entry; legacy
+// un-prefixed lines map to production. See ts/env/src/token-codec.ts
+// for the canonical TS implementation.
+// ---------------------------------------------------------------------------
+
+/** Per-environment entry inside the persisted token store. */
+model TokenEntry {
+  /** Backend JWT used for management-API auth. */
+  accessToken?: string;
+
+  /** Refresh token paired with the access token. */
+  refreshToken?: string;
+
+  /** ISO-8601 timestamp of the last successful refresh. */
+  updatedAt?: string;
+
+  /** Per-realm RBAC permissions claimed on the JWT. */
+  permissions?: string[];
+
+  /** Org-level feature flags, decoded from the JWT. */
+  features?: Record<boolean>;
+}
+
+/**
+ * On-disk token store keyed by environment. Missing entries are
+ * absent rather than `null` so a freshly-installed CLI that's only
+ * logged into production still serializes cleanly.
+ */
+model TokenStore {
+  production?: TokenEntry;
+  staging?: TokenEntry;
+  local?: TokenEntry;
+}
+
+/**
+ * String <-> TokenStore codec. Implementations must round-trip:
+ * `serializeTokenStore(parseTokenStore(s)) === s'` where `s'` is
+ * the canonical (re-namespaced) form. Legacy flat-format input is
+ * accepted but is always re-emitted in the namespaced form.
+ */
+interface TokenCodec {
+  parseTokenStore(content: string): TokenStore;
+  serializeTokenStore(store: TokenStore): string;
+}
+
+// ---------------------------------------------------------------------------
+// X-Openbox-Client header composer. Every outbound request from any
+// language SDK must produce the same shape: `<base>` (e.g.
+// `openbox-cli`) optionally followed by `/<variant>` where variant
+// matches CLIENT_VARIANT_PATTERN. Variant comes from the explicit
+// override or the OPENBOX_CLIENT_VARIANT env-var; bad values are
+// silently dropped (never throw - a typo can't poison the header).
+// ---------------------------------------------------------------------------
+
+/**
+ * Marker model carrying the canonical variant pattern via
+ * `@token_format`. Re-using the env library's existing decorator
+ * keeps the emitter's metadata-extraction path uniform - anything
+ * format-constrained at runtime travels through `@token_format`,
+ * regardless of whether it ends up as a regex literal, a CLI flag
+ * validator, or both.
+ */
+model ClientVariant {
+  /**
+   * `OPENBOX_CLIENT_VARIANT` pattern. Letters, digits, `.`, `_`,
+   * `+`, `-` - the conservative intersection of HTTP-header-safe
+   * and shell-safe characters.
+   */
+  @token_format("^[A-Za-z0-9._+-]+$")
+  value: string;
+}
+
+interface ClientNameResolver {
+  /**
+   * Compose the `X-Openbox-Client` header value. Returns `base`
+   * verbatim when no variant is supplied; otherwise returns
+   * `<base>/<variant>` if the variant matches
+   * `CLIENT_VARIANT_PATTERN`, or `base` alone if it doesn't (the
+   * implementation logs a warning to stderr in that case).
+   */
+  resolveClientName(base: string, variant?: string): string;
+}
+
+// ---------------------------------------------------------------------------
+// EnvLoader - runtime contract for env resolution. Hand-written
+// implementations under ts/env/src/*.ts (and the equivalents in
+// rust/, py/, go/) MUST satisfy the operations declared on this
+// interface. The TypeScript emitter lowers this to an exported
+// `interface EnvLoader`; the hand-written file annotates each
+// export with `EnvLoader['<name>']` so a signature drift between
+// spec and impl fails `tsc --noEmit`.
 // ---------------------------------------------------------------------------
 
 interface EnvLoader {

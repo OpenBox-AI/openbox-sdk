@@ -1,5 +1,7 @@
-// Format codec for the env-namespaced token store. Pure string in / string
-// out so any backend (fs, SecureStore, chrome.storage) can wrap it.
+// Hand-written codec for the on-disk token store. Implements the
+// TokenCodec interface declared in specs/typespec/env/main.tsp; the
+// types (TokenEntry, TokenStore, FeatureMap) are imported from
+// ./generated/env-bindings.ts and never redeclared here.
 //
 // On-disk format (one line per field, ENV.FIELD=value):
 //   production.ACCESS_TOKEN=...
@@ -10,23 +12,19 @@
 //   staging.ACCESS_TOKEN=...
 //   ...
 //
-// Legacy flat-format (no env prefix, e.g. just `ACCESS_TOKEN=...`) is parsed
-// as `production.*` so a pre-multi-env tokens file keeps working until the
-// next save rewrites it in the namespaced shape.
+// Legacy flat-format (no env prefix, e.g. just `ACCESS_TOKEN=...`) is
+// parsed as `production.*` so a pre-multi-env tokens file keeps
+// working until the next save rewrites it in the namespaced shape.
 
-import type { EnvName } from './environments.js';
+import type {
+  EnvName,
+  FeatureMap,
+  TokenCodec,
+  TokenEntry,
+  TokenStore,
+} from './generated/env-bindings.js';
 
-export type FeatureMap = Record<string, boolean>;
-
-export interface TokenEntry {
-  accessToken?: string;
-  refreshToken?: string;
-  updatedAt?: string;
-  permissions?: string[];
-  features?: FeatureMap;
-}
-
-export type TokenStore = Partial<Record<EnvName, TokenEntry>>;
+export type { FeatureMap, TokenEntry, TokenStore } from './generated/env-bindings.js';
 
 const ENV_NAMES: readonly EnvName[] = ['production', 'staging', 'local'];
 
@@ -34,7 +32,7 @@ function isEnvName(s: string): s is EnvName {
   return ENV_NAMES.includes(s as EnvName);
 }
 
-export function parseTokenStore(content: string): TokenStore {
+export const parseTokenStore: TokenCodec['parseTokenStore'] = (content) => {
   const store: TokenStore = {};
   const legacy: TokenEntry = {};
   for (const line of content.split('\n')) {
@@ -77,9 +75,9 @@ export function parseTokenStore(content: string): TokenStore {
     store.production = legacy;
   }
   return store;
-}
+};
 
-export function serializeTokenStore(store: TokenStore): string {
+export const serializeTokenStore: TokenCodec['serializeTokenStore'] = (store) => {
   const lines: string[] = [];
   for (const envName of ENV_NAMES) {
     const entry = store[envName];
@@ -96,4 +94,4 @@ export function serializeTokenStore(store: TokenStore): string {
     }
   }
   return lines.join('\n') + '\n';
-}
+};
