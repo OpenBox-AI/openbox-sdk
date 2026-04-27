@@ -356,6 +356,7 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
   const envLoader = envNamespace.interfaces.get('EnvLoader');
   const tokenCodec = envNamespace.interfaces.get('TokenCodec');
   const clientNameResolver = envNamespace.interfaces.get('ClientNameResolver');
+  const osPathResolver = envNamespace.interfaces.get('OsPathResolver');
   const clientVariantMarker = envNamespace.models.get('ClientVariant');
   const clientVariantPattern = clientVariantMarker?.properties.get('value')
     ? getTokenFormat(program, clientVariantMarker.properties.get('value')!)
@@ -491,6 +492,20 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
   }
   if (clientNameResolver) {
     out.addStatements([emitInterfaceFromOps('ClientNameResolver', clientNameResolver), '']);
+  }
+  if (osPathResolver) {
+    out.addStatements([emitInterfaceFromOps('OsPathResolver', osPathResolver), '']);
+  }
+
+  // OsPathScope enum - drives the per-OS path lookup. Emit the
+  // string-literal union form so callers can `import type { OsPathScope }`
+  // and write `resolveOsPath('tokens')`.
+  const osPathScopeEnum = envNamespace.enums.get('OsPathScope');
+  if (osPathScopeEnum) {
+    const members = [...osPathScopeEnum.members.values()].map((m) =>
+      JSON.stringify(m.value ?? m.name),
+    );
+    out.addStatements([`export type OsPathScope = ${members.join(' | ')};`, '']);
   }
   if (clientVariantPattern) {
     out.addStatements([
