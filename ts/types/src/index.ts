@@ -1,7 +1,8 @@
 // Hand-curated DTOs (friendly names, stable surface) - the primary exports.
+// `governance.ts` was deleted; the same types live in `@openbox/core-client`
+// (generated from specs/typespec/core/main.tsp).
 export * from './requests.js';
 export * from './responses.js';
-export * from './governance.js';
 export * from './auth.js';
 
 // Auto-generated from OpenAPI specs - imports `Backend` / `Core` namespaces

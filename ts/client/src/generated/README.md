@@ -1,41 +1,26 @@
 # `ts/client/src/generated/`
 
-The `OpenBoxClient` wrapper in this package is contract-driven, but
-its enforcement mechanism is different from the env / cli packages
-elsewhere in the monorepo. **Read this before editing
-`../client.ts`.**
+**AUTO-GENERATED. Do not hand-edit.**
 
-## Where the contract lives
+| Source | Reproduces |
+|---|---|
+| `specs/typespec/backend/main.tsp` (compiled via `@typespec/http`'s `listHttpOperationsIn`) | `endpoint-manifest.ts` - `BACKEND_ENDPOINT_MANIFEST` array of every (path, verb, operationId, pathPattern) tuple |
+| `codegen/emitters/ts/src/index.ts` | the emit logic |
 
-| Layer | Source | Generated artifact |
-|---|---|---|
-| Wire types | `specs/backend.json` (today, once codegen swaps it for `specs/generated/openapi3/OpenboxBackend.json`) | `ts/types/src/generated/backend.ts` (via `npm run generate:types`) |
-| Method coverage | The `paths` block of the same spec | none yet - see "Open holes" |
+Regenerate with `npm run specs:compile`.
 
-`OpenBoxClient` constructs requests against `Backend.paths` /
-`Backend.components` from the generated types. Adding a route in
-TypeSpec → recompiling → regenerating types → the new endpoint shape
-appears in `Backend.paths`, but **the wrapper class doesn't auto-grow
-a method**. That's a known gap.
+## Two layers of enforcement
 
-## Hand-written rules (until that gap closes)
+| Layer | Source | Generated artifact | Enforcer |
+|---|---|---|---|
+| Wire types | `specs/backend.json` (once codegen swaps to `specs/generated/openapi3/OpenboxBackend.json`) | `ts/types/src/generated/backend.ts` (via `openapi-typescript`) | TypeScript - methods MUST type against `Backend.paths['/...']['<verb>']`. |
+| Method coverage | This file's `BACKEND_ENDPOINT_MANIFEST` | enumerated above | `tests/unit/endpoint-coverage.test.ts` - for every entry in the manifest, asserts the wrapper has a `this.<verb>(<path>, ...)` call. |
 
-1. Every method on `OpenBoxClient` MUST be typed with the
-   `Backend.paths['/...']['<verb>']` row from `@openbox/types`. No
-   freehand request/response shapes.
-2. Don't add a method whose path/verb isn't in the OpenAPI spec -
-   either the spec is wrong (fix it upstream and refresh
-   `specs/backend.json`) or the method doesn't belong here.
+Adding a route to the spec without a matching wrapper method now fails CI on the next `npm run specs:compile` cycle.
+
+## Authoring rules
+
+1. Every method on `OpenBoxClient` MUST be typed with the `Backend.paths['/...']['<verb>']` row from `@openbox/types`. No freehand request/response shapes.
+2. Don't add a method whose path/verb isn't in the OpenAPI spec - either the spec is wrong (fix it upstream) or the method doesn't belong here.
 3. Don't redeclare a request DTO - import it from `@openbox/types`.
-
-## Open holes
-
-- **No method-coverage check.** A new `paths` entry in the spec doesn't
-  fail CI when the wrapper hasn't grown a method yet. Adding this is
-  in scope for a later codegen pass - emit a `BACKEND_ENDPOINT_MANIFEST`
-  here listing every (path, verb) tuple, and have a test assert that
-  every entry has a corresponding method on `OpenBoxClient`.
-
-This README is the placeholder until the manifest lands. Files in
-this directory will start with `// AUTO-GENERATED` once that emitter
-pass exists.
+4. The allowlist in `tests/unit/endpoint-coverage.test.ts` is empty - every endpoint declared in the spec must have a wrapper. The Keycloak browser redirect URL is a navigation, not an HTTP call, and isn't in the manifest at all. If you genuinely need to skip an endpoint, add it to the allowlist with a one-line reason and prepare to defend it in review.

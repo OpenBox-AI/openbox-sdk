@@ -25,11 +25,6 @@ export interface UserProfile {
   [key: string]: unknown;
 }
 
-export interface TokenPair {
-  accessToken: string;
-  refreshToken: string;
-}
-
 export interface UserRole {
   id: string;
   name: string;

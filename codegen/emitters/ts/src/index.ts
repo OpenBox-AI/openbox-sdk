@@ -21,6 +21,7 @@ import type {
   Type,
 } from '@typespec/compiler';
 import { resolvePath } from '@typespec/compiler';
+import { listHttpOperationsIn } from '@typespec/http';
 import { getEnvVar, getTokenFormat, isOsPath } from '@openbox/typespec-env/decorators';
 import { getCommand, getFlag } from '@openbox/typespec-cli/decorators';
 
@@ -35,6 +36,9 @@ export async function $onEmit(context: EmitContext): Promise<void> {
 
   emitEnvPackage(program, project, repoRoot);
   emitCliPackage(program, project, repoRoot);
+  emitEndpointManifest(program, project, repoRoot, 'OpenboxBackend', 'BACKEND_ENDPOINT_MANIFEST', 'ts/client/src/generated/endpoint-manifest.ts');
+  emitEndpointManifest(program, project, repoRoot, 'OpenboxCore', 'CORE_ENDPOINT_MANIFEST', 'ts/core-client/src/generated/endpoint-manifest.ts');
+  emitNamespaceTypes(program, project, repoRoot, 'OpenboxCore', 'ts/core-client/src/generated/core-types.ts');
 
   await project.save();
 }
@@ -179,6 +183,26 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
     '',
   ]);
 
+  // Construction-time config models - `BackendClientConfig` /
+  // `CoreClientConfig` / `RetryConfig` / `RateLimitConfig` /
+  // `TokenPair` / `ApiError`. Emit anything we haven't already
+  // hand-picked above so adding a new option model in the spec
+  // flows through without an emitter edit.
+  const alreadyEmitted = new Set([
+    'EnvConfig',
+    'RuntimeConfig',
+    'Credentials',
+    'TokenEntry',
+    'TokenStore',
+    'ClientVariant',
+    'Runtime',
+  ]);
+  for (const [modelName, model] of envNamespace.models) {
+    if (alreadyEmitted.has(modelName)) continue;
+    if (modelName === 'Array' || modelName === 'Record') continue;
+    out.addStatements([emitInterface(modelName, model), '']);
+  }
+
   // EnvLoader / TokenCodec / ClientNameResolver - runtime contracts
   // that hand-written code must implement. Drift between spec and
   // impl fails `tsc --noEmit`.
@@ -312,6 +336,108 @@ function kebabCaseLocal(s: string): string {
     .toLowerCase();
 }
 
+// ---------------------------------------------------------------------------
+// HTTP endpoint manifest emit (ts/client + ts/core-client)
+// ---------------------------------------------------------------------------
+//
+// Walks an HTTP-service namespace via @typespec/http's listHttpOperationsIn
+// and emits a `<NAME>_ENDPOINT_MANIFEST` array of every (path, verb,
+// operationId) tuple. Tests in tests/unit/endpoint-coverage.test.ts read
+// the manifest and assert each entry has a matching method on the
+// hand-written wrapper class - adding a route to the spec without a
+// matching wrapper method now fails CI.
+
+interface EndpointEntry {
+  operationId: string;
+  path: string;
+  verb: string;
+  // The path normalized so {placeholders} become a regex-safe form for
+  // grep-matching against fetch URLs in hand-written code.
+  pathPattern: string;
+}
+
+function emitEndpointManifest(
+  program: Program,
+  project: Project,
+  repoRoot: string,
+  namespaceName: string,
+  exportName: string,
+  outRel: string,
+): void {
+  const ns = findNamespace(program, namespaceName);
+  if (!ns) return;
+
+  const [ops] = listHttpOperationsIn(program, ns);
+  const entries: EndpointEntry[] = ops.map((o) => ({
+    operationId: o.operation.name,
+    path: o.path,
+    verb: o.verb,
+    pathPattern: o.path.replace(/\{[^}]+\}/g, '{x}'),
+  }));
+
+  if (entries.length === 0) return;
+
+  const out = project.createSourceFile(resolvePath(repoRoot, outRel), '', { overwrite: true });
+  out.insertText(0, BANNER + '\n\n');
+
+  out.addStatements([
+    `/**`,
+    ` * Every HTTP operation declared on the ${namespaceName} TypeSpec`,
+    ` * namespace. Tests in tests/unit/endpoint-coverage.test.ts walk this`,
+    ` * array and assert the hand-written wrapper class has a method`,
+    ` * implementing each entry - adding a path here without a wrapper`,
+    ` * method fails CI.`,
+    ` */`,
+    `export const ${exportName} = ${JSON.stringify(entries, null, 2)} as const;`,
+    '',
+    `export type ${pascal(exportName)}Entry = (typeof ${exportName})[number];`,
+    '',
+  ]);
+}
+
+function pascal(s: string): string {
+  return s
+    .toLowerCase()
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join('');
+}
+
+// ---------------------------------------------------------------------------
+// Namespace-types emit - drops every enum/model/scalar declared on a
+// service namespace into a single TS file. Used to give per-package
+// wrappers (ts/core-client, ts/client govern) a single import path
+// for their wire types instead of redeclaring each one inline.
+// ---------------------------------------------------------------------------
+
+function emitNamespaceTypes(
+  program: Program,
+  project: Project,
+  repoRoot: string,
+  namespaceName: string,
+  outRel: string,
+): void {
+  const ns = findNamespace(program, namespaceName);
+  if (!ns) return;
+  if (ns.enums.size === 0 && ns.models.size === 0) return;
+
+  const out = project.createSourceFile(resolvePath(repoRoot, outRel), '', { overwrite: true });
+  out.insertText(0, BANNER + '\n\n');
+
+  for (const [enumName, enumType] of ns.enums) {
+    const members = [...enumType.members.values()].map((m) =>
+      JSON.stringify(m.value ?? m.name),
+    );
+    out.addStatements([`export type ${enumName} = ${members.join(' | ')};`, '']);
+  }
+  for (const [modelName, model] of ns.models) {
+    // Skip the built-in Array/Record templates that show up under `models`
+    // when other models reference them.
+    if (modelName === 'Array' || modelName === 'Record') continue;
+    out.addStatements([emitInterface(modelName, model), '']);
+  }
+}
+
 function emitInterface(name: string, model: Model): string {
   const lines: string[] = [`export interface ${name} {`];
   for (const [propName, prop] of model.properties) {
@@ -387,11 +513,20 @@ function tspTypeToTs(type: Type): string {
     }
     case 'Intrinsic':
       if (type.name === 'void') return 'void';
+      if (type.name === 'null') return 'null';
       return 'unknown';
+    case 'String':
+      return JSON.stringify((type as { value: string }).value);
+    case 'Number':
+      return String((type as { value: number }).value);
+    case 'Boolean':
+      return String((type as { value: boolean }).value);
     case 'Union': {
       const variants = [...type.variants.values()].map((v) => tspTypeToTs(v.type));
       return variants.join(' | ');
     }
+    case 'Tuple':
+      return `[${(type as { values: Type[] }).values.map(tspTypeToTs).join(', ')}]`;
     default:
       return 'unknown';
   }

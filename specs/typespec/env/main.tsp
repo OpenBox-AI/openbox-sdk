@@ -212,3 +212,115 @@ interface EnvLoader {
    */
   resolveUrls(env: EnvName): EnvConfig;
 }
+
+// ---------------------------------------------------------------------------
+// Client construction contract - the "set token directly" entry point.
+//
+// Every language's HTTP wrapper accepts these option bundles in its
+// constructor. The shapes are part of the cross-language SDK contract:
+// what fields can a caller pass when bootstrapping a client, and what
+// happens when tokens rotate. Hand-written code on top of these is
+// purely the platform-specific HTTP layer (`fetch` vs `reqwest` vs
+// `requests`).
+// ---------------------------------------------------------------------------
+
+/** Cross-language retry-policy configuration. */
+model RetryConfig {
+  /** Maximum number of retry attempts. */
+  maxRetries?: int32;
+  /** Initial delay in milliseconds before first retry. */
+  initialDelayMs?: int32;
+  /** Maximum delay in milliseconds between retries. */
+  maxDelayMs?: int32;
+}
+
+/** Cross-language rate-limit configuration. Implementations differ; the shape doesn't. */
+model RateLimitConfig {
+  /** Maximum requests per second. */
+  requestsPerSecond: float64;
+  /** Burst capacity; defaults to `requestsPerSecond` when unset. */
+  burst?: float64;
+}
+
+/** OAuth-style token pair returned by `login()` and the refresh endpoint. */
+model TokenPair {
+  accessToken: string;
+  /**
+   * Optional - Keycloak rotation may be disabled, in which case the
+   * stored refresh token should be left as-is rather than overwritten.
+   */
+  refreshToken?: string;
+}
+
+/**
+ * Construction options for the backend HTTP wrapper. Required entry
+ * point for the "I already have a token, just use it" flow - pass
+ * `accessToken` (and optionally `refreshToken`) and you're off.
+ */
+model BackendClientConfig {
+  /**
+   * Base URL of the backend API. Defaults to the production value
+   * from the env bundle when unset.
+   */
+  apiUrl?: url;
+
+  /**
+   * Bearer access token (JWT). Required - this is the "set token
+   * directly" flow's load-bearing field.
+   */
+  accessToken: string;
+
+  /** Optional refresh token for automatic token renewal. */
+  refreshToken?: string;
+
+  /** Selected environment. Branch on this when prod/staging diverge. */
+  env?: EnvName;
+
+  /**
+   * Telemetry identifier sent in `X-Openbox-Client`. Each consumer
+   * (CLI, mobile, MCP, ...) sets its own; the env library composes
+   * the final header value via `ClientNameResolver`.
+   */
+  clientName?: string;
+
+  /** Request timeout in milliseconds. */
+  timeoutMs?: int32;
+
+  retry?: RetryConfig;
+  rateLimit?: RateLimitConfig;
+}
+
+/**
+ * Construction options for the core HTTP wrapper. The SDK API key
+ * (`apiKey`) is required - same "I already have a key, just use it"
+ * flow as `BackendClientConfig.accessToken`. Format-checked at
+ * construction via `validateApiKeyFormat` so a 401 from the wire
+ * always means the key is wrong, not malformed.
+ */
+model CoreClientConfig {
+  apiUrl?: url;
+
+  @token_format("^obx_(?:live|test)_[0-9a-f]{48}$")
+  apiKey: string;
+
+  env?: EnvName;
+  timeoutMs?: int32;
+  retry?: RetryConfig;
+  rateLimit?: RateLimitConfig;
+}
+
+/**
+ * Common shape every language SDK throws for non-2xx responses.
+ * Consumers branch on `status` and `body` to pull out structured
+ * error details from the wrapped service.
+ */
+model ApiError {
+  /** Human-readable message; usually mirrors `body.message` when present. */
+  message: string;
+
+  /** HTTP status code from the failing response. */
+  status: int32;
+
+  /** Parsed response body, or `null` if the body wasn't JSON. */
+  body: unknown;
+}

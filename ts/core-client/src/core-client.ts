@@ -1,220 +1,44 @@
 import { TokenBucket } from '@openbox/client';
 
-// ---------------------------------------------------------------------------
-// Types - based on openbox-core @ 312df12 (2026-03-21)
-// Tested against production core.openbox.ai on 2026-04-02.
-//
-// NOTE: The OpenAPI spec (openbox-core.yaml) diverges from the actual
-// implementation in several places. These types match the IMPLEMENTATION,
-// not the spec. See references/implementation-notes.md for details.
-// ---------------------------------------------------------------------------
+// Every wire-shape type in this module comes from the spec at
+// specs/typespec/core/main.tsp via codegen/emitters/ts/. This file
+// owns nothing but the runtime HTTP wrapper - no type redeclarations.
 
-export type GovernanceEventType =
-  | 'WorkflowStarted'
-  | 'WorkflowCompleted'
-  | 'WorkflowFailed'
-  | 'ActivityStarted'
-  | 'ActivityCompleted'
-  | 'LLMStarted'
-  | 'LLMCompleted'
-  | 'ToolStarted'
-  | 'ToolCompleted'
-  | 'SignalReceived';
+export type {
+  EventType,
+  Verdict,
+  LegacyAction,
+  CoreError,
+  AgentValidationResponse,
+  ErrorInfo,
+  GovernanceEventPayload,
+  SpanData,
+  SpanStatus,
+  SpanEvent,
+  GuardrailFieldResult,
+  GuardrailReason,
+  GuardrailsResult,
+  GuardrailsVerdictResult,
+  AGEAlignmentResult,
+  AGETrustScore,
+  AGESpanResult,
+  AGEResult,
+  GovernanceVerdictResponse,
+  ApprovalStatusRequest,
+  ApprovalStatusResponse,
+} from './generated/core-types.js';
 
-// Core returns lowercase verdict strings. constrain is defined but never produced.
-// Core also returns a legacy `action` field for backward compat (continue/stop/require-approval).
-export type GovernanceVerdict = 'allow' | 'require_approval' | 'block' | 'halt';
+import type {
+  GovernanceEventPayload,
+  GovernanceVerdictResponse,
+  ApprovalStatusRequest,
+  ApprovalStatusResponse,
+} from './generated/core-types.js';
 
-export interface SpanAttributes {
-  // HTTP - requires http.method as gate attribute for semantic type detection
-  'http.method'?: string;
-  'http.url'?: string;
-  'http.status_code'?: number;
-  // Database - requires db.system as gate attribute (NOT db.operation alone)
-  'db.system'?: string;
-  'db.operation'?: string;
-  'db.statement'?: string;
-  // File - requires file.path as gate attribute
-  'file.path'?: string;
-  'file.operation'?: string;
-  // LLM - gen_ai.system alone is NOT sufficient for LLM semantic detection.
-  // Core's isLLMCall() (session.go:381) only detects LLM spans via HTTP POST
-  // to known domains (api.openai.com, api.anthropic.com, etc.). To classify
-  // spans as LLM, you must ALSO include http.method: 'POST' and http.url
-  // pointing to a known LLM domain. The openbox-typescript-sdk 'gen_ai' span
-  // type injects these automatically. Remove this requirement once Core honors
-  // gen_ai.system directly.
-  'gen_ai.system'?: string;
-  [key: string]: unknown;
-}
-
-export interface SpanStatus {
-  code?: string;
-  description?: string;
-}
-
-/**
- * Mirror of `SpanData` in openbox-core
- * (`internal/content/governance.go`). All fields optional at the TS layer;
- * Go requires `name`, `span_id`, `trace_id`, `start_time`, `end_time` but
- * the wire is tolerant of missing values on non-billing paths.
- */
-export interface SpanObject {
-  // Identity
-  span_id?: string;
-  trace_id?: string;
-  parent_span_id?: string;
-  name?: string;
-  kind?: string;
-
-  // Timing - Go uses int64 nanoseconds for start/end, float/int64 for duration
-  start_time?: number;
-  end_time?: number;
-  duration_ns?: number;
-
-  // Core attributes
-  attributes?: SpanAttributes;
-  status?: SpanStatus;
-  events?: Record<string, unknown>[];
-
-  // HTTP payload (for HTTP spans)
-  request_headers?: Record<string, string>;
-  response_headers?: Record<string, string>;
-  request_body?: string;
-  response_body?: string;
-
-  // SDK v2 root-level fields (previously stuffed in attributes or hook_trigger)
-  semantic_type?: string; // e.g. http_get, llm_completion, database_select
-  stage?: 'started' | 'completed' | string;
-  data?: unknown; // attestation map / file-op string / arbitrary
-  hook_type?: 'http_request' | 'db_query' | 'file_operation' | 'function_call' | string;
-  attribute_key_identifiers?: string[];
-  error?: string;
-
-  // HTTP root fields (SDK v2)
-  http_method?: string;
-  http_url?: string;
-  http_status_code?: number;
-
-  // DB root fields (SDK v2)
-  db_system?: string;
-  db_operation?: string;
-  db_statement?: string;
-
-  // File root fields (SDK v2)
-  file_path?: string;
-  file_operation?: string;
-}
-
-export interface ErrorInfo {
-  type: string;
-  message: string;
-  stack_trace?: string;
-}
-
-/**
- * Mirror of `GovernanceEventPayload` in openbox-core
- * (`internal/content/governance.go`). Fields marked `// <env>-added` are
- * present in the Go struct but not yet documented in any static spec.
- */
-export interface GovernanceEventPayload {
-  // Common fields (all events)
-  source?: string; // e.g. "workflow-telemetry"
-  event_type: GovernanceEventType;
-  workflow_id: string;
-  run_id: string;
-  workflow_type?: string;
-  // Enumerated langgraph/temporal/mastra in docs but the implementation
-  // accepts any string value as a framework identifier.
-  task_queue?: string;
-  timestamp?: string;
-
-  // Workflow events (WorkflowStarted, WorkflowCompleted)
-  parent_workflow_id?: string;
-  status?: string; // completed, failed, cancelled, terminated
-
-  // Activity events (ActivityStarted, ActivityCompleted)
-  activity_id?: string;
-  activity_type?: string;
-  attempt?: number;
-  // IMPORTANT: activity_input MUST be an array, not an object.
-  // The AGE service rejects objects with 422: "Input should be a valid list".
-  // Official SDKs wrap input as a single-element array:
-  //   activity_input: [{ message: "..." }]
-  activity_input?: unknown[];
-  activity_output?: unknown;
-
-  // Signal events (SignalReceived)
-  signal_name?: string;
-  signal_args?: unknown;
-
-  // Timing (WorkflowCompleted, ActivityCompleted)
-  start_time?: number;
-  end_time?: number;
-  duration_ms?: number;
-
-  // Spans (WorkflowCompleted, ActivityCompleted)
-  span_count?: number;
-  spans?: SpanObject[];
-
-  // Hook trigger (mid-activity, per-HTTP-request evaluation)
-  hook_trigger?: boolean;
-
-  // SDK metadata (set server-side from X-OpenBox-SDK-Version header, semver)
-  sdk_version?: string;
-
-  // Error (WorkflowCompleted, ActivityCompleted when failed)
-  error?: ErrorInfo;
-
-  // Client-added convenience fields (not in core's Go struct, tolerated by
-  // extra-field unmarshalling on the Go side but not parsed). Keep for
-  // backwards compat; drop once all emitters stop sending them.
-  goal?: string;
-  __openbox?: { tool_type?: string; subagent_name?: string };
-}
-
-export interface GuardrailFieldResult {
-  field?: string;
-  order?: number;
-  status?: 'allow' | 'block' | 'blocked' | 'transformed' | 'error';
-  reason?: string | null;
-}
-
-/**
- * Mirror of Go's `GuardrailsVerdictResult` in
- * `internal/content/governance.go`. `GuardrailTypeResult` is kept as an
- * alias for backwards compatibility with earlier SDK versions.
- */
-export interface GuardrailsVerdictResult {
-  guardrail_type: string;
-  results: GuardrailFieldResult[];
-}
-
-/** @deprecated Use `GuardrailsVerdictResult` - same shape, Go-aligned name. */
-export type GuardrailTypeResult = GuardrailsVerdictResult;
-
-export interface GuardrailReason {
-  type: string;
-  field?: string;
-  reason: string;
-}
-
-/**
- * Mirror of Go's `GuardrailsResult` in `internal/content/governance.go`.
- * Go makes `input_type` / `validation_passed` required; TS marks them
- * optional because the wrapper sometimes omits the field when guardrails
- * short-circuit.
- */
-export interface GuardrailsResult {
-  input_type?: 'activity_input' | 'activity_output';
-  redacted_input?: unknown;
-  raw_logs?: Record<string, unknown>;
-  validation_passed?: boolean;
-  reasons?: GuardrailReason[];
-  /** Detailed per-guardrail-type results (added in Go; was missing in TS). */
-  results?: GuardrailsVerdictResult[];
-}
-
+// Behavioral evaluator output. Spec keeps `AGESpanResult.behavioral_result`
+// as `unknown` because the evaluator ships its own concrete shape; this
+// declaration captures what the SDK observes today and is the only
+// hand-written type in this module.
 export interface BehavioralResult {
   current_state?: string | null;
   next_state?: string | null;
@@ -226,106 +50,6 @@ export interface BehavioralResult {
   timeout_minutes?: number;
   verdict?: number;
   would_violate?: boolean;
-}
-
-/** Mirror of Go's `AGEAlignmentResult`. */
-export interface AgeAlignmentResult {
-  is_aligned: boolean;
-  score: number;
-}
-
-/** Mirror of Go's `AGETrustScore`. Score breakdown after evaluation. */
-export interface AgeTrustScore {
-  trust_score: number;
-  trust_tier: number;
-  behavioral_compliance: number;
-  alignment_consistency: number;
-  aivss_baseline: number;
-}
-
-/**
- * Mirror of Go's `AGESpanResult`. Note: `trust_score_after` is an OBJECT
- * (score breakdown), not a number - the previous TS type was wrong.
- */
-export interface SpanResult {
-  span_id?: string;
-  semantic_type?: string;
-  behavioral_result?: BehavioralResult | null;
-  alignment_result?: AgeAlignmentResult | null;
-  trust_score_after?: AgeTrustScore | null;
-  timestamp?: string;
-}
-
-/** Mirror of Go's `AGEResult`. `final_trust_score` was wrongly typed as number. */
-export interface AgeResult {
-  allowed?: boolean;
-  verdict?: string;
-  reason?: string;
-  fallback_used?: boolean;
-  goal_alignment_checked?: boolean;
-  goal_drifted?: boolean;
-  final_trust_score?: AgeTrustScore | null;
-  span_results?: SpanResult[];
-  total_spans?: number;
-  violations_count?: number;
-  response_time_ms?: number;
-}
-
-/**
- * Public response from `POST /api/v1/governance/evaluate`. Mirror of
- * `GovernanceVerdictPublicResponse.ToPublicResponse()` in
- * `internal/content/governance.go`. Required fields on the wire:
- * `governance_event_id`, `verdict`, `risk_score`, `action`.
- */
-export interface GovernanceVerdictResponse {
-  // Required (always present from Go's public response)
-  governance_event_id?: string;
-  verdict: string;
-  risk_score?: number;
-  action?: string; // v1.0 compat field: continue | stop | require-approval
-
-  // v1.1 optional fields
-  trust_tier?: number;
-  behavioral_violations?: string[];
-  approval_id?: string;
-  /** List of constraints emitted for the CONSTRAIN verdict (new in v1.1). */
-  constraints?: string[];
-  approval_expiration_time?: string;
-
-  // Fallback tracking
-  fallback_used?: boolean;
-
-  // v1.0 optional fields
-  reason?: string;
-  policy_id?: string;
-  metadata?: Record<string, unknown>;
-  guardrails_result?: GuardrailsResult;
-  age_result?: AgeResult;
-}
-
-export interface ApprovalPollRequest {
-  workflow_id: string;
-  run_id: string;
-  activity_id: string;
-}
-
-/**
- * Mirror of Go's `ApprovalStatusResponse` in
- * `internal/services/governance.go:215`. The wire emits `id` but earlier
- * TS had `verdict`+`expired` which Go doesn't produce - `verdict` never
- * populated, `expired` was a client-side helper. Kept here as optional
- * for backwards compat so old callers compile; new callers should use
- * `id` and derive expiry from `approval_expiration_time`.
- */
-export interface ApprovalPollResponse {
-  id?: string;
-  action?: string;
-  reason?: string;
-  approval_expiration_time?: string;
-  /** @deprecated Not emitted by Go; always undefined on the wire. */
-  verdict?: string;
-  /** @deprecated Client-side helper - derive from `approval_expiration_time` instead. */
-  expired?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -410,10 +134,10 @@ export class OpenBoxCoreClient {
     }) as Promise<GovernanceVerdictResponse>;
   }
 
-  async pollApproval(request: ApprovalPollRequest): Promise<ApprovalPollResponse> {
+  async pollApproval(request: ApprovalStatusRequest): Promise<ApprovalStatusResponse> {
     return this.request('POST', '/api/v1/governance/approval', {
       data: request,
-    }) as Promise<ApprovalPollResponse>;
+    }) as Promise<ApprovalStatusResponse>;
   }
 
   // =========================================================================
