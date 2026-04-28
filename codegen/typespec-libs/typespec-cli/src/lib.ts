@@ -33,6 +33,8 @@ export const $lib = createTypeSpecLibrary({
     outputKind: { description: 'output renderer kind attached to an operation' },
     pagination: { description: 'flag: operation accepts the canonical pagination flag set' },
     flagExtra: { description: 'flag-level extras (body-key, parse, choices, default) attached to a model property' },
+    outputPluck: { description: 'dotted path to extract from a response before rendering' },
+    outputPost: { description: 'name of a registered post-output callback (stderr banner, etc)' },
   },
 });
 

@@ -75,6 +75,51 @@ export const INSTALL_SPEC: InstallSpec = {
   ]
 };
 
+export interface ActivityVariant {
+  tool: string;
+  field: string;
+  pattern: string;
+  activityType: string;
+  eventCategory?: string;
+}
+
+/** Walk the variant table for one tool; return an override on first
+ *  match, undefined otherwise. The mapper composes:
+ *      const override = applyActivityVariant(VARIANTS, toolName, env);
+ *      const activityType = override?.activityType ?? base;
+ *      if (override?.eventCategory) payload.event_category = override.eventCategory;
+ */
+export function applyActivityVariant(
+  table: ActivityVariant[],
+  toolName: string,
+  env: unknown,
+): ActivityVariant | undefined {
+  for (const v of table) {
+    if (v.tool !== toolName) continue;
+    const value = String((function getPath(e: unknown, p: string): unknown {
+      if (e == null || typeof e !== 'object') return undefined;
+      let cur: unknown = e;
+      for (const seg of p.split('.')) {
+        if (cur == null || typeof cur !== 'object') return undefined;
+        cur = (cur as Record<string, unknown>)[seg];
+      }
+      return cur;
+    })(env, v.field) ?? '');
+    if (new RegExp(v.pattern).test(value)) return v;
+  }
+  return undefined;
+}
+
+export const PRE_TOOL_USE_VARIANTS: ActivityVariant[] = [
+  {
+    "tool": "Shell",
+    "field": "tool_input.command",
+    "pattern": "\\b(rm|unlink|rmdir|shred)\\b",
+    "activityType": "file_write",
+    "eventCategory": "file_delete"
+  }
+];
+
 export interface CursorSideEffects {
   /** Supplied by the runtime layer; receives the resolved `from` path value. */
   extractMcpText?: (input: unknown) => unknown;

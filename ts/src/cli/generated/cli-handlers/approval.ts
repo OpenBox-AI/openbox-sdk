@@ -149,6 +149,35 @@ export const APPROVAL_HANDLERS: SubcommandSpec[] = [
       "kind": "list",
       "label": "approval history"
     }
+  },
+  {
+    "name": "decide",
+    "description": "Decide on an approval (approve|reject).",
+    "args": [
+      {
+        "name": "agentId"
+      },
+      {
+        "name": "eventId"
+      },
+      {
+        "name": "action",
+        "bodyKey": "action",
+        "choices": [
+          "approve",
+          "reject"
+        ]
+      }
+    ],
+    "flags": [],
+    "backend": {
+      "method": "decideApproval",
+      "shape": "body"
+    },
+    "pagination": false,
+    "output": {
+      "kind": "kv"
+    }
   }
 ];
 

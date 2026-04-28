@@ -410,9 +410,9 @@ interface CursorAdapter {
    * Cursor 3.x's primary tool-routing hook. Cursor remaps Claude tool
    * names: Bash → "Shell", Write/Edit → "Write". Tools not listed
    * (`Glob`, `Grep`, etc.) are pass-through. Shell commands matching
-   * `/\b(rm|unlink|rmdir|shred)\b/` reroute to file_write at runtime
-   * (the predicate stays in the mapper - H.1 doesn't ship a
-   * `@payloadVariant` decorator).
+   * `/\b(rm|unlink|rmdir|shred)\b/` reroute to file_write - declared
+   * in the @activityVariant below; the runtime helper applies it
+   * after the routing-table lookup.
    */
   @hookEvent("preToolUse")
   @verdictShape("cursor-permission")
@@ -420,6 +420,12 @@ interface CursorAdapter {
     Read: "file_read",
     Write: "file_write",
     Shell: "agent_action",
+  })
+  @activityVariant("Shell", #{
+    field: "tool_input.command",
+    pattern: "\\b(rm|unlink|rmdir|shred)\\b",
+    activityType: "file_write",
+    eventCategory: "file_delete",
   })
   @payloadShape(#{
     byTool: #{

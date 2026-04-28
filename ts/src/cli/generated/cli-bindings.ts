@@ -22,11 +22,11 @@ export interface Auth {
   roles(): void;
 }
 export interface Agent {
-  list(): void;
-  create(): void;
+  list(search?: string, status?: string, team?: string, tiers?: string[]): void;
   get(agentId: string): void;
-  update(agentId: string): void;
   delete(agentId: string): void;
+  create(): void;
+  update(agentId: string): void;
   audit(agentId: string): void;
 }
 export interface Aivss {
@@ -136,12 +136,12 @@ export interface Observe {
 export interface Org {
   get(orgId: string): void;
   settings(orgId: string): void;
-  dashboard(orgId: string): void;
-  sessions(orgId: string): void;
-  approvals(orgId: string): void;
+  dashboard(orgId: string, from?: string, to?: string): void;
+  sessions(orgId: string, status?: string): void;
+  approvals(orgId: string, status?: string): void;
   updateSettings(orgId: string): void;
   trends(orgId: string): void;
-  approvalMetrics(orgId: string): void;
+  approvalMetrics(orgId: string, from?: string, to?: string): void;
   approvalSla(orgId: string): void;
   approvalHistory(orgId: string): void;
   governanceFeed(orgId: string): void;
@@ -174,12 +174,12 @@ export interface Team {
   list(orgId: string): void;
   stats(orgId: string): void;
   get(orgId: string, teamId: string): void;
-  update(orgId: string, teamId: string): void;
   members(orgId: string, teamId: string): void;
   create(orgId: string): void;
-  delete(orgId: string): void;
-  addMembers(orgId: string, teamId: string): void;
-  removeMembers(orgId: string, teamId: string): void;
+  update(orgId: string, teamId: string): void;
+  delete(orgId: string, ids?: string[]): void;
+  addMembers(orgId: string, teamId: string, userIds?: string[]): void;
+  removeMembers(orgId: string, teamId: string, userIds?: string[]): void;
 }
 export interface Trust {
   histories(agentId: string, duration?: string): void;
@@ -267,6 +267,44 @@ export const CLI_COMMAND_MANIFEST = [
     "subcommands": [
       {
         "name": "list",
+        "flags": [
+          {
+            "name": "search",
+            "long": "search",
+            "short": "s",
+            "description": "Search by name",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "status",
+            "long": "status",
+            "description": "Filter by status",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "team",
+            "long": "team",
+            "description": "Filter by team ID",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "tiers",
+            "long": "tiers",
+            "description": "Filter by tiers",
+            "optional": true,
+            "tsType": "string[]"
+          }
+        ]
+      },
+      {
+        "name": "get",
+        "flags": []
+      },
+      {
+        "name": "delete",
         "flags": []
       },
       {
@@ -274,15 +312,7 @@ export const CLI_COMMAND_MANIFEST = [
         "flags": []
       },
       {
-        "name": "get",
-        "flags": []
-      },
-      {
         "name": "update",
-        "flags": []
-      },
-      {
-        "name": "delete",
         "flags": []
       },
       {
@@ -930,15 +960,46 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "dashboard",
-        "flags": []
+        "flags": [
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "sessions",
-        "flags": []
+        "flags": [
+          {
+            "name": "status",
+            "long": "status",
+            "description": "Filter by status",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "approvals",
-        "flags": []
+        "flags": [
+          {
+            "name": "status",
+            "long": "status",
+            "description": "Filter by status",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "updateSettings",
@@ -950,7 +1011,22 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "approvalMetrics",
-        "flags": []
+        "flags": [
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "approvalSla",
@@ -1123,10 +1199,6 @@ export const CLI_COMMAND_MANIFEST = [
         "flags": []
       },
       {
-        "name": "update",
-        "flags": []
-      },
-      {
         "name": "members",
         "flags": []
       },
@@ -1135,16 +1207,44 @@ export const CLI_COMMAND_MANIFEST = [
         "flags": []
       },
       {
-        "name": "delete",
+        "name": "update",
         "flags": []
+      },
+      {
+        "name": "delete",
+        "flags": [
+          {
+            "name": "ids",
+            "long": "ids",
+            "description": "Team IDs to delete",
+            "optional": true,
+            "tsType": "string[]"
+          }
+        ]
       },
       {
         "name": "addMembers",
-        "flags": []
+        "flags": [
+          {
+            "name": "userIds",
+            "long": "user-ids",
+            "description": "User IDs to add",
+            "optional": true,
+            "tsType": "string[]"
+          }
+        ]
       },
       {
         "name": "removeMembers",
-        "flags": []
+        "flags": [
+          {
+            "name": "userIds",
+            "long": "user-ids",
+            "description": "User IDs to remove",
+            "optional": true,
+            "tsType": "string[]"
+          }
+        ]
       }
     ]
   },

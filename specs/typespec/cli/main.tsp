@@ -66,9 +66,9 @@ interface Auth {
   /**
    * Interactive login. Opens the browser-based auth flow, captures
    * the resulting tokens, and persists them to the per-OS token
-   * store. After this completes, every other openbox command picks
-   * up the same credentials.
+   * store. Custom: OAuth redirect captured via expo-web-browser.
    */
+  @cli_output_kind("custom")
   login(
     @cli_flag(
       "Override the default environment.",
@@ -84,38 +84,37 @@ interface Auth {
     noBrowser?: boolean,
   ): void;
 
-  /**
-   * Clear the local token store. Does not invalidate the upstream
-   * session - call this before destroying the machine.
-   */
+  /** Clear the local token store. Custom: branches on hasTokens(env). */
+  @cli_output_kind("custom")
   logout(): void;
 
-  /**
-   * Print the resolved profile of the currently authenticated user.
-   * Useful as a smoke test ("am I logged into the right environment").
-   * Output is human-readable by default and structured when --json
-   * is set; the structured shape is `AuthProfileOutput`.
-   */
+  /** Print the resolved profile. Custom: renders persisted token store. */
+  @cli_output_kind("custom")
   profile(): AuthProfileOutput;
 
   /** Refresh access tokens against the upstream session. */
   @cli_maturity("stable")
+  @cli_output_kind("custom")
   refresh(): void;
 
   /** List the resolved permission set for the active credential. */
   @cli_maturity("experimental")
+  @cli_output_kind("custom")
   permissions(): void;
 
   /** List enabled feature flags for the active credential. */
   @cli_maturity("experimental")
+  @cli_output_kind("custom")
   features(): void;
 
   /** Change the local user's password against the upstream IdP. */
   @cli_maturity("experimental")
+  @cli_output_kind("custom")
   changePassword(): void;
 
   /** List the roles the active user holds in the current org. */
   @cli_maturity("experimental")
+  @cli_output_kind("custom")
   roles(): void;
 }
 
@@ -159,59 +158,116 @@ model PersistedCredentials {
 @cli_command("agent", "Agent management.")
 @cli_maturity("stable")
 interface Agent {
-  list(): void;
-  create(): void;
+  /** List all agents. */
+  @cli_calls("listAgents")
+  @cli_pagination
+  @cli_output_kind("list", "agents")
+  list(
+    @cli_flag("Search by name", "s")
+    search?: string,
+    @cli_flag("Filter by status") @cli_parse("int")
+    status?: string,
+    @cli_flag("Filter by team ID") @cli_body_key("team_id")
+    team?: string,
+    @cli_flag("Filter by tiers") @cli_variadic
+    tiers?: string[],
+  ): void;
+
+  /** Get agent details. */
+  @cli_calls("getAgent", "positional")
+  @cli_output_kind("kv")
   get(agentId: string): void;
-  update(agentId: string): void;
+
+  /** Delete an agent. */
+  @cli_calls("deleteAgent", "positional")
+  @cli_output_kind("kv")
   delete(agentId: string): void;
+
+  // Custom: preflight team/name validation + AIVSS defaults + runtime
+  // key one-time stderr highlight.
+  @cli_output_kind("custom")
+  create(): void;
+
+  // Custom: --json + flag merge over multiple optional fields.
+  @cli_output_kind("custom")
+  update(agentId: string): void;
+
+  // Custom: cross-session protocol-conformance audit (renderAuditReport).
+  @cli_output_kind("custom")
   audit(agentId: string): void;
 }
 
 @cli_command("aivss", "Agent AIVSS scoring.")
 interface Aivss {
+  // Custom: complex DTO + recalculate-with-reason logic.
+  @cli_output_kind("custom")
   calculate(): void;
 }
 
 @cli_command("api-key", "Agent + org-level API key management.")
 @cli_maturity("stable")
 interface ApiKey {
-  // Org-level (programmatic API keys) - not yet e2e-tested, gated experimental.
+  /** List org-level API keys. */
+  @cli_calls("listApiKeys")
+  @cli_pagination
+  @cli_output_kind("list", "api keys")
   list(): void;
+
+  // Custom: --json body required, no other shape.
+  @cli_output_kind("custom")
   create(): void;
+
+  /** Get an org-level API key by id. */
+  @cli_calls("getApiKey", "positional")
+  @cli_output_kind("kv")
   get(id: string): void;
+
+  // Custom: --json body required.
+  @cli_output_kind("custom")
   update(id: string): void;
+
+  /** Delete an org-level API key. */
+  @cli_calls("deleteApiKey", "positional")
+  @cli_output_kind("kv")
   delete(id: string): void;
-  // Agent-level (runtime obx_live_ keys) - e2e-tested, stable.
+
+  /** Rotate API key for an agent. The runtime key is highlighted to
+   *  stderr (one-time display) via the post callback. */
   @cli_maturity("stable")
+  @cli_calls("rotateApiKey", "positional")
+  @cli_output_kind("kv")
+  @cli_output_post("highlightRuntimeKey")
   rotate(agentId: string): void;
+
+  /** Revoke API key for an agent. */
   @cli_maturity("stable")
+  @cli_calls("revokeApiKey", "positional")
+  @cli_output_kind("kv")
   revoke(agentId: string): void;
 }
 
 @cli_command("webhook", "Webhook management (admin).")
 interface Webhook {
-  list(): void;
-  create(): void;
-  get(id: string): void;
-  update(id: string): void;
-  delete(id: string): void;
-  test(id: string): void;
-  regenerateSecret(id: string): void;
-  deliveries(id: string): void;
+  @cli_output_kind("custom") list(): void;
+  @cli_output_kind("custom") create(): void;
+  @cli_output_kind("custom") get(id: string): void;
+  @cli_output_kind("custom") update(id: string): void;
+  @cli_output_kind("custom") delete(id: string): void;
+  @cli_output_kind("custom") test(id: string): void;
+  @cli_output_kind("custom") regenerateSecret(id: string): void;
+  @cli_output_kind("custom") deliveries(id: string): void;
 }
 
 @cli_command("sso", "SSO configuration (admin).")
 interface Sso {
-  status(): void;
-  config(): void;
-  // `metadata` is a TypeSpec reserved keyword; the kebab-case
-  // command name on the CLI is `metadata` regardless.
-  getMetadata(): void;
-  configureOidc(): void;
-  configureSaml(): void;
-  enforce(): void;
-  delete(): void;
-  verify(): void;
+  @cli_output_kind("custom") status(): void;
+  @cli_output_kind("custom") config(): void;
+  @cli_output_kind("custom") getMetadata(): void;
+  @cli_output_kind("custom") configureOidc(): void;
+  @cli_output_kind("custom") configureSaml(): void;
+  @cli_output_kind("custom") enforce(): void;
+  @cli_output_kind("custom") delete(): void;
+  @cli_output_kind("custom") verify(): void;
 }
 
 @cli_command("approval", "Approval queue management.")
@@ -268,9 +324,16 @@ interface Approval {
     to?: string,
   ): void;
 
-  // Custom: 3 positional args + body { action } - hybrid shape.
-  @cli_output_kind("custom")
-  decide(agentId: string, eventId: string, action: string): void;
+  /** Decide on an approval (approve|reject). */
+  @cli_calls("decideApproval")
+  @cli_output_kind("kv")
+  decide(
+    agentId: string,
+    eventId: string,
+    @cli_choice(#["approve", "reject"])
+    @cli_body_key("action")
+    action: string,
+  ): void;
 }
 
 @cli_command("audit", "Audit log queries + exports.")
@@ -397,10 +460,10 @@ interface Behavior {
 
 @cli_command("core", "Direct access to the core governance API.")
 interface Core {
-  health(): void;
-  validate(): void;
-  evaluate(): void;
-  pollApproval(): void;
+  @cli_output_kind("custom") health(): void;
+  @cli_output_kind("custom") validate(): void;
+  @cli_output_kind("custom") evaluate(): void;
+  @cli_output_kind("custom") pollApproval(): void;
 }
 
 @cli_command("doctor", "Pre-flight checks for the local environment.")
@@ -499,13 +562,13 @@ interface Health {}
 
 @cli_command("member", "Org member management.")
 interface Member {
-  list(orgId: string): void;
-  create(orgId: string): void;
-  update(orgId: string, userId: string): void;
-  assignRoles(orgId: string, userId: string): void;
-  removeRoles(orgId: string, userId: string): void;
-  remove(orgId: string): void;
-  invite(orgId: string): void;
+  @cli_output_kind("custom") list(orgId: string): void;
+  @cli_output_kind("custom") create(orgId: string): void;
+  @cli_output_kind("custom") update(orgId: string, userId: string): void;
+  @cli_output_kind("custom") assignRoles(orgId: string, userId: string): void;
+  @cli_output_kind("custom") removeRoles(orgId: string, userId: string): void;
+  @cli_output_kind("custom") remove(orgId: string): void;
+  @cli_output_kind("custom") invite(orgId: string): void;
 }
 
 @cli_command("observe", "Observability dashboards + metrics.")
@@ -561,29 +624,101 @@ interface Observe {
 @cli_command("org", "Organization management.")
 @cli_maturity("stable")
 interface Org {
+  /** Get organization details. */
+  @cli_calls("getOrganization", "positional")
+  @cli_output_kind("kv")
   get(orgId: string): void;
+
+  /** Get organization settings. */
+  @cli_calls("getOrgSettings", "positional")
+  @cli_output_kind("kv")
   settings(orgId: string): void;
-  dashboard(orgId: string): void;
-  sessions(orgId: string): void;
-  approvals(orgId: string): void;
-  // The remaining org views aren't yet e2e-tested.
+
+  /** Get organization dashboard. */
+  @cli_calls("getDashboard")
+  @cli_output_kind("kv")
+  dashboard(
+    orgId: string,
+    @cli_flag("Start date (ISO)") @cli_validator("validateIsoDate") @cli_body_key("fromTime")
+    from?: string,
+    @cli_flag("End date (ISO)") @cli_validator("validateIsoDate") @cli_body_key("toTime")
+    to?: string,
+  ): void;
+
+  /** List org sessions. */
+  @cli_calls("getOrgSessions")
+  @cli_pagination
+  @cli_output_kind("list", "sessions")
+  sessions(
+    orgId: string,
+    @cli_flag("Filter by status")
+    @cli_choice(#["pending", "completed", "failed", "blocked", "halted"])
+    status?: string,
+  ): void;
+
+  /** Get org approvals. Wire returns
+   *  `{ approvals: { data: [...] }, metrics: {...} }`; render the
+   *  approvals list and surface metrics to stderr. */
+  @cli_calls("getOrgApprovals")
+  @cli_pagination
+  @cli_output_kind("list", "approvals")
+  @cli_output_pluck("approvals")
+  @cli_output_post("logApprovalMetrics")
+  approvals(
+    orgId: string,
+    @cli_flag("Filter by status")
+    @cli_choice(#["pending", "approved", "rejected", "expired"])
+    status?: string,
+  ): void;
+
+  // Custom: --json + name/domain/timezone merge.
   @cli_maturity("experimental")
+  @cli_output_kind("custom")
   updateSettings(orgId: string): void;
+
   @cli_maturity("experimental")
+  @cli_calls("getDashboardTierTrends", "positional")
+  @cli_output_kind("kv")
   trends(orgId: string): void;
+
   @cli_maturity("experimental")
-  approvalMetrics(orgId: string): void;
+  @cli_calls("getOrgApprovalMetrics")
+  @cli_output_kind("kv")
+  approvalMetrics(
+    orgId: string,
+    @cli_flag("Start date (ISO)") @cli_validator("validateIsoDate") @cli_body_key("fromTime")
+    from?: string,
+    @cli_flag("End date (ISO)") @cli_validator("validateIsoDate") @cli_body_key("toTime")
+    to?: string,
+  ): void;
+
   @cli_maturity("experimental")
+  @cli_calls("getOrgApprovalSla", "positional")
+  @cli_output_kind("kv")
   approvalSla(orgId: string): void;
+
   @cli_maturity("experimental")
+  @cli_calls("getOrgApprovalHistory")
+  @cli_pagination
+  @cli_output_kind("list", "approval history")
   approvalHistory(orgId: string): void;
+
+  // The remaining org views still need their backend-method names + body shapes
+  // pinned down before they can be spec-driven.
   @cli_maturity("experimental")
+  @cli_output_kind("custom")
   governanceFeed(orgId: string): void;
+
   @cli_maturity("experimental")
+  @cli_output_kind("custom")
   trustDriftLanes(orgId: string): void;
+
   @cli_maturity("experimental")
+  @cli_output_kind("custom")
   governanceSlo(orgId: string): void;
+
   @cli_maturity("experimental")
+  @cli_output_kind("custom")
   violationHeatcal(orgId: string): void;
 }
 
@@ -710,15 +845,72 @@ interface Session {
 @cli_command("team", "Team management.")
 @cli_maturity("stable")
 interface Team {
+  /** List teams. */
+  @cli_calls("listTeams")
+  @cli_pagination
+  @cli_output_kind("list", "teams")
   list(orgId: string): void;
+
+  /** Get team stats. */
+  @cli_calls("getTeamStats", "positional")
+  @cli_output_kind("kv")
   stats(orgId: string): void;
+
+  /** Get team details. */
+  @cli_calls("getTeam", "positional")
+  @cli_output_kind("kv")
   get(orgId: string, teamId: string): void;
-  update(orgId: string, teamId: string): void;
+
+  /** Get team members. */
+  @cli_calls("getTeamMembers")
+  @cli_pagination
+  @cli_output_kind("list", "members")
   members(orgId: string, teamId: string): void;
+
+  // Custom: --json + name/desc/icon merge with at-least-one validation.
+  @cli_output_kind("custom")
   create(orgId: string): void;
-  delete(orgId: string): void;
-  addMembers(orgId: string, teamId: string): void;
-  removeMembers(orgId: string, teamId: string): void;
+
+  // Custom: --json + name/desc/icon merge.
+  @cli_output_kind("custom")
+  update(orgId: string, teamId: string): void;
+
+  /** Delete one or more teams. */
+  @cli_calls("deleteTeams")
+  @cli_output_kind("kv")
+  delete(
+    orgId: string,
+    @cli_flag("Team IDs to delete")
+    @cli_variadic
+    @cli_required
+    ids?: string[],
+  ): void;
+
+  /** Add users to a team. */
+  @cli_calls("addTeamMembers")
+  @cli_output_kind("kv")
+  addMembers(
+    orgId: string,
+    teamId: string,
+    @cli_flag("User IDs to add")
+    @cli_variadic
+    @cli_required
+    @cli_body_key("user_ids")
+    userIds?: string[],
+  ): void;
+
+  /** Remove users from a team. */
+  @cli_calls("removeTeamMembers")
+  @cli_output_kind("kv")
+  removeMembers(
+    orgId: string,
+    teamId: string,
+    @cli_flag("User IDs to remove")
+    @cli_variadic
+    @cli_required
+    @cli_body_key("user_ids")
+    userIds?: string[],
+  ): void;
 }
 
 @cli_command("trust", "Agent trust history.")
@@ -804,6 +996,13 @@ interface Violation {
 
   /** Mark a violation as false positive. sourceType must be one of: behavior, guardrail, policy. */
   @cli_maturity("experimental")
-  @cli_output_kind("custom")
-  falsePositive(agentId: string, violationId: string, sourceType: string): void;
+  @cli_calls("markFalsePositive")
+  @cli_output_kind("kv")
+  falsePositive(
+    agentId: string,
+    violationId: string,
+    @cli_choice(#["behavior", "guardrail", "policy"])
+    @cli_body_key("sourceType")
+    sourceType: string,
+  ): void;
 }

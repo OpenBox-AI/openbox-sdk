@@ -199,3 +199,23 @@ extern dec installTarget(target: Interface, target_: valueof Record<unknown>);
  * backend. Ignored by other styles.
  */
 extern dec installTimeout(target: Operation, seconds: valueof int32);
+
+/**
+ * Predicate-based activity-type reroute. Sits alongside @activityRouting
+ * for adapter ops where one tool's activity_type depends on a runtime
+ * field value (e.g. cursor's Shell tool reroutes to file_write when the
+ * command matches a delete pattern).
+ *
+ * Multiple variants per op are allowed; first match wins. Each variant
+ * record carries: field (dotted envelope path), pattern (regex source),
+ * activityType (override target), eventCategory (optional payload
+ * override).
+ *
+ * @param toolName Inner-discriminator value to match.
+ * @param variant Field/pattern/activityType/eventCategory record.
+ */
+extern dec activityVariant(
+  target: Operation,
+  toolName: valueof string,
+  variant: valueof Record<unknown>,
+);

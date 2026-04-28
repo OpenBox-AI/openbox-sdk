@@ -1,36 +1,20 @@
+// `openbox agent` - list / get / delete are spec-driven (H.3). create
+// keeps a custom shell: preflight team-existence + name-collision
+// checks + AIVSS DTO defaults + runtime-key one-time stderr highlight.
+// update merges --json with optional flags. audit delegates to
+// agent-audit.ts which runs a multi-session protocol audit.
 import { Command } from 'commander';
 import { getClient } from '../config.js';
-import { output, outputList } from '../output.js';
+import { output } from '../output.js';
 import { parseJsonInput } from '../input.js';
-import { reportAndExit, validateUuid, warn, block, parsePagination } from '../validators/index.js';
+import { reportAndExit, validateUuid, warn, block } from '../validators/index.js';
 import { runAgentAudit, renderAuditReport, auditHasIssues } from './agent-audit.js';
+import { wireSubcommands } from '../wire-subcommands.js';
+import { AGENT_HANDLERS } from '../generated/cli-handlers/agent.js';
 
 export function registerAgentCommands(program: Command) {
   const agent = program.command('agent').description('Agent management');
-
-  agent
-    .command('list')
-    .description('List all agents')
-    .option('-p, --page <n>', 'Page number', '0')
-    .option('-l, --limit <n>', 'Items per page', '10')
-    .option('-s, --search <text>', 'Search by name')
-    .option('--status <n>', 'Filter by status')
-    .option('--team <id>', 'Filter by team ID')
-    .option('--tiers <tiers...>', 'Filter by tiers')
-    .action(async (opts) => {
-      try {
-        const data = await getClient().listAgents({
-          ...parsePagination(opts),
-          search: opts.search,
-          status: opts.status ? parseInt(opts.status) : undefined,
-          team_id: opts.team,
-          tiers: opts.tiers,
-        });
-        outputList(data, 'agents');
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
+  wireSubcommands(agent, AGENT_HANDLERS, getClient as never);
 
   agent
     .command('create')
@@ -48,7 +32,6 @@ export function registerAgentCommands(program: Command) {
         let dto: any;
         if (opts.json) {
           dto = parseJsonInput(opts.json);
-          // Validate team UUIDs on the json path too.
           if (Array.isArray(dto.team_ids)) dto.team_ids.forEach((id: unknown, i: number) => validateUuid(id, `team_ids[${i}]`));
         } else {
           const teams = opts.team || [];
@@ -62,7 +45,6 @@ export function registerAgentCommands(program: Command) {
           }
           teams.forEach((id: string, i: number) => validateUuid(id, `--team[${i}]`));
 
-          // Pre-flight: confirm each team exists and confirm no agent name collision.
           if (!opts.skipPreflight) {
             let orgId: string | undefined;
             try {
@@ -105,38 +87,14 @@ export function registerAgentCommands(program: Command) {
             agent_type: opts.type,
             icon: opts.icon,
             aivss_config: {
-              base_security: {
-                attack_vector: 2,
-                attack_complexity: 1,
-                privileges_required: 2,
-                user_interaction: 1,
-                scope: 1,
-              },
-              ai_specific: {
-                model_robustness: 3,
-                data_sensitivity: 2,
-                ethical_impact: 2,
-                decision_criticality: 2,
-                adaptability: 3,
-              },
-              impact: {
-                confidentiality_impact: 2,
-                integrity_impact: 2,
-                availability_impact: 2,
-                safety_impact: 1,
-              },
+              base_security: { attack_vector: 2, attack_complexity: 1, privileges_required: 2, user_interaction: 1, scope: 1 },
+              ai_specific: { model_robustness: 3, data_sensitivity: 2, ethical_impact: 2, decision_criticality: 2, adaptability: 3 },
+              impact: { confidentiality_impact: 2, integrity_impact: 2, availability_impact: 2, safety_impact: 1 },
             },
           };
         }
         const data = await client.createAgent(dto);
         output(data);
-        // Highlight the runtime API key in stderr so it's not lost in
-        // the JSON output. The response carries it under the top-level
-        // `token` field (the obx_live_/obx_test_ form, distinct from
-        // the agent.token field surfaced later by `agent list`/`get`).
-        // This is the ONLY moment the runtime key appears - `agent
-        // get`/`list` won't return it. Recovery requires `api-key
-        // rotate`, which invalidates the previous key.
         const runtimeKey = (data as { token?: string } | null)?.token;
         if (typeof runtimeKey === 'string' && (runtimeKey.startsWith('obx_live_') || runtimeKey.startsWith('obx_test_'))) {
           const agentId = (data as { agent?: { id?: string } } | null)?.agent?.id ?? '<id>';
@@ -150,19 +108,7 @@ export function registerAgentCommands(program: Command) {
           console.error('  (rotation invalidates the previous key).');
           console.error('────────────────────────────────────────────────────────────');
         }
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  agent
-    .command('get <agentId>')
-    .description('Get agent details')
-    .action(async (agentId: string) => {
-      try {
-        const data = await getClient().getAgent(agentId);
-        output(data);
-      } catch (err: any) {
+      } catch (err) {
         reportAndExit(err);
       }
     });
@@ -193,19 +139,7 @@ export function registerAgentCommands(program: Command) {
         }
         const data = await getClient().updateAgent(agentId, dto);
         output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  agent
-    .command('delete <agentId>')
-    .description('Delete an agent')
-    .action(async (agentId: string) => {
-      try {
-        const data = await getClient().deleteAgent(agentId);
-        output(data);
-      } catch (err: any) {
+      } catch (err) {
         reportAndExit(err);
       }
     });
@@ -225,7 +159,7 @@ export function registerAgentCommands(program: Command) {
         if (opts.json) console.log(JSON.stringify(report, null, 2));
         else renderAuditReport(agentId, report);
         if (auditHasIssues(report)) process.exit(2);
-      } catch (err: any) {
+      } catch (err) {
         reportAndExit(err);
       }
     });
