@@ -110,6 +110,17 @@ export function validateUuid(value: unknown, label: string): string {
   return value as string;
 }
 
+/** Same as validateUuid but for a `string[]` flag value - every entry
+ *  must be a UUID. Used by spec-driven flags that take variadic UUIDs
+ *  (e.g. `agent create --team t1 t2`). */
+export function validateUuidList(value: unknown, label: string): string[] {
+  if (!Array.isArray(value)) {
+    block('invalid-uuid', `${label} must be a list of UUIDs. Got: ${JSON.stringify(value)}`);
+  }
+  (value as unknown[]).forEach((v, i) => validateUuid(v, `${label}[${i}]`));
+  return value as string[];
+}
+
 export function validateInt(
   value: unknown,
   label: string,

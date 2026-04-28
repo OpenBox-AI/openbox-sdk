@@ -17,6 +17,7 @@ export const POLICY_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "policies"
@@ -36,6 +37,7 @@ export const POLICY_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -57,6 +59,141 @@ export const POLICY_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
+    "name": "create",
+    "description": "Create a policy.",
+    "args": [
+      {
+        "name": "agentId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "name",
+        "long": "name",
+        "short": "n",
+        "description": "Policy name",
+        "required": true,
+        "noArg": false
+      },
+      {
+        "name": "desc",
+        "long": "desc",
+        "short": "d",
+        "description": "Description",
+        "bodyKey": "description",
+        "noArg": false
+      },
+      {
+        "name": "rego",
+        "long": "rego",
+        "description": "Rego policy code",
+        "bodyKey": "rego_code",
+        "required": true,
+        "noArg": false
+      },
+      {
+        "name": "input",
+        "long": "input",
+        "description": "Input JSON for policy",
+        "parse": "json",
+        "noArg": false
+      },
+      {
+        "name": "trustImpact",
+        "long": "trust-impact",
+        "description": "Trust impact (none|low|medium|high)",
+        "bodyKey": "trust_impact",
+        "choices": [
+          "none",
+          "low",
+          "medium",
+          "high"
+        ],
+        "noArg": false
+      },
+      {
+        "name": "trustThreshold",
+        "long": "trust-threshold",
+        "description": "Trust threshold",
+        "bodyKey": "trust_threshold",
+        "parse": "int",
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "createPolicy",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "fill",
+    "localOnly": false,
+    "postValidate": [
+      "policyCrossField"
+    ],
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
+    "name": "update",
+    "description": "Toggle active / roll back a policy version. Rego is immutable.",
+    "args": [
+      {
+        "name": "agentId"
+      },
+      {
+        "name": "policyId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "active",
+        "long": "active",
+        "description": "Active status (true|false)",
+        "bodyKey": "is_active",
+        "parse": "bool",
+        "choices": [
+          "true",
+          "false"
+        ],
+        "required": true,
+        "noArg": false
+      },
+      {
+        "name": "trustImpact",
+        "long": "trust-impact",
+        "description": "Trust impact",
+        "bodyKey": "trust_impact",
+        "choices": [
+          "none",
+          "low",
+          "medium",
+          "high"
+        ],
+        "noArg": false
+      },
+      {
+        "name": "trustThreshold",
+        "long": "trust-threshold",
+        "description": "Trust threshold",
+        "bodyKey": "trust_threshold",
+        "parse": "int",
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "updatePolicy",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "fill",
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -78,6 +215,7 @@ export const POLICY_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "evaluations"
@@ -97,6 +235,7 @@ export const POLICY_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }

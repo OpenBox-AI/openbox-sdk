@@ -17,6 +17,7 @@ export const GUARDRAIL_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "guardrails"
@@ -39,6 +40,7 @@ export const GUARDRAIL_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -60,6 +62,173 @@ export const GUARDRAIL_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
+    "name": "create",
+    "description": "Create a guardrail.",
+    "args": [
+      {
+        "name": "agentId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "name",
+        "long": "name",
+        "short": "n",
+        "description": "Guardrail name",
+        "required": true,
+        "noArg": false
+      },
+      {
+        "name": "type",
+        "long": "type",
+        "description": "Guardrail type (1=PII, 2=NSFW, 3=Toxicity, 4=BanList, 5=Regex, or name)",
+        "bodyKey": "guardrail_type",
+        "required": true,
+        "noArg": false
+      },
+      {
+        "name": "stage",
+        "long": "stage",
+        "description": "Processing stage (0=input, 1=output)",
+        "bodyKey": "processing_stage",
+        "default": "0",
+        "noArg": false
+      },
+      {
+        "name": "desc",
+        "long": "desc",
+        "short": "d",
+        "description": "Description",
+        "bodyKey": "description",
+        "noArg": false
+      },
+      {
+        "name": "trustImpact",
+        "long": "trust-impact",
+        "description": "Trust impact (none|low|medium|high)",
+        "bodyKey": "trust_impact",
+        "choices": [
+          "none",
+          "low",
+          "medium",
+          "high"
+        ],
+        "noArg": false
+      },
+      {
+        "name": "trustThreshold",
+        "long": "trust-threshold",
+        "description": "Trust threshold",
+        "bodyKey": "trust_threshold",
+        "parse": "int",
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "createGuardrail",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "fill",
+    "localOnly": false,
+    "postValidate": [
+      "guardrailCrossField"
+    ],
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
+    "name": "update",
+    "description": "Update a guardrail.",
+    "args": [
+      {
+        "name": "agentId"
+      },
+      {
+        "name": "guardrailId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "name",
+        "long": "name",
+        "short": "n",
+        "description": "Guardrail name",
+        "noArg": false
+      },
+      {
+        "name": "active",
+        "long": "active",
+        "description": "Active status (true|false)",
+        "bodyKey": "is_active",
+        "parse": "bool",
+        "choices": [
+          "true",
+          "false"
+        ],
+        "noArg": false
+      },
+      {
+        "name": "type",
+        "long": "type",
+        "description": "Guardrail type",
+        "bodyKey": "guardrail_type",
+        "noArg": false
+      },
+      {
+        "name": "stage",
+        "long": "stage",
+        "description": "Processing stage (0|1)",
+        "bodyKey": "processing_stage",
+        "noArg": false
+      },
+      {
+        "name": "desc",
+        "long": "desc",
+        "short": "d",
+        "description": "Description",
+        "bodyKey": "description",
+        "noArg": false
+      },
+      {
+        "name": "trustImpact",
+        "long": "trust-impact",
+        "description": "Trust impact",
+        "bodyKey": "trust_impact",
+        "choices": [
+          "none",
+          "low",
+          "medium",
+          "high"
+        ],
+        "noArg": false
+      },
+      {
+        "name": "trustThreshold",
+        "long": "trust-threshold",
+        "description": "Trust threshold",
+        "bodyKey": "trust_threshold",
+        "parse": "int",
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "updateGuardrail",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "fill",
+    "localOnly": false,
+    "postValidate": [
+      "guardrailCrossField"
+    ],
     "output": {
       "kind": "kv"
     }
@@ -78,6 +247,7 @@ export const GUARDRAIL_HANDLERS: SubcommandSpec[] = [
         "long": "from",
         "description": "Start date (ISO)",
         "bodyKey": "fromTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -85,6 +255,7 @@ export const GUARDRAIL_HANDLERS: SubcommandSpec[] = [
         "long": "to",
         "description": "End date (ISO)",
         "bodyKey": "toTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       }
     ],
@@ -93,6 +264,7 @@ export const GUARDRAIL_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -111,6 +283,7 @@ export const GUARDRAIL_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "violations"

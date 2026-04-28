@@ -22,7 +22,8 @@ export const TRUST_HANDLERS: SubcommandSpec[] = [
           "90d",
           "1y"
         ],
-        "default": "7d"
+        "default": "7d",
+        "noArg": false
       }
     ],
     "backend": {
@@ -30,6 +31,7 @@ export const TRUST_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -48,6 +50,7 @@ export const TRUST_HANDLERS: SubcommandSpec[] = [
         "long": "from",
         "description": "Start date (ISO)",
         "bodyKey": "fromTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -55,6 +58,7 @@ export const TRUST_HANDLERS: SubcommandSpec[] = [
         "long": "to",
         "description": "End date (ISO)",
         "bodyKey": "toTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       }
     ],
@@ -63,6 +67,7 @@ export const TRUST_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "trust events"
@@ -82,6 +87,7 @@ export const TRUST_HANDLERS: SubcommandSpec[] = [
         "long": "from",
         "description": "Start date (ISO)",
         "bodyKey": "fromTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -89,6 +95,7 @@ export const TRUST_HANDLERS: SubcommandSpec[] = [
         "long": "to",
         "description": "End date (ISO)",
         "bodyKey": "toTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       }
     ],
@@ -97,6 +104,7 @@ export const TRUST_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "tier changes"
@@ -116,6 +124,7 @@ export const TRUST_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }

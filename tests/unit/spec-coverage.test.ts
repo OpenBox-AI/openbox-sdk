@@ -53,11 +53,18 @@ function cliOpBlocks(source: string): { name: string; block: string }[] {
     const m = l.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\(/);
     if (!m) continue;
     const opName = m[1];
-    // Walk back to top of decorator stack (previous blank or `{`).
+    // Walk back to top of decorator stack - stop at the previous blank
+    // line OR the line that opens the enclosing interface (`{` at line
+    // end with NO preceding `#` for TypeSpec record literals). Plain
+    // `{` from `interface Foo {` ends a line; record literals look
+    // like `impact: #{` which also ends with `{` and would falsely
+    // truncate the walk.
     let start = i;
     while (start > 0) {
       const prev = lines[start - 1];
-      if (prev.trim() === '' || prev.trim().endsWith('{')) break;
+      const trimmed = prev.trim();
+      if (trimmed === '') break;
+      if (trimmed.endsWith('{') && !trimmed.endsWith('#{') && !/[a-z_]+:\s*[#]?\{$/.test(trimmed)) break;
       start--;
     }
     out.push({ name: opName, block: lines.slice(start, i + 1).join('\n') });

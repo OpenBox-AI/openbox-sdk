@@ -80,39 +80,21 @@ export type AuditReport = {
   findings: AuditFinding[];
 };
 
-// Canonical sets - kept in sync with session.ts; duplicated rather than
-// shared because the two commands live in different modules and pulling a
-// dependency out for a handful of constants isn't worth the indirection.
-const CANONICAL_ACTIVITY_TYPES = new Set([
-  'PromptSubmission',
-  'FileRead',
-  'FileEdit',
-  'FileDelete',
-  'ShellExecution',
-  'ShellOutput',
-  'HTTPRequest',
-  'MCPToolCall',
-  'MCPToolResponse',
-  'AgentResponse',
-  'AgentThinking',
-  'AgentSpawn',
-  'ClaudeCodeSession',
-  'CursorSession',
-  'LLMCompleted',
-  'ToolCompleted',
-  'DefaultActivity',
-]);
+// Canonical sets come from spec via the generated govern module -
+// every @maps_to activityType + every @activityRouting entry + the
+// CanonicalEventType enum. Adding a preset method or a routing entry
+// in the spec automatically extends what counts as canonical here.
+import {
+  CANONICAL_EVENT_TYPES,
+  CANONICAL_ACTIVITY_TYPES,
+  CANONICAL_VERDICT_ARMS,
+} from '../../core-client/generated/govern.js';
 
-const CANONICAL_EVENT_TYPES = new Set([
-  'WorkflowStarted',
-  'SignalReceived',
-  'ActivityStarted',
-  'ActivityCompleted',
-  'WorkflowCompleted',
-  'WorkflowFailed',
-]);
-
-const CANONICAL_VERDICTS = new Set(['allow', 'require_approval', 'block', 'halt']);
+// Production verdict set - same as CANONICAL_VERDICT_ARMS minus
+// `constrain`, which was removed from the production wire.
+const CANONICAL_VERDICTS: ReadonlySet<string> = new Set(
+  [...CANONICAL_VERDICT_ARMS].filter((v) => v !== 'constrain'),
+);
 
 function pickArray<T = unknown>(resp: unknown): T[] {
   if (Array.isArray(resp)) return resp as T[];

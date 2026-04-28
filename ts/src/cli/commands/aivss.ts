@@ -1,75 +1,13 @@
+// `openbox aivss` - fully spec-driven (H.3 + I). update parses --json
+// into the `aivss_config` body field via @cli_parse("json") +
+// @cli_body_key("aivss_config"); calculate uses
+// @cli_json_merge("replace").
 import { Command } from 'commander';
 import { getClient } from '../config.js';
-import { output, outputList } from '../output.js';
-import { parseJsonInput } from '../input.js';
-import { reportAndExit, parsePagination, validateIsoDate } from '../validators/index.js';
+import { wireSubcommands } from '../wire-subcommands.js';
+import { AIVSS_HANDLERS } from '../generated/cli-handlers/aivss.js';
 
 export function registerAivssCommands(program: Command) {
   const aivss = program.command('aivss').description('AIVSS risk assessment');
-
-  aivss
-    .command('assessments <agentId>')
-    .description('Get AIVSS assessments')
-    .option('-p, --page <n>', 'Page number', '0')
-    .option('-l, --limit <n>', 'Items per page', '10')
-    .option('--from <date>', 'Start date (ISO)')
-    .option('--to <date>', 'End date (ISO)')
-    .action(async (agentId: string, opts) => {
-      try {
-        if (opts.from) validateIsoDate(opts.from, '--from');
-        if (opts.to) validateIsoDate(opts.to, '--to');
-        const data = await getClient().getAssessments(agentId, {
-          ...parsePagination(opts),
-          fromTime: opts.from,
-          toTime: opts.to,
-        });
-        outputList(data, 'assessments');
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  aivss
-    .command('update <agentId>')
-    .description('Update AIVSS config')
-    .requiredOption('--json <json>', 'AIVSS config JSON (aivss_config object)')
-    .requiredOption('--reason <text>', 'Reason for update')
-    .action(async (agentId: string, opts) => {
-      try {
-        const config = parseJsonInput<any>(opts.json);
-        const data = await getClient().updateAivssConfig(agentId, {
-          aivss_config: config,
-          reason: opts.reason,
-        });
-        output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  aivss
-    .command('recalculate <agentId>')
-    .description('Recalculate AIVSS score')
-    .action(async (agentId: string) => {
-      try {
-        const data = await getClient().recalculateAivss(agentId);
-        output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  aivss
-    .command('calculate')
-    .description('Calculate AIVSS score from config')
-    .requiredOption('--json <json>', 'AIVSS config JSON')
-    .action(async (opts) => {
-      try {
-        const config = parseJsonInput<any>(opts.json);
-        const data = await getClient().calculateAivss(config);
-        output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
+  wireSubcommands(aivss, AIVSS_HANDLERS, getClient as never);
 }

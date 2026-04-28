@@ -13,6 +13,7 @@ export const VIOLATION_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "violations"
@@ -30,7 +31,8 @@ export const VIOLATION_HANDLERS: SubcommandSpec[] = [
       {
         "name": "pattern",
         "long": "pattern",
-        "description": "Pattern filter"
+        "description": "Pattern filter",
+        "noArg": false
       },
       {
         "name": "sourceType",
@@ -40,7 +42,8 @@ export const VIOLATION_HANDLERS: SubcommandSpec[] = [
           "behavior",
           "guardrail",
           "policy"
-        ]
+        ],
+        "noArg": false
       }
     ],
     "backend": {
@@ -48,6 +51,7 @@ export const VIOLATION_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "violations"
@@ -79,6 +83,7 @@ export const VIOLATION_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }

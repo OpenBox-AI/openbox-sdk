@@ -33,6 +33,12 @@ import {
   getOutputKind,
   getOutputPluck,
   getOutputPost,
+  getJsonMerge,
+  getAtLeastOne,
+  isLocalOnly,
+  getPreflight,
+  getDtoDefaults,
+  getPostValidate,
   isPaginated,
   getFlagExtra,
   getValidator,
@@ -858,6 +864,13 @@ function emitCliHandlerSpecs(
         const fb = getFlag(program, p);
         const fx = getFlagExtra(program, p);
         const validator = getValidator(program, p);
+        // Detect no-arg boolean flags: TypeSpec scalar `boolean` parameters
+        // become Commander option without a `<value>` placeholder; the
+        // value is true if the flag is on the command line, undefined
+        // otherwise.
+        const isBoolean =
+          p.type?.kind === 'Scalar' &&
+          (p.type as { name?: string }).name === 'boolean';
         flags.push({
           name: pName,
           long: kebabCaseLocal(pName),
@@ -870,12 +883,19 @@ function emitCliHandlerSpecs(
           default: fx?.defaultValue,
           variadic: fx?.variadic,
           required: fx?.required,
+          noArg: isBoolean,
           validator,
         });
       }
       const ok = getOutputKind(program, op);
       const pluck = getOutputPluck(program, op);
       const post = getOutputPost(program, op);
+      const jsonMerge = getJsonMerge(program, op);
+      const atLeastOne = getAtLeastOne(program, op);
+      const localOnly = isLocalOnly(program, op);
+      const preflight = getPreflight(program, op);
+      const dtoDefaults = getDtoDefaults(program, op);
+      const postValidate = getPostValidate(program, op);
       subcommands.push({
         name: kebabCaseLocal(opName),
         description: getDoc(program, op) ?? '',
@@ -883,6 +903,12 @@ function emitCliHandlerSpecs(
         flags,
         backend: { method: calls.method, shape: calls.shape },
         pagination: isPaginated(program, op),
+        jsonMerge,
+        atLeastOne,
+        localOnly,
+        preflight,
+        dtoDefaults,
+        postValidate,
         output: {
           kind: ok?.kind ?? 'json',
           label: ok?.label,
@@ -1218,6 +1244,69 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
     `export const PRESET_MANIFEST = ${JSON.stringify(manifest, null, 2)} as const;`,
     '',
     'export type PresetName = (typeof PRESET_MANIFEST)[number]["preset"];',
+    '',
+  ]);
+
+  // Spec-driven canonical sets - used by session inspect, agent audit,
+  // verify, and any other tooling that needs to know "which strings
+  // are protocol-conformant?" Without these, every consumer hardcodes
+  // the same lists and they drift.
+  const eventTypeMembers: string[] = [];
+  for (const [enumName, enumType] of ns.enums) {
+    if (enumName === 'CanonicalEventType') {
+      for (const m of enumType.members.values()) {
+        eventTypeMembers.push(String(m.value ?? m.name));
+      }
+    }
+  }
+  const verdictArmMembers: string[] = [];
+  for (const [enumName, enumType] of ns.enums) {
+    if (enumName === 'VerdictArm') {
+      for (const m of enumType.members.values()) {
+        verdictArmMembers.push(String(m.value ?? m.name));
+      }
+    }
+  }
+  const activityTypes = new Set<string>();
+  for (const p of manifest) {
+    for (const m of p.methods) {
+      if (m.activityType) activityTypes.add(m.activityType);
+    }
+  }
+  // Also pull activity_types from every @activityRouting table on the
+  // adapters. Walk the adapters namespace.
+  const adaptersNs = findNamespace(program, 'OpenboxGovern.Adapters');
+  if (adaptersNs) {
+    for (const [, iface] of adaptersNs.interfaces) {
+      for (const [, op] of iface.operations) {
+        const ar = getActivityRouting(program, op);
+        if (!ar) continue;
+        for (const v of Object.values(ar.table)) activityTypes.add(v);
+      }
+    }
+  }
+  out.addStatements([
+    '/** The 6 canonical event_type strings. Anything else on the wire',
+    ' *  is a protocol bug. Consumed by the session-inspect protocol',
+    ' *  checker + the verify static linter. */',
+    `export const CANONICAL_EVENT_TYPES: ReadonlySet<CanonicalEventType> = new Set(${JSON.stringify(
+      eventTypeMembers.sort(),
+    )} as const);`,
+    '',
+    '/** Every activity_type string declared in any @preset method or',
+    ' *  @activityRouting adapter table. Activity_type is free-form on',
+    ' *  the wire (custom agents legitimately emit custom names) - this',
+    ' *  is the *first-party* vocabulary, useful for guardrail authors',
+    ' *  and conformance reports. */',
+    `export const CANONICAL_ACTIVITY_TYPES: ReadonlySet<string> = new Set(${JSON.stringify(
+      [...activityTypes].sort(),
+    )});`,
+    '',
+    '/** Every verdict arm the runtime emits. Production sets typically',
+    ' *  exclude `constrain`; consumers can re-filter. */',
+    `export const CANONICAL_VERDICT_ARMS: ReadonlySet<VerdictArm> = new Set(${JSON.stringify(
+      verdictArmMembers.sort(),
+    )} as const);`,
     '',
   ]);
 

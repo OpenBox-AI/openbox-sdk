@@ -22,13 +22,15 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
           "failed",
           "blocked",
           "halted"
-        ]
+        ],
+        "noArg": false
       },
       {
         "name": "from",
         "long": "from",
         "description": "Start date (ISO)",
         "bodyKey": "fromTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -36,6 +38,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
         "long": "to",
         "description": "End date (ISO)",
         "bodyKey": "toTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -47,13 +50,15 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
           "1-5mins",
           "5-15mins",
           ">15mins"
-        ]
+        ],
+        "noArg": false
       },
       {
         "name": "search",
         "long": "search",
         "short": "s",
-        "description": "Search"
+        "description": "Search",
+        "noArg": false
       }
     ],
     "backend": {
@@ -61,6 +66,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "sessions"
@@ -80,6 +86,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -101,6 +108,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -121,7 +129,8 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
         "name": "eventType",
         "long": "event-type",
         "description": "Filter by event type",
-        "bodyKey": "event_type"
+        "bodyKey": "event_type",
+        "noArg": false
       }
     ],
     "backend": {
@@ -129,6 +138,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "logs"
@@ -151,6 +161,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -172,6 +183,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -193,6 +205,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }

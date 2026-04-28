@@ -17,6 +17,7 @@ export const GOAL_HANDLERS: SubcommandSpec[] = [
         "long": "from",
         "description": "Start date (ISO)",
         "bodyKey": "fromTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -24,6 +25,7 @@ export const GOAL_HANDLERS: SubcommandSpec[] = [
         "long": "to",
         "description": "End date (ISO)",
         "bodyKey": "toTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       }
     ],
@@ -32,6 +34,7 @@ export const GOAL_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -51,7 +54,8 @@ export const GOAL_HANDLERS: SubcommandSpec[] = [
         "short": "l",
         "description": "Number of drifts",
         "parse": "int",
-        "default": "10"
+        "default": "10",
+        "noArg": false
       }
     ],
     "backend": {
@@ -59,6 +63,7 @@ export const GOAL_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "drifts"
