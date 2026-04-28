@@ -1,33 +1,42 @@
 {
   "name": "openbox-sdk",
   "version": "0.1.0",
+  "description": "OpenBox AI governance SDK - TypeScript. Generated from a TypeSpec source of truth shared with the rust/, go/, python/ language SDKs in this repo.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "openbox": "./dist/cli/index.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
     "./client": {
-      "types": "./dist/client.d.ts",
-      "import": "./dist/client.js"
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
     },
     "./core-client": {
-      "types": "./dist/core-client.d.ts",
-      "import": "./dist/core-client.js"
+      "types": "./dist/core-client/index.d.ts",
+      "import": "./dist/core-client/index.js"
     },
     "./env": {
-      "types": "./dist/env.d.ts",
-      "import": "./dist/env.js"
+      "types": "./dist/env/index.d.ts",
+      "import": "./dist/env/index.js"
     },
     "./os-paths": {
-      "types": "./dist/os-paths.d.ts",
-      "import": "./dist/os-paths.js"
+      "types": "./dist/env/os-paths.d.ts",
+      "import": "./dist/env/os-paths.js"
     },
     "./types": {
-      "types": "./dist/types.d.ts",
-      "import": "./dist/types.js"
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "import": "./dist/cli/index.js"
     },
     "./runtime/claude-hooks": {
       "types": "./dist/runtime/claude-hooks.d.ts",
@@ -36,41 +45,53 @@
     "./runtime/cursor-hooks": {
       "types": "./dist/runtime/cursor-hooks.d.ts",
       "import": "./dist/runtime/cursor-hooks.js"
+    },
+    "./runtime/mcp": {
+      "types": "./dist/runtime/mcp/index.d.ts",
+      "import": "./dist/runtime/mcp/index.js"
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "skill"
   ],
   "workspaces": [
-    "ts/*",
     "codegen/typespec-libs/*",
-    "codegen/emitters/ts"
+    "codegen/emitters/typespec-emitter-typescript",
+    "apps/*"
   ],
   "scripts": {
-    "build:workspaces": "npm run build -w openbox-sdk/types && npm run build -w openbox-sdk/env && npm run build -w openbox-sdk/client && npm run build -w openbox-sdk/core-client && npm run build -w openbox-sdk/cli",
+    "build:codegen": "npm run build -w typespec-env -w typespec-cli -w typespec-workflow -w typespec-emitter-typescript",
     "build:bundle": "tsup",
-    "build": "npm run build:workspaces && npm run build:bundle",
+    "build": "npm run build:codegen && npm run specs:compile && npm run generate:types && npm run build:bundle",
     "prepare": "npm run build",
     "check:publish": "bash scripts/check-publish-safety.sh",
     "prepublishOnly": "npm run build && npm run check:publish",
-    "clean": "rm -rf ts/*/dist ts/*/tsconfig.tsbuildinfo dist dist-pack",
-    "lint": "eslint ts/*/src/",
-    "format": "prettier --write ts/*/src/",
+    "clean": "rm -rf dist dist-pack codegen/**/dist codegen/**/tsconfig.tsbuildinfo",
+    "lint": "eslint ts/src",
+    "format": "prettier --write ts/src",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:e2e": "vitest run --project e2e",
     "test:watch": "vitest watch",
-    "generate:types:backend": "openapi-typescript specs/generated/openapi3/OpenboxBackend.json -o ts/types/src/generated/backend.ts",
-    "generate:types:core": "openapi-typescript specs/generated/openapi3/OpenboxCore.json    -o ts/types/src/generated/core.ts",
+    "generate:types:backend": "openapi-typescript specs/generated/openapi3/OpenboxBackend.json -o ts/src/types/generated/backend.ts",
+    "generate:types:core": "openapi-typescript specs/generated/openapi3/OpenboxCore.json    -o ts/src/types/generated/core.ts",
     "generate:types": "npm run generate:types:backend && npm run generate:types:core",
-    "specs:libs": "npm run build -w openbox-sdk/typespec-env -w openbox-sdk/typespec-cli -w openbox-sdk/typespec-workflow -w openbox-sdk/typespec-emitter-ts",
-    "specs:compile": "npm run specs:libs && tsp compile specs/typespec",
-    "specs:all": "npm run specs:compile && npm run generate:types",
+    "specs:compile": "tsp compile specs/typespec",
+    "specs:all": "npm run build:codegen && npm run specs:compile && npm run generate:types",
     "specs:watch": "tsp compile specs/typespec --watch",
     "lint:generated-banners": "node scripts/check-generated-banners.mjs"
   },
-  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "commander": "^14.0.0",
+    "zod": "^3.23.0"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.50.0"
+  },
   "devDependencies": {
+    "@types/node": "^25.5.2",
     "@typespec/compiler": "^1.11.0",
     "@typespec/http": "^1.11.0",
     "@typespec/json-schema": "^1.11.0",
@@ -82,7 +103,7 @@
     "eslint": "^10.2.1",
     "openapi-typescript": "^7.13.0",
     "ts-morph": "^28.0.0",
-    "tsup": "^8.3.5",
+    "tsup": "^8.5.1",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.59.0",
     "vitest": "^4.1.2"

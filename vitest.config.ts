@@ -10,7 +10,11 @@ export default defineConfig({
       {
         test: {
           name: 'unit',
-          include: ['tests/unit/**/*.test.ts'],
+          include: [
+            'tests/unit/**/*.test.ts',
+            // App-level tests (extension, future apps) live next to source.
+            'apps/*/src/**/*.test.ts',
+          ],
           setupFiles: ['./tests/setup.ts'],
           testTimeout: 5000,
         },

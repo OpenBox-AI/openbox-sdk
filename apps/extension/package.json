@@ -1,0 +1,133 @@
+{
+  "name": "openbox",
+  "displayName": "OpenBox",
+  "description": "Approve or reject AI agent actions from OpenBox directly in your editor",
+  "version": "0.1.0",
+  "publisher": "openbox",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "icons": {
+      "openbox-logo": {
+        "description": "OpenBox logo",
+        "default": {
+          "fontPath": "media/openbox-icons.woff2",
+          "fontCharacter": "\\F101"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "openbox",
+          "title": "OpenBox",
+          "icon": "$(openbox-logo)"
+        }
+      ]
+    },
+    "views": {
+      "openbox": [
+        {
+          "id": "openbox.approvals",
+          "name": "Pending Approvals"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "openbox.approve",
+        "title": "Approve",
+        "icon": "$(check)"
+      },
+      {
+        "command": "openbox.reject",
+        "title": "Reject",
+        "icon": "$(x)"
+      },
+      {
+        "command": "openbox.refresh",
+        "title": "Refresh Approvals",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "openbox.switchEnvironment",
+        "title": "OpenBox: Switch Environment (dev only)",
+        "icon": "$(globe)",
+        "enablement": "openbox.devMode"
+      }
+    ],
+    "configuration": {
+      "title": "OpenBox",
+      "properties": {
+        "openbox.environment": {
+          "type": "string",
+          "enum": [
+            "production",
+            "staging",
+            "local"
+          ],
+          "default": "production",
+          "description": "[Dev only] Which OpenBox environment the extension talks to. End users should leave this on 'production'. The Switch Environment command is only visible when the extension is running in development mode (Run Extension target). Each env has its own token namespace in ~/.openbox/tokens, so logging in via the CLI to staging won't clobber prod credentials."
+        }
+      }
+    },
+    "viewsWelcome": [
+      {
+        "view": "openbox.approvals",
+        "contents": "No pending approvals.\n\nAll agent actions are currently approved.\n[Refresh](command:openbox.refresh)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "openbox.switchEnvironment",
+          "when": "openbox.devMode"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "openbox.refresh",
+          "when": "view == openbox.approvals",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "openbox.approve",
+          "when": "viewItem == approval",
+          "group": "inline"
+        },
+        {
+          "command": "openbox.reject",
+          "when": "viewItem == approval",
+          "group": "inline"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
+    "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --watch",
+    "package": "npx @vscode/vsce package --no-dependencies",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.24.0",
+    "openbox-sdk": "file:../..",
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.5"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.3"
+  }
+}

@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { registerPolicyCommands } from '../../../ts/cli/src/commands/policy';
+import { registerPolicyCommands } from '../../../ts/src/cli/commands/policy';
 import { createMockClient, createTestProgram } from '../../helpers/cli';
 
-vi.mock('../../../ts/cli/src/config', () => ({ getClient: vi.fn() }));
-vi.mock('../../../ts/cli/src/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
+vi.mock('../../../ts/src/cli/config', () => ({ getClient: vi.fn() }));
+vi.mock('../../../ts/src/cli/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
 
-import { getClient } from '../../../ts/cli/src/config';
-import { output, outputList } from '../../../ts/cli/src/output';
+import { getClient } from '../../../ts/src/cli/config';
+import { output, outputList } from '../../../ts/src/cli/output';
 
 describe('policy commands', () => {
   let mockClient: ReturnType<typeof createMockClient>;

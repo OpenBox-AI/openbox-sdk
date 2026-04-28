@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TokenBucket } from '../../ts/client/src/rate-limiter.js';
+import { TokenBucket } from '../../ts/src/client/rate-limiter.js';
 
 describe('TokenBucket', () => {
   it('allows burst of requests up to capacity', async () => {

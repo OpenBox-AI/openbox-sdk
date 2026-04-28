@@ -1,5 +1,5 @@
 // Snapshot test for the TS emitter output. Re-running `npm run
-// specs:compile` regenerates ts/env/src/generated/env-bindings.ts;
+// specs:compile` regenerates ts/src/env/generated/env-bindings.ts;
 // this test asserts that the emitted file contains the load-bearing
 // pieces (env-var binding table, API-key validator regex,
 // os-path-fields list) and matches a stable shape.
@@ -14,7 +14,7 @@ import { describe, expect, test } from 'vitest';
 
 const generatedPath = resolve(import.meta.dirname, '..', '..', 'ts', 'env', 'src', 'generated', 'env-bindings.ts');
 
-describe('emitter: ts/env/src/generated/env-bindings.ts', () => {
+describe('emitter: ts/src/env/generated/env-bindings.ts', () => {
   test('file exists (run `npm run specs:compile` if missing)', () => {
     expect(existsSync(generatedPath)).toBe(true);
   });

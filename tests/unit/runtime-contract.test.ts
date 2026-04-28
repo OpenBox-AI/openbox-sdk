@@ -1,5 +1,5 @@
 // Behavioral lock-down for the platform-specific runtime in
-// ts/client/src/client.ts and ts/core-client/src/core-client.ts.
+// ts/src/client/client.ts and ts/src/core-client/core-client.ts.
 //
 // What's hand-written vs spec-driven (audit):
 //   ✅ types / DTOs / response models - from spec
@@ -26,7 +26,7 @@
 // one = ratchets the contract loosened, requires explicit review.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { OpenBoxClient, OpenBoxApiError } from '../../ts/client/src/client.js';
+import { OpenBoxClient, OpenBoxApiError } from '../../ts/src/client/client.js';
 import { makeValidToken } from '../helpers/jwt';
 
 describe('OpenBoxClient.request - runtime contract', () => {

@@ -19,13 +19,13 @@ import { describe, expect, test, vi } from 'vitest';
 import type {
   GovernanceEventPayload,
   GovernanceVerdictResponse,
-} from '../../ts/core-client/src/core-client.js';
-import type { OpenBoxCoreClient } from '../../ts/core-client/src/core-client.js';
+} from '../../ts/src/core-client/core-client.js';
+import type { OpenBoxCoreClient } from '../../ts/src/core-client/core-client.js';
 import {
   govern,
   presets,
   SessionAlreadyTerminatedError,
-} from '../../ts/core-client/src/generated/govern.js';
+} from '../../ts/src/core-client/generated/govern.js';
 
 interface MockCore {
   events: GovernanceEventPayload[];
@@ -184,7 +184,7 @@ describe('activity pairing', () => {
 describe('idempotent termination', () => {
   test('calling an activity after govern() resolves throws SessionAlreadyTerminatedError', async () => {
     const mock = createMockCore('allow');
-    let leakedSession: import('../../ts/core-client/src/generated/govern.js').ClaudeCodeSession | undefined;
+    let leakedSession: import('../../ts/src/core-client/generated/govern.js').ClaudeCodeSession | undefined;
     await govern(
       { ...baseConfig(mock), preset: presets.claudeCode },
       async (session) => {
@@ -200,7 +200,7 @@ describe('idempotent termination', () => {
 
   test('terminal events fire only once even on accidental re-call', async () => {
     const mock = createMockCore('allow');
-    let leakedSession: import('../../ts/core-client/src/generated/govern.js').BaseGovernedSession | undefined;
+    let leakedSession: import('../../ts/src/core-client/generated/govern.js').BaseGovernedSession | undefined;
     await govern(
       { ...baseConfig(mock), preset: presets.default },
       async (session) => {
@@ -552,7 +552,7 @@ describe('WorkflowVerdict.guardrailsResult', () => {
       } as unknown as GovernanceVerdictResponse;
     });
 
-    let captured: import('../../ts/core-client/src/generated/govern.js').WorkflowVerdict | null = null;
+    let captured: import('../../ts/src/core-client/generated/govern.js').WorkflowVerdict | null = null;
     await govern(
       { ...baseConfig(mock), preset: presets.claudeCode },
       async (session) => {
@@ -573,7 +573,7 @@ describe('WorkflowVerdict.guardrailsResult', () => {
 
   test('absent on the verdict when wire response has no guardrails_result', async () => {
     const mock = createMockCore('allow');
-    let captured: import('../../ts/core-client/src/generated/govern.js').WorkflowVerdict | null = null;
+    let captured: import('../../ts/src/core-client/generated/govern.js').WorkflowVerdict | null = null;
     await govern(
       { ...baseConfig(mock), preset: presets.claudeCode },
       async (session) => {

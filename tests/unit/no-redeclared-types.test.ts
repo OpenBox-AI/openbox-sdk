@@ -1,6 +1,6 @@
 // Regression guard: hand-written wrapper modules must NOT redeclare
 // types that already live in `<package>/src/generated/`. The previous
-// rounds eliminated 19 duplicates from `ts/core-client/src/core-client.ts`
+// rounds eliminated 19 duplicates from `ts/src/core-client/core-client.ts`
 // (each was a copy of a `Verdict` / `SpanData` / `GovernanceEventPayload`
 // shape from the spec). This test fails if any of them creep back.
 //
@@ -32,14 +32,14 @@ const repoRoot = resolve(import.meta.dirname, '..', '..');
 const pairs: Pair[] = [
   {
     packageName: 'ts/core-client',
-    generatedPath: resolve(repoRoot, 'ts/core-client/src/generated/core-types.ts'),
-    handWrittenPath: resolve(repoRoot, 'ts/core-client/src/core-client.ts'),
+    generatedPath: resolve(repoRoot, 'ts/src/core-client/generated/core-types.ts'),
+    handWrittenPath: resolve(repoRoot, 'ts/src/core-client/core-client.ts'),
     allowOverlap: new Set<string>(),
   },
   {
     packageName: 'ts/env',
-    generatedPath: resolve(repoRoot, 'ts/env/src/generated/env-bindings.ts'),
-    handWrittenPath: resolve(repoRoot, 'ts/env/src/environments.ts'),
+    generatedPath: resolve(repoRoot, 'ts/src/env/generated/env-bindings.ts'),
+    handWrittenPath: resolve(repoRoot, 'ts/src/env/environments.ts'),
     allowOverlap: new Set<string>([
       // re-exported under the same name to expose the spec type from the
       // package's public entry. Re-exports with `export type { X } from`

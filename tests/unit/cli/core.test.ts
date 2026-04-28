@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { registerCoreCommands } from '../../../ts/cli/src/commands/core';
+import { registerCoreCommands } from '../../../ts/src/cli/commands/core';
 import { createTestProgram } from '../../helpers/cli';
 
-vi.mock('../../../ts/cli/src/config', () => ({ getCoreClient: vi.fn() }));
-vi.mock('../../../ts/cli/src/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
+vi.mock('../../../ts/src/cli/config', () => ({ getCoreClient: vi.fn() }));
+vi.mock('../../../ts/src/cli/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
 
-import { getCoreClient } from '../../../ts/cli/src/config';
-import { output } from '../../../ts/cli/src/output';
+import { getCoreClient } from '../../../ts/src/cli/config';
+import { output } from '../../../ts/src/cli/output';
 
 describe('core commands', () => {
   let mockClient: Record<string, ReturnType<typeof vi.fn>>;

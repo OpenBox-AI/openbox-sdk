@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { OpenBoxClient, OpenBoxApiError } from '../../ts/client/src/client.js';
+import { OpenBoxClient, OpenBoxApiError } from '../../ts/src/client/client.js';
 import { getOrgId, getTeamIds } from '../helpers/api-client';
 import { makeCreateAgentDto, makeCreateGuardrailDto } from '../helpers/fixtures';
 import { makeExpiredToken } from '../helpers/jwt';

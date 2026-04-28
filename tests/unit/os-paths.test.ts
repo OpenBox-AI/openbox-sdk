@@ -1,4 +1,4 @@
-// Behavioral lockdown for ts/env/src/os-paths.ts - implements the
+// Behavioral lockdown for ts/src/env/os-paths.ts - implements the
 // OsPathResolver contract from specs/typespec/env/main.tsp. Pin the
 // output for each platform so a regression in the hand-written
 // resolver fails CI loudly.
@@ -41,7 +41,7 @@ describe('OsPathResolver contract', () => {
 
   it('Linux without XDG_DATA_HOME -> ~/.openbox/<scope>', async () => {
     setPlatform('linux');
-    const { resolveOsPath } = await import('../../ts/env/src/os-paths.js');
+    const { resolveOsPath } = await import('../../ts/src/env/os-paths.js');
     expect(resolveOsPath('tokens')).toBe('/tmp/test-home/.openbox/tokens');
     expect(resolveOsPath('config')).toBe('/tmp/test-home/.openbox/config');
     expect(resolveOsPath('cache')).toBe('/tmp/test-home/.openbox/cache');
@@ -50,13 +50,13 @@ describe('OsPathResolver contract', () => {
   it('Linux honors XDG_DATA_HOME', async () => {
     setPlatform('linux');
     process.env.XDG_DATA_HOME = '/var/data';
-    const { resolveOsPath } = await import('../../ts/env/src/os-paths.js');
+    const { resolveOsPath } = await import('../../ts/src/env/os-paths.js');
     expect(resolveOsPath('tokens')).toBe('/var/data/openbox/tokens');
   });
 
   it('macOS -> ~/.openbox/<scope> (NOT ~/Library/Application Support)', async () => {
     setPlatform('darwin');
-    const { resolveOsPath } = await import('../../ts/env/src/os-paths.js');
+    const { resolveOsPath } = await import('../../ts/src/env/os-paths.js');
     expect(resolveOsPath('tokens')).toBe('/tmp/test-home/.openbox/tokens');
     expect(resolveOsPath('config')).toBe('/tmp/test-home/.openbox/config');
   });
@@ -64,7 +64,7 @@ describe('OsPathResolver contract', () => {
   it('macOS ignores XDG_DATA_HOME', async () => {
     setPlatform('darwin');
     process.env.XDG_DATA_HOME = '/var/data';
-    const { resolveOsPath } = await import('../../ts/env/src/os-paths.js');
+    const { resolveOsPath } = await import('../../ts/src/env/os-paths.js');
     // macOS has no XDG convention; fall back to ~/.openbox.
     expect(resolveOsPath('tokens')).toBe('/tmp/test-home/.openbox/tokens');
   });
@@ -72,7 +72,7 @@ describe('OsPathResolver contract', () => {
   it('Windows -> %APPDATA%\\openbox\\<scope>', async () => {
     setPlatform('win32');
     process.env.APPDATA = 'C:\\Users\\test\\AppData\\Roaming';
-    const { resolveOsPath } = await import('../../ts/env/src/os-paths.js');
+    const { resolveOsPath } = await import('../../ts/src/env/os-paths.js');
     // Node's path.join uses POSIX or Windows separators based on
     // the running platform's path module - we assert prefix + suffix
     // separately since vitest is running on the dev host.
@@ -85,7 +85,7 @@ describe('OsPathResolver contract', () => {
   it('Windows without APPDATA falls back to ~/AppData/Roaming', async () => {
     setPlatform('win32');
     process.env.HOME = 'C:\\Users\\test';
-    const { resolveOsPath } = await import('../../ts/env/src/os-paths.js');
+    const { resolveOsPath } = await import('../../ts/src/env/os-paths.js');
     const result = resolveOsPath('tokens');
     expect(result).toContain('AppData');
     expect(result).toContain('Roaming');
@@ -97,7 +97,7 @@ describe('OsPathResolver contract', () => {
     for (const platform of ['linux', 'darwin', 'win32'] as const) {
       setPlatform(platform);
       vi.resetModules();
-      const { resolveOsPath } = await import('../../ts/env/src/os-paths.js');
+      const { resolveOsPath } = await import('../../ts/src/env/os-paths.js');
       expect(resolveOsPath('tokens')).toBe('/sandbox/openbox/tokens');
     }
   });

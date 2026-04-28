@@ -12,7 +12,7 @@ import {
   OpenBoxClient,
   MissingPermissionError,
   METHOD_PERMISSIONS,
-} from '../../ts/client/src/index.js';
+} from '../../ts/src/client/index.js';
 
 function noFetch() {
   return vi.fn(async () => {

@@ -6,7 +6,7 @@ import {
   parseTokenStore,
   serializeTokenStore,
   resolveClientName,
-} from '../../ts/env/src/index.js';
+} from '../../ts/src/env/index.js';
 
 describe('openbox-sdk/env environments', () => {
   describe('ENVIRONMENTS', () => {

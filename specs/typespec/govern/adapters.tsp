@@ -14,7 +14,7 @@
 // fixed registry of how each `verdictShape` family translates the four
 // verdict arms to stdout JSON.
 
-import "openbox-sdk/typespec-workflow";
+import "typespec-workflow";
 
 using OpenBox.Workflow;
 

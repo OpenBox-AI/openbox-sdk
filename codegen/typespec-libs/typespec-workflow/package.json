@@ -1,0 +1,35 @@
+{
+  "name": "typespec-workflow",
+  "version": "0.0.0",
+  "description": "TypeSpec library: @workflow, @activity, @verdict, @observer_hook decorators for the governance protocol",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "tspMain": "./lib/main.tsp",
+  "exports": {
+    ".": {
+      "typespec": "./lib/main.tsp",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./decorators": {
+      "types": "./dist/decorators.d.ts",
+      "import": "./dist/decorators.js",
+      "default": "./dist/decorators.js"
+    }
+  },
+  "files": [
+    "dist",
+    "lib"
+  ],
+  "scripts": {
+    "build": "tsc -p ."
+  },
+  "peerDependencies": {
+    "@typespec/compiler": "^1.11.0"
+  },
+  "devDependencies": {
+    "@typespec/compiler": "^1.11.0",
+    "typescript": "^5.9.3"
+  }
+}

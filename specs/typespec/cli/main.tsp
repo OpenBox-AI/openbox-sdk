@@ -15,8 +15,8 @@
 // Note: programming-model spec, not an HTTP API - see govern/main.tsp
 // for the rationale behind not using `@service` here.
 
-import "openbox-sdk/typespec-cli";
-import "openbox-sdk/typespec-env";
+import "typespec-cli";
+import "typespec-env";
 
 using OpenBox.Cli;
 using OpenBox.Env;

@@ -15,7 +15,7 @@ import {
   presets,
   BaseGovernedSession,
   CustomSession,
-} from '../../ts/core-client/src/generated/govern.js';
+} from '../../ts/src/core-client/generated/govern.js';
 
 const PRESET_TO_CAMEL: Record<string, keyof typeof presets> = {
   airflow: 'airflow',
