@@ -3,11 +3,11 @@ import type {
   ClaudeCodeSession,
   WorkflowVerdict,
 } from '../../../core-client/index.js';
-import type { ClaudeHookEnvelope } from '../../../core-client/generated/runtime/claude-hooks.js';
+import type { ClaudeCodeEnvelope } from '../../../core-client/generated/runtime/claude-code.js';
 // Spec-driven tool→activity_type table; declared via @activityRouting on
 // the PreToolUse op in specs/typespec/govern/adapters.tsp.
-import { PRE_TOOL_USE_ROUTING } from '../../../core-client/generated/runtime/claude-hooks.js';
-import type { ClaudeHooksConfig } from '../config.js';
+import { PRE_TOOL_USE_ROUTING } from '../../../core-client/generated/runtime/claude-code.js';
+import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
@@ -49,9 +49,9 @@ function activityTypeFor(toolName: string): string | null {
  * via PRE_TOOL_USE_ROUTING; per-tool payload shaping lives below.
  */
 export async function handlePreToolUse(
-  env: ClaudeHookEnvelope,
+  env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
-  cfg: ClaudeHooksConfig,
+  cfg: ClaudeCodeConfig,
 ): Promise<WorkflowVerdict | undefined> {
   const toolName = env.tool_name ?? '';
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;

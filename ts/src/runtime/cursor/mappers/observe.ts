@@ -1,8 +1,8 @@
 import type {
   CursorSession,
 } from '../../../core-client/index.js';
-import type { CursorHookEnvelope } from '../../../core-client/generated/runtime/cursor-hooks.js';
-import type { CursorHooksConfig } from '../config.js';
+import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
+import type { CursorConfig } from '../config.js';
 import { clearSession } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
@@ -25,9 +25,9 @@ async function fireSafe(
 }
 
 export function handleAfterAgentResponse(
-  env: CursorHookEnvelope,
+  env: CursorEnvelope,
   session: CursorSession,
-  _cfg: CursorHooksConfig,
+  _cfg: CursorConfig,
 ): Promise<undefined> {
   const responseText = env.response ?? '';
   return fireSafe(() =>
@@ -42,9 +42,9 @@ export function handleAfterAgentResponse(
 }
 
 export function handleAfterAgentThought(
-  env: CursorHookEnvelope,
+  env: CursorEnvelope,
   session: CursorSession,
-  _cfg: CursorHooksConfig,
+  _cfg: CursorConfig,
 ): Promise<undefined> {
   const thought = env.thought ?? '';
   return fireSafe(() =>
@@ -59,9 +59,9 @@ export function handleAfterAgentThought(
 }
 
 export function handleAfterShellExecution(
-  env: CursorHookEnvelope,
+  env: CursorEnvelope,
   session: CursorSession,
-  _cfg: CursorHooksConfig,
+  _cfg: CursorConfig,
 ): Promise<undefined> {
   return fireSafe(() =>
     session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.AGENT_OBSERVATION, {
@@ -75,9 +75,9 @@ export function handleAfterShellExecution(
 }
 
 export function handleAfterFileEdit(
-  env: CursorHookEnvelope,
+  env: CursorEnvelope,
   session: CursorSession,
-  _cfg: CursorHooksConfig,
+  _cfg: CursorConfig,
 ): Promise<undefined> {
   return fireSafe(() =>
     session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.FILE_WRITE, {
@@ -91,9 +91,9 @@ export function handleAfterFileEdit(
 }
 
 export async function handleSessionStart(
-  env: CursorHookEnvelope,
+  env: CursorEnvelope,
   session: CursorSession,
-  _cfg: CursorHooksConfig,
+  _cfg: CursorConfig,
 ): Promise<undefined> {
   try {
     await session.workflowStarted();
@@ -112,9 +112,9 @@ export async function handleSessionStart(
  * decision returned (verdictShape: "none").
  */
 export async function handleStop(
-  env: CursorHookEnvelope,
+  env: CursorEnvelope,
   session: CursorSession,
-  cfg: CursorHooksConfig,
+  cfg: CursorConfig,
 ): Promise<undefined> {
   try {
     await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.WORKFLOW_COMPLETE, {

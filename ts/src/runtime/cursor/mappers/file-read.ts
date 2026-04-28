@@ -2,8 +2,8 @@ import type {
   CursorSession,
   WorkflowVerdict,
 } from '../../../core-client/index.js';
-import type { CursorHookEnvelope } from '../../../core-client/generated/runtime/cursor-hooks.js';
-import type { CursorHooksConfig } from '../config.js';
+import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
+import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
@@ -25,9 +25,9 @@ const SKIP_PATTERNS = [
 
 /** beforeReadFile: scan file content for PII / banned terms before Cursor reads it. */
 export async function handleBeforeReadFile(
-  env: CursorHookEnvelope,
+  env: CursorEnvelope,
   session: CursorSession,
-  cfg: CursorHooksConfig,
+  cfg: CursorConfig,
 ): Promise<WorkflowVerdict | undefined> {
   const filePath = env.file_path ?? '';
   if (!filePath) return undefined;

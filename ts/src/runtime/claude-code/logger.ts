@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ClaudeHooksConfig } from './config.js';
+import type { ClaudeCodeConfig } from './config.js';
 
 let logPath: string | null = null;
 
-export function initLogger(cfg: ClaudeHooksConfig) {
+export function initLogger(cfg: ClaudeCodeConfig) {
   logPath = cfg.logFile;
   if (logPath) {
     fs.mkdirSync(path.dirname(logPath), { recursive: true });
@@ -24,9 +24,9 @@ export function log(hookEvent: string, data: Record<string, unknown>, response?:
     try { fs.appendFileSync(logPath, line + '\n'); } catch { /* ignore */ }
   }
 
-  console.error(`[claude-hooks] ${hookEvent} | ${JSON.stringify(entry.input)}`);
+  console.error(`[openbox claude-code] ${hookEvent} | ${JSON.stringify(entry.input)}`);
   if (response) {
-    console.error(`[claude-hooks] -> ${JSON.stringify(response)}`);
+    console.error(`[openbox claude-code] -> ${JSON.stringify(response)}`);
   }
 }
 

@@ -2,16 +2,16 @@ import type {
   CursorSession,
   WorkflowVerdict,
 } from '../../../core-client/index.js';
-import type { CursorHookEnvelope } from '../../../core-client/generated/runtime/cursor-hooks.js';
-import type { CursorHooksConfig } from '../config.js';
+import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
+import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
 /** beforeMCPExecution: govern an MCP tool call before Cursor invokes it. */
 export async function handleBeforeMCPExecution(
-  env: CursorHookEnvelope,
+  env: CursorEnvelope,
   session: CursorSession,
-  cfg: CursorHooksConfig,
+  cfg: CursorConfig,
 ): Promise<WorkflowVerdict | undefined> {
   const toolName = env.tool_name ?? '';
   if (!toolName) return undefined;

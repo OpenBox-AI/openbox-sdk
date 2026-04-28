@@ -256,7 +256,7 @@ export function validateGuardrailParams(typeId: string, params: unknown): void {
 
 /**
  * Canonical `activity_type` strings. Union of what first-party SDKs emit
- * (claude-hooks ACTIVITY_TYPES + cursor-hooks ACTIVITY_TYPES) plus the
+ * (runtime/claude-code + runtime/cursor activity_type tables) plus the
  * SDK-default `DefaultActivity` and the aspirational names the skill
  * recommends for hand-rolled integrations. Non-canonical names still work
  * server-side (activity_type is free-string) but won't match guardrails
@@ -275,13 +275,13 @@ export const CANONICAL_ACTIVITY_TYPES = [
   'ShellExecution',
   'HTTPRequest',
   'MCPToolCall',
-  'MCPToolResponse',     // cursor-hooks
-  'AgentResponse',       // cursor-hooks
-  'AgentThinking',       // cursor-hooks
-  'ShellOutput',         // cursor-hooks
-  'AgentSpawn',          // claude-hooks
-  'ClaudeCodeSession',   // claude-hooks session marker
-  'CursorSession',       // cursor-hooks session marker
+  'MCPToolResponse',     // runtime/cursor
+  'AgentResponse',       // runtime/cursor
+  'AgentThinking',       // runtime/cursor
+  'ShellOutput',         // runtime/cursor
+  'AgentSpawn',          // runtime/claude-code
+  'ClaudeCodeSession',   // runtime/claude-code session marker
+  'CursorSession',       // runtime/cursor session marker
   'DefaultActivity',     // openbox-sdk default (won't match specific-type guardrails - override via config.activityType)
 ] as const;
 

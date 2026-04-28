@@ -2,10 +2,10 @@ import type {
   ClaudeCodeSession,
   WorkflowVerdict,
 } from '../../../core-client/index.js';
-import type { ClaudeHookEnvelope } from '../../../core-client/generated/runtime/claude-hooks.js';
+import type { ClaudeCodeEnvelope } from '../../../core-client/generated/runtime/claude-code.js';
 // Spec-driven tool→activity_type table, declared via @activityRouting.
-import { PERMISSION_REQUEST_ROUTING } from '../../../core-client/generated/runtime/claude-hooks.js';
-import type { ClaudeHooksConfig } from '../config.js';
+import { PERMISSION_REQUEST_ROUTING } from '../../../core-client/generated/runtime/claude-code.js';
+import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
@@ -43,9 +43,9 @@ function eventCategoryForTool(toolName: string): string {
  *   {hookSpecificOutput:{hookEventName:'PermissionRequest', decision:{behavior:'allow'|'deny',message?}}}
  */
 export async function handlePermissionRequest(
-  env: ClaudeHookEnvelope,
+  env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
-  cfg: ClaudeHooksConfig,
+  cfg: ClaudeCodeConfig,
 ): Promise<WorkflowVerdict | undefined> {
   const toolName = env.tool_name ?? '';
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;

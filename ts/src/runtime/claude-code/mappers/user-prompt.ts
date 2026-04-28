@@ -2,8 +2,8 @@ import type {
   ClaudeCodeSession,
   WorkflowVerdict,
 } from '../../../core-client/index.js';
-import type { ClaudeHookEnvelope } from '../../../core-client/generated/runtime/claude-hooks.js';
-import type { ClaudeHooksConfig } from '../config.js';
+import type { ClaudeCodeEnvelope } from '../../../core-client/generated/runtime/claude-code.js';
+import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
@@ -17,9 +17,9 @@ import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
  * reason}, allow → {}). The adapter handles the translation.
  */
 export async function handleUserPromptSubmit(
-  env: ClaudeHookEnvelope,
+  env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
-  cfg: ClaudeHooksConfig,
+  cfg: ClaudeCodeConfig,
 ): Promise<WorkflowVerdict | undefined> {
   const prompt = (env.prompt ?? '').trim();
   if (!prompt) return undefined;

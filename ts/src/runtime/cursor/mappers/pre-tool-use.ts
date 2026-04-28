@@ -3,10 +3,10 @@ import type {
   CursorSession,
   WorkflowVerdict,
 } from '../../../core-client/index.js';
-import type { CursorHookEnvelope } from '../../../core-client/generated/runtime/cursor-hooks.js';
+import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
 // Spec-driven Cursor-tool → activity_type table, declared via @activityRouting.
-import { PRE_TOOL_USE_ROUTING } from '../../../core-client/generated/runtime/cursor-hooks.js';
-import type { CursorHooksConfig } from '../config.js';
+import { PRE_TOOL_USE_ROUTING } from '../../../core-client/generated/runtime/cursor.js';
+import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
@@ -37,9 +37,9 @@ const SKIP_PATTERNS = [
  *   "Shell" → agent_action (or file_write if rm/unlink/rmdir detected)
  */
 export async function handlePreToolUse(
-  env: CursorHookEnvelope,
+  env: CursorEnvelope,
   session: CursorSession,
-  cfg: CursorHooksConfig,
+  cfg: CursorConfig,
 ): Promise<WorkflowVerdict | undefined> {
   const toolName = env.tool_name ?? '';
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;

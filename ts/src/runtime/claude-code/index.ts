@@ -2,7 +2,7 @@
 //
 // Two surfaces in this folder:
 //
-//  1. Adapter primitive (spec-emitted) - `createClaudeHooksAdapter`,
+//  1. Adapter primitive (spec-emitted) - `createClaudeCodeAdapter`,
 //     plus its config + handlers + envelope types. Generic transport:
 //     stdin JSON → dispatch by hook_event_name → verdict-mapped stdout.
 //     Use this if you're building your own Claude Code integration on
@@ -18,12 +18,12 @@
 
 // ─── Adapter primitive (spec-emitted) ───────────────────────────────
 export {
-  createClaudeHooksAdapter,
-  type ClaudeHookEnvelope,
-  type ClaudeHooksAdapterConfig,
-  type ClaudeHooksAdapterHandlers,
-} from '../../core-client/generated/runtime/claude-hooks.js';
+  createClaudeCodeAdapter,
+  type ClaudeCodeEnvelope,
+  type ClaudeCodeAdapterConfig,
+  type ClaudeCodeAdapterHandlers,
+} from '../../core-client/generated/runtime/claude-code.js';
 
 // ─── Platform integration (called from the CLI) ─────────────────────
 export { runClaudeHook } from './hook-handler.js';
-export { installClaudeHooks, uninstallClaudeHooks } from './install.js';
+export { installClaudeCode, uninstallClaudeCode } from './install.js';

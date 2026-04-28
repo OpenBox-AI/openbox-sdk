@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { CursorHooksConfig } from './config.js';
+import type { CursorConfig } from './config.js';
 
 let logPath: string | null = null;
 
-export function initLogger(cfg: CursorHooksConfig) {
+export function initLogger(cfg: CursorConfig) {
   logPath = cfg.logFile;
   if (logPath) {
     fs.mkdirSync(path.dirname(logPath), { recursive: true });
@@ -24,9 +24,9 @@ export function log(hookEvent: string, data: Record<string, unknown>, response?:
     try { fs.appendFileSync(logPath, line + '\n'); } catch { /* ignore */ }
   }
 
-  console.error(`[cursor-hooks] ${hookEvent} | ${JSON.stringify(entry.input)}`);
+  console.error(`[openbox cursor] ${hookEvent} | ${JSON.stringify(entry.input)}`);
   if (response) {
-    console.error(`[cursor-hooks] → ${JSON.stringify(response)}`);
+    console.error(`[openbox cursor] → ${JSON.stringify(response)}`);
   }
 }
 

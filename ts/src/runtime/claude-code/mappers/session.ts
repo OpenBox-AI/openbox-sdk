@@ -2,8 +2,8 @@ import type {
   ClaudeCodeSession,
   WorkflowVerdict,
 } from '../../../core-client/index.js';
-import type { ClaudeHookEnvelope } from '../../../core-client/generated/runtime/claude-hooks.js';
-import type { ClaudeHooksConfig } from '../config.js';
+import type { ClaudeCodeEnvelope } from '../../../core-client/generated/runtime/claude-code.js';
+import type { ClaudeCodeConfig } from '../config.js';
 import { clearSession, markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
@@ -15,9 +15,9 @@ import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
  * session. Subsequent hooks find `opened === true` and the call is a no-op.
  */
 export async function handleSessionStart(
-  env: ClaudeHookEnvelope,
+  env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
-  _cfg: ClaudeHooksConfig,
+  _cfg: ClaudeCodeConfig,
 ): Promise<undefined> {
   await session.workflowStarted();
   await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
@@ -32,9 +32,9 @@ export async function handleSessionStart(
  * Claude going with a reason).
  */
 export async function handleStop(
-  env: ClaudeHookEnvelope,
+  env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
-  cfg: ClaudeHooksConfig,
+  cfg: ClaudeCodeConfig,
 ): Promise<WorkflowVerdict | undefined> {
   let verdict: WorkflowVerdict;
   try {
@@ -53,9 +53,9 @@ export async function handleStop(
  * workflow, and clears the session-store entry so disk doesn't grow.
  */
 export async function handleSessionEnd(
-  env: ClaudeHookEnvelope,
+  env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
-  cfg: ClaudeHooksConfig,
+  cfg: ClaudeCodeConfig,
 ): Promise<undefined> {
   try {
     await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {

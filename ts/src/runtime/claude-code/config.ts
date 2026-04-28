@@ -5,7 +5,7 @@ const CONFIG_DIR = path.join(process.env.HOME || '', '.claude-hooks');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
 
-export interface ClaudeHooksConfig {
+export interface ClaudeCodeConfig {
   openboxApiKey: string;
   openboxEndpoint: string;
   governancePolicy: 'fail_open' | 'fail_closed';
@@ -26,7 +26,7 @@ export interface ClaudeHooksConfig {
 }
 
 /** Load config: env vars > config.json > .env > defaults */
-export function loadConfig(): ClaudeHooksConfig {
+export function loadConfig(): ClaudeCodeConfig {
   const fileConfig = loadConfigFile();
   const envConfig = loadEnvFile();
   const get = (key: string, fileFallback?: string) => {

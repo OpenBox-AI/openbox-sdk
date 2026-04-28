@@ -2,11 +2,11 @@
 
 This is the canonical recipe for any new app that talks to OpenBox - VS Code / Cursor extensions, Expo / React Native apps, MCP servers, Tauri tray apps, CLIs. Reference implementations:
 
-- `openbox-cli` (in this repo, `ts/cli/`) - Node CLI
-- `apps/extension` - VS Code / Cursor extension
-- `the-mobile-app` - Expo / React Native iOS app
-- `runtime/mcp` - MCP server
-- `the-approver-app` - Tauri (Rust) tray app
+- The `openbox` CLI (this repo, `ts/src/cli/`) - Node CLI
+- `apps/extension/` - VS Code / Cursor extension
+- `ts/src/runtime/mcp/` - MCP server runtime (invoked via `openbox mcp serve`)
+- `the-mobile-app` (separate repo, private) - Expo / React Native iOS app
+- `the-approver-app` (separate repo, gated on the Rust SDK landing) - Tauri tray app
 
 ## 1. Install
 
@@ -19,7 +19,7 @@ This is the canonical recipe for any new app that talks to OpenBox - VS Code / C
 
 `npm install` clones the repo, runs the SDK's `prepare` hook (builds workspaces + bundles via tsup), drops `dist/` into `node_modules`. **Not on npm**, so don't try `npm i openbox-sdk` from the registry.
 
-For non-TS clients (Rust, Go, Python): port the env table + token codec from `ts/env/src/environments.json` and `ts/env/src/token-codec.ts`. The Rust port in `the-approver-app/src-tauri/src/env.rs` is the reference.
+For non-TS clients (Rust, Go, Python today; built-in eventually): port the env table from `specs/environments.json` (the canonical source) and the token-codec semantics from `ts/src/env/token-codec.ts`.
 
 ## 2. Imports
 
@@ -70,7 +70,7 @@ local.ACCESS_TOKEN=...
 
 Use `parseTokenStore(content)` and `serializeTokenStore(store)` from `'openbox-sdk/env'` - don't reinvent the parser. The codec migrates legacy unprefixed entries (pre-multi-env CLI installs) into `production.*` automatically.
 
-For platforms without a shared filesystem (mobile uses iOS Keychain via `expo-secure-store`, browser extensions use `chrome.storage`, etc.) - keep the env-namespaced key convention but swap the storage backend. Reference: `the-mobile-app/src/auth/tokens.ts`.
+For platforms without a shared filesystem (mobile uses iOS Keychain via `expo-secure-store`, browser extensions use `chrome.storage`, etc.) - keep the env-namespaced key convention but swap the storage backend. Reference: the `the-mobile-app` repo's auth/tokens layer.
 
 ## 5. Build the client
 
@@ -99,7 +99,7 @@ Backend's auth guard is presence-only - any value passes. The value is purely a 
 
 `OPENBOX_CLIENT_VARIANT` in the environment auto-suffixes the value (e.g. `openbox-cli/claude-code`) so backend logs can distinguish skill-driven traffic from human use. Honored automatically by `OpenBoxClient` - you don't have to wire it.
 
-For MCP servers, read `mcp.server.getClientVersion()?.name` after `server.connect()` and feed it into a per-request `X-Openbox-Client: runtime/mcp/<caller>` header. Reference: `runtime/mcp/src/config.ts:setMcpClientName`.
+For MCP servers, read `mcp.server.getClientVersion()?.name` after `server.connect()` and feed it into a per-request `X-Openbox-Client: runtime/mcp/<caller>` header. Reference: `ts/src/runtime/mcp/config.ts:setMcpClientName`.
 
 ## 7. Env switcher UI - dev only
 
@@ -111,11 +111,11 @@ If your app exposes a UI to switch environments, gate it behind dev mode:
 | VS Code extension | `enablement: "openbox.devMode"` on the command, set context from `vscode.ExtensionMode.Development` in `activate()` |
 | Tauri / Rust | `#[cfg(debug_assertions)] { ... }` |
 
-End users on a release build should never see a way to point the app at staging - they'll just confuse themselves with wrong-env data. Reference: `the-mobile-app/app/(tabs)/profile/index.tsx` and `apps/extension/src/extension.ts`.
+End users on a release build should never see a way to point the app at staging - they'll just confuse themselves with wrong-env data. Reference: `apps/extension/src/extension.ts` and the `the-mobile-app` repo's profile screen.
 
 ## 8. Don't reinvent
 
-- **Env table**: `ENVIRONMENTS` from `'openbox-sdk/env'` is the source of truth. If you need it in non-TS code, port from `ts/env/src/environments.json` and document the manual sync.
+- **Env table**: `ENVIRONMENTS` from `'openbox-sdk/env'` is the source of truth. If you need it in non-TS code, port from `specs/environments.json` (the canonical source) and document the manual sync.
 - **Token codec**: `parseTokenStore` / `serializeTokenStore`. Don't write your own KV parser - the legacy migration logic is non-obvious and matters.
 - **HTTP**: `OpenBoxClient.request()` handles retries, timeouts, the auth header, the envelope unwrap, and (eventually) reactive token refresh. Don't shell out to `fetch` unless you have a concrete reason.
 - **Approval flow**: `client.getProfile()`, `client.listAgents(query)`, `client.getOrgApprovals(orgId, query)`, `client.decideApproval(agentId, eventId, action)`. Don't construct paths by hand.

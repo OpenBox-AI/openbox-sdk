@@ -7,12 +7,12 @@ Two surfaces, both via `import ... from 'openbox-sdk/runtime/cursor'`:
 ## 1. Adapter primitive (spec-emitted)
 
 Re-exported from the auto-generated
-`ts/src/core-client/generated/runtime/cursor-hooks.ts` (driven by
-`@adapter("cursor-hooks", "cursor", "hook_event_name")` in
+`ts/src/core-client/generated/runtime/cursor.ts` (driven by
+`@adapter("cursor", "cursor", "hook_event_name")` in
 `specs/typespec/govern/adapters.tsp`).
 
 ```ts
-import { createCursorHooksAdapter } from 'openbox-sdk/runtime/cursor';
+import { createCursorAdapter } from 'openbox-sdk/runtime/cursor';
 ```
 
 ## 2. Platform integration

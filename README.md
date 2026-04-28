@@ -1,140 +1,107 @@
-# OpenBox SDK
+# openbox-sdk
 
-_Last updated: 2026-04-26_
+TypeScript SDK + CLI + LLM-host runtime adapters for the
+[OpenBox AI governance platform](https://openbox.ai). Generated from a
+TypeSpec source of truth that's shared with the (in-progress) Rust /
+Go / Python SDKs in this monorepo.
 
-Modular TypeScript SDK for the OpenBox AI governance platform - a universal client surface for managing agents, approvals, guardrails, policies, and behavior rules.
+## What's in here
 
-## Public surface
-
-The whole SDK installs and imports as a single package, `openbox-sdk`. Pick the entry that matches what you need; bundlers tree-shake the rest.
-
-| Import path | What it gives you |
-|---|---|
-| `'openbox-sdk'` | Everything (root facade) |
-| `'openbox-sdk/client'` | `OpenBoxClient` - backend API (`api.openbox.ai`) |
-| `'openbox-sdk/core-client'` | `OpenBoxCoreClient` - governance API (`core.openbox.ai`) |
-| `'openbox-sdk/env'` | `ENVIRONMENTS`, `resolveEnv`, `resolveUrls`, `parseTokenStore`, `serializeTokenStore`, `resolveClientName` |
-| `'openbox-sdk/types'` | Hand-curated DTOs + auto-generated `Backend` / `Core` namespaces |
-
-Internally a workspace monorepo (`ts/{client,core-client,env,types,cli}/`); externally consumers never see that.
-
-## Install - for consumer apps
-
-```jsonc
-// consumer's package.json
-"dependencies": {
-  "openbox-sdk": "github:OpenBox-AI/openbox-sdk"
-}
+```
+specs/typespec/   ← source of truth (.tsp)
+codegen/          ← TypeSpec decorator libs + emitters
+ts/src/           ← TypeScript SDK (this repo's primary deliverable)
+rust/             ← Rust crate (wire client today; full SDK in progress)
+apps/extension/   ← VS Code extension (own toolchain, own publish)
+skill/            ← Claude/Cursor "skill" content shipped via `openbox skill install`
+tests/            ← unit + e2e (Vitest)
 ```
 
-Then `npm install` clones the repo, runs the `prepare` hook (builds the workspaces + bundles via tsup into `dist/`), and drops the result into `node_modules/openbox-sdk/`. Not on npm. Tree-shaking handles unused entries.
+The repo is one npm package - `openbox-sdk` - published from the root.
+Sub-paths in `package.json`'s `exports` map cover every consumer-visible
+surface; bundlers tree-shake whatever you don't import.
 
-## Develop - for SDK contributors
+## 30-second integration
 
 ```bash
-git clone https://github.com/OpenBox-AI/openbox-sdk.git
-cd openbox-sdk
-npm install   # workspaces resolve internally
-npm run build # workspaces in topo order, then tsup bundles dist/
+npm install openbox-sdk@github:OpenBox-AI/openbox-sdk
 ```
 
-Browser login uses `playwright` - install it if you don't have it: `npm install playwright`.
+```typescript
+import { govern, presets } from 'openbox-sdk/core-client';
+import { OpenBoxCoreClient } from 'openbox-sdk/core-client';
+
+const core = new OpenBoxCoreClient({ apiKey: process.env.OPENBOX_API_KEY! });
+
+await govern({ core, preset: presets.claudeCode }, async (session) => {
+  const verdict = await session.preToolUse({
+    input: [{ tool_name: 'Bash', command: 'rm -rf /' }],
+  });
+  if (verdict.arm === 'block') throw new Error(verdict.reason);
+  // ...your tool body
+});
+```
+
+`govern()` opens the workflow envelope, fires `WorkflowStarted`, runs
+your body, fires the paired `WorkflowCompleted` (or `WorkflowFailed` on
+throw), and finalizes - even if the process dies mid-flight.
+
+For per-event hook binaries (Claude Code / Cursor invoke a fresh process
+per event), use `govern.attach()` - same typed sessions, no auto-fire of
+the workflow boundaries since the harness owns that.
+
+## Public sub-paths
+
+| Import | Purpose |
+|---|---|
+| `openbox-sdk` | Root facade: client + core-client + env + types |
+| `openbox-sdk/client` | `OpenBoxClient` - backend management API |
+| `openbox-sdk/core-client` | `OpenBoxCoreClient` + `govern()` + 22 typed presets + redaction helpers |
+| `openbox-sdk/env` | `ENVIRONMENTS`, token store, client-name resolver |
+| `openbox-sdk/os-paths` | Node-only path resolver (RN-safe - kept off `/env`) |
+| `openbox-sdk/types` | Hand-curated DTOs + auto-generated `Backend` / `Core` namespaces |
+| `openbox-sdk/cli` | Programmatic CLI surface (also reachable as `bin: openbox`) |
+| `openbox-sdk/runtime/claude-code` | Claude Code hook adapter primitive + platform integration |
+| `openbox-sdk/runtime/cursor` | Cursor IDE hook adapter primitive + platform integration |
+| `openbox-sdk/runtime/mcp` | MCP server runtime (`runMcpServer()`) |
 
 ## CLI
 
 ```bash
-# First-time login (opens Chrome, captures JWT + refresh token from the SPA)
+npm install -g openbox-sdk@github:OpenBox-AI/openbox-sdk
 openbox auth login
-
-# Use the API
-openbox auth profile
 openbox agent list
-openbox guardrail create <agent-id> -n MyGuard --type pii --stage 0
-
-# Inspect cached permissions
-openbox auth permissions
+openbox claude-code install   # writes ~/.claude/settings.json hooks block
+openbox cursor install        # writes ~/.cursor/hooks.json
+openbox mcp serve             # MCP stdio server
+openbox skill install         # copies SKILL.md into ~/.claude/skills/openbox/
 ```
 
-### Environments
+The CLI uses a maturity gate: by default `--help` shows only commands
+that have been verified end-to-end. Pass `--experimental` (or
+`OPENBOX_EXPERIMENTAL_LEVEL=experimental`) to surface the rest. Fine-grained
+opt-ins for in-command experimental options use `--feature <name>`.
 
-The CLI ships with registered hostnames for production in `ts/cli/src/environments.ts`:
-
-| Env | Backend API | Core API | Platform (login) |
-|---|---|---|---|
-| production | `https://api.openbox.ai` | `https://core.openbox.ai` | `https://platform.openbox.ai` |
-| local | `http://localhost:3000` | `http://localhost:8086` | `http://localhost:3233` |
-
-Selection precedence: `--env <name>` flag → `OPENBOX_ENV` env var → default `production`. Individual URL overrides via `OPENBOX_API_URL` / `OPENBOX_CORE_URL` / `OPENBOX_PLATFORM_URL` still work on top of the selected env.
-
-### Permission pre-flight
-
-The CLI caches your role's permissions per env on login. Commands that require granular permissions (`guardrail *`, `policy *`, `behavior *`, `session *`, `observe *`) check locally first and refuse with an actionable message if the env's role is missing what's needed - instead of firing a request and getting 403. Permission requirements are mapped in `ts/cli/src/permissions.ts`.
-
-### Token storage
-
-A single plain-text file (`~/.openbox/tokens` or project-local `.tokens`) with env-namespaced entries:
-
-```
-production.ACCESS_TOKEN=...
-production.REFRESH_TOKEN=...
-production.PERMISSIONS=Admin,create:agent,...
-staging.ACCESS_TOKEN=...
-staging.REFRESH_TOKEN=...
-staging.PERMISSIONS=Admin,create:agent,create:agent_guardrail,...
-```
-
-Legacy flat-format files (unprefixed `ACCESS_TOKEN=...`) are read as `production` and rewritten on the next save.
-
-## Library usage
-
-```typescript
-import { OpenBoxClient } from 'openbox-sdk/client';
-import { ENVIRONMENTS } from 'openbox-sdk/env';
-
-const client = new OpenBoxClient({
-  env: 'production',                     // optional - branches when env-specific behavior is needed
-  apiUrl: ENVIRONMENTS.production.apiUrl,
-  accessToken: '<jwt>',
-  refreshToken: '<rt>',                  // optional; auto-refresh is currently disabled, see DEFERRED.md
-  clientName: 'my-app',                  // optional - sent as X-Openbox-Client (default 'openbox-cli')
-});
-
-const agents = await client.listAgents({ search: 'my-agent' });
-const result = await client.getOrgApprovals(orgId, { status: 'pending' });
-const pending = result.approvals.data;
-await client.decideApproval(agents.data[0].id, eventId, 'approve');
-```
-
-```typescript
-import { OpenBoxCoreClient } from 'openbox-sdk/core-client';
-import { ENVIRONMENTS } from 'openbox-sdk/env';
-
-const core = new OpenBoxCoreClient({
-  env: 'production',
-  apiUrl: ENVIRONMENTS.production.coreUrl,
-  apiKey: 'obx_live_...',
-});
-
-const verdict = await core.evaluate(payload);
-```
-
-Every backend request includes an `X-Openbox-Client` header (backend's auth guard requires the header to be present; the value is purely a telemetry dimension). `clientName` defaults to `openbox-cli`; each consumer should set its own (`apps/extension`, `the-mobile-app`, `runtime/mcp`, ...). Setting `OPENBOX_CLIENT_VARIANT=claude-code` in the environment auto-suffixes the value (e.g. `openbox-cli/claude-code`) so backend logs can distinguish skill-driven traffic from human-typed traffic.
-
-## Tests
+## How it's built
 
 ```bash
-npm run test:unit   # 233 pass / 6 skip (skips are refresh-related, re-enable when upstream lands)
-npm run test:e2e    # requires live tokens - see DEFERRED.md for the env-var recipe
+npm install              # workspaces (codegen libs + extension)
+npm run specs:all        # TypeSpec compile → emitters → openapi-typescript
+npm run build            # build:codegen → specs → bundle to dist/
+npm test                 # vitest unit + e2e
 ```
 
-## Design principle - universal CLI
+Anything in `ts/src/**/generated/`, `specs/generated/`, or
+`apps/*/dist/` is auto-emitted - never hand-edit. The
+`check:generated-drift` script runs the full pipeline and asserts
+`git diff --exit-code` on those paths; CI does the same on every PR.
 
-The CLI runs the same surface against both envs. Tolerable divergence: *temporary* flag / permission gaps that converge over time. **Structurally-hidden-in-prod services do not get CLI paths.** See `DEFERRED.md` for details and the list of things intentionally not exposed.
+## Contributing
 
-## Pending external work
+See `CONTRIBUTING.md` for the four flow recipes (add-a-preset,
+add-an-adapter, add-a-CLI-command, add-an-env-var) and the
+spec-vs-hand-coded boundary that the codegen pipeline assumes.
 
-See `DEFERRED.md` for:
-- Upstream `/auth/refresh` fix PRs (two paired bugs in backend + fe)
-- Production Keycloak role sync (backfill granular permissions added in backend PR #237)
+## License
 
-Both are tracked with exact steps for re-enabling CLI features once they're resolved.
+[MIT](./LICENSE).

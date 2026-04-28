@@ -66,7 +66,7 @@ function ruleIsOpenBox(rule: HookRuleEntry): boolean {
   ) ?? false;
 }
 
-export function installClaudeHooks(): void {
+export function installClaudeCode(): void {
   const settings = loadSettings();
   if (!settings.hooks) settings.hooks = {};
 
@@ -104,7 +104,7 @@ export function installClaudeHooks(): void {
   }
 }
 
-export function uninstallClaudeHooks(): void {
+export function uninstallClaudeCode(): void {
   const settings = loadSettings();
   if (!settings.hooks) {
     // eslint-disable-next-line no-console
