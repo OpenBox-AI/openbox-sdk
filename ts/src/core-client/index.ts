@@ -1,3 +1,8 @@
+// Public surface of `openbox-sdk/core-client`. Re-exports are kept
+// explicit (no `export *`) so the file doubles as the inventory of
+// what's intended for consumers - adding a new preset to the spec
+// surfaces here as a one-line edit, not a silent leak.
+
 export { OpenBoxCoreClient, CoreApiError } from './core-client.js';
 export type { CoreClientConfig } from './core-client.js';
 export type {
@@ -22,24 +27,71 @@ export type {
   GovernanceVerdictResponse,
   ApprovalStatusRequest,
   ApprovalStatusResponse,
+  BehavioralResult,
 } from './core-client.js';
-export type { BehavioralResult } from './core-client.js';
 
-// Spec-driven workflow runtime. Every preset Session class + the
-// `govern()` helper + the `presets` registry is generated from
-// specs/typespec/govern/main.tsp - adding a new preset or method in
-// the spec flows directly through the codegen pipeline without a code
-// edit on this side.
-//
-// `export *` surfaces every generated value/type, including the 22
-// `<Preset>Session` classes (ClaudeCodeSession, CursorSession,
-// LangchainSession, ...) so runtime-adapter consumers can write the
-// type explicitly on handler signatures.
-export * from './generated/govern.js';
+// ─── Spec-driven workflow runtime (specs/typespec/govern/main.tsp) ───
+// govern() / presets / preset Session classes are generated. Adding a
+// new preset = one new line in the manifest below + one new class
+// re-export. Anything generated but NOT listed here is internal.
+
+// Core types + verdict shape
+export type {
+  CanonicalEventType,
+  ActivityStage,
+  VerdictArm,
+  GuardrailFieldVerdict,
+  GuardrailReasonRef,
+  GuardrailsVerdict,
+  WorkflowVerdict,
+  GovernedPayload,
+  CanonicalVerdict,
+} from './generated/govern.js';
+
+// Manifest + base session
+export {
+  PRESET_MANIFEST,
+  BaseGovernedSession,
+  SessionAlreadyTerminatedError,
+} from './generated/govern.js';
+export type {
+  PresetName,
+  GovernedSessionConfig,
+} from './generated/govern.js';
+
+// Preset Session classes (one per @preset in the spec). Mappers in
+// runtime/<adapter>/mappers/ pull these to type their handler params.
+export {
+  AirflowSession,
+  ArgocdSession,
+  AutogenSession,
+  ClaudeCodeSession,
+  ClineSession,
+  CodexSession,
+  CopilotSession,
+  CrewaiSession,
+  CursorSession,
+  CustomSession,
+  DefaultSession,
+  LangchainSession,
+  LanggraphSession,
+  LlamaindexSession,
+  MastraSession,
+  ModernTreasurySession,
+  N8nSession,
+  PagerdutySession,
+  PydanticAiSession,
+  SemanticKernelSession,
+  TemporalSession,
+  VercelAiSession,
+} from './generated/govern.js';
+
+// Workflow entry point + preset registry
+export { govern, presets } from './generated/govern.js';
+export type { Presets, PresetCtor } from './generated/govern.js';
 
 // Guardrail redaction helpers - apply `verdict.guardrailsResult.redactedInput`
-// over the original payload to forward a safe version downstream. Ported
-// from openbox-typescript-sdk; adapted to the new camelCase verdict shape.
+// over the original payload to forward a safe version downstream.
 export {
   applyInputRedaction,
   applyOutputRedaction,
@@ -50,5 +102,3 @@ export {
 // `runtime/claude-code/` and `runtime/cursor/`. Import them via the
 // public sub-paths `openbox-sdk/runtime/claude-code` /
 // `openbox-sdk/runtime/cursor` - NOT from `openbox-sdk/core-client`.
-// This re-export was removed to keep the core-client surface focused
-// on wire types + clients.

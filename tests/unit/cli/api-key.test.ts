@@ -25,11 +25,27 @@ describe('api-key commands', () => {
     expect(output).toHaveBeenCalled();
   });
 
+  it('rotate requires an agentId', async () => {
+    const program = createTestProgram();
+    registerApiKeyCommands(program);
+    await expect(
+      program.parseAsync(['node', 'openbox', 'api-key', 'rotate']),
+    ).rejects.toThrow();
+    expect(mockClient.rotateApiKey).not.toHaveBeenCalled();
+  });
+
   it('revoke calls revokeApiKey(agentId)', async () => {
     const program = createTestProgram();
     registerApiKeyCommands(program);
     await program.parseAsync(['node', 'openbox', 'api-key', 'revoke', 'agent-1']);
     expect(mockClient.revokeApiKey).toHaveBeenCalledWith('agent-1');
     expect(output).toHaveBeenCalled();
+  });
+
+  it('revoke does not call rotate by mistake', async () => {
+    const program = createTestProgram();
+    registerApiKeyCommands(program);
+    await program.parseAsync(['node', 'openbox', 'api-key', 'revoke', 'agent-1']);
+    expect(mockClient.rotateApiKey).not.toHaveBeenCalled();
   });
 });

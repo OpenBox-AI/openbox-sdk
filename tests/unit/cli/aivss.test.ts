@@ -23,25 +23,40 @@ describe('aivss commands', () => {
     expect(mockClient.getAssessments).toHaveBeenCalledWith('agent-1', expect.anything());
   });
 
-  it('update calls updateAivssConfig', async () => {
+  it('update wraps --json as aivss_config alongside --reason', async () => {
     const program = createTestProgram();
     registerAivssCommands(program);
-    const json = JSON.stringify({ base_security: {} });
+    const json = JSON.stringify({ base_security: { attack_vector: 3 } });
     await program.parseAsync([
-      'node',
-      'openbox',
-      'aivss',
-      'update',
-      'agent-1',
-      '--json',
-      json,
-      '--reason',
-      'test',
+      'node', 'openbox', 'aivss', 'update', 'agent-1',
+      '--json', json,
+      '--reason', 'quarterly review',
     ]);
     expect(mockClient.updateAivssConfig).toHaveBeenCalledWith('agent-1', {
       aivss_config: JSON.parse(json),
-      reason: 'test',
+      reason: 'quarterly review',
     });
+  });
+
+  it('update requires --json and --reason', async () => {
+    const program = createTestProgram();
+    registerAivssCommands(program);
+    await expect(
+      program.parseAsync(['node', 'openbox', 'aivss', 'update', 'agent-1']),
+    ).rejects.toThrow();
+    expect(mockClient.updateAivssConfig).not.toHaveBeenCalled();
+  });
+
+  it('update rejects invalid JSON', async () => {
+    const program = createTestProgram();
+    registerAivssCommands(program);
+    await expect(
+      program.parseAsync([
+        'node', 'openbox', 'aivss', 'update', 'agent-1',
+        '--json', '{not json',
+        '--reason', 'x',
+      ]),
+    ).rejects.toThrow();
   });
 
   it('recalculate calls recalculateAivss', async () => {
@@ -51,11 +66,20 @@ describe('aivss commands', () => {
     expect(mockClient.recalculateAivss).toHaveBeenCalledWith('agent-1');
   });
 
-  it('calculate calls calculateAivss', async () => {
+  it('calculate passes --json straight through', async () => {
     const program = createTestProgram();
     registerAivssCommands(program);
-    const json = JSON.stringify({ base_security: {} });
+    const json = JSON.stringify({ base_security: { attack_vector: 1 } });
     await program.parseAsync(['node', 'openbox', 'aivss', 'calculate', '--json', json]);
     expect(mockClient.calculateAivss).toHaveBeenCalledWith(JSON.parse(json));
+  });
+
+  it('calculate requires --json', async () => {
+    const program = createTestProgram();
+    registerAivssCommands(program);
+    await expect(
+      program.parseAsync(['node', 'openbox', 'aivss', 'calculate']),
+    ).rejects.toThrow();
+    expect(mockClient.calculateAivss).not.toHaveBeenCalled();
   });
 });

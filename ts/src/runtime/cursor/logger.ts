@@ -1,43 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import type { CursorConfig } from './config.js';
+// Thin wrapper over `_shared/logger.createLogger` - only the adapter
+// name differs between runtimes.
+import { createLogger } from '../_shared/logger.js';
 
-let logPath: string | null = null;
-
-export function initLogger(cfg: CursorConfig) {
-  logPath = cfg.logFile;
-  if (logPath) {
-    fs.mkdirSync(path.dirname(logPath), { recursive: true });
-  }
-}
-
-export function log(hookEvent: string, data: Record<string, unknown>, response?: unknown) {
-  const entry = {
-    ts: new Date().toISOString(),
-    hook: hookEvent,
-    input: summarize(data),
-    response: response ?? null,
-  };
-  const line = JSON.stringify(entry);
-
-  if (logPath) {
-    try { fs.appendFileSync(logPath, line + '\n'); } catch { /* ignore */ }
-  }
-
-  console.error(`[openbox cursor] ${hookEvent} | ${JSON.stringify(entry.input)}`);
-  if (response) {
-    console.error(`[openbox cursor] → ${JSON.stringify(response)}`);
-  }
-}
-
-function summarize(data: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(data)) {
-    if (typeof v === 'string' && v.length > 200) {
-      out[k] = v.slice(0, 200) + `... (${v.length} chars)`;
-    } else {
-      out[k] = v;
-    }
-  }
-  return out;
-}
+const _logger = createLogger('cursor');
+export const initLogger = _logger.initLogger;
+export const log = _logger.log;

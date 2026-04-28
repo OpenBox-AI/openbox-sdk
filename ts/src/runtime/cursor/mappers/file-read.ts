@@ -6,22 +6,7 @@ import type { CursorEnvelope } from '../../../core-client/generated/runtime/curs
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
-
-/** Paths Cursor reads as internals - skip governance to avoid false PII halts. */
-const SKIP_PATTERNS = [
-  /\.cursor\//,
-  /\/mcps\//,
-  /\/node_modules\//,
-  /\.git\//,
-  /INSTRUCTIONS\.md$/,
-  /SERVER_METADATA\.json$/,
-  /SKILL\.md$/,
-  /\.env(\..*)?$/,
-  /\.aws\//,
-  /\.ssh\//,
-  /\.kube\//,
-  /\.gnupg\//,
-];
+import { isSkipped } from '../../_shared/skip-patterns.js';
 
 /** beforeReadFile: scan file content for PII / banned terms before Cursor reads it. */
 export async function handleBeforeReadFile(
@@ -31,7 +16,7 @@ export async function handleBeforeReadFile(
 ): Promise<WorkflowVerdict | undefined> {
   const filePath = env.file_path ?? '';
   if (!filePath) return undefined;
-  if (SKIP_PATTERNS.some((p) => p.test(filePath))) return undefined;
+  if (isSkipped(filePath)) return undefined;
 
   // Cursor includes file content in the hook envelope for beforeReadFile -
   // pull it via a permissive `as` since the spec envelope is the union.

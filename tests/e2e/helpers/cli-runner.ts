@@ -4,8 +4,12 @@
 
 import { spawnSync } from 'child_process';
 import { resolve } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
-const CLI_BIN = resolve(__dirname, '../../dist/index.js');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const CLI_BIN = resolve(__dirname, '../../../dist/cli/index.js');
 
 export type CliResult = {
   status: number;
