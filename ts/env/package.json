@@ -9,6 +9,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./os-paths": {
+      "types": "./dist/os-paths.d.ts",
+      "import": "./dist/os-paths.js"
+    },
     "./environments.json": "./src/environments.json"
   },
   "files": [

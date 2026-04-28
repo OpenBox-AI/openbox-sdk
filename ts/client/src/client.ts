@@ -240,7 +240,6 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   // Auth
   // =========================================================================
 
-  // <removed: shadow of generated getProfile from wrapper-methods.ts>
 
   async refreshTokens(): Promise<TokenPair> {
     return this.httpPost('/auth/refresh', {
@@ -256,7 +255,6 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     await this.httpPost('/auth/logout', {});
   }
 
-  // <removed: shadow of generated changePassword from wrapper-methods.ts>
 
   /**
    * Direct credential login. Bypasses the Keycloak browser redirect - useful
@@ -270,21 +268,18 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
    * an OAuth code it captures on the way back. Once the code is exchanged,
    * every subsequent backend call comes back through this client.
    */
-  // <removed: shadow of generated login from wrapper-methods.ts>
 
   /**
    * Trigger a password-reset email. The backend mails a single-use token
    * to the address; the caller's UI prompts the user for that token + the
    * new password and then calls `resetPassword`.
    */
-  // <removed: shadow of generated forgotPassword from wrapper-methods.ts>
 
   /**
    * Complete the password-reset flow with the token from the email and the
    * new password. The token is single-use and short-lived; failure means
    * the caller should re-prompt for `forgotPassword`.
    */
-  // <removed: shadow of generated resetPassword from wrapper-methods.ts>
 
   /**
    * Service-health probe. Returns whatever the backend's AppController
@@ -336,21 +331,15 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     return this.httpGet('/agent/list', query) as Promise<PaginatedResponse<Agent>>;
   }
 
-  // <removed: shadow of generated createAgent from wrapper-methods.ts>
 
-  // <removed: shadow of generated getAgent from wrapper-methods.ts>
 
-  // <removed: shadow of generated updateAgent from wrapper-methods.ts>
 
-  // <removed: shadow of generated deleteAgent from wrapper-methods.ts>
 
   // =========================================================================
   // API Keys
   // =========================================================================
 
-  // <removed: shadow of generated rotateApiKey from wrapper-methods.ts>
 
-  // <removed: shadow of generated revokeApiKey from wrapper-methods.ts>
 
   // =========================================================================
   // Guardrails
@@ -363,9 +352,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     return this.httpGet(`/agent/${agentId}/guardrails`, query) as Promise<PaginatedResponse<Guardrail>>;
   }
 
-  // <removed: shadow of generated createGuardrail from wrapper-methods.ts>
 
-  // <removed: shadow of generated getGuardrail from wrapper-methods.ts>
 
   async updateGuardrail(
     agentId: string,
@@ -375,7 +362,6 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     return this.httpPut(`/agent/${agentId}/guardrails/${guardrailId}`, dto) as Promise<Guardrail>;
   }
 
-  // <removed: shadow of generated deleteGuardrail from wrapper-methods.ts>
 
   // reorderGuardrail comes from the generated base - its body is `{ order }`.
   // (Was previously a 3-arg wrapper that took `order` flat; consumers should
@@ -402,15 +388,10 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   // Policies
   // =========================================================================
 
-  // <removed: shadow of generated listPolicies from wrapper-methods.ts>
 
-  // <removed: shadow of generated createPolicy from wrapper-methods.ts>
 
-  // <removed: shadow of generated getCurrentPolicies from wrapper-methods.ts>
 
-  // <removed: shadow of generated getPolicy from wrapper-methods.ts>
 
-  // <removed: shadow of generated updatePolicy from wrapper-methods.ts>
 
   async getPolicyEvaluations(
     agentId: string,
@@ -447,11 +428,8 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     >;
   }
 
-  // <removed: shadow of generated getCurrentBehaviorRules from wrapper-methods.ts>
 
-  // <removed: shadow of generated createBehaviorRule from wrapper-methods.ts>
 
-  // <removed: shadow of generated getBehaviorRule from wrapper-methods.ts>
 
   async updateBehaviorRule(
     agentId: string,
@@ -461,9 +439,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     return this.httpPut(`/agent/${agentId}/behavior-rule/${ruleId}`, dto) as Promise<BehaviorRule>;
   }
 
-  // <removed: shadow of generated deleteBehaviorRule from wrapper-methods.ts>
 
-  // <removed: shadow of generated restoreBehaviorRule from wrapper-methods.ts>
 
   // toggleBehaviorRuleStatus: spec body is `{ is_active }` - call as
   // `toggleBehaviorRuleStatus(agentId, ruleId, { is_active: true })`.
@@ -503,9 +479,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     return this.httpGet(`/agent/${agentId}/sessions`, query) as Promise<PaginatedResponse<Session>>;
   }
 
-  // <removed: shadow of generated getActiveSessions from wrapper-methods.ts>
 
-  // <removed: shadow of generated getSession from wrapper-methods.ts>
 
   async getSessionLogs(
     agentId: string,
@@ -643,7 +617,6 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     return this.httpGet(`/agent/${agentId}/observability`, query);
   }
 
-  // <removed: shadow of generated getIssues from wrapper-methods.ts>
 
   async getInsightsMetrics(agentId: string, query?: MetricsQuery): Promise<unknown> {
     return this.httpGet(`/agent/${agentId}/insights/metrics`, query);
@@ -671,7 +644,6 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   // Violations
   // =========================================================================
 
-  // <removed: shadow of generated getAllViolations from wrapper-methods.ts>
 
   async getAgentViolations(
     agentId: string,
@@ -696,11 +668,8 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   // Organization
   // =========================================================================
 
-  // <removed: shadow of generated getOrganization from wrapper-methods.ts>
 
-  // <removed: shadow of generated getOrgSettings from wrapper-methods.ts>
 
-  // <removed: shadow of generated updateOrgSettings from wrapper-methods.ts>
 
   async getDashboard(
     orgId: string,
@@ -755,15 +724,12 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   // Teams
   // =========================================================================
 
-  // <removed: shadow of generated listTeams from wrapper-methods.ts>
 
   async getTeamStats(orgId: string): Promise<unknown> {
     return this.httpGet(`/organization/${orgId}/teams/stats`);
   }
 
-  // <removed: shadow of generated getTeam from wrapper-methods.ts>
 
-  // <removed: shadow of generated updateTeam from wrapper-methods.ts>
 
   async getTeamMembers(
     orgId: string,
@@ -775,7 +741,6 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     >;
   }
 
-  // <removed: shadow of generated createTeam from wrapper-methods.ts>
 
   async deleteTeams(orgId: string, dto: DeleteTeamsDto): Promise<unknown> {
     // DELETE with body - backend takes `{ids: string[]}` in the request body.
@@ -804,28 +769,21 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   // Members
   // =========================================================================
 
-  // <removed: shadow of generated listMembers from wrapper-methods.ts>
 
-  // <removed: shadow of generated createUser from wrapper-methods.ts>
 
-  // <removed: shadow of generated updateMember from wrapper-methods.ts>
 
   // assignRoles / removeRoles / removeMembers come from the generated base.
   // The spec types each body as `{ roles }` / `{ memberIds }` - call as
   // `assignRoles(orgId, userId, { roles: ['admin'] })` rather than passing
   // the array flat.
 
-  // <removed: shadow of generated inviteUser from wrapper-methods.ts>
 
   // =========================================================================
   // Audit Logs
   // =========================================================================
 
-  // <removed: shadow of generated getAuditLogs from wrapper-methods.ts>
 
-  // <removed: shadow of generated getAuditLog from wrapper-methods.ts>
 
-  // <removed: shadow of generated exportAuditLogs from wrapper-methods.ts>
 
   async previewAuditExport(dto: PreviewExportDto): Promise<unknown> {
     return this.httpPost('/organization/audit-logs/export/preview', dto);
@@ -837,19 +795,16 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     >;
   }
 
-  // <removed: shadow of generated getExport from wrapper-methods.ts>
 
   async downloadExport(exportId: string): Promise<unknown> {
     return this.httpGet(`/organization/audit-logs/export/${exportId}/download`);
   }
 
-  // <removed: shadow of generated deleteExport from wrapper-methods.ts>
 
   // =========================================================================
   // User
   // =========================================================================
 
-  // <removed: shadow of generated getUserRoles from wrapper-methods.ts>
 
   // =========================================================================
   // Pagination helpers
@@ -908,29 +863,19 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   // API keys - live backend, org-scoped, gated on create/read/update/delete:api_key
   // =========================================================================
 
-  // <removed: shadow of generated listApiKeys from wrapper-methods.ts>
 
-  // <removed: shadow of generated createApiKey from wrapper-methods.ts>
 
-  // <removed: shadow of generated getApiKey from wrapper-methods.ts>
 
-  // <removed: shadow of generated updateApiKey from wrapper-methods.ts>
 
-  // <removed: shadow of generated deleteApiKey from wrapper-methods.ts>
 
   // =========================================================================
   // Webhooks - live backend, gated on create/read/update/delete:webhook
   // =========================================================================
 
-  // <removed: shadow of generated listWebhooks from wrapper-methods.ts>
 
-  // <removed: shadow of generated createWebhook from wrapper-methods.ts>
 
-  // <removed: shadow of generated getWebhook from wrapper-methods.ts>
 
-  // <removed: shadow of generated updateWebhook from wrapper-methods.ts>
 
-  // <removed: shadow of generated deleteWebhook from wrapper-methods.ts>
 
   async getWebhookDeliveries(
     id: string,
@@ -947,7 +892,6 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     >;
   }
 
-  // <removed: shadow of generated testWebhook from wrapper-methods.ts>
 
   // =========================================================================
   // SSO - live backend, gated on manage:sso
@@ -957,33 +901,25 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     return this.httpGet('/sso');
   }
 
-  // <removed: shadow of generated deleteSsoConfig from wrapper-methods.ts>
 
-  // <removed: shadow of generated getSsoStatus from wrapper-methods.ts>
 
   async getSsoMetadata(): Promise<unknown> {
     return this.httpGet('/sso/metadata');
   }
 
-  // <removed: shadow of generated configureSsoOidc from wrapper-methods.ts>
 
-  // <removed: shadow of generated configureSsoSaml from wrapper-methods.ts>
 
-  // <removed: shadow of generated verifySsoConfig from wrapper-methods.ts>
 
-  // <removed: shadow of generated enforceSso from wrapper-methods.ts>
 
   // =========================================================================
   // Miscellaneous live-backend endpoints (unwrapped pre-port)
   // =========================================================================
 
-  // <removed: shadow of generated getCsrfToken from wrapper-methods.ts>
 
   async getDemoSetupStatus(): Promise<unknown> {
     return this.httpGet('/organization/demo-setup-status');
   }
 
-  // <removed: shadow of generated getOrgFeatures from wrapper-methods.ts>
 
   // =========================================================================
   // Private helpers

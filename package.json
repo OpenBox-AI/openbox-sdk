@@ -21,6 +21,10 @@
       "types": "./dist/env.d.ts",
       "import": "./dist/env.js"
     },
+    "./os-paths": {
+      "types": "./dist/os-paths.d.ts",
+      "import": "./dist/os-paths.js"
+    },
     "./types": {
       "types": "./dist/types.d.ts",
       "import": "./dist/types.js"
