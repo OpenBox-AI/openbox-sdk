@@ -1,7 +1,14 @@
 // TypeSpec compiler entry - see ../env/src/index.ts for the rationale
 // behind only exporting `$lib` and `$decorators`.
 
-import { $verdict, $preset, $maps_to } from './decorators.js';
+import {
+  $verdict,
+  $preset,
+  $maps_to,
+  $adapter,
+  $hookEvent,
+  $verdictShape,
+} from './decorators.js';
 
 export { $lib } from './lib.js';
 
@@ -10,5 +17,8 @@ export const $decorators = {
     verdict: $verdict,
     preset: $preset,
     maps_to: $maps_to,
+    adapter: $adapter,
+    hookEvent: $hookEvent,
+    verdictShape: $verdictShape,
   },
 };

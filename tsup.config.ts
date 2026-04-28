@@ -13,6 +13,8 @@ export default defineConfig({
     'src/env.ts',
     'src/os-paths.ts', // Node-only sub-path; kept off `src/env.ts` so RN bundlers don't pull `os`/`path`.
     'src/types.ts',
+    'src/runtime/claude-hooks.ts',
+    'src/runtime/cursor-hooks.ts',
   ],
   format: ['esm'],
   dts: true,

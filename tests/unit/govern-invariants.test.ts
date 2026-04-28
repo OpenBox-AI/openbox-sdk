@@ -455,3 +455,131 @@ describe('CustomSession (free-form activity)', () => {
     ).toBe('tx_xxx');
   });
 });
+
+describe('govern.attach (cross-process / harness-owned lifecycle)', () => {
+  test('does NOT fire WorkflowStarted automatically', async () => {
+    const mock = createMockCore('allow');
+    const session = govern.attach({
+      core: mockCoreAsClient(mock),
+      preset: presets.claudeCode,
+      workflowId: 'wf_external',
+      runId: 'run_external',
+    });
+    // No begin/workflowStarted call from attach - caller decides when.
+    await session.preToolUse({ input: [{ tool: 'Bash' }] });
+    const types = mock.events.map((e) => e.event_type);
+    // WorkflowStarted is missing - only the activity envelope fires.
+    expect(types).not.toContain('WorkflowStarted');
+    expect(types).toContain('ActivityStarted');
+    expect(types).toContain('ActivityCompleted');
+  });
+
+  test('explicit workflowStarted/Completed are idempotent', async () => {
+    const mock = createMockCore('allow');
+    const session = govern.attach({
+      core: mockCoreAsClient(mock),
+      preset: presets.claudeCode,
+      workflowId: 'wf_external',
+      runId: 'run_external',
+    });
+    await session.workflowStarted();
+    await session.workflowStarted(); // second call no-ops
+    await session.workflowCompleted();
+    await session.workflowCompleted(); // second call no-ops
+    const startedCount = mock.events.filter((e) => e.event_type === 'WorkflowStarted').length;
+    const completedCount = mock.events.filter((e) => e.event_type === 'WorkflowCompleted').length;
+    expect(startedCount).toBe(1);
+    expect(completedCount).toBe(1);
+  });
+
+  test('reuses provided workflowId/runId on every emit', async () => {
+    const mock = createMockCore('allow');
+    const session = govern.attach({
+      core: mockCoreAsClient(mock),
+      preset: presets.claudeCode,
+      workflowId: 'fixed-wf',
+      runId: 'fixed-run',
+    });
+    await session.workflowStarted();
+    await session.preToolUse({ input: [{ tool: 'Bash' }] });
+    await session.workflowCompleted();
+    // Every event carries the same workflow_id + run_id supplied at attach.
+    for (const e of mock.events) {
+      expect((e as unknown as { workflow_id: string }).workflow_id).toBe('fixed-wf');
+      expect((e as unknown as { run_id: string }).run_id).toBe('fixed-run');
+    }
+  });
+
+  test('exit handlers default to disabled on attach', async () => {
+    const mock = createMockCore('allow');
+    // If exit handlers WERE registered, vitest's process state would
+    // accumulate listeners across tests. We check listener count
+    // before/after to confirm none were added.
+    const before = process.listenerCount('SIGINT');
+    govern.attach({
+      core: mockCoreAsClient(mock),
+      preset: presets.claudeCode,
+      workflowId: 'wf_x',
+      runId: 'run_x',
+    });
+    const after = process.listenerCount('SIGINT');
+    expect(after).toBe(before);
+  });
+});
+
+describe('WorkflowVerdict.guardrailsResult', () => {
+  test('populated from wire response.guardrails_result', async () => {
+    const mock = createMockCore('allow');
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      return {
+        governance_event_id: 'evt_test',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+        guardrails_result: {
+          input_type: 'activity_input',
+          redacted_input: [{ tool: 'Bash', cmd: '<REDACTED>' }],
+          validation_passed: true,
+          reasons: [{ type: 'pii', field: 'cmd', reason: 'looks like a token' }],
+          results: [
+            {
+              guardrail_type: 'pii',
+              results: [{ field: 'cmd', order: 0, status: 'redacted', reason: 'token' }],
+            },
+          ],
+        },
+      } as unknown as GovernanceVerdictResponse;
+    });
+
+    let captured: import('../../ts/core-client/src/generated/govern.js').WorkflowVerdict | null = null;
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        captured = await session.preToolUse({ input: [{ tool: 'Bash', cmd: 'echo $TOKEN' }] });
+      },
+    );
+
+    expect(captured).not.toBeNull();
+    const v = captured!;
+    expect(v.guardrailsResult).toBeDefined();
+    expect(v.guardrailsResult?.inputType).toBe('activity_input');
+    expect(v.guardrailsResult?.validationPassed).toBe(true);
+    expect(v.guardrailsResult?.reasons).toHaveLength(1);
+    expect(v.guardrailsResult?.reasons[0].type).toBe('pii');
+    expect(v.guardrailsResult?.fieldResults).toHaveLength(1);
+    expect(v.guardrailsResult?.fieldResults[0].status).toBe('redacted');
+  });
+
+  test('absent on the verdict when wire response has no guardrails_result', async () => {
+    const mock = createMockCore('allow');
+    let captured: import('../../ts/core-client/src/generated/govern.js').WorkflowVerdict | null = null;
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        captured = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+      },
+    );
+    expect(captured?.guardrailsResult).toBeUndefined();
+  });
+});

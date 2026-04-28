@@ -27,11 +27,38 @@ export const $lib = createTypeSpecLibrary({
         default: paramMessage`Invalid event_type '${'eventType'}' on @maps_to; must be one of WorkflowStarted, WorkflowCompleted, WorkflowFailed, ActivityStarted, ActivityCompleted, SignalReceived`,
       },
     },
+    'invalid-adapter-name': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid adapter name '${'name'}'; must match /^[a-z][a-z0-9-]*$/`,
+      },
+    },
+    'duplicate-adapter-name': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Duplicate @adapter name '${'name'}'; each adapter must have a unique identifier`,
+      },
+    },
+    'invalid-hook-event': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @hookEvent name '${'eventName'}'; must be a non-empty string`,
+      },
+    },
+    'invalid-verdict-shape': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @verdictShape '${'shape'}'; must be one of permission-decision, decision-block, permission-request, cursor-permission, cursor-observe, none`,
+      },
+    },
   },
   state: {
     verdict: { description: 'flag: model is the canonical verdict shape' },
     preset: { description: 'preset binding attached to a framework-preset interface' },
     mapsTo: { description: 'envelope mapping attached to a preset operation' },
+    adapter: { description: 'adapter binding attached to a hook-protocol interface' },
+    hookEvent: { description: 'hook-event routing attached to an adapter operation' },
+    verdictShape: { description: 'verdict-output translation family attached to an adapter operation' },
   },
 });
 

@@ -3,6 +3,23 @@
 export type CanonicalEventType = "WorkflowStarted" | "WorkflowCompleted" | "WorkflowFailed" | "ActivityStarted" | "ActivityCompleted" | "SignalReceived";
 export type ActivityStage = "pre" | "post";
 export type VerdictArm = "allow" | "constrain" | "require_approval" | "block" | "halt";
+export interface GuardrailFieldVerdict {
+  field: string;
+  status: "allowed" | "blocked" | "redacted" | "skipped";
+  reason?: string;
+}
+export interface GuardrailReasonRef {
+  type: string;
+  field?: string;
+  reason: string;
+}
+export interface GuardrailsVerdict {
+  inputType: "activity_input" | "activity_output";
+  redactedInput?: unknown;
+  validationPassed: boolean;
+  reasons: GuardrailReasonRef[];
+  fieldResults: GuardrailFieldVerdict[];
+}
 export interface WorkflowVerdict {
   arm: VerdictArm;
   approvalId?: string;
@@ -10,6 +27,7 @@ export interface WorkflowVerdict {
   reason?: string;
   riskScore: number;
   trustTier?: number;
+  guardrailsResult?: GuardrailsVerdict;
 }
 export interface GovernedPayload {
   input?: unknown[];
@@ -985,6 +1003,14 @@ export interface GovernedSessionConfig {
    * scripts where the cleanup is wasteful.
    */
   registerExitHandlers?: boolean;
+  /**
+   * Internal flag set by `govern.attach()`. When true, the session starts
+   * in the `opened` state - `runActivity` will NOT auto-fire WorkflowStarted,
+   * and explicit `workflowStarted()` calls become no-ops (idempotent).
+   * The parent process is assumed to have already fired the workflow open
+   * event. Don't set this manually - use `govern.attach()`.
+   */
+  attached?: boolean;
 }
 
 /**
@@ -1020,6 +1046,7 @@ export class BaseGovernedSession {
   private readonly approvalMaxWaitMs: number;
   private opened = false;
   private finalized = false;
+  private readonly autoOpenSuppressed: boolean;
   private readonly inFlight = new Set<string>();
   private readonly exitHandlerCleanup: Array<() => void> = [];
 
@@ -1034,6 +1061,7 @@ export class BaseGovernedSession {
     this.approvalPollBackoffFactor = config.approvalPollBackoffFactor ?? 1.5;
     this.approvalPollJitter = config.approvalPollJitter ?? 0.25;
     this.approvalMaxWaitMs = config.approvalMaxWaitMs ?? 60_000;
+    this.autoOpenSuppressed = config.attached === true;
     if (config.registerExitHandlers !== false) {
       this.installExitHandlers();
     }
@@ -1049,24 +1077,52 @@ export class BaseGovernedSession {
     return this.finalized;
   }
 
-  /** SDK-internal - called by govern() before the user callback runs. */
-  async begin(): Promise<void> {
+  /**
+   * Fire WorkflowStarted. Idempotent - safe to call multiple times,
+   * only the first emits. Public so harness-owned consumers (claude-hooks,
+   * cursor-hooks) can drive lifecycle when the workflow spans processes.
+   * `govern()` calls this automatically before the body runs;
+   * `govern.attach()` does NOT - caller decides when (if ever).
+   *
+   * Backward-compat alias: `begin()`.
+   */
+  async workflowStarted(): Promise<void> {
     if (this.opened) return;
     this.opened = true;
     await this.emit({ event_type: 'WorkflowStarted' });
   }
+  /** @deprecated use `workflowStarted()` - same behavior. */
+  async begin(): Promise<void> {
+    return this.workflowStarted();
+  }
 
-  /** SDK-internal - called by govern() after the user callback resolves. */
-  async complete(): Promise<void> {
+  /**
+   * Fire WorkflowCompleted. Idempotent. Same public/cross-process
+   * rationale as `workflowStarted`. `govern()` calls this on the
+   * happy-path return from the body; `govern.attach()` does NOT.
+   *
+   * Backward-compat alias: `complete()`.
+   */
+  async workflowCompleted(): Promise<void> {
     if (this.finalized) return;
     this.finalized = true;
     await this.emit({ event_type: 'WorkflowCompleted', status: 'completed' });
     this.cleanupExitHandlers();
   }
+  /** @deprecated use `workflowCompleted()` - same behavior. */
+  async complete(): Promise<void> {
+    return this.workflowCompleted();
+  }
 
-  /** SDK-internal - called by govern() if the user callback throws,
-   *  or by exit handlers if the process dies mid-session. */
-  async fail(error?: unknown): Promise<void> {
+  /**
+   * Fire WorkflowFailed with an error payload. Idempotent. `govern()`
+   * calls this if the body throws or if a process-exit handler fires;
+   * `govern.attach()` does NOT - caller invokes explicitly on harness-
+   * signaled session failure.
+   *
+   * Backward-compat alias: `fail()`.
+   */
+  async workflowFailed(error?: unknown): Promise<void> {
     if (this.finalized) return;
     this.finalized = true;
     await this.emit({
@@ -1075,6 +1131,10 @@ export class BaseGovernedSession {
       error: errorInfoFrom(error),
     });
     this.cleanupExitHandlers();
+  }
+  /** @deprecated use `workflowFailed()` - same behavior. */
+  async fail(error?: unknown): Promise<void> {
+    return this.workflowFailed(error);
   }
 
   /**
@@ -1094,7 +1154,7 @@ export class BaseGovernedSession {
     payload: GovernedPayload,
   ): Promise<WorkflowVerdict> {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
-    if (!this.opened) await this.begin();
+    if (!this.opened && !this.autoOpenSuppressed) await this.begin();
     const activityId = randomUUID();
     this.inFlight.add(activityId);
 
@@ -2023,17 +2083,13 @@ export type PresetCtor = Presets[keyof Presets];
  * throws. Process-exit handlers fire WorkflowFailed best-effort if the
  * runtime dies mid-session.
  *
- * The session type matches the preset:
+ * For single-process consumers (mobile, extension, MCP, custom Node).
+ * For cross-process / harness-owned workflows (claude-hooks, cursor-hooks)
+ * use `govern.attach()` instead.
  *
  * ```ts
  * await govern({ core, preset: presets.claudeCode }, async (session) => {
- *   // session: ClaudeCodeSession
  *   await session.preToolUse({ input: [...] });
- * });
- *
- * await govern({ core, preset: presets.custom }, async (session) => {
- *   // session: CustomSession
- *   await session.activity('WireTransferApproval', 'pre', { input: [...] });
  * });
  * ```
  */
@@ -2044,14 +2100,64 @@ export async function govern<S extends PresetCtor, T>(
   const { preset: Ctor, ...sessionConfig } = config;
   const session = new Ctor(sessionConfig) as InstanceType<S>;
   try {
-    await (session as unknown as BaseGovernedSession).begin();
+    await (session as unknown as BaseGovernedSession).workflowStarted();
     const result = await body(session);
-    await (session as unknown as BaseGovernedSession).complete();
+    await (session as unknown as BaseGovernedSession).workflowCompleted();
     return result;
   } catch (err) {
-    await (session as unknown as BaseGovernedSession).fail(err);
+    await (session as unknown as BaseGovernedSession).workflowFailed(err);
     throw err;
   }
+}
+
+/**
+ * Attach a session to an existing workflow. For consumers where the
+ * harness (Claude Code, Cursor, an external orchestrator) owns the
+ * workflow lifecycle and the consumer fires individual activity events
+ * across many short-lived processes.
+ *
+ * Differences vs `govern()`:
+ *   - No auto-WorkflowStarted (caller fires `session.workflowStarted()`
+ *     explicitly when the harness signals session start).
+ *   - No auto-WorkflowCompleted (caller fires it on session end).
+ *   - No process-exit handlers by default (a fresh process per hook is
+ *     normal flow, not workflow failure).
+ *   - `workflowId` and `runId` are REQUIRED on the config - the harness
+ *     persists them across processes.
+ *
+ * ```ts
+ * const session = govern.attach({
+ *   core, agentId,
+ *   preset: presets.claudeCode,
+ *   workflowId, runId,         // read from your harness's session store
+ * });
+ *
+ * if (firstHookInSession) await session.workflowStarted();
+ * const verdict = await session.preToolUse({ input: [...] });
+ * if (lastHookInSession) await session.workflowCompleted();
+ * ```
+ */
+function governAttach<S extends PresetCtor>(
+  config: Omit<GovernedSessionConfig, 'workflowId' | 'runId' | 'registerExitHandlers'> & {
+    preset: S;
+    workflowId: string;
+    runId: string;
+    /** Default `false` - fresh-process-per-hook is normal flow, not failure. */
+    registerExitHandlers?: boolean;
+  },
+): InstanceType<S> {
+  const { preset: Ctor, ...rest } = config;
+  return new Ctor({
+    ...rest,
+    registerExitHandlers: rest.registerExitHandlers ?? false,
+    attached: true,
+  }) as InstanceType<S>;
+}
+
+// Namespace merge so consumers see `govern.attach(...)` typed.
+// eslint-disable-next-line @typescript-eslint/no-namespace
+export namespace govern {
+  export const attach = governAttach;
 }
 function mapVerdict(response: GovernanceVerdictResponse): WorkflowVerdict {
   return {
@@ -2061,6 +2167,29 @@ function mapVerdict(response: GovernanceVerdictResponse): WorkflowVerdict {
     reason: response.reason,
     riskScore: response.risk_score ?? 0,
     trustTier: response.trust_tier ?? undefined,
+    guardrailsResult: mapGuardrailsResult(response.guardrails_result),
+  };
+}
+
+function mapGuardrailsResult(
+  raw: GovernanceVerdictResponse['guardrails_result'],
+): GuardrailsVerdict | undefined {
+  if (!raw) return undefined;
+  return {
+    inputType: (raw.input_type as 'activity_input' | 'activity_output') ?? 'activity_input',
+    redactedInput: raw.redacted_input,
+    validationPassed: raw.validation_passed !== false,
+    reasons: ((raw.reasons ?? []) as Array<{ type?: string; field?: string; reason?: string }>).map((r) => ({
+      type: String(r.type ?? ''),
+      field: r.field,
+      reason: String(r.reason ?? ''),
+    })),
+    fieldResults: ((raw.results ?? []) as Array<{ results?: Array<{ field?: string; status?: string; reason?: string }> }>)
+      .flatMap((g) => (g.results ?? []).map((fr) => ({
+        field: String(fr.field ?? ''),
+        status: (fr.status as 'allowed' | 'blocked' | 'redacted' | 'skipped') ?? 'skipped',
+        reason: fr.reason,
+      }))),
   };
 }
 
@@ -2108,6 +2237,12 @@ function applyJitter(baseMs: number, fraction: number): number {
   const noise = (Math.random() * 2 - 1) * f; // [-f, f]
   return baseMs * (1 + noise);
 }
+
+
+
+
+
+
 
 
 

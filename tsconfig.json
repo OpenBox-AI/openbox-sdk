@@ -7,6 +7,7 @@
       "@openbox/client": ["./ts/client/src/index.ts"],
       "@openbox/core-client": ["./ts/core-client/src/index.ts"],
       "@openbox/env": ["./ts/env/src/index.ts"],
+      "@openbox/env/os-paths": ["./ts/env/src/os-paths.ts"],
       "@openbox/types": ["./ts/types/src/index.ts"]
     }
   },
