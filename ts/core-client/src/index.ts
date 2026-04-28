@@ -49,3 +49,20 @@ export type {
   CanonicalEventType,
   CanonicalVerdict,
 } from './generated/govern.js';
+
+// Spec-driven hook-protocol adapters. One generated module per
+// @adapter interface in specs/typespec/govern/adapters.tsp. Consumed
+// by openbox-claude-hooks / openbox-cursor-hooks via the
+// `openbox-sdk/runtime/<name>` sub-path on the public bundle.
+export {
+  createClaudeHooksAdapter,
+  type ClaudeHookEnvelope,
+  type ClaudeHooksAdapterConfig,
+  type ClaudeHooksAdapterHandlers,
+} from './generated/runtime/claude-hooks.js';
+export {
+  createCursorHooksAdapter,
+  type CursorHookEnvelope,
+  type CursorHooksAdapterConfig,
+  type CursorHooksAdapterHandlers,
+} from './generated/runtime/cursor-hooks.js';

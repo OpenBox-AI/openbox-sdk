@@ -2451,9 +2451,9 @@ export interface components {
         };
         /**
          * @description OAuth-style token pair returned by `/auth/login` and the refresh endpoint.
-         *     Same shape as `openbox-sdk/env`'s TokenPair (the env namespace exports it for
-         *     runtime consumers); declared here so the backend OpenAPI carries it as a
-         *     named schema.
+         *     Same shape as the env-package TokenPair (the env namespace exports it
+         *     for runtime consumers); declared here so the backend OpenAPI carries
+         *     it as a named schema.
          */
         TokenPair: {
             accessToken: string;

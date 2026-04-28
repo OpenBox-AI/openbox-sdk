@@ -28,6 +28,14 @@
     "./types": {
       "types": "./dist/types.d.ts",
       "import": "./dist/types.js"
+    },
+    "./runtime/claude-hooks": {
+      "types": "./dist/runtime/claude-hooks.d.ts",
+      "import": "./dist/runtime/claude-hooks.js"
+    },
+    "./runtime/cursor-hooks": {
+      "types": "./dist/runtime/cursor-hooks.d.ts",
+      "import": "./dist/runtime/cursor-hooks.js"
     }
   },
   "files": [

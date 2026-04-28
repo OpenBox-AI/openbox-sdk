@@ -12,3 +12,4 @@ import "./core/main.tsp";
 import "./env/main.tsp";
 import "./cli/main.tsp";
 import "./govern/main.tsp";
+import "./govern/adapters.tsp";

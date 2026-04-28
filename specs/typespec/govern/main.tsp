@@ -71,6 +71,51 @@ enum VerdictArm {
  * to this shape, promoting the arm into a structured payload alongside
  * risk/trust data and the approval-polling handle.
  */
+/**
+ * Per-field guardrail outcome. Mirrors core's GuardrailFieldResult.
+ */
+model GuardrailFieldVerdict {
+  field: string;
+  status: "allowed" | "blocked" | "redacted" | "skipped";
+  reason?: string;
+}
+
+/**
+ * Reason carrier on guardrail outcomes - same shape as core's
+ * GuardrailReason, lifted here so consumers don't have to import
+ * across the core/govern boundary.
+ */
+model GuardrailReasonRef {
+  type: string;
+  field?: string;
+  reason: string;
+}
+
+/**
+ * Verdict-time guardrails report. Surfaces the redacted-input payload
+ * + reasons so adapters can apply DLP/redaction without breaking out
+ * of the preset API. Populated by mapVerdict() from the wire response's
+ * guardrails_result block.
+ */
+model GuardrailsVerdict {
+  /** Which side of the activity the redaction applies to. */
+  inputType: "activity_input" | "activity_output";
+
+  /**
+   * Redacted payload as decided by the guardrail service. Pass to
+   * `applyInputRedaction(...)` / `applyOutputRedaction(...)` against
+   * the original payload to forward a safe version downstream.
+   */
+  redactedInput?: unknown;
+
+  /** False when any field result is `blocked`. */
+  validationPassed: boolean;
+
+  reasons: GuardrailReasonRef[];
+
+  fieldResults: GuardrailFieldVerdict[];
+}
+
 @verdict
 model WorkflowVerdict {
   arm: VerdictArm;
@@ -89,6 +134,15 @@ model WorkflowVerdict {
 
   /** Agent trust tier (1-4) at the moment of evaluation. */
   trustTier?: int32;
+
+  /**
+   * Guardrails outcome - populated when a guardrail fired (PII/safety/
+   * content checks). `redactedInput` is the safe payload to forward
+   * downstream; `reasons` and `fieldResults` describe what happened
+   * per field. Adapters use this to apply redaction post-verdict
+   * without parsing the raw wire response.
+   */
+  guardrailsResult?: GuardrailsVerdict;
 }
 
 /** Free-form input/output payload. Server stringifies; SDKs pass through. */

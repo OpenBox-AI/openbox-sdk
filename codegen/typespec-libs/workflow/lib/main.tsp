@@ -65,3 +65,52 @@ extern dec maps_to(
     | "SignalReceived",
   activityType?: valueof string,
 );
+
+/**
+ * Marks an interface as a hook-protocol adapter. Emitters generate one
+ * `runtime/<name>` module that reads stdin JSON, dispatches by the
+ * `discriminator` field to the matching @hookEvent operation, runs the
+ * bound preset method, and translates the verdict into the operation's
+ * @verdictShape output.
+ *
+ * @param name Lowercase-hyphen identifier - `claude-hooks`, `cursor-hooks`.
+ *   Becomes the runtime module suffix.
+ * @param preset @preset name this adapter binds to (`claude-code`, `cursor`).
+ * @param discriminator Stdin JSON field used to route. Almost always
+ *   `hook_event_name`.
+ */
+extern dec adapter(
+  target: Interface,
+  name: valueof string,
+  preset: valueof string,
+  discriminator: valueof string,
+);
+
+/**
+ * Per-operation routing inside an @adapter. When the parsed stdin's
+ * discriminator value equals `eventName`, the operation is dispatched.
+ *
+ * @param eventName The string the adapter's discriminator field must
+ *   equal for this operation to handle it.
+ */
+extern dec hookEvent(target: Operation, eventName: valueof string);
+
+/**
+ * Per-operation verdict-arm-to-output translation family. Picks one of
+ * the emitter's built-in shapes; the emitter has a fixed registry of how
+ * each shape converts the four verdict arms into the adapter's stdout
+ * JSON.
+ *
+ * @param shape One of `permission-decision`, `decision-block`,
+ *   `permission-request`, `cursor-permission`, `cursor-observe`, `none`.
+ */
+extern dec verdictShape(
+  target: Operation,
+  shape: valueof
+    | "permission-decision"
+    | "decision-block"
+    | "permission-request"
+    | "cursor-permission"
+    | "cursor-observe"
+    | "none",
+);
