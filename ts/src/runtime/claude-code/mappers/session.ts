@@ -2,7 +2,7 @@ import type {
   ClaudeCodeSession,
   WorkflowVerdict,
 } from '../../../core-client/index.js';
-import type { ClaudeHookEnvelope } from '../../claude-hooks.js';
+import type { ClaudeHookEnvelope } from '../../../core-client/generated/runtime/claude-hooks.js';
 import type { ClaudeHooksConfig } from '../config.js';
 import { clearSession, markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';

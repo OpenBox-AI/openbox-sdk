@@ -3,7 +3,7 @@
 // cursor-hooks adapter, returns the appropriate stdout per hook event
 // (cursor-permission for before*, cursor-observe for after*), exits 0
 // fail-open.
-import { createCursorHooksAdapter } from '../cursor-hooks.js';
+import { createCursorHooksAdapter } from '../../core-client/generated/runtime/cursor-hooks.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { loadConfig } from './config.js';
 import { initLogger } from './logger.js';
@@ -44,18 +44,18 @@ export async function runCursorHook(): Promise<void> {
     core,
     resolveSession: (env) => resolveSession(env, cfg),
     handlers: {
-      beforeSubmitPrompt:    (env, s) => dryRun ? undefined : handleBeforeSubmitPrompt(env, s, cfg),
-      beforeShellExecution:  (env, s) => dryRun ? undefined : handleBeforeShellExecution(env, s, cfg),
-      beforeMCPExecution:    (env, s) => dryRun ? undefined : handleBeforeMCPExecution(env, s, cfg),
-      beforeReadFile:        (env, s) => dryRun ? undefined : handleBeforeReadFile(env, s, cfg),
-      preToolUse:            (env, s) => dryRun ? undefined : handlePreToolUse(env, s, cfg),
-      afterMCPExecution:     (env, s) => dryRun ? undefined : handleAfterMCPExecution(env, s, cfg),
-      afterAgentResponse:    (env, s) => dryRun ? undefined : handleAfterAgentResponse(env, s, cfg),
-      afterAgentThought:     (env, s) => dryRun ? undefined : handleAfterAgentThought(env, s, cfg),
-      afterShellExecution:   (env, s) => dryRun ? undefined : handleAfterShellExecution(env, s, cfg),
-      afterFileEdit:         (env, s) => dryRun ? undefined : handleAfterFileEdit(env, s, cfg),
-      sessionStart:          (env, s) => dryRun ? undefined : handleSessionStart(env, s, cfg),
-      stop:                  (env, s) => dryRun ? undefined : handleStop(env, s, cfg),
+      beforeSubmitPrompt: async (env, s) => dryRun ? undefined : handleBeforeSubmitPrompt(env, s, cfg),
+      beforeShellExecution: async (env, s) => dryRun ? undefined : handleBeforeShellExecution(env, s, cfg),
+      beforeMCPExecution: async (env, s) => dryRun ? undefined : handleBeforeMCPExecution(env, s, cfg),
+      beforeReadFile: async (env, s) => dryRun ? undefined : handleBeforeReadFile(env, s, cfg),
+      preToolUse: async (env, s) => dryRun ? undefined : handlePreToolUse(env, s, cfg),
+      afterMCPExecution: async (env, s) => dryRun ? undefined : handleAfterMCPExecution(env, s, cfg),
+      afterAgentResponse: async (env, s) => dryRun ? undefined : handleAfterAgentResponse(env, s, cfg),
+      afterAgentThought: async (env, s) => dryRun ? undefined : handleAfterAgentThought(env, s, cfg),
+      afterShellExecution: async (env, s) => dryRun ? undefined : handleAfterShellExecution(env, s, cfg),
+      afterFileEdit: async (env, s) => dryRun ? undefined : handleAfterFileEdit(env, s, cfg),
+      sessionStart: async (env, s) => dryRun ? undefined : handleSessionStart(env, s, cfg),
+      stop: async (env, s) => dryRun ? undefined : handleStop(env, s, cfg),
     },
   }).run();
 }

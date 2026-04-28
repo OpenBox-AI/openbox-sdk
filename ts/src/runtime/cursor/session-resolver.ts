@@ -4,7 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { SessionStore } from './session-store.js';
 import type { CursorHooksConfig } from './config.js';
-import type { CursorHookEnvelope } from '../cursor-hooks.js';
+import type { CursorHookEnvelope } from '../../core-client/generated/runtime/cursor-hooks.js';
 
 interface PersistedSession {
   workflowId: string;

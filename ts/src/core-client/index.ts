@@ -46,19 +46,9 @@ export {
   deepUpdateObject,
 } from './redaction.js';
 
-// Spec-driven hook-protocol adapters. One generated module per
-// @adapter interface in specs/typespec/govern/adapters.tsp. Consumed
-// by openbox-claude-hooks / openbox-cursor-hooks via the
-// `openbox-sdk/runtime/<name>` sub-path on the public bundle.
-export {
-  createClaudeHooksAdapter,
-  type ClaudeHookEnvelope,
-  type ClaudeHooksAdapterConfig,
-  type ClaudeHooksAdapterHandlers,
-} from './generated/runtime/claude-hooks.js';
-export {
-  createCursorHooksAdapter,
-  type CursorHookEnvelope,
-  type CursorHooksAdapterConfig,
-  type CursorHooksAdapterHandlers,
-} from './generated/runtime/cursor-hooks.js';
+// Spec-driven hook-protocol adapters live one folder out at
+// `runtime/claude-code/` and `runtime/cursor/`. Import them via the
+// public sub-paths `openbox-sdk/runtime/claude-code` /
+// `openbox-sdk/runtime/cursor` - NOT from `openbox-sdk/core-client`.
+// This re-export was removed to keep the core-client surface focused
+// on wire types + clients.

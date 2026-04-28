@@ -38,13 +38,13 @@
       "types": "./dist/cli/index.d.ts",
       "import": "./dist/cli/index.js"
     },
-    "./runtime/claude-hooks": {
-      "types": "./dist/runtime/claude-hooks.d.ts",
-      "import": "./dist/runtime/claude-hooks.js"
+    "./runtime/claude-code": {
+      "types": "./dist/runtime/claude-code/index.d.ts",
+      "import": "./dist/runtime/claude-code/index.js"
     },
-    "./runtime/cursor-hooks": {
-      "types": "./dist/runtime/cursor-hooks.d.ts",
-      "import": "./dist/runtime/cursor-hooks.js"
+    "./runtime/cursor": {
+      "types": "./dist/runtime/cursor/index.d.ts",
+      "import": "./dist/runtime/cursor/index.js"
     },
     "./runtime/mcp": {
       "types": "./dist/runtime/mcp/index.d.ts",
@@ -67,7 +67,9 @@
     "prepare": "npm run build",
     "check:publish": "bash scripts/check-publish-safety.sh",
     "prepublishOnly": "npm run build && npm run check:publish",
-    "clean": "rm -rf dist dist-pack codegen/**/dist codegen/**/tsconfig.tsbuildinfo",
+    "clean": "rm -rf dist dist-pack codegen/**/dist codegen/**/tsconfig.tsbuildinfo ts/src/**/generated specs/generated apps/extension/dist apps/extension/openbox-*.vsix",
+    "clean:generated": "rm -rf ts/src/**/generated specs/generated",
+    "check:generated-drift": "npm run specs:compile && npm run generate:types && git diff --exit-code -- ts/src/**/generated specs/generated || (echo 'Generated files drift detected. Re-run npm run specs:all and commit the result.'; exit 1)",
     "lint": "eslint ts/src",
     "format": "prettier --write ts/src",
     "test": "vitest run",

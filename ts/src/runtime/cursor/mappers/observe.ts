@@ -1,7 +1,7 @@
 import type {
   CursorSession,
 } from '../../../core-client/index.js';
-import type { CursorHookEnvelope } from '../../cursor-hooks.js';
+import type { CursorHookEnvelope } from '../../../core-client/generated/runtime/cursor-hooks.js';
 import type { CursorHooksConfig } from '../config.js';
 import { clearSession } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';

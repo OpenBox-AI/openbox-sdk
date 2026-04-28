@@ -1,8 +1,8 @@
 [package]
-name = "openbox-rust-sdk"
+name = "openbox-sdk"
 version = "0.1.0"
 edition = "2021"
-description = "Rust client for the OpenBox backend API. Generated from openbox-sdk's OpenAPI spec at submodule specs-ref/."
+description = "Rust SDK for OpenBox AI governance. Generated from the TypeSpec source of truth shared with the TypeScript / Go / Python SDKs in the openbox-sdk monorepo."
 license = "MIT"
 
 [dependencies]
