@@ -6,10 +6,15 @@ export { parseTokenStore, serializeTokenStore } from './token-codec.js';
 
 export { resolveClientName } from './client-name.js';
 
-// Per-OS data-path resolver. Implements OsPathResolver from the spec;
-// pinned by tests/unit/os-paths.test.ts on Linux / macOS / Windows.
-export { resolveOsPath, openboxDataRoot } from './os-paths.js';
-export type { OsPathResolver, OsPathScope } from './os-paths.js';
+// Per-OS data-path resolver lives at the `openbox-sdk/env/os-paths` sub-path
+// instead of the default entry. The implementation imports Node's `os`
+// and `path` modules which React Native's Metro bundler can't resolve;
+// keeping it off the default entry means RN/browser consumers don't pull
+// Node-only code through this package. Node-only consumers (CLI) do:
+//   import { resolveOsPath } from 'openbox-sdk/env/os-paths';
+// The TYPES are safe to re-export from here - they're spec-driven, not
+// platform-coupled.
+export type { OsPathResolver, OsPathScope } from './generated/env-bindings.js';
 
 // Generated bindings (env-var lookup table, API-key validator, OS-path
 // fields, client-construction shapes) emitted from

@@ -11,6 +11,7 @@ export default defineConfig({
     'src/client.ts',
     'src/core-client.ts',
     'src/env.ts',
+    'src/os-paths.ts', // Node-only sub-path; kept off `src/env.ts` so RN bundlers don't pull `os`/`path`.
     'src/types.ts',
   ],
   format: ['esm'],

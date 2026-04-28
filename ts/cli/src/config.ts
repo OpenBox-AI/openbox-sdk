@@ -10,9 +10,11 @@ import {
   serializeTokenStore,
   resolveEnv,
   resolveUrls,
-  resolveOsPath,
   validateApiKeyFormat as generatedValidateApiKey,
 } from 'openbox-sdk/env';
+// os-paths lives at a sub-export so React Native consumers don't pull
+// Node's `os`/`path` modules through the env package's default entry.
+import { resolveOsPath } from 'openbox-sdk/env/os-paths';
 
 // Per-OS user-data path comes from `openbox-sdk/env`'s spec-driven
 // `resolveOsPath` (Linux/macOS = ~/.openbox/tokens, Windows =
