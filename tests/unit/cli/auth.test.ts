@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { registerAuthCommands } from '../../../ts/cli/src/commands/auth';
+import { registerAuthCommands } from '../../../ts/src/cli/commands/auth';
 import { createMockClient, createTestProgram } from '../../helpers/cli';
 
-vi.mock('../../../ts/cli/src/config', () => ({ getClient: vi.fn(), saveTokens: vi.fn() }));
-vi.mock('../../../ts/cli/src/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
+vi.mock('../../../ts/src/cli/config', () => ({ getClient: vi.fn(), saveTokens: vi.fn() }));
+vi.mock('../../../ts/src/cli/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
 
-import { getClient, saveTokens } from '../../../ts/cli/src/config';
-import { output } from '../../../ts/cli/src/output';
+import { getClient, saveTokens } from '../../../ts/src/cli/config';
+import { output } from '../../../ts/src/cli/output';
 
 describe('auth commands', () => {
   let mockClient: ReturnType<typeof createMockClient>;

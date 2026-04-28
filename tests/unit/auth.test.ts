@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { decodeJwtExpiry, isTokenExpired } from '../../ts/types/src/auth.js';
+import { decodeJwtExpiry, isTokenExpired } from '../../ts/src/types/auth.js';
 import { makeJwt } from '../helpers/jwt';
 
 describe('decodeJwtExpiry', () => {

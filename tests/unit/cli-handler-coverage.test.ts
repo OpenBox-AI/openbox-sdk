@@ -1,6 +1,6 @@
 // CLI handler enforcement: every subcommand declared in
 // CLI_COMMAND_MANIFEST must (a) be registered with commander in the
-// matching `ts/cli/src/commands/<group>.ts` file (covered by
+// matching `ts/src/cli/commands/<group>.ts` file (covered by
 // cli-coverage.test.ts) AND (b) the registration must include either:
 //   - a `getClient().<sdkMethod>(...)` call (i.e. it actually invokes the
 //     SDK), OR
@@ -15,7 +15,7 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { describe, expect, test } from 'vitest';
-import { CLI_COMMAND_MANIFEST } from '../../ts/cli/src/generated/cli-bindings.js';
+import { CLI_COMMAND_MANIFEST } from '../../ts/src/cli/generated/cli-bindings.js';
 
 const repoRoot = resolve(import.meta.dirname, '..', '..');
 
@@ -25,7 +25,7 @@ function commandFileFor(commandName: string): string {
     observe: 'observability.ts',
   };
   const file = overrides[commandName] ?? `${commandName}.ts`;
-  return resolve(repoRoot, 'ts/cli/src/commands', file);
+  return resolve(repoRoot, 'ts/src/cli/commands', file);
 }
 
 function kebabCase(s: string): string {

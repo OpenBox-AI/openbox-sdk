@@ -6,14 +6,14 @@
 // per-language emitters will lower to ts/env/src/generated/,
 // rust/src/env/, etc. once codegen reaches them.
 //
-// Decorators imported from @openbox/typespec-env attach metadata to
+// Decorators imported from typespec-env attach metadata to
 // each property so the emitters know which env-var to read, what
 // regex to enforce, and which fields are filesystem paths.
 
 // Note: programming-model spec, not an HTTP API - see govern/main.tsp
 // for the rationale behind not using `@service` here.
 
-import "@openbox/typespec-env";
+import "typespec-env";
 
 using OpenBox.Env;
 

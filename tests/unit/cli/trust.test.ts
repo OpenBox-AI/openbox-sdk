@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { registerTrustCommands } from '../../../ts/cli/src/commands/trust';
+import { registerTrustCommands } from '../../../ts/src/cli/commands/trust';
 import { createMockClient, createTestProgram } from '../../helpers/cli';
 
-vi.mock('../../../ts/cli/src/config', () => ({ getClient: vi.fn() }));
-vi.mock('../../../ts/cli/src/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
+vi.mock('../../../ts/src/cli/config', () => ({ getClient: vi.fn() }));
+vi.mock('../../../ts/src/cli/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
 
-import { getClient } from '../../../ts/cli/src/config';
+import { getClient } from '../../../ts/src/cli/config';
 
 describe('trust commands', () => {
   let mockClient: ReturnType<typeof createMockClient>;

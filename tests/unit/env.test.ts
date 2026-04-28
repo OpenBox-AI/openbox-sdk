@@ -6,9 +6,9 @@ import {
   parseTokenStore,
   serializeTokenStore,
   resolveClientName,
-} from '../../ts/env/src/index.js';
+} from '../../ts/src/env/index.js';
 
-describe('@openbox/env environments', () => {
+describe('openbox-sdk/env environments', () => {
   describe('ENVIRONMENTS', () => {
     it('exposes URLs for production and local with the expected shape', () => {
       for (const env of ['production', 'local'] as const) {
@@ -99,7 +99,7 @@ describe('@openbox/env environments', () => {
   });
 });
 
-describe('@openbox/env token-codec', () => {
+describe('openbox-sdk/env token-codec', () => {
   describe('parseTokenStore', () => {
     it('parses a single env entry', () => {
       const store = parseTokenStore(
@@ -182,7 +182,7 @@ describe('@openbox/env token-codec', () => {
   });
 });
 
-describe('@openbox/env resolveClientName', () => {
+describe('openbox-sdk/env resolveClientName', () => {
   const orig = process.env.OPENBOX_CLIENT_VARIANT;
   beforeEach(() => {
     delete process.env.OPENBOX_CLIENT_VARIANT;

@@ -1,6 +1,6 @@
 /**
  * Tests for the spec-driven runtime adapters
- * (ts/core-client/src/generated/runtime/{claude,cursor}-hooks.ts).
+ * (ts/src/core-client/generated/runtime/{claude,cursor}-hooks.ts).
  *
  * Verifies the verdict-shape registry: each @verdictShape value in the
  * spec produces the expected stdout JSON for each verdict arm. Since
@@ -11,17 +11,17 @@ import { describe, expect, test, vi } from 'vitest';
 import type {
   GovernanceEventPayload,
   GovernanceVerdictResponse,
-} from '../../ts/core-client/src/core-client.js';
-import type { OpenBoxCoreClient } from '../../ts/core-client/src/core-client.js';
+} from '../../ts/src/core-client/core-client.js';
+import type { OpenBoxCoreClient } from '../../ts/src/core-client/core-client.js';
 import {
   createClaudeHooksAdapter,
   type ClaudeHookEnvelope,
-} from '../../ts/core-client/src/generated/runtime/claude-hooks.js';
+} from '../../ts/src/core-client/generated/runtime/claude-hooks.js';
 import {
   createCursorHooksAdapter,
   type CursorHookEnvelope,
-} from '../../ts/core-client/src/generated/runtime/cursor-hooks.js';
-import type { WorkflowVerdict } from '../../ts/core-client/src/generated/govern.js';
+} from '../../ts/src/core-client/generated/runtime/cursor-hooks.js';
+import type { WorkflowVerdict } from '../../ts/src/core-client/generated/govern.js';
 
 function makeMockCore(
   verdictArm: 'allow' | 'block' | 'halt' | 'require_approval' = 'allow',

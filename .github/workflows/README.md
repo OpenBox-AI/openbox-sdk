@@ -27,7 +27,7 @@ report instead of failing the run. Other tiers continue independently
 This pipeline provides the TypeSpec source, decorator libraries, and a TS
 emitter that produces `ts/<package>/src/generated/`. While codegen sources are still hand-mirrored
 swaps consumers (`rust/build.rs`, `openapi-typescript`,
-`@openbox/env`) over to read **only** the generated artifacts,
+`openbox-sdk/env`) over to read **only** the generated artifacts,
 running CI against the `assert no uncommitted codegen drift` step
 would fail every contributor's PR for unrelated reasons. Better to
 keep the pipeline runnable on demand and turn it on once the

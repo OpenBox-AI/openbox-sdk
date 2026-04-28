@@ -14,8 +14,8 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { describe, expect, test } from 'vitest';
-import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/client/src/generated/endpoint-manifest.js';
-import { CORE_ENDPOINT_MANIFEST } from '../../ts/core-client/src/generated/endpoint-manifest.js';
+import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoint-manifest.js';
+import { CORE_ENDPOINT_MANIFEST } from '../../ts/src/core-client/generated/endpoint-manifest.js';
 
 interface Entry {
   operationId: string;
@@ -99,8 +99,8 @@ const cases: CoverageCase[] = [
     serviceName: 'OpenBoxClient',
     manifest: BACKEND_ENDPOINT_MANIFEST as readonly Entry[],
     source: combinedSource(
-      'ts/client/src/client.ts',
-      'ts/client/src/generated/wrapper-methods.ts',
+      'ts/src/client/client.ts',
+      'ts/src/client/generated/wrapper-methods.ts',
     ),
     allowlist: new Set<string>(),
   },
@@ -108,8 +108,8 @@ const cases: CoverageCase[] = [
     serviceName: 'OpenBoxCoreClient',
     manifest: CORE_ENDPOINT_MANIFEST as readonly Entry[],
     source: combinedSource(
-      'ts/core-client/src/core-client.ts',
-      'ts/core-client/src/generated/wrapper-methods.ts',
+      'ts/src/core-client/core-client.ts',
+      'ts/src/core-client/generated/wrapper-methods.ts',
     ),
     allowlist: new Set<string>(),
   },

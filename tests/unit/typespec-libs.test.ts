@@ -10,18 +10,18 @@ import {
   getEnvVar,
   getTokenFormat,
   isOsPath,
-} from '../../codegen/typespec-libs/env/dist/decorators.js';
+} from '../../codegen/typespec-libs/typespec-env/dist/decorators.js';
 import {
   getCommand,
   getFlag,
   getValidator,
   isOutput,
-} from '../../codegen/typespec-libs/cli/dist/decorators.js';
+} from '../../codegen/typespec-libs/typespec-cli/dist/decorators.js';
 import {
   getMapsTo,
   getPreset,
   getVerdictModel,
-} from '../../codegen/typespec-libs/workflow/dist/decorators.js';
+} from '../../codegen/typespec-libs/typespec-workflow/dist/decorators.js';
 
 import type { Program, Model, Interface, Operation, ModelProperty } from '@typespec/compiler';
 
@@ -82,7 +82,7 @@ function activityOp(iface: Interface, name: string): Operation {
   return op;
 }
 
-describe('@openbox/typespec-env', () => {
+describe('typespec-env', () => {
   test('@env_var attaches name + default', () => {
     const config = findModel('RuntimeConfig');
     expect(getEnvVar(program, prop(config, 'apiUrl'))?.name).toBe('OPENBOX_API_URL');
@@ -109,7 +109,7 @@ describe('@openbox/typespec-env', () => {
   });
 });
 
-describe('@openbox/typespec-cli', () => {
+describe('typespec-cli', () => {
   test('@cli_command attaches name + description', () => {
     const auth = findInterface('Auth');
     const c = getCommand(program, auth);
@@ -135,7 +135,7 @@ describe('@openbox/typespec-cli', () => {
   });
 });
 
-describe('@openbox/typespec-workflow', () => {
+describe('typespec-workflow', () => {
   test('@preset captures the lowercase-hyphen name', () => {
     const claudeCode = findInterface('ClaudeCodePreset');
     expect(getPreset(program, claudeCode)?.name).toBe('claude-code');

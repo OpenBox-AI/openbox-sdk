@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { registerViolationCommands } from '../../../ts/cli/src/commands/violation';
+import { registerViolationCommands } from '../../../ts/src/cli/commands/violation';
 import { createMockClient, createTestProgram } from '../../helpers/cli';
 
-vi.mock('../../../ts/cli/src/config', () => ({ getClient: vi.fn() }));
-vi.mock('../../../ts/cli/src/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
+vi.mock('../../../ts/src/cli/config', () => ({ getClient: vi.fn() }));
+vi.mock('../../../ts/src/cli/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
 
-import { getClient } from '../../../ts/cli/src/config';
+import { getClient } from '../../../ts/src/cli/config';
 
 describe('violation commands', () => {
   let mockClient: ReturnType<typeof createMockClient>;

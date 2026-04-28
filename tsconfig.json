@@ -2,14 +2,7 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "noEmit": true,
-    "paths": {
-      "@openbox/client": ["./ts/client/src/index.ts"],
-      "@openbox/core-client": ["./ts/core-client/src/index.ts"],
-      "@openbox/env": ["./ts/env/src/index.ts"],
-      "@openbox/env/os-paths": ["./ts/env/src/os-paths.ts"],
-      "@openbox/types": ["./ts/types/src/index.ts"]
-    }
+    "noEmit": true
   },
-  "include": ["src", "ts/*/src"]
+  "include": ["ts/src/**/*", "codegen/**/src/**/*", "tests/**/*"]
 }

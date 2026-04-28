@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { registerApiKeyCommands } from '../../../ts/cli/src/commands/api-key';
+import { registerApiKeyCommands } from '../../../ts/src/cli/commands/api-key';
 import { createMockClient, createTestProgram } from '../../helpers/cli';
 
-vi.mock('../../../ts/cli/src/config', () => ({ getClient: vi.fn() }));
-vi.mock('../../../ts/cli/src/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
+vi.mock('../../../ts/src/cli/config', () => ({ getClient: vi.fn() }));
+vi.mock('../../../ts/src/cli/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
 
-import { getClient } from '../../../ts/cli/src/config';
-import { output } from '../../../ts/cli/src/output';
+import { getClient } from '../../../ts/src/cli/config';
+import { output } from '../../../ts/src/cli/output';
 
 describe('api-key commands', () => {
   let mockClient: ReturnType<typeof createMockClient>;

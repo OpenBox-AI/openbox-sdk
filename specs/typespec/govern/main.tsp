@@ -24,7 +24,7 @@
 // mark this `@service` - the openapi3 emitter quietly skips non-service
 // namespaces, which is what we want.
 
-import "@openbox/typespec-workflow";
+import "typespec-workflow";
 
 using OpenBox.Workflow;
 

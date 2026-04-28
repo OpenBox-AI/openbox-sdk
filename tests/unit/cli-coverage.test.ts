@@ -1,6 +1,6 @@
 // Asserts every command/subcommand declared in CLI_COMMAND_MANIFEST has
 // a matching `.command(...)` registration in the corresponding
-// `ts/cli/src/commands/<name>.ts` file. Adding a method to an interface
+// `ts/src/cli/commands/<name>.ts` file. Adding a method to an interface
 // in `specs/typespec/cli/main.tsp` without wiring up the commander
 // handler now fails CI on the next `npm run specs:compile` cycle.
 //
@@ -9,7 +9,7 @@
 // to spec.
 //
 // File-name resolution: the spec's command name (`auth`, `api-key`,
-// `agent-audit`) maps to `ts/cli/src/commands/<command>.ts`. The
+// `agent-audit`) maps to `ts/src/cli/commands/<command>.ts`. The
 // `auth-extras` virtual group exists only to spec the auth subcommands
 // that share `commands/auth.ts` with the load-bearing `Auth` interface;
 // it points at the same source file.
@@ -21,19 +21,19 @@
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { describe, expect, test } from 'vitest';
-import { CLI_COMMAND_MANIFEST } from '../../ts/cli/src/generated/cli-bindings.js';
+import { CLI_COMMAND_MANIFEST } from '../../ts/src/cli/generated/cli-bindings.js';
 
 const repoRoot = resolve(import.meta.dirname, '..', '..');
 
 function commandFileFor(commandName: string): string {
   // Mapping from manifest command name to the source file under
-  // `ts/cli/src/commands/`. Most match by name; these don't.
+  // `ts/src/cli/commands/`. Most match by name; these don't.
   const overrides: Record<string, string> = {
     'auth-extras': 'auth.ts',
     observe: 'observability.ts',
   };
   const file = overrides[commandName] ?? `${commandName}.ts`;
-  return resolve(repoRoot, 'ts/cli/src/commands', file);
+  return resolve(repoRoot, 'ts/src/cli/commands', file);
 }
 
 function kebabCase(s: string): string {
