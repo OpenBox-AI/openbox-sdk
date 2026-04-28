@@ -1,5 +1,5 @@
 import type { ClaudeCodeSession } from '../../../core-client/index.js';
-import type { ClaudeHookEnvelope } from '../../claude-hooks.js';
+import type { ClaudeHookEnvelope } from '../../../core-client/generated/runtime/claude-hooks.js';
 import type { ClaudeHooksConfig } from '../config.js';
 import { EVENT } from '../activity-types.js';
 

@@ -2,7 +2,7 @@
 // Code's hooks.json config. Reads stdin, dispatches via the spec-driven
 // claude-hooks adapter, returns appropriate stdout per hook event,
 // exits 0 (fail-open).
-import { createClaudeHooksAdapter } from '../claude-hooks.js';
+import { createClaudeHooksAdapter } from '../../core-client/generated/runtime/claude-hooks.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { loadConfig } from './config.js';
 import { initLogger } from './logger.js';
@@ -44,15 +44,15 @@ export async function runClaudeHook(): Promise<void> {
     core,
     resolveSession: (env) => resolveSession(env, cfg),
     handlers: {
-      preToolUse:        (env, s) => dryRun ? undefined : handlePreToolUse(env, s, cfg),
-      postToolUse:       (env, s) => dryRun ? undefined : handlePostToolUse(env, s, cfg),
-      userPromptSubmit:  (env, s) => dryRun ? undefined : handleUserPromptSubmit(env, s, cfg),
-      permissionRequest: (env, s) => dryRun ? undefined : handlePermissionRequest(env, s, cfg),
-      sessionStart:      (env, s) => dryRun ? undefined : handleSessionStart(env, s, cfg),
-      sessionEnd:        (env, s) => dryRun ? undefined : handleSessionEnd(env, s, cfg),
-      stop:              (env, s) => dryRun ? undefined : handleStop(env, s, cfg),
-      subagentStart:     (env, s) => dryRun ? undefined : handleSubagentStart(env, s, cfg),
-      subagentStop:      (env, s) => dryRun ? undefined : handleSubagentStop(env, s, cfg),
+      preToolUse: async (env, s) => dryRun ? undefined : handlePreToolUse(env, s, cfg),
+      postToolUse: async (env, s) => dryRun ? undefined : handlePostToolUse(env, s, cfg),
+      userPromptSubmit: async (env, s) => dryRun ? undefined : handleUserPromptSubmit(env, s, cfg),
+      permissionRequest: async (env, s) => dryRun ? undefined : handlePermissionRequest(env, s, cfg),
+      sessionStart: async (env, s) => dryRun ? undefined : handleSessionStart(env, s, cfg),
+      sessionEnd: async (env, s) => dryRun ? undefined : handleSessionEnd(env, s, cfg),
+      stop: async (env, s) => dryRun ? undefined : handleStop(env, s, cfg),
+      subagentStart: async (env, s) => dryRun ? undefined : handleSubagentStart(env, s, cfg),
+      subagentStop: async (env, s) => dryRun ? undefined : handleSubagentStop(env, s, cfg),
     },
   }).run();
 }

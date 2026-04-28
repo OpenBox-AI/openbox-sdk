@@ -8,7 +8,7 @@
 // Consumers (e.g. openbox-approver) pin this whole monorepo by git tag:
 //
 //     [dependencies]
-//     openbox-rust-sdk = { git = "https://github.com/OpenBox-AI/openbox-sdk", tag = "v0.1.0-alpha.1" }
+//     openbox-sdk = { git = "https://github.com/OpenBox-AI/openbox-sdk", tag = "v0.1.0-alpha.1" }
 //
 // Cargo finds the workspace root, then this `rust/` member by package
 // name. The git tag pins both the spec snapshot and the codegen

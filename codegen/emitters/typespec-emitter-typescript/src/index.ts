@@ -711,7 +711,7 @@ function emitCliPackage(program: Program, project: Project, repoRoot: string): v
   if (commands.length === 0) return;
 
   const out = project.createSourceFile(
-    resolvePath(repoRoot, 'ts', 'cli', 'src', 'generated', 'cli-bindings.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'cli', 'generated', 'cli-bindings.ts'),
     '',
     { overwrite: true },
   );

@@ -22,6 +22,6 @@ runtime-behavior side gets compared against the `expected` block
 embedded in each fixture.
 
 - TS: `vitest` test under `ts/<package>/tests/conformance/`
-- Rust: `cargo test --package openbox-rust-sdk --test conformance`
+- Rust: `cargo test --package openbox-sdk --test conformance`
 - Python: `pytest tests/conformance/` 
 - Go: `go test ./conformance/...` 

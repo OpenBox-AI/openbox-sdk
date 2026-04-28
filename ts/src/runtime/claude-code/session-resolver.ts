@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { SessionStore } from './session-store.js';
 import type { ClaudeHooksConfig } from './config.js';
-import type { ClaudeHookEnvelope } from '../claude-hooks.js';
+import type { ClaudeHookEnvelope } from '../../core-client/generated/runtime/claude-hooks.js';
 
 interface PersistedSession {
   workflowId: string;

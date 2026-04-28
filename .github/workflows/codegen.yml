@@ -1,26 +1,22 @@
 # Spec-driven codegen pipeline check.
 #
-# DISABLED on push/PR before the codegen pipeline takes over (consumer migration) lands. Until
-# then the SDK still ships hand-written code as the source of truth
-# in ts/<package>/src/, and a stale generated/ folder shouldn't fail
-# CI for everyone. Re-enable by replacing `workflow_dispatch` with the
-# usual push/pull_request triggers below.
-#
-# Run on demand: GitHub Actions tab → Codegen Pipeline → Run workflow.
+# The codegen pipeline
+# the SDK treats TypeSpec specs + emitted code as the source of truth.
+# Drift between specs and committed generated/ files = build break.
 
 name: Codegen Pipeline
 
 on:
   workflow_dispatch:
-  # push:
-  #   branches: [main]
-  # pull_request:
-  #   branches: [main]
-  #   paths:
-  #     - "specs/**"
-  #     - "codegen/**"
-  #     - "ts/**"
-  #     - ".github/workflows/codegen.yml"
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - "specs/**"
+      - "codegen/**"
+      - "ts/**"
+      - ".github/workflows/codegen.yml"
 
 jobs:
   compile-and-snapshot:
