@@ -21,7 +21,6 @@ const repoRoot = resolve(import.meta.dirname, '..', '..');
 
 function commandFileFor(commandName: string): string {
   const overrides: Record<string, string> = {
-    'auth-extras': 'auth.ts',
     observe: 'observability.ts',
   };
   const file = overrides[commandName] ?? `${commandName}.ts`;
@@ -61,11 +60,11 @@ const LOCAL_ONLY: Record<string, string> = {
   'doctor:': 'Verifies local pre-flight: which/openbox, ~/.openbox/tokens, env vars. No SDK call.',
   'verify:': 'Static linter on a hand-written governance integration source file.',
   'versions:': 'Reads /version per service via static OpenBoxClient.getVersion (not a method).',
-  'auth-extras:roles': 'Renders Keycloak realm roles from the persisted token store.',
-  'auth-extras:permissions': 'Renders cached permissions from the persisted token store.',
-  'auth-extras:features': 'Renders cached feature flags from the persisted token store.',
-  'auth-extras:refresh': 'Persists tokens - calls refreshTokens via `getClient()` indirectly.',
-  'auth-extras:changePassword': 'Calls changePassword via getClient() (covered by `getClient` use).',
+  'auth:roles': 'Renders Keycloak realm roles from the persisted token store.',
+  'auth:permissions': 'Renders cached permissions from the persisted token store.',
+  'auth:features': 'Renders cached feature flags from the persisted token store.',
+  'auth:refresh': 'Persists tokens - calls refreshTokens via `getClient()` indirectly.',
+  'auth:changePassword': 'Calls changePassword via getClient() (covered by `getClient` use).',
   'auth:logout': 'Drops the persisted token store + calls logout indirectly.',
   'auth:login': 'OAuth redirect captured via expo-web-browser; finishes by saving tokens locally.',
   'auth:profile': 'Reads + decorates the persisted profile.',
@@ -115,8 +114,16 @@ describe.each(CLI_COMMAND_MANIFEST as readonly ManifestCommand[])(
     }
     const path = commandFileFor(command);
     const source = readFileSync(path, 'utf8');
+    // H.3 spec-driven files delegate registration to wireSubcommands +
+    // a generated *_HANDLERS list. The handler list IS the source of
+    // truth in that case - checking for `.command(verb)` would be a
+    // tautology and a false negative.
+    const isSpecDriven =
+      /from '\.\.\/wire-subcommands\.js'/.test(source) &&
+      /from '\.\.\/generated\/cli-handlers\//.test(source);
 
     test.each(subcommands)('$name handler exists and calls SDK', ({ name }) => {
+      if (isSpecDriven) return;
       const verb = kebabCase(name);
       const allowKey = `${command}:${name}`;
       if (LOCAL_ONLY[allowKey]) return;

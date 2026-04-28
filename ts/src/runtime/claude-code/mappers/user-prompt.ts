@@ -3,18 +3,16 @@ import type {
   WorkflowVerdict,
 } from '../../../core-client/index.js';
 import type { ClaudeCodeEnvelope } from '../../../core-client/generated/runtime/claude-code.js';
+import { buildUserPromptSubmitPayload } from '../../../core-client/generated/runtime/claude-code.js';
 import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
 /**
  * UserPromptSubmit: user typed something into Claude Code. We govern the
- * prompt as PromptSubmission (input guardrails - PII, toxicity, ban
- * words) AND fire a SignalReceived(goal) so the goal-alignment service
- * captures the user's intent for drift detection later in the session.
- *
- * Verdict shape on output: `decision-block` (block/halt → {decision:"block",
- * reason}, allow → {}). The adapter handles the translation.
+ * prompt (input guardrails - PII, toxicity, ban words) AND fire a
+ * SignalReceived(goal) so the goal-alignment service captures the user's
+ * intent for drift detection later in the session.
  */
 export async function handleUserPromptSubmit(
   env: ClaudeCodeEnvelope,
@@ -29,14 +27,8 @@ export async function handleUserPromptSubmit(
     input: [{ goal: prompt, event_category: 'agent_goal' }],
   }).catch(() => undefined);
 
-  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, {
-    input: [{
-      text: prompt,
-      prompt,
-      model: env.model,
-      event_category: 'llm_prompt',
-    }],
-  });
+  const payload = buildUserPromptSubmitPayload(env);
+  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, { input: [payload] });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;
 }

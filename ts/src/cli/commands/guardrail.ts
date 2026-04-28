@@ -1,6 +1,10 @@
+// `openbox guardrail` - list / get / delete / metrics / violations are
+// spec-driven (H.3). create / update / reorder / test keep custom
+// shells: rich validation pipelines + body assembly that don't fit
+// the canonical body shape yet.
 import { Command } from 'commander';
 import { getClient } from '../config.js';
-import { output, outputList } from '../output.js';
+import { output } from '../output.js';
 import { parseJsonInput } from '../input.js';
 import {
   reportAndExit,
@@ -9,30 +13,13 @@ import {
   validateGuardrailParams,
   validateActivitiesConfig,
   validateEnum,
-  parsePagination,
-  validateIsoDate,
 } from '../validators/index.js';
+import { wireSubcommands } from '../wire-subcommands.js';
+import { GUARDRAIL_HANDLERS } from '../generated/cli-handlers/guardrail.js';
 
 export function registerGuardrailCommands(program: Command) {
   const guardrail = program.command('guardrail').description('Guardrail management');
-
-  guardrail
-    .command('list <agentId>')
-    .description('List guardrails for an agent')
-    .option('-p, --page <n>', 'Page number', '0')
-    .option('-l, --limit <n>', 'Items per page', '10')
-    .option('--stage <stage>', 'Filter by processing stage')
-    .action(async (agentId: string, opts) => {
-      try {
-        const data = await getClient().listGuardrails(agentId, {
-          ...parsePagination(opts),
-          processing_stage: opts.stage,
-        });
-        outputList(data, 'guardrails');
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
+  wireSubcommands(guardrail, GUARDRAIL_HANDLERS, getClient as never);
 
   guardrail
     .command('create <agentId>')
@@ -46,30 +33,21 @@ export function registerGuardrailCommands(program: Command) {
     .option('--json <json>', 'Full JSON body. Merged with flags (flags fill missing fields).')
     .action(async (agentId: string, opts) => {
       try {
-        // Start with --json body if provided, then fill from flags
-        let dto: any = opts.json ? parseJsonInput(opts.json) : {};
-
-        // Flags fill missing fields (don't override what --json provides)
+        const dto: any = opts.json ? parseJsonInput(opts.json) : {};
         if (opts.name && !dto.name) dto.name = opts.name;
         if (opts.type && !dto.guardrail_type) dto.guardrail_type = opts.type;
         if (opts.stage != null && !dto.processing_stage) dto.processing_stage = opts.stage;
         if (opts.desc && !dto.description) dto.description = opts.desc;
         if (opts.trustImpact && !dto.trust_impact) dto.trust_impact = opts.trustImpact;
         if (opts.trustThreshold && !dto.trust_threshold) dto.trust_threshold = parseInt(opts.trustThreshold);
-
-        // Required fields
         if (!dto.name) { console.error('Error: --name or name in --json is required'); process.exit(2); }
         if (!dto.guardrail_type) { console.error('Error: --type or guardrail_type in --json is required'); process.exit(2); }
         if (opts.trustImpact) validateEnum(opts.trustImpact, ['none', 'low', 'medium', 'high'] as const, '--trust-impact');
 
-        // Full validation pipeline - each step exits 2 with an actionable message if it fails.
         dto.guardrail_type = validateGuardrailType(dto.guardrail_type);
         const stage = validateStage(dto.processing_stage ?? '0');
         dto.processing_stage = stage;
         validateGuardrailParams(dto.guardrail_type, dto.params);
-
-        // Settings: if user provided activities, validate the full shape + prefix match.
-        // If not, default to a stage-appropriate baseline covering the common canonical types.
         if (dto.settings?.activities) {
           validateActivitiesConfig(dto.settings.activities, stage);
         } else {
@@ -87,22 +65,9 @@ export function registerGuardrailCommands(program: Command) {
             ...(dto.settings || {}),
           };
         }
-
         const data = await getClient().createGuardrail(agentId, dto);
         output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  guardrail
-    .command('get <agentId> <guardrailId>')
-    .description('Get guardrail details')
-    .action(async (agentId: string, guardrailId: string) => {
-      try {
-        const data = await getClient().getGuardrail(agentId, guardrailId);
-        output(data);
-      } catch (err: any) {
+      } catch (err) {
         reportAndExit(err);
       }
     });
@@ -120,7 +85,7 @@ export function registerGuardrailCommands(program: Command) {
     .option('--json <json>', 'Full JSON body (merged with flags)')
     .action(async (agentId: string, guardrailId: string, opts) => {
       try {
-        let dto: any = opts.json ? parseJsonInput(opts.json) : {};
+        const dto: any = opts.json ? parseJsonInput(opts.json) : {};
         if (opts.name && !dto.name) dto.name = opts.name;
         if (opts.active !== undefined && dto.is_active === undefined) dto.is_active = opts.active === 'true';
         if (opts.type && !dto.guardrail_type) dto.guardrail_type = opts.type;
@@ -128,26 +93,13 @@ export function registerGuardrailCommands(program: Command) {
         if (opts.desc && !dto.description) dto.description = opts.desc;
         if (opts.trustImpact && !dto.trust_impact) dto.trust_impact = opts.trustImpact;
         if (opts.trustThreshold && !dto.trust_threshold) dto.trust_threshold = parseInt(opts.trustThreshold);
-        // Validate processing_stage
         if (dto.processing_stage && dto.processing_stage !== '0' && dto.processing_stage !== '1') {
           console.error(`Error: --stage must be 0 (input) or 1 (output). Got: "${dto.processing_stage}"`);
           process.exit(1);
         }
         const data = await getClient().updateGuardrail(agentId, guardrailId, dto);
         output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  guardrail
-    .command('delete <agentId> <guardrailId>')
-    .description('Delete a guardrail')
-    .action(async (agentId: string, guardrailId: string) => {
-      try {
-        const data = await getClient().deleteGuardrail(agentId, guardrailId);
-        output(data);
-      } catch (err: any) {
+      } catch (err) {
         reportAndExit(err);
       }
     });
@@ -157,54 +109,9 @@ export function registerGuardrailCommands(program: Command) {
     .description('Reorder a guardrail')
     .action(async (agentId: string, guardrailId: string, order: string) => {
       try {
-        const data = await getClient().reorderGuardrail(agentId, guardrailId, {
-          order: parseInt(order),
-        });
+        const data = await getClient().reorderGuardrail(agentId, guardrailId, { order: parseInt(order) });
         output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  guardrail
-    .command('metrics <agentId>')
-    .description('Get guardrail metrics')
-    .option('--from <date>', 'Start date (ISO)')
-    .option('--to <date>', 'End date (ISO)')
-    .action(async (agentId: string, opts) => {
-      try {
-        if (opts.from) validateIsoDate(opts.from, '--from');
-        if (opts.to) validateIsoDate(opts.to, '--to');
-        const data = await getClient().getGuardrailMetrics(agentId, {
-          fromTime: opts.from,
-          toTime: opts.to,
-        });
-        output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  guardrail
-    .command('violations <agentId>')
-    .description('Get guardrail violation logs')
-    .option('-p, --page <n>', 'Page number', '0')
-    .option('-l, --limit <n>', 'Items per page', '10')
-    .option('--from <date>', 'Start date (ISO)')
-    .option('--to <date>', 'End date (ISO)')
-    .option('--type <type>', 'Guardrail type filter')
-    .action(async (agentId: string, opts) => {
-      try {
-        if (opts.from) validateIsoDate(opts.from, '--from');
-        if (opts.to) validateIsoDate(opts.to, '--to');
-        const data = await getClient().getGuardrailViolationLogs(agentId, {
-          ...parsePagination(opts),
-          fromTime: opts.from,
-          toTime: opts.to,
-          guardrail_type: opts.type,
-        });
-        outputList(data, 'violations');
-      } catch (err: any) {
+      } catch (err) {
         reportAndExit(err);
       }
     });
@@ -248,7 +155,7 @@ export function registerGuardrailCommands(program: Command) {
         }
         const data = await getClient().runGuardrailTest(dto);
         output(data);
-      } catch (err: any) {
+      } catch (err) {
         reportAndExit(err);
       }
     });

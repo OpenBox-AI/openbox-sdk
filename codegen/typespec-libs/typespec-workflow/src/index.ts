@@ -9,6 +9,10 @@ import {
   $hookEvent,
   $verdictShape,
   $activityRouting,
+  $payloadShape,
+  $noPayload,
+  $installTarget,
+  $installTimeout,
 } from './decorators.js';
 
 export { $lib } from './lib.js';
@@ -22,5 +26,9 @@ export const $decorators = {
     hookEvent: $hookEvent,
     verdictShape: $verdictShape,
     activityRouting: $activityRouting,
+    payloadShape: $payloadShape,
+    noPayload: $noPayload,
+    installTarget: $installTarget,
+    installTimeout: $installTimeout,
   },
 };

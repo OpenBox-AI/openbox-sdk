@@ -3,11 +3,14 @@ import type {
   WorkflowVerdict,
 } from '../../../core-client/index.js';
 import type { ClaudeCodeEnvelope } from '../../../core-client/generated/runtime/claude-code.js';
-// Spec-driven tool→activity_type table, declared via @activityRouting.
-import { POST_TOOL_USE_ROUTING } from '../../../core-client/generated/runtime/claude-code.js';
+import {
+  POST_TOOL_USE_ROUTING,
+  buildPostToolUsePayload,
+} from '../../../core-client/generated/runtime/claude-code.js';
 import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
+import { sideEffects } from '../side-effects.js';
 
 function activityTypeFor(toolName: string): string | null {
   const direct = POST_TOOL_USE_ROUTING[toolName];
@@ -17,11 +20,9 @@ function activityTypeFor(toolName: string): string | null {
 }
 
 /**
- * PostToolUse fires after the tool returned. Single ActivityCompleted
- * closes the activity opened by PreToolUse and runs output governance
- * (PII detection on the tool's response, etc). Verdict shape:
- * decision-block - adapter writes `{decision:'block', reason}` only on
- * block/halt; otherwise empty stdout = "no opinion, continue".
+ * PostToolUse fires after the tool returned. Closes the activity opened
+ * by PreToolUse and runs output governance. Verdict shape is
+ * decision-block - empty stdout = "no opinion, continue".
  */
 export async function handlePostToolUse(
   env: ClaudeCodeEnvelope,
@@ -32,19 +33,8 @@ export async function handlePostToolUse(
   const activityType = activityTypeFor(toolName);
   if (!activityType) return undefined;
 
-  const toolOutput = env.tool_output;
-  const outputStr = typeof toolOutput === 'string'
-    ? toolOutput
-    : JSON.stringify(toolOutput ?? {});
-  const truncated = outputStr.length > 5000 ? outputStr.slice(0, 5000) : outputStr;
-
-  const verdict = await session.activity(EVENT.COMPLETE, activityType, {
-    input: [{
-      tool_name: toolName,
-      output: truncated,
-      event_category: 'agent_observation',
-    }],
-  });
+  const payload = buildPostToolUsePayload(env, sideEffects);
+  const verdict = await session.activity(EVENT.COMPLETE, activityType, { input: [payload] });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;
 }

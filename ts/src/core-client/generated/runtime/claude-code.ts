@@ -39,6 +39,282 @@ export const PERMISSION_REQUEST_ROUTING: Record<string, string> = {
   "Agent": "AgentSpawn"
 };
 
+export interface InstallSpec {
+  file: string;
+  key: string;
+  style: 'claude-array' | 'cursor-keyed';
+  command: string;
+  configDir: string;
+  events: Array<{ name: string; timeout?: number }>;
+}
+
+/** Where this adapter's install command writes its hook block. The
+ *  shared installer in runtime/_shared/install.ts reads this spec. */
+export const INSTALL_SPEC: InstallSpec = {
+  "file": "~/.claude/settings.json",
+  "key": "hooks",
+  "style": "claude-array",
+  "command": "openbox claude-code hook",
+  "configDir": "~/.claude-hooks",
+  "events": [
+    {
+      "name": "PreToolUse",
+      "timeout": 86400
+    },
+    {
+      "name": "PostToolUse"
+    },
+    {
+      "name": "UserPromptSubmit",
+      "timeout": 86400
+    },
+    {
+      "name": "PermissionRequest",
+      "timeout": 86400
+    },
+    {
+      "name": "PreCompact"
+    },
+    {
+      "name": "SessionStart"
+    },
+    {
+      "name": "SessionEnd"
+    },
+    {
+      "name": "SubagentStart"
+    },
+    {
+      "name": "SubagentStop"
+    },
+    {
+      "name": "Stop"
+    },
+    {
+      "name": "Notification"
+    }
+  ]
+};
+
+export interface ClaudeCodeSideEffects {
+  /** Supplied by the runtime layer; receives the resolved `from` path value. */
+  readFile?: (input: unknown) => unknown;
+  /** Supplied by the runtime layer; receives the resolved `from` path value. */
+  stringifyTruncate?: (input: unknown) => unknown;
+}
+
+function getPath(env: unknown, path: string): unknown {
+  if (env == null || typeof env !== 'object') return undefined;
+  let cur: unknown = env;
+  for (const seg of path.split('.')) {
+    if (cur == null || typeof cur !== 'object') return undefined;
+    cur = (cur as Record<string, unknown>)[seg];
+  }
+  return cur;
+}
+
+export function buildPreToolUsePayload(env: ClaudeCodeEnvelope, toolName: string, sideEffects: ClaudeCodeSideEffects = {}): Record<string, unknown> {
+  
+  switch (toolName) {
+    case "Read":
+      return {
+      "text": (sideEffects.readFile?.(getPath(env, "tool_input.file_path")) ?? ''),
+      "file_path": (getPath(env, "tool_input.file_path") ?? getPath(env, "tool_input.filePath")),
+      "content": (sideEffects.readFile?.(getPath(env, "tool_input.file_path")) ?? ''),
+      "event_category": "file_read",
+    };
+    case "Delete":
+      return {
+      "text": (getPath(env, "tool_input.path") ?? getPath(env, "tool_input.file_path")),
+      "file_path": (getPath(env, "tool_input.path") ?? getPath(env, "tool_input.file_path")),
+      "event_category": "file_delete",
+    };
+    case "Write":
+      return {
+      "text": (getPath(env, "tool_input.content") ?? getPath(env, "tool_input.new_string")),
+      "file_path": (getPath(env, "tool_input.file_path") ?? getPath(env, "tool_input.filePath")),
+      "content": (getPath(env, "tool_input.content") ?? getPath(env, "tool_input.new_string")),
+      "event_category": "file_write",
+    };
+    case "Edit":
+      return {
+      "text": (getPath(env, "tool_input.content") ?? getPath(env, "tool_input.new_string")),
+      "file_path": (getPath(env, "tool_input.file_path") ?? getPath(env, "tool_input.filePath")),
+      "content": (getPath(env, "tool_input.content") ?? getPath(env, "tool_input.new_string")),
+      "event_category": "file_write",
+    };
+    case "Bash":
+      return {
+      "text": getPath(env, "tool_input.command"),
+      "command": getPath(env, "tool_input.command"),
+      "cwd": (getPath(env, "tool_input.cwd") ?? getPath(env, "cwd")),
+      "event_category": "agent_action",
+    };
+    case "WebFetch":
+      return {
+      "url": (getPath(env, "tool_input.url") ?? getPath(env, "tool_input.query")),
+      "http_method": "GET",
+      "event_category": "http_request",
+    };
+    case "WebSearch":
+      return {
+      "url": (getPath(env, "tool_input.url") ?? getPath(env, "tool_input.query")),
+      "http_method": "GET",
+      "event_category": "http_request",
+    };
+    case "Agent":
+      return {
+      "agent_type": (getPath(env, "tool_input.subagent_type") ?? getPath(env, "tool_input.description")),
+      "prompt": getPath(env, "tool_input.prompt"),
+      "event_category": "agent_action",
+    };
+    default:
+      return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "event_category": "mcp_tool_call",
+    };
+  }
+}
+
+export function buildPostToolUsePayload(env: ClaudeCodeEnvelope, sideEffects: ClaudeCodeSideEffects = {}): Record<string, unknown> {
+  
+  return {
+      "tool_name": getPath(env, "tool_name"),
+      "output": (sideEffects.stringifyTruncate?.(getPath(env, "tool_output")) ?? ''),
+      "event_category": "agent_observation",
+    };
+}
+
+export function buildUserPromptSubmitPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "text": getPath(env, "prompt"),
+      "prompt": getPath(env, "prompt"),
+      "model": getPath(env, "model"),
+      "event_category": "llm_prompt",
+    };
+}
+
+export function buildPermissionRequestPayload(env: ClaudeCodeEnvelope, toolName: string): Record<string, unknown> {
+  /* no side effects */
+  switch (toolName) {
+    case "Read":
+      return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "file_path": (getPath(env, "tool_input.file_path") ?? getPath(env, "tool_input.filePath")),
+      "event_category": "file_read",
+    };
+    case "Delete":
+      return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "file_path": (getPath(env, "tool_input.path") ?? getPath(env, "tool_input.file_path")),
+      "event_category": "file_delete",
+    };
+    case "Write":
+      return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "text": (getPath(env, "tool_input.content") ?? getPath(env, "tool_input.new_string")),
+      "file_path": (getPath(env, "tool_input.file_path") ?? getPath(env, "tool_input.filePath")),
+      "content": (getPath(env, "tool_input.content") ?? getPath(env, "tool_input.new_string")),
+      "event_category": "file_write",
+    };
+    case "Edit":
+      return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "text": (getPath(env, "tool_input.content") ?? getPath(env, "tool_input.new_string")),
+      "file_path": (getPath(env, "tool_input.file_path") ?? getPath(env, "tool_input.filePath")),
+      "content": (getPath(env, "tool_input.content") ?? getPath(env, "tool_input.new_string")),
+      "event_category": "file_write",
+    };
+    case "Bash":
+      return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "text": getPath(env, "tool_input.command"),
+      "command": getPath(env, "tool_input.command"),
+      "cwd": (getPath(env, "tool_input.cwd") ?? getPath(env, "cwd")),
+      "event_category": "agent_action",
+    };
+    case "WebFetch":
+      return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "url": (getPath(env, "tool_input.url") ?? getPath(env, "tool_input.query")),
+      "http_method": "GET",
+      "event_category": "http_request",
+    };
+    case "WebSearch":
+      return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "url": (getPath(env, "tool_input.url") ?? getPath(env, "tool_input.query")),
+      "http_method": "GET",
+      "event_category": "http_request",
+    };
+    case "Agent":
+      return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "event_category": "agent_action",
+    };
+    default:
+      return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "event_category": "mcp_tool_call",
+    };
+  }
+}
+
+export function buildSessionStartPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "status": "started",
+      "cwd": getPath(env, "cwd"),
+      "event_category": "workflow_start",
+    };
+}
+
+export function buildSessionEndPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "status": "completed",
+      "event_category": "workflow_complete",
+    };
+}
+
+export function buildSubagentStartPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "agent_id": getPath(env, "agent_id"),
+      "agent_type": getPath(env, "agent_type"),
+      "event_category": "agent_action",
+    };
+}
+
+export function buildSubagentStopPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "agent_id": getPath(env, "agent_id"),
+      "agent_type": getPath(env, "agent_type"),
+      "status": "completed",
+      "event_category": "agent_observation",
+    };
+}
+
+export function buildStopPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "cwd": getPath(env, "cwd"),
+      "event_category": "workflow_stop_request",
+    };
+}
+
 /**
  * Per-event handlers. Each handler receives the parsed stdin envelope
  * + an attached ClaudeCodeSession (workflowId/runId resolved by

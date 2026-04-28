@@ -1,21 +1,24 @@
-import type {
-  CursorSession,
-} from '../../../core-client/index.js';
+import type { CursorSession } from '../../../core-client/index.js';
 import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
+import {
+  buildAfterAgentResponsePayload,
+  buildAfterAgentThoughtPayload,
+  buildAfterShellExecutionPayload,
+  buildAfterFileEditPayload,
+  buildSessionStartPayload,
+  buildStopPayload,
+} from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { clearSession } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
 /**
  * Cursor's `after*` events are observe-only - they fire telemetry into
- * OpenBox without gating Cursor's behavior. The runtime adapter's
- * `cursor-observe` verdict shape returns `{}` for them; these handlers
- * just emit the underlying activity (best-effort, swallow errors).
+ * OpenBox without gating Cursor's behavior. The `cursor-observe` verdict
+ * shape returns `{}`; these handlers just emit the underlying activity.
  */
 
-async function fireSafe(
-  fn: () => Promise<unknown>,
-): Promise<undefined> {
+async function fireSafe(fn: () => Promise<unknown>): Promise<undefined> {
   try {
     await fn();
   } catch {
@@ -29,14 +32,9 @@ export function handleAfterAgentResponse(
   session: CursorSession,
   _cfg: CursorConfig,
 ): Promise<undefined> {
-  const responseText = env.response ?? '';
   return fireSafe(() =>
     session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.COMPLETION, {
-      input: [{
-        response: responseText,
-        generation_id: env.generation_id,
-        event_category: 'llm_completion',
-      }],
+      input: [buildAfterAgentResponsePayload(env)],
     }),
   );
 }
@@ -46,14 +44,9 @@ export function handleAfterAgentThought(
   session: CursorSession,
   _cfg: CursorConfig,
 ): Promise<undefined> {
-  const thought = env.thought ?? '';
   return fireSafe(() =>
     session.activity(EVENT.SIGNAL, ACTIVITY_TYPES.AGENT_DECISION, {
-      input: [{
-        thought,
-        generation_id: env.generation_id,
-        event_category: 'agent_decision',
-      }],
+      input: [buildAfterAgentThoughtPayload(env)],
     }),
   );
 }
@@ -65,11 +58,7 @@ export function handleAfterShellExecution(
 ): Promise<undefined> {
   return fireSafe(() =>
     session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.AGENT_OBSERVATION, {
-      input: [{
-        command: env.command,
-        generation_id: env.generation_id,
-        event_category: 'agent_observation',
-      }],
+      input: [buildAfterShellExecutionPayload(env)],
     }),
   );
 }
@@ -81,11 +70,7 @@ export function handleAfterFileEdit(
 ): Promise<undefined> {
   return fireSafe(() =>
     session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.FILE_WRITE, {
-      input: [{
-        file_path: env.file_path,
-        generation_id: env.generation_id,
-        event_category: 'file_write',
-      }],
+      input: [buildAfterFileEditPayload(env)],
     }),
   );
 }
@@ -98,7 +83,7 @@ export async function handleSessionStart(
   try {
     await session.workflowStarted();
     await session.activity(EVENT.START, ACTIVITY_TYPES.WORKFLOW_START, {
-      input: [{ status: 'started', event_category: 'workflow_start' }],
+      input: [buildSessionStartPayload(env)],
     });
   } catch {
     /* best-effort */
@@ -107,7 +92,7 @@ export async function handleSessionStart(
 }
 
 /**
- * `stop` fires when Cursor is about to wind down. We close the workflow
+ * `stop` fires when Cursor is about to wind down. Close the workflow
  * envelope, then clear the session-store entry. Observe-only - no
  * decision returned (verdictShape: "none").
  */
@@ -118,7 +103,7 @@ export async function handleStop(
 ): Promise<undefined> {
   try {
     await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.WORKFLOW_COMPLETE, {
-      input: [{ status: 'completed', event_category: 'workflow_complete' }],
+      input: [buildStopPayload(env)],
     });
     await session.workflowCompleted();
   } catch {

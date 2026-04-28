@@ -3,6 +3,11 @@ import type {
   WorkflowVerdict,
 } from '../../../core-client/index.js';
 import type { ClaudeCodeEnvelope } from '../../../core-client/generated/runtime/claude-code.js';
+import {
+  buildSessionStartPayload,
+  buildSessionEndPayload,
+  buildStopPayload,
+} from '../../../core-client/generated/runtime/claude-code.js';
 import type { ClaudeCodeConfig } from '../config.js';
 import { clearSession, markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
@@ -21,7 +26,7 @@ export async function handleSessionStart(
 ): Promise<undefined> {
   await session.workflowStarted();
   await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
-    input: [{ status: 'started', cwd: env.cwd, event_category: 'workflow_start' }],
+    input: [buildSessionStartPayload(env)],
   });
   return undefined; // verdictShape is "none" - no stdout
 }
@@ -39,7 +44,7 @@ export async function handleStop(
   let verdict: WorkflowVerdict;
   try {
     verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
-      input: [{ event_category: 'workflow_stop_request', cwd: env.cwd }],
+      input: [buildStopPayload(env)],
     });
   } catch {
     return undefined; // Stop must never block Claude on errors
@@ -59,7 +64,7 @@ export async function handleSessionEnd(
 ): Promise<undefined> {
   try {
     await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
-      input: [{ status: 'completed', event_category: 'workflow_complete' }],
+      input: [buildSessionEndPayload(env)],
     });
   } catch {
     // best-effort

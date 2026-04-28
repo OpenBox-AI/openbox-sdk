@@ -1,7 +1,10 @@
+// `openbox policy` - list / current / get / evaluations / metrics are
+// spec-driven (H.3). create / update / evaluate keep custom shells:
+// rego validation + immutability checks + DTO assembly.
 import { readFileSync } from 'fs';
 import { Command } from 'commander';
 import { getClient } from '../config.js';
-import { output, outputList } from '../output.js';
+import { output } from '../output.js';
 import { parseJsonInput } from '../input.js';
 import {
   reportAndExit,
@@ -9,28 +12,13 @@ import {
   validateEnum,
   validateInt,
   block,
-  parsePagination,
-  validateIsoDate,
 } from '../validators/index.js';
+import { wireSubcommands } from '../wire-subcommands.js';
+import { POLICY_HANDLERS } from '../generated/cli-handlers/policy.js';
 
 export function registerPolicyCommands(program: Command) {
   const policy = program.command('policy').description('Policy management');
-
-  policy
-    .command('list <agentId>')
-    .description('List policies for an agent')
-    .option('-p, --page <n>', 'Page number', '0')
-    .option('-l, --limit <n>', 'Items per page', '10')
-    .action(async (agentId: string, opts) => {
-      try {
-        const data = await getClient().listPolicies(agentId, {
-          ...parsePagination(opts),
-        });
-        outputList(data, 'policies');
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
+  wireSubcommands(policy, POLICY_HANDLERS, getClient as never);
 
   policy
     .command('create <agentId>')
@@ -51,7 +39,6 @@ export function registerPolicyCommands(program: Command) {
           dto = parseJsonInput(opts.json);
           regoCode = dto.rego_code;
           if (!regoCode && (opts.rego || opts.regoFile)) {
-            // Allow --rego/--rego-file to fill rego_code if --json omits it.
             regoCode = opts.rego || readFileSync(opts.regoFile, 'utf-8');
             dto.rego_code = regoCode;
           }
@@ -72,49 +59,20 @@ export function registerPolicyCommands(program: Command) {
             trust_threshold: opts.trustThreshold ? parseInt(opts.trustThreshold) : undefined,
           };
         }
-
-        // Validate the Rego source before POSTing. Catches deny[msg], missing result, invalid
-        // decision enums, and warns about package-name rewrite.
         validateRegoSource(regoCode);
         if (opts.trustImpact) validateEnum(opts.trustImpact, ['none', 'low', 'medium', 'high'] as const, '--trust-impact');
         if (opts.trustThreshold) validateInt(opts.trustThreshold, '--trust-threshold', { min: 0, max: 100 });
 
         const data = await getClient().createPolicy(agentId, dto);
         output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  policy
-    .command('current <agentId>')
-    .description('Get current active policies')
-    .action(async (agentId: string) => {
-      try {
-        const data = await getClient().getCurrentPolicies(agentId);
-        output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  policy
-    .command('get <agentId> <policyId>')
-    .description('Get policy details')
-    .action(async (agentId: string, policyId: string) => {
-      try {
-        const data = await getClient().getPolicy(agentId, policyId);
-        output(data);
-      } catch (err: any) {
+      } catch (err) {
         reportAndExit(err);
       }
     });
 
   policy
     .command('update <agentId> <policyId>')
-    .description(
-      'Toggle active / roll back a policy version. Rego is immutable - use `policy create` to rotate.',
-    )
+    .description('Toggle active / roll back a policy version. Rego is immutable - use `policy create` to rotate.')
     .option('--active <bool>', 'Active status (true|false) - required unless using --json')
     .option('--trust-impact <impact>', 'Trust impact (none|low|medium|high)')
     .option('--trust-threshold <n>', 'Trust threshold')
@@ -125,20 +83,14 @@ export function registerPolicyCommands(program: Command) {
         if (opts.json) {
           dto = parseJsonInput(opts.json);
           if (typeof dto.is_active !== 'boolean') {
-            throw new Error(
-              '--json body must include "is_active": true|false - backend requires it',
-            );
+            throw new Error('--json body must include "is_active": true|false - backend requires it');
           }
           if ('rego_code' in dto) {
-            throw new Error(
-              'rego_code is immutable after creation - run `openbox policy create` to rotate the policy instead',
-            );
+            throw new Error('rego_code is immutable after creation - run `openbox policy create` to rotate the policy instead');
           }
         } else {
           if (opts.active !== 'true' && opts.active !== 'false') {
-            throw new Error(
-              '--active is required and must be "true" or "false". Pass --json for a raw body.',
-            );
+            throw new Error('--active is required and must be "true" or "false". Pass --json for a raw body.');
           }
           dto = { is_active: opts.active === 'true' };
           if (opts.trustImpact) dto.trust_impact = opts.trustImpact;
@@ -146,42 +98,7 @@ export function registerPolicyCommands(program: Command) {
         }
         const data = await getClient().updatePolicy(agentId, policyId, dto);
         output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  policy
-    .command('evaluations <agentId> <policyId>')
-    .description('Get policy evaluations')
-    .option('-p, --page <n>', 'Page number', '0')
-    .option('-l, --limit <n>', 'Items per page', '10')
-    .action(async (agentId: string, policyId: string, opts) => {
-      try {
-        const data = await getClient().getPolicyEvaluations(agentId, policyId, {
-          ...parsePagination(opts),
-        });
-        outputList(data, 'evaluations');
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  policy
-    .command('metrics <agentId>')
-    .description('Get policy metrics')
-    .option('--from <date>', 'Start date (ISO)')
-    .option('--to <date>', 'End date (ISO)')
-    .action(async (agentId: string, opts) => {
-      try {
-        if (opts.from) validateIsoDate(opts.from, '--from');
-        if (opts.to) validateIsoDate(opts.to, '--to');
-        const data = await getClient().getPolicyMetrics(agentId, {
-          fromTime: opts.from,
-          toTime: opts.to,
-        });
-        output(data);
-      } catch (err: any) {
+      } catch (err) {
         reportAndExit(err);
       }
     });
@@ -198,7 +115,7 @@ export function registerPolicyCommands(program: Command) {
           input: JSON.parse(opts.input),
         });
         output(data);
-      } catch (err: any) {
+      } catch (err) {
         reportAndExit(err);
       }
     });

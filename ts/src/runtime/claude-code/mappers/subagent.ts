@@ -1,8 +1,16 @@
 import type { ClaudeCodeSession } from '../../../core-client/index.js';
 import type { ClaudeCodeEnvelope } from '../../../core-client/generated/runtime/claude-code.js';
+import {
+  buildSubagentStartPayload,
+  buildSubagentStopPayload,
+} from '../../../core-client/generated/runtime/claude-code.js';
 import type { ClaudeCodeConfig } from '../config.js';
 import { EVENT } from '../activity-types.js';
 
+/** Pinned per-subagent activity_type so START/STOP balance. Activity name
+ *  carries identity that the spec-driven payload doesn't (the activity_type
+ *  string itself is what the dashboard charts; payload fields are for
+ *  guardrail scanning). */
 function subAgentActivityType(env: ClaudeCodeEnvelope): string {
   return `SubAgent:${env.agent_type || env.agent_id || 'unknown'}`;
 }
@@ -15,11 +23,7 @@ export async function handleSubagentStart(
 ): Promise<undefined> {
   try {
     await session.activity(EVENT.START, subAgentActivityType(env), {
-      input: [{
-        agent_id: env.agent_id,
-        agent_type: env.agent_type,
-        event_category: 'agent_action',
-      }],
+      input: [buildSubagentStartPayload(env)],
     });
   } catch {
     // best-effort observability
@@ -35,12 +39,7 @@ export async function handleSubagentStop(
 ): Promise<undefined> {
   try {
     await session.activity(EVENT.COMPLETE, subAgentActivityType(env), {
-      input: [{
-        agent_id: env.agent_id,
-        agent_type: env.agent_type,
-        status: 'completed',
-        event_category: 'agent_observation',
-      }],
+      input: [buildSubagentStopPayload(env)],
     });
   } catch {
     // best-effort observability

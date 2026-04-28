@@ -29,11 +29,20 @@ function commandFileFor(commandName: string): string {
   // Mapping from manifest command name to the source file under
   // `ts/src/cli/commands/`. Most match by name; these don't.
   const overrides: Record<string, string> = {
-    'auth-extras': 'auth.ts',
     observe: 'observability.ts',
   };
   const file = overrides[commandName] ?? `${commandName}.ts`;
   return resolve(repoRoot, 'ts/src/cli/commands', file);
+}
+
+/** A command file is "fully spec-driven" (H.3) if it imports
+ *  wireSubcommands and pulls a *_HANDLERS list from the generated
+ *  cli-handlers folder. In that case the subcommand list is whatever's
+ *  in the generated file, not the manual `.command()` calls - so the
+ *  drift test should look at the spec, which is the source of truth. */
+function isSpecDriven(source: string): boolean {
+  return /from '\.\.\/wire-subcommands\.js'/.test(source) &&
+    /from '\.\.\/generated\/cli-handlers\//.test(source);
 }
 
 function kebabCase(s: string): string {
@@ -70,6 +79,10 @@ describe.each(CLI_COMMAND_MANIFEST as readonly { command: string; subcommands: r
       'subcommand $long is registered with commander',
       ({ name, long }) => {
         const source = readFileSync(path, 'utf8');
+        // Spec-driven (H.3) files don't list .command() per subcommand -
+        // wireSubcommands walks the generated handlers list. Trust the
+        // generated manifest in that case.
+        if (isSpecDriven(source)) return;
         const registered = commandRegistrations(source);
         const verb = long ?? kebabCase(name);
         expect(

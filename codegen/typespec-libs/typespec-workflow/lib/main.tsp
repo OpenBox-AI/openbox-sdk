@@ -129,3 +129,73 @@ extern dec verdictShape(
  *   string. e.g. `#{ Read: "FileRead", Bash: "ShellExecution" }`.
  */
 extern dec activityRouting(target: Operation, table: valueof Record<string>);
+
+/**
+ * Declarative payload shape for an adapter operation. Replaces the
+ * per-tool switch statement that used to live in every mapper.
+ *
+ * The emitter generates a `build<Op>Payload(env, toolName?, sideEffects?)`
+ * function alongside the routing constants. Mappers call it instead of
+ * hand-shaping the activity payload - guaranteeing the same field
+ * extraction logic across adapters and across languages.
+ *
+ * Shape of `shape`:
+ *   #{
+ *     default: #{ <field>: <fieldSource>, ... },   // when no tool match
+ *     byTool:  #{ <toolName>: #{ <field>: <fieldSource> }, ... },
+ *   }
+ *
+ * Field sources (the value attached to each output field):
+ *   #{ from: "envelope.path" }                   - pull at the path
+ *   #{ from: "envelope.path", fallback: "alt" }  - alt is another path
+ *   #{ from: "path", default: "literal" }        - path or literal default
+ *   #{ literal: "value" }                        - fixed literal string
+ *   #{ sideEffect: "readFile", from: "path" }    - invoke a sideEffect
+ *                                                  callback the runtime
+ *                                                  supplies; arg = path
+ *
+ * Path syntax: dotted access into the envelope, e.g. `prompt`,
+ * `tool_input.command`, `tool_input.file_path`. The emitter wires
+ * `tool_input.X` to read `env.tool_input?.X` safely.
+ *
+ * @param shape Two-tier record (default + optional byTool).
+ */
+extern dec payloadShape(target: Operation, shape: valueof Record<unknown>);
+
+/**
+ * Marks an adapter op as not needing payload generation (sessions /
+ * lifecycle ops with no scannable input). Drift guard counterpart to
+ * `@payloadShape` - every @hookEvent must have one or the other so
+ * adding a new event doesn't silently regress to hand-coding.
+ */
+extern dec noPayload(target: Operation);
+
+/**
+ * Where the adapter's install command writes its hook-event block.
+ * The emitter materializes an `INSTALL_SPEC` constant per adapter
+ * carrying these fields; the hand-coded install.ts reads it and
+ * delegates to the shared JSON-merge primitive in
+ * runtime/_shared/install.ts.
+ *
+ * Shape:
+ *   #{
+ *     file: "~/.claude/settings.json",     // tilde-expanded at runtime
+ *     key: "hooks",                         // top-level key under settings
+ *     style: "claude-array" | "cursor-keyed",
+ *     command: "openbox claude-code hook",  // bin command for each event
+ *     configDir: "~/.claude-hooks",         // example config drop dir
+ *   }
+ *
+ * `style` controls the per-event JSON shape:
+ *   claude-array: events[evt] = [{ matcher?, hooks: [{ type, command, timeout? }] }]
+ *   cursor-keyed: events[evt] = { command }
+ */
+extern dec installTarget(target: Interface, target_: valueof Record<unknown>);
+
+/**
+ * Per-event timeout (seconds) for the `claude-array` install style.
+ * Long-running hooks (PreToolUse, UserPromptSubmit, PermissionRequest)
+ * need this so Claude Code doesn't kill the OpenBox call on a slow
+ * backend. Ignored by other styles.
+ */
+extern dec installTimeout(target: Operation, seconds: valueof int32);
