@@ -37,6 +37,8 @@ import { registerVerifyCommand } from './commands/verify.js';
 import { registerVersionsCommand } from './commands/versions.js';
 import { registerWebhookCommands } from './commands/webhook.js';
 import { registerSsoCommands } from './commands/sso.js';
+import { gateCommands, setMaturityOverride } from './maturity.js';
+import { setExplicitFeatures } from './features.js';
 
 const program = new Command();
 
@@ -47,6 +49,14 @@ program
   .option(
     '--env <env>',
     "Environment: 'production' | 'staging' | 'local' (default: $OPENBOX_ENV or 'production')",
+  )
+  .option(
+    '--experimental',
+    "Reveal experimental subcommands (or OPENBOX_EXPERIMENTAL_LEVEL=experimental). Coarse: gates whole subcommands.",
+  )
+  .option(
+    '--feature <name...>',
+    'Enable specific experimental feature flags within commands (also via OPENBOX_FEATURES=name1,name2). Fine: gates code paths inside a stable command.',
   )
   .hook('preAction', (thisCommand, actionCommand) => {
     const flag = thisCommand.opts().env as string | undefined;
@@ -137,6 +147,24 @@ registerVerifyCommand(program);
 registerVersionsCommand(program);
 registerWebhookCommands(program);
 registerSsoCommands(program);
+
+// Pre-scan global flags BEFORE gating + parse - commander's --help is
+// printed during parseAsync, by which time the command tree has to
+// already reflect the user's --experimental / --feature opt-ins.
+{
+  const argv = process.argv;
+  if (argv.includes('--experimental')) setMaturityOverride('experimental');
+  const features: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--feature' && i + 1 < argv.length) features.push(argv[i + 1]);
+  }
+  if (features.length) setExplicitFeatures(features);
+}
+
+// Walk the registered command tree and remove anything not visible at
+// the current maturity level. Mark visible-but-non-stable commands
+// with [experimental] / [beta] in their description.
+gateCommands(program);
 
 program.parseAsync(process.argv).catch((err) => {
   console.error(err.message || err);

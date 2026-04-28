@@ -37,6 +37,15 @@ export type { BehavioralResult } from './core-client.js';
 // type explicitly on handler signatures.
 export * from './generated/govern.js';
 
+// Guardrail redaction helpers - apply `verdict.guardrailsResult.redactedInput`
+// over the original payload to forward a safe version downstream. Ported
+// from openbox-sdk; adapted to the new camelCase verdict shape.
+export {
+  applyInputRedaction,
+  applyOutputRedaction,
+  deepUpdateObject,
+} from './redaction.js';
+
 // Spec-driven hook-protocol adapters. One generated module per
 // @adapter interface in specs/typespec/govern/adapters.tsp. Consumed
 // by openbox-claude-hooks / openbox-cursor-hooks via the
