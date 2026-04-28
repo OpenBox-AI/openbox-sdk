@@ -35,6 +35,12 @@ export const $lib = createTypeSpecLibrary({
     flagExtra: { description: 'flag-level extras (body-key, parse, choices, default) attached to a model property' },
     outputPluck: { description: 'dotted path to extract from a response before rendering' },
     outputPost: { description: 'name of a registered post-output callback (stderr banner, etc)' },
+    jsonMerge: { description: 'op accepts --json escape hatch + per-flag override merge mode' },
+    atLeastOne: { description: 'cross-field constraint: at least one of these flags must be set' },
+    localOnly: { description: 'flag: op is local-only (no backend/core HTTP call)' },
+    preflight: { description: 'name of a registered preflight callback (HTTP checks before main call)' },
+    dtoDefaults: { description: 'declarative DTO defaults merged into the body for missing keys' },
+    postValidate: { description: 'names of registered post-validate callbacks run before the call' },
   },
 });
 

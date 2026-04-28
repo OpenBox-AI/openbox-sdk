@@ -25,11 +25,14 @@ export interface Agent {
   list(search?: string, status?: string, team?: string, tiers?: string[]): void;
   get(agentId: string): void;
   delete(agentId: string): void;
-  create(): void;
-  update(agentId: string): void;
+  create(name?: string, desc?: string, team?: string[], type?: string, icon?: string, skipPreflight?: boolean): void;
+  update(agentId: string, name?: string, desc?: string, type?: string, model?: string, tags?: string[], team?: string[]): void;
   audit(agentId: string): void;
 }
 export interface Aivss {
+  assessments(agentId: string, from?: string, to?: string): void;
+  update(agentId: string, json?: string, reason?: string): void;
+  recalculate(agentId: string): void;
   calculate(): void;
 }
 export interface ApiKey {
@@ -69,8 +72,8 @@ export interface Approval {
 }
 export interface Audit {
   list(eventType?: string, actor?: string, result?: string, search?: string, from?: string, to?: string): void;
-  export(): void;
-  preview(): void;
+  export(name?: string, eventTypes?: string[], actor?: string, result?: string, search?: string, from?: string, to?: string): void;
+  preview(eventTypes?: string[], from?: string, to?: string): void;
   exports(status?: string, from?: string, to?: string): void;
   download(exportId: string): void;
   deleteExport(exportId: string): void;
@@ -82,9 +85,9 @@ export interface Behavior {
   current(agentId: string): void;
   get(agentId: string, ruleId: string): void;
   delete(agentId: string, ruleId: string): void;
-  create(agentId: string): void;
-  update(agentId: string, ruleId: string): void;
-  toggle(agentId: string, ruleId: string): void;
+  create(agentId: string, name?: string, trigger?: string, states?: string[], window?: string, verdict?: string, message?: string, priority?: string, desc?: string, trustImpact?: string, trustThreshold?: string, approvalTimeout?: string): void;
+  update(agentId: string, ruleId: string, changeLog?: string): void;
+  toggle(agentId: string, ruleId: string, active?: string): void;
   restore(agentId: string, ruleId: string): void;
   versions(agentId: string, groupId: string): void;
   metrics(agentId: string): void;
@@ -93,8 +96,8 @@ export interface Behavior {
 export interface Core {
   health(): void;
   validate(): void;
+  pollApproval(workflowId?: string, runId?: string, activityId?: string): void;
   evaluate(): void;
-  pollApproval(): void;
 }
 export interface Doctor {
 }
@@ -107,8 +110,8 @@ export interface Guardrail {
   list(agentId: string): void;
   get(agentId: string, guardrailId: string): void;
   delete(agentId: string, guardrailId: string): void;
-  create(agentId: string): void;
-  update(agentId: string, guardrailId: string): void;
+  create(agentId: string, name?: string, type?: string, stage?: string, desc?: string, trustImpact?: string, trustThreshold?: string): void;
+  update(agentId: string, guardrailId: string, name?: string, active?: string, type?: string, stage?: string, desc?: string, trustImpact?: string, trustThreshold?: string): void;
   reorder(agentId: string, guardrailId: string, order: string): void;
   metrics(agentId: string, from?: string, to?: string): void;
   violations(agentId: string): void;
@@ -118,12 +121,12 @@ export interface Health {
 }
 export interface Member {
   list(orgId: string): void;
-  create(orgId: string): void;
-  update(orgId: string, userId: string): void;
-  assignRoles(orgId: string, userId: string): void;
-  removeRoles(orgId: string, userId: string): void;
-  remove(orgId: string): void;
-  invite(orgId: string): void;
+  create(orgId: string, username?: string, email?: string, password?: string, firstName?: string, lastName?: string, verified?: boolean, roles?: string[]): void;
+  update(orgId: string, userId: string, role?: string, teams?: string[]): void;
+  assignRoles(orgId: string, userId: string, roles?: string[]): void;
+  removeRoles(orgId: string, userId: string, roles?: string[]): void;
+  remove(orgId: string, ids?: string[]): void;
+  invite(orgId: string, email?: string, roles?: string[]): void;
 }
 export interface Observe {
   data(agentId: string, from?: string, to?: string): void;
@@ -153,8 +156,8 @@ export interface Policy {
   list(agentId: string): void;
   current(agentId: string): void;
   get(agentId: string, policyId: string): void;
-  create(agentId: string): void;
-  update(agentId: string, policyId: string): void;
+  create(agentId: string, name?: string, desc?: string, rego?: string, input?: string, trustImpact?: string, trustThreshold?: string): void;
+  update(agentId: string, policyId: string, active?: string, trustImpact?: string, trustThreshold?: string): void;
   evaluations(agentId: string, policyId: string): void;
   metrics(agentId: string): void;
   evaluate(): void;
@@ -175,8 +178,8 @@ export interface Team {
   stats(orgId: string): void;
   get(orgId: string, teamId: string): void;
   members(orgId: string, teamId: string): void;
-  create(orgId: string): void;
-  update(orgId: string, teamId: string): void;
+  create(orgId: string, name?: string, desc?: string, icon?: string): void;
+  update(orgId: string, teamId: string, name?: string, desc?: string, icon?: string): void;
   delete(orgId: string, ids?: string[]): void;
   addMembers(orgId: string, teamId: string, userIds?: string[]): void;
   removeMembers(orgId: string, teamId: string, userIds?: string[]): void;
@@ -309,11 +312,102 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "create",
-        "flags": []
+        "flags": [
+          {
+            "name": "name",
+            "long": "name",
+            "short": "n",
+            "description": "Agent name",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "desc",
+            "long": "desc",
+            "short": "d",
+            "description": "Description",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "team",
+            "long": "team",
+            "short": "t",
+            "description": "Team IDs (UUIDs)",
+            "optional": true,
+            "tsType": "string[]"
+          },
+          {
+            "name": "type",
+            "long": "type",
+            "description": "Agent type",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "icon",
+            "long": "icon",
+            "description": "Icon",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "skipPreflight",
+            "long": "skip-preflight",
+            "description": "Skip preflight team-existence + name-collision GETs",
+            "optional": true,
+            "tsType": "boolean"
+          }
+        ]
       },
       {
         "name": "update",
-        "flags": []
+        "flags": [
+          {
+            "name": "name",
+            "long": "name",
+            "short": "n",
+            "description": "Agent name",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "desc",
+            "long": "desc",
+            "short": "d",
+            "description": "Description",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "type",
+            "long": "type",
+            "description": "Agent type",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "model",
+            "long": "model",
+            "description": "Model name",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "tags",
+            "long": "tags",
+            "description": "Tags",
+            "optional": true,
+            "tsType": "string[]"
+          },
+          {
+            "name": "team",
+            "long": "team",
+            "description": "Team IDs",
+            "optional": true,
+            "tsType": "string[]"
+          }
+        ]
       },
       {
         "name": "audit",
@@ -326,6 +420,48 @@ export const CLI_COMMAND_MANIFEST = [
     "description": "Agent AIVSS scoring.",
     "interfaceName": "Aivss",
     "subcommands": [
+      {
+        "name": "assessments",
+        "flags": [
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
+      },
+      {
+        "name": "update",
+        "flags": [
+          {
+            "name": "json",
+            "long": "json",
+            "description": "AIVSS config JSON (aivss_config object)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "reason",
+            "long": "reason",
+            "description": "Reason for update",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
+      },
+      {
+        "name": "recalculate",
+        "flags": []
+      },
       {
         "name": "calculate",
         "flags": []
@@ -612,11 +748,85 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "export",
-        "flags": []
+        "flags": [
+          {
+            "name": "name",
+            "long": "name",
+            "short": "n",
+            "description": "Export name (required; if --json omits exportName, this fills it)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "eventTypes",
+            "long": "event-types",
+            "description": "Event types",
+            "optional": true,
+            "tsType": "string[]"
+          },
+          {
+            "name": "actor",
+            "long": "actor",
+            "description": "Actor ID",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "result",
+            "long": "result",
+            "description": "Result filter",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "search",
+            "long": "search",
+            "short": "s",
+            "description": "Search",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "preview",
-        "flags": []
+        "flags": [
+          {
+            "name": "eventTypes",
+            "long": "event-types",
+            "description": "Event types",
+            "optional": true,
+            "tsType": "string[]"
+          },
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "exports",
@@ -685,15 +895,111 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "create",
-        "flags": []
+        "flags": [
+          {
+            "name": "name",
+            "long": "name",
+            "short": "n",
+            "description": "Rule name",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "trigger",
+            "long": "trigger",
+            "description": "Trigger type",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "states",
+            "long": "states",
+            "description": "State triggers",
+            "optional": true,
+            "tsType": "string[]"
+          },
+          {
+            "name": "window",
+            "long": "window",
+            "description": "Time window (seconds)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "verdict",
+            "long": "verdict",
+            "description": "Verdict (0=ALLOW, 1=CONSTRAIN, 2=REQUIRE_APPROVAL, 3=BLOCK, 4=HALT)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "message",
+            "long": "message",
+            "description": "Reject message",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "priority",
+            "long": "priority",
+            "description": "Priority",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "desc",
+            "long": "desc",
+            "short": "d",
+            "description": "Description",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "trustImpact",
+            "long": "trust-impact",
+            "description": "Trust impact (none|low|medium|high)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "trustThreshold",
+            "long": "trust-threshold",
+            "description": "Trust threshold",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "approvalTimeout",
+            "long": "approval-timeout",
+            "description": "Approval timeout (seconds)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "update",
-        "flags": []
+        "flags": [
+          {
+            "name": "changeLog",
+            "long": "change-log",
+            "description": "Human-readable change reason",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "toggle",
-        "flags": []
+        "flags": [
+          {
+            "name": "active",
+            "long": "active",
+            "description": "Active status (true|false)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "restore",
@@ -727,11 +1033,33 @@ export const CLI_COMMAND_MANIFEST = [
         "flags": []
       },
       {
-        "name": "evaluate",
-        "flags": []
+        "name": "pollApproval",
+        "flags": [
+          {
+            "name": "workflowId",
+            "long": "workflow-id",
+            "description": "Workflow ID",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "runId",
+            "long": "run-id",
+            "description": "Run ID",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "activityId",
+            "long": "activity-id",
+            "description": "Activity ID",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
-        "name": "pollApproval",
+        "name": "evaluate",
         "flags": []
       }
     ]
@@ -804,11 +1132,108 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "create",
-        "flags": []
+        "flags": [
+          {
+            "name": "name",
+            "long": "name",
+            "short": "n",
+            "description": "Guardrail name",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "type",
+            "long": "type",
+            "description": "Guardrail type (1=PII, 2=NSFW, 3=Toxicity, 4=BanList, 5=Regex, or name)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "stage",
+            "long": "stage",
+            "description": "Processing stage (0=input, 1=output)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "desc",
+            "long": "desc",
+            "short": "d",
+            "description": "Description",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "trustImpact",
+            "long": "trust-impact",
+            "description": "Trust impact (none|low|medium|high)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "trustThreshold",
+            "long": "trust-threshold",
+            "description": "Trust threshold",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "update",
-        "flags": []
+        "flags": [
+          {
+            "name": "name",
+            "long": "name",
+            "short": "n",
+            "description": "Guardrail name",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "active",
+            "long": "active",
+            "description": "Active status (true|false)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "type",
+            "long": "type",
+            "description": "Guardrail type",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "stage",
+            "long": "stage",
+            "description": "Processing stage (0|1)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "desc",
+            "long": "desc",
+            "short": "d",
+            "description": "Description",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "trustImpact",
+            "long": "trust-impact",
+            "description": "Trust impact",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "trustThreshold",
+            "long": "trust-threshold",
+            "description": "Trust threshold",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "reorder",
@@ -860,27 +1285,131 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "create",
-        "flags": []
+        "flags": [
+          {
+            "name": "username",
+            "long": "username",
+            "description": "Username",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "email",
+            "long": "email",
+            "description": "Email",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "password",
+            "long": "password",
+            "description": "Password - leave unset for invite flow",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "firstName",
+            "long": "first-name",
+            "description": "First name",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "lastName",
+            "long": "last-name",
+            "description": "Last name",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "verified",
+            "long": "verified",
+            "description": "Mark email as verified",
+            "optional": true,
+            "tsType": "boolean"
+          },
+          {
+            "name": "roles",
+            "long": "roles",
+            "description": "Roles to assign",
+            "optional": true,
+            "tsType": "string[]"
+          }
+        ]
       },
       {
         "name": "update",
-        "flags": []
+        "flags": [
+          {
+            "name": "role",
+            "long": "role",
+            "description": "Role",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "teams",
+            "long": "teams",
+            "description": "Team IDs (UUIDs) - replaces existing membership",
+            "optional": true,
+            "tsType": "string[]"
+          }
+        ]
       },
       {
         "name": "assignRoles",
-        "flags": []
+        "flags": [
+          {
+            "name": "roles",
+            "long": "roles",
+            "description": "Roles to assign",
+            "optional": true,
+            "tsType": "string[]"
+          }
+        ]
       },
       {
         "name": "removeRoles",
-        "flags": []
+        "flags": [
+          {
+            "name": "roles",
+            "long": "roles",
+            "description": "Roles to remove",
+            "optional": true,
+            "tsType": "string[]"
+          }
+        ]
       },
       {
         "name": "remove",
-        "flags": []
+        "flags": [
+          {
+            "name": "ids",
+            "long": "ids",
+            "description": "User IDs to remove",
+            "optional": true,
+            "tsType": "string[]"
+          }
+        ]
       },
       {
         "name": "invite",
-        "flags": []
+        "flags": [
+          {
+            "name": "email",
+            "long": "email",
+            "description": "Email",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "roles",
+            "long": "roles",
+            "description": "Roles to invite with",
+            "optional": true,
+            "tsType": "string[]"
+          }
+        ]
       }
     ]
   },
@@ -1073,11 +1602,78 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "create",
-        "flags": []
+        "flags": [
+          {
+            "name": "name",
+            "long": "name",
+            "short": "n",
+            "description": "Policy name",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "desc",
+            "long": "desc",
+            "short": "d",
+            "description": "Description",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "rego",
+            "long": "rego",
+            "description": "Rego policy code",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "input",
+            "long": "input",
+            "description": "Input JSON for policy",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "trustImpact",
+            "long": "trust-impact",
+            "description": "Trust impact (none|low|medium|high)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "trustThreshold",
+            "long": "trust-threshold",
+            "description": "Trust threshold",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "update",
-        "flags": []
+        "flags": [
+          {
+            "name": "active",
+            "long": "active",
+            "description": "Active status (true|false)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "trustImpact",
+            "long": "trust-impact",
+            "description": "Trust impact",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "trustThreshold",
+            "long": "trust-threshold",
+            "description": "Trust threshold",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "evaluations",
@@ -1204,11 +1800,59 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "create",
-        "flags": []
+        "flags": [
+          {
+            "name": "name",
+            "long": "name",
+            "short": "n",
+            "description": "Team name",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "desc",
+            "long": "desc",
+            "short": "d",
+            "description": "Description",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "icon",
+            "long": "icon",
+            "description": "Icon URL",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "update",
-        "flags": []
+        "flags": [
+          {
+            "name": "name",
+            "long": "name",
+            "short": "n",
+            "description": "Team name",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "desc",
+            "long": "desc",
+            "short": "d",
+            "description": "Description",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "icon",
+            "long": "icon",
+            "description": "Icon",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "delete",

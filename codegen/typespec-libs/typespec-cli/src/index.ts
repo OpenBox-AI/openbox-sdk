@@ -19,6 +19,12 @@ import {
   $cli_required,
   $cli_output_pluck,
   $cli_output_post,
+  $cli_json_merge,
+  $cli_at_least_one,
+  $cli_local_only,
+  $cli_preflight,
+  $cli_dto_defaults,
+  $cli_post_validate,
 } from './decorators.js';
 
 export { $lib } from './lib.js';
@@ -42,5 +48,11 @@ export const $decorators = {
     cli_required: $cli_required,
     cli_output_pluck: $cli_output_pluck,
     cli_output_post: $cli_output_post,
+    cli_json_merge: $cli_json_merge,
+    cli_at_least_one: $cli_at_least_one,
+    cli_local_only: $cli_local_only,
+    cli_preflight: $cli_preflight,
+    cli_dto_defaults: $cli_dto_defaults,
+    cli_post_validate: $cli_post_validate,
   },
 };

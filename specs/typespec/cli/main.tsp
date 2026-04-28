@@ -183,14 +183,75 @@ interface Agent {
   @cli_output_kind("kv")
   delete(agentId: string): void;
 
-  // Custom: preflight team/name validation + AIVSS defaults + runtime
-  // key one-time stderr highlight.
-  @cli_output_kind("custom")
-  create(): void;
+  /** Create a new agent. --json bypasses flag merge; otherwise
+   *  --name + --team are required, AIVSS defaults fill in, and the
+   *  preflight verifies team existence + flags name collisions. The
+   *  runtime API key is highlighted to stderr (one-time display) on
+   *  success. */
+  @cli_calls("createAgent")
+  @cli_output_kind("kv")
+  @cli_json_merge("replace")
+  @cli_dto_defaults(#{
+    aivss_config: #{
+      base_security: #{
+        attack_vector: 2,
+        attack_complexity: 1,
+        privileges_required: 2,
+        user_interaction: 1,
+        scope: 1,
+      },
+      ai_specific: #{
+        model_robustness: 3,
+        data_sensitivity: 2,
+        ethical_impact: 2,
+        decision_criticality: 2,
+        adaptability: 3,
+      },
+      impact: #{
+        confidentiality_impact: 2,
+        integrity_impact: 2,
+        availability_impact: 2,
+        safety_impact: 1,
+      },
+    },
+  })
+  @cli_preflight("agentCreatePreflight")
+  @cli_output_post("highlightRuntimeKey")
+  create(
+    @cli_flag("Agent name", "n") @cli_required @cli_body_key("agent_name")
+    name?: string,
+    @cli_flag("Description", "d") @cli_body_key("description")
+    desc?: string,
+    @cli_flag("Team IDs (UUIDs)", "t") @cli_required @cli_variadic
+    @cli_validator("validateUuidList") @cli_body_key("team_ids")
+    team?: string[],
+    @cli_flag("Agent type") @cli_body_key("agent_type") @cli_default("temporal")
+    type?: string,
+    @cli_flag("Icon") @cli_default("robot")
+    icon?: string,
+    @cli_flag("Skip preflight team-existence + name-collision GETs")
+    skipPreflight?: boolean,
+  ): void;
 
-  // Custom: --json + flag merge over multiple optional fields.
-  @cli_output_kind("custom")
-  update(agentId: string): void;
+  /** Update an agent. --json replaces flag-built body. */
+  @cli_calls("updateAgent")
+  @cli_output_kind("kv")
+  @cli_json_merge("replace")
+  update(
+    agentId: string,
+    @cli_flag("Agent name", "n") @cli_body_key("agent_name")
+    name?: string,
+    @cli_flag("Description", "d") @cli_body_key("description")
+    desc?: string,
+    @cli_flag("Agent type") @cli_body_key("agent_type")
+    type?: string,
+    @cli_flag("Model name") @cli_body_key("model_name")
+    `model`?: string,
+    @cli_flag("Tags") @cli_variadic
+    tags?: string[],
+    @cli_flag("Team IDs") @cli_variadic @cli_body_key("team_ids")
+    team?: string[],
+  ): void;
 
   // Custom: cross-session protocol-conformance audit (renderAuditReport).
   @cli_output_kind("custom")
@@ -199,8 +260,40 @@ interface Agent {
 
 @cli_command("aivss", "Agent AIVSS scoring.")
 interface Aivss {
-  // Custom: complex DTO + recalculate-with-reason logic.
-  @cli_output_kind("custom")
+  /** Get AIVSS assessments. */
+  @cli_calls("getAssessments")
+  @cli_pagination
+  @cli_output_kind("list", "assessments")
+  assessments(
+    agentId: string,
+    @cli_flag("Start date (ISO)") @cli_validator("validateIsoDate") @cli_body_key("fromTime")
+    from?: string,
+    @cli_flag("End date (ISO)") @cli_validator("validateIsoDate") @cli_body_key("toTime")
+    to?: string,
+  ): void;
+
+  /** Update AIVSS config. */
+  @cli_calls("updateAivssConfig")
+  @cli_output_kind("kv")
+  update(
+    agentId: string,
+    @cli_flag("AIVSS config JSON (aivss_config object)")
+    @cli_required @cli_parse("json") @cli_body_key("aivss_config")
+    json?: string,
+    @cli_flag("Reason for update")
+    @cli_required
+    reason?: string,
+  ): void;
+
+  /** Recalculate AIVSS score. */
+  @cli_calls("recalculateAivss", "positional")
+  @cli_output_kind("kv")
+  recalculate(agentId: string): void;
+
+  /** Calculate AIVSS score from config. */
+  @cli_calls("calculateAivss")
+  @cli_output_kind("kv")
+  @cli_json_merge("only")
   calculate(): void;
 }
 
@@ -248,26 +341,97 @@ interface ApiKey {
 
 @cli_command("webhook", "Webhook management (admin).")
 interface Webhook {
-  @cli_output_kind("custom") list(): void;
-  @cli_output_kind("custom") create(): void;
-  @cli_output_kind("custom") get(id: string): void;
-  @cli_output_kind("custom") update(id: string): void;
-  @cli_output_kind("custom") delete(id: string): void;
-  @cli_output_kind("custom") test(id: string): void;
-  @cli_output_kind("custom") regenerateSecret(id: string): void;
-  @cli_output_kind("custom") deliveries(id: string): void;
+  /** List webhooks for the current org. */
+  @cli_calls("listWebhooks")
+  @cli_pagination
+  @cli_output_kind("list", "webhooks")
+  list(): void;
+
+  /** Create a webhook. */
+  @cli_calls("createWebhook")
+  @cli_output_kind("kv")
+  @cli_json_merge("replace")
+  create(): void;
+
+  /** Get a webhook by id. */
+  @cli_calls("getWebhook", "positional")
+  @cli_output_kind("kv")
+  get(id: string): void;
+
+  /** Update a webhook. */
+  @cli_calls("updateWebhook")
+  @cli_output_kind("kv")
+  @cli_json_merge("replace")
+  update(id: string): void;
+
+  /** Delete a webhook. */
+  @cli_calls("deleteWebhook", "positional")
+  @cli_output_kind("kv")
+  delete(id: string): void;
+
+  /** Send a test event to the webhook. */
+  @cli_calls("testWebhook", "positional")
+  @cli_output_kind("kv")
+  test(id: string): void;
+
+  /** Rotate the signing secret. The new secret is highlighted to
+   *  stderr (one-time display) via the post callback. */
+  @cli_calls("regenerateWebhookSecret", "positional")
+  @cli_output_kind("kv")
+  @cli_output_post("highlightWebhookSecret")
+  regenerateSecret(id: string): void;
+
+  /** List deliveries for a webhook. */
+  @cli_calls("getWebhookDeliveries")
+  @cli_pagination
+  @cli_output_kind("list", "webhook deliveries")
+  deliveries(id: string): void;
 }
 
 @cli_command("sso", "SSO configuration (admin).")
 interface Sso {
-  @cli_output_kind("custom") status(): void;
-  @cli_output_kind("custom") config(): void;
-  @cli_output_kind("custom") getMetadata(): void;
-  @cli_output_kind("custom") configureOidc(): void;
-  @cli_output_kind("custom") configureSaml(): void;
-  @cli_output_kind("custom") enforce(): void;
-  @cli_output_kind("custom") delete(): void;
-  @cli_output_kind("custom") verify(): void;
+  /** Get SSO status (enabled / method / enforced). */
+  @cli_calls("getSsoStatus", "positional")
+  @cli_output_kind("kv")
+  status(): void;
+
+  /** Get the active SSO configuration. */
+  @cli_calls("getSsoConfig", "positional")
+  @cli_output_kind("kv")
+  config(): void;
+
+  /** Get SAML SP metadata (XML or JSON depending on backend). */
+  @cli_calls("getSsoMetadata", "positional")
+  @cli_output_kind("kv")
+  getMetadata(): void;
+
+  /** Configure OIDC SSO. */
+  @cli_calls("configureSsoOidc")
+  @cli_output_kind("kv")
+  @cli_json_merge("replace")
+  configureOidc(): void;
+
+  /** Configure SAML SSO. */
+  @cli_calls("configureSsoSaml")
+  @cli_output_kind("kv")
+  @cli_json_merge("replace")
+  configureSaml(): void;
+
+  /** Toggle SSO enforcement. */
+  @cli_calls("enforceSso")
+  @cli_output_kind("kv")
+  @cli_json_merge("replace")
+  enforce(): void;
+
+  /** Delete the current SSO configuration. */
+  @cli_calls("deleteSsoConfig", "positional")
+  @cli_output_kind("kv")
+  delete(): void;
+
+  /** Verify the current SSO configuration end-to-end. */
+  @cli_calls("verifySsoConfig", "positional")
+  @cli_output_kind("kv")
+  verify(): void;
 }
 
 @cli_command("approval", "Approval queue management.")
@@ -359,13 +523,48 @@ interface Audit {
     to?: string,
   ): void;
 
-  // Custom: required-field merge with --json fallback.
-  @cli_output_kind("custom")
-  export(): void;
+  /** Export audit logs. --json provides a full ExportAuditLogsDto;
+   *  individual flags fill missing fields. exportName is required in
+   *  the merged body (either via --name or via --json). */
+  @cli_calls("exportAuditLogs")
+  @cli_output_kind("kv")
+  @cli_json_merge
+  export(
+    @cli_flag("Export name (required; if --json omits exportName, this fills it)", "n")
+    @cli_required @cli_body_key("exportName")
+    name?: string,
+    @cli_flag("Event types") @cli_variadic
+    @cli_choice(#["policy_change", "guardrail_change", "agent_session", "agent_risk_configuration_change", "agent_goal_alignment_configuration_change", "role_change", "security_event", "settings_update", "team_management", "member_management", "invitation"])
+    @cli_body_key("eventTypes")
+    eventTypes?: string[],
+    @cli_flag("Actor ID") @cli_body_key("actorId")
+    actor?: string,
+    @cli_flag("Result filter")
+    @cli_choice(#["success", "failed", "denied", "warning", "approved", "allowed"])
+    result?: string,
+    @cli_flag("Search", "s")
+    search?: string,
+    @cli_flag("Start date (ISO)") @cli_validator("validateIsoDate") @cli_body_key("startDate")
+    from?: string,
+    @cli_flag("End date (ISO)") @cli_validator("validateIsoDate") @cli_body_key("endDate")
+    to?: string,
+  ): void;
 
-  // Custom: --json body fallback.
-  @cli_output_kind("custom")
-  preview(): void;
+  /** Preview audit log export. --json replaces flag-built body when
+   *  present. */
+  @cli_calls("previewAuditExport")
+  @cli_output_kind("kv")
+  @cli_json_merge("replace")
+  preview(
+    @cli_flag("Event types") @cli_variadic
+    @cli_choice(#["policy_change", "guardrail_change", "agent_session", "agent_risk_configuration_change", "agent_goal_alignment_configuration_change", "role_change", "security_event", "settings_update", "team_management", "member_management", "invitation"])
+    @cli_body_key("eventTypes")
+    eventTypes?: string[],
+    @cli_flag("Start date (ISO)") @cli_validator("validateIsoDate") @cli_body_key("startDate")
+    from?: string,
+    @cli_flag("End date (ISO)") @cli_validator("validateIsoDate") @cli_body_key("endDate")
+    to?: string,
+  ): void;
 
   /** List export history. */
   @cli_calls("getExportHistory")
@@ -381,8 +580,10 @@ interface Audit {
     to?: string,
   ): void;
 
-  // Custom: returns binary file payload.
-  @cli_output_kind("custom")
+  /** Download an export - returns a binary payload, written verbatim
+   *  to stdout. */
+  @cli_calls("downloadExport", "positional")
+  @cli_output_kind("binary")
   download(exportId: string): void;
 
   /** Delete an export. */
@@ -426,13 +627,62 @@ interface Behavior {
   @cli_output_kind("kv")
   delete(agentId: string, ruleId: string): void;
 
-  // Custom: create / update / toggle take complex DTOs.
-  @cli_output_kind("custom")
-  create(agentId: string): void;
-  @cli_output_kind("custom")
-  update(agentId: string, ruleId: string): void;
-  @cli_output_kind("custom")
-  toggle(agentId: string, ruleId: string): void;
+  /** Create a behavior rule. */
+  @cli_calls("createBehaviorRule")
+  @cli_output_kind("kv")
+  @cli_json_merge
+  @cli_post_validate("behaviorRuleCrossField")
+  create(
+    agentId: string,
+    @cli_flag("Rule name", "n") @cli_required @cli_body_key("rule_name")
+    name?: string,
+    @cli_flag("Trigger type") @cli_required
+    trigger?: string,
+    @cli_flag("State triggers") @cli_required @cli_variadic
+    states?: string[],
+    @cli_flag("Time window (seconds)") @cli_required @cli_parse("int") @cli_body_key("time_window")
+    window?: string,
+    @cli_flag("Verdict (0=ALLOW, 1=CONSTRAIN, 2=REQUIRE_APPROVAL, 3=BLOCK, 4=HALT)")
+    @cli_required @cli_parse("int")
+    verdict?: string,
+    @cli_flag("Reject message") @cli_required @cli_body_key("reject_message")
+    message?: string,
+    @cli_flag("Priority") @cli_parse("int") @cli_default("1")
+    priority?: string,
+    @cli_flag("Description", "d") @cli_body_key("description")
+    desc?: string,
+    @cli_flag("Trust impact (none|low|medium|high)") @cli_body_key("trust_impact")
+    @cli_choice(#["none", "low", "medium", "high"])
+    trustImpact?: string,
+    @cli_flag("Trust threshold") @cli_parse("int") @cli_body_key("trust_threshold")
+    trustThreshold?: string,
+    @cli_flag("Approval timeout (seconds)") @cli_parse("int") @cli_body_key("approval_timeout")
+    approvalTimeout?: string,
+  ): void;
+
+  /** Update a behavior rule - change_log is required by the backend. */
+  @cli_calls("updateBehaviorRule")
+  @cli_output_kind("kv")
+  @cli_json_merge
+  update(
+    agentId: string,
+    ruleId: string,
+    @cli_flag("Human-readable change reason") @cli_required @cli_body_key("change_log")
+    changeLog?: string,
+  ): void;
+  /** Toggle behavior rule active status. The boolean is wrapped as
+   *  `{ is_active: <bool> }` on the wire. */
+  @cli_calls("toggleBehaviorRuleStatus")
+  @cli_output_kind("kv")
+  toggle(
+    agentId: string,
+    ruleId: string,
+    @cli_flag("Active status (true|false)")
+    @cli_required @cli_choice(#["true", "false"])
+    @cli_parse("bool")
+    @cli_body_key("is_active")
+    active?: string,
+  ): void;
 
   // Restore / versions / metrics / violations not e2e-covered.
   @cli_maturity("experimental")
@@ -460,12 +710,37 @@ interface Behavior {
 
 @cli_command("core", "Direct access to the core governance API.")
 interface Core {
-  @cli_output_kind("custom") health(): void;
-  @cli_output_kind("custom") validate(): void;
-  @cli_output_kind("custom") evaluate(): void;
-  @cli_output_kind("custom") pollApproval(): void;
+  /** Check core API health. */
+  @cli_calls("health", "positional")
+  @cli_output_kind("kv")
+  health(): void;
+
+  /** Validate API key. */
+  @cli_calls("validateApiKey", "positional")
+  @cli_output_kind("kv")
+  validate(): void;
+
+  /** Poll approval status. */
+  @cli_calls("pollApproval")
+  @cli_output_kind("kv")
+  pollApproval(
+    @cli_flag("Workflow ID") @cli_required @cli_body_key("workflow_id")
+    workflowId?: string,
+    @cli_flag("Run ID") @cli_required @cli_body_key("run_id")
+    runId?: string,
+    @cli_flag("Activity ID") @cli_required @cli_body_key("activity_id")
+    activityId?: string,
+  ): void;
+
+  // Custom: --type shorthand drives buildTestPayload, --show-payload
+  // skips the call entirely.
+  @cli_output_kind("custom")
+  evaluate(): void;
 }
 
+// Local-only - never makes a backend call. The action is parent-level
+// (no subcommands), wired hand-coded in commands/doctor.ts. The
+// import-allowlist drift test guarantees no backend imports leak.
 @cli_command("doctor", "Pre-flight checks for the local environment.")
 @cli_maturity("stable")
 interface Doctor {}
@@ -521,14 +796,57 @@ interface Guardrail {
   @cli_output_kind("kv")
   delete(agentId: string, guardrailId: string): void;
 
-  // Create / update / reorder / metrics / violations / test not e2e-tested.
+  /** Create a guardrail. */
   @cli_maturity("experimental")
-  @cli_output_kind("custom")
-  create(agentId: string): void;
+  @cli_calls("createGuardrail")
+  @cli_output_kind("kv")
+  @cli_json_merge
+  @cli_post_validate("guardrailCrossField")
+  create(
+    agentId: string,
+    @cli_flag("Guardrail name", "n") @cli_required
+    name?: string,
+    @cli_flag("Guardrail type (1=PII, 2=NSFW, 3=Toxicity, 4=BanList, 5=Regex, or name)")
+    @cli_required @cli_body_key("guardrail_type")
+    type?: string,
+    @cli_flag("Processing stage (0=input, 1=output)") @cli_default("0")
+    @cli_body_key("processing_stage")
+    stage?: string,
+    @cli_flag("Description", "d") @cli_body_key("description")
+    desc?: string,
+    @cli_flag("Trust impact (none|low|medium|high)") @cli_body_key("trust_impact")
+    @cli_choice(#["none", "low", "medium", "high"])
+    trustImpact?: string,
+    @cli_flag("Trust threshold") @cli_parse("int") @cli_body_key("trust_threshold")
+    trustThreshold?: string,
+  ): void;
 
+  /** Update a guardrail. */
   @cli_maturity("experimental")
-  @cli_output_kind("custom")
-  update(agentId: string, guardrailId: string): void;
+  @cli_calls("updateGuardrail")
+  @cli_output_kind("kv")
+  @cli_json_merge
+  @cli_post_validate("guardrailCrossField")
+  update(
+    agentId: string,
+    guardrailId: string,
+    @cli_flag("Guardrail name", "n")
+    name?: string,
+    @cli_flag("Active status (true|false)") @cli_parse("bool") @cli_body_key("is_active")
+    @cli_choice(#["true", "false"])
+    active?: string,
+    @cli_flag("Guardrail type") @cli_body_key("guardrail_type")
+    type?: string,
+    @cli_flag("Processing stage (0|1)") @cli_body_key("processing_stage")
+    stage?: string,
+    @cli_flag("Description", "d") @cli_body_key("description")
+    desc?: string,
+    @cli_flag("Trust impact") @cli_body_key("trust_impact")
+    @cli_choice(#["none", "low", "medium", "high"])
+    trustImpact?: string,
+    @cli_flag("Trust threshold") @cli_parse("int") @cli_body_key("trust_threshold")
+    trustThreshold?: string,
+  ): void;
 
   @cli_maturity("experimental")
   @cli_output_kind("custom")
@@ -562,13 +880,90 @@ interface Health {}
 
 @cli_command("member", "Org member management.")
 interface Member {
-  @cli_output_kind("custom") list(orgId: string): void;
-  @cli_output_kind("custom") create(orgId: string): void;
-  @cli_output_kind("custom") update(orgId: string, userId: string): void;
-  @cli_output_kind("custom") assignRoles(orgId: string, userId: string): void;
-  @cli_output_kind("custom") removeRoles(orgId: string, userId: string): void;
-  @cli_output_kind("custom") remove(orgId: string): void;
-  @cli_output_kind("custom") invite(orgId: string): void;
+  /** List members of an org. */
+  @cli_calls("listMembers")
+  @cli_pagination
+  @cli_output_kind("list", "members")
+  list(orgId: string): void;
+
+  /** Create a member directly (Keycloak admin path). */
+  @cli_calls("createUser")
+  @cli_output_kind("kv")
+  @cli_json_merge
+  create(
+    orgId: string,
+    @cli_flag("Username")
+    @cli_required
+    username?: string,
+    @cli_flag("Email")
+    @cli_required
+    email?: string,
+    @cli_flag("Password - leave unset for invite flow")
+    password?: string,
+    @cli_flag("First name") @cli_body_key("firstName")
+    firstName?: string,
+    @cli_flag("Last name") @cli_body_key("lastName")
+    lastName?: string,
+    @cli_flag("Mark email as verified") @cli_body_key("emailVerified")
+    verified?: boolean,
+    @cli_flag("Roles to assign") @cli_variadic
+    roles?: string[],
+  ): void;
+
+  /** Update a member. */
+  @cli_calls("updateMember")
+  @cli_output_kind("kv")
+  @cli_json_merge
+  update(
+    orgId: string,
+    userId: string,
+    @cli_flag("Role")
+    role?: string,
+    @cli_flag("Team IDs (UUIDs) - replaces existing membership") @cli_variadic
+    @cli_body_key("team_ids")
+    teams?: string[],
+  ): void;
+
+  /** Assign roles to a member. Wire: assignRoles(orgId, userId, rolesArray). */
+  @cli_calls("assignRoles", "positional")
+  @cli_output_kind("kv")
+  assignRoles(
+    orgId: string,
+    userId: string,
+    @cli_flag("Roles to assign") @cli_variadic @cli_required
+    roles?: string[],
+  ): void;
+
+  /** Remove roles from a member. Wire: removeRoles(orgId, userId, rolesArray). */
+  @cli_calls("removeRoles", "positional")
+  @cli_output_kind("kv")
+  removeRoles(
+    orgId: string,
+    userId: string,
+    @cli_flag("Roles to remove") @cli_variadic @cli_required
+    roles?: string[],
+  ): void;
+
+  /** Remove members from an org. Wire: removeMembers(orgId, idArray). */
+  @cli_calls("removeMembers", "positional")
+  @cli_output_kind("kv")
+  remove(
+    orgId: string,
+    @cli_flag("User IDs to remove") @cli_variadic @cli_required
+    ids?: string[],
+  ): void;
+
+  /** Invite a user to the org. */
+  @cli_calls("inviteUser")
+  @cli_output_kind("kv")
+  invite(
+    orgId: string,
+    @cli_flag("Email")
+    @cli_required
+    email?: string,
+    @cli_flag("Roles to invite with") @cli_variadic @cli_required
+    roles?: string[],
+  ): void;
 }
 
 @cli_command("observe", "Observability dashboards + metrics.")
@@ -741,13 +1136,45 @@ interface Policy {
   @cli_output_kind("kv")
   get(agentId: string, policyId: string): void;
 
-  // Custom: rego/dsl payload doesn't fit body-map.
-  @cli_output_kind("custom")
-  create(agentId: string): void;
+  /** Create a policy. */
+  @cli_calls("createPolicy")
+  @cli_output_kind("kv")
+  @cli_json_merge
+  @cli_post_validate("policyCrossField")
+  create(
+    agentId: string,
+    @cli_flag("Policy name", "n") @cli_required
+    name?: string,
+    @cli_flag("Description", "d") @cli_body_key("description")
+    desc?: string,
+    @cli_flag("Rego policy code") @cli_required @cli_body_key("rego_code")
+    rego?: string,
+    @cli_flag("Input JSON for policy") @cli_parse("json")
+    input?: string,
+    @cli_flag("Trust impact (none|low|medium|high)") @cli_body_key("trust_impact")
+    @cli_choice(#["none", "low", "medium", "high"])
+    trustImpact?: string,
+    @cli_flag("Trust threshold") @cli_parse("int") @cli_body_key("trust_threshold")
+    trustThreshold?: string,
+  ): void;
 
+  /** Toggle active / roll back a policy version. Rego is immutable. */
   @cli_maturity("experimental")
-  @cli_output_kind("custom")
-  update(agentId: string, policyId: string): void;
+  @cli_calls("updatePolicy")
+  @cli_output_kind("kv")
+  @cli_json_merge
+  update(
+    agentId: string,
+    policyId: string,
+    @cli_flag("Active status (true|false)") @cli_required @cli_parse("bool")
+    @cli_choice(#["true", "false"]) @cli_body_key("is_active")
+    active?: string,
+    @cli_flag("Trust impact") @cli_body_key("trust_impact")
+    @cli_choice(#["none", "low", "medium", "high"])
+    trustImpact?: string,
+    @cli_flag("Trust threshold") @cli_parse("int") @cli_body_key("trust_threshold")
+    trustThreshold?: string,
+  ): void;
 
   @cli_maturity("experimental")
   @cli_calls("getPolicyEvaluations")
@@ -867,13 +1294,36 @@ interface Team {
   @cli_output_kind("list", "members")
   members(orgId: string, teamId: string): void;
 
-  // Custom: --json + name/desc/icon merge with at-least-one validation.
-  @cli_output_kind("custom")
-  create(orgId: string): void;
+  /** Create a team. --name OR --icon is required (cross-field rule);
+   *  --json provides full body and bypasses the cross-field check. */
+  @cli_calls("createTeam")
+  @cli_output_kind("kv")
+  @cli_json_merge("replace")
+  @cli_at_least_one(#["name", "icon"])
+  create(
+    orgId: string,
+    @cli_flag("Team name", "n")
+    name?: string,
+    @cli_flag("Description", "d") @cli_body_key("description")
+    desc?: string,
+    @cli_flag("Icon URL")
+    icon?: string,
+  ): void;
 
-  // Custom: --json + name/desc/icon merge.
-  @cli_output_kind("custom")
-  update(orgId: string, teamId: string): void;
+  /** Update a team. */
+  @cli_calls("updateTeam")
+  @cli_output_kind("kv")
+  @cli_json_merge("replace")
+  update(
+    orgId: string,
+    teamId: string,
+    @cli_flag("Team name", "n")
+    name?: string,
+    @cli_flag("Description", "d") @cli_body_key("description")
+    desc?: string,
+    @cli_flag("Icon")
+    icon?: string,
+  ): void;
 
   /** Delete one or more teams. */
   @cli_calls("deleteTeams")

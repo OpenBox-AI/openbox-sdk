@@ -122,7 +122,7 @@ extern dec cli_calls(
  */
 extern dec cli_output_kind(
   target: Operation,
-  kind: valueof "table" | "list" | "json" | "kv" | "custom",
+  kind: valueof "table" | "list" | "json" | "kv" | "binary" | "custom",
   label?: valueof string,
 );
 
@@ -148,8 +148,9 @@ extern dec cli_body_key(target: ModelProperty, key: valueof string);
  *   "int"  → parseInt
  *   "json" → JSON.parse (with helpful error)
  *   "csv"  → split on `,` to a string[]
+ *   "bool" → "true" / "false" → boolean (anything else stays string)
  */
-extern dec cli_parse(target: ModelProperty, kind: valueof "int" | "json" | "csv");
+extern dec cli_parse(target: ModelProperty, kind: valueof "int" | "json" | "csv" | "bool");
 
 /**
  * Restricts a flag to one of a fixed set of strings. Validated locally
@@ -193,3 +194,64 @@ extern dec cli_output_pluck(target: Operation, path: valueof string);
  * `api-key rotate`.
  */
 extern dec cli_output_post(target: Operation, callbackName: valueof string);
+
+/**
+ * Marks an op as accepting a `--json <body>` escape hatch alongside
+ * its per-flag overrides. Auto-emits a `--json` flag onto the
+ * subcommand; the runtime parses and merges per the chosen mode.
+ *
+ * Mode "fill" (default): --json is the body base, flag values fill
+ *   missing keys (audit export, guardrail create pattern).
+ * Mode "replace": --json fully replaces the flag-derived body when
+ *   present (audit preview, team create pattern).
+ *
+ * @cli_required flags become "must be present in the merged body" -
+ * the check runs after the merge instead of via Commander's
+ * requiredOption (which can't see inside --json).
+ */
+extern dec cli_json_merge(
+  target: Operation,
+  mode?: valueof "fill" | "replace" | "only",
+);
+
+/**
+ * Cross-field constraint: at least one of these parameter names must
+ * be set on the command line (or present in --json when paired with
+ * @cli_json_merge). Closes the team-create "name OR icon required"
+ * rule that doesn't fit @cli_required (which is per-field).
+ */
+extern dec cli_at_least_one(target: Operation, fields: valueof string[]);
+
+/**
+ * Marks an op as local-only - it never calls the OpenBox backend or
+ * core. Documents intent in spec; the cli-import-allowlist drift test
+ * guarantees the implementation matches.
+ */
+extern dec cli_local_only(target: Operation);
+
+/**
+ * Names a callback registered in PREFLIGHT_REGISTRY (in
+ * wire-subcommands.ts) the runtime invokes BEFORE the main backend
+ * call. Receives the merged body + the client resolver. Used for
+ * `agent create`'s team-existence + name-collision pre-flight GETs
+ * that would orphan the agent if skipped.
+ */
+extern dec cli_preflight(target: Operation, callbackName: valueof string);
+
+/**
+ * Declarative DTO defaults - JSON literal merged into the body for
+ * keys the user didn't set. Order: --json (if jsonMerge) → flag
+ * values → dto_defaults. Used for `agent create`'s hardcoded AIVSS
+ * baseline so the user can omit it without the backend rejecting.
+ */
+extern dec cli_dto_defaults(target: Operation, defaults: valueof Record<unknown>);
+
+/**
+ * Names a callback registered in POST_VALIDATE_REGISTRY that runs
+ * AFTER body assembly and BEFORE the call. Lets the spec wire cross-
+ * field validators (behavior's validateApprovalTimeout(verdict,
+ * approval_timeout) for instance) without leaving the action body to
+ * do it. Stackable - @cli_post_validate can be repeated for multiple
+ * checks per op.
+ */
+extern dec cli_post_validate(target: Operation, callbackName: valueof string);

@@ -17,6 +17,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -35,6 +36,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -53,6 +55,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
         "long": "from",
         "description": "Start date (ISO)",
         "bodyKey": "fromTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -60,6 +63,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
         "long": "to",
         "description": "End date (ISO)",
         "bodyKey": "toTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       }
     ],
@@ -68,6 +72,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -91,7 +96,8 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
           "failed",
           "blocked",
           "halted"
-        ]
+        ],
+        "noArg": false
       }
     ],
     "backend": {
@@ -99,6 +105,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "sessions"
@@ -122,7 +129,8 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
           "approved",
           "rejected",
           "expired"
-        ]
+        ],
+        "noArg": false
       }
     ],
     "backend": {
@@ -130,6 +138,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "approvals",
@@ -151,6 +160,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -169,6 +179,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
         "long": "from",
         "description": "Start date (ISO)",
         "bodyKey": "fromTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -176,6 +187,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
         "long": "to",
         "description": "End date (ISO)",
         "bodyKey": "toTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       }
     ],
@@ -184,6 +196,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -202,6 +215,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -220,6 +234,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "approval history"

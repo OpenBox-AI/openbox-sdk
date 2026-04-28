@@ -17,6 +17,7 @@ export const APPROVAL_HANDLERS: SubcommandSpec[] = [
         "long": "from",
         "description": "Start date (ISO)",
         "bodyKey": "fromTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -24,6 +25,7 @@ export const APPROVAL_HANDLERS: SubcommandSpec[] = [
         "long": "to",
         "description": "End date (ISO)",
         "bodyKey": "toTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       }
     ],
@@ -32,6 +34,7 @@ export const APPROVAL_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -49,7 +52,8 @@ export const APPROVAL_HANDLERS: SubcommandSpec[] = [
         "name": "search",
         "long": "search",
         "short": "s",
-        "description": "Search"
+        "description": "Search",
+        "noArg": false
       },
       {
         "name": "status",
@@ -60,19 +64,22 @@ export const APPROVAL_HANDLERS: SubcommandSpec[] = [
           "approved",
           "rejected",
           "expired"
-        ]
+        ],
+        "noArg": false
       },
       {
         "name": "tiers",
         "long": "tiers",
         "description": "Tier filter",
-        "variadic": true
+        "variadic": true,
+        "noArg": false
       },
       {
         "name": "from",
         "long": "from",
         "description": "Start date (ISO)",
         "bodyKey": "fromTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -80,6 +87,7 @@ export const APPROVAL_HANDLERS: SubcommandSpec[] = [
         "long": "to",
         "description": "End date (ISO)",
         "bodyKey": "toTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       }
     ],
@@ -88,6 +96,7 @@ export const APPROVAL_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "pending approvals"
@@ -106,7 +115,8 @@ export const APPROVAL_HANDLERS: SubcommandSpec[] = [
         "name": "search",
         "long": "search",
         "short": "s",
-        "description": "Search"
+        "description": "Search",
+        "noArg": false
       },
       {
         "name": "status",
@@ -117,19 +127,22 @@ export const APPROVAL_HANDLERS: SubcommandSpec[] = [
           "approved",
           "rejected",
           "expired"
-        ]
+        ],
+        "noArg": false
       },
       {
         "name": "tiers",
         "long": "tiers",
         "description": "Tier filter",
-        "variadic": true
+        "variadic": true,
+        "noArg": false
       },
       {
         "name": "from",
         "long": "from",
         "description": "Start date (ISO)",
         "bodyKey": "fromTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -137,6 +150,7 @@ export const APPROVAL_HANDLERS: SubcommandSpec[] = [
         "long": "to",
         "description": "End date (ISO)",
         "bodyKey": "toTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       }
     ],
@@ -145,6 +159,7 @@ export const APPROVAL_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "approval history"
@@ -175,6 +190,7 @@ export const APPROVAL_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }

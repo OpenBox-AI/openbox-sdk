@@ -17,6 +17,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "teams"
@@ -36,6 +37,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -57,6 +59,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -78,9 +81,101 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "members"
+    }
+  },
+  {
+    "name": "create",
+    "description": "Create a team. --name OR --icon is required (cross-field rule);\n--json provides full body and bypasses the cross-field check.",
+    "args": [
+      {
+        "name": "orgId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "name",
+        "long": "name",
+        "short": "n",
+        "description": "Team name",
+        "noArg": false
+      },
+      {
+        "name": "desc",
+        "long": "desc",
+        "short": "d",
+        "description": "Description",
+        "bodyKey": "description",
+        "noArg": false
+      },
+      {
+        "name": "icon",
+        "long": "icon",
+        "description": "Icon URL",
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "createTeam",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "replace",
+    "atLeastOne": [
+      "name",
+      "icon"
+    ],
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
+    "name": "update",
+    "description": "Update a team.",
+    "args": [
+      {
+        "name": "orgId"
+      },
+      {
+        "name": "teamId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "name",
+        "long": "name",
+        "short": "n",
+        "description": "Team name",
+        "noArg": false
+      },
+      {
+        "name": "desc",
+        "long": "desc",
+        "short": "d",
+        "description": "Description",
+        "bodyKey": "description",
+        "noArg": false
+      },
+      {
+        "name": "icon",
+        "long": "icon",
+        "description": "Icon",
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "updateTeam",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "replace",
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
     }
   },
   {
@@ -97,7 +192,8 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
         "long": "ids",
         "description": "Team IDs to delete",
         "variadic": true,
-        "required": true
+        "required": true,
+        "noArg": false
       }
     ],
     "backend": {
@@ -105,6 +201,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -127,7 +224,8 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
         "description": "User IDs to add",
         "bodyKey": "user_ids",
         "variadic": true,
-        "required": true
+        "required": true,
+        "noArg": false
       }
     ],
     "backend": {
@@ -135,6 +233,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -157,7 +256,8 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
         "description": "User IDs to remove",
         "bodyKey": "user_ids",
         "variadic": true,
-        "required": true
+        "required": true,
+        "noArg": false
       }
     ],
     "backend": {
@@ -165,6 +265,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }

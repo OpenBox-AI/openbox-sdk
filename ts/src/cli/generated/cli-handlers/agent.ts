@@ -12,25 +12,29 @@ export const AGENT_HANDLERS: SubcommandSpec[] = [
         "name": "search",
         "long": "search",
         "short": "s",
-        "description": "Search by name"
+        "description": "Search by name",
+        "noArg": false
       },
       {
         "name": "status",
         "long": "status",
         "description": "Filter by status",
-        "parse": "int"
+        "parse": "int",
+        "noArg": false
       },
       {
         "name": "team",
         "long": "team",
         "description": "Filter by team ID",
-        "bodyKey": "team_id"
+        "bodyKey": "team_id",
+        "noArg": false
       },
       {
         "name": "tiers",
         "long": "tiers",
         "description": "Filter by tiers",
-        "variadic": true
+        "variadic": true,
+        "noArg": false
       }
     ],
     "backend": {
@@ -38,6 +42,7 @@ export const AGENT_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "agents"
@@ -57,6 +62,7 @@ export const AGENT_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -75,6 +81,165 @@ export const AGENT_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
+    "name": "create",
+    "description": "Create a new agent. --json bypasses flag merge; otherwise\n--name + --team are required, AIVSS defaults fill in, and the\npreflight verifies team existence + flags name collisions. The\nruntime API key is highlighted to stderr (one-time display) on\nsuccess.",
+    "args": [],
+    "flags": [
+      {
+        "name": "name",
+        "long": "name",
+        "short": "n",
+        "description": "Agent name",
+        "bodyKey": "agent_name",
+        "required": true,
+        "noArg": false
+      },
+      {
+        "name": "desc",
+        "long": "desc",
+        "short": "d",
+        "description": "Description",
+        "bodyKey": "description",
+        "noArg": false
+      },
+      {
+        "name": "team",
+        "long": "team",
+        "short": "t",
+        "description": "Team IDs (UUIDs)",
+        "bodyKey": "team_ids",
+        "variadic": true,
+        "required": true,
+        "noArg": false,
+        "validator": "validateUuidList"
+      },
+      {
+        "name": "type",
+        "long": "type",
+        "description": "Agent type",
+        "bodyKey": "agent_type",
+        "default": "temporal",
+        "noArg": false
+      },
+      {
+        "name": "icon",
+        "long": "icon",
+        "description": "Icon",
+        "default": "robot",
+        "noArg": false
+      },
+      {
+        "name": "skipPreflight",
+        "long": "skip-preflight",
+        "description": "Skip preflight team-existence + name-collision GETs",
+        "noArg": true
+      }
+    ],
+    "backend": {
+      "method": "createAgent",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "replace",
+    "localOnly": false,
+    "preflight": "agentCreatePreflight",
+    "dtoDefaults": {
+      "aivss_config": {
+        "base_security": {
+          "attack_vector": 2,
+          "attack_complexity": 1,
+          "privileges_required": 2,
+          "user_interaction": 1,
+          "scope": 1
+        },
+        "ai_specific": {
+          "model_robustness": 3,
+          "data_sensitivity": 2,
+          "ethical_impact": 2,
+          "decision_criticality": 2,
+          "adaptability": 3
+        },
+        "impact": {
+          "confidentiality_impact": 2,
+          "integrity_impact": 2,
+          "availability_impact": 2,
+          "safety_impact": 1
+        }
+      }
+    },
+    "output": {
+      "kind": "kv",
+      "post": "highlightRuntimeKey"
+    }
+  },
+  {
+    "name": "update",
+    "description": "Update an agent. --json replaces flag-built body.",
+    "args": [
+      {
+        "name": "agentId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "name",
+        "long": "name",
+        "short": "n",
+        "description": "Agent name",
+        "bodyKey": "agent_name",
+        "noArg": false
+      },
+      {
+        "name": "desc",
+        "long": "desc",
+        "short": "d",
+        "description": "Description",
+        "bodyKey": "description",
+        "noArg": false
+      },
+      {
+        "name": "type",
+        "long": "type",
+        "description": "Agent type",
+        "bodyKey": "agent_type",
+        "noArg": false
+      },
+      {
+        "name": "model",
+        "long": "model",
+        "description": "Model name",
+        "bodyKey": "model_name",
+        "noArg": false
+      },
+      {
+        "name": "tags",
+        "long": "tags",
+        "description": "Tags",
+        "variadic": true,
+        "noArg": false
+      },
+      {
+        "name": "team",
+        "long": "team",
+        "description": "Team IDs",
+        "bodyKey": "team_ids",
+        "variadic": true,
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "updateAgent",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "replace",
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }

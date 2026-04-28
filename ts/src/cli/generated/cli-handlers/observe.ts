@@ -17,6 +17,7 @@ export const OBSERVE_HANDLERS: SubcommandSpec[] = [
         "long": "from",
         "description": "Start date (ISO)",
         "bodyKey": "fromTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -24,6 +25,7 @@ export const OBSERVE_HANDLERS: SubcommandSpec[] = [
         "long": "to",
         "description": "End date (ISO)",
         "bodyKey": "toTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       }
     ],
@@ -32,6 +34,7 @@ export const OBSERVE_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -50,6 +53,7 @@ export const OBSERVE_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "issues"
@@ -69,6 +73,7 @@ export const OBSERVE_HANDLERS: SubcommandSpec[] = [
         "long": "from",
         "description": "Start date (ISO)",
         "bodyKey": "fromTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -76,6 +81,7 @@ export const OBSERVE_HANDLERS: SubcommandSpec[] = [
         "long": "to",
         "description": "End date (ISO)",
         "bodyKey": "toTime",
+        "noArg": false,
         "validator": "validateIsoDate"
       }
     ],
@@ -84,6 +90,7 @@ export const OBSERVE_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -102,6 +109,7 @@ export const OBSERVE_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "logs"
@@ -121,6 +129,7 @@ export const OBSERVE_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "drift logs"
@@ -136,6 +145,7 @@ export const OBSERVE_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }

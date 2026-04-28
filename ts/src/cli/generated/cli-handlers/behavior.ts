@@ -13,6 +13,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "behavior types"
@@ -32,6 +33,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "rules"
@@ -51,6 +53,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -72,6 +75,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -93,6 +97,193 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
+    "name": "create",
+    "description": "Create a behavior rule.",
+    "args": [
+      {
+        "name": "agentId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "name",
+        "long": "name",
+        "short": "n",
+        "description": "Rule name",
+        "bodyKey": "rule_name",
+        "required": true,
+        "noArg": false
+      },
+      {
+        "name": "trigger",
+        "long": "trigger",
+        "description": "Trigger type",
+        "required": true,
+        "noArg": false
+      },
+      {
+        "name": "states",
+        "long": "states",
+        "description": "State triggers",
+        "variadic": true,
+        "required": true,
+        "noArg": false
+      },
+      {
+        "name": "window",
+        "long": "window",
+        "description": "Time window (seconds)",
+        "bodyKey": "time_window",
+        "parse": "int",
+        "required": true,
+        "noArg": false
+      },
+      {
+        "name": "verdict",
+        "long": "verdict",
+        "description": "Verdict (0=ALLOW, 1=CONSTRAIN, 2=REQUIRE_APPROVAL, 3=BLOCK, 4=HALT)",
+        "parse": "int",
+        "required": true,
+        "noArg": false
+      },
+      {
+        "name": "message",
+        "long": "message",
+        "description": "Reject message",
+        "bodyKey": "reject_message",
+        "required": true,
+        "noArg": false
+      },
+      {
+        "name": "priority",
+        "long": "priority",
+        "description": "Priority",
+        "parse": "int",
+        "default": "1",
+        "noArg": false
+      },
+      {
+        "name": "desc",
+        "long": "desc",
+        "short": "d",
+        "description": "Description",
+        "bodyKey": "description",
+        "noArg": false
+      },
+      {
+        "name": "trustImpact",
+        "long": "trust-impact",
+        "description": "Trust impact (none|low|medium|high)",
+        "bodyKey": "trust_impact",
+        "choices": [
+          "none",
+          "low",
+          "medium",
+          "high"
+        ],
+        "noArg": false
+      },
+      {
+        "name": "trustThreshold",
+        "long": "trust-threshold",
+        "description": "Trust threshold",
+        "bodyKey": "trust_threshold",
+        "parse": "int",
+        "noArg": false
+      },
+      {
+        "name": "approvalTimeout",
+        "long": "approval-timeout",
+        "description": "Approval timeout (seconds)",
+        "bodyKey": "approval_timeout",
+        "parse": "int",
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "createBehaviorRule",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "fill",
+    "localOnly": false,
+    "postValidate": [
+      "behaviorRuleCrossField"
+    ],
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
+    "name": "update",
+    "description": "Update a behavior rule - change_log is required by the backend.",
+    "args": [
+      {
+        "name": "agentId"
+      },
+      {
+        "name": "ruleId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "changeLog",
+        "long": "change-log",
+        "description": "Human-readable change reason",
+        "bodyKey": "change_log",
+        "required": true,
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "updateBehaviorRule",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "fill",
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
+    "name": "toggle",
+    "description": "Toggle behavior rule active status. The boolean is wrapped as\n`{ is_active: <bool> }` on the wire.",
+    "args": [
+      {
+        "name": "agentId"
+      },
+      {
+        "name": "ruleId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "active",
+        "long": "active",
+        "description": "Active status (true|false)",
+        "bodyKey": "is_active",
+        "parse": "bool",
+        "choices": [
+          "true",
+          "false"
+        ],
+        "required": true,
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "toggleBehaviorRuleStatus",
+      "shape": "body"
+    },
+    "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -114,6 +305,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -135,6 +327,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "versions"
@@ -154,6 +347,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -172,6 +366,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "violations"

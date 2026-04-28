@@ -12,13 +12,15 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
         "name": "eventType",
         "long": "event-type",
         "description": "Event type filter",
-        "bodyKey": "eventType"
+        "bodyKey": "eventType",
+        "noArg": false
       },
       {
         "name": "actor",
         "long": "actor",
         "description": "Actor ID filter",
-        "bodyKey": "actorId"
+        "bodyKey": "actorId",
+        "noArg": false
       },
       {
         "name": "result",
@@ -31,19 +33,22 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
           "warning",
           "approved",
           "allowed"
-        ]
+        ],
+        "noArg": false
       },
       {
         "name": "search",
         "long": "search",
         "short": "s",
-        "description": "Search"
+        "description": "Search",
+        "noArg": false
       },
       {
         "name": "from",
         "long": "from",
         "description": "Start date (ISO)",
         "bodyKey": "startDate",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -51,6 +56,7 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
         "long": "to",
         "description": "End date (ISO)",
         "bodyKey": "endDate",
+        "noArg": false,
         "validator": "validateIsoDate"
       }
     ],
@@ -59,9 +65,155 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "audit logs"
+    }
+  },
+  {
+    "name": "export",
+    "description": "Export audit logs. --json provides a full ExportAuditLogsDto;\nindividual flags fill missing fields. exportName is required in\nthe merged body (either via --name or via --json).",
+    "args": [],
+    "flags": [
+      {
+        "name": "name",
+        "long": "name",
+        "short": "n",
+        "description": "Export name (required; if --json omits exportName, this fills it)",
+        "bodyKey": "exportName",
+        "required": true,
+        "noArg": false
+      },
+      {
+        "name": "eventTypes",
+        "long": "event-types",
+        "description": "Event types",
+        "bodyKey": "eventTypes",
+        "choices": [
+          "policy_change",
+          "guardrail_change",
+          "agent_session",
+          "agent_risk_configuration_change",
+          "agent_goal_alignment_configuration_change",
+          "role_change",
+          "security_event",
+          "settings_update",
+          "team_management",
+          "member_management",
+          "invitation"
+        ],
+        "variadic": true,
+        "noArg": false
+      },
+      {
+        "name": "actor",
+        "long": "actor",
+        "description": "Actor ID",
+        "bodyKey": "actorId",
+        "noArg": false
+      },
+      {
+        "name": "result",
+        "long": "result",
+        "description": "Result filter",
+        "choices": [
+          "success",
+          "failed",
+          "denied",
+          "warning",
+          "approved",
+          "allowed"
+        ],
+        "noArg": false
+      },
+      {
+        "name": "search",
+        "long": "search",
+        "short": "s",
+        "description": "Search",
+        "noArg": false
+      },
+      {
+        "name": "from",
+        "long": "from",
+        "description": "Start date (ISO)",
+        "bodyKey": "startDate",
+        "noArg": false,
+        "validator": "validateIsoDate"
+      },
+      {
+        "name": "to",
+        "long": "to",
+        "description": "End date (ISO)",
+        "bodyKey": "endDate",
+        "noArg": false,
+        "validator": "validateIsoDate"
+      }
+    ],
+    "backend": {
+      "method": "exportAuditLogs",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "fill",
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
+    "name": "preview",
+    "description": "Preview audit log export. --json replaces flag-built body when\npresent.",
+    "args": [],
+    "flags": [
+      {
+        "name": "eventTypes",
+        "long": "event-types",
+        "description": "Event types",
+        "bodyKey": "eventTypes",
+        "choices": [
+          "policy_change",
+          "guardrail_change",
+          "agent_session",
+          "agent_risk_configuration_change",
+          "agent_goal_alignment_configuration_change",
+          "role_change",
+          "security_event",
+          "settings_update",
+          "team_management",
+          "member_management",
+          "invitation"
+        ],
+        "variadic": true,
+        "noArg": false
+      },
+      {
+        "name": "from",
+        "long": "from",
+        "description": "Start date (ISO)",
+        "bodyKey": "startDate",
+        "noArg": false,
+        "validator": "validateIsoDate"
+      },
+      {
+        "name": "to",
+        "long": "to",
+        "description": "End date (ISO)",
+        "bodyKey": "endDate",
+        "noArg": false,
+        "validator": "validateIsoDate"
+      }
+    ],
+    "backend": {
+      "method": "previewAuditExport",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "replace",
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
     }
   },
   {
@@ -78,13 +230,15 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
           "processing",
           "completed",
           "failed"
-        ]
+        ],
+        "noArg": false
       },
       {
         "name": "from",
         "long": "from",
         "description": "Start date (ISO)",
         "bodyKey": "startDate",
+        "noArg": false,
         "validator": "validateIsoDate"
       },
       {
@@ -92,6 +246,7 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
         "long": "to",
         "description": "End date (ISO)",
         "bodyKey": "endDate",
+        "noArg": false,
         "validator": "validateIsoDate"
       }
     ],
@@ -100,9 +255,29 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
       "shape": "body"
     },
     "pagination": true,
+    "localOnly": false,
     "output": {
       "kind": "list",
       "label": "exports"
+    }
+  },
+  {
+    "name": "download",
+    "description": "Download an export - returns a binary payload, written verbatim\nto stdout.",
+    "args": [
+      {
+        "name": "exportId"
+      }
+    ],
+    "flags": [],
+    "backend": {
+      "method": "downloadExport",
+      "shape": "positional"
+    },
+    "pagination": false,
+    "localOnly": false,
+    "output": {
+      "kind": "binary"
     }
   },
   {
@@ -119,6 +294,7 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }
@@ -137,6 +313,7 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
       "shape": "positional"
     },
     "pagination": false,
+    "localOnly": false,
     "output": {
       "kind": "kv"
     }

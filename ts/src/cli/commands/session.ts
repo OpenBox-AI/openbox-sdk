@@ -8,6 +8,11 @@ import { getClient } from '../config.js';
 import { wireSubcommands } from '../wire-subcommands.js';
 import { SESSION_HANDLERS } from '../generated/cli-handlers/session.js';
 import { reportAndExit } from '../validators/index.js';
+import {
+  CANONICAL_EVENT_TYPES,
+  CANONICAL_ACTIVITY_TYPES,
+  CANONICAL_VERDICT_ARMS,
+} from '../../core-client/generated/govern.js';
 
 // Parse "30s" / "5m" / "2h" / "1d" / bare seconds into milliseconds.
 // Dangling cleanup must set this explicitly - no default, per user requirement.
@@ -35,19 +40,12 @@ type EventLog = {
 
 type InspectFinding = { level: 'ok' | 'info' | 'warn' | 'fail'; message: string };
 
-const CANONICAL_ACTIVITY_TYPES = new Set([
-  'PromptSubmission', 'FileRead', 'FileEdit', 'FileDelete', 'ShellExecution',
-  'ShellOutput', 'HTTPRequest', 'MCPToolCall', 'MCPToolResponse',
-  'AgentResponse', 'AgentThinking', 'AgentSpawn', 'ClaudeCodeSession',
-  'CursorSession', 'LLMCompleted', 'ToolCompleted', 'DefaultActivity',
-]);
-
-const CANONICAL_EVENT_TYPES = new Set([
-  'WorkflowStarted', 'SignalReceived', 'ActivityStarted',
-  'ActivityCompleted', 'WorkflowCompleted', 'WorkflowFailed',
-]);
-
-const CANONICAL_VERDICTS = new Set(['allow', 'require_approval', 'block', 'halt']);
+// Production verdict set. Same as CANONICAL_VERDICT_ARMS minus
+// `constrain` (removed from the production wire - any `constrain` on
+// the wire today is a stale SDK or hand-rolled client).
+const CANONICAL_VERDICTS: ReadonlySet<string> = new Set(
+  [...CANONICAL_VERDICT_ARMS].filter((v) => v !== 'constrain'),
+);
 
 function inspectEvents(events: EventLog[]): InspectFinding[] {
   const findings: InspectFinding[] = [];

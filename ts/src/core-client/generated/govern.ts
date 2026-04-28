@@ -946,6 +946,19 @@ export const PRESET_MANIFEST = [
   }
 ] as const;
 export type PresetName = (typeof PRESET_MANIFEST)[number]["preset"];
+/** The 6 canonical event_type strings. Anything else on the wire
+ *  is a protocol bug. Consumed by the session-inspect protocol
+ *  checker + the verify static linter. */
+export const CANONICAL_EVENT_TYPES: ReadonlySet<CanonicalEventType> = new Set(["ActivityCompleted","ActivityStarted","SignalReceived","WorkflowCompleted","WorkflowFailed","WorkflowStarted"] as const);
+/** Every activity_type string declared in any @preset method or
+ *  @activityRouting adapter table. Activity_type is free-form on
+ *  the wire (custom agents legitimately emit custom names) - this
+ *  is the *first-party* vocabulary, useful for guardrail authors
+ *  and conformance reports. */
+export const CANONICAL_ACTIVITY_TYPES: ReadonlySet<string> = new Set(["AGENT_STEP","ActivityTaskCanceled","ActivityTaskCompleted","ActivityTaskFailed","ActivityTaskScheduled","ActivityTaskStarted","ActivityTaskTimedOut","AgentExecutionCompleted","AgentExecutionStarted","AgentSpawn","CHUNKING","CallToolsNode","ChildWorkflowExecutionCompleted","ChildWorkflowExecutionInitiated","CrewKickoffCompleted","CrewKickoffStarted","EMBEDDING","EXCEPTION","End","FUNCTION_CALL","FileDelete","FileEdit","FileRead","HTTPRequest","HandoffMessage","LLM","LLMCallCompleted","LLMCallStarted","LLMCompleted","MCPToolCall","MarkerRecorded","MemoryQueryEvent","ModelRequestNode","MultiModalMessage","Notification","OperationCompleted","OperationStarted","PermissionRequest","PostToolUse","PreCompact","PreSyncHookStarted","PreSyncHookSucceeded","PreToolUse","PromptSubmission","QUERY","RERANKING","RETRIEVE","ResourceUpdated","SUB_QUESTION","SYNTHESIZE","ShellExecution","Stop","StopMessage","SubagentStop","SyncStatusChanged","TaskCompleted","TaskStart","TaskStarted","TextMessage","TimerFired","TimerStarted","ToolCallExecutionEvent","ToolCallRequestEvent","ToolCompleted","ToolStarted","ToolUsageError","ToolUsageFinished","ToolUsageStarted","UserInputRequestedEvent","UserPromptNode","UserPromptSubmit","WorkflowExecutionSignaled","afterAgentResponse","afterAgentThought","afterFileEdit","afterMCPExecution","afterShellExecution","agentStop","agent_action","auto_function_invocation_post","auto_function_invocation_pre","beforeMCPExecution","beforeReadFile","beforeShellExecution","beforeSubmitPrompt","checkpoint","custom_event","error","error-trigger","errorOccurred","file_read","file_write","function_invocation_post","function_invocation_pre","incident.acknowledged","incident.annotated","incident.delegated","incident.escalated","incident.priority_updated","incident.reassigned","incident.reopened","incident.resolved","incident.triggered","incident.unacknowledged","interrupt","node-post-execute","node-pre-execute","node_end","node_start","onAbort","onError","onFinish","onStepFinish","on_agent_action","on_agent_finish","on_chain_end","on_chain_start","on_chat_model_start","on_execute_callback","on_failure_callback","on_llm_end","on_llm_error","on_llm_start","on_retriever_end","on_retriever_start","on_retry_callback","on_skipped_callback","on_success_callback","on_tool_end","on_tool_error","on_tool_start","output_validator","payment_order.approved","payment_order.begin_processing","payment_order.failed","payment_order.reconciled","payment_reference.created","postToolUse","preToolUse","prompt_render_post","prompt_render_pre","sla_miss_callback","subagentStop","task_end","task_start","tool-call","tool-result","tool_retry","userPromptSubmitted","workflow-step-finish","workflow-step-progress","workflow-step-start"]);
+/** Every verdict arm the runtime emits. Production sets typically
+ *  exclude `constrain`; consumers can re-filter. */
+export const CANONICAL_VERDICT_ARMS: ReadonlySet<VerdictArm> = new Set(["allow","block","constrain","halt","require_approval"] as const);
 import { randomUUID } from 'crypto';
 import type { OpenBoxCoreClient } from '../core-client.js';
 import type {
@@ -2256,6 +2269,7 @@ function applyJitter(baseMs: number, fraction: number): number {
   const noise = (Math.random() * 2 - 1) * f; // [-f, f]
   return baseMs * (1 + noise);
 }
+
 
 
 

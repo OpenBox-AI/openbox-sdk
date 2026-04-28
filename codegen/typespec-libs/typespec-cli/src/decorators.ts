@@ -205,7 +205,7 @@ export function getCallsBackend(
 //   kv:                     key/value single-record renderer (same as table for one obj)
 //   custom:                 hand-coded action body - emitter skips generation
 
-export type OutputKind = 'table' | 'list' | 'json' | 'kv' | 'custom';
+export type OutputKind = 'table' | 'list' | 'json' | 'kv' | 'binary' | 'custom';
 
 export interface OutputBinding {
   readonly kind: OutputKind;
@@ -218,6 +218,7 @@ const OUTPUT_KINDS: ReadonlySet<OutputKind> = new Set([
   'list',
   'json',
   'kv',
+  'binary',
   'custom',
 ]);
 
@@ -298,7 +299,7 @@ export function isPaginated(program: Program, target: Operation): boolean {
 // becomes its body key verbatim. With it, the flag maps to a different
 // backend key and/or a coercion runs (parseInt, JSON.parse).
 
-export type FlagParse = 'int' | 'json' | 'csv';
+export type FlagParse = 'int' | 'json' | 'csv' | 'bool';
 
 export interface FlagBindingExtra {
   readonly bodyKey: string | undefined;
@@ -359,13 +360,148 @@ export function $cli_variadic(
 
 /** Marks a flag as required (Commander `requiredOption`). Without it,
  *  the user gets a clear "missing required option --x" error before
- *  the action runs. Off by default; flags are optional unless tagged. */
+ *  the action runs. Off by default; flags are optional unless tagged.
+ *
+ *  When the parent op carries @cli_json_merge, "required" flips to
+ *  "the merged body must have this key from either the flag or --json"
+ *  - commander's requiredOption can't see inside --json so the check
+ *  moves to runtime. */
 export function $cli_required(
   context: DecoratorContext,
   target: ModelProperty,
 ): void {
   const cur = (context.program.stateMap(stateKeys.flagExtra).get(target) ?? {}) as Record<string, unknown>;
   context.program.stateMap(stateKeys.flagExtra).set(target, { ...cur, required: true });
+}
+
+/** Marks an op as accepting a `--json <body>` escape hatch alongside
+ *  per-flag overrides. Modes:
+ *    "fill"     - --json is the body base, flag values fill missing keys
+ *    "replace"  - --json fully replaces the flag-derived body when present
+ *    "only"     - like "replace", but --json is required (no flag fallback)
+ *
+ *  @cli_required flags become "must be present in the merged body" - checked
+ *  at runtime instead of via Commander's requiredOption. */
+export function $cli_json_merge(
+  context: DecoratorContext,
+  target: Operation,
+  mode?: string,
+): void {
+  const m: 'fill' | 'replace' | 'only' =
+    mode === 'replace' ? 'replace' : mode === 'only' ? 'only' : 'fill';
+  context.program.stateMap(stateKeys.jsonMerge).set(target, m);
+}
+
+export function getJsonMerge(
+  program: Program,
+  target: Operation,
+): 'fill' | 'replace' | 'only' | undefined {
+  return program.stateMap(stateKeys.jsonMerge).get(target);
+}
+
+/** Cross-field constraint: at least one of these flags (by parameter
+ *  name) must be set or present in --json. Closes the team-create
+ *  "name OR icon required" rule that doesn't fit @cli_required (which
+ *  is per-field). */
+export function $cli_at_least_one(
+  context: DecoratorContext,
+  target: Operation,
+  raw: unknown,
+): void {
+  const fields = Array.isArray(raw)
+    ? raw.filter((c): c is string => typeof c === 'string')
+    : [];
+  if (fields.length < 2) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-output-kind',
+      format: { kind: '@cli_at_least_one needs ≥2 field names' },
+      target,
+    });
+    return;
+  }
+  context.program.stateMap(stateKeys.atLeastOne).set(target, fields);
+}
+
+export function getAtLeastOne(program: Program, target: Operation): string[] | undefined {
+  return program.stateMap(stateKeys.atLeastOne).get(target);
+}
+
+/** Marks an op as not making any backend / core HTTP call (doctor,
+ *  verify, versions). Documents intent in spec; the import-allowlist
+ *  drift test guarantees the implementation matches. */
+export function $cli_local_only(context: DecoratorContext, target: Operation): void {
+  context.program.stateMap(stateKeys.localOnly).set(target, true);
+}
+
+export function isLocalOnly(program: Program, target: Operation): boolean {
+  return program.stateMap(stateKeys.localOnly).get(target) === true;
+}
+
+/** Names a callback registered in PREFLIGHT_REGISTRY that runs before
+ *  the main backend call. Receives the assembled body and the client
+ *  resolver; can perform GETs (preflight existence checks), throw to
+ *  block, or mutate the body in place. */
+export function $cli_preflight(
+  context: DecoratorContext,
+  target: Operation,
+  callbackName: string,
+): void {
+  context.program.stateMap(stateKeys.preflight).set(target, callbackName);
+}
+
+export function getPreflight(program: Program, target: Operation): string | undefined {
+  return program.stateMap(stateKeys.preflight).get(target);
+}
+
+/** Declarative DTO defaults - JSON literal merged into the body when
+ *  the corresponding key isn't present (spec base, flags fill, then
+ *  defaults fill the still-missing keys). Used for things like agent
+ *  create's hardcoded AIVSS baseline. */
+export function $cli_dto_defaults(
+  context: DecoratorContext,
+  target: Operation,
+  raw: unknown,
+): void {
+  const obj = unwrapTspValue(raw);
+  context.program.stateMap(stateKeys.dtoDefaults).set(target, obj);
+}
+
+export function getDtoDefaults(program: Program, target: Operation): unknown {
+  return program.stateMap(stateKeys.dtoDefaults).get(target);
+}
+
+/** Names a callback registered in POST_VALIDATE_REGISTRY that runs
+ *  AFTER the body is assembled and BEFORE the call fires. Lets the
+ *  spec wire cross-field validators (e.g. behavior's
+ *  validateApprovalTimeout(verdict, approval_timeout)) without leaving
+ *  the action body to do it. */
+export function $cli_post_validate(
+  context: DecoratorContext,
+  target: Operation,
+  callbackName: string,
+): void {
+  const list = (context.program.stateMap(stateKeys.postValidate).get(target) ?? []) as string[];
+  list.push(callbackName);
+  context.program.stateMap(stateKeys.postValidate).set(target, list);
+}
+
+export function getPostValidate(program: Program, target: Operation): string[] | undefined {
+  return program.stateMap(stateKeys.postValidate).get(target);
+}
+
+// `unwrapTspValue` lives next to the decorators it serves. Inline
+// minimal copy here so the file doesn't need to reach into another
+// module. (Workflow lib has the same helper for @payloadShape / @installTarget.)
+function unwrapTspValue(v: unknown): unknown {
+  if (v instanceof Map) {
+    const out: Record<string, unknown> = {};
+    for (const [k, val] of v.entries()) {
+      if (typeof k === 'string') out[k] = unwrapTspValue(val);
+    }
+    return out;
+  }
+  if (Array.isArray(v)) return v.map(unwrapTspValue);
+  return v;
 }
 
 export function getFlagExtra(

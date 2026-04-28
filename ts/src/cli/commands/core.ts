@@ -1,12 +1,18 @@
+// `openbox core` - health/validate/poll-approval are spec-driven via
+// the same wireSubcommands path that other commands use, but with the
+// CoreClient resolver instead of OpenBoxClient. evaluate stays custom
+// because it has the --type shorthand that drives buildTestPayload +
+// the --show-payload "skip the call, just print" mode.
 import { readFileSync, existsSync } from 'fs';
 import { Command } from 'commander';
 import { getCoreClient } from '../config.js';
 import { output } from '../output.js';
 import { parseJsonInput } from '../input.js';
-import { buildTestPayload, type SpanType } from '../span-builder.js';
+import { buildTestPayload, SPAN_TYPES, type SpanType } from '../span-builder.js';
 import { reportAndExit } from '../validators/index.js';
+import { wireSubcommands } from '../wire-subcommands.js';
+import { CORE_HANDLERS } from '../generated/cli-handlers/core.js';
 
-// Resolve @file references in option values. If value starts with @, read the file.
 function resolveValue(value: string | undefined): string | undefined {
   if (!value || !value.startsWith('@')) return value;
   const filePath = value.slice(1);
@@ -19,30 +25,7 @@ function resolveValue(value: string | undefined): string | undefined {
 
 export function registerCoreCommands(program: Command) {
   const core = program.command('core').description('Core governance API');
-
-  core
-    .command('health')
-    .description('Check core API health')
-    .action(async () => {
-      try {
-        const data = await getCoreClient().health();
-        output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  core
-    .command('validate')
-    .description('Validate API key')
-    .action(async () => {
-      try {
-        const data = await getCoreClient().validateApiKey();
-        output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
+  wireSubcommands(core, CORE_HANDLERS, getCoreClient as never);
 
   core
     .command('evaluate')
@@ -72,26 +55,19 @@ export function registerCoreCommands(program: Command) {
         if (opts.json) {
           payload = parseJsonInput<any>(opts.json);
         } else if (opts.type) {
-          const validTypes = ['llm', 'file_read', 'file_write', 'shell', 'http', 'db', 'mcp'];
-          if (!validTypes.includes(opts.type)) {
-            console.error(`Invalid --type: ${opts.type}. Must be one of: ${validTypes.join(', ')}`);
+          if (!(SPAN_TYPES as readonly string[]).includes(opts.type)) {
+            console.error(`Invalid --type: ${opts.type}. Must be one of: ${SPAN_TYPES.join(', ')}`);
             process.exit(1);
           }
-          // Resolve @file references in string options
           const prompt = resolveValue(opts.prompt);
           const content = resolveValue(opts.content);
           const command = resolveValue(opts.command);
           const dbStatement = resolveValue(opts.dbStatement);
           const toolInput = resolveValue(opts.toolInput);
-
-          // Auto-read file content for file_read/file_write when --content not given
           let fileContent = content;
           if (!fileContent && opts.filePath && (opts.type === 'file_read' || opts.type === 'file_write')) {
-            if (existsSync(opts.filePath)) {
-              fileContent = readFileSync(opts.filePath, 'utf-8');
-            }
+            if (existsSync(opts.filePath)) fileContent = readFileSync(opts.filePath, 'utf-8');
           }
-
           payload = buildTestPayload({
             type: opts.type as SpanType,
             activityType: opts.activityType,
@@ -122,26 +98,7 @@ export function registerCoreCommands(program: Command) {
 
         const data = await getCoreClient().evaluate(payload);
         output(data);
-      } catch (err: any) {
-        reportAndExit(err);
-      }
-    });
-
-  core
-    .command('poll-approval')
-    .description('Poll approval status')
-    .requiredOption('--workflow-id <id>', 'Workflow ID')
-    .requiredOption('--run-id <id>', 'Run ID')
-    .requiredOption('--activity-id <id>', 'Activity ID')
-    .action(async (opts) => {
-      try {
-        const data = await getCoreClient().pollApproval({
-          workflow_id: opts.workflowId,
-          run_id: opts.runId,
-          activity_id: opts.activityId,
-        });
-        output(data);
-      } catch (err: any) {
+      } catch (err) {
         reportAndExit(err);
       }
     });

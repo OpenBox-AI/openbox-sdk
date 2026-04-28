@@ -8,7 +8,20 @@ function hex(len: number): string {
   return Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join('');
 }
 
-export type SpanType = 'llm' | 'file_read' | 'file_write' | 'shell' | 'http' | 'db' | 'mcp';
+/** Single source of truth for `core evaluate --type` vocabulary.
+ *  The validator + CLI help text both read from this - adding a new
+ *  shorthand is one entry here + one branch in `buildSpan` below. */
+export const SPAN_TYPES = [
+  'llm',
+  'file_read',
+  'file_write',
+  'shell',
+  'http',
+  'db',
+  'mcp',
+] as const;
+
+export type SpanType = (typeof SPAN_TYPES)[number];
 
 export interface SpanOptions {
   type: SpanType;

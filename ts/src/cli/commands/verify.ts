@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { readFileSync, readdirSync, statSync, existsSync } from 'fs';
 import { join, extname, relative } from 'path';
+import { CANONICAL_EVENT_TYPES } from '../../core-client/generated/govern.js';
 
 type Severity = 'error' | 'warn' | 'info';
 
@@ -268,11 +269,10 @@ const rules: Rule[] = [
       // Strip comments so a doc note like `// event_type: "Foo"` doesn't fire.
       const strippedLines = stripComments(origLines.join('\n')).split('\n');
       const out: Array<{ line: number; snippet: string }> = [];
-      const canonical = new Set(['WorkflowStarted', 'SignalReceived', 'ActivityStarted', 'ActivityCompleted', 'WorkflowCompleted', 'WorkflowFailed']);
       const re = /["']?event_type["']?\s*[:=]\s*["']([A-Za-z_]+)["']/g;
       for (let i = 0; i < strippedLines.length; i++) {
         for (const m of strippedLines[i].matchAll(re)) {
-          if (!canonical.has(m[1])) {
+          if (!CANONICAL_EVENT_TYPES.has(m[1] as never)) {
             out.push({ line: i + 1, snippet: origLines[i].trim().slice(0, 160) });
           }
         }
