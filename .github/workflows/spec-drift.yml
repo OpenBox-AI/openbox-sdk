@@ -1,0 +1,116 @@
+name: spec drift
+
+# Compares specs/typespec/ (the source of truth) against:
+#   - prod backend swagger (curl, public)
+#   - staging backend swagger (curl, URL from secrets)
+#   - upstream backend@develop / @main (via gh API regex parse)
+#   - upstream core@develop / @main (via gh API regex parse)
+#
+# Path-level coverage only - schema-level drift would require building
+# the upstream services. Adding that is straightforward when a path-only
+# miss actually bites; until then the simpler check is enough.
+#
+# DISABLED on PR/schedule until secrets land + workflow runs end-to-end
+# clean against the real repo settings. Re-enable by uncommenting the
+# pull_request + schedule triggers below.
+#
+# Run on demand: GitHub Actions tab → spec drift → Run workflow.
+
+on:
+  workflow_dispatch: {}
+  # pull_request:
+  #   paths:
+  #     - 'specs/typespec/**'
+  #     - 'scripts/spec-drift.mjs'
+  #     - '.github/workflows/spec-drift.yml'
+  # schedule:
+  #   - cron: '0 6 * * *' # 06:00 UTC daily
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # PR runs only prod-backend (the strict floor). Schedule + manual
+        # add staging + upstream develop/main for both services.
+        include:
+          - { service: backend, tier: prod, on_pr: true }
+          - { service: backend, tier: staging, on_pr: false }
+          - { service: backend, tier: develop, on_pr: false }
+          - { service: backend, tier: main, on_pr: false }
+          - { service: core, tier: develop, on_pr: false }
+          - { service: core, tier: main, on_pr: false }
+    steps:
+      - name: Skip non-PR tiers on PR runs
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ matrix.on_pr }}" != "true" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - if: steps.gate.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - if: steps.gate.outputs.skip != 'true'
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - if: steps.gate.outputs.skip != 'true'
+        run: npm run specs:compile
+
+      - if: steps.gate.outputs.skip != 'true'
+        name: Fetch upstream OpenAPI
+        env:
+          OPENBOX_STAGING_API_URL: ${{ secrets.OPENBOX_STAGING_API_URL }}
+          GH_TOKEN: ${{ secrets.UPSTREAM_REPO_TOKEN }}
+        run: node scripts/spec-drift.mjs fetch --service ${{ matrix.service }} --tier ${{ matrix.tier }}
+
+      - if: steps.gate.outputs.skip != 'true'
+        id: diff
+        name: Diff
+        run: node scripts/spec-drift.mjs diff --service ${{ matrix.service }} --tier ${{ matrix.tier }}
+
+      - if: steps.gate.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: spec-drift-${{ matrix.service }}-${{ matrix.tier }}
+          path: /tmp/spec-drift-${{ matrix.service }}-${{ matrix.tier }}.md
+
+      # PR comment - only on PR runs, only on prod-backend (the gating tier),
+      # and only when drift is found. Sticky-edited via the marker so each
+      # PR has one comment refreshed per push.
+      - if: |
+          github.event_name == 'pull_request'
+          && matrix.service == 'backend'
+          && matrix.tier == 'prod'
+          && steps.diff.outputs.has_drift == 'true'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: /tmp/spec-drift-${{ matrix.service }}-${{ matrix.tier }}.md
+          edit-mode: replace
+
+      # Schedule: open one issue per drift event for visibility. Manual
+      # runs (workflow_dispatch) fall under the same gate.
+      - if: |
+          github.event_name != 'pull_request'
+          && steps.diff.outputs.has_drift == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "spec drift: ${{ matrix.service }}@${{ matrix.tier }} ($(date -u +%Y-%m-%d))" \
+            --body-file /tmp/spec-drift-${{ matrix.service }}-${{ matrix.tier }}.md \
+            --label spec-drift,automated
