@@ -3,8 +3,8 @@
 // one OpenBox workflow envelope.
 import { randomUUID } from 'node:crypto';
 import { SessionStore } from './session-store.js';
-import type { CursorHooksConfig } from './config.js';
-import type { CursorHookEnvelope } from '../../core-client/generated/runtime/cursor-hooks.js';
+import type { CursorConfig } from './config.js';
+import type { CursorEnvelope } from '../../core-client/generated/runtime/cursor.js';
 
 interface PersistedSession {
   workflowId: string;
@@ -13,14 +13,14 @@ interface PersistedSession {
 }
 
 let storeInstance: SessionStore | null = null;
-function getStore(cfg: CursorHooksConfig): SessionStore {
+function getStore(cfg: CursorConfig): SessionStore {
   if (!storeInstance) storeInstance = new SessionStore(cfg.sessionDir);
   return storeInstance;
 }
 
 export async function resolveSession(
-  env: CursorHookEnvelope,
-  cfg: CursorHooksConfig,
+  env: CursorEnvelope,
+  cfg: CursorConfig,
 ): Promise<{ workflowId: string; runId: string }> {
   const store = getStore(cfg);
   const existing = store.load(env.conversation_id) as PersistedSession | null;
@@ -33,12 +33,12 @@ export async function resolveSession(
   return { workflowId, runId };
 }
 
-export function markHalted(conversationId: string, cfg: CursorHooksConfig): void {
+export function markHalted(conversationId: string, cfg: CursorConfig): void {
   const store = getStore(cfg);
   const existing = store.load(conversationId) as PersistedSession | null;
   if (existing) store.save(conversationId, { ...existing, halted: true });
 }
 
-export function clearSession(conversationId: string, cfg: CursorHooksConfig): void {
+export function clearSession(conversationId: string, cfg: CursorConfig): void {
   getStore(cfg).delete(conversationId);
 }

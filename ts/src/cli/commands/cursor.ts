@@ -17,16 +17,16 @@ export function registerCursorCommands(program: Command) {
     .command('install')
     .description('Install OpenBox hooks into ~/.cursor/hooks.json')
     .action(async () => {
-      const { installCursorHooks } = await import('../../runtime/cursor/install.js');
-      installCursorHooks();
+      const { installCursor } = await import('../../runtime/cursor/install.js');
+      installCursor();
     });
 
   cursor
     .command('uninstall')
     .description('Remove OpenBox hooks from ~/.cursor/hooks.json')
     .action(async () => {
-      const { uninstallCursorHooks } = await import('../../runtime/cursor/install.js');
-      uninstallCursorHooks();
+      const { uninstallCursor } = await import('../../runtime/cursor/install.js');
+      uninstallCursor();
     });
 
   cursor

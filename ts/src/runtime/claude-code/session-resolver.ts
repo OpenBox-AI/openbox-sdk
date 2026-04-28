@@ -5,8 +5,8 @@
 // File layout: ~/.claude-hooks/sessions/<sanitized-session-id>.json
 import { randomUUID } from 'node:crypto';
 import { SessionStore } from './session-store.js';
-import type { ClaudeHooksConfig } from './config.js';
-import type { ClaudeHookEnvelope } from '../../core-client/generated/runtime/claude-hooks.js';
+import type { ClaudeCodeConfig } from './config.js';
+import type { ClaudeCodeEnvelope } from '../../core-client/generated/runtime/claude-code.js';
 
 interface PersistedSession {
   workflowId: string;
@@ -16,14 +16,14 @@ interface PersistedSession {
 }
 
 let storeInstance: SessionStore | null = null;
-function getStore(cfg: ClaudeHooksConfig): SessionStore {
+function getStore(cfg: ClaudeCodeConfig): SessionStore {
   if (!storeInstance) storeInstance = new SessionStore(cfg.sessionDir);
   return storeInstance;
 }
 
 export async function resolveSession(
-  env: ClaudeHookEnvelope,
-  cfg: ClaudeHooksConfig,
+  env: ClaudeCodeEnvelope,
+  cfg: ClaudeCodeConfig,
 ): Promise<{ workflowId: string; runId: string }> {
   const store = getStore(cfg);
   const existing = store.load(env.session_id) as PersistedSession | null;
@@ -44,7 +44,7 @@ export async function resolveSession(
  * workflow envelope. Called from handlers when they observe verdict.arm
  * === 'halt'.
  */
-export function markHalted(sessionId: string, cfg: ClaudeHooksConfig): void {
+export function markHalted(sessionId: string, cfg: ClaudeCodeConfig): void {
   const store = getStore(cfg);
   const existing = store.load(sessionId) as PersistedSession | null;
   if (existing) {
@@ -53,6 +53,6 @@ export function markHalted(sessionId: string, cfg: ClaudeHooksConfig): void {
 }
 
 /** Tear down the session store entry on session-end so disk doesn't grow. */
-export function clearSession(sessionId: string, cfg: ClaudeHooksConfig): void {
+export function clearSession(sessionId: string, cfg: ClaudeCodeConfig): void {
   getStore(cfg).delete(sessionId);
 }

@@ -5,7 +5,7 @@ const CONFIG_DIR = path.join(process.env.HOME || '', '.cursor-hooks');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
 
-export interface CursorHooksConfig {
+export interface CursorConfig {
   openboxApiKey: string;
   openboxEndpoint: string;
   governancePolicy: 'fail_open' | 'fail_closed';
@@ -27,7 +27,7 @@ export interface CursorHooksConfig {
 }
 
 /** Load config: env vars > config.json > .env > defaults */
-export function loadConfig(): CursorHooksConfig {
+export function loadConfig(): CursorConfig {
   const fileConfig = loadConfigFile();
   const envConfig = loadEnvFile();
   const get = (key: string, fileFallback?: string) => {

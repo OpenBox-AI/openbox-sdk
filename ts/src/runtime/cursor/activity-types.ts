@@ -1,5 +1,5 @@
 /**
- * Per-tool activity_type strings cursor-hooks fires. These match
+ * Per-tool activity_type strings the runtime adapter fires. These match
  * Cursor's hook-feature mapping where production governance rules
  * (guardrails, policies, behavior rules) target.
  */

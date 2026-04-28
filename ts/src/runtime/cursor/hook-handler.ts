@@ -1,9 +1,9 @@
 // Hook handler - invoked by `openbox cursor hook` from Cursor's
 // hooks.json config. Reads stdin, dispatches via the spec-driven
-// cursor-hooks adapter, returns the appropriate stdout per hook event
+// cursor adapter, returns the appropriate stdout per hook event
 // (cursor-permission for before*, cursor-observe for after*), exits 0
 // fail-open.
-import { createCursorHooksAdapter } from '../../core-client/generated/runtime/cursor-hooks.js';
+import { createCursorAdapter } from '../../core-client/generated/runtime/cursor.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { loadConfig } from './config.js';
 import { initLogger } from './logger.js';
@@ -40,7 +40,7 @@ export async function runCursorHook(): Promise<void> {
     timeoutMs: cfg.governanceTimeout * 1000,
   });
 
-  await createCursorHooksAdapter({
+  await createCursorAdapter({
     core,
     resolveSession: (env) => resolveSession(env, cfg),
     handlers: {

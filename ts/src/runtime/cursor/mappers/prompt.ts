@@ -2,16 +2,16 @@ import type {
   CursorSession,
   WorkflowVerdict,
 } from '../../../core-client/index.js';
-import type { CursorHookEnvelope } from '../../../core-client/generated/runtime/cursor-hooks.js';
-import type { CursorHooksConfig } from '../config.js';
+import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
+import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
 /** beforeSubmitPrompt: fire goal signal + govern the prompt as input. */
 export async function handleBeforeSubmitPrompt(
-  env: CursorHookEnvelope,
+  env: CursorEnvelope,
   session: CursorSession,
-  cfg: CursorHooksConfig,
+  cfg: CursorConfig,
 ): Promise<WorkflowVerdict | undefined> {
   const prompt = (env.prompt ?? '').trim();
   if (!prompt) return undefined;

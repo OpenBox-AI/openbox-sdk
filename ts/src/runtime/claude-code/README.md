@@ -7,12 +7,12 @@ It contains TWO surfaces, both reachable via `import ... from 'openbox-sdk/runti
 ## 1. Adapter primitive (spec-emitted)
 
 Re-exported from the auto-generated module
-`ts/src/core-client/generated/runtime/claude-hooks.ts` (driven by
-`@adapter("claude-hooks", "claude-code", "hook_event_name")` in
+`ts/src/core-client/generated/runtime/claude-code.ts` (driven by
+`@adapter("claude-code", "claude-code", "hook_event_name")` in
 `specs/typespec/govern/adapters.tsp`).
 
 ```ts
-import { createClaudeHooksAdapter } from 'openbox-sdk/runtime/claude-code';
+import { createClaudeCodeAdapter } from 'openbox-sdk/runtime/claude-code';
 ```
 
 Use this if you're building a custom Claude Code integration on top of
@@ -30,8 +30,8 @@ Code integration - what `openbox claude-code install` writes into
 | File | Role |
 |---|---|
 | `index.ts` | Public sub-path entry - re-exports the adapter primitive + integration entry points. |
-| `hook-handler.ts` | `runClaudeHook()` - wires `createClaudeHooksAdapter` to per-tool mappers. |
-| `install.ts` | `installClaudeHooks()` / `uninstallClaudeHooks()` - settings.json writers. |
+| `hook-handler.ts` | `runClaudeHook()` - wires `createClaudeCodeAdapter` to per-tool mappers. |
+| `install.ts` | `installClaudeCode()` / `uninstallClaudeCode()` - settings.json writers. |
 | `mappers/*.ts` | One per hook event (PreToolUse, PostToolUse, UserPromptSubmit, …). Tool-name → activity-type routing lives here. |
 | `config.ts` | Reads `~/.claude-hooks/config.json` + env vars. |
 | `session-resolver.ts` | Maps Claude's `session_id` → OpenBox `workflowId`/`runId`. |

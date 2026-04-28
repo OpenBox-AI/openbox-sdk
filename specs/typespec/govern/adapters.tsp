@@ -30,7 +30,7 @@ namespace OpenboxGovern.Adapters;
  * time using the @hookEvent metadata + a small per-event required-fields
  * table baked into the adapter module.
  */
-model ClaudeHookEnvelope {
+model ClaudeCodeEnvelope {
   hook_event_name: string;
   session_id: string;
   tool_name?: string;
@@ -51,8 +51,8 @@ model ClaudeHookEnvelope {
  * Claude Code hook adapter - single binary that dispatches every hook
  * event by `hook_event_name`. Binds to the `claude-code` preset.
  */
-@adapter("claude-hooks", "claude-code", "hook_event_name")
-interface ClaudeHooksAdapter {
+@adapter("claude-code", "claude-code", "hook_event_name")
+interface ClaudeCodeAdapter {
   /**
    * PreToolUse: agent is about to call a tool. Routing by `tool_name`
    * to the appropriate activity_type lives in the @activityRouting
@@ -74,7 +74,7 @@ interface ClaudeHooksAdapter {
     WebSearch: "HTTPRequest",
     Agent: "AgentSpawn",
   })
-  preToolUse(input: ClaudeHookEnvelope): unknown;
+  preToolUse(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("PostToolUse")
   @verdictShape("decision-block")
@@ -88,11 +88,11 @@ interface ClaudeHooksAdapter {
     WebSearch: "HTTPRequest",
     Agent: "AgentSpawn",
   })
-  postToolUse(input: ClaudeHookEnvelope): unknown;
+  postToolUse(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("UserPromptSubmit")
   @verdictShape("decision-block")
-  userPromptSubmit(input: ClaudeHookEnvelope): unknown;
+  userPromptSubmit(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("PermissionRequest")
   @verdictShape("permission-request")
@@ -106,35 +106,35 @@ interface ClaudeHooksAdapter {
     WebSearch: "HTTPRequest",
     Agent: "AgentSpawn",
   })
-  permissionRequest(input: ClaudeHookEnvelope): unknown;
+  permissionRequest(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("PreCompact")
   @verdictShape("none")
-  preCompact(input: ClaudeHookEnvelope): unknown;
+  preCompact(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("SessionStart")
   @verdictShape("none")
-  sessionStart(input: ClaudeHookEnvelope): unknown;
+  sessionStart(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("SessionEnd")
   @verdictShape("none")
-  sessionEnd(input: ClaudeHookEnvelope): unknown;
+  sessionEnd(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("SubagentStart")
   @verdictShape("none")
-  subagentStart(input: ClaudeHookEnvelope): unknown;
+  subagentStart(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("SubagentStop")
   @verdictShape("none")
-  subagentStop(input: ClaudeHookEnvelope): unknown;
+  subagentStop(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("Stop")
   @verdictShape("none")
-  stop(input: ClaudeHookEnvelope): unknown;
+  stop(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("Notification")
   @verdictShape("none")
-  notification(input: ClaudeHookEnvelope): unknown;
+  notification(input: ClaudeCodeEnvelope): unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +146,7 @@ interface ClaudeHooksAdapter {
  * envelope, per-event required fields differ; runtime validation lives
  * in the generated adapter module.
  */
-model CursorHookEnvelope {
+model CursorEnvelope {
   hook_event_name: string;
   conversation_id: string;
   generation_id?: string;
@@ -169,23 +169,23 @@ model CursorHookEnvelope {
  * are governance gates; `after*` hooks are observational (telemetry only)
  * and return void. The verdictShape encodes which mapping the runtime uses.
  */
-@adapter("cursor-hooks", "cursor", "hook_event_name")
-interface CursorHooksAdapter {
+@adapter("cursor", "cursor", "hook_event_name")
+interface CursorAdapter {
   @hookEvent("beforeSubmitPrompt")
   @verdictShape("cursor-permission")
-  beforeSubmitPrompt(input: CursorHookEnvelope): unknown;
+  beforeSubmitPrompt(input: CursorEnvelope): unknown;
 
   @hookEvent("beforeReadFile")
   @verdictShape("cursor-permission")
-  beforeReadFile(input: CursorHookEnvelope): unknown;
+  beforeReadFile(input: CursorEnvelope): unknown;
 
   @hookEvent("beforeShellExecution")
   @verdictShape("cursor-permission")
-  beforeShellExecution(input: CursorHookEnvelope): unknown;
+  beforeShellExecution(input: CursorEnvelope): unknown;
 
   @hookEvent("beforeMCPExecution")
   @verdictShape("cursor-permission")
-  beforeMCPExecution(input: CursorHookEnvelope): unknown;
+  beforeMCPExecution(input: CursorEnvelope): unknown;
 
   /**
    * Cursor 3.x's primary tool-routing hook. Cursor remaps Claude tool
@@ -200,41 +200,41 @@ interface CursorHooksAdapter {
     Write: "file_write",
     Shell: "agent_action",
   })
-  preToolUse(input: CursorHookEnvelope): unknown;
+  preToolUse(input: CursorEnvelope): unknown;
 
   @hookEvent("afterAgentResponse")
   @verdictShape("cursor-observe")
-  afterAgentResponse(input: CursorHookEnvelope): unknown;
+  afterAgentResponse(input: CursorEnvelope): unknown;
 
   @hookEvent("afterAgentThought")
   @verdictShape("cursor-observe")
-  afterAgentThought(input: CursorHookEnvelope): unknown;
+  afterAgentThought(input: CursorEnvelope): unknown;
 
   @hookEvent("afterShellExecution")
   @verdictShape("cursor-observe")
-  afterShellExecution(input: CursorHookEnvelope): unknown;
+  afterShellExecution(input: CursorEnvelope): unknown;
 
   @hookEvent("afterFileEdit")
   @verdictShape("cursor-observe")
-  afterFileEdit(input: CursorHookEnvelope): unknown;
+  afterFileEdit(input: CursorEnvelope): unknown;
 
   @hookEvent("afterMCPExecution")
   @verdictShape("cursor-observe")
-  afterMCPExecution(input: CursorHookEnvelope): unknown;
+  afterMCPExecution(input: CursorEnvelope): unknown;
 
   @hookEvent("postToolUse")
   @verdictShape("cursor-observe")
-  postToolUse(input: CursorHookEnvelope): unknown;
+  postToolUse(input: CursorEnvelope): unknown;
 
   @hookEvent("postToolUseFailure")
   @verdictShape("cursor-observe")
-  postToolUseFailure(input: CursorHookEnvelope): unknown;
+  postToolUseFailure(input: CursorEnvelope): unknown;
 
   @hookEvent("sessionStart")
   @verdictShape("none")
-  sessionStart(input: CursorHookEnvelope): unknown;
+  sessionStart(input: CursorEnvelope): unknown;
 
   @hookEvent("stop")
   @verdictShape("none")
-  stop(input: CursorHookEnvelope): unknown;
+  stop(input: CursorEnvelope): unknown;
 }

@@ -17,16 +17,16 @@ export function registerClaudeCodeCommands(program: Command) {
     .command('install')
     .description('Install OpenBox hooks into ~/.claude/settings.json')
     .action(async () => {
-      const { installClaudeHooks } = await import('../../runtime/claude-code/install.js');
-      installClaudeHooks();
+      const { installClaudeCode } = await import('../../runtime/claude-code/install.js');
+      installClaudeCode();
     });
 
   claude
     .command('uninstall')
     .description('Remove OpenBox hooks from ~/.claude/settings.json')
     .action(async () => {
-      const { uninstallClaudeHooks } = await import('../../runtime/claude-code/install.js');
-      uninstallClaudeHooks();
+      const { uninstallClaudeCode } = await import('../../runtime/claude-code/install.js');
+      uninstallClaudeCode();
     });
 
   claude

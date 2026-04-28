@@ -1,6 +1,6 @@
 /**
  * Tests for the spec-driven runtime adapters
- * (ts/src/core-client/generated/runtime/{claude,cursor}-hooks.ts).
+ * (ts/src/core-client/generated/runtime/{claude-code,cursor}.ts).
  *
  * Verifies the verdict-shape registry: each @verdictShape value in the
  * spec produces the expected stdout JSON for each verdict arm. Since
@@ -14,13 +14,13 @@ import type {
 } from '../../ts/src/core-client/core-client.js';
 import type { OpenBoxCoreClient } from '../../ts/src/core-client/core-client.js';
 import {
-  createClaudeHooksAdapter,
-  type ClaudeHookEnvelope,
-} from '../../ts/src/core-client/generated/runtime/claude-hooks.js';
+  createClaudeCodeAdapter,
+  type ClaudeCodeEnvelope,
+} from '../../ts/src/core-client/generated/runtime/claude-code.js';
 import {
-  createCursorHooksAdapter,
-  type CursorHookEnvelope,
-} from '../../ts/src/core-client/generated/runtime/cursor-hooks.js';
+  createCursorAdapter,
+  type CursorEnvelope,
+} from '../../ts/src/core-client/generated/runtime/cursor.js';
 import type { WorkflowVerdict } from '../../ts/src/core-client/generated/govern.js';
 
 function makeMockCore(
@@ -69,10 +69,10 @@ const verdict = (arm: WorkflowVerdict['arm'], reason?: string): WorkflowVerdict 
   riskScore: 0,
 });
 
-// ─── claude-hooks adapter ───────────────────────────────────────────────────
+// ─── claude-code adapter ───────────────────────────────────────────────────
 
-describe('createClaudeHooksAdapter', () => {
-  const baseEnv: ClaudeHookEnvelope = {
+describe('createClaudeCodeAdapter', () => {
+  const baseEnv: ClaudeCodeEnvelope = {
     hook_event_name: 'PreToolUse',
     session_id: 's1',
     tool_name: 'Bash',
@@ -81,7 +81,7 @@ describe('createClaudeHooksAdapter', () => {
 
   test('permission-decision allow → permissionDecision:"allow"', async () => {
     const cap = capture();
-    await createClaudeHooksAdapter({
+    await createClaudeCodeAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: {
@@ -97,7 +97,7 @@ describe('createClaudeHooksAdapter', () => {
 
   test('permission-decision block → permissionDecision:"deny" + reason', async () => {
     const cap = capture();
-    await createClaudeHooksAdapter({
+    await createClaudeCodeAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: {
@@ -114,7 +114,7 @@ describe('createClaudeHooksAdapter', () => {
 
   test('permission-decision require_approval → permissionDecision:"ask"', async () => {
     const cap = capture();
-    await createClaudeHooksAdapter({
+    await createClaudeCodeAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: {
@@ -128,7 +128,7 @@ describe('createClaudeHooksAdapter', () => {
 
   test('decision-block (PostToolUse) allow → empty object', async () => {
     const cap = capture();
-    await createClaudeHooksAdapter({
+    await createClaudeCodeAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: {
@@ -144,7 +144,7 @@ describe('createClaudeHooksAdapter', () => {
 
   test('decision-block (PostToolUse) block → {decision:"block", reason}', async () => {
     const cap = capture();
-    await createClaudeHooksAdapter({
+    await createClaudeCodeAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: {
@@ -162,7 +162,7 @@ describe('createClaudeHooksAdapter', () => {
 
   test('permission-request allow → decision.behavior:"allow"', async () => {
     const cap = capture();
-    await createClaudeHooksAdapter({
+    await createClaudeCodeAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: {
@@ -180,7 +180,7 @@ describe('createClaudeHooksAdapter', () => {
 
   test('none-shape (SessionStart) → no stdout, exit 0', async () => {
     const cap = capture();
-    await createClaudeHooksAdapter({
+    await createClaudeCodeAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: {
@@ -197,7 +197,7 @@ describe('createClaudeHooksAdapter', () => {
 
   test('missing handler → fallback allow stdout', async () => {
     const cap = capture();
-    await createClaudeHooksAdapter({
+    await createClaudeCodeAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: {}, // none
@@ -209,7 +209,7 @@ describe('createClaudeHooksAdapter', () => {
 
   test('empty stdin → exit 0, no stdout', async () => {
     const cap = capture();
-    await createClaudeHooksAdapter({
+    await createClaudeCodeAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: { preToolUse: async () => verdict('allow') },
@@ -221,7 +221,7 @@ describe('createClaudeHooksAdapter', () => {
 
   test('malformed JSON → exit 0, no stdout', async () => {
     const cap = capture();
-    await createClaudeHooksAdapter({
+    await createClaudeCodeAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: { preToolUse: async () => verdict('allow') },
@@ -233,7 +233,7 @@ describe('createClaudeHooksAdapter', () => {
 
   test('unknown event_name → exit 0, no stdout', async () => {
     const cap = capture();
-    await createClaudeHooksAdapter({
+    await createClaudeCodeAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: { preToolUse: async () => verdict('allow') },
@@ -249,7 +249,7 @@ describe('createClaudeHooksAdapter', () => {
   test('resolveSession is called with the parsed envelope', async () => {
     const cap = capture();
     const resolveSession = vi.fn(async () => ({ workflowId: 'w', runId: 'r' }));
-    await createClaudeHooksAdapter({
+    await createClaudeCodeAdapter({
       core: makeMockCore(),
       resolveSession,
       handlers: { preToolUse: async () => verdict('allow') },
@@ -259,10 +259,10 @@ describe('createClaudeHooksAdapter', () => {
   });
 });
 
-// ─── cursor-hooks adapter ───────────────────────────────────────────────────
+// ─── cursor adapter ───────────────────────────────────────────────────
 
-describe('createCursorHooksAdapter', () => {
-  const baseEnv: CursorHookEnvelope = {
+describe('createCursorAdapter', () => {
+  const baseEnv: CursorEnvelope = {
     hook_event_name: 'beforeShellExecution',
     conversation_id: 'c1',
     generation_id: 'g1',
@@ -271,7 +271,7 @@ describe('createCursorHooksAdapter', () => {
 
   test('cursor-permission allow → {permission:"allow"}', async () => {
     const cap = capture();
-    await createCursorHooksAdapter({
+    await createCursorAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: { beforeShellExecution: async () => verdict('allow') },
@@ -282,7 +282,7 @@ describe('createCursorHooksAdapter', () => {
 
   test('cursor-permission block → permission:"deny" + userMessage', async () => {
     const cap = capture();
-    await createCursorHooksAdapter({
+    await createCursorAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: {
@@ -297,7 +297,7 @@ describe('createCursorHooksAdapter', () => {
 
   test('cursor-permission halt → "OpenBox HALT:" prefix', async () => {
     const cap = capture();
-    await createCursorHooksAdapter({
+    await createCursorAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: {
@@ -312,7 +312,7 @@ describe('createCursorHooksAdapter', () => {
 
   test('cursor-observe (afterShellExecution) → empty object', async () => {
     const cap = capture();
-    await createCursorHooksAdapter({
+    await createCursorAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: { afterShellExecution: async () => verdict('allow') },
@@ -326,7 +326,7 @@ describe('createCursorHooksAdapter', () => {
 
   test('none-shape (sessionStart) → no stdout', async () => {
     const cap = capture();
-    await createCursorHooksAdapter({
+    await createCursorAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: { sessionStart: async () => undefined },

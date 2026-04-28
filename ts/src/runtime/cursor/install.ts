@@ -49,7 +49,7 @@ function saveHooks(cfg: HookConfig): void {
   fs.writeFileSync(CURSOR_HOOKS_FILE, JSON.stringify(cfg, null, 2) + '\n', 'utf-8');
 }
 
-export function installCursorHooks(): void {
+export function installCursor(): void {
   const cfg = loadHooks();
   if (!cfg.hooks) cfg.hooks = {};
   for (const event of HOOK_EVENTS) {
@@ -87,7 +87,7 @@ export function installCursorHooks(): void {
   }
 }
 
-export function uninstallCursorHooks(): void {
+export function uninstallCursor(): void {
   const cfg = loadHooks();
   if (!cfg.hooks) {
     // eslint-disable-next-line no-console

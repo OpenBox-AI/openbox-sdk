@@ -50,11 +50,111 @@ export const COMMAND_MATURITY: Record<string, Maturity> = {
   'versions':     'stable',
   'doctor':       'stable',
 
-  // Everything else (agent, team, member, audit, behavior, guardrail,
-  // policy, approval, aivss, goal, observability, violation, org,
-  // session, trust, verify, webhook, sso, core, setup, mcp, skill,
-  // claude-code, cursor, and ALL their sub-commands) defaults to
-  // `experimental` until promoted. Add explicit entries as you verify.
+  // The promotions below cover only sub-commands exercised by
+  // tests/e2e/cli-commands/* - stable means "we have an end-to-end
+  // test that drives this path against a real backend."  Anything
+  // unverified stays experimental.
+
+  // ─── Agent (agent-lifecycle.test.ts) ────────────────────────────
+  'agent':         'stable',
+  'agent list':    'stable',
+  'agent create':  'stable',
+  'agent get':     'stable',
+  'agent delete':  'stable',
+
+  // ─── Team (team-lifecycle.test.ts) ──────────────────────────────
+  'team':          'stable',
+  'team list':     'stable',
+  'team create':   'stable',
+  'team get':      'stable',
+  'team delete':   'stable',
+
+  // ─── API key (api-key-lifecycle.test.ts) ────────────────────────
+  'api-key':         'stable',
+  'api-key rotate':  'stable',
+  'api-key revoke':  'stable',
+
+  // ─── Audit (audit-lifecycle.test.ts) ────────────────────────────
+  'audit':                'stable',
+  'audit list':           'stable',
+  'audit preview':        'stable',
+  'audit exports':        'stable',
+  'audit delete-export':  'stable',
+
+  // ─── Behavior (behavior-lifecycle.test.ts) ──────────────────────
+  'behavior':         'stable',
+  'behavior types':   'stable',
+  'behavior list':    'stable',
+  'behavior current': 'stable',
+  'behavior get':     'stable',
+  'behavior toggle':  'stable',
+  'behavior delete':  'stable',
+
+  // ─── Goal (goal-lifecycle.test.ts) ──────────────────────────────
+  'goal':         'stable',
+  'goal trend':   'stable',
+  'goal drifts':  'stable',
+
+  // ─── Guardrail (guardrail-lifecycle.test.ts) ────────────────────
+  'guardrail':         'stable',
+  'guardrail list':    'stable',
+  'guardrail get':     'stable',
+  'guardrail delete':  'stable',
+
+  // ─── Approval (live-approval.test.ts + read-paths) ──────────────
+  'approval':          'stable',
+  'approval pending':  'stable',
+  'approval decide':   'stable',
+  'approval history':  'stable',
+  'approval metrics':  'stable',
+
+  // ─── Violation (live-violation.test.ts + read-paths) ────────────
+  'violation':       'stable',
+  'violation list':  'stable',
+  'violation agent': 'stable',
+
+  // ─── Org (org-lifecycle.test.ts) ────────────────────────────────
+  'org':            'stable',
+  'org get':        'stable',
+  'org settings':   'stable',
+  'org dashboard':  'stable',
+  'org sessions':   'stable',
+  'org approvals':  'stable',
+
+  // ─── Policy (policy-lifecycle.test.ts + live-* tests) ───────────
+  'policy':         'stable',
+  'policy list':    'stable',
+  'policy create':  'stable',
+  'policy get':     'stable',
+  'policy current': 'stable',
+
+  // ─── Session (live-ingest, read-paths, demo-agent-analytics) ────
+  'session':            'stable',
+  'session list':       'stable',
+  'session active':     'stable',
+  'session get':        'stable',
+  'session logs':       'stable',
+  'session goal-stats': 'stable',
+  'session terminate':  'stable',
+
+  // ─── Trust (read-paths.test.ts + demo-agent-analytics) ──────────
+  'trust':              'stable',
+  'trust histories':    'stable',
+  'trust events':       'stable',
+  'trust tier-changes': 'stable',
+
+  // ─── Observe (read-paths.test.ts + demo-agent-analytics) ────────
+  'observe':         'stable',
+  'observe data':    'stable',
+  'observe issues':  'stable',
+  'observe metrics': 'stable',
+  'observe logs':    'stable',
+  'observe insights':'stable',
+
+  // Everything not listed (member, aivss, verify, webhook, sso, core,
+  // setup, mcp, skill, claude-code, cursor, plus untested sub-commands
+  // of the stable parents above) defaults to `experimental` until an
+  // e2e test or manual verification justifies promotion.
 };
 
 let cliOverride: Maturity | null = null;

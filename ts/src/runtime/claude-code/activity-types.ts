@@ -1,5 +1,5 @@
 /**
- * Per-tool activity_type strings claude-hooks fires. These match the
+ * Per-tool activity_type strings the runtime adapter fires. These match the
  * `default` preset's vocabulary in openbox-sdk and are what production
  * governance rules (guardrails, policies, behavior rules) target.
  *

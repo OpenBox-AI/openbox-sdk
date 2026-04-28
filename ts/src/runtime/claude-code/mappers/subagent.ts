@@ -1,17 +1,17 @@
 import type { ClaudeCodeSession } from '../../../core-client/index.js';
-import type { ClaudeHookEnvelope } from '../../../core-client/generated/runtime/claude-hooks.js';
-import type { ClaudeHooksConfig } from '../config.js';
+import type { ClaudeCodeEnvelope } from '../../../core-client/generated/runtime/claude-code.js';
+import type { ClaudeCodeConfig } from '../config.js';
 import { EVENT } from '../activity-types.js';
 
-function subAgentActivityType(env: ClaudeHookEnvelope): string {
+function subAgentActivityType(env: ClaudeCodeEnvelope): string {
   return `SubAgent:${env.agent_type || env.agent_id || 'unknown'}`;
 }
 
 /** SubagentStart: opens a SubAgent activity. Observe-only. */
 export async function handleSubagentStart(
-  env: ClaudeHookEnvelope,
+  env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
-  _cfg: ClaudeHooksConfig,
+  _cfg: ClaudeCodeConfig,
 ): Promise<undefined> {
   try {
     await session.activity(EVENT.START, subAgentActivityType(env), {
@@ -29,9 +29,9 @@ export async function handleSubagentStart(
 
 /** SubagentStop: closes the SubAgent activity. Pairs with SubagentStart. */
 export async function handleSubagentStop(
-  env: ClaudeHookEnvelope,
+  env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
-  _cfg: ClaudeHooksConfig,
+  _cfg: ClaudeCodeConfig,
 ): Promise<undefined> {
   try {
     await session.activity(EVENT.COMPLETE, subAgentActivityType(env), {

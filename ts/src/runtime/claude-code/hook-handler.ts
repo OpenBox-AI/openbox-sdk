@@ -1,8 +1,8 @@
 // Hook handler - invoked by `openbox claude-code hook` from Claude
 // Code's hooks.json config. Reads stdin, dispatches via the spec-driven
-// claude-hooks adapter, returns appropriate stdout per hook event,
+// claude-code adapter, returns appropriate stdout per hook event,
 // exits 0 (fail-open).
-import { createClaudeHooksAdapter } from '../../core-client/generated/runtime/claude-hooks.js';
+import { createClaudeCodeAdapter } from '../../core-client/generated/runtime/claude-code.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { loadConfig } from './config.js';
 import { initLogger } from './logger.js';
@@ -40,7 +40,7 @@ export async function runClaudeHook(): Promise<void> {
     timeoutMs: cfg.governanceTimeout * 1000,
   });
 
-  await createClaudeHooksAdapter({
+  await createClaudeCodeAdapter({
     core,
     resolveSession: (env) => resolveSession(env, cfg),
     handlers: {

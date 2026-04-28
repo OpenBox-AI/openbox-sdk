@@ -1,8 +1,8 @@
 import type {
   CursorSession,
 } from '../../../core-client/index.js';
-import type { CursorHookEnvelope } from '../../../core-client/generated/runtime/cursor-hooks.js';
-import type { CursorHooksConfig } from '../config.js';
+import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
+import type { CursorConfig } from '../config.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
 /**
@@ -12,9 +12,9 @@ import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
  * so output guardrails can scan it directly.
  */
 export async function handleAfterMCPExecution(
-  env: CursorHookEnvelope,
+  env: CursorEnvelope,
   session: CursorSession,
-  _cfg: CursorHooksConfig,
+  _cfg: CursorConfig,
 ): Promise<undefined> {
   // Cursor delivers the response in either tool_output or a result_json
   // field. Pull either via permissive cast since the spec envelope lists
