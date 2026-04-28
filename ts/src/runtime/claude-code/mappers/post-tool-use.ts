@@ -3,34 +3,25 @@ import type {
   WorkflowVerdict,
 } from '../../../core-client/index.js';
 import type { ClaudeHookEnvelope } from '../../../core-client/generated/runtime/claude-hooks.js';
+// Spec-driven tool→activity_type table, declared via @activityRouting.
+import { POST_TOOL_USE_ROUTING } from '../../../core-client/generated/runtime/claude-hooks.js';
 import type { ClaudeHooksConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
-function toolToActivityType(toolName: string): string | null {
-  switch (toolName) {
-    case 'Bash':      return ACTIVITY_TYPES.SHELL;
-    case 'Read':      return ACTIVITY_TYPES.FILE_READ;
-    case 'Delete':    return ACTIVITY_TYPES.FILE_DELETE;
-    case 'Write':
-    case 'Edit':      return ACTIVITY_TYPES.FILE_EDIT;
-    case 'WebFetch':
-    case 'WebSearch': return ACTIVITY_TYPES.HTTP_REQUEST;
-    case 'Agent':     return ACTIVITY_TYPES.AGENT_SPAWN;
-    default:
-      if (toolName.startsWith('mcp__')) return ACTIVITY_TYPES.MCP_CALL;
-      return null;
-  }
+function activityTypeFor(toolName: string): string | null {
+  const direct = POST_TOOL_USE_ROUTING[toolName];
+  if (direct) return direct;
+  if (toolName.startsWith('mcp__')) return ACTIVITY_TYPES.MCP_CALL;
+  return null;
 }
 
 /**
  * PostToolUse fires after the tool returned. Single ActivityCompleted
  * closes the activity opened by PreToolUse and runs output governance
- * (PII detection on the tool's response, etc).
- *
- * Spec verdict shape is `decision-block` - the adapter writes
- * {decision:"block", reason} only on block/halt; otherwise empty stdout
- * (Claude Code interprets that as "no opinion, continue").
+ * (PII detection on the tool's response, etc). Verdict shape:
+ * decision-block - adapter writes `{decision:'block', reason}` only on
+ * block/halt; otherwise empty stdout = "no opinion, continue".
  */
 export async function handlePostToolUse(
   env: ClaudeHookEnvelope,
@@ -38,7 +29,7 @@ export async function handlePostToolUse(
   cfg: ClaudeHooksConfig,
 ): Promise<WorkflowVerdict | undefined> {
   const toolName = env.tool_name ?? '';
-  const activityType = toolToActivityType(toolName);
+  const activityType = activityTypeFor(toolName);
   if (!activityType) return undefined;
 
   const toolOutput = env.tool_output;

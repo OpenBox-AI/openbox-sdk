@@ -4,6 +4,9 @@ import type {
   WorkflowVerdict,
 } from '../../../core-client/index.js';
 import type { ClaudeHookEnvelope } from '../../../core-client/generated/runtime/claude-hooks.js';
+// Spec-driven tool→activity_type table; declared via @activityRouting on
+// the PreToolUse op in specs/typespec/govern/adapters.tsp.
+import { PRE_TOOL_USE_ROUTING } from '../../../core-client/generated/runtime/claude-hooks.js';
 import type { ClaudeHooksConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
@@ -27,24 +30,23 @@ const SKIP_PATTERNS = [
   /\.gnupg\//,
 ];
 
-function tagHaltIfNeeded(env: ClaudeHookEnvelope, verdict: WorkflowVerdict, cfg: ClaudeHooksConfig): void {
-  if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
+/**
+ * Lookup the activity_type for a Claude Code tool name. Spec-driven for
+ * the standard tools (PRE_TOOL_USE_ROUTING from @activityRouting); a
+ * single runtime fallback handles mcp__* tools because their names are
+ * dynamic (`mcp__<server>__<tool>`) and don't fit a static table.
+ */
+function activityTypeFor(toolName: string): string | null {
+  const direct = PRE_TOOL_USE_ROUTING[toolName];
+  if (direct) return direct;
+  if (toolName.startsWith('mcp__')) return ACTIVITY_TYPES.MCP_CALL;
+  return null;
 }
 
 /**
- * PreToolUse: agent is about to call a tool. Claude Code fires one hook
- * per tool call regardless of tool - we route to the appropriate
- * activity_type so per-tool guardrails / policies match.
- *
- *   Read       → FileRead  (with on-disk content, for PII scan)
- *   Write/Edit → FileEdit
- *   Delete     → FileDelete
- *   Bash       → ShellExecution
- *   WebFetch   → HTTPRequest
- *   WebSearch  → HTTPRequest
- *   Agent      → AgentSpawn
- *   mcp__*     → MCPToolCall
- *   Glob/Grep  → skipped (configurable; read-only search)
+ * PreToolUse: agent is about to call a tool. Activity-type routing
+ * (Read → FileRead, Bash → ShellExecution, etc.) comes from the spec
+ * via PRE_TOOL_USE_ROUTING; per-tool payload shaping lives below.
  */
 export async function handlePreToolUse(
   env: ClaudeHookEnvelope,
@@ -53,45 +55,38 @@ export async function handlePreToolUse(
 ): Promise<WorkflowVerdict | undefined> {
   const toolName = env.tool_name ?? '';
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
-
   if (cfg.skipTools.includes(toolName)) return undefined;
 
-  const fire = async (activityType: string, input: Record<string, unknown>) => {
+  const activityType = activityTypeFor(toolName);
+  if (!activityType) return undefined;
+
+  const fire = async (input: Record<string, unknown>) => {
     const v = await session.activity(EVENT.START, activityType, { input: [input] });
-    tagHaltIfNeeded(env, v, cfg);
+    if (v.arm === 'halt') markHalted(env.session_id, cfg);
     return v;
   };
 
+  // Per-tool payload shaping. Each branch knows what fields to pull
+  // from `tool_input` and which need disk I/O (Read for PII scanning).
+  // Tool name → activity_type lookup is already done; this switch is
+  // purely about the SHAPE of `input` we send for evaluation.
   switch (toolName) {
     case 'Read': {
       const filePath = (toolInput.file_path ?? toolInput.filePath ?? '') as string;
       if (!filePath) return undefined;
       if (SKIP_PATTERNS.some((p) => p.test(filePath))) return undefined;
-
       let content = '';
       try {
         if (fs.existsSync(filePath)) content = fs.readFileSync(filePath, 'utf-8');
-      } catch {
-        // Can't read file - skip content scanning, still govern the path
-      }
-
-      return fire(ACTIVITY_TYPES.FILE_READ, {
-        text: content,
-        file_path: filePath,
-        content,
-        event_category: 'file_read',
-      });
+      } catch { /* skip content; still govern the path */ }
+      return fire({ text: content, file_path: filePath, content, event_category: 'file_read' });
     }
 
     case 'Delete': {
       const filePath = (toolInput.path ?? toolInput.file_path ?? '') as string;
       if (!filePath) return undefined;
       if (SKIP_PATTERNS.some((p) => p.test(filePath))) return undefined;
-      return fire(ACTIVITY_TYPES.FILE_DELETE, {
-        text: filePath,
-        file_path: filePath,
-        event_category: 'file_delete',
-      });
+      return fire({ text: filePath, file_path: filePath, event_category: 'file_delete' });
     }
 
     case 'Write':
@@ -99,38 +94,24 @@ export async function handlePreToolUse(
       const filePath = (toolInput.file_path ?? toolInput.filePath ?? '') as string;
       if (filePath && SKIP_PATTERNS.some((p) => p.test(filePath))) return undefined;
       const content = (toolInput.content ?? toolInput.new_string ?? '') as string;
-      return fire(ACTIVITY_TYPES.FILE_EDIT, {
-        text: content,
-        file_path: filePath,
-        content,
-        event_category: 'file_write',
-      });
+      return fire({ text: content, file_path: filePath, content, event_category: 'file_write' });
     }
 
     case 'Bash': {
       const command = (toolInput.command ?? '') as string;
       const cwd = (toolInput.cwd ?? env.cwd ?? '') as string;
-      return fire(ACTIVITY_TYPES.SHELL, {
-        text: command,
-        command,
-        cwd,
-        event_category: 'agent_action',
-      });
+      return fire({ text: command, command, cwd, event_category: 'agent_action' });
     }
 
     case 'WebFetch':
     case 'WebSearch': {
       const url = (toolInput.url ?? toolInput.query ?? '') as string;
-      return fire(ACTIVITY_TYPES.HTTP_REQUEST, {
-        url,
-        http_method: 'GET',
-        event_category: 'http_request',
-      });
+      return fire({ url, http_method: 'GET', event_category: 'http_request' });
     }
 
     case 'Agent': {
       const agentType = (toolInput.subagent_type ?? toolInput.description ?? '') as string;
-      return fire(ACTIVITY_TYPES.AGENT_SPAWN, {
+      return fire({
         agent_type: agentType,
         prompt: (toolInput.prompt ?? '') as string,
         event_category: 'agent_action',
@@ -138,19 +119,16 @@ export async function handlePreToolUse(
     }
 
     default: {
-      if (toolName.startsWith('mcp__')) {
-        const parts = toolName.split('__');
-        const serverName = parts[1] || 'unknown';
-        const mcpToolName = parts.slice(2).join('__') || 'unknown';
-        return fire(ACTIVITY_TYPES.MCP_CALL, {
-          tool_name: mcpToolName,
-          server_name: serverName,
-          tool_input: toolInput,
-          event_category: 'mcp_tool_call',
-        });
-      }
-      // Unknown tool - allow by default
-      return undefined;
+      // Spec-driven activity type already says MCP_CALL via the mcp__* fallback above.
+      const parts = toolName.split('__');
+      const serverName = parts[1] || 'unknown';
+      const mcpToolName = parts.slice(2).join('__') || 'unknown';
+      return fire({
+        tool_name: mcpToolName,
+        server_name: serverName,
+        tool_input: toolInput,
+        event_category: 'mcp_tool_call',
+      });
     }
   }
 }

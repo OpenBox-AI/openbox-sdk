@@ -143,11 +143,6 @@ export interface Session {
   inspect(agentId: string, sessionIdOrWorkflowId: string): void;
   prune(agentId: string): void;
 }
-export interface Setup {
-  skill(): void;
-  mcp(): void;
-  all(): void;
-}
 export interface Team {
   list(orgId: string): void;
   stats(orgId: string): void;
@@ -704,25 +699,6 @@ export const CLI_COMMAND_MANIFEST = [
     ]
   },
   {
-    "command": "setup",
-    "description": "First-run helpers (skill / mcp / all).",
-    "interfaceName": "Setup",
-    "subcommands": [
-      {
-        "name": "skill",
-        "flags": []
-      },
-      {
-        "name": "mcp",
-        "flags": []
-      },
-      {
-        "name": "all",
-        "flags": []
-      }
-    ]
-  },
-  {
     "command": "team",
     "description": "Team management.",
     "interfaceName": "Team",
@@ -821,8 +797,6 @@ export const CLI_COMMAND_MANIFEST = [
   }
 ] as const;
 export type CliCommandManifest = typeof CLI_COMMAND_MANIFEST;
-
-
 
 
 

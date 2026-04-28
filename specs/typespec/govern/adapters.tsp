@@ -54,16 +54,40 @@ model ClaudeHookEnvelope {
 @adapter("claude-hooks", "claude-code", "hook_event_name")
 interface ClaudeHooksAdapter {
   /**
-   * PreToolUse: agent is about to call a tool. Tool routing
-   * (Read/Write/Bash/WebFetch/Agent/mcp__*) happens inside the preset
-   * method body - the adapter only handles event_name dispatch.
+   * PreToolUse: agent is about to call a tool. Routing by `tool_name`
+   * to the appropriate activity_type lives in the @activityRouting
+   * table - runtime mappers consume the generated constant instead of
+   * hand-coding the same switch.
+   *
+   * Tools not listed (`Glob`, `Grep`, etc.) are pass-through (allow).
+   * mcp__* tools resolve to MCPToolCall via runtime fallback.
    */
   @hookEvent("PreToolUse")
   @verdictShape("permission-decision")
+  @activityRouting(#{
+    Read: "FileRead",
+    Write: "FileEdit",
+    Edit: "FileEdit",
+    Delete: "FileDelete",
+    Bash: "ShellExecution",
+    WebFetch: "HTTPRequest",
+    WebSearch: "HTTPRequest",
+    Agent: "AgentSpawn",
+  })
   preToolUse(input: ClaudeHookEnvelope): unknown;
 
   @hookEvent("PostToolUse")
   @verdictShape("decision-block")
+  @activityRouting(#{
+    Read: "FileRead",
+    Write: "FileEdit",
+    Edit: "FileEdit",
+    Delete: "FileDelete",
+    Bash: "ShellExecution",
+    WebFetch: "HTTPRequest",
+    WebSearch: "HTTPRequest",
+    Agent: "AgentSpawn",
+  })
   postToolUse(input: ClaudeHookEnvelope): unknown;
 
   @hookEvent("UserPromptSubmit")
@@ -72,6 +96,16 @@ interface ClaudeHooksAdapter {
 
   @hookEvent("PermissionRequest")
   @verdictShape("permission-request")
+  @activityRouting(#{
+    Read: "FileRead",
+    Write: "FileEdit",
+    Edit: "FileEdit",
+    Delete: "FileDelete",
+    Bash: "ShellExecution",
+    WebFetch: "HTTPRequest",
+    WebSearch: "HTTPRequest",
+    Agent: "AgentSpawn",
+  })
   permissionRequest(input: ClaudeHookEnvelope): unknown;
 
   @hookEvent("PreCompact")
@@ -153,8 +187,19 @@ interface CursorHooksAdapter {
   @verdictShape("cursor-permission")
   beforeMCPExecution(input: CursorHookEnvelope): unknown;
 
+  /**
+   * Cursor 3.x's primary tool-routing hook. Cursor remaps Claude tool
+   * names: Bash → "Shell", Write/Edit → "Write". Tools not listed
+   * (`Glob`, `Grep`, etc.) are pass-through. Shell commands matching
+   * `/\b(rm|unlink|rmdir|shred)\b/` reroute to file_write at runtime.
+   */
   @hookEvent("preToolUse")
   @verdictShape("cursor-permission")
+  @activityRouting(#{
+    Read: "file_read",
+    Write: "file_write",
+    Shell: "agent_action",
+  })
   preToolUse(input: CursorHookEnvelope): unknown;
 
   @hookEvent("afterAgentResponse")

@@ -302,12 +302,10 @@ interface Session {
   prune(agentId: string): void;
 }
 
-@cli_command("setup", "First-run helpers (skill / mcp / all).")
-interface Setup {
-  skill(): void;
-  mcp(): void;
-  all(): void;
-}
+// `openbox setup` was removed - its `skill` / `mcp` subcommands are
+// superseded by the dedicated top-level commands `skill install`,
+// `mcp serve`, `claude-code install`, and `cursor install` (each has
+// its own @cli_command interface above).
 
 @cli_command("team", "Team management.")
 interface Team {

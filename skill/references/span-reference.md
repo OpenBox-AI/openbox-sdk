@@ -24,7 +24,7 @@ Setting `gen_ai.system` alone is **not sufficient**. You must also include:
 "http.url": "https://api.openai.com/v1/chat/completions"
 ```
 
-The `openbox-sdk` `gen_ai` span type and `cursor-hooks` inject these automatically. This is a workaround - remove when Core is updated to honor `gen_ai.system`.
+The `openbox-sdk` `gen_ai` span type and `runtime/cursor` inject these automatically. This is a workaround - remove when Core is updated to honor `gen_ai.system`.
 
 ## Span Type Quick Reference
 

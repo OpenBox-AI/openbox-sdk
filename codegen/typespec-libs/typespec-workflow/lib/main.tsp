@@ -114,3 +114,18 @@ extern dec verdictShape(
     | "cursor-observe"
     | "none",
 );
+
+/**
+ * Per-event tool-name → activity_type table. For adapter operations
+ * whose handlers route to multiple activity_types based on a
+ * sub-discriminator inside the envelope (e.g. `tool_name` on
+ * Claude Code's PreToolUse, or Cursor's preToolUse).
+ *
+ * The emitter materializes the table as a constant per operation in
+ * the generated runtime adapter; per-platform mappers consume the
+ * constant instead of hand-coding the same switch in two places.
+ *
+ * @param table Map of inner-discriminator string → activity_type
+ *   string. e.g. `#{ Read: "FileRead", Bash: "ShellExecution" }`.
+ */
+extern dec activityRouting(target: Operation, table: valueof Record<string>);

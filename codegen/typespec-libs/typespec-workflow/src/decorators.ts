@@ -254,3 +254,54 @@ export function getVerdictShape(
 ): VerdictShapeBinding | undefined {
   return program.stateMap(stateKeys.verdictShape).get(target);
 }
+
+// ─── Activity routing ────────────────────────────────────────
+// Per-event tool-name → activity_type table for adapter operations. Lives
+// on @hookEvent operations whose handlers dispatch on a sub-discriminator
+// inside the envelope (e.g. PreToolUse routes by tool_name to FileRead /
+// ShellExecution / HTTPRequest / etc).
+//
+// Spec'ing the table here means the per-platform runtime mappers consume
+// a generated constant instead of hand-coding the same switch in two
+// places - drift between claude-code and cursor was a real concern.
+
+export interface ActivityRoutingBinding {
+  /** Map of inner-discriminator value → activity_type fired. */
+  readonly table: Record<string, string>;
+}
+
+export function $activityRouting(
+  context: DecoratorContext,
+  target: Operation,
+  raw: unknown,
+): void {
+  // TypeSpec passes record literals as a Map<string, string>. Normalize.
+  const table: Record<string, string> = {};
+  if (raw instanceof Map) {
+    for (const [k, v] of raw.entries()) {
+      if (typeof k === 'string' && typeof v === 'string') table[k] = v;
+    }
+  } else if (typeof raw === 'object' && raw !== null) {
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v === 'string') table[k] = v;
+    }
+  }
+  if (Object.keys(table).length === 0) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-activity-routing',
+      format: { reason: 'table is empty or non-string-valued' },
+      target,
+    });
+    return;
+  }
+  context.program.stateMap(stateKeys.activityRouting).set(target, {
+    table,
+  } satisfies ActivityRoutingBinding);
+}
+
+export function getActivityRouting(
+  program: Program,
+  target: Operation,
+): ActivityRoutingBinding | undefined {
+  return program.stateMap(stateKeys.activityRouting).get(target);
+}

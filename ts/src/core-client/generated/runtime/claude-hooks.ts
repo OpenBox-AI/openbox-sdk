@@ -6,6 +6,39 @@ import type { ClaudeHookEnvelope } from './envelopes.js';
 
 export type { ClaudeHookEnvelope };
 
+export const PRE_TOOL_USE_ROUTING: Record<string, string> = {
+  "Read": "FileRead",
+  "Write": "FileEdit",
+  "Edit": "FileEdit",
+  "Delete": "FileDelete",
+  "Bash": "ShellExecution",
+  "WebFetch": "HTTPRequest",
+  "WebSearch": "HTTPRequest",
+  "Agent": "AgentSpawn"
+};
+
+export const POST_TOOL_USE_ROUTING: Record<string, string> = {
+  "Read": "FileRead",
+  "Write": "FileEdit",
+  "Edit": "FileEdit",
+  "Delete": "FileDelete",
+  "Bash": "ShellExecution",
+  "WebFetch": "HTTPRequest",
+  "WebSearch": "HTTPRequest",
+  "Agent": "AgentSpawn"
+};
+
+export const PERMISSION_REQUEST_ROUTING: Record<string, string> = {
+  "Read": "FileRead",
+  "Write": "FileEdit",
+  "Edit": "FileEdit",
+  "Delete": "FileDelete",
+  "Bash": "ShellExecution",
+  "WebFetch": "HTTPRequest",
+  "WebSearch": "HTTPRequest",
+  "Agent": "AgentSpawn"
+};
+
 /**
  * Per-event handlers. Each handler receives the parsed stdin envelope
  * + an attached ClaudeCodeSession (workflowId/runId resolved by

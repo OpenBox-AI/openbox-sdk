@@ -32,6 +32,7 @@ import {
   getAdapter,
   getHookEvent,
   getVerdictShape,
+  getActivityRouting,
   type CanonicalEventType,
   type VerdictShape,
 } from 'typespec-workflow/decorators';
@@ -508,6 +509,7 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
   const envName = envNamespace.enums.get('EnvName');
   const envConfig = envNamespace.models.get('EnvConfig');
   const runtimeConfig = envNamespace.models.get('RuntimeConfig');
+  const cliRuntimeConfig = envNamespace.models.get('CliRuntimeConfig');
   const credentials = envNamespace.models.get('Credentials');
   const tokenEntry = envNamespace.models.get('TokenEntry');
   const tokenStoreModel = envNamespace.models.get('TokenStore');
@@ -521,7 +523,7 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
     : undefined;
 
   const out = project.createSourceFile(
-    resolvePath(repoRoot, 'ts', 'env', 'src', 'generated', 'env-bindings.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'env', 'generated', 'env-bindings.ts'),
     '',
     { overwrite: true },
   );
@@ -552,21 +554,24 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
     '',
   ]);
 
-  // Generate the env-var binding table from @env_var decorators on
-  // RuntimeConfig. Used by `resolveUrls()` so adding a new field on
-  // the .tsp side automatically flows through.
-  if (runtimeConfig) {
-    const bindings = collectEnvVarBindings(program, runtimeConfig);
-    if (bindings.length > 0) {
-      out.addStatements([
-        `export const ENV_VAR_BINDINGS = {`,
-        ...bindings.map(
-          (b) => `  ${quoteIdent(b.field)}: ${JSON.stringify(b.envVar)} as const,`,
-        ),
-        `} as const;`,
-        '',
-      ]);
-    }
+  // Generate the env-var binding table from @env_var decorators across
+  // RuntimeConfig (URLs) + Credentials (api key) + CliRuntimeConfig
+  // (cli-only gates). Spec authors add a field here, the table grows.
+  // Consumers reach env vars by NAME from this table, never by string
+  // literal - adding `OPENBOX_FOO` is a one-line spec change.
+  const bindings: EnvVarBindingRow[] = [];
+  if (runtimeConfig) bindings.push(...collectEnvVarBindings(program, runtimeConfig));
+  if (credentials) bindings.push(...collectEnvVarBindings(program, credentials));
+  if (cliRuntimeConfig) bindings.push(...collectEnvVarBindings(program, cliRuntimeConfig));
+  if (bindings.length > 0) {
+    out.addStatements([
+      `export const ENV_VAR_BINDINGS = {`,
+      ...bindings.map(
+        (b) => `  ${quoteIdent(b.field)}: ${JSON.stringify(b.envVar)} as const,`,
+      ),
+      `} as const;`,
+      '',
+    ]);
   }
 
   // Generate the API-key validator from @token_format on Credentials.
@@ -1021,6 +1026,8 @@ interface AdapterMethod {
   name: string;
   eventName: string;
   shape: VerdictShape;
+  /** Optional sub-discriminator → activity_type table from @activityRouting. */
+  routing?: Record<string, string>;
 }
 
 interface AdapterEntry {
@@ -1057,10 +1064,12 @@ function emitAdapters(program: Program, project: Project, repoRoot: string): voi
       if (param?.type?.kind === 'Model') {
         envelopeName ??= param.type.name;
       }
+      const ar = getActivityRouting(program, op);
       methods.push({
         name: opName,
         eventName: ev.eventName,
         shape: vs.shape,
+        routing: ar?.table,
       });
     }
     if (methods.length === 0) continue;
@@ -1144,13 +1153,24 @@ function emitAdapterModule(a: AdapterEntry): string {
     )
     .join('\n');
 
+  // Routing constants per @activityRouting on each operation. The constant
+  // name is `<EVENT_NAME>_ROUTING` in SCREAMING_SNAKE_CASE so consumer
+  // mappers can reach for it without per-platform aliasing.
+  const routingExports = a.methods
+    .filter((m) => m.routing && Object.keys(m.routing).length > 0)
+    .map((m) => {
+      const constName = m.eventName.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase() + '_ROUTING';
+      return `export const ${constName}: Record<string, string> = ${JSON.stringify(m.routing, null, 2)};`;
+    })
+    .join('\n\n');
+
   return `import type { OpenBoxCoreClient } from '../../core-client.js';
 import { govern, presets, type ${presetSessionTy}, type WorkflowVerdict } from '../govern.js';
 import type { ${a.envelopeName} } from './envelopes.js';
 
 export type { ${a.envelopeName} };
 
-/**
+${routingExports ? routingExports + '\n\n' : ''}/**
  * Per-event handlers. Each handler receives the parsed stdin envelope
  * + an attached ${presetSessionTy} (workflowId/runId resolved by
  * \`config.resolveSession\`). Return a WorkflowVerdict - usually by calling

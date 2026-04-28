@@ -421,6 +421,52 @@ describe('approval polling bounds', () => {
   });
 });
 
+describe('BaseGovernedSession.activity (cross-preset escape)', () => {
+  // The public `session.activity(eventType, activityType, payload)` on
+  // every preset's session lets runtime adapters fire activity_types
+  // beyond the bound preset's typed methods - claude-code's PreToolUse
+  // hook routing is the canonical case (one hook event → 6+ tool-specific
+  // activity_types from the `default` preset's vocabulary).
+
+  test('non-custom preset can fire arbitrary activity_type via session.activity', async () => {
+    const mock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        // claudeCode preset has preToolUse() (PreToolUse activity_type).
+        // session.activity escapes to fire FileRead instead.
+        await session.activity('ActivityStarted', 'FileRead', {
+          input: [{ file_path: '/etc/secret' }],
+        });
+      },
+    );
+    const fileRead = mock.events.find((e) => e.activity_type === 'FileRead');
+    expect(fileRead?.event_type).toBe('ActivityStarted');
+    // Adapter should have fired both the explicit FileRead activity AND
+    // the paired ActivityCompleted on body return - the lifecycle stays
+    // intact across the escape.
+    const completed = mock.events.find((e) => e.event_type === 'ActivityCompleted' && e.activity_type === 'FileRead');
+    expect(completed).toBeDefined();
+  });
+
+  test('SignalReceived event_type via session.activity is fire-and-forget', async () => {
+    const mock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        await session.activity('SignalReceived', 'goal', {
+          input: [{ goal: 'refactor the foo module' }],
+        });
+      },
+    );
+    const signal = mock.events.find((e) => e.event_type === 'SignalReceived');
+    expect(signal?.activity_type).toBe('goal');
+    // Signals don't get paired ActivityCompleted.
+    const stray = mock.events.find((e) => e.event_type === 'ActivityCompleted' && e.activity_type === 'goal');
+    expect(stray).toBeUndefined();
+  });
+});
+
 describe('CustomSession (free-form activity)', () => {
   test('activity("X", "pre", ...) emits ActivityStarted with activity_type=X', async () => {
     const mock = createMockCore('allow');

@@ -906,18 +906,35 @@ Supports two modes: raw JSON or `--type` shorthand.
 | `--activity-id <id>` | Yes | Activity ID |
 
 
-## `openbox setup`
+## Host integration commands
 
-Installs the OpenBox skill / MCP server into their conventional local locations. Convenience commands; equivalent to a `git clone` plus wiring into Claude Code / Cursor config.
+Each LLM host (Claude Code, Cursor, MCP-compatible) has its own
+top-level subcommand for install + per-event hook entry. They replace
+the legacy `openbox setup` (now removed). See `references/existing-sdks.md`
+for the full picture.
 
-### `openbox setup skill [--claude] [--cursor]`
+### `openbox claude-code install [--uninstall]`
 
-Clones `OpenBox-AI/skill/` into `~/.claude/skills/openbox` (when `--claude`) or `~/.cursor/skills/openbox` (when `--cursor`). With no flag, installs into both if available.
+Writes the OpenBox hook block into `~/.claude/settings.json` and points
+each Claude Code hook event (PreToolUse, PostToolUse, …) at
+`openbox claude-code hook`. `--uninstall` removes the block.
 
-### `openbox setup mcp [--dir <path>]`
+### `openbox cursor install [--uninstall]`
 
-Clones `OpenBox-AI/runtime/mcp`, builds it, and registers the server in Cursor's MCP config (`~/.cursor/mcp.json`). `--dir` overrides the install location (default: `~/workspace/runtime/mcp`).
+Writes the OpenBox hook block into `~/.cursor/hooks.json`, points each
+Cursor hook event at `openbox cursor hook`. `--uninstall` removes.
 
-### `openbox setup all`
+### `openbox mcp serve`
 
-Runs `setup skill` + `setup mcp` with default targets.
+Long-running stdio MCP server. Configure your MCP-compatible host
+(Claude Desktop, etc.) to spawn this command:
+```jsonc
+// ~/.config/Claude/claude_desktop_config.json or similar
+{ "mcpServers": { "openbox": { "command": "openbox", "args": ["mcp", "serve"] } } }
+```
+
+### `openbox skill install [--cursor] [--target <dir>]`
+
+Copies `SKILL.md` + `references/` from the installed `openbox-sdk` into
+`~/.claude/skills/openbox/` (default) or `~/.cursor/skills/openbox/`
+with `--cursor`. Re-run to update.

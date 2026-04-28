@@ -3,24 +3,19 @@ import type {
   WorkflowVerdict,
 } from '../../../core-client/index.js';
 import type { ClaudeHookEnvelope } from '../../../core-client/generated/runtime/claude-hooks.js';
+// Spec-driven tool→activity_type table, declared via @activityRouting.
+import { PERMISSION_REQUEST_ROUTING } from '../../../core-client/generated/runtime/claude-hooks.js';
 import type { ClaudeHooksConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
 function activityTypeForTool(toolName: string): string {
-  switch (toolName) {
-    case 'Read':      return ACTIVITY_TYPES.FILE_READ;
-    case 'Delete':    return ACTIVITY_TYPES.FILE_DELETE;
-    case 'Write':
-    case 'Edit':      return ACTIVITY_TYPES.FILE_EDIT;
-    case 'Bash':      return ACTIVITY_TYPES.SHELL;
-    case 'WebFetch':
-    case 'WebSearch': return ACTIVITY_TYPES.HTTP_REQUEST;
-    case 'Agent':     return ACTIVITY_TYPES.AGENT_SPAWN;
-    default:
-      if (toolName.startsWith('mcp__')) return ACTIVITY_TYPES.MCP_CALL;
-      return ACTIVITY_TYPES.SHELL;
-  }
+  const direct = PERMISSION_REQUEST_ROUTING[toolName];
+  if (direct) return direct;
+  if (toolName.startsWith('mcp__')) return ACTIVITY_TYPES.MCP_CALL;
+  // Unknown tool - govern as a generic shell-like action so something
+  // still hits the wire (better than dropping the request silently).
+  return ACTIVITY_TYPES.SHELL;
 }
 
 function eventCategoryForTool(toolName: string): string {

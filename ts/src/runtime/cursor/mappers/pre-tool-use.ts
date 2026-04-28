@@ -4,6 +4,8 @@ import type {
   WorkflowVerdict,
 } from '../../../core-client/index.js';
 import type { CursorHookEnvelope } from '../../../core-client/generated/runtime/cursor-hooks.js';
+// Spec-driven Cursor-tool → activity_type table, declared via @activityRouting.
+import { PRE_TOOL_USE_ROUTING } from '../../../core-client/generated/runtime/cursor-hooks.js';
 import type { CursorHooksConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
@@ -48,6 +50,13 @@ export async function handlePreToolUse(
     return v;
   };
 
+  // Activity-type lookup is spec-driven; per-tool payload shape stays
+  // here. PRE_TOOL_USE_ROUTING covers the main cases; we override Shell
+  // to file_write when the command pattern matches `rm`/`unlink`/etc.
+  // (no dedicated Delete tool in Cursor - file deletes go through Shell).
+  const baseActivity = PRE_TOOL_USE_ROUTING[toolName];
+  if (!baseActivity) return undefined;
+
   switch (toolName) {
     case 'Read': {
       const filePath = (toolInput.file_path ?? toolInput.filePath ?? '') as string;
@@ -56,21 +65,15 @@ export async function handlePreToolUse(
       let content = '';
       try {
         if (fs.existsSync(filePath)) content = fs.readFileSync(filePath, 'utf-8');
-      } catch {
-        /* skip content; still govern the path */
-      }
-      return fire(ACTIVITY_TYPES.FILE_READ, {
-        file_path: filePath,
-        content,
-        event_category: 'file_read',
-      });
+      } catch { /* skip content; still govern the path */ }
+      return fire(baseActivity, { file_path: filePath, content, event_category: 'file_read' });
     }
 
     case 'Write': {
       // Cursor sends "Write" for both Write and Edit tools.
       const filePath = (toolInput.file_path ?? toolInput.filePath ?? '') as string;
       if (filePath && SKIP_PATTERNS.some((p) => p.test(filePath))) return undefined;
-      return fire(ACTIVITY_TYPES.FILE_WRITE, {
+      return fire(baseActivity, {
         file_path: filePath,
         content: (toolInput.content ?? toolInput.new_string ?? '') as string,
         event_category: 'file_write',
@@ -80,11 +83,11 @@ export async function handlePreToolUse(
     case 'Shell': {
       const command = (toolInput.command ?? '') as string;
       const cwd = (toolInput.cwd ?? env.cwd ?? '') as string;
-      // Cursor has no dedicated Delete tool - detect file-destructive commands
-      // here and route them as file_write so file-write guardrails / policies match.
+      // Cursor's Shell tool covers file deletes (no dedicated Delete tool).
+      // Detect rm/unlink/rmdir/shred and reroute to file_write so existing
+      // file-write guardrails / policies match.
       const isDelete = /\b(rm|unlink|rmdir|shred)\b/.test(command);
-      const activityType = isDelete ? ACTIVITY_TYPES.FILE_WRITE : ACTIVITY_TYPES.AGENT_ACTION;
-      return fire(activityType, {
+      return fire(isDelete ? ACTIVITY_TYPES.FILE_WRITE : baseActivity, {
         command,
         cwd,
         event_category: isDelete ? 'file_delete' : 'agent_action',
@@ -92,7 +95,6 @@ export async function handlePreToolUse(
     }
 
     default:
-      // Unknown tool - allow by default; afterAgentResponse can still observe.
       return undefined;
   }
 }

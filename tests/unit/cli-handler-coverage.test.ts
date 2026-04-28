@@ -46,9 +46,18 @@ function kebabCase(s: string): string {
  * helper to be findable; don't allowlist.
  */
 const LOCAL_ONLY: Record<string, string> = {
-  'setup:skill': 'Writes claude-code-skill scaffold to ~/.claude/. No SDK call.',
-  'setup:mcp': 'Writes MCP-server config to ~/.openbox/. No SDK call.',
-  'setup:all': 'Composes setup:skill + setup:mcp.',
+  // The dedicated platform install commands replaced `openbox setup`.
+  // They write local config files (settings.json / hooks.json / mcp.json,
+  // plus skill markdown copies) without hitting the backend.
+  'skill:install': 'Copies SKILL.md + references to ~/.claude/skills/openbox/. No SDK call.',
+  'skill:path': 'Prints the bundled skill source path. No SDK call.',
+  'claude-code:install': 'Writes hook block to ~/.claude/settings.json. No SDK call.',
+  'claude-code:uninstall': 'Removes the hook block from ~/.claude/settings.json. No SDK call.',
+  'claude-code:hook': 'Per-event hook handler - reads stdin, dispatches via runtime adapter, writes stdout.',
+  'cursor:install': 'Writes hook block to ~/.cursor/hooks.json. No SDK call.',
+  'cursor:uninstall': 'Removes the hook block from ~/.cursor/hooks.json. No SDK call.',
+  'cursor:hook': 'Per-event hook handler - reads stdin, dispatches via runtime adapter, writes stdout.',
+  'mcp:serve': 'Long-running MCP stdio server. The SDK call surface is covered by runtime/mcp.',
   'doctor:': 'Verifies local pre-flight: which/openbox, ~/.openbox/tokens, env vars. No SDK call.',
   'verify:': 'Static linter on a hand-written governance integration source file.',
   'versions:': 'Reads /version per service via static OpenBoxClient.getVersion (not a method).',
