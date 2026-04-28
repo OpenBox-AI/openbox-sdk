@@ -1,58 +1,26 @@
 // Resolves Claude Code's `session_id` (one per chat session) to the
-// workflowId/runId pair the OpenBox runtime requires. The first hook in
-// a session creates the IDs; subsequent hooks load them from disk.
-//
-// File layout: ~/.claude-hooks/sessions/<sanitized-session-id>.json
-import { randomUUID } from 'node:crypto';
-import { SessionStore } from './session-store.js';
+// workflowId/runId pair the OpenBox runtime requires. Logic lives in
+// `_shared/session-resolver`; this file just supplies the right field
+// from the envelope.
+import {
+  resolveSessionByKey,
+  markHaltedByKey,
+  clearSessionByKey,
+} from '../_shared/session-resolver.js';
 import type { ClaudeCodeConfig } from './config.js';
 import type { ClaudeCodeEnvelope } from '../../core-client/generated/runtime/claude-code.js';
-
-interface PersistedSession {
-  workflowId: string;
-  runId: string;
-  /** Cleared when a halt verdict fires; the next hook starts a fresh workflow. */
-  halted?: boolean;
-}
-
-let storeInstance: SessionStore | null = null;
-function getStore(cfg: ClaudeCodeConfig): SessionStore {
-  if (!storeInstance) storeInstance = new SessionStore(cfg.sessionDir);
-  return storeInstance;
-}
 
 export async function resolveSession(
   env: ClaudeCodeEnvelope,
   cfg: ClaudeCodeConfig,
 ): Promise<{ workflowId: string; runId: string }> {
-  const store = getStore(cfg);
-  const existing = store.load(env.session_id) as PersistedSession | null;
-
-  if (existing && !existing.halted) {
-    return { workflowId: existing.workflowId, runId: existing.runId };
-  }
-
-  // First hook in this session, OR previous workflow halted - fresh IDs.
-  const workflowId = randomUUID();
-  const runId = randomUUID();
-  store.save(env.session_id, { workflowId, runId } satisfies PersistedSession);
-  return { workflowId, runId };
+  return resolveSessionByKey(env.session_id, cfg);
 }
 
-/**
- * Mark this session's workflow as halted so the next hook starts a fresh
- * workflow envelope. Called from handlers when they observe verdict.arm
- * === 'halt'.
- */
 export function markHalted(sessionId: string, cfg: ClaudeCodeConfig): void {
-  const store = getStore(cfg);
-  const existing = store.load(sessionId) as PersistedSession | null;
-  if (existing) {
-    store.save(sessionId, { ...existing, halted: true });
-  }
+  markHaltedByKey(sessionId, cfg);
 }
 
-/** Tear down the session store entry on session-end so disk doesn't grow. */
 export function clearSession(sessionId: string, cfg: ClaudeCodeConfig): void {
-  getStore(cfg).delete(sessionId);
+  clearSessionByKey(sessionId, cfg);
 }

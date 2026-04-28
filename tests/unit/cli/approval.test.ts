@@ -37,20 +37,40 @@ describe('approval commands', () => {
     expect(mockClient.getApprovalHistory).toHaveBeenCalledWith('agent-1', expect.anything());
   });
 
-  it('decide calls decideApproval', async () => {
+  it('decide accepts action=approve', async () => {
     const program = createTestProgram();
     registerApprovalCommands(program);
     await program.parseAsync([
-      'node',
-      'openbox',
-      'approval',
-      'decide',
-      'agent-1',
-      'evt-1',
-      'approve',
+      'node', 'openbox', 'approval', 'decide', 'agent-1', 'evt-1', 'approve',
     ]);
-    expect(mockClient.decideApproval).toHaveBeenCalledWith('agent-1', 'evt-1', {
-      action: 'approve',
-    });
+    // decideApproval(agentId, eventId, { action }). Body object replaced the
+    // positional string when the wire schema grew optional fields.
+    expect(mockClient.decideApproval).toHaveBeenCalledWith('agent-1', 'evt-1', { action: 'approve' });
+  });
+
+  it('decide accepts action=reject', async () => {
+    const program = createTestProgram();
+    registerApprovalCommands(program);
+    await program.parseAsync([
+      'node', 'openbox', 'approval', 'decide', 'agent-1', 'evt-1', 'reject',
+    ]);
+    expect(mockClient.decideApproval).toHaveBeenCalledWith('agent-1', 'evt-1', { action: 'reject' });
+  });
+
+  it('decide rejects an invalid action', async () => {
+    const program = createTestProgram();
+    registerApprovalCommands(program);
+    await expect(
+      program.parseAsync(['node', 'openbox', 'approval', 'decide', 'agent-1', 'evt-1', 'maybe']),
+    ).rejects.toThrow();
+    expect(mockClient.decideApproval).not.toHaveBeenCalled();
+  });
+
+  it('decide requires all three positional args', async () => {
+    const program = createTestProgram();
+    registerApprovalCommands(program);
+    await expect(
+      program.parseAsync(['node', 'openbox', 'approval', 'decide', 'agent-1']),
+    ).rejects.toThrow();
   });
 });

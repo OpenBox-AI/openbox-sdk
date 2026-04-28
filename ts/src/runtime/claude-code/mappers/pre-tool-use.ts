@@ -10,25 +10,7 @@ import { PRE_TOOL_USE_ROUTING } from '../../../core-client/generated/runtime/cla
 import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
-
-/** Paths that should never be governed (IDE internals, skills, config dirs).
- *  Claude Code reads .claude/ metadata, skills, etc. before the user's actual
- *  file; PII scanning those causes false HALTs. */
-const SKIP_PATTERNS = [
-  /\.cursor\//,
-  /\.claude\//,
-  /\/mcps\//,
-  /\/node_modules\//,
-  /\.git\//,
-  /INSTRUCTIONS\.md$/,
-  /SERVER_METADATA\.json$/,
-  /SKILL\.md$/,
-  /\.env(\..*)?$/,
-  /\.aws\//,
-  /\.ssh\//,
-  /\.kube\//,
-  /\.gnupg\//,
-];
+import { isSkipped } from '../../_shared/skip-patterns.js';
 
 /**
  * Lookup the activity_type for a Claude Code tool name. Spec-driven for
@@ -74,7 +56,7 @@ export async function handlePreToolUse(
     case 'Read': {
       const filePath = (toolInput.file_path ?? toolInput.filePath ?? '') as string;
       if (!filePath) return undefined;
-      if (SKIP_PATTERNS.some((p) => p.test(filePath))) return undefined;
+      if (isSkipped(filePath)) return undefined;
       let content = '';
       try {
         if (fs.existsSync(filePath)) content = fs.readFileSync(filePath, 'utf-8');
@@ -85,14 +67,14 @@ export async function handlePreToolUse(
     case 'Delete': {
       const filePath = (toolInput.path ?? toolInput.file_path ?? '') as string;
       if (!filePath) return undefined;
-      if (SKIP_PATTERNS.some((p) => p.test(filePath))) return undefined;
+      if (isSkipped(filePath)) return undefined;
       return fire({ text: filePath, file_path: filePath, event_category: 'file_delete' });
     }
 
     case 'Write':
     case 'Edit': {
       const filePath = (toolInput.file_path ?? toolInput.filePath ?? '') as string;
-      if (filePath && SKIP_PATTERNS.some((p) => p.test(filePath))) return undefined;
+      if (filePath && isSkipped(filePath)) return undefined;
       const content = (toolInput.content ?? toolInput.new_string ?? '') as string;
       return fire({ text: content, file_path: filePath, content, event_category: 'file_write' });
     }

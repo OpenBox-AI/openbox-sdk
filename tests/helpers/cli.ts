@@ -11,6 +11,7 @@ export function createMockClient() {
     refreshTokens: vi.fn().mockResolvedValue({}),
     changePassword: vi.fn().mockResolvedValue({}),
     getUserRoles: vi.fn().mockResolvedValue([]),
+    logout: vi.fn().mockResolvedValue(undefined),
     // Agent
     listAgents: vi.fn().mockResolvedValue({ data: [] }),
     createAgent: vi.fn().mockResolvedValue({ agent: { id: 'a1' }, token: 'tok' }),
@@ -105,8 +106,12 @@ export function createMockClient() {
     listTeams: vi.fn().mockResolvedValue({ data: [] }),
     getTeamStats: vi.fn().mockResolvedValue({}),
     getTeam: vi.fn().mockResolvedValue({ id: 't1' }),
+    createTeam: vi.fn().mockResolvedValue({ id: 't-new' }),
     updateTeam: vi.fn().mockResolvedValue({ id: 't1' }),
+    deleteTeams: vi.fn().mockResolvedValue({ status: 200 }),
     getTeamMembers: vi.fn().mockResolvedValue({ data: [] }),
+    addTeamMembers: vi.fn().mockResolvedValue({ status: 200 }),
+    removeTeamMembers: vi.fn().mockResolvedValue({ status: 200 }),
     // Members
     listMembers: vi.fn().mockResolvedValue({ data: [] }),
     createUser: vi.fn().mockResolvedValue({ id: 'u1' }),

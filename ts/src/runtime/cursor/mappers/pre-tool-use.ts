@@ -9,22 +9,7 @@ import { PRE_TOOL_USE_ROUTING } from '../../../core-client/generated/runtime/cur
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
-
-const SKIP_PATTERNS = [
-  /\.cursor\//,
-  /\.claude\//,
-  /\/mcps\//,
-  /\/node_modules\//,
-  /\.git\//,
-  /INSTRUCTIONS\.md$/,
-  /SERVER_METADATA\.json$/,
-  /SKILL\.md$/,
-  /\.env(\..*)?$/,
-  /\.aws\//,
-  /\.ssh\//,
-  /\.kube\//,
-  /\.gnupg\//,
-];
+import { isSkipped } from '../../_shared/skip-patterns.js';
 
 /**
  * preToolUse: Cursor 3.x's primary agent-action hook (dispatched per
@@ -61,7 +46,7 @@ export async function handlePreToolUse(
     case 'Read': {
       const filePath = (toolInput.file_path ?? toolInput.filePath ?? '') as string;
       if (!filePath) return undefined;
-      if (SKIP_PATTERNS.some((p) => p.test(filePath))) return undefined;
+      if (isSkipped(filePath)) return undefined;
       let content = '';
       try {
         if (fs.existsSync(filePath)) content = fs.readFileSync(filePath, 'utf-8');
@@ -72,7 +57,7 @@ export async function handlePreToolUse(
     case 'Write': {
       // Cursor sends "Write" for both Write and Edit tools.
       const filePath = (toolInput.file_path ?? toolInput.filePath ?? '') as string;
-      if (filePath && SKIP_PATTERNS.some((p) => p.test(filePath))) return undefined;
+      if (filePath && isSkipped(filePath)) return undefined;
       return fire(baseActivity, {
         file_path: filePath,
         content: (toolInput.content ?? toolInput.new_string ?? '') as string,

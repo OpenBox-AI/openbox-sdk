@@ -16,28 +16,82 @@ describe('goal commands', () => {
     vi.mocked(getClient).mockReturnValue(mockClient as any);
   });
 
-  it('update calls updateGoalAlignment', async () => {
+  const fullUpdate = [
+    '--threshold', '80',
+    '--action', 'alert_only',
+    '--frequency', 'every_action',
+    '--model', 'llama-firewall-v1',
+  ];
+
+  it('update sends all four fields with correct casing', async () => {
     const program = createTestProgram();
     registerGoalCommands(program);
     await program.parseAsync([
-      'node',
-      'openbox',
-      'goal',
-      'update',
-      'agent-1',
-      '--threshold',
-      '80',
-      '--action',
-      'alert_only',
-      '--frequency',
-      'every_action',
-      '--model',
-      'llama-firewall-v1',
+      'node', 'openbox', 'goal', 'update', 'agent-1', ...fullUpdate,
     ]);
-    expect(mockClient.updateGoalAlignment).toHaveBeenCalledWith(
-      'agent-1',
-      expect.objectContaining({ alignment_threshold: 80 }),
-    );
+    expect(mockClient.updateGoalAlignment).toHaveBeenCalledWith('agent-1', {
+      alignment_threshold: 80,
+      drift_detection_action: 'alert_only',
+      evaluation_frequency: 'every_action',
+      llama_firewall_model: 'llama-firewall-v1',
+    });
+  });
+
+  it('update fails fast when any required field is missing', async () => {
+    const program = createTestProgram();
+    registerGoalCommands(program);
+    const partial = [
+      '--threshold', '80',
+      '--action', 'alert_only',
+      '--frequency', 'every_action',
+      // --model omitted
+    ];
+    await expect(
+      program.parseAsync(['node', 'openbox', 'goal', 'update', 'agent-1', ...partial]),
+    ).rejects.toThrow();
+    expect(mockClient.updateGoalAlignment).not.toHaveBeenCalled();
+  });
+
+  it('update rejects invalid --action enum', async () => {
+    const program = createTestProgram();
+    registerGoalCommands(program);
+    const bad = [
+      '--threshold', '80',
+      '--action', 'nope',
+      '--frequency', 'every_action',
+      '--model', 'gpt-4o',
+    ];
+    await expect(
+      program.parseAsync(['node', 'openbox', 'goal', 'update', 'agent-1', ...bad]),
+    ).rejects.toThrow();
+    expect(mockClient.updateGoalAlignment).not.toHaveBeenCalled();
+  });
+
+  it('update rejects non-integer --threshold', async () => {
+    const program = createTestProgram();
+    registerGoalCommands(program);
+    const bad = [
+      '--threshold', 'big',
+      '--action', 'alert_only',
+      '--frequency', 'every_action',
+      '--model', 'gpt-4o',
+    ];
+    await expect(
+      program.parseAsync(['node', 'openbox', 'goal', 'update', 'agent-1', ...bad]),
+    ).rejects.toThrow();
+  });
+
+  it('update --json bypasses the four-field requirement and passes body through', async () => {
+    const program = createTestProgram();
+    registerGoalCommands(program);
+    await program.parseAsync([
+      'node', 'openbox', 'goal', 'update', 'agent-1',
+      '--json', '{"alignment_threshold":50,"custom":"x"}',
+    ]);
+    expect(mockClient.updateGoalAlignment).toHaveBeenCalledWith('agent-1', {
+      alignment_threshold: 50,
+      custom: 'x',
+    });
   });
 
   it('trend calls getGoalAlignmentTrend', async () => {

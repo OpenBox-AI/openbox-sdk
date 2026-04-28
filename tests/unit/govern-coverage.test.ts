@@ -16,6 +16,7 @@ import {
   BaseGovernedSession,
   CustomSession,
 } from '../../ts/src/core-client/generated/govern.js';
+import * as corePublic from '../../ts/src/core-client/index.js';
 
 const PRESET_TO_CAMEL: Record<string, keyof typeof presets> = {
   airflow: 'airflow',
@@ -42,11 +43,31 @@ const PRESET_TO_CAMEL: Record<string, keyof typeof presets> = {
   'vercel-ai': 'vercelAi',
 };
 
+// Pascal-case the preset name the same way the emitter does (drops dashes,
+// title-cases each segment, appends "Session"). Keeps the index re-export
+// in lockstep with the manifest without hard-coding the 22 names.
+function presetClassName(preset: string): string {
+  return preset
+    .split(/[-_]/)
+    .map((p) => p[0].toUpperCase() + p.slice(1).toLowerCase())
+    .join('') + 'Session';
+}
+
 describe('every PRESET_MANIFEST entry has a matching Session class', () => {
   test('PRESET_TO_CAMEL covers every shipped preset', () => {
     const shipped = PRESET_MANIFEST.map((p) => p.preset).sort();
     const mapped = Object.keys(PRESET_TO_CAMEL).sort();
     expect(mapped).toEqual(shipped);
+  });
+
+  test('core-client/index.ts re-exports every preset Session class', () => {
+    const missing = PRESET_MANIFEST
+      .map((p) => presetClassName(p.preset))
+      .filter((name) => !(name in corePublic));
+    expect(
+      missing,
+      `Add these to ts/src/core-client/index.ts: ${missing.join(', ')}`,
+    ).toEqual([]);
   });
 
   for (const preset of PRESET_MANIFEST) {

@@ -37,18 +37,50 @@ describe('team commands', () => {
     expect(mockClient.getTeam).toHaveBeenCalledWith('org-1', 'team-1');
   });
 
+  it('create posts { name, description, icon } from flags', async () => {
+    const program = createTestProgram();
+    registerTeamCommands(program);
+    await program.parseAsync([
+      'node', 'openbox', 'team', 'create', 'org-1',
+      '--name', 'Finance',
+      '--desc', 'money folks',
+      '--icon', 'https://example.com/f.png',
+    ]);
+    expect(mockClient.createTeam).toHaveBeenCalledWith('org-1', {
+      name: 'Finance',
+      description: 'money folks',
+      icon: 'https://example.com/f.png',
+    });
+  });
+
+  it('create rejects when neither --name nor --icon is given', async () => {
+    const program = createTestProgram();
+    registerTeamCommands(program);
+    await expect(
+      program.parseAsync(['node', 'openbox', 'team', 'create', 'org-1']),
+    ).rejects.toThrow();
+    expect(mockClient.createTeam).not.toHaveBeenCalled();
+  });
+
+  it('create passes through --json body as-is', async () => {
+    const program = createTestProgram();
+    registerTeamCommands(program);
+    await program.parseAsync([
+      'node', 'openbox', 'team', 'create', 'org-1',
+      '--json', '{"name":"Legal","custom_field":true}',
+    ]);
+    expect(mockClient.createTeam).toHaveBeenCalledWith('org-1', {
+      name: 'Legal',
+      custom_field: true,
+    });
+  });
+
   it('update calls updateTeam', async () => {
     const program = createTestProgram();
     registerTeamCommands(program);
     await program.parseAsync([
-      'node',
-      'openbox',
-      'team',
-      'update',
-      'org-1',
-      'team-1',
-      '-n',
-      'NewTeam',
+      'node', 'openbox', 'team', 'update', 'org-1', 'team-1',
+      '-n', 'NewTeam',
     ]);
     expect(mockClient.updateTeam).toHaveBeenCalledWith(
       'org-1',
@@ -57,10 +89,49 @@ describe('team commands', () => {
     );
   });
 
+  it('delete accepts variadic --ids and posts { ids: [...] }', async () => {
+    const program = createTestProgram();
+    registerTeamCommands(program);
+    await program.parseAsync([
+      'node', 'openbox', 'team', 'delete', 'org-1',
+      '--ids', 't-1', 't-2', 't-3',
+    ]);
+    expect(mockClient.deleteTeams).toHaveBeenCalledWith('org-1', { ids: ['t-1', 't-2', 't-3'] });
+  });
+
+  it('delete rejects when --ids is omitted', async () => {
+    const program = createTestProgram();
+    registerTeamCommands(program);
+    await expect(
+      program.parseAsync(['node', 'openbox', 'team', 'delete', 'org-1']),
+    ).rejects.toThrow();
+  });
+
   it('members calls getTeamMembers', async () => {
     const program = createTestProgram();
     registerTeamCommands(program);
     await program.parseAsync(['node', 'openbox', 'team', 'members', 'org-1', 'team-1']);
     expect(mockClient.getTeamMembers).toHaveBeenCalledWith('org-1', 'team-1', expect.anything());
+  });
+
+  it('add-members posts { user_ids: [...] }', async () => {
+    const program = createTestProgram();
+    registerTeamCommands(program);
+    await program.parseAsync([
+      'node', 'openbox', 'team', 'add-members', 'org-1', 'team-1',
+      '--user-ids', 'u-a', 'u-b',
+    ]);
+    expect(mockClient.addTeamMembers).toHaveBeenCalledWith('org-1', 'team-1', { user_ids: ['u-a', 'u-b'] });
+  });
+
+  it('remove-members hits the separate client method', async () => {
+    const program = createTestProgram();
+    registerTeamCommands(program);
+    await program.parseAsync([
+      'node', 'openbox', 'team', 'remove-members', 'org-1', 'team-1',
+      '--user-ids', 'u-a',
+    ]);
+    expect(mockClient.removeTeamMembers).toHaveBeenCalled();
+    expect(mockClient.addTeamMembers).not.toHaveBeenCalled();
   });
 });
