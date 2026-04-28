@@ -1,49 +1,24 @@
-// openbox-sdk/typespec-workflow - decorators that describe the
-// Temporal-style governance protocol. The wire format is just
-// POST /api/v1/governance/evaluate, but every call must come in a
-// specific order: WorkflowStarted -> paired ActivityStarted /
-// ActivityCompleted per governed action -> WorkflowCompleted (or
-// WorkflowFailed in finally). These decorators let .tsp authors
-// declare the protocol and have the per-language emitters generate
-// governance wrappers that fire the events in the right order with
-// canonical activity_type strings.
+// openbox-sdk/typespec-workflow - decorators describing the Temporal-style
+// governance protocol. The wire format is POST /api/v1/governance/evaluate;
+// every call rides one of six canonical event_types (verified against
+// the-core-service internal/services/governance_workflow.go) which the runtime
+// recognizes for guardrail eligibility, attestation extraction, and metric
+// routing.
+//
+// One decorator surface - the framework-preset shape:
+//   @preset(name)     - marks an interface as a framework preset
+//   @maps_to(...)     - per-method canonical envelope mapping
+//   @verdict          - marks the public verdict model
+//
+// Each @preset interface generates one Session class whose methods map
+// to the canonical envelope via @maps_to. Lifecycle (Workflow{Started,
+// Completed,Failed}) is owned by the SDK runtime, never user code.
 
 import "../dist/index.js";
 
 using TypeSpec.Reflection;
 
 namespace OpenBox.Workflow;
-
-/**
- * Marks an interface as a governance workflow. Emitters wrap calls
- * to its operations in a `WorkflowStarted` / `WorkflowCompleted`
- * envelope sharing one workflow_id + run_id. Each operation inside
- * must be decorated with `@activity` so the emitter knows the
- * canonical activity_type to put on the wire.
- *
- * @param domain Optional grouping for telemetry - defaults to the
- *   interface name in snake_case.
- */
-extern dec workflow(target: Interface, domain?: valueof string);
-
-/**
- * Marks an operation as a governed activity. The emitter wraps the
- * call in paired `ActivityStarted` + `ActivityCompleted` evaluations
- * sharing one activity_id, with `activity_type` set from
- * `canonicalType` (canonical names - `PromptSubmission`, `LLMCompleted`,
- * `ToolCompleted`, `FileRead`, `FileEdit`, `ShellExecution`,
- * `MCPToolCall`, etc. - see governance-flow.md for the full list).
- *
- * @param canonicalType One of the canonical activity_type strings.
- * @param stage Optional gate stage hint (`pre` runs guardrails on
- *   ActivityStarted only, `post` on ActivityCompleted only,
- *   `both` runs each gate at the matching stage). Default: `both`.
- */
-extern dec activity(
-  target: Operation,
-  canonicalType: valueof string,
-  stage?: valueof "pre" | "post" | "both",
-);
 
 /**
  * Marks a model as the verdict shape returned from a governance
@@ -54,11 +29,39 @@ extern dec activity(
 extern dec verdict(target: Model);
 
 /**
- * Marks an operation as an observer hook - fires informationally
- * before/after a governed activity but does NOT gate it. Emitters
- * skip verdict-handling for these and never wait for approval.
+ * Marks an interface as a framework preset. Emitters generate one
+ * `<PascalName>Session` runtime class per preset, plus a registry entry
+ * keyed by `name` (so callers do `presets.claudeCode`, `presets.langchain`,
+ * etc.). Every operation must carry @maps_to.
  *
- * @param when `before` fires before ActivityStarted, `after` fires
- *   after ActivityCompleted.
+ * @param name Lowercase-hyphen identifier (`claude-code`, `langchain`,
+ *   `vercel-ai`, `temporal`, `airflow`, `default`, `custom`, ...).
  */
-extern dec observer_hook(target: Operation, when: valueof "before" | "after");
+extern dec preset(target: Interface, name: valueof string);
+
+/**
+ * Per-operation envelope mapping inside a @preset interface. Tells the
+ * emitter "when the user calls this method, fire this canonical
+ * event_type with this activity_type string."
+ *
+ * Only six event_types are valid - these are the ones the-core-service
+ * recognizes for guardrail eligibility checks (verified against
+ * internal/services/governance_workflow.go:350+ and attestation_workflow.go).
+ * Custom strings would be stored but skip event-type-specific logic.
+ *
+ * @param eventType One of the six canonical event_types.
+ * @param activityType The free-form activity_type string for the wire.
+ *   Optional - defaults to the operation name verbatim if omitted, so
+ *   `onToolStart` becomes activity_type="onToolStart".
+ */
+extern dec maps_to(
+  target: Operation,
+  eventType: valueof
+    | "WorkflowStarted"
+    | "WorkflowCompleted"
+    | "WorkflowFailed"
+    | "ActivityStarted"
+    | "ActivityCompleted"
+    | "SignalReceived",
+  activityType?: valueof string,
+);

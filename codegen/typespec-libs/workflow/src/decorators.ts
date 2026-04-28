@@ -11,65 +11,32 @@ import type {
 } from '@typespec/compiler';
 import { reportDiagnostic, stateKeys } from './lib.js';
 
-export type ActivityStage = 'pre' | 'post' | 'both';
-export type ObserverWhen = 'before' | 'after';
+/** Six canonical event_type values the-core-service recognizes. */
+export type CanonicalEventType =
+  | 'WorkflowStarted'
+  | 'WorkflowCompleted'
+  | 'WorkflowFailed'
+  | 'ActivityStarted'
+  | 'ActivityCompleted'
+  | 'SignalReceived';
 
-export interface WorkflowBinding {
-  readonly domain: string;
+const CANONICAL_EVENT_TYPES: ReadonlySet<CanonicalEventType> = new Set([
+  'WorkflowStarted',
+  'WorkflowCompleted',
+  'WorkflowFailed',
+  'ActivityStarted',
+  'ActivityCompleted',
+  'SignalReceived',
+]);
+
+export interface PresetBinding {
+  readonly name: string;
 }
 
-export interface ActivityBinding {
-  readonly canonicalType: string;
-  readonly stage: ActivityStage;
-}
-
-export interface ObserverBinding {
-  readonly when: ObserverWhen;
-}
-
-function snakeCase(s: string): string {
-  return s
-    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-    .replace(/[\s-]+/g, '_')
-    .toLowerCase();
-}
-
-export function $workflow(
-  context: DecoratorContext,
-  target: Interface,
-  domain?: string,
-): void {
-  context.program.stateMap(stateKeys.workflow).set(target, {
-    domain: domain ?? snakeCase(target.name),
-  } satisfies WorkflowBinding);
-}
-
-export function getWorkflow(program: Program, target: Interface): WorkflowBinding | undefined {
-  return program.stateMap(stateKeys.workflow).get(target);
-}
-
-export function $activity(
-  context: DecoratorContext,
-  target: Operation,
-  canonicalType: string,
-  stage: ActivityStage = 'both',
-): void {
-  if (stage !== 'pre' && stage !== 'post' && stage !== 'both') {
-    reportDiagnostic(context.program, {
-      code: 'invalid-activity-stage',
-      format: { stage },
-      target,
-    });
-    return;
-  }
-  context.program.stateMap(stateKeys.activity).set(target, {
-    canonicalType,
-    stage,
-  } satisfies ActivityBinding);
-}
-
-export function getActivity(program: Program, target: Operation): ActivityBinding | undefined {
-  return program.stateMap(stateKeys.activity).get(target);
+export interface MapsToBinding {
+  readonly eventType: CanonicalEventType;
+  /** Free-form activity_type. Falls back to the operation name. */
+  readonly activityType?: string;
 }
 
 export function $verdict(context: DecoratorContext, target: Model): void {
@@ -93,25 +60,59 @@ export function getVerdictModel(program: Program): Model | undefined {
   return undefined;
 }
 
-export function $observer_hook(
+const PRESET_NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
+
+export function $preset(
   context: DecoratorContext,
-  target: Operation,
-  when: ObserverWhen,
+  target: Interface,
+  name: string,
 ): void {
-  if (when !== 'before' && when !== 'after') {
+  if (!PRESET_NAME_PATTERN.test(name)) {
     reportDiagnostic(context.program, {
-      code: 'invalid-observer-when',
-      format: { when },
+      code: 'invalid-preset-name',
+      format: { name },
       target,
     });
     return;
   }
-  context.program.stateMap(stateKeys.observer).set(target, { when } satisfies ObserverBinding);
+  const map = context.program.stateMap(stateKeys.preset);
+  for (const [other, binding] of map) {
+    if ((binding as PresetBinding).name === name && other !== target) {
+      reportDiagnostic(context.program, {
+        code: 'duplicate-preset-name',
+        format: { name },
+        target,
+      });
+      return;
+    }
+  }
+  map.set(target, { name } satisfies PresetBinding);
 }
 
-export function getObserverHook(
-  program: Program,
+export function getPreset(program: Program, target: Interface): PresetBinding | undefined {
+  return program.stateMap(stateKeys.preset).get(target);
+}
+
+export function $maps_to(
+  context: DecoratorContext,
   target: Operation,
-): ObserverBinding | undefined {
-  return program.stateMap(stateKeys.observer).get(target);
+  eventType: string,
+  activityType?: string,
+): void {
+  if (!CANONICAL_EVENT_TYPES.has(eventType as CanonicalEventType)) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-event-type',
+      format: { eventType },
+      target,
+    });
+    return;
+  }
+  context.program.stateMap(stateKeys.mapsTo).set(target, {
+    eventType: eventType as CanonicalEventType,
+    activityType,
+  } satisfies MapsToBinding);
+}
+
+export function getMapsTo(program: Program, target: Operation): MapsToBinding | undefined {
+  return program.stateMap(stateKeys.mapsTo).get(target);
 }

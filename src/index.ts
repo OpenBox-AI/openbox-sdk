@@ -30,18 +30,24 @@ export {
   type ApprovalStatusResponse,
 
   // Spec-driven workflow runtime. `govern()` opens a workflow envelope,
-  // exposes a `GovernedAgent` to the body callback, and finalizes
-  // (Workflow{Completed,Failed}) on return. Each method on
-  // `GovernedAgent` (promptSubmission / llmCompleted / toolCompleted /
-  // fileRead / fileEdit / shellExecution / mcpToolCall) maps onto a
-  // canonical activity_type string from the spec's ACTIVITY_MANIFEST.
+  // exposes a typed session matching the chosen `preset`, and finalizes
+  // (Workflow{Completed,Failed}) on return - even on throw / process
+  // exit. Pick a preset (`presets.claudeCode`, `presets.langchain`,
+  // `presets.default`, `presets.custom`, ...) - generated from
+  // specs/typespec/govern/main.tsp, manifest in PRESET_MANIFEST.
   govern,
-  GovernedSession,
-  ACTIVITY_MANIFEST,
-  type GovernedAgent,
+  presets,
+  PRESET_MANIFEST,
+  BaseGovernedSession,
+  SessionAlreadyTerminatedError,
+  type Presets,
+  type PresetCtor,
+  type PresetName,
   type GovernedSessionConfig,
   type WorkflowVerdict,
   type VerdictArm,
   type GovernedPayload,
-  type ActivityName,
+  type ActivityStage,
+  type CanonicalEventType,
+  type CanonicalVerdict,
 } from 'openbox-sdk/core-client';

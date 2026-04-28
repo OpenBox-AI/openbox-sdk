@@ -325,6 +325,19 @@ model BackendClientConfig {
 
   retry?: RetryConfig;
   rateLimit?: RateLimitConfig;
+
+  /**
+   * Cached set of permission strings the holder of `accessToken` is
+   * authorized for (e.g. `["read:agent", "create:webhook"]`). When
+   * provided, the generated wrapper class checks each method's
+   * required permissions BEFORE the network call and throws a typed
+   * `MissingPermissionError` if any are absent.
+   *
+   * When omitted, the pre-flight check is skipped - the SDK behaves
+   * exactly as before, deferring authorization to the server's 403
+   * response. The CLI populates this from its on-disk perms cache.
+   */
+  permissions?: string[];
 }
 
 /**

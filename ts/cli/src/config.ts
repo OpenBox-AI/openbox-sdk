@@ -131,11 +131,18 @@ function getClient(env?: EnvName): OpenBoxClient {
   const resolved = env ?? resolveEnv();
   const tokens = loadTokens(resolved);
   const { apiUrl } = resolveUrls(resolved);
+  // Prime the wrapper's permission pre-flight from the on-disk cache
+  // populated at login (and refreshed on `auth refresh`). When the
+  // cache is empty (fresh install before login completes), the field
+  // stays undefined and pre-flight degrades to a no-op - server still
+  // returns 403, just no client-side short-circuit.
+  const cachedPerms = loadPermissions(resolved);
   return new OpenBoxClient({
     apiUrl,
     env: resolved,
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken,
+    permissions: cachedPerms.length > 0 ? cachedPerms : undefined,
     timeoutMs: resolveTimeoutMs(),
     onTokenRefresh: (newTokens) => {
       saveTokens(resolved, newTokens.accessToken, newTokens.refreshToken);

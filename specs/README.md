@@ -24,18 +24,20 @@ Still pending currently:
 - Custom decorator libraries at `codegen/typespec-libs/{workflow,cli,env}/` - `@workflow`, `@activity`, `@cli_command`, `@env_var`, etc. Empty for now; populated in the next push.
 - Workflow protocol (`govern.tsp`), CLI bindings (`cli.tsp`), env spec (`env.tsp`) authored against those decorators.
 
-## Refreshing the backend OpenAPI snapshot (pre-TypeSpec)
+## Drift detection
 
-```bash
-TOKEN=$(grep '^production.ACCESS_TOKEN=' ~/.openbox/tokens | cut -d= -f2-)
-curl -sS \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Openbox-Client: openbox-cli" \
-  https://api.openbox.ai/api/docs-json \
-  | python3 -m json.tool > specs/backend.json
-```
+TypeSpec is the source of truth. The manual mirrors `specs/backend.json`
+and `specs/core.yaml` were dropped - they kept going stale (most recently
+the four `/dashboard/*` endpoints).
 
-Once TypeSpec sources are authored, you stop editing `backend.json` directly - instead edit `.tsp` and let TypeSpec regenerate.
+`.github/workflows/spec-drift.yml` runs daily (and on PRs that touch
+`specs/typespec/**`) to compare TypeSpec against:
+- live deployed prod swagger (curl `https://api.openbox.ai/api/docs-json`)
+- live deployed staging swagger (URL from secrets)
+- upstream `OpenBox-AI/the-backend-service@develop` (path-only via regex parse)
+- upstream `OpenBox-AI/the-core-service@develop` (path-only - core has no swagger endpoint)
+
+Drift opens an issue with `label:spec-drift,automated`.
 
 ## Sibling-repo consumption (current)
 

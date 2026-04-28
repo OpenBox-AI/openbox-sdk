@@ -18,9 +18,9 @@ import {
   isOutput,
 } from '../../codegen/typespec-libs/cli/dist/decorators.js';
 import {
-  getActivity,
+  getMapsTo,
+  getPreset,
   getVerdictModel,
-  getWorkflow,
 } from '../../codegen/typespec-libs/workflow/dist/decorators.js';
 
 import type { Program, Model, Interface, Operation, ModelProperty } from '@typespec/compiler';
@@ -136,21 +136,39 @@ describe('openbox-sdk/typespec-cli', () => {
 });
 
 describe('openbox-sdk/typespec-workflow', () => {
-  test('@workflow attaches the domain (snake_case fallback)', () => {
-    const agent = findInterface('GovernedAgent');
-    const w = getWorkflow(program, agent);
-    expect(w?.domain).toBe('governed_agent');
+  test('@preset captures the lowercase-hyphen name', () => {
+    const claudeCode = findInterface('ClaudeCodePreset');
+    expect(getPreset(program, claudeCode)?.name).toBe('claude-code');
+
+    const langchain = findInterface('LangChainPreset');
+    expect(getPreset(program, langchain)?.name).toBe('langchain');
+
+    const custom = findInterface('CustomPreset');
+    expect(getPreset(program, custom)?.name).toBe('custom');
   });
 
-  test('@activity captures canonicalType + stage', () => {
-    const agent = findInterface('GovernedAgent');
-    const promptSub = getActivity(program, activityOp(agent, 'promptSubmission'));
-    expect(promptSub?.canonicalType).toBe('PromptSubmission');
-    expect(promptSub?.stage).toBe('pre');
+  test('@maps_to captures eventType + activityType', () => {
+    const claudeCode = findInterface('ClaudeCodePreset');
+    const preTool = getMapsTo(program, activityOp(claudeCode, 'preToolUse'));
+    expect(preTool?.eventType).toBe('ActivityStarted');
+    expect(preTool?.activityType).toBe('PreToolUse');
 
-    const tool = getActivity(program, activityOp(agent, 'toolCompleted'));
-    expect(tool?.canonicalType).toBe('ToolCompleted');
-    expect(tool?.stage).toBe('both');
+    const postTool = getMapsTo(program, activityOp(claudeCode, 'postToolUse'));
+    expect(postTool?.eventType).toBe('ActivityCompleted');
+    expect(postTool?.activityType).toBe('PostToolUse');
+  });
+
+  test('@maps_to on SignalReceived (LangGraph interrupt)', () => {
+    const langgraph = findInterface('LangGraphPreset');
+    const interrupt = getMapsTo(program, activityOp(langgraph, 'interrupt'));
+    expect(interrupt?.eventType).toBe('SignalReceived');
+    expect(interrupt?.activityType).toBe('interrupt');
+  });
+
+  test('CustomPreset has the free-form `activity` operation but no @maps_to', () => {
+    const custom = findInterface('CustomPreset');
+    const op = activityOp(custom, 'activity');
+    expect(getMapsTo(program, op)).toBeUndefined();
   });
 
   test('@verdict singleton resolves', () => {
