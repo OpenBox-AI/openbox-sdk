@@ -212,12 +212,28 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     // Lets a skill running inside Claude Code / Codex / Cursor identify itself
     // in backend telemetry without each app having to plumb the variant.
     this.clientName = resolveClientName(this.config.clientName ?? 'openbox-cli');
+    // Populate the wrapper-base permissions cache so generated methods can
+    // pre-flight against MissingPermissionError before any network call.
+    // Caller leaves `permissions` undefined to disable the check.
+    if (config.permissions) {
+      this.permissions = new Set(config.permissions);
+    }
     if (config.rateLimit) {
       this.rateLimiter = new TokenBucket(
         config.rateLimit.requestsPerSecond,
         config.rateLimit.burst,
       );
     }
+  }
+
+  /**
+   * Update the cached permission set. Call this after a token refresh
+   * that returned new claims, or after `getProfile()` if the consumer
+   * didn't pre-load permissions at construction time. Pass `undefined`
+   * to disable the pre-flight check entirely.
+   */
+  setPermissions(permissions: string[] | undefined): void {
+    this.permissions = permissions ? new Set(permissions) : undefined;
   }
 
   // =========================================================================
@@ -1160,6 +1176,13 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
       data?: unknown;
     },
   ): Promise<unknown> {
+    // Pre-flight permission check. Throws MissingPermissionError BEFORE
+    // we touch the network when the cached perm set doesn't cover this
+    // (verb, path) tuple. No-op when permissions are unset (legacy).
+    // Sits at the request() layer so generated methods AND any
+    // hand-written shadow that calls http* hits the same gate.
+    this.checkPathPermissions(method, path);
+
     await this.ensureValidToken();
 
     if (this.rateLimiter) {

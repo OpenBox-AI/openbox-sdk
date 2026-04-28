@@ -9,24 +9,29 @@ export const $lib = createTypeSpecLibrary({
         default: 'Only one model in a program may be marked @verdict',
       },
     },
-    'invalid-activity-stage': {
+    'invalid-preset-name': {
       severity: 'error',
       messages: {
-        default: paramMessage`Invalid stage '${'stage'}' on @activity; must be 'pre', 'post', or 'both'`,
+        default: paramMessage`Invalid preset name '${'name'}'; must match /^[a-z][a-z0-9-]*$/`,
       },
     },
-    'invalid-observer-when': {
+    'duplicate-preset-name': {
       severity: 'error',
       messages: {
-        default: paramMessage`Invalid when '${'when'}' on @observer_hook; must be 'before' or 'after'`,
+        default: paramMessage`Duplicate @preset name '${'name'}'; each preset must have a unique identifier`,
+      },
+    },
+    'invalid-event-type': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid event_type '${'eventType'}' on @maps_to; must be one of WorkflowStarted, WorkflowCompleted, WorkflowFailed, ActivityStarted, ActivityCompleted, SignalReceived`,
       },
     },
   },
   state: {
-    workflow: { description: 'workflow domain attached to an interface' },
-    activity: { description: 'activity binding attached to an operation' },
     verdict: { description: 'flag: model is the canonical verdict shape' },
-    observer: { description: 'observer-hook binding attached to an operation' },
+    preset: { description: 'preset binding attached to a framework-preset interface' },
+    mapsTo: { description: 'envelope mapping attached to a preset operation' },
   },
 });
 

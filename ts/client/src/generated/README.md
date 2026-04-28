@@ -13,7 +13,7 @@ Regenerate with `npm run specs:compile`.
 
 | Layer | Source | Generated artifact | Enforcer |
 |---|---|---|---|
-| Wire types | `specs/backend.json` (once codegen swaps to `specs/generated/openapi3/OpenboxBackend.json`) | `ts/types/src/generated/backend.ts` (via `openapi-typescript`) | TypeScript - methods MUST type against `Backend.paths['/...']['<verb>']`. |
+| Wire types | `specs/generated/openapi3/OpenboxBackend.json` (TypeSpec-emitted) | `ts/types/src/generated/backend.ts` (via `openapi-typescript`) | TypeScript - methods MUST type against `Backend.paths['/...']['<verb>']`. |
 | Method coverage | This file's `BACKEND_ENDPOINT_MANIFEST` | enumerated above | `tests/unit/endpoint-coverage.test.ts` - for every entry in the manifest, asserts the wrapper has a `this.<verb>(<path>, ...)` call. |
 
 Adding a route to the spec without a matching wrapper method now fails CI on the next `npm run specs:compile` cycle.

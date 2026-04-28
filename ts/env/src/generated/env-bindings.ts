@@ -60,6 +60,7 @@ export interface BackendClientConfig {
   timeoutMs?: number;
   retry?: RetryConfig;
   rateLimit?: RateLimitConfig;
+  permissions?: string[];
 }
 export interface CoreClientConfig {
   apiUrl?: string;

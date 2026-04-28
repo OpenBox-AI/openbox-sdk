@@ -1,0 +1,457 @@
+// SDK-invariant tests for the generated govern() runtime. These prove
+// the contract advertised in specs/typespec/govern/main.tsp:
+//
+//   1. Lifecycle: every govern() call ends with exactly one
+//      WorkflowCompleted (success path) or WorkflowFailed (throw path).
+//      Sessions never hang in PENDING from the backend's perspective.
+//   2. Pairing: every ActivityStarted is followed by a matching
+//      ActivityCompleted (unless pre-stage block short-circuits).
+//   3. Idempotent: a session can't be reused after a terminal event;
+//      activity calls throw SessionAlreadyTerminatedError.
+//   4. Approval polling is bounded by both the SDK config max-wait AND
+//      the server-supplied approvalExpiresAt (whichever is sooner).
+//
+// We mock the OpenBoxCoreClient instead of hitting a live core; the
+// invariants are about what the runtime emits, not about wire fidelity
+// (covered by tests/e2e/core-governance.test.ts).
+
+import { describe, expect, test, vi } from 'vitest';
+import type {
+  GovernanceEventPayload,
+  GovernanceVerdictResponse,
+} from '../../ts/core-client/src/core-client.js';
+import type { OpenBoxCoreClient } from '../../ts/core-client/src/core-client.js';
+import {
+  govern,
+  presets,
+  SessionAlreadyTerminatedError,
+} from '../../ts/core-client/src/generated/govern.js';
+
+interface MockCore {
+  events: GovernanceEventPayload[];
+  evaluate: ReturnType<typeof vi.fn>;
+  pollApproval: ReturnType<typeof vi.fn>;
+}
+
+function createMockCore(verdictArm: 'allow' | 'block' | 'require_approval' = 'allow'): MockCore {
+  const events: GovernanceEventPayload[] = [];
+  const verdict: GovernanceVerdictResponse = {
+    governance_event_id: 'evt_test',
+    verdict: verdictArm,
+    action: verdictArm,
+    risk_score: 0,
+  } as GovernanceVerdictResponse;
+  const evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+    events.push(payload);
+    return verdict;
+  });
+  const pollApproval = vi.fn(async () => ({
+    id: 'evt_test',
+    action: 'allow',
+  }));
+  return { events, evaluate, pollApproval };
+}
+
+function mockCoreAsClient(mock: MockCore): OpenBoxCoreClient {
+  return {
+    evaluate: mock.evaluate,
+    pollApproval: mock.pollApproval,
+  } as unknown as OpenBoxCoreClient;
+}
+
+const baseConfig = (mock: MockCore) => ({
+  core: mockCoreAsClient(mock),
+  // Disable exit handlers in tests - vitest registers its own handlers
+  // and ours would chain unwanted listeners.
+  registerExitHandlers: false,
+});
+
+describe('govern() lifecycle invariants', () => {
+  test('success path emits exactly one WorkflowStarted + WorkflowCompleted', async () => {
+    const mock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(mock), preset: presets.default },
+      async () => 42,
+    );
+    const types = mock.events.map((e) => e.event_type);
+    expect(types).toEqual(['WorkflowStarted', 'WorkflowCompleted']);
+  });
+
+  test('throw path emits WorkflowStarted + WorkflowFailed (not Completed)', async () => {
+    const mock = createMockCore('allow');
+    await expect(
+      govern(
+        { ...baseConfig(mock), preset: presets.default },
+        async () => {
+          throw new Error('boom');
+        },
+      ),
+    ).rejects.toThrow('boom');
+    const types = mock.events.map((e) => e.event_type);
+    expect(types).toEqual(['WorkflowStarted', 'WorkflowFailed']);
+    const failed = mock.events.find((e) => e.event_type === 'WorkflowFailed');
+    expect((failed as unknown as { error: { message: string } }).error.message).toBe('boom');
+  });
+
+  test('user code throws AFTER an activity → both ActivityStarted + ActivityCompleted + WorkflowFailed fire', async () => {
+    const mock = createMockCore('allow');
+    await expect(
+      govern(
+        { ...baseConfig(mock), preset: presets.claudeCode },
+        async (session) => {
+          await session.preToolUse({ input: [{ tool: 'Bash' }] });
+          throw new Error('post-activity throw');
+        },
+      ),
+    ).rejects.toThrow('post-activity throw');
+    const types = mock.events.map((e) => e.event_type);
+    expect(types).toEqual([
+      'WorkflowStarted',
+      'ActivityStarted',
+      'ActivityCompleted',
+      'WorkflowFailed',
+    ]);
+  });
+});
+
+describe('activity pairing', () => {
+  test('preset.preToolUse → ActivityStarted + ActivityCompleted with matching activity_id', async () => {
+    const mock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        await session.preToolUse({ input: [{ tool: 'Bash', cmd: 'ls' }] });
+      },
+    );
+    const activityEvents = mock.events.filter((e) =>
+      e.event_type === 'ActivityStarted' || e.event_type === 'ActivityCompleted',
+    );
+    expect(activityEvents).toHaveLength(2);
+    expect(activityEvents[0].event_type).toBe('ActivityStarted');
+    expect(activityEvents[1].event_type).toBe('ActivityCompleted');
+    expect(activityEvents[0].activity_id).toBe(activityEvents[1].activity_id);
+    expect(activityEvents[0].activity_type).toBe('PreToolUse');
+    expect(activityEvents[1].activity_type).toBe('PreToolUse');
+  });
+
+  test('pre-stage block (verdict=block) emits ActivityStarted but NOT ActivityCompleted', async () => {
+    const mock = createMockCore('block');
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        const v = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(v.arm).toBe('block');
+      },
+    );
+    const types = mock.events.map((e) => e.event_type);
+    expect(types).toEqual([
+      'WorkflowStarted',
+      'ActivityStarted',
+      'WorkflowCompleted',
+    ]);
+  });
+
+  test('post-stage method (postToolUse) emits ActivityCompleted only', async () => {
+    const mock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        await session.postToolUse({ input: [{ tool: 'Bash' }], output: 'ok' });
+      },
+    );
+    const types = mock.events.map((e) => e.event_type);
+    expect(types).toEqual([
+      'WorkflowStarted',
+      'ActivityCompleted',
+      'WorkflowCompleted',
+    ]);
+  });
+
+  test('SignalReceived events fire once (LangGraph interrupt is observe-only)', async () => {
+    const mock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(mock), preset: presets.langgraph },
+      async (session) => {
+        await session.interrupt({ input: [{ reason: 'awaiting human' }] });
+      },
+    );
+    const signalEvents = mock.events.filter((e) => e.event_type === 'SignalReceived');
+    expect(signalEvents).toHaveLength(1);
+    expect(signalEvents[0].activity_type).toBe('interrupt');
+  });
+});
+
+describe('idempotent termination', () => {
+  test('calling an activity after govern() resolves throws SessionAlreadyTerminatedError', async () => {
+    const mock = createMockCore('allow');
+    let leakedSession: import('../../ts/core-client/src/generated/govern.js').ClaudeCodeSession | undefined;
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        leakedSession = session;
+        // session is fine here
+      },
+    );
+    expect(leakedSession).toBeDefined();
+    await expect(
+      leakedSession!.preToolUse({ input: [{}] }),
+    ).rejects.toBeInstanceOf(SessionAlreadyTerminatedError);
+  });
+
+  test('terminal events fire only once even on accidental re-call', async () => {
+    const mock = createMockCore('allow');
+    let leakedSession: import('../../ts/core-client/src/generated/govern.js').BaseGovernedSession | undefined;
+    await govern(
+      { ...baseConfig(mock), preset: presets.default },
+      async (session) => {
+        leakedSession = session;
+      },
+    );
+    // Try to fail() the already-completed session
+    await leakedSession!.fail(new Error('late'));
+    const completedCount = mock.events.filter((e) => e.event_type === 'WorkflowCompleted').length;
+    const failedCount = mock.events.filter((e) => e.event_type === 'WorkflowFailed').length;
+    expect(completedCount).toBe(1);
+    expect(failedCount).toBe(0); // late fail() is no-op
+  });
+});
+
+describe('approval polling bounds', () => {
+  test('polling stops at server-supplied approvalExpiresAt even if config max-wait is longer', async () => {
+    const mock = createMockCore('allow');
+    // Override the response with require_approval + a tight expiry.
+    const expiresAt = new Date(Date.now() + 50).toISOString();
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      if (payload.event_type === 'ActivityStarted') {
+        return {
+          governance_event_id: 'evt_test',
+          verdict: 'require_approval',
+          action: 'require_approval',
+          approval_id: 'apr_xxx',
+          approval_expiration_time: expiresAt,
+          risk_score: 0,
+        } as GovernanceVerdictResponse;
+      }
+      return {
+        governance_event_id: 'evt_test',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+      } as GovernanceVerdictResponse;
+    });
+    // Always-pending poll responses
+    mock.pollApproval = vi.fn(async () => ({
+      id: 'apr_xxx',
+      action: 'require_approval',
+    }));
+
+    const start = Date.now();
+    await govern(
+      {
+        ...baseConfig(mock),
+        preset: presets.claudeCode,
+        approvalPollIntervalMs: 10,
+        approvalMaxWaitMs: 60_000, // long config, but server expires at 50ms
+      },
+      async (session) => {
+        await session.preToolUse({ input: [{ tool: 'Bash' }] });
+      },
+    );
+    const elapsed = Date.now() - start;
+    // Should bail well before the 60s config max-wait - server expiry wins.
+    expect(elapsed).toBeLessThan(2_000);
+  });
+
+  test('exponential backoff: poll intervals grow toward the cap', async () => {
+    // Set up a require_approval that never resolves so we get many poll
+    // attempts. Capture the gap between successive pollApproval() calls.
+    const mock = createMockCore('allow');
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      if (payload.event_type === 'ActivityStarted') {
+        return {
+          governance_event_id: 'evt_test',
+          verdict: 'require_approval',
+          action: 'require_approval',
+          approval_id: 'apr_xxx',
+          risk_score: 0,
+        } as GovernanceVerdictResponse;
+      }
+      return {
+        governance_event_id: 'evt_test',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+      } as GovernanceVerdictResponse;
+    });
+    const pollTimes: number[] = [];
+    mock.pollApproval = vi.fn(async () => {
+      pollTimes.push(Date.now());
+      return { id: 'apr_xxx', action: 'require_approval' };
+    });
+
+    await govern(
+      {
+        ...baseConfig(mock),
+        preset: presets.claudeCode,
+        approvalPollIntervalMs: 20,
+        approvalPollMaxIntervalMs: 200,
+        approvalPollBackoffFactor: 2,
+        approvalPollJitter: 0, // disable jitter for deterministic check
+        approvalMaxWaitMs: 1_000,
+      },
+      async (session) => {
+        await session.preToolUse({ input: [{ tool: 'Bash' }] });
+      },
+    );
+
+    // Need at least 4 polls to see backoff progression: 20, 40, 80, 160, 200(cap)
+    expect(pollTimes.length).toBeGreaterThanOrEqual(4);
+    const gaps = pollTimes.slice(1).map((t, i) => t - pollTimes[i]);
+    // Backoff progression: middle gaps should be larger than the first.
+    // (Final gap can be clamped by remaining-time-to-deadline - by design.)
+    const firstGap = gaps[0];
+    const middleGap = gaps[Math.floor(gaps.length / 2)];
+    expect(middleGap).toBeGreaterThan(firstGap);
+    // No gap exceeds the configured cap (+ event-loop slop).
+    for (const g of gaps) expect(g).toBeLessThanOrEqual(250);
+  });
+
+  test('jitter spreads consecutive intervals (when factor=1, fixed base + jitter)', async () => {
+    const mock = createMockCore('allow');
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      if (payload.event_type === 'ActivityStarted') {
+        return {
+          governance_event_id: 'evt_test',
+          verdict: 'require_approval',
+          action: 'require_approval',
+          approval_id: 'apr_xxx',
+          risk_score: 0,
+        } as GovernanceVerdictResponse;
+      }
+      return {
+        governance_event_id: 'evt_test',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+      } as GovernanceVerdictResponse;
+    });
+    const pollTimes: number[] = [];
+    mock.pollApproval = vi.fn(async () => {
+      pollTimes.push(Date.now());
+      return { id: 'apr_xxx', action: 'require_approval' };
+    });
+
+    await govern(
+      {
+        ...baseConfig(mock),
+        preset: presets.claudeCode,
+        approvalPollIntervalMs: 50,
+        approvalPollMaxIntervalMs: 50,
+        approvalPollBackoffFactor: 1, // no backoff - fixed base
+        approvalPollJitter: 0.5, // ±50%
+        approvalMaxWaitMs: 800,
+      },
+      async (session) => {
+        await session.preToolUse({ input: [{ tool: 'Bash' }] });
+      },
+    );
+
+    expect(pollTimes.length).toBeGreaterThanOrEqual(5);
+    const gaps = pollTimes.slice(1).map((t, i) => t - pollTimes[i]);
+    // With ±50% jitter on a 50ms base, gaps should span at least a 25ms range
+    // across 5+ samples (allowing event-loop slop). A fixed-interval poll
+    // would show gaps clustered tightly within a few ms of 50.
+    const min = Math.min(...gaps);
+    const max = Math.max(...gaps);
+    expect(max - min).toBeGreaterThan(15);
+  });
+
+  test('first poll is fast (≤ initial interval + jitter), not the cap', async () => {
+    // Regression check on the original "fixed 1s wait" behavior - now we
+    // start at the configured initial interval (small) and only ramp up.
+    const mock = createMockCore('allow');
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      if (payload.event_type === 'ActivityStarted') {
+        return {
+          governance_event_id: 'evt_test',
+          verdict: 'require_approval',
+          action: 'require_approval',
+          approval_id: 'apr_xxx',
+          risk_score: 0,
+        } as GovernanceVerdictResponse;
+      }
+      return {
+        governance_event_id: 'evt_test',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+      } as GovernanceVerdictResponse;
+    });
+    const pollAt: number[] = [];
+    mock.pollApproval = vi.fn(async () => {
+      pollAt.push(Date.now());
+      // Resolve on first poll
+      return { id: 'apr_xxx', action: 'allow' };
+    });
+
+    const start = Date.now();
+    await govern(
+      {
+        ...baseConfig(mock),
+        preset: presets.claudeCode,
+        approvalPollIntervalMs: 30,
+        approvalPollMaxIntervalMs: 5_000, // cap is high; we should NOT hit it on attempt 1
+        approvalPollJitter: 0,
+        approvalMaxWaitMs: 30_000,
+      },
+      async (session) => {
+        const v = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(v.arm).toBe('allow');
+      },
+    );
+
+    expect(pollAt.length).toBe(1);
+    const firstPollDelay = pollAt[0] - start;
+    // Initial 30ms wait, plus event-loop slop.
+    expect(firstPollDelay).toBeLessThan(150);
+  });
+});
+
+describe('CustomSession (free-form activity)', () => {
+  test('activity("X", "pre", ...) emits ActivityStarted with activity_type=X', async () => {
+    const mock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(mock), preset: presets.custom },
+      async (session) => {
+        await session.activity('WireTransferApproval', 'pre', {
+          input: [{ amount: 50_000 }],
+        });
+      },
+    );
+    const started = mock.events.find((e) => e.event_type === 'ActivityStarted');
+    expect(started?.activity_type).toBe('WireTransferApproval');
+  });
+
+  test('activity("X", "post", ...) emits ActivityCompleted with activity_type=X', async () => {
+    const mock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(mock), preset: presets.custom },
+      async (session) => {
+        await session.activity('WireTransferApproval', 'post', {
+          input: [{ amount: 50_000 }],
+          output: { transferId: 'tx_xxx' },
+        });
+      },
+    );
+    const completed = mock.events.find((e) => e.event_type === 'ActivityCompleted');
+    expect(completed?.activity_type).toBe('WireTransferApproval');
+    expect(
+      (completed as unknown as { activity_output: { transferId: string } }).activity_output
+        .transferId,
+    ).toBe('tx_xxx');
+  });
+});

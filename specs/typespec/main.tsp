@@ -1,12 +1,11 @@
 // Root TypeSpec entry. Delegates the API surface area to per-domain
 // modules so the OpenAPI emitter can produce one document per service
-// (backend.json + core.yaml today; agent/cli/env protocols arrive in
-// later phases).
+// (OpenboxBackend.json + OpenboxCore.json under specs/generated/).
 //
 // Build: `npx tsp compile specs/typespec` from the repo root. Output
-// lands under specs/generated/ (see tspconfig.yaml). The hand-written
-// specs/backend.json and specs/core.yaml stay authoritative until the
-// emitted versions are byte-equivalent.
+// lands under specs/generated/ (see tspconfig.yaml). TypeSpec is the
+// source of truth - drift vs upstream backend/core is detected by
+// .github/workflows/spec-drift.yml.
 
 import "./backend/main.tsp";
 import "./core/main.tsp";
