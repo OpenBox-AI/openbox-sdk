@@ -102,6 +102,35 @@ model Runtime {
   credentials: Credentials;
 }
 
+/**
+ * CLI-only env vars that gate which subcommands / code paths are
+ * available. NOT runtime config (no URLs, no credentials) - these
+ * shape what the user sees in `--help` and what experimental code
+ * paths run inside otherwise-stable commands.
+ *
+ * Spec'd here so the env-var-binding table includes them; the CLI's
+ * maturity.ts + features.ts modules read these by NAME from
+ * ENV_VAR_BINDINGS rather than hard-coding the strings.
+ */
+model CliRuntimeConfig {
+  /**
+   * Reveals subcommands gated as `experimental` (or `beta`). Set to
+   * `experimental` to see every command in `--help`. Default: `stable`.
+   * Same effect as passing `--experimental` on the openbox CLI.
+   */
+  @env_var("OPENBOX_EXPERIMENTAL_LEVEL")
+  experimentalLevel: string;
+
+  /**
+   * Comma-separated list of feature flags to enable. Each entry is a
+   * dotted path like `audit.deep-scan` or `agent.list.include-deleted`
+   * matching an entry in the CLI's FEATURE_MATURITY registry.
+   * Same effect as passing `--feature <name>` on the openbox CLI.
+   */
+  @env_var("OPENBOX_FEATURES")
+  features: string;
+}
+
 // ---------------------------------------------------------------------------
 // On-disk multi-env token store - wire format every language SDK
 // must parse identically. One ENV.FIELD=value line per entry; legacy

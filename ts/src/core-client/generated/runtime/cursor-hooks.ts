@@ -6,6 +6,12 @@ import type { CursorHookEnvelope } from './envelopes.js';
 
 export type { CursorHookEnvelope };
 
+export const PRE_TOOL_USE_ROUTING: Record<string, string> = {
+  "Read": "file_read",
+  "Write": "file_write",
+  "Shell": "agent_action"
+};
+
 /**
  * Per-event handlers. Each handler receives the parsed stdin envelope
  * + an attached CursorSession (workflowId/runId resolved by

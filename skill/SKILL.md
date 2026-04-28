@@ -6,7 +6,7 @@ description: |
 
 # OpenBox AI Governance - CLI & Integration Reference
 
-> Based on openbox-core `591f66f`, openbox-backend `3d4735d`, openbox-guardrails `73478ad`. Last refreshed against live APIs on 2026-04-23.
+> Refreshed against the consolidated `openbox-sdk` monorepo (post-merge of `openbox-typescript-sdk`, `openbox-mcp`, `openbox-skill`, `claude-hooks`, `cursor-hooks`, `openbox-extension`). When in doubt about live API shape, the TypeSpec specs at `specs/typespec/` are the source of truth.
 
 ## How to work with the user
 
@@ -34,10 +34,9 @@ Load only what the user's stated intent actually needs. Don't preload the whole 
 | Approval, human-in-the-loop, HITL, approve/reject flow | `references/governance-flow.md` (§ Approval Polling) + `references/commands.md` (§ approval) |
 | Goal alignment, agent drift, "stay on topic" | `references/governance-flow.md` + `references/commands.md` (§ goal) |
 | Trust score, tier, AIVSS | `references/commands.md` (§ aivss, trust) |
-| Claude Code, Cursor, IDE hooks | `references/claude-code-hooks.md` + `references/cursor-hooks.md` |
-| MCP server, governance tools in Cursor/Claude | `references/mcp-server.md` |
+| Claude Code, Cursor, MCP host, Skills install | `references/existing-sdks.md` (CLI subcommands: `openbox claude-code install`, `openbox cursor install`, `openbox mcp serve`, `openbox skill install`) |
 | LangChain / LangGraph / CrewAI / Mastra / Vercel AI / Autogen | `references/existing-sdks.md`, then whichever framework SDK matches |
-| TypeScript/Node raw integration (no framework SDK fits) | `references/typescript-sdk.md` + `references/governance-flow.md` |
+| TypeScript/Node raw integration (no framework SDK fits) | `references/existing-sdks.md` (openbox-sdk sub-paths) + `references/governance-flow.md` |
 | Span shape, gate attributes, "why isn't my LLM span classified" | `references/span-reference.md` |
 | Debugging a live session, "my guardrail didn't fire", audit | `references/commands.md` (§ session inspect, agent audit, violation) + `references/validation-checklist.md` |
 | Backend API shape, response envelope, self-hosting | `references/backend-api.md` |
@@ -73,7 +72,7 @@ Don't ask LLM provider, web framework, deployment - you don't need them for retr
 
 Done once per conversation. Fast - don't narrate each step to the user.
 
-1. `which openbox` - if missing, clone + build + link: `git clone https://github.com/OpenBox-AI/openbox-sdk.git && cd openbox-sdk && npm install && npm run build && npm link -w packages/cli` (org is **OpenBox-AI**, not a personal account).
+1. `which openbox` - if missing, install the SDK globally (the CLI binary ships in the same npm package): `npm install -g openbox-sdk@github:OpenBox-AI/openbox-sdk`. Org is **OpenBox-AI**.
 2. Auth: look for `.tokens` in cwd or `~/.openbox/tokens`. If missing, tell the user `openbox auth login`. Don't proceed with management commands until they have a token.
 3. `openbox auth profile` → grab `orgId`. This is the only way to get it; don't ask the user to paste it.
 4. For every CLI command you plan to run that you haven't used this turn: `openbox <command> --help`. The help output is the authoritative contract - flags, exit codes, required vs optional. Guessing causes 400/422 / cryptic errors.
@@ -88,7 +87,7 @@ The integration works when three pieces exist together: an agent registered in O
 
 **Build-order for a new agent:**
 
-1. `openbox agent create -n "name" -t <teamId>` - `-t` is required. Capture the returned `.token` - that's the API key the application code uses.
+1. `openbox agent create -n "name" -t <teamId>` - `-t` is required. Capture the returned `.apiKey` field (`obx_live_*` / `obx_test_*`) - that's the runtime API key the application code uses. The `.token` field on the SAME response is an internal attestation token, **not** the API key (passing it as `OPENBOX_API_KEY` makes core return a 500 "invalid API key format"). If the create response was lost, run `openbox api-key rotate <agent>` to get a fresh `obx_live_*` - the old one stops working at that moment.
 2. Attach governance based on the path-A/B answers:
    - Guardrails (PII, content safety, custom regex) - `openbox guardrail create <agent> --json @guardrail.json`. See `references/guardrails.md` for the settings.activities shape.
    - Policies (Rego) - one per agent, so combine rules into a single file. `openbox policy create <agent> --rego-file policy.rego`. See `references/rego-reference.md`.
@@ -128,7 +127,7 @@ Governance is **Temporal-style event sequencing**, not a single "evaluate this" 
 1. Fire `WorkflowStarted` once at session start, then paired `ActivityStarted` + `ActivityCompleted` for every governed action, then `WorkflowCompleted` (or `WorkflowFailed`) in a finally-block.
 2. Generate `workflow_id` / `run_id` once per session and reuse them across every event. `activity_id` is per-action and must match across its Start/Complete pair.
 3. Use `--stage 0` (fires only on `ActivityStarted`) OR `--stage 1` (fires only on `ActivityCompleted`) when creating guardrails. `--stage both` is silently ignored by the guardrails service - use two separate guardrails instead.
-4. Use canonical `activity_type` strings so events match the guardrail config. Full list in `references/governance-flow.md` § "Canonical `activity_type` Names" - the union of what claude-hooks and cursor-hooks emit plus aspirational names for hand-rolled integrations. Common ones: `PromptSubmission`, `LLMCompleted`, `ToolCompleted`, `FileRead`, `FileEdit`, `ShellExecution`, `MCPToolCall`. Invented variants like `LLMCompletion` / `ToolInvocation` won't match. **`ActivityCompleted` is an event_type, not a valid activity_type value** - don't confuse the two.
+4. Use canonical `activity_type` strings so events match the guardrail config. Full list in `references/governance-flow.md` § "Canonical `activity_type` Names" - the union of what `openbox-sdk/runtime/claude-code` + `openbox-sdk/runtime/cursor` emit plus aspirational names for hand-rolled integrations. Common ones: `PromptSubmission`, `LLMCompleted`, `ToolCompleted`, `FileRead`, `FileEdit`, `ShellExecution`, `MCPToolCall`. Invented variants like `LLMCompletion` / `ToolInvocation` won't match. **`ActivityCompleted` is an event_type, not a valid activity_type value** - don't confuse the two.
 
 **Read `references/governance-flow.md` before building** - it has the full event sequence diagram, the canonical event_type and activity_type tables, stage-gating rules with correct JSON shape for `settings.activities[]`, verdict handling, approval polling, span construction, and a protocol self-check list to run before declaring an integration done.
 
@@ -138,7 +137,7 @@ Every event in the sequence above is a `POST /api/v1/governance/evaluate` call. 
 
 **Wire details live in `references/governance-flow.md`** - don't restate them here. That file has the full payload schema, verdict response shape (including why `trust_tier` is an integer and there's no root-level `alignment_score`), approval polling semantics (server returns `action`, raw-HTTP callers must read it; SDK normalizes to `verdict`), and the full spec-vs-implementation mismatch list.
 
-Span attribute details (gate attributes per tool class, LLM domain detection workaround) live in `references/span-reference.md`. The openbox-sdk's `gen_ai` span type and both hook repos inject required attributes automatically; custom clients must replicate.
+Span attribute details (gate attributes per tool class, LLM domain detection workaround) live in `references/span-reference.md`. The openbox-sdk's `gen_ai` span type and both runtime adapters (`openbox-sdk/runtime/claude-code`, `openbox-sdk/runtime/cursor`) inject required attributes automatically; custom clients must replicate.
 
 Only one hard rule belongs in-line: **`activity_input` must be an array**, wrap single payloads as `[{...}]`. Objects return 422 (or 500 depending on which layer surfaces).
 
@@ -156,66 +155,58 @@ See `references/commands.md` - `behavior create` and `goal update` both have non
 - Verdict `2` (REQUIRE_APPROVAL) requires `--approval-timeout <seconds>` or 422.
 - `goal update --model` is required - without it, 422.
 
-## SDKs
+## SDKs and host integrations
 
-Check `references/existing-sdks.md` for the full catalog. Read `references/typescript-sdk.md` for the primary TypeScript SDK API reference (govern(), config, error handling, transport). Read `references/span-reference.md` for the span attribute reference (gate attributes, semantic types, and the LLM detection workaround). Use a framework-specific SDK when available. For TypeScript/Node.js without a framework SDK, use `openbox-sdk`:
+`references/existing-sdks.md` is the single source of truth - decision tree
+for picking a path, full sub-path inventory for `openbox-sdk`, the framework
+SDK catalogue, and what was archived during consolidation.
+
+**TL;DR for TypeScript/Node:**
 
 ```bash
 npm install openbox-sdk@github:OpenBox-AI/openbox-sdk
 ```
 
 ```typescript
-import { govern } from 'openbox-sdk';
+import { govern, presets } from 'openbox-sdk/core-client';
+
+await govern({ core, preset: presets.claudeCode }, async (session) => {
+  const verdict = await session.preToolUse({ input: [...] });
+  if (verdict.arm === 'block') return; // governance fired
+  // ...your tool body
+});
 ```
 
-Use `govern()` - it handles the full governance lifecycle automatically.
+`govern()` opens the workflow envelope and finalizes it on return (even on
+throw). For per-event-process binaries use `govern.attach()` instead - see
+`references/governance-flow.md`.
 
-For raw programmatic access (debugging, setup automation) use the `openbox` CLI binary itself, not a library import. The `openbox-sdk` monorepo ships as a single github-installable package - **not on npm**. Consume it from any TS project with:
+**TL;DR for host integrations** (Claude Code, Cursor, MCP, Skills):
 
-```jsonc
-// package.json
-"dependencies": {
-  "openbox-sdk": "github:OpenBox-AI/openbox-sdk"
-}
+```bash
+npm install -g openbox-sdk@github:OpenBox-AI/openbox-sdk
+
+openbox claude-code install   # writes ~/.claude/settings.json hooks block
+openbox cursor install        # writes ~/.cursor/hooks.json
+openbox mcp serve             # MCP stdio server (configure host to spawn this)
+openbox skill install         # copies SKILL.md + references into ~/.claude/skills/openbox/
 ```
 
-`npm install` clones the repo, runs its `prepare` hook to build, and drops `dist/` into `node_modules`. Import sub-paths via the package's `exports` map; bundlers tree-shake the rest:
-
-```typescript
-import { OpenBoxClient } from 'openbox-sdk/client';
-import { OpenBoxCoreClient } from 'openbox-sdk/core-client';
-import { ENVIRONMENTS, parseTokenStore, resolveClientName } from 'openbox-sdk/env';
-import type { CreateAgentDto, Backend, Core } from 'openbox-sdk/types';
-```
-
-`openbox-sdk/types` re-exports hand-curated DTOs plus auto-generated `Backend` / `Core` namespaces from the OpenAPI specs:
-
-```typescript
-import type { CreateAgentDto, Backend, Core } from 'openbox-sdk/types';
-
-// Curated - friendly shape, primary API
-const dto: CreateAgentDto = { /* ... */ };
-
-// Generated - full raw schema (covers every endpoint in the live spec)
-type CreateApiKey = Backend.components['schemas']['CreateApiKeyDto'];
-type Evaluate     = Core.paths['/api/v1/governance/evaluate']['post'];
-```
-
-Run `npm run generate:types` after a spec refresh to regenerate the namespaces.
+These are flagged `experimental` until verified. Pass `--experimental` (or
+`OPENBOX_EXPERIMENTAL_LEVEL=experimental`) to surface them in `--help`.
 
 ## CLI
 
-Full command reference: `references/commands.md`. All `--json` options support: raw string, `@file.json`, or `-` (stdin). Run `openbox <command> --help` for any command you're unsure about.
+Full command reference: `references/commands.md`. All `--json` options
+support raw string, `@file.json`, or `-` (stdin). Run `openbox <command>
+--help` before using a command you haven't run recently - the help output
+is the authoritative contract.
 
-## Cursor Integration
-
-For Cursor IDE, OpenBox integrates via two mechanisms. Full details in their reference files.
-
-**MCP Server** - exposes governance tools (check_governance, get_trust_score, list_guardrails, etc.) directly to any MCP-compatible agent. See `references/mcp-server.md` for setup, tool list, and configuration.
-
-**Claude Code Hooks** - intercepts Claude Code agent actions via the hooks system for governance evaluation. Uses proper Temporal-like workflow lifecycle (WorkflowStarted → Activities → WorkflowCompleted). See `references/claude-code-hooks.md` for the full hook reference, tool routing, and halt recovery.
-
-**Cursor Hooks** - intercepts agent actions in real-time for governance evaluation. See `references/cursor-hooks.md` for the full hook reference, including which hooks actually fire in Cursor 3.x (important: `beforeReadFile` does NOT fire for agent reads - use `preToolUse` instead).
+The CLI uses a maturity gate: most commands are gated `experimental` by
+default until they've been individually verified, exposed by the
+`--experimental` flag or `OPENBOX_EXPERIMENTAL_LEVEL=experimental` env.
+Stable today: `auth`, `health`, `versions`, `doctor`. Everything else is
+opt-in.
 
 ## Environment Variables + HTTP Headers
 
@@ -240,7 +231,7 @@ openbox --env staging agent list
 
 The CLI auto-appends `/<variant>` to its `X-Openbox-Client` header (`openbox-cli/claude-code`). Allowed characters: `[A-Za-z0-9._+-]`. Invalid values are silently dropped with a warning so a typo can't poison the header. Setting this helps the OpenBox team see which LLM tools are using the skill, debug per-tool issues, and prioritize support - set it once at the start of your session.
 
-If the user is on `openbox-mcp` (the MCP server) instead of a direct CLI shell, the MCP server reads its calling client's name from the MCP `initialize` handshake and sets `openbox-mcp/<caller>` automatically - you don't need `OPENBOX_CLIENT_VARIANT` in that path.
+If the user is talking to the OpenBox MCP server (`openbox mcp serve` - the runtime under `openbox-sdk/runtime/mcp`) instead of a direct CLI shell, the server reads its calling client's name from the MCP `initialize` handshake and sets `openbox-mcp/<caller>` automatically - no `OPENBOX_CLIENT_VARIANT` needed.
 
 ### `X-Openbox-Client` header - backend's auth tripwire
 

@@ -8,6 +8,7 @@ import {
   $adapter,
   $hookEvent,
   $verdictShape,
+  $activityRouting,
 } from './decorators.js';
 
 export { $lib } from './lib.js';
@@ -20,5 +21,6 @@ export const $decorators = {
     adapter: $adapter,
     hookEvent: $hookEvent,
     verdictShape: $verdictShape,
+    activityRouting: $activityRouting,
   },
 };

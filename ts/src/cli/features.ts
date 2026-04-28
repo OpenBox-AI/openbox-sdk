@@ -21,6 +21,7 @@
 //      come on via #1 or #2.
 
 import { isMaturityVisible, type Maturity } from './maturity.js';
+import { ENV_VAR_BINDINGS } from '../env/generated/env-bindings.js';
 
 /**
  * Registry of every known feature flag → maturity. Use a dotted path
@@ -51,9 +52,10 @@ export function setExplicitFeatures(names: string[] | undefined): void {
   }
 }
 
-/** Read OPENBOX_FEATURES env (comma-separated). Idempotent. */
+/** Read the spec-driven features env var (comma-separated). Idempotent. */
 function envFeatures(): Set<string> {
-  const raw = (process.env.OPENBOX_FEATURES ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const envName = ENV_VAR_BINDINGS.features.name;
+  const raw = (process.env[envName] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   return new Set(raw);
 }
 

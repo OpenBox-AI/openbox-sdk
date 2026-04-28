@@ -19,6 +19,7 @@
 // unreachable from `--help`.)
 
 import type { Command } from 'commander';
+import { ENV_VAR_BINDINGS } from '../env/generated/env-bindings.js';
 
 export type Maturity = 'stable' | 'beta' | 'experimental';
 
@@ -66,7 +67,8 @@ export function setMaturityOverride(level: Maturity | null): void {
 /** What level the user is currently asking for. CLI flag > env var > default 'stable'. */
 export function currentMaturityLevel(): Maturity {
   if (cliOverride) return cliOverride;
-  const env = (process.env.OPENBOX_EXPERIMENTAL_LEVEL ?? '').toLowerCase();
+  const envName = ENV_VAR_BINDINGS.experimentalLevel.name;
+  const env = (process.env[envName] ?? '').toLowerCase();
   if (env === 'experimental' || env === 'beta' || env === 'stable') return env;
   return 'stable';
 }

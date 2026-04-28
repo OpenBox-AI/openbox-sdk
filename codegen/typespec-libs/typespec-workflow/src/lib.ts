@@ -51,6 +51,12 @@ export const $lib = createTypeSpecLibrary({
         default: paramMessage`Invalid @verdictShape '${'shape'}'; must be one of permission-decision, decision-block, permission-request, cursor-permission, cursor-observe, none`,
       },
     },
+    'invalid-activity-routing': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @activityRouting: ${'reason'}`,
+      },
+    },
   },
   state: {
     verdict: { description: 'flag: model is the canonical verdict shape' },
@@ -59,6 +65,7 @@ export const $lib = createTypeSpecLibrary({
     adapter: { description: 'adapter binding attached to a hook-protocol interface' },
     hookEvent: { description: 'hook-event routing attached to an adapter operation' },
     verdictShape: { description: 'verdict-output translation family attached to an adapter operation' },
+    activityRouting: { description: 'tool-name → activity_type table attached to an adapter operation' },
   },
 });
 

@@ -42,7 +42,7 @@ Core API (`core.openbox.ai`) does NOT use this envelope - core responses are raw
 
 ## `X-Openbox-Client` Header (Edge-Enforced)
 
-Every backend call needs an `X-Openbox-Client` header. Presence-only check - the value is arbitrary (`openbox-cli`, `cursor-hooks`, `my-app`). Observable behavior on both envs:
+Every backend call needs an `X-Openbox-Client` header. Presence-only check - the value is arbitrary (`openbox-cli`, `runtime/cursor`, `my-app`). Observable behavior on both envs:
 
 ```
 # Missing header (auth attempt or not):

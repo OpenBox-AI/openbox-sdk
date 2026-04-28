@@ -1,6 +1,6 @@
 # Governance Implementation Flow
 
-This flow is deterministic - implement it as fixed code structure, not LLM-decided logic. The sequence never varies. First-party SDKs (`openbox-sdk`, `openbox-langchain-sdk-python`, claude-hooks, cursor-hooks) exist specifically to enforce this contract; custom clients must replicate it.
+This flow is deterministic - implement it as fixed code structure, not LLM-decided logic. The sequence never varies. First-party SDKs (`openbox-sdk`, `openbox-langchain-sdk-python`, runtime/claude-code, runtime/cursor) exist specifically to enforce this contract; custom clients must replicate it.
 
 ## Contents
 
@@ -94,23 +94,23 @@ All first-party SDKs emit exactly these six `event_type` values. Core's `service
 
 `activity_type` is a free-form string server-side - whatever the client sends is matched against the guardrail config created for the agent. But first-party SDKs share conventions so agents stay portable across integrations.
 
-**Canonical union** (what `openbox verify` accepts as non-inventive, drawn from claude-hooks + cursor-hooks emitters + SDK conventions):
+**Canonical union** (what `openbox verify` accepts as non-inventive, drawn from runtime/claude-code + runtime/cursor emitters + SDK conventions):
 
 | Action | `activity_type` | Emitted by |
 |--------|-----------------|------------|
-| User/agent prompt | `PromptSubmission` | claude-hooks, cursor-hooks, SDK-aspirational |
-| File read | `FileRead` | claude-hooks, cursor-hooks |
-| File write/edit | `FileEdit` | claude-hooks, cursor-hooks |
-| File delete | `FileDelete` | claude-hooks, cursor-hooks |
-| Shell command | `ShellExecution` | claude-hooks, cursor-hooks |
-| Shell output | `ShellOutput` | cursor-hooks |
-| HTTP request | `HTTPRequest` | claude-hooks |
-| MCP tool call | `MCPToolCall` | claude-hooks, cursor-hooks |
-| MCP tool response | `MCPToolResponse` | cursor-hooks |
-| Agent LLM response | `AgentResponse` | cursor-hooks |
-| Agent thinking/reasoning | `AgentThinking` | cursor-hooks |
-| Subagent spawn | `AgentSpawn` | claude-hooks |
-| Session-scope marker | `ClaudeCodeSession` / `CursorSession` | claude-hooks / cursor-hooks |
+| User/agent prompt | `PromptSubmission` | runtime/claude-code, runtime/cursor, SDK-aspirational |
+| File read | `FileRead` | runtime/claude-code, runtime/cursor |
+| File write/edit | `FileEdit` | runtime/claude-code, runtime/cursor |
+| File delete | `FileDelete` | runtime/claude-code, runtime/cursor |
+| Shell command | `ShellExecution` | runtime/claude-code, runtime/cursor |
+| Shell output | `ShellOutput` | runtime/cursor |
+| HTTP request | `HTTPRequest` | runtime/claude-code |
+| MCP tool call | `MCPToolCall` | runtime/claude-code, runtime/cursor |
+| MCP tool response | `MCPToolResponse` | runtime/cursor |
+| Agent LLM response | `AgentResponse` | runtime/cursor |
+| Agent thinking/reasoning | `AgentThinking` | runtime/cursor |
+| Subagent spawn | `AgentSpawn` | runtime/claude-code |
+| Session-scope marker | `ClaudeCodeSession` / `CursorSession` | runtime/claude-code / runtime/cursor |
 | LLM completion (aspirational / hand-rolled) | `LLMCompleted` | skill convention for raw-HTTP integrations |
 | Tool call (aspirational / hand-rolled) | `ToolCompleted` | skill convention for raw-HTTP integrations |
 | openbox-sdk default (user-overridable) | `DefaultActivity` | SDK default if `config.activityType` not set - **won't match specific-type guardrails**; override unless you want a catch-all |
@@ -119,13 +119,13 @@ All first-party SDKs emit exactly these six `event_type` values. Core's `service
 
 ### Domain-level activity_types (non-coding agents)
 
-The canonical set above is **first-party SDK convention biased toward coding-agent integrations** - claude-hooks, cursor-hooks, and openbox-sdk emit at tool granularity (`FileRead`, `ShellExecution`, `HTTPRequest`, `MCPToolCall`). Backend itself imposes no enum: `governance_events.activity_type` is `varchar(255)`, no `@Max`, no whitelist (verified against `agent/dto/approvals.dto.ts` and the entity).
+The canonical set above is **first-party SDK convention biased toward coding-agent integrations** - runtime/claude-code, runtime/cursor, and openbox-sdk emit at tool granularity (`FileRead`, `ShellExecution`, `HTTPRequest`, `MCPToolCall`). Backend itself imposes no enum: `governance_events.activity_type` is `varchar(255)`, no `@Max`, no whitelist (verified against `agent/dto/approvals.dto.ts` and the entity).
 
 Domain agents (procurement, finance, infra orchestration, ops automation) routinely need **higher-level workflow activity_types** that don't map to any tool primitive - `ProcurementPOApproval`, `WireTransferRequest`, `IAMRoleGrant`, `DeploymentRollout`, `DatabaseFailover`. Those are fully supported on the wire; the trade-offs are entirely client-side:
 
 | What you give up | What you keep |
 |---|---|
-| First-party SDK helpers - `emit*` shortcuts in claude-hooks/cursor-hooks/typescript-sdk only emit canonical names. Domain types need a custom emitter (raw `fetch` → `/api/v1/governance/evaluate`, or `OpenBoxClient` with `config.activityType` override). | Guardrail matching works the same - create the guardrail's `settings.activities[].activity_type` with the exact string. |
+| First-party SDK helpers - `emit*` shortcuts in runtime/claude-code, runtime/cursor, openbox-sdk core only emit canonical names. Domain types need a custom emitter (raw `fetch` → `/api/v1/governance/evaluate`, or `OpenBoxClient` with `config.activityType` override). | Guardrail matching works the same - create the guardrail's `settings.activities[].activity_type` with the exact string. |
 | Trust-scoring + AGE classifiers may fall back to generic processing for unknown types. | Approval flow, behavior rules, audit log, dashboards - all still work, just keyed on your custom string. |
 | Portability across first-party SDKs. | Portability across YOUR fleet, as long as your agents agree on the vocabulary. |
 

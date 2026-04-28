@@ -16,6 +16,9 @@ export const ENV_VAR_BINDINGS = {
   apiUrl: {"name":"OPENBOX_API_URL"} as const,
   coreUrl: {"name":"OPENBOX_CORE_URL"} as const,
   platformUrl: {"name":"OPENBOX_PLATFORM_URL"} as const,
+  apiKey: {"name":"OPENBOX_API_KEY"} as const,
+  experimentalLevel: {"name":"OPENBOX_EXPERIMENTAL_LEVEL"} as const,
+  features: {"name":"OPENBOX_FEATURES"} as const,
 } as const;
 const API_KEY_PATTERN = /^obx_(?:live|test)_[0-9a-f]{48}$/;
 export function validateApiKeyFormat(value: string): true | string {
@@ -38,6 +41,10 @@ export interface TokenStore {
   local?: TokenEntry;
 }
 export type FeatureMap = NonNullable<TokenEntry['features']>;
+export interface CliRuntimeConfig {
+  experimentalLevel: string;
+  features: string;
+}
 export interface RetryConfig {
   maxRetries?: number;
   initialDelayMs?: number;
@@ -91,6 +98,8 @@ export interface OsPathResolver {
 }
 export type OsPathScope = "tokens" | "config" | "cache";
 export const CLIENT_VARIANT_PATTERN = /^[A-Za-z0-9._+-]+$/;
+
+
 
 
 

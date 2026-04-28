@@ -21,11 +21,11 @@
     {
       "id": 2,
       "prompt": "I'm building with the Vercel AI SDK and want to add OpenBox governance before any tool calls execute. How do I intercept tool invocations, evaluate them through OpenBox, and handle the different verdicts?",
-      "expected_output": "Vercel AI SDK tool middleware pattern wrapping govern() from openbox-typescript-sdk. Handles all four production verdicts. CLI setup shown.",
+      "expected_output": "Vercel AI SDK tool middleware pattern wrapping govern() from openbox-sdk. Handles all four production verdicts. CLI setup shown.",
       "files": [],
       "assertions": [
         { "text": "uses the Vercel AI SDK's `tool()` API as the integration point, not a bespoke wrapper around it" },
-        { "text": "imports from `openbox-typescript-sdk`, installed via `npm install openbox-typescript-sdk@github:OpenBox-AI/openbox-typescript-sdk` (the real install command - not a placeholder like `./openbox-client`)" },
+        { "text": "imports from `openbox-sdk`, installed via `npm install openbox-sdk@github:OpenBox-AI/openbox-sdk` (the real install command - not a placeholder like `./openbox-client`)" },
         { "text": "handles the four production verdicts (`allow`, `require_approval`, `block`, `halt`) with distinct flows, AND correctly notes `constrain` is not emitted by the live server" },
         { "text": "for REQUIRE_APPROVAL, shows polling via the SDK's HITL helpers or `openbox approval pending`/`decide` CLI - does not invent throw-and-resume patterns with no backing" },
         { "text": "includes CLI setup: agent create with `-t`, guardrails with `--stage 0` (input) or `--stage 1` (output), explicit warning that `--stage both` silently disables the guardrail" },
