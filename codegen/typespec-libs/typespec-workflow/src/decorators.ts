@@ -494,3 +494,46 @@ export function $installTimeout(
 export function getInstallTimeout(program: Program, target: Operation): number | undefined {
   return program.stateMap(stateKeys.installTimeout).get(target);
 }
+
+// ─── Activity variants ────────────────────────────────────────
+// Predicate-based reroute for adapter ops where one tool's activity_type
+// depends on a runtime field value.
+
+export interface ActivityVariant {
+  readonly tool: string;
+  readonly field: string;
+  readonly pattern: string;
+  readonly activityType: string;
+  readonly eventCategory?: string;
+}
+
+export function $activityVariant(
+  context: DecoratorContext,
+  target: Operation,
+  toolName: string,
+  rawVariant: unknown,
+): void {
+  const v = unwrapTspValue(rawVariant) as Record<string, unknown>;
+  const field = typeof v.field === 'string' ? v.field : '';
+  const pattern = typeof v.pattern === 'string' ? v.pattern : '';
+  const activityType = typeof v.activityType === 'string' ? v.activityType : '';
+  const eventCategory = typeof v.eventCategory === 'string' ? v.eventCategory : undefined;
+  if (!field || !pattern || !activityType) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-payload-shape',
+      format: { reason: '@activityVariant requires { field, pattern, activityType }' },
+      target,
+    });
+    return;
+  }
+  const list = (context.program.stateMap(stateKeys.activityVariants).get(target) ?? []) as ActivityVariant[];
+  list.push({ tool: toolName, field, pattern, activityType, eventCategory });
+  context.program.stateMap(stateKeys.activityVariants).set(target, list);
+}
+
+export function getActivityVariants(
+  program: Program,
+  target: Operation,
+): ActivityVariant[] | undefined {
+  return program.stateMap(stateKeys.activityVariants).get(target);
+}

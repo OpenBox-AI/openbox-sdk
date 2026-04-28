@@ -52,6 +52,36 @@ export const VIOLATION_HANDLERS: SubcommandSpec[] = [
       "kind": "list",
       "label": "violations"
     }
+  },
+  {
+    "name": "false-positive",
+    "description": "Mark a violation as false positive. sourceType must be one of: behavior, guardrail, policy.",
+    "args": [
+      {
+        "name": "agentId"
+      },
+      {
+        "name": "violationId"
+      },
+      {
+        "name": "sourceType",
+        "bodyKey": "sourceType",
+        "choices": [
+          "behavior",
+          "guardrail",
+          "policy"
+        ]
+      }
+    ],
+    "flags": [],
+    "backend": {
+      "method": "markFalsePositive",
+      "shape": "body"
+    },
+    "pagination": false,
+    "output": {
+      "kind": "kv"
+    }
   }
 ];
 

@@ -82,6 +82,7 @@ export const $lib = createTypeSpecLibrary({
     noPayload: { description: 'flag: adapter op has no scannable activity payload (lifecycle/observe-only)' },
     installTarget: { description: 'install file/key/style/command attached to an adapter interface' },
     installTimeout: { description: 'per-event install timeout (seconds) attached to an adapter operation' },
+    activityVariants: { description: 'predicate-based activity-type reroute table attached to an adapter operation' },
   },
 });
 

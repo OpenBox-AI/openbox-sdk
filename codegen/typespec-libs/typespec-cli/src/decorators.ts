@@ -248,6 +248,38 @@ export function getOutputKind(
   return program.stateMap(stateKeys.outputKind).get(target);
 }
 
+/** Dotted path into the response - the renderer reads `getPath(data,
+ *  path)` and uses that as the data argument to `output`/`outputList`.
+ *  Replaces the per-command "extract result.approvals.data before
+ *  rendering" pattern. */
+export function $cli_output_pluck(
+  context: DecoratorContext,
+  target: Operation,
+  path: string,
+): void {
+  context.program.stateMap(stateKeys.outputPluck).set(target, path);
+}
+
+export function getOutputPluck(program: Program, target: Operation): string | undefined {
+  return program.stateMap(stateKeys.outputPluck).get(target);
+}
+
+/** Names a callback (registered in the runtime's OUTPUT_POST_REGISTRY)
+ *  to invoke after output. The callback receives the *original*
+ *  response (pre-pluck) - used for stderr banners like the runtime-key
+ *  highlight after `agent create` / `api-key rotate`. */
+export function $cli_output_post(
+  context: DecoratorContext,
+  target: Operation,
+  callbackName: string,
+): void {
+  context.program.stateMap(stateKeys.outputPost).set(target, callbackName);
+}
+
+export function getOutputPost(program: Program, target: Operation): string | undefined {
+  return program.stateMap(stateKeys.outputPost).get(target);
+}
+
 // ─── Pagination ──────────────────────────────────────────────
 // Marker that adds the canonical -p/--page and -l/--limit flags + auto-
 // merges them into the body via parsePagination(opts). No params on the
@@ -274,6 +306,7 @@ export interface FlagBindingExtra {
   readonly choices: ReadonlyArray<string> | undefined;
   readonly defaultValue: string | undefined;
   readonly variadic: boolean | undefined;
+  readonly required: boolean | undefined;
 }
 
 export function $cli_body_key(
@@ -322,6 +355,17 @@ export function $cli_variadic(
 ): void {
   const cur = (context.program.stateMap(stateKeys.flagExtra).get(target) ?? {}) as Record<string, unknown>;
   context.program.stateMap(stateKeys.flagExtra).set(target, { ...cur, variadic: true });
+}
+
+/** Marks a flag as required (Commander `requiredOption`). Without it,
+ *  the user gets a clear "missing required option --x" error before
+ *  the action runs. Off by default; flags are optional unless tagged. */
+export function $cli_required(
+  context: DecoratorContext,
+  target: ModelProperty,
+): void {
+  const cur = (context.program.stateMap(stateKeys.flagExtra).get(target) ?? {}) as Record<string, unknown>;
+  context.program.stateMap(stateKeys.flagExtra).set(target, { ...cur, required: true });
 }
 
 export function getFlagExtra(

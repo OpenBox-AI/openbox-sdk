@@ -5,21 +5,21 @@ import type {
 import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
 import {
   PRE_TOOL_USE_ROUTING,
+  PRE_TOOL_USE_VARIANTS,
+  applyActivityVariant,
   buildPreToolUsePayload,
 } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
-import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
+import { EVENT } from '../activity-types.js';
 import { isSkipped } from '../../_shared/skip-patterns.js';
 import { sideEffects } from '../side-effects.js';
 
 /**
- * preToolUse: Cursor 3.x's primary agent-action hook. Activity routing
- * + payload shape come from spec (@activityRouting + @payloadShape on
- * adapters.tsp). Cursor's Shell tool is reused for file deletes via
- * `rm`/`unlink`/`rmdir`/`shred` - the activity_type is rerouted to
- * file_write here so existing file-write guardrails / policies match.
- * (Pure runtime predicate; no @payloadVariant in H.1.)
+ * preToolUse: Cursor 3.x's primary agent-action hook. Activity routing,
+ * payload shape, AND the Shell→file_delete predicate reroute all come
+ * from spec (@activityRouting + @payloadShape + @activityVariant on
+ * adapters.tsp). This file is pure platform shell.
  */
 export async function handlePreToolUse(
   env: CursorEnvelope,
@@ -34,19 +34,10 @@ export async function handlePreToolUse(
   const filePath = (toolInput.file_path ?? toolInput.filePath ?? '') as string;
   if (filePath && isSkipped(filePath)) return undefined;
 
-  let activityType = baseActivity;
-  if (toolName === 'Shell') {
-    const command = (toolInput.command ?? '') as string;
-    if (/\b(rm|unlink|rmdir|shred)\b/.test(command)) {
-      activityType = ACTIVITY_TYPES.FILE_WRITE;
-    }
-  }
-
   const payload = buildPreToolUsePayload(env, toolName, sideEffects);
-  // Shell→delete rerouting also bumps event_category for downstream rules.
-  if (activityType === ACTIVITY_TYPES.FILE_WRITE && toolName === 'Shell') {
-    payload.event_category = 'file_delete';
-  }
+  const override = applyActivityVariant(PRE_TOOL_USE_VARIANTS, toolName, env);
+  const activityType = override?.activityType ?? baseActivity;
+  if (override?.eventCategory) payload.event_category = override.eventCategory;
 
   const verdict = await session.activity(EVENT.START, activityType, { input: [payload] });
   if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);

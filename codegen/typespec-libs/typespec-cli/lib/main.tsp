@@ -167,3 +167,29 @@ extern dec cli_default(target: ModelProperty, value: valueof string);
  * collect into an array; the array value is the body value verbatim.
  */
 extern dec cli_variadic(target: ModelProperty);
+
+/**
+ * Marks a flag as required (Commander `requiredOption`). Without it
+ * the user gets a clear "missing required option --x" error before
+ * the action runs. Use sparingly - required flags break tab-completion
+ * UX and are usually a sign the field belongs as a positional arg.
+ */
+extern dec cli_required(target: ModelProperty);
+
+/**
+ * Dotted path into the response - the renderer reads
+ * `getPath(data, path)` and renders the sub-value instead of the full
+ * envelope. Use when the wire returns a wrapper like
+ * `{ approvals: { data: [...] }, metrics: {...} }` and you want
+ * `outputList(approvals)` rendering, not the wrapper.
+ */
+extern dec cli_output_pluck(target: Operation, path: valueof string);
+
+/**
+ * Names a callback (registered via wire-subcommands.OUTPUT_POST_REGISTRY)
+ * the runtime invokes after `output()` returns. The callback receives
+ * the original response data (pre-pluck). Used for stderr banners -
+ * e.g. the runtime-key highlight that fires after `agent create` and
+ * `api-key rotate`.
+ */
+extern dec cli_output_post(target: Operation, callbackName: valueof string);

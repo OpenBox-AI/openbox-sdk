@@ -16,6 +16,9 @@ import {
   $cli_choice,
   $cli_default,
   $cli_variadic,
+  $cli_required,
+  $cli_output_pluck,
+  $cli_output_post,
 } from './decorators.js';
 
 export { $lib } from './lib.js';
@@ -36,5 +39,8 @@ export const $decorators = {
     cli_choice: $cli_choice,
     cli_default: $cli_default,
     cli_variadic: $cli_variadic,
+    cli_required: $cli_required,
+    cli_output_pluck: $cli_output_pluck,
+    cli_output_post: $cli_output_post,
   },
 };
