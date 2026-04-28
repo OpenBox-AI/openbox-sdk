@@ -15,17 +15,19 @@ export interface Auth {
   login(env?: EnvFlag, noBrowser?: boolean): void;
   logout(): void;
   profile(): AuthProfileOutput;
-}
-export interface AuthExtras {
+  refresh(): void;
   permissions(): void;
   features(): void;
-  refresh(): void;
   changePassword(): void;
   roles(): void;
 }
 export interface Agent {
   list(): void;
   create(): void;
+  get(agentId: string): void;
+  update(agentId: string): void;
+  delete(agentId: string): void;
+  audit(agentId: string): void;
 }
 export interface Aivss {
   calculate(): void;
@@ -60,19 +62,33 @@ export interface Sso {
   verify(): void;
 }
 export interface Approval {
-  metrics(agentId: string): void;
-  pending(agentId: string): void;
-  history(agentId: string): void;
+  metrics(agentId: string, from?: string, to?: string): void;
+  pending(agentId: string, search?: string, status?: string, tiers?: string[], from?: string, to?: string): void;
+  history(agentId: string, search?: string, status?: string, tiers?: string[], from?: string, to?: string): void;
   decide(agentId: string, eventId: string, action: string): void;
 }
 export interface Audit {
-  list(): void;
+  list(eventType?: string, actor?: string, result?: string, search?: string, from?: string, to?: string): void;
   export(): void;
   preview(): void;
-  exports(): void;
+  exports(status?: string, from?: string, to?: string): void;
+  download(exportId: string): void;
+  deleteExport(exportId: string): void;
+  get(logId: string): void;
 }
 export interface Behavior {
   types(): void;
+  list(agentId: string): void;
+  current(agentId: string): void;
+  get(agentId: string, ruleId: string): void;
+  delete(agentId: string, ruleId: string): void;
+  create(agentId: string): void;
+  update(agentId: string, ruleId: string): void;
+  toggle(agentId: string, ruleId: string): void;
+  restore(agentId: string, ruleId: string): void;
+  versions(agentId: string, groupId: string): void;
+  metrics(agentId: string): void;
+  violations(agentId: string): void;
 }
 export interface Core {
   health(): void;
@@ -83,8 +99,19 @@ export interface Core {
 export interface Doctor {
 }
 export interface Goal {
+  trend(agentId: string, from?: string, to?: string): void;
+  drifts(agentId: string, limit?: string): void;
+  update(agentId: string): void;
 }
 export interface Guardrail {
+  list(agentId: string): void;
+  get(agentId: string, guardrailId: string): void;
+  delete(agentId: string, guardrailId: string): void;
+  create(agentId: string): void;
+  update(agentId: string, guardrailId: string): void;
+  reorder(agentId: string, guardrailId: string, order: string): void;
+  metrics(agentId: string, from?: string, to?: string): void;
+  violations(agentId: string): void;
   test(): void;
 }
 export interface Health {
@@ -99,9 +126,9 @@ export interface Member {
   invite(orgId: string): void;
 }
 export interface Observe {
-  data(agentId: string): void;
+  data(agentId: string, from?: string, to?: string): void;
   issues(agentId: string): void;
-  insights(agentId: string): void;
+  insights(agentId: string, from?: string, to?: string): void;
   logs(agentId: string): void;
   drift(agentId: string): void;
   metrics(): void;
@@ -109,11 +136,11 @@ export interface Observe {
 export interface Org {
   get(orgId: string): void;
   settings(orgId: string): void;
-  updateSettings(orgId: string): void;
   dashboard(orgId: string): void;
-  trends(orgId: string): void;
   sessions(orgId: string): void;
   approvals(orgId: string): void;
+  updateSettings(orgId: string): void;
+  trends(orgId: string): void;
   approvalMetrics(orgId: string): void;
   approvalSla(orgId: string): void;
   approvalHistory(orgId: string): void;
@@ -124,22 +151,22 @@ export interface Org {
 }
 export interface Policy {
   list(agentId: string): void;
-  create(agentId: string): void;
   current(agentId: string): void;
   get(agentId: string, policyId: string): void;
+  create(agentId: string): void;
   update(agentId: string, policyId: string): void;
   evaluations(agentId: string, policyId: string): void;
   metrics(agentId: string): void;
   evaluate(): void;
 }
 export interface Session {
-  list(agentId: string): void;
+  list(agentId: string, status?: string, from?: string, to?: string, duration?: string, search?: string): void;
   active(agentId: string): void;
   get(agentId: string, sessionId: string): void;
-  logs(agentId: string, sessionId: string): void;
+  logs(agentId: string, sessionId: string, eventType?: string): void;
   goalStats(agentId: string, sessionId: string): void;
-  trace(agentId: string, sessionId: string): void;
   terminate(agentId: string, sessionId: string): void;
+  trace(agentId: string, sessionId: string): void;
   inspect(agentId: string, sessionIdOrWorkflowId: string): void;
   prune(agentId: string): void;
 }
@@ -155,9 +182,9 @@ export interface Team {
   removeMembers(orgId: string, teamId: string): void;
 }
 export interface Trust {
-  histories(agentId: string): void;
-  events(agentId: string): void;
-  tierChanges(agentId: string): void;
+  histories(agentId: string, duration?: string): void;
+  events(agentId: string, from?: string, to?: string): void;
+  tierChanges(agentId: string, from?: string, to?: string): void;
   recovery(agentId: string): void;
 }
 export interface Verify {
@@ -166,7 +193,7 @@ export interface Versions {
 }
 export interface Violation {
   list(): void;
-  agent(agentId: string): void;
+  agent(agentId: string, pattern?: string, sourceType?: string): void;
   falsePositive(agentId: string, violationId: string, sourceType: string): void;
 }
 /**
@@ -210,23 +237,17 @@ export const CLI_COMMAND_MANIFEST = [
       {
         "name": "profile",
         "flags": []
-      }
-    ]
-  },
-  {
-    "command": "auth-extras",
-    "interfaceName": "AuthExtras",
-    "subcommands": [
+      },
+      {
+        "name": "refresh",
+        "flags": []
+      },
       {
         "name": "permissions",
         "flags": []
       },
       {
         "name": "features",
-        "flags": []
-      },
-      {
-        "name": "refresh",
         "flags": []
       },
       {
@@ -250,6 +271,22 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "create",
+        "flags": []
+      },
+      {
+        "name": "get",
+        "flags": []
+      },
+      {
+        "name": "update",
+        "flags": []
+      },
+      {
+        "name": "delete",
+        "flags": []
+      },
+      {
+        "name": "audit",
         "flags": []
       }
     ]
@@ -385,15 +422,104 @@ export const CLI_COMMAND_MANIFEST = [
     "subcommands": [
       {
         "name": "metrics",
-        "flags": []
+        "flags": [
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "pending",
-        "flags": []
+        "flags": [
+          {
+            "name": "search",
+            "long": "search",
+            "short": "s",
+            "description": "Search",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "status",
+            "long": "status",
+            "description": "Status filter",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "tiers",
+            "long": "tiers",
+            "description": "Tier filter",
+            "optional": true,
+            "tsType": "string[]"
+          },
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "history",
-        "flags": []
+        "flags": [
+          {
+            "name": "search",
+            "long": "search",
+            "short": "s",
+            "description": "Search",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "status",
+            "long": "status",
+            "description": "Status filter",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "tiers",
+            "long": "tiers",
+            "description": "Tier filter",
+            "optional": true,
+            "tsType": "string[]"
+          },
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "decide",
@@ -408,7 +534,51 @@ export const CLI_COMMAND_MANIFEST = [
     "subcommands": [
       {
         "name": "list",
-        "flags": []
+        "flags": [
+          {
+            "name": "eventType",
+            "long": "event-type",
+            "description": "Event type filter",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "actor",
+            "long": "actor",
+            "description": "Actor ID filter",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "result",
+            "long": "result",
+            "description": "Result filter",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "search",
+            "long": "search",
+            "short": "s",
+            "description": "Search",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "export",
@@ -420,6 +590,40 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "exports",
+        "flags": [
+          {
+            "name": "status",
+            "long": "status",
+            "description": "Status filter",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
+      },
+      {
+        "name": "download",
+        "flags": []
+      },
+      {
+        "name": "deleteExport",
+        "flags": []
+      },
+      {
+        "name": "get",
         "flags": []
       }
     ]
@@ -431,6 +635,50 @@ export const CLI_COMMAND_MANIFEST = [
     "subcommands": [
       {
         "name": "types",
+        "flags": []
+      },
+      {
+        "name": "list",
+        "flags": []
+      },
+      {
+        "name": "current",
+        "flags": []
+      },
+      {
+        "name": "get",
+        "flags": []
+      },
+      {
+        "name": "delete",
+        "flags": []
+      },
+      {
+        "name": "create",
+        "flags": []
+      },
+      {
+        "name": "update",
+        "flags": []
+      },
+      {
+        "name": "toggle",
+        "flags": []
+      },
+      {
+        "name": "restore",
+        "flags": []
+      },
+      {
+        "name": "versions",
+        "flags": []
+      },
+      {
+        "name": "metrics",
+        "flags": []
+      },
+      {
+        "name": "violations",
         "flags": []
       }
     ]
@@ -468,13 +716,97 @@ export const CLI_COMMAND_MANIFEST = [
     "command": "goal",
     "description": "Goal alignment configuration.",
     "interfaceName": "Goal",
-    "subcommands": []
+    "subcommands": [
+      {
+        "name": "trend",
+        "flags": [
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
+      },
+      {
+        "name": "drifts",
+        "flags": [
+          {
+            "name": "limit",
+            "long": "limit",
+            "short": "l",
+            "description": "Number of drifts",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
+      },
+      {
+        "name": "update",
+        "flags": []
+      }
+    ]
   },
   {
     "command": "guardrail",
     "description": "Guardrail management + testing.",
     "interfaceName": "Guardrail",
     "subcommands": [
+      {
+        "name": "list",
+        "flags": []
+      },
+      {
+        "name": "get",
+        "flags": []
+      },
+      {
+        "name": "delete",
+        "flags": []
+      },
+      {
+        "name": "create",
+        "flags": []
+      },
+      {
+        "name": "update",
+        "flags": []
+      },
+      {
+        "name": "reorder",
+        "flags": []
+      },
+      {
+        "name": "metrics",
+        "flags": [
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
+      },
+      {
+        "name": "violations",
+        "flags": []
+      },
       {
         "name": "test",
         "flags": []
@@ -529,7 +861,22 @@ export const CLI_COMMAND_MANIFEST = [
     "subcommands": [
       {
         "name": "data",
-        "flags": []
+        "flags": [
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "issues",
@@ -537,7 +884,22 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "insights",
-        "flags": []
+        "flags": [
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "logs",
@@ -567,15 +929,7 @@ export const CLI_COMMAND_MANIFEST = [
         "flags": []
       },
       {
-        "name": "updateSettings",
-        "flags": []
-      },
-      {
         "name": "dashboard",
-        "flags": []
-      },
-      {
-        "name": "trends",
         "flags": []
       },
       {
@@ -584,6 +938,14 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "approvals",
+        "flags": []
+      },
+      {
+        "name": "updateSettings",
+        "flags": []
+      },
+      {
+        "name": "trends",
         "flags": []
       },
       {
@@ -626,15 +988,15 @@ export const CLI_COMMAND_MANIFEST = [
         "flags": []
       },
       {
-        "name": "create",
-        "flags": []
-      },
-      {
         "name": "current",
         "flags": []
       },
       {
         "name": "get",
+        "flags": []
+      },
+      {
+        "name": "create",
         "flags": []
       },
       {
@@ -662,7 +1024,44 @@ export const CLI_COMMAND_MANIFEST = [
     "subcommands": [
       {
         "name": "list",
-        "flags": []
+        "flags": [
+          {
+            "name": "status",
+            "long": "status",
+            "description": "Filter by status",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "duration",
+            "long": "duration",
+            "description": "Duration filter",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "search",
+            "long": "search",
+            "short": "s",
+            "description": "Search",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "active",
@@ -674,18 +1073,26 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "logs",
-        "flags": []
+        "flags": [
+          {
+            "name": "eventType",
+            "long": "event-type",
+            "description": "Filter by event type",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "goalStats",
         "flags": []
       },
       {
-        "name": "trace",
+        "name": "terminate",
         "flags": []
       },
       {
-        "name": "terminate",
+        "name": "trace",
         "flags": []
       },
       {
@@ -748,15 +1155,53 @@ export const CLI_COMMAND_MANIFEST = [
     "subcommands": [
       {
         "name": "histories",
-        "flags": []
+        "flags": [
+          {
+            "name": "duration",
+            "long": "duration",
+            "description": "Duration window",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "events",
-        "flags": []
+        "flags": [
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "tierChanges",
-        "flags": []
+        "flags": [
+          {
+            "name": "from",
+            "long": "from",
+            "description": "Start date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "to",
+            "long": "to",
+            "description": "End date (ISO)",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "recovery",
@@ -787,7 +1232,22 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "agent",
-        "flags": []
+        "flags": [
+          {
+            "name": "pattern",
+            "long": "pattern",
+            "description": "Pattern filter",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "sourceType",
+            "long": "source-type",
+            "description": "Source type filter",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "falsePositive",
@@ -797,8 +1257,6 @@ export const CLI_COMMAND_MANIFEST = [
   }
 ] as const;
 export type CliCommandManifest = typeof CLI_COMMAND_MANIFEST;
-
-
 
 
 

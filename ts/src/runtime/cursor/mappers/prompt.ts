@@ -3,6 +3,7 @@ import type {
   WorkflowVerdict,
 } from '../../../core-client/index.js';
 import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
+import { buildBeforeSubmitPromptPayload } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
@@ -21,13 +22,8 @@ export async function handleBeforeSubmitPrompt(
     input: [{ goal: prompt, event_category: 'agent_goal' }],
   }).catch(() => undefined);
 
-  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, {
-    input: [{
-      prompt,
-      generation_id: env.generation_id,
-      event_category: 'llm_prompt',
-    }],
-  });
+  const payload = buildBeforeSubmitPromptPayload(env);
+  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, { input: [payload] });
   if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
   return verdict;
 }

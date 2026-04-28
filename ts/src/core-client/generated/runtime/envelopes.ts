@@ -29,6 +29,8 @@ export interface CursorEnvelope {
   tool_output?: unknown;
   thought?: string;
   response?: string;
+  content?: string;
+  result_json?: string;
 }
 
 

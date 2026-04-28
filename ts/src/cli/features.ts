@@ -22,25 +22,9 @@
 
 import { isMaturityVisible, type Maturity } from './maturity.js';
 import { ENV_VAR_BINDINGS } from '../env/generated/env-bindings.js';
+import { FEATURE_MATURITY } from './generated/cli-features.js';
 
-/**
- * Registry of every known feature flag → maturity. Use a dotted path
- * scoped under the command that owns the flag, e.g.:
- *   'agent.list.include-deleted'
- *   'audit.deep-scan'
- *   'doctor.migrate-config-v2'
- *
- * Anything NOT in this registry returns `false` from `isFeatureEnabled`
- * unless explicitly opted in by name. Add an entry here when you
- * introduce a new experimental flag in a command - that way `--help`
- * tooling can surface which features exist.
- */
-export const FEATURE_MATURITY: Record<string, Maturity> = {
-  // Add as new experimental features land. Examples (commented):
-  //   'agent.list.include-deleted':       'experimental',
-  //   'audit.deep-scan':                   'experimental',
-  //   'doctor.migrate-config-v2':          'experimental',
-};
+export { FEATURE_MATURITY };
 
 const explicitlyEnabled = new Set<string>();
 

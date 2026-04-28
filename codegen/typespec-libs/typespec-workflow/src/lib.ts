@@ -57,6 +57,18 @@ export const $lib = createTypeSpecLibrary({
         default: paramMessage`Invalid @activityRouting: ${'reason'}`,
       },
     },
+    'invalid-payload-shape': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @payloadShape: ${'reason'}`,
+      },
+    },
+    'invalid-install-target': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @installTarget: ${'reason'}`,
+      },
+    },
   },
   state: {
     verdict: { description: 'flag: model is the canonical verdict shape' },
@@ -66,6 +78,10 @@ export const $lib = createTypeSpecLibrary({
     hookEvent: { description: 'hook-event routing attached to an adapter operation' },
     verdictShape: { description: 'verdict-output translation family attached to an adapter operation' },
     activityRouting: { description: 'tool-name → activity_type table attached to an adapter operation' },
+    payloadShape: { description: 'declarative activity payload shape attached to an adapter operation' },
+    noPayload: { description: 'flag: adapter op has no scannable activity payload (lifecycle/observe-only)' },
+    installTarget: { description: 'install file/key/style/command attached to an adapter interface' },
+    installTimeout: { description: 'per-event install timeout (seconds) attached to an adapter operation' },
   },
 });
 

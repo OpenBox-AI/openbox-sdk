@@ -12,6 +12,215 @@ export const PRE_TOOL_USE_ROUTING: Record<string, string> = {
   "Shell": "agent_action"
 };
 
+export interface InstallSpec {
+  file: string;
+  key: string;
+  style: 'claude-array' | 'cursor-keyed';
+  command: string;
+  configDir: string;
+  events: Array<{ name: string; timeout?: number }>;
+}
+
+/** Where this adapter's install command writes its hook block. The
+ *  shared installer in runtime/_shared/install.ts reads this spec. */
+export const INSTALL_SPEC: InstallSpec = {
+  "file": "~/.cursor/hooks.json",
+  "key": "hooks",
+  "style": "cursor-keyed",
+  "command": "openbox cursor hook",
+  "configDir": "~/.cursor-hooks",
+  "events": [
+    {
+      "name": "beforeSubmitPrompt"
+    },
+    {
+      "name": "beforeReadFile"
+    },
+    {
+      "name": "beforeShellExecution"
+    },
+    {
+      "name": "beforeMCPExecution"
+    },
+    {
+      "name": "preToolUse"
+    },
+    {
+      "name": "afterAgentResponse"
+    },
+    {
+      "name": "afterAgentThought"
+    },
+    {
+      "name": "afterShellExecution"
+    },
+    {
+      "name": "afterFileEdit"
+    },
+    {
+      "name": "afterMCPExecution"
+    },
+    {
+      "name": "postToolUse"
+    },
+    {
+      "name": "postToolUseFailure"
+    },
+    {
+      "name": "sessionStart"
+    },
+    {
+      "name": "stop"
+    }
+  ]
+};
+
+export interface CursorSideEffects {
+  /** Supplied by the runtime layer; receives the resolved `from` path value. */
+  extractMcpText?: (input: unknown) => unknown;
+  /** Supplied by the runtime layer; receives the resolved `from` path value. */
+  readFile?: (input: unknown) => unknown;
+  /** Supplied by the runtime layer; receives the resolved `from` path value. */
+  stringify?: (input: unknown) => unknown;
+}
+
+function getPath(env: unknown, path: string): unknown {
+  if (env == null || typeof env !== 'object') return undefined;
+  let cur: unknown = env;
+  for (const seg of path.split('.')) {
+    if (cur == null || typeof cur !== 'object') return undefined;
+    cur = (cur as Record<string, unknown>)[seg];
+  }
+  return cur;
+}
+
+export function buildBeforeSubmitPromptPayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "prompt": getPath(env, "prompt"),
+      "generation_id": getPath(env, "generation_id"),
+      "event_category": "llm_prompt",
+    };
+}
+
+export function buildBeforeReadFilePayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "file_path": getPath(env, "file_path"),
+      "content": getPath(env, "content"),
+      "generation_id": getPath(env, "generation_id"),
+      "event_category": "file_read",
+    };
+}
+
+export function buildBeforeShellExecutionPayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "command": getPath(env, "command"),
+      "cwd": getPath(env, "cwd"),
+      "generation_id": getPath(env, "generation_id"),
+      "event_category": "agent_action",
+    };
+}
+
+export function buildBeforeMCPExecutionPayload(env: CursorEnvelope, sideEffects: CursorSideEffects = {}): Record<string, unknown> {
+  
+  return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": (sideEffects.stringify?.(getPath(env, "tool_input")) ?? ''),
+      "generation_id": getPath(env, "generation_id"),
+      "event_category": "api_call",
+    };
+}
+
+export function buildPreToolUsePayload(env: CursorEnvelope, toolName: string, sideEffects: CursorSideEffects = {}): Record<string, unknown> {
+  
+  switch (toolName) {
+    case "Read":
+      return {
+      "file_path": (getPath(env, "tool_input.file_path") ?? getPath(env, "tool_input.filePath")),
+      "content": (sideEffects.readFile?.(getPath(env, "tool_input.file_path")) ?? ''),
+      "event_category": "file_read",
+    };
+    case "Write":
+      return {
+      "file_path": (getPath(env, "tool_input.file_path") ?? getPath(env, "tool_input.filePath")),
+      "content": (getPath(env, "tool_input.content") ?? getPath(env, "tool_input.new_string")),
+      "event_category": "file_write",
+    };
+    case "Shell":
+      return {
+      "command": getPath(env, "tool_input.command"),
+      "cwd": (getPath(env, "tool_input.cwd") ?? getPath(env, "cwd")),
+      "event_category": "agent_action",
+    };
+    default:
+      return {};
+  }
+}
+
+export function buildAfterAgentResponsePayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "response": getPath(env, "response"),
+      "generation_id": getPath(env, "generation_id"),
+      "event_category": "llm_completion",
+    };
+}
+
+export function buildAfterAgentThoughtPayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "thought": getPath(env, "thought"),
+      "generation_id": getPath(env, "generation_id"),
+      "event_category": "agent_decision",
+    };
+}
+
+export function buildAfterShellExecutionPayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "command": getPath(env, "command"),
+      "generation_id": getPath(env, "generation_id"),
+      "event_category": "agent_observation",
+    };
+}
+
+export function buildAfterFileEditPayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "file_path": getPath(env, "file_path"),
+      "generation_id": getPath(env, "generation_id"),
+      "event_category": "file_write",
+    };
+}
+
+export function buildAfterMCPExecutionPayload(env: CursorEnvelope, sideEffects: CursorSideEffects = {}): Record<string, unknown> {
+  
+  return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_output": (sideEffects.extractMcpText?.(getPath(env, "result_json")) ?? ''),
+      "generation_id": getPath(env, "generation_id"),
+      "event_category": "agent_observation",
+    };
+}
+
+export function buildSessionStartPayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "status": "started",
+      "event_category": "workflow_start",
+    };
+}
+
+export function buildStopPayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "status": "completed",
+      "event_category": "workflow_complete",
+    };
+}
+
 /**
  * Per-event handlers. Each handler receives the parsed stdin envelope
  * + an attached CursorSession (workflowId/runId resolved by
