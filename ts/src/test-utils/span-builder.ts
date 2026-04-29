@@ -27,6 +27,13 @@ export interface SpanOptions {
   type: SpanType;
   // Override the default activity_type (e.g. "PromptSubmission", "FileRead")
   activityType?: string;
+  /** Match the official temporal-sdk-python convention: hook-level events
+   *  (from hook_governance.py) set `hook_trigger: true`; activity-level
+   *  events (from activity_interceptor.py:701-713) do NOT. The hook path
+   *  triggers `CheckApprovalCacheActivity` server-side which hits Redis.
+   *  Default to false here so test payloads match the activity-level
+   *  convention; flip to true when explicitly testing hook flows. */
+  hookTrigger?: boolean;
   // LLM
   prompt?: string;
   model?: string;
@@ -87,7 +94,7 @@ export function buildTestPayload(opts: SpanOptions): BuiltPayload {
     task_queue: 'cli-test',
     attempt: 1,
     timestamp: new Date().toISOString(),
-    hook_trigger: true,
+    hook_trigger: opts.hookTrigger ?? false,
     activity_input: [activityInput],
     spans: [span],
     span_count: 1,

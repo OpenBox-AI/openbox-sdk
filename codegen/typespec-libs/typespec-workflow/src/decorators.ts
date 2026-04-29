@@ -6,6 +6,7 @@ import type {
   DecoratorContext,
   Interface,
   Model,
+  Namespace,
   Operation,
   Program,
 } from '@typespec/compiler';
@@ -536,4 +537,59 @@ export function getActivityVariants(
   target: Operation,
 ): ActivityVariant[] | undefined {
   return program.stateMap(stateKeys.activityVariants).get(target);
+}
+
+// ─── Activity labels (display strings) ────────────────────────────────────
+// Single source of truth for activity_type → human-readable label. Replaces
+// per-consumer Title-Case formatters that drift on acronyms (LLM/MCP/SDK/HTTP)
+// and naming conventions (`on_llm_end`, `MCPToolCall`, `node-pre-execute`).
+//
+// Applied once on the OpenboxGovern namespace (record literal). Emitters
+// emit a `CANONICAL_ACTIVITY_LABELS: Record<string, string>` constant; UIs
+// look up the label and fall back to a Title-Case formatter for non-canonical
+// activity_types (custom-preset domain agents always opt out of this table).
+
+export interface ActivityLabelsBinding {
+  /** Map of activity_type string → human-readable display label. */
+  readonly table: Record<string, string>;
+}
+
+export function $activityLabels(
+  context: DecoratorContext,
+  target: Namespace,
+  raw: unknown,
+): void {
+  const table: Record<string, string> = {};
+  if (raw instanceof Map) {
+    for (const [k, v] of raw.entries()) {
+      if (typeof k === 'string' && typeof v === 'string') table[k] = v;
+    }
+  } else if (typeof raw === 'object' && raw !== null) {
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v === 'string') table[k] = v;
+    }
+  }
+  if (Object.keys(table).length === 0) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-activity-labels',
+      format: { reason: 'table is empty or non-string-valued' },
+      target,
+    });
+    return;
+  }
+  // Merge with any existing entries on the namespace - supports splitting
+  // the table across multiple decorator calls if a future spec wants it.
+  const existing = (context.program
+    .stateMap(stateKeys.activityLabels)
+    .get(target) ?? { table: {} }) as ActivityLabelsBinding;
+  context.program.stateMap(stateKeys.activityLabels).set(target, {
+    table: { ...existing.table, ...table },
+  } satisfies ActivityLabelsBinding);
+}
+
+export function getActivityLabels(
+  program: Program,
+  target: Namespace,
+): ActivityLabelsBinding | undefined {
+  return program.stateMap(stateKeys.activityLabels).get(target);
 }

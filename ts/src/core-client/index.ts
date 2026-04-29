@@ -90,6 +90,16 @@ export {
 export { govern, presets } from './generated/govern.js';
 export type { Presets, PresetCtor } from './generated/govern.js';
 
+// Canonical activity_type vocabulary + spec-driven display labels.
+// Single source of truth for any UI rendering activity_types - mobile,
+// web dashboard, CLI list views, audit reports. Consumers fall back to
+// a Title-Case formatter for activity_types not in the labels table.
+export {
+  CANONICAL_EVENT_TYPES,
+  CANONICAL_ACTIVITY_TYPES,
+  CANONICAL_ACTIVITY_LABELS,
+} from './generated/govern.js';
+
 // Guardrail redaction helpers - apply `verdict.guardrailsResult.redactedInput`
 // over the original payload to forward a safe version downstream.
 export {
