@@ -82,7 +82,10 @@ export function reportAndExit(err: unknown): never {
     console.error(`${color.red('error:')} ${apiErr.message}`);
     const detail = extractApiErrorDetail(apiErr.body);
     if (detail) console.error(`  detail: ${detail}`);
-    const hint = hintForStatus(apiErr.status);
+    // Detail-aware hint takes precedence over the generic status hint -
+    // surfaces specific known failure modes (deployed-environment bugs,
+    // fail-closed responses) that the user can act on directly.
+    const hint = hintForDetail(detail) ?? hintForStatus(apiErr.status);
     if (hint) console.error(`  hint: ${hint}`);
     process.exit(exitCodeForStatus(apiErr.status));
   }
@@ -116,6 +119,53 @@ function extractApiErrorDetail(body: unknown): string | null {
   if (data && typeof data === 'object') {
     if (typeof data.message === 'string') return data.message;
     if (Array.isArray(data.message)) return (data.message as string[]).join('; ');
+  }
+  return null;
+}
+
+/** Detail-message-aware hints for known core/backend failure modes.
+ *  Returns a focused troubleshooting pointer for patterns we've seen
+ *  in the wild; otherwise null and the caller falls back to the
+ *  generic per-status hint. */
+function hintForDetail(detail: string | null): string | null {
+  if (!detail) return null;
+  // Staging core image 591f66f (develop branch, post-cccff05): the
+  // concurrent OPA+Guardrails+AGE workflow with early-cancel
+  // deadlocks whenever OPA returns a non-ALLOW verdict. ALLOW returns
+  // in ~200ms; non-ALLOW (BLOCK / REQUIRE_APPROVAL) hangs 30s and
+  // surfaces as ExecuteWorkflow timing out at the request gateway.
+  // Prod (1.1.4) doesn't carry this code and is unaffected. Detect
+  // by the exact wrapped error string emitted by core's
+  // EvaluateEvent in services/governance.go:123.
+  if (detail.includes('failed to start workflow: context deadline exceeded')) {
+    return (
+      "Core's GovernanceWorkflow is hanging on the post-OPA non-ALLOW path " +
+      '(staging-only bug, image 591f66f+). To confirm vs random Temporal flake, ' +
+      "fire `core evaluate --type llm --prompt hi` against the same agent - if " +
+      "that returns <1s but `--type shell` (or any path that triggers a non-ALLOW " +
+      'verdict) hangs 30s, this is the cccff05 cancellation deadlock. Pivot to ' +
+      'prod for end-to-end approval testing until the staging fix lands.'
+    );
+  }
+  // Same staging cluster, different surface - an HTTP/2 stream
+  // reset from core toward Temporal frontend (or vice versa).
+  // Distinct from the deadlock above - surfaces during true
+  // Temporal-cluster degradation.
+  if (detail.includes('stream terminated by RST_STREAM')) {
+    return (
+      'Temporal frontend RST_STREAM - cluster degradation rather than a workflow bug. ' +
+      'Retry with backoff; if it persists, escalate to staging-infra with the agent_id + governance_event_id.'
+    );
+  }
+  // Core's fail-closed when OPA service is unreachable - the policy
+  // result auto-converts to BLOCK with `fallback_used: true`. Useful
+  // to call out so users don't think their policy "decided" to block.
+  if (detail.includes('OPA unavailable')) {
+    return (
+      'OPA service was unreachable from core; the fail-closed security ' +
+      "policy converted the verdict to BLOCK. The user's actual policy " +
+      'never ran - fix the OPA service and retry.'
+    );
   }
   return null;
 }

@@ -59,6 +59,7 @@ import {
   getInstallTarget,
   getInstallTimeout,
   getActivityVariants,
+  getActivityLabels,
   type CanonicalEventType,
   type VerdictShape,
   type PayloadShapeBinding,
@@ -1291,6 +1292,26 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
       }
     }
   }
+  // Spec-driven display labels for canonical activity_type strings.
+  // The single source of truth for any consumer that renders activity
+  // types in a UI - the @activityLabels decorator on the OpenboxGovern
+  // namespace declares the table; we emit it as a frozen object so
+  // mobile/web/CLI consumers all read the same labels.
+  const labelsBinding = getActivityLabels(program, ns);
+  const labelTable: Record<string, string> = {};
+  if (labelsBinding) {
+    // Restrict to canonical activity_types so the emitted table can't
+    // drift past the spec-recognized vocabulary. Non-canonical entries
+    // in @activityLabels are silently dropped - consumers fall back to
+    // the Title-Case formatter for unknown activity_types regardless.
+    for (const [k, v] of Object.entries(labelsBinding.table)) {
+      if (activityTypes.has(k)) labelTable[k] = v;
+    }
+  }
+  // Stable key order for deterministic output.
+  const sortedLabels: Record<string, string> = {};
+  for (const k of Object.keys(labelTable).sort()) sortedLabels[k] = labelTable[k];
+
   out.addStatements([
     '/** The 6 canonical event_type strings. Anything else on the wire',
     ' *  is a protocol bug. Consumed by the session-inspect protocol',
@@ -1306,6 +1327,16 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
     ' *  and conformance reports. */',
     `export const CANONICAL_ACTIVITY_TYPES: ReadonlySet<string> = new Set(${JSON.stringify(
       [...activityTypes].sort(),
+    )});`,
+    '',
+    '/** Spec-driven display label for each canonical activity_type.',
+    ' *  Source of truth for any UI that renders activity types',
+    ' *  (mobile, web dashboard, CLI list views, audit reports). Consumers',
+    ' *  fall back to a Title-Case formatter for activity_types not in',
+    ' *  this table - custom-preset domain agents emit free-form strings',
+    ' *  that legitimately aren\'t covered here. */',
+    `export const CANONICAL_ACTIVITY_LABELS: Readonly<Record<string, string>> = Object.freeze(${JSON.stringify(
+      sortedLabels,
     )});`,
     '',
     '/** Every verdict arm the runtime emits. Production sets typically',
@@ -1923,7 +1954,24 @@ function renderVerdictOutput(
 `;
 
 function emitBaseSession(verdictModelName: string): string {
-  return `import { randomUUID } from 'crypto';
+  return `// Runtime-portable UUID v4 source. Node ≥19 / Bun / Deno / modern
+// browsers / Hermes (RN ≥0.74 / Expo ≥51) all expose
+// \`globalThis.crypto.randomUUID()\` - no \`import { randomUUID } from 'crypto'\`
+// because that's a Node-only specifier that Metro/RN bundlers can't
+// resolve when the SDK is consumed from a mobile app.
+function randomUUID(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  // Fallback for ancient runtimes without Web Crypto. Math.random
+  // is fine here - workflow/run/activity IDs need uniqueness, not
+  // cryptographic strength (the runtime API key is the auth surface).
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
 import type { OpenBoxCoreClient } from '../core-client.js';
 import type {
   GovernanceEventPayload,

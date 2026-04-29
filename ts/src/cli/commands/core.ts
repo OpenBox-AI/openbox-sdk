@@ -49,6 +49,7 @@ export function registerCoreCommands(program: Command) {
     .option('--server <name>', 'MCP server name (for --type mcp)')
     .option('--tool-input <input>', 'MCP tool input, or @input.json to read from file (for --type mcp)')
     .option('--show-payload', 'Print the constructed payload instead of evaluating')
+    .option('--hook', 'Set hook_trigger=true (per the official temporal-sdk-python: only hook_governance.py-style events do this; activity-level events do NOT). Default false matches the activity-interceptor convention.')
     .action(async (opts) => {
       try {
         let payload: any;
@@ -72,6 +73,7 @@ export function registerCoreCommands(program: Command) {
           payload = buildTestPayload({
             type: opts.type as SpanType,
             activityType: opts.activityType,
+            hookTrigger: opts.hook,
             prompt,
             model: opts.model,
             filePath: opts.filePath,

@@ -129,8 +129,18 @@ export class OpenBoxCoreClient {
   }
 
   async evaluate(payload: GovernanceEventPayload): Promise<GovernanceVerdictResponse> {
+    // No retries on evaluate: each attempt the SDK constructs creates a
+    // fresh workflow on Temporal (workflow_id is set by the caller in
+    // the payload, but a 5xx-then-retry pattern still racks up wasted
+    // attempts on the server). More importantly, when staging core's
+    // grpc deadline (10s) fires and returns 500, retrying just amplifies
+    // the same outage from a 10s user-visible delay into ~44s while
+    // burning extra workflow slots. Single shot - surface the 500
+    // immediately so the caller can decide whether to retry with full
+    // context (e.g. fresh workflow_id, idempotency-friendly).
     return this.request('POST', '/api/v1/governance/evaluate', {
       data: payload,
+      retryable: false,
     }) as Promise<GovernanceVerdictResponse>;
   }
 
@@ -149,7 +159,7 @@ export class OpenBoxCoreClient {
   private async request(
     method: string,
     path: string,
-    options?: { data?: unknown },
+    options?: { data?: unknown; retryable?: boolean },
   ): Promise<unknown> {
     if (this.rateLimiter) {
       await this.rateLimiter.acquire();
@@ -163,7 +173,16 @@ export class OpenBoxCoreClient {
     };
     const body = options?.data ? JSON.stringify(options.data) : undefined;
 
-    const response = await this.executeWithRetry({ url, method, headers: baseHeaders, body, timeoutMs });
+    // Per-call retry opt-out for non-idempotent endpoints. evaluate()
+    // sets this false because each retry generates a fresh workflow on
+    // Temporal - a 5xx-then-retry pattern racks up zombie workflow
+    // executions and amplifies a transient 10s server-side outage from
+    // a 10s user-visible delay into ~44s. Surface the 5xx immediately
+    // so the caller decides whether to retry with a fresh workflow_id.
+    const retryable = options?.retryable ?? true;
+    const response = retryable
+      ? await this.executeWithRetry({ url, method, headers: baseHeaders, body, timeoutMs })
+      : await this.executeOnce({ url, method, headers: baseHeaders, body, timeoutMs });
 
     const contentType = response.headers.get('content-type');
     const isJson = contentType?.includes('application/json');
@@ -185,6 +204,27 @@ export class OpenBoxCoreClient {
     // No envelope unwrap here: a legitimate response like { id, action, data: {...} }
     // on a future endpoint would otherwise be silently discarded.
     return response.json();
+  }
+
+  /** Single-attempt fetch with the same per-request abort/timeout shape
+   *  as one iteration of executeWithRetry. Used by endpoints that opt
+   *  out of retries (evaluate). Network errors / timeouts surface as
+   *  exceptions for reportAndExit; HTTP 5xx come back as Response so
+   *  the caller can wrap them as CoreApiError. */
+  private async executeOnce(req: { url: string; method: string; headers: Record<string, string>; body?: string; timeoutMs: number }): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), req.timeoutMs);
+    try {
+      return await fetch(req.url, {
+        method: req.method,
+        credentials: 'omit',
+        headers: req.headers,
+        body: req.body,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private async executeWithRetry(req: { url: string; method: string; headers: Record<string, string>; body?: string; timeoutMs: number }): Promise<Response> {

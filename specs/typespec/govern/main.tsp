@@ -28,6 +28,210 @@ import "typespec-workflow";
 
 using OpenBox.Workflow;
 
+/**
+ * Display-label table for every canonical activity_type. Single source of
+ * truth for any consumer that renders activity types in a UI (mobile app,
+ * web dashboard, CLI list views, audit reports). The emitter materializes
+ * the table as `CANONICAL_ACTIVITY_LABELS` in the generated output, so
+ * adding a new @maps_to or @activityRouting entry requires bumping this
+ * table - caught by the drift test in tests/unit/govern-coverage.test.ts.
+ *
+ * Naming conventions:
+ *   - Acronyms preserved as-is: LLM, MCP, HTTP, CLI, IAM, DLP, SDK, API
+ *   - PascalCase split on word boundary: `LLMCompleted` → "LLM Completed"
+ *   - snake_case → Title Case: `on_llm_end` → "LLM End"
+ *   - kebab-case → Title Case: `node-pre-execute` → "Node Pre-Execute"
+ *   - Dotted namespaces preserved: `incident.triggered` → "Incident Triggered"
+ *   - SCREAMING_CASE → Title Case: `CHUNKING` → "Chunking"
+ */
+@activityLabels(#{
+  // Tier 1 - canonical envelope (event_type values, surfaced for parity).
+  // Not strictly activity_types but consumers sometimes render them too.
+
+  // --- Default preset ----------------------------------------------------
+  PromptSubmission: "Prompt Submission",
+  LLMCompleted: "LLM Completed",
+  ToolStarted: "Tool Started",
+  ToolCompleted: "Tool Completed",
+  FileRead: "File Read",
+  FileEdit: "File Edit",
+  FileDelete: "File Delete",
+  ShellExecution: "Shell Execution",
+  HTTPRequest: "HTTP Request",
+  MCPToolCall: "MCP Tool Call",
+  AgentSpawn: "Agent Spawn",
+
+  // --- Coding agents -----------------------------------------------------
+  PreToolUse: "Pre-Tool Use",
+  PostToolUse: "Post-Tool Use",
+  UserPromptSubmit: "User Prompt Submit",
+  PermissionRequest: "Permission Request",
+  PreCompact: "Pre-Compact",
+  SubagentStop: "Subagent Stop",
+  Notification: "Notification",
+  Stop: "Stop",
+  // Cursor - lowerCamel hook names
+  beforeSubmitPrompt: "Before Submit Prompt",
+  preToolUse: "Pre-Tool Use",
+  postToolUse: "Post-Tool Use",
+  beforeShellExecution: "Before Shell Execution",
+  afterShellExecution: "After Shell Execution",
+  beforeMCPExecution: "Before MCP Execution",
+  afterMCPExecution: "After MCP Execution",
+  beforeReadFile: "Before Read File",
+  afterFileEdit: "After File Edit",
+  afterAgentResponse: "After Agent Response",
+  afterAgentThought: "After Agent Thought",
+  // Copilot
+  userPromptSubmitted: "User Prompt Submitted",
+  agentStop: "Agent Stop",
+  subagentStop: "Subagent Stop",
+  errorOccurred: "Error Occurred",
+  // Cline
+  TaskStart: "Task Start",
+
+  // --- Frameworks --------------------------------------------------------
+  // LangChain (snake_case event names)
+  on_llm_start: "LLM Start",
+  on_llm_end: "LLM End",
+  on_llm_error: "LLM Error",
+  on_chat_model_start: "Chat Model Start",
+  on_tool_start: "Tool Start",
+  on_tool_end: "Tool End",
+  on_tool_error: "Tool Error",
+  on_chain_start: "Chain Start",
+  on_chain_end: "Chain End",
+  on_agent_action: "Agent Action",
+  on_agent_finish: "Agent Finish",
+  on_retriever_start: "Retriever Start",
+  on_retriever_end: "Retriever End",
+  // LangGraph
+  node_start: "Node Start",
+  node_end: "Node End",
+  interrupt: "Interrupt",
+  checkpoint: "Checkpoint",
+  task_start: "Task Start",
+  task_end: "Task End",
+  custom_event: "Custom Event",
+  // LlamaIndex (SCREAMING_CASE)
+  CHUNKING: "Chunking",
+  LLM: "LLM",
+  QUERY: "Query",
+  RETRIEVE: "Retrieve",
+  SYNTHESIZE: "Synthesize",
+  EMBEDDING: "Embedding",
+  FUNCTION_CALL: "Function Call",
+  AGENT_STEP: "Agent Step",
+  RERANKING: "Reranking",
+  SUB_QUESTION: "Sub-Question",
+  EXCEPTION: "Exception",
+  // CrewAI
+  CrewKickoffStarted: "Crew Kickoff Started",
+  CrewKickoffCompleted: "Crew Kickoff Completed",
+  AgentExecutionStarted: "Agent Execution Started",
+  AgentExecutionCompleted: "Agent Execution Completed",
+  TaskStarted: "Task Started",
+  TaskCompleted: "Task Completed",
+  ToolUsageStarted: "Tool Usage Started",
+  ToolUsageFinished: "Tool Usage Finished",
+  ToolUsageError: "Tool Usage Error",
+  LLMCallStarted: "LLM Call Started",
+  LLMCallCompleted: "LLM Call Completed",
+  // Autogen
+  TextMessage: "Text Message",
+  MultiModalMessage: "Multi-Modal Message",
+  ToolCallRequestEvent: "Tool Call Request",
+  ToolCallExecutionEvent: "Tool Call Execution",
+  MemoryQueryEvent: "Memory Query",
+  UserInputRequestedEvent: "User Input Requested",
+  HandoffMessage: "Handoff Message",
+  StopMessage: "Stop Message",
+  // Mastra (kebab-case)
+  `workflow-step-start`: "Workflow Step Start",
+  `workflow-step-finish`: "Workflow Step Finish",
+  `workflow-step-progress`: "Workflow Step Progress",
+  `tool-call`: "Tool Call",
+  `tool-result`: "Tool Result",
+  error: "Error",
+  // Vercel AI
+  onStepFinish: "Step Finish",
+  onFinish: "Finish",
+  onError: "Error",
+  onAbort: "Abort",
+  // Pydantic AI
+  UserPromptNode: "User Prompt Node",
+  ModelRequestNode: "Model Request Node",
+  CallToolsNode: "Call Tools Node",
+  End: "End",
+  output_validator: "Output Validator",
+  tool_retry: "Tool Retry",
+  // Semantic Kernel
+  function_invocation_pre: "Function Invocation Pre",
+  function_invocation_post: "Function Invocation Post",
+  prompt_render_pre: "Prompt Render Pre",
+  prompt_render_post: "Prompt Render Post",
+  auto_function_invocation_pre: "Auto Function Invocation Pre",
+  auto_function_invocation_post: "Auto Function Invocation Post",
+
+  // --- Workflow / orchestration -----------------------------------------
+  // Temporal
+  ActivityTaskScheduled: "Activity Task Scheduled",
+  ActivityTaskStarted: "Activity Task Started",
+  ActivityTaskCompleted: "Activity Task Completed",
+  ActivityTaskFailed: "Activity Task Failed",
+  ActivityTaskTimedOut: "Activity Task Timed Out",
+  ActivityTaskCanceled: "Activity Task Canceled",
+  ChildWorkflowExecutionInitiated: "Child Workflow Execution Initiated",
+  ChildWorkflowExecutionCompleted: "Child Workflow Execution Completed",
+  WorkflowExecutionSignaled: "Workflow Execution Signaled",
+  MarkerRecorded: "Marker Recorded",
+  TimerStarted: "Timer Started",
+  TimerFired: "Timer Fired",
+  // Airflow
+  on_execute_callback: "Execute Callback",
+  on_success_callback: "Success Callback",
+  on_failure_callback: "Failure Callback",
+  on_retry_callback: "Retry Callback",
+  sla_miss_callback: "SLA Miss Callback",
+  on_skipped_callback: "Skipped Callback",
+  // n8n
+  `node-pre-execute`: "Node Pre-Execute",
+  `node-post-execute`: "Node Post-Execute",
+  `error-trigger`: "Error Trigger",
+
+  // --- Specialized domains ----------------------------------------------
+  // PagerDuty (dotted)
+  `incident.triggered`: "Incident Triggered",
+  `incident.acknowledged`: "Incident Acknowledged",
+  `incident.escalated`: "Incident Escalated",
+  `incident.reassigned`: "Incident Reassigned",
+  `incident.delegated`: "Incident Delegated",
+  `incident.priority_updated`: "Incident Priority Updated",
+  `incident.resolved`: "Incident Resolved",
+  `incident.reopened`: "Incident Reopened",
+  `incident.unacknowledged`: "Incident Unacknowledged",
+  `incident.annotated`: "Incident Annotated",
+  // ArgoCD
+  OperationStarted: "Operation Started",
+  OperationCompleted: "Operation Completed",
+  ResourceUpdated: "Resource Updated",
+  PreSyncHookStarted: "Pre-Sync Hook Started",
+  PreSyncHookSucceeded: "Pre-Sync Hook Succeeded",
+  SyncStatusChanged: "Sync Status Changed",
+  // Modern Treasury (dotted)
+  `payment_order.approved`: "Payment Order Approved",
+  `payment_order.begin_processing`: "Payment Order Begin Processing",
+  `payment_order.failed`: "Payment Order Failed",
+  `payment_order.reconciled`: "Payment Order Reconciled",
+  `payment_reference.created`: "Payment Reference Created",
+
+  // --- Adapter @activityRouting destinations ----------------------------
+  // Cursor's preToolUse routes to lowercase activity_types that aren't
+  // emitted from any @maps_to. Listed for label parity.
+  file_read: "File Read",
+  file_write: "File Write",
+  agent_action: "Agent Action",
+})
 namespace OpenboxGovern;
 
 // ---------------------------------------------------------------------------

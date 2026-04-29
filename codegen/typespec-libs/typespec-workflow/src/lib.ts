@@ -69,6 +69,12 @@ export const $lib = createTypeSpecLibrary({
         default: paramMessage`Invalid @installTarget: ${'reason'}`,
       },
     },
+    'invalid-activity-labels': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @activityLabels: ${'reason'}`,
+      },
+    },
   },
   state: {
     verdict: { description: 'flag: model is the canonical verdict shape' },
@@ -83,6 +89,7 @@ export const $lib = createTypeSpecLibrary({
     installTarget: { description: 'install file/key/style/command attached to an adapter interface' },
     installTimeout: { description: 'per-event install timeout (seconds) attached to an adapter operation' },
     activityVariants: { description: 'predicate-based activity-type reroute table attached to an adapter operation' },
+    activityLabels: { description: 'activity_type → human-readable display label table attached to a namespace' },
   },
 });
 

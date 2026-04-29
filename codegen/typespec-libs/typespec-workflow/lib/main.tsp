@@ -219,3 +219,24 @@ extern dec activityVariant(
   toolName: valueof string,
   variant: valueof Record<unknown>,
 );
+
+/**
+ * Spec-driven display labels for canonical activity_type strings.
+ *
+ * The emitter materializes the table as a `CANONICAL_ACTIVITY_LABELS`
+ * constant of type Record<string,string>, so every consumer (UIs, CLI
+ * list views, report generators) reads from a single source of truth.
+ *
+ * Apply once at the namespace that owns the canonical activity_type
+ * vocabulary (typically `OpenboxGovern`). Multiple calls merge - later
+ * entries win on conflict, so a downstream profile can override a single
+ * label without redeclaring the whole table.
+ *
+ * Custom-preset domain agents (FinOps, IAM, RPA, ...) emit free-form
+ * activity_types that aren't in this table; consumers fall back to a
+ * Title-Case formatter for unknown strings.
+ *
+ * @param table Map of activity_type string → display label.
+ *   e.g. `#{ LLMCompleted: "LLM Completed", MCPToolCall: "MCP Tool Call" }`.
+ */
+extern dec activityLabels(target: Namespace, table: valueof Record<string>);
