@@ -77,14 +77,6 @@ export function getValidator(program: Program, target: ModelProperty): string | 
   return program.stateMap(stateKeys.validator).get(target);
 }
 
-export function $cli_output(context: DecoratorContext, target: Model): void {
-  context.program.stateMap(stateKeys.output).set(target, true);
-}
-
-export function isOutput(program: Program, target: Model): boolean {
-  return program.stateMap(stateKeys.output).get(target) === true;
-}
-
 // ─── Maturity ─────────────────────────────────────────────────
 // CLI command surface gating. `stable` ships in the default openbox
 // surface; `beta` requires --experimental beta or env opt-in; `experimental`
@@ -465,6 +457,14 @@ export function $cli_local_only(context: DecoratorContext, target: Operation): v
 
 export function isLocalOnly(program: Program, target: Operation): boolean {
   return program.stateMap(stateKeys.localOnly).get(target) === true;
+}
+
+export function $cli_destructive(context: DecoratorContext, target: Operation): void {
+  context.program.stateMap(stateKeys.destructive).set(target, true);
+}
+
+export function isDestructive(program: Program, target: Operation): boolean {
+  return program.stateMap(stateKeys.destructive).get(target) === true;
 }
 
 /** Names a callback registered in PREFLIGHT_REGISTRY that runs before

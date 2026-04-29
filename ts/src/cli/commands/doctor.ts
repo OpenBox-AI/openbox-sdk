@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'fs';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { getClient, getTokenPath, loadTokens } from '../config.js';
 import { resolveEnv, resolveUrls } from '../../env/index.js';
+import { EXIT, bailWith } from '../exit-codes.js';
 
 type Check = {
   name: string;
@@ -158,6 +159,6 @@ export function registerDoctorCommand(program: Command) {
       console.log(
         `\n${checks.length - failed.length - warned.length} pass, ${warned.length} warn, ${failed.length} fail`,
       );
-      if (failed.length > 0) process.exit(1);
+      if (failed.length > 0) bailWith(EXIT.GENERIC);
     });
 }

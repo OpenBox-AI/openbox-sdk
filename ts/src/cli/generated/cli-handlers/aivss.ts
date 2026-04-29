@@ -35,6 +35,7 @@ export const AIVSS_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "assessments"
@@ -72,6 +73,7 @@ export const AIVSS_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -91,6 +93,7 @@ export const AIVSS_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -107,6 +110,7 @@ export const AIVSS_HANDLERS: SubcommandSpec[] = [
     "pagination": false,
     "jsonMerge": "only",
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }

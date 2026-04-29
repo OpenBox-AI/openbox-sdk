@@ -10,6 +10,7 @@ import { output } from '../output.js';
 import { parseJsonInput } from '../../validators/index.js';
 import { buildTestPayload, SPAN_TYPES, type SpanType } from '../../test-utils/index.js';
 import { reportAndExit } from '../../validators/index.js';
+import { EXIT, bailWith } from '../exit-codes.js';
 import { wireSubcommands } from '../wire-subcommands.js';
 import { CORE_HANDLERS } from '../generated/cli-handlers/core.js';
 
@@ -18,7 +19,7 @@ function resolveValue(value: string | undefined): string | undefined {
   const filePath = value.slice(1);
   if (!existsSync(filePath)) {
     console.error(`File not found: ${filePath}`);
-    process.exit(1);
+    bailWith(EXIT.USAGE);
   }
   return readFileSync(filePath, 'utf-8');
 }
@@ -57,7 +58,7 @@ export function registerCoreCommands(program: Command) {
         } else if (opts.type) {
           if (!(SPAN_TYPES as readonly string[]).includes(opts.type)) {
             console.error(`Invalid --type: ${opts.type}. Must be one of: ${SPAN_TYPES.join(', ')}`);
-            process.exit(1);
+            bailWith(EXIT.USAGE);
           }
           const prompt = resolveValue(opts.prompt);
           const content = resolveValue(opts.content);
@@ -88,7 +89,7 @@ export function registerCoreCommands(program: Command) {
           });
         } else {
           console.error('Either --json or --type is required');
-          process.exit(1);
+          bailWith(EXIT.USAGE);
         }
 
         if (opts.showPayload) {

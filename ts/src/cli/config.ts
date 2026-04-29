@@ -12,6 +12,7 @@ import {
   resolveUrls,
   validateApiKeyFormat as generatedValidateApiKey,
 } from '../env/index.js';
+import { EXIT, bailWith } from './exit-codes.js';
 // os-paths lives at a sub-export so React Native consumers don't pull
 // Node's `os`/`path` modules through the env package's default entry.
 import { resolveOsPath } from '../env/os-paths.js';
@@ -39,13 +40,21 @@ function readStore(): TokenStore {
 }
 
 function loadTokens(env: EnvName): { accessToken: string; refreshToken?: string } {
+  // Ephemeral env-injected token wins over the on-disk store. Lets CI
+  // runs supply tokens without writing to ~/.openbox/tokens (no on-disk
+  // leak after the runner shuts down).
+  const envToken = process.env.OPENBOX_ACCESS_TOKEN;
+  if (envToken) {
+    return { accessToken: envToken, refreshToken: process.env.OPENBOX_REFRESH_TOKEN };
+  }
   const store = readStore();
   const entry = store[env];
   if (!entry?.accessToken) {
     console.error(`No tokens found for environment '${env}'.`);
     console.error(`Run: openbox ${env === 'production' ? '' : `--env ${env} `}auth login`);
     console.error(`Or:  openbox ${env === 'production' ? '' : `--env ${env} `}auth set-token <token>`);
-    process.exit(1);
+    console.error(`Or set OPENBOX_ACCESS_TOKEN=<token> in the environment.`);
+    bailWith(EXIT.AUTH);
   }
   return { accessToken: entry.accessToken, refreshToken: entry.refreshToken };
 }
@@ -76,7 +85,7 @@ function saveTokens(
     permissions: permissions ?? existing.permissions,
     features: existing.features,
   };
-  writeFileSync(path, serializeTokenStore(store));
+  writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
 }
 
 function savePermissions(env: EnvName, permissions: string[]) {
@@ -84,7 +93,7 @@ function savePermissions(env: EnvName, permissions: string[]) {
   const store = readStore();
   if (!store[env]?.accessToken) return;
   store[env] = { ...store[env], permissions };
-  writeFileSync(path, serializeTokenStore(store));
+  writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
 }
 
 function saveFeatures(env: EnvName, features: FeatureMap) {
@@ -92,7 +101,7 @@ function saveFeatures(env: EnvName, features: FeatureMap) {
   const store = readStore();
   if (!store[env]?.accessToken) return;
   store[env] = { ...store[env], features };
-  writeFileSync(path, serializeTokenStore(store));
+  writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
 }
 
 // Remove all persisted state for a single env (tokens, refresh, permissions,
@@ -102,7 +111,7 @@ function clearTokens(env: EnvName): boolean {
   const store = readStore();
   if (!store[env]) return false;
   delete store[env];
-  writeFileSync(path, serializeTokenStore(store));
+  writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
   return true;
 }
 
@@ -188,7 +197,7 @@ function validateApiKeyFormat(key: string): void {
       `\nGet a key from 'agent create' (returned once on create) or 'api-key rotate <agentId>'.`,
     );
   }
-  process.exit(1);
+  bailWith(EXIT.AUTH);
 }
 
 function getCoreClient(env?: EnvName): OpenBoxCoreClient {
@@ -196,7 +205,7 @@ function getCoreClient(env?: EnvName): OpenBoxCoreClient {
   const apiKey = process.env.OPENBOX_API_KEY || '';
   if (!apiKey) {
     console.error('No OPENBOX_API_KEY found. Set it in your environment.');
-    process.exit(1);
+    bailWith(EXIT.AUTH);
   }
   validateApiKeyFormat(apiKey);
   const { coreUrl } = resolveUrls(resolved);

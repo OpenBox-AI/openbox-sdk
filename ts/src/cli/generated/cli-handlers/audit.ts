@@ -66,6 +66,7 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "audit logs"
@@ -158,6 +159,7 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
     "pagination": false,
     "jsonMerge": "fill",
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -212,6 +214,7 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
     "pagination": false,
     "jsonMerge": "replace",
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -256,6 +259,7 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "exports"
@@ -276,6 +280,7 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "binary"
     }
@@ -295,6 +300,7 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -314,6 +320,7 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }

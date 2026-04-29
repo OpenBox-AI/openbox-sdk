@@ -38,6 +38,8 @@ import { registerWebhookCommands } from './commands/webhook.js';
 import { registerSsoCommands } from './commands/sso.js';
 import { gateCommands, setMaturityOverride } from './maturity.js';
 import { setExplicitFeatures } from './features.js';
+import { EXIT, bailWith } from './exit-codes.js';
+import { reportAndExit } from '../validators/index.js';
 
 const program = new Command();
 
@@ -57,6 +59,17 @@ program
     '--feature <name...>',
     'Enable specific experimental feature flags within commands (also via OPENBOX_FEATURES=name1,name2). Fine: gates code paths inside a stable command.',
   )
+  .option(
+    '-y, --yes',
+    'Assume yes for confirmation prompts. Implied by CI=1, OPENBOX_NONINTERACTIVE=1, or non-TTY stdin.',
+  )
+  .option(
+    '--non-interactive',
+    'Hard-fail instead of prompting on missing input. Implied by CI=1 / OPENBOX_NONINTERACTIVE=1.',
+  )
+  .option('--no-color', 'Disable ANSI color output. Implied by NO_COLOR=1, OPENBOX_NO_COLOR=1, or CI=1.')
+  .option('-q, --quiet', 'Suppress non-essential progress lines on stderr (errors still print).')
+  .option('--json', 'Emit machine-readable JSON instead of human-rendered output.')
   .hook('preAction', (thisCommand, actionCommand) => {
     const flag = thisCommand.opts().env as string | undefined;
     if (flag) process.env.OPENBOX_ENV = flag;
@@ -82,7 +95,7 @@ program
           console.error(
             `To fix: ask your admin to enable the feature on the ${env} org.`,
           );
-          process.exit(4);
+          bailWith(EXIT.FEATURE_DISABLED);
         }
       }
     }
@@ -104,7 +117,7 @@ program
     console.error(
       `To fix: ask your admin to grant the missing permission(s) on the ${env} Keycloak role.`,
     );
-    process.exit(3);
+    bailWith(EXIT.AUTH);
   });
 
 function buildCommandKey(cmd: Command): string {
@@ -165,6 +178,5 @@ registerSsoCommands(program);
 gateCommands(program);
 
 program.parseAsync(process.argv).catch((err) => {
-  console.error(err.message || err);
-  process.exit(1);
+  reportAndExit(err);
 });

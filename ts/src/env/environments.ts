@@ -26,17 +26,52 @@ export const resolveEnv: EnvLoader['resolveEnv'] = (cliFlag) => {
   const raw = cliFlag ?? process.env.OPENBOX_ENV ?? 'production';
   const name = raw.toLowerCase();
   if (name !== 'production' && name !== 'staging' && name !== 'local') {
-    console.error(`Unknown environment: ${raw}. Use 'production', 'staging', or 'local'.`);
-    process.exit(1);
+    // Throw rather than process.exit - this module is a library export
+    // (UI / IDE consumers depend on it) and shouldn't kill its host.
+    // The CLI funnels everything through reportAndExit, which produces
+    // exit code 2 (USAGE) for these.
+    throw new Error(
+      `Unknown environment: ${raw}. Use 'production', 'staging', or 'local'.`,
+    );
   }
   return name;
 };
 
+// Plaintext http:// is allowed for:
+//   - env='local' (dev)
+//   - any env when the host is loopback (localhost / 127.0.0.1 / ::1)
+//     - a packet over loopback never leaves the machine, so token-
+//     in-plaintext is a theoretical not actual leak.
+// All other http:// in non-local envs is rejected - protects against
+// CI misconfig where OPENBOX_API_URL points at a remote attacker's
+// http endpoint.
+function enforceProtocol(env: string, url: string, name: string): string {
+  if (env === 'local') return url;
+  if (!url.startsWith('http://')) return url;
+  // Permit http://localhost / http://127.0.0.1 / http://[::1] regardless
+  // of env (covers e2e tests against a local stack with OPENBOX_ENV=production).
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    throw new Error(`${name}=${url} is not a valid URL.`);
+  }
+  // Node's URL keeps the [] brackets on IPv6 hostnames - match both shapes.
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]') return url;
+  throw new Error(
+    `${name}=${url} uses http:// to a remote host in env '${env}'. ` +
+      `Plaintext is only allowed for env='local' or loopback hosts. Use https:// or set OPENBOX_ENV=local.`,
+  );
+}
+
 export const resolveUrls: EnvLoader['resolveUrls'] = (env) => {
   const base = ENVIRONMENTS[env];
+  const apiUrl = process.env[ENV_VAR_BINDINGS.apiUrl.name] || base.apiUrl;
+  const coreUrl = process.env[ENV_VAR_BINDINGS.coreUrl.name] || base.coreUrl;
+  const platformUrl = process.env[ENV_VAR_BINDINGS.platformUrl.name] || base.platformUrl;
   return {
-    apiUrl: process.env[ENV_VAR_BINDINGS.apiUrl.name] || base.apiUrl,
-    coreUrl: process.env[ENV_VAR_BINDINGS.coreUrl.name] || base.coreUrl,
-    platformUrl: process.env[ENV_VAR_BINDINGS.platformUrl.name] || base.platformUrl,
+    apiUrl: enforceProtocol(env, apiUrl, ENV_VAR_BINDINGS.apiUrl.name),
+    coreUrl: enforceProtocol(env, coreUrl, ENV_VAR_BINDINGS.coreUrl.name),
+    platformUrl: enforceProtocol(env, platformUrl, ENV_VAR_BINDINGS.platformUrl.name),
   };
 };

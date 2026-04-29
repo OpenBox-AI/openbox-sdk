@@ -27,7 +27,9 @@ describe('Agent CRUD Lifecycle', () => {
     expect(body.data.agent.agent_name).toBe(agentName);
     expect(body.data.agent.organization_id).toBeDefined();
     expect(body.data.token).toBeDefined();
-    expect(body.data.token).toMatch(/^obx_live_/);
+    // Backend issues obx_live_* in prod and obx_test_* everywhere else.
+    // Accept both - env-detection bug land if we hardcode one.
+    expect(body.data.token).toMatch(/^obx_(?:live|test)_/);
 
     agentId = body.data.agent.id;
     apiKey = body.data.token;

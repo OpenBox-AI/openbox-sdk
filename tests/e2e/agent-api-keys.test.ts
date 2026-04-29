@@ -39,7 +39,8 @@ describe('Agent API Key Management', () => {
 
     expect(body.status).toBe(200);
     expect(body.data.token).toBeDefined();
-    expect(body.data.token).toMatch(/^obx_live_/);
+    // Backend issues obx_live_* in prod and obx_test_* everywhere else.
+    expect(body.data.token).toMatch(/^obx_(?:live|test)_/);
     expect(body.data.token).not.toBe(apiKey);
 
     apiKey = body.data.token;

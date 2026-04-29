@@ -37,6 +37,7 @@ import {
   getAtLeastOne,
   getRequiredTogether,
   isLocalOnly,
+  isDestructive,
   getPreflight,
   getDtoDefaults,
   getPostValidate,
@@ -895,6 +896,7 @@ function emitCliHandlerSpecs(
       const atLeastOne = getAtLeastOne(program, op);
       const requiredTogether = getRequiredTogether(program, op);
       const localOnly = isLocalOnly(program, op);
+      const destructive = isDestructive(program, op);
       const preflight = getPreflight(program, op);
       const dtoDefaults = getDtoDefaults(program, op);
       const postValidate = getPostValidate(program, op);
@@ -909,6 +911,7 @@ function emitCliHandlerSpecs(
         atLeastOne,
         requiredTogether,
         localOnly,
+        destructive,
         preflight,
         dtoDefaults,
         postValidate,
@@ -1635,9 +1638,23 @@ ${dispatchCases}
 }
 
 async function defaultReadStdin(): Promise<string> {
+  // 10 MB cap. Hook events from claude-code/cursor are bounded to
+  // tens of KB in practice; anything larger is either a runaway log
+  // dump or an attacker piping to OOM the hook process. We bail
+  // explicitly with a clear error rather than letting the buffer
+  // grow without bound.
+  const MAX_BYTES = 10 * 1024 * 1024;
   const chunks: Buffer[] = [];
+  let total = 0;
   for await (const chunk of process.stdin) {
-    chunks.push(chunk as Buffer);
+    const buf = chunk as Buffer;
+    total += buf.length;
+    if (total > MAX_BYTES) {
+      throw new Error(
+        \`hook stdin exceeded \${MAX_BYTES.toLocaleString()} bytes - refusing to buffer further (likely runaway pipe or hostile input)\`,
+      );
+    }
+    chunks.push(buf);
   }
   return Buffer.concat(chunks).toString('utf-8');
 }

@@ -14,6 +14,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "behavior types"
@@ -34,6 +35,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "rules"
@@ -54,6 +56,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -76,6 +79,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -98,6 +102,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": true,
     "output": {
       "kind": "kv"
     }
@@ -213,6 +218,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
     "pagination": false,
     "jsonMerge": "fill",
     "localOnly": false,
+    "destructive": false,
     "postValidate": [
       "behaviorRuleCrossField"
     ],
@@ -248,6 +254,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
     "pagination": false,
     "jsonMerge": "fill",
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -284,6 +291,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -306,6 +314,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -328,6 +337,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "versions"
@@ -348,6 +358,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -367,6 +378,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "violations"

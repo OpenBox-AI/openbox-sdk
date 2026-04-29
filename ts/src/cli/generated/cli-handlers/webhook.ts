@@ -14,6 +14,7 @@ export const WEBHOOK_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "webhooks"
@@ -31,6 +32,7 @@ export const WEBHOOK_HANDLERS: SubcommandSpec[] = [
     "pagination": false,
     "jsonMerge": "replace",
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -50,6 +52,7 @@ export const WEBHOOK_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -70,6 +73,7 @@ export const WEBHOOK_HANDLERS: SubcommandSpec[] = [
     "pagination": false,
     "jsonMerge": "replace",
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -89,6 +93,7 @@ export const WEBHOOK_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": true,
     "output": {
       "kind": "kv"
     }
@@ -108,6 +113,7 @@ export const WEBHOOK_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -127,6 +133,7 @@ export const WEBHOOK_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv",
       "post": "highlightWebhookSecret"
@@ -147,6 +154,7 @@ export const WEBHOOK_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "webhook deliveries"

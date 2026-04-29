@@ -28,6 +28,7 @@ import {
   validateRegoSource,
 } from '../validators/index.js';
 import type { OpenBoxClient } from '../client/index.js';
+import { requireYesForDestructive } from './non-interactive.js';
 
 export interface FlagSpec {
   /** TypeSpec parameter name (camelCase). */
@@ -97,6 +98,12 @@ export interface SubcommandSpec {
    *  state and lives hand-coded in commands/<x>.ts (this entry just
    *  carries the marker for drift tests). */
   localOnly?: boolean;
+  /** True when the op is destructive (delete/revoke/rotate). The
+   *  runtime requires `--yes` / `-y` to proceed, OR an explicit
+   *  non-interactive marker (`--non-interactive` / CI=1 /
+   *  OPENBOX_NONINTERACTIVE=1). Without those, the command fails
+   *  fast with a USAGE error - never blocks waiting for stdin. */
+  destructive?: boolean;
   /** Name of a registered preflight callback (PREFLIGHT_REGISTRY)
    *  that runs before the main call with (body, getClient). */
   preflight?: string;
@@ -550,6 +557,12 @@ export function wireSubcommands(
         // We slice off positionals based on declared arg count.
         const positionalValues = rawArgs.slice(0, sub.args.length);
         const opts = (rawArgs[sub.args.length] ?? {}) as Record<string, unknown>;
+
+        // Destructive-op gate: runtime enforcement of @cli_destructive.
+        // Refuse to proceed without `--yes` / `-y` (or OPENBOX_ASSUME_YES).
+        // Fails closed in interactive contexts too - we never block on stdin.
+        if (sub.destructive) requireYesForDestructive(`${parent.name()} ${sub.name}`);
+
         const client = getClient() as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>;
         const fn = client[sub.backend.method];
         if (typeof fn !== 'function') {

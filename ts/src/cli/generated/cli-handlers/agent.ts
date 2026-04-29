@@ -43,6 +43,7 @@ export const AGENT_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "agents"
@@ -63,6 +64,7 @@ export const AGENT_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -82,6 +84,7 @@ export const AGENT_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": true,
     "output": {
       "kind": "kv"
     }
@@ -148,6 +151,7 @@ export const AGENT_HANDLERS: SubcommandSpec[] = [
     "pagination": false,
     "jsonMerge": "replace",
     "localOnly": false,
+    "destructive": false,
     "preflight": "agentCreatePreflight",
     "dtoDefaults": {
       "aivss_config": {
@@ -240,6 +244,7 @@ export const AGENT_HANDLERS: SubcommandSpec[] = [
     "pagination": false,
     "jsonMerge": "replace",
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }

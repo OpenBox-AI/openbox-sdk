@@ -26,6 +26,11 @@
 
 export { parseJsonInput } from './input.js';
 
+import { EXIT, exitCodeForStatus } from '../cli/exit-codes.js';
+import { color } from '../cli/colors.js';
+export { EXIT, exitCodeForStatus, isRetryable, bailWith } from '../cli/exit-codes.js';
+export type { ExitCode } from '../cli/exit-codes.js';
+
 export class ValidationError extends Error {
   constructor(
     public rule: string,
@@ -41,7 +46,7 @@ export class ValidationError extends Error {
 /** Print a warning to stderr. Non-fatal. */
 export function warn(message: string, reference?: string): void {
   const ref = reference ? `  See ${reference}.` : '';
-  console.error(`\x1b[33mwarn:\x1b[0m ${message}${ref}`);
+  console.error(`${color.yellow('warn:')} ${message}${ref}`);
 }
 
 /** Block with a hard error. Caller exits with code 2 (user-input error). */
@@ -50,35 +55,55 @@ export function block(rule: string, message: string, fix?: string, reference?: s
 }
 
 export function reportAndExit(err: unknown): never {
+  // Destructive-op gate.Surfaces a clean USAGE error
+  // rather than dumping a stack trace from the runtime helper.
+  if (err instanceof Error && err.name === 'DestructiveConfirmRequiredError') {
+    console.error(`${color.red('error:')} ${err.message}`);
+    process.exit(EXIT.USAGE);
+  }
+
   if (err instanceof ValidationError) {
-    console.error(`\x1b[31merror:\x1b[0m ${err.message}`);
+    console.error(`${color.red('error:')} ${err.message}`);
     if (err.fix) console.error(`  fix: ${err.fix}`);
     if (err.reference) console.error(`  see: ${err.reference}`);
-    process.exit(2);
+    process.exit(EXIT.USAGE);
   }
 
   // OpenBoxApiError (from openbox-sdk/client) and CoreApiError (from
   // openbox-sdk/core-client) - surface status + body so users don't see
   // a bare "Request failed: 500 Internal Server Error" with no context.
   // Both share the same { name, status, body } shape; check by name.
-  const apiErr = err as { name?: string; message?: string; status?: number; body?: unknown };
+  const apiErr = err as { name?: string; message?: string; status?: number; body?: unknown; code?: string };
   if (
     apiErr &&
     (apiErr.name === 'OpenBoxApiError' || apiErr.name === 'CoreApiError') &&
     typeof apiErr.status === 'number'
   ) {
-    console.error(`\x1b[31merror:\x1b[0m ${apiErr.message}`);
+    console.error(`${color.red('error:')} ${apiErr.message}`);
     const detail = extractApiErrorDetail(apiErr.body);
     if (detail) console.error(`  detail: ${detail}`);
-    // Status-specific hint helps the user decide whether to fix the input,
-    // the permission, or the resource ID.
     const hint = hintForStatus(apiErr.status);
     if (hint) console.error(`  hint: ${hint}`);
-    process.exit(apiErr.status === 403 ? 3 : 1);
+    process.exit(exitCodeForStatus(apiErr.status));
+  }
+
+  // Node fetch / undici network errors - ECONNREFUSED, DNS, timeout.
+  // Surface as EXIT.NETWORK so retry loops can branch on it.
+  const code = (err as { code?: string }).code;
+  if (
+    code === 'ECONNREFUSED' ||
+    code === 'ENOTFOUND' ||
+    code === 'ETIMEDOUT' ||
+    code === 'ECONNRESET' ||
+    code === 'UND_ERR_SOCKET' ||
+    code === 'UND_ERR_CONNECT_TIMEOUT'
+  ) {
+    console.error(`${color.red('error:')} network: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(EXIT.NETWORK);
   }
 
   console.error(err instanceof Error ? err.message : String(err));
-  process.exit(1);
+  process.exit(EXIT.GENERIC);
 }
 
 function extractApiErrorDetail(body: unknown): string | null {

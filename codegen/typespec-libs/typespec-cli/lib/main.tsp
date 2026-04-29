@@ -55,13 +55,6 @@ extern dec cli_flag(
 extern dec cli_validator(target: ModelProperty, name: valueof string);
 
 /**
- * Marks a model as the structured output payload of a CLI command.
- * Emitters produce both human-readable rendering and a `--json` mode
- * that prints this model verbatim. Only one `@cli_output` per command.
- */
-extern dec cli_output(target: Model);
-
-/**
  * CLI maturity gate. `stable` ships in the default surface; `beta`
  * requires --experimental=beta (or env); `experimental` requires
  * --experimental. Decorator can target a whole command interface
@@ -236,6 +229,23 @@ extern dec cli_required_together(target: Operation, fields: valueof string[]);
  * guarantees the implementation matches.
  */
 extern dec cli_local_only(target: Operation);
+
+/**
+ * Marks an op as destructive (deletes/revokes/rotates an external
+ * resource - anything that would be regrettable to run by accident).
+ * The runtime enforces this at command time:
+ *   - if `--yes` / `-y` was passed → proceed
+ *   - if a CI / non-interactive context is detected (CI=1,
+ *     OPENBOX_NONINTERACTIVE=1, non-TTY stdin) AND no `--yes` →
+ *     bail with a clear "this command is destructive; pass --yes
+ *     to confirm" error (exit 2 / USAGE)
+ *   - otherwise (interactive TTY, no --yes) → fail-closed with the
+ *     same message; the CLI never blocks waiting for stdin
+ *
+ * Drift test: every spec op with verb `delete` / `revoke` / `rotate`
+ * must carry `@cli_destructive` (or an explicit allowlist entry).
+ */
+extern dec cli_destructive(target: Operation);
 
 /**
  * Names a callback registered in PREFLIGHT_REGISTRY (in

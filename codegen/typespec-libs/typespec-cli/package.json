@@ -1,7 +1,7 @@
 {
   "name": "typespec-cli",
   "version": "0.0.0",
-  "description": "TypeSpec library: @cli_command, @cli_flag, @cli_validator, @cli_output decorators for the CLI surface",
+  "description": "TypeSpec library: @cli_command, @cli_flag, @cli_validator, @cli_calls, @cli_maturity (and 20 more) decorators for the CLI surface",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",

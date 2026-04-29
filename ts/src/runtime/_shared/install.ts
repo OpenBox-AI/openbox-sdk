@@ -84,7 +84,10 @@ function dropExampleConfig(spec: InstallSpec): void {
     VERBOSE: false,
     DRY_RUN: true,
   };
-  fs.writeFileSync(file, JSON.stringify(example, null, 2) + '\n', 'utf-8');
+  // 0o600: this template is the file the user pastes their API key into;
+  // treat as sensitive from creation rather than relying on them to chmod
+  // it later. Windows ignores mode bits.
+  fs.writeFileSync(file, JSON.stringify(example, null, 2) + '\n', { mode: 0o600, encoding: 'utf-8' });
   // eslint-disable-next-line no-console
   console.log(`Created example config at ${file}`);
   // eslint-disable-next-line no-console
