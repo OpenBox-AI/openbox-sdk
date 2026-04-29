@@ -111,6 +111,8 @@ openbox behavior create $AGENT_ID \
   --message "Approval required for outbound POSTs"
 ```
 
+**This is the ONLY place in the spec where you can set the approval window.** OPA policies have no `approval_timeout` field on `CreatePolicyDto`, nor any way to return one through the Rego `result` shape - when an OPA policy returns `REQUIRE_APPROVAL`, core injects a server-side default (~30m). So if the user cares about the timeout value, route them to a behavior_rule, not a policy. See `references/rego-reference.md § Approval timeout` for the full breakdown.
+
 ## Behavior-Rule Endpoint Is SINGULAR
 
 Backend endpoint is `GET /agent/{id}/behavior-rule` - singular. `GET /agent/{id}/behavior-rules` (plural) returns 404.

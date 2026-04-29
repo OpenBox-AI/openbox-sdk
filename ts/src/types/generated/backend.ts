@@ -2078,7 +2078,14 @@ export interface components {
             verdict: 0 | 1 | 2 | 3 | 4;
             /** @description Reject message */
             reject_message: string;
-            /** @description Approval timeout (in seconds, required if verdict is REQUIRE_APPROVAL) */
+            /**
+             * @description Approval timeout in seconds - required when verdict is REQUIRE_APPROVAL.
+             *     Drives `approval_expiration_time = now + this_value` on every approval
+             *     row produced by this rule. This is the only surface in the spec where
+             *     the approval window is user-configurable. OPA policies (CreatePolicyDto)
+             *     have no equivalent field and always inherit a server-side default
+             *     (~30m observed) when their REQUIRE_APPROVAL fires.
+             */
             approval_timeout?: number;
             /**
              * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
@@ -2560,7 +2567,14 @@ export interface components {
             verdict: 0 | 1 | 2 | 3 | 4;
             /** @description Reject message */
             reject_message: string;
-            /** @description Approval timeout (in seconds, required if verdict is REQUIRE_APPROVAL) */
+            /**
+             * @description Approval timeout in seconds - required when verdict is REQUIRE_APPROVAL.
+             *     Drives `approval_expiration_time = now + this_value` on every approval
+             *     row produced by this rule. This is the only surface in the spec where
+             *     the approval window is user-configurable. OPA policies (CreatePolicyDto)
+             *     have no equivalent field and always inherit a server-side default
+             *     (~30m observed) when their REQUIRE_APPROVAL fires.
+             */
             approval_timeout?: number;
             /**
              * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.

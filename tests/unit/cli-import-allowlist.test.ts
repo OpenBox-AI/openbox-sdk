@@ -41,6 +41,10 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   '../features.js': 'isFeatureEnabled gate.',
   '../maturity.js': 'CLI maturity gate (gateCommands).',
   '../exit-codes.js': 'EXIT taxonomy + bailWith - exit-code contract.',
+  '../../runtime/_shared/agent-keys-store.js':
+    'recordAgentKey / recallAgentKey - local 0o600 cache for runtime API keys captured by agent create + api-key rotate (shared between cli and runtime/mcp).',
+  '../config-store.js':
+    'setConfig / getConfig / unsetConfig / listConfig / configStorePath / applyConfigToProcessEnv - persistent per-env CLI config, layered into process.env at startup.',
   '../colors.ts': 'useColor-aware ANSI helpers - color discipline.',
   '../colors.js': 'useColor-aware ANSI helpers - color discipline.',
   '../non-interactive.js':

@@ -62,7 +62,7 @@ export const API_KEY_HANDLERS: SubcommandSpec[] = [
   },
   {
     "name": "rotate",
-    "description": "Rotate API key for an agent. The runtime key is highlighted to\nstderr (one-time display) via the post callback.",
+    "description": "Rotate API key for an agent. The runtime key is highlighted to\nstderr (one-time display) via the post callback, AND cached to\nthe per-OS agent-keys store (mode 0o600) so `recall` can\nretrieve it without another rotation.",
     "args": [
       {
         "name": "agentId"
