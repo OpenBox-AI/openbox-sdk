@@ -69,6 +69,10 @@ const LOCAL_ONLY: Record<string, string> = {
   'auth:logout': 'Drops the persisted token store + calls logout indirectly.',
   'auth:login': 'OAuth redirect captured via expo-web-browser; finishes by saving tokens locally.',
   'auth:profile': 'Reads + decorates the persisted profile.',
+  'config:set': 'Writes to ~/.openbox/config (per-env KV store, mode 0o600). No SDK call.',
+  'config:get': 'Reads from ~/.openbox/config. No SDK call.',
+  'config:unset': 'Removes a key from ~/.openbox/config. No SDK call.',
+  'config:list': 'Snapshots ~/.openbox/config for the active env. No SDK call.',
 };
 
 interface ManifestSubcommand {

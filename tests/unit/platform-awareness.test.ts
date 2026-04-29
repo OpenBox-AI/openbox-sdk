@@ -81,6 +81,30 @@ describe('platform / OS awareness contract', () => {
     expect(installSrc).toContain('mode: 0o600');
   });
 
+  it('agent-keys store writes carry mode: 0o600', () => {
+    // The store caches obx_live_*/obx_test_* runtime keys captured by
+    // `agent create` and `api-key rotate` post-callbacks. A regression
+    // that drops the bit would leave runtime keys world-readable on
+    // shared Unix boxes.
+    const src = readFileSync(`${SRC_ROOT}/runtime/_shared/agent-keys-store.ts`, 'utf-8');
+    const total = (src.match(/\bwriteFileSync\s*\(/g) ?? []).length;
+    const secured = (src.match(/\bwriteFileSync\b[^;]*0o600/gs) ?? []).length;
+    expect(total).toBeGreaterThanOrEqual(1);
+    expect(secured).toBe(total);
+  });
+
+  it('config-store writes carry mode: 0o600', () => {
+    // The CLI config store layers values into process.env on every
+    // command (URL overrides, default flags). Some keys may carry
+    // semi-sensitive values (org IDs, custom URLs, client variants),
+    // so the file must not be world-readable.
+    const src = readFileSync(`${SRC_ROOT}/cli/config-store.ts`, 'utf-8');
+    const total = (src.match(/\bwriteFileSync\s*\(/g) ?? []).length;
+    const secured = (src.match(/\bwriteFileSync\b[^;]*0o600/gs) ?? []).length;
+    expect(total).toBeGreaterThanOrEqual(1);
+    expect(secured).toBe(total);
+  });
+
   it('os.homedir() is used wherever a per-user dir is built', () => {
     const claudeSrc = readFileSync(`${SRC_ROOT}/runtime/claude-code/config.ts`, 'utf-8');
     expect(claudeSrc).toContain("from 'node:os'");

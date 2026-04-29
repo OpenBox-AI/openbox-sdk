@@ -299,6 +299,15 @@ result := {"decision": "BLOCK", "reason": "Dangerous command blocked"} if {
 ### Only one policy active per agent
 Creating a new policy automatically deactivates any existing one (core enforces "current version" semantics). To combine multiple rule sets on one agent, merge them into a single `.rego` file with separate `result := …` rules.
 
+### Approval timeout - OPA policies CANNOT set it
+A REQUIRE_APPROVAL verdict produced by an OPA policy uses a **server-side default** (`approval_expiration_time = now + ~30m` as observed; the exact value lives in core, not in the policy record). The `CreatePolicyDto` has no `approval_timeout` field - neither the create form, nor the stored record, nor the Rego return shape `{decision, reason}` carries one. Any expectation that you can pass `--approval-timeout` to `policy create` is wrong; the flag does not exist on that command.
+
+**To control the timeout, use a behavior_rule instead.** `CreateBehaviorRuleDto` has `approval_timeout: numeric` (required when `verdict=2`). Behavior rules and OPA policies coexist on the same agent - both run during `core evaluate`; whichever returns the strictest verdict wins. So if you need a 5-minute window, attach a behavior_rule with `--verdict 2 --approval-timeout 300` matching the same trigger; don't try to express the timeout inside Rego.
+
+**Don't conflate the two paths.** When asked "create an approval that expires in N minutes":
+- If N matters → behavior_rule path. `openbox behavior create <agent> --verdict 2 --approval-timeout <seconds> ...`
+- If N doesn't matter and any timeout is fine → OPA policy path. `openbox policy create <agent> --rego ...` (you'll get the server default).
+
 ### Policies are immutable - `policy update` is a rollback/toggle, not an editor
 The backend `UpdatePolicyDto` only defines `is_active`, `trust_impact`, and `trust_threshold`. A `rego_code` in the PUT body is silently dropped by NestJS's whitelist pipe - the endpoint returns 200 but the stored rego is unchanged.
 

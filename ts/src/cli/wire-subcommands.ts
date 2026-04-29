@@ -29,6 +29,7 @@ import {
 } from '../validators/index.js';
 import type { OpenBoxClient } from '../client/index.js';
 import { requireYesForDestructive } from './non-interactive.js';
+import { recordAgentKey, agentKeysPath } from '../runtime/_shared/agent-keys-store.js';
 
 export interface FlagSpec {
   /** TypeSpec parameter name (camelCase). */
@@ -138,22 +139,40 @@ const VALIDATOR_REGISTRY: Record<string, (val: unknown, label: string) => unknow
  */
 export const OUTPUT_POST_REGISTRY: Record<string, (data: unknown) => void> = {
   /** Highlight the runtime API key returned by `agent create` and
-   *  `api-key rotate` to stderr. The wire returns the obx_live_/
-   *  obx_test_ token under `token` (sometimes nested under `agent`);
-   *  we surface it once because subsequent fetches won't see it. */
+   *  `api-key rotate` to stderr AND cache it to the per-OS agent-keys
+   *  store (mode 0o600) so `api-key recall <agentId>` can retrieve
+   *  it later without another destructive rotation. The wire returns
+   *  the obx_live_/obx_test_ token under `token` (sometimes nested
+   *  under `agent`). */
   highlightRuntimeKey(data: unknown): void {
-    const d = data as { token?: string; agent?: { id?: string } } | null;
+    const d = data as { token?: string; agent?: { id?: string; agent_name?: string } } | null;
     const key = d?.token;
     if (typeof key !== 'string' || (!key.startsWith('obx_live_') && !key.startsWith('obx_test_'))) return;
     const agentId = d?.agent?.id ?? '<id>';
+    const agentName = d?.agent?.agent_name;
+    let stored = false;
+    if (agentId !== '<id>') {
+      try {
+        recordAgentKey(agentId, key, agentName);
+        stored = true;
+      } catch {
+        // Storage is best-effort. The stderr banner is the primary
+        // capture path; an EROFS / EACCES on ~/.openbox shouldn't
+        // mask the key from the user.
+      }
+    }
     console.error('');
     console.error('────────────────────────────────────────────────────────────');
     console.error('  Runtime API key (capture now - only shown once):');
     console.error(`    ${key}`);
     console.error('');
     console.error('  Use this as OPENBOX_API_KEY for core/governance calls.');
-    console.error(`  To recover later: openbox api-key rotate ${agentId}`);
-    console.error('  (rotation invalidates the previous key).');
+    if (stored) {
+      console.error(`  Cached to: ${agentKeysPath()} (recover via \`openbox api-key recall ${agentId}\`).`);
+    } else {
+      console.error(`  To recover later: openbox api-key rotate ${agentId}`);
+      console.error('  (rotation invalidates the previous key).');
+    }
     console.error('────────────────────────────────────────────────────────────');
   },
 

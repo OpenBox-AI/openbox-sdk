@@ -11,6 +11,7 @@ import * as path from "path";
 import * as os from "os";
 import { OpenBoxCoreClient } from "../../core-client/index.js";
 import { resolveEnv, createApi, setMcpClientName } from "./config.js";
+import { recallAgentKey } from "../_shared/agent-keys-store.js";
 
 export async function runMcpServer(): Promise<void> {
   // See ./config.ts for OPENBOX_ENV / OPENBOX_API_URL / OPENBOX_CORE_URL.
@@ -262,14 +263,36 @@ async function coreEvaluate(apiKey: string, spanType: string, activityInput: Rec
 async function resolveApiKey(agentId?: string): Promise<string> {
   let apiKey = process.env.OPENBOX_API_KEY;
   if (!apiKey && agentId) {
-    const agent = await api(`/agent/${agentId}`);
-    apiKey = agent?.token;
+    // Try the per-agent runtime-key cache first. The CLI's `agent
+    // create` and `api-key rotate` post-callbacks write here at
+    // mode 0o600 - the canonical source of obx_live_*/obx_test_*
+    // keys outside an in-process env var. Falling back to
+    // GET /agent/{id} and using `agent.token` (the previous path)
+    // is broken: `agent.token` is an internal attestation token,
+    // NOT the runtime API key. Passing it to core returns a 500
+    // "invalid API key format. Expected obx_live_... or
+    // obx_test_..." - exactly the surprise the skill warns about.
+    apiKey = recallAgentKey(agentId)?.runtimeKey;
   }
-  if (!apiKey) throw new Error("No API key found. Set OPENBOX_API_KEY or provide agent_id.");
+  if (!apiKey) {
+    throw new Error(
+      `No API key found for agent ${agentId ?? "(unset)"}. ` +
+        "Set OPENBOX_API_KEY, or run `openbox api-key recall <agentId>` " +
+        "to surface a cached key, or `openbox api-key rotate <agentId> -y` " +
+        "to mint a fresh one (destructive - invalidates the previous key).",
+    );
+  }
+  if (!apiKey.startsWith("obx_live_") && !apiKey.startsWith("obx_test_")) {
+    throw new Error(
+      `Resolved key for agent ${agentId ?? ""} doesn't look like a runtime ` +
+        "key (expected `obx_live_*` or `obx_test_*`). The agent record's " +
+        "`token` field is an attestation token, NOT the core API key.",
+    );
+  }
   return apiKey;
 }
 
-server.tool("check_governance", "Evaluate an action against governance rules (with proper span construction for behavioral rule matching)", {
+server.tool("check_governance", "Evaluate an action against governance rules (with proper span construction for behavioral rule matching). When the response carries verdict=require_approval, an approval row is materialized server-side. The expiration window comes from whichever surface produced the verdict: behavior_rule.approval_timeout (settable) for behavior_rule-driven verdicts; a core server default (~30m) for OPA-policy-driven verdicts (OPA policies have no approval_timeout field - to control the window use behavior_rule, not policy).", {
   agent_id: z.string().optional().describe("Agent ID (used to resolve API key if OPENBOX_API_KEY not set)"),
   span_type: z.enum(["llm", "file_read", "file_write", "shell", "http", "db", "mcp"]).describe("Type of action to evaluate"),
   activity_input: z.any().describe("Action input payload (e.g. {prompt: '...'}, {file_path: '...'}, {command: '...'})"),

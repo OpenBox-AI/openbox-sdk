@@ -109,7 +109,7 @@ export const BEHAVIOR_HANDLERS: SubcommandSpec[] = [
   },
   {
     "name": "create",
-    "description": "Create a behavior rule.",
+    "description": "Create a behavior rule and attach it to the agent.\n\nBehavior rules and OPA policies are the two approval-trigger\nsurfaces. Use a behavior_rule (not a policy) when you need to\ncontrol the approval timeout - pass --verdict 2 with\n--approval-timeout SECONDS to produce an approval row that\nexpires exactly that many seconds after creation. OPA policies\nhave no equivalent - they always use the core server default\n(~30m). Both surfaces coexist on the same agent; both run\nduring `core evaluate` and the strictest verdict wins.\n\nSee `references/behaviors.md` for the full trigger/states enum\nand `references/rego-reference.md § Approval timeout` for the\npolicy-vs-behavior_rule decision tree.",
     "args": [
       {
         "name": "agentId"

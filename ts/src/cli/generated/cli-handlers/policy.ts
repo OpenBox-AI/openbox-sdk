@@ -69,7 +69,7 @@ export const POLICY_HANDLERS: SubcommandSpec[] = [
   },
   {
     "name": "create",
-    "description": "Create a policy.",
+    "description": "Create an OPA policy and attach it to the agent.\n\nThis is one of the two surfaces for wiring an approval trigger\n(the other is `behavior create`). A policy that returns\n`result := { decision: \"REQUIRE_APPROVAL\", ... }` for a given\ninput shape produces an approval row whenever `core evaluate`\ningests a matching event for the agent. See\n`references/rego-reference.md` for the supported `decision` set\n(case-insensitive `allow|block|halt|require_approval`) and the\ninput fields available to the policy.\n\nIMPORTANT - approval_timeout is NOT settable here. OPA policies\ncannot configure the approval expiration window: the DTO has no\n`approval_timeout` field and the Rego return shape is\n`{decision, reason}` only. When this policy fires\nREQUIRE_APPROVAL, core injects a server-side default\n(~30m observed). To control the timeout, use `behavior create`\nwith `--verdict 2 --approval-timeout <seconds>` instead - both\nsurfaces coexist on the same agent and the strictest verdict\nwins.\n\nNote: this calls the agent-scoped `POST /agent/{id}/policies`\nbackend route which requires the `create:agent_policy`\nKeycloak permission. If your role is missing it (the prod\ndefault `Admin` realm role lacks it on openbox.ai as of\n2026-04), the backend returns 403 - at which point use\nan existing canary agent's runtime key + `core evaluate`\ninstead of creating a new policy.",
     "args": [
       {
         "name": "agentId"

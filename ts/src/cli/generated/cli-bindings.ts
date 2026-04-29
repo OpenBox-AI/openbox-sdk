@@ -22,6 +22,12 @@ export interface Auth {
   changePassword(): void;
   roles(): void;
 }
+export interface Config {
+  set(key: string, value: string): void;
+  get(key: string): void;
+  unset(key: string): void;
+  list(): void;
+}
 export interface Agent {
   list(search?: string, status?: string, team?: string, tiers?: string[]): void;
   get(agentId: string): void;
@@ -44,6 +50,7 @@ export interface ApiKey {
   delete(id: string): void;
   rotate(agentId: string): void;
   revoke(agentId: string): void;
+  recall(agentId: string): void;
 }
 export interface Webhook {
   list(): void;
@@ -266,6 +273,29 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "roles",
+        "flags": []
+      }
+    ]
+  },
+  {
+    "command": "config",
+    "description": "Persistent CLI config (URL overrides, default flags). Two scopes: per-env (default - keyed off the active --env) and global (--global, applies across all envs). Layered into process.env at startup; explicit shell exports always win. File: <data-root>/config (mode 0o600).",
+    "interfaceName": "Config",
+    "subcommands": [
+      {
+        "name": "set",
+        "flags": []
+      },
+      {
+        "name": "get",
+        "flags": []
+      },
+      {
+        "name": "unset",
+        "flags": []
+      },
+      {
+        "name": "list",
         "flags": []
       }
     ]
@@ -506,6 +536,10 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "revoke",
+        "flags": []
+      },
+      {
+        "name": "recall",
         "flags": []
       }
     ]
@@ -2102,6 +2136,8 @@ export const CLI_COMMAND_MANIFEST = [
   }
 ] as const;
 export type CliCommandManifest = typeof CLI_COMMAND_MANIFEST;
+
+
 
 
 

@@ -343,7 +343,15 @@ export interface components {
             constraints?: string[];
             /**
              * Format: date-time
-             * @description Wall-clock deadline for the approval; SDK stops polling after this.
+             * @description Wall-clock deadline for the approval; SDK stops polling after
+             *     this. The value is set by core when the verdict is
+             *     REQUIRE_APPROVAL: from `behavior_rule.approval_timeout` if the
+             *     trigger was a behavior_rule, or from a server-side default
+             *     (~30m observed) if the trigger was an OPA policy. OPA policies
+             *     cannot configure the timeout - `CreatePolicyDto` has no
+             *     `approval_timeout` field and the Rego return shape carries
+             *     only `{decision, reason}`. To control the window, attach a
+             *     behavior_rule with `--verdict 2 --approval-timeout <seconds>`.
              */
             approval_expiration_time?: string;
             /** @description True if any sub-service (OPA / AGE) used a fallback path. */

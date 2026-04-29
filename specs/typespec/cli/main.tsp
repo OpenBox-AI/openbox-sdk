@@ -128,6 +128,49 @@ interface Auth {
   roles(): void;
 }
 
+@cli_command(
+  "config",
+  "Persistent CLI config (URL overrides, default flags). Two scopes: per-env (default - keyed off the active --env) and global (--global, applies across all envs). Layered into process.env at startup; explicit shell exports always win. File: <data-root>/config (mode 0o600)."
+)
+@cli_maturity("stable")
+interface Config {
+  /**
+   * Persist a config value. Defaults to per-env scope (keyed off
+   * the active --env / OPENBOX_ENV). Pass `--global` for keys that
+   * apply across every env. Some keys auto-promote to global because
+   * per-env scoping is incoherent for them: `OPENBOX_ENV` (selects
+   * the active env - circular), `OPENBOX_HOME` (the dir per-env files
+   * live in), `OPENBOX_CLIENT_VARIANT` (telemetry tag),
+   * `OPENBOX_EXPERIMENTAL_LEVEL`. Conventionally an OPENBOX_*
+   * upper-snake var name (the same names process.env reads). The CLI
+   * does not validate against a known set - power users can stage
+   * arbitrary keys without a release. Values are layered into
+   * process.env on every command run **only if the env var is
+   * currently unset** - explicit shell exports always win.
+   */
+  @cli_local_only
+  @cli_output_kind("custom")
+  set(key: string, value: string): void;
+
+  /** Look up a previously-persisted value. Resolves global-only
+   *  keys globally; everything else from the active --env scope.
+   *  Exits 5 (NOT_FOUND) if absent. */
+  @cli_local_only
+  @cli_output_kind("custom")
+  get(key: string): void;
+
+  /** Remove a config value. No-op if it wasn't set. */
+  @cli_local_only
+  @cli_output_kind("custom")
+  unset(key: string): void;
+
+  /** Print persisted values. Default: active env's per-env values.
+   *  `--global`: global-scope only. `--all`: both sections. */
+  @cli_local_only
+  @cli_output_kind("custom")
+  list(): void;
+}
+
 // ---------------------------------------------------------------------------
 // Persisted-credentials shape - used by `auth login` / `auth profile`
 // and read by every other command on startup.
@@ -337,7 +380,9 @@ interface ApiKey {
   delete(id: string): void;
 
   /** Rotate API key for an agent. The runtime key is highlighted to
-   *  stderr (one-time display) via the post callback. */
+   *  stderr (one-time display) via the post callback, AND cached to
+   *  the per-OS agent-keys store (mode 0o600) so `recall` can
+   *  retrieve it without another rotation. */
   @cli_maturity("stable")
   @cli_calls("rotateApiKey", "positional")
   @cli_destructive
@@ -351,6 +396,15 @@ interface ApiKey {
   @cli_destructive
   @cli_output_kind("kv")
   revoke(agentId: string): void;
+
+  /** Print the cached runtime key for an agent (no network call).
+   *  Populated by `agent create` and `api-key rotate` post-callbacks
+   *  into `~/.openbox/agent-keys` (mode 0o600). Non-destructive
+   *  alternative to `rotate` when the key has been forgotten. */
+  @cli_maturity("stable")
+  @cli_local_only
+  @cli_output_kind("custom")
+  recall(agentId: string): void;
 }
 
 @cli_command("webhook", "Webhook management (admin).")
@@ -644,7 +698,20 @@ interface Behavior {
   @cli_output_kind("kv")
   delete(agentId: string, ruleId: string): void;
 
-  /** Create a behavior rule. */
+  /** Create a behavior rule and attach it to the agent.
+   *
+   *  Behavior rules and OPA policies are the two approval-trigger
+   *  surfaces. Use a behavior_rule (not a policy) when you need to
+   *  control the approval timeout - pass --verdict 2 with
+   *  --approval-timeout SECONDS to produce an approval row that
+   *  expires exactly that many seconds after creation. OPA policies
+   *  have no equivalent - they always use the core server default
+   *  (~30m). Both surfaces coexist on the same agent; both run
+   *  during `core evaluate` and the strictest verdict wins.
+   *
+   *  See `references/behaviors.md` for the full trigger/states enum
+   *  and `references/rego-reference.md § Approval timeout` for the
+   *  policy-vs-behavior_rule decision tree. */
   @cli_calls("createBehaviorRule")
   @cli_output_kind("kv")
   @cli_json_merge
@@ -751,6 +818,17 @@ interface Core {
 
   // Custom: --type shorthand drives buildTestPayload, --show-payload
   // skips the call entirely.
+  //
+  // This is THE approval-trigger surface. Whenever the response carries
+  // verdict=require_approval, an approval row is materialized in the
+  // backend. Triggers fire when the agent has either an OPA policy or
+  // a behavior_rule attached that returns REQUIRE_APPROVAL for the
+  // event's activity_type. To test against a known-working agent in
+  // your org, run `openbox --experimental org approvals <orgId> --json`
+  // and pick an agent_id that already has approval history - its
+  // policy/rule is wired. Recover its runtime key with
+  // `openbox api-key recall <agentId>` (cached automatically by
+  // create + rotate; 0o600).
   @cli_output_kind("custom")
   evaluate(): void;
 }
@@ -1225,7 +1303,34 @@ interface Policy {
   @cli_output_kind("kv")
   get(agentId: string, policyId: string): void;
 
-  /** Create a policy. */
+  /** Create an OPA policy and attach it to the agent.
+   *
+   *  This is one of the two surfaces for wiring an approval trigger
+   *  (the other is `behavior create`). A policy that returns
+   *  `result := { decision: "REQUIRE_APPROVAL", ... }` for a given
+   *  input shape produces an approval row whenever `core evaluate`
+   *  ingests a matching event for the agent. See
+   *  `references/rego-reference.md` for the supported `decision` set
+   *  (case-insensitive `allow|block|halt|require_approval`) and the
+   *  input fields available to the policy.
+   *
+   *  IMPORTANT - approval_timeout is NOT settable here. OPA policies
+   *  cannot configure the approval expiration window: the DTO has no
+   *  `approval_timeout` field and the Rego return shape is
+   *  `{decision, reason}` only. When this policy fires
+   *  REQUIRE_APPROVAL, core injects a server-side default
+   *  (~30m observed). To control the timeout, use `behavior create`
+   *  with `--verdict 2 --approval-timeout <seconds>` instead - both
+   *  surfaces coexist on the same agent and the strictest verdict
+   *  wins.
+   *
+   *  Note: this calls the agent-scoped `POST /agent/{id}/policies`
+   *  backend route which requires the `create:agent_policy`
+   *  Keycloak permission. If your role is missing it (the prod
+   *  default `Admin` realm role lacks it on openbox.ai as of
+   *  2026-04), the backend returns 403 - at which point use
+   *  an existing canary agent's runtime key + `core evaluate`
+   *  instead of creating a new policy. */
   @cli_calls("createPolicy")
   @cli_output_kind("kv")
   @cli_json_merge

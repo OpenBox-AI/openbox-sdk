@@ -224,6 +224,14 @@ enum OsPathScope {
   tokens: "tokens",
   config: "config",
   cache: "cache",
+
+  /**
+   * Per-agent runtime-key cache. Populated by `agent create` and
+   * `api-key rotate` post-callbacks; read by `api-key recall`. The
+   * file is mode 0o600 (matches `tokens`) - drift-locked by
+   * tests/unit/platform-awareness.test.ts.
+   */
+  agentKeys: "agent-keys",
 }
 
 /**

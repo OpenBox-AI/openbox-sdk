@@ -96,7 +96,7 @@ export interface ClientNameResolver {
 export interface OsPathResolver {
   resolveOsPath(scope: OsPathScope): string;
 }
-export type OsPathScope = "tokens" | "config" | "cache";
+export type OsPathScope = "tokens" | "config" | "cache" | "agent-keys";
 export const CLIENT_VARIANT_PATTERN = /^[A-Za-z0-9._+-]+$/;
 
 
