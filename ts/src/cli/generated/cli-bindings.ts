@@ -104,7 +104,7 @@ export interface Doctor {
 export interface Goal {
   trend(agentId: string, from?: string, to?: string): void;
   drifts(agentId: string, limit?: string): void;
-  update(agentId: string): void;
+  update(agentId: string, threshold?: string, action?: string, frequency?: string, model?: string): void;
 }
 export interface Guardrail {
   list(agentId: string): void;
@@ -142,15 +142,17 @@ export interface Org {
   dashboard(orgId: string, from?: string, to?: string): void;
   sessions(orgId: string, status?: string): void;
   approvals(orgId: string, status?: string): void;
-  updateSettings(orgId: string): void;
+  updateSettings(orgId: string, name?: string, domain?: string, timezone?: string): void;
   trends(orgId: string): void;
   approvalMetrics(orgId: string, from?: string, to?: string): void;
   approvalSla(orgId: string): void;
   approvalHistory(orgId: string): void;
-  governanceFeed(orgId: string): void;
-  trustDriftLanes(orgId: string): void;
-  governanceSlo(orgId: string): void;
-  violationHeatcal(orgId: string): void;
+  governanceFeed(orgId: string, limit?: string): void;
+  trustDriftLanes(orgId: string, limit?: string): void;
+  governanceSlo(orgId: string, window?: string): void;
+  violationHeatcal(orgId: string, window?: string): void;
+  register(): void;
+  demoStatus(): void;
 }
 export interface Policy {
   list(agentId: string): void;
@@ -1109,7 +1111,36 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "update",
-        "flags": []
+        "flags": [
+          {
+            "name": "threshold",
+            "long": "threshold",
+            "description": "Alignment threshold (0-100)",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "action",
+            "long": "action",
+            "description": "Drift detection action",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "frequency",
+            "long": "frequency",
+            "description": "Evaluation frequency",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "model",
+            "long": "model",
+            "description": "LlamaFirewall model",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       }
     ]
   },
@@ -1532,7 +1563,30 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "updateSettings",
-        "flags": []
+        "flags": [
+          {
+            "name": "name",
+            "long": "name",
+            "short": "n",
+            "description": "Organization name",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "domain",
+            "long": "domain",
+            "description": "Domain",
+            "optional": true,
+            "tsType": "string"
+          },
+          {
+            "name": "timezone",
+            "long": "timezone",
+            "description": "Timezone",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "trends",
@@ -1567,18 +1621,60 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "governanceFeed",
-        "flags": []
+        "flags": [
+          {
+            "name": "limit",
+            "long": "limit",
+            "short": "l",
+            "description": "Number of events to return",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "trustDriftLanes",
-        "flags": []
+        "flags": [
+          {
+            "name": "limit",
+            "long": "limit",
+            "short": "l",
+            "description": "Number of agent lanes to return",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "governanceSlo",
-        "flags": []
+        "flags": [
+          {
+            "name": "window",
+            "long": "window",
+            "description": "Aggregation window",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
       },
       {
         "name": "violationHeatcal",
+        "flags": [
+          {
+            "name": "window",
+            "long": "window",
+            "description": "Aggregation window",
+            "optional": true,
+            "tsType": "string"
+          }
+        ]
+      },
+      {
+        "name": "register",
+        "flags": []
+      },
+      {
+        "name": "demoStatus",
         "flags": []
       }
     ]

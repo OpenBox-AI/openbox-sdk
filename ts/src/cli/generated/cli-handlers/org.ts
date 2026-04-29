@@ -147,6 +147,46 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     }
   },
   {
+    "name": "update-settings",
+    "description": "Update organization settings. --json replaces flag-built body.",
+    "args": [
+      {
+        "name": "orgId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "name",
+        "long": "name",
+        "short": "n",
+        "description": "Organization name",
+        "noArg": false
+      },
+      {
+        "name": "domain",
+        "long": "domain",
+        "description": "Domain",
+        "noArg": false
+      },
+      {
+        "name": "timezone",
+        "long": "timezone",
+        "description": "Timezone",
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "updateOrgSettings",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "replace",
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
     "name": "trends",
     "description": "",
     "args": [
@@ -238,6 +278,160 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     "output": {
       "kind": "list",
       "label": "approval history"
+    }
+  },
+  {
+    "name": "governance-feed",
+    "description": "Latest governance events for the dashboard activity feed.",
+    "args": [
+      {
+        "name": "orgId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "limit",
+        "long": "limit",
+        "short": "l",
+        "description": "Number of events to return",
+        "parse": "int",
+        "default": "20",
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "getGovernanceFeed",
+      "shape": "body"
+    },
+    "pagination": false,
+    "localOnly": false,
+    "output": {
+      "kind": "list",
+      "label": "governance feed"
+    }
+  },
+  {
+    "name": "trust-drift-lanes",
+    "description": "Per-agent 30-day trust score trajectory.",
+    "args": [
+      {
+        "name": "orgId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "limit",
+        "long": "limit",
+        "short": "l",
+        "description": "Number of agent lanes to return",
+        "parse": "int",
+        "default": "8",
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "getTrustDriftLanes",
+      "shape": "body"
+    },
+    "pagination": false,
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
+    "name": "governance-slo",
+    "description": "Allowed/blocked/halted rates vs targets.",
+    "args": [
+      {
+        "name": "orgId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "window",
+        "long": "window",
+        "description": "Aggregation window",
+        "choices": [
+          "7d",
+          "30d",
+          "90d"
+        ],
+        "default": "30d",
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "getGovernanceSlo",
+      "shape": "body"
+    },
+    "pagination": false,
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
+    "name": "violation-heatcal",
+    "description": "7×24 day-of-week × hour-of-day violation density matrix.",
+    "args": [
+      {
+        "name": "orgId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "window",
+        "long": "window",
+        "description": "Aggregation window",
+        "choices": [
+          "7d",
+          "30d",
+          "90d"
+        ],
+        "default": "30d",
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "getViolationHeatcal",
+      "shape": "body"
+    },
+    "pagination": false,
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
+    "name": "register",
+    "description": "Provision a new organization (public endpoint, throttled).",
+    "args": [],
+    "flags": [],
+    "backend": {
+      "method": "registerOrganization",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "only",
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
+    }
+  },
+  {
+    "name": "demo-status",
+    "description": "Poll demo-agent setup status (used by FE during onboarding).",
+    "args": [],
+    "flags": [],
+    "backend": {
+      "method": "getDemoSetupStatus",
+      "shape": "positional"
+    },
+    "pagination": false,
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
     }
   }
 ];

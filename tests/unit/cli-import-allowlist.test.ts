@@ -35,10 +35,9 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   '../../core-client/index.js': 'OpenBoxCoreClient (core) for type imports.',
   // Hand-written CLI helpers.
   '../output.js': 'output / outputList renderers.',
-  '../input.js': 'parseJsonInput.',
-  '../validators/index.js': 'reportAndExit + named validators.',
+  '../../validators/index.js': 'public openbox-sdk/validators surface - reportAndExit + named validators + parseJsonInput.',
   '../wire-subcommands.js': 'spec-driven subcommand interpreter.',
-  '../span-builder.js': 'core evaluate `--type` shorthand → payload builder.',
+  '../../test-utils/index.js': 'public openbox-sdk/test-utils surface - buildTestPayload, SPAN_TYPES.',
   '../features.js': 'isFeatureEnabled gate.',
   '../maturity.js': 'CLI maturity gate (gateCommands).',
   // Per-command sibling modules - agent-audit is a separate report

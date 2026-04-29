@@ -5,8 +5,8 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output } from '../output.js';
-import { parseJsonInput } from '../input.js';
-import { reportAndExit } from '../validators/index.js';
+import { parseJsonInput } from '../../validators/index.js';
+import { reportAndExit } from '../../validators/index.js';
 import { wireSubcommands } from '../wire-subcommands.js';
 import { API_KEY_HANDLERS } from '../generated/cli-handlers/api-key.js';
 

@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output } from '../output.js';
-import { reportAndExit } from '../validators/index.js';
+import { reportAndExit } from '../../validators/index.js';
 
 export function registerHealthCommands(program: Command) {
   program

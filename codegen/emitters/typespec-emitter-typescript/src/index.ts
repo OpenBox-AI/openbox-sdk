@@ -35,6 +35,7 @@ import {
   getOutputPost,
   getJsonMerge,
   getAtLeastOne,
+  getRequiredTogether,
   isLocalOnly,
   getPreflight,
   getDtoDefaults,
@@ -892,6 +893,7 @@ function emitCliHandlerSpecs(
       const post = getOutputPost(program, op);
       const jsonMerge = getJsonMerge(program, op);
       const atLeastOne = getAtLeastOne(program, op);
+      const requiredTogether = getRequiredTogether(program, op);
       const localOnly = isLocalOnly(program, op);
       const preflight = getPreflight(program, op);
       const dtoDefaults = getDtoDefaults(program, op);
@@ -905,6 +907,7 @@ function emitCliHandlerSpecs(
         pagination: isPaginated(program, op),
         jsonMerge,
         atLeastOne,
+        requiredTogether,
         localOnly,
         preflight,
         dtoDefaults,

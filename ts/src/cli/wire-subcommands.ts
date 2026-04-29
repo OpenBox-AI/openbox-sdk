@@ -7,7 +7,7 @@
 
 import type { Command } from 'commander';
 import { output, outputList } from './output.js';
-import { parseJsonInput } from './input.js';
+import { parseJsonInput } from '../validators/index.js';
 import {
   reportAndExit,
   validateEnum,
@@ -26,7 +26,7 @@ import {
   validateGuardrailParams,
   validateActivitiesConfig,
   validateRegoSource,
-} from './validators/index.js';
+} from '../validators/index.js';
 import type { OpenBoxClient } from '../client/index.js';
 
 export interface FlagSpec {
@@ -89,6 +89,9 @@ export interface SubcommandSpec {
   /** Cross-field constraint: at least one of these param names must
    *  end up in the merged body. */
   atLeastOne?: ReadonlyArray<string>;
+  /** Cross-field constraint: if any of these param names is in the
+   *  merged body, ALL must be. Bypassed when --json was supplied. */
+  requiredTogether?: ReadonlyArray<string>;
   /** True when the op never calls the backend/core - declared in spec
    *  via @cli_local_only. The action body for these is pure local
    *  state and lives hand-coded in commands/<x>.ts (this entry just
@@ -335,7 +338,11 @@ function transformFlag(raw: unknown, flag: FlagSpec): unknown {
     value = validateEnum(value, flag.choices, `--${flag.long}`);
   }
   if (flag.parse === 'int') {
-    value = parseInt(String(value), 10);
+    const n = parseInt(String(value), 10);
+    if (!Number.isFinite(n) || !Number.isInteger(n)) {
+      throw new Error(`--${flag.long} must be an integer. Got: ${JSON.stringify(value)}`);
+    }
+    value = n;
   } else if (flag.parse === 'json') {
     value = parseJsonInput(String(value));
   } else if (flag.parse === 'csv') {
@@ -391,6 +398,31 @@ function buildBody(opts: Record<string, unknown>, sub: SubcommandSpec): Record<s
   // Skip when --json was provided: the user is opting into a complete
   // DTO and shouldn't get hidden defaults injected mid-body.
   if (sub.dtoDefaults && !jsonProvided) mergeDefaults(body, sub.dtoDefaults);
+
+  // Cross-field "if any then all" check (@cli_required_together).
+  // Bypassed when --json was supplied - the user opts into a complete
+  // DTO and we trust them.
+  if (
+    !jsonProvided &&
+    sub.requiredTogether &&
+    sub.requiredTogether.length > 0
+  ) {
+    const present = sub.requiredTogether.filter((name) => {
+      const flag = sub.flags.find((f) => f.name === name);
+      const key = flag?.bodyKey ?? name;
+      const v = body[key];
+      return v !== undefined && v !== null && v !== '';
+    });
+    if (present.length > 0 && present.length < sub.requiredTogether.length) {
+      const missing = sub.requiredTogether.filter((n) => !present.includes(n));
+      const missingFlags = missing
+        .map((n) => '--' + (sub.flags.find((f) => f.name === n)?.long ?? n))
+        .join(', ');
+      throw new Error(
+        `partial config: ${missingFlags} also required (or pass --json with full body)`,
+      );
+    }
+  }
 
   // Cross-field at-least-one check (@cli_at_least_one).
   if (sub.atLeastOne && sub.atLeastOne.length > 0) {

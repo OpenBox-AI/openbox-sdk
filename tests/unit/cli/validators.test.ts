@@ -9,7 +9,7 @@ import {
   validateEnum,
   validateIsoDate,
   parsePagination,
-} from '../../../ts/src/cli/validators/index.js';
+} from '../../../ts/src/validators/index.js';
 
 describe('validateInt', () => {
   it('parses a numeric string', () => {

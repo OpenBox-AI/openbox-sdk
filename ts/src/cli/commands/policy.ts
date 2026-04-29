@@ -5,7 +5,7 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output } from '../output.js';
-import { reportAndExit } from '../validators/index.js';
+import { reportAndExit } from '../../validators/index.js';
 import { wireSubcommands } from '../wire-subcommands.js';
 import { POLICY_HANDLERS } from '../generated/cli-handlers/policy.js';
 

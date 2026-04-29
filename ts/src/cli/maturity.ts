@@ -1,51 +1,29 @@
-// CLI maturity gate. Each command path - top-level OR sub-command -
-// has a maturity label declared in `specs/typespec/cli/main.tsp` via
-// `@cli_maturity(...)`. The user opts in to higher maturity bands via
-// `OPENBOX_EXPERIMENTAL_LEVEL=experimental` (env) or `--experimental`
-// (flag).
+// Commander integration over the public maturity gate. The pure
+// query functions (isMaturityVisible, currentMaturityLevel, etc) live
+// in `openbox-sdk/maturity` so non-CLI consumers (UI dashboards, IDE
+// plugins) can gate their own surfaces against the same spec-driven
+// COMMAND_MATURITY table.
 //
 // Path syntax: space-separated command path from the program root.
-//   'auth login'        → `openbox auth login`
-//   'agent list'        → `openbox agent list`
-//   'audit forensics'   → `openbox audit forensics` (sub-of-stable)
-//
-// CONSERVATIVE DEFAULT: any path NOT in the spec-emitted table is
-// treated as `experimental` here. To make a command visible without
-// `--experimental`, add `@cli_maturity("stable")` to the interface or
-// operation in the spec.
+//   'auth login'      → `openbox auth login`
+//   'agent list'      → `openbox agent list`
 
 import type { Command } from 'commander';
-import { ENV_VAR_BINDINGS } from '../env/generated/env-bindings.js';
-import { COMMAND_MATURITY, type Maturity } from './generated/cli-maturity.js';
+import {
+  COMMAND_MATURITY,
+  isMaturityVisible,
+  currentMaturityLevel,
+  setMaturityLevel,
+  type Maturity,
+} from '../maturity/index.js';
 
 export type { Maturity };
-export { COMMAND_MATURITY };
+export { COMMAND_MATURITY, isMaturityVisible, currentMaturityLevel };
 
-const LEVEL: Record<Maturity, number> = {
-  stable: 0,
-  beta: 1,
-  experimental: 2,
-};
-
-let cliOverride: Maturity | null = null;
-
-/** Set by the CLI's top-level `--experimental` flag handler. */
+/** Set by the CLI's top-level `--experimental` flag handler. Forwards
+ *  to the public override so library consumers see the same level. */
 export function setMaturityOverride(level: Maturity | null): void {
-  cliOverride = level;
-}
-
-/** What level the user is currently asking for. CLI flag > env var > default 'stable'. */
-export function currentMaturityLevel(): Maturity {
-  if (cliOverride) return cliOverride;
-  const envName = ENV_VAR_BINDINGS.experimentalLevel.name;
-  const env = (process.env[envName] ?? '').toLowerCase();
-  if (env === 'experimental' || env === 'beta' || env === 'stable') return env;
-  return 'stable';
-}
-
-/** True if a command at the target maturity is visible at the current level. */
-export function isMaturityVisible(target: Maturity, current = currentMaturityLevel()): boolean {
-  return LEVEL[target] <= LEVEL[current];
+  setMaturityLevel(level);
 }
 
 /**

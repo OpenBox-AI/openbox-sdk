@@ -223,6 +223,14 @@ extern dec cli_json_merge(
 extern dec cli_at_least_one(target: Operation, fields: valueof string[]);
 
 /**
+ * Cross-field constraint: when ANY of the named flags is set, ALL of
+ * them must be set. Bypassed entirely when --json is supplied
+ * (jsonMerge "replace"). Closes the goal-update "all four config
+ * fields required together unless --json" rule.
+ */
+extern dec cli_required_together(target: Operation, fields: valueof string[]);
+
+/**
  * Marks an op as local-only - it never calls the OpenBox backend or
  * core. Documents intent in spec; the cli-import-allowlist drift test
  * guarantees the implementation matches.

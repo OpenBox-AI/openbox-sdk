@@ -14,7 +14,7 @@ import type { FeatureMap } from '../config.js';
 import { resolveEnv, resolveUrls } from '../../env/index.js';
 import { output } from '../output.js';
 import type { EnvName } from '../../env/index.js';
-import { reportAndExit } from '../validators/index.js';
+import { reportAndExit } from '../../validators/index.js';
 
 // Build an OpenBoxClient against a freshly-captured token (saveTokens
 // hasn't been called yet, so getClient() can't do this for us).

@@ -7,9 +7,9 @@ import { readFileSync, existsSync } from 'fs';
 import { Command } from 'commander';
 import { getCoreClient } from '../config.js';
 import { output } from '../output.js';
-import { parseJsonInput } from '../input.js';
-import { buildTestPayload, SPAN_TYPES, type SpanType } from '../span-builder.js';
-import { reportAndExit } from '../validators/index.js';
+import { parseJsonInput } from '../../validators/index.js';
+import { buildTestPayload, SPAN_TYPES, type SpanType } from '../../test-utils/index.js';
+import { reportAndExit } from '../../validators/index.js';
 import { wireSubcommands } from '../wire-subcommands.js';
 import { CORE_HANDLERS } from '../generated/cli-handlers/core.js';
 
