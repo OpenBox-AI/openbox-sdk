@@ -16,6 +16,7 @@ export interface Auth {
   logout(): void;
   profile(): AuthProfileOutput;
   refresh(): void;
+  setToken(token: string, refreshToken?: string): void;
   permissions(): void;
   features(): void;
   changePassword(): void;
@@ -245,6 +246,10 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "refresh",
+        "flags": []
+      },
+      {
+        "name": "setToken",
         "flags": []
       },
       {

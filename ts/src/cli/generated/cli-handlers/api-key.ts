@@ -14,6 +14,7 @@ export const API_KEY_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "api keys"
@@ -34,6 +35,7 @@ export const API_KEY_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -53,6 +55,7 @@ export const API_KEY_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": true,
     "output": {
       "kind": "kv"
     }
@@ -72,6 +75,7 @@ export const API_KEY_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": true,
     "output": {
       "kind": "kv",
       "post": "highlightRuntimeKey"
@@ -92,6 +96,7 @@ export const API_KEY_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": true,
     "output": {
       "kind": "kv"
     }

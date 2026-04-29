@@ -43,27 +43,87 @@ async function makeRequest(
   return { data: body, status: response.status };
 }
 
-/** Backend API client (api.openbox.ai) */
+// dogfood. The e2e suite drives every backend call through
+// the public OpenBoxClient code path (auth-header injection, error
+// wrapping, retry-eligible paths, response parsing) so pushing the
+// suite green also gates the SDK transport layer. Previously these
+// tests used raw `fetch`, which left ts/src/client/* essentially
+// uncovered.
+//
+// Tests stay shape-identical (`client.get`/`post`/etc. return
+// `{ status, data }`) - the wrapper translates OpenBoxClient's
+// "throw on non-2xx" model into a never-throws envelope so existing
+// `expect(body.status).toBe(422)` style tests still work.
+import { OpenBoxClient, OpenBoxApiError } from '../../ts/src/client';
+
+/**
+ * Subclass that exposes OpenBoxClient's `protected` HTTP methods to the
+ * test harness. Production callers go through the typed wrappers
+ * (createAgent, listAgents, ...) so the protected boundary stays a
+ * production guarantee - only the test build pierces it.
+ */
+class TestOpenBoxClient extends OpenBoxClient {
+  publicGet<T>(p: string, q?: any): Promise<T> { return this.httpGet<T>(p, q); }
+  publicPost<T>(p: string, d?: unknown): Promise<T> { return this.httpPost<T>(p, d); }
+  publicPut<T>(p: string, d?: unknown, q?: any): Promise<T> { return this.httpPut<T>(p, d, q); }
+  publicPatch<T>(p: string, d?: unknown): Promise<T> { return this.httpPatch<T>(p, d); }
+  publicDelete<T>(p: string, d?: unknown): Promise<T> { return this.httpDelete<T>(p, d); }
+}
+
+async function viaSdk<T>(call: () => Promise<T>): Promise<{ data: any; status: number }> {
+  // OpenBoxClient.request() unwraps the backend's `{ status, data }`
+  // envelope before returning - callers normally see only the inner
+  // `data`. The e2e suite (and `fullResponse(response)`) expects the
+  // ENVELOPE: `body.status === 200` reads the backend's semantic
+  // status, `body.data.<x>` reads the payload. Re-wrap so existing
+  // assertions work without touching every test file.
+  try {
+    const inner = await call();
+    return { data: { status: 200, data: inner }, status: 200 };
+  } catch (err) {
+    if (err instanceof OpenBoxApiError) {
+      // err.body is the backend's full envelope on errors. If it's
+      // already shaped { status, ... }, pass it through; otherwise
+      // synthesize one so `body.status` is always defined.
+      const body =
+        err.body && typeof err.body === 'object' && 'status' in (err.body as Record<string, unknown>)
+          ? err.body
+          : { status: err.status, message: err.message, data: err.body };
+      return { data: body as any, status: err.status };
+    }
+    throw err;
+  }
+}
+
+/** Backend API client (api.openbox.ai). Routes through OpenBoxClient
+ *  so tests dogfood the SDK transport layer end-to-end. */
 export function getBackendClient(): HttpClient {
   const baseURL = process.env.OPENBOX_API_URL || 'https://api.openbox.ai';
   const token = process.env.ACCESS_TOKEN || '';
   if (!token) throw new Error('No ACCESS_TOKEN found. Run scripts/set-token.sh first.');
 
+  const sdk = new TestOpenBoxClient({
+    apiUrl: baseURL,
+    accessToken: token,
+    refreshToken: process.env.REFRESH_TOKEN,
+    clientName: 'openbox-e2e',
+  });
+
   return {
     async get(path: string) {
-      return makeRequest('GET', baseURL + path, token);
+      return viaSdk(() => sdk.publicGet(path));
     },
     async post(path: string, data?: any) {
-      return makeRequest('POST', baseURL + path, token, data);
+      return viaSdk(() => sdk.publicPost(path, data));
     },
     async put(path: string, data?: any) {
-      return makeRequest('PUT', baseURL + path, token, data);
+      return viaSdk(() => sdk.publicPut(path, data));
     },
     async patch(path: string, data?: any) {
-      return makeRequest('PATCH', baseURL + path, token, data);
+      return viaSdk(() => sdk.publicPatch(path, data));
     },
     async delete(path: string, data?: any) {
-      return makeRequest('DELETE', baseURL + path, token, data);
+      return viaSdk(() => sdk.publicDelete(path, data));
     },
   };
 }

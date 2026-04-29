@@ -60,6 +60,7 @@ const LOCAL_ONLY: Record<string, string> = {
   'doctor:': 'Verifies local pre-flight: which/openbox, ~/.openbox/tokens, env vars. No SDK call.',
   'verify:': 'Static linter on a hand-written governance integration source file.',
   'versions:': 'Reads /version per service via static OpenBoxClient.getVersion (not a method).',
+  'auth:setToken': 'Persists a pre-issued access (and optional refresh) token directly into ~/.openbox/tokens. Non-interactive entry-point for CI and dev-setup. No SDK call.',
   'auth:roles': 'Renders Keycloak realm roles from the persisted token store.',
   'auth:permissions': 'Renders cached permissions from the persisted token store.',
   'auth:features': 'Renders cached feature flags from the persisted token store.',

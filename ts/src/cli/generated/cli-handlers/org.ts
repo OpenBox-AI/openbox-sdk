@@ -18,6 +18,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -37,6 +38,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -73,6 +75,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -106,6 +109,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "sessions"
@@ -139,6 +143,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "approvals",
@@ -182,6 +187,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     "pagination": false,
     "jsonMerge": "replace",
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -201,6 +207,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -237,6 +244,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -256,6 +264,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -275,6 +284,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "approval history"
@@ -305,6 +315,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "governance feed"
@@ -335,6 +346,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -367,6 +379,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -399,6 +412,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -415,6 +429,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     "pagination": false,
     "jsonMerge": "only",
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -430,6 +445,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }

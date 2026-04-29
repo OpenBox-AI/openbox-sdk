@@ -35,6 +35,7 @@ export const GOAL_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -64,6 +65,7 @@ export const GOAL_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "drifts"
@@ -132,6 +134,7 @@ export const GOAL_HANDLERS: SubcommandSpec[] = [
       "model"
     ],
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }

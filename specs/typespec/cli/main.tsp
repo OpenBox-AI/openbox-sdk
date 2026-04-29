@@ -9,8 +9,8 @@
 // The surface-area sketch is here - not every existing
 // command is wired yet. The vertical slice that proves the pipeline
 // is `auth` (login / logout / profile) because it exercises every
-// decorator: env-var-backed input, token-format validation, an OS
-// path for the on-disk store, and a structured @cli_output.
+// decorator: env-var-backed input, token-format validation, and an
+// OS path for the on-disk store.
 
 // Note: programming-model spec, not an HTTP API - see govern/main.tsp
 // for the rationale behind not using `@service` here.
@@ -33,7 +33,6 @@ enum EnvFlag {
   local: "local",
 }
 
-@cli_output
 model AuthProfileOutput {
   /** Authenticated user identity. */
   user: {
@@ -85,6 +84,7 @@ interface Auth {
   ): void;
 
   /** Clear the local token store. Custom: branches on hasTokens(env). */
+  @cli_destructive
   @cli_output_kind("custom")
   logout(): void;
 
@@ -96,6 +96,16 @@ interface Auth {
   @cli_maturity("stable")
   @cli_output_kind("custom")
   refresh(): void;
+
+  /**
+   * Persist a pre-issued access (and optional refresh) token directly
+   * into the local store. Non-interactive entry-point for dev-setup
+   * scripts and CI bootstrap that already have a token in hand.
+   */
+  @cli_maturity("stable")
+  @cli_local_only
+  @cli_output_kind("custom")
+  setToken(token: string, refreshToken?: string): void;
 
   /** List the resolved permission set for the active credential. */
   @cli_maturity("experimental")
@@ -180,6 +190,7 @@ interface Agent {
 
   /** Delete an agent. */
   @cli_calls("deleteAgent", "positional")
+  @cli_destructive
   @cli_output_kind("kv")
   delete(agentId: string): void;
 
@@ -321,6 +332,7 @@ interface ApiKey {
 
   /** Delete an org-level API key. */
   @cli_calls("deleteApiKey", "positional")
+  @cli_destructive
   @cli_output_kind("kv")
   delete(id: string): void;
 
@@ -328,6 +340,7 @@ interface ApiKey {
    *  stderr (one-time display) via the post callback. */
   @cli_maturity("stable")
   @cli_calls("rotateApiKey", "positional")
+  @cli_destructive
   @cli_output_kind("kv")
   @cli_output_post("highlightRuntimeKey")
   rotate(agentId: string): void;
@@ -335,6 +348,7 @@ interface ApiKey {
   /** Revoke API key for an agent. */
   @cli_maturity("stable")
   @cli_calls("revokeApiKey", "positional")
+  @cli_destructive
   @cli_output_kind("kv")
   revoke(agentId: string): void;
 }
@@ -366,6 +380,7 @@ interface Webhook {
 
   /** Delete a webhook. */
   @cli_calls("deleteWebhook", "positional")
+  @cli_destructive
   @cli_output_kind("kv")
   delete(id: string): void;
 
@@ -425,6 +440,7 @@ interface Sso {
 
   /** Delete the current SSO configuration. */
   @cli_calls("deleteSsoConfig", "positional")
+  @cli_destructive
   @cli_output_kind("kv")
   delete(): void;
 
@@ -624,6 +640,7 @@ interface Behavior {
 
   /** Delete a behavior rule. */
   @cli_calls("deleteBehaviorRule", "positional")
+  @cli_destructive
   @cli_output_kind("kv")
   delete(agentId: string, ruleId: string): void;
 
@@ -812,6 +829,7 @@ interface Guardrail {
 
   /** Delete a guardrail. */
   @cli_calls("deleteGuardrail", "positional")
+  @cli_destructive
   @cli_output_kind("kv")
   delete(agentId: string, guardrailId: string): void;
 
@@ -965,6 +983,7 @@ interface Member {
 
   /** Remove members from an org. Wire: removeMembers(orgId, idArray). */
   @cli_calls("removeMembers", "positional")
+  @cli_destructive
   @cli_output_kind("kv")
   remove(
     orgId: string,
@@ -1313,6 +1332,7 @@ interface Session {
 
   /** Terminate a session. */
   @cli_calls("terminateSession", "positional")
+  @cli_destructive
   @cli_output_kind("kv")
   terminate(agentId: string, sessionId: string): void;
 
@@ -1330,6 +1350,7 @@ interface Session {
 
   // Custom: bulk-terminate dangling sessions with progress reporting.
   @cli_maturity("experimental")
+  @cli_destructive
   @cli_output_kind("custom")
   prune(agentId: string): void;
 }
@@ -1397,6 +1418,7 @@ interface Team {
 
   /** Delete one or more teams. */
   @cli_calls("deleteTeams")
+  @cli_destructive
   @cli_output_kind("kv")
   delete(
     orgId: string,
@@ -1421,6 +1443,7 @@ interface Team {
 
   /** Remove users from a team. */
   @cli_calls("removeTeamMembers")
+  @cli_destructive
   @cli_output_kind("kv")
   removeMembers(
     orgId: string,

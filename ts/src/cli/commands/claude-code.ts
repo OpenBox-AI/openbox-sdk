@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { EXIT, bailWith } from '../exit-codes.js';
 
 /**
  * `openbox claude-code <subcommand>` - manages the OpenBox integration
@@ -40,7 +41,7 @@ export function registerClaudeCodeCommands(program: Command) {
         // Fail-open: any unhandled error → Claude Code applies its default permissioning.
         // eslint-disable-next-line no-console
         console.error('[openbox claude-code hook] fatal:', (err as Error).message);
-        process.exit(0);
+        bailWith(EXIT.OK);
       }
     });
 }

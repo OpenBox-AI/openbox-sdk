@@ -15,6 +15,8 @@ import { resolveEnv, resolveUrls } from '../../env/index.js';
 import { output } from '../output.js';
 import type { EnvName } from '../../env/index.js';
 import { reportAndExit } from '../../validators/index.js';
+import { EXIT, bailWith } from '../exit-codes.js';
+import { isNonInteractive, requireYesForDestructive } from '../non-interactive.js';
 
 // Build an OpenBoxClient against a freshly-captured token (saveTokens
 // hasn't been called yet, so getClient() can't do this for us).
@@ -111,7 +113,34 @@ async function browserLogin(platformUrl: string, env: EnvName, verbose = false) 
 
   console.error(`Opening browser for login (${env}: ${platformUrl})...`);
 
-  const browser = await chromium.launch({ headless: false, channel: 'chrome' });
+  // Try the platform's most common Chrome distribution, fall back to
+  // Edge (Windows default), then Playwright's bundled chromium so the
+  // command works on any OS that has *one* of these installed without
+  // requiring the user to download Playwright browsers up front.
+  const channels =
+    process.platform === 'win32'
+      ? ['msedge', 'chrome', undefined]
+      : process.platform === 'darwin'
+        ? ['chrome', 'msedge', undefined]
+        : ['chrome', 'chromium', undefined];
+
+  let browser: import('playwright').Browser | null = null;
+  let lastErr: unknown;
+  for (const channel of channels) {
+    try {
+      browser = await chromium.launch({ headless: false, channel });
+      break;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  if (!browser) {
+    throw new Error(
+      `Failed to launch any browser channel (${channels.filter(Boolean).join(', ')}). ` +
+        `Last error: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}. ` +
+        `Install Chrome/Edge, or run: npx playwright install chromium`,
+    );
+  }
   const context = await browser.newContext();
   const page = await context.newPage();
 
@@ -312,13 +341,35 @@ export function registerAuthCommands(program: Command) {
   auth
     .command('login')
     .description('Login via browser (opens platform login page)')
-    .option('--browser', 'Open browser for login', true)
+    // Note: a --browser/--no-browser flag previously existed here but
+    // its `opts.browser` was never read by the action body. Removed in
+    // post-audit cleanup. Use --non-interactive (or set CI=1 /
+    // OPENBOX_NONINTERACTIVE=1) to skip the browser launch and print
+    // the auth URL + set-token instructions instead.
     .option('--url <url>', 'Override platform URL (defaults to env-specific URL)')
     .option('--verbose', 'Log every JSON response containing a token (debugging)')
     .action(async (opts) => {
       try {
         const env = resolveEnv();
         const platformUrl = opts.url || resolveUrls(env).platformUrl;
+        // Non-interactive bail: browser flow needs a human. Fail loudly with
+        // a useful path forward instead of hanging indefinitely on a chromium
+        // window that nobody can click.
+        if (isNonInteractive()) {
+          console.error(
+            'auth login needs an interactive terminal (browser-based flow).',
+          );
+          console.error(`Open this URL on a machine with a browser:`);
+          console.error(`  ${platformUrl}/login`);
+          console.error(
+            `Then bring the token back via one of:`,
+          );
+          console.error(
+            `  openbox --env ${env} auth set-token "<access-token>" "<refresh-token>"`,
+          );
+          console.error(`  OPENBOX_ACCESS_TOKEN=<access-token> openbox <command>`);
+          bailWith(EXIT.AUTH);
+        }
         await browserLogin(platformUrl, env, !!opts.verbose);
       } catch (err: any) {
         reportAndExit(err);
@@ -331,6 +382,7 @@ export function registerAuthCommands(program: Command) {
     .option('--all', 'Log out from every cached env (production + staging + local)')
     .action(async (opts) => {
       try {
+        requireYesForDestructive('auth logout');
         const envs: EnvName[] = opts.all ? ['production', 'staging', 'local'] : [resolveEnv()];
         for (const env of envs) {
           // Skip the server call when no tokens exist for this env - calling
@@ -396,7 +448,7 @@ export function registerAuthCommands(program: Command) {
           const other = opts.compare as EnvName;
           if (other !== 'production' && other !== 'staging' && other !== 'local') {
             console.error(`--compare must be 'production' | 'staging' | 'local', got '${other}'`);
-            process.exit(1);
+            bailWith(EXIT.USAGE);
           }
           const current = resolveEnv();
           const a = new Set(loadPermissions(current));
@@ -508,7 +560,7 @@ export function registerAuthCommands(program: Command) {
           'Once the fixes are deployed, flip REFRESH_ENABLED in src/client.ts to true.',
         ].join('\n'),
       );
-      process.exit(2);
+      bailWith(EXIT.GENERIC);
     });
 
   auth

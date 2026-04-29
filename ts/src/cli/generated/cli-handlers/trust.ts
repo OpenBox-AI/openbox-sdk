@@ -32,6 +32,7 @@ export const TRUST_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -68,6 +69,7 @@ export const TRUST_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "trust events"
@@ -105,6 +107,7 @@ export const TRUST_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "tier changes"
@@ -125,6 +128,7 @@ export const TRUST_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }

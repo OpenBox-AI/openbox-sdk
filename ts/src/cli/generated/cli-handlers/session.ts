@@ -67,6 +67,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "sessions"
@@ -87,6 +88,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -109,6 +111,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -139,6 +142,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "logs"
@@ -162,6 +166,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -184,6 +189,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": true,
     "output": {
       "kind": "kv"
     }
@@ -206,6 +212,7 @@ export const SESSION_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }

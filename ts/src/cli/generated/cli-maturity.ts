@@ -42,6 +42,7 @@ export const COMMAND_MATURITY: Record<string, Maturity> = {
   "auth profile": "stable",
   "auth refresh": "stable",
   "auth roles": "experimental",
+  "auth set-token": "stable",
   "behavior": "stable",
   "behavior create": "stable",
   "behavior current": "stable",

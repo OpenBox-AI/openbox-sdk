@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { EXIT, bailWith } from '../exit-codes.js';
 
 /**
  * `openbox cursor <subcommand>` - manages the OpenBox integration with
@@ -39,7 +40,7 @@ export function registerCursorCommands(program: Command) {
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('[openbox cursor hook] fatal:', (err as Error).message);
-        process.exit(0);
+        bailWith(EXIT.OK);
       }
     });
 }

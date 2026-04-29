@@ -18,6 +18,7 @@ export const MEMBER_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "members"
@@ -88,6 +89,7 @@ export const MEMBER_HANDLERS: SubcommandSpec[] = [
     "pagination": false,
     "jsonMerge": "fill",
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -126,6 +128,7 @@ export const MEMBER_HANDLERS: SubcommandSpec[] = [
     "pagination": false,
     "jsonMerge": "fill",
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -157,6 +160,7 @@ export const MEMBER_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -188,6 +192,7 @@ export const MEMBER_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -216,6 +221,7 @@ export const MEMBER_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": true,
     "output": {
       "kind": "kv"
     }
@@ -251,6 +257,7 @@ export const MEMBER_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }

@@ -1,7 +1,9 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
-const CONFIG_DIR = path.join(process.env.HOME || '', '.claude-hooks');
+// os.homedir() honors USERPROFILE on Windows where HOME is unset.
+const CONFIG_DIR = path.join(os.homedir(), '.claude-hooks');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
 

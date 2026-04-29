@@ -18,6 +18,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "teams"
@@ -38,6 +39,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -60,6 +62,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -82,6 +85,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": true,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "list",
       "label": "members"
@@ -129,6 +133,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
       "icon"
     ],
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -174,6 +179,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
     "pagination": false,
     "jsonMerge": "replace",
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -202,6 +208,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": true,
     "output": {
       "kind": "kv"
     }
@@ -234,6 +241,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": false,
     "output": {
       "kind": "kv"
     }
@@ -266,6 +274,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
     },
     "pagination": false,
     "localOnly": false,
+    "destructive": true,
     "output": {
       "kind": "kv"
     }

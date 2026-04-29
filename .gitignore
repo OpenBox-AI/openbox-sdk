@@ -2,6 +2,8 @@ node_modules
 dist
 dist-pack
 *.tsbuildinfo
+# vitest coverage report - regenerated on every `npm run test:coverage`.
+/coverage
 # tsup/tsc occasionally emits .d.ts next to source when composite mode
 # resolves openbox-sdk path mappings into the workspace src/. Don't commit.
 ts/*/src/**/*.d.ts

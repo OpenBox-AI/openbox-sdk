@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { readFileSync, readdirSync, statSync, existsSync } from 'fs';
 import { join, extname, relative } from 'path';
 import { CANONICAL_EVENT_TYPES } from '../../core-client/generated/govern.js';
+import { EXIT, bailWith } from '../exit-codes.js';
 
 type Severity = 'error' | 'warn' | 'info';
 
@@ -467,7 +468,7 @@ export function registerVerifyCommand(program: Command) {
       const root = path ? (path.startsWith('/') ? path : join(process.cwd(), path)) : process.cwd();
       if (!existsSync(root)) {
         console.error(`path not found: ${root}`);
-        process.exit(1);
+        bailWith(EXIT.USAGE);
       }
 
       const st = statSync(root);
@@ -491,6 +492,6 @@ export function registerVerifyCommand(program: Command) {
         0,
         ...findings.map((f) => bySev[f.severity as keyof typeof bySev] ?? 0),
       );
-      if (worst >= threshold) process.exit(1);
+      if (worst >= threshold) bailWith(EXIT.GENERIC);
     });
 }

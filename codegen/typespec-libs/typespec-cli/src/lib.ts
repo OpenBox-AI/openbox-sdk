@@ -26,7 +26,6 @@ export const $lib = createTypeSpecLibrary({
     command: { description: 'CLI command binding attached to an interface' },
     flag: { description: 'CLI flag binding attached to a model property' },
     validator: { description: 'validator name attached to a model property' },
-    output: { description: 'flag: model is the canonical output shape for a command' },
     maturity: { description: 'CLI maturity (stable/beta/experimental) attached to interface or operation' },
     featureFlag: { description: 'fine-grained feature flag attached to operation or model property' },
     callsBackend: { description: 'backend method + call shape attached to an operation' },
@@ -42,6 +41,7 @@ export const $lib = createTypeSpecLibrary({
     preflight: { description: 'name of a registered preflight callback (HTTP checks before main call)' },
     dtoDefaults: { description: 'declarative DTO defaults merged into the body for missing keys' },
     postValidate: { description: 'names of registered post-validate callbacks run before the call' },
+    destructive: { description: 'flag: op is destructive (delete/revoke/etc) - runtime requires --yes / non-interactive context' },
   },
 });
 

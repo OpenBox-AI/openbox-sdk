@@ -25,11 +25,16 @@ describe('auth commands', () => {
     expect(output).toHaveBeenCalled();
   });
 
-  it('set-token calls saveTokens', async () => {
+  it('set-token calls saveTokens with the resolved env (not a hardcoded one)', async () => {
+    const { resolveEnv } = await import('../../../ts/src/env/index');
     const program = createTestProgram();
     registerAuthCommands(program);
     await program.parseAsync(['node', 'openbox', 'auth', 'set-token', 'my-token', 'my-refresh']);
-    expect(saveTokens).toHaveBeenCalledWith('production', 'my-token', 'my-refresh');
+    // The implementation calls saveTokens(resolveEnv(), token, refresh) - this
+    // test must mirror that resolution rather than hardcoding 'production',
+    // otherwise running with OPENBOX_ENV=local (e.g. local-stack e2e) flips
+    // the assertion despite the impl being correct.
+    expect(saveTokens).toHaveBeenCalledWith(resolveEnv(), 'my-token', 'my-refresh');
   });
 
   // `openbox auth refresh` currently short-circuits with a "disabled" notice

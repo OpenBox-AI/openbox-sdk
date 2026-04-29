@@ -40,6 +40,11 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   '../../test-utils/index.js': 'public openbox-sdk/test-utils surface - buildTestPayload, SPAN_TYPES.',
   '../features.js': 'isFeatureEnabled gate.',
   '../maturity.js': 'CLI maturity gate (gateCommands).',
+  '../exit-codes.js': 'EXIT taxonomy + bailWith - exit-code contract.',
+  '../colors.ts': 'useColor-aware ANSI helpers - color discipline.',
+  '../colors.js': 'useColor-aware ANSI helpers - color discipline.',
+  '../non-interactive.js':
+    'isNonInteractive / assumeYes / useColor / isQuiet - non-interactive contract.',
   // Per-command sibling modules - agent-audit is a separate report
   // module imported by both agent.ts (the action) and tests.
   './agent-audit.js': 'separate cross-session audit report module.',

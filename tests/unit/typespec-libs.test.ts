@@ -15,7 +15,6 @@ import {
   getCommand,
   getFlag,
   getValidator,
-  isOutput,
 } from '../../codegen/typespec-libs/typespec-cli/dist/decorators.js';
 import {
   getMapsTo,
@@ -128,10 +127,9 @@ describe('typespec-cli', () => {
     expect(f?.env).toBe('OPENBOX_ENV');
   });
 
-  test('@cli_validator and @cli_output attach', () => {
+  test('@cli_validator attaches the named validator to the API-key field', () => {
     const creds = findModel('PersistedCredentials');
     expect(getValidator(program, prop(creds, 'apiKey'))).toBe('validateApiKeyFormat');
-    expect(isOutput(program, findModel('AuthProfileOutput'))).toBe(true);
   });
 });
 

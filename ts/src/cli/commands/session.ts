@@ -8,6 +8,8 @@ import { getClient } from '../config.js';
 import { wireSubcommands } from '../wire-subcommands.js';
 import { SESSION_HANDLERS } from '../generated/cli-handlers/session.js';
 import { reportAndExit } from '../../validators/index.js';
+import { EXIT, bailWith } from '../exit-codes.js';
+import { isQuiet, requireYesForDestructive } from '../non-interactive.js';
 import {
   CANONICAL_EVENT_TYPES,
   CANONICAL_ACTIVITY_TYPES,
@@ -182,7 +184,7 @@ export function registerSessionCommands(program: Command) {
         const failed = findings.filter((f) => f.level === 'fail').length;
         if (failed > 0) {
           console.log(`\n${failed} protocol violation${failed === 1 ? '' : 's'}. See references/governance-flow.md for the full contract.`);
-          process.exit(2);
+          bailWith(EXIT.GENERIC);
         }
       } catch (err) {
         reportAndExit(err);
@@ -198,6 +200,8 @@ export function registerSessionCommands(program: Command) {
     .option('--limit <n>', 'Cap on number to terminate in one run', '1000')
     .action(async (agentId: string, opts) => {
       try {
+        // --dry-run is the safe escape - no termination, no --yes needed.
+        if (!opts.dryRun) requireYesForDestructive('session prune');
         const olderThanMs = parseDuration(opts.olderThan);
         const limit = parseInt(opts.limit, 10);
         const cutoff = Date.now() - olderThanMs;
@@ -234,11 +238,12 @@ export function registerSessionCommands(program: Command) {
             failed++;
             console.error(`  failed to terminate ${s.id}: ${err.message || err}`);
           }
-          if ((i + 1) % 10 === 0 || i === toTerminate.length - 1) process.stderr.write(`\rterminated ${ok} / ${toTerminate.length} (${failed} failed)`);
+          if (!isQuiet() && ((i + 1) % 10 === 0 || i === toTerminate.length - 1)) {
+            console.error(`progress: terminated=${ok} failed=${failed} total=${toTerminate.length}`);
+          }
         }
-        console.error('');
         console.log(`done: ${ok} terminated, ${failed} failed. ${candidates.length - toTerminate.length} deferred by --limit.`);
-        if (failed > 0) process.exit(1);
+        if (failed > 0) bailWith(EXIT.GENERIC);
       } catch (err) {
         reportAndExit(err);
       }

@@ -1,4 +1,5 @@
 import type { OpenBoxClient } from '../../client/index.js';
+import { color } from '../colors.js';
 
 /**
  * Cross-session analyzer for one agent. Used by `openbox agent audit <id>`.
@@ -376,7 +377,7 @@ export function renderAuditReport(agentId: string, report: AuditReport): void {
     console.log(`  status:   ${statusLine}`);
     console.log(`  avg dur:  ${fmtMs(s.avgDurationMs)}`);
     if (s.dangling > 0) {
-      console.log(`  \x1b[33mdangling: ${s.dangling} session(s) still PENDING after 1h - run \`openbox session prune ${agentId} --older-than 1h --dry-run\` to review\x1b[0m`);
+      console.log(`  ${color.yellow(`dangling: ${s.dangling} session(s) still PENDING after 1h - run \`openbox session prune ${agentId} --older-than 1h --dry-run\` to review`)}`);
     }
   }
   console.log();
@@ -391,9 +392,9 @@ export function renderAuditReport(agentId: string, report: AuditReport): void {
   console.log(`  sessions with no WorkflowCompleted/Failed:    ${e.sessionsMissingTerminal}`);
   console.log(`  activities completed with status=failed:      ${e.failedActivityCount}`);
   if (protocolIssues === 0 && s.total > 0) {
-    console.log(`  \x1b[32m✓ all sessions follow paired Start/Complete + terminal protocol\x1b[0m`);
+    console.log(`  ${color.green('✓ all sessions follow paired Start/Complete + terminal protocol')}`);
   } else if (protocolIssues > 0) {
-    console.log(`  \x1b[33m${protocolIssues} protocol issue(s) - run \`openbox session inspect ${agentId} <id>\` to drill in\x1b[0m`);
+    console.log(`  ${color.yellow(`${protocolIssues} protocol issue(s) - run \`openbox session inspect ${agentId} <id>\` to drill in`)}`);
   }
   console.log();
 
@@ -414,25 +415,25 @@ export function renderAuditReport(agentId: string, report: AuditReport): void {
   }
 
   if (report.mismatches.length > 0) {
-    console.log(`\x1b[33mGuardrails configured for activity_types never seen in events:\x1b[0m`);
+    console.log(color.yellow('Guardrails configured for activity_types never seen in events:'));
     for (const m of report.mismatches) {
       console.log(`  "${m.guardrail}" bound to activity_type="${m.configuredType}" - 0 matching events. The guardrail silently never fires.`);
     }
     console.log(`  fix: update the client to send that activity_type, OR edit the guardrail binding to match what the client actually sends.`);
     console.log();
   } else if (report.config.active_guardrails > 0 && s.total > 0) {
-    console.log(`\x1b[32m✓ every active guardrail has at least one matching activity_type in recent events\x1b[0m`);
+    console.log(color.green('✓ every active guardrail has at least one matching activity_type in recent events'));
     console.log();
   }
 
   if (report.findings.length > 0) {
     console.log(`Protocol findings:`);
     for (const f of report.findings) {
-      const color =
-        f.level === 'fail' ? '\x1b[31m' :
-        f.level === 'warn' ? '\x1b[33m' :
-        '\x1b[36m'; // cyan for info
-      console.log(`  ${color}[${f.level}] ${f.rule}:\x1b[0m ${f.message}`);
+      const tint =
+        f.level === 'fail' ? color.red :
+        f.level === 'warn' ? color.yellow :
+        color.cyan;
+      console.log(`  ${tint(`[${f.level}] ${f.rule}:`)} ${f.message}`);
     }
     console.log();
   }
