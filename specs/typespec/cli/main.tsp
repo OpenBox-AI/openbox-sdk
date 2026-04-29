@@ -770,11 +770,30 @@ interface Goal {
     limit?: string,
   ): void;
 
-  // Custom: required-field merge with --json fallback + enum/range
-  // validation that doesn't yet have a spec mapping (cross-field gating).
+  /** Update goal alignment config. All four fields required together
+   *  (or --json with the full body). */
   @cli_maturity("experimental")
-  @cli_output_kind("custom")
-  update(agentId: string): void;
+  @cli_calls("updateGoalAlignment")
+  @cli_output_kind("kv")
+  @cli_json_merge("replace")
+  @cli_required_together(#["threshold", "action", "frequency", "model"])
+  update(
+    agentId: string,
+    @cli_flag("Alignment threshold (0-100)")
+    @cli_parse("int") @cli_body_key("alignment_threshold")
+    threshold?: string,
+    @cli_flag("Drift detection action")
+    @cli_choice(#["alert_only", "constrain", "terminate"])
+    @cli_body_key("drift_detection_action")
+    action?: string,
+    @cli_flag("Evaluation frequency")
+    @cli_choice(#["every_action", "every_5_actions", "every_10_actions", "session_end_only"])
+    @cli_body_key("evaluation_frequency")
+    frequency?: string,
+    @cli_flag("LlamaFirewall model")
+    @cli_body_key("llama_firewall_model")
+    `model`?: string,
+  ): void;
 }
 
 @cli_command("guardrail", "Guardrail management + testing.")
@@ -1066,10 +1085,20 @@ interface Org {
     status?: string,
   ): void;
 
-  // Custom: --json + name/domain/timezone merge.
+  /** Update organization settings. --json replaces flag-built body. */
   @cli_maturity("experimental")
-  @cli_output_kind("custom")
-  updateSettings(orgId: string): void;
+  @cli_calls("updateOrgSettings")
+  @cli_output_kind("kv")
+  @cli_json_merge("replace")
+  updateSettings(
+    orgId: string,
+    @cli_flag("Organization name", "n")
+    name?: string,
+    @cli_flag("Domain")
+    domain?: string,
+    @cli_flag("Timezone")
+    timezone?: string,
+  ): void;
 
   @cli_maturity("experimental")
   @cli_calls("getDashboardTierTrends", "positional")
@@ -1098,23 +1127,64 @@ interface Org {
   @cli_output_kind("list", "approval history")
   approvalHistory(orgId: string): void;
 
-  // The remaining org views still need their backend-method names + body shapes
-  // pinned down before they can be spec-driven.
+  /** Latest governance events for the dashboard activity feed. */
   @cli_maturity("experimental")
-  @cli_output_kind("custom")
-  governanceFeed(orgId: string): void;
+  @cli_calls("getGovernanceFeed")
+  @cli_output_kind("list", "governance feed")
+  governanceFeed(
+    orgId: string,
+    @cli_flag("Number of events to return", "l")
+    @cli_parse("int") @cli_default("20")
+    limit?: string,
+  ): void;
 
+  /** Per-agent 30-day trust score trajectory. */
   @cli_maturity("experimental")
-  @cli_output_kind("custom")
-  trustDriftLanes(orgId: string): void;
+  @cli_calls("getTrustDriftLanes")
+  @cli_output_kind("kv")
+  trustDriftLanes(
+    orgId: string,
+    @cli_flag("Number of agent lanes to return", "l")
+    @cli_parse("int") @cli_default("8")
+    limit?: string,
+  ): void;
 
+  /** Allowed/blocked/halted rates vs targets. */
   @cli_maturity("experimental")
-  @cli_output_kind("custom")
-  governanceSlo(orgId: string): void;
+  @cli_calls("getGovernanceSlo")
+  @cli_output_kind("kv")
+  governanceSlo(
+    orgId: string,
+    @cli_flag("Aggregation window")
+    @cli_choice(#["7d", "30d", "90d"])
+    @cli_default("30d")
+    window?: string,
+  ): void;
 
+  /** 7×24 day-of-week × hour-of-day violation density matrix. */
   @cli_maturity("experimental")
-  @cli_output_kind("custom")
-  violationHeatcal(orgId: string): void;
+  @cli_calls("getViolationHeatcal")
+  @cli_output_kind("kv")
+  violationHeatcal(
+    orgId: string,
+    @cli_flag("Aggregation window")
+    @cli_choice(#["7d", "30d", "90d"])
+    @cli_default("30d")
+    window?: string,
+  ): void;
+
+  /** Provision a new organization (public endpoint, throttled). */
+  @cli_maturity("experimental")
+  @cli_calls("registerOrganization")
+  @cli_output_kind("kv")
+  @cli_json_merge("only")
+  register(): void;
+
+  /** Poll demo-agent setup status (used by FE during onboarding). */
+  @cli_maturity("experimental")
+  @cli_calls("getDemoSetupStatus", "positional")
+  @cli_output_kind("kv")
+  demoStatus(): void;
 }
 
 @cli_command("policy", "Policy management.")

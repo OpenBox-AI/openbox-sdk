@@ -9,7 +9,7 @@
 // canonical CLI contract.
 import { Command } from 'commander';
 import { getClient } from '../config.js';
-import { reportAndExit } from '../validators/index.js';
+import { reportAndExit } from '../../validators/index.js';
 import { runAgentAudit, renderAuditReport, auditHasIssues } from './agent-audit.js';
 import { wireSubcommands } from '../wire-subcommands.js';
 import { AGENT_HANDLERS } from '../generated/cli-handlers/agent.js';

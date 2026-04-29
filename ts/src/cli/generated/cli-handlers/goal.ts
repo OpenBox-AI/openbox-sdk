@@ -68,6 +68,73 @@ export const GOAL_HANDLERS: SubcommandSpec[] = [
       "kind": "list",
       "label": "drifts"
     }
+  },
+  {
+    "name": "update",
+    "description": "Update goal alignment config. All four fields required together\n(or --json with the full body).",
+    "args": [
+      {
+        "name": "agentId"
+      }
+    ],
+    "flags": [
+      {
+        "name": "threshold",
+        "long": "threshold",
+        "description": "Alignment threshold (0-100)",
+        "bodyKey": "alignment_threshold",
+        "parse": "int",
+        "noArg": false
+      },
+      {
+        "name": "action",
+        "long": "action",
+        "description": "Drift detection action",
+        "bodyKey": "drift_detection_action",
+        "choices": [
+          "alert_only",
+          "constrain",
+          "terminate"
+        ],
+        "noArg": false
+      },
+      {
+        "name": "frequency",
+        "long": "frequency",
+        "description": "Evaluation frequency",
+        "bodyKey": "evaluation_frequency",
+        "choices": [
+          "every_action",
+          "every_5_actions",
+          "every_10_actions",
+          "session_end_only"
+        ],
+        "noArg": false
+      },
+      {
+        "name": "model",
+        "long": "model",
+        "description": "LlamaFirewall model",
+        "bodyKey": "llama_firewall_model",
+        "noArg": false
+      }
+    ],
+    "backend": {
+      "method": "updateGoalAlignment",
+      "shape": "body"
+    },
+    "pagination": false,
+    "jsonMerge": "replace",
+    "requiredTogether": [
+      "threshold",
+      "action",
+      "frequency",
+      "model"
+    ],
+    "localOnly": false,
+    "output": {
+      "kind": "kv"
+    }
   }
 ];
 

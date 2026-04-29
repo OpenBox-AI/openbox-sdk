@@ -399,6 +399,36 @@ export function getJsonMerge(
   return program.stateMap(stateKeys.jsonMerge).get(target);
 }
 
+/** Cross-field constraint: when ANY of the named flags is set, ALL
+ *  of them must be set. Closes the goal-update "all four config
+ *  fields required together unless --json" rule. The constraint is
+ *  bypassed entirely when --json is supplied (jsonMerge "replace"). */
+export function $cli_required_together(
+  context: DecoratorContext,
+  target: Operation,
+  raw: unknown,
+): void {
+  const fields = Array.isArray(raw)
+    ? raw.filter((c): c is string => typeof c === 'string')
+    : [];
+  if (fields.length < 2) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-output-kind',
+      format: { kind: '@cli_required_together needs ≥2 field names' },
+      target,
+    });
+    return;
+  }
+  context.program.stateMap(stateKeys.requiredTogether).set(target, fields);
+}
+
+export function getRequiredTogether(
+  program: Program,
+  target: Operation,
+): string[] | undefined {
+  return program.stateMap(stateKeys.requiredTogether).get(target);
+}
+
 /** Cross-field constraint: at least one of these flags (by parameter
  *  name) must be set or present in --json. Closes the team-create
  *  "name OR icon required" rule that doesn't fit @cli_required (which

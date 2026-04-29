@@ -5,7 +5,7 @@
 
 import { describe, expect, test } from 'vitest';
 import { CANONICAL_ACTIVITY_TYPES } from '../../ts/src/core-client/generated/govern.js';
-import { buildTestPayload, SPAN_TYPES, type SpanType } from '../../ts/src/cli/span-builder.js';
+import { buildTestPayload, SPAN_TYPES, type SpanType } from '../../ts/src/test-utils/index.js';
 
 /**
  * Activity types span-builder emits today that aren't in

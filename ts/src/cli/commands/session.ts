@@ -7,7 +7,7 @@ import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { wireSubcommands } from '../wire-subcommands.js';
 import { SESSION_HANDLERS } from '../generated/cli-handlers/session.js';
-import { reportAndExit } from '../validators/index.js';
+import { reportAndExit } from '../../validators/index.js';
 import {
   CANONICAL_EVENT_TYPES,
   CANONICAL_ACTIVITY_TYPES,

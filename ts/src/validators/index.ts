@@ -1,15 +1,30 @@
 /**
- * Setup-time validators. Job: reject any input that the OpenBox design says is broken,
- * before it hits the backend (where behavior is often silent or the error is opaque).
+ * Setup-time validators. Public sub-path:
+ *   `import { validateUuid, validateIsoDate, ... } from 'openbox-sdk/validators'`
  *
- * Two levels:
- *   - block(...)  → throws ValidationError with actionable fix suggestion. Caller exits 2.
- *   - warn(...)   → prints to stderr and continues. For non-fatal drift (e.g., non-canonical
- *                   activity_type names that technically work but mismatch guardrail bindings).
+ * Job: reject any input that the OpenBox design says is broken before
+ * it hits the backend (where behavior is often silent or the error is
+ * opaque). The CLI consumes these for argv validation; UI / IDE-extension
+ * / hand-rolled SDK consumers can use the same validators to keep their
+ * own input layers consistent without re-implementing UUID + ISO-date
+ * + behavior-trigger + rego-source checks.
  *
- * Every validator cites the source of truth (enum location, dto path, skill reference) in
- * its error message so operators know where to look.
+ * Two error levels:
+ *   - block(...)  → throws ValidationError with actionable fix
+ *                   suggestion. CLI uses reportAndExit to convert to
+ *                   exit code 2; library consumers catch and surface
+ *                   their own way.
+ *   - warn(...)   → prints to stderr and continues. For non-fatal
+ *                   drift (e.g., non-canonical activity_type names
+ *                   that technically work but mismatch guardrail
+ *                   bindings).
+ *
+ * Every validator cites the source of truth (enum location, dto path,
+ * skill reference) in its error message so operators know where to
+ * look.
  */
+
+export { parseJsonInput } from './input.js';
 
 export class ValidationError extends Error {
   constructor(
