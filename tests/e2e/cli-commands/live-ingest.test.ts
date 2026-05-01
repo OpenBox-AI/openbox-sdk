@@ -25,8 +25,8 @@ import { randomUUID } from 'crypto';
 
 const CORE_URL = process.env.OPENBOX_CORE_URL || 'http://localhost:8086';
 
-const CAN_RUN = existsSync(resolve(__dirname, '../../dist/index.js'))
-  && existsSync(resolve(__dirname, '../../.tokens'))
+const CAN_RUN = existsSync(resolve(__dirname, '../../../dist/index.js'))
+  && existsSync(resolve(__dirname, '../../../.tokens'))
   && !!process.env.OPENBOX_ORG_ID;
 
 async function coreReachable(): Promise<boolean> {

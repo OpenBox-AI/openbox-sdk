@@ -308,6 +308,7 @@ interface Agent {
   ): void;
 
   // Custom: cross-session protocol-conformance audit (renderAuditReport).
+  @cli_maturity("experimental")
   @cli_output_kind("custom")
   audit(agentId: string): void;
 }
@@ -355,25 +356,30 @@ interface Aivss {
 @cli_maturity("stable")
 interface ApiKey {
   /** List org-level API keys. */
+  @cli_maturity("experimental")
   @cli_calls("listApiKeys")
   @cli_pagination
   @cli_output_kind("list", "api keys")
   list(): void;
 
   // Custom: --json body required, no other shape.
+  @cli_maturity("experimental")
   @cli_output_kind("custom")
   create(): void;
 
   /** Get an org-level API key by id. */
+  @cli_maturity("experimental")
   @cli_calls("getApiKey", "positional")
   @cli_output_kind("kv")
   get(id: string): void;
 
   // Custom: --json body required.
+  @cli_maturity("experimental")
   @cli_output_kind("custom")
   update(id: string): void;
 
   /** Delete an org-level API key. */
+  @cli_maturity("experimental")
   @cli_calls("deleteApiKey", "positional")
   @cli_destructive
   @cli_output_kind("kv")
@@ -652,6 +658,7 @@ interface Audit {
 
   /** Download an export - returns a binary payload, written verbatim
    *  to stdout. */
+  @cli_maturity("experimental")
   @cli_calls("downloadExport", "positional")
   @cli_output_kind("binary")
   download(exportId: string): void;
@@ -745,6 +752,7 @@ interface Behavior {
   ): void;
 
   /** Update a behavior rule - change_log is required by the backend. */
+  @cli_maturity("experimental")
   @cli_calls("updateBehaviorRule")
   @cli_output_kind("kv")
   @cli_json_merge
@@ -912,7 +920,6 @@ interface Guardrail {
   delete(agentId: string, guardrailId: string): void;
 
   /** Create a guardrail. */
-  @cli_maturity("experimental")
   @cli_calls("createGuardrail")
   @cli_output_kind("kv")
   @cli_json_merge
@@ -937,7 +944,6 @@ interface Guardrail {
   ): void;
 
   /** Update a guardrail. */
-  @cli_maturity("experimental")
   @cli_calls("updateGuardrail")
   @cli_output_kind("kv")
   @cli_json_merge
@@ -1475,6 +1481,7 @@ interface Team {
   list(orgId: string): void;
 
   /** Get team stats. */
+  @cli_maturity("experimental")
   @cli_calls("getTeamStats", "positional")
   @cli_output_kind("kv")
   stats(orgId: string): void;
@@ -1485,6 +1492,7 @@ interface Team {
   get(orgId: string, teamId: string): void;
 
   /** Get team members. */
+  @cli_maturity("experimental")
   @cli_calls("getTeamMembers")
   @cli_pagination
   @cli_output_kind("list", "members")
@@ -1507,6 +1515,7 @@ interface Team {
   ): void;
 
   /** Update a team. */
+  @cli_maturity("experimental")
   @cli_calls("updateTeam")
   @cli_output_kind("kv")
   @cli_json_merge("replace")
@@ -1534,6 +1543,7 @@ interface Team {
   ): void;
 
   /** Add users to a team. */
+  @cli_maturity("experimental")
   @cli_calls("addTeamMembers")
   @cli_output_kind("kv")
   addMembers(
@@ -1547,6 +1557,7 @@ interface Team {
   ): void;
 
   /** Remove users from a team. */
+  @cli_maturity("experimental")
   @cli_calls("removeTeamMembers")
   @cli_destructive
   @cli_output_kind("kv")

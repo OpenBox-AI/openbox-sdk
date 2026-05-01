@@ -22,8 +22,8 @@ const OPA_URL = process.env.OPA_URL || 'http://localhost:8181';
 const OPA_PULL_WAIT_MS = Number(process.env.OPA_PULL_WAIT_MS || 8000);
 
 const CAN_RUN =
-  existsSync(resolve(__dirname, '../../dist/index.js')) &&
-  existsSync(resolve(__dirname, '../../.tokens')) &&
+  existsSync(resolve(__dirname, '../../../dist/index.js')) &&
+  existsSync(resolve(__dirname, '../../../.tokens')) &&
   !!process.env.OPENBOX_ORG_ID;
 
 async function reachable(url: string): Promise<boolean> {

@@ -18,13 +18,17 @@ export function registerApiKeyCommands(program: Command) {
   const apiKey = program.command('api-key').description('API key management');
   wireSubcommands(apiKey, API_KEY_HANDLERS, getClient as never);
 
+  // `--body` instead of `--json` because the global `--json` boolean
+  // (output formatter, defined in cli/index.ts) and a subcommand-level
+  // `--json <value>` collide in Commander - the boolean wins and the
+  // body never reaches `opts.json`. `-d` mirrors curl's data flag.
   apiKey
     .command('create')
     .description('Create an org-level API key')
-    .requiredOption('--json <json>', 'CreateApiKeyDto body')
+    .requiredOption('-d, --body <json>', 'CreateApiKeyDto body')
     .action(async (opts) => {
       try {
-        const data = await getClient().createApiKey(parseJsonInput(opts.json));
+        const data = await getClient().createApiKey(parseJsonInput(opts.body));
         output(data);
       } catch (err) {
         reportAndExit(err);
@@ -34,10 +38,10 @@ export function registerApiKeyCommands(program: Command) {
   apiKey
     .command('update <id>')
     .description('Update an org-level API key')
-    .requiredOption('--json <json>', 'UpdateApiKeyDto body')
+    .requiredOption('-d, --body <json>', 'UpdateApiKeyDto body')
     .action(async (id: string, opts) => {
       try {
-        const data = await getClient().updateApiKey(id, parseJsonInput(opts.json));
+        const data = await getClient().updateApiKey(id, parseJsonInput(opts.body));
         output(data);
       } catch (err) {
         reportAndExit(err);
