@@ -44,7 +44,7 @@ const VERB_ALIAS: Record<string, string> = {
 function extractCoveredEndpoints(source: string): Set<string> {
   const out = new Set<string>();
 
-  // Pattern 1: `this.<helper>(\`<path>\`, ...)` - both `httpGet`/`httpPost`/...
+  // Pattern 1: `this.<helper>(\`<path>\`, ...)`; both `httpGet`/`httpPost`/...
   // (post-spec-driven wrapper) and the legacy `get`/`post`/... shorthands.
   // The optional `<...>` allows for explicit generic-type arguments emitted
   // by the wrapper-base codegen, e.g. `this.httpPatch<ResponseOf<...>>('/path', body)`.

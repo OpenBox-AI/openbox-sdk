@@ -53,7 +53,7 @@ function walk(root: string, out: string[] = []): string[] {
 // before matching (so "// missing X-Openbox-Client" in a note can't fool an
 // identifier-presence rule), but reports snippets from the ORIGINAL lines so
 // the user sees real context. Pass { raw: true } to skip comment stripping
-// - use this for rules where the pattern itself is a string literal inside
+//; use this for rules where the pattern itself is a string literal inside
 // code (invented-verdict's "deny" is in source, not a comment).
 function matchLines(
   origLines: string[],
@@ -69,13 +69,13 @@ function matchLines(
 }
 
 // Strip comments so identifier-presence rules don't get fooled by "// missing X-Openbox-Client" etc.
-// Handles //, /* */, and # (Python). Naive - does not respect strings; good enough for a lint.
+// Handles //, /* */, and # (Python). Naive; does not respect strings; good enough for a lint.
 //
 // CRITICAL: preserves newline count. Multiline /* ... */ blocks are replaced
 // with blank lines (one '\n' per line the block spanned) so downstream code
 // that iterates lines by index stays aligned with the original file. A prior
 // version collapsed multiline blocks into empty strings and silently shifted
-// every subsequent line's reported line number - caught by regression
+// every subsequent line's reported line number; caught by regression
 // audit. Do not regress this.
 function stripComments(content: string): string {
   return content
@@ -112,7 +112,7 @@ const rules: Rule[] = [
     appliesTo: () => true,
     detect: (_content, lines) => {
       // Only flag in verdict-comparison contexts. Tightened from the original
-      // which matched ", " and "(" as triggers - too broad; caught normal English
+      // which matched ", " and "(" as triggers; too broad; caught normal English
       // usage of "deny"/"ask" in unrelated prose. Now requires the string to be
       // next to a comparison operator (===, ==, case) or inside a verdict field.
       const re = /(verdict|decision|action)\s*[:=]\s*["'](deny|ask|constrain)["']|case\s+["'](deny|ask|constrain)["']|(===|==)\s*["'](deny|ask|constrain)["']/;
@@ -122,7 +122,7 @@ const rules: Rule[] = [
   {
     name: 'stage-both-silent-noop',
     severity: 'error',
-    message: '`--stage both` (or any non-0/1 value) is silently ignored by the guardrails service - the guardrail never fires.',
+    message: '`--stage both` (or any non-0/1 value) is silently ignored by the guardrails service; the guardrail never fires.',
     fix: 'Use `--stage 0` (input/ActivityStarted) or `--stage 1` (output/ActivityCompleted). For both coverage, create two separate guardrails.',
     appliesTo: () => true,
     detect: (content, lines) => matchLines(lines, /--stage\s+both\b|processing_stage["']?\s*[:=]\s*["']both["']/),
@@ -144,7 +144,7 @@ const rules: Rule[] = [
   {
     name: 'raw-approval-response-verdict',
     severity: 'warn',
-    message: '`/api/v1/governance/approval` wire response is `{ id, action, reason, approval_expiration_time }` - `action`, not `verdict`. The TS SDK normalizes; raw-HTTP callers must read `.action`.',
+    message: '`/api/v1/governance/approval` wire response is `{ id, action, reason, approval_expiration_time }`; `action`, not `verdict`. The TS SDK normalizes; raw-HTTP callers must read `.action`.',
     fix: 'Read `response.action` for raw HTTP polling, or `response.verdict || response.action` to work with both shapes.',
     appliesTo: () => true,
     detect: (content, origLines) => {
@@ -173,7 +173,7 @@ const rules: Rule[] = [
       const out: Array<{ line: number; snippet: string }> = [];
       const stripped = stripComments(content);
       // Universal: detect calls to any OpenBox backend endpoint by PATH pattern,
-      // not host - so self-hosted deploys on arbitrary domains are covered too.
+      // not host; so self-hosted deploys on arbitrary domains are covered too.
       // These paths are on the backend API (not core); any HTTP call whose URL
       // contains one of them is a backend call that needs the header.
       const backendPath = /\/(auth\/(profile|refresh|login|set-token|roles|change-password|permissions|features)|agent(\/|s\?|s$)|guardrail|policy|behavior-rule|session|team|org|member|trust|violation|observability|aivss|goal|approval|audit|api-key|health\?|health$)/;
@@ -236,7 +236,7 @@ const rules: Rule[] = [
     name: 'activity-started-without-completed',
     severity: 'info',
     message: 'A path emits `ActivityStarted` without an obvious paired `ActivityCompleted` in the same scope. Orphan activities break output-stage guardrails and trust scoring.',
-    fix: 'Every Started must be Completed - on success AND failure. See references/governance-flow.md § "Nothing dangles".',
+    fix: 'Every Started must be Completed; on success AND failure. See references/governance-flow.md § "Nothing dangles".',
     appliesTo: (path) => /\.(ts|tsx|js|jsx|mjs|cjs|py|go)$/.test(path),
     detect: (content, origLines) => {
       // Strip comments so docstrings mentioning "ActivityStarted" but not
@@ -284,7 +284,7 @@ const rules: Rule[] = [
   {
     name: 'span-missing-gate-attribute',
     severity: 'warn',
-    message: 'Span construction missing the gate attribute its classifier needs - core will fall through to `internal` semantic type and behavior rules won\'t fire.',
+    message: 'Span construction missing the gate attribute its classifier needs; core will fall through to `internal` semantic type and behavior rules won\'t fire.',
     fix: 'HTTP spans need `http.method`; DB spans need `db.system`; file spans need `file.path`; LLM spans need http.method=POST + http.url matching a known LLM domain (gen_ai.system alone is NOT sufficient).',
     appliesTo: () => true,
     detect: (content, lines) => {
@@ -303,7 +303,7 @@ const rules: Rule[] = [
           if (new RegExp(`hook_type["']?\\s*[:=]\\s*["']${hook}["']`).test(line)) {
             const window = stripped.split('\n').slice(Math.max(0, i - 8), Math.min(lines.length, i + 12)).join('\n');
             if (!attrRe.test(window)) {
-              out.push({ line: i + 1, snippet: `${line.trim().slice(0, 120)} - missing gate attr \`${attrName}\` nearby` });
+              out.push({ line: i + 1, snippet: `${line.trim().slice(0, 120)}; missing gate attr \`${attrName}\` nearby` });
             }
           }
         }
@@ -318,9 +318,9 @@ const rules: Rule[] = [
     fix: 'Generate workflow_id + run_id once at session start, store them, reuse on every subsequent event. activity_id is per-action.',
     appliesTo: () => true,
     detect: (_content, lines) => {
-      // Pattern: workflow_id: uuid()/randomUUID()/uuid4() - inline generation
+      // Pattern: workflow_id: uuid()/randomUUID()/uuid4(); inline generation
       // on the assignment line. Can't reliably distinguish "correct: generated
-      // once at session start" from "wrong: inside a loop" - the warn flags
+      // once at session start" from "wrong: inside a loop"; the warn flags
       // inline generation and lets the reader decide.
       const re = /(["']?)(workflow_id|run_id)\1\s*[:=]\s*(uuid4\(\)|uuid\.uuid4\(\)|uuid\(\)|randomUUID\(\)|crypto\.randomUUID\(\)|nanoid\(\))/;
       return matchLines(lines, re);
@@ -356,7 +356,7 @@ const rules: Rule[] = [
   {
     name: 'require-approval-no-hitl-enabled',
     severity: 'warn',
-    message: 'Code branches on the `require_approval` verdict but doesn\'t set `hitlEnabled: true` on the SDK config - the SDK will throw `ApprovalDisabledError` instead of polling.',
+    message: 'Code branches on the `require_approval` verdict but doesn\'t set `hitlEnabled: true` on the SDK config; the SDK will throw `ApprovalDisabledError` instead of polling.',
     fix: 'Set `hitlEnabled: true` in the SDK config, or if using raw HTTP, make sure the approval-polling loop is wired (see references/governance-flow.md § "Approval Polling").',
     appliesTo: () => true,
     detect: (content) => {
@@ -379,7 +379,7 @@ const rules: Rule[] = [
       } else if (!usesSdk && !hasPollingLoop) {
         for (let i = 0; i < lines.length; i++) {
           if (/["']require_approval["']/.test(lines[i])) {
-            out.push({ line: i + 1, snippet: `${lines[i].trim().slice(0, 120)} - no approval-poll loop visible` });
+            out.push({ line: i + 1, snippet: `${lines[i].trim().slice(0, 120)}; no approval-poll loop visible` });
             return out;
           }
         }
@@ -428,7 +428,7 @@ function printReport(findings: Finding[], totalFiles: number, rootLabel: string)
     byRule.get(f.rule)!.push(f);
   }
 
-  console.log(`openbox verify - scanned ${totalFiles} file(s) under ${rootLabel}`);
+  console.log(`openbox verify; scanned ${totalFiles} file(s) under ${rootLabel}`);
   console.log();
 
   if (findings.length === 0) {
@@ -440,7 +440,7 @@ function printReport(findings: Finding[], totalFiles: number, rootLabel: string)
   for (const [rule, hits] of byRule) {
     const sev = hits[0].severity;
     const mark = sev === 'error' ? '✗' : sev === 'warn' ? '!' : 'ℹ';
-    console.log(`${mark} ${rule} (${sev}) - ${hits.length} finding${hits.length === 1 ? '' : 's'}`);
+    console.log(`${mark} ${rule} (${sev}); ${hits.length} finding${hits.length === 1 ? '' : 's'}`);
     console.log(`  ${hits[0].message}`);
     if (hits[0].fix) console.log(`  Fix: ${hits[0].fix}`);
     for (const h of hits.slice(0, 10)) {

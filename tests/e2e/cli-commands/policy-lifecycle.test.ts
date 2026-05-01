@@ -58,14 +58,14 @@ describeOrSkip('policy lifecycle (e2e, real backend)', () => {
     expect(policyId).toBeTruthy();
   });
 
-  // Skipped - depends on `policy create` policyId. Same dev-setup branch.
+  // Skipped; depends on `policy create` policyId. Same dev-setup branch.
   it.skip('`policy list` returns the new policy', () => {
     const res = runCli(['policy', 'list', agentId!, '--limit', '50']);
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain(policyId!);
   });
 
-  // Skipped - depends on `policy create` policyId. Same dev-setup branch.
+  // Skipped; depends on `policy create` policyId. Same dev-setup branch.
   it.skip('`policy get` returns the policy detail', () => {
     const res = runCli(['policy', 'get', agentId!, policyId!]);
     expect(res.status, res.stderr).toBe(0);
@@ -73,14 +73,14 @@ describeOrSkip('policy lifecycle (e2e, real backend)', () => {
     expect(body.id).toBe(policyId);
   });
 
-  // Skipped - depends on `policy create` policyId. Same dev-setup branch.
+  // Skipped; depends on `policy create` policyId. Same dev-setup branch.
   it.skip('`policy current` returns active policies (includes the new one)', () => {
     const res = runCli(['policy', 'current', agentId!]);
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain(policyId!);
   });
 
-  // Skipped - depends on `policy create` policyId. Same dev-setup branch.
+  // Skipped; depends on `policy create` policyId. Same dev-setup branch.
   it.skip('`policy update --active false` toggles off', () => {
     const res = runCli([
       'policy', 'update', agentId!, policyId!,

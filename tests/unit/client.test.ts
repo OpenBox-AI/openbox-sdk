@@ -364,7 +364,7 @@ describe('OpenBoxClient', () => {
 
   // Auto-refresh is currently disabled (OpenBoxClient.REFRESH_ENABLED = false)
   // pending upstream /auth/refresh fixes. These tests verify the correct
-  // auto-refresh behavior - they'll re-enable automatically once the flag
+  // auto-refresh behavior; they'll re-enable automatically once the flag
   // flips back to true. Do not rewrite them to assert the disabled path.
   describe.skip('token refresh', () => {
     it('auto-refreshes when access token is expired and refresh token is available', async () => {

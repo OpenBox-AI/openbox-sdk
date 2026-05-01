@@ -4,7 +4,7 @@
 // spec via the @token_format decorator on ClientVariant.value, so
 // the allowed character set lives in exactly one place.
 //
-// Backend treats the header as presence-only - value is a telemetry
+// Backend treats the header as presence-only; value is a telemetry
 // dimension, but the more it tells, the more useful it is in logs.
 //
 // The base name says which component is calling (openbox-cli,

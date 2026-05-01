@@ -19,7 +19,7 @@ export class SessionStore {
 
   save(key: string, session: Record<string, unknown>): void {
     // Per-user mode (0o600). Session records carry hook payloads that
-    // may contain prompts / file paths / tool args - treat as sensitive.
+    // may contain prompts / file paths / tool args; treat as sensitive.
     // Windows ignores the mode bits; ACL hardening is out-of-scope here.
     fs.writeFileSync(this.filePath(key), JSON.stringify(session), { mode: 0o600, encoding: 'utf-8' });
   }

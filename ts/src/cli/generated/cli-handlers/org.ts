@@ -153,7 +153,7 @@ export const ORG_HANDLERS: SubcommandSpec[] = [
   },
   {
     "name": "update-settings",
-    "description": "Update organization settings. --json replaces flag-built body.",
+    "description": "Update organization settings. --body replaces flag-built body.",
     "args": [
       {
         "name": "orgId"

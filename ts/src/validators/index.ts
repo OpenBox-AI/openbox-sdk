@@ -15,9 +15,9 @@
  *                   exit code 2; library consumers catch and surface
  *                   their own way.
  *   - warn(...)   → prints to stderr and continues. For non-fatal
- *                   drift (e.g., non-canonical activity_type names
+ *                   drift, such as non-canonical activity_type names
  *                   that technically work but mismatch guardrail
- *                   bindings).
+ *                   bindings.
  *
  * Every validator cites the source of truth (enum location, dto path,
  * skill reference) in its error message so operators know where to
@@ -70,7 +70,7 @@ export function reportAndExit(err: unknown): never {
   }
 
   // OpenBoxApiError (from openbox-sdk/client) and CoreApiError (from
-  // openbox-sdk/core-client) - surface status + body so users don't see
+  // openbox-sdk/core-client); surface status + body so users don't see
   // a bare "Request failed: 500 Internal Server Error" with no context.
   // Both share the same { name, status, body } shape; check by name.
   const apiErr = err as { name?: string; message?: string; status?: number; body?: unknown; code?: string };
@@ -82,7 +82,7 @@ export function reportAndExit(err: unknown): never {
     console.error(`${color.red('error:')} ${apiErr.message}`);
     const detail = extractApiErrorDetail(apiErr.body);
     if (detail) console.error(`  detail: ${detail}`);
-    // Detail-aware hint takes precedence over the generic status hint -
+    // Detail-aware hint takes precedence over the generic status hint .
     // surfaces specific known failure modes (deployed-environment bugs,
     // fail-closed responses) that the user can act on directly.
     const hint = hintForDetail(detail) ?? hintForStatus(apiErr.status);
@@ -90,7 +90,7 @@ export function reportAndExit(err: unknown): never {
     process.exit(exitCodeForStatus(apiErr.status));
   }
 
-  // Node fetch / undici network errors - ECONNREFUSED, DNS, timeout.
+  // Node fetch / undici network errors; ECONNREFUSED, DNS, timeout.
   // Surface as EXIT.NETWORK so retry loops can branch on it.
   const code = (err as { code?: string }).code;
   if (
@@ -141,30 +141,30 @@ function hintForDetail(detail: string | null): string | null {
     return (
       "Core's GovernanceWorkflow is hanging on the post-OPA non-ALLOW path " +
       '(staging-only bug, image 591f66f+). To confirm vs random Temporal flake, ' +
-      "fire `core evaluate --type llm --prompt hi` against the same agent - if " +
+      "fire `core evaluate --type llm --prompt hi` against the same agent; if " +
       "that returns <1s but `--type shell` (or any path that triggers a non-ALLOW " +
       'verdict) hangs 30s, this is the cccff05 cancellation deadlock. Pivot to ' +
       'prod for end-to-end approval testing until the staging fix lands.'
     );
   }
-  // Same staging cluster, different surface - an HTTP/2 stream
+  // Same staging cluster, different surface; an HTTP/2 stream
   // reset from core toward Temporal frontend (or vice versa).
-  // Distinct from the deadlock above - surfaces during true
+  // Distinct from the deadlock above; surfaces during true
   // Temporal-cluster degradation.
   if (detail.includes('stream terminated by RST_STREAM')) {
     return (
-      'Temporal frontend RST_STREAM - cluster degradation rather than a workflow bug. ' +
+      'Temporal frontend RST_STREAM; cluster degradation rather than a workflow bug. ' +
       'Retry with backoff; if it persists, escalate to staging-infra with the agent_id + governance_event_id.'
     );
   }
-  // Core's fail-closed when OPA service is unreachable - the policy
+  // Core's fail-closed when OPA service is unreachable; the policy
   // result auto-converts to BLOCK with `fallback_used: true`. Useful
   // to call out so users don't think their policy "decided" to block.
   if (detail.includes('OPA unavailable')) {
     return (
       'OPA service was unreachable from core; the fail-closed security ' +
       "policy converted the verdict to BLOCK. The user's actual policy " +
-      'never ran - fix the OPA service and retry.'
+      'never ran; fix the OPA service and retry.'
     );
   }
   return null;
@@ -173,11 +173,11 @@ function hintForDetail(detail: string | null): string | null {
 function hintForStatus(status: number): string | null {
   switch (status) {
     case 401:
-      return 'Auth failed - token expired or missing. Run `openbox auth login` or `openbox doctor` to diagnose.';
+      return 'Auth failed; token expired or missing. Run `openbox auth login` or `openbox doctor` to diagnose.';
     case 403:
       return 'Denied by the backend. Either the resource ID doesn\'t belong to your org/team, or your role lacks the required permission. Check `openbox auth permissions` and `openbox auth profile`.';
     case 404:
-      return 'Resource not found. Check the ID (agent, team, org, etc.) - `openbox agent list` / `openbox team list <orgId>`.';
+      return 'Resource not found. Check the ID (agent, team, org, etc.); `openbox agent list` / `openbox team list <orgId>`.';
     case 422:
       return 'Validation failed server-side. Inspect the detail field above for the exact field(s) the backend rejected.';
     case 500:
@@ -200,9 +200,9 @@ export function validateUuid(value: unknown, label: string): string {
   return value as string;
 }
 
-/** Same as validateUuid but for a `string[]` flag value - every entry
- *  must be a UUID. Used by spec-driven flags that take variadic UUIDs
- *  (e.g. `agent create --team t1 t2`). */
+/** Same as validateUuid but for a `string[]` flag value; every entry
+ *  must be a UUID. Used by spec-driven flags that take variadic UUIDs,
+ *  such as `agent create --team t1 t2`. */
 export function validateUuidList(value: unknown, label: string): string[] {
   if (!Array.isArray(value)) {
     block('invalid-uuid', `${label} must be a list of UUIDs. Got: ${JSON.stringify(value)}`);
@@ -242,7 +242,7 @@ export function validateEnum<T extends string>(value: unknown, allowed: readonly
 
 // Catches obviously-bad --from/--to values locally instead of letting the
 // backend silently return empty results for unparseable strings. Accepts ISO
-// 8601 timestamps (YYYY-MM-DD, YYYY-MM-DDTHH:MM:SSZ, offsets, etc.) - anything
+// 8601 timestamps (YYYY-MM-DD, YYYY-MM-DDTHH:MM:SSZ, offsets, etc.); anything
 // Date.parse can parse to a finite number.
 export function validateIsoDate(value: unknown, label: string): string {
   if (typeof value !== 'string' || value.length === 0) {
@@ -263,10 +263,10 @@ export function validateIsoDate(value: unknown, label: string): string {
 // the parseInt+range check so a user passing `--page abc` gets a clean local
 // error instead of leaking NaN into the backend query string. Commander's
 // numeric defaults ('0'/'10') mean the opts fields are always strings when
-// unset - `validateInt` accepts strings and converts.
+// unset; `validateInt` accepts strings and converts.
 //
 // page: backend uses @Min(0) zero-indexed pagination.
-// perPage: backend has no @Max - don't impose a client-side ceiling that
+// perPage: backend has no @Max; don't impose a client-side ceiling that
 // silently rejects calls the server would accept.
 export function parsePagination(opts: { page?: unknown; limit?: unknown }): {
   page: number;
@@ -313,7 +313,7 @@ export function validateStage(value: unknown): '0' | '1' {
     block(
       'invalid-stage',
       `--stage must be "0" (input / ActivityStarted) or "1" (output / ActivityCompleted). Got: ${JSON.stringify(value)}`,
-      `"both" is silently ignored by the guardrails service - the guardrail will NEVER fire. Create two separate guardrails for input+output coverage.`,
+      `"both" is silently ignored by the guardrails service; the guardrail will NEVER fire. Create two separate guardrails for input+output coverage.`,
       'references/guardrails.md § "Stage Gating + Event Pairing"',
     );
   }
@@ -323,7 +323,7 @@ export function validateStage(value: unknown): '0' | '1' {
 export function validateGuardrailParams(typeId: string, params: unknown): void {
   const p = (params ?? {}) as Record<string, unknown>;
   if (typeId === '4') {
-    // ban_list - needs banned_words array
+    // ban_list; needs banned_words array
     const words = p.banned_words;
     if (!Array.isArray(words) || words.length === 0) {
       block(
@@ -338,7 +338,7 @@ export function validateGuardrailParams(typeId: string, params: unknown): void {
     }
   }
   if (typeId === '5') {
-    // regex - needs regex: string
+    // regex; needs regex: string
     const rx = p.regex;
     if (typeof rx !== 'string' || rx.length === 0) {
       block(
@@ -348,7 +348,7 @@ export function validateGuardrailParams(typeId: string, params: unknown): void {
         'references/guardrails.md § "Required Params Per Type"',
       );
     }
-    // Confirm it actually compiles as a JS RE - rough proxy for "will the Python service parse it."
+    // Confirm it actually compiles as a JS RE; rough proxy for "will the Python service parse it."
     try { new RegExp(rx); } catch (e: any) {
       block('regex-invalid', `params.regex is not a valid regular expression: ${e.message}`);
     }
@@ -363,7 +363,7 @@ export function validateGuardrailParams(typeId: string, params: unknown): void {
  * server-side (activity_type is free-string) but won't match guardrails
  * configured against this canonical set.
  *
- * Note: `ActivityCompleted` is an event_type, not an activity_type -
+ * Note: `ActivityCompleted` is an event_type, not an activity_type .
  * deliberately excluded here even though the skill used to include it.
  */
 export const CANONICAL_ACTIVITY_TYPES = [
@@ -383,7 +383,7 @@ export const CANONICAL_ACTIVITY_TYPES = [
   'AgentSpawn',          // runtime/claude-code
   'ClaudeCodeSession',   // runtime/claude-code session marker
   'CursorSession',       // runtime/cursor session marker
-  'DefaultActivity',     // openbox-typescript-sdk default (won't match specific-type guardrails - override via config.activityType)
+  'DefaultActivity',     // openbox-typescript-sdk default (won't match specific-type guardrails; override via config.activityType)
 ] as const;
 
 export function validateActivitiesConfig(activities: unknown, stage: '0' | '1'): void {
@@ -403,7 +403,7 @@ export function validateActivitiesConfig(activities: unknown, stage: '0' | '1'):
     }
     if (!(CANONICAL_ACTIVITY_TYPES as readonly string[]).includes(a.activity_type)) {
       warn(
-        `settings.activities[${i}].activity_type "${a.activity_type}" is non-canonical. First-party SDKs use past-tense PascalCase (${CANONICAL_ACTIVITY_TYPES.slice(0, 4).join(', ')}, ...). If your client sends a different string, this is fine - but inventions like "LLMCompletion" won't match actual SDK events.`,
+        `settings.activities[${i}].activity_type "${a.activity_type}" is non-canonical. First-party SDKs use past-tense PascalCase (${CANONICAL_ACTIVITY_TYPES.slice(0, 4).join(', ')}, ...). If your client sends a different string, this is fine; but inventions like "LLMCompletion" won't match actual SDK events.`,
         'references/guardrails.md § "activity_type Matching"',
       );
     }
@@ -417,7 +417,7 @@ export function validateActivitiesConfig(activities: unknown, stage: '0' | '1'):
       if (!path.startsWith(expectedPrefix + '.') && path !== expectedPrefix) {
         block(
           'fields-to-check-wrong-prefix',
-          `fields_to_check path "${path}" doesn't match the stage. Stage ${stage} requires paths starting with "${expectedPrefix}." - the guardrails service silently drops paths without the correct prefix.`,
+          `fields_to_check path "${path}" doesn't match the stage. Stage ${stage} requires paths starting with "${expectedPrefix}."; the guardrails service silently drops paths without the correct prefix.`,
           `Rename to "${expectedPrefix}.<field>" or switch stage. Stage 0 fires on ActivityStarted (input), stage 1 on ActivityCompleted (output).`,
           'references/guardrails.md § "Field Path Prefixes"',
         );
@@ -478,7 +478,7 @@ export function validateApprovalTimeout(verdict: number, timeout: unknown): void
 
 /**
  * Heuristic check that the rego source follows OpenBox's expected shape.
- * Core reads `result.decision` + `result.reason` - anything else silently allows.
+ * Core reads `result.decision` + `result.reason`; anything else silently allows.
  * We don't parse full Rego; we check for the result pattern and flag deny[msg] as a common bug.
  */
 export function validateRegoSource(rego: string): void {
@@ -493,7 +493,7 @@ export function validateRegoSource(rego: string): void {
     block(
       'rego-no-package',
       `Rego source must start with a "package …" declaration.`,
-      `Add: package org.openbox_ai.my_policy  (the name is rewritten server-side - any valid identifier works).`,
+      `Add: package org.openbox_ai.my_policy  (the name is rewritten server-side; any valid identifier works).`,
       'references/rego-reference.md § "Policy Format"',
     );
   }
@@ -505,7 +505,7 @@ export function validateRegoSource(rego: string): void {
   const hasDenyPattern = /\bdeny\s*\[/.test(src);
   if (!hasResult) {
     const denyHint = hasDenyPattern
-      ? ` Looks like your policy uses the \`deny[msg]\` pattern - that's not what core reads. Rewrite as \`result := {"decision": "BLOCK", "reason": "<msg>"} if { <conditions> }\`.`
+      ? ` Looks like your policy uses the \`deny[msg]\` pattern; that's not what core reads. Rewrite as \`result := {"decision": "BLOCK", "reason": "<msg>"} if { <conditions> }\`.`
       : '';
     block(
       'rego-no-result',
@@ -530,8 +530,8 @@ export function validateRegoSource(rego: string): void {
     if (!acceptedDecisions.test(val)) {
       block(
         'rego-invalid-decision',
-        `Rego rule uses unrecognized decision "${val}". Accepted (case-insensitive): allow | continue | block | stop | halt | require_approval | require-approval. Convention is uppercase (ALLOW, BLOCK, HALT, REQUIRE_APPROVAL).`,
-        `Unknown values (e.g. "DENY", "REJECT", "CONSTRAIN") silently fall through to ALLOW - the policy then does nothing.`,
+        `Rego rule uses unrecognized decision "${val}". Accepted values, case-insensitive: allow, continue, block, stop, halt, require_approval, require-approval. Convention is uppercase: ALLOW, BLOCK, HALT, REQUIRE_APPROVAL.`,
+        `Unknown values such as "DENY", "REJECT", or "CONSTRAIN" silently fall through to ALLOW, so the policy does nothing.`,
         'references/rego-reference.md § "Policy Format"',
       );
     }
@@ -543,7 +543,7 @@ export function validateRegoSource(rego: string): void {
     const pkg = pkgMatch[1];
     if (!/^org\.openbox_ai\./.test(pkg) && !/^org\.[0-9a-z_]+\.policy_/.test(pkg)) {
       warn(
-        `Package "${pkg}" will be rewritten server-side to \`org.<orgId>.policy_<policyId>\` by formatRegoCode(). The declared name is decorative - this is fine, just noting it so you don't expect the name to persist.`,
+        `Package "${pkg}" will be rewritten server-side to \`org.<orgId>.policy_<policyId>\` by formatRegoCode(). The declared name is decorative; this is fine, just noting it so you don't expect the name to persist.`,
         'references/rego-reference.md § "Policy Format" (Package name is rewritten)',
       );
     }

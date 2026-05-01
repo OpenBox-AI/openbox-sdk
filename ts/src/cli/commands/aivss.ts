@@ -1,4 +1,4 @@
-// `openbox aivss` - fully spec-driven (H.3 + I). update parses --json
+// `openbox aivss`; fully spec-driven (H.3 + I). update parses --json
 // into the `aivss_config` body field via @cli_parse("json") +
 // @cli_body_key("aivss_config"); calculate uses
 // @cli_json_merge("replace").

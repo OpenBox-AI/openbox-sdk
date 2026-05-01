@@ -1,5 +1,5 @@
 // Decorator implementations for typespec-workflow. See ../env/
-// for the same split - getters here are for emitter consumption; the
+// for the same split; getters here are for emitter consumption; the
 // TypeSpec compiler sees decorators through src/index.ts ($decorators).
 
 import type {
@@ -126,9 +126,9 @@ export function getMapsTo(program: Program, target: Operation): MapsToBinding | 
 // verdict back to the platform-specific output shape.
 
 export interface AdapterBinding {
-  /** Emitted module suffix - `claude-hooks` → `runtime/claude-hooks`. */
+  /** Emitted module suffix; `claude-hooks` → `runtime/claude-hooks`. */
   readonly name: string;
-  /** @preset name this adapter binds to (e.g. `claude-code`, `cursor`). */
+  /** @preset name this adapter binds to, such as `claude-code` or `cursor`. */
   readonly preset: string;
   /** Stdin JSON field used to discriminate operations. */
   readonly discriminator: string;
@@ -257,14 +257,15 @@ export function getVerdictShape(
 }
 
 // ─── Activity routing ────────────────────────────────────────
-// Per-event tool-name → activity_type table for adapter operations. Lives
-// on @hookEvent operations whose handlers dispatch on a sub-discriminator
-// inside the envelope (e.g. PreToolUse routes by tool_name to FileRead /
-// ShellExecution / HTTPRequest / etc).
+// Per-event tool-name to activity_type table for adapter operations.
+// Lives on @hookEvent operations whose handlers dispatch on a
+// sub-discriminator inside the envelope. PreToolUse, for instance,
+// routes by tool_name to FileRead, ShellExecution, HTTPRequest, etc.
 //
-// Spec'ing the table here means the per-platform runtime mappers consume
-// a generated constant instead of hand-coding the same switch in two
-// places - drift between claude-code and cursor was a real concern.
+// Spec'ing the table here means the per-platform runtime mappers
+// consume a generated constant instead of hand-coding the same switch
+// in two places. Drift between claude-code and cursor was a real
+// concern.
 
 export interface ActivityRoutingBinding {
   /** Map of inner-discriminator value → activity_type fired. */
@@ -577,7 +578,7 @@ export function $activityLabels(
     });
     return;
   }
-  // Merge with any existing entries on the namespace - supports splitting
+  // Merge with any existing entries on the namespace; supports splitting
   // the table across multiple decorator calls if a future spec wants it.
   const existing = (context.program
     .stateMap(stateKeys.activityLabels)

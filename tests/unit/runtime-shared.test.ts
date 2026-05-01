@@ -1,4 +1,4 @@
-// Coverage for ts/src/runtime/_shared/* - pure primitives the
+// Coverage for ts/src/runtime/_shared/*; pure primitives the
 // claude-code/cursor adapters compose against. Each helper is small
 // and deterministic; tests use the real fs (in a temp dir) rather
 // than mocking it, so the file-mode contract from O.1 also stays

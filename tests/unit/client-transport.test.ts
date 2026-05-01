@@ -1,13 +1,13 @@
-// OpenBoxClient transport - retry on 5xx, ECONNREFUSED, query-param
+// OpenBoxClient transport; retry on 5xx, ECONNREFUSED, query-param
 // serialization, the static getVersion helper. Plus secondary coverage
 // of the validator → reportAndExit pipeline (each validator's "happy
 // path returns the value, malformed input throws ValidationError"
 // contract) since both share the test-utility surface.
 //
 // Co-tenant scope (kept here because the setup is symmetrical):
-//   - cli/commands/skill install - exercises the path-resolver branch
-//   - cli/commands/core evaluate - exercises --type shorthand + @file
-//   - cli/commands/doctor - JWT-expiry branch
+//   - cli/commands/skill install; exercises the path-resolver branch
+//   - cli/commands/core evaluate; exercises --type shorthand + @file
+//   - cli/commands/doctor; JWT-expiry branch
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Command } from 'commander';
@@ -35,13 +35,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// cli/index.ts (bin entry) deliberately not unit-tested in-process -
+// cli/index.ts (bin entry) deliberately not unit-tested in-process .
 // it calls parseAsync at module top-level which runs whichever command
 // is in argv and exits, leaking into sibling tests. Coverage of that
 // path comes from real binary invocations in the e2e suite + the
 // drift tests for register*Commands ordering.
 
-describe('client/client.ts - retry + transport', () => {
+describe('client/client.ts; retry + transport', () => {
   async function makeFlapServer(initialFails: number): Promise<{ url: string; close: () => Promise<void>; calls: number }> {
     let calls = 0;
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -73,7 +73,7 @@ describe('client/client.ts - retry + transport', () => {
       // 2 fails + 1 success = at least 3 calls.
       expect((flap as any).calls).toBeGreaterThanOrEqual(3);
     } catch {
-      /* if retry config caps below 3 retries, the call may still throw - coverage covered */
+      /* if retry config caps below 3 retries, the call may still throw; coverage covered */
     } finally {
       await flap.close();
     }
@@ -118,7 +118,7 @@ describe('client/client.ts - retry + transport', () => {
   });
 });
 
-describe('validators/index.ts - every validator + every error branch', () => {
+describe('validators/index.ts; every validator + every error branch', () => {
   it('validateUuid rejects non-UUIDs', async () => {
     const { validateUuid, ValidationError } = await import('../../ts/src/validators');
     expect(() => validateUuid('not-a-uuid')).toThrow(ValidationError);
@@ -137,7 +137,7 @@ describe('validators/index.ts - every validator + every error branch', () => {
 
   it('validateInt parses ints; throws ValidationError on non-numeric; silently truncates fractions', async () => {
     const { validateInt, ValidationError } = await import('../../ts/src/validators');
-    // Documented behavior - parseInt-based, so '1.5' silently truncates
+    // Documented behavior; parseInt-based, so '1.5' silently truncates
     // to 1 (it's an integer per Number.isInteger). 'abc' → NaN → block.
     expect(validateInt('42', 'foo')).toBe(42);
     expect(validateInt('1.5', 'foo')).toBe(1);
@@ -231,7 +231,7 @@ describe('validators/index.ts - every validator + every error branch', () => {
   });
 });
 
-describe('cli/commands/skill - install action', () => {
+describe('cli/commands/skill; install action', () => {
   it('skill install copies the bundled SKILL.md to ~/.claude/skills/openbox', async () => {
     // Stub a fake skills source under the dir; skill.ts uses
     // `findSkillDir()` which walks looking for SKILL.md. The actual
@@ -264,7 +264,7 @@ describe('cli/commands/skill - install action', () => {
   });
 });
 
-describe('cli/commands/core - evaluate path', () => {
+describe('cli/commands/core; evaluate path', () => {
   it('--type llm builds a payload + dispatches to core', async () => {
     const cfg = await import('../../ts/src/cli/config');
     cfg.saveApiKey('production', 'obx_key_' + 'a'.repeat(48));
@@ -357,7 +357,7 @@ describe('cli/commands/core - evaluate path', () => {
   });
 });
 
-// doctor JWT-branch tests intentionally not duplicated here - they
+// doctor JWT-branch tests intentionally not duplicated here; they
 // live in tests/unit/doctor-coverage.test.ts where the sandbox setup
 // is purpose-built. Repeating them across files races on the
 // process-wide token store.

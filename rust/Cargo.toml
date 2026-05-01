@@ -6,7 +6,7 @@ description = "Rust SDK for OpenBox AI governance. Generated from the TypeSpec s
 license = "MIT"
 
 [dependencies]
-# Runtime client deps - match progenitor's expected stack. Reqwest is async
+# Runtime client deps; match progenitor's expected stack. Reqwest is async
 # (tokio runtime); approver already pulls tokio in via rust_socketio so this
 # is no extra surface there.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
@@ -26,7 +26,7 @@ progenitor-client = "0.10"
 # build.rs runs the OpenAPI generator at build time. Pinned to a recent
 # release; bump only after verifying generated output still compiles
 # against the consumer (approver). Progenitor pulls in syn/quote/etc. as
-# transitive build deps - that's normal for codegen crates.
+# transitive build deps; that's normal for codegen crates.
 openapiv3 = "2"
 prettyplease = "0.2"
 progenitor = "0.10"

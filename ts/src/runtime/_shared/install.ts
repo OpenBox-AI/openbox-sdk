@@ -1,7 +1,7 @@
 // Shared install/uninstall primitive used by every runtime adapter.
 // The per-adapter install.ts files load their generated INSTALL_SPEC
 // (file path, JSON key, per-event style, hook command) and call
-// installAdapter / uninstallAdapter - all the JSON-merge work lives
+// installAdapter / uninstallAdapter; all the JSON-merge work lives
 // here, so adding a new adapter is just declaring @installTarget in
 // the spec.
 

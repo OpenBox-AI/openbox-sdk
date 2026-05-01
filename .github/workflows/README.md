@@ -2,53 +2,38 @@
 
 | Workflow | Triggers | Purpose |
 |---|---|---|
-| `codegen.yml` | `workflow_dispatch` only | Drives TypeSpec compile + emitter - gated until consumers cut over. |
-| `test.yml` | `workflow_dispatch` only | Vitest suite. Same gating as codegen. |
-| `spec-drift.yml` | `workflow_dispatch` only (PR + daily commented out) | TypeSpec ↔ deployed prod/staging + upstream develop/main drift detector. Re-enable PR/schedule once secrets + first run validate clean. |
-| `release-branch.yml` | `workflow_dispatch` only (tag-push commented out) | Builds + creates `release-v*` branch with committed `dist/` so consumers can `github:.../#release-v*` install fast. Re-enable tag trigger once consumers verify the new SDK. |
-
-**All four workflows ship disabled.** Each has a `workflow_dispatch` entry so you can run on demand from the Actions tab. Re-enabling = uncomment the natural triggers in each YAML.
+| `codegen.yml` | push to `main`, PR to `main`, `workflow_dispatch` | TypeSpec compile and emitter snapshots, codegen-drift assertion, Spectral lint, breaking-change diff |
+| `test.yml` | `workflow_dispatch` only | Vitest unit and e2e suite. Push and PR triggers are commented out until the e2e harness is hardened |
+| `spec-drift.yml` | `workflow_dispatch` only | Reports drift between this repo's TypeSpec and deployed prod and staging, plus upstream `OpenBox-AI/openbox-backend` and `OpenBox-AI/openbox-core` on `develop` and `main`. PR and scheduled triggers are commented out until the secrets and first run validate clean |
+| `release-branch.yml` | `workflow_dispatch` only | Builds and creates a `release-v*` branch with committed `dist/` so consumers can `github:.../#release-v*` install without running `prepare`. Tag-push trigger is commented out until consumers verify the new SDK |
 
 ## Required repo secrets
 
 | Secret | Used by | Notes |
 |---|---|---|
-| `OPENBOX_STAGING_API_URL` | `spec-drift.yml` (staging tier) | Backend staging base URL. Sensitive - kept out of `specs/environments.json` which is public. |
-| `UPSTREAM_REPO_TOKEN` | `spec-drift.yml` (develop/main tiers) | PAT (`repo:read` scope) for `gh api` calls into `OpenBox-AI/openbox-{backend,core}`. Read-only by intent - workflow never pushes/comments on those repos. |
+| `OPENBOX_STAGING_API_URL` | `spec-drift.yml`, staging tier | Backend staging base URL. Kept out of `specs/environments.json`, which ships public |
+| `UPSTREAM_REPO_TOKEN` | `spec-drift.yml`, develop and main tiers | PAT with `repo:read` scope for `gh api` calls into `OpenBox-AI/openbox-backend` and `OpenBox-AI/openbox-core`. Read-only by intent. The workflow never pushes or comments on those repos |
 
-If any secret is unset, the corresponding tier emits a "skipped"
-report instead of failing the run. Other tiers continue independently
-(`fail-fast: false` on the matrix).
+If any secret is unset, the matching tier emits a "skipped" report
+instead of failing the run. Other tiers continue independently;
+the matrix uses `fail-fast: false`.
 
-## Codegen workflows: why disabled
+## How to run a dispatch-only workflow
 
-## Why codegen + test are disabled
+GitHub UI: Actions tab, pick the workflow, "Run workflow", choose a
+branch.
 
-This pipeline provides the TypeSpec source, decorator libraries, and a TS
-emitter that produces `ts/<package>/src/generated/`. While codegen sources are still hand-mirrored
-swaps consumers (`rust/build.rs`, `openapi-typescript`,
-`openbox-sdk/env`) over to read **only** the generated artifacts,
-running CI against the `assert no uncommitted codegen drift` step
-would fail every contributor's PR for unrelated reasons. Better to
-keep the pipeline runnable on demand and turn it on once the
-authoring side is the source of truth. (`spec-drift.yml` is enabled
-because it's purely informational - never fails a PR; only comments.)
-
-## How to run on demand
-
-GitHub UI → Actions tab → pick `Codegen Pipeline` or `Test` →
-"Run workflow" → choose a branch.
-
-Or via gh CLI:
+Via `gh`:
 
 ```bash
-gh workflow run codegen.yml --ref feat/typespec-codegen-pipeline
-gh workflow run test.yml    --ref feat/typespec-codegen-pipeline
+gh workflow run test.yml          --ref main
+gh workflow run spec-drift.yml    --ref main
+gh workflow run release-branch.yml --ref main -f tag=v0.2.0-alpha.1
 ```
 
-## How to enable
+## How to enable a dispatch-only workflow on push/PR
 
-When the codegen pipeline takes over, swap the `on:` block in each workflow file to:
+Replace the `on:` block in the workflow YAML:
 
 ```yaml
 on:
@@ -58,4 +43,4 @@ on:
     branches: [main]
 ```
 
-The rest of the workflow is already wired correctly.
+`codegen.yml` already uses this pattern, so it's the reference.

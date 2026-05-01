@@ -1,14 +1,14 @@
-// typespec-workflow - decorators describing the Temporal-style
+// typespec-workflow; decorators describing the Temporal-style
 // governance protocol. The wire format is POST /api/v1/governance/evaluate;
 // every call rides one of six canonical event_types (verified against
 // openbox-core internal/services/governance_workflow.go) which the runtime
 // recognizes for guardrail eligibility, attestation extraction, and metric
 // routing.
 //
-// One decorator surface - the framework-preset shape:
-//   @preset(name)     - marks an interface as a framework preset
-//   @maps_to(...)     - per-method canonical envelope mapping
-//   @verdict          - marks the public verdict model
+// One decorator surface; the framework-preset shape:
+//   @preset(name)    ; marks an interface as a framework preset
+//   @maps_to(...)    ; per-method canonical envelope mapping
+//   @verdict         ; marks the public verdict model
 //
 // Each @preset interface generates one Session class whose methods map
 // to the canonical envelope via @maps_to. Lifecycle (Workflow{Started,
@@ -44,14 +44,14 @@ extern dec preset(target: Interface, name: valueof string);
  * emitter "when the user calls this method, fire this canonical
  * event_type with this activity_type string."
  *
- * Only six event_types are valid - these are the ones openbox-core
+ * Only six event_types are valid; these are the ones openbox-core
  * recognizes for guardrail eligibility checks (verified against
  * internal/services/governance_workflow.go:350+ and attestation_workflow.go).
  * Custom strings would be stored but skip event-type-specific logic.
  *
  * @param eventType One of the six canonical event_types.
  * @param activityType The free-form activity_type string for the wire.
- *   Optional - defaults to the operation name verbatim if omitted, so
+ *   Optional; defaults to the operation name verbatim if omitted, so
  *   `onToolStart` becomes activity_type="onToolStart".
  */
 extern dec maps_to(
@@ -73,7 +73,7 @@ extern dec maps_to(
  * bound preset method, and translates the verdict into the operation's
  * @verdictShape output.
  *
- * @param name Lowercase-hyphen identifier - `claude-hooks`, `cursor-hooks`.
+ * @param name Lowercase-hyphen identifier; `claude-hooks`, `cursor-hooks`.
  *   Becomes the runtime module suffix.
  * @param preset @preset name this adapter binds to (`claude-code`, `cursor`).
  * @param discriminator Stdin JSON field used to route. Almost always
@@ -116,17 +116,17 @@ extern dec verdictShape(
 );
 
 /**
- * Per-event tool-name → activity_type table. For adapter operations
+ * Per-event tool-name to activity_type table. For adapter operations
  * whose handlers route to multiple activity_types based on a
- * sub-discriminator inside the envelope (e.g. `tool_name` on
- * Claude Code's PreToolUse, or Cursor's preToolUse).
+ * sub-discriminator inside the envelope, such as `tool_name` on
+ * Claude Code's PreToolUse or Cursor's preToolUse.
  *
  * The emitter materializes the table as a constant per operation in
- * the generated runtime adapter; per-platform mappers consume the
+ * the generated runtime adapter. Per-platform mappers consume the
  * constant instead of hand-coding the same switch in two places.
  *
- * @param table Map of inner-discriminator string → activity_type
- *   string. e.g. `#{ Read: "FileRead", Bash: "ShellExecution" }`.
+ * @param table Map of inner-discriminator string to activity_type
+ *   string, such as `#{ Read: "FileRead", Bash: "ShellExecution" }`.
  */
 extern dec activityRouting(target: Operation, table: valueof Record<string>);
 
@@ -136,7 +136,7 @@ extern dec activityRouting(target: Operation, table: valueof Record<string>);
  *
  * The emitter generates a `build<Op>Payload(env, toolName?, sideEffects?)`
  * function alongside the routing constants. Mappers call it instead of
- * hand-shaping the activity payload - guaranteeing the same field
+ * hand-shaping the activity payload; guaranteeing the same field
  * extraction logic across adapters and across languages.
  *
  * Shape of `shape`:
@@ -146,11 +146,11 @@ extern dec activityRouting(target: Operation, table: valueof Record<string>);
  *   }
  *
  * Field sources (the value attached to each output field):
- *   #{ from: "envelope.path" }                   - pull at the path
- *   #{ from: "envelope.path", fallback: "alt" }  - alt is another path
- *   #{ from: "path", default: "literal" }        - path or literal default
- *   #{ literal: "value" }                        - fixed literal string
- *   #{ sideEffect: "readFile", from: "path" }    - invoke a sideEffect
+ *   #{ from: "envelope.path" }                  ; pull at the path
+ *   #{ from: "envelope.path", fallback: "alt" } ; alt is another path
+ *   #{ from: "path", default: "literal" }       ; path or literal default
+ *   #{ literal: "value" }                       ; fixed literal string
+ *   #{ sideEffect: "readFile", from: "path" }   ; invoke a sideEffect
  *                                                  callback the runtime
  *                                                  supplies; arg = path
  *
@@ -165,7 +165,7 @@ extern dec payloadShape(target: Operation, shape: valueof Record<unknown>);
 /**
  * Marks an adapter op as not needing payload generation (sessions /
  * lifecycle ops with no scannable input). Drift guard counterpart to
- * `@payloadShape` - every @hookEvent must have one or the other so
+ * `@payloadShape`; every @hookEvent must have one or the other so
  * adding a new event doesn't silently regress to hand-coding.
  */
 extern dec noPayload(target: Operation);
@@ -203,8 +203,8 @@ extern dec installTimeout(target: Operation, seconds: valueof int32);
 /**
  * Predicate-based activity-type reroute. Sits alongside @activityRouting
  * for adapter ops where one tool's activity_type depends on a runtime
- * field value (e.g. cursor's Shell tool reroutes to file_write when the
- * command matches a delete pattern).
+ * field value, such as Cursor's Shell tool rerouting to `file_write`
+ * when the command matches a delete pattern.
  *
  * Multiple variants per op are allowed; first match wins. Each variant
  * record carries: field (dotted envelope path), pattern (regex source),
@@ -228,7 +228,7 @@ extern dec activityVariant(
  * list views, report generators) reads from a single source of truth.
  *
  * Apply once at the namespace that owns the canonical activity_type
- * vocabulary (typically `OpenboxGovern`). Multiple calls merge - later
+ * vocabulary (typically `OpenboxGovern`). Multiple calls merge; later
  * entries win on conflict, so a downstream profile can override a single
  * label without redeclaring the whole table.
  *

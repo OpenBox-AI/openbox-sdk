@@ -58,10 +58,10 @@ export interface paths {
         /**
          * Poll approval status
          * @description SDK polls this after a `require_approval` verdict. Lookup is by
-         *     `(workflow_id, run_id, activity_id)` - the tuple uniquely
+         *     `(workflow_id, run_id, activity_id)`; the tuple uniquely
          *     identifies the activity attempt awaiting human decision.
          *
-         *     This endpoint does NOT require a bearer API key - the SDK
+         *     This endpoint does NOT require a bearer API key; the SDK
          *     (and any third-party approver UI) needs to poll for status
          *     without an agent token.
          */
@@ -87,7 +87,7 @@ export interface paths {
          *     The wire format multiplexes five `event_type` values
          *     (WorkflowStarted, WorkflowCompleted, WorkflowFailed,
          *     ActivityStarted, ActivityCompleted, SignalReceived) onto a single
-         *     struct - populate only the fields relevant to the event type.
+         *     struct; populate only the fields relevant to the event type.
          *
          *     Internally fans out to: token validation -> session check ->
          *     dedup -> OPA policy -> guardrails -> AGE behavioral compliance ->
@@ -115,8 +115,8 @@ export interface components {
             score: number;
         };
         /**
-         * @description Output of the AGE (Agent Governance Engine) evaluation -
-         *     behavioral compliance, alignment scoring, trust update.
+         * @description Output of the agent-governance evaluation: behavioral compliance,
+         *     alignment scoring, and trust update.
          */
         AGEResult: {
             allowed: boolean;
@@ -180,7 +180,7 @@ export interface components {
         };
         /**
          * @description Lookup tuple for `/governance/approval`. The server only
-         *     validates non-empty strings - no auth, no bearer header.
+         *     validates non-empty strings; no auth, no bearer header.
          */
         ApprovalStatusRequest: {
             workflow_id: string;
@@ -212,7 +212,7 @@ export interface components {
             message: string;
             stack_trace?: string;
             cause?: components["schemas"]["ErrorInfo"];
-            /** @description Application-level error classifier (e.g. Temporal's ApplicationError type). */
+            /** @description Application-level error classifier, e.g. Temporal's `ApplicationError` type. */
             error_type?: string;
             non_retryable?: boolean;
         };
@@ -222,7 +222,7 @@ export interface components {
          */
         EventType: "WorkflowStarted" | "WorkflowCompleted" | "WorkflowFailed" | "ActivityStarted" | "ActivityCompleted" | "SignalReceived";
         /**
-         * @description Unified event payload - all six event types share this shape, and
+         * @description Unified event payload; all six event types share this shape, and
          *     only the fields relevant to that type are populated. The SDK
          *     keeps `workflow_id` and `run_id` constant across one workflow
          *     run; `activity_id` is per-action and pairs ActivityStarted with
@@ -231,7 +231,7 @@ export interface components {
          *     The `required` block here lists every field the Go struct
          *     always emits / accepts as a non-pointer string. The handler's
          *     explicit validation is narrower (`event_type`, `workflow_id`,
-         *     `run_id` only) - clients that cannot fill the others should
+         *     `run_id` only); clients that cannot fill the others should
          *     send empty strings rather than omit the keys.
          */
         GovernanceEventPayload: {
@@ -265,9 +265,10 @@ export interface components {
             /** @description Set on Activity* and SignalReceived events. */
             activity_id?: string;
             /**
-             * @description Canonical activity type (e.g. `PromptSubmission`, `LLMCompleted`,
-             *     `ToolCompleted`, `FileRead`, `FileEdit`, `ShellExecution`,
-             *     `MCPToolCall`). See sdk-implementation-guide for the full list.
+             * @description Canonical activity type. Examples: `PromptSubmission`,
+             *     `LLMCompleted`, `ToolCompleted`, `FileRead`, `FileEdit`,
+             *     `ShellExecution`, `MCPToolCall`. See sdk-implementation-guide for
+             *     the full list.
              */
             activity_type?: string;
             /**
@@ -277,7 +278,7 @@ export interface components {
             attempt?: number;
             /**
              * @description Activity input payload. The Go server accepts any JSON value
-             *     but the SDKs always wrap as an array (`[{...}]`) - passing a
+             *     but the SDKs always wrap as an array (`[{...}]`); passing a
              *     bare object yields a 422 from the validation layer.
              */
             activity_input?: unknown[] | Record<string, never>;
@@ -309,9 +310,8 @@ export interface components {
         };
         /**
          * @description Public verdict envelope returned from `/governance/evaluate`.
-         *     Mirrors `GovernanceVerdictPublicResponse` in the Go server -
-         *     the wire shape strips out internal `_governance_event_id` and
-         *     related fields used only for Temporal observability.
+         *     The wire shape strips internal observability fields like
+         *     `_governance_event_id`.
          *
          *     SDKs should branch on `verdict`. The legacy `action` field
          *     carries the v1.0 string and is kept for backward compatibility
@@ -337,9 +337,9 @@ export interface components {
             trust_tier?: number;
             /** @description Behavior-rule names that triggered. */
             behavioral_violations?: string[];
-            /** @description Set on `require_approval` - opaque ID returned to surface in approver UI. */
+            /** @description Set on `require_approval`; opaque ID returned to surface in approver UI. */
             approval_id?: string;
-            /** @description Set on `constrain` - sandbox enforcement hints (future). */
+            /** @description Set on `constrain`; sandbox enforcement hints (future). */
             constraints?: string[];
             /**
              * Format: date-time
@@ -348,13 +348,13 @@ export interface components {
              *     REQUIRE_APPROVAL: from `behavior_rule.approval_timeout` if the
              *     trigger was a behavior_rule, or from a server-side default
              *     (~30m observed) if the trigger was an OPA policy. OPA policies
-             *     cannot configure the timeout - `CreatePolicyDto` has no
+             *     cannot configure the timeout; `CreatePolicyDto` has no
              *     `approval_timeout` field and the Rego return shape carries
              *     only `{decision, reason}`. To control the window, attach a
              *     behavior_rule with `--verdict 2 --approval-timeout <seconds>`.
              */
             approval_expiration_time?: string;
-            /** @description True if any sub-service (OPA / AGE) used a fallback path. */
+            /** @description True if any evaluation branch used a fallback path. */
             fallback_used: boolean;
             reason?: string;
             /** @description Policy that produced the verdict, when applicable. */
@@ -383,9 +383,9 @@ export interface components {
             /** @enum {string} */
             input_type: "activity_input" | "activity_output";
             /**
-             * @description Redacted/transformed payload as decided by the guardrail
-             *     service. Free-form - string for text content, object for
-             *     structured (e.g. tool args).
+             * @description Redacted or transformed payload as decided by the guardrail
+             *     service. Free-form: string for text content, object for
+             *     structured payloads such as tool args.
              */
             redacted_input: unknown;
             /** @description Raw guardrail-service output, retained for debugging. */
@@ -410,7 +410,7 @@ export interface components {
         /**
          * @description Single OTel-style span. Root-level fields (`http_method`,
          *     `db_operation`, `file_path`, `function`, …) replace the earlier
-         *     attribute-bag layout - emitters MUST populate the typed fields
+         *     attribute-bag layout; emitters MUST populate the typed fields
          *     instead of stuffing them into `attributes`. `semantic_type` is
          *     computed by the server (`ComputeSemanticTypeFromSpan`) when the
          *     SDK doesn't set it.
@@ -449,9 +449,9 @@ export interface components {
             request_body?: string;
             response_body?: string;
             /**
-             * @description Server-computed bucket (e.g. `http_get`, `llm_completion`,
-             *     `database_select`, `file_read`, `shell_execution`).
-             *     SDK can pre-compute and send; server overrides if mismatched.
+             * @description Server-computed bucket. Examples: `http_get`, `llm_completion`,
+             *     `database_select`, `file_read`, `shell_execution`. SDK can
+             *     pre-compute and send; server overrides if mismatched.
              */
             semantic_type?: string;
             /**
@@ -459,7 +459,7 @@ export interface components {
              * @enum {string}
              */
             stage: "started" | "completed";
-            /** @description Free-form payload (map for attestation, string for file ops). */
+            /** @description Free-form payload. Map for attestation; string for file ops. */
             data?: unknown;
             /**
              * @description SDK v2 hook source.

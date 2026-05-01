@@ -7,7 +7,7 @@
 //
 // Note: this test depends on patch 06-backend-violation-filter.patch in
 // openbox-local. Without it, the backend's getAllViolationsQuery
-// filters policy_evaluations on evaluation_result='deny' - but core
+// filters policy_evaluations on evaluation_result='deny'; but core
 // writes v1.1 action strings ('block' / 'halt'), so policy-sourced
 // violations never surface. The patch widens the filter.
 
@@ -145,9 +145,9 @@ result := {"decision": "BLOCK", "reason": "live-violation-e2e"} if {
 
 let canRunLive = false;
 
-// SKIP: depends on (a) `policy create` reaching S3 - blocked on
+// SKIP: depends on (a) `policy create` reaching S3; blocked on
 // openbox-local fix/s3-virtual-hosted (S3_IGNORE_SUBDOMAIN_BUCKETNAME
-// override on the moto container) - and (b) openbox-local
+// override on the moto container); and (b) openbox-local
 // patch 06-backend-violation-filter.patch surfacing policy_evaluations
 // rows in /agent/:id/violations. Verified locally with both loaded:
 // beforeAll reaches the violation poll loop; patch 06 surfaces the row.
@@ -165,7 +165,7 @@ describe.skip('live violation false-positive (e2e, real stack with OPA + moto)',
       (await reachable(`${OPA_URL}/health`));
     if (!canRunLive) {
       console.warn(
-        `[live-violation] core (${CORE_URL}) or OPA (${OPA_URL}) not reachable - skipping suite.`,
+        `[live-violation] core (${CORE_URL}) or OPA (${OPA_URL}) not reachable; skipping suite.`,
       );
       return;
     }

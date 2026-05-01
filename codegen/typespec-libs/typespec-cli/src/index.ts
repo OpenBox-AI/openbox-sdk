@@ -1,4 +1,4 @@
-// TypeSpec compiler entry - see ../env/src/index.ts for the rationale
+// TypeSpec compiler entry; see ../env/src/index.ts for the rationale
 // behind only exporting `$lib` and `$decorators`.
 
 import {

@@ -93,7 +93,7 @@ export const TEAM_HANDLERS: SubcommandSpec[] = [
   },
   {
     "name": "create",
-    "description": "Create a team. --name OR --icon is required (cross-field rule);\n--json provides full body and bypasses the cross-field check.",
+    "description": "Create a team. --name OR --icon is required (cross-field rule);\n--body provides full body and bypasses the cross-field check.",
     "args": [
       {
         "name": "orgId"

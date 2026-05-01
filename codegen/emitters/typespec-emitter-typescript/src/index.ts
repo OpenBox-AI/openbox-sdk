@@ -7,7 +7,7 @@
 // and live in their own subdir so a `git status` makes drift obvious.
 //
 // The emitter is pulled in via `tspconfig.yaml`'s emitter list
-// alongside @typespec/openapi3 - same compile pass, separate output
+// alongside @typespec/openapi3; same compile pass, separate output
 // dirs.
 
 import { readFileSync } from 'fs';
@@ -131,12 +131,12 @@ interface WrapperEmitOptions {
   namespaceName: string;
   outRel: string;
   pathsImport: string; // e.g. 'openbox-sdk/types'
-  pathsAlias: string; // 'Backend' | 'Core' - namespace re-export alias
+  pathsAlias: string; // 'Backend' | 'Core'; namespace re-export alias
   className: string;
   /**
    * If true, emit METHOD_PERMISSIONS + MissingPermissionError and wire
    * a pre-flight `checkPermissions(methodName)` into every generated
-   * method body. Backend wrapper only - core uses API keys, no perm
+   * method body. Backend wrapper only; core uses API keys, no perm
    * check needed. The hand-written subclass populates `this.permissions`
    * from `BackendClientConfig.permissions` if the consumer provides it.
    */
@@ -177,12 +177,13 @@ function emitWrapperMethods(
 
 type HttpOp = ReturnType<typeof listHttpOperationsIn>[0][number];
 
-// Curated operationId → methodName map. Avoids collisions when multiple
-// controllers share a verb (e.g. AgentController_list, ApiKeyController_list,
-// WebhookController_list, MemberController_list all map to a unique
-// `listAgents` / `listApiKeys` / `listWebhooks` / `getMembers`). Lives in
-// codegen/method-names.json as a hand-curated artifact so consumers across
-// languages can converge on the same names.
+// Curated operationId to methodName map. Avoids collisions when
+// multiple controllers share a verb. AgentController_list,
+// ApiKeyController_list, WebhookController_list, and
+// MemberController_list each map to a unique `listAgents`,
+// `listApiKeys`, `listWebhooks`, or `getMembers`. Lives in
+// codegen/method-names.json as a hand-curated artifact so consumers
+// across languages can converge on the same names.
 let CURATED_METHOD_NAMES: Record<string, string> = {};
 try {
   const raw = readFileSync(resolvePath(process.cwd(), 'codegen/method-names.json'), 'utf8');
@@ -204,7 +205,7 @@ try {
   );
   METHOD_PERMISSIONS_MAP = JSON.parse(raw);
 } catch {
-  // Permissions file is optional - pre-flight degrades to a no-op.
+  // Permissions file is optional; pre-flight degrades to a no-op.
 }
 
 function wrapperMethodFor(op: HttpOp): WrapperMethodSpec | null {
@@ -213,10 +214,11 @@ function wrapperMethodFor(op: HttpOp): WrapperMethodSpec | null {
   if (CURATED_METHOD_NAMES[opId]) {
     methodName = CURATED_METHOD_NAMES[opId];
   } else {
-    // Fallback heuristic: strip the `<Tag>Controller_` prefix. Used only
-    // for new ops that haven't been added to method-names.json yet - they
-    // get the bare verb (e.g. `list`) and may collide; the next manual
-    // run of `node /tmp/build-name-map.mjs` (or hand-edit) curates a name.
+    // Fallback heuristic: strip the `<Tag>Controller_` prefix. Used
+    // only for new ops that haven't been added to method-names.json
+    // yet. They get the bare verb, such as `list`, and may collide.
+    // The next manual run of `node /tmp/build-name-map.mjs` or a
+    // hand-edit curates a name.
     methodName = opId;
     const m = opId.match(/^([A-Z][a-zA-Z]*Controller)_(.+)$/);
     if (m) methodName = m[2];
@@ -241,7 +243,7 @@ function wrapperMethodFor(op: HttpOp): WrapperMethodSpec | null {
     bodyParam = { name: 'body', tsType: tspTypeToTs(op.parameters.body.type) };
   }
 
-  // Response - pick the first 2xx body if any.
+  // Response; pick the first 2xx body if any.
   let responseTsType = 'unknown';
   for (const r of op.responses) {
     const status =
@@ -280,11 +282,11 @@ function wrapperMethodFor(op: HttpOp): WrapperMethodSpec | null {
 }
 
 function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSpec[]): string[] {
-  // Helper-fn name per verb. `delete` is reserved → `del` in our wrappers.
-  // Helpers are namespaced with `http` prefix to avoid clashing with
-  // method names that also start with `get` / `post` / etc. (e.g.
-  // `getProfile`, `postEvent`). TypeScript would otherwise read those
-  // as overloads of the abstract base method.
+  // Helper-fn name per verb. `delete` is reserved, so we use `del`.
+  // Helpers are namespaced with the `http` prefix to avoid clashing
+  // with method names that start with `get`, `post`, and similar,
+  // such as `getProfile` or `postEvent`. TypeScript would otherwise
+  // read those as overloads of the abstract base method.
   const verbToHelper: Record<string, string> = {
     get: 'httpGet',
     post: 'httpPost',
@@ -300,7 +302,7 @@ function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSp
   //
   //   Backend.paths['/auth/profile']['get']['responses']['200']['content']['application/json']
   //
-  // This sidesteps the "PaginatedResponse<T> inlining" problem - we
+  // This sidesteps the "PaginatedResponse<T> inlining" problem; we
   // never need a named alias for the generic instantiation; the
   // openapi-typescript path object already has the structural type.
   lines.push(`import type { ${opts.pathsAlias} } from '${opts.pathsImport}';`);
@@ -345,9 +347,10 @@ function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSp
     lines.push(`}`);
     lines.push('');
     lines.push(`export const PATH_PERMISSION_RULES: readonly PathPermissionRule[] = [`);
-    // Sort by descending path specificity so longer literal paths match
-    // before catch-all parametric ones (e.g. /agent/list before
-    // /agent/{agentId}). Counting non-parametric segment chars works.
+    // Sort by descending path specificity so longer literal paths
+    // match before catch-all parametric ones, e.g. `/agent/list`
+    // before `/agent/{agentId}`. Counting non-parametric segment
+    // chars works.
     const rulesSorted = [...methodsWithPerms].sort((a, b) => {
       const score = (m: WrapperMethodSpec) =>
         m.pathTemplate.replace(/\$\{[^}]+\}/g, '').length;
@@ -409,7 +412,7 @@ function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSp
 
   lines.push(`/**`);
   lines.push(
-    ` * AUTO-GENERATED wrapper base class - every HTTP operation declared on`,
+    ` * AUTO-GENERATED wrapper base class; every HTTP operation declared on`,
   );
   lines.push(` * the ${opts.namespaceName} TypeSpec namespace becomes a typed method here.`);
   lines.push(` * Hand-written wrappers (OpenBoxClient / OpenBoxCoreClient) extend this`);
@@ -432,7 +435,7 @@ function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSp
   if (opts.emitPermissions) {
     lines.push(`  /**`);
     lines.push(`   * Cached permission set. When undefined, pre-flight checks are`);
-    lines.push(`   * skipped - the SDK behaves as before, deferring to the server's`);
+    lines.push(`   * skipped; the SDK behaves as before, deferring to the server's`);
     lines.push(`   * 403 response. The hand-written wrapper populates this from`);
     lines.push(`   * \`BackendClientConfig.permissions\` if the caller provides it.`);
     lines.push(`   */`);
@@ -440,7 +443,7 @@ function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSp
     lines.push('');
     lines.push(`  /**`);
     lines.push(`   * Pre-flight permission check. Called by the hand-written`);
-    lines.push(`   * \`request()\` impl on every outbound HTTP - covers both generated`);
+    lines.push(`   * \`request()\` impl on every outbound HTTP; covers both generated`);
     lines.push(`   * method bodies AND any hand-written shadow that calls http* directly.`);
     lines.push(`   * No-op when \`permissions\` is undefined or no rule matches the path.`);
     lines.push(`   */`);
@@ -466,10 +469,10 @@ function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSp
     if (!helper) continue;
 
     // Build the literal-string `paths[<path>][<verb>]` lookup keys.
-    // openapi-typescript emits paths like `'/agent/list'` and verbs as
-    // `'get' | 'post' | ...` keys. We use the *path with placeholders*
-    // (e.g. `/agent/{agentId}`) - that's what openapi-typescript keys
-    // by, not the runtime substituted form.
+    // openapi-typescript emits paths like `'/agent/list'` and verbs
+    // as `'get' | 'post' | ...` keys. We use the *path with
+    // placeholders*, such as `/agent/{agentId}`. That is what
+    // openapi-typescript keys by, not the runtime-substituted form.
     const pathLiteral = JSON.stringify(method.pathTemplate.replace(/\$\{[^}]+\}/g, (_, n) => '{' + n + '}'));
     // Recover the original `{x}` form from the `${x}` template.
     // Actually pathTemplate started as `${x}` so we need to convert back.
@@ -568,7 +571,7 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
       `import environmentsJson from '../../../../specs/environments.json' with { type: 'json' };\n\n`,
   );
 
-  // EnvName + EnvConfig - generated from spec, imported (not redeclared)
+  // EnvName + EnvConfig; generated from spec, imported (not redeclared)
   // by hand-written code in the same package.
   if (envName) {
     const members = [...envName.members.values()].map((m) => JSON.stringify(m.value ?? m.name));
@@ -589,7 +592,7 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
   // RuntimeConfig (URLs) + Credentials (api key) + CliRuntimeConfig
   // (cli-only gates). Spec authors add a field here, the table grows.
   // Consumers reach env vars by NAME from this table, never by string
-  // literal - adding `OPENBOX_FOO` is a one-line spec change.
+  // literal; adding `OPENBOX_FOO` is a one-line spec change.
   const bindings: EnvVarBindingRow[] = [];
   if (runtimeConfig) bindings.push(...collectEnvVarBindings(program, runtimeConfig));
   if (credentials) bindings.push(...collectEnvVarBindings(program, credentials));
@@ -638,7 +641,7 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
     }
   }
 
-  // Persisted-tokens shape (TokenEntry + TokenStore) - codec wire
+  // Persisted-tokens shape (TokenEntry + TokenStore); codec wire
   // format every language must agree on.
   if (tokenEntry) {
     out.addStatements([emitInterface('TokenEntry', tokenEntry), '']);
@@ -655,7 +658,7 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
     '',
   ]);
 
-  // Construction-time config models - `BackendClientConfig` /
+  // Construction-time config models; `BackendClientConfig` /
   // `CoreClientConfig` / `RetryConfig` / `RateLimitConfig` /
   // `TokenPair` / `ApiError`. Emit anything we haven't already
   // hand-picked above so adding a new option model in the spec
@@ -675,7 +678,7 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
     out.addStatements([emitInterface(modelName, model), '']);
   }
 
-  // EnvLoader / TokenCodec / ClientNameResolver - runtime contracts
+  // EnvLoader / TokenCodec / ClientNameResolver; runtime contracts
   // that hand-written code must implement. Drift between spec and
   // impl fails `tsc --noEmit`.
   if (envLoader) {
@@ -691,7 +694,7 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
     out.addStatements([emitInterfaceFromOps('OsPathResolver', osPathResolver), '']);
   }
 
-  // OsPathScope enum - drives the per-OS path lookup. Emit the
+  // OsPathScope enum; drives the per-OS path lookup. Emit the
   // string-literal union form so callers can `import type { OsPathScope }`
   // and write `resolveOsPath('tokens')`.
   const osPathScopeEnum = envNamespace.enums.get('OsPathScope');
@@ -755,7 +758,7 @@ function emitCliPackage(program: Program, project: Project, repoRoot: string): v
   out.insertText(0, BANNER + '\n\n');
 
   // Emit every enum + model referenced by the interfaces, so the emitted
-  // file is self-contained - no `import type { EnvFlag } from '../../...'`
+  // file is self-contained; no `import type { EnvFlag } from '../../...'`
   // dance for hand-written code.
   for (const [enumName, enumType] of cliNamespace.enums) {
     const members = [...enumType.members.values()].map((m) =>
@@ -803,7 +806,7 @@ function emitCliPackage(program: Program, project: Project, repoRoot: string): v
 
   out.addStatements([
     '/**',
-    ' * Canonical CLI surface - every command-tree node declared in',
+    ' * Canonical CLI surface; every command-tree node declared in',
     ' * specs/typespec/cli/. The hand-written commander registration in',
     ' * ts/cli/src/main.ts walks this manifest so a spec edit (rename a',
     ' * flag, add a subcommand) propagates without a code edit.',
@@ -824,7 +827,7 @@ function emitCliPackage(program: Program, project: Project, repoRoot: string): v
  *  ts/src/cli/generated/cli-handlers/<cmd>.ts:
  *    `export const <CMD>_HANDLERS: SubcommandSpec[] = [...]`
  *  Hand-coded register*Commands files call wireSubcommands(parent,
- *  HANDLERS, getClient) - every detail (positional args, flags,
+ *  HANDLERS, getClient); every detail (positional args, flags,
  *  validators, body-key map, output renderer) comes from the spec. */
 function emitCliHandlerSpecs(
   program: Program,
@@ -852,7 +855,7 @@ function emitCliHandlerSpecs(
           // Required param. Without `@cli_body_key` it's a positional CLI
           // arg. With it, the value still comes in positionally on the
           // command line, but the emitter routes it into the body when
-          // calling the backend method (hybrid call shape - handles wire
+          // calling the backend method (hybrid call shape; handles wire
           // signatures like `decideApproval(agentId, eventId, {action})`).
           const fx = getFlagExtra(program, p);
           const validator = getValidator(program, p);
@@ -1006,7 +1009,7 @@ function emitCliMaturityTable(
 }
 
 /** Emit `cli/generated/cli-features.ts`: FEATURE_MATURITY table from
- *  every @feature_flag decoration. Empty by default - features land here
+ *  every @feature_flag decoration. Empty by default; features land here
  *  as the spec accumulates them. */
 function emitCliFeatureFlagTable(
   program: Program,
@@ -1061,7 +1064,7 @@ function kebabCaseLocal(s: string): string {
 // and emits a `<NAME>_ENDPOINT_MANIFEST` array of every (path, verb,
 // operationId) tuple. Tests in tests/unit/endpoint-coverage.test.ts read
 // the manifest and assert each entry has a matching method on the
-// hand-written wrapper class - adding a route to the spec without a
+// hand-written wrapper class; adding a route to the spec without a
 // matching wrapper method now fails CI.
 
 interface EndpointEntry {
@@ -1102,7 +1105,7 @@ function emitEndpointManifest(
     ` * Every HTTP operation declared on the ${namespaceName} TypeSpec`,
     ` * namespace. Tests in tests/unit/endpoint-coverage.test.ts walk this`,
     ` * array and assert the hand-written wrapper class has a method`,
-    ` * implementing each entry - adding a path here without a wrapper`,
+    ` * implementing each entry; adding a path here without a wrapper`,
     ` * method fails CI.`,
     ` */`,
     `export const ${exportName} = ${JSON.stringify(entries, null, 2)} as const;`,
@@ -1121,18 +1124,18 @@ function pascal(s: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Namespace-types emit - drops every enum/model/scalar declared on a
+// Namespace-types emit; drops every enum/model/scalar declared on a
 // service namespace into a single TS file. Used to give per-package
 // wrappers (ts/core-client, ts/client govern) a single import path
 // for their wire types instead of redeclaring each one inline.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Govern-protocol emit - walks every @preset interface in OpenboxGovern
+// Govern-protocol emit; walks every @preset interface in OpenboxGovern
 // and emits one Session class per preset, plus a base class that owns
 // the lifecycle invariants (terminal events guaranteed via try/finally
 // + process-exit handlers, idempotent close, paired Start/Complete).
-// User code never touches Workflow{Started,Completed,Failed} - those
+// User code never touches Workflow{Started,Completed,Failed}; those
 // are SDK-internal, fired by the runtime.
 // ---------------------------------------------------------------------------
 
@@ -1147,13 +1150,13 @@ interface PresetMethod {
 }
 
 interface PresetEntry {
-  /** Lowercase-hyphen identifier from @preset(name) - wire-stable. */
+  /** Lowercase-hyphen identifier from @preset(name); wire-stable. */
   name: string;
   /** PascalCase preset class prefix: ClaudeCode, LangChain, Default, Custom. */
   pascal: string;
   /** camelCase registry key: claudeCode, langChain, default, custom. */
   camel: string;
-  /** Original TS interface name from the spec (e.g. "ClaudeCodePreset"). */
+  /** Original TS interface name from the spec, such as "ClaudeCodePreset". */
   ifaceName: string;
   /** Methods declared on the preset interface. */
   methods: PresetMethod[];
@@ -1172,7 +1175,7 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
   );
   out.insertText(0, BANNER + '\n\n');
 
-  // Tier 1 - emit every enum + model in the namespace (CanonicalEventType,
+  // Tier 1; emit every enum + model in the namespace (CanonicalEventType,
   // ActivityStage, VerdictArm, WorkflowVerdict, GovernedPayload). These
   // are the locked envelope plus the public verdict + payload shapes.
   for (const [enumName, enumType] of ns.enums) {
@@ -1196,7 +1199,7 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
     }
   }
 
-  // Tier 2 - walk every @preset interface, collect methods + envelope
+  // Tier 2; walk every @preset interface, collect methods + envelope
   // mappings. The `custom` preset is special: its `activity` operation
   // takes (activityType, stage, payload) and routes via the runtime,
   // so we don't bake a fixed envelope into the method.
@@ -1254,7 +1257,7 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
     '',
   ]);
 
-  // Spec-driven canonical sets - used by session inspect, agent audit,
+  // Spec-driven canonical sets; used by session inspect, agent audit,
   // verify, and any other tooling that needs to know "which strings
   // are protocol-conformant?" Without these, every consumer hardcodes
   // the same lists and they drift.
@@ -1294,7 +1297,7 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
   }
   // Spec-driven display labels for canonical activity_type strings.
   // The single source of truth for any consumer that renders activity
-  // types in a UI - the @activityLabels decorator on the OpenboxGovern
+  // types in a UI; the @activityLabels decorator on the OpenboxGovern
   // namespace declares the table; we emit it as a frozen object so
   // mobile/web/CLI consumers all read the same labels.
   const labelsBinding = getActivityLabels(program, ns);
@@ -1302,7 +1305,7 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
   if (labelsBinding) {
     // Restrict to canonical activity_types so the emitted table can't
     // drift past the spec-recognized vocabulary. Non-canonical entries
-    // in @activityLabels are silently dropped - consumers fall back to
+    // in @activityLabels are silently dropped; consumers fall back to
     // the Title-Case formatter for unknown activity_types regardless.
     for (const [k, v] of Object.entries(labelsBinding.table)) {
       if (activityTypes.has(k)) labelTable[k] = v;
@@ -1322,7 +1325,7 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
     '',
     '/** Every activity_type string declared in any @preset method or',
     ' *  @activityRouting adapter table. Activity_type is free-form on',
-    ' *  the wire (custom agents legitimately emit custom names) - this',
+    ' *  the wire (custom agents legitimately emit custom names); this',
     ' *  is the *first-party* vocabulary, useful for guardrail authors',
     ' *  and conformance reports. */',
     `export const CANONICAL_ACTIVITY_TYPES: ReadonlySet<string> = new Set(${JSON.stringify(
@@ -1333,7 +1336,7 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
     ' *  Source of truth for any UI that renders activity types',
     ' *  (mobile, web dashboard, CLI list views, audit reports). Consumers',
     ' *  fall back to a Title-Case formatter for activity_types not in',
-    ' *  this table - custom-preset domain agents emit free-form strings',
+    ' *  this table; custom-preset domain agents emit free-form strings',
     ' *  that legitimately aren\'t covered here. */',
     `export const CANONICAL_ACTIVITY_LABELS: Readonly<Record<string, string>> = Object.freeze(${JSON.stringify(
       sortedLabels,
@@ -1385,7 +1388,7 @@ interface AdapterMethod {
   routing?: Record<string, string>;
   /** Spec-driven payload shape from @payloadShape. */
   payload?: PayloadShapeBinding;
-  /** Marked @noPayload - explicit "this op has no scannable payload". */
+  /** Marked @noPayload; explicit "this op has no scannable payload". */
   noPayload?: boolean;
   /** Per-event install timeout (claude-array style only). */
   installTimeout?: number;
@@ -1467,7 +1470,7 @@ function emitAdapters(program: Program, project: Project, repoRoot: string): voi
   }
   if (adapters.length === 0) return;
 
-  // Stable order - file ordering needs to be deterministic.
+  // Stable order; file ordering needs to be deterministic.
   adapters.sort((a, b) => a.name.localeCompare(b.name));
 
   // Emit envelope models from the Adapters namespace into a shared types
@@ -1567,7 +1570,7 @@ function emitAdapterModule(a: AdapterEntry): string {
     .join('\n\n');
   const sideEffectsBlock = emitSideEffectsInterface(sideEffectsIface, a.sideEffectKinds);
 
-  // Install spec - where the install command writes the hook block.
+  // Install spec; where the install command writes the hook block.
   const installSpec = a.installTarget ? emitInstallSpec(a) : '';
 
   return `import type { OpenBoxCoreClient } from '../../core-client.js';
@@ -1579,7 +1582,7 @@ export type { ${a.envelopeName} };
 ${routingExports ? routingExports + '\n\n' : ''}${installSpec ? installSpec + '\n\n' : ''}${hasAnyVariants ? VARIANT_RUNTIME_HELPERS + '\n\n' + variantExports + '\n\n' : ''}${sideEffectsBlock ? sideEffectsBlock + '\n\n' : ''}${payloadBuilders ? PAYLOAD_RUNTIME_HELPERS + '\n\n' + payloadBuilders + '\n\n' : ''}/**
  * Per-event handlers. Each handler receives the parsed stdin envelope
  * + an attached ${presetSessionTy} (workflowId/runId resolved by
- * \`config.resolveSession\`). Return a WorkflowVerdict - usually by calling
+ * \`config.resolveSession\`). Return a WorkflowVerdict; usually by calling
  * a preset method like \`session.preToolUse(...)\`. The adapter writes
  * the verdict-mapped stdout JSON automatically per the operation's
  * @verdictShape. Returning undefined writes the default \`allow\` shape.
@@ -1591,7 +1594,7 @@ ${handlerSigs}
 export interface ${configIface} {
   /** Authenticated core client (agent-scoped API key). */
   core: OpenBoxCoreClient;
-  /** Per-stdin-message resolver - typically reads sessionStore.json. */
+  /** Per-stdin-message resolver; typically reads sessionStore.json. */
   resolveSession: (
     env: ${a.envelopeName},
   ) => Promise<{ workflowId: string; runId: string }>;
@@ -1682,7 +1685,7 @@ async function defaultReadStdin(): Promise<string> {
     total += buf.length;
     if (total > MAX_BYTES) {
       throw new Error(
-        \`hook stdin exceeded \${MAX_BYTES.toLocaleString()} bytes - refusing to buffer further (likely runaway pipe or hostile input)\`,
+        \`hook stdin exceeded \${MAX_BYTES.toLocaleString()} bytes; refusing to buffer further (likely runaway pipe or hostile input)\`,
       );
     }
     chunks.push(buf);
@@ -1956,7 +1959,7 @@ function renderVerdictOutput(
 function emitBaseSession(verdictModelName: string): string {
   return `// Runtime-portable UUID v4 source. Node ≥19 / Bun / Deno / modern
 // browsers / Hermes (RN ≥0.74 / Expo ≥51) all expose
-// \`globalThis.crypto.randomUUID()\` - no \`import { randomUUID } from 'crypto'\`
+// \`globalThis.crypto.randomUUID()\`; no \`import { randomUUID } from 'crypto'\`
 // because that's a Node-only specifier that Metro/RN bundlers can't
 // resolve when the SDK is consumed from a mobile app.
 function randomUUID(): string {
@@ -1964,7 +1967,7 @@ function randomUUID(): string {
     return globalThis.crypto.randomUUID();
   }
   // Fallback for ancient runtimes without Web Crypto. Math.random
-  // is fine here - workflow/run/activity IDs need uniqueness, not
+  // is fine here; workflow/run/activity IDs need uniqueness, not
   // cryptographic strength (the runtime API key is the auth surface).
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
@@ -1981,7 +1984,7 @@ import type {
 /**
  * Construction options for any preset Session class. The \`core\` client
  * is the authenticated transport; the other fields define this workflow
- * run's identity. The runtime owns the lifecycle - Workflow{Started,
+ * run's identity. The runtime owns the lifecycle; Workflow{Started,
  * Completed,Failed} fire automatically on \`govern()\` enter/exit/throw,
  * and via process-exit handlers if the session is still open at exit.
  */
@@ -2030,10 +2033,10 @@ export interface GovernedSessionConfig {
   registerExitHandlers?: boolean;
   /**
    * Internal flag set by \`govern.attach()\`. When true, the session starts
-   * in the \`opened\` state - \`runActivity\` will NOT auto-fire WorkflowStarted,
+   * in the \`opened\` state; \`runActivity\` will NOT auto-fire WorkflowStarted,
    * and explicit \`workflowStarted()\` calls become no-ops (idempotent).
    * The parent process is assumed to have already fired the workflow open
-   * event. Don't set this manually - use \`govern.attach()\`.
+   * event. Don't set this manually; use \`govern.attach()\`.
    */
   attached?: boolean;
 }
@@ -2042,7 +2045,7 @@ export interface GovernedSessionConfig {
  * Thrown when a session method is called after the session has been
  * terminated (workflowCompleted/Failed already fired). Tries to call
  * activity()/preset methods after this point would silently emit
- * orphan events without the SDK invariant - we throw instead.
+ * orphan events without the SDK invariant; we throw instead.
  */
 export class SessionAlreadyTerminatedError extends Error {
   constructor() {
@@ -2054,7 +2057,7 @@ export class SessionAlreadyTerminatedError extends Error {
 /**
  * Lifecycle-owning base class. Every preset Session class extends this
  * and delegates its public methods to \`runActivity()\`. User code never
- * calls \`begin()\` / \`complete()\` / \`fail()\` directly - the \`govern()\`
+ * calls \`begin()\` / \`complete()\` / \`fail()\` directly; the \`govern()\`
  * helper drives them via try/finally.
  */
 export class BaseGovernedSession {
@@ -2103,11 +2106,11 @@ export class BaseGovernedSession {
   }
 
   /**
-   * Fire WorkflowStarted. Idempotent - safe to call multiple times,
+   * Fire WorkflowStarted. Idempotent; safe to call multiple times,
    * only the first emits. Public so harness-owned consumers (claude-hooks,
    * cursor-hooks) can drive lifecycle when the workflow spans processes.
    * \`govern()\` calls this automatically before the body runs;
-   * \`govern.attach()\` does NOT - caller decides when (if ever).
+   * \`govern.attach()\` does NOT; caller decides when (if ever).
    *
    * Backward-compat alias: \`begin()\`.
    */
@@ -2116,7 +2119,7 @@ export class BaseGovernedSession {
     this.opened = true;
     await this.emit({ event_type: 'WorkflowStarted' });
   }
-  /** @deprecated use \`workflowStarted()\` - same behavior. */
+  /** @deprecated use \`workflowStarted()\`; same behavior. */
   async begin(): Promise<void> {
     return this.workflowStarted();
   }
@@ -2134,7 +2137,7 @@ export class BaseGovernedSession {
     await this.emit({ event_type: 'WorkflowCompleted', status: 'completed' });
     this.cleanupExitHandlers();
   }
-  /** @deprecated use \`workflowCompleted()\` - same behavior. */
+  /** @deprecated use \`workflowCompleted()\`; same behavior. */
   async complete(): Promise<void> {
     return this.workflowCompleted();
   }
@@ -2142,7 +2145,7 @@ export class BaseGovernedSession {
   /**
    * Fire WorkflowFailed with an error payload. Idempotent. \`govern()\`
    * calls this if the body throws or if a process-exit handler fires;
-   * \`govern.attach()\` does NOT - caller invokes explicitly on harness-
+   * \`govern.attach()\` does NOT; caller invokes explicitly on harness-
    * signaled session failure.
    *
    * Backward-compat alias: \`fail()\`.
@@ -2157,7 +2160,7 @@ export class BaseGovernedSession {
     });
     this.cleanupExitHandlers();
   }
-  /** @deprecated use \`workflowFailed()\` - same behavior. */
+  /** @deprecated use \`workflowFailed()\`; same behavior. */
   async fail(error?: unknown): Promise<void> {
     return this.workflowFailed(error);
   }
@@ -2167,7 +2170,7 @@ export class BaseGovernedSession {
    * tuples beyond what the bound preset's typed methods cover. Used by
    * runtime adapters (claude-hooks / cursor-hooks) when one hook event
    * needs to dispatch to multiple activity_types based on internal
-   * routing - e.g. Claude's PreToolUse hook fires FileRead, FileEdit,
+   * routing; e.g. Claude's PreToolUse hook fires FileRead, FileEdit,
    * ShellExecution etc. depending on \`tool_name\`.
    *
    * Mirrors the \`custom\` preset's free-form \`activity()\`. Same lifecycle
@@ -2220,7 +2223,7 @@ export class BaseGovernedSession {
           activity_input: payload.input,
         });
         if (startedVerdict.arm !== 'allow') {
-          // Pre-stage block - never emit ActivityCompleted, but if the
+          // Pre-stage block; never emit ActivityCompleted, but if the
           // gate said require_approval, poll for the approval decision.
           if (
             startedVerdict.arm === 'require_approval' &&
@@ -2235,7 +2238,7 @@ export class BaseGovernedSession {
         return this.emitCompleted(activityId, activityType, payload);
       }
 
-      // eventType === 'ActivityCompleted' - post-stage gate.
+      // eventType === 'ActivityCompleted'; post-stage gate.
       return this.emitCompleted(activityId, activityType, payload);
     } finally {
       this.inFlight.delete(activityId);
@@ -2298,7 +2301,7 @@ export class BaseGovernedSession {
     // Future: backend WS gateway already broadcasts APPROVAL_DECIDED to
     // org rooms (\`openbox-backend\` ws-events.gateway.ts:353), but its
     // auth path requires a Keycloak JWT and the SDK runtime carries an
-    // \`obx_live_*\` API key - wire-incompatible. Replacing this poll
+    // \`obx_live_*\` API key; wire-incompatible. Replacing this poll
     // loop with a WS subscription requires API-key auth to land on the
     // \`/ws\` namespace upstream first.
     const cfgDeadline = Date.now() + this.approvalMaxWaitMs;
@@ -2396,7 +2399,7 @@ export class BaseGovernedSession {
 /**
  * Emit one Session class per @preset interface. Each method on the
  * preset routes through `BaseGovernedSession.runActivity()` with its
- * fixed (eventType, activityType) tuple - the lifecycle invariants
+ * fixed (eventType, activityType) tuple; the lifecycle invariants
  * ride for free.
  *
  * The `custom` preset is special: its `activity()` operation takes
@@ -2406,7 +2409,7 @@ export class BaseGovernedSession {
 function emitPresetSession(p: PresetEntry, verdictModelName: string): string {
   const sessionName = `${p.pascal}Session`;
   if (p.isCustom) {
-    return `/** Free-form session - caller supplies activity_type + stage at call time. */
+    return `/** Free-form session; caller supplies activity_type + stage at call time. */
 export class ${sessionName} extends BaseGovernedSession {
   /**
    * Run an arbitrary activity. The runtime stamps:
@@ -2434,14 +2437,14 @@ export class ${sessionName} extends BaseGovernedSession {
     })
     .join('\n\n');
 
-  return `/** Session for the \`${p.name}\` preset - methods match the framework's hook names. */
+  return `/** Session for the \`${p.name}\` preset; methods match the framework's hook names. */
 export class ${sessionName} extends BaseGovernedSession {
 ${methods}
 }`;
 }
 
 /**
- * Emit the `presets` registry - maps every camelCase preset name to
+ * Emit the `presets` registry; maps every camelCase preset name to
  * its Session constructor. Users do `presets.claudeCode` and get the
  * right class.
  */
@@ -2474,7 +2477,7 @@ export type PresetCtor = Presets[keyof Presets];`;
 function emitGovernHelper(verdictModelName: string): string {
   return `/**
  * Open a workflow envelope, run \`body\` with the typed session, and
- * finalize (Workflow{Completed,Failed}) on return - even if \`body\`
+ * finalize (Workflow{Completed,Failed}) on return; even if \`body\`
  * throws. Process-exit handlers fire WorkflowFailed best-effort if the
  * runtime dies mid-session.
  *
@@ -2517,7 +2520,7 @@ export async function govern<S extends PresetCtor, T>(
  *   - No auto-WorkflowCompleted (caller fires it on session end).
  *   - No process-exit handlers by default (a fresh process per hook is
  *     normal flow, not workflow failure).
- *   - \`workflowId\` and \`runId\` are REQUIRED on the config - the harness
+ *   - \`workflowId\` and \`runId\` are REQUIRED on the config; the harness
  *     persists them across processes.
  *
  * \`\`\`ts
@@ -2537,7 +2540,7 @@ function governAttach<S extends PresetCtor>(
     preset: S;
     workflowId: string;
     runId: string;
-    /** Default \`false\` - fresh-process-per-hook is normal flow, not failure. */
+    /** Default \`false\`; fresh-process-per-hook is normal flow, not failure. */
     registerExitHandlers?: boolean;
   },
 ): InstanceType<S> {
@@ -2811,7 +2814,7 @@ function tsRegexLiteral(pattern: string): string {
  * Compile an OpenAPI-style path template (`/agent/{id}/guardrails`) to
  * a regex literal that matches a realized path (`/agent/abc-123/guardrails`).
  * Each `{param}` becomes `[^/]+`. Other regex-special chars in the template
- * (rare - only `.` shows up in routes like `/governance.evaluate`) get
+ * (rare; only `.` shows up in routes like `/governance.evaluate`) get
  * escaped. Anchored with `^…$` so a literal-prefix path can't false-match.
  */
 function pathTemplateToRegex(template: string): string {

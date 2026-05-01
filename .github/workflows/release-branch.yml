@@ -11,7 +11,7 @@ name: release branch
 # A second branch `release-latest` is force-updated to track the most
 # recent stable tag (alpha/beta/rc tags don't update it).
 #
-# Tags themselves stay on `main` - release branches are derivative.
+# Tags themselves stay on `main`; release branches are derivative.
 #
 # DISABLED on tag push until consumers test the new SDK and we're ready
 # to ship. Re-enable by uncommenting the `push: tags:` trigger below.
@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to publish a release branch for (e.g. v0.2.0-alpha.1)'
+        description: 'Tag to publish a release branch for, such as v0.2.0-alpha.1'
         required: true
         type: string
   # push:
@@ -72,7 +72,7 @@ jobs:
           git add -f dist/ ts/*/dist/
 
           # Strip the prepare hook so consumer `npm install` doesn't
-          # rebuild - they get the artifacts as-shipped.
+          # rebuild; they get the artifacts as-shipped.
           node -e "
             const fs = require('fs');
             const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));

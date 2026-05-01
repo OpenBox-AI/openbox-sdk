@@ -12,7 +12,7 @@ export { resolveClientName } from './client-name.js';
 // keeping it off the default entry means RN/browser consumers don't pull
 // Node-only code through this package. Node-only consumers (CLI) do:
 //   import { resolveOsPath } from '../env/os-paths.js';
-// The TYPES are safe to re-export from here - they're spec-driven, not
+// The TYPES are safe to re-export from here; they're spec-driven, not
 // platform-coupled.
 export type { OsPathResolver, OsPathScope } from './generated/env-bindings.js';
 
@@ -27,7 +27,7 @@ export {
 } from './generated/env-bindings.js';
 
 export type {
-  // Client-construction contracts - the "set token directly" entry
+  // Client-construction contracts; the "set token directly" entry
   // points. Both HTTP wrappers' constructors take these shapes.
   BackendClientConfig,
   CoreClientConfig,

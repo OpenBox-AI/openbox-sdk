@@ -4,7 +4,7 @@
 // multi-service orchestration job; instead we rely on the backend's
 // built-in `seed-demo-agent` command which inserts CSV-derived rows for a
 // demo agent. This suite looks that agent up at runtime (skips gracefully
-// if none exists - re-seed with `bash scripts/seed-demo.sh`).
+// if none exists; re-seed with `bash scripts/seed-demo.sh`).
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { runCli } from '../helpers/cli-runner.js';
@@ -38,7 +38,7 @@ describeOrSkip('demo-agent analytics (e2e, real backend with seeded data)', () =
     agentId = findDemoAgentId();
     if (!agentId) {
       console.warn(
-        '[demo-agent-analytics] No demo agent found - run `bash scripts/seed-demo.sh` from openbox-local to seed one. Skipping suite.',
+        '[demo-agent-analytics] No demo agent found; run `bash scripts/seed-demo.sh` from openbox-local to seed one. Skipping suite.',
       );
       return;
     }

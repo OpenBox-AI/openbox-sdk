@@ -91,7 +91,7 @@ export const AGENT_HANDLERS: SubcommandSpec[] = [
   },
   {
     "name": "create",
-    "description": "Create a new agent. --json bypasses flag merge; otherwise\n--name + --team are required, AIVSS defaults fill in, and the\npreflight verifies team existence + flags name collisions. The\nruntime API key is highlighted to stderr (one-time display) on\nsuccess.",
+    "description": "Create a new agent. --body bypasses flag merge; otherwise\n--name + --team are required, AIVSS defaults fill in, and the\npreflight verifies team existence + flags name collisions. The\nruntime API key is highlighted to stderr (one-time display) on\nsuccess.",
     "args": [],
     "flags": [
       {
@@ -184,7 +184,7 @@ export const AGENT_HANDLERS: SubcommandSpec[] = [
   },
   {
     "name": "update",
-    "description": "Update an agent. --json replaces flag-built body.",
+    "description": "Update an agent. --body replaces flag-built body.",
     "args": [
       {
         "name": "agentId"

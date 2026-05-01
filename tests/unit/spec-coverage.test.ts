@@ -1,6 +1,6 @@
 // Spec-coverage drift guards. Each decorator establishes a
 // "every op must declare ___" contract. The cheapest enforcement is a
-// regex pass over the source - fast, catches the common "added an op,
+// regex pass over the source; fast, catches the common "added an op,
 // forgot the decorator" failure mode without spinning up a TypeSpec
 // compiler in the test harness.
 
@@ -37,7 +37,7 @@ function hookEventBlocks(source: string): { name: string; block: string }[] {
   return out;
 }
 
-/** Pull every operation from the CLI spec - anything inside an
+/** Pull every operation from the CLI spec; anything inside an
  *  interface body that ends with `(...): void`. Returns the decorator
  *  stack string per op so the caller can grep. */
 function cliOpBlocks(source: string): { name: string; block: string }[] {
@@ -53,7 +53,7 @@ function cliOpBlocks(source: string): { name: string; block: string }[] {
     const m = l.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\(/);
     if (!m) continue;
     const opName = m[1];
-    // Walk back to top of decorator stack - stop at the previous blank
+    // Walk back to top of decorator stack; stop at the previous blank
     // line OR the line that opens the enclosing interface (`{` at line
     // end with NO preceding `#` for TypeSpec record literals). Plain
     // `{` from `interface Foo {` ends a line; record literals look

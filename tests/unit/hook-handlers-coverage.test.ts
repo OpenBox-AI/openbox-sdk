@@ -162,7 +162,7 @@ describe('runtime/cursor/hook-handler', () => {
           await runCursorHook();
         },
       );
-      // Same protocol contract as claude-code - DRY_RUN takes the
+      // Same protocol contract as claude-code; DRY_RUN takes the
       // adapter all the way through dispatch + emit; clean dispatch
       // means exit 0 or no exit; anything else is a regression.
       expect(r.exitCode === undefined || r.exitCode === 0).toBe(true);

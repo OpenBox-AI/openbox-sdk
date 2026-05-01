@@ -71,7 +71,7 @@ describeOrSkip('team lifecycle (e2e, real backend)', () => {
     if (!createdTeamId) throw new Error('create step must run first');
     const res = runCli(['team', 'delete', orgId, '--ids', createdTeamId]);
     expect(res.status, res.stderr).toBe(0);
-    // Delete returns { status: 200 } on success - good enough proof. We
+    // Delete returns { status: 200 } on success; good enough proof. We
     // don't assert `team get` 404s afterward because the backend soft-
     // deletes teams (the record is still retrievable by id post-delete).
   });

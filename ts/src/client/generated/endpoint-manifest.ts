@@ -4,7 +4,7 @@
  * Every HTTP operation declared on the OpenboxBackend TypeSpec
  * namespace. Tests in tests/unit/endpoint-coverage.test.ts walk this
  * array and assert the hand-written wrapper class has a method
- * implementing each entry - adding a path here without a wrapper
+ * implementing each entry; adding a path here without a wrapper
  * method fails CI.
  */
 export const BACKEND_ENDPOINT_MANIFEST = [

@@ -1,4 +1,4 @@
-// claude-code runtime adapter - every per-event mapper.
+// claude-code runtime adapter; every per-event mapper.
 //
 // Each mapper takes (envelope, session, config) and fires either
 // `session.activity()` or `session.workflowStarted()`. We pass a
@@ -6,12 +6,12 @@
 // with what activity type, without needing a live core service.
 //
 // Adapters covered:
-//   - mappers/pre-tool-use     - tool dispatch + skip-pattern guard
-//   - mappers/post-tool-use    - COMPLETE event after tool result
-//   - mappers/user-prompt      - PromptSubmission START
-//   - mappers/permission-request - PERMISSION_REQUEST
-//   - mappers/session          - workflowStarted + END + halt-on-stop
-//   - mappers/subagent         - AGENT_SPAWN START/COMPLETE
+//   - mappers/pre-tool-use    ; tool dispatch + skip-pattern guard
+//   - mappers/post-tool-use   ; COMPLETE event after tool result
+//   - mappers/user-prompt     ; PromptSubmission START
+//   - mappers/permission-request; PERMISSION_REQUEST
+//   - mappers/session         ; workflowStarted + END + halt-on-stop
+//   - mappers/subagent        ; AGENT_SPAWN START/COMPLETE
 //
 // Hook-handler stdin dispatch lives in hook-handlers-coverage.test.ts.
 
@@ -55,7 +55,7 @@ function recordingSession(verdict: { arm?: string } = { arm: 'allow' }): any {
   };
 }
 
-describe('runtime/claude-code/mappers - every event handler', () => {
+describe('runtime/claude-code/mappers; every event handler', () => {
   it('user-prompt-submit fires PromptSubmission activity', async () => {
     const { handleUserPromptSubmit } = await import('../../ts/src/runtime/claude-code/mappers/user-prompt');
     const session = recordingSession();
@@ -108,7 +108,7 @@ describe('runtime/claude-code/mappers - every event handler', () => {
   });
 });
 
-// runtime/cursor/mappers - covered by tests/unit/runtime-cursor-mappers.test.ts
+// runtime/cursor/mappers; covered by tests/unit/runtime-cursor-mappers.test.ts
 // which actually invokes the handlers with a recording session and asserts
 // activity()/workflowStarted() were called. Earlier import-only assertions
 // here were tautologies (post-audit cleanup).
@@ -125,7 +125,7 @@ describe('runtime/claude-code/hook-handler', () => {
   });
 });
 
-describe('cli/commands - versions + skill + core', () => {
+describe('cli/commands; versions + skill + core', () => {
   it('versions command registers + can be invoked dry', async () => {
     const { registerVersionsCommand } = await import('../../ts/src/cli/commands/versions');
     const program = new Command();
@@ -160,7 +160,7 @@ describe('core-client/redaction', () => {
   it('redacts API keys + tokens from URL/headers', async () => {
     const mod = await import('../../ts/src/core-client/redaction');
     expect(typeof mod).toBe('object');
-    // Redaction is a pure module - importing it counts.
+    // Redaction is a pure module; importing it counts.
     // If it has a `redact` export, exercise it on synthetic input.
     const fn = (mod as any).redact ?? (mod as any).redactSecrets;
     if (typeof fn === 'function') {
@@ -171,7 +171,7 @@ describe('core-client/redaction', () => {
   });
 });
 
-describe('cli/wire-subcommands - additional branch coverage', () => {
+describe('cli/wire-subcommands; additional branch coverage', () => {
   it('OUTPUT_POST_REGISTRY + PREFLIGHT_REGISTRY + POST_VALIDATE_REGISTRY exist', async () => {
     const mod = await import('../../ts/src/cli/wire-subcommands');
     expect(typeof mod.OUTPUT_POST_REGISTRY).toBe('object');
@@ -190,7 +190,7 @@ describe('cli/wire-subcommands - additional branch coverage', () => {
   });
 });
 
-describe('cli/commands/auth - api-key surface', () => {
+describe('cli/commands/auth; api-key surface', () => {
   it('exposes set-api-key / clear-api-key / status', async () => {
     const { registerAuthCommands } = await import('../../ts/src/cli/commands/auth');
     const program = new Command();

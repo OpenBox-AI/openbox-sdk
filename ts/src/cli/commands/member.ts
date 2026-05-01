@@ -1,4 +1,4 @@
-// `openbox member` - fully spec-driven (H.3 + H.9 + I). assign-roles /
+// `openbox member`; fully spec-driven (H.3 + H.9 + I). assign-roles /
 // remove-roles use the positional call shape (@cli_calls "positional"
 // + variadic) since the wire takes (orgId, userId, rolesArray) rather
 // than a body. invite/create/update use @cli_json_merge for the

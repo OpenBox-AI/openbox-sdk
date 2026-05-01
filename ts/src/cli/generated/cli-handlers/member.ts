@@ -50,7 +50,7 @@ export const MEMBER_HANDLERS: SubcommandSpec[] = [
       {
         "name": "password",
         "long": "password",
-        "description": "Password - leave unset for invite flow",
+        "description": "Password (leave unset for invite flow)",
         "noArg": false
       },
       {
@@ -115,7 +115,7 @@ export const MEMBER_HANDLERS: SubcommandSpec[] = [
       {
         "name": "teams",
         "long": "teams",
-        "description": "Team IDs (UUIDs) - replaces existing membership",
+        "description": "Team IDs (UUIDs); replaces existing membership",
         "bodyKey": "team_ids",
         "variadic": true,
         "noArg": false

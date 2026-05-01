@@ -155,7 +155,7 @@ async function waitForOpaPolicy(
     await new Promise((res) => setTimeout(res, 500));
   }
   throw new Error(
-    `OPA didn't serve policy ${policyIdNoDashes} after ${timeoutMs}ms - ` +
+    `OPA didn't serve policy ${policyIdNoDashes} after ${timeoutMs}ms; ` +
       'check opa-up.sh is pulling the bundle from moto S3',
   );
 }
@@ -185,7 +185,7 @@ describe('live approval decide (e2e, real stack with OPA + moto)', () => {
       (await reachable(`${OPA_URL}/health`));
     if (!canRunLive) {
       console.warn(
-        `[live-approval] core (${CORE_URL}) or OPA (${OPA_URL}) not reachable - skipping suite. ` +
+        `[live-approval] core (${CORE_URL}) or OPA (${OPA_URL}) not reachable; skipping suite. ` +
           'Run scripts/core-up.sh + scripts/opa-up.sh from openbox-local.',
       );
       return;
@@ -248,7 +248,7 @@ describe('live approval decide (e2e, real stack with OPA + moto)', () => {
     }
   }
 
-  // SKIP: depends on `policy create` reaching S3 - blocked on
+  // SKIP: depends on `policy create` reaching S3; blocked on
   // openbox-local fix/s3-virtual-hosted (drops the
   // S3_IGNORE_SUBDOMAIN_BUCKETNAME=true override on the moto container).
   // Verified locally with the dev-setup branch loaded: 2/2 pass.

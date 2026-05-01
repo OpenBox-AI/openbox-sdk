@@ -20,7 +20,7 @@ export const sideEffects: CursorSideEffects = {
     }
   },
 
-  /** JSON-stringify pass-through (no truncation - cursor's beforeMCPExecution
+  /** JSON-stringify pass-through (no truncation; cursor's beforeMCPExecution
    *  payload is bounded by the originating tool call, not by
    *  agent-streamed output). */
   stringify(input: unknown): string {

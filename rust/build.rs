@@ -1,22 +1,22 @@
-// build.rs - generates a Rust client from the OpenBox backend OpenAPI spec.
+// build.rs; generates a Rust client from the OpenBox backend OpenAPI spec.
 //
 // This crate lives inside the openbox-sdk monorepo, so the spec is just
-// a sibling at ../specs/backend.json - same file the TypeScript SDK
+// a sibling at ../specs/backend.json; same file the TypeScript SDK
 // generates its `Backend` namespace types from. One source of truth,
 // two language outputs.
 //
-// Consumers (e.g. openbox-approver) pin this whole monorepo by git tag:
+// Consumers, such as openbox-approver, pin this whole monorepo by git tag:
 //
 //     [dependencies]
 //     openbox-sdk = { git = "https://github.com/OpenBox-AI/openbox-sdk", tag = "v0.1.0-alpha.1" }
 //
 // Cargo finds the workspace root, then this `rust/` member by package
 // name. The git tag pins both the spec snapshot and the codegen
-// pipeline together - language versions stay in lockstep.
+// pipeline together; language versions stay in lockstep.
 //
 // Output goes to OUT_DIR (Cargo's standard build cache) and is included
 // from src/lib.rs via `include!`. We don't check the generated file in
-// - the spec is the single source of truth.
+//; the spec is the single source of truth.
 
 use std::fs;
 use std::path::PathBuf;
@@ -33,15 +33,16 @@ fn main() {
 
     // Patch the spec in-flight: backend.json is auto-generated from
     // NestJS, and 13 endpoints are missing `@ApiParam` decorators on
-    // their path parameters (e.g. `/organization/{organizationId}/members`
-    // declares the {organizationId} placeholder in the path string but
-    // doesn't list it under `parameters`). openapi-typescript on the TS
-    // side is lenient and just inlines the path string; progenitor on
-    // the Rust side strictly requires every `{x}` to have a matching
+    // their path parameters. For example,
+    // `/organization/{organizationId}/members` declares the
+    // `{organizationId}` placeholder in the path string but does not
+    // list it under `parameters`. openapi-typescript on the TS side is
+    // lenient and just inlines the path string; progenitor on the Rust
+    // side strictly requires every `{x}` to have a matching
     // `parameters[].name == x, in: path` entry. We inject the missing
-    // entries here rather than mutating the upstream spec - keeps the
-    // openbox-sdk repo as the unmodified source of truth and contains
-    // the workaround to this crate.
+    // entries here rather than mutating the upstream spec. That keeps
+    // the openbox-sdk repo as the unmodified source of truth and
+    // contains the workaround to this crate.
     inject_missing_path_params(&mut json);
 
     let spec: openapiv3::OpenAPI = serde_json::from_value(json)
@@ -67,14 +68,15 @@ fn main() {
 /// schema: { type: "string" } }`. Mirrors what NestJS would have
 /// produced if `@ApiParam` were declared.
 ///
-/// Also strips out non-path parameters whose snake_case'd name collides
-/// with a path placeholder's snake_case'd name. backend.json has 3
-/// endpoints that redundantly declare a query param matching their
-/// path param (e.g. `/organization/{organizationId}/approvals` lists
-/// both the `{organizationId}` placeholder and a query `organization_id`)
-/// - progenitor folds both into a single Rust ident `organization_id`,
-/// which produces a function with two args of the same name. The query
-/// version is redundant (server uses the path param) so we drop it.
+/// Also strips out non-path parameters whose snake_case'd name
+/// collides with a path placeholder's snake_case'd name. backend.json
+/// has 3 endpoints that redundantly declare a query param matching
+/// their path param. For instance, `/organization/{organizationId}/approvals`
+/// lists both the `{organizationId}` placeholder and a query
+/// `organization_id`. Progenitor folds both into a single Rust ident
+/// `organization_id`, producing a function with two args of the same
+/// name. The query version is redundant since the server uses the path
+/// param, so we drop it.
 fn inject_missing_path_params(json: &mut serde_json::Value) {
     let paths = match json.get_mut("paths").and_then(|v| v.as_object_mut()) {
         Some(p) => p,

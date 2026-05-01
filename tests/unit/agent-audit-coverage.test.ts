@@ -1,6 +1,6 @@
 // Coverage for ts/src/cli/commands/agent-audit.ts. The audit module is
 // pure-ish: takes an OpenBoxClient + agentId, returns an AuditReport.
-// We feed it a stub client that returns synthetic data - that drives
+// We feed it a stub client that returns synthetic data; that drives
 // every analyzer/finder/renderer branch without a backend.
 
 import { describe, it, expect } from 'vitest';
@@ -67,7 +67,7 @@ describe('agent-audit', () => {
     expect(report.events.activityTypeDistribution).toBeDefined();
     expect(report.config.active_policies).toBe(1);
     expect(report.config.active_behaviors).toBe(2);
-    // Mismatch: guardrail bound to NEVER_SEEN_TYPE - no matching events.
+    // Mismatch: guardrail bound to NEVER_SEEN_TYPE; no matching events.
     expect(report.mismatches.length).toBeGreaterThan(0);
   });
 
@@ -138,7 +138,7 @@ describe('agent-audit', () => {
   it('runAgentAudit tolerates fetch errors that have explicit .catch (getAgent / listGuardrails / etc.)', async () => {
     // listSessions doesn't have a .catch wrapper in runAgentAudit, so an
     // empty result is the right "tolerate" path. Errors there propagate
-    // - that's by design; the audit can't continue without sessions.
+    //; that's by design; the audit can't continue without sessions.
     const c = stubClient({
       getAgent: async () => { throw new Error('fail'); },
       listSessions: async () => ({ data: [], total: 0 }),

@@ -9,7 +9,7 @@ function hex(len: number): string {
 }
 
 /** Single source of truth for `core evaluate --type` vocabulary.
- *  The validator + CLI help text both read from this - adding a new
+ *  The validator + CLI help text both read from this; adding a new
  *  shorthand is one entry here + one branch in `buildSpan` below. */
 export const SPAN_TYPES = [
   'llm',
@@ -25,11 +25,12 @@ export type SpanType = (typeof SPAN_TYPES)[number];
 
 export interface SpanOptions {
   type: SpanType;
-  // Override the default activity_type (e.g. "PromptSubmission", "FileRead")
+  // Override the default activity_type, e.g. "PromptSubmission" or "FileRead".
   activityType?: string;
-  /** Match the official temporal-sdk-python convention: hook-level events
-   *  (from hook_governance.py) set `hook_trigger: true`; activity-level
-   *  events (from activity_interceptor.py:701-713) do NOT. The hook path
+  /** Match the official temporal-sdk-python convention: hook-level
+   *  events from `hook_governance.py` set `hook_trigger: true`;
+   *  activity-level events from `activity_interceptor.py` do not. The
+   *  hook path
    *  triggers `CheckApprovalCacheActivity` server-side which hits Redis.
    *  Default to false here so test payloads match the activity-level
    *  convention; flip to true when explicitly testing hook flows. */
@@ -288,7 +289,7 @@ function buildSpan(
           semantic_type: 'llm_tool_call',
           attributes: {
             'gen_ai.system': 'mcp',
-            // WORKAROUND: same as LLM - Core needs http.method/url
+            // WORKAROUND: same as LLM; Core needs http.method/url
             'http.method': 'POST',
             'http.url': 'https://api.openai.com/v1/chat/completions',
           },

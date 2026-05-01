@@ -1,5 +1,5 @@
 // TypeSpec compiler entry. This file MUST NOT re-export the `$<name>`
-// decorator implementations directly - the compiler auto-discovers any
+// decorator implementations directly; the compiler auto-discovers any
 // such symbol at the module top level as a global decorator and double-
 // registers ours, which makes them ambiguous against the namespaced
 // declarations in lib/main.tsp.

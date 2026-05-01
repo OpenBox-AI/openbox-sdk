@@ -1,4 +1,4 @@
-// Regression fixture - triggers the 6 protocol-conformance rules added in the conformance pass.
+// Regression fixture; triggers the 6 protocol-conformance rules added in the conformance pass.
 // Tracks: non-canonical-event-type, span-missing-gate-attribute,
 // id-generated-per-event-not-reused, approval-poll-unbounded,
 // require-approval-no-hitl-enabled.

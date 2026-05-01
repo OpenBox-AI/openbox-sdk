@@ -1,4 +1,4 @@
-// `openbox violation` - fully spec-driven (H.3 + H.9). false-positive
+// `openbox violation`; fully spec-driven (H.3 + H.9). false-positive
 // uses the hybrid call shape (@cli_body_key on `sourceType` positional),
 // list/agent are stable spec-driven reads.
 import { Command } from 'commander';

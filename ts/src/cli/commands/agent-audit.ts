@@ -63,7 +63,7 @@ export type AuditReport = {
     orphanCompletes: number;
     sessionsMissingTerminal: number;
     failedActivityCount: number;
-    // Drift from canonical values - aggregated across every session in the
+    // Drift from canonical values; aggregated across every session in the
     // audit window so systemic issues (one bad SDK, one legacy client) show up
     // instead of hiding as a per-session blip.
     nonCanonicalEventTypes: string[];
@@ -81,7 +81,7 @@ export type AuditReport = {
   findings: AuditFinding[];
 };
 
-// Canonical sets come from spec via the generated govern module -
+// Canonical sets come from spec via the generated govern module .
 // every @maps_to activityType + every @activityRouting entry + the
 // CanonicalEventType enum. Adding a preset method or a routing entry
 // in the spec automatically extends what counts as canonical here.
@@ -91,7 +91,7 @@ import {
   CANONICAL_VERDICT_ARMS,
 } from '../../core-client/generated/govern.js';
 
-// Production verdict set - same as CANONICAL_VERDICT_ARMS minus
+// Production verdict set; same as CANONICAL_VERDICT_ARMS minus
 // `constrain`, which was removed from the production wire.
 const CANONICAL_VERDICTS: ReadonlySet<string> = new Set(
   [...CANONICAL_VERDICT_ARMS].filter((v) => v !== 'constrain'),
@@ -106,7 +106,7 @@ function pickArray<T = unknown>(resp: unknown): T[] {
   return [];
 }
 
-// Backend may omit `total` - falling back to `all.length` turns every loop
+// Backend may omit `total`; falling back to `all.length` turns every loop
 // into a page-1 terminator. Only honor `total` when it's actually a number;
 // otherwise rely on empty-page detection.
 function pickTotal(resp: unknown): number | undefined {
@@ -258,10 +258,10 @@ function buildEventFindings(events: AuditReport['events']): AuditFinding[] {
     findings.push({
       rule: 'event_type.canonical',
       level: 'fail',
-      message: `non-canonical event_type(s): ${events.nonCanonicalEventTypes.join(', ')} - must be one of ${[...CANONICAL_EVENT_TYPES].join('|')}`,
+      message: `non-canonical event_type(s): ${events.nonCanonicalEventTypes.join(', ')}; must be one of ${[...CANONICAL_EVENT_TYPES].join('|')}`,
     });
   }
-  // activity_type inventory - informational, not a violation. Build from
+  // activity_type inventory; informational, not a violation. Build from
   // the distribution that already includes every seen value.
   const canonicalEntries: Array<[string, number]> = [];
   const customEntries: Array<[string, number]> = [];
@@ -278,7 +278,7 @@ function buildEventFindings(events: AuditReport['events']): AuditFinding[] {
     if (customEntries.length > 0) {
       lines.push(`custom:    ${fmt(customEntries)}`);
       lines.push(
-        `Configure guardrails against the exact strings above - custom names won't match guardrails targeting canonical values.`,
+        `Configure guardrails against the exact strings above; custom names won't match guardrails targeting canonical values.`,
       );
     }
     findings.push({
@@ -291,14 +291,14 @@ function buildEventFindings(events: AuditReport['events']): AuditFinding[] {
     findings.push({
       rule: 'verdict.canonical',
       level: 'fail',
-      message: `non-canonical verdict(s): ${events.nonCanonicalVerdicts.join(', ')} - must be allow|require_approval|block|halt`,
+      message: `non-canonical verdict(s): ${events.nonCanonicalVerdicts.join(', ')}; must be allow|require_approval|block|halt`,
     });
   }
   if (events.duplicateActivityIds > 0) {
     findings.push({
       rule: 'activity_id.unique',
       level: 'fail',
-      message: `${events.duplicateActivityIds} duplicate ActivityStarted event(s) share an activity_id - each activity_id must appear in exactly one ActivityStarted`,
+      message: `${events.duplicateActivityIds} duplicate ActivityStarted event(s) share an activity_id; each activity_id must appear in exactly one ActivityStarted`,
     });
   }
   if (events.eventsWithNonArrayInput > 0) {
@@ -369,7 +369,7 @@ export function renderAuditReport(agentId: string, report: AuditReport): void {
   const s = report.sessions;
   const e = report.events;
 
-  console.log(`openbox agent audit - ${name} (${agentId})`);
+  console.log(`openbox agent audit; ${name} (${agentId})`);
   console.log();
   console.log(`Sessions analyzed: ${s.total}`);
   if (s.total > 0) {
@@ -377,7 +377,7 @@ export function renderAuditReport(agentId: string, report: AuditReport): void {
     console.log(`  status:   ${statusLine}`);
     console.log(`  avg dur:  ${fmtMs(s.avgDurationMs)}`);
     if (s.dangling > 0) {
-      console.log(`  ${color.yellow(`dangling: ${s.dangling} session(s) still PENDING after 1h - run \`openbox session prune ${agentId} --older-than 1h --dry-run\` to review`)}`);
+      console.log(`  ${color.yellow(`dangling: ${s.dangling} session(s) still PENDING after 1h; run \`openbox session prune ${agentId} --older-than 1h --dry-run\` to review`)}`);
     }
   }
   console.log();
@@ -394,7 +394,7 @@ export function renderAuditReport(agentId: string, report: AuditReport): void {
   if (protocolIssues === 0 && s.total > 0) {
     console.log(`  ${color.green('✓ all sessions follow paired Start/Complete + terminal protocol')}`);
   } else if (protocolIssues > 0) {
-    console.log(`  ${color.yellow(`${protocolIssues} protocol issue(s) - run \`openbox session inspect ${agentId} <id>\` to drill in`)}`);
+    console.log(`  ${color.yellow(`${protocolIssues} protocol issue(s); run \`openbox session inspect ${agentId} <id>\` to drill in`)}`);
   }
   console.log();
 
@@ -417,7 +417,7 @@ export function renderAuditReport(agentId: string, report: AuditReport): void {
   if (report.mismatches.length > 0) {
     console.log(color.yellow('Guardrails configured for activity_types never seen in events:'));
     for (const m of report.mismatches) {
-      console.log(`  "${m.guardrail}" bound to activity_type="${m.configuredType}" - 0 matching events. The guardrail silently never fires.`);
+      console.log(`  "${m.guardrail}" bound to activity_type="${m.configuredType}"; 0 matching events. The guardrail silently never fires.`);
     }
     console.log(`  fix: update the client to send that activity_type, OR edit the guardrail binding to match what the client actually sends.`);
     console.log();

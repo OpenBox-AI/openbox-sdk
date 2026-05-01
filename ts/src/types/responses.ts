@@ -3,13 +3,13 @@
 // Backend NestJS controllers don't carry `@ApiOkResponse({ type: ... })`
 // annotations on most endpoints, so the auto-generated OpenAPI document
 // has no response schemas. The SDK closes that gap by authoring the
-// shapes in `specs/typespec/backend/responses.tsp` - they ride through
+// shapes in `specs/typespec/backend/responses.tsp`; they ride through
 // the same TypeSpec → OpenAPI → openapi-typescript pipeline as the
 // request DTOs and surface as named entries in `Backend.components`.
 //
 // Each export below is a one-line alias of the generated schema. When
 // the upstream backend grows `@ApiOkResponse` decorators, drop the
-// matching model from `responses.tsp` - these aliases keep working
+// matching model from `responses.tsp`; these aliases keep working
 // because `openapi-typescript` will pick the schema up from the live
 // backend OpenAPI instead.
 

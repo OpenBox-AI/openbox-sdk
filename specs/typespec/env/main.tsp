@@ -1,8 +1,8 @@
-// specs/typespec/env/main.tsp - language-agnostic description of the
+// specs/typespec/env/main.tsp; language-agnostic description of the
 // runtime config that every SDK / CLI binary must resolve at startup.
 //
 // The TS reference implementation today (ts/env/src/) is hand-written
-// - this file documents the contract it satisfies and is what the
+//; this file documents the contract it satisfies and is what the
 // per-language emitters will lower to ts/env/src/generated/,
 // rust/src/env/, etc. once codegen reaches them.
 //
@@ -10,7 +10,7 @@
 // each property so the emitters know which env-var to read, what
 // regex to enforce, and which fields are filesystem paths.
 
-// Note: programming-model spec, not an HTTP API - see govern/main.tsp
+// Note: programming-model spec, not an HTTP API; see govern/main.tsp
 // for the rationale behind not using `@service` here.
 
 import "typespec-env";
@@ -104,7 +104,7 @@ model Runtime {
 
 /**
  * CLI-only env vars that gate which subcommands / code paths are
- * available. NOT runtime config (no URLs, no credentials) - these
+ * available. NOT runtime config (no URLs, no credentials); these
  * shape what the user sees in `--help` and what experimental code
  * paths run inside otherwise-stable commands.
  *
@@ -132,7 +132,7 @@ model CliRuntimeConfig {
 }
 
 // ---------------------------------------------------------------------------
-// On-disk multi-env token store - wire format every language SDK
+// On-disk multi-env token store; wire format every language SDK
 // must parse identically. One ENV.FIELD=value line per entry; legacy
 // un-prefixed lines map to production. See ts/env/src/token-codec.ts
 // for the canonical TS implementation.
@@ -147,7 +147,7 @@ model TokenEntry {
   refreshToken?: string;
 
   /**
-   * Org-level API key - alternative to `accessToken` for the
+   * Org-level API key; alternative to `accessToken` for the
    * management API. Wire shape is `X-API-Key: <key>`; the SDK
    * prefers this header over `Authorization: Bearer` when set.
    * Format is the org-key prefix (`obx_key_<48hex>`), distinct
@@ -190,17 +190,18 @@ interface TokenCodec {
 
 // ---------------------------------------------------------------------------
 // X-Openbox-Client header composer. Every outbound request from any
-// language SDK must produce the same shape: `<base>` (e.g.
-// `openbox-cli`) optionally followed by `/<variant>` where variant
-// matches CLIENT_VARIANT_PATTERN. Variant comes from the explicit
-// override or the OPENBOX_CLIENT_VARIANT env-var; bad values are
-// silently dropped (never throw - a typo can't poison the header).
+// language SDK must produce the same shape: `<base>`, such as
+// `openbox-cli`, optionally followed by `/<variant>` where variant
+// matches CLIENT_VARIANT_PATTERN. The variant comes from the explicit
+// override or the OPENBOX_CLIENT_VARIANT env var. Bad values are
+// silently dropped instead of throwing, so a typo cannot poison the
+// header.
 // ---------------------------------------------------------------------------
 
 /**
  * Marker model carrying the canonical variant pattern via
  * `@token_format`. Re-using the env library's existing decorator
- * keeps the emitter's metadata-extraction path uniform - anything
+ * keeps the emitter's metadata-extraction path uniform; anything
  * format-constrained at runtime travels through `@token_format`,
  * regardless of whether it ends up as a regex literal, a CLI flag
  * validator, or both.
@@ -208,7 +209,7 @@ interface TokenCodec {
 model ClientVariant {
   /**
    * `OPENBOX_CLIENT_VARIANT` pattern. Letters, digits, `.`, `_`,
-   * `+`, `-` - the conservative intersection of HTTP-header-safe
+   * `+`, `-`; the conservative intersection of HTTP-header-safe
    * and shell-safe characters.
    */
   @token_format("^[A-Za-z0-9._+-]+$")
@@ -225,7 +226,7 @@ model ClientVariant {
  *     feature flags) safe to delete
  *
  * Linux (XDG_DATA_HOME or ~/.openbox/<scope>),
- * macOS (~/.openbox/<scope> - we deliberately don't follow Apple's
+ * macOS (~/.openbox/<scope>; we deliberately don't follow Apple's
  *   `~/Library/Application Support/openbox/` because the file is
  *   intended to be findable + editable from the terminal),
  * Windows (%APPDATA%\openbox\<scope>).
@@ -238,7 +239,7 @@ enum OsPathScope {
   /**
    * Per-agent runtime-key cache. Populated by `agent create` and
    * `api-key rotate` post-callbacks; read by `api-key recall`. The
-   * file is mode 0o600 (matches `tokens`) - drift-locked by
+   * file is mode 0o600 (matches `tokens`); drift-locked by
    * tests/unit/platform-awareness.test.ts.
    */
   agentKeys: "agent-keys",
@@ -250,7 +251,7 @@ enum OsPathScope {
  * via this contract. The implementation is hand-written per
  * language (Node uses `os.homedir()`, browser/mobile uses platform
  * SecureStore APIs) but the OUTPUT is deterministic given the
- * platform - see `tests/unit/os-paths.test.ts` for the lockdown.
+ * platform; see `tests/unit/os-paths.test.ts` for the lockdown.
  */
 interface OsPathResolver {
   /**
@@ -272,7 +273,7 @@ interface ClientNameResolver {
 }
 
 // ---------------------------------------------------------------------------
-// EnvLoader - runtime contract for env resolution. Hand-written
+// EnvLoader; runtime contract for env resolution. Hand-written
 // implementations under ts/env/src/*.ts (and the equivalents in
 // rust/, py/, go/) MUST satisfy the operations declared on this
 // interface. The TypeScript emitter lowers this to an exported
@@ -284,7 +285,7 @@ interface ClientNameResolver {
 interface EnvLoader {
   /**
    * Resolves the active environment from the CLI flag, the
-   * `OPENBOX_ENV` env-var, or the production default - in that
+   * `OPENBOX_ENV` env-var, or the production default; in that
    * order. Lower-cases the input and rejects unknown values.
    */
   resolveEnv(cliFlag?: string): EnvName;
@@ -298,7 +299,7 @@ interface EnvLoader {
 }
 
 // ---------------------------------------------------------------------------
-// Client construction contract - the "set token directly" entry point.
+// Client construction contract; the "set token directly" entry point.
 //
 // Every language's HTTP wrapper accepts these option bundles in its
 // constructor. The shapes are part of the cross-language SDK contract:
@@ -330,7 +331,7 @@ model RateLimitConfig {
 model TokenPair {
   accessToken: string;
   /**
-   * Optional - Keycloak rotation may be disabled, in which case the
+   * Optional; Keycloak rotation may be disabled, in which case the
    * stored refresh token should be left as-is rather than overwritten.
    */
   refreshToken?: string;
@@ -338,7 +339,7 @@ model TokenPair {
 
 /**
  * Construction options for the backend HTTP wrapper. Required entry
- * point for the "I already have a token, just use it" flow - pass
+ * point for the "I already have a token, just use it" flow; pass
  * exactly one of `accessToken` (JWT, browser/login flow) or `apiKey`
  * (org-level long-lived key, X-API-Key header). The wrapper picks the
  * apiKey path when both are present.
@@ -360,7 +361,7 @@ model BackendClientConfig {
   refreshToken?: string;
 
   /**
-   * Org-level API key - sent as `X-API-Key`. Either this or
+   * Org-level API key; sent as `X-API-Key`. Either this or
    * `accessToken` is required; format-checked at construction so
    * a 401 from the wire always means the key is wrong, not malformed.
    */
@@ -385,12 +386,12 @@ model BackendClientConfig {
 
   /**
    * Cached set of permission strings the holder of `accessToken` is
-   * authorized for (e.g. `["read:agent", "create:webhook"]`). When
+   * authorized for, such as `["read:agent", "create:webhook"]`. When
    * provided, the generated wrapper class checks each method's
    * required permissions BEFORE the network call and throws a typed
    * `MissingPermissionError` if any are absent.
    *
-   * When omitted, the pre-flight check is skipped - the SDK behaves
+   * When omitted, the pre-flight check is skipped; the SDK behaves
    * exactly as before, deferring authorization to the server's 403
    * response. The CLI populates this from its on-disk perms cache.
    */
@@ -399,7 +400,7 @@ model BackendClientConfig {
 
 /**
  * Construction options for the core HTTP wrapper. The SDK API key
- * (`apiKey`) is required - same "I already have a key, just use it"
+ * (`apiKey`) is required; same "I already have a key, just use it"
  * flow as `BackendClientConfig.accessToken`. Format-checked at
  * construction via `validateApiKeyFormat` so a 401 from the wire
  * always means the key is wrong, not malformed.

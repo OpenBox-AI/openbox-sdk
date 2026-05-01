@@ -11,10 +11,10 @@
 // suite skips gracefully.
 //
 // NOT covered here (needs more services):
-//   - approval decide - needs a REQUIRE_APPROVAL verdict, which comes from
+//   - approval decide; needs a REQUIRE_APPROVAL verdict, which comes from
 //     OPA policy eval or AGE goal-alignment eval; both deliberately unset
 //     in the local env, so no path produces a pending approval.
-//   - violation false-positive - needs a guardrail/policy-driven
+//   - violation false-positive; needs a guardrail/policy-driven
 //     violation; same reason.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -99,7 +99,7 @@ describe('live ingest (e2e, real backend + core + temporal)', () => {
     canRunLive = await coreReachable();
     if (!canRunLive) {
       console.warn(
-        `[live-ingest] core not reachable at ${CORE_URL} - skipping suite. ` +
+        `[live-ingest] core not reachable at ${CORE_URL}; skipping suite. ` +
           'Run `bash scripts/core-up.sh` from openbox-local to bring it up.',
       );
       return;

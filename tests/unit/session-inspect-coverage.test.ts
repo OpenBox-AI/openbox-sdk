@@ -90,7 +90,7 @@ async function runSessionAction(verb: string, args: string[], client: any): Prom
   return { exitCode, out };
 }
 
-describe('session inspect - protocol validator', () => {
+describe('session inspect; protocol validator', () => {
   it('clean session (paired Start/Complete + WorkflowCompleted) → no fail findings', async () => {
     const events = [
       { event_type: 'WorkflowStarted', workflow_id: 'wf-1', run_id: 'run-1' },
@@ -100,7 +100,7 @@ describe('session inspect - protocol validator', () => {
     ];
     const r = await runSessionAction('inspect', ['ag1', 'sess1'], stubClient(events));
     expect(r.out.some((l) => l.includes('protocol check'))).toBe(true);
-    // Clean session shouldn't produce a `fail` line - exitCode stays undefined.
+    // Clean session shouldn't produce a `fail` line; exitCode stays undefined.
     expect(r.exitCode).toBeUndefined();
   });
 
@@ -139,7 +139,7 @@ describe('session inspect - protocol validator', () => {
   });
 });
 
-describe('session prune - bulk terminate', () => {
+describe('session prune; bulk terminate', () => {
   it('--dry-run lists candidates without firing terminate', async () => {
     const tooOld = new Date(Date.now() - 1000 * 60 * 60).toISOString();
     const sessions = [

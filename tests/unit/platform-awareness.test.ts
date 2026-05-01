@@ -1,8 +1,8 @@
 // Drift lock for OS / platform awareness.
 //
-//  - No `process.env.HOME` reads in `ts/src/` - use `os.homedir()` so
+//  - No `process.env.HOME` reads in `ts/src/`; use `os.homedir()` so
 //    Windows (where HOME is unset; USERPROFILE is the equivalent) works.
-//  - No hardcoded user paths - `/Users/...`, `/home/...`, `\\Users\\...`.
+//  - No hardcoded user paths; `/Users/...`, `/home/...`, `\\Users\\...`.
 //  - Sensitive file writes (token store, session store, install-time
 //    template configs) MUST set mode 0o600 so a shared Unix box doesn't
 //    leak them. Windows ignores the bit, but the call still type-checks
@@ -77,7 +77,7 @@ describe('platform / OS awareness contract', () => {
     const installSrc = readFileSync(`${SRC_ROOT}/runtime/_shared/install.ts`, 'utf-8');
     // The template-config write (the one that contains a user-pasted
     // API key) MUST be 0o600. The settings.json/hooks.json saveJson is
-    // editor-managed - kept at default mode by design.
+    // editor-managed; kept at default mode by design.
     expect(installSrc).toContain('mode: 0o600');
   });
 

@@ -1,11 +1,12 @@
 // Helpers for applying core's redacted payload over the original
-// activity input/output. Use these when you want to forward a
-// guardrail-redacted version of the payload downstream (e.g. write a
-// redacted file, send a redacted prompt to an LLM).
+// activity input or output. Use these when forwarding a
+// guardrail-redacted version of the payload downstream, such as
+// writing a redacted file or sending a redacted prompt to an LLM.
 //
-// Ported from the legacy openbox-typescript-sdk. The shape of the input
-// (`GuardrailsVerdict`) is the new spec-driven verdict envelope -
-// `inputType` + `redactedInput` (camelCase) replace the old snake_case.
+// Ported from the legacy openbox-typescript-sdk. The input shape
+// `GuardrailsVerdict` is the new spec-driven verdict envelope. The
+// camelCase `inputType` and `redactedInput` replace the old
+// snake_case fields.
 import type { WorkflowVerdict } from './generated/govern.js';
 
 type GuardrailsVerdict = NonNullable<WorkflowVerdict['guardrailsResult']>;

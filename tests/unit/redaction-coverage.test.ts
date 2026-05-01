@@ -1,5 +1,5 @@
-// Coverage for ts/src/core-client/redaction.ts. Three exports -
-// deepUpdateObject, applyInputRedaction, applyOutputRedaction -
+// Coverage for ts/src/core-client/redaction.ts. Three exports .
+// deepUpdateObject, applyInputRedaction, applyOutputRedaction .
 // drive every branch of the redaction merge logic.
 
 import { describe, it, expect } from 'vitest';

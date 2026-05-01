@@ -39,7 +39,7 @@ describe('CLI non-interactive contract', () => {
     ]);
     for (const file of files) {
       if (allowed.has(file)) continue;
-      // Skip runtime/* - adapters run inside Claude Code/Cursor hooks
+      // Skip runtime/*; adapters run inside Claude Code/Cursor hooks
       // where they own the process anyway, and have their own exit code
       // contract with the host. Drift lives in cli/.
       if (file.startsWith(`${SRC_ROOT}/runtime/`)) continue;
@@ -64,7 +64,7 @@ describe('CLI non-interactive contract', () => {
       const matches = src.match(/\\x1b\[/g);
       if (matches && matches.length > 0) {
         // validators/index.ts is allowed because it imports `color` from
-        // the central helper - but the literal string check would still
+        // the central helper; but the literal string check would still
         // hit it if it leaked. Currently it has zero raw escapes.
         offenders.push({ file, matches: [`${matches.length}x \\x1b[`] });
       }
@@ -135,7 +135,7 @@ describe('CLI non-interactive contract', () => {
       'prune',
     ];
     // Anything in this set is allowed to NOT carry @cli_destructive.
-    // Empty by design - every reachable destructive verb in the spec
+    // Empty by design; every reachable destructive verb in the spec
     // must declare its destructive nature so the runtime gate fires.
     const ALLOWLIST = new Set<string>([]);
 
@@ -239,7 +239,7 @@ describe('CLI non-interactive contract', () => {
           try {
             await program.parseAsync(['node', 'openbox', ns, sub.name, ...positionals, ...requiredFlags]);
           } catch {
-            /* expected - process.exit shim throws */
+            /* expected; process.exit shim throws */
           }
 
           if (observedExit !== EXIT.USAGE) {
@@ -282,7 +282,7 @@ describe('CLI non-interactive contract', () => {
       if (!m) continue;
       // Walk back collecting CONTIGUOUS decorator/comment lines that
       // belong to THIS op's decorator stack. Stop at first blank line
-      // OR at the previous op's declaration / closing semicolon - that's
+      // OR at the previous op's declaration / closing semicolon; that's
       // the end of OUR stack and start of the previous op.
       const stackLines: string[] = [];
       for (let j = i - 1; j >= 0; j--) {

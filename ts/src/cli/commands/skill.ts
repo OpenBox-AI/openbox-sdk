@@ -5,13 +5,13 @@ import * as os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 /**
- * `openbox skill install` - copies the OpenBox skill content (SKILL.md +
+ * `openbox skill install`; copies the OpenBox skill content (SKILL.md +
  * references) into the user's `.claude/skills/openbox/` (or
  * `.cursor/skills/openbox/`) directory so Claude Code / Cursor can load
  * the skill.
  *
  * The skill content is shipped INSIDE the openbox-sdk package (under
- * dist/skill/ - see package.json `files`). At install time we copy it
+ * dist/skill/; see package.json `files`). At install time we copy it
  * to the user's home dir.
  */
 

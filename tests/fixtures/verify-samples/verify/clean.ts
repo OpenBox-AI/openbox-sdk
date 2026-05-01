@@ -1,4 +1,4 @@
-// Regression fixture - an integration that does everything right.
+// Regression fixture; an integration that does everything right.
 // Should produce ZERO findings from `openbox verify`.
 
 import { govern, type HttpTransport } from 'openbox-typescript-sdk';

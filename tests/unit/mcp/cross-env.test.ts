@@ -2,7 +2,7 @@ import { describe, it, test, expect, beforeAll, beforeEach, afterAll, afterEach,
 // Cross-env live smoke: for each env with a valid user JWT in
 // ~/.openbox/tokens, hit backend's /auth/profile via the exported
 // createApi() factory. Same pattern as openbox-sdk/packages/cli
-// cross-env-read.test.ts - catches drift between production, staging,
+// cross-env-read.test.ts; catches drift between production, staging,
 // and local for a non-destructive read path.
 //
 // Skips cleanly when a given env lacks a token; run
@@ -31,7 +31,7 @@ beforeAll(async () => {
       envStates.push({
         env,
         skip: true,
-        reason: `no token - run: openbox --env ${env} auth login`,
+        reason: `no token; run: openbox --env ${env} auth login`,
       });
       continue;
     }
@@ -83,10 +83,10 @@ describe('mcp cross-env smoke', () => {
     });
   }
 
-  // Informational cross-env diff - mirrors the openbox-sdk cross-env-read
+  // Informational cross-env diff; mirrors the openbox-sdk cross-env-read
   // suite. Prints the permission set per env and the symmetric diff
   // against the first env that ran. Does not fail on drift (feature
-  // flags legitimately differ between prod/staging) - just logs so a
+  // flags legitimately differ between prod/staging); just logs so a
   // human can spot an unintended change.
   it('permission diff across envs (informational)', () => {
     const ran = envStates.filter((s) => !s.skip);

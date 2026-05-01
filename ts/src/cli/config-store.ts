@@ -1,25 +1,25 @@
-// Per-env CLI config - eliminates the "export OPENBOX_API_URL=…" pre-amble
+// Per-env CLI config; eliminates the "export OPENBOX_API_URL=…" pre-amble
 // every time a user works in staging or any non-default env.
 //
 // File: <openbox-data-root>/config (per-OS, see env/os-paths.ts).
-// Mode: 0o600 - drift-locked by tests/unit/platform-awareness.test.ts.
+// Mode: 0o600; drift-locked by tests/unit/platform-awareness.test.ts.
 //
 // Format mirrors `tokens` (dotenv-style) so a human can edit it with
 // any text editor. Two scopes:
 //   - global    line shape: `<KEY>=<value>`           (no prefix)
 //   - per-env   line shape: `<env>.<KEY>=<value>`     (prefixed by env name)
 //
-// Some keys are inherently global (e.g. OPENBOX_ENV - it controls
-// which env is active, so storing it per-env is circular). Those auto-
+// Some keys are inherently global, such as OPENBOX_ENV: it controls
+// which env is active, so storing it per-env is circular. Those auto-
 // promote to global even if the user passed --env. Everything else
 // defaults to per-env scope.
 //
 // Resolution order at runtime (cli/index.ts preAction hook):
-//   1. process.env.<KEY>             - explicit shell export wins.
-//   2. global config                 - applied BEFORE env resolution
+//   1. process.env.<KEY>            ; explicit shell export wins.
+//   2. global config                ; applied BEFORE env resolution
 //                                       (so OPENBOX_ENV can default).
-//   3. per-env config                - applied AFTER env resolution.
-//   4. spec defaults (env package)   - built-in URLs, etc.
+//   3. per-env config               ; applied AFTER env resolution.
+//   4. spec defaults (env package)  ; built-in URLs, etc.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
@@ -28,7 +28,7 @@ import type { EnvName } from '../env/index.js';
 
 type Store = Record<string, string>;
 
-/** Keys that don't make sense to scope per-env - they CONTROL env
+/** Keys that don't make sense to scope per-env; they CONTROL env
  *  selection or apply uniformly across every env (telemetry tag,
  *  user-data root override). Setting any of these via `config set`
  *  auto-promotes to global scope regardless of --env. */
@@ -41,7 +41,7 @@ export const GLOBAL_ONLY_KEYS: ReadonlySet<string> = new Set([
   // Telemetry tag identifying the calling client (claude-code, cursor,
   // openbox-mcp/<x>). Doesn't vary per env.
   'OPENBOX_CLIENT_VARIANT',
-  // Coarse experimental gate - you toggle it for a session, not per env.
+  // Coarse experimental gate; you toggle it for a session, not per env.
   'OPENBOX_EXPERIMENTAL_LEVEL',
 ]);
 
@@ -72,7 +72,7 @@ function read(): Store {
 
 function write(store: Store): void {
   const lines = [
-    '# OpenBox CLI config - managed by `openbox config set/get/unset/list`.',
+    '# OpenBox CLI config; managed by `openbox config set/get/unset/list`.',
     '# Two scopes: lines without a prefix are global; lines like',
     '# `staging.OPENBOX_API_URL=...` are per-env (production / staging / local).',
   ];
@@ -84,15 +84,15 @@ function compositeKey(scope: Scope, key: string): string {
   return scope === 'global' ? key : `${scope}.${key}`;
 }
 
-/** Returns the effective scope for a key - auto-promotes global-only keys. */
+/** Returns the effective scope for a key; auto-promotes global-only keys. */
 export function effectiveScope(requested: Scope, key: string): Scope {
   return GLOBAL_ONLY_KEYS.has(key) ? 'global' : requested;
 }
 
 /** Persist a config value. `scope` is `'global'` for keys that apply
- *  across every env (e.g. OPENBOX_ENV) or one of the EnvName values
- *  for per-env scope. Global-only keys auto-promote regardless of
- *  `scope` - the return value reflects what was actually used so
+ *  across every env, such as OPENBOX_ENV, or one of the EnvName
+ *  values for per-env scope. Global-only keys auto-promote regardless
+ *  of `scope`; the return value reflects what was actually used so
  *  callers can surface a "scope was promoted" notice to the user.
  *
  *  When a global-only key is written, any pre-existing per-env entry
@@ -123,7 +123,7 @@ export function setConfig(
   return { scope: eff, purged };
 }
 
-/** Look up a value previously set via setConfig - `undefined` if absent. */
+/** Look up a value previously set via setConfig; `undefined` if absent. */
 export function getConfig(scope: Scope, key: string): string | undefined {
   return read()[compositeKey(effectiveScope(scope, key), key)];
 }
@@ -165,7 +165,7 @@ export function configStorePath(): string {
  * Layer GLOBAL config values into `process.env` before env resolution.
  * Called from cli/index.ts's preAction hook BEFORE `resolveEnv()` so a
  * persisted `OPENBOX_ENV=staging` can actually take effect. Only fills
- * unset vars - explicit shell exports always win.
+ * unset vars; explicit shell exports always win.
  */
 export function applyGlobalConfigToProcessEnv(): void {
   const cfg = listConfig('global');
@@ -177,7 +177,7 @@ export function applyGlobalConfigToProcessEnv(): void {
 /**
  * Layer per-env config values into `process.env`. Called from
  * cli/index.ts's preAction hook AFTER `resolveEnv()`. Only fills unset
- * vars - explicit shell exports and global config (already applied)
+ * vars; explicit shell exports and global config (already applied)
  * always win.
  */
 export function applyConfigToProcessEnv(env: EnvName): void {

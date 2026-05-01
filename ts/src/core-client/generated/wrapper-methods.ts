@@ -7,7 +7,7 @@ type RequestBodyOf<P extends keyof Paths, V extends keyof Paths[P]> =
 type ResponseOf<P extends keyof Paths, V extends keyof Paths[P]> =
   Paths[P][V] extends { responses: infer R } ? R extends Record<200 | 201, { content: { 'application/json': infer J } }> ? J : R extends Record<200 | 201, infer N> ? (N extends { description?: string } ? unknown : never) : unknown : unknown;
 /**
- * AUTO-GENERATED wrapper base class - every HTTP operation declared on
+ * AUTO-GENERATED wrapper base class; every HTTP operation declared on
  * the OpenboxCore TypeSpec namespace becomes a typed method here.
  * Hand-written wrappers (OpenBoxClient / OpenBoxCoreClient) extend this
  * class and own construction + the protected helper methods that the
