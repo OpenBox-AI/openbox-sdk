@@ -1,11 +1,6 @@
-// Thin extension-side adapter around OpenBoxClient. The SDK handles HTTP +
-// retries + the X-Openbox-Client header; we own:
-//   - reading env-namespaced tokens from ~/.openbox/tokens (the same file the
-//     `openbox` CLI writes), so logging in via CLI works for both
-//   - writing refreshed tokens back to the right env namespace
-//
-// One client instance per env. extension.ts rebuilds when the user switches
-// envs via VS Code settings.
+// Reads `<env>.API_KEY` from the CLI's `~/.openbox/tokens` and builds
+// an `OpenBoxClient`. One client per env; rebuilt by extension.ts on
+// settings change.
 
 import * as fs from "fs";
 import * as path from "path";
@@ -14,15 +9,13 @@ import { OpenBoxClient } from "openbox-sdk/client";
 import {
   ENVIRONMENTS,
   parseTokenStore,
-  serializeTokenStore,
   type EnvName,
   type TokenStore,
 } from "openbox-sdk/env";
 
 function tokenPath(): string {
-  // Mirror the CLI: prefer `.tokens` in cwd if it exists, else
-  // `~/.openbox/tokens`. The `.tokens` override is mainly for local-dev
-  // scratch use; production users land on the home-dir path.
+  // `.tokens` in cwd wins for local-dev; otherwise the per-OS home-
+  // dir path the CLI uses.
   const local = path.resolve(".tokens");
   if (fs.existsSync(local)) return local;
   const dir = path.join(os.homedir(), ".openbox");
@@ -36,29 +29,17 @@ function readStore(): TokenStore {
   return parseTokenStore(fs.readFileSync(p, "utf-8"));
 }
 
-function loadTokens(env: EnvName): { accessToken: string; refreshToken?: string } {
+function loadApiKey(env: EnvName): string {
   const entry = readStore()[env];
-  if (!entry?.accessToken) {
+  if (!entry?.apiKey) {
+    const flag = env === "production" ? "" : `--env ${env} `;
     throw new Error(
-      `No tokens for env '${env}'. Run: openbox --env ${env} auth login`,
+      `No X-API-Key for env '${env}'. The OpenBox extension reads the same ` +
+        `token store the CLI writes: install + log in via:\n  ` +
+        `npm i -g openbox\n  openbox ${flag}auth set-api-key`,
     );
   }
-  return { accessToken: entry.accessToken, refreshToken: entry.refreshToken };
-}
-
-function persistTokens(env: EnvName, accessToken: string, refreshToken: string | undefined) {
-  const store = readStore();
-  const existing = store[env] ?? {};
-  store[env] = {
-    accessToken,
-    // When the backend doesn't rotate the refresh token, the SDK passes
-    // undefined; keep the previously-stored value rather than clobber it.
-    refreshToken: refreshToken ?? existing.refreshToken,
-    updatedAt: new Date().toISOString(),
-    permissions: existing.permissions,
-    features: existing.features,
-  };
-  fs.writeFileSync(tokenPath(), serializeTokenStore(store));
+  return entry.apiKey;
 }
 
 export function createApi(env: EnvName): OpenBoxClient {
@@ -66,27 +47,21 @@ export function createApi(env: EnvName): OpenBoxClient {
 }
 
 /**
- * Like createApi, but also surfaces the resolved apiBase + the raw
- * accessToken so the WS realtime path can reuse the same auth/host
- * without re-loading tokens or re-resolving env. PollingService takes
- * just the client; RealtimeService takes all three.
+ * Like createApi, but also surfaces the resolved apiBase so the
+ * caller can show "Signed in to <apiBase>" in the status bar without
+ * re-resolving the env.
  */
 export function createApiContext(env: EnvName): {
   client: OpenBoxClient;
-  accessToken: string;
   apiBase: string;
 } {
-  const tokens = loadTokens(env);
+  const apiKey = loadApiKey(env);
   const apiBase = ENVIRONMENTS[env].apiUrl;
   const client = new OpenBoxClient({
     apiUrl: apiBase,
     env,
-    accessToken: tokens.accessToken,
-    refreshToken: tokens.refreshToken,
+    apiKey,
     clientName: "apps/extension",
-    onTokenRefresh: ({ accessToken, refreshToken }) => {
-      persistTokens(env, accessToken, refreshToken);
-    },
   });
-  return { client, accessToken: tokens.accessToken, apiBase };
+  return { client, apiBase };
 }

@@ -1,37 +1,37 @@
 // Smoke tests for the extension's API adapter. We don't test OpenBoxClient
 // itself; that's openbox-sdk's job. We verify the wiring: the right env
-// URL, the right clientName, and the right token coming out of the env-
-// namespaced ~/.openbox/tokens parser.
+// URL, the right clientName, and the right X-API-Key coming out of the
+// env-namespaced ~/.openbox/tokens parser.
+//
+// Auth contract: the extension reads `<env>.API_KEY=...` from the same
+// token store the CLI manages (`openbox auth set-api-key`). The CLI
+// handoff is the only auth surface; the extension never sets an
+// `Authorization: Bearer` header.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ENVIRONMENTS } from "openbox-sdk/env";
 
-// SDK isTokenExpired() rejects malformed tokens, so test fixtures need to
-// be real-shaped JWTs with a future exp claim.
-function makeJwt(envTag: string): string {
-  const exp = Math.floor(Date.now() / 1000) + 3600;
-  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
-  const payload = Buffer.from(JSON.stringify({ sub: `${envTag}-user`, exp })).toString("base64url");
-  return `${header}.${payload}.sig-${envTag}`;
+// `obx_key_<48hex>` is the org-key shape; the SDK validates it before
+// sending any request.
+function makeApiKey(envTag: string): string {
+  const padded = envTag.padEnd(48, "0").slice(0, 48);
+  return `obx_key_${padded.replace(/[^a-f0-9]/g, "0")}`;
 }
 
-const PROD_TOKEN = makeJwt("prod");
-const STAGING_TOKEN = makeJwt("staging");
-const LOCAL_TOKEN = makeJwt("local");
-const FAKE_TOKENS = `production.ACCESS_TOKEN=${PROD_TOKEN}
-production.REFRESH_TOKEN=prod-refresh
+const PROD_KEY = makeApiKey("aabbccdd");
+const STAGING_KEY = makeApiKey("11223344");
+const LOCAL_KEY = makeApiKey("55667788");
+const FAKE_TOKENS = `production.API_KEY=${PROD_KEY}
 production.UPDATED_AT=2026-04-25T00:00:00Z
-staging.ACCESS_TOKEN=${STAGING_TOKEN}
-staging.REFRESH_TOKEN=staging-refresh
+staging.API_KEY=${STAGING_KEY}
 staging.UPDATED_AT=2026-04-25T00:00:00Z
-local.ACCESS_TOKEN=${LOCAL_TOKEN}
-local.REFRESH_TOKEN=local-refresh
+local.API_KEY=${LOCAL_KEY}
 local.UPDATED_AT=2026-04-25T00:00:00Z
 `;
-const TOKEN_BY_ENV: Record<string, string> = {
-  production: PROD_TOKEN,
-  staging: STAGING_TOKEN,
-  local: LOCAL_TOKEN,
+const KEY_BY_ENV: Record<string, string> = {
+  production: PROD_KEY,
+  staging: STAGING_KEY,
+  local: LOCAL_KEY,
 };
 
 // Module-level mocks: the api adapter reads home dir + token file at import
@@ -77,7 +77,7 @@ describe("createApi", () => {
   });
 
   for (const env of ["production", "staging", "local"] as const) {
-    it(`hits the ${env} apiUrl with the right token + clientName`, async () => {
+    it(`hits the ${env} apiUrl with the right key + clientName`, async () => {
       const client = createApi(env);
       await client.health();
 
@@ -86,7 +86,9 @@ describe("createApi", () => {
 
       const headers = init.headers as Record<string, string>;
       expect(headers["X-Openbox-Client"]).toBe("apps/extension");
-      expect(headers["Authorization"]).toBe(`Bearer ${TOKEN_BY_ENV[env]}`);
+      expect(headers["X-API-Key"]).toBe(KEY_BY_ENV[env]);
+      // X-API-Key is the only auth header the extension ever sends.
+      expect(headers["Authorization"]).toBeUndefined();
     });
   }
 

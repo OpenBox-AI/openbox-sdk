@@ -3,14 +3,11 @@ import type { OpenBoxClient } from "openbox-sdk/client";
 import type { EnvName } from "openbox-sdk/env";
 import { createApi, createApiContext } from "./api";
 import { PollingService } from "./polling";
-import { RealtimeService } from "./realtime";
 import { ApprovalsTreeProvider } from "./approvalsView";
 import type { Approval } from "./types";
 
-// Unified handle for whichever feed is active. Both services emit the
-// same `changed` / `newApprovals` / `error` contract and expose
-// stop()/refresh(), so consumers below don't care which one is wired.
-type ApprovalsFeed = PollingService | RealtimeService;
+// X-API-Key auth → polling-only (the WS gateway requires JWT today).
+type ApprovalsFeed = PollingService;
 let feed: ApprovalsFeed | undefined;
 
 function readEnv(): EnvName {
@@ -43,8 +40,6 @@ export async function activate(context: vscode.ExtensionContext) {
   let client: OpenBoxClient | undefined;
   let orgId: string | undefined;
 
-  // Renders status bar text consistently; env tag stays visible so the user
-  // never has to wonder which backend an approval came from.
   function paintIdle(envTag: EnvName, count: number) {
     statusBar.text =
       count > 0 ? `$(shield) ${count} Pending · ${envTag}` : `$(shield) OpenBox · ${envTag}`;
@@ -61,7 +56,7 @@ export async function activate(context: vscode.ExtensionContext) {
     statusBar.text = `$(sync~spin) OpenBox · ${env}`;
     statusBar.tooltip = `Connecting to ${env}…`;
 
-    let ctx: { client: OpenBoxClient; accessToken: string; apiBase: string };
+    let ctx: { client: OpenBoxClient; apiBase: string };
     try {
       ctx = createApiContext(env);
       client = ctx.client;
@@ -87,9 +82,6 @@ export async function activate(context: vscode.ExtensionContext) {
       return;
     }
 
-    // Wire shared event handlers BEFORE choosing a feed implementation
-    // so both code paths emit identically. Setting `wireFeed` is the
-    // only adapter step.
     const wireFeed = (f: ApprovalsFeed) => {
       f.on("changed", (approvals: Approval[]) => {
         treeProvider.update(approvals);
@@ -127,29 +119,11 @@ export async function activate(context: vscode.ExtensionContext) {
       });
     };
 
-    // Try realtime (WS) first; instant push from backend's /ws
-    // gateway, no 5s polling. If the WS connect fails (token expired,
-    // gateway not deployed in this env, network refused), fall back to
-    // PollingService so the user always sees data.
-    const realtime = new RealtimeService({
-      client,
-      orgId,
-      apiBase: ctx.apiBase,
-      accessToken: ctx.accessToken,
-    });
-    try {
-      await realtime.start();
-      wireFeed(realtime);
-      feed = realtime;
-      console.log(`OpenBox: realtime (WS) connected to ${env}`);
-    } catch (err: any) {
-      console.warn(`OpenBox: WS connect failed (${err.message}); falling back to polling`);
-      realtime.stop();
-      const polling = new PollingService(client, orgId);
-      wireFeed(polling);
-      polling.start();
-      feed = polling;
-    }
+    void ctx;
+    const polling = new PollingService(client, orgId);
+    wireFeed(polling);
+    polling.start();
+    feed = polling;
   }
 
   await boot(env);

@@ -67,9 +67,13 @@ describe('command-group wrappers register subcommands', () => {
     { name: 'sso', mod: '../../ts/src/cli/commands/sso', register: 'registerSsoCommands', verbs: ['status', 'config'] },
     { name: 'webhook', mod: '../../ts/src/cli/commands/webhook', register: 'registerWebhookCommands', verbs: ['list', 'create', 'delete'] },
     { name: 'mcp', mod: '../../ts/src/cli/commands/mcp', register: 'registerMcpCommands', verbs: ['serve'] },
-    { name: 'claude-code', mod: '../../ts/src/cli/commands/claude-code', register: 'registerClaudeCodeCommands', verbs: ['install', 'uninstall', 'hook'] },
-    { name: 'cursor', mod: '../../ts/src/cli/commands/cursor', register: 'registerCursorCommands', verbs: ['install', 'uninstall', 'hook'] },
-    { name: 'skill', mod: '../../ts/src/cli/commands/skill', register: 'registerSkillCommands', verbs: ['install', 'path'] },
+    // claude-code, cursor, skill: install/uninstall verbs moved to the
+    // unified `openbox install <target>` parent (see install.ts). Each
+    // module retains only its non-install verbs.
+    { name: 'claude-code', mod: '../../ts/src/cli/commands/claude-code', register: 'registerClaudeCodeCommands', verbs: ['hook'] },
+    { name: 'cursor', mod: '../../ts/src/cli/commands/cursor', register: 'registerCursorCommands', verbs: ['hook'] },
+    { name: 'skill', mod: '../../ts/src/cli/commands/skill', register: 'registerSkillCommands', verbs: ['path'] },
+    { name: 'install', mod: '../../ts/src/cli/commands/install', register: 'registerInstallCommands', verbs: ['approver', 'extension', 'cursor', 'claude-code', 'skill', 'mobile'] },
   ];
 
   for (const c of cases) {
@@ -187,8 +191,11 @@ describe('public library entry points', () => {
     expect(mod.isMaturityVisible('beta', 'beta')).toBe(true);
     expect(mod.isMaturityVisible('experimental', 'beta')).toBe(false);
 
-    // maturityOf
-    expect(mod.maturityOf('agent list')).toBe('stable');
+    // maturityOf — `auth` is the canonical "always-stable" parent
+    // (any owner-tested CLI must keep auth stable since it's the
+    // entry point); `agent list` was demoted to experimental when the
+    // Agent interface lost its `@cli_maturity("stable")`.
+    expect(mod.maturityOf('auth')).toBe('stable');
     expect(mod.maturityOf('does.not.exist')).toBe('experimental'); // default
 
     // enableFeatures + isFeatureEnabled + listFeatures

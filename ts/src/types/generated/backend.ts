@@ -1891,8 +1891,76 @@ export interface components {
             agent_id?: string;
             status?: string;
             action_type?: string;
+            /**
+             * @description Wire-side alias for `action_type`. The backend's approval
+             *     pipeline historically emitted `activity_type` for the action
+             *     category and still does for verdict-triggered approvals; new
+             *     paths use `action_type`. Both ride together; clients prefer
+             *     `action_type` and fall back.
+             */
+            activity_type?: string;
+            /**
+             * Format: int32
+             * @description Verdict numeric: 0 = Allow, 1 = Constrain, 2 = Require Approval,
+             *     3 = Block, 4 = Halt. Approvals exist only for verdict ≥ 2 in
+             *     practice but the field carries the raw value the rule emitted.
+             */
+            verdict?: number;
+            /**
+             * @description Free-text rationale attached to the verdict; populated by
+             *     guardrail / behavior-rule evaluation. Optional because action-type
+             *     approvals (manual queues) carry no automated reason.
+             */
+            reason?: string;
             created_at?: string;
             decided_at?: string;
+            /**
+             * @description Deadline after which the approval auto-expires. Emitted as an
+             *     ISO-8601 timestamp; absent when the rule has no timeout
+             *     configured.
+             */
+            approval_expired_at?: string;
+            agent?: components["schemas"]["ApprovalAgent"];
+            metadata?: components["schemas"]["ApprovalMetadata"];
+            /**
+             * @description Activity input payload captured at queue time. Shape depends on
+             *     the action type — Shell carries `[{ command, cwd }]`, LLM carries
+             *     `[{ prompt, model }]`. Mobile + approver UIs pretty-print this
+             *     in the detail sheet; CLI surfaces a one-line summary.
+             */
+            input?: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description OpenTelemetry spans from the agent run that triggered the
+             *     approval. Approvers use them to show the surrounding trace
+             *     context.
+             */
+            spans?: {
+                [key: string]: unknown;
+            }[];
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * @description Nested agent reference embedded on `Approval`. The backend joins
+         *     the originating agent so list views can show its display name
+         *     without a second `getAgent` roundtrip.
+         */
+        ApprovalAgent: {
+            agent_name: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * @description Approval metadata captured at the time the action was queued. The
+         *     trust tier is the agent's tier as evaluated when the verdict
+         *     triggered, NOT its current tier (which may have shifted while the
+         *     approval was pending).
+         */
+        ApprovalMetadata: {
+            /** Format: int32 */
+            trust_tier?: number;
         } & {
             [key: string]: unknown;
         };
@@ -2667,6 +2735,13 @@ export interface components {
             name?: string;
             preferred_username?: string;
             email_verified?: boolean;
+            /**
+             * @description Active org for the JWT. Absent for users who haven't selected one;
+             *     downstream consumers that need an org ID fall back to listing
+             *     accessible agents and reading `Agent.organization_id` from the first
+             *     row.
+             */
+            orgId?: string;
         } & {
             [key: string]: unknown;
         };

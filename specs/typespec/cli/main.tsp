@@ -71,7 +71,7 @@ interface Auth {
   "config",
   "Persistent CLI config (URL overrides, default flags). Two scopes: per-env (default; keyed off the active --env) and global (--global, applies across all envs). Layered into process.env at startup; explicit shell exports always win. File: <data-root>/config (mode 0o600)."
 )
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface Config {
   /**
    * Persist a config value. Defaults to per-env scope (keyed off
@@ -148,7 +148,7 @@ model PersistedCredentials {
 // ---------------------------------------------------------------------------
 
 @cli_command("agent", "Agent management.")
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface Agent {
   /** List all agents. */
   @cli_calls("listAgents")
@@ -292,7 +292,7 @@ interface Aivss {
 }
 
 @cli_command("api-key", "Agent + org-level API key management.")
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface ApiKey {
   /** List org-level API keys. */
   @cli_maturity("experimental")
@@ -450,7 +450,7 @@ interface Sso {
 }
 
 @cli_command("approval", "Approval queue management.")
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface Approval {
   /** Get approval metrics. */
   @cli_calls("getApprovalMetrics")
@@ -516,7 +516,7 @@ interface Approval {
 }
 
 @cli_command("audit", "Audit log queries + exports.")
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface Audit {
   /** List audit logs. */
   @cli_calls("getAuditLogs")
@@ -615,7 +615,7 @@ interface Audit {
 }
 
 @cli_command("behavior", "Behavior rule management.")
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface Behavior {
   /** List supported behavior-rule semantic types. */
   @cli_calls("getSemanticTypes", "positional")
@@ -788,7 +788,7 @@ interface Core {
 interface Doctor {}
 
 @cli_command("goal", "Goal alignment configuration.")
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface Goal {
   /** Get goal alignment trend. */
   @cli_calls("getGoalAlignmentTrend")
@@ -838,7 +838,7 @@ interface Goal {
 }
 
 @cli_command("guardrail", "Guardrail management + testing.")
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface Guardrail {
   /** List guardrails for an agent. */
   @cli_calls("listGuardrails")
@@ -1027,7 +1027,7 @@ interface Member {
 }
 
 @cli_command("observe", "Observability dashboards + metrics.")
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface Observe {
   /** Get observability data. */
   @cli_calls("getObservability")
@@ -1077,7 +1077,7 @@ interface Observe {
 }
 
 @cli_command("org", "Organization management.")
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface Org {
   /** Get organization details. */
   @cli_calls("getOrganization", "positional")
@@ -1229,7 +1229,7 @@ interface Org {
 }
 
 @cli_command("policy", "Policy management.")
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface Policy {
   /** List policies for an agent. */
   @cli_calls("listPolicies")
@@ -1330,7 +1330,7 @@ interface Policy {
 }
 
 @cli_command("session", "Session inspection + cleanup.")
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface Session {
   /** List sessions for an agent. */
   @cli_calls("listSessions")
@@ -1409,7 +1409,7 @@ interface Session {
 // its own @cli_command interface above).
 
 @cli_command("team", "Team management.")
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface Team {
   /** List teams. */
   @cli_calls("listTeams")
@@ -1510,7 +1510,7 @@ interface Team {
 }
 
 @cli_command("trust", "Agent trust history.")
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface Trust {
   /** Get trust score histories. */
   @cli_calls("getTrustHistories", "positional")
@@ -1570,7 +1570,7 @@ interface Verify {}
 interface Versions {}
 
 @cli_command("violation", "Guardrail/policy/behavior violation queries.")
-@cli_maturity("stable")
+@cli_maturity("experimental")
 interface Violation {
   /** Get all violations. */
   @cli_calls("getAllViolations", "positional")

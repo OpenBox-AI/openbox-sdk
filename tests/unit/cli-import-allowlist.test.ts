@@ -52,6 +52,10 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   // Per-command sibling modules; agent-audit is a separate report
   // module imported by both agent.ts (the action) and tests.
   './agent-audit.js': 'separate cross-session audit report module.',
+  // Unified `openbox install skill` delegates to skill.ts's
+  // installSkill(); install.ts is the only commander module that
+  // imports a sibling command module.
+  './skill.js': 'unified install command delegates to installSkill().',
   // Generated cli-handlers/<cmd>.ts manifests.
   '../generated/cli-handlers/': 'spec-driven SubcommandSpec[] manifests.',
   // Spec-driven canonical sets (CANONICAL_EVENT_TYPES,
@@ -73,6 +77,8 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   '../../runtime/cursor/hook-handler.js':
     'cursor hook command runs the runtime hook handler.',
   '../../runtime/mcp/index.js': 'mcp serve runs the MCP stdio server.',
+  '../../runtime/mcp/install.js':
+    'unified install command writes/removes the OpenBox MCP server entry across host configs.',
 };
 
 function isAllowed(spec: string): boolean {

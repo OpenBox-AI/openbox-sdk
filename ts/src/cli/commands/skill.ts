@@ -1,19 +1,12 @@
+/** `openbox skill path`: print the bundled skill source dir. Install
+ *  lives at `openbox install skill`; `installSkill()` here is the
+ *  function the unified command imports. */
+
 import { Command } from 'commander';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { fileURLToPath } from 'node:url';
-
-/**
- * `openbox skill install`; copies the OpenBox skill content (SKILL.md +
- * references) into the user's `.claude/skills/openbox/` (or
- * `.cursor/skills/openbox/`) directory so Claude Code / Cursor can load
- * the skill.
- *
- * The skill content is shipped INSIDE the openbox-sdk package (under
- * dist/skill/; see package.json `files`). At install time we copy it
- * to the user's home dir.
- */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -44,23 +37,32 @@ function copyDir(src: string, dst: string): void {
   }
 }
 
+export interface SkillInstallOpts {
+  /** Override the install destination. Defaults to the per-host
+   *  `~/.claude/skills/openbox` (or `~/.cursor/skills/openbox` when
+   *  `cursor` is true). */
+  target?: string;
+  /** Install into Cursor's skill dir instead of Claude Code's. */
+  cursor?: boolean;
+}
+
+/**
+ * Copy the bundled skill content into the target host's skills dir.
+ * Returns the resolved destination path so callers can echo it.
+ */
+export function installSkill(opts: SkillInstallOpts = {}): string {
+  const src = findSkillSourceDir();
+  const dst = opts.target
+    ? path.resolve(opts.target)
+    : path.join(os.homedir(), opts.cursor ? '.cursor' : '.claude', 'skills', 'openbox');
+  copyDir(src, dst);
+  // eslint-disable-next-line no-console
+  console.log(`Installed openbox skill → ${dst}`);
+  return dst;
+}
+
 export function registerSkillCommands(program: Command) {
   const skill = program.command('skill').description('OpenBox skill content (SKILL.md + references)');
-
-  skill
-    .command('install')
-    .description('Copy SKILL.md + references into ~/.claude/skills/openbox/ (and ~/.cursor/skills/openbox/ if Cursor is installed)')
-    .option('--target <dir>', 'override install destination (default: ~/.claude/skills/openbox/)')
-    .option('--cursor', 'install into ~/.cursor/skills/openbox/ instead of ~/.claude/')
-    .action((opts: { target?: string; cursor?: boolean }) => {
-      const src = findSkillSourceDir();
-      const dst = opts.target
-        ? path.resolve(opts.target)
-        : path.join(os.homedir(), opts.cursor ? '.cursor' : '.claude', 'skills', 'openbox');
-      copyDir(src, dst);
-      // eslint-disable-next-line no-console
-      console.log(`Installed openbox skill → ${dst}`);
-    });
 
   skill
     .command('path')

@@ -134,15 +134,39 @@ describe('cli/commands; versions + skill + core', () => {
     expect(program.commands.find((c) => c.name() === 'versions')).toBeDefined();
   });
 
-  it('skill command registers all subcommands', async () => {
+  it('skill command registers its non-install subcommands', async () => {
+    // The `install` verb moved to the unified `openbox install skill`
+    // parent (see ts/src/cli/commands/install.ts); the `skill`
+    // top-level command keeps only its non-install verbs.
     const { registerSkillCommands } = await import('../../ts/src/cli/commands/skill');
     const program = new Command();
     registerSkillCommands(program);
     const skill = program.commands.find((c) => c.name() === 'skill');
     expect(skill).toBeDefined();
     const subs = skill!.commands.map((s) => s.name());
-    expect(subs).toContain('install');
     expect(subs).toContain('path');
+    expect(subs).not.toContain('install');
+  });
+
+  it('install command registers every supported target', async () => {
+    const { registerInstallCommands } = await import('../../ts/src/cli/commands/install');
+    const program = new Command();
+    registerInstallCommands(program);
+    const install = program.commands.find((c) => c.name() === 'install');
+    expect(install).toBeDefined();
+    const targets = install!.commands.map((s) => s.name()).sort();
+    expect(targets).toEqual(
+      ['approver', 'claude-code', 'cursor', 'extension', 'mcp', 'mobile', 'skill'].sort(),
+    );
+
+    const uninstall = program.commands.find((c) => c.name() === 'uninstall');
+    expect(uninstall).toBeDefined();
+    const utargets = uninstall!.commands.map((s) => s.name()).sort();
+    // No uninstall path for `mobile`; the iOS app is removed from the
+    // device, not via this CLI.
+    expect(utargets).toEqual(
+      ['approver', 'claude-code', 'cursor', 'extension', 'mcp'].sort(),
+    );
   });
 
   it('core command registers + has evaluate + spec subs', async () => {

@@ -33,6 +33,7 @@ import { registerMcpCommands } from './commands/mcp.js';
 import { registerSkillCommands } from './commands/skill.js';
 import { registerClaudeCodeCommands } from './commands/claude-code.js';
 import { registerCursorCommands } from './commands/cursor.js';
+import { registerInstallCommands } from './commands/install.js';
 import { registerDoctorCommand } from './commands/doctor.js';
 import { registerVerifyCommand } from './commands/verify.js';
 import { registerVersionsCommand } from './commands/versions.js';
@@ -47,7 +48,7 @@ const program = new Command();
 
 program
   .name('openbox')
-  .description('OpenBox AI Platform CLI')
+  .description('openbox-sdk')
   .version('1.0.0')
   .option(
     '--env <env>',
@@ -164,6 +165,7 @@ registerMcpCommands(program);
 registerSkillCommands(program);
 registerClaudeCodeCommands(program);
 registerCursorCommands(program);
+registerInstallCommands(program);
 registerDoctorCommand(program);
 registerVerifyCommand(program);
 registerVersionsCommand(program);
@@ -185,7 +187,8 @@ registerSsoCommands(program);
 
 // Walk the registered command tree and remove anything not visible at
 // the current maturity level. Mark visible-but-non-stable commands
-// with [experimental] / [beta] in their description.
+// with [experimental] / [beta] in their description so users can see
+// the maturity at a glance without further filtering.
 gateCommands(program);
 
 program.parseAsync(process.argv).catch((err) => {

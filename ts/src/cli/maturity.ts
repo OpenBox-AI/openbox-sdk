@@ -26,10 +26,24 @@ export function setMaturityOverride(level: Maturity | null): void {
   setMaturityLevel(level);
 }
 
+/** Subtrees the gate may tag but never remove. The hook + serve
+ *  endpoints are spawned by other processes that don't pass
+ *  `--experimental`; the install/uninstall trees need to resolve on
+ *  a fresh shell. */
+const ALWAYS_RESOLVABLE_ROOTS = new Set([
+  'claude-code',
+  'cursor',
+  'mcp',
+  'install',
+  'uninstall',
+  'skill',
+]);
+
 /**
  * Walk the program's full command tree. For each command:
  *  - look up its full path's maturity (default: experimental)
  *  - if invisible at the current level, REMOVE it from the parent
+ *    (UNLESS its top-level root is in ALWAYS_RESOLVABLE_ROOTS)
  *  - if visible but non-stable, prefix its description with [experimental]/[beta]
  *
  * Call this AFTER all `register<X>Commands(program)` calls and BEFORE
@@ -44,8 +58,9 @@ export function gateCommands(program: Command): void {
       const subPath = [...path, sub.name()];
       const key = subPath.join(' ');
       const target: Maturity = COMMAND_MATURITY[key] ?? 'experimental';
+      const alwaysResolvable = ALWAYS_RESOLVABLE_ROOTS.has(subPath[0]);
 
-      if (!isMaturityVisible(target, current)) {
+      if (!alwaysResolvable && !isMaturityVisible(target, current)) {
         const idx = parent.commands.indexOf(sub);
         if (idx >= 0) parent.commands.splice(idx, 1);
         continue;

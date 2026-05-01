@@ -70,6 +70,11 @@ model UserProfile {
   name?: string;
   preferred_username?: string;
   email_verified?: boolean;
+  /** Active org for the JWT. Absent for users who haven't selected one;
+   * downstream consumers that need an org ID fall back to listing
+   * accessible agents and reading `Agent.organization_id` from the first
+   * row. */
+  orgId?: string;
   ...Record<unknown>;
 }
 
@@ -246,14 +251,60 @@ model Assessment {
 // Approval
 // ---------------------------------------------------------------------------
 
+/** Nested agent reference embedded on `Approval`. The backend joins
+ *  the originating agent so list views can show its display name
+ *  without a second `getAgent` roundtrip. */
+model ApprovalAgent {
+  agent_name: string;
+  ...Record<unknown>;
+}
+
+/** Approval metadata captured at the time the action was queued. The
+ *  trust tier is the agent's tier as evaluated when the verdict
+ *  triggered, NOT its current tier (which may have shifted while the
+ *  approval was pending). */
+model ApprovalMetadata {
+  trust_tier?: int32;
+  ...Record<unknown>;
+}
+
 model Approval {
   id: string;
   event_id?: string;
   agent_id?: string;
   status?: string;
   action_type?: string;
+  /** Wire-side alias for `action_type`. The backend's approval
+   *  pipeline historically emitted `activity_type` for the action
+   *  category and still does for verdict-triggered approvals; new
+   *  paths use `action_type`. Both ride together; clients prefer
+   *  `action_type` and fall back. */
+  activity_type?: string;
+  /** Verdict numeric: 0 = Allow, 1 = Constrain, 2 = Require Approval,
+   *  3 = Block, 4 = Halt. Approvals exist only for verdict ≥ 2 in
+   *  practice but the field carries the raw value the rule emitted. */
+  verdict?: int32;
+  /** Free-text rationale attached to the verdict; populated by
+   *  guardrail / behavior-rule evaluation. Optional because action-type
+   *  approvals (manual queues) carry no automated reason. */
+  reason?: string;
   created_at?: string;
   decided_at?: string;
+  /** Deadline after which the approval auto-expires. Emitted as an
+   *  ISO-8601 timestamp; absent when the rule has no timeout
+   *  configured. */
+  approval_expired_at?: string;
+  agent?: ApprovalAgent;
+  metadata?: ApprovalMetadata;
+  /** Activity input payload captured at queue time. Shape depends on
+   *  the action type — Shell carries `[{ command, cwd }]`, LLM carries
+   *  `[{ prompt, model }]`. Mobile + approver UIs pretty-print this
+   *  in the detail sheet; CLI surfaces a one-line summary. */
+  input?: Record<unknown>;
+  /** OpenTelemetry spans from the agent run that triggered the
+   *  approval. Approvers use them to show the surrounding trace
+   *  context. */
+  spans?: Record<unknown>[];
   ...Record<unknown>;
 }
 
