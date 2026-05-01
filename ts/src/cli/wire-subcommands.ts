@@ -3,7 +3,7 @@
 // `cli/generated/cli-handlers/<cmd>.ts` and pass it through here, plus
 // a getClient resolver. Every detail (positional args, flags,
 // validators, body-key remap, --json escape, output renderer) comes
-// from the spec - adding a new subcommand is a spec edit.
+// from the spec; adding a new subcommand is a spec edit.
 
 import type { Command } from 'commander';
 import { output, outputList } from './output.js';
@@ -48,7 +48,7 @@ export interface FlagSpec {
   variadic?: boolean;
   /** Emit `requiredOption` instead of `option`. */
   required?: boolean;
-  /** Boolean-typed param - Commander option without `<value>` placeholder. */
+  /** Boolean-typed param; Commander option without `<value>` placeholder. */
   noArg?: boolean;
 }
 
@@ -58,7 +58,7 @@ export interface ArgSpec {
   /** When set, this positional's *value* is routed into the body under
    *  this key instead of being passed as a positional client arg.
    *  Used for hybrid call shapes like `decideApproval(agentId, eventId,
-   *  {action})` - agentId/eventId stay positional, action goes in body. */
+   *  {action})`; agentId/eventId stay positional, action goes in body. */
   bodyKey?: string;
   /** Restrict the positional to a fixed set of values (validateEnum).
    *  Same semantics as @cli_choice on flags. */
@@ -76,13 +76,13 @@ export interface SubcommandSpec {
   backend: {
     /** Method on OpenBoxClient. */
     method: string;
-    /** "positional" - positional spec params + flag values all go positional;
-     *  "body"       - positional spec params go positional, flags merge into a body object. */
+    /** "positional"; positional spec params + flag values all go positional;
+     *  "body"      ; positional spec params go positional, flags merge into a body object. */
     shape: 'positional' | 'body';
   };
   /** Adds -p / --page + -l / --limit and merges via parsePagination. */
   pagination: boolean;
-  /** When set, the action accepts a `--json <body>` flag - the parsed
+  /** When set, the action accepts a `--json <body>` flag; the parsed
    *  JSON becomes the body base, then per-flag values fill missing
    *  keys ("fill") / are ignored ("replace") / are absent because
    *  --json is required and exhaustive ("only"). @cli_required flags
@@ -94,7 +94,7 @@ export interface SubcommandSpec {
   /** Cross-field constraint: if any of these param names is in the
    *  merged body, ALL must be. Bypassed when --json was supplied. */
   requiredTogether?: ReadonlyArray<string>;
-  /** True when the op never calls the backend/core - declared in spec
+  /** True when the op never calls the backend/core; declared in spec
    *  via @cli_local_only. The action body for these is pure local
    *  state and lives hand-coded in commands/<x>.ts (this entry just
    *  carries the marker for drift tests). */
@@ -103,12 +103,12 @@ export interface SubcommandSpec {
    *  runtime requires `--yes` / `-y` to proceed, OR an explicit
    *  non-interactive marker (`--non-interactive` / CI=1 /
    *  OPENBOX_NONINTERACTIVE=1). Without those, the command fails
-   *  fast with a USAGE error - never blocks waiting for stdin. */
+   *  fast with a USAGE error; never blocks waiting for stdin. */
   destructive?: boolean;
   /** Name of a registered preflight callback (PREFLIGHT_REGISTRY)
    *  that runs before the main call with (body, getClient). */
   preflight?: string;
-  /** Spec-declared DTO defaults - merged into the body for keys not
+  /** Spec-declared DTO defaults; merged into the body for keys not
    *  filled by --json or flag values. */
   dtoDefaults?: unknown;
   /** Names of post-validate callbacks (POST_VALIDATE_REGISTRY) that
@@ -117,7 +117,7 @@ export interface SubcommandSpec {
   output: {
     kind: 'table' | 'list' | 'json' | 'kv' | 'binary' | 'custom';
     label?: string;
-    /** Dotted path into the response - renderer pulls this sub-value
+    /** Dotted path into the response; renderer pulls this sub-value
      *  instead of the full envelope. */
     pluck?: string;
     /** Name of a registered post-output callback. */
@@ -134,7 +134,7 @@ const VALIDATOR_REGISTRY: Record<string, (val: unknown, label: string) => unknow
  * Post-output callbacks runnable via @cli_output_post(name). Each
  * receives the original response (pre-pluck) and writes any side-effect
  * banner the spec asks for. Add a callback here when you spec a new
- * post hook - the spec tells the runtime *which* to call by name; the
+ * post hook; the spec tells the runtime *which* to call by name; the
  * body lives here so the spec stays language-agnostic.
  */
 export const OUTPUT_POST_REGISTRY: Record<string, (data: unknown) => void> = {
@@ -163,7 +163,7 @@ export const OUTPUT_POST_REGISTRY: Record<string, (data: unknown) => void> = {
     }
     console.error('');
     console.error('────────────────────────────────────────────────────────────');
-    console.error('  Runtime API key (capture now - only shown once):');
+    console.error('  Runtime API key (capture now; only shown once):');
     console.error(`    ${key}`);
     console.error('');
     console.error('  Use this as OPENBOX_API_KEY for core/governance calls.');
@@ -191,7 +191,7 @@ export const OUTPUT_POST_REGISTRY: Record<string, (data: unknown) => void> = {
     if (typeof secret !== 'string') return;
     console.error('');
     console.error('────────────────────────────────────────────────────────────');
-    console.error('  New webhook signing secret (capture now - shown once):');
+    console.error('  New webhook signing secret (capture now; shown once):');
     console.error(`    ${secret}`);
     console.error('────────────────────────────────────────────────────────────');
   },
@@ -216,7 +216,7 @@ export const PREFLIGHT_REGISTRY: Record<
 > = {
   /** `agent create` preflight: verify each --team UUID resolves in the
    *  caller's org and warn on agent-name collisions. Skipped when the
-   *  user passes --skip-preflight (set on the body via spec) - they
+   *  user passes --skip-preflight (set on the body via spec); they
    *  own the failure mode in that case. */
   async agentCreatePreflight(body, getClient) {
     if (body.skipPreflight) {
@@ -234,7 +234,7 @@ export const PREFLIGHT_REGISTRY: Record<
         (profile.org_id as string | undefined) ??
         ((profile.user as { orgId?: string })?.orgId);
     } catch {
-      warn('Pre-flight getProfile() failed - skipping team existence check. Pass --skip-preflight to silence this.');
+      warn('Pre-flight getProfile() failed; skipping team existence check. Pass --skip-preflight to silence this.');
     }
     if (orgId) {
       for (const teamId of teams) {
@@ -358,7 +358,7 @@ function mergeDefaults(target: Record<string, unknown>, defaults: unknown): void
 function transformFlag(raw: unknown, flag: FlagSpec): unknown {
   if (raw === undefined || raw === null) return raw;
   let value: unknown = raw;
-  // Choices run on the *raw string* before any parse - coerced
+  // Choices run on the *raw string* before any parse; coerced
   // booleans wouldn't equal the spec's "true"/"false" string literals.
   if (flag.choices && flag.choices.length > 0) {
     value = validateEnum(value, flag.choices, `--${flag.long}`);
@@ -420,13 +420,13 @@ function buildBody(opts: Record<string, unknown>, sub: SubcommandSpec): Record<s
     if (jsonProvided && sub.jsonMerge === 'fill' && key in body) continue;
     body[key] = val;
   }
-  // DTO defaults (@cli_dto_defaults) - fill keys flags didn't supply.
+  // DTO defaults (@cli_dto_defaults); fill keys flags didn't supply.
   // Skip when --json was provided: the user is opting into a complete
   // DTO and shouldn't get hidden defaults injected mid-body.
   if (sub.dtoDefaults && !jsonProvided) mergeDefaults(body, sub.dtoDefaults);
 
   // Cross-field "if any then all" check (@cli_required_together).
-  // Bypassed when --json was supplied - the user opts into a complete
+  // Bypassed when --json was supplied; the user opts into a complete
   // DTO and we trust them.
   if (
     !jsonProvided &&
@@ -488,7 +488,7 @@ function buildBody(opts: Record<string, unknown>, sub: SubcommandSpec): Record<s
 }
 
 function renderOutput(data: unknown, sub: SubcommandSpec): void {
-  // Pluck happens before rendering - the original response is still
+  // Pluck happens before rendering; the original response is still
   // forwarded to the post callback (so it sees fields the renderer
   // didn't display, e.g. metrics envelopes).
   const renderable = sub.output.pluck ? getPath(data, sub.output.pluck) : data;
@@ -497,7 +497,7 @@ function renderOutput(data: unknown, sub: SubcommandSpec): void {
       outputList(renderable, sub.output.label ?? 'items');
       break;
     case 'binary':
-      // Binary payload - pass through as-is. Strings go to stdout
+      // Binary payload; pass through as-is. Strings go to stdout
       // unmodified; Buffers/Uint8Arrays write their bytes.
       if (typeof renderable === 'string') {
         process.stdout.write(renderable);
@@ -548,13 +548,13 @@ function attachFlags(cmd: Command, sub: SubcommandSpec): void {
   if (sub.jsonMerge) {
     // --body instead of --json: the global --json boolean (output
     // formatter, see cli/index.ts) collides with a subcommand-level
-    // --json <value> in Commander - the boolean wins and the body
+    // --json <value> in Commander; the boolean wins and the body
     // never reaches opts. No short alias because `-d` is already used
     // by `--desc` on most spec ops.
     if (sub.jsonMerge === 'only') {
       cmd.requiredOption('--body <json>', 'Full JSON body (required).');
     } else {
-      cmd.option('--body <json>', 'Full JSON body - flag values fill missing keys.');
+      cmd.option('--body <json>', 'Full JSON body; flag values fill missing keys.');
     }
   }
 }
@@ -584,7 +584,7 @@ export function wireSubcommands(
 
         // Destructive-op gate: runtime enforcement of @cli_destructive.
         // Refuse to proceed without `--yes` / `-y` (or OPENBOX_ASSUME_YES).
-        // Fails closed in interactive contexts too - we never block on stdin.
+        // Fails closed in interactive contexts too; we never block on stdin.
         if (sub.destructive) requireYesForDestructive(`${parent.name()} ${sub.name}`);
 
         const client = getClient() as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>;

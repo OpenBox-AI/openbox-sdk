@@ -46,7 +46,7 @@ async function runVerify(targetPath: string): Promise<VerifyJson> {
 
   // verify exits with bailWith(EXIT.GENERIC) when severity threshold
   // is breached. tests/setup.ts has OPENBOX_ASSUME_YES set, but the
-  // process.exit call still fires - wrap it to capture cleanly.
+  // process.exit call still fires; wrap it to capture cleanly.
   const origExit = process.exit;
   let exitCode: number | undefined;
   (process as any).exit = ((code?: number) => {
@@ -57,7 +57,7 @@ async function runVerify(targetPath: string): Promise<VerifyJson> {
   try {
     await program.parseAsync(['node', 'openbox', 'verify', targetPath, '--json']);
   } catch (e) {
-    // Either commander's exitOverride or our process.exit shim - both
+    // Either commander's exitOverride or our process.exit shim; both
     // expected. Coverage doesn't care; we want the linter to have run.
   } finally {
     console.log = origLog;
@@ -75,7 +75,7 @@ async function runVerify(targetPath: string): Promise<VerifyJson> {
   throw new Error('verify did not emit JSON to stdout. Captured: ' + JSON.stringify(log));
 }
 
-describe('verify command - coverage via fixture suite', () => {
+describe('verify command; coverage via fixture suite', () => {
   it('clean.ts has no findings (or no errors)', async () => {
     const result = await runVerify(join(FIXTURE_DIR, 'clean.ts'));
     expect(result.scanned).toBe(1);
@@ -86,7 +86,7 @@ describe('verify command - coverage via fixture suite', () => {
   for (const [fixtureName, manifest] of Object.entries(expected) as Array<
     [string, { must_fire: string[]; must_fire_at_line?: Record<string, number> }]
   >) {
-    it(`${fixtureName} - every must_fire rule produces a finding`, async () => {
+    it(`${fixtureName}; every must_fire rule produces a finding`, async () => {
       const result = await runVerify(join(FIXTURE_DIR, fixtureName));
       const ruleNames = new Set(result.findings.map((f) => f.rule));
       for (const required of manifest.must_fire) {

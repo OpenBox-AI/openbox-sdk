@@ -94,7 +94,7 @@ describe('config-store', () => {
     applyConfigToProcessEnv('staging');
 
     expect(process.env.OPENBOX_API_URL).toBe('https://from-config.example');
-    // Shell export wins - config never overrides an explicit env var.
+    // Shell export wins; config never overrides an explicit env var.
     expect(process.env.OPENBOX_CORE_URL).toBe('https://shell-export.example');
 
     delete process.env.OPENBOX_API_URL;

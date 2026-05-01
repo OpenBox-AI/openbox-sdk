@@ -2,11 +2,11 @@
 //
 // Mirrors runtime/claude-code/index.ts. Two surfaces:
 //
-//  1. Adapter primitive - `createCursorAdapter` (spec-emitted).
+//  1. Adapter primitive; `createCursorAdapter` (spec-emitted).
 //     For consumers building their own Cursor integration on top of
 //     the OpenBox SDK.
 //
-//  2. Platform integration - the OpenBox SDK's pre-built Cursor
+//  2. Platform integration; the OpenBox SDK's pre-built Cursor
 //     integration. Used by `openbox cursor {install,hook}`.
 
 // ─── Adapter primitive (spec-emitted) ───────────────────────────────

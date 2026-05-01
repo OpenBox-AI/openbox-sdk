@@ -3,7 +3,7 @@
 // Every wire DTO here is a type alias of the corresponding entry in
 // `Backend.components['schemas']` (the auto-generated openapi-typescript
 // output of specs/generated/openapi3/OpenboxBackend.json). This file
-// owns no shape information - only the friendly name → schema mapping.
+// owns no shape information; only the friendly name → schema mapping.
 // When TypeSpec changes, run `npm run specs:all` and these aliases
 // update automatically.
 //
@@ -17,7 +17,7 @@ import type { components } from './generated/backend.js';
 type Schema<K extends keyof components['schemas']> = components['schemas'][K];
 
 // ---------------------------------------------------------------------------
-// Query helpers (consumer convenience - not on the wire as named DTOs)
+// Query helpers (consumer convenience; not on the wire as named DTOs)
 // ---------------------------------------------------------------------------
 
 export interface PaginationQuery {
@@ -119,7 +119,7 @@ export type SendWelcomeEmailDto = Schema<'SendWelcomeEmailDto'>;
 export type CreateAgentDto = Schema<'CreateAgentDto'>;
 export type UpdateAgentDto = Schema<'UpdateAgentDto'>;
 
-// TrustImpact isn't in the backend OpenAPI - kept hand-written until
+// TrustImpact isn't in the backend OpenAPI; kept hand-written until
 // the Aivss/trust schemas type the field.
 export type TrustImpact = 'none' | 'low' | 'medium' | 'high';
 
@@ -209,7 +209,7 @@ export type UpdateWebhookDto = Schema<'UpdateWebhookDto'>;
 // ---------------------------------------------------------------------------
 
 // The backend's ConfigureOidcDto / ConfigureSamlDto / EnforceSsoDto are
-// published as empty objects in the current swagger - they accept any shape.
+// published as empty objects in the current swagger; they accept any shape.
 // Typed as open records until the server stabilizes the contract.
 export type ConfigureOidcDto = Record<string, unknown>;
 export type ConfigureSamlDto = Record<string, unknown>;

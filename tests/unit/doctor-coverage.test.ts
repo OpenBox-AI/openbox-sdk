@@ -77,7 +77,7 @@ describe('doctor command', () => {
   it('reports fail when api-key is missing', async () => {
     const r = await runDoctor();
     expect(r.lines.some((l) => l.includes('api-key') || l.includes('token file'))).toBe(true);
-    expect(r.exitCode).toBe(1); // EXIT.GENERIC - fails present
+    expect(r.exitCode).toBe(1); // EXIT.GENERIC; fails present
   });
 
   it('reports pass when api-key + backend reachable', async () => {

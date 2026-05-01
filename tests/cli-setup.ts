@@ -15,7 +15,7 @@ const tokensPath = resolve(rootDir, '.tokens');
 if (existsSync(tokensPath)) {
   const content = readFileSync(tokensPath, 'utf-8');
   for (const line of content.split('\n')) {
-    // Only lift env-namespaced or legacy ACCESS_TOKEN/REFRESH_TOKEN lines -
+    // Only lift env-namespaced or legacy ACCESS_TOKEN/REFRESH_TOKEN lines .
     // ignore the permissions/features caches (they'd be misread as env vars).
     const match = line.match(/^([A-Z_]+[A-Z0-9_]*)=(.*)$/);
     if (match) {

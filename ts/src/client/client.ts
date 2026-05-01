@@ -85,7 +85,7 @@ import type {
 // RetryConfig, RateLimitConfig, ApiError). Re-exported here under the
 // legacy public names so existing consumers keep compiling. The
 // `onTokenRefresh` callback below is the only TS-language-specific
-// extension - it has no runtime equivalent in Rust/Python/Go (those
+// extension; it has no runtime equivalent in Rust/Python/Go (those
 // languages use a poll-and-rewrite pattern instead) and stays
 // hand-written.
 // ---------------------------------------------------------------------------
@@ -108,14 +108,14 @@ export interface ClientConfig extends SpecBackendClientConfig {
   /**
    * Callback invoked when tokens are refreshed so the caller can
    * persist them. `refreshToken` may be undefined when Keycloak
-   * rotation is disabled - in that case the stored refresh token
+   * rotation is disabled; in that case the stored refresh token
    * should stay as-is, not be overwritten.
    */
   onTokenRefresh?: (tokens: { accessToken: string; refreshToken: string | undefined }) => void;
 }
 
 // ---------------------------------------------------------------------------
-// Error wrapper - concrete class implementing the spec's `ApiError`
+// Error wrapper; concrete class implementing the spec's `ApiError`
 // model. The class form is TS-specific (Error inheritance); the
 // fields (`message`, `status`, `body`) come from the spec.
 // ---------------------------------------------------------------------------
@@ -157,10 +157,10 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   private static readonly REFRESH_ENABLED = false;
 
   /**
-   * Fetch a service's `/version` payload. Public endpoint - no auth, no
+   * Fetch a service's `/version` payload. Public endpoint; no auth, no
    * client construction. Works for any OpenBox HTTP service that exposes
    * `/version` (backend, core, future services). Backend wraps as
-   * { status, data: {...} }; core returns flat - both shapes are normalized.
+   * { status, data: {...} }; core returns flat; both shapes are normalized.
    *
    * Returns null on any error (timeout, network, non-OK, malformed body).
    * Callers fall through to whatever fallback they have.
@@ -252,7 +252,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     }) as Promise<TokenPair>;
   }
 
-  // Backend `LogoutDto` is an empty body - the bearer token identifies the
+  // Backend `LogoutDto` is an empty body; the bearer token identifies the
   // session. Server-side invalidation plus local token wipe is the proper
   // logout path; dropping tokens locally alone leaves the session live on
   // Keycloak until the JWT expires.
@@ -262,14 +262,14 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
 
 
   /**
-   * Direct credential login. Bypasses the Keycloak browser redirect - useful
+   * Direct credential login. Bypasses the Keycloak browser redirect; useful
    * for headless flows (CLI scripts, mobile sign-in screens, integration
    * tests) where the caller already owns the username/password capture UI.
    * Returns the same `{ accessToken, refreshToken }` pair the OAuth flow
    * produces; persist them via the SDK's token store before further calls.
    *
    * The browser-redirect path (the one most apps actually use) lives outside
-   * the SDK by design - it's a Keycloak URL the host app navigates to and
+   * the SDK by design; it's a Keycloak URL the host app navigates to and
    * an OAuth code it captures on the way back. Once the code is exchanged,
    * every subsequent backend call comes back through this client.
    */
@@ -288,7 +288,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
 
   /**
    * Service-health probe. Returns whatever the backend's AppController
-   * publishes at `/health` - typically `{ status: 'ok' }` plus version
+   * publishes at `/health`; typically `{ status: 'ok' }` plus version
    * metadata. Use this for liveness checks; for build/version data prefer
    * the static `OpenBoxClient.getVersion(baseUrl)` so you don't need a
    * constructed client.
@@ -302,7 +302,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   // =========================================================================
 
   /**
-   * Provision a new organization. Public endpoint - no bearer token
+   * Provision a new organization. Public endpoint; no bearer token
    * required, throttled to 10 requests per hour per IP. Used by the
    * marketing-site signup form and by integration scripts that bootstrap
    * test orgs against staging.
@@ -368,7 +368,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   }
 
 
-  // reorderGuardrail comes from the generated base - its body is `{ order }`.
+  // reorderGuardrail comes from the generated base; its body is `{ order }`.
   // (Was previously a 3-arg wrapper that took `order` flat; consumers should
   // now pass `{ order }` to match the spec.)
 
@@ -446,7 +446,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
 
 
 
-  // toggleBehaviorRuleStatus: spec body is `{ is_active }` - call as
+  // toggleBehaviorRuleStatus: spec body is `{ is_active }`; call as
   // `toggleBehaviorRuleStatus(agentId, ruleId, { is_active: true })`.
   // Hand-written 3-arg ergonomic wrapper dropped per no-legacy-support.
 
@@ -514,7 +514,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   // Trust
   // =========================================================================
 
-  // getTrustHistories: spec query is a Record<string, unknown> - call as
+  // getTrustHistories: spec query is a Record<string, unknown>; call as
   // `getTrustHistories(agentId, { duration: '7d' })`.
 
   async getTrustEvents(
@@ -579,7 +579,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     return this.httpGet(`/agent/${agentId}/goal-alignment/trend`, query);
   }
 
-  // getGoalAlignmentRecentDrifts: spec query is a Record<string, unknown> -
+  // getGoalAlignmentRecentDrifts: spec query is a Record<string, unknown> .
   // call as `getGoalAlignmentRecentDrifts(agentId, { limit: 10 })`.
 
   // =========================================================================
@@ -609,7 +609,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   }
 
   // decideApproval comes from the generated base. The spec types its body as
-  // a query param object - call as `decideApproval(agentId, eventId, { action: 'approve' })`.
+  // a query param object; call as `decideApproval(agentId, eventId, { action: 'approve' })`.
 
   // =========================================================================
   // Observability
@@ -654,19 +654,19 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     agentId: string,
     query?: GetAgentViolationsQuery,
   ): Promise<PaginatedResponse<Violation>> {
-    // Backend controller uses `@Body()` on a GET route - unusual, and Node's
+    // Backend controller uses `@Body()` on a GET route; unusual, and Node's
     // fetch (and the HTTP spec) forbids GET-with-body. We send the filters as
     // query params instead; backend ignores them today, but at least the call
     // reaches the server and returns the full list instead of a client-side
     // "Request with GET/HEAD method cannot have body" TypeError. Filters
     // (pattern / sourceType) are functionally dropped until the backend moves
-    // to `@Query()` - document as a known limitation in the CLI command.
+    // to `@Query()`; document as a known limitation in the CLI command.
     return this.httpGet(`/agent/${agentId}/violations`, query) as Promise<
       PaginatedResponse<Violation>
     >;
   }
 
-  // markFalsePositive: spec body is `{ sourceType }` - call as
+  // markFalsePositive: spec body is `{ sourceType }`; call as
   // `markFalsePositive(agentId, violationId, { sourceType: '...' })`.
 
   // =========================================================================
@@ -697,7 +697,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   }
 
   // Backend returns `{ approvals: PaginatedResponse<Approval>, metrics }`
-  // here, NOT a flat PaginatedResponse - list + count queries run in
+  // here, NOT a flat PaginatedResponse; list + count queries run in
   // parallel server-side and both surface (organization.service.ts:487).
   async getOrgApprovals(
     orgId: string,
@@ -748,7 +748,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
 
 
   async deleteTeams(orgId: string, dto: DeleteTeamsDto): Promise<unknown> {
-    // DELETE with body - backend takes `{ids: string[]}` in the request body.
+    // DELETE with body; backend takes `{ids: string[]}` in the request body.
     return this.request('DELETE', `/organization/${orgId}/teams`, { data: dto });
   }
 
@@ -778,7 +778,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
 
 
   // assignRoles / removeRoles / removeMembers come from the generated base.
-  // The spec types each body as `{ roles }` / `{ memberIds }` - call as
+  // The spec types each body as `{ roles }` / `{ memberIds }`; call as
   // `assignRoles(orgId, userId, { roles: ['admin'] })` rather than passing
   // the array flat.
 
@@ -865,7 +865,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   }
 
   // =========================================================================
-  // API keys - live backend, org-scoped, gated on create/read/update/delete:api_key
+  // API keys; live backend, org-scoped, gated on create/read/update/delete:api_key
   // =========================================================================
 
 
@@ -874,7 +874,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
 
 
   // =========================================================================
-  // Webhooks - live backend, gated on create/read/update/delete:webhook
+  // Webhooks; live backend, gated on create/read/update/delete:webhook
   // =========================================================================
 
 
@@ -899,7 +899,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
 
 
   // =========================================================================
-  // SSO - live backend, gated on manage:sso
+  // SSO; live backend, gated on manage:sso
   // =========================================================================
 
   async getSsoConfig(): Promise<unknown> {
@@ -938,18 +938,18 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
    */
   private async ensureValidToken(): Promise<void> {
     // When refresh is disabled, skip the pre-emptive expiry gate
-    // entirely - the 60s safety buffer in isTokenExpired makes
+    // entirely; the 60s safety buffer in isTokenExpired makes
     // freshly-issued tokens (e.g. just captured from an SSO callback,
     // or short Keycloak lifespans) look "expired" even though the
     // server would accept them. Without a refresh path there's nothing
     // we'd do here anyway; let the request fly and trust the server's
     // 401 if the token is genuinely dead. CLI bypasses this whole
-    // method via raw fetch() and works fine - same intent here.
+    // method via raw fetch() and works fine; same intent here.
     if (!OpenBoxClient.REFRESH_ENABLED) {
       return;
     }
 
-    // API-key auth has no expiry and no refresh path - let the request fly.
+    // API-key auth has no expiry and no refresh path; let the request fly.
     if (!this.config.accessToken) {
       return;
     }
@@ -982,7 +982,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
       const url = `${this.baseUrl}/auth/refresh`;
       const response = await fetch(url, {
         method: 'POST',
-        // See request() above for the credentials: 'omit' rationale -
+        // See request() above for the credentials: 'omit' rationale .
         // same CSRF-cookie-leak applies to the refresh endpoint.
         credentials: 'omit',
         headers: {
@@ -1158,7 +1158,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     }
 
     const timeoutMs = this.config.timeoutMs ?? 30_000;
-    // AbortController + setTimeout instead of AbortSignal.timeout -
+    // AbortController + setTimeout instead of AbortSignal.timeout .
     // Hermes (React Native's JS engine) doesn't ship AbortSignal.timeout.
     // The controller pattern is supported across Node, browsers, and RN.
     // executeWithRetry handles request lifecycle so the timer is cleared
@@ -1166,7 +1166,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     const buildOptions = (): { init: RequestInit; cancel: () => void } => {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
-      // Prefer X-API-Key when an apiKey is configured - backend's
+      // Prefer X-API-Key when an apiKey is configured; backend's
       // jwt-auth.guard.ts accepts either header, but X-API-Key bypasses
       // the JWT/Keycloak codepath entirely (cleaner CLI auth mode).
       // Bearer JWT is the fallback for the OAuth/login flow.
@@ -1179,7 +1179,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
           // credentials: 'omit' prevents RN/iOS from auto-sending cookies
           // leaked from a WKWebView via sharedCookiesEnabled. The backend's
           // CSRF guard (jwt-auth.guard.ts) fires when an XSRF-TOKEN cookie
-          // is present without a matching X-XSRF-TOKEN header - JWT-only
+          // is present without a matching X-XSRF-TOKEN header; JWT-only
           // clients (CLI, mobile SDK) don't have the header, so they 401.
           // Omitting cookies entirely is the right behavior for a Bearer-auth
           // API client; cookies should never affect SDK requests.
@@ -1187,7 +1187,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
           headers: {
             'Content-Type': 'application/json',
             ...authHeader,
-            // Required by the backend's auth guard - presence-only check, value is arbitrary.
+            // Required by the backend's auth guard; presence-only check, value is arbitrary.
             // Each consumer sets its own via ClientConfig.clientName.
             'X-Openbox-Client': this.clientName,
           },
@@ -1227,7 +1227,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
         /* fall through to the original 401 */
       }
     }
-    // (No console.error on the 401 branch either - same reason as
+    // (No console.error on the 401 branch either; same reason as
     // ensureValidToken's expired-token branch above. The OpenBoxApiError
     // thrown below carries the status; consumers handle the surface.)
 

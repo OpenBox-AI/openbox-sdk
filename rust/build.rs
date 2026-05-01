@@ -1,7 +1,7 @@
-// build.rs - generates a Rust client from the OpenBox backend OpenAPI spec.
+// build.rs; generates a Rust client from the OpenBox backend OpenAPI spec.
 //
 // This crate lives inside the openbox-sdk monorepo, so the spec is just
-// a sibling at ../specs/backend.json - same file the TypeScript SDK
+// a sibling at ../specs/backend.json; same file the TypeScript SDK
 // generates its `Backend` namespace types from. One source of truth,
 // two language outputs.
 //
@@ -12,11 +12,11 @@
 //
 // Cargo finds the workspace root, then this `rust/` member by package
 // name. The git tag pins both the spec snapshot and the codegen
-// pipeline together - language versions stay in lockstep.
+// pipeline together; language versions stay in lockstep.
 //
 // Output goes to OUT_DIR (Cargo's standard build cache) and is included
 // from src/lib.rs via `include!`. We don't check the generated file in
-// - the spec is the single source of truth.
+//; the spec is the single source of truth.
 
 use std::fs;
 use std::path::PathBuf;
@@ -39,7 +39,7 @@ fn main() {
     // side is lenient and just inlines the path string; progenitor on
     // the Rust side strictly requires every `{x}` to have a matching
     // `parameters[].name == x, in: path` entry. We inject the missing
-    // entries here rather than mutating the upstream spec - keeps the
+    // entries here rather than mutating the upstream spec; keeps the
     // openbox-sdk repo as the unmodified source of truth and contains
     // the workaround to this crate.
     inject_missing_path_params(&mut json);
@@ -72,7 +72,7 @@ fn main() {
 /// endpoints that redundantly declare a query param matching their
 /// path param (e.g. `/organization/{organizationId}/approvals` lists
 /// both the `{organizationId}` placeholder and a query `organization_id`)
-/// - progenitor folds both into a single Rust ident `organization_id`,
+///; progenitor folds both into a single Rust ident `organization_id`,
 /// which produces a function with two args of the same name. The query
 /// version is redundant (server uses the path param) so we drop it.
 fn inject_missing_path_params(json: &mut serde_json::Value) {

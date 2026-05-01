@@ -1,95 +1,101 @@
-# OpenBox CLI - Full Command Reference
+# OpenBox CLI: full command reference
 
-All `--json` options support three input modes: raw JSON string, `@file.json` (file path), or `-` (stdin).
+The CLI surface is generated from `specs/typespec/cli/main.tsp`. This
+file is a human-readable mirror. Per-language CLIs lower from the same
+spec, so the command tree, flags, validators, and exit codes here are
+protocol-level and apply across implementations.
 
-## Exit Codes
+Setup commands take their full request body via `--body <json>`. Read
+commands and explicit output toggles use `--json` as a boolean that
+emits machine-readable output. Both flags accept the same three input
+modes for the `<json>` value: a raw JSON string, a file path prefixed
+with `@`, or `-` to read from stdin.
 
-The CLI uses distinct exit codes so CI and scripts can branch on failure type:
+Many subcommands are gated behind `--experimental`, also settable as
+`OPENBOX_EXPERIMENTAL_LEVEL=experimental`. They do not appear in the
+top-level `--help` until the flag is set.
+
+Stable: `auth`, `config`, `agent`, `api-key`, `guardrail`, `policy`,
+`behavior`, `session`, `trust`, `goal`, `approval`, `observe`,
+`violation`, `org`, `team`, `audit`, `health`, `doctor`, `versions`.
+
+Experimental: `aivss`, `member`, `core`, `mcp`, `skill`, `claude-code`,
+`cursor`, `verify`, `webhook`, `sso`.
+
+## Exit codes
 
 | Exit | Meaning |
 |------|---------|
 | `0` | Success |
-| `1` | Operational error (HTTP failure, network, auth-token issues at call time, or non-user-input command failures) |
-| `2` | **User-input error** - input rejected by client-side validation before any HTTP call. Fix the command and retry. Error messages include a `fix:` line and a `see:` pointer to the relevant skill reference. |
-| `3` | Permission denied by pre-flight check (your role is missing a required permission for this env) |
-| `4` | Feature disabled in this env (pre-flight feature gate) |
+| `1` | Operational error: HTTP failure, network, auth issues at call time, or other non-input failures |
+| `2` | User-input error. Input rejected by client-side validation before any HTTP call. Error messages include a `fix:` line and a `see:` pointer to the relevant skill reference |
+| `3` | Permission denied by pre-flight check. The current role is missing a required permission for this env |
+| `4` | Feature disabled in this env by the pre-flight feature gate |
 
-Setup commands (`guardrail create`, `behavior create`, `policy create`, `agent create`) validate every input the OpenBox design says is broken **before** touching the backend. Examples: `--stage both` → exit 2; `--trigger http_request` → exit 2 (not a real enum value); `--verdict 2` without `--approval-timeout` → exit 2; rego containing `deny[msg]` → exit 2. The validator list is at `packages/cli/src/validators/index.ts` in the openbox-sdk repo; failures always include an actionable `fix:` hint.
+Setup commands reject every input the OpenBox design says is broken
+before touching the backend. `--stage both` exits 2. `--trigger
+http_request` exits 2 because it is not a real enum value. `--verdict
+2` without `--approval-timeout` exits 2. Rego containing `deny[msg]`
+exits 2. Validators are declared in the spec via `@cli_validator`;
+each language's emitter produces a registry of matching impls. The TS
+implementation lives at `ts/src/validators/`. Failures always include
+an actionable `fix:` hint.
 
-## Table of Contents
+## Table of contents
 
-- [auth](#auth) - Authentication
-- [agent](#agent) - Agent CRUD
-- [api-key](#api-key) - API key management
-- [guardrail](#guardrail) - Guardrail management
-- [policy](#policy) - OPA policy management
-- [behavior](#behavior) - Behavior rules
-- [session](#session) - Session management
-- [trust](#trust) - Trust scoring
-- [aivss](#aivss) - AIVSS risk assessment
-- [goal](#goal) - Goal alignment
-- [approval](#approval) - Approval workflows
-- [observe](#observe) - Observability
-- [violation](#violation) - Violations
-- [org](#org) - Organization
-- [team](#team) - Teams
-- [member](#member) - Members
-- [audit](#audit) - Audit logs
-- [health](#health) - Health check
-- [doctor](#doctor) - Local install diagnostic
-- [verify](#verify) - Static lint of integration code
-- [core](#core) - Core governance API
+- [auth](#auth): X-API-Key store
+- [agent](#agent): agent CRUD
+- [api-key](#api-key): runtime key rotation
+- [guardrail](#guardrail): guardrail management
+- [policy](#policy): OPA policy management
+- [behavior](#behavior): behavior rules
+- [session](#session): session management
+- [trust](#trust): trust scoring
+- [aivss](#aivss): AIVSS risk assessment
+- [goal](#goal): goal alignment
+- [approval](#approval): approval workflows
+- [observe](#observe): observability
+- [violation](#violation): violations
+- [org](#org): organization
+- [team](#team): teams
+- [member](#member): members
+- [audit](#audit): audit logs
+- [health](#health): health check
+- [doctor](#doctor): local install diagnostic
+- [verify](#verify): static lint
+- [core](#core): core governance API
+- [host integration](#host-integration-commands): claude-code, cursor, mcp, skill
 
 ---
 
 ## auth
 
-### `openbox auth profile`
-Get current user profile. No arguments or options.
+The CLI authenticates to the backend with an org-level X-API-Key. Mint
+keys in the dashboard FE under **Organization → API Keys**, then save
+them locally with the commands below. Keys are persisted per env
+(`production`, `staging`, `local`) in the on-disk token store.
 
-### `openbox auth login`
-Launch the browser-based login flow. Spawns a local callback server and opens the platform URL for the selected env. Saves the resulting tokens (and permissions + feature flags) to the env-namespaced token file.
+### `openbox auth set-api-key`
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--browser <name>` | system default | Force a specific browser (chrome, safari, firefox, …) |
-| `--url <url>` | env's platform URL | Override the login page (for local dev) |
-| `--verbose` | `false` | Log callback server events to stderr |
-
-### `openbox auth set-token <token> [refreshToken]`
-Save access token (and optional refresh token) to local token file.
-
-### `openbox auth permissions` (alias: `perms`)
-Inspect the granular Keycloak permissions attached to the current access token for the selected env.
+Save an org-level X-API-Key for the active env. Without `--key`, the
+command prompts on stderr.
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--all` | `false` | Show permissions for both production and staging side-by-side |
-| `--compare` | `false` | Highlight permissions present in one env but missing in the other |
-| `--refresh` | `false` | Force a fresh fetch instead of reading from the cached `.PERMISSIONS` line |
+| `-k, --key <key>` | (prompt) | Pass the key directly instead of being prompted |
 
-### `openbox auth features`
-Inspect the org feature flags (`api_keys`, `webhooks`, `sso`, …) the current env exposes. Used by the pre-flight feature gate on commands wrapped by `@RequireFeature` decorators on the backend.
+The CLI validates the key matches the org-key format
+(`obx_key_<48 hex>`) before saving. Mismatched prefix exits with the
+auth code.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--all` | `false` | Show features for both envs side-by-side |
-| `--refresh` | `false` | Force a fresh fetch instead of reading from the cached `.FEATURES` line |
+### `openbox auth clear-api-key`
 
-### `openbox auth refresh`
-Refresh the access token using the stored refresh token.
+Remove the saved X-API-Key for the current env. No options.
 
-**Currently disabled** in the TS CLI (`REFRESH_ENABLED = false`) - backend `POST /auth/refresh` has two unfixed upstream bugs described in `references/backend-api.md` § "`POST /auth/refresh` Caveats". The CLI stays inside the backend boundary and does NOT work around this by hitting the identity provider directly. Recovery paths: `openbox auth login` (browser) or `openbox auth set-token <token>` (paste). Both go through the normal backend flow.
+### `openbox auth status`
 
-### `openbox auth change-password`
-| Option | Required | Description |
-|--------|----------|-------------|
-| `--current <password>` | Yes | Current password |
-| `--new <password>` | Yes | New password |
-| `--org-id <orgId>` | Yes | Organization ID |
-
-### `openbox auth roles`
-Get current user's roles. No arguments or options.
+Print whether an X-API-Key is saved for each env. No options. Output
+is one line per env with the masked key prefix or `none`.
 
 ---
 
@@ -105,7 +111,7 @@ Get current user's roles. No arguments or options.
 | `--team <id>` | - | Filter by team ID |
 | `--tiers <tiers...>` | - | Filter by tiers |
 
-> **The `token` field in this response is NOT the runtime API key.** It's an internal attestation token. The runtime API key (`obx_live_*` / `obx_test_*`) only exists in the `agent create` response or after `api-key rotate`. Do not pass `agent.token` as `OPENBOX_API_KEY` - core will reject it with 500 ("invalid API key format. Expected format: obx_live_... or obx_test_...").
+> **The `token` field in this response is NOT the runtime API key.** It is an internal attestation token. The runtime API key has format `obx_live_*` or `obx_test_*` and only exists in the `agent create` response or after `api-key rotate`. Passing `agent.token` as `OPENBOX_API_KEY` makes core return 500: `invalid API key format. Expected format: obx_live_... or obx_test_...`.
 
 ### `openbox agent create`
 | Option | Default | Description |
@@ -115,9 +121,9 @@ Get current user's roles. No arguments or options.
 | `-t, --team <ids...>` | - | Team IDs |
 | `--type <type>` | `temporal` | Agent type |
 | `--icon <icon>` | `robot` | Icon |
-| `--json <json>` | - | Full JSON body (overrides other options) |
+| `--body <json>` | - | Full JSON body (overrides other options) |
 
-> **The response includes the runtime API key (`obx_live_*` / `obx_test_*`) - capture it now.** This is the *only* time it's surfaced. `agent list`/`get` won't return it later (the `token` field there is unrelated). To recover a lost key: `openbox api-key rotate <agentId>` (which invalidates the previous one).
+> **The response includes the runtime API key. Capture it now.** This is the only time the key is surfaced. `agent list` and `agent get` do not return it; the `token` field there is unrelated. To recover a lost key, run `openbox api-key rotate <agentId>`, which invalidates the previous one.
 
 ### `openbox agent get <agentId>`
 Get agent details by ID.
@@ -131,35 +137,52 @@ Get agent details by ID.
 | `--model <model>` | Model name |
 | `--tags <tags...>` | Tags |
 | `--team <ids...>` | Team IDs |
-| `--json <json>` | Full JSON body |
+| `--body <json>` | Full JSON body |
 
 ### `openbox agent delete <agentId>`
 Delete an agent by ID.
 
 ### `openbox agent audit <agentId>`
-Cross-session health report. Pulls recent sessions + configured guardrails/policies/behavior rules, surfaces protocol pairing health (orphan Started/Completed events, sessions missing terminal, failed-activity count), verdict + activity_type distributions, and guardrail↔event mismatches (guardrails configured for activity_types never seen in events = silent no-ops).
+
+Cross-session health report. Pulls recent sessions plus configured
+guardrails, policies, and behavior rules, then surfaces:
+
+- Protocol pairing health: orphan Started or Completed events,
+  sessions missing a terminal event, failed-activity counts.
+- Verdict and `activity_type` distributions.
+- Guardrail-to-event mismatches. A guardrail configured for an
+  `activity_type` that never fires is a silent no-op.
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--sessions <n>` | `50` | Number of recent sessions to pull |
-| `--max-events <n>` | `500` | Cap events fetched per session |
+| `--max-events <n>` | `500` | Cap on events fetched per session |
 | `--json` | `false` | Emit raw report as JSON |
 
-Exit `2` on any protocol violation, mismatch, or dangling session - CI-gate friendly. Requires `read:agent`, `read:agent_session`, `read:agent_guardrail`, `read:agent_policy` permissions.
+Exits `2` on any protocol violation, mismatch, or dangling session, so
+it works as a CI gate. Requires `read:agent`, `read:agent_session`,
+`read:agent_guardrail`, `read:agent_policy`.
 
-Pairs with `openbox session inspect <agentId> <sessionId>` (single session deep-dive) and `openbox verify <path>` (static code lint) for the "static + single + aggregate" observability triad.
+Pairs with `openbox session inspect <agentId> <sessionId>` for a
+single-session deep dive and `openbox verify <path>` for static code
+lint, completing the static, single, aggregate observability triad.
 
 ---
 
 ## api-key
 
 ### `openbox api-key rotate <agentId>`
-Rotate API key for an agent. Returns new `obx_live_*` / `obx_test_*` key.
 
-This is the **only** recovery path for a lost runtime API key - `agent get`/`list` do not return it. Note that rotating **invalidates the previous key** immediately, so any deployed clients holding the old one will break until updated.
+Rotate the runtime API key for an agent. Returns a new `obx_live_*` or
+`obx_test_*` key.
+
+This is the only recovery path for a lost runtime API key. `agent get`
+and `agent list` do not return it. Rotating invalidates the previous
+key immediately, so any deployed client holding the old one breaks
+until updated.
 
 ### `openbox api-key revoke <agentId>`
-Revoke API key for an agent.
+Revoke the runtime API key for an agent.
 
 ---
 
@@ -175,35 +198,43 @@ Revoke API key for an agent.
 ### `openbox guardrail create <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
-| `-n, --name <name>` | **required** | Guardrail name (unless `--json` provides it) |
-| `--type <type>` | **required** | Guardrail type: `1`=PII, `2`=NSFW, `3`=Toxicity, `4`=BanList, `5`=Regex (or name) |
-| `--stage <stage>` | `0` | Processing stage: `0`=input, `1`=output. Must be 0 or 1 - never use `both` (the guardrails service only maps those two to a field prefix; everything else returns `None` from `_get_field_check_prefix` and silently skips every event). CLI defaults to `0` if omitted. |
+| `-n, --name <name>` | **required** unless `--body` provides it | Guardrail name |
+| `--type <type>` | **required** | Numeric ID `1`–`5` or the friendly name. `1`=PII, `2`=NSFW, `3`=Toxicity, `4`=BanList, `5`=Regex |
+| `--stage <stage>` | `0` | Processing stage. `0`=input, `1`=output. Must be 0 or 1; never `both`. The validator service maps only those two values to a field prefix; anything else returns `None` and silently skips every event |
 | `-d, --desc <text>` | - | Description |
 | `--trust-impact <impact>` | - | `none\|low\|medium\|high` |
 | `--trust-threshold <n>` | - | Trust threshold |
-| `--json <json>` | - | Full JSON body |
+| `--body <json>` | - | Full JSON body |
 
-**Required `--json` params per type:**
+**Required `--body` params per type:**
 
 | Type | Params | Settings |
 |------|--------|----------|
-| PII (`1`) | `params.entities: string[]` (optional, e.g. `["EMAIL_ADDRESS","US_SSN"]`) | `settings.on_fail: 1` (block) or `0` (redact) |
-| NSFW (`2`) | none | `settings.on_fail: 1` |
-| Toxicity (`3`) | none | `settings.on_fail: 1` |
-| BanList (`4`) | **`params.banned_words: string[]`** (REQUIRED - crashes without it) | `settings.on_fail: 1` |
-| Regex (`5`) | **`params.regex: string`** (REQUIRED - single pattern, use `\|` for alternation), `params.match_type: "search"` | `settings.on_fail: 1` |
+| PII, `1` | `params.entities: string[]`, optional. Example: `["EMAIL_ADDRESS","US_SSN"]` | `settings.on_fail: 1` to block, `0` to redact |
+| NSFW, `2` | none | `settings.on_fail: 1` |
+| Toxicity, `3` | none | `settings.on_fail: 1` |
+| BanList, `4` | `params.banned_words: string[]` is required. The validator cannot instantiate without it | `settings.on_fail: 1` |
+| Regex, `5` | `params.regex: string` is required. Single pattern; use `\|` for alternation. `params.match_type: "search"` is optional | `settings.on_fail: 1` |
 
-All types require `settings.activities: [{ activity_type: string, fields_to_check: string[] }]`. The `activity_type` must be an **exact string match** against what the client emits - no wildcards. Common values: `PromptSubmission`, `LLMCompleted`, `ToolCompleted`, `FileRead`, `FileEdit`, `ShellExecution`, `MCPToolCall`, `DefaultActivity` (openbox-sdk default - override via `config.activityType` for specific bindings). Full canonical union in `references/governance-flow.md` § "Canonical `activity_type` Names". Custom strings work but must match across both client emit and guardrail config.
+All types require `settings.activities: [{ activity_type: string,
+fields_to_check: string[] }]`. The `activity_type` must match what the
+client emits exactly; no wildcards. Common values: `PromptSubmission`,
+`LLMCompleted`, `ToolCompleted`, `FileRead`, `FileEdit`,
+`ShellExecution`, `MCPToolCall`, `DefaultActivity`. `DefaultActivity`
+is the SDK default; override per-binding via `config.activityType`.
+The full canonical union is in `references/governance-flow.md` §
+"Canonical `activity_type` Names". Custom strings work as long as
+client emit and guardrail config agree.
 
 **Examples:**
 ```bash
-# Ban words
+# Ban words.
 openbox guardrail create <agentId> -n "Injection Words" --type ban_words --stage 0 \
-  --json '{"params":{"banned_words":["ignore","bypass","jailbreak"]},"settings":{"on_fail":1,"log_violation":true,"activities":[{"activity_type":"DefaultActivity","fields_to_check":["input.*.text"]}]}}'
+  --body '{"params":{"banned_words":["ignore","bypass","jailbreak"]},"settings":{"on_fail":1,"log_violation":true,"activities":[{"activity_type":"DefaultActivity","fields_to_check":["input.*.text"]}]}}'
 
-# Regex (single pattern with alternation)
+# Regex with alternation.
 openbox guardrail create <agentId> -n "Injection Pattern" --type regex --stage 0 \
-  --json '{"params":{"regex":"(ignore.*previous|reveal.*system.*prompt)","match_type":"search"},"settings":{"on_fail":1,"log_violation":true,"activities":[{"activity_type":"DefaultActivity","fields_to_check":["input.*.text"]}]}}'
+  --body '{"params":{"regex":"(ignore.*previous|reveal.*system.*prompt)","match_type":"search"},"settings":{"on_fail":1,"log_violation":true,"activities":[{"activity_type":"DefaultActivity","fields_to_check":["input.*.text"]}]}}'
 ```
 
 ### `openbox guardrail get <agentId> <guardrailId>`
@@ -217,11 +248,11 @@ openbox guardrail create <agentId> -n "Injection Pattern" --type regex --stage 0
 | `-d, --desc <text>` | Description |
 | `--trust-impact <impact>` | `none\|low\|medium\|high` |
 | `--trust-threshold <n>` | Trust threshold |
-| `--json <json>` | Full JSON body |
+| `--body <json>` | Full JSON body |
 
 ### `openbox guardrail delete <agentId> <guardrailId>`
 ### `openbox guardrail reorder <agentId> <guardrailId> <order>`
-Reorder guardrail to given position.
+Reorder guardrail to the given position.
 
 ### `openbox guardrail metrics <agentId>`
 | Option | Description |
@@ -242,7 +273,7 @@ Reorder guardrail to given position.
 | Option | Description |
 |--------|-------------|
 | `--type <type>` | Guardrail type |
-| `--json <json>` | Full test payload |
+| `--body <json>` | Full test payload |
 
 ---
 
@@ -264,11 +295,12 @@ Reorder guardrail to given position.
 | `--input <json>` | - | Input JSON |
 | `--trust-impact <impact>` | - | `none\|low\|medium\|high` |
 | `--trust-threshold <n>` | - | Trust threshold |
-| `--json <json>` | - | Full JSON body |
+| `--body <json>` | - | Full JSON body |
 
-**This is how you rotate rego.** Policies are immutable once created; the backend's
-`createPolicy` transaction deactivates every prior policy on the agent
-(`is_active=false, is_current_version=false`) and inserts the new one as
+**This is how you rotate rego.** Policies are immutable once created.
+The backend's `createPolicy` transaction deactivates every prior
+policy on the agent by setting `is_active=false` and
+`is_current_version=false`, then inserts the new one with
 `is_current_version=true`. Old versions remain as rollback targets.
 
 ### `openbox policy current <agentId>`
@@ -276,27 +308,28 @@ Get current active policies.
 
 ### `openbox policy get <agentId> <policyId>`
 ### `openbox policy update <agentId> <policyId>`
-**Rollback / toggle only - not a rego editor.** The backend `UpdatePolicyDto`
-accepts only `is_active`, `trust_impact`, and `trust_threshold`. Any `rego_code`
-in the request body is silently dropped by the DTO whitelist pipe. To change
-rego, use `policy create` (see above).
+**Rollback or toggle only; not a rego editor.** The backend
+`UpdatePolicyDto` accepts only `is_active`, `trust_impact`, and
+`trust_threshold`. Any `rego_code` in the request body is silently
+dropped by the DTO whitelist pipe. To change rego, use
+`policy create`.
 
-The `PUT` handler also flips `is_current_version=true` on the targeted policy
-after zeroing every other policy on the agent - so calling `policy update
-<agentId> <oldPolicyId> --active true` is how you **roll back** to a previous
-version.
+The `PUT` handler also flips `is_current_version=true` on the targeted
+policy after zeroing every other policy on the agent. Calling
+`policy update <agentId> <oldPolicyId> --active true` is therefore how
+you **roll back** to a previous version.
 
 **`--active` is required** by the backend. Omitting it returns 422
-`is_active must be a boolean value`. The current TS CLI defaults the flag to
-`false` when missing, which silently deactivates the policy - pass
-`--active true` explicitly when activating/rolling-back.
+with `is_active must be a boolean value`. The CLI defaults the flag
+to `false` when missing, which silently deactivates the policy. Pass
+`--active true` explicitly when activating or rolling back.
 
 | Option | Description |
 |--------|-------------|
 | `--active <bool>` | Active status. **Required by backend.** |
 | `--trust-impact <impact>` | `none\|low\|medium\|high` |
 | `--trust-threshold <n>` | Trust threshold |
-| `--json <json>` | Full JSON body. Must include `is_active`. |
+| `--body <json>` | Full JSON body. Must include `is_active`. |
 
 ### `openbox policy evaluations <agentId> <policyId>`
 | Option | Default | Description |
@@ -323,14 +356,15 @@ version.
 ### `openbox behavior types`
 Get available semantic types. No arguments.
 
-**Backend API note:** The behavior rules endpoint is `GET /agent/{id}/behavior-rule` (singular, NOT `behavior-rules`). The response uses `rule_name` (not `name`).
+> Backend route is singular: `GET /agent/{id}/behavior-rule`, not
+> `behavior-rules`. The response uses `rule_name`, not `name`.
 
 ### `openbox behavior list <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
 | `-l, --limit <n>` | `10` | Items per page |
-| `--verdict <n>` | - | Filter by verdict (0-4: ALLOW / CONSTRAIN / REQUIRE_APPROVAL / BLOCK / HALT) |
+| `--verdict <n>` | - | Filter by verdict. `0`=ALLOW, `1`=CONSTRAIN, `2`=REQUIRE_APPROVAL, `3`=BLOCK, `4`=HALT |
 | `--active <bool>` | - | Filter by active status |
 | `--trigger <trigger>` | - | Filter by trigger type |
 
@@ -339,29 +373,34 @@ Get current active behavior rules.
 
 ### `openbox behavior create <agentId>`
 
-**Valid `--trigger` and `--states` values** (anything else returns 422):
-`http_get`, `http_post`, `http_put`, `http_patch`, `http_delete`, `http`, `llm_completion`, `llm_embedding`, `llm_tool_call`, `database_select`, `database_insert`, `database_update`, `database_delete`, `database_query`, `file_read`, `file_write`, `file_open`, `file_delete`, `internal`. Shell commands = `internal` (no dedicated shell type).
+Valid `--trigger` and `--states` values; anything else returns 422:
+`http_get`, `http_post`, `http_put`, `http_patch`, `http_delete`,
+`http`, `llm_completion`, `llm_embedding`, `llm_tool_call`,
+`database_select`, `database_insert`, `database_update`,
+`database_delete`, `database_query`, `file_read`, `file_write`,
+`file_open`, `file_delete`, `internal`. Shell commands map to
+`internal`. There is no dedicated shell type.
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-n, --name <name>` | **required** | Rule name |
-| `--trigger <trigger>` | **required** | Trigger type (see valid values above) |
-| `--states <states...>` | **required** | State triggers (see valid values above) |
-| `--window <n>` | **required** | Time window (seconds) |
-| `--verdict <n>` | **required** | 0=ALLOW, 1=CONSTRAIN, 2=REQUIRE_APPROVAL, 3=BLOCK, 4=HALT |
+| `--trigger <trigger>` | **required** | Trigger type from the valid list above |
+| `--states <states...>` | **required** | State triggers from the valid list above |
+| `--window <n>` | **required** | Time window in seconds |
+| `--verdict <n>` | **required** | `0`=ALLOW, `1`=CONSTRAIN, `2`=REQUIRE_APPROVAL, `3`=BLOCK, `4`=HALT |
 | `--message <text>` | **required** | Reject message |
 | `--priority <n>` | `1` | Priority |
 | `-d, --desc <text>` | - | Description |
 | `--trust-impact <impact>` | - | `none\|low\|medium\|high` |
 | `--trust-threshold <n>` | - | Trust threshold |
-| `--approval-timeout <n>` | - | Approval timeout (seconds) |
-| `--json <json>` | - | Full JSON body |
+| `--approval-timeout <n>` | - | Approval timeout in seconds |
+| `--body <json>` | - | Full JSON body |
 
 ### `openbox behavior get <agentId> <ruleId>`
 ### `openbox behavior update <agentId> <ruleId>`
 | Option | Required | Description |
 |--------|----------|-------------|
-| `--json <json>` | Yes | Full JSON body |
+| `--body <json>` | Yes | Full JSON body |
 
 ### `openbox behavior delete <agentId> <ruleId>`
 ### `openbox behavior restore <agentId> <ruleId>`
@@ -419,24 +458,37 @@ Restore a deleted behavior rule.
 ### `openbox session terminate <agentId> <sessionId>`
 
 ### `openbox session inspect <agentId> <sessionIdOrWorkflowId>`
-Validates the client-side workflow protocol against a real session. Fetches the session's events (paginated), then checks:
-- Exactly one `WorkflowStarted`
-- Every `ActivityStarted` paired with `ActivityCompleted` (same `activity_id`) - dangling or orphan completes are failures
-- A terminal `WorkflowCompleted` or `WorkflowFailed` is present
-- `workflow_id` and `run_id` are consistent across every event
 
-Accepts either a session UUID or a `workflow_id` string (resolved via `listSessions(search: ...)`). Exits 2 on protocol violations so CI can gate on it.
+Validates the client-side workflow protocol against a real session.
+Fetches the session's events with pagination, then checks:
+
+- Exactly one `WorkflowStarted`.
+- Every `ActivityStarted` paired with an `ActivityCompleted` carrying
+  the same `activity_id`. Dangling or orphan completes are failures.
+- A terminal `WorkflowCompleted` or `WorkflowFailed` is present.
+- `workflow_id` and `run_id` are consistent across every event.
+
+Accepts either a session UUID or a `workflow_id` string. The
+`workflow_id` form resolves via `listSessions(search: ...)`. Exits 2
+on protocol violations so CI can gate on it.
 
 ### `openbox session prune <agentId>`
-Bulk-terminates dangling `PENDING` sessions older than the specified threshold. Use this when a misbehaving integration has left hundreds of open sessions - common failure mode when the terminal event lives in the happy path instead of a `finally`/`defer` block.
+
+Bulk-terminates dangling `PENDING` sessions older than the specified
+threshold. Use this when a misbehaving integration has left hundreds
+of open sessions. The common failure mode is putting the terminal
+event in the happy path instead of a `finally` or `defer` block.
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--older-than <duration>` | - | **Required.** `30s`, `5m`, `2h`, `1d`, or bare seconds. No default - must be set explicitly to avoid accidentally terminating live sessions. |
-| `--dry-run` | `false` | List what would be terminated without calling terminate. |
-| `--limit <n>` | `1000` | Cap on number to terminate in one run. |
+| `--older-than <duration>` | - | **Required.** `30s`, `5m`, `2h`, `1d`, or bare seconds. No default; must be set explicitly to avoid accidentally terminating live sessions |
+| `--dry-run` | `false` | List what would be terminated without calling terminate |
+| `--limit <n>` | `1000` | Cap on number to terminate in one run |
 
-Lists candidates, terminates via `PATCH /agents/:agentId/sessions/:sessionId/terminate` one-by-one, and reports progress. Exits 1 if any terminations fail. Requires `read:agent_session` and `manage:agent_session` permissions.
+Lists candidates, terminates via
+`PATCH /agents/:agentId/sessions/:sessionId/terminate` one by one,
+and reports progress. Exits 1 if any terminations fail. Requires
+`read:agent_session` and `manage:agent_session`.
 
 ---
 
@@ -476,7 +528,7 @@ Get trust recovery status. No options.
 ### `openbox aivss update <agentId>`
 | Option | Required | Description |
 |--------|----------|-------------|
-| `--json <json>` | Yes | AIVSS config JSON |
+| `--body <json>` | Yes | AIVSS config JSON |
 | `--reason <text>` | Yes | Reason for update |
 
 ### `openbox aivss recalculate <agentId>`
@@ -485,7 +537,7 @@ Recalculate AIVSS score. No options.
 ### `openbox aivss calculate`
 | Option | Required | Description |
 |--------|----------|-------------|
-| `--json <json>` | Yes | AIVSS config JSON |
+| `--body <json>` | Yes | AIVSS config JSON |
 
 ---
 
@@ -493,15 +545,18 @@ Recalculate AIVSS score. No options.
 
 ### `openbox goal update <agentId>`
 
-All four config fields are required unless you pass `--json`. Omitting any of them exits 2 locally with a list of the missing flags - the backend `GoalAlignmentConfigDto` marks them all required, so a partial update is always rejected.
+All four config fields are required unless you pass `--body`. Omitting
+any of them exits 2 locally with a list of the missing flags. The
+backend `GoalAlignmentConfigDto` marks them all required, so a partial
+update is always rejected.
 
 | Option | Required | Description |
 |--------|----------|-------------|
-| `--threshold <n>` | Yes (0-100) | Alignment threshold, validated locally as an integer |
-| `--action <action>` | Yes | One of `alert_only\|constrain\|terminate` (validated locally) |
-| `--frequency <freq>` | Yes | One of `every_action\|every_5_actions\|every_10_actions\|session_end_only` (validated locally) |
-| `--model <model>` | Yes | LlamaFirewall model name. Backend enforces the enum - CLI forwards whatever value you give. |
-| `--json <json>` | No | Full JSON body (bypasses the four-flag requirement) |
+| `--threshold <n>` | Yes | Alignment threshold, integer 0-100. Validated locally |
+| `--action <action>` | Yes | `alert_only`, `constrain`, or `terminate`. Validated locally |
+| `--frequency <freq>` | Yes | `every_action`, `every_5_actions`, `every_10_actions`, or `session_end_only`. Validated locally |
+| `--model <model>` | Yes | LlamaFirewall model name. Backend enforces the enum; CLI forwards whatever value you give |
+| `--body <json>` | No | Full JSON body. Bypasses the four-flag requirement |
 
 ### `openbox goal trend <agentId>`
 | Option | Description |
@@ -605,7 +660,7 @@ Mark a violation as false positive.
 | `-n, --name <name>` | Organization name |
 | `--domain <domain>` | Domain |
 | `--timezone <tz>` | Timezone |
-| `--json <json>` | Full JSON body |
+| `--body <json>` | Full JSON body |
 
 ### `openbox org dashboard <orgId>`
 | Option | Description |
@@ -665,7 +720,7 @@ Mark a violation as false positive.
 | `-n, --name <name>` | Team name |
 | `-d, --desc <text>` | Description |
 | `--icon <icon>` | Icon |
-| `--json <json>` | Full JSON body |
+| `--body <json>` | Full JSON body |
 
 ### `openbox team members <orgId> <teamId>`
 | Option | Default | Description |
@@ -674,18 +729,20 @@ Mark a violation as false positive.
 | `-l, --limit <n>` | `10` | Items per page |
 
 ### `openbox team create <orgId>`
-At least one of `--name` / `--icon` is required unless `--json` is provided.
+At least one of `--name` or `--icon` is required unless `--body` is
+provided.
+
 | Option | Description |
 |--------|-------------|
 | `-n, --name <name>` | Team name |
 | `-d, --desc <text>` | Description |
 | `--icon <icon>` | Icon URL |
-| `--json <json>` | Full JSON body |
+| `--body <json>` | Full JSON body |
 
 ### `openbox team delete <orgId>`
 | Option | Required | Description |
 |--------|----------|-------------|
-| `--ids <ids...>` | Yes | Team IDs to delete (one or more) |
+| `--ids <ids...>` | Yes | Team IDs to delete; one or more |
 
 ### `openbox team add-members <orgId> <teamId>`
 | Option | Required | Description |
@@ -716,14 +773,14 @@ At least one of `--name` / `--icon` is required unless `--json` is provided.
 | `--last-name <name>` | `""` | Last name |
 | `--password <pass>` | - | Password |
 | `--verified` | `false` | Email verified |
-| `--json <json>` | - | Full JSON body |
+| `--body <json>` | - | Full JSON body |
 
 ### `openbox member update <orgId> <userId>`
 | Option | Description |
 |--------|-------------|
 | `--role <role>` | Role |
 | `--teams <ids...>` | Team IDs |
-| `--json <json>` | Full JSON body |
+| `--body <json>` | Full JSON body |
 
 ### `openbox member assign-roles <orgId> <userId>`
 | Option | Required | Description |
@@ -744,7 +801,7 @@ At least one of `--name` / `--icon` is required unless `--json` is provided.
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--email <email>` | Yes | Email address |
-| `--roles <roles...>` | Yes | Role names - backend `InviteUserDto.roles` is `@ArrayNotEmpty`, so passing zero roles exits 2 locally |
+| `--roles <roles...>` | Yes | Role names. The backend's `InviteUserDto.roles` is `@ArrayNotEmpty`, so passing zero roles exits 2 locally |
 
 ---
 
@@ -773,7 +830,7 @@ At least one of `--name` / `--icon` is required unless `--json` is provided.
 | `-s, --search <text>` | - | Search |
 | `--from <date>` | - | Start date |
 | `--to <date>` | - | End date |
-| `--json <json>` | - | Full JSON body |
+| `--body <json>` | - | Full JSON body |
 
 ### `openbox audit preview`
 | Option | Description |
@@ -781,7 +838,7 @@ At least one of `--name` / `--icon` is required unless `--json` is provided.
 | `--event-types <types...>` | Event types |
 | `--from <date>` | Start date |
 | `--to <date>` | End date |
-| `--json <json>` | Full JSON body |
+| `--body <json>` | Full JSON body |
 
 ### `openbox audit exports`
 | Option | Default | Description |
@@ -807,54 +864,76 @@ Check backend API health. No arguments or options.
 ## verify
 
 ### `openbox verify [path]`
-Static lint. Scans integration code (TS/JS/Python/Go/Java/Kotlin/Rust) for OpenBox protocol drift. 14 rules split across "design enforcement" (the CLI can't catch these because they're in user code) and "protocol conformance" (what a live raw-HTTP integration has to get right to actually work). Purpose: any integration - SDK-based or raw HTTP - that passes `verify` clean conforms to the OpenBox design:
+
+Static lint. Scans integration code in TS, JS, Python, Go, Java,
+Kotlin, and Rust for OpenBox protocol drift. 14 rules split across
+two purposes:
+
+- **Design enforcement**: the live CLI cannot catch these because they
+  live in user code.
+- **Protocol conformance**: what a live raw-HTTP integration must get
+  right to actually work.
+
+Any integration, SDK-based or raw HTTP, that passes `verify` clean
+conforms to the OpenBox design.
 
 | Rule | Severity | Catches |
 |---|---|---|
-| `activity_input-must-be-array` | error | `"activity_input": {` (object) instead of `[{}]` - #1 cause of 422s |
-| `invented-verdict` | error | `"deny"`, `"ask"`, `"constrain"` in verdict comparison contexts |
-| `stage-both-silent-noop` | error | `--stage both` (or `processing_stage: "both"`) - silently ignored |
+| `activity_input-must-be-array` | error | `"activity_input": {` as an object instead of `[{}]`. The #1 cause of 422s |
+| `invented-verdict` | error | `"deny"`, `"ask"`, or `"constrain"` in verdict comparison contexts |
+| `stage-both-silent-noop` | error | `--stage both` or `processing_stage: "both"`. Silently ignored |
 | `missing-x-openbox-client-header` | error | Calls to `api.openbox.ai` with no `X-Openbox-Client` header |
-| `non-canonical-event-type` | error | `event_type` outside the six canonical values (`WorkflowStarted`, `SignalReceived`, `ActivityStarted`, `ActivityCompleted`, `WorkflowCompleted`, `WorkflowFailed`) |
-| `invented-activity-type` | warn | `LLMCompletion`, `LLMInvocation`, `ToolInvocation`, `FileReading`, etc. - non-canonical names silently miss guardrail config |
-| `raw-approval-response-verdict` | warn | Raw-HTTP callers reading `.verdict` from `/governance/approval` response (wire field is `.action`) |
-| `hardcoded-uuid` | warn | UUID literals assigned to `agentId`/`teamId`/`orgId` variables |
-| `span-missing-gate-attribute` | warn | HTTP/DB/file spans constructed without the gate attribute the classifier needs (`http.method`, `db.system`, `file.path`) - behavior rules won't fire |
-| `id-generated-per-event-not-reused` | warn | `workflow_id` / `run_id` generated inline per event (e.g. `workflow_id: crypto.randomUUID()`) instead of once per session then reused |
-| `approval-poll-unbounded` | warn | Approval polling loop without a visible timeout/deadline/`approval_expiration_time` check - can hang forever |
-| `require-approval-no-hitl-enabled` | warn | Code branches on `require_approval` but SDK config is missing `hitlEnabled: true` (SDK throws `ApprovalDisabledError`), or raw-HTTP path has no polling loop |
-| `missing-finally-workflow-complete` | info | `WorkflowStarted` emitted without a `finally`/`defer`/`except` closer nearby |
+| `non-canonical-event-type` | error | `event_type` outside the six canonical values: `WorkflowStarted`, `SignalReceived`, `ActivityStarted`, `ActivityCompleted`, `WorkflowCompleted`, `WorkflowFailed` |
+| `invented-activity-type` | warn | Non-canonical names like `LLMCompletion`, `LLMInvocation`, `ToolInvocation`, `FileReading`. Silently miss guardrail config |
+| `raw-approval-response-verdict` | warn | Raw-HTTP callers reading `.verdict` from `/governance/approval`. The wire field is `.action` |
+| `hardcoded-uuid` | warn | UUID literals assigned to `agentId`, `teamId`, or `orgId` variables |
+| `span-missing-gate-attribute` | warn | HTTP, DB, or file spans constructed without the gate attribute the classifier needs: `http.method`, `db.system`, `file.path`. Behavior rules will not fire |
+| `id-generated-per-event-not-reused` | warn | `workflow_id` or `run_id` generated inline per event instead of once per session and reused |
+| `approval-poll-unbounded` | warn | Approval polling loop without a visible timeout, deadline, or `approval_expiration_time` check. Can hang forever |
+| `require-approval-no-hitl-enabled` | warn | Code branches on `require_approval` but SDK config is missing `hitlEnabled: true`, or the raw-HTTP path has no polling loop |
+| `missing-finally-workflow-complete` | info | `WorkflowStarted` emitted without a `finally`, `defer`, or `except` closer nearby |
 | `activity-started-without-completed` | info | `ActivityStarted` without a paired `ActivityCompleted` in the same scope |
 
-Defaults to scanning `cwd()`. Skips `node_modules`, `dist`, `build`, `.git`, `__pycache__`, etc. Comments are stripped before identifier-presence rules run (so `// missing X-Openbox-Client` doesn't fool the check).
+Defaults to scanning `cwd()`. Skips `node_modules`, `dist`, `build`,
+`.git`, `__pycache__`. Comments are stripped before identifier-presence
+rules run, so `// missing X-Openbox-Client` does not fool the check.
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `[path]` | `.` | File or directory to scan |
-| `--fail-on <severity>` | `error` | Exit non-zero on this severity or worse: `error` / `warn` / `info` |
+| `--fail-on <severity>` | `error` | Exit non-zero on this severity or worse: `error`, `warn`, or `info` |
 | `--json` | `false` | Emit findings as JSON instead of human-readable |
 
-Exit codes: `0` clean or findings below `--fail-on` threshold, `1` findings at/above threshold.
+Exit codes: `0` if clean or findings stay below the `--fail-on`
+threshold; `1` if findings reach or pass it.
 
-Intended as a pre-commit / CI gate. Complements `openbox session inspect` (runtime protocol check against live sessions): `verify` catches bugs in code before you ship, `session inspect` catches bugs in events after they fire.
+Intended as a pre-commit or CI gate. Complements
+`openbox session inspect`, the runtime protocol check against live
+sessions: `verify` catches bugs in code before ship; `session inspect`
+catches bugs in events after they fire.
 
 ---
 
 ## doctor
 
 ### `openbox doctor`
-End-to-end local install diagnostic for the currently-selected environment. Runs these checks and prints a one-line summary per check with a `✓`, `!`, `✗`, or `-` marker:
 
-1. Token file exists (`.tokens` or `~/.openbox/tokens`)
-2. Access token present for env
-3. JWT expiry (warns when < 5 minutes left, fails when expired)
-4. Backend URL reachable (`GET /health`)
-5. JWT validated by backend (`GET /auth/profile`)
-6. Core URL reachable (`GET /health`) - only if `OPENBOX_API_KEY` is set
-7. Core API key valid (`GET /auth/validate`) - only if key present
-8. Token file format (warns if legacy flat format detected - will auto-migrate on next save)
+End-to-end local install diagnostic for the currently selected env.
+Runs these checks and prints a one-line summary per check with a
+`✓`, `!`, `✗`, or `-` marker:
 
-Exits 1 if any check fails. Use in CI to gate deploys, or run manually when auth is misbehaving. No flags.
+1. Token store exists.
+2. X-API-Key present for the env.
+3. Backend URL reachable via `GET /health`.
+4. Core URL reachable via `GET /health`. Skipped unless
+   `OPENBOX_API_KEY` is set.
+5. Core API key valid via `GET /auth/validate`. Skipped unless a
+   runtime key is present.
+6. Token file format. Warns when a legacy flat layout is detected;
+   the codec auto-migrates on the next save.
+
+Exits 1 if any check fails. Use in CI to gate deploys, or run manually
+when auth is misbehaving. No flags.
 
 ---
 
@@ -864,7 +943,7 @@ Exits 1 if any check fails. Use in CI to gate deploys, or run manually when auth
 Check core governance API health.
 
 ### `openbox core validate`
-Validate API key against the core API.
+Validate the runtime API key against the core API.
 
 ### `openbox core evaluate`
 
@@ -874,29 +953,30 @@ Supports two modes: raw JSON or `--type` shorthand.
 
 | Option | Description |
 |--------|-------------|
-| `--json <json>` | GovernanceEventPayload as JSON (supports `@file` and `-` stdin) |
+| `--json <json>` | GovernanceEventPayload as JSON. Supports `@file` and `-` stdin |
 
-**Type shorthand mode** (builds the payload automatically):
+**Type shorthand mode** builds the payload automatically. The flags
+below apply only to the matching `--type` value.
 
-| Option | Description |
-|--------|-------------|
-| `--type <type>` | Span type: `llm`, `file_read`, `file_write`, `shell`, `http`, `db`, `mcp` |
-| `--activity-type <name>` | Override activity_type (default depends on --type) |
-| `--prompt <text>` | Prompt text, or `@file.txt` to read from file (for `--type llm`) |
-| `--model <model>` | Model name (for `--type llm`) |
-| `--file-path <path>` | File path (for `--type file_read`/`file_write`). Content auto-read if `--content` omitted. |
-| `--content <text>` | File content, or `@file.txt` (for `--type file_read`/`file_write`) |
-| `--command <cmd>` | Shell command, or `@script.sh` (for `--type shell`) |
-| `--cwd <dir>` | Working directory (for `--type shell`) |
-| `--method <method>` | HTTP method (for `--type http`) |
-| `--url <url>` | HTTP URL (for `--type http`) |
-| `--db-system <system>` | Database system (for `--type db`) |
-| `--db-operation <op>` | Database operation (for `--type db`) |
-| `--db-statement <sql>` | SQL statement, or `@query.sql` (for `--type db`) |
-| `--tool-name <name>` | MCP tool name (for `--type mcp`) |
-| `--server <name>` | MCP server name (for `--type mcp`) |
-| `--tool-input <input>` | MCP tool input, or `@input.json` (for `--type mcp`) |
-| `--show-payload` | Print constructed payload without sending |
+| Option | Used with | Description |
+|--------|-----------|-------------|
+| `--type <type>` | always | Span type: `llm`, `file_read`, `file_write`, `shell`, `http`, `db`, `mcp` |
+| `--activity-type <name>` | always | Override `activity_type`. Default depends on `--type` |
+| `--prompt <text>` | `llm` | Prompt text, or `@file.txt` to read from file |
+| `--model <model>` | `llm` | Model name |
+| `--file-path <path>` | `file_read`, `file_write` | File path. Content auto-reads if `--content` is omitted |
+| `--content <text>` | `file_read`, `file_write` | File content, or `@file.txt` |
+| `--command <cmd>` | `shell` | Shell command, or `@script.sh` |
+| `--cwd <dir>` | `shell` | Working directory |
+| `--method <method>` | `http` | HTTP method |
+| `--url <url>` | `http` | HTTP URL |
+| `--db-system <system>` | `db` | Database system |
+| `--db-operation <op>` | `db` | Database operation |
+| `--db-statement <sql>` | `db` | SQL statement, or `@query.sql` |
+| `--tool-name <name>` | `mcp` | MCP tool name |
+| `--server <name>` | `mcp` | MCP server name |
+| `--tool-input <input>` | `mcp` | MCP tool input, or `@input.json` |
+| `--show-payload` | always | Print constructed payload without sending |
 
 ### `openbox core poll-approval`
 | Option | Required | Description |
@@ -905,36 +985,38 @@ Supports two modes: raw JSON or `--type` shorthand.
 | `--run-id <id>` | Yes | Run ID |
 | `--activity-id <id>` | Yes | Activity ID |
 
+---
 
 ## Host integration commands
 
-Each LLM host (Claude Code, Cursor, MCP-compatible) has its own
-top-level subcommand for install + per-event hook entry. They replace
-the legacy `openbox setup` (now removed). See `references/existing-sdks.md`
-for the full picture.
+Each LLM host has its own top-level subcommand: an install command
+plus a per-event hook entry. Supported hosts are Claude Code, Cursor,
+and MCP-compatible hosts.
 
 ### `openbox claude-code install [--uninstall]`
 
-Writes the OpenBox hook block into `~/.claude/settings.json` and points
-each Claude Code hook event (PreToolUse, PostToolUse, …) at
-`openbox claude-code hook`. `--uninstall` removes the block.
+Writes the OpenBox hook block into `~/.claude/settings.json` and
+points each Claude Code hook event at `openbox claude-code hook`.
+`--uninstall` removes the block.
 
 ### `openbox cursor install [--uninstall]`
 
-Writes the OpenBox hook block into `~/.cursor/hooks.json`, points each
-Cursor hook event at `openbox cursor hook`. `--uninstall` removes.
+Writes the OpenBox hook block into `~/.cursor/hooks.json` and points
+each Cursor hook event at `openbox cursor hook`. `--uninstall` removes
+the block.
 
 ### `openbox mcp serve`
 
-Long-running stdio MCP server. Configure your MCP-compatible host
-(Claude Desktop, etc.) to spawn this command:
+Long-running stdio MCP server. Configure your MCP host to spawn this
+command:
+
 ```jsonc
-// ~/.config/Claude/claude_desktop_config.json or similar
+// ~/.config/Claude/claude_desktop_config.json or equivalent
 { "mcpServers": { "openbox": { "command": "openbox", "args": ["mcp", "serve"] } } }
 ```
 
 ### `openbox skill install [--cursor] [--target <dir>]`
 
-Copies `SKILL.md` + `references/` from the installed `openbox-sdk` into
-`~/.claude/skills/openbox/` (default) or `~/.cursor/skills/openbox/`
-with `--cursor`. Re-run to update.
+Copies `SKILL.md` and `references/` from the installed `openbox-sdk`
+package into `~/.claude/skills/openbox/`. Pass `--cursor` to install
+into `~/.cursor/skills/openbox/` instead. Re-run to update.

@@ -1,8 +1,8 @@
-// Non-interactive context detection - the single source of truth used by
+// Non-interactive context detection; the single source of truth used by
 // every place that would otherwise prompt, spin, or color.
 //
 // A "non-interactive" run is one where:
-//   - stdin is not a TTY (piped/redirected - no human to answer prompts)
+//   - stdin is not a TTY (piped/redirected; no human to answer prompts)
 //   - or CI=1 / OPENBOX_NONINTERACTIVE=1 is set
 //   - or --yes / --non-interactive was passed on argv
 //
@@ -68,7 +68,7 @@ export function isJsonMode(): boolean {
 /**
  * Runtime gate for destructive ops (`@cli_destructive` in spec, plus a
  * handful of hand-coded sites). Refuses to run without `--yes` / `-y`
- * (or OPENBOX_ASSUME_YES=1). Fails closed in every context - we never
+ * (or OPENBOX_ASSUME_YES=1). Fails closed in every context; we never
  * block on stdin, and an accidental destroy is hard to undo.
  *
  * Intentionally throws an Error rather than calling process.exit so the
@@ -77,7 +77,7 @@ export function isJsonMode(): boolean {
 export class DestructiveConfirmRequiredError extends Error {
   constructor(public commandPath: string) {
     super(
-      `\`openbox ${commandPath}\` is destructive - re-run with --yes (or set OPENBOX_ASSUME_YES=1).`,
+      `\`openbox ${commandPath}\` is destructive; re-run with --yes (or set OPENBOX_ASSUME_YES=1).`,
     );
     this.name = 'DestructiveConfirmRequiredError';
   }

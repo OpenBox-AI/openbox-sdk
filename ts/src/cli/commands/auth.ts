@@ -1,7 +1,7 @@
 // CLI auth surface: thin wrapper around the on-disk X-API-Key store.
 // Org-level keys are minted in the dashboard FE (Organization → API Keys);
 // this command set just persists / clears / inspects them. JWT login was
-// removed from the CLI in v0.2.0 - the SDK still accepts Bearer JWTs for
+// removed from the CLI in v0.2.0; the SDK still accepts Bearer JWTs for
 // non-CLI consumers (mobile, SSO).
 import { Command } from 'commander';
 import {

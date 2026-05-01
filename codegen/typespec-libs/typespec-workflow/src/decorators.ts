@@ -1,5 +1,5 @@
 // Decorator implementations for typespec-workflow. See ../env/
-// for the same split - getters here are for emitter consumption; the
+// for the same split; getters here are for emitter consumption; the
 // TypeSpec compiler sees decorators through src/index.ts ($decorators).
 
 import type {
@@ -126,7 +126,7 @@ export function getMapsTo(program: Program, target: Operation): MapsToBinding | 
 // verdict back to the platform-specific output shape.
 
 export interface AdapterBinding {
-  /** Emitted module suffix - `claude-hooks` → `runtime/claude-hooks`. */
+  /** Emitted module suffix; `claude-hooks` → `runtime/claude-hooks`. */
   readonly name: string;
   /** @preset name this adapter binds to (e.g. `claude-code`, `cursor`). */
   readonly preset: string;
@@ -264,7 +264,7 @@ export function getVerdictShape(
 //
 // Spec'ing the table here means the per-platform runtime mappers consume
 // a generated constant instead of hand-coding the same switch in two
-// places - drift between claude-code and cursor was a real concern.
+// places; drift between claude-code and cursor was a real concern.
 
 export interface ActivityRoutingBinding {
   /** Map of inner-discriminator value → activity_type fired. */
@@ -577,7 +577,7 @@ export function $activityLabels(
     });
     return;
   }
-  // Merge with any existing entries on the namespace - supports splitting
+  // Merge with any existing entries on the namespace; supports splitting
   // the table across multiple decorator calls if a future spec wants it.
   const existing = (context.program
     .stateMap(stateKeys.activityLabels)

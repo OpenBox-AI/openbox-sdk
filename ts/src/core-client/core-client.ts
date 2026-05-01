@@ -2,7 +2,7 @@ import { TokenBucket } from '../client/index.js';
 
 // Every wire-shape type in this module comes from the spec at
 // specs/typespec/core/main.tsp via codegen/emitters/ts/. This file
-// owns nothing but the runtime HTTP wrapper - no type redeclarations.
+// owns nothing but the runtime HTTP wrapper; no type redeclarations.
 
 export type {
   EventType,
@@ -135,7 +135,7 @@ export class OpenBoxCoreClient {
     // attempts on the server). More importantly, when staging core's
     // grpc deadline (10s) fires and returns 500, retrying just amplifies
     // the same outage from a 10s user-visible delay into ~44s while
-    // burning extra workflow slots. Single shot - surface the 500
+    // burning extra workflow slots. Single shot; surface the 500
     // immediately so the caller can decide whether to retry with full
     // context (e.g. fresh workflow_id, idempotency-friendly).
     return this.request('POST', '/api/v1/governance/evaluate', {
@@ -175,7 +175,7 @@ export class OpenBoxCoreClient {
 
     // Per-call retry opt-out for non-idempotent endpoints. evaluate()
     // sets this false because each retry generates a fresh workflow on
-    // Temporal - a 5xx-then-retry pattern racks up zombie workflow
+    // Temporal; a 5xx-then-retry pattern racks up zombie workflow
     // executions and amplifies a transient 10s server-side outage from
     // a 10s user-visible delay into ~44s. Surface the 5xx immediately
     // so the caller decides whether to retry with a fresh workflow_id.
@@ -200,7 +200,7 @@ export class OpenBoxCoreClient {
       return response.text();
     }
 
-    // Core endpoints return flat JSON (not {status, data} - that's backend).
+    // Core endpoints return flat JSON (not {status, data}; that's backend).
     // No envelope unwrap here: a legitimate response like { id, action, data: {...} }
     // on a future endpoint would otherwise be silently discarded.
     return response.json();
@@ -233,7 +233,7 @@ export class OpenBoxCoreClient {
     const maxDelay = this.config.retry?.maxDelayMs ?? 30_000;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      // Fresh AbortController per attempt - reusing a single timeout
+      // Fresh AbortController per attempt; reusing a single timeout
       // signal across retries would fail every retry instantly. Using
       // controller + setTimeout instead of AbortSignal.timeout because
       // Hermes (React Native) doesn't ship the latter.
@@ -244,7 +244,7 @@ export class OpenBoxCoreClient {
         // credentials: 'omit' prevents RN/iOS from auto-sending cookies that
         // leaked from a WKWebView via sharedCookiesEnabled. The backend's
         // CSRF guard fires when an XSRF-TOKEN cookie is present without a
-        // matching X-XSRF-TOKEN header - Bearer-auth clients don't carry
+        // matching X-XSRF-TOKEN header; Bearer-auth clients don't carry
         // that header and shouldn't send cookies in the first place.
         credentials: 'omit',
         headers: req.headers,
@@ -261,7 +261,7 @@ export class OpenBoxCoreClient {
         await new Promise((r) => setTimeout(r, delay));
       } catch (err) {
         // Retry on fetch network errors (TypeError) and on per-attempt timeouts
-        // (AbortError from the manual abort - a DOMException, not a TypeError).
+        // (AbortError from the manual abort; a DOMException, not a TypeError).
         const isNetworkError = err instanceof TypeError;
         const isTimeout = err instanceof Error && err.name === 'AbortError';
         if (attempt === maxRetries || (!isNetworkError && !isTimeout)) throw err;

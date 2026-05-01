@@ -1,11 +1,11 @@
-// Lock the "CLI is a pure backend/core consumer" property - every
+// Lock the "CLI is a pure backend/core consumer" property; every
 // import in `ts/src/cli/commands/**.ts` must come from a known
 // allowlist (Node stdlib, Commander, the OpenBox client surface, the
 // CLI's own helpers, or generated handlers). Direct fetch / axios /
 // raw HTTP / internal-service paths fail the test.
 //
 // If you genuinely need a new module here (e.g. a new shared helper),
-// add it to ALLOWED_PREFIXES with a one-line reason - that conscious
+// add it to ALLOWED_PREFIXES with a one-line reason; that conscious
 // step is the whole point.
 
 import { readdirSync, readFileSync } from 'fs';
@@ -17,39 +17,39 @@ const cmdDir = resolve(repoRoot, 'ts/src/cli/commands');
 
 /**
  * Each prefix must match the *start* of an import specifier (or be the
- * full string for relative paths). Reasons are required - the act of
+ * full string for relative paths). Reasons are required; the act of
  * adding one forces a moment of intent.
  */
 const ALLOWED_PREFIXES: Record<string, string> = {
-  // Node stdlib - fs/path/url/etc.
+  // Node stdlib; fs/path/url/etc.
   'node:': 'Node built-ins.',
   fs: 'Node fs (path-resolve, downloads, install primitives).',
   path: 'Node path joins.',
   os: 'Node os.homedir / arch / platform.',
   url: 'Node url for fileURLToPath in cli-runner.',
   // CLI command libs.
-  commander: 'Commander - the only CLI argv parser.',
+  commander: 'Commander; the only CLI argv parser.',
   // OpenBox public client surface.
   '../config.js': 'getClient / getCoreClient resolvers.',
   '../../client/index.js': 'OpenBoxClient (backend) for type imports.',
   '../../core-client/index.js': 'OpenBoxCoreClient (core) for type imports.',
   // Hand-written CLI helpers.
   '../output.js': 'output / outputList renderers.',
-  '../../validators/index.js': 'public openbox-sdk/validators surface - reportAndExit + named validators + parseJsonInput.',
+  '../../validators/index.js': 'public openbox-sdk/validators surface; reportAndExit + named validators + parseJsonInput.',
   '../wire-subcommands.js': 'spec-driven subcommand interpreter.',
-  '../../test-utils/index.js': 'public openbox-sdk/test-utils surface - buildTestPayload, SPAN_TYPES.',
+  '../../test-utils/index.js': 'public openbox-sdk/test-utils surface; buildTestPayload, SPAN_TYPES.',
   '../features.js': 'isFeatureEnabled gate.',
   '../maturity.js': 'CLI maturity gate (gateCommands).',
-  '../exit-codes.js': 'EXIT taxonomy + bailWith - exit-code contract.',
+  '../exit-codes.js': 'EXIT taxonomy + bailWith; exit-code contract.',
   '../../runtime/_shared/agent-keys-store.js':
-    'recordAgentKey / recallAgentKey - local 0o600 cache for runtime API keys captured by agent create + api-key rotate (shared between cli and runtime/mcp).',
+    'recordAgentKey / recallAgentKey; local 0o600 cache for runtime API keys captured by agent create + api-key rotate (shared between cli and runtime/mcp).',
   '../config-store.js':
-    'setConfig / getConfig / unsetConfig / listConfig / configStorePath / applyConfigToProcessEnv - persistent per-env CLI config, layered into process.env at startup.',
-  '../colors.ts': 'useColor-aware ANSI helpers - color discipline.',
-  '../colors.js': 'useColor-aware ANSI helpers - color discipline.',
+    'setConfig / getConfig / unsetConfig / listConfig / configStorePath / applyConfigToProcessEnv; persistent per-env CLI config, layered into process.env at startup.',
+  '../colors.ts': 'useColor-aware ANSI helpers; color discipline.',
+  '../colors.js': 'useColor-aware ANSI helpers; color discipline.',
   '../non-interactive.js':
-    'isNonInteractive / assumeYes / useColor / isQuiet - non-interactive contract.',
-  // Per-command sibling modules - agent-audit is a separate report
+    'isNonInteractive / assumeYes / useColor / isQuiet; non-interactive contract.',
+  // Per-command sibling modules; agent-audit is a separate report
   // module imported by both agent.ts (the action) and tests.
   './agent-audit.js': 'separate cross-session audit report module.',
   // Generated cli-handlers/<cmd>.ts manifests.
@@ -61,7 +61,7 @@ const ALLOWED_PREFIXES: Record<string, string> = {
     'spec-driven canonical event_type / activity_type / verdict-arm sets.',
   // Env-binding constants (spec-driven, no HTTP).
   '../../env/index.js': 'ENV_VAR_BINDINGS for canonical env-var name lookups.',
-  // Per-runtime adapter install/hook entrypoints - claude-code/cursor/
+  // Per-runtime adapter install/hook entrypoints; claude-code/cursor/
   // mcp commands wire `install`, `uninstall`, `hook`, or `serve` actions
   // on top of their runtime adapter.
   '../../runtime/claude-code/install.js':

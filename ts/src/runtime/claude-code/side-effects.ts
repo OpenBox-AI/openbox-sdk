@@ -24,7 +24,7 @@ export const sideEffects: ClaudeCodeSideEffects = {
     }
   },
 
-  /** JSON-stringify and clip to TRUNCATE_LIMIT chars - used for the
+  /** JSON-stringify and clip to TRUNCATE_LIMIT chars; used for the
    *  PostToolUse `output` field where Claude can return arbitrarily
    *  large tool responses. */
   stringifyTruncate(input: unknown): string {

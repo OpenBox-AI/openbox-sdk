@@ -60,7 +60,7 @@ export class ApprovalsTreeProvider implements vscode.TreeDataProvider<TreeNode> 
     const approval = node.approval;
     const agent = approval.agent?.agent_name || approval.agent_id || "Unknown Agent";
     const action = approval.activity_type || "";
-    const label = action ? `${agent} - ${action}` : agent;
+    const label = action ? `${agent}; ${action}` : agent;
 
     const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.Expanded);
     item.id = `approval-${approval.id}`;
@@ -77,7 +77,7 @@ export class ApprovalsTreeProvider implements vscode.TreeDataProvider<TreeNode> 
       return this.approvals.map((a) => ({ kind: "approval" as const, approval: a }));
     }
 
-    // Children of an approval node - show details inline
+    // Children of an approval node; show details inline
     if (element.kind === "approval") {
       const a = element.approval;
       const verdictMap: Record<number, string> = { 0: "Allow", 1: "Constrain", 2: "Require Approval", 3: "Block", 4: "Halt" };

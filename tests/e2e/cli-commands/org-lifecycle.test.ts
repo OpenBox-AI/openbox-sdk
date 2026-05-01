@@ -26,7 +26,7 @@ describeOrSkip('org lifecycle (e2e, real backend)', () => {
   it('`org settings` returns settings JSON', () => {
     const res = runCli(['org', 'settings', orgId]);
     expect(res.status, res.stderr).toBe(0);
-    // body may be {} on a fresh org - just check it parses.
+    // body may be {} on a fresh org; just check it parses.
     JSON.parse(res.stdout);
   });
 

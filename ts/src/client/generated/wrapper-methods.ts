@@ -913,7 +913,7 @@ type RequestBodyOf<P extends keyof Paths, V extends keyof Paths[P]> =
 type ResponseOf<P extends keyof Paths, V extends keyof Paths[P]> =
   Paths[P][V] extends { responses: infer R } ? R extends Record<200 | 201, { content: { 'application/json': infer J } }> ? J : R extends Record<200 | 201, infer N> ? (N extends { description?: string } ? unknown : never) : unknown : unknown;
 /**
- * AUTO-GENERATED wrapper base class - every HTTP operation declared on
+ * AUTO-GENERATED wrapper base class; every HTTP operation declared on
  * the OpenboxBackend TypeSpec namespace becomes a typed method here.
  * Hand-written wrappers (OpenBoxClient / OpenBoxCoreClient) extend this
  * class and own construction + the protected helper methods that the
@@ -928,14 +928,14 @@ export abstract class OpenBoxClientWrapperBase {
   protected abstract httpDelete<T>(path: string, body?: unknown): Promise<T>;
   /**
    * Cached permission set. When undefined, pre-flight checks are
-   * skipped - the SDK behaves as before, deferring to the server's
+   * skipped; the SDK behaves as before, deferring to the server's
    * 403 response. The hand-written wrapper populates this from
    * `BackendClientConfig.permissions` if the caller provides it.
    */
   protected permissions?: ReadonlySet<string>;
   /**
    * Pre-flight permission check. Called by the hand-written
-   * `request()` impl on every outbound HTTP - covers both generated
+   * `request()` impl on every outbound HTTP; covers both generated
    * method bodies AND any hand-written shadow that calls http* directly.
    * No-op when `permissions` is undefined or no rule matches the path.
    */

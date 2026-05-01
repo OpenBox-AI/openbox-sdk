@@ -1,9 +1,9 @@
-// Public surface of `openbox-sdk` - single import path for everything.
+// Public surface of `openbox-sdk`; single import path for everything.
 //
 //   import { OpenBoxClient, OpenBoxCoreClient, ENVIRONMENTS, parseTokenStore,
 //            resolveClientName } from 'openbox-sdk';
 //
-// Sub-paths exist for tree-shaking / RN bundlers - see package.json
+// Sub-paths exist for tree-shaking / RN bundlers; see package.json
 // `exports` map. (`openbox-sdk/client`, `openbox-sdk/core-client`, etc.)
 
 export * from './client/index.js';
@@ -13,7 +13,7 @@ export * from './types/index.js';
 // core-client carries the wire types from specs/typespec/core/. Re-export
 // the classes + CoreClient-specific types here. Wire-shape types like
 // `GovernanceEventPayload` live on core-client (single source of truth)
-// and are consumed from there directly - `export *` would collide with
+// and are consumed from there directly; `export *` would collide with
 // `types/`, which re-exposes the same shapes via the `Backend`/`Core`
 // namespaces.
 export {
@@ -25,9 +25,9 @@ export {
 
   // Spec-driven workflow runtime. `govern()` opens a workflow envelope,
   // exposes a typed session matching the chosen `preset`, and finalizes
-  // (Workflow{Completed,Failed}) on return - even on throw / process
+  // (Workflow{Completed,Failed}) on return; even on throw / process
   // exit. Pick a preset (`presets.claudeCode`, `presets.langchain`,
-  // `presets.default`, `presets.custom`, ...) - generated from
+  // `presets.default`, `presets.custom`, ...); generated from
   // specs/typespec/govern/main.tsp, manifest in PRESET_MANIFEST.
   govern,
   presets,

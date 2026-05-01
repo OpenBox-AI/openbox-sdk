@@ -318,7 +318,7 @@ export function buildStopPayload(env: ClaudeCodeEnvelope): Record<string, unknow
 /**
  * Per-event handlers. Each handler receives the parsed stdin envelope
  * + an attached ClaudeCodeSession (workflowId/runId resolved by
- * `config.resolveSession`). Return a WorkflowVerdict - usually by calling
+ * `config.resolveSession`). Return a WorkflowVerdict; usually by calling
  * a preset method like `session.preToolUse(...)`. The adapter writes
  * the verdict-mapped stdout JSON automatically per the operation's
  * @verdictShape. Returning undefined writes the default `allow` shape.
@@ -340,7 +340,7 @@ export interface ClaudeCodeAdapterHandlers {
 export interface ClaudeCodeAdapterConfig {
   /** Authenticated core client (agent-scoped API key). */
   core: OpenBoxCoreClient;
-  /** Per-stdin-message resolver - typically reads sessionStore.json. */
+  /** Per-stdin-message resolver; typically reads sessionStore.json. */
   resolveSession: (
     env: ClaudeCodeEnvelope,
   ) => Promise<{ workflowId: string; runId: string }>;
@@ -529,7 +529,7 @@ async function defaultReadStdin(): Promise<string> {
     total += buf.length;
     if (total > MAX_BYTES) {
       throw new Error(
-        `hook stdin exceeded ${MAX_BYTES.toLocaleString()} bytes - refusing to buffer further (likely runaway pipe or hostile input)`,
+        `hook stdin exceeded ${MAX_BYTES.toLocaleString()} bytes; refusing to buffer further (likely runaway pipe or hostile input)`,
       );
     }
     chunks.push(buf);

@@ -3,7 +3,7 @@
 // specs/generated/openapi3/Openbox{Backend,Core}.json) against:
 //   - prod/staging deployed swagger endpoints (via curl)
 //   - upstream OpenBox-AI/openbox-{backend,core}@<branch> via gh CLI
-//     (path-only - both repos lack runtime openapi export today)
+//     (path-only; both repos lack runtime openapi export today)
 //
 // Subcommands:
 //   fetch --tier <prod|staging|develop|main> --service <backend|core>
@@ -40,7 +40,7 @@ else if (cmd === 'diff') doDiff(args.service, args.tier);
 function doFetch(service, tier) {
   const out = `/tmp/upstream-${service}-${tier}.json`;
 
-  // Core has no swagger endpoint anywhere - prod/staging tiers skip,
+  // Core has no swagger endpoint anywhere; prod/staging tiers skip,
   // develop/main go through the upstream path-regex parser.
   if (service === 'core' && (tier === 'prod' || tier === 'staging')) {
     return writeSkip(out, `core does not expose a swagger endpoint on ${tier}`);
@@ -50,7 +50,7 @@ function doFetch(service, tier) {
     const url =
       service === 'backend'
         ? 'https://api.openbox.ai/api/docs-json'
-        : null; // unreachable - guarded above
+        : null; // unreachable; guarded above
     fetchSwagger(url, out);
     return;
   }
@@ -88,23 +88,23 @@ function fetchSwagger(url, outPath) {
 function parseUpstreamRoutes(repo, branch, service) {
   // Path-level coverage only: enumerate route declarations and
   // reconstruct {verb, path} tuples. Schema-level diff would require
-  // building each upstream and dumping its OpenAPI - deferred until a
+  // building each upstream and dumping its OpenAPI; deferred until a
   // path-only miss actually bites.
   if (service === 'core') {
-    // Echo route table - main.go has lines like:
+    // Echo route table; main.go has lines like:
     //   routesAPI.GET("/auth/validate", ...)
     const main = ghRead(repo, branch, 'internal/api/main.go');
     const routes = [];
     for (const m of main.matchAll(/routesAPI\.(GET|POST|PUT|PATCH|DELETE)\("([^"]+)"/g)) {
       routes.push({ verb: m[1].toLowerCase(), path: `/api/v1${m[2]}` });
     }
-    // Health check at root - registered separately via r.GET("/", ...)
+    // Health check at root; registered separately via r.GET("/", ...)
     if (/r\.GET\("\/"/.test(main)) routes.push({ verb: 'get', path: '/' });
     return routes;
   }
 
   if (service === 'backend') {
-    // NestJS - controller files use @Get/@Post/@Patch/@Put/@Delete.
+    // NestJS; controller files use @Get/@Post/@Patch/@Put/@Delete.
     // List the controllers, fetch each, regex out route segments.
     const tree = ghTree(repo, branch, 'src/modules');
     const controllers = tree.filter((f) => /\.controller\.ts$/.test(f) && !/\.spec\./.test(f));
@@ -139,7 +139,7 @@ function ghRead(repo, branch, path) {
 
 function ghTree(repo, branch, prefix) {
   // List every path in the repo at branch tip and filter by prefix.
-  // The /git/trees endpoint returns up to 100k entries - comfortable
+  // The /git/trees endpoint returns up to 100k entries; comfortable
   // headroom for src/modules.
   const sha = execSync(`gh api "repos/${repo}/commits/${branch}" --jq .sha`, {
     encoding: 'utf8',
@@ -165,14 +165,14 @@ function doDiff(service, tier) {
   const upstreamPath = `/tmp/upstream-${service}-${tier}.json`;
   const outPath = `/tmp/spec-drift-${service}-${tier}.md`;
   if (!existsSync(upstreamPath)) {
-    writeFileSync(outPath, `# Spec drift - ${service}@${tier}\n\nfetch step did not run\n`);
+    writeFileSync(outPath, `# Spec drift; ${service}@${tier}\n\nfetch step did not run\n`);
     setOutput('has_drift', 'false');
     return;
   }
 
   const upstream = JSON.parse(readFileSync(upstreamPath, 'utf8'));
   if (upstream._skip) {
-    writeFileSync(outPath, `# Spec drift - ${service}@${tier}\n\nskipped: ${upstream._skip}\n`);
+    writeFileSync(outPath, `# Spec drift; ${service}@${tier}\n\nskipped: ${upstream._skip}\n`);
     setOutput('has_drift', 'false');
     return;
   }
@@ -217,13 +217,13 @@ function enumeratePaths(spec) {
 }
 
 function renderReport(service, tier, upstream, addedUp, addedOur) {
-  const lines = [`# Spec drift - ${service}@${tier}`, ''];
+  const lines = [`# Spec drift; ${service}@${tier}`, ''];
   if (upstream._source) {
     lines.push(`Upstream source: \`${upstream._source.repo}@${upstream._source.branch}\``, '');
   }
 
   if (addedUp.length === 0 && addedOur.length === 0) {
-    lines.push(`✅ in sync - TypeSpec and ${service}@${tier} agree on every path.`);
+    lines.push(`✅ in sync; TypeSpec and ${service}@${tier} agree on every path.`);
     return lines.join('\n') + '\n';
   }
 

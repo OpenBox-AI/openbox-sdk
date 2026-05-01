@@ -1,4 +1,4 @@
-// specs/typespec/cli/main.tsp - language-agnostic protocol of the
+// specs/typespec/cli/main.tsp; language-agnostic protocol of the
 // `openbox` binary. The TS implementation today (ts/cli/src/) is
 // hand-written via commander; this file documents the contract it
 // satisfies and is what every language's CLI emitter (commander /
@@ -6,13 +6,13 @@
 //
 // One @cli_command per top-level verb, with sub-commands mounted
 // either as nested interfaces or methods on the same interface.
-// The surface-area sketch is here - not every existing
+// The surface-area sketch is here; not every existing
 // command is wired yet. The vertical slice that proves the pipeline
 // is `auth` (login / logout / profile) because it exercises every
 // decorator: env-var-backed input, token-format validation, and an
 // OS path for the on-disk store.
 
-// Note: programming-model spec, not an HTTP API - see govern/main.tsp
+// Note: programming-model spec, not an HTTP API; see govern/main.tsp
 // for the rationale behind not using `@service` here.
 
 import "typespec-cli";
@@ -34,10 +34,10 @@ enum EnvFlag {
 }
 
 // ---------------------------------------------------------------------------
-// `openbox auth` command group - manages an org-level X-API-Key on disk.
+// `openbox auth` command group; manages an org-level X-API-Key on disk.
 // JWT/Keycloak login lives in the dashboard FE; CLI consumes a key minted
 // there. The SDK still supports Bearer JWT for non-CLI consumers (mobile,
-// SSO flows) - the contract here is CLI-specific.
+// SSO flows); the contract here is CLI-specific.
 // ---------------------------------------------------------------------------
 
 @cli_command(
@@ -69,7 +69,7 @@ interface Auth {
 
 @cli_command(
   "config",
-  "Persistent CLI config (URL overrides, default flags). Two scopes: per-env (default - keyed off the active --env) and global (--global, applies across all envs). Layered into process.env at startup; explicit shell exports always win. File: <data-root>/config (mode 0o600)."
+  "Persistent CLI config (URL overrides, default flags). Two scopes: per-env (default; keyed off the active --env) and global (--global, applies across all envs). Layered into process.env at startup; explicit shell exports always win. File: <data-root>/config (mode 0o600)."
 )
 @cli_maturity("stable")
 interface Config {
@@ -78,14 +78,14 @@ interface Config {
    * the active --env / OPENBOX_ENV). Pass `--global` for keys that
    * apply across every env. Some keys auto-promote to global because
    * per-env scoping is incoherent for them: `OPENBOX_ENV` (selects
-   * the active env - circular), `OPENBOX_HOME` (the dir per-env files
+   * the active env; circular), `OPENBOX_HOME` (the dir per-env files
    * live in), `OPENBOX_CLIENT_VARIANT` (telemetry tag),
    * `OPENBOX_EXPERIMENTAL_LEVEL`. Conventionally an OPENBOX_*
    * upper-snake var name (the same names process.env reads). The CLI
-   * does not validate against a known set - power users can stage
+   * does not validate against a known set; power users can stage
    * arbitrary keys without a release. Values are layered into
    * process.env on every command run **only if the env var is
-   * currently unset** - explicit shell exports always win.
+   * currently unset**; explicit shell exports always win.
    */
   @cli_local_only
   @cli_output_kind("custom")
@@ -111,7 +111,7 @@ interface Config {
 }
 
 // ---------------------------------------------------------------------------
-// Persisted-credentials shape - used by `auth login` / `auth profile`
+// Persisted-credentials shape; used by `auth login` / `auth profile`
 // and read by every other command on startup.
 // ---------------------------------------------------------------------------
 
@@ -140,7 +140,7 @@ model PersistedCredentials {
 }
 
 // ---------------------------------------------------------------------------
-// Remaining command groups - surface-only spec for now. Each method
+// Remaining command groups; surface-only spec for now. Each method
 // lists the positional arguments declared in `commands/<x>.ts`. The
 // `@cli_flag` decorators on flags will land in follow-up passes; the
 // coverage test in tests/unit/cli-coverage.test.ts asserts every method
@@ -176,7 +176,7 @@ interface Agent {
   @cli_output_kind("kv")
   delete(agentId: string): void;
 
-  /** Create a new agent. --json bypasses flag merge; otherwise
+  /** Create a new agent. --body bypasses flag merge; otherwise
    *  --name + --team are required, AIVSS defaults fill in, and the
    *  preflight verifies team existence + flags name collisions. The
    *  runtime API key is highlighted to stderr (one-time display) on
@@ -226,7 +226,7 @@ interface Agent {
     skipPreflight?: boolean,
   ): void;
 
-  /** Update an agent. --json replaces flag-built body. */
+  /** Update an agent. --body replaces flag-built body. */
   @cli_calls("updateAgent")
   @cli_output_kind("kv")
   @cli_json_merge("replace")
@@ -301,7 +301,7 @@ interface ApiKey {
   @cli_output_kind("list", "api keys")
   list(): void;
 
-  // Custom: --json body required, no other shape.
+  // Custom: --body body required, no other shape.
   @cli_maturity("experimental")
   @cli_output_kind("custom")
   create(): void;
@@ -312,7 +312,7 @@ interface ApiKey {
   @cli_output_kind("kv")
   get(id: string): void;
 
-  // Custom: --json body required.
+  // Custom: --body body required.
   @cli_maturity("experimental")
   @cli_output_kind("custom")
   update(id: string): void;
@@ -538,14 +538,14 @@ interface Audit {
     to?: string,
   ): void;
 
-  /** Export audit logs. --json provides a full ExportAuditLogsDto;
+  /** Export audit logs. --body provides a full ExportAuditLogsDto;
    *  individual flags fill missing fields. exportName is required in
-   *  the merged body (either via --name or via --json). */
+   *  the merged body (either via --name or via --body). */
   @cli_calls("exportAuditLogs")
   @cli_output_kind("kv")
   @cli_json_merge
   export(
-    @cli_flag("Export name (required; if --json omits exportName, this fills it)", "n")
+    @cli_flag("Export name (required; if --body omits exportName, this fills it)", "n")
     @cli_required @cli_body_key("exportName")
     name?: string,
     @cli_flag("Event types") @cli_variadic
@@ -565,7 +565,7 @@ interface Audit {
     to?: string,
   ): void;
 
-  /** Preview audit log export. --json replaces flag-built body when
+  /** Preview audit log export. --body replaces flag-built body when
    *  present. */
   @cli_calls("previewAuditExport")
   @cli_output_kind("kv")
@@ -595,7 +595,7 @@ interface Audit {
     to?: string,
   ): void;
 
-  /** Download an export - returns a binary payload, written verbatim
+  /** Download an export; returns a binary payload, written verbatim
    *  to stdout. */
   @cli_maturity("experimental")
   @cli_calls("downloadExport", "positional")
@@ -648,10 +648,10 @@ interface Behavior {
    *
    *  Behavior rules and OPA policies are the two approval-trigger
    *  surfaces. Use a behavior_rule (not a policy) when you need to
-   *  control the approval timeout - pass --verdict 2 with
+   *  control the approval timeout; pass --verdict 2 with
    *  --approval-timeout SECONDS to produce an approval row that
    *  expires exactly that many seconds after creation. OPA policies
-   *  have no equivalent - they always use the core server default
+   *  have no equivalent; they always use the core server default
    *  (~30m). Both surfaces coexist on the same agent; both run
    *  during `core evaluate` and the strictest verdict wins.
    *
@@ -690,7 +690,7 @@ interface Behavior {
     approvalTimeout?: string,
   ): void;
 
-  /** Update a behavior rule - change_log is required by the backend. */
+  /** Update a behavior rule; change_log is required by the backend. */
   @cli_maturity("experimental")
   @cli_calls("updateBehaviorRule")
   @cli_output_kind("kv")
@@ -772,7 +772,7 @@ interface Core {
   // a behavior_rule attached that returns REQUIRE_APPROVAL for the
   // event's activity_type. To test against a known-working agent in
   // your org, run `openbox --experimental org approvals <orgId> --json`
-  // and pick an agent_id that already has approval history - its
+  // and pick an agent_id that already has approval history; its
   // policy/rule is wired. Recover its runtime key with
   // `openbox api-key recall <agentId>` (cached automatically by
   // create + rotate; 0o600).
@@ -780,7 +780,7 @@ interface Core {
   evaluate(): void;
 }
 
-// Local-only - never makes a backend call. The action is parent-level
+// Local-only; never makes a backend call. The action is parent-level
 // (no subcommands), wired hand-coded in commands/doctor.ts. The
 // import-allowlist drift test guarantees no backend imports leak.
 @cli_command("doctor", "Pre-flight checks for the local environment.")
@@ -813,7 +813,7 @@ interface Goal {
   ): void;
 
   /** Update goal alignment config. All four fields required together
-   *  (or --json with the full body). */
+   *  (or --body with the full body). */
   @cli_calls("updateGoalAlignment")
   @cli_output_kind("kv")
   @cli_json_merge("replace")
@@ -957,7 +957,7 @@ interface Member {
     @cli_flag("Email")
     @cli_required
     email?: string,
-    @cli_flag("Password - leave unset for invite flow")
+    @cli_flag("Password (leave unset for invite flow)")
     password?: string,
     @cli_flag("First name") @cli_body_key("firstName")
     firstName?: string,
@@ -978,7 +978,7 @@ interface Member {
     userId: string,
     @cli_flag("Role")
     role?: string,
-    @cli_flag("Team IDs (UUIDs) - replaces existing membership") @cli_variadic
+    @cli_flag("Team IDs (UUIDs); replaces existing membership") @cli_variadic
     @cli_body_key("team_ids")
     teams?: string[],
   ): void;
@@ -1126,7 +1126,7 @@ interface Org {
     status?: string,
   ): void;
 
-  /** Update organization settings. --json replaces flag-built body. */
+  /** Update organization settings. --body replaces flag-built body. */
   @cli_maturity("experimental")
   @cli_calls("updateOrgSettings")
   @cli_output_kind("kv")
@@ -1258,13 +1258,13 @@ interface Policy {
    *  (case-insensitive `allow|block|halt|require_approval`) and the
    *  input fields available to the policy.
    *
-   *  IMPORTANT - approval_timeout is NOT settable here. OPA policies
+   *  IMPORTANT; approval_timeout is NOT settable here. OPA policies
    *  cannot configure the approval expiration window: the DTO has no
    *  `approval_timeout` field and the Rego return shape is
    *  `{decision, reason}` only. When this policy fires
    *  REQUIRE_APPROVAL, core injects a server-side default
    *  (~30m observed). To control the timeout, use `behavior create`
-   *  with `--verdict 2 --approval-timeout <seconds>` instead - both
+   *  with `--verdict 2 --approval-timeout <seconds>` instead; both
    *  surfaces coexist on the same agent and the strictest verdict
    *  wins.
    *
@@ -1272,7 +1272,7 @@ interface Policy {
    *  backend route which requires the `create:agent_policy`
    *  Keycloak permission. If your role is missing it (the prod
    *  default `Admin` realm role lacks it on openbox.ai as of
-   *  2026-04), the backend returns 403 - at which point use
+   *  2026-04), the backend returns 403; at which point use
    *  an existing canary agent's runtime key + `core evaluate`
    *  instead of creating a new policy. */
   @cli_calls("createPolicy")
@@ -1403,7 +1403,7 @@ interface Session {
   prune(agentId: string): void;
 }
 
-// `openbox setup` was removed - its `skill` / `mcp` subcommands are
+// `openbox setup` was removed; its `skill` / `mcp` subcommands are
 // superseded by the dedicated top-level commands `skill install`,
 // `mcp serve`, `claude-code install`, and `cursor install` (each has
 // its own @cli_command interface above).
@@ -1436,7 +1436,7 @@ interface Team {
   members(orgId: string, teamId: string): void;
 
   /** Create a team. --name OR --icon is required (cross-field rule);
-   *  --json provides full body and bypasses the cross-field check. */
+   *  --body provides full body and bypasses the cross-field check. */
   @cli_calls("createTeam")
   @cli_output_kind("kv")
   @cli_json_merge("replace")

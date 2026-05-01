@@ -15,7 +15,7 @@ function activityTypeForTool(toolName: string): string {
   const direct = PERMISSION_REQUEST_ROUTING[toolName];
   if (direct) return direct;
   if (toolName.startsWith('mcp__')) return ACTIVITY_TYPES.MCP_CALL;
-  // Unknown tool - govern as a generic shell-like action so something
+  // Unknown tool; govern as a generic shell-like action so something
   // still hits the wire (better than dropping the request silently).
   return ACTIVITY_TYPES.SHELL;
 }

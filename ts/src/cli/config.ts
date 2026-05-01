@@ -40,7 +40,7 @@ function readStore(): TokenStore {
 }
 
 // Org-level X-API-Key auth lookup. Env-var override wins so CI can inject
-// a key without touching disk. Returns undefined when nothing is set -
+// a key without touching disk. Returns undefined when nothing is set .
 // callers (getClient) decide whether absence is fatal.
 function loadApiKey(env: EnvName): string | undefined {
   const envKey = process.env.OPENBOX_BACKEND_API_KEY;
@@ -135,7 +135,7 @@ function getClient(env?: EnvName): OpenBoxClient {
 // Core only accepts API keys that start with `obx_live_` (production) or
 // `obx_test_` (test/staging). The most common misuse is to grab the
 // `token` field from `agent list`/`agent get` and pass it as
-// OPENBOX_API_KEY - that's an internal attestation token, not the
+// OPENBOX_API_KEY; that's an internal attestation token, not the
 // runtime key. Catching it here gives a clear hint pointing at the
 // right field, instead of letting core return a generic 500
 // ("invalid API key format. Expected format: obx_live_... or obx_test_...").
@@ -151,7 +151,7 @@ function validateAgentRuntimeKeyFormat(key: string): void {
   );
   if (looksLikeAgentToken) {
     console.error(
-      `\nThis looks like the 'token' field from 'agent list'/'agent get' - that's NOT the runtime API key.`,
+      `\nThis looks like the 'token' field from 'agent list'/'agent get'; that's NOT the runtime API key.`,
     );
     console.error(
       `The runtime API key is returned ONCE by 'agent create' (in the response body) or 'api-key rotate'.`,
@@ -160,7 +160,7 @@ function validateAgentRuntimeKeyFormat(key: string): void {
       `\nTo recover for an existing agent: openbox api-key rotate <agentId>`,
     );
     console.error(
-      `(rotation invalidates the previous key - update any deployed clients).`,
+      `(rotation invalidates the previous key; update any deployed clients).`,
     );
   } else {
     console.error(

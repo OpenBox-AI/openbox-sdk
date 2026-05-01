@@ -1,59 +1,72 @@
-# Behavior Rules Reference
+# Behavior rules reference
 
-Everything specific to configuring and debugging behavior rules - the per-span rate-limiting + pattern-detection layer evaluated by the **agent-governance-engine (AGE)** service.
+Configuration and debugging notes for behavior rules: the per-span
+rate-limiting and pattern-detection layer that runs alongside OPA and
+guardrails during `core evaluate`.
 
-> **Important:** behavior rules are evaluated by the AGE service. AGE is a separate service from openbox-core, and its deployment is environment-dependent. **If AGE is not deployed in your target environment, behavior rules are dead data** - the rows persist in the `agent_behavior_rules` table, but nothing reads them for matching, so rules silently never fire. If your rules aren't producing the expected verdicts, first verify AGE is deployed and reachable in that environment.
+> **Important.** Behavior rules require the platform's behavior-eval
+> service to be deployed. If it isn't reachable in your target
+> environment, behavior-rule rows persist but never match, so rules
+> silently never fire. If your rules aren't producing the expected
+> verdicts, verify the platform supports behavior-rule evaluation in
+> that env.
 
 ## Contents
 
-- [Trigger / States Enum](#trigger--states-enum)
-- [Verdict Enum](#verdict-enum)
-- [`time_window` Minimum](#time_window-minimum)
-- [Shell Commands Classify as `internal`](#shell-commands-classify-as-internal)
-- [AGE SemanticType vs BehaviorRule Trigger Enum](#age-semantictype-vs-behaviorrule-trigger-enum)
-- [`--verdict 2` Requires `--approval-timeout`](#--verdict-2-requires---approval-timeout)
-- [Behavior-Rule Endpoint Is SINGULAR](#behavior-rule-endpoint-is-singular)
-- [Priority + Active Toggle](#priority--active-toggle)
+- [Trigger and states enum](#trigger-and-states-enum)
+- [Verdict enum](#verdict-enum)
+- [`time_window`](#time_window)
+- [Shell commands classify as `internal`](#shell-commands-classify-as-internal)
+- [Behavior-rule endpoint is singular](#behavior-rule-endpoint-is-singular)
+- [`--verdict 2` requires `--approval-timeout`](#--verdict-2-requires---approval-timeout)
+- [Priority and active toggle](#priority-and-active-toggle)
 
-## Trigger / States Enum
+## Trigger and states enum
 
-Behavior rules match spans by semantic type. Both `trigger` (singular) and `states[]` (list) draw from the **same flat enum** `BehaviorRuleTrigger` (`openbox-backend/src/modules/agent/entities/agent-behavior-rule.entity.ts:15-40`). There is no two-tier taxonomy - each enum value is its own trigger.
+Behavior rules match spans by semantic type. The singular `trigger`
+and the `states[]` list draw from the same flat enum. There is no
+two-tier taxonomy: each enum value is its own trigger.
 
-**Valid enum values (all 19):**
+Valid values, 19 total:
 
 | Category | Values |
-|----------|--------|
+|---|---|
 | HTTP | `http_get`, `http_post`, `http_put`, `http_patch`, `http_delete`, `http` |
 | LLM | `llm_completion`, `llm_embedding`, `llm_tool_call` |
 | Database | `database_select`, `database_insert`, `database_update`, `database_delete`, `database_query` |
 | File | `file_read`, `file_write`, `file_open`, `file_delete` |
 | Fallback | `internal` |
 
-**Usage pattern:** `trigger` identifies the rule's semantic class; `states[]` lists the specific subtypes to match. Typically `trigger == states[0]` when watching a single subtype, or you use a broader trigger with a wide `states[]` array:
+Use `trigger` for the rule's semantic class, `states[]` for the
+specific subtypes to match. Typically `trigger == states[0]` when
+watching one subtype, or use a broader `trigger` with a wide
+`states[]`:
 
 ```bash
-# Block all HTTP POSTs
+# Block all HTTP POSTs.
 openbox behavior create $AGENT_ID -n "POST block" \
   --trigger http_post --states http_post \
   --verdict 3 --window 60 --message "POSTs not allowed"
 
-# Require approval for destructive DB ops
-# --states takes a SPACE-separated variadic (commander), NOT comma-separated.
+# Require approval for destructive DB ops.
+# --states is a space-separated variadic in commander, not comma-separated.
 openbox behavior create $AGENT_ID -n "DB destroy needs approval" \
   --trigger database_delete --states database_delete database_update \
   --verdict 2 --approval-timeout 300 --window 60 --message "destructive DB needs approval"
 
-# Allow any HTTP verb with observation
+# Allow any HTTP verb with observation.
 openbox behavior create $AGENT_ID -n "HTTP observe" \
   --trigger http --states http_get http_post http_put http_patch http_delete http \
   --verdict 0 --window 60 --message "observing HTTP traffic"
 ```
 
-Any trigger value outside the 19-entry enum returns 422 - including `shell_execution`, `shell`, `tool`, `http_request`, `db_query`, `file_operation`, `llm_call` (common guesses, all invalid).
+Trigger values outside the 19-entry enum return 422. Common invalid
+guesses: `shell_execution`, `shell`, `tool`, `http_request`,
+`db_query`, `file_operation`, `llm_call`.
 
-## Verdict Enum
+## Verdict enum
 
-`--verdict` is an integer 0-4:
+`--verdict` is an integer 0–4:
 
 | `--verdict` | Name |
 |---|---|
@@ -63,17 +76,25 @@ Any trigger value outside the 19-entry enum returns 422 - including `shell_execu
 | `3` | BLOCK |
 | `4` | HALT |
 
-`CONSTRAIN` (1) is a real enum value used in core's priority-ordering logic (`services/governance_workflow.go`), but aggregation logic doesn't yet emit it on the wire ("sandbox enforcement future" per `content/governance.go:26` comment). Document it as selectable but expect `allow`/`require_approval`/`block`/`halt` in practice.
+`CONSTRAIN` value `1` is a defined enum, but the live server does not
+emit it. Document it as selectable, but expect only `allow`,
+`require_approval`, `block`, or `halt` in practice.
 
 ## `time_window`
 
-Integer seconds. Minimum is **1** (`time_window: 0` returns 422 via `@Min(1)` on the DTO). The field is required on every rule and stored on the `agent_behavior_rules` table. Semantics beyond "window applied by the AGE service when evaluating the rule" live in core - there is **no CLI-configurable per-rule trigger count / threshold**; rules fire on every matching span. If you need rate-limiting across many events, use multiple rules or rely on trust-score decay downstream.
+Integer seconds. Minimum is `1`. `time_window: 0` returns 422 via the
+backend's `@Min(1)`. The field is required on every rule. There is no
+CLI-configurable per-rule trigger count or threshold; rules fire on
+every matching span. For rate-limiting across many events, use
+multiple rules or rely on trust-score decay downstream.
 
-Typical values: `60` (per-minute scope), `3600` (hour), `86400` (day).
+Typical values: `60` for per-minute scope, `3600` for per-hour,
+`86400` for per-day.
 
-## Shell Commands Classify as `internal`
+## Shell commands classify as `internal`
 
-Core has no dedicated shell semantic type - shell spans fall through to `internal` (`content/session.go:261`). To rate-limit shell:
+Shell spans don't have a dedicated semantic type. They fall through
+to `internal`. To rate-limit shell:
 
 ```bash
 openbox behavior create $AGENT_ID \
@@ -85,20 +106,22 @@ openbox behavior create $AGENT_ID \
   --message "Shell commands not allowed"
 ```
 
-Using `--trigger shell_execution` or `--trigger shell` returns 422 - neither is in `BehaviorRuleTrigger`.
+`--trigger shell_execution` or `--trigger shell` returns 422 because
+neither is in the trigger enum.
 
-## AGE SemanticType vs BehaviorRule Trigger Enum
+## Behavior-rule endpoint is singular
 
-There are TWO distinct enums covering overlapping territory:
+The backend endpoint is `GET /agent/{id}/behavior-rule`. The plural
+`behavior-rules` returns 404.
 
-- **SemanticType** (core's `session.go`) - how spans are classified at evaluation time. Internal to core's classifier.
-- **BehaviorRule trigger** - what users configure when creating a behavior rule. The API's public surface.
+Response shape: entries use `rule_name`, not `name`. When building a
+dashboard or listing UI against the raw backend API, read `rule_name`.
 
-They mostly agree but are not identical strings. The backend's `create-behavior-rule.dto.ts` allowlist is what matters; semantic types inside core are implementation detail. If you're reading core source and see a classifier that looks like it should be a valid trigger, check the DTO first.
+## `--verdict 2` requires `--approval-timeout`
 
-## `--verdict 2` Requires `--approval-timeout`
-
-Creating a REQUIRE_APPROVAL behavior rule without `--approval-timeout <seconds>` returns 422: `"approval_timeout required when verdict is 2"`.
+Creating a `REQUIRE_APPROVAL` behavior rule without
+`--approval-timeout <seconds>` returns 422 with
+`approval_timeout required when verdict is 2`:
 
 ```bash
 openbox behavior create $AGENT_ID \
@@ -111,22 +134,34 @@ openbox behavior create $AGENT_ID \
   --message "Approval required for outbound POSTs"
 ```
 
-**This is the ONLY place in the spec where you can set the approval window.** OPA policies have no `approval_timeout` field on `CreatePolicyDto`, nor any way to return one through the Rego `result` shape - when an OPA policy returns `REQUIRE_APPROVAL`, core injects a server-side default (~30m). So if the user cares about the timeout value, route them to a behavior_rule, not a policy. See `references/rego-reference.md § Approval timeout` for the full breakdown.
+This is the only place in the spec where you can set the approval
+window. OPA policies have no `approval_timeout` field on
+`CreatePolicyDto`, and the Rego `result` shape can't return one. When
+an OPA policy returns `REQUIRE_APPROVAL`, core injects a server-side
+default. If a user cares about the timeout value, route them to a
+behavior_rule, not a policy. See
+`references/rego-reference.md § Approval timeout`.
 
-## Behavior-Rule Endpoint Is SINGULAR
+## Priority and active toggle
 
-Backend endpoint is `GET /agent/{id}/behavior-rule` - singular. `GET /agent/{id}/behavior-rules` (plural) returns 404.
-
-Response shape: entries use `rule_name` (not `name`). If you're building a dashboard/listing UI against raw backend API, read `rule_name`.
-
-## Priority + Active Toggle
-
-- `--priority <n>` is required at the DTO layer (`@IsNotEmpty`, `@Min(1)`, `@Max(100)`). The CLI supplies a default of `1` when the flag is omitted; values outside 1-100 return 422. Higher priority wins when multiple rules match a single span.
-- `openbox behavior toggle <agentId> <ruleId>` flips `is_active`. Inactive rules don't evaluate.
-- `rule_name` is **unique per agent** - creating a rule with a name that already exists on the agent returns 400 "already exists" (`agent.service.ts:1243-1249`). Unlike policies, there's no auto-deactivate-on-duplicate behavior. To rotate a rule, delete or toggle the old one first, then create the replacement. `openbox behavior versions <agentId> <ruleId>` shows the version history for a given base rule (versions within a single `base_rule_id`, created via explicit update flows).
+- `--priority <n>` is DTO-required with `@IsNotEmpty`, `@Min(1)`, and
+  `@Max(100)`. The CLI defaults to `1` when omitted; values outside
+  1-100 return 422. Higher priority wins when multiple rules match a
+  single span.
+- `openbox behavior toggle <agentId> <ruleId>` flips `is_active`.
+  Inactive rules do not evaluate.
+- `rule_name` is unique per agent. Creating a rule whose name already
+  exists on the agent returns 400. Unlike policies, there is no
+  auto-deactivate-on-duplicate behavior. To rotate a rule, delete or
+  toggle the old one first, then create the replacement.
+  `openbox behavior versions <agentId> <ruleId>` shows the version
+  history within a single `base_rule_id`, populated by explicit
+  update flows.
 
 ## Related references
 
-- `references/governance-flow.md` - evaluation pipeline, when behavior rules run relative to OPA/guardrails
-- `references/span-reference.md` - gate attributes + semantic type detection (what feeds the trigger matcher)
-- `references/commands.md` § behavior - CLI option list
+- `references/governance-flow.md`: evaluation pipeline. When behavior
+  rules run relative to OPA and guardrails.
+- `references/span-reference.md`: gate attributes and semantic-type
+  detection. What feeds the trigger matcher.
+- `references/commands.md` § behavior: CLI option list.

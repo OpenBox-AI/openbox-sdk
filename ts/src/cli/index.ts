@@ -78,7 +78,7 @@ program
 
     // Apply GLOBAL config BEFORE env resolution so a persisted
     // `OPENBOX_ENV=staging` (or OPENBOX_HOME, OPENBOX_CLIENT_VARIANT)
-    // can actually default the env. Only fills unset vars - explicit
+    // can actually default the env. Only fills unset vars; explicit
     // shell exports and --env always win.
     applyGlobalConfigToProcessEnv();
 
@@ -170,7 +170,7 @@ registerVersionsCommand(program);
 registerWebhookCommands(program);
 registerSsoCommands(program);
 
-// Pre-scan global flags BEFORE gating + parse - commander's --help is
+// Pre-scan global flags BEFORE gating + parse; commander's --help is
 // printed during parseAsync, by which time the command tree has to
 // already reflect the user's --experimental / --feature opt-ins.
 {

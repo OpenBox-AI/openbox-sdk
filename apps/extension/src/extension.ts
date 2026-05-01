@@ -43,7 +43,7 @@ export async function activate(context: vscode.ExtensionContext) {
   let client: OpenBoxClient | undefined;
   let orgId: string | undefined;
 
-  // Renders status bar text consistently - env tag stays visible so the user
+  // Renders status bar text consistently; env tag stays visible so the user
   // never has to wonder which backend an approval came from.
   function paintIdle(envTag: EnvName, count: number) {
     statusBar.text =
@@ -127,7 +127,7 @@ export async function activate(context: vscode.ExtensionContext) {
       });
     };
 
-    // Try realtime (WS) first - instant push from backend's /ws
+    // Try realtime (WS) first; instant push from backend's /ws
     // gateway, no 5s polling. If the WS connect fails (token expired,
     // gateway not deployed in this env, network refused), fall back to
     // PollingService so the user always sees data.
@@ -200,16 +200,16 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.env.clipboard.writeText(value);
     }),
 
-    // QuickPick env switcher - writes the setting (Global scope), the
+    // QuickPick env switcher; writes the setting (Global scope), the
     // onDidChangeConfiguration handler above does the actual reboot.
     vscode.commands.registerCommand("openbox.switchEnvironment", async () => {
       const choice = await vscode.window.showQuickPick(
         [
           { label: "production", description: "https://api.openbox.ai" },
-          { label: "staging", description: "internal - set OPENBOX_API_URL" },
+          { label: "staging", description: "internal; set OPENBOX_API_URL" },
           { label: "local", description: "http://localhost:3000" },
         ],
-        { placeHolder: `Current: ${env} - pick the new environment` },
+        { placeHolder: `Current: ${env}; pick the new environment` },
       );
       if (!choice) return;
       await vscode.workspace

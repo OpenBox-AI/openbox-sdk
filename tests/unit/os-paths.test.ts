@@ -1,4 +1,4 @@
-// Behavioral lockdown for ts/src/env/os-paths.ts - implements the
+// Behavioral lockdown for ts/src/env/os-paths.ts; implements the
 // OsPathResolver contract from specs/typespec/env/main.tsp. Pin the
 // output for each platform so a regression in the hand-written
 // resolver fails CI loudly.
@@ -74,7 +74,7 @@ describe('OsPathResolver contract', () => {
     process.env.APPDATA = 'C:\\Users\\test\\AppData\\Roaming';
     const { resolveOsPath } = await import('../../ts/src/env/os-paths.js');
     // Node's path.join uses POSIX or Windows separators based on
-    // the running platform's path module - we assert prefix + suffix
+    // the running platform's path module; we assert prefix + suffix
     // separately since vitest is running on the dev host.
     const result = resolveOsPath('tokens');
     expect(result).toContain('openbox');

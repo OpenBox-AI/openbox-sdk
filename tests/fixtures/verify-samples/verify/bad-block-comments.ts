@@ -17,4 +17,4 @@
 // finding should report line 17 (the activity_input line). With the old
 // buggy stripComments, it would report line ~9 or similar.
 
-const bad = { activity_input: { prompt: 'x' } };   // line 17 - should fire
+const bad = { activity_input: { prompt: 'x' } };   // line 17; should fire

@@ -3,10 +3,10 @@
 // per-module test file but still needs behavioral assertions:
 //   - Constant exports (SKIP_PATTERNS, ACTIVITY_TYPES, COMMAND_PERMISSIONS)
 //   - Public library helpers (output, colors, exit-codes, non-interactive,
-//     maturity, features) - call each export with a real argument and
+//     maturity, features); call each export with a real argument and
 //     assert observable behavior, not just module shape.
 //   - Spec-driven command wrappers (sso, webhook, mcp, claude-code,
-//     cursor, skill) - register against a fresh Commander and assert
+//     cursor, skill); register against a fresh Commander and assert
 //     the expected verbs appear.
 //
 // Runtime adapter logic (mappers, hook handlers, side-effects) lives in
@@ -51,7 +51,7 @@ describe('thin exports', () => {
   it('cli/features integration helpers wire to the public maturity gate', async () => {
     const mod = await import('../../ts/src/cli/features');
     expect(typeof mod.setExplicitFeatures).toBe('function');
-    // setExplicitFeatures forwards to enableFeatures - call it twice
+    // setExplicitFeatures forwards to enableFeatures; call it twice
     // to exercise both branches (empty + non-empty).
     mod.setExplicitFeatures([]);
     mod.setExplicitFeatures(['some.feature']);
@@ -153,7 +153,7 @@ describe('public library entry points', () => {
 
     // requireYesForDestructive throws the typed error when not assumed.
     // tests/setup.ts sets OPENBOX_ASSUME_YES=1 so unit tests bypass the
-    // gate by default - clear it locally for this assertion only.
+    // gate by default; clear it locally for this assertion only.
     process.env.OPENBOX_NONINTERACTIVE = '0';
     delete process.env.OPENBOX_NONINTERACTIVE;
     const origAssume = process.env.OPENBOX_ASSUME_YES;

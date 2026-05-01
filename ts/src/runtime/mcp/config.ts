@@ -35,7 +35,7 @@ const VALID: readonly EnvName[] = ["production", "staging", "local"];
 
 // Returns the same object shape this module always returned. Unknown names
 // hard-fail (we used to silently fall back to production URLs while
-// returning the bogus name - a footgun for misconfigured installs).
+// returning the bogus name; a footgun for misconfigured installs).
 export function resolveEnv(envVar: string | undefined = process.env.OPENBOX_ENV) {
   const raw = (envVar || "production").toLowerCase();
   if (!VALID.includes(raw as EnvName)) {
@@ -92,7 +92,7 @@ export function setMcpClientName(name: string | undefined) {
 
 function currentClientName(): string {
   // Base 'openbox-mcp' + caller from MCP initialize, then the SDK's
-  // OPENBOX_CLIENT_VARIANT pass - order is `<base>/<caller>`.
+  // OPENBOX_CLIENT_VARIANT pass; order is `<base>/<caller>`.
   const base = mcpCallerName ? `openbox-mcp/${mcpCallerName}` : "openbox-mcp";
   return resolveClientName(base);
 }

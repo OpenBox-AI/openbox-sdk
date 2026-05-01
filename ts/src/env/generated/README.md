@@ -4,7 +4,7 @@
 
 | Source | Reproduces |
 |---|---|
-| `specs/typespec/env/main.tsp` | the `EnvName`, `EnvConfig`, and `EnvLoader` types - and the `ENV_VAR_BINDINGS`, `validateApiKeyFormat`, `OS_PATH_FIELDS` constants |
+| `specs/typespec/env/main.tsp` | the `EnvName`, `EnvConfig`, and `EnvLoader` types, plus the `ENV_VAR_BINDINGS`, `validateApiKeyFormat`, `OS_PATH_FIELDS` constants |
 | `codegen/emitters/ts/src/index.ts` | the emit logic that walks the spec and writes this directory |
 
 Regenerate everything in this folder with:
@@ -18,9 +18,9 @@ npm run specs:compile
 The files in `ts/env/src/*.ts` (excluding this `generated/` dir):
 
 - **import** types from `./generated/env-bindings.js`
-- **never** redeclare those types - TypeScript fails compile if you do
+- **never** redeclare those types; TypeScript fails compile if you do
 - **must** annotate any function listed on `EnvLoader` with
-  `EnvLoader['<name>']` so a spec/impl signature drift is a `tsc`
+  `EnvLoader['<name>']` so a spec / impl signature drift is a `tsc`
   error rather than a runtime surprise
 
 Hand-written files own:
@@ -31,4 +31,4 @@ Hand-written files own:
 
 If you find yourself wanting to add a public type to a hand-written
 file, add it to `specs/typespec/env/main.tsp` instead and rerun the
-codegen - that's how the contract grows.
+codegen. That's how the contract grows.

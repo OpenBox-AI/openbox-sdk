@@ -17,7 +17,7 @@ export async function handleBeforeSubmitPrompt(
   const prompt = (env.prompt ?? '').trim();
   if (!prompt) return undefined;
 
-  // Goal signal - best-effort, never blocks.
+  // Goal signal; best-effort, never blocks.
   void session.activity(EVENT.SIGNAL, ACTIVITY_TYPES.AGENT_GOAL, {
     input: [{ goal: prompt, event_category: 'agent_goal' }],
   }).catch(() => undefined);

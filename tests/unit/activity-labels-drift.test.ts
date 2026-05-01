@@ -45,7 +45,7 @@ describe('canonical activity_type label coverage', () => {
     }
   });
 
-  test('acronym preservation - known UI-critical entries', () => {
+  test('acronym preservation; known UI-critical entries', () => {
     // These ones used to render wrong under the hand-written formatter
     // (e.g. "L L M Completed" / "Mcptoolcall"); they're the regression
     // motivation for the spec-driven table. Pin them so the spec can

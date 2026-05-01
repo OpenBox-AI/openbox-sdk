@@ -1,4 +1,4 @@
-// `openbox versions` - report the deployed commit/tag for each service
+// `openbox versions`; report the deployed commit/tag for each service
 // (backend, core, guardrails) in each env (production, staging, local).
 //
 // Source resolution order per env/service:
@@ -11,7 +11,7 @@
 //      ~/workspace/openbox-repos/openbox-* if it exists.
 //
 // The previous `gh api` fallback against private OpenBox-AI manifest
-// repos was removed - it required maintainer-only access to repos the
+// repos was removed; it required maintainer-only access to repos the
 // CLI's general user base can't read, and shelling out to `gh` from a
 // shipped CLI is bad form regardless. Cells without /version now
 // honestly print "(no /version)" instead of pretending coverage.
@@ -35,7 +35,7 @@ const LOCAL_CLONE: Record<ServiceName, string> = {
 };
 
 // Resolve service URLs per env from the canonical env config (openbox-sdk/env).
-// Single source of truth - no hardcoded duplication. Returns empty string for
+// Single source of truth; no hardcoded duplication. Returns empty string for
 // services that don't have a registered URL in this env.
 function urlFor(env: EnvName, service: ServiceName): string {
   const urls = resolveUrls(env);
@@ -81,7 +81,7 @@ function localHead(service: ServiceName): VersionCell {
 
 async function cellFor(env: EnvName, service: ServiceName): Promise<VersionCell> {
   const baseUrl = urlFor(env, service);
-  // 1. Live /version via OpenBoxClient.getVersion - public endpoint,
+  // 1. Live /version via OpenBoxClient.getVersion; public endpoint,
   //    works for everyone once envs are redeployed with the patch.
   const live = await liveVersion(baseUrl);
   if (live) return live;
@@ -89,12 +89,12 @@ async function cellFor(env: EnvName, service: ServiceName): Promise<VersionCell>
   // 2. Local column: git HEAD of the clone.
   if (env === 'local') return localHead(service);
 
-  // Prod/staging without /version - honest "not available". Users with
+  // Prod/staging without /version; honest "not available". Users with
   // a clone of the service repo can correlate manually; we don't try to
   // read from private k8s manifest repos (was a maintainer-only path).
   return {
     tag: '(no /version)',
-    source: `${baseUrl || service} - /version not deployed`,
+    source: `${baseUrl || service}; /version not deployed`,
   };
 }
 
@@ -132,7 +132,7 @@ export function registerVersionsCommand(program: Command): void {
         EnvName,
         Record<ServiceName, VersionCell>
       >;
-      // Resolve all cells in parallel - each is an independent network or
+      // Resolve all cells in parallel; each is an independent network or
       // git read, no point doing them serially across a 3x3 grid.
       const tasks: Promise<void>[] = [];
       for (const env of envs) {

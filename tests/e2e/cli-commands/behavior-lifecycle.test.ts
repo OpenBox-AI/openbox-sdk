@@ -65,21 +65,21 @@ describeOrSkip('behavior lifecycle (e2e, real backend)', () => {
     expect(ruleId).toBeTruthy();
   });
 
-  // Skipped - depends on `behavior create` ruleId. Same upstream bug.
+  // Skipped; depends on `behavior create` ruleId. Same upstream bug.
   it.skip('`behavior list` returns the new rule', () => {
     const res = runCli(['behavior', 'list', agentId!, '--limit', '50']);
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain(ruleId!);
   });
 
-  // Skipped - depends on `behavior create` ruleId. Same upstream bug.
+  // Skipped; depends on `behavior create` ruleId. Same upstream bug.
   it.skip('`behavior current` includes the active rule', () => {
     const res = runCli(['behavior', 'current', agentId!]);
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain(ruleId!);
   });
 
-  // Skipped - depends on `behavior create` ruleId. Same upstream bug.
+  // Skipped; depends on `behavior create` ruleId. Same upstream bug.
   it.skip('`behavior get` returns the rule detail', () => {
     const res = runCli(['behavior', 'get', agentId!, ruleId!]);
     expect(res.status, res.stderr).toBe(0);
@@ -87,7 +87,7 @@ describeOrSkip('behavior lifecycle (e2e, real backend)', () => {
     expect(body.id).toBe(ruleId);
   });
 
-  // Skipped - depends on `behavior create` ruleId. Same upstream bug.
+  // Skipped; depends on `behavior create` ruleId. Same upstream bug.
   it.skip('`behavior toggle --active false` toggles it off', () => {
     const res = runCli(['behavior', 'toggle', agentId!, ruleId!, '--active', 'false']);
     expect(res.status, res.stderr).toBe(0);

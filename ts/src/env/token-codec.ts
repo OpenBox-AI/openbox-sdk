@@ -83,7 +83,7 @@ export const serializeTokenStore: TokenCodec['serializeTokenStore'] = (store) =>
   const lines: string[] = [];
   for (const envName of ENV_NAMES) {
     const entry = store[envName];
-    // Either credential is enough to keep the entry - api-key alone is a
+    // Either credential is enough to keep the entry; api-key alone is a
     // valid auth state (the X-API-Key flow has no JWT).
     if (!entry?.accessToken && !entry?.apiKey) continue;
     if (entry.accessToken) {

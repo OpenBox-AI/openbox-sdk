@@ -16,13 +16,13 @@ import {
 
 function noFetch() {
   return vi.fn(async () => {
-    throw new Error('fetch should not be called - pre-flight failed to short-circuit');
+    throw new Error('fetch should not be called; pre-flight failed to short-circuit');
   });
 }
 
 describe('OpenBoxClient permission pre-flight', () => {
   test('METHOD_PERMISSIONS export covers core endpoints', () => {
-    // Sanity - the spec→generated→exported chain delivers a non-empty map.
+    // Sanity; the spec→generated→exported chain delivers a non-empty map.
     expect(Object.keys(METHOD_PERMISSIONS).length).toBeGreaterThan(50);
     expect(METHOD_PERMISSIONS.listAgents).toEqual(['read:agent']);
     expect(METHOD_PERMISSIONS.createAgent).toEqual(['create:agent']);
@@ -77,7 +77,7 @@ describe('OpenBoxClient permission pre-flight', () => {
     const fetchMock = vi.fn(async () => new Response('{"ok":true}', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    // Empty perms - would block listAgents, but health has no @Permissions.
+    // Empty perms; would block listAgents, but health has no @Permissions.
     const client = new OpenBoxClient({
       accessToken: 'test-token',
       permissions: [],
@@ -92,7 +92,7 @@ describe('OpenBoxClient permission pre-flight', () => {
     const fetchMock = vi.fn(async () => new Response('[]', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    // No `permissions` key at all - wrapper never checks; server is the gate.
+    // No `permissions` key at all; wrapper never checks; server is the gate.
     const client = new OpenBoxClient({ accessToken: 'test-token' });
     await client.listAgents();
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -124,19 +124,19 @@ describe('OpenBoxClient permission pre-flight', () => {
 
   test('all required perms must be present (AND, not OR)', async () => {
     // Find a method requiring 2+ perms in METHOD_PERMISSIONS, if any. Today
-    // every entry has exactly one - but the check must be conjunctive so we
+    // every entry has exactly one; but the check must be conjunctive so we
     // don't regress when multi-perm methods are added.
     const multi = Object.entries(METHOD_PERMISSIONS).find(
       ([, perms]) => perms.length >= 2,
     );
-    // Skip when no multi-perm method exists yet - the conjunctive logic is
+    // Skip when no multi-perm method exists yet; the conjunctive logic is
     // visible in the generated checkPermissions(), so this isn't load-bearing.
     if (!multi) return;
 
     const [methodName, required] = multi;
     const client = new OpenBoxClient({
       accessToken: 'test-token',
-      permissions: [required[0]], // partial - has one of N
+      permissions: [required[0]], // partial; has one of N
     });
     const fn = (client as unknown as Record<string, () => Promise<unknown>>)[methodName];
     if (typeof fn === 'function') {

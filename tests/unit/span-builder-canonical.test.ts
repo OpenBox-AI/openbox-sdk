@@ -9,7 +9,7 @@ import { buildTestPayload, SPAN_TYPES, type SpanType } from '../../ts/src/test-u
 
 /**
  * Activity types span-builder emits today that aren't in
- * CANONICAL_ACTIVITY_TYPES. Each entry is a known gap - the platform
+ * CANONICAL_ACTIVITY_TYPES. Each entry is a known gap; the platform
  * doesn't currently declare a preset method or @activityRouting entry
  * for it. Removing an entry from this allowlist requires adding the
  * type to the spec (typically via a @maps_to on a preset method).
@@ -19,7 +19,7 @@ import { buildTestPayload, SPAN_TYPES, type SpanType } from '../../ts/src/test-u
  * every gap is explicit.
  */
 const KNOWN_NON_CANONICAL: Partial<Record<SpanType, string>> = {
-  db: 'DatabaseQuery - no preset method emits DB activity yet. Add @maps_to("ActivityStarted","DatabaseQuery") on a default-preset DB method to canonicalize.',
+  db: 'DatabaseQuery; no preset method emits DB activity yet. Add @maps_to("ActivityStarted","DatabaseQuery") on a default-preset DB method to canonicalize.',
 };
 
 describe('span-builder activity_type drift guard', () => {
@@ -29,7 +29,7 @@ describe('span-builder activity_type drift guard', () => {
       const isCanonical = CANONICAL_ACTIVITY_TYPES.has(payload.activity_type);
       const allowed = KNOWN_NON_CANONICAL[type as SpanType];
       if (allowed) {
-        // The exception is whitelisted - don't fail, but assert the
+        // The exception is whitelisted; don't fail, but assert the
         // emitted name still matches what the allowlist said it would
         // be. Anything else is a SECOND drift that needs noticing.
         expect(

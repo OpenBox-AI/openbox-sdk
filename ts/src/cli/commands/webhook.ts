@@ -1,4 +1,4 @@
-// `openbox webhook` - fully spec-driven (H.3 + I). regenerate-secret
+// `openbox webhook`; fully spec-driven (H.3 + I). regenerate-secret
 // uses @cli_output_post("highlightWebhookSecret") for the one-time
 // stderr highlight; everything else is canonical CRUD.
 import { Command } from 'commander';

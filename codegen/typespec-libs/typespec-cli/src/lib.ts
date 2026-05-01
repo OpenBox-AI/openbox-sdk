@@ -41,7 +41,7 @@ export const $lib = createTypeSpecLibrary({
     preflight: { description: 'name of a registered preflight callback (HTTP checks before main call)' },
     dtoDefaults: { description: 'declarative DTO defaults merged into the body for missing keys' },
     postValidate: { description: 'names of registered post-validate callbacks run before the call' },
-    destructive: { description: 'flag: op is destructive (delete/revoke/etc) - runtime requires --yes / non-interactive context' },
+    destructive: { description: 'flag: op is destructive (delete/revoke/etc); runtime requires --yes / non-interactive context' },
   },
 });
 

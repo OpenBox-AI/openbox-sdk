@@ -1,6 +1,6 @@
 //! Rust client for the OpenBox backend API. Lives inside the openbox-sdk
 //! monorepo at `rust/`; generated at build time by `progenitor` from the
-//! sibling `../specs/backend.json` - the same OpenAPI spec the TypeScript
+//! sibling `../specs/backend.json`; the same OpenAPI spec the TypeScript
 //! SDK's `Backend` namespace types are generated from. Both languages
 //! stay in lockstep because the spec is the single source of truth.
 //!

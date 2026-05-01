@@ -64,7 +64,7 @@ describe('OpenBoxClient E2E', () => {
     });
 
     it('lists agents and finds created agent', async () => {
-      // Narrow the search - default pagination excludes status=0 drafts, so
+      // Narrow the search; default pagination excludes status=0 drafts, so
       // freshly-created agents may not surface on page 1 without a search.
       const result = (await client.listAgents({ search: agentName })) as Record<string, unknown>;
       const agents = result.data as Array<Record<string, unknown>>;
@@ -207,7 +207,7 @@ describe('OpenBoxClient E2E', () => {
     // Auto-refresh is DISABLED in the SDK (REFRESH_ENABLED=false in
     // ts/src/client/client.ts:157) because the upstream /auth/refresh is
     // broken end-to-end. With the flag off, the SDK never calls
-    // onTokenRefresh - making any assertion that it does call would test
+    // onTokenRefresh; making any assertion that it does call would test
     // disabled behavior. The test mirrors the SDK contract: an expired
     // access token simply 401s rather than auto-refreshing.
     //
@@ -215,7 +215,7 @@ describe('OpenBoxClient E2E', () => {
     // restore this test to:
     //   await refreshClient.health();
     //   expect(onTokenRefresh).toHaveBeenCalled();
-    it.skip('refreshes token when access token is expired (disabled - REFRESH_ENABLED=false)', async () => {
+    it.skip('refreshes token when access token is expired (disabled; REFRESH_ENABLED=false)', async () => {
       const refreshToken = process.env.REFRESH_TOKEN;
       if (!refreshToken) return;
       const onTokenRefresh = vi.fn();

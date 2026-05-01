@@ -390,7 +390,7 @@ model CreateBehaviorRuleDto {
   /** Reject message */
   reject_message: string;
 
-  /** Approval timeout in seconds - required when verdict is REQUIRE_APPROVAL.
+  /** Approval timeout in seconds; required when verdict is REQUIRE_APPROVAL.
    *  Drives `approval_expiration_time = now + this_value` on every approval
    *  row produced by this rule. This is the only surface in the spec where
    *  the approval window is user-configurable. OPA policies (CreatePolicyDto)
@@ -476,7 +476,7 @@ model UpdateBehavioralRuleDto {
   /** Reject message */
   reject_message: string;
 
-  /** Approval timeout in seconds - required when verdict is REQUIRE_APPROVAL.
+  /** Approval timeout in seconds; required when verdict is REQUIRE_APPROVAL.
    *  Drives `approval_expiration_time = now + this_value` on every approval
    *  row produced by this rule. This is the only surface in the spec where
    *  the approval window is user-configurable. OPA policies (CreatePolicyDto)

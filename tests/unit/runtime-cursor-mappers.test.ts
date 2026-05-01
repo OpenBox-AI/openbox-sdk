@@ -1,16 +1,16 @@
-// cursor runtime adapter - every per-event mapper plus a few mixed
+// cursor runtime adapter; every per-event mapper plus a few mixed
 // concerns the cursor adapter shares with the rest of the runtime
 // (redaction helpers, validator extras, env precedence, install
 // command wrappers, wire-subcommands callback registries, public
 // maturity surface).
 //
 // Cursor mappers covered:
-//   - mappers/prompt           - beforeSubmitPrompt
-//   - mappers/shell            - beforeShellExecution
-//   - mappers/file-read        - beforeReadFile
-//   - mappers/mcp + mcp-response - beforeMCPExecution + after envelope parsing
-//   - mappers/observe          - every after-* observe-only handler
-//   - mappers/pre-tool-use     - @activityVariant override (Shell→FileDelete)
+//   - mappers/prompt          ; beforeSubmitPrompt
+//   - mappers/shell           ; beforeShellExecution
+//   - mappers/file-read       ; beforeReadFile
+//   - mappers/mcp + mcp-response; beforeMCPExecution + after envelope parsing
+//   - mappers/observe         ; every after-* observe-only handler
+//   - mappers/pre-tool-use    ; @activityVariant override (Shell→FileDelete)
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Command } from 'commander';
@@ -52,7 +52,7 @@ describe('core-client/redaction', () => {
           const out = (fn as any)('Authorization: Bearer obx_live_secret');
           expect(typeof out === 'string' || out === undefined).toBe(true);
         } catch {
-          // Some redaction helpers may be specialized - just calling
+          // Some redaction helpers may be specialized; just calling
           // them is enough for coverage even if they reject.
         }
       }
@@ -76,12 +76,12 @@ describe('core-client/redaction', () => {
   });
 });
 
-describe('validators/index - extra surface', () => {
+describe('validators/index; extra surface', () => {
   it('each named validator accepts canonical input + rejects malformed input', async () => {
     const v = await import('../../ts/src/validators');
     const { ValidationError } = v;
 
-    // Canonical-input cases - must NOT throw.
+    // Canonical-input cases; must NOT throw.
     expect(v.validateUuid('00000000-0000-4000-8000-000000000000', 'id')).toBeTruthy();
     expect(v.validateUuidList(['00000000-0000-4000-8000-000000000000'], 'ids')).toHaveLength(1);
     expect(v.validateIsoDate('2025-01-01T00:00:00.000Z', 'when')).toMatch(/2025/);
@@ -98,10 +98,10 @@ describe('validators/index - extra surface', () => {
     // validateApprovalTimeout: verdict 2 (REQUIRE_APPROVAL) requires positive
     // timeout; other verdicts are no-ops on timeout.
     expect(() => v.validateApprovalTimeout(2, 30)).not.toThrow();
-    // verdict 3 (BLOCK) doesn't validate timeout - no-op even with 0.
+    // verdict 3 (BLOCK) doesn't validate timeout; no-op even with 0.
     expect(() => v.validateApprovalTimeout(3, 0)).not.toThrow();
 
-    // Malformed-input cases - MUST throw ValidationError.
+    // Malformed-input cases; MUST throw ValidationError.
     expect(() => v.validateUuid('not-a-uuid', 'id')).toThrow(ValidationError);
     expect(() => v.validateUuidList(['bad'], 'ids')).toThrow(ValidationError);
     expect(() => v.validateIsoDate('not-a-date', 'when')).toThrow(ValidationError);
@@ -109,7 +109,7 @@ describe('validators/index - extra surface', () => {
     expect(() => v.validateEnum('z', ['a', 'b'] as const, 'mode')).toThrow(ValidationError);
     expect(() => v.validateBehaviorTrigger('made_up_trigger')).toThrow(ValidationError);
     // validateApprovalTimeout: REQUIRE_APPROVAL (verdict=2) with missing /
-    // 0 timeout is invalid - backend would 422.
+    // 0 timeout is invalid; backend would 422.
     expect(() => v.validateApprovalTimeout(2, undefined)).toThrow(ValidationError);
     expect(() => v.validateApprovalTimeout(2, 0)).toThrow(ValidationError);
   });
@@ -122,7 +122,7 @@ describe('validators/index - extra surface', () => {
     const f = join(dir, 'p.json');
     fs.writeFileSync(f, '{"b":2}');
     expect(parseJsonInput(`@${f}`)).toEqual({ b: 2 });
-    // Invalid JSON throws - but the impl may throw the underlying
+    // Invalid JSON throws; but the impl may throw the underlying
     // SyntaxError or wrap as ValidationError. Either is fine; we
     // only need the throw branch covered.
     expect(() => parseJsonInput('not-json')).toThrow();
@@ -152,7 +152,7 @@ describe('validators/index - extra surface', () => {
   });
 });
 
-describe('runtime/cursor/mappers - drive every handler', () => {
+describe('runtime/cursor/mappers; drive every handler', () => {
   it('observe handlers fire activity for after-* events', async () => {
     const { handleAfterReadFile, handleAfterFileEdit, handleAfterShellExecution, handleAfterMCPExecution, handleAfterSubmitPrompt, handleSessionStart, handleSessionEnd } = await import('../../ts/src/runtime/cursor/mappers/observe').then((m: any) => m);
     const session = recordingSession();
@@ -201,7 +201,7 @@ describe('runtime/cursor/mappers - drive every handler', () => {
   });
 });
 
-describe('runtime configs - env precedence + defaults', () => {
+describe('runtime configs; env precedence + defaults', () => {
   it('claude-code config respects every env override', async () => {
     const before = { ...process.env };
     process.env.OPENBOX_API_KEY = 'obx_live_envtest';
@@ -238,7 +238,7 @@ describe('runtime configs - env precedence + defaults', () => {
   });
 });
 
-describe('install commands - claude-code / cursor / skill', () => {
+describe('install commands; claude-code / cursor / skill', () => {
   it('claude-code install / uninstall delegate to runtime adapter', async () => {
     const { registerClaudeCodeCommands } = await import('../../ts/src/cli/commands/claude-code');
     const program = new Command();
@@ -269,12 +269,12 @@ describe('install commands - claude-code / cursor / skill', () => {
   });
 });
 
-describe('cli/wire-subcommands - registry callbacks', () => {
+describe('cli/wire-subcommands; registry callbacks', () => {
   it('every OUTPUT_POST_REGISTRY callback is defensive against synthetic data', async () => {
     // The contract: post-output callbacks are best-effort stderr
     // banners (runtime key highlights, webhook secret highlights,
     // approval metrics). They run AFTER a successful command and
-    // MUST NOT throw - a throw would crash the user's session right
+    // MUST NOT throw; a throw would crash the user's session right
     // when they'd see their freshly-issued token.
     const { OUTPUT_POST_REGISTRY } = await import('../../ts/src/cli/wire-subcommands');
     const orig = console.error;
@@ -320,7 +320,7 @@ describe('cli/wire-subcommands - registry callbacks', () => {
   });
 });
 
-describe('maturity/index - full surface', () => {
+describe('maturity/index; full surface', () => {
   it('enableFeature single-flag adds to enabled set', async () => {
     const mod = await import('../../ts/src/maturity');
     mod.enableFeature('coverage.test.flag');

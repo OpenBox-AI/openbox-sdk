@@ -1,4 +1,4 @@
-// Regression fixture - triggers the 9 primary verify rules.
+// Regression fixture; triggers the 9 primary verify rules.
 // Tracks: activity_input-must-be-array, invented-verdict, stage-both-silent-noop,
 // missing-x-openbox-client-header, invented-activity-type,
 // raw-approval-response-verdict, hardcoded-uuid, missing-finally-workflow-complete,

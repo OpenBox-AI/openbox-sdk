@@ -9,7 +9,7 @@ function hex(len: number): string {
 }
 
 /** Single source of truth for `core evaluate --type` vocabulary.
- *  The validator + CLI help text both read from this - adding a new
+ *  The validator + CLI help text both read from this; adding a new
  *  shorthand is one entry here + one branch in `buildSpan` below. */
 export const SPAN_TYPES = [
   'llm',
@@ -288,7 +288,7 @@ function buildSpan(
           semantic_type: 'llm_tool_call',
           attributes: {
             'gen_ai.system': 'mcp',
-            // WORKAROUND: same as LLM - Core needs http.method/url
+            // WORKAROUND: same as LLM; Core needs http.method/url
             'http.method': 'POST',
             'http.url': 'https://api.openai.com/v1/chat/completions',
           },

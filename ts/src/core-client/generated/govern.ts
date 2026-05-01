@@ -952,7 +952,7 @@ export type PresetName = (typeof PRESET_MANIFEST)[number]["preset"];
 export const CANONICAL_EVENT_TYPES: ReadonlySet<CanonicalEventType> = new Set(["ActivityCompleted","ActivityStarted","SignalReceived","WorkflowCompleted","WorkflowFailed","WorkflowStarted"] as const);
 /** Every activity_type string declared in any @preset method or
  *  @activityRouting adapter table. Activity_type is free-form on
- *  the wire (custom agents legitimately emit custom names) - this
+ *  the wire (custom agents legitimately emit custom names); this
  *  is the *first-party* vocabulary, useful for guardrail authors
  *  and conformance reports. */
 export const CANONICAL_ACTIVITY_TYPES: ReadonlySet<string> = new Set(["AGENT_STEP","ActivityTaskCanceled","ActivityTaskCompleted","ActivityTaskFailed","ActivityTaskScheduled","ActivityTaskStarted","ActivityTaskTimedOut","AgentExecutionCompleted","AgentExecutionStarted","AgentSpawn","CHUNKING","CallToolsNode","ChildWorkflowExecutionCompleted","ChildWorkflowExecutionInitiated","CrewKickoffCompleted","CrewKickoffStarted","EMBEDDING","EXCEPTION","End","FUNCTION_CALL","FileDelete","FileEdit","FileRead","HTTPRequest","HandoffMessage","LLM","LLMCallCompleted","LLMCallStarted","LLMCompleted","MCPToolCall","MarkerRecorded","MemoryQueryEvent","ModelRequestNode","MultiModalMessage","Notification","OperationCompleted","OperationStarted","PermissionRequest","PostToolUse","PreCompact","PreSyncHookStarted","PreSyncHookSucceeded","PreToolUse","PromptSubmission","QUERY","RERANKING","RETRIEVE","ResourceUpdated","SUB_QUESTION","SYNTHESIZE","ShellExecution","Stop","StopMessage","SubagentStop","SyncStatusChanged","TaskCompleted","TaskStart","TaskStarted","TextMessage","TimerFired","TimerStarted","ToolCallExecutionEvent","ToolCallRequestEvent","ToolCompleted","ToolStarted","ToolUsageError","ToolUsageFinished","ToolUsageStarted","UserInputRequestedEvent","UserPromptNode","UserPromptSubmit","WorkflowExecutionSignaled","afterAgentResponse","afterAgentThought","afterFileEdit","afterMCPExecution","afterShellExecution","agentStop","agent_action","auto_function_invocation_post","auto_function_invocation_pre","beforeMCPExecution","beforeReadFile","beforeShellExecution","beforeSubmitPrompt","checkpoint","custom_event","error","error-trigger","errorOccurred","file_read","file_write","function_invocation_post","function_invocation_pre","incident.acknowledged","incident.annotated","incident.delegated","incident.escalated","incident.priority_updated","incident.reassigned","incident.reopened","incident.resolved","incident.triggered","incident.unacknowledged","interrupt","node-post-execute","node-pre-execute","node_end","node_start","onAbort","onError","onFinish","onStepFinish","on_agent_action","on_agent_finish","on_chain_end","on_chain_start","on_chat_model_start","on_execute_callback","on_failure_callback","on_llm_end","on_llm_error","on_llm_start","on_retriever_end","on_retriever_start","on_retry_callback","on_skipped_callback","on_success_callback","on_tool_end","on_tool_error","on_tool_start","output_validator","payment_order.approved","payment_order.begin_processing","payment_order.failed","payment_order.reconciled","payment_reference.created","postToolUse","preToolUse","prompt_render_post","prompt_render_pre","sla_miss_callback","subagentStop","task_end","task_start","tool-call","tool-result","tool_retry","userPromptSubmitted","workflow-step-finish","workflow-step-progress","workflow-step-start"]);
@@ -960,7 +960,7 @@ export const CANONICAL_ACTIVITY_TYPES: ReadonlySet<string> = new Set(["AGENT_STE
  *  Source of truth for any UI that renders activity types
  *  (mobile, web dashboard, CLI list views, audit reports). Consumers
  *  fall back to a Title-Case formatter for activity_types not in
- *  this table - custom-preset domain agents emit free-form strings
+ *  this table; custom-preset domain agents emit free-form strings
  *  that legitimately aren't covered here. */
 export const CANONICAL_ACTIVITY_LABELS: Readonly<Record<string, string>> = Object.freeze({"AGENT_STEP":"Agent Step","ActivityTaskCanceled":"Activity Task Canceled","ActivityTaskCompleted":"Activity Task Completed","ActivityTaskFailed":"Activity Task Failed","ActivityTaskScheduled":"Activity Task Scheduled","ActivityTaskStarted":"Activity Task Started","ActivityTaskTimedOut":"Activity Task Timed Out","AgentExecutionCompleted":"Agent Execution Completed","AgentExecutionStarted":"Agent Execution Started","AgentSpawn":"Agent Spawn","CHUNKING":"Chunking","CallToolsNode":"Call Tools Node","ChildWorkflowExecutionCompleted":"Child Workflow Execution Completed","ChildWorkflowExecutionInitiated":"Child Workflow Execution Initiated","CrewKickoffCompleted":"Crew Kickoff Completed","CrewKickoffStarted":"Crew Kickoff Started","EMBEDDING":"Embedding","EXCEPTION":"Exception","End":"End","FUNCTION_CALL":"Function Call","FileDelete":"File Delete","FileEdit":"File Edit","FileRead":"File Read","HTTPRequest":"HTTP Request","HandoffMessage":"Handoff Message","LLM":"LLM","LLMCallCompleted":"LLM Call Completed","LLMCallStarted":"LLM Call Started","LLMCompleted":"LLM Completed","MCPToolCall":"MCP Tool Call","MarkerRecorded":"Marker Recorded","MemoryQueryEvent":"Memory Query","ModelRequestNode":"Model Request Node","MultiModalMessage":"Multi-Modal Message","Notification":"Notification","OperationCompleted":"Operation Completed","OperationStarted":"Operation Started","PermissionRequest":"Permission Request","PostToolUse":"Post-Tool Use","PreCompact":"Pre-Compact","PreSyncHookStarted":"Pre-Sync Hook Started","PreSyncHookSucceeded":"Pre-Sync Hook Succeeded","PreToolUse":"Pre-Tool Use","PromptSubmission":"Prompt Submission","QUERY":"Query","RERANKING":"Reranking","RETRIEVE":"Retrieve","ResourceUpdated":"Resource Updated","SUB_QUESTION":"Sub-Question","SYNTHESIZE":"Synthesize","ShellExecution":"Shell Execution","Stop":"Stop","StopMessage":"Stop Message","SubagentStop":"Subagent Stop","SyncStatusChanged":"Sync Status Changed","TaskCompleted":"Task Completed","TaskStart":"Task Start","TaskStarted":"Task Started","TextMessage":"Text Message","TimerFired":"Timer Fired","TimerStarted":"Timer Started","ToolCallExecutionEvent":"Tool Call Execution","ToolCallRequestEvent":"Tool Call Request","ToolCompleted":"Tool Completed","ToolStarted":"Tool Started","ToolUsageError":"Tool Usage Error","ToolUsageFinished":"Tool Usage Finished","ToolUsageStarted":"Tool Usage Started","UserInputRequestedEvent":"User Input Requested","UserPromptNode":"User Prompt Node","UserPromptSubmit":"User Prompt Submit","WorkflowExecutionSignaled":"Workflow Execution Signaled","afterAgentResponse":"After Agent Response","afterAgentThought":"After Agent Thought","afterFileEdit":"After File Edit","afterMCPExecution":"After MCP Execution","afterShellExecution":"After Shell Execution","agentStop":"Agent Stop","agent_action":"Agent Action","auto_function_invocation_post":"Auto Function Invocation Post","auto_function_invocation_pre":"Auto Function Invocation Pre","beforeMCPExecution":"Before MCP Execution","beforeReadFile":"Before Read File","beforeShellExecution":"Before Shell Execution","beforeSubmitPrompt":"Before Submit Prompt","checkpoint":"Checkpoint","custom_event":"Custom Event","error":"Error","error-trigger":"Error Trigger","errorOccurred":"Error Occurred","file_read":"File Read","file_write":"File Write","function_invocation_post":"Function Invocation Post","function_invocation_pre":"Function Invocation Pre","incident.acknowledged":"Incident Acknowledged","incident.annotated":"Incident Annotated","incident.delegated":"Incident Delegated","incident.escalated":"Incident Escalated","incident.priority_updated":"Incident Priority Updated","incident.reassigned":"Incident Reassigned","incident.reopened":"Incident Reopened","incident.resolved":"Incident Resolved","incident.triggered":"Incident Triggered","incident.unacknowledged":"Incident Unacknowledged","interrupt":"Interrupt","node-post-execute":"Node Post-Execute","node-pre-execute":"Node Pre-Execute","node_end":"Node End","node_start":"Node Start","onAbort":"Abort","onError":"Error","onFinish":"Finish","onStepFinish":"Step Finish","on_agent_action":"Agent Action","on_agent_finish":"Agent Finish","on_chain_end":"Chain End","on_chain_start":"Chain Start","on_chat_model_start":"Chat Model Start","on_execute_callback":"Execute Callback","on_failure_callback":"Failure Callback","on_llm_end":"LLM End","on_llm_error":"LLM Error","on_llm_start":"LLM Start","on_retriever_end":"Retriever End","on_retriever_start":"Retriever Start","on_retry_callback":"Retry Callback","on_skipped_callback":"Skipped Callback","on_success_callback":"Success Callback","on_tool_end":"Tool End","on_tool_error":"Tool Error","on_tool_start":"Tool Start","output_validator":"Output Validator","payment_order.approved":"Payment Order Approved","payment_order.begin_processing":"Payment Order Begin Processing","payment_order.failed":"Payment Order Failed","payment_order.reconciled":"Payment Order Reconciled","payment_reference.created":"Payment Reference Created","postToolUse":"Post-Tool Use","preToolUse":"Pre-Tool Use","prompt_render_post":"Prompt Render Post","prompt_render_pre":"Prompt Render Pre","sla_miss_callback":"SLA Miss Callback","subagentStop":"Subagent Stop","task_end":"Task End","task_start":"Task Start","tool-call":"Tool Call","tool-result":"Tool Result","tool_retry":"Tool Retry","userPromptSubmitted":"User Prompt Submitted","workflow-step-finish":"Workflow Step Finish","workflow-step-progress":"Workflow Step Progress","workflow-step-start":"Workflow Step Start"});
 /** Every verdict arm the runtime emits. Production sets typically
@@ -968,7 +968,7 @@ export const CANONICAL_ACTIVITY_LABELS: Readonly<Record<string, string>> = Objec
 export const CANONICAL_VERDICT_ARMS: ReadonlySet<VerdictArm> = new Set(["allow","block","constrain","halt","require_approval"] as const);
 // Runtime-portable UUID v4 source. Node ≥19 / Bun / Deno / modern
 // browsers / Hermes (RN ≥0.74 / Expo ≥51) all expose
-// `globalThis.crypto.randomUUID()` - no `import { randomUUID } from 'crypto'`
+// `globalThis.crypto.randomUUID()`; no `import { randomUUID } from 'crypto'`
 // because that's a Node-only specifier that Metro/RN bundlers can't
 // resolve when the SDK is consumed from a mobile app.
 function randomUUID(): string {
@@ -976,7 +976,7 @@ function randomUUID(): string {
     return globalThis.crypto.randomUUID();
   }
   // Fallback for ancient runtimes without Web Crypto. Math.random
-  // is fine here - workflow/run/activity IDs need uniqueness, not
+  // is fine here; workflow/run/activity IDs need uniqueness, not
   // cryptographic strength (the runtime API key is the auth surface).
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
@@ -993,7 +993,7 @@ import type {
 /**
  * Construction options for any preset Session class. The `core` client
  * is the authenticated transport; the other fields define this workflow
- * run's identity. The runtime owns the lifecycle - Workflow{Started,
+ * run's identity. The runtime owns the lifecycle; Workflow{Started,
  * Completed,Failed} fire automatically on `govern()` enter/exit/throw,
  * and via process-exit handlers if the session is still open at exit.
  */
@@ -1042,10 +1042,10 @@ export interface GovernedSessionConfig {
   registerExitHandlers?: boolean;
   /**
    * Internal flag set by `govern.attach()`. When true, the session starts
-   * in the `opened` state - `runActivity` will NOT auto-fire WorkflowStarted,
+   * in the `opened` state; `runActivity` will NOT auto-fire WorkflowStarted,
    * and explicit `workflowStarted()` calls become no-ops (idempotent).
    * The parent process is assumed to have already fired the workflow open
-   * event. Don't set this manually - use `govern.attach()`.
+   * event. Don't set this manually; use `govern.attach()`.
    */
   attached?: boolean;
 }
@@ -1054,7 +1054,7 @@ export interface GovernedSessionConfig {
  * Thrown when a session method is called after the session has been
  * terminated (workflowCompleted/Failed already fired). Tries to call
  * activity()/preset methods after this point would silently emit
- * orphan events without the SDK invariant - we throw instead.
+ * orphan events without the SDK invariant; we throw instead.
  */
 export class SessionAlreadyTerminatedError extends Error {
   constructor() {
@@ -1066,7 +1066,7 @@ export class SessionAlreadyTerminatedError extends Error {
 /**
  * Lifecycle-owning base class. Every preset Session class extends this
  * and delegates its public methods to `runActivity()`. User code never
- * calls `begin()` / `complete()` / `fail()` directly - the `govern()`
+ * calls `begin()` / `complete()` / `fail()` directly; the `govern()`
  * helper drives them via try/finally.
  */
 export class BaseGovernedSession {
@@ -1115,11 +1115,11 @@ export class BaseGovernedSession {
   }
 
   /**
-   * Fire WorkflowStarted. Idempotent - safe to call multiple times,
+   * Fire WorkflowStarted. Idempotent; safe to call multiple times,
    * only the first emits. Public so harness-owned consumers (claude-hooks,
    * cursor-hooks) can drive lifecycle when the workflow spans processes.
    * `govern()` calls this automatically before the body runs;
-   * `govern.attach()` does NOT - caller decides when (if ever).
+   * `govern.attach()` does NOT; caller decides when (if ever).
    *
    * Backward-compat alias: `begin()`.
    */
@@ -1128,7 +1128,7 @@ export class BaseGovernedSession {
     this.opened = true;
     await this.emit({ event_type: 'WorkflowStarted' });
   }
-  /** @deprecated use `workflowStarted()` - same behavior. */
+  /** @deprecated use `workflowStarted()`; same behavior. */
   async begin(): Promise<void> {
     return this.workflowStarted();
   }
@@ -1146,7 +1146,7 @@ export class BaseGovernedSession {
     await this.emit({ event_type: 'WorkflowCompleted', status: 'completed' });
     this.cleanupExitHandlers();
   }
-  /** @deprecated use `workflowCompleted()` - same behavior. */
+  /** @deprecated use `workflowCompleted()`; same behavior. */
   async complete(): Promise<void> {
     return this.workflowCompleted();
   }
@@ -1154,7 +1154,7 @@ export class BaseGovernedSession {
   /**
    * Fire WorkflowFailed with an error payload. Idempotent. `govern()`
    * calls this if the body throws or if a process-exit handler fires;
-   * `govern.attach()` does NOT - caller invokes explicitly on harness-
+   * `govern.attach()` does NOT; caller invokes explicitly on harness-
    * signaled session failure.
    *
    * Backward-compat alias: `fail()`.
@@ -1169,7 +1169,7 @@ export class BaseGovernedSession {
     });
     this.cleanupExitHandlers();
   }
-  /** @deprecated use `workflowFailed()` - same behavior. */
+  /** @deprecated use `workflowFailed()`; same behavior. */
   async fail(error?: unknown): Promise<void> {
     return this.workflowFailed(error);
   }
@@ -1179,7 +1179,7 @@ export class BaseGovernedSession {
    * tuples beyond what the bound preset's typed methods cover. Used by
    * runtime adapters (claude-hooks / cursor-hooks) when one hook event
    * needs to dispatch to multiple activity_types based on internal
-   * routing - e.g. Claude's PreToolUse hook fires FileRead, FileEdit,
+   * routing; e.g. Claude's PreToolUse hook fires FileRead, FileEdit,
    * ShellExecution etc. depending on `tool_name`.
    *
    * Mirrors the `custom` preset's free-form `activity()`. Same lifecycle
@@ -1232,7 +1232,7 @@ export class BaseGovernedSession {
           activity_input: payload.input,
         });
         if (startedVerdict.arm !== 'allow') {
-          // Pre-stage block - never emit ActivityCompleted, but if the
+          // Pre-stage block; never emit ActivityCompleted, but if the
           // gate said require_approval, poll for the approval decision.
           if (
             startedVerdict.arm === 'require_approval' &&
@@ -1247,7 +1247,7 @@ export class BaseGovernedSession {
         return this.emitCompleted(activityId, activityType, payload);
       }
 
-      // eventType === 'ActivityCompleted' - post-stage gate.
+      // eventType === 'ActivityCompleted'; post-stage gate.
       return this.emitCompleted(activityId, activityType, payload);
     } finally {
       this.inFlight.delete(activityId);
@@ -1310,7 +1310,7 @@ export class BaseGovernedSession {
     // Future: backend WS gateway already broadcasts APPROVAL_DECIDED to
     // org rooms (`openbox-backend` ws-events.gateway.ts:353), but its
     // auth path requires a Keycloak JWT and the SDK runtime carries an
-    // `obx_live_*` API key - wire-incompatible. Replacing this poll
+    // `obx_live_*` API key; wire-incompatible. Replacing this poll
     // loop with a WS subscription requires API-key auth to land on the
     // `/ws` namespace upstream first.
     const cfgDeadline = Date.now() + this.approvalMaxWaitMs;
@@ -1402,7 +1402,7 @@ export class BaseGovernedSession {
     this.exitHandlerCleanup.length = 0;
   }
 }
-/** Session for the `airflow` preset - methods match the framework's hook names. */
+/** Session for the `airflow` preset; methods match the framework's hook names. */
 export class AirflowSession extends BaseGovernedSession {
   async onExecuteCallback(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "on_execute_callback", payload);
@@ -1428,7 +1428,7 @@ export class AirflowSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "on_skipped_callback", payload);
   }
 }
-/** Session for the `argocd` preset - methods match the framework's hook names. */
+/** Session for the `argocd` preset; methods match the framework's hook names. */
 export class ArgocdSession extends BaseGovernedSession {
   async operationStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "OperationStarted", payload);
@@ -1454,7 +1454,7 @@ export class ArgocdSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "SyncStatusChanged", payload);
   }
 }
-/** Session for the `autogen` preset - methods match the framework's hook names. */
+/** Session for the `autogen` preset; methods match the framework's hook names. */
 export class AutogenSession extends BaseGovernedSession {
   async textMessage(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityCompleted", "TextMessage", payload);
@@ -1488,7 +1488,7 @@ export class AutogenSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "StopMessage", payload);
   }
 }
-/** Session for the `claude-code` preset - methods match the framework's hook names. */
+/** Session for the `claude-code` preset; methods match the framework's hook names. */
 export class ClaudeCodeSession extends BaseGovernedSession {
   async preToolUse(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "PreToolUse", payload);
@@ -1522,7 +1522,7 @@ export class ClaudeCodeSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "Stop", payload);
   }
 }
-/** Session for the `cline` preset - methods match the framework's hook names. */
+/** Session for the `cline` preset; methods match the framework's hook names. */
 export class ClineSession extends BaseGovernedSession {
   async preToolUse(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "PreToolUse", payload);
@@ -1540,7 +1540,7 @@ export class ClineSession extends BaseGovernedSession {
     return this.runActivity("ActivityStarted", "TaskStart", payload);
   }
 }
-/** Session for the `codex` preset - methods match the framework's hook names. */
+/** Session for the `codex` preset; methods match the framework's hook names. */
 export class CodexSession extends BaseGovernedSession {
   async userPromptSubmit(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "UserPromptSubmit", payload);
@@ -1562,7 +1562,7 @@ export class CodexSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "Stop", payload);
   }
 }
-/** Session for the `copilot` preset - methods match the framework's hook names. */
+/** Session for the `copilot` preset; methods match the framework's hook names. */
 export class CopilotSession extends BaseGovernedSession {
   async userPromptSubmitted(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "userPromptSubmitted", payload);
@@ -1588,7 +1588,7 @@ export class CopilotSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "errorOccurred", payload);
   }
 }
-/** Session for the `crewai` preset - methods match the framework's hook names. */
+/** Session for the `crewai` preset; methods match the framework's hook names. */
 export class CrewaiSession extends BaseGovernedSession {
   async crewKickoffStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "CrewKickoffStarted", payload);
@@ -1634,7 +1634,7 @@ export class CrewaiSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "LLMCallCompleted", payload);
   }
 }
-/** Session for the `cursor` preset - methods match the framework's hook names. */
+/** Session for the `cursor` preset; methods match the framework's hook names. */
 export class CursorSession extends BaseGovernedSession {
   async beforeSubmitPrompt(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "beforeSubmitPrompt", payload);
@@ -1680,7 +1680,7 @@ export class CursorSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "afterAgentThought", payload);
   }
 }
-/** Free-form session - caller supplies activity_type + stage at call time. */
+/** Free-form session; caller supplies activity_type + stage at call time. */
 export class CustomSession extends BaseGovernedSession {
   /**
    * Run an arbitrary activity. The runtime stamps:
@@ -1696,7 +1696,7 @@ export class CustomSession extends BaseGovernedSession {
     return this.runActivity(eventType, activityType, payload);
   }
 }
-/** Session for the `default` preset - methods match the framework's hook names. */
+/** Session for the `default` preset; methods match the framework's hook names. */
 export class DefaultSession extends BaseGovernedSession {
   async prompt(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "PromptSubmission", payload);
@@ -1742,7 +1742,7 @@ export class DefaultSession extends BaseGovernedSession {
     return this.runActivity("ActivityStarted", "AgentSpawn", payload);
   }
 }
-/** Session for the `langchain` preset - methods match the framework's hook names. */
+/** Session for the `langchain` preset; methods match the framework's hook names. */
 export class LangchainSession extends BaseGovernedSession {
   async onLlmStart(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "on_llm_start", payload);
@@ -1796,7 +1796,7 @@ export class LangchainSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "on_retriever_end", payload);
   }
 }
-/** Session for the `langgraph` preset - methods match the framework's hook names. */
+/** Session for the `langgraph` preset; methods match the framework's hook names. */
 export class LanggraphSession extends BaseGovernedSession {
   async nodeStart(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "node_start", payload);
@@ -1826,7 +1826,7 @@ export class LanggraphSession extends BaseGovernedSession {
     return this.runActivity("SignalReceived", "custom_event", payload);
   }
 }
-/** Session for the `llamaindex` preset - methods match the framework's hook names. */
+/** Session for the `llamaindex` preset; methods match the framework's hook names. */
 export class LlamaindexSession extends BaseGovernedSession {
   async chunking(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "CHUNKING", payload);
@@ -1872,7 +1872,7 @@ export class LlamaindexSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "EXCEPTION", payload);
   }
 }
-/** Session for the `mastra` preset - methods match the framework's hook names. */
+/** Session for the `mastra` preset; methods match the framework's hook names. */
 export class MastraSession extends BaseGovernedSession {
   async workflowStepStart(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "workflow-step-start", payload);
@@ -1898,7 +1898,7 @@ export class MastraSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "error", payload);
   }
 }
-/** Session for the `modern-treasury` preset - methods match the framework's hook names. */
+/** Session for the `modern-treasury` preset; methods match the framework's hook names. */
 export class ModernTreasurySession extends BaseGovernedSession {
   async paymentOrderApproved(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "payment_order.approved", payload);
@@ -1920,7 +1920,7 @@ export class ModernTreasurySession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "payment_reference.created", payload);
   }
 }
-/** Session for the `n8n` preset - methods match the framework's hook names. */
+/** Session for the `n8n` preset; methods match the framework's hook names. */
 export class N8nSession extends BaseGovernedSession {
   async nodePreExecute(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "node-pre-execute", payload);
@@ -1934,7 +1934,7 @@ export class N8nSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "error-trigger", payload);
   }
 }
-/** Session for the `pagerduty` preset - methods match the framework's hook names. */
+/** Session for the `pagerduty` preset; methods match the framework's hook names. */
 export class PagerdutySession extends BaseGovernedSession {
   async incidentTriggered(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "incident.triggered", payload);
@@ -1976,7 +1976,7 @@ export class PagerdutySession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "incident.annotated", payload);
   }
 }
-/** Session for the `pydantic-ai` preset - methods match the framework's hook names. */
+/** Session for the `pydantic-ai` preset; methods match the framework's hook names. */
 export class PydanticAiSession extends BaseGovernedSession {
   async userPromptNode(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "UserPromptNode", payload);
@@ -2002,7 +2002,7 @@ export class PydanticAiSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "tool_retry", payload);
   }
 }
-/** Session for the `semantic-kernel` preset - methods match the framework's hook names. */
+/** Session for the `semantic-kernel` preset; methods match the framework's hook names. */
 export class SemanticKernelSession extends BaseGovernedSession {
   async functionInvocationPre(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "function_invocation_pre", payload);
@@ -2028,7 +2028,7 @@ export class SemanticKernelSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "auto_function_invocation_post", payload);
   }
 }
-/** Session for the `temporal` preset - methods match the framework's hook names. */
+/** Session for the `temporal` preset; methods match the framework's hook names. */
 export class TemporalSession extends BaseGovernedSession {
   async activityTaskScheduled(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "ActivityTaskScheduled", payload);
@@ -2078,7 +2078,7 @@ export class TemporalSession extends BaseGovernedSession {
     return this.runActivity("SignalReceived", "TimerFired", payload);
   }
 }
-/** Session for the `vercel-ai` preset - methods match the framework's hook names. */
+/** Session for the `vercel-ai` preset; methods match the framework's hook names. */
 export class VercelAiSession extends BaseGovernedSession {
   async onStepFinish(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityCompleted", "onStepFinish", payload);
@@ -2135,7 +2135,7 @@ export type Presets = typeof presets;
 export type PresetCtor = Presets[keyof Presets];
 /**
  * Open a workflow envelope, run `body` with the typed session, and
- * finalize (Workflow{Completed,Failed}) on return - even if `body`
+ * finalize (Workflow{Completed,Failed}) on return; even if `body`
  * throws. Process-exit handlers fire WorkflowFailed best-effort if the
  * runtime dies mid-session.
  *
@@ -2178,7 +2178,7 @@ export async function govern<S extends PresetCtor, T>(
  *   - No auto-WorkflowCompleted (caller fires it on session end).
  *   - No process-exit handlers by default (a fresh process per hook is
  *     normal flow, not workflow failure).
- *   - `workflowId` and `runId` are REQUIRED on the config - the harness
+ *   - `workflowId` and `runId` are REQUIRED on the config; the harness
  *     persists them across processes.
  *
  * ```ts
@@ -2198,7 +2198,7 @@ function governAttach<S extends PresetCtor>(
     preset: S;
     workflowId: string;
     runId: string;
-    /** Default `false` - fresh-process-per-hook is normal flow, not failure. */
+    /** Default `false`; fresh-process-per-hook is normal flow, not failure. */
     registerExitHandlers?: boolean;
   },
 ): InstanceType<S> {

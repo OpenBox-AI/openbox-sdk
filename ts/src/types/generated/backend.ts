@@ -1875,7 +1875,7 @@ export interface components {
             created_at?: string;
             updated_at?: string;
             last_used_at?: string | null;
-            /** @description Only present on create - the raw `obx_key_*` secret, shown once. */
+            /** @description Only present on create; the raw `obx_key_*` secret, shown once. */
             key?: string;
         } & {
             [key: string]: unknown;
@@ -2079,7 +2079,7 @@ export interface components {
             /** @description Reject message */
             reject_message: string;
             /**
-             * @description Approval timeout in seconds - required when verdict is REQUIRE_APPROVAL.
+             * @description Approval timeout in seconds; required when verdict is REQUIRE_APPROVAL.
              *     Drives `approval_expiration_time = now + this_value` on every approval
              *     row produced by this rule. This is the only surface in the spec where
              *     the approval window is user-configurable. OPA policies (CreatePolicyDto)
@@ -2420,7 +2420,7 @@ export interface components {
             status?: string;
             started_at?: string;
             /**
-             * @description Backend field is `completed_at` - use this, not `ended_at` (which
+             * @description Backend field is `completed_at`; use this, not `ended_at` (which
              *     doesn't exist).
              */
             completed_at?: string;
@@ -2464,7 +2464,7 @@ export interface components {
          */
         TokenPair: {
             accessToken: string;
-            /** @description Optional - Keycloak rotation may be disabled. */
+            /** @description Optional; Keycloak rotation may be disabled. */
             refreshToken?: string;
         };
         TrustEvent: {
@@ -2568,7 +2568,7 @@ export interface components {
             /** @description Reject message */
             reject_message: string;
             /**
-             * @description Approval timeout in seconds - required when verdict is REQUIRE_APPROVAL.
+             * @description Approval timeout in seconds; required when verdict is REQUIRE_APPROVAL.
              *     Drives `approval_expiration_time = now + this_value` on every approval
              *     row produced by this rule. This is the only surface in the spec where
              *     the approval window is user-configurable. OPA policies (CreatePolicyDto)

@@ -4,7 +4,7 @@ import type { Approval } from "./types";
 
 const POLL_INTERVAL = 5000;
 
-// Driven by extension.ts. We don't read env or token state here - the
+// Driven by extension.ts. We don't read env or token state here; the
 // OpenBoxClient passed in already knows its env and handles auth/headers.
 export class PollingService extends EventEmitter {
   private client: OpenBoxClient;

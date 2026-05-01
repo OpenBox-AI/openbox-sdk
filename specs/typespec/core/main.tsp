@@ -105,7 +105,7 @@ enum EventType {
 }
 
 /**
- * Unified event payload - all six event types share this shape, and
+ * Unified event payload; all six event types share this shape, and
  * only the fields relevant to that type are populated. The SDK
  * keeps `workflow_id` and `run_id` constant across one workflow
  * run; `activity_id` is per-action and pairs ActivityStarted with
@@ -114,7 +114,7 @@ enum EventType {
  * The `required` block here lists every field the Go struct
  * always emits / accepts as a non-pointer string. The handler's
  * explicit validation is narrower (`event_type`, `workflow_id`,
- * `run_id` only) - clients that cannot fill the others should
+ * `run_id` only); clients that cannot fill the others should
  * send empty strings rather than omit the keys.
  *
  */
@@ -164,7 +164,7 @@ model GovernanceEventPayload {
 
   /**
    * Activity input payload. The Go server accepts any JSON value
-   * but the SDKs always wrap as an array (`[{...}]`) - passing a
+   * but the SDKs always wrap as an array (`[{...}]`); passing a
    * bare object yields a 422 from the validation layer.
    *
    */
@@ -207,7 +207,7 @@ model GovernanceEventPayload {
 /**
  * Single OTel-style span. Root-level fields (`http_method`,
  * `db_operation`, `file_path`, `function`, …) replace the earlier
- * attribute-bag layout - emitters MUST populate the typed fields
+ * attribute-bag layout; emitters MUST populate the typed fields
  * instead of stuffing them into `attributes`. `semantic_type` is
  * computed by the server (`ComputeSemanticTypeFromSpan`) when the
  * SDK doesn't set it.
@@ -316,9 +316,8 @@ model ErrorInfo {
 
 /**
  * Public verdict envelope returned from `/governance/evaluate`.
- * Mirrors `GovernanceVerdictPublicResponse` in the Go server -
- * the wire shape strips out internal `_governance_event_id` and
- * related fields used only for Temporal observability.
+ * The wire shape strips internal observability fields like
+ * `_governance_event_id`.
  *
  * SDKs should branch on `verdict`. The legacy `action` field
  * carries the v1.0 string and is kept for backward compatibility
@@ -342,10 +341,10 @@ model GovernanceVerdictResponse {
   /** Behavior-rule names that triggered. */
   behavioral_violations?: string[];
 
-  /** Set on `require_approval` - opaque ID returned to surface in approver UI. */
+  /** Set on `require_approval`; opaque ID returned to surface in approver UI. */
   approval_id?: string;
 
-  /** Set on `constrain` - sandbox enforcement hints (future). */
+  /** Set on `constrain`; sandbox enforcement hints (future). */
   constraints?: string[];
 
   /** Wall-clock deadline for the approval; SDK stops polling after
@@ -353,13 +352,13 @@ model GovernanceVerdictResponse {
    *  REQUIRE_APPROVAL: from `behavior_rule.approval_timeout` if the
    *  trigger was a behavior_rule, or from a server-side default
    *  (~30m observed) if the trigger was an OPA policy. OPA policies
-   *  cannot configure the timeout - `CreatePolicyDto` has no
+   *  cannot configure the timeout; `CreatePolicyDto` has no
    *  `approval_timeout` field and the Rego return shape carries
    *  only `{decision, reason}`. To control the window, attach a
    *  behavior_rule with `--verdict 2 --approval-timeout <seconds>`. */
   approval_expiration_time?: utcDateTime;
 
-  /** True if any sub-service (OPA / AGE) used a fallback path. */
+  /** True if any evaluation branch used a fallback path. */
   fallback_used: boolean;
 
   reason?: string;
@@ -378,7 +377,7 @@ model GuardrailsResult {
 
   /**
    * Redacted/transformed payload as decided by the guardrail
-   * service. Free-form - string for text content, object for
+   * service. Free-form; string for text content, object for
    * structured (e.g. tool args).
    *
    */
@@ -413,8 +412,8 @@ model GuardrailFieldResult {
 }
 
 /**
- * Output of the AGE (Agent Governance Engine) evaluation -
- * behavioral compliance, alignment scoring, trust update.
+ * Output of the agent-governance evaluation: behavioral compliance,
+ * alignment scoring, and trust update.
  *
  */
 model AGEResult {
@@ -463,7 +462,7 @@ model AGESpanResult {
 
 /**
  * Lookup tuple for `/governance/approval`. The server only
- * validates non-empty strings - no auth, no bearer header.
+ * validates non-empty strings; no auth, no bearer header.
  *
  */
 model ApprovalStatusRequest {
@@ -514,7 +513,7 @@ op validateApiKey(): AgentValidationResponse | (UnauthorizedResponse & CoreError
  * The wire format multiplexes five `event_type` values
  * (WorkflowStarted, WorkflowCompleted, WorkflowFailed,
  * ActivityStarted, ActivityCompleted, SignalReceived) onto a single
- * struct - populate only the fields relevant to the event type.
+ * struct; populate only the fields relevant to the event type.
  *
  * Internally fans out to: token validation -> session check ->
  * dedup -> OPA policy -> guardrails -> AGE behavioral compliance ->
@@ -541,10 +540,10 @@ op evaluateGovernance(...Parameters.SdkVersionHeader, @body body: GovernanceEven
 
 /**
  * SDK polls this after a `require_approval` verdict. Lookup is by
- * `(workflow_id, run_id, activity_id)` - the tuple uniquely
+ * `(workflow_id, run_id, activity_id)`; the tuple uniquely
  * identifies the activity attempt awaiting human decision.
  *
- * This endpoint does NOT require a bearer API key - the SDK
+ * This endpoint does NOT require a bearer API key; the SDK
  * (and any third-party approver UI) needs to poll for status
  * without an agent token.
  *

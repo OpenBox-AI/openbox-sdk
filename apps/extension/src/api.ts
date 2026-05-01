@@ -52,7 +52,7 @@ function persistTokens(env: EnvName, accessToken: string, refreshToken: string |
   store[env] = {
     accessToken,
     // When the backend doesn't rotate the refresh token, the SDK passes
-    // undefined - keep the previously-stored value rather than clobber it.
+    // undefined; keep the previously-stored value rather than clobber it.
     refreshToken: refreshToken ?? existing.refreshToken,
     updatedAt: new Date().toISOString(),
     permissions: existing.permissions,

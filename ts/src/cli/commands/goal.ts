@@ -1,4 +1,4 @@
-// `openbox goal` - fully spec-driven (H.3 + I + M). update uses
+// `openbox goal`; fully spec-driven (H.3 + I + M). update uses
 // @cli_required_together to enforce the four-fields-required rule
 // (bypassed by --json) + @cli_json_merge("replace") for the escape.
 import { Command } from 'commander';

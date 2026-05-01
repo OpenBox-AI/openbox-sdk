@@ -6,14 +6,14 @@
 //
 // Architecture:
 //   - One Socket.IO connection to <apiBase>/ws with the user's access
-//     token in handshake.auth.token (matches WsAuthService - Keycloak JWT
+//     token in handshake.auth.token (matches WsAuthService; Keycloak JWT
 //     against the realm's JWKS).
 //   - Backend auto-joins the socket to org:<orgId>; we don't subscribe
 //     explicitly. Server emits approval.created / approval.decided /
 //     approval.expired into that room.
 //   - Each event triggers a refetch of the pending list via the existing
 //     OpenBoxClient.getOrgApprovals so the tree stays an authoritative
-//     snapshot - we don't try to mutate cached state from event payloads
+//     snapshot; we don't try to mutate cached state from event payloads
 //     (that path is far more bug-prone for very little wire savings).
 //   - On connect failure / hard disconnect, emit "error" so extension.ts
 //     can fall back to PollingService.
@@ -59,7 +59,7 @@ export class RealtimeService extends EventEmitter {
   /**
    * Returns a promise that resolves when the socket connects, or rejects
    * if it doesn't connect within CONNECT_TIMEOUT_MS. extension.ts uses
-   * this to decide whether to keep WS or fall back to polling - the WS
+   * this to decide whether to keep WS or fall back to polling; the WS
    * path is only a win if it actually connects.
    */
   start(): Promise<void> {
@@ -96,11 +96,11 @@ export class RealtimeService extends EventEmitter {
       this.socket.on("approval.decided", () => this.scheduleRefetch());
       this.socket.on("approval.expired", () => this.scheduleRefetch());
 
-      // Token expiry on the server side - gateway disconnects with this
+      // Token expiry on the server side; gateway disconnects with this
       // event. We surface as error so the consumer can rebuild with a
       // fresh token (same as polling 401 handling).
       this.socket.on("token:expired", () => {
-        this.emit("error", new Error("WS token expired - reconnect required"));
+        this.emit("error", new Error("WS token expired; reconnect required"));
       });
     });
   }
@@ -115,7 +115,7 @@ export class RealtimeService extends EventEmitter {
     this.socket = undefined;
   }
 
-  /** Manual refetch - UI commands ("refresh" button) call through here. */
+  /** Manual refetch; UI commands ("refresh" button) call through here. */
   async refresh() {
     await this.refetch();
   }

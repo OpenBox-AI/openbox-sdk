@@ -61,7 +61,7 @@ function mockCoreAsClient(mock: MockCore): OpenBoxCoreClient {
 
 const baseConfig = (mock: MockCore) => ({
   core: mockCoreAsClient(mock),
-  // Disable exit handlers in tests - vitest registers its own handlers
+  // Disable exit handlers in tests; vitest registers its own handlers
   // and ours would chain unwanted listeners.
   registerExitHandlers: false,
 });
@@ -259,7 +259,7 @@ describe('approval polling bounds', () => {
       },
     );
     const elapsed = Date.now() - start;
-    // Should bail well before the 60s config max-wait - server expiry wins.
+    // Should bail well before the 60s config max-wait; server expiry wins.
     expect(elapsed).toBeLessThan(2_000);
   });
 
@@ -310,7 +310,7 @@ describe('approval polling bounds', () => {
     expect(pollTimes.length).toBeGreaterThanOrEqual(4);
     const gaps = pollTimes.slice(1).map((t, i) => t - pollTimes[i]);
     // Backoff progression: middle gaps should be larger than the first.
-    // (Final gap can be clamped by remaining-time-to-deadline - by design.)
+    // (Final gap can be clamped by remaining-time-to-deadline; by design.)
     const firstGap = gaps[0];
     const middleGap = gaps[Math.floor(gaps.length / 2)];
     expect(middleGap).toBeGreaterThan(firstGap);
@@ -350,7 +350,7 @@ describe('approval polling bounds', () => {
         preset: presets.claudeCode,
         approvalPollIntervalMs: 50,
         approvalPollMaxIntervalMs: 50,
-        approvalPollBackoffFactor: 1, // no backoff - fixed base
+        approvalPollBackoffFactor: 1, // no backoff; fixed base
         approvalPollJitter: 0.5, // ±50%
         approvalMaxWaitMs: 800,
       },
@@ -370,7 +370,7 @@ describe('approval polling bounds', () => {
   });
 
   test('first poll is fast (≤ initial interval + jitter), not the cap', async () => {
-    // Regression check on the original "fixed 1s wait" behavior - now we
+    // Regression check on the original "fixed 1s wait" behavior; now we
     // start at the configured initial interval (small) and only ramp up.
     const mock = createMockCore('allow');
     mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
@@ -424,7 +424,7 @@ describe('approval polling bounds', () => {
 describe('BaseGovernedSession.activity (cross-preset escape)', () => {
   // The public `session.activity(eventType, activityType, payload)` on
   // every preset's session lets runtime adapters fire activity_types
-  // beyond the bound preset's typed methods - claude-code's PreToolUse
+  // beyond the bound preset's typed methods; claude-code's PreToolUse
   // hook routing is the canonical case (one hook event → 6+ tool-specific
   // activity_types from the `default` preset's vocabulary).
 
@@ -443,7 +443,7 @@ describe('BaseGovernedSession.activity (cross-preset escape)', () => {
     const fileRead = mock.events.find((e) => e.activity_type === 'FileRead');
     expect(fileRead?.event_type).toBe('ActivityStarted');
     // Adapter should have fired both the explicit FileRead activity AND
-    // the paired ActivityCompleted on body return - the lifecycle stays
+    // the paired ActivityCompleted on body return; the lifecycle stays
     // intact across the escape.
     const completed = mock.events.find((e) => e.event_type === 'ActivityCompleted' && e.activity_type === 'FileRead');
     expect(completed).toBeDefined();
@@ -511,10 +511,10 @@ describe('govern.attach (cross-process / harness-owned lifecycle)', () => {
       workflowId: 'wf_external',
       runId: 'run_external',
     });
-    // No begin/workflowStarted call from attach - caller decides when.
+    // No begin/workflowStarted call from attach; caller decides when.
     await session.preToolUse({ input: [{ tool: 'Bash' }] });
     const types = mock.events.map((e) => e.event_type);
-    // WorkflowStarted is missing - only the activity envelope fires.
+    // WorkflowStarted is missing; only the activity envelope fires.
     expect(types).not.toContain('WorkflowStarted');
     expect(types).toContain('ActivityStarted');
     expect(types).toContain('ActivityCompleted');

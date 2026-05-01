@@ -19,7 +19,7 @@ describe('OpenBoxCoreClient E2E', () => {
   beforeAll(() => {
     hasApiKey = !!process.env.OPENBOX_API_KEY;
     if (!hasApiKey) {
-      console.log('Skipping core e2e tests - no OPENBOX_API_KEY available');
+      console.log('Skipping core e2e tests; no OPENBOX_API_KEY available');
       return;
     }
     client = createCoreClient();

@@ -1,4 +1,4 @@
-// `openbox guardrail` - fully spec-driven (H.3 + I + J). create/update
+// `openbox guardrail`; fully spec-driven (H.3 + I + J). create/update
 // use @cli_post_validate("guardrailCrossField"); reorder/test stay
 // custom-shell because they have non-canonical wire shapes that
 // don't fit the body/positional pattern yet.

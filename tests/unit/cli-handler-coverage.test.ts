@@ -5,7 +5,7 @@
 //   - a `getClient().<sdkMethod>(...)` call (i.e. it actually invokes the
 //     SDK), OR
 //   - a documented exception in the allowlist below (e.g. `setup`,
-//     `doctor`, `verify` - pure local-only commands)
+//     `doctor`, `verify`; pure local-only commands)
 //
 // This catches the "added a subcommand to the spec, registered it with
 // commander, but the body is empty / doesn't call the SDK" failure mode.
@@ -52,10 +52,10 @@ const LOCAL_ONLY: Record<string, string> = {
   'skill:path': 'Prints the bundled skill source path. No SDK call.',
   'claude-code:install': 'Writes hook block to ~/.claude/settings.json. No SDK call.',
   'claude-code:uninstall': 'Removes the hook block from ~/.claude/settings.json. No SDK call.',
-  'claude-code:hook': 'Per-event hook handler - reads stdin, dispatches via runtime adapter, writes stdout.',
+  'claude-code:hook': 'Per-event hook handler; reads stdin, dispatches via runtime adapter, writes stdout.',
   'cursor:install': 'Writes hook block to ~/.cursor/hooks.json. No SDK call.',
   'cursor:uninstall': 'Removes the hook block from ~/.cursor/hooks.json. No SDK call.',
-  'cursor:hook': 'Per-event hook handler - reads stdin, dispatches via runtime adapter, writes stdout.',
+  'cursor:hook': 'Per-event hook handler; reads stdin, dispatches via runtime adapter, writes stdout.',
   'mcp:serve': 'Long-running MCP stdio server. The SDK call surface is covered by runtime/mcp.',
   'doctor:': 'Verifies local pre-flight: which/openbox, ~/.openbox/tokens, env vars. No SDK call.',
   'verify:': 'Static linter on a hand-written governance integration source file.',
@@ -115,7 +115,7 @@ describe.each(CLI_COMMAND_MANIFEST as readonly ManifestCommand[])(
     const source = readFileSync(path, 'utf8');
     // H.3 spec-driven files delegate registration to wireSubcommands +
     // a generated *_HANDLERS list. The handler list IS the source of
-    // truth in that case - checking for `.command(verb)` would be a
+    // truth in that case; checking for `.command(verb)` would be a
     // tautology and a false negative.
     const isSpecDriven =
       /from '\.\.\/wire-subcommands\.js'/.test(source) &&

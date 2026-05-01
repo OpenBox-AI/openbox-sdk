@@ -3,7 +3,7 @@
 // Why this file exists: the backend NestJS controllers don't carry
 // `@ApiOkResponse({ type: ... })` annotations on most endpoints, so the
 // auto-generated `backend.json` emits `responses: { 200: { description:
-// "" } }` for every route - zero schema information. Until that gap is
+// "" } }` for every route; zero schema information. Until that gap is
 // closed upstream (a separate backend proposal: tag every controller
 // method with `@ApiOkResponse`), the SDK side declares the response
 // shapes here so they ride through the same codegen pipeline as
@@ -54,7 +54,7 @@ model MessageResponse {
  * it as a named schema. */
 model TokenPair {
   accessToken: string;
-  /** Optional - Keycloak rotation may be disabled. */
+  /** Optional; Keycloak rotation may be disabled. */
   refreshToken?: string;
 }
 
@@ -112,7 +112,7 @@ model CreateAgentResponse {
 }
 
 // ---------------------------------------------------------------------------
-// API Key - the runtime obx_live_*/obx_test_* identity for SDK calls.
+// API Key; the runtime obx_live_*/obx_test_* identity for SDK calls.
 // ---------------------------------------------------------------------------
 
 model ApiKeyResponse {
@@ -189,7 +189,7 @@ model Session {
   started_at?: string;
 
   /**
-   * Backend field is `completed_at` - use this, not `ended_at` (which
+   * Backend field is `completed_at`; use this, not `ended_at` (which
    * doesn't exist).
    */
   completed_at?: string;
@@ -359,7 +359,7 @@ model AuditExport {
 }
 
 // ---------------------------------------------------------------------------
-// API keys / webhooks / SSO - live backend (post-PR #237). Backend
+// API keys / webhooks / SSO; live backend (post-PR #237). Backend
 // doesn't publish response schemas, so these are SDK-side declared.
 // ---------------------------------------------------------------------------
 
@@ -376,7 +376,7 @@ model ApiKey {
   updated_at?: string;
   last_used_at?: string | null;
 
-  /** Only present on create - the raw `obx_key_*` secret, shown once. */
+  /** Only present on create; the raw `obx_key_*` secret, shown once. */
   key?: string;
 
   ...Record<unknown>;

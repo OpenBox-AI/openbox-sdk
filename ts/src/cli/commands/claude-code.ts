@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { EXIT, bailWith } from '../exit-codes.js';
 
 /**
- * `openbox claude-code <subcommand>` - manages the OpenBox integration
+ * `openbox claude-code <subcommand>`; manages the OpenBox integration
  * with Claude Code.
  *
  *   install    Write the hook block into ~/.claude/settings.json

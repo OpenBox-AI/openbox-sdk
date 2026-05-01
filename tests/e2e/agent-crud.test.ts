@@ -28,7 +28,7 @@ describe('Agent CRUD Lifecycle', () => {
     expect(body.data.agent.organization_id).toBeDefined();
     expect(body.data.token).toBeDefined();
     // Backend issues obx_live_* in prod and obx_test_* everywhere else.
-    // Accept both - env-detection bug land if we hardcode one.
+    // Accept both; env-detection bug land if we hardcode one.
     expect(body.data.token).toMatch(/^obx_(?:live|test)_/);
 
     agentId = body.data.agent.id;
@@ -38,7 +38,7 @@ describe('Agent CRUD Lifecycle', () => {
   });
 
   it('lists agents and includes created agent', async () => {
-    // Search by the unique name - default list paginates and filters drafts
+    // Search by the unique name; default list paginates and filters drafts
     // (status=0) so newly-created agents may not appear on page 1.
     const response = await client.get(`/agent/list?search=${encodeURIComponent(agentName)}`);
     const body = fullResponse(response);

@@ -1,4 +1,4 @@
-// `openbox audit` - fully spec-driven (H.3 + I + K). list/exports/get
+// `openbox audit`; fully spec-driven (H.3 + I + K). list/exports/get
 // are reads, delete-export/preview/export use @cli_json_merge for
 // body construction, download uses @cli_output_kind("binary") to
 // pass the binary payload through to stdout verbatim.

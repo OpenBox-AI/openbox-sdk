@@ -1,6 +1,6 @@
 // Cross-env read-only smoke: hits non-destructive endpoints against each
 // env (production, staging, local) that has a valid token in
-// ~/.openbox/tokens. The point isn't to re-verify CRUD - that's the
+// ~/.openbox/tokens. The point isn't to re-verify CRUD; that's the
 // lifecycle suites' job, scoped to local. The point is to catch drift:
 //
 //   - Response envelope shape differs between envs
@@ -8,7 +8,7 @@
 //     from each env and diffs the sorted sets)
 //   - A route returns different field names on prod vs staging
 //
-// Every command here is a GET / read - safe to run against prod. If a
+// Every command here is a GET / read; safe to run against prod. If a
 // token for a given env is missing or expired, that env's tests skip with
 // a clear "run openbox --env <env> auth login" message.
 //
@@ -33,7 +33,7 @@ function hasTokenFor(env: EnvName): boolean {
 }
 
 // Run a CLI command against a specific env. Returns {ok, stdout, stderr}
-// without throwing - callers decide what a non-zero exit means (e.g. a
+// without throwing; callers decide what a non-zero exit means (e.g. a
 // 401 is a signal to skip the env).
 function cliFor(env: EnvName, args: string[]): { status: number; stdout: string; stderr: string } {
   // Some endpoints (org get) need orgId. We don't know prod/staging org
@@ -64,7 +64,7 @@ beforeAll(async () => {
       envStates.push({
         env,
         skip: true,
-        reason: `no token - run: openbox --env ${env} auth login`,
+        reason: `no token; run: openbox --env ${env} auth login`,
       });
       continue;
     }
@@ -140,7 +140,7 @@ describe('cross-env read-only smoke', () => {
     });
   }
 
-  // Core permissions every env must grant to the admin - the baseline
+  // Core permissions every env must grant to the admin; the baseline
   // without which the CLI would be nonfunctional. Additional permissions
   // are feature-gated per env (prod turns off webhooks / api_keys / sso,
   // staging + local enable them) and that diff is surfaced as info, not
@@ -169,12 +169,12 @@ describe('cross-env read-only smoke', () => {
     }
   });
 
-  // Informational drift report. Not an assertion - prints the symmetric
+  // Informational drift report. Not an assertion; prints the symmetric
   // diff so the reader can eyeball whether env differences are expected
   // feature-gating (webhooks/api_keys/sso toggled per env) or actual
   // drift that warrants a fix. Catching unintended drift is still the
   // goal; the judgment call stays human.
-  it('permission drift is a diff, not a failure - logs for review', () => {
+  it('permission drift is a diff, not a failure; logs for review', () => {
     const ran = envStates.filter((s) => !s.skip);
     if (ran.length < 2) return;
     const [first, ...rest] = ran;

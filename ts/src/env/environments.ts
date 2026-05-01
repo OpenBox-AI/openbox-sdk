@@ -4,7 +4,7 @@
 // What's hand-written here vs generated:
 //   - Types (EnvName, EnvConfig, EnvLoader) and the URL data table
 //     (ENVIRONMENTS) come from ./generated/env-bindings.ts. Do not
-//     redeclare them here - TypeScript compile fails if you try.
+//     redeclare them here; TypeScript compile fails if you try.
 //   - The two functions below are the actual runtime: process.env
 //     lookups, error printing, the lower-case + validate dance.
 //     Per-language emitters lower the same EnvLoader interface to
@@ -26,7 +26,7 @@ export const resolveEnv: EnvLoader['resolveEnv'] = (cliFlag) => {
   const raw = cliFlag ?? process.env.OPENBOX_ENV ?? 'production';
   const name = raw.toLowerCase();
   if (name !== 'production' && name !== 'staging' && name !== 'local') {
-    // Throw rather than process.exit - this module is a library export
+    // Throw rather than process.exit; this module is a library export
     // (UI / IDE consumers depend on it) and shouldn't kill its host.
     // The CLI funnels everything through reportAndExit, which produces
     // exit code 2 (USAGE) for these.
@@ -40,9 +40,9 @@ export const resolveEnv: EnvLoader['resolveEnv'] = (cliFlag) => {
 // Plaintext http:// is allowed for:
 //   - env='local' (dev)
 //   - any env when the host is loopback (localhost / 127.0.0.1 / ::1)
-//     - a packet over loopback never leaves the machine, so token-
+//    ; a packet over loopback never leaves the machine, so token-
 //     in-plaintext is a theoretical not actual leak.
-// All other http:// in non-local envs is rejected - protects against
+// All other http:// in non-local envs is rejected; protects against
 // CI misconfig where OPENBOX_API_URL points at a remote attacker's
 // http endpoint.
 function enforceProtocol(env: string, url: string, name: string): string {
@@ -56,7 +56,7 @@ function enforceProtocol(env: string, url: string, name: string): string {
   } catch {
     throw new Error(`${name}=${url} is not a valid URL.`);
   }
-  // Node's URL keeps the [] brackets on IPv6 hostnames - match both shapes.
+  // Node's URL keeps the [] brackets on IPv6 hostnames; match both shapes.
   if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]') return url;
   throw new Error(
     `${name}=${url} uses http:// to a remote host in env '${env}'. ` +

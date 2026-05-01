@@ -3,7 +3,7 @@
 // `specs/typespec/govern/main.tsp` without the emitter generating it
 // fails CI on the next `npm run specs:compile`.
 //
-// The first-line check is `tsc --noEmit` - every Session class extends
+// The first-line check is `tsc --noEmit`; every Session class extends
 // BaseGovernedSession and the spec→code shape is fully generated, so a
 // missing method on a class would be a compiler error. This test backs
 // that with a runtime assertion that each manifest entry's method is a
@@ -78,7 +78,7 @@ describe('every PRESET_MANIFEST entry has a matching Session class', () => {
       test('registry entry is a class extending BaseGovernedSession', () => {
         expect(SessionCtor).toBeDefined();
         expect(typeof SessionCtor).toBe('function');
-        // Walking the prototype chain - the generated file uses
+        // Walking the prototype chain; the generated file uses
         // `extends BaseGovernedSession` for every preset.
         expect(SessionCtor.prototype).toBeInstanceOf(BaseGovernedSession);
       });

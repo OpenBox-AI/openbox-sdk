@@ -1,4 +1,4 @@
-// `openbox sso` - fully spec-driven (H.3 + I). All write ops use
+// `openbox sso`; fully spec-driven (H.3 + I). All write ops use
 // @cli_json_merge("replace") since the DTOs are entirely user-supplied.
 import { Command } from 'commander';
 import { getClient } from '../config.js';

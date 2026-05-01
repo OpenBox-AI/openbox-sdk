@@ -1,4 +1,4 @@
-// `openbox agent` - list / get / delete / update / create are all
+// `openbox agent`; list / get / delete / update / create are all
 // spec-driven (H.3 + I + J). create uses @cli_dto_defaults for the
 // AIVSS baseline, @cli_preflight("agentCreatePreflight") for the
 // team-existence + name-collision GETs, and @cli_output_post(

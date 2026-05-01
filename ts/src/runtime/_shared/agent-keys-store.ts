@@ -4,14 +4,14 @@
 // recovery path) and the MCP server's resolveApiKey (so MCP-driven
 // governance calls can find a runtime key without the caller re-
 // pasting it). Lives under runtime/_shared/ because both surfaces
-// depend on it - sibling to install.ts and session-store.ts.
+// depend on it; sibling to install.ts and session-store.ts.
 //
 // File: <openbox-data-root>/agent-keys (per-OS, see env/os-paths.ts).
-// Mode: 0o600 - drift-locked by tests/unit/platform-awareness.test.ts.
+// Mode: 0o600; drift-locked by tests/unit/platform-awareness.test.ts.
 //
 // Format: a thin JSON object mapping agentId → record. Plain JSON
 // (not the .env-style token store) because the caller is always the
-// CLI in the same env - there's no multi-env layering to support.
+// CLI in the same env; there's no multi-env layering to support.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';

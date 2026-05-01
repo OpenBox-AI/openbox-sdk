@@ -1,4 +1,4 @@
-// typespec-env - decorators that describe how a runtime
+// typespec-env; decorators that describe how a runtime
 // environment value is sourced + validated. Authored once here, used
 // by every language's env emitter so that the lookup order
 // (process env override → token store → built-in default) stays

@@ -1,4 +1,4 @@
-// `openbox approval` - fully spec-driven (H.3 + H.9). The decide write
+// `openbox approval`; fully spec-driven (H.3 + H.9). The decide write
 // uses the hybrid call shape via @cli_body_key on the `action`
 // positional, so wireSubcommands wraps it into { action } before
 // calling decideApproval.

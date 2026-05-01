@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 // Bundle entries map 1:1 to package.json's `exports` map. tsup follows
-// relative imports natively - no path mappings, no workspace name magic.
+// relative imports natively; no path mappings, no workspace name magic.
 //
 // Entry → published artifact:
 //   ts/src/index.ts                  → dist/index.js                  → openbox-sdk

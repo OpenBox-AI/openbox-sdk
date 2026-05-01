@@ -1,6 +1,6 @@
 import { describe, it, test, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from 'vitest';
 // Tests for the env + token resolver. These don't spin up the MCP
-// server - they just exercise the pure functions in ../config.ts.
+// server; they just exercise the pure functions in ../config.ts.
 
 import { mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';

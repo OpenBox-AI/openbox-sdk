@@ -4,7 +4,7 @@
 // redacted file, send a redacted prompt to an LLM).
 //
 // Ported from the legacy openbox-typescript-sdk. The shape of the input
-// (`GuardrailsVerdict`) is the new spec-driven verdict envelope -
+// (`GuardrailsVerdict`) is the new spec-driven verdict envelope .
 // `inputType` + `redactedInput` (camelCase) replace the old snake_case.
 import type { WorkflowVerdict } from './generated/govern.js';
 

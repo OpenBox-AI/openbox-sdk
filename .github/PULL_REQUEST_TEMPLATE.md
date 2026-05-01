@@ -21,7 +21,7 @@
 
 ## Breaking change
 
-- [ ] Yes - note the migration path below
+- [ ] Yes (note the migration path below)
 - [ ] No
 
 <!-- If yes: what consumer code needs to change. -->

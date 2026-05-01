@@ -1,7 +1,7 @@
 // Maps CLI command paths to the backend permissions required to execute them.
 // Derived from the granular permission set defined in openbox-backend
 // src/modules/**/decorators (`@Permissions(...)`). Any command listed here
-// will be pre-flight-checked against the cached per-env permission list -
+// will be pre-flight-checked against the cached per-env permission list .
 // if the current env's role lacks a required permission, the CLI errors
 // locally with a clear message instead of firing a request and getting 403.
 
@@ -17,7 +17,7 @@ export const COMMAND_PERMISSIONS: Record<CommandKey, string[]> = {
   'guardrail reorder':      ['update:agent_guardrail'],
   'guardrail metrics':      ['read:agent_guardrail'],
   'guardrail violations':   ['read:agent_guardrail'],
-  // 'guardrail test' endpoint has no @Permissions() on the backend - not gated here.
+  // 'guardrail test' endpoint has no @Permissions() on the backend; not gated here.
 
   // Policies
   'policy list':            ['read:agent_policy'],
@@ -27,7 +27,7 @@ export const COMMAND_PERMISSIONS: Record<CommandKey, string[]> = {
   'policy update':          ['update:agent_policy'],
   'policy evaluations':     ['read:agent_policy'],
   'policy metrics':         ['read:agent_policy'],
-  // 'policy evaluate' endpoint has no @Permissions() on the backend - not gated here.
+  // 'policy evaluate' endpoint has no @Permissions() on the backend; not gated here.
 
   // Behavior rules
   'behavior list':          ['read:agent_behavior_rule'],
@@ -43,7 +43,7 @@ export const COMMAND_PERMISSIONS: Record<CommandKey, string[]> = {
   'behavior metrics':       ['read:agent_behavior_rule'],
   'behavior violations':    ['read:agent_behavior_rule'],
 
-  // Sessions - note `session logs` hits a DIFFERENT endpoint requiring read:agent_log.
+  // Sessions; note `session logs` hits a DIFFERENT endpoint requiring read:agent_log.
   'session list':           ['read:agent_session'],
   'session active':         ['read:agent_session'],
   'session get':            ['read:agent_session'],
@@ -61,7 +61,7 @@ export const COMMAND_PERMISSIONS: Record<CommandKey, string[]> = {
   'api-key rotate':         ['update:agent'],
   'api-key revoke':         ['update:agent'],
 
-  // Observability - most endpoints gate on read:agent, not read:agent_log.
+  // Observability; most endpoints gate on read:agent, not read:agent_log.
   'observe data':           ['read:agent'],
   'observe issues':         ['read:agent'],
   'observe metrics':        ['read:agent'],
@@ -72,22 +72,22 @@ export const COMMAND_PERMISSIONS: Record<CommandKey, string[]> = {
   // ─── Entries below mirror the actual @Permissions(...) decorators in
   // openbox-backend (verified against src/modules/*/*.controller.ts and
   // src/modules/auth/enums/permissions.enum.ts). The backend uses a
-  // coarse-grained scheme - most agent sub-resources (aivss, trust, goal,
+  // coarse-grained scheme; most agent sub-resources (aivss, trust, goal,
   // approvals, violations) gate on the generic `read:agent` / `update:agent`
   // rather than fine-grained `read:agent_assessment` etc. (those don't exist
   // in the enum). Members use the `user` resource, not `member`.
   //
-  // Two endpoints that LOOK like they should be gated but aren't - no
+  // Two endpoints that LOOK like they should be gated but aren't; no
   // @Permissions decorator on the backend, so no entry here:
-  //   - POST /agent/aivss       (aivss calculate - pure calculator)
+  //   - POST /agent/aivss       (aivss calculate; pure calculator)
   //   - PATCH /agent/:id/violations/:vid/false-positive
 
-  // AIVSS - agent risk assessment
+  // AIVSS; agent risk assessment
   'aivss assessments':      ['read:agent'],
   'aivss recalculate':      ['update:agent'],
   'aivss update':           ['update:agent'],
 
-  // Approvals - per-agent HITL queue. All four read with `read:agent`,
+  // Approvals; per-agent HITL queue. All four read with `read:agent`,
   // including `decide` (backend gates the decide endpoint on ReadAgent too).
   'approval decide':        ['read:agent'],
   'approval history':       ['read:agent'],
@@ -121,7 +121,7 @@ export const COMMAND_PERMISSIONS: Record<CommandKey, string[]> = {
   'team add-members':       ['update:team'],
   'team remove-members':    ['update:team'],
 
-  // Members - backend uses the `user` resource (read:user / create:user /
+  // Members; backend uses the `user` resource (read:user / create:user /
   // update:user / delete:user). There is no `member` permission scope.
   'member list':            ['read:user'],
   'member create':          ['create:user'],
