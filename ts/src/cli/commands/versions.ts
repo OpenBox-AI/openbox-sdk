@@ -1,51 +1,25 @@
-// `openbox versions` - report the deployed commit/tag for each service
-// (backend, core, guardrails) in each env (production, staging, local).
-//
-// Source resolution order per env/service:
-//   1. `GET /version` on the service via OpenBoxClient.getVersion().
-//      Public endpoint, works for anyone. Currently deployed only on
-//      local; prod/staging light up once the patches in
-//      the-local-stack-dev-repo (patches/07-backend-version-endpoint.patch
-//      and patches/08-core-version-endpoint.patch) ship upstream.
-//   2. Local column only: current git HEAD of each service clone under
-//      the workspace if it exists.
-//
-// The previous `gh api` fallback against private OpenBox-AI manifest
-// repos was removed - it required maintainer-only access to repos the
-// CLI's general user base can't read, and shelling out to `gh` from a
-// shipped CLI is bad form regardless. Cells without /version now
-// honestly print "(no /version)" instead of pretending coverage.
+// `openbox versions`: report the deployed commit or tag for each
+// service in each env. Hits the public `/version` endpoint on each
+// service URL resolved from `openbox-sdk/env`. No filesystem reads,
+// no private-repo lookups; cells without `/version` print
+// "(no /version)".
 
 import type { Command } from 'commander';
-import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { resolve } from 'node:path';
 import { OpenBoxClient } from '../../client/index.js';
 import { resolveUrls, type EnvName } from '../../env/index.js';
 
-type ServiceName = 'the-backend-service' | 'the-core-service' | 'the-guardrails-service';
+type ServiceName = 'backend' | 'core' | 'guardrails';
 
-const SERVICES: ServiceName[] = ['the-backend-service', 'the-core-service', 'the-guardrails-service'];
+const SERVICES: ServiceName[] = ['backend', 'core', 'guardrails'];
 
-const LOCAL_CLONE: Record<ServiceName, string> = {
-  'the-backend-service': resolve(homedir(), 'workspace/the-workspace/the-backend-service'),
-  'the-core-service': resolve(homedir(), 'workspace/the-workspace/the-core-service'),
-  'the-guardrails-service': resolve(homedir(), 'workspace/the-workspace/the-guardrails-service'),
-};
-
-// Resolve service URLs per env from the canonical env config (openbox-sdk/env).
-// Single source of truth - no hardcoded duplication. Returns empty string for
-// services that don't have a registered URL in this env.
 function urlFor(env: EnvName, service: ServiceName): string {
   const urls = resolveUrls(env);
   switch (service) {
-    case 'the-backend-service':
+    case 'backend':
       return urls.apiUrl ?? '';
-    case 'the-core-service':
+    case 'core':
       return urls.coreUrl ?? '';
-    case 'the-guardrails-service':
-      // Not in openbox-sdk/env yet; honor OPENBOX_GUARDRAILS_URL if set, else empty.
+    case 'guardrails':
       return process.env.OPENBOX_GUARDRAILS_URL ?? '';
   }
 }
@@ -63,38 +37,13 @@ async function liveVersion(baseUrl: string): Promise<VersionCell | null> {
   return tag ? { tag, source: `${baseUrl}/version` } : null;
 }
 
-function localHead(service: ServiceName): VersionCell {
-  const dir = LOCAL_CLONE[service];
-  if (!existsSync(dir)) return { tag: '(clone missing)', source: dir };
-  try {
-    const sha = execFileSync('git', ['-C', dir, 'rev-parse', '--short', 'HEAD'], {
-      encoding: 'utf8',
-    }).trim();
-    const branch = execFileSync('git', ['-C', dir, 'rev-parse', '--abbrev-ref', 'HEAD'], {
-      encoding: 'utf8',
-    }).trim();
-    return { tag: `${sha} (${branch})`, source: `${dir} (git HEAD)` };
-  } catch {
-    return { tag: '(git read failed)', source: dir };
-  }
-}
-
 async function cellFor(env: EnvName, service: ServiceName): Promise<VersionCell> {
   const baseUrl = urlFor(env, service);
-  // 1. Live /version via OpenBoxClient.getVersion - public endpoint,
-  //    works for everyone once envs are redeployed with the patch.
   const live = await liveVersion(baseUrl);
   if (live) return live;
-
-  // 2. Local column: git HEAD of the clone.
-  if (env === 'local') return localHead(service);
-
-  // Prod/staging without /version - honest "not available". Users with
-  // a clone of the service repo can correlate manually; we don't try to
-  // read from private k8s manifest repos (was a maintainer-only path).
   return {
     tag: '(no /version)',
-    source: `${baseUrl || service} - /version not deployed`,
+    source: `${baseUrl || service}: /version not deployed`,
   };
 }
 
@@ -132,8 +81,6 @@ export function registerVersionsCommand(program: Command): void {
         EnvName,
         Record<ServiceName, VersionCell>
       >;
-      // Resolve all cells in parallel - each is an independent network or
-      // git read, no point doing them serially across a 3x3 grid.
       const tasks: Promise<void>[] = [];
       for (const env of envs) {
         rows[env] = {} as Record<ServiceName, VersionCell>;
@@ -155,12 +102,5 @@ export function registerVersionsCommand(program: Command): void {
           }
         }
       }
-      console.log(
-        '\nresolution order:\n' +
-          '  1. GET /version              [live on local today; lights up on\n' +
-          '                                 prod/staging once upstream deploys\n' +
-          '                                 the version-endpoint patches]\n' +
-          '  2. local git HEAD            [local column fallback]',
-      );
     });
 }

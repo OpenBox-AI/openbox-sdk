@@ -1,4 +1,4 @@
-// Regression fixture - verifies the universal (path-based) X-Openbox-Client check
+// Regression fixture; verifies the universal (path-based) X-Openbox-Client check
 // fires against self-hosted backends on arbitrary domains.
 // Tracks: missing-x-openbox-client-header.
 

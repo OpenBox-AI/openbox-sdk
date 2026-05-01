@@ -1,6 +1,6 @@
 import { describe, it, test, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from 'vitest';
 // Tests for the env + token resolver. These don't spin up the MCP
-// server - they just exercise the pure functions in ../config.ts.
+// server; they just exercise the pure functions in ../config.ts.
 
 import { mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -160,7 +160,7 @@ describe('setMcpClientName + createApi header', () => {
   const origFetch = global.fetch;
 
   beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'runtime/mcp-headers-'));
+    tmpDir = mkdtempSync(join(tmpdir(), 'mcp-headers-'));
     tokensPath = join(tmpDir, 'tokens');
     writeFileSync(tokensPath, 'production.ACCESS_TOKEN=fake-jwt\n');
     process.env.OPENBOX_ENV = 'production';

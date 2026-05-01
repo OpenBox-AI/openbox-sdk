@@ -187,7 +187,7 @@ describe('runtime/cursor/mappers/pre-tool-use', () => {
     };
     const cfg: any = { skipTools: [], sessionDir: dir };
     await handlePreToolUse(env, session, cfg);
-    // The cursor variant either fires once or short-circuits - drive
+    // The cursor variant either fires once or short-circuits; drive
     // the function for coverage; precise behavior covered by e2e.
     expect(typeof session.calls.length).toBe('number');
   });
@@ -208,7 +208,7 @@ describe('runtime/mcp/config', () => {
   });
 });
 
-describe('runtime/_shared/install - defensive paths', () => {
+describe('runtime/_shared/install; defensive paths', () => {
   it('install + uninstall are idempotent across re-runs', async () => {
     const { installAdapter, uninstallAdapter } = await import('../../ts/src/runtime/_shared/install');
     const target = join(dir, 'settings.json');

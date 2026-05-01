@@ -1,4 +1,4 @@
-// Hook handler - invoked by `openbox cursor hook` from Cursor's
+// Hook handler; invoked by `openbox cursor hook` from Cursor's
 // hooks.json config. Reads stdin, dispatches via the spec-driven
 // cursor adapter, returns the appropriate stdout per hook event
 // (cursor-permission for before*, cursor-observe for after*), exits 0

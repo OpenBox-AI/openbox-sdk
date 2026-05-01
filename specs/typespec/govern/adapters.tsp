@@ -1,4 +1,4 @@
-// specs/typespec/govern/adapters.tsp - hook-protocol adapter shapes.
+// specs/typespec/govern/adapters.tsp; hook-protocol adapter shapes.
 //
 // Adapters describe stdin/stdout JSON hook protocols (Claude Code hooks,
 // Cursor hooks). The emitter generates one `runtime/<name>` module per
@@ -48,7 +48,7 @@ model ClaudeCodeEnvelope {
 }
 
 /**
- * Claude Code hook adapter - single binary that dispatches every hook
+ * Claude Code hook adapter; single binary that dispatches every hook
  * event by `hook_event_name`. Binds to the `claude-code` preset.
  */
 @adapter("claude-code", "claude-code", "hook_event_name")
@@ -338,12 +338,12 @@ model CursorEnvelope {
   response?: string;
   /** beforeReadFile: Cursor inlines the file body in the envelope. */
   content?: string;
-  /** afterMCPExecution legacy harness wire field - sometimes JSON-string-encoded. */
+  /** afterMCPExecution legacy harness wire field; sometimes JSON-string-encoded. */
   result_json?: string;
 }
 
 /**
- * Cursor hook adapter - single binary that dispatches every Cursor hook
+ * Cursor hook adapter; single binary that dispatches every Cursor hook
  * event by `hook_event_name`. Binds to the `cursor` preset.
  *
  * Cursor's `before*` hooks return `{permission, userMessage?, ...}` and
@@ -410,7 +410,7 @@ interface CursorAdapter {
    * Cursor 3.x's primary tool-routing hook. Cursor remaps Claude tool
    * names: Bash → "Shell", Write/Edit → "Write". Tools not listed
    * (`Glob`, `Grep`, etc.) are pass-through. Shell commands matching
-   * `/\b(rm|unlink|rmdir|shred)\b/` reroute to file_write - declared
+   * `/\b(rm|unlink|rmdir|shred)\b/` reroute to file_write; declared
    * in the @activityVariant below; the runtime helper applies it
    * after the routing-table lookup.
    */

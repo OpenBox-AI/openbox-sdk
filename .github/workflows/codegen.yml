@@ -1,8 +1,9 @@
 # Spec-driven codegen pipeline check.
 #
-# The codegen pipeline
-# the SDK treats TypeSpec specs + emitted code as the source of truth.
-# Drift between specs and committed generated/ files = build break.
+# TypeSpec sources at specs/typespec/ are the source of truth. The
+# emitters under codegen/emitters/ produce generated artifacts under
+# ts/src/**/generated/ and specs/generated/. Drift between the
+# committed generated files and a fresh re-emit is a build break.
 
 name: Codegen Pipeline
 
@@ -75,9 +76,10 @@ jobs:
         run: npm run specs:compile
 
       - name: Spectral lint
-        # Spectral catches OpenAPI authoring smells (missing operationIds,
-        # untyped responses, etc.) on top of TypeSpec's compile errors.
-        # Ruleset is pinned via the local .spectral.yaml (extends spectral:oas).
+        # Spectral catches OpenAPI authoring smells like missing
+        # operationIds and untyped responses on top of TypeSpec's
+        # compile errors. The ruleset is pinned via local .spectral.yaml,
+        # which extends spectral:oas.
         run: npx --yes @stoplight/spectral-cli lint specs/generated/openapi3/*.json
 
   spec-diff:

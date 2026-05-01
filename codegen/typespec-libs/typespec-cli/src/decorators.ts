@@ -1,5 +1,5 @@
 // Decorator implementations for typespec-cli. See ../env/src/
-// decorators.ts for the same shape - getter helpers are exported here
+// decorators.ts for the same shape; getter helpers are exported here
 // for emitter consumption; the TypeSpec compiler sees the decorators
 // through src/index.ts ($decorators export) only.
 
@@ -195,7 +195,7 @@ export function getCallsBackend(
 //   list:<label>            paginated-list renderer (label shown when empty)
 //   json:                   JSON dump
 //   kv:                     key/value single-record renderer (same as table for one obj)
-//   custom:                 hand-coded action body - emitter skips generation
+//   custom:                 hand-coded action body; emitter skips generation
 
 export type OutputKind = 'table' | 'list' | 'json' | 'kv' | 'binary' | 'custom';
 
@@ -241,7 +241,7 @@ export function getOutputKind(
   return program.stateMap(stateKeys.outputKind).get(target);
 }
 
-/** Dotted path into the response - the renderer reads `getPath(data,
+/** Dotted path into the response; the renderer reads `getPath(data,
  *  path)` and uses that as the data argument to `output`/`outputList`.
  *  Replaces the per-command "extract result.approvals.data before
  *  rendering" pattern. */
@@ -259,7 +259,7 @@ export function getOutputPluck(program: Program, target: Operation): string | un
 
 /** Names a callback (registered in the runtime's OUTPUT_POST_REGISTRY)
  *  to invoke after output. The callback receives the *original*
- *  response (pre-pluck) - used for stderr banners like the runtime-key
+ *  response (pre-pluck); used for stderr banners like the runtime-key
  *  highlight after `agent create` / `api-key rotate`. */
 export function $cli_output_post(
   context: DecoratorContext,
@@ -276,7 +276,7 @@ export function getOutputPost(program: Program, target: Operation): string | und
 // ─── Pagination ──────────────────────────────────────────────
 // Marker that adds the canonical -p/--page and -l/--limit flags + auto-
 // merges them into the body via parsePagination(opts). No params on the
-// decorator - its mere presence signals "wire this up".
+// decorator; its mere presence signals "wire this up".
 
 export function $cli_pagination(context: DecoratorContext, target: Operation): void {
   context.program.stateMap(stateKeys.pagination).set(target, true);
@@ -339,7 +339,7 @@ export function $cli_default(
   context.program.stateMap(stateKeys.flagExtra).set(target, { ...cur, defaultValue: value });
 }
 
-/** Marks a flag as variadic - Commander syntax `--name <v...>` collects
+/** Marks a flag as variadic; Commander syntax `--name <v...>` collects
  *  every space-separated arg into an array. The flag's body value is
  *  the array verbatim. */
 export function $cli_variadic(
@@ -356,7 +356,7 @@ export function $cli_variadic(
  *
  *  When the parent op carries @cli_json_merge, "required" flips to
  *  "the merged body must have this key from either the flag or --json"
- *  - commander's requiredOption can't see inside --json so the check
+ * ; commander's requiredOption can't see inside --json so the check
  *  moves to runtime. */
 export function $cli_required(
   context: DecoratorContext,
@@ -368,11 +368,11 @@ export function $cli_required(
 
 /** Marks an op as accepting a `--json <body>` escape hatch alongside
  *  per-flag overrides. Modes:
- *    "fill"     - --json is the body base, flag values fill missing keys
- *    "replace"  - --json fully replaces the flag-derived body when present
- *    "only"     - like "replace", but --json is required (no flag fallback)
+ *    "fill"    ; --json is the body base, flag values fill missing keys
+ *    "replace" ; --json fully replaces the flag-derived body when present
+ *    "only"    ; like "replace", but --json is required (no flag fallback)
  *
- *  @cli_required flags become "must be present in the merged body" - checked
+ *  @cli_required flags become "must be present in the merged body"; checked
  *  at runtime instead of via Commander's requiredOption. */
 export function $cli_json_merge(
   context: DecoratorContext,
@@ -483,7 +483,7 @@ export function getPreflight(program: Program, target: Operation): string | unde
   return program.stateMap(stateKeys.preflight).get(target);
 }
 
-/** Declarative DTO defaults - JSON literal merged into the body when
+/** Declarative DTO defaults; JSON literal merged into the body when
  *  the corresponding key isn't present (spec base, flags fill, then
  *  defaults fill the still-missing keys). Used for things like agent
  *  create's hardcoded AIVSS baseline. */
@@ -501,10 +501,10 @@ export function getDtoDefaults(program: Program, target: Operation): unknown {
 }
 
 /** Names a callback registered in POST_VALIDATE_REGISTRY that runs
- *  AFTER the body is assembled and BEFORE the call fires. Lets the
- *  spec wire cross-field validators (e.g. behavior's
- *  validateApprovalTimeout(verdict, approval_timeout)) without leaving
- *  the action body to do it. */
+ *  after the body is assembled and before the call fires. Lets the
+ *  spec wire cross-field validators, such as behavior's
+ *  `validateApprovalTimeout(verdict, approval_timeout)`, without
+ *  leaving the action body to do it. */
 export function $cli_post_validate(
   context: DecoratorContext,
   target: Operation,

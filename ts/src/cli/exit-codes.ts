@@ -1,4 +1,4 @@
-// Exit-code taxonomy. The single source of truth - every command MUST
+// Exit-code taxonomy. The single source of truth; every command MUST
 // exit through `reportAndExit` (errors) or `bailWith` (clean exit with a
 // specific code). Drift test: no raw `process.exit(...)` allowed in
 // `ts/src/cli/**` outside this file and `validators/index.ts`.
@@ -16,22 +16,22 @@ export const EXIT = {
    *  required option, unknown flag, etc. We follow that convention. */
   USAGE: 2,
 
-  /** Auth failure - 401, 403, missing tokens, expired session. */
+  /** Auth failure; 401, 403, missing tokens, expired session. */
   AUTH: 3,
 
   /** Required feature flag disabled for the active env. */
   FEATURE_DISABLED: 4,
 
-  /** Resource not found - 404. */
+  /** Resource not found; 404. */
   NOT_FOUND: 5,
 
-  /** Conflict - 409 (already-exists, version mismatch, etc.). */
+  /** Conflict; 409 (already-exists, version mismatch, etc.). */
   CONFLICT: 6,
 
-  /** Rate-limited - 429. Caller MAY retry with backoff. */
+  /** Rate-limited; 429. Caller MAY retry with backoff. */
   RATE_LIMIT: 7,
 
-  /** Server-side failure - 5xx. Caller MAY retry. */
+  /** Server-side failure; 5xx. Caller MAY retry. */
   SERVER: 8,
 
   /** Network / transport failure (DNS, ECONNREFUSED, timeout). Retryable. */

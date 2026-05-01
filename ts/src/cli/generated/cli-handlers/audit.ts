@@ -74,14 +74,14 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
   },
   {
     "name": "export",
-    "description": "Export audit logs. --json provides a full ExportAuditLogsDto;\nindividual flags fill missing fields. exportName is required in\nthe merged body (either via --name or via --json).",
+    "description": "Export audit logs. --body provides a full ExportAuditLogsDto;\nindividual flags fill missing fields. exportName is required in\nthe merged body (either via --name or via --body).",
     "args": [],
     "flags": [
       {
         "name": "name",
         "long": "name",
         "short": "n",
-        "description": "Export name (required; if --json omits exportName, this fills it)",
+        "description": "Export name (required; if --body omits exportName, this fills it)",
         "bodyKey": "exportName",
         "required": true,
         "noArg": false
@@ -166,7 +166,7 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
   },
   {
     "name": "preview",
-    "description": "Preview audit log export. --json replaces flag-built body when\npresent.",
+    "description": "Preview audit log export. --body replaces flag-built body when\npresent.",
     "args": [],
     "flags": [
       {
@@ -267,7 +267,7 @@ export const AUDIT_HANDLERS: SubcommandSpec[] = [
   },
   {
     "name": "download",
-    "description": "Download an export - returns a binary payload, written verbatim\nto stdout.",
+    "description": "Download an export; returns a binary payload, written verbatim\nto stdout.",
     "args": [
       {
         "name": "exportId"

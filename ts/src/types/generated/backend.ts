@@ -1875,7 +1875,7 @@ export interface components {
             created_at?: string;
             updated_at?: string;
             last_used_at?: string | null;
-            /** @description Only present on create - the raw `obx_key_*` secret, shown once. */
+            /** @description Only present on create; the raw `obx_key_*` secret, shown once. */
             key?: string;
         } & {
             [key: string]: unknown;
@@ -2079,7 +2079,7 @@ export interface components {
             /** @description Reject message */
             reject_message: string;
             /**
-             * @description Approval timeout in seconds - required when verdict is REQUIRE_APPROVAL.
+             * @description Approval timeout in seconds; required when verdict is REQUIRE_APPROVAL.
              *     Drives `approval_expiration_time = now + this_value` on every approval
              *     row produced by this rule. This is the only surface in the spec where
              *     the approval window is user-configurable. OPA policies (CreatePolicyDto)
@@ -2203,9 +2203,9 @@ export interface components {
             input: Record<string, never>;
         };
         ExportAuditLogsDto: {
-            /** @description Name for this export (e.g., "December 2024 Security Events") */
+            /** @description Name for this export, such as "December 2024 Security Events". */
             exportName: string;
-            /** @description Filter by event types (multiple selection supported) */
+            /** @description Filter by event types. Multiple selection is supported. */
             eventTypes?: ("policy_change" | "guardrail_change" | "agent_session" | "agent_risk_configuration_change" | "agent_goal_alignment_configuration_change" | "role_change" | "security_event" | "settings_update" | "team_management" | "member_management" | "invitation")[];
             /** @description Filter by actor ID (user ID) */
             actorId?: string;
@@ -2420,7 +2420,7 @@ export interface components {
             status?: string;
             started_at?: string;
             /**
-             * @description Backend field is `completed_at` - use this, not `ended_at` (which
+             * @description Backend field is `completed_at`; use this, not `ended_at` (which
              *     doesn't exist).
              */
             completed_at?: string;
@@ -2464,7 +2464,7 @@ export interface components {
          */
         TokenPair: {
             accessToken: string;
-            /** @description Optional - Keycloak rotation may be disabled. */
+            /** @description Optional; Keycloak rotation may be disabled. */
             refreshToken?: string;
         };
         TrustEvent: {
@@ -2568,7 +2568,7 @@ export interface components {
             /** @description Reject message */
             reject_message: string;
             /**
-             * @description Approval timeout in seconds - required when verdict is REQUIRE_APPROVAL.
+             * @description Approval timeout in seconds; required when verdict is REQUIRE_APPROVAL.
              *     Drives `approval_expiration_time = now + this_value` on every approval
              *     row produced by this rule. This is the only surface in the spec where
              *     the approval window is user-configurable. OPA policies (CreatePolicyDto)

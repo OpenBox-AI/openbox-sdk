@@ -1,4 +1,4 @@
-// typespec-cli - decorators that describe the CLI surface
+// typespec-cli; decorators that describe the CLI surface
 // in protocol form, separate from any one language's argument parser.
 // Per-language emitters lower these to commander/clap/click/cobra
 // while the .tsp source captures only the contract: command tree,
@@ -35,7 +35,7 @@ extern dec cli_command(
  * @param short Single-letter alias; pass `""` to disable the short form.
  * @param env Environment variable that supplies a default if the
  *   flag is unset on the command line. Composes with `@env_var` on
- *   models - emitters chain the two when both target the same field.
+ *   models; emitters chain the two when both target the same field.
  */
 extern dec cli_flag(
   target: ModelProperty,
@@ -46,9 +46,9 @@ extern dec cli_flag(
 
 /**
  * Attaches a validator name to a flag. The named validator must exist
- * in the per-language runtime helper bundle (e.g. `validateApiKeyFormat`
- * for the `obx_live_*` regex). Emitters generate the call site; they
- * do not emit the validator body itself.
+ * in the per-language runtime helper bundle, such as
+ * `validateApiKeyFormat` for the `obx_live_*` regex. Emitters generate
+ * the call site; they do not emit the validator body itself.
  *
  * @param name Validator function identifier shared across languages.
  */
@@ -62,7 +62,7 @@ extern dec cli_validator(target: ModelProperty, name: valueof string);
  * subcommand within an otherwise-stable parent).
  *
  * Default if unspecified: anything not labeled is treated as
- * `experimental` by the runtime - the conservative default flips
+ * `experimental` by the runtime; the conservative default flips
  * promotion into a deliberate spec edit, not a silent expansion.
  */
 extern dec cli_maturity(
@@ -90,13 +90,13 @@ extern dec feature_flag(
  * Tells the emitter which `OpenBoxClient` method this CLI op invokes
  * and how its arguments are arranged.
  *
- * @param method Name of the wrapper method on the generated client
- *   (e.g. "getTrustHistories", "listAgents").
- * @param shape "body" (default) - TypeSpec positional params go positional
- *   in the call and flags merge into a final body object;
- *   "positional" - every parameter (positional + flag) goes positional
- *   in declaration order. Use "positional" for the older client methods
- *   that take individual scalar args.
+ * @param method Name of the wrapper method on the generated client,
+ *   such as "getTrustHistories" or "listAgents".
+ * @param shape "body" is the default. TypeSpec positional params go
+ *   positional in the call and flags merge into a final body object.
+ *   "positional" means every parameter, positional and flag, goes
+ *   positional in declaration order. Use "positional" for older
+ *   client methods that take individual scalar args.
  */
 extern dec cli_calls(
   target: Operation,
@@ -110,8 +110,8 @@ extern dec cli_calls(
  * this enum + the emitter's switch statement.
  *
  * @param kind table | list | json | kv | custom
- * @param label `list`-only: shown when the page is empty
- *   (e.g. "trust events", "agents").
+ * @param label `list`-only: shown when the page is empty. Examples:
+ *   "trust events", "agents".
  */
 extern dec cli_output_kind(
   target: Operation,
@@ -130,9 +130,9 @@ extern dec cli_output_kind(
 extern dec cli_pagination(target: Operation);
 
 /**
- * Renames a flag's body key. Default body key = the flag's parameter
- * name verbatim. Use this when the wire shape disagrees with the CLI
- * naming (e.g. `--from` → `fromTime`).
+ * Renames a flag's body key. The default body key is the flag's
+ * parameter name verbatim. Use this when the wire shape disagrees
+ * with the CLI naming, such as `--from` becoming `fromTime`.
  */
 extern dec cli_body_key(target: ModelProperty, key: valueof string);
 
@@ -152,7 +152,7 @@ extern dec cli_parse(target: ModelProperty, kind: valueof "int" | "json" | "csv"
 extern dec cli_choice(target: ModelProperty, values: valueof string[]);
 
 /**
- * Default value for a flag (string form - coerced via @cli_parse if any).
+ * Default value for a flag (string form; coerced via @cli_parse if any).
  */
 extern dec cli_default(target: ModelProperty, value: valueof string);
 
@@ -165,13 +165,13 @@ extern dec cli_variadic(target: ModelProperty);
 /**
  * Marks a flag as required (Commander `requiredOption`). Without it
  * the user gets a clear "missing required option --x" error before
- * the action runs. Use sparingly - required flags break tab-completion
+ * the action runs. Use sparingly; required flags break tab-completion
  * UX and are usually a sign the field belongs as a positional arg.
  */
 extern dec cli_required(target: ModelProperty);
 
 /**
- * Dotted path into the response - the renderer reads
+ * Dotted path into the response; the renderer reads
  * `getPath(data, path)` and renders the sub-value instead of the full
  * envelope. Use when the wire returns a wrapper like
  * `{ approvals: { data: [...] }, metrics: {...} }` and you want
@@ -182,7 +182,7 @@ extern dec cli_output_pluck(target: Operation, path: valueof string);
 /**
  * Names a callback (registered via wire-subcommands.OUTPUT_POST_REGISTRY)
  * the runtime invokes after `output()` returns. The callback receives
- * the original response data (pre-pluck). Used for stderr banners -
+ * the original response data (pre-pluck). Used for stderr banners,
  * e.g. the runtime-key highlight that fires after `agent create` and
  * `api-key rotate`.
  */
@@ -198,7 +198,7 @@ extern dec cli_output_post(target: Operation, callbackName: valueof string);
  * Mode "replace": --json fully replaces the flag-derived body when
  *   present (audit preview, team create pattern).
  *
- * @cli_required flags become "must be present in the merged body" -
+ * @cli_required flags become "must be present in the merged body";
  * the check runs after the merge instead of via Commander's
  * requiredOption (which can't see inside --json).
  */
@@ -224,7 +224,7 @@ extern dec cli_at_least_one(target: Operation, fields: valueof string[]);
 extern dec cli_required_together(target: Operation, fields: valueof string[]);
 
 /**
- * Marks an op as local-only - it never calls the OpenBox backend or
+ * Marks an op as local-only; it never calls the OpenBox backend or
  * core. Documents intent in spec; the cli-import-allowlist drift test
  * guarantees the implementation matches.
  */
@@ -232,7 +232,7 @@ extern dec cli_local_only(target: Operation);
 
 /**
  * Marks an op as destructive (deletes/revokes/rotates an external
- * resource - anything that would be regrettable to run by accident).
+ * resource; anything that would be regrettable to run by accident).
  * The runtime enforces this at command time:
  *   - if `--yes` / `-y` was passed → proceed
  *   - if a CI / non-interactive context is detected (CI=1,
@@ -257,7 +257,7 @@ extern dec cli_destructive(target: Operation);
 extern dec cli_preflight(target: Operation, callbackName: valueof string);
 
 /**
- * Declarative DTO defaults - JSON literal merged into the body for
+ * Declarative DTO defaults; JSON literal merged into the body for
  * keys the user didn't set. Order: --json (if jsonMerge) → flag
  * values → dto_defaults. Used for `agent create`'s hardcoded AIVSS
  * baseline so the user can omit it without the backend rejecting.
@@ -269,7 +269,7 @@ extern dec cli_dto_defaults(target: Operation, defaults: valueof Record<unknown>
  * AFTER body assembly and BEFORE the call. Lets the spec wire cross-
  * field validators (behavior's validateApprovalTimeout(verdict,
  * approval_timeout) for instance) without leaving the action body to
- * do it. Stackable - @cli_post_validate can be repeated for multiple
+ * do it. Stackable; @cli_post_validate can be repeated for multiple
  * checks per op.
  */
 extern dec cli_post_validate(target: Operation, callbackName: valueof string);

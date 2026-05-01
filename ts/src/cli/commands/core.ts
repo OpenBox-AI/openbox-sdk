@@ -1,4 +1,4 @@
-// `openbox core` - health/validate/poll-approval are spec-driven via
+// `openbox core`; health/validate/poll-approval are spec-driven via
 // the same wireSubcommands path that other commands use, but with the
 // CoreClient resolver instead of OpenBoxClient. evaluate stays custom
 // because it has the --type shorthand that drives buildTestPayload +

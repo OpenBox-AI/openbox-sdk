@@ -1,6 +1,6 @@
 // Live approval decide e2e: drives the full policy → OPA → approval path.
 //
-// Requires the full local stack from the-local-stack-dev-repo:
+// Requires the full local stack from the local-stack dev repo:
 //   - backend, keycloak, postgres, redis  (up.sh)
 //   - postgres-backed temporal             (docker-compose.temporal.yml)
 //   - core server + 3 workers              (scripts/core-up.sh)
@@ -155,7 +155,7 @@ async function waitForOpaPolicy(
     await new Promise((res) => setTimeout(res, 500));
   }
   throw new Error(
-    `OPA didn't serve policy ${policyIdNoDashes} after ${timeoutMs}ms - ` +
+    `OPA didn't serve policy ${policyIdNoDashes} after ${timeoutMs}ms; ` +
       'check opa-up.sh is pulling the bundle from moto S3',
   );
 }
@@ -185,8 +185,8 @@ describe('live approval decide (e2e, real stack with OPA + moto)', () => {
       (await reachable(`${OPA_URL}/health`));
     if (!canRunLive) {
       console.warn(
-        `[live-approval] core (${CORE_URL}) or OPA (${OPA_URL}) not reachable - skipping suite. ` +
-          'Run scripts/core-up.sh + scripts/opa-up.sh from the-local-stack-dev-repo.',
+        `[live-approval] core (${CORE_URL}) or OPA (${OPA_URL}) not reachable; skipping suite. ` +
+          'Run scripts/core-up.sh + scripts/opa-up.sh from the local-stack dev repo.',
       );
       return;
     }
@@ -248,8 +248,8 @@ describe('live approval decide (e2e, real stack with OPA + moto)', () => {
     }
   }
 
-  // SKIP: depends on `policy create` reaching S3 - blocked on
-  // the-local-stack-dev-repo fix/s3-virtual-hosted (drops the
+  // SKIP: depends on `policy create` reaching S3; blocked on
+  // the local-stack dev repo fix/s3-virtual-hosted (drops the
   // S3_IGNORE_SUBDOMAIN_BUCKETNAME=true override on the moto container).
   // Verified locally with the dev-setup branch loaded: 2/2 pass.
   it.skip('`approval decide approve` flips verdict to ALLOW', async () => {

@@ -1,4 +1,4 @@
-// `openbox behavior` - fully spec-driven (H.3 + I + J). create/update
+// `openbox behavior`; fully spec-driven (H.3 + I + J). create/update
 // use @cli_post_validate("behaviorRuleCrossField") so the
 // trigger/states/verdict/approval-timeout cross-field validation runs
 // before the call. toggle uses @cli_parse("bool") + @cli_choice.

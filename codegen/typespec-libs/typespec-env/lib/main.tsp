@@ -1,4 +1,4 @@
-// typespec-env - decorators that describe how a runtime
+// typespec-env; decorators that describe how a runtime
 // environment value is sourced + validated. Authored once here, used
 // by every language's env emitter so that the lookup order
 // (process env override → token store → built-in default) stays
@@ -21,9 +21,9 @@ namespace OpenBox.Env;
 extern dec env_var(target: ModelProperty, name: valueof string, defaultValue?: valueof string);
 
 /**
- * Constrains a string property to a runtime token format (e.g. the
- * `obx_live_<48hex>` API key shape). Emitters generate validators
- * that reject malformed inputs at the CLI/SDK boundary instead of
+ * Constrains a string property to a runtime token format, such as
+ * the `obx_live_<48hex>` API key shape. Emitters generate validators
+ * that reject malformed inputs at the CLI or SDK boundary instead of
  * letting them reach the wire.
  *
  * @param pattern A regular expression in JS / PCRE-compatible syntax.

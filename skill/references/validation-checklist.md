@@ -1,44 +1,47 @@
-# Validation Checklist
+# Validation checklist
 
-Run these checks at each step. Every mutation should be followed by a GET to confirm state.
+Run these checks at each step. Every mutation should be followed by a
+GET to confirm state.
 
 ## After agent create
 
 ```bash
-# Verify agent exists and is accessible
+# Verify the agent exists and is accessible.
 openbox agent get $AGENT_ID
-# Verify API key works
+# Verify the API key works.
 OPENBOX_API_KEY=$API_KEY openbox core validate
 ```
 
-If either fails, the agent was created wrong (missing `-t` team ID is the usual cause).
+If either fails, the agent was created wrong. The usual cause is a
+missing `-t` team ID.
 
 ## After guardrail create
 
 ```bash
-# Verify guardrail is listed and active
+# Verify the guardrail is listed and active.
 openbox guardrail list $AGENT_ID
 ```
 
-Check `is_active: true` and `processing_stage` matches what you intended (pre/post).
+Check that `is_active: true` and `processing_stage` matches the
+intent: pre or post.
 
-## After behavior rule create
+## After behavior-rule create
 
 ```bash
-# Verify rule exists
+# Verify the rule exists.
 openbox behavior list $AGENT_ID
 ```
 
 Check `trigger`, `verdict`, and `is_active` match intent.
 
-## After goal alignment update
+## After goal-alignment update
 
 ```bash
-# Verify config
+# Verify the config.
 openbox goal trend $AGENT_ID
 ```
 
-## Before running the app - exhaustive verification
+## Before running the app: exhaustive verification
 
 Run every test. If any fails, fix before proceeding.
 
@@ -56,50 +59,68 @@ OPENBOX_API_KEY=$API_KEY openbox core evaluate --json '{"event_type":"WorkflowSt
 OPENBOX_API_KEY=$API_KEY openbox core evaluate --json '{"event_type":"ActivityStarted","workflow_id":"verify-test","run_id":"verify-run","activity_id":"act-1","activity_type":"test","activity_input":[{"test":"data"}],"spans":[{"name":"POST /test","attributes":{"http.method":"POST"}}]}'
 OPENBOX_API_KEY=$API_KEY openbox core evaluate --json '{"event_type":"WorkflowCompleted","workflow_id":"verify-test","run_id":"verify-run"}'
 
-# 4. Verify session was created
+# 4. Verify the session was created
 openbox session list $AGENT_ID
 ```
 
 ### Per-feature verification
 
 **For each tool type in the app:**
-- Send ActivityStarted with correct span (matching gate attribute) → expect verdict
-- Verify semantic type detected correctly (check `age_result.span_results[].semantic_type`)
 
-**If guardrails configured:**
-- Send input WITH PII → check if guardrail detects it
-- Send clean input → expect ALLOW
+- Send `ActivityStarted` with the correct span carrying the matching
+  gate attribute. Expect a verdict.
+- Verify the semantic type was detected correctly under
+  `age_result.span_results[].semantic_type`.
 
-**If behavior rules configured:**
-- Send matching action type → expect the configured verdict (BLOCK/REQUIRE_APPROVAL)
-- Send non-matching type → expect ALLOW
+**If guardrails are configured:**
 
-**If HITL configured:**
-- Trigger REQUIRE_APPROVAL → check approval appears in `openbox approval pending $AGENT_ID`
-- Verify polling uses `verdict` field (not `action`) from response
+- Send input with PII. Check that the guardrail detects it.
+- Send clean input. Expect `allow`.
 
-**Coverage check - every tool type must be tested:**
-- List every tool in the app (check_availability, process_payment, send_email, etc.)
-- For each one, verify a governance event is sent with correct span and gate attributes
-- If a behavior rule was configured for that tool's action type, confirm it fires
-- If a guardrail was configured, confirm it evaluates the input
-- Don't skip "safe" tools - governance must cover everything
+**If behavior rules are configured:**
+
+- Send a matching action type. Expect the configured verdict, either
+  `block` or `require_approval`.
+- Send a non-matching type. Expect `allow`.
+
+**If HITL is configured:**
+
+- Trigger `require_approval`. Check that the approval appears in
+  `openbox approval pending $AGENT_ID`.
+- Verify polling reads the `verdict` field, not `action`. SDK
+  consumers see `verdict`; raw HTTP callers read `action`.
+
+**Coverage check.** Every tool type must be tested:
+
+- List every tool in the app, such as `check_availability`,
+  `process_payment`, `send_email`.
+- For each, verify a governance event is sent with the correct span
+  and gate attributes.
+- If a behavior rule was configured for that tool's action type,
+  confirm it fires.
+- If a guardrail was configured, confirm it evaluates the input.
+- Do not skip "safe" tools. Governance must cover everything.
 
 **ID consistency check:**
-- workflowId and runId must be identical across all events in a session
-- Each activityId must be unique per tool call but consistent between ActivityStarted and ActivityCompleted
-- Test: send WorkflowStarted, then ActivityStarted with same workflowId/runId → verify session list shows 1 session
+
+- `workflow_id` and `run_id` must be identical across all events in a
+  session.
+- Each `activity_id` must be unique per tool call but consistent
+  between `ActivityStarted` and `ActivityCompleted`.
+- Test: send `WorkflowStarted`, then `ActivityStarted` with the same
+  `workflow_id` and `run_id`. Verify the session list shows one
+  session.
 
 ## After running the app
 
 ```bash
-# Check sessions were created
+# Check sessions were created.
 openbox session list $AGENT_ID
 
-# Check for violations
+# Check for violations.
 openbox violation agent $AGENT_ID
 
-# Check trust score
+# Check trust score.
 openbox trust histories $AGENT_ID
 ```
 

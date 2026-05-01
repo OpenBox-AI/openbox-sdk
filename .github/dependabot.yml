@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # npm dependencies - root package.json plus the workspaces.
+  # npm dependencies: root package.json plus the workspaces.
   - package-ecosystem: npm
     directory: /
     schedule:

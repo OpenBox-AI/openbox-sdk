@@ -1,44 +1,46 @@
 # specs/
 
-The single source of truth for everything the SDKs generate. As of the codegen pipeline:
+The single source of truth that every SDK in the monorepo lowers
+from.
 
-| File / dir | Role |
-|---|---|---|
-| `backend.json` | OpenAPI snapshot of the backend mgmt API (source until TypeSpec translation lands) | existing |
-| `core.yaml` | OpenAPI for the core governance API (same) | existing |
-| `environments.json` | URL data per env (production/staging/local). Every language's env package reads this. | moved here (was `ts/env/src/environments.json`) |
-| `typespec/` | TypeSpec source files (`.tsp`) - REST surface today, workflow protocol + CLI bindings + env in subsequent passes. | 1 (REST landed) |
-| `generated/` | TypeSpec emits OpenAPI + JSON Schema here as derived artifacts. Untracked - reproduce with `npm run specs:compile`. | 1 (REST landed) |
+| File or dir | Role |
+|---|---|
+| `typespec/` | TypeSpec sources. `main.tsp` is the root; per-area modules sit under `backend/`, `core/`, `env/`, `cli/`, `govern/` |
+| `tspconfig.yaml` | Compiler config: output paths and emitter list. Lives inside `typespec/` |
+| `environments.json` | Per-env URL bundle for `production`, `staging`, and `local`. Every language's env package reads it |
+| `generated/` | TypeSpec emits OpenAPI3 and JSON Schema here. Untracked; reproduce with `npm run specs:compile` |
 
-## Status
+## Compile
 
-REST surface translated. `specs/typespec/main.tsp` is the root; per-service modules sit under `backend/` and `core/`. `npm run specs:compile` rebuilds `specs/generated/openapi3/{OpenboxBackend,OpenboxCore}.json`. The hand-written `backend.json` / `core.yaml` stay authoritative until the emitted artifacts are wired into downstream codegen (future codegen pipeline).
+```bash
+npm run specs:compile      # tsp compile specs/typespec
+npm run generate:types     # openapi-typescript on the emitted OpenAPI
+npm run specs:all          # build:codegen + specs:compile + generate:types
+```
 
-Two backend.json bugs are now fixed at the TypeSpec layer rather than patched at consumer-build time:
-
-1. 13 endpoints under `/organization/{organizationId}/...` were missing path-param declarations (NestJS upstream lacked `@ApiParam`). The Rust `build.rs` patches these in-flight today; once the emitter swaps `rust/build.rs` over to the emitted spec, the patch can be deleted.
-2. Two `AgentController` endpoints declared a redundant `organization_id` query param alongside their `{agentId}` path. Same Rust patch dropped them; same removal applies.
-
-Still pending currently:
-
-- Custom decorator libraries at `codegen/typespec-libs/{workflow,cli,env}/` - `@workflow`, `@activity`, `@cli_command`, `@env_var`, etc. Empty for now; populated in the next push.
-- Workflow protocol (`govern.tsp`), CLI bindings (`cli.tsp`), env spec (`env.tsp`) authored against those decorators.
+The TypeScript emitter under
+`codegen/emitters/typespec-emitter-typescript/` writes language-
+native source into `ts/src/**/generated/`. The hand-written files in
+`ts/src/` only consume those generated artifacts.
 
 ## Drift detection
 
-TypeSpec is the source of truth. The manual mirrors `specs/backend.json`
-and `specs/core.yaml` were dropped - they kept going stale (most recently
-the four `/dashboard/*` endpoints).
+`.github/workflows/spec-drift.yml` is wired to compare this repo's
+TypeSpec against the live deployments and the matching upstream
+service repositories. PR and scheduled triggers are commented out
+until the secrets and first run validate clean; the workflow is
+`workflow_dispatch` only today.
 
-`.github/workflows/spec-drift.yml` runs daily (and on PRs that touch
-`specs/typespec/**`) to compare TypeSpec against:
-- live deployed prod swagger (curl `https://api.openbox.ai/api/docs-json`)
-- live deployed staging swagger (URL from secrets)
-- upstream `OpenBox-AI/the-backend-service@develop` (path-only via regex parse)
-- upstream `OpenBox-AI/the-core-service@develop` (path-only - core has no swagger endpoint)
+## Backend snapshot bugs fixed at the TypeSpec layer
 
-Drift opens an issue with `label:spec-drift,automated`.
+Two issues that previously required patches in the Rust crate's
+`build.rs` are now correct in the spec:
 
-## Sibling-repo consumption (current)
+1. 13 endpoints under `/organization/{organizationId}/...` lacked
+   path-param declarations because the NestJS upstream was missing
+   `@ApiParam`.
+2. Two `AgentController` endpoints declared a redundant
+   `organization_id` query param alongside `{agentId}`.
 
-`runtime/mcp`, `the-mobile-app`, `apps/extension`, `the-approver-app` consume the SDK by git tag (`github:OpenBox-AI/openbox-sdk#v0.1.0-alpha.1`). The codegen pipeline produces their language's outputs into `ts/`, `rust/`, etc., committed in this repo - consumers don't need codegen tooling installed locally.
+Once the Rust crate switches to consuming the emitted spec, the
+matching `build.rs` patches can be deleted.

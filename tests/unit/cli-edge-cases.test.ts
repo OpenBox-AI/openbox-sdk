@@ -1,12 +1,12 @@
 // CLI edge cases by topic. Each describe block names the source file
 // + the specific edge it's exercising:
-//   - client/client.ts - 429 + 401 envelope handling
-//   - validators - additional uncovered validator branches
-//   - verify - additional rule-firing on non-fixture paths
-//   - agent-audit - analyzeEvents failure-counting branches
-//   - runtime/mcp - module-shape sanity (full coverage in mcp-server-coverage)
-//   - cli/config - getCoreClient with bad / missing OPENBOX_API_KEY
-//   - runtime configs - file-based config.json precedence
+//   - client/client.ts; 429 + 401 envelope handling
+//   - validators; additional uncovered validator branches
+//   - verify; additional rule-firing on non-fixture paths
+//   - agent-audit; analyzeEvents failure-counting branches
+//   - runtime/mcp; module-shape sanity (full coverage in mcp-server-coverage)
+//   - cli/config; getCoreClient with bad / missing OPENBOX_API_KEY
+//   - runtime configs; file-based config.json precedence
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Command } from 'commander';
@@ -34,7 +34,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('client/client.ts - 429 + auth-error paths', () => {
+describe('client/client.ts; 429 + auth-error paths', () => {
   it('429 throws OpenBoxApiError with rate-limit status', async () => {
     const server = createServer((_req, res) => {
       res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '1' });
@@ -99,13 +99,13 @@ describe('client/client.ts - 429 + auth-error paths', () => {
   });
 });
 
-describe('validators - every uncovered branch', () => {
+describe('validators; every uncovered branch', () => {
   it('validateActivitiesConfig accepts well-shaped activities', async () => {
     const mod: any = await import('../../ts/src/validators');
     if (typeof mod.validateActivitiesConfig === 'function') {
       try {
         mod.validateActivitiesConfig([{ activity_type: 'PromptSubmission', fields_to_check: ['prompt'] }], '0');
-      } catch { /* validator may be strict - branches still exercised */ }
+      } catch { /* validator may be strict; branches still exercised */ }
       try {
         mod.validateActivitiesConfig('invalid', '0');
       } catch { /* expected */ }
@@ -160,7 +160,7 @@ describe('validators - every uncovered branch', () => {
   });
 });
 
-describe('verify - additional rules + edge fixtures', () => {
+describe('verify; additional rules + edge fixtures', () => {
   it('verify --fail-on=warn surfaces all warns', async () => {
     const tmp = mkdtempSync(join(tmpdir(), 'verify-warn-'));
     try {
@@ -199,7 +199,7 @@ describe('verify - additional rules + edge fixtures', () => {
   });
 });
 
-describe('agent-audit - additional finding branches', () => {
+describe('agent-audit; additional finding branches', () => {
   it('analyzeEvents tracks failed activity counts', async () => {
     const { runAgentAudit } = await import('../../ts/src/cli/commands/agent-audit');
     const tooOld = new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString();
@@ -229,7 +229,7 @@ describe('agent-audit - additional finding branches', () => {
   });
 });
 
-describe('runtime/mcp/index - additional helpers', () => {
+describe('runtime/mcp/index; additional helpers', () => {
   it('hex generates a hex string of requested length', async () => {
     // hex/buildSpan are not exported, but importing the module covers
     // their definitions when other tests later invoke server.tool().
@@ -238,7 +238,7 @@ describe('runtime/mcp/index - additional helpers', () => {
   });
 });
 
-describe('cli/config - getCoreClient + edge cases', () => {
+describe('cli/config; getCoreClient + edge cases', () => {
   it('getCoreClient bails when OPENBOX_API_KEY is unset', async () => {
     delete process.env.OPENBOX_API_KEY;
     const { getCoreClient } = await import('../../ts/src/cli/config');
@@ -284,21 +284,21 @@ describe('cli/config - getCoreClient + edge cases', () => {
 
     // Concrete contract: getCoreClient with bad-format key MUST not
     // silently return a client. Either it throws (validation error),
-    // or it process.exits via reportAndExit. Both are acceptable -
+    // or it process.exits via reportAndExit. Both are acceptable .
     // proceeding silently is not.
     expect(threw || observedExit !== undefined).toBe(true);
     if (observedExit !== undefined) {
-      // cli/config validateApiKeyFormat bails with EXIT.AUTH (3) - the
+      // cli/config validateApiKeyFormat bails with EXIT.AUTH (3); the
       // user-facing intent is "your API key is bad, fix your auth", not
       // "the command syntax is wrong".
       expect(observedExit).toBe(3);
     }
-    // The bailout path always prints a hint message - verify it surfaced.
+    // The bailout path always prints a hint message; verify it surfaced.
     expect(stderr.toLowerCase()).toMatch(/openbox_api_key|api key|key format/);
   });
 });
 
-describe('runtime configs - file-based config.json paths', () => {
+describe('runtime configs; file-based config.json paths', () => {
   it('claude-code config reads ~/.claude-hooks/config.json when present', async () => {
     const fs = await import('node:fs');
     const cfgDir = join(dir, '.claude-hooks');

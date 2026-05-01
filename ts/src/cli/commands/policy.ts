@@ -1,4 +1,4 @@
-// `openbox policy` - fully spec-driven (H.3 + I + J). create/update
+// `openbox policy`; fully spec-driven (H.3 + I + J). create/update
 // use @cli_post_validate("policyCrossField") to run validateRegoSource
 // before the call. evaluate stays custom because it takes raw rego
 // + input JSON via different param names than the canonical body map.

@@ -2,13 +2,13 @@
 //
 // Two surfaces in this folder:
 //
-//  1. Adapter primitive (spec-emitted) - `createClaudeCodeAdapter`,
+//  1. Adapter primitive (spec-emitted); `createClaudeCodeAdapter`,
 //     plus its config + handlers + envelope types. Generic transport:
 //     stdin JSON → dispatch by hook_event_name → verdict-mapped stdout.
 //     Use this if you're building your own Claude Code integration on
 //     top of the OpenBox SDK.
 //
-//  2. Platform integration - the OpenBox SDK's own pre-built integration
+//  2. Platform integration; the OpenBox SDK's own pre-built integration
 //     for Claude Code. Used by `openbox claude-code {install,hook}`. The
 //     entry points (runHook, install, uninstall) are exposed for
 //     contributors but the primary surface is the CLI.

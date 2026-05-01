@@ -74,7 +74,7 @@ const NAMESPACES: NamespacedHandlers[] = [
   { namespace: 'member', handlers: MEMBER_HANDLERS },
 ];
 
-// `core` handlers go through OpenBoxCoreClient - covered separately
+// `core` handlers go through OpenBoxCoreClient; covered separately
 // by core-client tests.
 
 interface CapturedRequest {
@@ -108,7 +108,7 @@ async function makeCaptureServer(): Promise<{
       res.end(JSON.stringify({ status: 200, data: {} }));
     });
   });
-  // listen() is async - wait for the bind before reading the port.
+  // listen() is async; wait for the bind before reading the port.
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const addr = server.address() as AddressInfo;
   const url = `http://127.0.0.1:${addr.port}`;
@@ -166,12 +166,12 @@ describe('wire conformance for every spec op', () => {
   for (const { namespace, handlers } of NAMESPACES) {
     describe(`namespace: ${namespace}`, () => {
       for (const sub of handlers) {
-        // Skip @cli_local_only ops - they intentionally never hit the
+        // Skip @cli_local_only ops; they intentionally never hit the
         // backend, so there's no wire shape to verify. The drift test
         // for their existence lives in cli-handler-coverage.
         if (sub.localOnly) continue;
 
-        it(`${namespace} ${sub.name} - SDK method exists and issues a request`, async () => {
+        it(`${namespace} ${sub.name}; SDK method exists and issues a request`, async () => {
           const method = sub.backend.method;
           const fn = (sdk as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>)[method];
           expect(typeof fn, `OpenBoxClient is missing method '${method}' (declared by spec op '${namespace} ${sub.name}')`).toBe('function');
@@ -189,12 +189,12 @@ describe('wire conformance for every spec op', () => {
             callArgs = args.length > 0 ? [...args, body] : [body];
           }
 
-          // Tolerate runtime-level rejects (e.g. validation) - the
+          // Tolerate runtime-level rejects such as validation. The
           // assertion is "did a request go out?", not "did it succeed".
           try {
             await fn.call(sdk, ...callArgs);
           } catch {
-            // ignore - capture-server returns 200 so client errors
+            // ignore; capture-server returns 200 so client errors
             // here are SDK-internal (validation, etc.). We still
             // assert a request fired below.
           }
@@ -209,7 +209,7 @@ describe('wire conformance for every spec op', () => {
           // route into body via @cli_body_key, the synth body MUST
           // land on the wire. We skip ops with bodyKey-routed
           // positionals because the test driver doesn't replicate
-          // wireSubcommands' positional→body merge - that's a
+          // wireSubcommands' positional→body merge; that's a
           // simplification, not a production-code gap.
           const hasBodyKeyPositional = (sub.args ?? []).some((a: any) => a.bodyKey);
           if (

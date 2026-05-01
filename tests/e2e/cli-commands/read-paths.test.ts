@@ -1,8 +1,9 @@
-// Backend-only read paths: session/violation/trust/approval/observability
-// list endpoints with no upstream data. These validate CLI → backend
-// contract (URL + auth + envelope unwrap) with expected-empty results on a
-// brand-new agent. They do NOT validate core-produced analytics; that
-// requires a running the-core-service + SDK test agent, tracked separately.
+// Backend-only read paths: session, violation, trust, approval, and
+// observability list endpoints with no upstream data. These validate
+// the CLI-to-backend contract (URL, auth, envelope unwrap) with
+// expected-empty results on a brand-new agent. They do NOT validate
+// core-produced analytics; that requires a running core service plus
+// an SDK test agent and is tracked separately.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { runCli } from '../helpers/cli-runner.js';

@@ -1,4 +1,4 @@
-// `openbox observe` - fully spec-driven (H.3) via the @cli_calls,
+// `openbox observe`; fully spec-driven (H.3) via the @cli_calls,
 // @cli_pagination, @cli_validator, and @cli_body_key annotations on
 // the Observe interface in specs/typespec/cli/main.tsp.
 import { Command } from 'commander';

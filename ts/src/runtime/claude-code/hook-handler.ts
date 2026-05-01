@@ -1,4 +1,4 @@
-// Hook handler - invoked by `openbox claude-code hook` from Claude
+// Hook handler; invoked by `openbox claude-code hook` from Claude
 // Code's hooks.json config. Reads stdin, dispatches via the spec-driven
 // claude-code adapter, returns appropriate stdout per hook event,
 // exits 0 (fail-open).

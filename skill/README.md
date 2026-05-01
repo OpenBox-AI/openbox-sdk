@@ -1,36 +1,37 @@
 # OpenBox Skill
 
-A skill for any LLM tool that uses Claude's Skill format - builds and
-integrates with the [OpenBox AI governance platform](https://openbox.ai).
-Loaded into the LLM's working context when the user mentions OpenBox or
-any of the trigger keywords in `SKILL.md`.
+A skill for any LLM tool that uses Claude's Skill format. It helps an
+agent build and integrate with the [OpenBox AI governance
+platform](https://openbox.ai). The skill loads into the agent's
+working context when the user mentions OpenBox or any of the trigger
+keywords in `SKILL.md`.
 
-## Install / update / uninstall
+## Install, update, uninstall
 
-The skill ships inside `openbox-sdk`. Install the SDK once
-(`npm install -g openbox-sdk@github:OpenBox-AI/openbox-sdk`), then:
+The skill ships inside `openbox-sdk`. Install the SDK once with
+`npm install -g openbox-sdk@github:OpenBox-AI/openbox-sdk`, then:
 
 ```bash
-openbox skill install            # → ~/.claude/skills/openbox/
-openbox skill install --cursor   # → ~/.cursor/skills/openbox/
+openbox skill install            # writes to ~/.claude/skills/openbox/
+openbox skill install --cursor   # writes to ~/.cursor/skills/openbox/
 ```
 
-Re-run `openbox skill install` to update - the command overwrites the
-target directory with the latest content shipped in the installed
+Re-run `openbox skill install` to update. The command overwrites the
+target directory with the content shipped in the installed
 `openbox-sdk` version.
 
-To uninstall: `rm -rf ~/.claude/skills/openbox` (or
-`~/.cursor/skills/openbox`).
+To uninstall, run `rm -rf ~/.claude/skills/openbox`. For Cursor, the
+path is `~/.cursor/skills/openbox`.
 
 ## Layout
 
-- `SKILL.md` - main entry, the agent loads this first
-- `references/` - domain-specific deep dives, loaded on demand
-  (governance flow, guardrails, behaviors, Rego policies, span attributes,
-  CLI commands, integration paths, backend conventions, validation
-  checklist)
-- `evals/` - scoring fixtures used by the OpenBox team to grade the
-  skill's output against canonical answers
+- `SKILL.md`: main entry. The agent loads this first.
+- `references/`: domain-specific deep dives, loaded on demand. Covers
+  governance flow, guardrails, behaviors, Rego policies, span
+  attributes, CLI commands, integration paths, backend conventions,
+  and the validation checklist.
+- `evals/`: scoring fixtures used to grade the skill's output against
+  canonical answers.
 
 The source of truth lives at `skill/` in the
 [`openbox-sdk` repo](https://github.com/OpenBox-AI/openbox-sdk).

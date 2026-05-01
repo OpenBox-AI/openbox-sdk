@@ -1,6 +1,6 @@
 # Standard test gate.
 #
-# DISABLED - see codegen.yml for the rationale. Re-enable
+# DISABLED. See codegen.yml for the rationale. Re-enable
 # by uncommenting the push/pull_request triggers below.
 
 name: Test

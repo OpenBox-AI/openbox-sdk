@@ -1,20 +1,21 @@
-// Live ingest e2e: emit real governance events against the-core-service so the
-// backend's session / observability / span rows get populated by workers
-// (governance + observability on temporal), then exercise write-paths that
-// can't be validated against seeded CSV data:
+// Live ingest e2e: emit real governance events against the core
+// service so the backend's session, observability, and span rows
+// get populated by the governance and observability workers. Then
+// exercise write paths that cannot be validated against seeded CSV
+// data:
 //
-//   - session terminate (PATCH against a live pending session)
+//   - `session terminate` (PATCH against a live pending session).
 //
-// Requires the full local stack: backend + keycloak + postgres + redis
-// (from up.sh), plus postgres-backed temporal + the-core-service server +
-// 3 workers (from scripts/core-up.sh). If CORE_URL isn't reachable the
-// suite skips gracefully.
+// Requires the full local stack via `up.sh` plus the core server
+// and workers. If `CORE_URL` is not reachable the suite skips
+// gracefully.
 //
-// NOT covered here (needs more services):
-//   - approval decide - needs a REQUIRE_APPROVAL verdict, which comes from
-//     OPA policy eval or AGE goal-alignment eval; both deliberately unset
-//     in the local env, so no path produces a pending approval.
-//   - violation false-positive - needs a guardrail/policy-driven
+// Not covered here, since they need more services:
+//   - `approval decide`. Needs a REQUIRE_APPROVAL verdict, which
+//     comes from OPA policy eval or goal-alignment eval; both are
+//     deliberately unset in the local env, so no path produces a
+//     pending approval.
+//   - `violation false-positive`. Needs a guardrail or policy-driven
 //     violation; same reason.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -99,8 +100,8 @@ describe('live ingest (e2e, real backend + core + temporal)', () => {
     canRunLive = await coreReachable();
     if (!canRunLive) {
       console.warn(
-        `[live-ingest] core not reachable at ${CORE_URL} - skipping suite. ` +
-          'Run `bash scripts/core-up.sh` from the-local-stack-dev-repo to bring it up.',
+        `[live-ingest] core not reachable at ${CORE_URL}; skipping suite. ` +
+          'Run `bash scripts/core-up.sh` from the local-stack dev repo to bring it up.',
       );
       return;
     }

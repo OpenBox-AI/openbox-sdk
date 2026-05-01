@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { EXIT, bailWith } from '../exit-codes.js';
 
 /**
- * `openbox cursor <subcommand>` - manages the OpenBox integration with
+ * `openbox cursor <subcommand>`; manages the OpenBox integration with
  * Cursor IDE.
  *
  *   install    Write Cursor hook config into ~/.cursor/hooks.json

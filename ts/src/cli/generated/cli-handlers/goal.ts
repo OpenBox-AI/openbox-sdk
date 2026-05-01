@@ -73,7 +73,7 @@ export const GOAL_HANDLERS: SubcommandSpec[] = [
   },
   {
     "name": "update",
-    "description": "Update goal alignment config. All four fields required together\n(or --json with the full body).",
+    "description": "Update goal alignment config. All four fields required together\n(or --body with the full body).",
     "args": [
       {
         "name": "agentId"

@@ -44,7 +44,7 @@ describeOrSkip('agent lifecycle (e2e, real backend)', () => {
     ]);
     expect(res.status, res.stderr).toBe(0);
     const body = JSON.parse(res.stdout);
-    // Envelope is either {status, data: {agent, token}} or {agent, token} -
+    // Envelope is either {status, data: {agent, token}} or {agent, token} .
     // the CLI unwraps when possible; assert both shapes.
     const agent = body.agent ?? body.data?.agent ?? body;
     const token = body.token ?? body.data?.token;

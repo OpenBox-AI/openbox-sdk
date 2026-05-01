@@ -4,7 +4,7 @@
 //
 // Build: `npx tsp compile specs/typespec` from the repo root. Output
 // lands under specs/generated/ (see tspconfig.yaml). TypeSpec is the
-// source of truth - drift vs upstream backend/core is detected by
+// source of truth; drift vs upstream backend/core is detected by
 // .github/workflows/spec-drift.yml.
 
 import "./backend/main.tsp";

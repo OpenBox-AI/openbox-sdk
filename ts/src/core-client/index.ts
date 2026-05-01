@@ -1,6 +1,6 @@
 // Public surface of `openbox-sdk/core-client`. Re-exports are kept
 // explicit (no `export *`) so the file doubles as the inventory of
-// what's intended for consumers - adding a new preset to the spec
+// what's intended for consumers; adding a new preset to the spec
 // surfaces here as a one-line edit, not a silent leak.
 
 export { OpenBoxCoreClient, CoreApiError } from './core-client.js';
@@ -91,7 +91,7 @@ export { govern, presets } from './generated/govern.js';
 export type { Presets, PresetCtor } from './generated/govern.js';
 
 // Canonical activity_type vocabulary + spec-driven display labels.
-// Single source of truth for any UI rendering activity_types - mobile,
+// Single source of truth for any UI rendering activity_types; mobile,
 // web dashboard, CLI list views, audit reports. Consumers fall back to
 // a Title-Case formatter for activity_types not in the labels table.
 export {
@@ -100,7 +100,7 @@ export {
   CANONICAL_ACTIVITY_LABELS,
 } from './generated/govern.js';
 
-// Guardrail redaction helpers - apply `verdict.guardrailsResult.redactedInput`
+// Guardrail redaction helpers; apply `verdict.guardrailsResult.redactedInput`
 // over the original payload to forward a safe version downstream.
 export {
   applyInputRedaction,
@@ -111,4 +111,4 @@ export {
 // Spec-driven hook-protocol adapters live one folder out at
 // `runtime/claude-code/` and `runtime/cursor/`. Import them via the
 // public sub-paths `openbox-sdk/runtime/claude-code` /
-// `openbox-sdk/runtime/cursor` - NOT from `openbox-sdk/core-client`.
+// `openbox-sdk/runtime/cursor`; NOT from `openbox-sdk/core-client`.

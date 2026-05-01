@@ -1,4 +1,4 @@
-// `openbox org` - fully spec-driven (H.3 + I + M). All dashboard sub-
+// `openbox org`; fully spec-driven (H.3 + I + M). All dashboard sub-
 // endpoints, update-settings, register, and demo-status are migrated.
 import { Command } from 'commander';
 import { getClient } from '../config.js';

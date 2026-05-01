@@ -1,4 +1,4 @@
-// Color helpers - every chalk-equivalent goes through `useColor()` so
+// Color helpers; every chalk-equivalent goes through `useColor()` so
 // scripts that pipe stdout/stderr or set NO_COLOR / OPENBOX_NO_COLOR /
 // CI=1 / --no-color get clean text. Drift test bans direct `\x1b[` outside
 // this file + validators/index.ts (where reportAndExit also uses the

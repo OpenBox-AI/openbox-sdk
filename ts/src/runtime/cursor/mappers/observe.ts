@@ -13,7 +13,7 @@ import { clearSession } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
 /**
- * Cursor's `after*` events are observe-only - they fire telemetry into
+ * Cursor's `after*` events are observe-only; they fire telemetry into
  * OpenBox without gating Cursor's behavior. The `cursor-observe` verdict
  * shape returns `{}`; these handlers just emit the underlying activity.
  */
@@ -93,7 +93,7 @@ export async function handleSessionStart(
 
 /**
  * `stop` fires when Cursor is about to wind down. Close the workflow
- * envelope, then clear the session-store entry. Observe-only - no
+ * envelope, then clear the session-store entry. Observe-only; no
  * decision returned (verdictShape: "none").
  */
 export async function handleStop(

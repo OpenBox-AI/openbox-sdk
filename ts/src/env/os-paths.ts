@@ -1,8 +1,8 @@
-// Per-OS path resolver - implements the OsPathResolver contract from
+// Per-OS path resolver; implements the OsPathResolver contract from
 // specs/typespec/env/main.tsp. Hand-written because the call uses
 // platform-specific APIs (`os.homedir()`, `process.platform`, env
 // vars `XDG_DATA_HOME` / `APPDATA`), but the OUTPUT shape is
-// deterministic given the platform - pinned by tests/unit/os-paths.test.ts.
+// deterministic given the platform; pinned by tests/unit/os-paths.test.ts.
 //
 // Layout per OS:
 //
@@ -42,7 +42,7 @@ export function openboxDataRoot(): string {
 
 /**
  * Resolves a per-OS subpath under the openbox data root. Conforms to
- * the `OsPathResolver` interface from the spec - drift between this
+ * the `OsPathResolver` interface from the spec; drift between this
  * implementation and the spec's `resolveOsPath(scope)` signature is a
  * `tsc --noEmit` failure (the const annotation below performs the
  * structural check).

@@ -5,7 +5,7 @@
 // handler now fails CI on the next `npm run specs:compile` cycle.
 //
 // The reverse direction (commander has a subcommand that's NOT in the
-// spec) is also caught - indicates a hand-written command someone forgot
+// spec) is also caught; indicates a hand-written command someone forgot
 // to spec.
 //
 // File-name resolution: the spec's command name (`auth`, `api-key`,
@@ -38,7 +38,7 @@ function commandFileFor(commandName: string): string {
 /** A command file is "fully spec-driven" (H.3) if it imports
  *  wireSubcommands and pulls a *_HANDLERS list from the generated
  *  cli-handlers folder. In that case the subcommand list is whatever's
- *  in the generated file, not the manual `.command()` calls - so the
+ *  in the generated file, not the manual `.command()` calls; so the
  *  drift test should look at the spec, which is the source of truth. */
 function isSpecDriven(source: string): boolean {
   return /from '\.\.\/wire-subcommands\.js'/.test(source) &&
@@ -79,7 +79,7 @@ describe.each(CLI_COMMAND_MANIFEST as readonly { command: string; subcommands: r
       'subcommand $long is registered with commander',
       ({ name, long }) => {
         const source = readFileSync(path, 'utf8');
-        // Spec-driven (H.3) files don't list .command() per subcommand -
+        // Spec-driven (H.3) files don't list .command() per subcommand .
         // wireSubcommands walks the generated handlers list. Trust the
         // generated manifest in that case.
         if (isSpecDriven(source)) return;

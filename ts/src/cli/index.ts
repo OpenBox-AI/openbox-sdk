@@ -51,26 +51,26 @@ program
   .version('1.0.0')
   .option(
     '--env <env>',
-    "Environment: 'production' | 'staging' | 'local' (default: $OPENBOX_ENV or 'production')",
+    "Environment: production, staging, or local. Defaults to $OPENBOX_ENV, then production.",
   )
   .option(
     '--experimental',
-    "Reveal experimental subcommands (or OPENBOX_EXPERIMENTAL_LEVEL=experimental). Coarse: gates whole subcommands.",
+    "Reveal experimental subcommands. Equivalent to OPENBOX_EXPERIMENTAL_LEVEL=experimental. Coarse gate; controls whole subcommands.",
   )
   .option(
     '--feature <name...>',
-    'Enable specific experimental feature flags within commands (also via OPENBOX_FEATURES=name1,name2). Fine: gates code paths inside a stable command.',
+    'Enable specific experimental feature flags inside stable commands. Equivalent to OPENBOX_FEATURES=name1,name2. Fine gate; controls code paths.',
   )
   .option(
     '-y, --yes',
-    'Assume yes for confirmation prompts. Implied by CI=1, OPENBOX_NONINTERACTIVE=1, or non-TTY stdin.',
+    'Assume yes on confirmation prompts. Implied by CI=1, OPENBOX_NONINTERACTIVE=1, or non-TTY stdin.',
   )
   .option(
     '--non-interactive',
-    'Hard-fail instead of prompting on missing input. Implied by CI=1 / OPENBOX_NONINTERACTIVE=1.',
+    'Hard-fail instead of prompting on missing input. Implied by CI=1 or OPENBOX_NONINTERACTIVE=1.',
   )
   .option('--no-color', 'Disable ANSI color output. Implied by NO_COLOR=1, OPENBOX_NO_COLOR=1, or CI=1.')
-  .option('-q, --quiet', 'Suppress non-essential progress lines on stderr (errors still print).')
+  .option('-q, --quiet', 'Suppress non-essential progress lines on stderr. Errors still print.')
   .option('--json', 'Emit machine-readable JSON instead of human-rendered output.')
   .hook('preAction', (thisCommand, actionCommand) => {
     const flag = thisCommand.opts().env as string | undefined;
@@ -78,7 +78,7 @@ program
 
     // Apply GLOBAL config BEFORE env resolution so a persisted
     // `OPENBOX_ENV=staging` (or OPENBOX_HOME, OPENBOX_CLIENT_VARIANT)
-    // can actually default the env. Only fills unset vars - explicit
+    // can actually default the env. Only fills unset vars; explicit
     // shell exports and --env always win.
     applyGlobalConfigToProcessEnv();
 
@@ -88,11 +88,11 @@ program
     const env = resolveEnv();
 
     // Layer per-env CLI config AFTER env is known. Used to pin
-    // OPENBOX_API_URL / OPENBOX_CORE_URL / OPENBOX_PLATFORM_URL for
-    // a specific env (e.g. staging) without re-exporting every shell.
+    // OPENBOX_API_URL, OPENBOX_CORE_URL, or OPENBOX_PLATFORM_URL for
+    // a specific env, such as staging, without re-exporting every shell.
     applyConfigToProcessEnv(env);
 
-    // 1. Feature-flag check (`@RequireFeature` on the-backend-service controllers).
+    // 1. Feature-flag check, mirroring `@RequireFeature` on the backend.
     const requiredFeatures = COMMAND_FEATURES[commandPath];
     if (requiredFeatures && requiredFeatures.length > 0) {
       const features = loadFeatures(env);
@@ -170,7 +170,7 @@ registerVersionsCommand(program);
 registerWebhookCommands(program);
 registerSsoCommands(program);
 
-// Pre-scan global flags BEFORE gating + parse - commander's --help is
+// Pre-scan global flags BEFORE gating + parse; commander's --help is
 // printed during parseAsync, by which time the command tree has to
 // already reflect the user's --experimental / --feature opt-ins.
 {

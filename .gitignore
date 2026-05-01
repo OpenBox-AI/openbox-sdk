@@ -2,10 +2,11 @@ node_modules
 dist
 dist-pack
 *.tsbuildinfo
-# vitest coverage report - regenerated on every `npm run test:coverage`.
+# vitest coverage report; regenerated on every `npm run test:coverage`.
 /coverage
-# tsup/tsc occasionally emits .d.ts next to source when composite mode
-# resolves openbox-sdk path mappings into the workspace src/. Don't commit.
+# tsup or tsc occasionally emits .d.ts next to source when composite
+# mode resolves the openbox-sdk sub-path mappings into the workspace
+# src/. Don't commit.
 ts/*/src/**/*.d.ts
 ts/*/src/**/*.d.ts.map
 # TypeSpec emitter outputs. Reproducible from `npx tsp compile specs/typespec`.
@@ -15,12 +16,12 @@ ts/*/src/**/*.d.ts.map
 # untracked verification output.
 /specs/generated/openapi3/
 /specs/generated/json-schema/
-# Local auth state - never commit.
+# Local auth state; never commit.
 .tokens
 .env
 .env.local
 # Rust workspace build artifacts. Generated codegen output lives in
-# target/ and is rebuilt by rust/build.rs each cargo build - never
+# target/ and is rebuilt by rust/build.rs each cargo build; never
 # checked in. Cargo.lock at the workspace root is excluded because this
 # is a library (consumer apps own the lockfile).
 /target

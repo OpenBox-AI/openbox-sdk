@@ -1,8 +1,8 @@
-# TypeSpec compiler config - drives `npx tsp compile specs/typespec`.
+# TypeSpec compiler config; drives `npx tsp compile specs/typespec`.
 #
 # Two emitter outputs land under specs/generated/:
-#   - openapi3/<service>.json  - re-emitted OpenAPI 3.x for each service
-#   - json-schema/             - standalone JSON Schemas (used by the
+#   - openapi3/<service>.json  : re-emitted OpenAPI 3.x for each service
+#   - json-schema/             : standalone JSON Schemas (used by the
 #                                cross-language conformance fixtures)
 #
 # The hand-written specs/backend.json and specs/core.yaml stay the

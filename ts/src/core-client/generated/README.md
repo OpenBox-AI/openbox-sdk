@@ -1,12 +1,12 @@
 # `ts/core-client/src/generated/`
 
 **AUTO-GENERATED. Do not hand-edit.** Same shape as
-`ts/client/src/generated/` - read that file's README for the full
-rationale; the rules below mirror it.
+`ts/client/src/generated/`; read that file's README for the full
+rationale. The rules below mirror it.
 
 | Source | Reproduces |
 |---|---|
-| `specs/typespec/core/main.tsp` | `endpoint-manifest.ts` - `CORE_ENDPOINT_MANIFEST` |
+| `specs/typespec/core/main.tsp` | `endpoint-manifest.ts` (`CORE_ENDPOINT_MANIFEST`) |
 | `codegen/emitters/ts/src/index.ts` | the emit logic |
 
 Regenerate with `npm run specs:compile`.

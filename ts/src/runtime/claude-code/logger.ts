@@ -1,4 +1,4 @@
-// Thin wrapper over `_shared/logger.createLogger` - only the adapter
+// Thin wrapper over `_shared/logger.createLogger`; only the adapter
 // name differs between runtimes.
 import { createLogger } from '../_shared/logger.js';
 

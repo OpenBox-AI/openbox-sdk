@@ -199,7 +199,7 @@ export interface Violation {
   falsePositive(agentId: string, violationId: string, sourceType: string): void;
 }
 /**
- * Canonical CLI surface - every command-tree node declared in
+ * Canonical CLI surface; every command-tree node declared in
  * specs/typespec/cli/. The hand-written commander registration in
  * ts/cli/src/main.ts walks this manifest so a spec edit (rename a
  * flag, add a subcommand) propagates without a code edit.
@@ -226,7 +226,7 @@ export const CLI_COMMAND_MANIFEST = [
   },
   {
     "command": "config",
-    "description": "Persistent CLI config (URL overrides, default flags). Two scopes: per-env (default - keyed off the active --env) and global (--global, applies across all envs). Layered into process.env at startup; explicit shell exports always win. File: <data-root>/config (mode 0o600).",
+    "description": "Persistent CLI config (URL overrides, default flags). Two scopes: per-env (default; keyed off the active --env) and global (--global, applies across all envs). Layered into process.env at startup; explicit shell exports always win. File: <data-root>/config (mode 0o600).",
     "interfaceName": "Config",
     "subcommands": [
       {
@@ -741,7 +741,7 @@ export const CLI_COMMAND_MANIFEST = [
             "name": "name",
             "long": "name",
             "short": "n",
-            "description": "Export name (required; if --json omits exportName, this fills it)",
+            "description": "Export name (required; if --body omits exportName, this fills it)",
             "optional": true,
             "tsType": "string"
           },
@@ -1320,7 +1320,7 @@ export const CLI_COMMAND_MANIFEST = [
           {
             "name": "password",
             "long": "password",
-            "description": "Password - leave unset for invite flow",
+            "description": "Password (leave unset for invite flow)",
             "optional": true,
             "tsType": "string"
           },
@@ -1367,7 +1367,7 @@ export const CLI_COMMAND_MANIFEST = [
           {
             "name": "teams",
             "long": "teams",
-            "description": "Team IDs (UUIDs) - replaces existing membership",
+            "description": "Team IDs (UUIDs); replaces existing membership",
             "optional": true,
             "tsType": "string[]"
           }

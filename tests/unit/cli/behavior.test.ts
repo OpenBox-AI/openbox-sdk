@@ -102,7 +102,7 @@ describe('behavior commands', () => {
     expect(mockClient.deleteBehaviorRule).toHaveBeenCalledWith('agent-1', 'rule-1');
   });
 
-  // `behavior restore` was removed - endpoint POST /agent/{agentId}/
+  // `behavior restore` was removed; endpoint POST /agent/{agentId}/
   // behavior-rule/{ruleId} isn't in the OpenAPI spec. Restore the
   // subcommand + this test once the backend grows the endpoint.
 

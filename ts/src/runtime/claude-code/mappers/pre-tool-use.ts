@@ -24,7 +24,7 @@ function activityTypeFor(toolName: string): string | null {
 
 /**
  * PreToolUse: agent is about to call a tool. Activity routing comes from
- * @activityRouting; payload field shape comes from @payloadShape - both
+ * @activityRouting; payload field shape comes from @payloadShape; both
  * generated. This file is just the platform shell: skip-pattern check,
  * fire, halt-mark on halt verdict.
  */
@@ -40,7 +40,7 @@ export async function handlePreToolUse(
   const activityType = activityTypeFor(toolName);
   if (!activityType) return undefined;
 
-  // Skip-pattern guard for the file-touching tools - paths inside
+  // Skip-pattern guard for the file-touching tools; paths inside
   // SKIP_PATTERNS (.claude/, .git/, .ssh/, etc.) bypass governance to
   // avoid PII false-HALTs on IDE metadata.
   const filePath = (toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? '') as string;

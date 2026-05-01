@@ -2,9 +2,9 @@
 // ts/src/client/client.ts and ts/src/core-client/core-client.ts.
 //
 // What's hand-written vs spec-driven (audit):
-//   ✅ types / DTOs / response models - from spec
-//   ✅ wire methods (verb + path + body shape) - from spec via wrapper-methods.ts
-//   ✅ method coverage / drift detection - endpoint-coverage.test.ts
+//   ✅ types / DTOs / response models; from spec
+//   ✅ wire methods (verb + path + body shape); from spec via wrapper-methods.ts
+//   ✅ method coverage / drift detection; endpoint-coverage.test.ts
 //   ⚠️ the `request()` method itself: fetch + retry + rate-limit + CSRF +
 //     auth-header injection. This file pins down its observable behavior
 //     so any reimplementation (TS or other language) must produce the
@@ -29,7 +29,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { OpenBoxClient, OpenBoxApiError } from '../../ts/src/client/client.js';
 import { makeValidToken } from '../helpers/jwt';
 
-describe('OpenBoxClient.request - runtime contract', () => {
+describe('OpenBoxClient.request; runtime contract', () => {
   const fetchMock = vi.fn();
   let client: OpenBoxClient;
   const accessToken = makeValidToken();

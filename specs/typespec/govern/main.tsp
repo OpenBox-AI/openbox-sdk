@@ -1,27 +1,27 @@
-// specs/typespec/govern/main.tsp - language-agnostic shape of the
+// specs/typespec/govern/main.tsp; language-agnostic shape of the
 // governance protocol that wraps every governed agent action.
 //
 // THREE-TIER MODEL:
 //
-// Tier 1 (locked) - `CanonicalEventType`. Six values the-core-service
+// Tier 1 (locked); `CanonicalEventType`. Six values the core service
 //   recognizes for guardrail eligibility, attestation extraction, and
-//   metric routing (verified against internal/services/governance_workflow.go).
-//   Lifecycle (Workflow{Started,Completed,Failed}) is SDK-internal -
+//   metric routing.
+//   Lifecycle (Workflow{Started,Completed,Failed}) is SDK-internal:
 //   the runtime fires it via try/finally + process-exit handlers, never
 //   user code. So workflows can't hang in PENDING state.
 //
-// Tier 2 (presets) - one @preset interface per framework. Each method
+// Tier 2 (presets); one @preset interface per framework. Each method
 //   maps to the canonical envelope via @maps_to(eventType, activityType).
 //   Generated runtime exposes one Session class per preset. User picks
 //   the preset that matches their framework; SDK does the right wrapping.
 //
-// Tier 3 (escape) - `default` (generic typed methods, framework-agnostic)
+// Tier 3 (escape); `default` (generic typed methods, framework-agnostic)
 //   and `custom` (free-form `activity(name, stage, payload)` for domain
-//   agents - FinOps, IAM, RPA, procurement - whose vocabularies don't
+//   agents; FinOps, IAM, RPA, procurement; whose vocabularies don't
 //   fit any framework).
 //
 // Note: programming-model spec, not an HTTP API. We deliberately do NOT
-// mark this `@service` - the openapi3 emitter quietly skips non-service
+// mark this `@service`; the openapi3 emitter quietly skips non-service
 // namespaces, which is what we want.
 
 import "typespec-workflow";
@@ -34,7 +34,7 @@ using OpenBox.Workflow;
  * web dashboard, CLI list views, audit reports). The emitter materializes
  * the table as `CANONICAL_ACTIVITY_LABELS` in the generated output, so
  * adding a new @maps_to or @activityRouting entry requires bumping this
- * table - caught by the drift test in tests/unit/govern-coverage.test.ts.
+ * table; caught by the drift test in tests/unit/govern-coverage.test.ts.
  *
  * Naming conventions:
  *   - Acronyms preserved as-is: LLM, MCP, HTTP, CLI, IAM, DLP, SDK, API
@@ -45,7 +45,7 @@ using OpenBox.Workflow;
  *   - SCREAMING_CASE → Title Case: `CHUNKING` → "Chunking"
  */
 @activityLabels(#{
-  // Tier 1 - canonical envelope (event_type values, surfaced for parity).
+  // Tier 1; canonical envelope (event_type values, surfaced for parity).
   // Not strictly activity_types but consumers sometimes render them too.
 
   // --- Default preset ----------------------------------------------------
@@ -70,7 +70,7 @@ using OpenBox.Workflow;
   SubagentStop: "Subagent Stop",
   Notification: "Notification",
   Stop: "Stop",
-  // Cursor - lowerCamel hook names
+  // Cursor; lowerCamel hook names
   beforeSubmitPrompt: "Before Submit Prompt",
   preToolUse: "Pre-Tool Use",
   postToolUse: "Post-Tool Use",
@@ -235,14 +235,14 @@ using OpenBox.Workflow;
 namespace OpenboxGovern;
 
 // ---------------------------------------------------------------------------
-// Tier 1 - locked envelope
+// Tier 1; locked envelope
 // ---------------------------------------------------------------------------
 
 /**
- * Canonical event_type values the-core-service's runtime recognizes.
- * Custom strings are accepted by the wire (varchar(50), no whitelist)
- * but skip event-type-specific code paths - guardrails won't fire,
- * attestation won't extract, metrics route to a fallback.
+ * Canonical event_type values the core service recognizes. Custom
+ * strings are accepted on the wire (varchar(50), no whitelist) but
+ * skip event-type-specific code paths: guardrails will not fire,
+ * attestation will not extract, and metrics route to a fallback.
  */
 enum CanonicalEventType {
   WorkflowStarted: "WorkflowStarted",
@@ -270,7 +270,7 @@ enum VerdictArm {
 }
 
 /**
- * Public-facing workflow verdict - what every preset method returns
+ * Public-facing workflow verdict; what every preset method returns
  * to the caller. The runtime maps the wire `GovernanceVerdictResponse`
  * to this shape, promoting the arm into a structured payload alongside
  * risk/trust data and the approval-polling handle.
@@ -285,7 +285,7 @@ model GuardrailFieldVerdict {
 }
 
 /**
- * Reason carrier on guardrail outcomes - same shape as core's
+ * Reason carrier on guardrail outcomes; same shape as core's
  * GuardrailReason, lifted here so consumers don't have to import
  * across the core/govern boundary.
  */
@@ -340,7 +340,7 @@ model WorkflowVerdict {
   trustTier?: int32;
 
   /**
-   * Guardrails outcome - populated when a guardrail fired (PII/safety/
+   * Guardrails outcome; populated when a guardrail fired (PII/safety/
    * content checks). `redactedInput` is the safe payload to forward
    * downstream; `reasons` and `fieldResults` describe what happened
    * per field. Adapters use this to apply redaction post-verdict
@@ -359,7 +359,7 @@ model GovernedPayload {
 }
 
 // ---------------------------------------------------------------------------
-// Tier 2 - framework presets
+// Tier 2; framework presets
 //
 // One @preset interface per framework. The emitter generates a
 // `<PascalName>Session` class for each, with one method per operation
@@ -368,7 +368,7 @@ model GovernedPayload {
 // runtime; presets never declare it.
 //
 // Streaming events (per-token chunks like LangChain `on_llm_new_token`,
-// Vercel `onChunk` text-delta) are intentionally omitted - gating per
+// Vercel `onChunk` text-delta) are intentionally omitted; gating per
 // token is rarely useful (can't redact mid-stream) and burns rate limit.
 // The pattern is to aggregate the stream and emit one ActivityCompleted
 // at end-of-stream. Custom callers can still emit per-token via the
@@ -888,11 +888,11 @@ interface ModernTreasuryPreset {
 }
 
 // ---------------------------------------------------------------------------
-// Tier 3 - escape hatches
+// Tier 3; escape hatches
 // ---------------------------------------------------------------------------
 
 /**
- * Generic typed preset - for agents that don't fit a specific framework
+ * Generic typed preset; for agents that don't fit a specific framework
  * but want first-class methods. The activity_type strings here are the
  * canonical first-party SDK convention (drawn from claude-hooks +
  * cursor-hooks + the openbox skill's canonical-union list).
@@ -949,8 +949,8 @@ interface CustomPreset {
    * Run an arbitrary activity. The runtime stamps:
    *   stage="pre"  -> event_type=ActivityStarted
    *   stage="post" -> event_type=ActivityCompleted
-   * The activityType string is whatever the team uses (e.g.
-   * "WireTransferApproval", "IAMRoleGrant", "ProcurementPOApproval").
+   * The activityType string is whatever the team uses, such as
+   * "WireTransferApproval", "IAMRoleGrant", or "ProcurementPOApproval".
    */
   activity(
     activityType: string,

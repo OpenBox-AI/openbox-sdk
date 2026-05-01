@@ -42,7 +42,7 @@ function assertFires(fixture, spec) {
   const fired = new Set(result.findings.map((f) => f.rule));
   const missing = mustFire.filter((r) => !fired.has(r));
   if (missing.length > 0) {
-    console.error(`\x1b[31m✗ ${fixture}\x1b[0m - expected rule(s) did not fire:`);
+    console.error(`\x1b[31m✗ ${fixture}\x1b[0m; expected rule(s) did not fire:`);
     for (const r of missing) console.error(`    - ${r}`);
     console.error(`  actually fired: ${[...fired].join(', ') || '(none)'}`);
     failures += 1;
@@ -58,26 +58,26 @@ function assertFires(fixture, spec) {
     }
   }
   if (lineMismatches.length > 0) {
-    console.error(`\x1b[31m✗ ${fixture}\x1b[0m - line-number drift:`);
+    console.error(`\x1b[31m✗ ${fixture}\x1b[0m; line-number drift:`);
     for (const m of lineMismatches) console.error(`    - ${m}`);
     failures += 1;
     return;
   }
-  console.log(`\x1b[32m✓ ${fixture}\x1b[0m - all ${mustFire.length} expected rule(s) fired${Object.keys(mustFireAtLine).length > 0 ? ' (line numbers verified)' : ''}`);
+  console.log(`\x1b[32m✓ ${fixture}\x1b[0m; all ${mustFire.length} expected rule(s) fired${Object.keys(mustFireAtLine).length > 0 ? ' (line numbers verified)' : ''}`);
 }
 
 function assertClean(fixture) {
   const result = runVerify(fixture);
   if (result.findings.length > 0) {
-    console.error(`\x1b[31m✗ ${fixture}\x1b[0m - expected ZERO findings but got:`);
+    console.error(`\x1b[31m✗ ${fixture}\x1b[0m; expected ZERO findings but got:`);
     for (const f of result.findings) console.error(`    - ${f.rule} at L${f.line}`);
     failures += 1;
     return;
   }
-  console.log(`\x1b[32m✓ ${fixture}\x1b[0m - zero findings, as expected`);
+  console.log(`\x1b[32m✓ ${fixture}\x1b[0m; zero findings, as expected`);
 }
 
-console.log('openbox verify - regression suite\n');
+console.log('openbox verify; regression suite\n');
 
 for (const [fixture, spec] of Object.entries(expected)) {
   if (spec.must_not_fire_any) assertClean(fixture);

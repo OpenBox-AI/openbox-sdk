@@ -1,35 +1,16 @@
 // Coverage for ts/src/cli/commands/versions.ts. Driven via stubbed
-// fetch (for /version live calls) + a stubbed execFileSync that
-// pretends to be git. All three envs × three services × the --sources
-// branch are exercised.
+// fetch for /version live calls. All three envs by three services
+// plus the --sources branch are exercised.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Command } from 'commander';
 
-// Stub execFileSync('git', ...) to return synthetic SHAs.
-vi.mock('node:child_process', async () => {
-  const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
-  return {
-    ...actual,
-    execFileSync: (cmd: string, args: string[]) => {
-      if (cmd !== 'git') return actual.execFileSync(cmd, args);
-      // git -C dir rev-parse --short HEAD → return a fake SHA
-      // git -C dir rev-parse --abbrev-ref HEAD → return a fake branch
-      if (args.includes('--short')) return 'abc1234';
-      if (args.includes('--abbrev-ref')) return 'main';
-      return '';
-    },
-  };
-});
-
 beforeEach(() => {
-  // /version returns commit + version
   vi.stubGlobal('fetch', async (url: string) => {
     const u = String(url);
     if (u.endsWith('/version')) {
       return new Response(JSON.stringify({ commit: 'sha1234', version: '1.0.0' }), { status: 200 });
     }
-    // Default: 404 so liveVersion returns null
     return new Response(JSON.stringify({}), { status: 404 });
   });
 });
@@ -63,11 +44,11 @@ async function runVersions(args: string[]): Promise<{ out: string[]; exit: numbe
 }
 
 describe('versions command', () => {
-  it('renders the 3-env × 3-service table', async () => {
+  it('renders the 3-env by 3-service table', async () => {
     const { out } = await runVersions([]);
     const flat = out.join('\n');
-    expect(flat).toContain('the-backend-service');
-    expect(flat).toContain('the-core-service');
+    expect(flat).toContain('backend');
+    expect(flat).toContain('core');
     expect(flat).toContain('production');
     expect(flat).toContain('staging');
     expect(flat).toContain('local');
@@ -79,13 +60,10 @@ describe('versions command', () => {
     expect(flat).toContain('sources:');
   });
 
-  it('falls back to git HEAD on local when /version is unreachable', async () => {
-    // Override fetch to fail for ALL URLs so liveVersion always returns
-    // null; local column then uses git HEAD via the mocked execFileSync.
+  it('prints "(no /version)" when /version is unreachable', async () => {
     vi.stubGlobal('fetch', async () => new Response('', { status: 502 }));
     const { out } = await runVersions([]);
     const flat = out.join('\n');
-    // The mocked git stub returns `abc1234 (main)` for the local cells.
-    expect(flat).toMatch(/abc1234|\(no \/version\)|\(clone missing\)/);
+    expect(flat).toContain('(no /version)');
   });
 });

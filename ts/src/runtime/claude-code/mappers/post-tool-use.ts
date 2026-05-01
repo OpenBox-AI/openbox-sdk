@@ -22,7 +22,7 @@ function activityTypeFor(toolName: string): string | null {
 /**
  * PostToolUse fires after the tool returned. Closes the activity opened
  * by PreToolUse and runs output governance. Verdict shape is
- * decision-block - empty stdout = "no opinion, continue".
+ * decision-block; empty stdout = "no opinion, continue".
  */
 export async function handlePostToolUse(
   env: ClaudeCodeEnvelope,

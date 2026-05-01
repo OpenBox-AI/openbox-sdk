@@ -1,4 +1,4 @@
-// Pure unit tests for the validator helpers - no CLI plumbing, no network.
+// Pure unit tests for the validator helpers; no CLI plumbing, no network.
 // These catch the cases I hit during real-backend smoke tests and a few more
 // that would be expensive to test end-to-end (range bounds, edge-date
 // formats, NaN from Commander-less invocation).

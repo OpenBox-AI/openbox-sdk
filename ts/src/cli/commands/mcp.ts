@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 
 /**
- * `openbox mcp <subcommand>` - bridges the OpenBox SDK to MCP-compatible
+ * `openbox mcp <subcommand>`; bridges the OpenBox SDK to MCP-compatible
  * LLM tools (Claude Desktop, Cursor, etc.). Today: just `serve` over
  * stdio. Future: `install` (writes the MCP config block into a tool's
  * settings file).

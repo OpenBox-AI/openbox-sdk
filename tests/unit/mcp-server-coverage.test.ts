@@ -32,7 +32,7 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => {
         captured.push({ name, description, schema, cb });
       }
       resource(_name: string, _uri: string, _meta: any, _cb: any) {
-        // not exercised in coverage - but accept calls so registration
+        // not exercised in coverage; but accept calls so registration
         // doesn't throw.
       }
       async connect(_t: any) {
@@ -90,7 +90,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('runtime/mcp/index - runMcpServer registers + drives every tool', () => {
+describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => {
   it('runMcpServer registers ten tools without throwing', async () => {
     const before = process.env.OPENBOX_API_URL;
     process.env.OPENBOX_API_URL = 'http://localhost:3000';
@@ -131,7 +131,7 @@ describe('runtime/mcp/index - runMcpServer registers + drives every tool', () =>
           expect(Array.isArray(out.content)).toBe(true);
         } catch (e) {
           // Some tool callbacks may reject if the synthetic input
-          // doesn't match a more specific shape - coverage still counts
+          // doesn't match a more specific shape; coverage still counts
           // the executed branches.
         }
       }

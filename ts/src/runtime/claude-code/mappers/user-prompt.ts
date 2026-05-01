@@ -10,7 +10,7 @@ import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
 /**
  * UserPromptSubmit: user typed something into Claude Code. We govern the
- * prompt (input guardrails - PII, toxicity, ban words) AND fire a
+ * prompt (input guardrails; PII, toxicity, ban words) AND fire a
  * SignalReceived(goal) so the goal-alignment service captures the user's
  * intent for drift detection later in the session.
  */
@@ -22,7 +22,7 @@ export async function handleUserPromptSubmit(
   const prompt = (env.prompt ?? '').trim();
   if (!prompt) return undefined;
 
-  // Best-effort goal signal - never blocks the prompt path.
+  // Best-effort goal signal; never blocks the prompt path.
   void session.activity(EVENT.SIGNAL, 'goal', {
     input: [{ goal: prompt, event_category: 'agent_goal' }],
   }).catch(() => undefined);

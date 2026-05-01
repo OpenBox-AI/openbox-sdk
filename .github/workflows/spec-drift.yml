@@ -6,7 +6,7 @@ name: spec drift
 #   - upstream backend@develop / @main (via gh API regex parse)
 #   - upstream core@develop / @main (via gh API regex parse)
 #
-# Path-level coverage only - schema-level drift would require building
+# Path-level coverage only; schema-level drift would require building
 # the upstream services. Adding that is straightforward when a path-only
 # miss actually bites; until then the simpler check is enough.
 #
@@ -88,7 +88,7 @@ jobs:
           name: spec-drift-${{ matrix.service }}-${{ matrix.tier }}
           path: /tmp/spec-drift-${{ matrix.service }}-${{ matrix.tier }}.md
 
-      # PR comment - only on PR runs, only on prod-backend (the gating tier),
+      # PR comment, only on PR runs, only on prod-backend (the gating tier),
       # and only when drift is found. Sticky-edited via the marker so each
       # PR has one comment refreshed per push.
       - if: |

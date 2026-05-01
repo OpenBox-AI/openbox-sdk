@@ -1,9 +1,9 @@
-// `openbox config` - persistent KV store for CLI defaults. Two scopes:
+// `openbox config`; persistent KV store for CLI defaults. Two scopes:
 // global (file lines `<KEY>=<value>`) and per-env (`<env>.<KEY>=<value>`).
 // `--global` selects global; otherwise the active --env (or
-// $OPENBOX_ENV) is the scope. Some keys are inherently global -
+// $OPENBOX_ENV) is the scope. Some keys are inherently global .
 // OPENBOX_ENV, OPENBOX_HOME, OPENBOX_CLIENT_VARIANT,
-// OPENBOX_EXPERIMENTAL_LEVEL - and auto-promote regardless of flags;
+// OPENBOX_EXPERIMENTAL_LEVEL; and auto-promote regardless of flags;
 // the response surfaces `scope_promoted: true` so the user knows.
 import { Command } from 'commander';
 import { resolveEnv } from '../../env/index.js';
@@ -37,14 +37,14 @@ export function registerConfigCommands(program: Command) {
   config
     .command('set <key> <value>')
     .description(
-      'Persist a config value. By default scopes to the active --env (e.g. ' +
-        'OPENBOX_API_URL for staging only). Pass --global to apply across ' +
-        'every env (e.g. OPENBOX_CLIENT_VARIANT). Always-global keys auto-' +
-        'promote: ' +
+      'Persist a config value. By default scopes to the active --env, ' +
+        'so OPENBOX_API_URL would apply to staging only. Pass --global ' +
+        'to apply across every env, useful for keys like ' +
+        'OPENBOX_CLIENT_VARIANT. Always-global keys auto-promote: ' +
         Array.from(GLOBAL_ONLY_KEYS).join(', ') +
         '.',
     )
-    .option('-g, --global', 'Store globally (across all envs).')
+    .option('-g, --global', 'Store globally across all envs.')
     .action((key: string, value: string, opts: { global?: boolean }) => {
       try {
         const requested = pickScope(opts);

@@ -1,9 +1,9 @@
-// `openbox api-key` - list / get / delete / revoke / rotate are all
+// `openbox api-key`; list / get / delete / revoke / rotate are all
 // spec-driven (H.3 + H.10). Rotate uses @cli_output_post to emit the
 // one-time runtime-key stderr banner AND cache it to the agent-keys
 // store. create / update keep custom shells because the wire
 // requires a complete --json DTO body. recall is a local-only read
-// of the agent-keys cache - non-destructive alternative to rotate.
+// of the agent-keys cache; non-destructive alternative to rotate.
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { output } from '../output.js';
@@ -20,7 +20,7 @@ export function registerApiKeyCommands(program: Command) {
 
   // `--body` instead of `--json` because the global `--json` boolean
   // (output formatter, defined in cli/index.ts) and a subcommand-level
-  // `--json <value>` collide in Commander - the boolean wins and the
+  // `--json <value>` collide in Commander; the boolean wins and the
   // body never reaches `opts.json`. `-d` mirrors curl's data flag.
   apiKey
     .command('create')
@@ -51,7 +51,7 @@ export function registerApiKeyCommands(program: Command) {
   apiKey
     .command('recall <agentId>')
     .description(
-      'Print the cached runtime key for an agent (local read - populated by ' +
+      'Print the cached runtime key for an agent (local read; populated by ' +
         '`agent create` and `api-key rotate`).',
     )
     .action((agentId: string) => {

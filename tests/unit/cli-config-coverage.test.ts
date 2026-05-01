@@ -31,7 +31,7 @@ afterEach(() => {
   if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
 });
 
-describe('cli/config - api-key store CRUD', () => {
+describe('cli/config; api-key store CRUD', () => {
   it('saveApiKey writes a 0o600 file the load can round-trip', async () => {
     const cfg = await import('../../ts/src/cli/config');
     cfg.saveApiKey('local', KEY_A);

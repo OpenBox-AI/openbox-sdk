@@ -16,7 +16,7 @@ interface Pair {
   packageName: string;
   generatedPath: string;
   handWrittenPath: string;
-  /** Names allowed to coexist in both files (e.g. legacy aliases). */
+  /** Names allowed to coexist in both files, such as legacy aliases. */
   allowOverlap: ReadonlySet<string>;
 }
 

@@ -51,7 +51,7 @@ async function makeRequest(
 // uncovered.
 //
 // Tests stay shape-identical (`client.get`/`post`/etc. return
-// `{ status, data }`) - the wrapper translates OpenBoxClient's
+// `{ status, data }`); the wrapper translates OpenBoxClient's
 // "throw on non-2xx" model into a never-throws envelope so existing
 // `expect(body.status).toBe(422)` style tests still work.
 import { OpenBoxClient, OpenBoxApiError } from '../../ts/src/client';
@@ -60,7 +60,7 @@ import { OpenBoxClient, OpenBoxApiError } from '../../ts/src/client';
  * Subclass that exposes OpenBoxClient's `protected` HTTP methods to the
  * test harness. Production callers go through the typed wrappers
  * (createAgent, listAgents, ...) so the protected boundary stays a
- * production guarantee - only the test build pierces it.
+ * production guarantee; only the test build pierces it.
  */
 class TestOpenBoxClient extends OpenBoxClient {
   publicGet<T>(p: string, q?: any): Promise<T> { return this.httpGet<T>(p, q); }
@@ -72,7 +72,7 @@ class TestOpenBoxClient extends OpenBoxClient {
 
 async function viaSdk<T>(call: () => Promise<T>): Promise<{ data: any; status: number }> {
   // OpenBoxClient.request() unwraps the backend's `{ status, data }`
-  // envelope before returning - callers normally see only the inner
+  // envelope before returning; callers normally see only the inner
   // `data`. The e2e suite (and `fullResponse(response)`) expects the
   // ENVELOPE: `body.status === 200` reads the backend's semantic
   // status, `body.data.<x>` reads the payload. Re-wrap so existing
@@ -173,7 +173,7 @@ export function getOrgId(): string {
     const realm = payload.iss?.split('/realms/')[1];
     if (realm) return realm;
   } catch {
-    // Token may be invalid or missing - fall through to default
+    // Token may be invalid or missing; fall through to default
   }
   return 'openbox.ai';
 }

@@ -45,11 +45,12 @@ describe('canonical activity_type label coverage', () => {
     }
   });
 
-  test('acronym preservation - known UI-critical entries', () => {
-    // These ones used to render wrong under the hand-written formatter
-    // (e.g. "L L M Completed" / "Mcptoolcall"); they're the regression
-    // motivation for the spec-driven table. Pin them so the spec can
-    // never quietly downgrade them.
+  test('acronym preservation; known UI-critical entries', () => {
+    // These ones used to render wrong under the hand-written
+    // formatter, producing things like "L L M Completed" or
+    // "Mcptoolcall". They are the regression motivation for the
+    // spec-driven table. Pin them so the spec can never quietly
+    // downgrade them.
     expect(CANONICAL_ACTIVITY_LABELS['LLMCompleted']).toBe('LLM Completed');
     expect(CANONICAL_ACTIVITY_LABELS['MCPToolCall']).toBe('MCP Tool Call');
     expect(CANONICAL_ACTIVITY_LABELS['HTTPRequest']).toBe('HTTP Request');

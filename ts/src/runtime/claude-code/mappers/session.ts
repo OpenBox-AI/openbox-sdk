@@ -28,7 +28,7 @@ export async function handleSessionStart(
   await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
     input: [buildSessionStartPayload(env)],
   });
-  return undefined; // verdictShape is "none" - no stdout
+  return undefined; // verdictShape is "none"; no stdout
 }
 
 /**

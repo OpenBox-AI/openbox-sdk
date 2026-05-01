@@ -1,5 +1,5 @@
 // Smoke tests for the extension's API adapter. We don't test OpenBoxClient
-// itself - that's openbox-sdk's job. We verify the wiring: the right env
+// itself; that's openbox-sdk's job. We verify the wiring: the right env
 // URL, the right clientName, and the right token coming out of the env-
 // namespaced ~/.openbox/tokens parser.
 

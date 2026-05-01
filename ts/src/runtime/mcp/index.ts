@@ -1,4 +1,4 @@
-// MCP server runtime - exposes OpenBox tools/resources to any
+// MCP server runtime; exposes OpenBox tools/resources to any
 // MCP-compatible LLM (Claude Desktop, Cursor, etc.) over stdio.
 //
 // Invoked as `openbox mcp serve` from the CLI subcommand. Configures
@@ -205,17 +205,17 @@ function buildSpan(spanType: string, input: Record<string, unknown>): Record<str
 }
 
 // Canonical activity_type values the skill emits. Must match what guardrail
-// settings.activities[].activity_type specifies - no match, no fire.
+// settings.activities[].activity_type specifies; no match, no fire.
 // See skill//references/governance-flow.md § "Canonical activity_type Names".
 //
 // `llm` is PromptSubmission (not LLMCompleted): coreEvaluate() below emits
 // event_type=ActivityStarted (pre-flight, before the LLM is called). The
 // canonical pairing for pre-LLM input-stage is PromptSubmission, which
-// input-stage guardrails match with `fields_to_check: ["input.*.prompt"]` -
+// input-stage guardrails match with `fields_to_check: ["input.*.prompt"]` .
 // and activity_input carries `{prompt: ...}`, so the match works.
 //
 // The span itself still describes an LLM call shape (`llm.chat.completion`,
-// `http.method=POST`, `http.url=api.openai.com`) - those are a Core-side
+// `http.method=POST`, `http.url=api.openai.com`); those are a Core-side
 // workaround so `isLLMCall()` classifies the span; they don't affect which
 // guardrails fire. See buildSpan() case "llm".
 const ACTIVITY_TYPE_MAP: Record<string, string> = {
@@ -251,7 +251,7 @@ async function coreEvaluate(apiKey: string, spanType: string, activityInput: Rec
   // server errors surface instead of AbortController-cancelling), and
   // any future client-side improvements automatically. Cast through
   // unknown because GovernanceEventPayload uses richer types than the
-  // loose record we've assembled here - the wire shape is the same and
+  // loose record we've assembled here; the wire shape is the same and
   // core re-validates everything server-side.
   const client = new OpenBoxCoreClient({
     apiUrl: CORE_URL,
@@ -265,37 +265,39 @@ async function resolveApiKey(agentId?: string): Promise<string> {
   if (!apiKey && agentId) {
     // Try the per-agent runtime-key cache first. The CLI's `agent
     // create` and `api-key rotate` post-callbacks write here at
-    // mode 0o600 - the canonical source of obx_live_*/obx_test_*
+    // mode 0o600; the canonical source of obx_live_*/obx_test_*
     // keys outside an in-process env var. Falling back to
     // GET /agent/{id} and using `agent.token` (the previous path)
     // is broken: `agent.token` is an internal attestation token,
     // NOT the runtime API key. Passing it to core returns a 500
     // "invalid API key format. Expected obx_live_... or
-    // obx_test_..." - exactly the surprise the skill warns about.
+    // obx_test_..."; exactly the surprise the skill warns about.
     apiKey = recallAgentKey(agentId)?.runtimeKey;
   }
   if (!apiKey) {
     throw new Error(
       `No API key found for agent ${agentId ?? "(unset)"}. ` +
         "Set OPENBOX_API_KEY, or run `openbox api-key recall <agentId>` " +
-        "to surface a cached key, or `openbox api-key rotate <agentId> -y` " +
-        "to mint a fresh one (destructive - invalidates the previous key).",
+        "to surface a cached key. To mint a fresh key, run " +
+        "`openbox api-key rotate <agentId> -y`. Rotation is destructive " +
+        "and invalidates the previous key.",
     );
   }
   if (!apiKey.startsWith("obx_live_") && !apiKey.startsWith("obx_test_")) {
     throw new Error(
       `Resolved key for agent ${agentId ?? ""} doesn't look like a runtime ` +
-        "key (expected `obx_live_*` or `obx_test_*`). The agent record's " +
-        "`token` field is an attestation token, NOT the core API key.",
+        "key. Expected format `obx_live_*` or `obx_test_*`. The agent " +
+        "record's `token` field is an attestation token, not the core API " +
+        "key.",
     );
   }
   return apiKey;
 }
 
-server.tool("check_governance", "Evaluate an action against governance rules (with proper span construction for behavioral rule matching). When the response carries verdict=require_approval, an approval row is materialized server-side. The expiration window comes from whichever surface produced the verdict: behavior_rule.approval_timeout (settable) for behavior_rule-driven verdicts; a core server default (~30m) for OPA-policy-driven verdicts (OPA policies have no approval_timeout field - to control the window use behavior_rule, not policy).", {
-  agent_id: z.string().optional().describe("Agent ID (used to resolve API key if OPENBOX_API_KEY not set)"),
-  span_type: z.enum(["llm", "file_read", "file_write", "shell", "http", "db", "mcp"]).describe("Type of action to evaluate"),
-  activity_input: z.any().describe("Action input payload (e.g. {prompt: '...'}, {file_path: '...'}, {command: '...'})"),
+server.tool("check_governance", "Evaluate an action against governance rules. The tool builds the span shape required for behavioral rule matching. When the response carries verdict=require_approval, an approval row is materialized server-side. The expiration window comes from whichever surface produced the verdict. For behavior_rule-driven verdicts, the value is `behavior_rule.approval_timeout`, which is user-settable. For OPA-policy-driven verdicts, the value is the core server default of around 30 minutes; OPA policies have no `approval_timeout` field, so use a behavior_rule when the window matters.", {
+  agent_id: z.string().optional().describe("Agent ID. Used to resolve the API key when OPENBOX_API_KEY is unset."),
+  span_type: z.enum(["llm", "file_read", "file_write", "shell", "http", "db", "mcp"]).describe("Type of action to evaluate."),
+  activity_input: z.any().describe("Action input payload. Examples: { prompt: '...' }, { file_path: '...' }, { command: '...' }."),
 }, async ({ agent_id, span_type, activity_input }) => {
   try {
     const apiKey = await resolveApiKey(agent_id);
@@ -307,7 +309,7 @@ server.tool("check_governance", "Evaluate an action against governance rules (wi
   }
 });
 
-// Skill references - one per topical domain.
+// Skill references; one per topical domain.
 const SKILL_PATHS = [
   { name: "governance-flow", path: "references/governance-flow.md", desc: "Event protocol, wire format, verdicts, approval polling, spec-vs-implementation mismatches" },
   { name: "guardrails", path: "references/guardrails.md", desc: "Guardrail configuration: numeric IDs, stage gating, settings.activities[] shape, per-field status, backend validation gaps" },
@@ -341,9 +343,10 @@ for (const ref of SKILL_PATHS) {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  // After the MCP `initialize` handshake completes, getClientVersion() returns
-  // the calling LLM tool's identity (e.g. "claude-code", "cursor"). Plug that
-  // into the X-Openbox-Client header so backend telemetry can distinguish
-  // MCP traffic per LLM. Connect resolves once initialize is done.
+  // After the MCP `initialize` handshake completes,
+  // getClientVersion() returns the calling LLM tool's identity, such
+  // as "claude-code" or "cursor". Plug that into the X-Openbox-Client
+  // header so backend telemetry can distinguish MCP traffic per LLM.
+  // Connect resolves once initialize is done.
   setMcpClientName(server.server.getClientVersion()?.name);
 }

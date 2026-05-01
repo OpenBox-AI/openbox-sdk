@@ -7,16 +7,16 @@ receive backports.
 
 ## Reporting a Vulnerability
 
-Please report security issues privately via GitHub's
-"[Report a vulnerability](https://github.com/OpenBox-AI/openbox-sdk/security/advisories/new)"
-flow rather than opening a public issue.
+Report security issues privately via GitHub's
+[Report a vulnerability](https://github.com/OpenBox-AI/openbox-sdk/security/advisories/new)
+flow. Do not open a public issue.
 
 What to include:
 
 - A short description of the issue and its impact.
 - Reproduction steps or a proof-of-concept against a recent release tag.
-- The version (`openbox-sdk` package version + git commit) and runtime
-  (Node, OS, target shell) you observed it on.
+- Version and runtime details: `openbox-sdk` package version, git
+  commit, Node version, OS, and target shell where you observed it.
 
 We aim to acknowledge reports within 5 business days and to publish a
 patched release within 30 days for confirmed vulnerabilities. Reports
@@ -25,8 +25,9 @@ a brief note.
 
 ## Out of Scope
 
-- Findings that require running an attacker-controlled build of the SDK.
-- Issues in unrelated software the SDK happens to depend on (please
-  report those upstream).
-- Self-XSS / social-engineering scenarios that require the user to paste
-  attacker-supplied code into a privileged shell.
+- Findings that require running an attacker-controlled build of the
+  SDK.
+- Issues in unrelated software the SDK happens to depend on. Report
+  those upstream.
+- Self-XSS or social-engineering scenarios that require the user to
+  paste attacker-supplied code into a privileged shell.

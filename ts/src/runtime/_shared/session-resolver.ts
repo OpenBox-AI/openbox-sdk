@@ -1,10 +1,10 @@
-// Generic session-id → workflowId/runId resolver shared by every runtime
-// adapter. The first hook in a session creates the IDs; subsequent
-// hooks load them from disk. A halt verdict marks the persisted record
-// so the next hook starts a fresh workflow envelope.
+// Generic session-id to workflowId / runId resolver shared by every
+// runtime adapter. The first hook in a session creates the IDs;
+// subsequent hooks load them from disk. A halt verdict marks the
+// persisted record so the next hook starts a fresh workflow envelope.
 //
-// Adapters wrap this with their own envelope-field accessor (e.g.
-// `env.session_id` for claude-code, `env.conversation_id` for cursor).
+// Adapters wrap this with their own envelope-field accessor:
+// `env.session_id` for claude-code, `env.conversation_id` for cursor.
 import { randomUUID } from 'node:crypto';
 import { SessionStore } from './session-store.js';
 
