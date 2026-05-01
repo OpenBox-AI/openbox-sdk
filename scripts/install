@@ -422,14 +422,14 @@ rc_snippet_fish() {
     "$RC_MARKER" "$ENV_FILE_FISH" "$ENV_FILE_FISH"
 }
 
-if [ "$on_path" = "0" ] && [ -z "${OPENBOX_NO_PATH:-}" ]; then
+if [ -z "${OPENBOX_NO_PATH:-}" ]; then
   write_env_file
   rc_file="$(detect_rc)"
   mkdir -p "$(dirname "$rc_file")"
 
   if [ -f "$rc_file" ] && grep -qF "$RC_MARKER" "$rc_file" 2>/dev/null; then
-    printf '  %s%s%s rc already wired (%s)\n' \
-      "$C_DIM" "$GLYPH_OK" "$C_RESET" "$rc_file"
+    printf '  %s%s%s rc already sources %s (%s)\n' \
+      "$C_DIM" "$GLYPH_OK" "$C_RESET" "$ENV_FILE_POSIX" "$rc_file"
   else
     case "${SHELL:-}" in
       */fish) snippet="$(rc_snippet_fish)" ;;
@@ -450,28 +450,12 @@ printf '\n  %snext%s\n    %sopenbox auth set-api-key%s\n    %sopenbox install <a
   "$C_CYAN" "$C_RESET" \
   "$C_DIM"  "$C_RESET"
 
-# ---------------------------------------------------------------------------
-# Reload the shell so the new PATH takes effect immediately.
-#
-# A child script can't modify its parent's environment, so the only
-# way to make the new PATH visible without the user typing `source`
-# is to `exec` into a fresh interactive shell. Two cases:
-#
-#   sh ./install      : stdin is a TTY; plain `exec $SHELL` works
-#   curl … | sh       : stdin is the pipe carrying the script bytes;
-#                        we re-open /dev/tty so the new shell has a
-#                        live terminal to read from
-#
-# OPENBOX_NO_RELOAD=1 skips this entirely (CI, scripted installs).
-# ---------------------------------------------------------------------------
-
+# Reload the shell so the new PATH takes effect now. Skipped when PATH
+# already has BIN_DIR (no-op reload) or OPENBOX_NO_RELOAD is set.
 if [ "$on_path" = "0" ] && [ -z "${OPENBOX_NO_RELOAD:-}" ] && [ -n "${SHELL:-}" ]; then
   if [ -t 0 ]; then
     exec "$SHELL"
   elif [ -r /dev/tty ]; then
     exec < /dev/tty "$SHELL"
   fi
-  # If neither stdin is a tty nor /dev/tty is readable, we fall
-  # through to plain script exit. The rc file is still updated; next
-  # time the user opens a terminal, PATH will be set.
 fi
