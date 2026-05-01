@@ -113,18 +113,7 @@ describe('typespec-cli', () => {
     const auth = findInterface('Auth');
     const c = getCommand(program, auth);
     expect(c?.name).toBe('auth');
-    expect(c?.description).toMatch(/Authenticate/);
-  });
-
-  test('@cli_flag captures description, short alias, env binding', () => {
-    const auth = findInterface('Auth');
-    const login = activityOp(auth, 'login');
-    const envParam = login.parameters.properties.get('env');
-    if (!envParam) throw new Error('Auth.login has no `env` parameter');
-    const f = getFlag(program, envParam);
-    expect(f?.description).toMatch(/Override the default environment/);
-    expect(f?.short).toBe('e');
-    expect(f?.env).toBe('OPENBOX_ENV');
+    expect(c?.description).toMatch(/X-API-Key/);
   });
 
   test('@cli_validator attaches the named validator to the API-key field', () => {

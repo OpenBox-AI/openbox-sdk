@@ -39,24 +39,13 @@ function readStore(): TokenStore {
   return parseTokenStore(readFileSync(path, 'utf-8'));
 }
 
-function loadTokens(env: EnvName): { accessToken: string; refreshToken?: string } {
-  // Ephemeral env-injected token wins over the on-disk store. Lets CI
-  // runs supply tokens without writing to ~/.openbox/tokens (no on-disk
-  // leak after the runner shuts down).
-  const envToken = process.env.OPENBOX_ACCESS_TOKEN;
-  if (envToken) {
-    return { accessToken: envToken, refreshToken: process.env.OPENBOX_REFRESH_TOKEN };
-  }
-  const store = readStore();
-  const entry = store[env];
-  if (!entry?.accessToken) {
-    console.error(`No tokens found for environment '${env}'.`);
-    console.error(`Run: openbox ${env === 'production' ? '' : `--env ${env} `}auth login`);
-    console.error(`Or:  openbox ${env === 'production' ? '' : `--env ${env} `}auth set-token <token>`);
-    console.error(`Or set OPENBOX_ACCESS_TOKEN=<token> in the environment.`);
-    bailWith(EXIT.AUTH);
-  }
-  return { accessToken: entry.accessToken, refreshToken: entry.refreshToken };
+// Org-level X-API-Key auth lookup. Env-var override wins so CI can inject
+// a key without touching disk. Returns undefined when nothing is set -
+// callers (getClient) decide whether absence is fatal.
+function loadApiKey(env: EnvName): string | undefined {
+  const envKey = process.env.OPENBOX_BACKEND_API_KEY;
+  if (envKey) return envKey;
+  return readStore()[env]?.apiKey;
 }
 
 function loadPermissions(env: EnvName): string[] {
@@ -69,29 +58,10 @@ function loadFeatures(env: EnvName): FeatureMap {
   return store[env]?.features ?? {};
 }
 
-function saveTokens(
-  env: EnvName,
-  accessToken: string,
-  refreshToken?: string,
-  permissions?: string[],
-) {
-  const path = getTokenPath();
-  const store = readStore();
-  const existing = store[env] ?? {};
-  store[env] = {
-    accessToken,
-    refreshToken: refreshToken || undefined,
-    updatedAt: new Date().toISOString(),
-    permissions: permissions ?? existing.permissions,
-    features: existing.features,
-  };
-  writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
-}
-
 function savePermissions(env: EnvName, permissions: string[]) {
   const path = getTokenPath();
   const store = readStore();
-  if (!store[env]?.accessToken) return;
+  if (!store[env]?.apiKey) return;
   store[env] = { ...store[env], permissions };
   writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
 }
@@ -99,28 +69,30 @@ function savePermissions(env: EnvName, permissions: string[]) {
 function saveFeatures(env: EnvName, features: FeatureMap) {
   const path = getTokenPath();
   const store = readStore();
-  if (!store[env]?.accessToken) return;
+  if (!store[env]?.apiKey) return;
   store[env] = { ...store[env], features };
   writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
 }
 
-// Remove all persisted state for a single env (tokens, refresh, permissions,
-// features). Other envs' entries are preserved. Used by `auth logout`.
-function clearTokens(env: EnvName): boolean {
+function saveApiKey(env: EnvName, apiKey: string) {
   const path = getTokenPath();
   const store = readStore();
-  if (!store[env]) return false;
+  store[env] = {
+    ...(store[env] ?? {}),
+    apiKey,
+    updatedAt: new Date().toISOString(),
+  };
+  writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
+}
+
+function clearApiKey(env: EnvName): boolean {
+  const path = getTokenPath();
+  const store = readStore();
+  const entry = store[env];
+  if (!entry?.apiKey) return false;
   delete store[env];
   writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
   return true;
-}
-
-// Non-hard-exiting check - unlike `loadTokens`, this lets callers that can
-// tolerate missing tokens (e.g. `auth logout --all`) act on presence without
-// being killed by process.exit.
-function hasTokens(env: EnvName): boolean {
-  const store = readStore();
-  return !!store[env]?.accessToken;
 }
 
 // Honors OPENBOX_TIMEOUT_MS so users can stretch the per-request timeout
@@ -140,25 +112,23 @@ function resolveTimeoutMs(): number | undefined {
 
 function getClient(env?: EnvName): OpenBoxClient {
   const resolved = env ?? resolveEnv();
-  const tokens = loadTokens(resolved);
   const { apiUrl } = resolveUrls(resolved);
-  // Prime the wrapper's permission pre-flight from the on-disk cache
-  // populated at login (and refreshed on `auth refresh`). When the
-  // cache is empty (fresh install before login completes), the field
-  // stays undefined and pre-flight degrades to a no-op - server still
-  // returns 403, just no client-side short-circuit.
+  const apiKey = loadApiKey(resolved);
+  if (!apiKey) {
+    const flag = resolved === 'production' ? '' : `--env ${resolved} `;
+    console.error(`No X-API-Key found for environment '${resolved}'.`);
+    console.error(`Mint one in the dashboard FE (Organization → API Keys), then:`);
+    console.error(`  openbox ${flag}auth set-api-key`);
+    console.error(`Or set OPENBOX_BACKEND_API_KEY=<key> in the environment.`);
+    bailWith(EXIT.AUTH);
+  }
   const cachedPerms = loadPermissions(resolved);
   return new OpenBoxClient({
     apiUrl,
     env: resolved,
-    accessToken: tokens.accessToken,
-    refreshToken: tokens.refreshToken,
+    apiKey,
     permissions: cachedPerms.length > 0 ? cachedPerms : undefined,
     timeoutMs: resolveTimeoutMs(),
-    onTokenRefresh: (newTokens) => {
-      saveTokens(resolved, newTokens.accessToken, newTokens.refreshToken);
-      console.error('[token refreshed]');
-    },
   });
 }
 
@@ -169,7 +139,7 @@ function getClient(env?: EnvName): OpenBoxClient {
 // runtime key. Catching it here gives a clear hint pointing at the
 // right field, instead of letting core return a generic 500
 // ("invalid API key format. Expected format: obx_live_... or obx_test_...").
-function validateApiKeyFormat(key: string): void {
+function validateAgentRuntimeKeyFormat(key: string): void {
   // Canonical regex lives in specs/typespec/env/main.tsp via @token_format.
   // We just call the generated checker; the wrapper below adds CLI-flavored
   // hints that don't belong in the spec.
@@ -207,7 +177,7 @@ function getCoreClient(env?: EnvName): OpenBoxCoreClient {
     console.error('No OPENBOX_API_KEY found. Set it in your environment.');
     bailWith(EXIT.AUTH);
   }
-  validateApiKeyFormat(apiKey);
+  validateAgentRuntimeKeyFormat(apiKey);
   const { coreUrl } = resolveUrls(resolved);
   return new OpenBoxCoreClient({
     apiUrl: coreUrl,
@@ -220,12 +190,11 @@ function getCoreClient(env?: EnvName): OpenBoxCoreClient {
 export {
   getClient,
   getCoreClient,
-  saveTokens,
   savePermissions,
   saveFeatures,
-  clearTokens,
-  hasTokens,
-  loadTokens,
+  saveApiKey,
+  clearApiKey,
+  loadApiKey,
   loadPermissions,
   loadFeatures,
   getTokenPath,

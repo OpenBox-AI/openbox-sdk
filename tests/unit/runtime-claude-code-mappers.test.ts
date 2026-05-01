@@ -190,21 +190,17 @@ describe('cli/wire-subcommands - additional branch coverage', () => {
   });
 });
 
-describe('cli/commands/auth - non-browser subcommands', () => {
-  it('auth permissions and auth features registered', async () => {
+describe('cli/commands/auth - api-key surface', () => {
+  it('exposes set-api-key / clear-api-key / status', async () => {
     const { registerAuthCommands } = await import('../../ts/src/cli/commands/auth');
     const program = new Command();
     registerAuthCommands(program);
     const auth = program.commands.find((c) => c.name() === 'auth');
     expect(auth).toBeDefined();
     const subs = auth!.commands.map((s) => s.name());
-    expect(subs).toContain('permissions');
-    expect(subs).toContain('features');
-    expect(subs).toContain('change-password');
-    expect(subs).toContain('forgot-password');
-    expect(subs).toContain('reset-password');
-    expect(subs).toContain('roles');
-    expect(subs).toContain('set-token');
+    expect(subs).toContain('set-api-key');
+    expect(subs).toContain('clear-api-key');
+    expect(subs).toContain('status');
   });
 });
 

@@ -1,78 +1,57 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { registerAuthCommands } from '../../../ts/src/cli/commands/auth';
-import { createMockClient, createTestProgram } from '../../helpers/cli';
+import { createTestProgram } from '../../helpers/cli';
 
-vi.mock('../../../ts/src/cli/config', () => ({ getClient: vi.fn(), saveTokens: vi.fn() }));
-vi.mock('../../../ts/src/cli/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
+vi.mock('../../../ts/src/cli/config', () => ({
+  saveApiKey: vi.fn(),
+  clearApiKey: vi.fn(),
+  loadApiKey: vi.fn(),
+}));
 
-import { getClient, saveTokens } from '../../../ts/src/cli/config';
-import { output } from '../../../ts/src/cli/output';
+import { saveApiKey, clearApiKey, loadApiKey } from '../../../ts/src/cli/config';
+
+const VALID_KEY = 'obx_key_' + 'a'.repeat(48);
 
 describe('auth commands', () => {
-  let mockClient: ReturnType<typeof createMockClient>;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    mockClient = createMockClient();
-    vi.mocked(getClient).mockReturnValue(mockClient as any);
   });
 
-  it('profile calls getProfile()', async () => {
-    const program = createTestProgram();
-    registerAuthCommands(program);
-    await program.parseAsync(['node', 'openbox', 'auth', 'profile']);
-    expect(mockClient.getProfile).toHaveBeenCalled();
-    expect(output).toHaveBeenCalled();
-  });
-
-  it('set-token calls saveTokens with the resolved env (not a hardcoded one)', async () => {
+  it('set-api-key with --key persists via saveApiKey using the resolved env', async () => {
     const { resolveEnv } = await import('../../../ts/src/env/index');
     const program = createTestProgram();
     registerAuthCommands(program);
-    await program.parseAsync(['node', 'openbox', 'auth', 'set-token', 'my-token', 'my-refresh']);
-    // The implementation calls saveTokens(resolveEnv(), token, refresh) - this
-    // test must mirror that resolution rather than hardcoding 'production',
-    // otherwise running with OPENBOX_ENV=local (e.g. local-stack e2e) flips
-    // the assertion despite the impl being correct.
-    expect(saveTokens).toHaveBeenCalledWith(resolveEnv(), 'my-token', 'my-refresh');
+    await program.parseAsync(['node', 'openbox', 'auth', 'set-api-key', '--key', VALID_KEY]);
+    expect(saveApiKey).toHaveBeenCalledWith(resolveEnv(), VALID_KEY);
   });
 
-  // `openbox auth refresh` currently short-circuits with a "disabled" notice
-  // (upstream /auth/refresh is broken; see client.ts:REFRESH_ENABLED).
-  // Restore this test to its original form once the upstream fixes land.
-  it.skip('refresh calls refreshTokens()', async () => {
+  it('set-api-key rejects badly-shaped keys without persisting', async () => {
     const program = createTestProgram();
     registerAuthCommands(program);
-    await program.parseAsync(['node', 'openbox', 'auth', 'refresh']);
-    expect(mockClient.refreshTokens).toHaveBeenCalled();
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit ${code}`);
+    }) as any);
+    await expect(
+      program.parseAsync(['node', 'openbox', 'auth', 'set-api-key', '--key', 'not-an-obx-key']),
+    ).rejects.toThrow();
+    expect(saveApiKey).not.toHaveBeenCalled();
+    exitSpy.mockRestore();
   });
 
-  it('change-password calls changePassword()', async () => {
+  it('clear-api-key calls clearApiKey for the resolved env', async () => {
+    const { resolveEnv } = await import('../../../ts/src/env/index');
     const program = createTestProgram();
     registerAuthCommands(program);
-    await program.parseAsync([
-      'node',
-      'openbox',
-      'auth',
-      'change-password',
-      '--current',
-      'old',
-      '--new',
-      'new',
-      '--org-id',
-      'org1',
-    ]);
-    expect(mockClient.changePassword).toHaveBeenCalledWith({
-      currentPassword: 'old',
-      newPassword: 'new',
-      orgId: 'org1',
-    });
+    await program.parseAsync(['node', 'openbox', 'auth', 'clear-api-key']);
+    expect(clearApiKey).toHaveBeenCalledWith(resolveEnv());
   });
 
-  it('roles calls getUserRoles()', async () => {
+  it('status reads loadApiKey for every env', async () => {
+    vi.mocked(loadApiKey).mockReturnValue(undefined);
     const program = createTestProgram();
     registerAuthCommands(program);
-    await program.parseAsync(['node', 'openbox', 'auth', 'roles']);
-    expect(mockClient.getUserRoles).toHaveBeenCalled();
+    await program.parseAsync(['node', 'openbox', 'auth', 'status']);
+    // Three reads for production / staging / local.
+    expect(loadApiKey).toHaveBeenCalledTimes(3);
   });
 });

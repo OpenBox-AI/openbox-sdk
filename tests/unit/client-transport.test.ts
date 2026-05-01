@@ -267,7 +267,7 @@ describe('cli/commands/skill - install action', () => {
 describe('cli/commands/core - evaluate path', () => {
   it('--type llm builds a payload + dispatches to core', async () => {
     const cfg = await import('../../ts/src/cli/config');
-    cfg.saveTokens('production', 'p-token');
+    cfg.saveApiKey('production', 'obx_key_' + 'a'.repeat(48));
     process.env.OPENBOX_API_KEY = 'obx_test_x'.padEnd(57, 'x');
 
     // Capture-server mocks core /evaluate.

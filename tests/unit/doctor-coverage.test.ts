@@ -1,8 +1,7 @@
 // Coverage for ts/src/cli/commands/doctor.ts. Doctor is a runtime
-// pre-flight: token file present? JWT not expired? Backend reachable?
-// We drive each branch by setting up a sandboxed token store + a
-// capture-server backend that can return /health/version 200 or fail
-// on demand.
+// pre-flight: api-key persisted? Backend reachable? We drive each
+// branch by setting up a sandboxed token store + a capture-server
+// backend that can return /health/version 200 or fail on demand.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Command } from 'commander';
@@ -72,47 +71,33 @@ async function runDoctor(): Promise<{ exitCode: number | undefined; lines: strin
   return { exitCode, lines };
 }
 
+const FAKE_KEY = 'obx_key_' + 'a'.repeat(48);
+
 describe('doctor command', () => {
-  it('reports fail when token file is missing', async () => {
+  it('reports fail when api-key is missing', async () => {
     const r = await runDoctor();
-    expect(r.lines.some((l) => l.includes('token file') || l.includes('access token'))).toBe(true);
+    expect(r.lines.some((l) => l.includes('api-key') || l.includes('token file'))).toBe(true);
     expect(r.exitCode).toBe(1); // EXIT.GENERIC - fails present
   });
 
-  it('reports pass when tokens + backend reachable', async () => {
-    // Set up a fake token store with a non-JWT placeholder.
+  it('reports pass when api-key + backend reachable', async () => {
+    const { resolveEnv } = await import('../../ts/src/env');
+    const env = resolveEnv();
     const cfg = await import('../../ts/src/cli/config');
-    cfg.saveTokens('production', 'placeholder-token', 'placeholder-refresh');
+    cfg.saveApiKey(env, FAKE_KEY);
 
     const ok = await makeOkServer();
     process.env.OPENBOX_API_URL = ok.url;
     process.env.OPENBOX_CORE_URL = ok.url;
     try {
       const r = await runDoctor();
-      // The tokens-present + JWT-malformed-warning + reachable backends
-      // path produces a rich `lines` output. We just need the function
-      // to have run end-to-end.
+      // api-key + reachable backends path produces a rich `lines`
+      // output. We just need the function to have run end-to-end.
       expect(r.lines.length).toBeGreaterThan(2);
     } finally {
       delete process.env.OPENBOX_API_URL;
       delete process.env.OPENBOX_CORE_URL;
       await ok.close();
     }
-  });
-
-  it('reports JWT expiry when payload has exp claim', async () => {
-    // Resolve the active env (OPENBOX_ENV may be 'local' under the
-    // dev-stack-driven full run) and write the fake JWT for THAT env.
-    const { resolveEnv } = await import('../../ts/src/env');
-    const env = resolveEnv();
-    const cfg = await import('../../ts/src/cli/config');
-    const past = Math.floor(Date.now() / 1000) - 60;
-    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(JSON.stringify({ exp: past, sub: 'me' })).toString('base64url');
-    const fake = `${header}.${payload}.sig`;
-    cfg.saveTokens(env, fake, 'r');
-
-    const r = await runDoctor();
-    expect(r.lines.some((l) => l.toLowerCase().includes('expired') || l.includes('JWT'))).toBe(true);
   });
 });

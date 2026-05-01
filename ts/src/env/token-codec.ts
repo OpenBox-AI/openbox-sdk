@@ -6,6 +6,7 @@
 // On-disk format (one line per field, ENV.FIELD=value):
 //   production.ACCESS_TOKEN=...
 //   production.REFRESH_TOKEN=...
+//   production.API_KEY=obx_key_...           (alternative to ACCESS_TOKEN; X-API-Key auth)
 //   production.UPDATED_AT=...
 //   production.PERMISSIONS=Admin,create:agent,...
 //   production.FEATURES=webhooks:true,sso:false
@@ -53,6 +54,7 @@ export const parseTokenStore: TokenCodec['parseTokenStore'] = (content) => {
     const entry = (store[envName] ??= {});
     if (field === 'ACCESS_TOKEN') entry.accessToken = value;
     else if (field === 'REFRESH_TOKEN') entry.refreshToken = value || undefined;
+    else if (field === 'API_KEY') entry.apiKey = value || undefined;
     else if (field === 'UPDATED_AT') entry.updatedAt = value;
     else if (field === 'PERMISSIONS') {
       entry.permissions = value
@@ -81,9 +83,16 @@ export const serializeTokenStore: TokenCodec['serializeTokenStore'] = (store) =>
   const lines: string[] = [];
   for (const envName of ENV_NAMES) {
     const entry = store[envName];
-    if (!entry?.accessToken) continue;
-    lines.push(`${envName}.ACCESS_TOKEN=${entry.accessToken}`);
-    lines.push(`${envName}.REFRESH_TOKEN=${entry.refreshToken ?? ''}`);
+    // Either credential is enough to keep the entry - api-key alone is a
+    // valid auth state (the X-API-Key flow has no JWT).
+    if (!entry?.accessToken && !entry?.apiKey) continue;
+    if (entry.accessToken) {
+      lines.push(`${envName}.ACCESS_TOKEN=${entry.accessToken}`);
+      lines.push(`${envName}.REFRESH_TOKEN=${entry.refreshToken ?? ''}`);
+    }
+    if (entry.apiKey) {
+      lines.push(`${envName}.API_KEY=${entry.apiKey}`);
+    }
     lines.push(`${envName}.UPDATED_AT=${entry.updatedAt ?? ''}`);
     if (entry.permissions && entry.permissions.length > 0) {
       lines.push(`${envName}.PERMISSIONS=${entry.permissions.join(',')}`);
