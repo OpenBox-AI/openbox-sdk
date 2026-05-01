@@ -1,0 +1,32 @@
+{
+  "name": "typespec-emitter-rust",
+  "version": "0.0.0",
+  "description": "TypeSpec emitter that generates rust/src/<package>/generated/ from the OpenBox programming-model specs",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p ."
+  },
+  "peerDependencies": {
+    "@typespec/compiler": "^1.11.0",
+    "@typespec/http": "^1.11.0"
+  },
+  "devDependencies": {
+    "typespec-cli": "0.0.0",
+    "typespec-env": "0.0.0",
+    "typespec-workflow": "0.0.0",
+    "@typespec/compiler": "^1.11.0",
+    "@typespec/http": "^1.11.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -2,33 +2,20 @@
 name = "openbox-sdk"
 version = "0.1.0"
 edition = "2021"
-description = "Rust SDK for OpenBox AI governance. Generated from the TypeSpec source of truth shared with the TypeScript / Go / Python SDKs in the openbox-sdk monorepo."
+description = "Rust SDK for OpenBox AI governance. Generated from the TypeSpec source of truth in this monorepo."
 license = "MIT"
+publish = false
+
+# Layout mirrors `ts/src/`. Each package's `generated/` is owned by
+# `typespec-emitter-rust`; everything else (the `request<R, B, Q>`
+# transport in `client/mod.rs` + `core/mod.rs`, the token-store IO
+# in `env/mod.rs`, the shared `ApiError` in `error.rs`) is hand-written
+# platform glue. Re-emit the `generated/` trees with
+# `npm run specs:compile` from the repo root.
 
 [dependencies]
-# Runtime client deps; match progenitor's expected stack. Reqwest is async
-# (tokio runtime); approver already pulls tokio in via rust_socketio so this
-# is no extra surface there.
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1", features = ["serde"] }
-url = "2"
-bytes = "1"
-futures-core = "0.3"
-# Progenitor-generated code references progenitor_client::{QueryParam,
-# ByteStream, Error, ResponseValue, RequestBuilderExt, encode_path}.
-# Version pinned to match the build-time progenitor major.
-progenitor-client = "0.10"
-
-[build-dependencies]
-# build.rs runs the OpenAPI generator at build time. Pinned to a recent
-# release; bump only after verifying generated output still compiles
-# against the consumer (approver). Progenitor pulls in syn/quote/etc. as
-# transitive build deps; that's normal for codegen crates.
-openapiv3 = "2"
-prettyplease = "0.2"
-progenitor = "0.10"
-serde_json = "1"
-syn = { version = "2", features = ["full", "parsing"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["macros", "rt"] }
+thiserror = "1"

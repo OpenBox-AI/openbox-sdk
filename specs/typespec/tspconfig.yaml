@@ -14,6 +14,7 @@ emit:
   - "@typespec/openapi3"
   - "@typespec/json-schema"
   - "typespec-emitter-typescript"
+  - "typespec-emitter-rust"
 
 options:
   "@typespec/openapi3":
@@ -27,3 +28,6 @@ options:
     # to ts/<package>/src/generated/. We still set it so the runtime
     # has a sane base path; the emitter walks back to repo root.
     emitter-output-dir: "{project-root}/../generated/ts-emit-anchor"
+  "typespec-emitter-rust":
+    # Same pattern: writes directly to rust/src/<package>/generated/.
+    emitter-output-dir: "{project-root}/../generated/rust-emit-anchor"

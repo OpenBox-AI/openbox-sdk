@@ -94,10 +94,11 @@
   "workspaces": [
     "codegen/typespec-libs/*",
     "codegen/emitters/typespec-emitter-typescript",
+    "codegen/emitters/typespec-emitter-rust",
     "apps/*"
   ],
   "scripts": {
-    "build:codegen": "npm run build -w typespec-env -w typespec-cli -w typespec-workflow -w typespec-emitter-typescript",
+    "build:codegen": "npm run build -w typespec-env -w typespec-cli -w typespec-workflow -w typespec-emitter-typescript -w typespec-emitter-rust",
     "build:bundle": "tsup",
     "build": "npm run build:codegen && npm run specs:compile && npm run generate:types && npm run build:bundle",
     "prepare": "npm run build",
