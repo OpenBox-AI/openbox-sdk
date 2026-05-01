@@ -66,15 +66,15 @@ describe('aivss commands', () => {
     expect(mockClient.recalculateAivss).toHaveBeenCalledWith('agent-1');
   });
 
-  it('calculate passes --json straight through', async () => {
+  it('calculate passes --body straight through', async () => {
     const program = createTestProgram();
     registerAivssCommands(program);
     const json = JSON.stringify({ base_security: { attack_vector: 1 } });
-    await program.parseAsync(['node', 'openbox', 'aivss', 'calculate', '--json', json]);
+    await program.parseAsync(['node', 'openbox', 'aivss', 'calculate', '--body', json]);
     expect(mockClient.calculateAivss).toHaveBeenCalledWith(JSON.parse(json));
   });
 
-  it('calculate requires --json', async () => {
+  it('calculate requires --body', async () => {
     const program = createTestProgram();
     registerAivssCommands(program);
     await expect(

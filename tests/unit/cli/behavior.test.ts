@@ -85,7 +85,7 @@ describe('behavior commands', () => {
       'update',
       'agent-1',
       'rule-1',
-      '--json',
+      '--body',
       json,
     ]);
     expect(mockClient.updateBehaviorRule).toHaveBeenCalledWith(

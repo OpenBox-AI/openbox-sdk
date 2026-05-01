@@ -70,7 +70,7 @@ describeOrSkip('agent lifecycle (e2e, real backend)', () => {
   it('`agent update` changes the description', () => {
     const res = runCli([
       'agent', 'update', agentId!,
-      '--json', JSON.stringify({ description: 'updated by e2e' }),
+      '--body', JSON.stringify({ description: 'updated by e2e' }),
     ]);
     expect(res.status, res.stderr).toBe(0);
   });

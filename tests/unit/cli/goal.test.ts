@@ -86,7 +86,7 @@ describe('goal commands', () => {
     registerGoalCommands(program);
     await program.parseAsync([
       'node', 'openbox', 'goal', 'update', 'agent-1',
-      '--json', '{"alignment_threshold":50,"custom":"x"}',
+      '--body', '{"alignment_threshold":50,"custom":"x"}',
     ]);
     expect(mockClient.updateGoalAlignment).toHaveBeenCalledWith('agent-1', {
       alignment_threshold: 50,

@@ -393,20 +393,20 @@ function transformFlag(raw: unknown, flag: FlagSpec): unknown {
 function buildBody(opts: Record<string, unknown>, sub: SubcommandSpec): Record<string, unknown> {
   let body: Record<string, unknown> = {};
   let jsonProvided = false;
-  if (sub.jsonMerge && typeof opts.json === 'string' && opts.json) {
+  if (sub.jsonMerge && typeof opts.body === 'string' && opts.body) {
     try {
-      const parsed = JSON.parse(opts.json) as Record<string, unknown>;
+      const parsed = JSON.parse(opts.body) as Record<string, unknown>;
       if (parsed && typeof parsed === 'object') body = { ...parsed };
       jsonProvided = true;
     } catch (e) {
-      throw new Error(`--json: ${(e as Error).message}`);
+      throw new Error(`--body: ${(e as Error).message}`);
     }
   }
   if (sub.pagination) {
     Object.assign(body, parsePagination(opts as { page?: unknown; limit?: unknown }));
   }
   for (const flag of sub.flags) {
-    if (sub.jsonMerge && flag.name === 'json') continue; // handled above
+    if (sub.jsonMerge && flag.name === 'body') continue; // handled above
     let val = transformFlag(opts[flag.name], flag);
     // Variadic flags with no command-line value default to []. Wire
     // shapes that include the field (e.g. createUser body's `roles`)
@@ -472,12 +472,12 @@ function buildBody(opts: Record<string, unknown>, sub: SubcommandSpec): Record<s
     const missing: string[] = [];
     for (const flag of sub.flags) {
       if (!flag.required) continue;
-      if (flag.name === 'json') continue;
+      if (flag.name === 'body') continue;
       // Variadic flags arrive as undefined when not set, [] when empty.
       // Treat both as missing.
       const key = flag.bodyKey ?? flag.name;
       if (!(key in body) || body[key] === undefined || body[key] === null || body[key] === '') {
-        missing.push(`--${flag.long} (or "${key}" in --json)`);
+        missing.push(`--${flag.long} (or "${key}" in --body)`);
       }
     }
     if (missing.length > 0) {
@@ -528,7 +528,7 @@ function attachFlags(cmd: Command, sub: SubcommandSpec): void {
   for (const flag of sub.flags) {
     // When jsonMerge is on the runtime auto-adds --json; skip the
     // spec-declared one to avoid commander duplicate-option errors.
-    if (sub.jsonMerge && flag.name === 'json') continue;
+    if (sub.jsonMerge && flag.name === 'body') continue;
     const dots = flag.variadic ? '...' : '';
     const placeholder = flag.noArg ? '' : ` <${flag.long.replace(/-/g, '_')}${dots}>`;
     const flagSig = flag.short
@@ -546,10 +546,15 @@ function attachFlags(cmd: Command, sub: SubcommandSpec): void {
     }
   }
   if (sub.jsonMerge) {
+    // --body instead of --json: the global --json boolean (output
+    // formatter, see cli/index.ts) collides with a subcommand-level
+    // --json <value> in Commander - the boolean wins and the body
+    // never reaches opts. No short alias because `-d` is already used
+    // by `--desc` on most spec ops.
     if (sub.jsonMerge === 'only') {
-      cmd.requiredOption('--json <json>', 'Full JSON body (required).');
+      cmd.requiredOption('--body <json>', 'Full JSON body (required).');
     } else {
-      cmd.option('--json <json>', 'Full JSON body - flag values fill missing keys.');
+      cmd.option('--body <json>', 'Full JSON body - flag values fill missing keys.');
     }
   }
 }

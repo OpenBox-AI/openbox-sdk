@@ -67,7 +67,7 @@ describe('team commands', () => {
     registerTeamCommands(program);
     await program.parseAsync([
       'node', 'openbox', 'team', 'create', 'org-1',
-      '--json', '{"name":"Legal","custom_field":true}',
+      '--body', '{"name":"Legal","custom_field":true}',
     ]);
     expect(mockClient.createTeam).toHaveBeenCalledWith('org-1', {
       name: 'Legal',
