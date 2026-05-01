@@ -71,7 +71,7 @@ describe('agent commands', () => {
     const program = createTestProgram();
     registerAgentCommands(program);
     const json = JSON.stringify({ agent_name: 'Custom', team_ids: [] });
-    await program.parseAsync(['node', 'openbox', 'agent', 'create', '-n', 'x', '--json', json]);
+    await program.parseAsync(['node', 'openbox', 'agent', 'create', '-n', 'x', '--body', json]);
     expect(mockClient.createAgent).toHaveBeenCalledWith(JSON.parse(json));
   });
 

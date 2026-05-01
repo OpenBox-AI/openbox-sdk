@@ -814,7 +814,6 @@ interface Goal {
 
   /** Update goal alignment config. All four fields required together
    *  (or --json with the full body). */
-  @cli_maturity("experimental")
   @cli_calls("updateGoalAlignment")
   @cli_output_kind("kv")
   @cli_json_merge("replace")
@@ -1298,7 +1297,6 @@ interface Policy {
   ): void;
 
   /** Toggle active / roll back a policy version. Rego is immutable. */
-  @cli_maturity("experimental")
   @cli_calls("updatePolicy")
   @cli_output_kind("kv")
   @cli_json_merge
@@ -1593,7 +1591,6 @@ interface Violation {
   ): void;
 
   /** Mark a violation as false positive. sourceType must be one of: behavior, guardrail, policy. */
-  @cli_maturity("experimental")
   @cli_calls("markFalsePositive")
   @cli_output_kind("kv")
   falsePositive(

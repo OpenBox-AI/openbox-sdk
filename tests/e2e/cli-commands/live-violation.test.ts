@@ -145,7 +145,13 @@ result := {"decision": "BLOCK", "reason": "live-violation-e2e"} if {
 
 let canRunLive = false;
 
-describe('live violation false-positive (e2e, real stack with OPA + moto)', () => {
+// SKIP: depends on (a) `policy create` reaching S3 - blocked by the
+// S3 path-style fix (openbox-backend bug/s3-force-path-style) - and
+// (b) backend "patch 06" surfacing policy_evaluations rows in the
+// /agent/:id/violations response. Re-enable once both land.
+// Verified locally with the s3 patch loaded: beforeAll reaches the
+// violation poll loop; patch 06 still required for the row to surface.
+describe.skip('live violation false-positive (e2e, real stack with OPA + moto)', () => {
   const orgId = process.env.OPENBOX_ORG_ID!;
   const stamp = Date.now();
   let teamId: string | undefined;

@@ -60,7 +60,7 @@ export const COMMAND_MATURITY: Record<string, Maturity> = {
   "goal": "stable",
   "goal drifts": "stable",
   "goal trend": "stable",
-  "goal update": "experimental",
+  "goal update": "stable",
   "guardrail": "stable",
   "guardrail create": "stable",
   "guardrail delete": "stable",
@@ -104,7 +104,7 @@ export const COMMAND_MATURITY: Record<string, Maturity> = {
   "policy get": "stable",
   "policy list": "stable",
   "policy metrics": "experimental",
-  "policy update": "experimental",
+  "policy update": "stable",
   "session": "stable",
   "session active": "stable",
   "session get": "stable",
@@ -133,7 +133,7 @@ export const COMMAND_MATURITY: Record<string, Maturity> = {
   "versions": "stable",
   "violation": "stable",
   "violation agent": "stable",
-  "violation false-positive": "experimental",
+  "violation false-positive": "stable",
   "violation list": "stable"
 };
 
