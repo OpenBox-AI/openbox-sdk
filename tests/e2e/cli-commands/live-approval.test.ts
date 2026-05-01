@@ -248,10 +248,10 @@ describe('live approval decide (e2e, real stack with OPA + moto)', () => {
     }
   }
 
-  // SKIP: depends on `policy create` reaching S3 - blocked by the same
-  // upstream backend fix (S3Service path-style for moto). Patch ready on
-  // the-backend-service bug/s3-force-path-style; re-enable once that lands.
-  // Verified locally with patch loaded: 2/2 pass.
+  // SKIP: depends on `policy create` reaching S3 - blocked on
+  // the-local-stack-dev-repo fix/s3-virtual-hosted (drops the
+  // S3_IGNORE_SUBDOMAIN_BUCKETNAME=true override on the moto container).
+  // Verified locally with the dev-setup branch loaded: 2/2 pass.
   it.skip('`approval decide approve` flips verdict to ALLOW', async () => {
     await runCase('approve');
   }, 60000);
