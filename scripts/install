@@ -3,6 +3,16 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/OpenBox-AI/openbox-sdk/main/scripts/install | sh
 #
+# Private-repo (until the repo flips public):
+#
+#   # via gh CLI (uses your authenticated session for both fetch + clone):
+#   gh api -H "Accept: application/vnd.github.raw" \
+#     repos/OpenBox-AI/openbox-sdk/contents/scripts/install | sh
+#
+#   # via raw token (CI / scripted; needs `repo` scope):
+#   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+#     https://raw.githubusercontent.com/OpenBox-AI/openbox-sdk/main/scripts/install | sh
+#
 # Clones the source, installs deps (bun if present, else npm), builds,
 # and symlinks the CLI into ~/.openbox/bin/openbox. Build-from-source
 # because there's no published package and no signed binary release.
@@ -265,6 +275,19 @@ fi
 
 mkdir -p "$INSTALL_ROOT" "$BIN_DIR"
 
+# Pick a clone URL. While the repo is private, prefer an explicit
+# token in env, then ask `gh` for one. Falls through to the plain
+# https URL (which works if `gh auth setup-git` ran or HTTPS creds
+# are otherwise wired into git).
+clone_url="$REPO_URL"
+token="${OPENBOX_GITHUB_TOKEN:-${GITHUB_TOKEN:-${GH_TOKEN:-}}}"
+if [ -z "$token" ] && command -v gh >/dev/null 2>&1; then
+  token="$(gh auth token 2>/dev/null || true)"
+fi
+if [ -n "$token" ]; then
+  clone_url="https://oauth2:${token}@github.com/OpenBox-AI/openbox-sdk"
+fi
+
 if [ -n "${OPENBOX_LOCAL_SOURCE:-}" ]; then
   [ -f "${OPENBOX_LOCAL_SOURCE}/package.json" ] || \
     fatal "OPENBOX_LOCAL_SOURCE=${OPENBOX_LOCAL_SOURCE} isn't an openbox-sdk checkout (no package.json)"
@@ -278,7 +301,7 @@ elif [ -d "$SRC_DIR/.git" ]; then
 elif [ -e "$SRC_DIR" ]; then
   fatal "$SRC_DIR exists but isn't a git checkout; remove it or set OPENBOX_INSTALL_DIR"
 else
-  run "clone openbox-sdk@${VERSION}" -- git clone --quiet --depth=1 --branch "$VERSION" "$REPO_URL" "$SRC_DIR"
+  run "clone openbox-sdk@${VERSION}" -- git clone --quiet --depth=1 --branch "$VERSION" "$clone_url" "$SRC_DIR"
 fi
 
 cd "$SRC_DIR"
