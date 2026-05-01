@@ -34,7 +34,7 @@ jobs:
       - run: npm ci
 
       - name: Build TypeSpec libraries + TS emitter
-        run: npm run specs:libs
+        run: npm run build:codegen
 
       - name: Compile TypeSpec sources
         run: npx tsp compile specs/typespec
@@ -77,8 +77,8 @@ jobs:
       - name: Spectral lint
         # Spectral catches OpenAPI authoring smells (missing operationIds,
         # untyped responses, etc.) on top of TypeSpec's compile errors.
-        # Pinned to the @stoplight ruleset; override via .spectral.yaml.
-        run: npx --yes @stoplight/spectral-cli lint specs/generated/openapi3/*.json --ruleset spectral:oas
+        # Ruleset is pinned via the local .spectral.yaml (extends spectral:oas).
+        run: npx --yes @stoplight/spectral-cli lint specs/generated/openapi3/*.json
 
   spec-diff:
     name: Breaking-change detection
