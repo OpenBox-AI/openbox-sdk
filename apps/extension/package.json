@@ -121,7 +121,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "^1.118.0",
     "esbuild": "^0.24.0",
     "openbox-sdk": "file:../..",
     "typescript": "^5.0.0",
