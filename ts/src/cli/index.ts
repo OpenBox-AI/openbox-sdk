@@ -103,9 +103,6 @@ program
             `This env (${env}) has feature(s) disabled for \`openbox ${commandPath}\`: ${missingF.join(', ')}`,
           );
           console.error(
-            `Check feature state: run \`openbox auth features --all\`.`,
-          );
-          console.error(
             `To fix: ask your admin to enable the feature on the ${env} org.`,
           );
           bailWith(EXIT.FEATURE_DISABLED);
@@ -125,7 +122,7 @@ program
       `This env (${env}) lacks required permission(s) for \`openbox ${commandPath}\`: ${missing.join(', ')}`,
     );
     console.error(
-      `Your role has ${have.length} permission(s) - run \`openbox auth permissions\` to inspect.`,
+      `Your api-key has ${have.length} permission(s); the server will return 403 if any are required.`,
     );
     console.error(
       `To fix: ask your admin to grant the missing permission(s) on the ${env} Keycloak role.`,

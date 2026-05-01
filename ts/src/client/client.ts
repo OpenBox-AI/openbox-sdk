@@ -205,6 +205,11 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
 
   constructor(config: ClientConfig) {
     super();
+    if (!config.apiKey && !config.accessToken) {
+      throw new Error(
+        'OpenBoxClient: must supply either `apiKey` (X-API-Key header) or `accessToken` (Bearer JWT).',
+      );
+    }
     this.config = { ...config };
     this.baseUrl = this.config.apiUrl ?? 'https://api.openbox.ai';
     this.env = this.config.env ?? 'production';
@@ -944,6 +949,11 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
       return;
     }
 
+    // API-key auth has no expiry and no refresh path - let the request fly.
+    if (!this.config.accessToken) {
+      return;
+    }
+
     if (!isTokenExpired(this.config.accessToken)) {
       return;
     }
@@ -1156,6 +1166,13 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     const buildOptions = (): { init: RequestInit; cancel: () => void } => {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
+      // Prefer X-API-Key when an apiKey is configured - backend's
+      // jwt-auth.guard.ts accepts either header, but X-API-Key bypasses
+      // the JWT/Keycloak codepath entirely (cleaner CLI auth mode).
+      // Bearer JWT is the fallback for the OAuth/login flow.
+      const authHeader: Record<string, string> = this.config.apiKey
+        ? { 'X-API-Key': this.config.apiKey }
+        : { Authorization: `Bearer ${this.config.accessToken}` };
       return {
         init: {
           method,
@@ -1169,7 +1186,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
           credentials: 'omit',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.config.accessToken}`,
+            ...authHeader,
             // Required by the backend's auth guard - presence-only check, value is arbitrary.
             // Each consumer sets its own via ClientConfig.clientName.
             'X-Openbox-Client': this.clientName,
@@ -1195,6 +1212,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     if (
       OpenBoxClient.REFRESH_ENABLED &&
       response.status === 401 &&
+      this.config.accessToken &&
       this.config.refreshToken
     ) {
       try {

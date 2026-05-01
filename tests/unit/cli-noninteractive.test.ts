@@ -114,11 +114,11 @@ describe('CLI non-interactive contract', () => {
     expect(isRetryable(EXIT.NOT_FOUND)).toBe(false);
   });
 
-  it('OPENBOX_ACCESS_TOKEN env can supply a token without writing to disk', () => {
+  it('OPENBOX_BACKEND_API_KEY env can supply a key without writing to disk', () => {
     // Smoke check: just confirm the path exists in config.ts. The full
     // round-trip test requires a live backend (covered by e2e).
     const src = readFileSync(`${CLI_ROOT}/config.ts`, 'utf-8');
-    expect(src).toContain('OPENBOX_ACCESS_TOKEN');
+    expect(src).toContain('OPENBOX_BACKEND_API_KEY');
   });
 
   it('every spec op with a destructive verb carries @cli_destructive (or is allowlisted)', () => {
@@ -133,7 +133,6 @@ describe('CLI non-interactive contract', () => {
       'removeMembers',
       'terminate',
       'prune',
-      'logout',
     ];
     // Anything in this set is allowed to NOT carry @cli_destructive.
     // Empty by design - every reachable destructive verb in the spec
@@ -303,13 +302,12 @@ describe('CLI non-interactive contract', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('hand-coded destructive sites (auth logout, session prune) fire the gate', async () => {
+  it('hand-coded destructive sites (session prune) fire the gate', async () => {
     // The runtime-gate drift test above iterates the SPEC-EMITTED handler
-    // manifests. But two destructive ops are hand-coded with their own
-    // direct `requireYesForDestructive(...)` call in their commands/*.ts
-    // action body - they never appear in the generated handlers. This
-    // test asserts each hand-coded site genuinely fires the gate when
-    // invoked without --yes / without OPENBOX_ASSUME_YES.
+    // manifests. `session prune` is hand-coded with its own
+    // `requireYesForDestructive(...)` call in commands/session.ts and
+    // never appears in the generated handlers. Asserts the gate fires
+    // when invoked without --yes / without OPENBOX_ASSUME_YES.
     const { Command } = await import('commander');
     const { EXIT } = await import('../../ts/src/cli/exit-codes');
 
@@ -322,7 +320,6 @@ describe('CLI non-interactive contract', () => {
 
     type SiteCheck = { ns: string; verb: string; argv: string[] };
     const sites: SiteCheck[] = [
-      { ns: 'auth', verb: 'logout', argv: ['node', 'openbox', 'auth', 'logout'] },
       { ns: 'session', verb: 'prune', argv: ['node', 'openbox', 'session', 'prune', 'agent-id', '--older-than', '1h'] },
     ];
 
@@ -336,13 +333,8 @@ describe('CLI non-interactive contract', () => {
         }) as never;
 
         const program = new Command();
-        if (s.ns === 'auth') {
-          const { registerAuthCommands } = await import('../../ts/src/cli/commands/auth');
-          registerAuthCommands(program);
-        } else {
-          const { registerSessionCommands } = await import('../../ts/src/cli/commands/session');
-          registerSessionCommands(program);
-        }
+        const { registerSessionCommands } = await import('../../ts/src/cli/commands/session');
+        registerSessionCommands(program);
 
         try {
           await program.parseAsync(s.argv);

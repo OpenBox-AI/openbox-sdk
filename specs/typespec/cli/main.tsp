@@ -33,99 +33,38 @@ enum EnvFlag {
   local: "local",
 }
 
-model AuthProfileOutput {
-  /** Authenticated user identity. */
-  user: {
-    id: string;
-    email: string;
-    fullName: string;
-  };
-
-  /** Currently selected organization. */
-  org: {
-    id: string;
-    realm: string;
-    name?: string;
-  };
-
-  /** Active environment when the profile was queried. */
-  env: EnvFlag;
-}
-
 // ---------------------------------------------------------------------------
-// `openbox auth` command group - vertical slice.
+// `openbox auth` command group - manages an org-level X-API-Key on disk.
+// JWT/Keycloak login lives in the dashboard FE; CLI consumes a key minted
+// there. The SDK still supports Bearer JWT for non-CLI consumers (mobile,
+// SSO flows) - the contract here is CLI-specific.
 // ---------------------------------------------------------------------------
 
 @cli_command(
   "auth",
-  "Authenticate against the OpenBox backend; manage local credentials."
+  "Manage the local X-API-Key store for backend auth."
 )
 @cli_maturity("stable")
 interface Auth {
   /**
-   * Interactive login. Opens the browser-based auth flow, captures
-   * the resulting tokens, and persists them to the per-OS token
-   * store. Custom: OAuth redirect captured via expo-web-browser.
+   * Persist an org-level X-API-Key (`obx_key_<48hex>`) for the active
+   * env. CLI uses this key on every backend request via the X-API-Key
+   * header; mint keys via the dashboard FE (Organization → API Keys).
    */
-  @cli_output_kind("custom")
-  login(
-    @cli_flag(
-      "Override the default environment.",
-      "e",
-      "OPENBOX_ENV"
-    )
-    env?: EnvFlag,
-
-    @cli_flag(
-      "Skip browser launch and print the auth URL instead.",
-      "n"
-    )
-    noBrowser?: boolean,
-  ): void;
-
-  /** Clear the local token store. Custom: branches on hasTokens(env). */
-  @cli_destructive
-  @cli_output_kind("custom")
-  logout(): void;
-
-  /** Print the resolved profile. Custom: renders persisted token store. */
-  @cli_output_kind("custom")
-  profile(): AuthProfileOutput;
-
-  /** Refresh access tokens against the upstream session. */
-  @cli_maturity("stable")
-  @cli_output_kind("custom")
-  refresh(): void;
-
-  /**
-   * Persist a pre-issued access (and optional refresh) token directly
-   * into the local store. Non-interactive entry-point for dev-setup
-   * scripts and CI bootstrap that already have a token in hand.
-   */
-  @cli_maturity("stable")
   @cli_local_only
   @cli_output_kind("custom")
-  setToken(token: string, refreshToken?: string): void;
+  setApiKey(): void;
 
-  /** List the resolved permission set for the active credential. */
-  @cli_maturity("experimental")
+  /** Drop the saved X-API-Key for the current env. */
+  @cli_local_only
+  @cli_destructive
   @cli_output_kind("custom")
-  permissions(): void;
+  clearApiKey(): void;
 
-  /** List enabled feature flags for the active credential. */
-  @cli_maturity("experimental")
+  /** Print the active auth state (api-key present / none) per env. */
+  @cli_local_only
   @cli_output_kind("custom")
-  features(): void;
-
-  /** Change the local user's password against the upstream IdP. */
-  @cli_maturity("experimental")
-  @cli_output_kind("custom")
-  changePassword(): void;
-
-  /** List the roles the active user holds in the current org. */
-  @cli_maturity("experimental")
-  @cli_output_kind("custom")
-  roles(): void;
+  status(): void;
 }
 
 @cli_command(

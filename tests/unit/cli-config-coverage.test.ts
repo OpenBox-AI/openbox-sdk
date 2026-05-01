@@ -1,12 +1,15 @@
 // Coverage for ts/src/cli/config.ts. The CLI config module persists
-// per-env tokens / permissions / features to ~/.openbox/tokens. Tests
-// drive each public helper end-to-end against a sandboxed token-store
-// path so the actual write/read/parse flow is exercised.
+// the per-env X-API-Key to ~/.openbox/tokens. Tests drive each public
+// helper end-to-end against a sandboxed token-store path so the actual
+// write/read/parse flow is exercised.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, statSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+const KEY_A = 'obx_key_' + 'a'.repeat(48);
+const KEY_B = 'obx_key_' + 'b'.repeat(48);
 
 let dir: string;
 let originalHome: string | undefined;
@@ -28,52 +31,52 @@ afterEach(() => {
   if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
 });
 
-describe('cli/config - token store CRUD', () => {
-  it('saveTokens writes a 0o600 file the load can round-trip', async () => {
+describe('cli/config - api-key store CRUD', () => {
+  it('saveApiKey writes a 0o600 file the load can round-trip', async () => {
     const cfg = await import('../../ts/src/cli/config');
-    cfg.saveTokens('local', 'ax', 'rx', ['Admin']);
+    cfg.saveApiKey('local', KEY_A);
     const path = cfg.getTokenPath();
     expect(existsSync(path)).toBe(true);
     // 0o600 = -rw-------. Mask off file-type bits.
     const mode = statSync(path).mode & 0o777;
     expect(mode).toBe(0o600);
-    expect(cfg.hasTokens('local')).toBe(true);
-    expect(cfg.hasTokens('production')).toBe(false);
+    expect(cfg.loadApiKey('local')).toBe(KEY_A);
+    expect(cfg.loadApiKey('production')).toBeUndefined();
   });
 
-  it('savePermissions / saveFeatures update without clobbering tokens', async () => {
+  it('savePermissions / saveFeatures update without clobbering the key', async () => {
     const cfg = await import('../../ts/src/cli/config');
-    cfg.saveTokens('local', 'ax', 'rx');
+    cfg.saveApiKey('local', KEY_A);
     cfg.savePermissions('local', ['read:agent', 'create:agent']);
     cfg.saveFeatures('local', { webhooks: true, sso: false });
     expect(cfg.loadPermissions('local')).toEqual(['read:agent', 'create:agent']);
     expect(cfg.loadFeatures('local')).toEqual({ webhooks: true, sso: false });
-    expect(cfg.hasTokens('local')).toBe(true);
+    expect(cfg.loadApiKey('local')).toBe(KEY_A);
   });
 
-  it('clearTokens removes the named env entry but preserves others', async () => {
+  it('clearApiKey removes the named env entry but preserves others', async () => {
     const cfg = await import('../../ts/src/cli/config');
-    cfg.saveTokens('local', 'ax');
-    cfg.saveTokens('staging', 'sx');
-    cfg.clearTokens('local');
-    expect(cfg.hasTokens('local')).toBe(false);
-    expect(cfg.hasTokens('staging')).toBe(true);
+    cfg.saveApiKey('local', KEY_A);
+    cfg.saveApiKey('staging', KEY_B);
+    cfg.clearApiKey('local');
+    expect(cfg.loadApiKey('local')).toBeUndefined();
+    expect(cfg.loadApiKey('staging')).toBe(KEY_B);
   });
 
-  it('clearTokens on missing env returns false (no throw)', async () => {
+  it('clearApiKey on missing env returns false (no throw)', async () => {
     const cfg = await import('../../ts/src/cli/config');
-    expect(cfg.clearTokens('production')).toBe(false);
+    expect(cfg.clearApiKey('production')).toBe(false);
   });
 
-  it('OPENBOX_ACCESS_TOKEN env bypasses on-disk store', async () => {
-    process.env.OPENBOX_ACCESS_TOKEN = 'ephemeral-token';
+  it('OPENBOX_BACKEND_API_KEY env bypasses on-disk store', async () => {
+    process.env.OPENBOX_BACKEND_API_KEY = KEY_A;
     process.env.OPENBOX_API_URL = 'http://localhost:3000';
     const cfg = await import('../../ts/src/cli/config');
-    // getClient just needs the token; tolerate that the constructor
-    // will be invoked even though the URL won't be reachable here.
+    // getClient just needs the key; tolerate that the constructor will
+    // be invoked even though the URL won't be reachable here.
     const client = cfg.getClient('local');
     expect(client).toBeDefined();
-    delete process.env.OPENBOX_ACCESS_TOKEN;
+    delete process.env.OPENBOX_BACKEND_API_KEY;
     delete process.env.OPENBOX_API_URL;
   });
 

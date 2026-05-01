@@ -146,6 +146,16 @@ model TokenEntry {
   /** Refresh token paired with the access token. */
   refreshToken?: string;
 
+  /**
+   * Org-level API key - alternative to `accessToken` for the
+   * management API. Wire shape is `X-API-Key: <key>`; the SDK
+   * prefers this header over `Authorization: Bearer` when set.
+   * Format is the org-key prefix (`obx_key_<48hex>`), distinct
+   * from agent runtime keys which use `obx_(live|test)_<48hex>`.
+   */
+  @token_format("^obx_key_[0-9a-f]{48}$")
+  apiKey?: string;
+
   /** ISO-8601 timestamp of the last successful refresh. */
   updatedAt?: string;
 
@@ -329,7 +339,9 @@ model TokenPair {
 /**
  * Construction options for the backend HTTP wrapper. Required entry
  * point for the "I already have a token, just use it" flow - pass
- * `accessToken` (and optionally `refreshToken`) and you're off.
+ * exactly one of `accessToken` (JWT, browser/login flow) or `apiKey`
+ * (org-level long-lived key, X-API-Key header). The wrapper picks the
+ * apiKey path when both are present.
  */
 model BackendClientConfig {
   /**
@@ -339,13 +351,21 @@ model BackendClientConfig {
   apiUrl?: url;
 
   /**
-   * Bearer access token (JWT). Required - this is the "set token
-   * directly" flow's load-bearing field.
+   * Bearer access token (JWT). Either this or `apiKey` is required.
+   * When both are set, `apiKey` wins.
    */
-  accessToken: string;
+  accessToken?: string;
 
   /** Optional refresh token for automatic token renewal. */
   refreshToken?: string;
+
+  /**
+   * Org-level API key - sent as `X-API-Key`. Either this or
+   * `accessToken` is required; format-checked at construction so
+   * a 401 from the wire always means the key is wrong, not malformed.
+   */
+  @token_format("^obx_key_[0-9a-f]{48}$")
+  apiKey?: string;
 
   /** Selected environment. Branch on this when prod/staging diverge. */
   env?: EnvName;

@@ -31,6 +31,7 @@ export const OS_PATH_FIELDS = ["path"] as const;
 export interface TokenEntry {
   accessToken?: string;
   refreshToken?: string;
+  apiKey?: string;
   updatedAt?: string;
   permissions?: string[];
   features?: Record<string, boolean>;
@@ -60,8 +61,9 @@ export interface TokenPair {
 }
 export interface BackendClientConfig {
   apiUrl?: string;
-  accessToken: string;
+  accessToken?: string;
   refreshToken?: string;
+  apiKey?: string;
   env?: EnvName;
   clientName?: string;
   timeoutMs?: number;

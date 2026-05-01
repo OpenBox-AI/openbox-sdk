@@ -61,8 +61,6 @@ const ALLOWED_PREFIXES: Record<string, string> = {
     'spec-driven canonical event_type / activity_type / verdict-arm sets.',
   // Env-binding constants (spec-driven, no HTTP).
   '../../env/index.js': 'ENV_VAR_BINDINGS for canonical env-var name lookups.',
-  // Auth login uses Playwright to drive the OAuth browser flow.
-  playwright: 'auth login: drives the OAuth redirect in a controlled browser.',
   // Per-runtime adapter install/hook entrypoints - claude-code/cursor/
   // mcp commands wire `install`, `uninstall`, `hook`, or `serve` actions
   // on top of their runtime adapter.

@@ -156,13 +156,4 @@ describe('platform / OS awareness contract', () => {
     else delete process.env.OPENBOX_API_URL;
   });
 
-  it('auth login attempts multiple browser channels (cross-platform launch)', () => {
-    // The CLI is the only browser-launch site. Asserting the fallback
-    // chain is present prevents a "channel: chrome" regression that
-    // would silently break Windows/Linux without Chrome installed.
-    const src = readFileSync(`${SRC_ROOT}/cli/commands/auth.ts`, 'utf-8');
-    expect(src).toContain("process.platform === 'win32'");
-    expect(src).toMatch(/msedge|chromium/);
-    expect(src).toContain('channels');
-  });
 });
