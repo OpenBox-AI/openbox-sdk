@@ -83,7 +83,7 @@ jobs:
         run: node scripts/spec-drift.mjs diff --service ${{ matrix.service }} --tier ${{ matrix.tier }}
 
       - if: steps.gate.outputs.skip != 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: spec-drift-${{ matrix.service }}-${{ matrix.tier }}
           path: /tmp/spec-drift-${{ matrix.service }}-${{ matrix.tier }}.md
