@@ -26,16 +26,41 @@ directory with their native build and read the same emitted spec.
 
 ## Install
 
-```bash
-# Library
-npm install openbox-sdk@github:OpenBox-AI/openbox-sdk
+### CLI
 
-# CLI
-npm install -g openbox-sdk@github:OpenBox-AI/openbox-sdk
+Build-from-source via curl-pipe (no published package):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OpenBox-AI/openbox-sdk/main/scripts/install | sh
 ```
 
-The package installs directly from GitHub. Building from source is
-covered in `CONTRIBUTING.md`.
+While the repo is private, fetch via `gh` (uses your authenticated
+session for both fetch and clone) or a raw token:
+
+```bash
+gh api -H "Accept: application/vnd.github.raw" \
+  repos/OpenBox-AI/openbox-sdk/contents/scripts/install | sh
+
+# or, for CI / scripted environments:
+curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+  https://raw.githubusercontent.com/OpenBox-AI/openbox-sdk/main/scripts/install | sh
+```
+
+The installer clones the source, runs `npm ci` (or `bun install` if
+present) + `npm run build`, symlinks `~/.openbox/bin/openbox` →
+`dist/cli/index.js`, sources `~/.openbox/env` from your shell rc, and
+`exec`s a fresh shell so PATH is live in the same terminal. Env
+overrides: `OPENBOX_VERSION` (git ref), `OPENBOX_INSTALL_DIR`,
+`OPENBOX_LOCAL_SOURCE` (skip clone, use local checkout),
+`OPENBOX_NO_PATH`, `OPENBOX_NO_RELOAD`.
+
+### Library
+
+```bash
+npm install openbox-sdk@github:OpenBox-AI/openbox-sdk
+```
+
+Pin to a tag for reproducibility: `…/openbox-sdk#v0.1.0`.
 
 ## Use
 
@@ -69,17 +94,27 @@ are not auto-fired because the host process owns them.
 ### CLI
 
 ```bash
-openbox auth set-api-key             # paste an org X-API-Key from the dashboard
-openbox agent list
-openbox claude-code install          # writes ~/.claude/settings.json hooks
-openbox cursor install               # writes ~/.cursor/hooks.json
-openbox mcp serve                    # MCP stdio server
-openbox skill install                # copies SKILL.md to ~/.claude/skills/openbox/
+openbox auth set-api-key                  # paste an org X-API-Key from the dashboard
+openbox install <target>                  # install one of the supported clients:
+#   approver      macOS menu-bar Tauri app
+#   extension     VS Code / Cursor extension
+#   cursor        Cursor hook integration
+#   claude-code   Claude Code hook integration
+#   mcp           MCP server entry for Claude Desktop / Cursor / Claude Code
+#   skill         SKILL.md content for Claude Code / Cursor
+#   mobile        iOS App Store link (placeholder)
+openbox uninstall <target>                # mirror of install
+openbox doctor                            # verify auth + reachability
+openbox --experimental agent list         # the API surface (experimental until validated)
 ```
 
 Mint an X-API-Key in the dashboard under **Organization → API Keys**,
-paste it via `openbox auth set-api-key`, then run `openbox doctor` to
-verify reachability.
+paste it via `openbox auth set-api-key`, then `openbox install <target>`
+for whichever client you're wiring up. The desktop clients (approver,
+extension) and the integrations (cursor, claude-code, mcp) all read
+the X-API-Key from `~/.openbox/tokens` that the CLI writes — they
+require the CLI installed first. Mobile is the only client that uses
+its own JWT login flow.
 
 ## Public sub-paths
 
