@@ -245,23 +245,27 @@ print_banner() {
 
 print_env_overrides() {
   shown=0
+  maybe_header() {
+    if [ "$shown" = "0" ]; then
+      printf '  %senv overrides%s\n' "$C_BOLD" "$C_RESET"
+      shown=1
+    fi
+  }
   for v in OPENBOX_VERSION OPENBOX_INSTALL_DIR OPENBOX_LOCAL_SOURCE OPENBOX_NO_PATH OPENBOX_NO_RELOAD NO_COLOR NO_ANIM; do
     eval "val=\${$v:-}"
     if [ -n "$val" ]; then
-      [ "$shown" = "0" ] && printf '  %senv overrides%s\n' "$C_BOLD" "$C_RESET"
+      maybe_header
       printf '    %s%-22s%s %s\n' "$C_DIM" "$v" "$C_RESET" "$val"
-      shown=1
     fi
   done
   for v in OPENBOX_GITHUB_TOKEN GITHUB_TOKEN GH_TOKEN; do
     eval "val=\${$v:-}"
     if [ -n "$val" ]; then
-      [ "$shown" = "0" ] && printf '  %senv overrides%s\n' "$C_BOLD" "$C_RESET"
+      maybe_header
       printf '    %s%-22s%s %s<set>%s\n' "$C_DIM" "$v" "$C_RESET" "$C_DIM" "$C_RESET"
-      shown=1
     fi
   done
-  [ "$shown" = "1" ] && printf '\n'
+  if [ "$shown" = "1" ]; then printf '\n'; fi
 }
 
 print_banner
