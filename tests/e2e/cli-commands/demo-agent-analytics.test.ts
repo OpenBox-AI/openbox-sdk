@@ -38,7 +38,7 @@ describeOrSkip('demo-agent analytics (e2e, real backend with seeded data)', () =
     agentId = findDemoAgentId();
     if (!agentId) {
       console.warn(
-        '[demo-agent-analytics] No demo agent found - run `bash scripts/seed-demo.sh` from openbox-dev-setup to seed one. Skipping suite.',
+        '[demo-agent-analytics] No demo agent found - run `bash scripts/seed-demo.sh` from openbox-local to seed one. Skipping suite.',
       );
       return;
     }

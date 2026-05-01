@@ -1,6 +1,6 @@
 // Live approval decide e2e: drives the full policy → OPA → approval path.
 //
-// Requires the full local stack from openbox-dev-setup:
+// Requires the full local stack from openbox-local:
 //   - backend, keycloak, postgres, redis  (up.sh)
 //   - postgres-backed temporal             (docker-compose.temporal.yml)
 //   - core server + 3 workers              (scripts/core-up.sh)
@@ -186,7 +186,7 @@ describe('live approval decide (e2e, real stack with OPA + moto)', () => {
     if (!canRunLive) {
       console.warn(
         `[live-approval] core (${CORE_URL}) or OPA (${OPA_URL}) not reachable - skipping suite. ` +
-          'Run scripts/core-up.sh + scripts/opa-up.sh from openbox-dev-setup.',
+          'Run scripts/core-up.sh + scripts/opa-up.sh from openbox-local.',
       );
       return;
     }
@@ -248,10 +248,10 @@ describe('live approval decide (e2e, real stack with OPA + moto)', () => {
     }
   }
 
-  // SKIP: depends on `policy create` reaching S3 - blocked by the same
-  // upstream backend fix (S3Service path-style for moto). Patch ready on
-  // openbox-backend bug/s3-force-path-style; re-enable once that lands.
-  // Verified locally with patch loaded: 2/2 pass.
+  // SKIP: depends on `policy create` reaching S3 - blocked on
+  // openbox-local fix/s3-virtual-hosted (drops the
+  // S3_IGNORE_SUBDOMAIN_BUCKETNAME=true override on the moto container).
+  // Verified locally with the dev-setup branch loaded: 2/2 pass.
   it.skip('`approval decide approve` flips verdict to ALLOW', async () => {
     await runCase('approve');
   }, 60000);

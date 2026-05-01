@@ -39,12 +39,13 @@ describeOrSkip('policy lifecycle (e2e, real backend)', () => {
     if (teamId) runCli(['team', 'delete', orgId, '--ids', teamId]);
   });
 
-  // SKIP block: pending upstream backend fix for the S3 path-style
-  // mismatch on local moto. S3Service constructs S3Client without
-  // forcePathStyle / endpoint override, so PUTs against moto get routed
-  // through CreateBucket and the SDK fails to parse the response. Patch
-  // ready on openbox-backend bug/s3-force-path-style; re-enable once
-  // that lands. Verified locally with patch loaded: 5/5 pass.
+  // SKIP block: pending merge of openbox-local fix/s3-virtual-hosted.
+  // The local moto container had S3_IGNORE_SUBDOMAIN_BUCKETNAME=true set
+  // in docker-compose.aws.yml, which made every PutObject misroute through
+  // CreateBucket and return malformed XML the SDK couldn't parse. The fix
+  // drops the override so moto's default Host-header bucket extraction
+  // (matches real AWS) takes over. Verified locally with the dev-setup
+  // branch loaded: 5/5 pass.
   it.skip('`policy create --rego` creates a policy', () => {
     const res = runCli([
       'policy', 'create', agentId!,
@@ -57,14 +58,14 @@ describeOrSkip('policy lifecycle (e2e, real backend)', () => {
     expect(policyId).toBeTruthy();
   });
 
-  // Skipped - depends on `policy create` policyId. Same upstream s3 fix.
+  // Skipped - depends on `policy create` policyId. Same dev-setup branch.
   it.skip('`policy list` returns the new policy', () => {
     const res = runCli(['policy', 'list', agentId!, '--limit', '50']);
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain(policyId!);
   });
 
-  // Skipped - depends on `policy create` policyId. Same upstream s3 fix.
+  // Skipped - depends on `policy create` policyId. Same dev-setup branch.
   it.skip('`policy get` returns the policy detail', () => {
     const res = runCli(['policy', 'get', agentId!, policyId!]);
     expect(res.status, res.stderr).toBe(0);
@@ -72,14 +73,14 @@ describeOrSkip('policy lifecycle (e2e, real backend)', () => {
     expect(body.id).toBe(policyId);
   });
 
-  // Skipped - depends on `policy create` policyId. Same upstream s3 fix.
+  // Skipped - depends on `policy create` policyId. Same dev-setup branch.
   it.skip('`policy current` returns active policies (includes the new one)', () => {
     const res = runCli(['policy', 'current', agentId!]);
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain(policyId!);
   });
 
-  // Skipped - depends on `policy create` policyId. Same upstream s3 fix.
+  // Skipped - depends on `policy create` policyId. Same dev-setup branch.
   it.skip('`policy update --active false` toggles off', () => {
     const res = runCli([
       'policy', 'update', agentId!, policyId!,

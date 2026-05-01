@@ -100,7 +100,7 @@ describe('live ingest (e2e, real backend + core + temporal)', () => {
     if (!canRunLive) {
       console.warn(
         `[live-ingest] core not reachable at ${CORE_URL} - skipping suite. ` +
-          'Run `bash scripts/core-up.sh` from openbox-dev-setup to bring it up.',
+          'Run `bash scripts/core-up.sh` from openbox-local to bring it up.',
       );
       return;
     }

@@ -5,7 +5,7 @@
 //   1. `GET /version` on the service via OpenBoxClient.getVersion().
 //      Public endpoint, works for anyone. Currently deployed only on
 //      local; prod/staging light up once the patches in
-//      openbox-dev-setup (patches/07-backend-version-endpoint.patch
+//      openbox-local (patches/07-backend-version-endpoint.patch
 //      and patches/08-core-version-endpoint.patch) ship upstream.
 //   2. Local column only: current git HEAD of each service clone under
 //      ~/workspace/openbox-repos/openbox-* if it exists.
