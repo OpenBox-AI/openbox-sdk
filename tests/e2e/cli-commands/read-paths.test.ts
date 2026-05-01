@@ -9,8 +9,8 @@ import { runCli } from '../helpers/cli-runner.js';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 
-const CAN_RUN = existsSync(resolve(__dirname, '../../dist/index.js'))
-  && existsSync(resolve(__dirname, '../../.tokens'))
+const CAN_RUN = existsSync(resolve(__dirname, '../../../dist/index.js'))
+  && existsSync(resolve(__dirname, '../../../.tokens'))
   && !!process.env.OPENBOX_ORG_ID;
 
 const describeOrSkip = CAN_RUN ? describe : describe.skip;

@@ -36,10 +36,17 @@ const OPA_URL = process.env.OPA_URL || 'http://localhost:8181';
 // so 8s gives us one full cycle plus headroom. Bumpable via env.
 const OPA_PULL_WAIT_MS = Number(process.env.OPA_PULL_WAIT_MS || 8000);
 
+// This test needs the local stack (moto S3 for OPA bundles + opa-up.sh
+// pulling them). Staging/prod don't expose a bundle-pull surface, so the
+// test gates strictly on a localhost API URL plus the usual CLI setup.
+const apiUrl = process.env.OPENBOX_API_URL || 'https://api.openbox.ai';
+const isLocalStack =
+  apiUrl.includes('localhost') || apiUrl.includes('127.0.0.1');
 const CAN_RUN =
-  existsSync(resolve(__dirname, '../../dist/index.js')) &&
-  existsSync(resolve(__dirname, '../../.tokens')) &&
-  !!process.env.OPENBOX_ORG_ID;
+  existsSync(resolve(__dirname, '../../../dist/index.js')) &&
+  existsSync(resolve(__dirname, '../../../.tokens')) &&
+  !!process.env.OPENBOX_ORG_ID &&
+  isLocalStack;
 
 async function reachable(url: string): Promise<boolean> {
   try {
@@ -120,8 +127,8 @@ function extractId(cliOut: string): string {
 }
 
 function extractToken(cliOut: string): string {
-  const m = cliOut.match(/"token":\s*"(obx_test_[a-f0-9]+)"/);
-  if (!m) throw new Error(`no obx_test_ token in output: ${cliOut.slice(0, 200)}`);
+  const m = cliOut.match(/"token":\s*"(obx_(?:live|test)_[a-f0-9]+)"/);
+  if (!m) throw new Error(`no obx_(live|test)_ token in output: ${cliOut.slice(0, 200)}`);
   return m[1];
 }
 
