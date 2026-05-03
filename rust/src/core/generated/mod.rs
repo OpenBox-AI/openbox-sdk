@@ -4,5 +4,7 @@
 
 mod endpoint_manifest;
 mod wrapper_methods;
+mod govern;
 
 pub use endpoint_manifest::*;
+pub use govern::*;
