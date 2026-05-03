@@ -1879,12 +1879,19 @@ function renderVerdictOutput(
   const reason = v?.reason ?? '';
   switch (shape) {
     case 'permission-decision': {
+      const eventName = env.hook_event_name ?? 'PreToolUse';
       if (arm === 'allow' || arm === 'constrain') {
-        return { hookSpecificOutput: { permissionDecision: 'allow' } };
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            permissionDecision: 'allow',
+          },
+        };
       }
       if (arm === 'require_approval') {
         return {
           hookSpecificOutput: {
+            hookEventName: eventName,
             permissionDecision: 'ask',
             permissionDecisionReason: reason || 'OpenBox: approval required',
           },
@@ -1893,6 +1900,7 @@ function renderVerdictOutput(
       // block / halt
       return {
         hookSpecificOutput: {
+          hookEventName: eventName,
           permissionDecision: 'deny',
           permissionDecisionReason: reason || 'OpenBox: blocked by policy',
         },
