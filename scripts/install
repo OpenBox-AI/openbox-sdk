@@ -447,6 +447,31 @@ if [ -z "${OPENBOX_NO_PATH:-}" ]; then
       "$C_GREEN" "$GLYPH_OK" "$C_RESET" \
       "$ENV_FILE_POSIX" "$rc_file"
   fi
+
+  # Symlink into a system-PATH directory so non-interactive shells
+  # (/bin/sh -c "..." from Claude Code hooks, cron, IDE extensions)
+  # find `openbox`. The rc-sourced env file only covers interactive
+  # shells; without this symlink, hooks fire before zshrc runs and
+  # report "openbox: command not found".
+  if [ -z "${OPENBOX_NO_SYMLINK:-}" ]; then
+    sys_target=""
+    for d in /opt/homebrew/bin /usr/local/bin; do
+      if [ -d "$d" ] && [ -w "$d" ]; then
+        sys_target="$d/openbox"
+        break
+      fi
+    done
+    if [ -n "$sys_target" ]; then
+      ln -sf "$BIN_DIR/openbox" "$sys_target"
+      printf '  %s%s symlinked%s %s -> %s\n' \
+        "$C_GREEN" "$GLYPH_OK" "$C_RESET" "$sys_target" "$BIN_DIR/openbox"
+    else
+      printf '  %s%s no writable system-PATH dir found; non-interactive shells\n' \
+        "$C_DIM" "$GLYPH_WARN"
+      printf '  %s  may not find openbox. Run: sudo ln -sf %s /usr/local/bin/openbox%s\n' \
+        "$C_DIM" "$BIN_DIR/openbox" "$C_RESET"
+    fi
+  fi
 fi
 
 printf '\n  %snext%s\n    %sopenbox auth set-api-key%s\n    %sopenbox install <approver|extension|cursor|claude-code|mcp|skill>%s\n\n' \
