@@ -29,6 +29,8 @@ export default defineConfig({
     'ts/src/test-utils/index.ts',
     'ts/src/maturity/index.ts',
     'ts/src/cli/index.ts',
+    'ts/src/approvals/index.ts',
+    'ts/src/approvals/mocks/index.ts',
     'ts/src/runtime/claude-code/index.ts',
     'ts/src/runtime/cursor/index.ts',
     'ts/src/runtime/mcp/index.ts',

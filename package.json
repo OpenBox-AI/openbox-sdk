@@ -50,6 +50,14 @@
       "types": "./dist/env/index.d.ts",
       "import": "./dist/env/index.js"
     },
+    "./approvals": {
+      "types": "./dist/approvals/index.d.ts",
+      "import": "./dist/approvals/index.js"
+    },
+    "./approvals/mocks": {
+      "types": "./dist/approvals/mocks/index.d.ts",
+      "import": "./dist/approvals/mocks/index.js"
+    },
     "./os-paths": {
       "types": "./dist/env/os-paths.d.ts",
       "import": "./dist/env/os-paths.js"
