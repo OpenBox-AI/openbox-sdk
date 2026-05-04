@@ -58,6 +58,18 @@
       "types": "./dist/approvals/mocks/index.d.ts",
       "import": "./dist/approvals/mocks/index.js"
     },
+    "./client-factory": {
+      "types": "./dist/client-factory/index.d.ts",
+      "import": "./dist/client-factory/index.js"
+    },
+    "./file-tokens": {
+      "types": "./dist/file-tokens/index.d.ts",
+      "import": "./dist/file-tokens/index.js"
+    },
+    "./polling": {
+      "types": "./dist/polling/index.d.ts",
+      "import": "./dist/polling/index.js"
+    },
     "./os-paths": {
       "types": "./dist/env/os-paths.d.ts",
       "import": "./dist/env/os-paths.js"
