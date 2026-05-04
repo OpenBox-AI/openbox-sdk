@@ -12,5 +12,5 @@
 # lockstep at the language boundary.
 
 [workspace]
-members = ["rust"]
+members = ["rust", "apps/approver/src-tauri"]
 resolver = "2"
