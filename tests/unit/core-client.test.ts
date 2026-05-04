@@ -18,7 +18,7 @@ describe('OpenBoxCoreClient', () => {
 
   beforeEach(() => {
     fetchMock = vi.fn();
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
   });
 
   afterEach(() => {
@@ -86,6 +86,10 @@ describe('OpenBoxCoreClient', () => {
         event_type: 'ActivityStarted',
         workflow_id: 'wf-1',
         run_id: 'run-1',
+        workflow_type: 'unit-test',
+        task_queue: 'generic',
+        source: 'workflow-telemetry',
+        timestamp: new Date().toISOString(),
         activity_id: 'act-1',
         activity_type: 'my-activity',
       });
@@ -103,7 +107,7 @@ describe('OpenBoxCoreClient', () => {
   describe('pollApproval', () => {
     it('sends POST to governance/approval', async () => {
       const client = createClient();
-      const response = { verdict: 'ALLOW', action: 'allow', expired: false };
+      const response = { id: 'app-1', action: 'allow' };
       fetchMock.mockResolvedValueOnce(mockResponse(200, response));
 
       const result = await client.pollApproval({
@@ -113,7 +117,7 @@ describe('OpenBoxCoreClient', () => {
       });
 
       expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/governance/approval');
-      expect(result.verdict).toBe('ALLOW');
+      expect(result.action).toBe('allow');
     });
   });
 

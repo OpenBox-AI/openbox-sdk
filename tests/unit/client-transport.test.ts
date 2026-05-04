@@ -121,10 +121,10 @@ describe('client/client.ts; retry + transport', () => {
 describe('validators/index.ts; every validator + every error branch', () => {
   it('validateUuid rejects non-UUIDs', async () => {
     const { validateUuid, ValidationError } = await import('../../ts/src/validators');
-    expect(() => validateUuid('not-a-uuid')).toThrow(ValidationError);
-    expect(() => validateUuid('')).toThrow(ValidationError);
+    expect(() => validateUuid('not-a-uuid', 'id')).toThrow(ValidationError);
+    expect(() => validateUuid('', 'id')).toThrow(ValidationError);
     // Valid UUID returns the value.
-    expect(validateUuid('00000000-0000-4000-8000-000000000000')).toBe('00000000-0000-4000-8000-000000000000');
+    expect(validateUuid('00000000-0000-4000-8000-000000000000', 'id')).toBe('00000000-0000-4000-8000-000000000000');
   });
 
   it('validateApiKeyFormat (env-binding) returns true / err string', async () => {
@@ -151,14 +151,14 @@ describe('validators/index.ts; every validator + every error branch', () => {
 
   it('validateIsoDate rejects bad dates', async () => {
     const { validateIsoDate, ValidationError } = await import('../../ts/src/validators');
-    expect(() => validateIsoDate('not-a-date')).toThrow(ValidationError);
-    expect(validateIsoDate('2025-01-01T00:00:00Z')).toMatch(/2025/);
+    expect(() => validateIsoDate('not-a-date', 'when')).toThrow(ValidationError);
+    expect(validateIsoDate('2025-01-01T00:00:00Z', 'when')).toMatch(/2025/);
   });
 
   it('validateUuidList rejects mixed valid/invalid', async () => {
     const { validateUuidList, ValidationError } = await import('../../ts/src/validators');
     expect(() =>
-      validateUuidList(['00000000-0000-4000-8000-000000000000', 'bogus']),
+      validateUuidList(['00000000-0000-4000-8000-000000000000', 'bogus'], 'ids'),
     ).toThrow(ValidationError);
   });
 

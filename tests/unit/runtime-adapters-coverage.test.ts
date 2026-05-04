@@ -69,19 +69,19 @@ describe('runtime/claude-code/config', () => {
 describe('runtime/claude-code/side-effects', () => {
   it('readFile returns "" for skip-pattern paths; reads real files; tolerates missing', async () => {
     const { sideEffects } = await import('../../ts/src/runtime/claude-code/side-effects');
-    expect(sideEffects.readFile('/foo/.git/HEAD')).toBe('');
-    expect(sideEffects.readFile('/var/no/such/file/here')).toBe('');
-    expect(sideEffects.readFile(123 as any)).toBe('');
+    expect(sideEffects.readFile!('/foo/.git/HEAD')).toBe('');
+    expect(sideEffects.readFile!('/var/no/such/file/here')).toBe('');
+    expect(sideEffects.readFile!(123 as any)).toBe('');
     const f = join(dir, 'data.txt');
     writeFileSync(f, 'hello');
-    expect(sideEffects.readFile(f)).toBe('hello');
+    expect(sideEffects.readFile!(f)).toBe('hello');
   });
 
   it('stringifyTruncate handles primitives + objects + huge payloads', async () => {
     const { sideEffects } = await import('../../ts/src/runtime/claude-code/side-effects');
-    expect(sideEffects.stringifyTruncate('hi')).toContain('hi');
-    expect(sideEffects.stringifyTruncate({ a: 1 })).toContain('"a"');
-    expect(sideEffects.stringifyTruncate({ payload: 'y'.repeat(8000) }).length).toBeLessThanOrEqual(5050);
+    expect(sideEffects.stringifyTruncate!('hi')).toContain('hi');
+    expect(sideEffects.stringifyTruncate!({ a: 1 })).toContain('"a"');
+    expect((sideEffects.stringifyTruncate!({ payload: 'y'.repeat(8000) }) as string).length).toBeLessThanOrEqual(5050);
   });
 });
 
@@ -157,22 +157,22 @@ describe('runtime/cursor/config', () => {
 describe('runtime/cursor/side-effects', () => {
   it('readFile honors skip patterns', async () => {
     const { sideEffects } = await import('../../ts/src/runtime/cursor/side-effects');
-    expect(sideEffects.readFile('/foo/.cursor/settings.json')).toBe('');
+    expect(sideEffects.readFile!('/foo/.cursor/settings.json')).toBe('');
     // Real read: missing path returns '' (no throw).
-    expect(sideEffects.readFile('/var/no/such/file/here')).toBe('');
+    expect(sideEffects.readFile!('/var/no/such/file/here')).toBe('');
   });
 
   it('stringify pass-through + extractMcpText covers content/non-content shapes', async () => {
     const { sideEffects } = await import('../../ts/src/runtime/cursor/side-effects');
-    expect(sideEffects.stringify('plain')).toBe('plain');
-    expect(sideEffects.stringify({ a: 1 })).toContain('"a"');
-    expect(sideEffects.extractMcpText('hi')).toBe('hi'); // not JSON → echoes
+    expect(sideEffects.stringify!('plain')).toBe('plain');
+    expect(sideEffects.stringify!({ a: 1 })).toContain('"a"');
+    expect(sideEffects.extractMcpText!('hi')).toBe('hi'); // not JSON; echoes
     expect(
-      sideEffects.extractMcpText(
+      sideEffects.extractMcpText!(
         JSON.stringify({ content: [{ type: 'text', text: 'one' }, { type: 'text', text: 'two' }] }),
       ),
     ).toBe('one\ntwo');
-    expect(sideEffects.extractMcpText({ misshapen: true })).toContain('misshapen');
+    expect(sideEffects.extractMcpText!({ misshapen: true })).toContain('misshapen');
   });
 });
 

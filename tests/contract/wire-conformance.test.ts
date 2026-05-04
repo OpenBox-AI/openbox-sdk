@@ -147,7 +147,7 @@ function buildBody(sub: SubcommandSpec): Record<string, unknown> {
 }
 
 describe('wire conformance for every spec op', () => {
-  let server: ReturnType<typeof makeCaptureServer>;
+  let server: Awaited<ReturnType<typeof makeCaptureServer>>;
   let sdk: OpenBoxClient;
 
   beforeAll(async () => {
