@@ -60,12 +60,21 @@ describe('platform / OS awareness contract', () => {
   });
 
   it('token-store writes carry mode: 0o600', () => {
-    const src = readFileSync(`${SRC_ROOT}/cli/config.ts`, 'utf-8');
-    // Count writeFileSync calls with 0o600 vs total, instead of slicing
-    // syntax (paren-balancing regex is fragile). Token-store writes are
-    // file-scope to cli/config.ts so the count comparison is exact.
-    const total = (src.match(/\bwriteFileSync\s*\(/g) ?? []).length;
-    const secured = (src.match(/\bwriteFileSync\b[^;]*0o600/gs) ?? []).length;
+    // Token-store writes split across cli/config.ts (CLI-only:
+    // savePermissions, saveFeatures) and file-tokens/index.ts (the
+    // shared X-API-Key surface every Node consumer uses: saveApiKey,
+    // clearApiKey). Count both so a future split / dedupe can't drop
+    // the 0o600 invariant unnoticed.
+    const sources = [
+      readFileSync(`${SRC_ROOT}/cli/config.ts`, 'utf-8'),
+      readFileSync(`${SRC_ROOT}/file-tokens/index.ts`, 'utf-8'),
+    ];
+    let total = 0;
+    let secured = 0;
+    for (const src of sources) {
+      total += (src.match(/\bwriteFileSync\s*\(/g) ?? []).length;
+      secured += (src.match(/\bwriteFileSync\b[^;]*0o600/gs) ?? []).length;
+    }
     expect(total).toBeGreaterThanOrEqual(4);
     expect(secured).toBe(total);
   });

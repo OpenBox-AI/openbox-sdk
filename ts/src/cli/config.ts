@@ -1,66 +1,41 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { resolve, dirname } from 'path';
+import { writeFileSync } from 'fs';
 import { OpenBoxClient } from '../client/index.js';
 import { OpenBoxCoreClient } from '../core-client/index.js';
 import {
   EnvName,
   FeatureMap,
-  TokenStore,
-  parseTokenStore,
   serializeTokenStore,
   resolveEnv,
   resolveUrls,
   validateApiKeyFormat as generatedValidateApiKey,
 } from '../env/index.js';
 import { EXIT, bailWith } from './exit-codes.js';
-// os-paths lives at a sub-export so React Native consumers don't pull
-// Node's `os`/`path` modules through the env package's default entry.
-import { resolveOsPath } from '../env/os-paths.js';
-
-// Per-OS user-data path comes from `openbox-sdk/env`'s spec-driven
-// `resolveOsPath` (Linux/macOS = ~/.openbox/tokens, Windows =
-// %APPDATA%\openbox\tokens, override via OPENBOX_HOME). The optional
-// `.tokens` file in the cwd is a CI/dev-loop convenience that wins
-// over the user-data path; the user-data path is the production case.
-function getTokenPath(): string {
-  const projectTokens = resolve(process.cwd(), '.tokens');
-  if (existsSync(projectTokens)) return projectTokens;
-  const path = resolveOsPath('tokens');
-  const dir = dirname(path);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  return path;
-}
+// File-backed X-API-Key store; canonical for every Node consumer
+// (CLI, extension). Mobile uses its own keychain-backed source via
+// `openbox-sdk/client-factory`'s `getApiKey` callback.
+import {
+  getTokenPath,
+  readTokenStore,
+  loadApiKey,
+  saveApiKey,
+  clearApiKey,
+} from '../file-tokens/index.js';
 
 export type { FeatureMap };
 
-function readStore(): TokenStore {
-  const path = getTokenPath();
-  if (!existsSync(path)) return {};
-  return parseTokenStore(readFileSync(path, 'utf-8'));
-}
-
-// Org-level X-API-Key auth lookup. Env-var override wins so CI can inject
-// a key without touching disk. Returns undefined when nothing is set .
-// callers (getClient) decide whether absence is fatal.
-function loadApiKey(env: EnvName): string | undefined {
-  const envKey = process.env.OPENBOX_BACKEND_API_KEY;
-  if (envKey) return envKey;
-  return readStore()[env]?.apiKey;
-}
-
 function loadPermissions(env: EnvName): string[] {
-  const store = readStore();
+  const store = readTokenStore();
   return store[env]?.permissions ?? [];
 }
 
 function loadFeatures(env: EnvName): FeatureMap {
-  const store = readStore();
+  const store = readTokenStore();
   return store[env]?.features ?? {};
 }
 
 function savePermissions(env: EnvName, permissions: string[]) {
   const path = getTokenPath();
-  const store = readStore();
+  const store = readTokenStore();
   if (!store[env]?.apiKey) return;
   store[env] = { ...store[env], permissions };
   writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
@@ -68,31 +43,10 @@ function savePermissions(env: EnvName, permissions: string[]) {
 
 function saveFeatures(env: EnvName, features: FeatureMap) {
   const path = getTokenPath();
-  const store = readStore();
+  const store = readTokenStore();
   if (!store[env]?.apiKey) return;
   store[env] = { ...store[env], features };
   writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
-}
-
-function saveApiKey(env: EnvName, apiKey: string) {
-  const path = getTokenPath();
-  const store = readStore();
-  store[env] = {
-    ...(store[env] ?? {}),
-    apiKey,
-    updatedAt: new Date().toISOString(),
-  };
-  writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
-}
-
-function clearApiKey(env: EnvName): boolean {
-  const path = getTokenPath();
-  const store = readStore();
-  const entry = store[env];
-  if (!entry?.apiKey) return false;
-  delete store[env];
-  writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
-  return true;
 }
 
 // Honors OPENBOX_TIMEOUT_MS so users can stretch the per-request timeout
