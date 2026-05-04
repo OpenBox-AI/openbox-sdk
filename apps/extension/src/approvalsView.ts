@@ -1,21 +1,6 @@
 import * as vscode from "vscode";
+import { formatLabel, timeAgo, timeRemaining, verdictLabel } from "openbox-sdk/approvals";
 import type { Approval } from "./types";
-
-function timeAgo(dateStr: string): string {
-  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
-
-function timeRemaining(dateStr: string): string {
-  const diff = (new Date(dateStr).getTime() - Date.now()) / 1000;
-  if (diff <= 0) return "expired";
-  if (diff < 60) return `${Math.floor(diff)}s`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ${Math.floor(diff % 60)}s`;
-  return `${Math.floor(diff / 3600)}h ${Math.floor((diff % 3600) / 60)}m`;
-}
 
 type TreeNode = { kind: "approval"; approval: Approval }
   | { kind: "detail"; label: string; icon?: string; id?: string }
@@ -59,7 +44,7 @@ export class ApprovalsTreeProvider implements vscode.TreeDataProvider<TreeNode> 
 
     const approval = node.approval;
     const agent = approval.agent?.agent_name || approval.agent_id || "Unknown Agent";
-    const action = approval.activity_type || "";
+    const action = approval.activity_type ? formatLabel(approval.activity_type) : "";
     const label = action ? `${agent}; ${action}` : agent;
 
     const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.Expanded);
@@ -80,14 +65,13 @@ export class ApprovalsTreeProvider implements vscode.TreeDataProvider<TreeNode> 
     // Children of an approval node; show details inline
     if (element.kind === "approval") {
       const a = element.approval;
-      const verdictMap: Record<number, string> = { 0: "Allow", 1: "Constrain", 2: "Require Approval", 3: "Block", 4: "Halt" };
       const details: TreeNode[] = [];
       const pid = a.id;
 
       const tier = a.metadata?.trust_tier;
       if (tier) details.push({ kind: "detail", label: `Trust Tier ${tier}`, icon: "verified", id: `${pid}-tier` });
 
-      const verdict = a.verdict != null ? verdictMap[a.verdict] : undefined;
+      const verdict = verdictLabel(a.verdict ?? null);
       if (verdict) details.push({ kind: "detail", label: `Verdict: ${verdict}`, icon: "warning", id: `${pid}-verdict` });
 
       if (a.reason) details.push({ kind: "detail", label: a.reason, icon: "info", id: `${pid}-reason` });

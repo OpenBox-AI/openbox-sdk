@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import type { OpenBoxClient } from "openbox-sdk/client";
 import type { EnvName } from "openbox-sdk/env";
 import { createApi, createApiContext } from "./api";
-import { PollingService } from "./polling";
+import { ApprovalsPollingService as PollingService } from "openbox-sdk/polling";
 import { ApprovalsTreeProvider } from "./approvalsView";
 import type { Approval } from "./types";
 
@@ -58,7 +58,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     let ctx: { client: OpenBoxClient; apiBase: string };
     try {
-      ctx = createApiContext(env);
+      ctx = await createApiContext(env);
       client = ctx.client;
     } catch (err: any) {
       client = undefined;

@@ -1,37 +1,17 @@
-// Reads `<env>.API_KEY` from the CLI's `~/.openbox/tokens` and builds
-// an `OpenBoxClient`. One client per env; rebuilt by extension.ts on
-// settings change.
+// Thin extension shim over `openbox-sdk/client-factory` +
+// `openbox-sdk/file-tokens`. The SDK owns env URL resolution, token
+// IO, and `OpenBoxClient` construction; this file only adds the
+// extension-flavored "no key configured" error message that points
+// the user at the CLI install path.
 
-import * as fs from "fs";
-import * as path from "path";
-import * as os from "os";
-import { OpenBoxClient } from "openbox-sdk/client";
-import {
-  ENVIRONMENTS,
-  parseTokenStore,
-  type EnvName,
-  type TokenStore,
-} from "openbox-sdk/env";
-
-function tokenPath(): string {
-  // `.tokens` in cwd wins for local-dev; otherwise the per-OS home-
-  // dir path the CLI uses.
-  const local = path.resolve(".tokens");
-  if (fs.existsSync(local)) return local;
-  const dir = path.join(os.homedir(), ".openbox");
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  return path.join(dir, "tokens");
-}
-
-function readStore(): TokenStore {
-  const p = tokenPath();
-  if (!fs.existsSync(p)) return {};
-  return parseTokenStore(fs.readFileSync(p, "utf-8"));
-}
+import type { OpenBoxClient } from "openbox-sdk/client";
+import type { EnvName } from "openbox-sdk/env";
+import { createConsumerClient } from "openbox-sdk/client-factory";
+import { loadApiKey as loadFileApiKey } from "openbox-sdk/file-tokens";
 
 function loadApiKey(env: EnvName): string {
-  const entry = readStore()[env];
-  if (!entry?.apiKey) {
+  const key = loadFileApiKey(env);
+  if (!key) {
     const flag = env === "production" ? "" : `--env ${env} `;
     throw new Error(
       `No X-API-Key for env '${env}'. The OpenBox extension reads the same ` +
@@ -39,29 +19,25 @@ function loadApiKey(env: EnvName): string {
         `npm i -g openbox\n  openbox ${flag}auth set-api-key`,
     );
   }
-  return entry.apiKey;
+  return key;
 }
 
-export function createApi(env: EnvName): OpenBoxClient {
-  return createApiContext(env).client;
+export async function createApi(env: EnvName): Promise<OpenBoxClient> {
+  return (await createApiContext(env)).client;
 }
 
 /**
- * Like createApi, but also surfaces the resolved apiBase so the
- * caller can show "Signed in to <apiBase>" in the status bar without
- * re-resolving the env.
+ * Returns the configured client + the resolved API base, so the
+ * caller can show "Signed in to <apiBase>" without re-resolving env.
  */
-export function createApiContext(env: EnvName): {
+export async function createApiContext(env: EnvName): Promise<{
   client: OpenBoxClient;
   apiBase: string;
-} {
-  const apiKey = loadApiKey(env);
-  const apiBase = ENVIRONMENTS[env].apiUrl;
-  const client = new OpenBoxClient({
-    apiUrl: apiBase,
-    env,
-    apiKey,
+}> {
+  const ctx = await createConsumerClient({
+    envName: env,
+    getApiKey: () => loadApiKey(env),
     clientName: "apps/extension",
   });
-  return { client, apiBase };
+  return { client: ctx.client, apiBase: ctx.apiBase };
 }

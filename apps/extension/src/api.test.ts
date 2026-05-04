@@ -78,7 +78,7 @@ describe("createApi", () => {
 
   for (const env of ["production", "staging", "local"] as const) {
     it(`hits the ${env} apiUrl with the right key + clientName`, async () => {
-      const client = createApi(env);
+      const client = await createApi(env);
       await client.health();
 
       const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
@@ -96,7 +96,7 @@ describe("createApi", () => {
     const orig = process.env.OPENBOX_CLIENT_VARIANT;
     process.env.OPENBOX_CLIENT_VARIANT = "claude-code";
     try {
-      const client = createApi("production");
+      const client = await createApi("production");
       await client.health();
       const headers = fetchSpy.mock.calls[0][1]!.headers as Record<string, string>;
       expect(headers["X-Openbox-Client"]).toBe("apps/extension/claude-code");
