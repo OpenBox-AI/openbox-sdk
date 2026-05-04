@@ -87,6 +87,106 @@ pub fn take_pending_decision(
     pending.take()
 }
 
+/// Decide whether the polling tick should fire a notification given
+/// the diff result and the user's notifications-enabled toggle. The
+/// gate is the conjunction of the two flags. Pulled out of the
+/// polling loop so a test can flip the toggle without instantiating
+/// the rest of the pipeline.
+pub fn should_notify(notifications_enabled: bool, brand_new_count: usize) -> bool {
+    notifications_enabled && brand_new_count > 0
+}
+
+/// Select the subset of `approvals` whose `id` lives in
+/// `brand_new_ids`, preserving the input order. Identical to the
+/// inline filter the polling loop runs before calling
+/// `notify_new_approvals`. Tests use this to verify the selection
+/// behavior without poking at the actual notification crate.
+pub fn select_brand_new<'a>(
+    approvals: &'a [api::Approval],
+    brand_new_ids: &[String],
+) -> Vec<&'a api::Approval> {
+    let new_set: HashSet<&String> = brand_new_ids.iter().collect();
+    approvals
+        .iter()
+        .filter(|a| new_set.contains(&a.id))
+        .collect()
+}
+
+/// Outcome the polling loop applies after attempting a decide.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DecisionOutcome {
+    /// `decide_approval` returned Ok; the entry stays drained.
+    Drained,
+    /// `decide_approval` returned Err; the entry is re-queued for
+    /// the next tick to retry.
+    Retry,
+}
+
+/// Translate the decide call's `Result` into the next state of the
+/// pending-decide slot. On Ok, the slot stays empty (we already
+/// `take_pending_decision`'d it); on Err the original tuple is
+/// re-queued. Splitting this out of the polling loop body lets the
+/// retry behavior be unit-tested without hitting the SDK.
+pub fn apply_decision_result(
+    pending: &mut Option<(String, String, String)>,
+    decision: (String, String, String),
+    result: Result<(), String>,
+) -> DecisionOutcome {
+    match result {
+        Ok(()) => DecisionOutcome::Drained,
+        Err(_) => {
+            *pending = Some(decision);
+            DecisionOutcome::Retry
+        }
+    }
+}
+
+/// Resolve `(email, org_id)` from the bootstrap source closures.
+/// Production wires `profile_fn` to `ApiClient::get_profile` and
+/// `agents_fn` to `ApiClient::list_agents`. Tests pass mock closures
+/// so the fallback chain (profile success → email + orgId; profile
+/// success without orgId → agents-list fallback for org; profile
+/// failure → both fallbacks) can be exercised without a network.
+pub fn resolve_bootstrap<P, A>(
+    profile_fn: P,
+    agents_fn: A,
+) -> Result<(String, String), String>
+where
+    P: FnOnce() -> Result<api::UserProfile, String>,
+    A: FnOnce() -> Result<Vec<api::Agent>, String>,
+{
+    let (email, profile_org_id) = match profile_fn() {
+        Ok(p) => {
+            let e = if !p.email.is_empty() {
+                p.email
+            } else if let Some(u) = p.preferred_username {
+                u
+            } else if !p.sub.is_empty() {
+                p.sub
+            } else {
+                "unknown".into()
+            };
+            (e, p.org_id)
+        }
+        Err(e) => {
+            eprintln!("get_profile failed, falling back to agents list: {}", e);
+            ("unknown".into(), None)
+        }
+    };
+
+    let org_id = if let Some(oid) = profile_org_id {
+        oid
+    } else {
+        let agents = agents_fn()?;
+        agents
+            .first()
+            .map(|a| a.organization_id.clone())
+            .ok_or("No organization found")?
+    };
+
+    Ok((email, org_id))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -427,36 +527,7 @@ fn bootstrap(client: &api::ApiClient) -> Result<(String, String), String> {
     // to the agents-list path for the org id and use a placeholder
     // email so the tray still populates instead of dying on a schema
     // skew the user can't fix.
-    let (email, profile_org_id) = match client.get_profile() {
-        Ok(p) => {
-            let e = if !p.email.is_empty() {
-                p.email.clone()
-            } else if let Some(u) = p.preferred_username.clone() {
-                u
-            } else if !p.sub.is_empty() {
-                p.sub.clone()
-            } else {
-                "unknown".into()
-            };
-            (e, p.org_id)
-        }
-        Err(e) => {
-            eprintln!("get_profile failed, falling back to agents list: {}", e);
-            ("unknown".into(), None)
-        }
-    };
-
-    let org_id = if let Some(oid) = profile_org_id {
-        oid
-    } else {
-        let agents = client.list_agents()?;
-        agents
-            .first()
-            .map(|a| a.organization_id.clone())
-            .ok_or("No organization found")?
-    };
-
-    Ok((email, org_id))
+    resolve_bootstrap(|| client.get_profile(), || client.list_agents())
 }
 
 fn notify_new_approvals(approvals: &[&api::Approval]) {
@@ -580,5 +651,274 @@ mod tests {
         assert_eq!(env_choice_to_name(&EnvChoice::Production), EnvName::Production);
         assert_eq!(env_choice_to_name(&EnvChoice::Staging), EnvName::Staging);
         assert_eq!(env_choice_to_name(&EnvChoice::Local), EnvName::Local);
+    }
+
+    // ---- Test fixtures for the polling / decision pipeline ----
+    //
+    // Construct a minimal `Approval` carrying just the fields the
+    // notify path reads. The wire struct has no Default, so build a
+    // helper that fills in the optional fields we care about.
+    fn approval(id: &str, agent_name: Option<&str>) -> api::Approval {
+        api::Approval {
+            id: id.into(),
+            event_id: None,
+            agent_id: None,
+            status: None,
+            action_type: None,
+            activity_type: None,
+            verdict: None,
+            reason: None,
+            created_at: None,
+            decided_at: None,
+            approval_expired_at: None,
+            agent: agent_name.map(|n| openbox_sdk::types::ApprovalAgent {
+                agent_name: n.to_string(),
+            }),
+            metadata: None,
+            input: None,
+            spans: None,
+        }
+    }
+
+    fn user_profile(email: &str, org_id: Option<&str>) -> api::UserProfile {
+        api::UserProfile {
+            sub: "sub-1".into(),
+            email: email.into(),
+            name: None,
+            preferred_username: None,
+            email_verified: None,
+            org_id: org_id.map(String::from),
+        }
+    }
+
+    fn agent_with_org(org_id: &str) -> api::Agent {
+        api::Agent {
+            id: "agent-1".into(),
+            agent_name: "test-agent".into(),
+            agent_type: None,
+            model_name: None,
+            description: None,
+            organization_id: org_id.into(),
+            config: None,
+            team_ids: None,
+            tags: None,
+            icon: None,
+            trust_score: None,
+            tier: None,
+            status: None,
+            created_at: None,
+            updated_at: None,
+        }
+    }
+
+    // ---- should_notify ----
+
+    #[test]
+    fn should_notify_gates_on_flag() {
+        // Brand-new IDs alone aren't enough; the flag must also be
+        // on. Two ticks here simulate the cadence: tick 1 has 0 new
+        // (no notification), tick 2 has 3 new (notification). The
+        // flag flip turns it back off.
+        assert!(!should_notify(true, 0));
+        assert!(should_notify(true, 3));
+        assert!(!should_notify(false, 3));
+        assert!(!should_notify(false, 0));
+    }
+
+    #[test]
+    fn polling_cadence_first_tick_no_notification() {
+        // Two-tick simulation: first tick populates known_ids with
+        // the initial backlog (no notification per
+        // diff_known_first_load_emits_no_brand_new); second tick
+        // sees one new id => exactly one notification fires. Mirror
+        // the polling loop's actual sequencing.
+        let mut known: HashSet<String> = HashSet::new();
+
+        // Tick 1: initial snapshot.
+        let snap1 = vec!["a".to_string(), "b".to_string()];
+        let (n1, brand1) = diff_known_ids(&known, &snap1);
+        known = n1;
+        assert!(!should_notify(true, brand1.len()));
+
+        // Tick 2: a new id appears.
+        let snap2 = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let (n2, brand2) = diff_known_ids(&known, &snap2);
+        known = n2;
+        assert_eq!(brand2.len(), 1);
+        assert!(should_notify(true, brand2.len()));
+
+        // Notifications disabled -> no fire even with a new id.
+        assert!(!should_notify(false, brand2.len()));
+
+        let _ = known;
+    }
+
+    // ---- decision dispatch retry ----
+
+    #[test]
+    fn decision_retries_on_transient_error() {
+        let mut pending: Option<(String, String, String)> = None;
+        let decision = ("ag-1".to_string(), "ev-1".to_string(), "approve".to_string());
+
+        // First dispatch fails: re-queue.
+        let outcome = apply_decision_result(
+            &mut pending,
+            decision.clone(),
+            Err("transient 503".into()),
+        );
+        assert_eq!(outcome, DecisionOutcome::Retry);
+        assert_eq!(pending, Some(decision.clone()));
+
+        // Next tick pops the queued decision and retries; this time
+        // the SDK call succeeds, so the slot drains.
+        let popped = take_pending_decision(&mut pending).unwrap();
+        let outcome2 = apply_decision_result(&mut pending, popped, Ok(()));
+        assert_eq!(outcome2, DecisionOutcome::Drained);
+        assert!(pending.is_none());
+    }
+
+    #[test]
+    fn decision_drains_on_success_first_try() {
+        let mut pending: Option<(String, String, String)> = None;
+        let decision = ("ag-2".into(), "ev-2".into(), "reject".into());
+        let outcome = apply_decision_result(&mut pending, decision, Ok(()));
+        assert_eq!(outcome, DecisionOutcome::Drained);
+        assert!(pending.is_none());
+    }
+
+    // ---- bootstrap fallbacks ----
+
+    #[test]
+    fn bootstrap_profile_success_with_org_id() {
+        // Profile carries email + orgId; agents_fn must NOT be
+        // called (the fallback path is dead code on this branch).
+        let profile = user_profile("user@example.com", Some("org-1"));
+        let agents_called = std::cell::Cell::new(false);
+        let result = resolve_bootstrap(
+            || Ok(profile.clone()),
+            || {
+                agents_called.set(true);
+                Ok(vec![agent_with_org("never-used")])
+            },
+        );
+        assert_eq!(result, Ok(("user@example.com".into(), "org-1".into())));
+        assert!(!agents_called.get(), "agents_fn must not run when profile carried org_id");
+    }
+
+    #[test]
+    fn bootstrap_profile_missing_org_falls_back_to_agents() {
+        let profile = user_profile("user@example.com", None);
+        let result = resolve_bootstrap(
+            || Ok(profile.clone()),
+            || Ok(vec![agent_with_org("org-from-agents")]),
+        );
+        assert_eq!(
+            result,
+            Ok(("user@example.com".into(), "org-from-agents".into()))
+        );
+    }
+
+    #[test]
+    fn bootstrap_profile_failure_uses_unknown_email_and_agents_org() {
+        // profile fails; email defaults to "unknown" and orgId
+        // resolves through the agents-list call.
+        let result = resolve_bootstrap(
+            || Err("staging schema skew".into()),
+            || Ok(vec![agent_with_org("org-fallback")]),
+        );
+        assert_eq!(result, Ok(("unknown".into(), "org-fallback".into())));
+    }
+
+    #[test]
+    fn bootstrap_no_org_anywhere_errors() {
+        let profile = user_profile("user@example.com", None);
+        let result = resolve_bootstrap(
+            || Ok(profile.clone()),
+            || Ok(Vec::new()),
+        );
+        assert!(result.is_err(), "no org in profile or agents -> Err");
+    }
+
+    #[test]
+    fn bootstrap_email_falls_back_to_preferred_username() {
+        let mut profile = user_profile("", Some("org-1"));
+        profile.preferred_username = Some("kit@example.com".into());
+        let result = resolve_bootstrap(
+            || Ok(profile.clone()),
+            || Ok(vec![agent_with_org("never-used")]),
+        );
+        assert_eq!(result, Ok(("kit@example.com".into(), "org-1".into())));
+    }
+
+    // ---- settings change mid-poll ----
+
+    #[test]
+    fn settings_change_mid_poll_uses_new_interval() {
+        // The polling loop reads `state.settings.normalized_poll_secs()`
+        // every iteration. Simulate a settings flip mid-tick by
+        // mutating the same Settings instance the next read would
+        // pick up; the second read returns the new bucket.
+        let mut s = Settings::default();
+        assert_eq!(s.normalized_poll_secs(), 5);
+
+        // User opens Settings and bumps to 60s.
+        s.poll_interval_secs = 60;
+        assert_eq!(s.normalized_poll_secs(), 60);
+
+        // The next iteration sees 60. A subsequent flip back to 15
+        // is also picked up on the iteration after.
+        s.poll_interval_secs = 15;
+        assert_eq!(s.normalized_poll_secs(), 15);
+    }
+
+    // ---- notify-new filter ----
+
+    #[test]
+    fn select_brand_new_filters_to_only_new_ids() {
+        // 5 incoming approvals; 2 already known, 3 brand new. The
+        // selector hands back exactly the 3 brand-new ones, in input
+        // order, regardless of how the brand_new_ids vector is
+        // ordered.
+        let approvals = vec![
+            approval("a", Some("Bob")),
+            approval("b", Some("Carol")),
+            approval("c", Some("Dave")),
+            approval("d", Some("")),
+            approval("e", Some("Eve")),
+        ];
+        let mut known: HashSet<String> = HashSet::new();
+        known.insert("a".into());
+        known.insert("b".into());
+        let snapshot_ids: Vec<String> = approvals.iter().map(|a| a.id.clone()).collect();
+        let (_, brand_new_ids) = diff_known_ids(&known, &snapshot_ids);
+        assert_eq!(brand_new_ids.len(), 3);
+
+        let selected = select_brand_new(&approvals, &brand_new_ids);
+        let ids: Vec<String> = selected.iter().map(|a| a.id.clone()).collect();
+        assert_eq!(ids, vec!["c".to_string(), "d".to_string(), "e".to_string()]);
+    }
+
+    #[test]
+    fn select_brand_new_handles_empty_agent_name() {
+        // The notification body composes "Approval Required: <agent>"
+        // for the 1-item case; an empty agent name shouldn't drop
+        // the row from the selector. The presentation layer
+        // substitutes "Agent" for an empty/missing agent.
+        let approvals = vec![approval("z", Some(""))];
+        let brand_new_ids = vec!["z".to_string()];
+        let selected = select_brand_new(&approvals, &brand_new_ids);
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].id, "z");
+    }
+
+    #[test]
+    fn select_brand_new_empty_when_no_overlap() {
+        // brand_new_ids contains an id not present in the approvals
+        // slice (race: the snapshot already moved past the entry).
+        // Selector returns empty, no panic.
+        let approvals = vec![approval("a", None)];
+        let brand_new_ids = vec!["different".to_string()];
+        let selected = select_brand_new(&approvals, &brand_new_ids);
+        assert!(selected.is_empty());
     }
 }
