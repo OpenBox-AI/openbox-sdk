@@ -18,6 +18,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APPROVER_BUNDLE_NAME = 'OpenBox Approver.app';
 const APPLICATIONS_DIR = '/Applications';
 
+// Cap walk-up so a missing workspace marker doesn't iterate to filesystem root
+// (or worse, hang on a network mount). 8 levels covers nested worktrees plus
+// reasonable subdirectory depth.
+const WORKSPACE_WALK_LIMIT = 8;
+
+// Bundle paths inside the workspace, in priority order. Cargo workspace builds
+// land in `target/`; per-crate builds may land under `apps/approver/...`. We
+// check all three so users don't need an env override regardless of layout.
+const WORKSPACE_BUNDLE_CANDIDATES = [
+  ['target', 'release', 'bundle', 'macos', APPROVER_BUNDLE_NAME],
+  ['apps', 'approver', 'src-tauri', 'target', 'release', 'bundle', 'macos', APPROVER_BUNDLE_NAME],
+  ['apps', 'approver', 'target', 'release', 'bundle', 'macos', APPROVER_BUNDLE_NAME],
+];
+
 function ensureMac(target: string): void {
   if (os.platform() !== 'darwin') {
     console.error(
@@ -28,32 +42,110 @@ function ensureMac(target: string): void {
   }
 }
 
-function findBuiltApproverApp(): string {
+export type ApproverBundleSource = 'env-path' | 'env-dir' | 'workspace';
+
+export interface ApproverBundleLocation {
+  path: string;
+  source: ApproverBundleSource;
+}
+
+function isOpenboxSdkRoot(dir: string): boolean {
+  const pkgPath = path.join(dir, 'package.json');
+  if (!fs.existsSync(pkgPath)) return false;
+  try {
+    const raw = fs.readFileSync(pkgPath, 'utf-8');
+    const pkg = JSON.parse(raw) as { name?: unknown };
+    return pkg.name === 'openbox-sdk';
+  } catch {
+    return false;
+  }
+}
+
+function findWorkspaceRoot(startDir: string): string | null {
+  let dir = path.resolve(startDir);
+  for (let i = 0; i < WORKSPACE_WALK_LIMIT; i++) {
+    if (isOpenboxSdkRoot(dir)) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
+}
+
+/**
+ * Locate a built approver bundle. Resolution order:
+ *   1. OPENBOX_APPROVER_APP_PATH (full path to the .app)
+ *   2. OPENBOX_APPROVER_APP_DIR (parent dir holding the .app)
+ *   3. Walk up from `cwd` to the openbox-sdk workspace root and probe known
+ *      cargo output paths.
+ *
+ * Returns the resolved path plus the source so callers can decide whether the
+ * source is user-managed (env vars) or build output (workspace).
+ */
+export function findBuiltApproverApp(cwd: string = process.cwd()): ApproverBundleLocation {
   const explicitPath = process.env.OPENBOX_APPROVER_APP_PATH;
-  if (explicitPath && fs.existsSync(explicitPath)) return explicitPath;
+  if (explicitPath && fs.existsSync(explicitPath)) {
+    return { path: explicitPath, source: 'env-path' };
+  }
 
   const dir = process.env.OPENBOX_APPROVER_APP_DIR;
   if (dir) {
     const candidate = path.join(dir, APPROVER_BUNDLE_NAME);
-    if (fs.existsSync(candidate)) return candidate;
+    if (fs.existsSync(candidate)) {
+      return { path: candidate, source: 'env-dir' };
+    }
+  }
+
+  const root = findWorkspaceRoot(cwd);
+  if (root) {
+    for (const segs of WORKSPACE_BUNDLE_CANDIDATES) {
+      const candidate = path.join(root, ...segs);
+      if (fs.existsSync(candidate)) {
+        return { path: candidate, source: 'workspace' };
+      }
+    }
   }
 
   throw new Error(
-    `Couldn't find "${APPROVER_BUNDLE_NAME}". Set OPENBOX_APPROVER_APP_PATH=/path/to/OpenBox\\ Approver.app or OPENBOX_APPROVER_APP_DIR=/dir/holding/the/.app.`,
+    `Couldn't find "${APPROVER_BUNDLE_NAME}". Build it from the workspace root, or set OPENBOX_APPROVER_APP_PATH=/path/to/OpenBox\\ Approver.app or OPENBOX_APPROVER_APP_DIR=/dir/holding/the/.app.`,
   );
 }
 
-function installApprover(dest: string): void {
+interface ApproverInstallOpts {
+  dest?: string;
+  cleanBuild?: boolean;
+}
+
+function installApprover(opts: ApproverInstallOpts): void {
   ensureMac('approver');
-  const src = findBuiltApproverApp();
+  const dest = opts.dest ?? APPLICATIONS_DIR;
+  const located = findBuiltApproverApp();
   const dst = path.join(dest, APPROVER_BUNDLE_NAME);
-  console.log(`Source:      ${src}`);
+  console.log(`Source:      ${located.path}`);
   console.log(`Destination: ${dst}`);
   if (fs.existsSync(dst)) {
-    console.log(`Removing existing bundle at ${dst}…`);
+    console.log(`Removing existing bundle at ${dst}...`);
     execFileSync('rm', ['-rf', dst], { stdio: 'inherit' });
   }
-  execFileSync('cp', ['-R', src, dst], { stdio: 'inherit' });
+  execFileSync('cp', ['-R', located.path, dst], { stdio: 'inherit' });
+
+  if (opts.cleanBuild) {
+    if (located.source === 'workspace') {
+      console.log(`Removing source bundle at ${located.path}...`);
+      try {
+        execFileSync('rm', ['-rf', located.path], { stdio: 'inherit' });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`Warning: failed to remove source bundle: ${msg}. Continuing.`);
+      }
+    } else {
+      console.log(
+        '--clean-build skipped: bundle was located via OPENBOX_APPROVER_APP_PATH or ' +
+          'OPENBOX_APPROVER_APP_DIR. Those paths are user-managed; not auto-deleting.',
+      );
+    }
+  }
+
   console.log(
     '\nDone. Launch from Spotlight ("OpenBox Approver"). ' +
       "Run `openbox auth set-api-key` first if you haven't.",
@@ -67,7 +159,7 @@ function uninstallApprover(dest: string): void {
     console.log(`${dst} is not installed.`);
     return;
   }
-  console.log(`Removing ${dst}…`);
+  console.log(`Removing ${dst}...`);
   execFileSync('rm', ['-rf', dst], { stdio: 'inherit' });
   console.log('Done.');
 }
@@ -129,7 +221,7 @@ function installExtension(opts: { code?: boolean; cursor?: boolean }): void {
   const vsix = findVsix();
   console.log(`Using extension package: ${vsix}`);
   for (const host of hosts) {
-    console.log(`Installing into ${host}…`);
+    console.log(`Installing into ${host}...`);
     execFileSync(host, ['--install-extension', vsix], { stdio: 'inherit' });
   }
   console.log(
@@ -145,7 +237,7 @@ function uninstallExtension(opts: { code?: boolean; cursor?: boolean }): void {
   }
   const id = 'openbox.openbox';
   for (const host of hosts) {
-    console.log(`Uninstalling from ${host}…`);
+    console.log(`Uninstalling from ${host}...`);
     try {
       execFileSync(host, ['--uninstall-extension', id], { stdio: 'inherit' });
     } catch {
@@ -175,6 +267,7 @@ function installMobile(): void {
 interface InstallOpts {
   // approver
   dest?: string;
+  cleanBuild?: boolean;
   // extension
   code?: boolean;
   cursor?: boolean;
@@ -202,7 +295,14 @@ export function registerInstallCommands(program: Command): void {
     .command('approver')
     .description(`Install ${APPROVER_BUNDLE_NAME} into /Applications`)
     .option('--dest <path>', 'Install location', APPLICATIONS_DIR)
-    .action((opts: InstallOpts) => installApprover(opts.dest ?? APPLICATIONS_DIR));
+    .option(
+      '--clean-build',
+      'After copying, remove the source bundle from the workspace build dir so Spotlight does not index two copies',
+      false,
+    )
+    .action((opts: InstallOpts) =>
+      installApprover({ dest: opts.dest ?? APPLICATIONS_DIR, cleanBuild: opts.cleanBuild }),
+    );
 
   install
     .command('extension')
