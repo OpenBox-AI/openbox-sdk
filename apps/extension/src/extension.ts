@@ -4,6 +4,8 @@ import type { EnvName } from "openbox-sdk/env";
 import { createApi, createApiContext } from "./api";
 import { ApprovalsPollingService as PollingService } from "openbox-sdk/polling";
 import { ApprovalsTreeProvider } from "./approvalsView";
+import { createTabObserver } from "./tabObserver";
+import { PreWriteGate } from "./preWriteGate";
 import type { Approval } from "./types";
 
 // X-API-Key auth → polling-only (the WS gateway requires JWT today).
@@ -129,9 +131,26 @@ export async function activate(context: vscode.ExtensionContext) {
   await boot(env);
   context.subscriptions.push({ dispose: () => feed?.stop() });
 
-  // Settings change → rebuild client. Same dispose hook fires when the user
-  // toggles the env via the QuickPick command below (which writes the
-  // setting and lets this listener react uniformly).
+  // Tab / Composer / Cmd-K observer. Cursor doesn't expose hooks for
+  // these surfaces, so we classify mutations heuristically and log to
+  // an OutputChannel. Off by default; flipped on via the setting.
+  const observerEnabled = vscode.workspace
+    .getConfiguration("openbox")
+    .get<boolean>("tabObserver.enabled", false);
+  if (observerEnabled) {
+    const obs = createTabObserver();
+    context.subscriptions.push({ dispose: () => obs.dispose() });
+  }
+
+  // Pre-write gate. Empty pending map at boot; entries land when the
+  // approvals feed reports a halt verdict for an open document.
+  const preWrite = new PreWriteGate();
+  preWrite.attach(context);
+  context.subscriptions.push({ dispose: () => preWrite.dispose() });
+
+  // Settings change. Rebuild the client when the user toggles the env
+  // via the QuickPick command below (which writes the setting and lets
+  // this listener react uniformly).
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("openbox.environment")) {

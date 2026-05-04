@@ -1,0 +1,131 @@
+// Tab / Composer / Cmd-K observer.
+//
+// Cursor doesn't expose hooks for inline ghost-text accept, Cmd-K
+// edits, or Composer multi-file edits; by the time `afterFileEdit`
+// fires (or doesn't, in the inline case), the change is already on
+// disk. The closest reachable surface is VS Code's plain
+// `onDidChangeTextDocument`, which fires on every buffer mutation
+// regardless of whether Cursor or the user produced it.
+//
+// Classifying AI-inserted vs user-typed text is heuristic; VS Code
+// doesn't tell us the source. The classifier here uses two cheap
+// signals: change size (multi-line or multi-char inserts are very
+// rarely keystroke origin) and idle timing (a 100+ char insert with
+// no recent keystroke activity is almost certainly an AI insert or a
+// paste). False positives include paste-from-clipboard; those still
+// represent "non-keystroke" code entering the buffer, which is the
+// signal we want for trust scoring.
+//
+// Emission is intentionally just an OutputChannel + an extension-
+// pluggable callback; piping to the OpenBox API is a follow-up. The
+// observer's value here is the classification and the foundation it
+// gives later wiring.
+import * as vscode from 'vscode';
+
+const KEYSTROKE_IDLE_THRESHOLD_MS = 250;
+const MIN_NON_KEYSTROKE_CHARS = 20;
+const MIN_NON_KEYSTROKE_NEWLINES = 1;
+
+export type InsertSource = 'keystroke' | 'non-keystroke';
+
+export interface TabObservedEvent {
+  uri: string;
+  source: InsertSource;
+  /** Inserted text (truncated for the channel; full length below). */
+  preview: string;
+  insertedChars: number;
+  insertedNewlines: number;
+  /** Position the change started at (0-indexed). */
+  line: number;
+  character: number;
+  timestamp: number;
+}
+
+export interface TabObserver {
+  dispose(): void;
+}
+
+export interface TabObserverOptions {
+  /** OutputChannel name; created if absent. */
+  channelName?: string;
+  /** Called for every classified change. */
+  onChange?: (event: TabObservedEvent) => void;
+  /** Set true to emit keystroke events too (noisy; default off). */
+  includeKeystrokes?: boolean;
+}
+
+export function createTabObserver(opts: TabObserverOptions = {}): TabObserver {
+  const channel = vscode.window.createOutputChannel(
+    opts.channelName ?? 'OpenBox · Tab Observer',
+  );
+
+  let lastKeystrokeAt = 0;
+
+  function isKeystrokeChange(change: vscode.TextDocumentContentChangeEvent): boolean {
+    // A keystroke is one or two chars (autoindent expands a Tab to
+    // multiple chars), inserted on a single line, with no newline.
+    if (change.text.length > 2) return false;
+    if (change.text.includes('\n')) return false;
+    return true;
+  }
+
+  function classify(change: vscode.TextDocumentContentChangeEvent, now: number): InsertSource {
+    const sinceLastKeystroke = now - lastKeystrokeAt;
+    if (isKeystrokeChange(change) && sinceLastKeystroke < KEYSTROKE_IDLE_THRESHOLD_MS) {
+      return 'keystroke';
+    }
+    const newlines = (change.text.match(/\n/g) ?? []).length;
+    if (
+      change.text.length >= MIN_NON_KEYSTROKE_CHARS ||
+      newlines >= MIN_NON_KEYSTROKE_NEWLINES
+    ) {
+      return 'non-keystroke';
+    }
+    // Borderline: small insert but more than a single keystroke. Treat
+    // as keystroke so we don't drown in IDE-noise (autoindent, brace
+    // matching).
+    return 'keystroke';
+  }
+
+  const sub = vscode.workspace.onDidChangeTextDocument((event) => {
+    const now = Date.now();
+    for (const change of event.contentChanges) {
+      // Pure deletions get skipped: the value here is in tracking what
+      // *entered* the buffer.
+      if (change.text.length === 0) continue;
+
+      const source = classify(change, now);
+      if (source === 'keystroke') {
+        lastKeystrokeAt = now;
+        if (!opts.includeKeystrokes) continue;
+      }
+
+      const newlines = (change.text.match(/\n/g) ?? []).length;
+      const observed: TabObservedEvent = {
+        uri: event.document.uri.toString(),
+        source,
+        preview: change.text.slice(0, 80).replace(/\n/g, '⏎'),
+        insertedChars: change.text.length,
+        insertedNewlines: newlines,
+        line: change.range.start.line,
+        character: change.range.start.character,
+        timestamp: now,
+      };
+
+      const tag = source === 'non-keystroke' ? '[ai-or-paste]' : '[keystroke]';
+      channel.appendLine(
+        `${tag} ${observed.uri}:${observed.line + 1}:${observed.character + 1} ` +
+          `+${observed.insertedChars}c/${observed.insertedNewlines}nl  "${observed.preview}"`,
+      );
+
+      opts.onChange?.(observed);
+    }
+  });
+
+  return {
+    dispose: () => {
+      sub.dispose();
+      channel.dispose();
+    },
+  };
+}
