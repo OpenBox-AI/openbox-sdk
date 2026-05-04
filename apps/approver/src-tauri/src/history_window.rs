@@ -60,6 +60,12 @@ pub struct HistoryRow {
     pub tier: Option<i32>,
     pub reason: String,
     pub decided_at_text: String,
+    /// Raw RFC-3339 timestamp the row was bucketed by (decided_at when
+    /// available, else created_at). Kept alongside the formatted
+    /// `decided_at_text` so the date-range chip can do an actual
+    /// comparison against `chrono::Utc::now()` instead of pattern-
+    /// matching the relative-time string.
+    pub decided_at_iso: Option<String>,
     pub status: String,
     // Lower-case copies kept for case-insensitive substring search.
     agent_lc: String,
@@ -80,10 +86,12 @@ impl HistoryRow {
             .unwrap_or_default();
         let tier = a.metadata.as_ref().and_then(|m| m.trust_tier);
         let reason = a.reason.clone().unwrap_or_default();
-        let decided_at_text = a
+        let decided_at_iso = a
             .decided_at
+            .clone()
+            .or_else(|| a.created_at.clone());
+        let decided_at_text = decided_at_iso
             .as_deref()
-            .or(a.created_at.as_deref())
             .map(time_ago)
             .unwrap_or_default();
         let status_text = match status {
@@ -100,6 +108,7 @@ impl HistoryRow {
             tier,
             reason,
             decided_at_text,
+            decided_at_iso,
             status: status_text,
             agent_lc,
             reason_lc,
@@ -134,11 +143,26 @@ impl Default for Filters {
     }
 }
 
-/// Pure filter logic; tested in isolation. The `created_at_iso` arg
-/// would normally drive the date-range filter, but we pass the row's
-/// pre-computed text for now and only filter on the lower-case
-/// substring + tier + action-type.
+/// Pure filter logic; tested in isolation. Date-range chip is
+/// evaluated against the row's stored RFC-3339 `decided_at_iso`. A
+/// row whose timestamp is missing or unparseable passes through the
+/// date filter when the user picked AllTime, and is dropped for any
+/// other date selection (we can't bucket what we can't parse).
 pub fn matches(row: &HistoryRow, f: &Filters) -> bool {
+    matches_at(row, f, chrono::Utc::now())
+}
+
+/// Same as [`matches`], but lets the caller pin the "now" anchor.
+/// The production code path always passes `Utc::now()`; tests pass a
+/// fixed instant so boundary cases (`Today` at midnight rollover,
+/// `Last 7` at exactly 7d ago, etc.) are deterministic. Splitting the
+/// helper out keeps the production call sites a single arg call while
+/// still letting tests skip the wall-clock dependency.
+pub fn matches_at(
+    row: &HistoryRow,
+    f: &Filters,
+    now: chrono::DateTime<chrono::Utc>,
+) -> bool {
     let q = f.search.trim().to_lowercase();
     if !q.is_empty() && !row.agent_lc.contains(&q) && !row.reason_lc.contains(&q) {
         return false;
@@ -153,7 +177,54 @@ pub fn matches(row: &HistoryRow, f: &Filters) -> bool {
             return false;
         }
     }
+    if !date_range_matches(row.decided_at_iso.as_deref(), &f.date_range, now) {
+        return false;
+    }
     true
+}
+
+/// Compare `iso` against the chip-selected window. AllTime always
+/// passes; the bounded chips compare seconds-since-epoch against
+/// `now` and require a parseable timestamp. Today is "since the most
+/// recent UTC midnight"; Last7 / Last30 are "within the last N*86400
+/// seconds" (rolling window, not calendar days). The rolling-window
+/// choice mirrors what the iOS app does and avoids surprises around
+/// timezone offsets.
+pub fn date_range_matches(
+    iso: Option<&str>,
+    range: &DateRange,
+    now: chrono::DateTime<chrono::Utc>,
+) -> bool {
+    if matches!(range, DateRange::AllTime) {
+        return true;
+    }
+    let Some(s) = iso else {
+        return false;
+    };
+    let Ok(ts) = chrono::DateTime::parse_from_rfc3339(s) else {
+        return false;
+    };
+    let ts_utc = ts.with_timezone(&chrono::Utc);
+    match range {
+        DateRange::AllTime => true,
+        DateRange::Today => {
+            // Most-recent UTC midnight as a `DateTime<Utc>`.
+            let day = now.date_naive().and_hms_opt(0, 0, 0).unwrap();
+            let midnight = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                day,
+                chrono::Utc,
+            );
+            ts_utc >= midnight && ts_utc <= now
+        }
+        DateRange::Last7 => {
+            let cutoff = now - chrono::Duration::days(7);
+            ts_utc >= cutoff && ts_utc <= now
+        }
+        DateRange::Last30 => {
+            let cutoff = now - chrono::Duration::days(30);
+            ts_utc >= cutoff && ts_utc <= now
+        }
+    }
 }
 
 /// Distinct action-type labels in display order. Used to populate
@@ -764,10 +835,23 @@ mod tests {
             tier,
             reason: reason.into(),
             decided_at_text: "".into(),
+            decided_at_iso: None,
             status: "Approved".into(),
             agent_lc: agent.to_lowercase(),
             reason_lc: reason.to_lowercase(),
         }
+    }
+
+    fn row_at(iso: &str) -> HistoryRow {
+        let mut r = row("Agent", "Run Shell", Some(2), "");
+        r.decided_at_iso = Some(iso.into());
+        r
+    }
+
+    fn parse_utc(s: &str) -> chrono::DateTime<chrono::Utc> {
+        chrono::DateTime::parse_from_rfc3339(s)
+            .unwrap()
+            .with_timezone(&chrono::Utc)
     }
 
     #[test]
@@ -837,5 +921,132 @@ mod tests {
         assert_eq!(HistoryStatus::Approved.wire(), "approved");
         assert_eq!(HistoryStatus::Rejected.wire(), "rejected");
         assert_eq!(HistoryStatus::Expired.wire(), "expired");
+    }
+
+    // ---- Date-range chip tests ----
+    //
+    // All anchored on a fixed `now` so the bucket boundaries are
+    // deterministic. `now = 2026-05-04T12:00:00Z`.
+    fn fixed_now() -> chrono::DateTime<chrono::Utc> {
+        parse_utc("2026-05-04T12:00:00Z")
+    }
+
+    #[test]
+    fn date_range_all_time_passes_missing_iso() {
+        // AllTime must NOT require a parseable iso. Rows with no
+        // timestamp still show up in the AllTime bucket.
+        assert!(date_range_matches(None, &DateRange::AllTime, fixed_now()));
+    }
+
+    #[test]
+    fn date_range_bounded_drops_missing_iso() {
+        // Bounded buckets need a parseable timestamp; missing => out.
+        assert!(!date_range_matches(None, &DateRange::Today, fixed_now()));
+        assert!(!date_range_matches(None, &DateRange::Last7, fixed_now()));
+        assert!(!date_range_matches(None, &DateRange::Last30, fixed_now()));
+    }
+
+    #[test]
+    fn date_range_today_includes_today() {
+        // Same UTC day, earlier in the day.
+        assert!(date_range_matches(
+            Some("2026-05-04T03:30:00Z"),
+            &DateRange::Today,
+            fixed_now(),
+        ));
+    }
+
+    #[test]
+    fn date_range_today_includes_midnight_boundary() {
+        // Exactly UTC midnight is included (>= midnight).
+        assert!(date_range_matches(
+            Some("2026-05-04T00:00:00Z"),
+            &DateRange::Today,
+            fixed_now(),
+        ));
+    }
+
+    #[test]
+    fn date_range_today_excludes_yesterday() {
+        // 11:59:59 the day before midnight is NOT today.
+        assert!(!date_range_matches(
+            Some("2026-05-03T23:59:59Z"),
+            &DateRange::Today,
+            fixed_now(),
+        ));
+    }
+
+    #[test]
+    fn date_range_last7_includes_exactly_7_days_ago() {
+        // 7d ago to the second is the inclusive cutoff.
+        assert!(date_range_matches(
+            Some("2026-04-27T12:00:00Z"),
+            &DateRange::Last7,
+            fixed_now(),
+        ));
+    }
+
+    #[test]
+    fn date_range_last7_excludes_just_past_7_days() {
+        // One second past 7d is out.
+        assert!(!date_range_matches(
+            Some("2026-04-27T11:59:59Z"),
+            &DateRange::Last7,
+            fixed_now(),
+        ));
+    }
+
+    #[test]
+    fn date_range_last30_includes_recent() {
+        assert!(date_range_matches(
+            Some("2026-04-30T12:00:00Z"),
+            &DateRange::Last30,
+            fixed_now(),
+        ));
+    }
+
+    #[test]
+    fn date_range_last30_excludes_31_days_ago() {
+        // 30d + 1d back is out.
+        assert!(!date_range_matches(
+            Some("2026-04-03T11:59:59Z"),
+            &DateRange::Last30,
+            fixed_now(),
+        ));
+    }
+
+    #[test]
+    fn date_range_unparseable_iso_drops_for_bounded() {
+        assert!(!date_range_matches(
+            Some("not a date"),
+            &DateRange::Today,
+            fixed_now(),
+        ));
+        assert!(date_range_matches(
+            Some("not a date"),
+            &DateRange::AllTime,
+            fixed_now(),
+        ));
+    }
+
+    #[test]
+    fn matches_at_combines_all_filters() {
+        // Tier 2 + correct action + within Last 7 days + matching
+        // search, all four constraints satisfied at once.
+        let mut r = row_at("2026-05-01T10:00:00Z");
+        r.agent = "Buildbot".into();
+        r.agent_lc = "buildbot".into();
+        r.action = "Run Shell".into();
+        let mut f = Filters {
+            search: "build".into(),
+            tier: Some(2),
+            action_type: Some("Run Shell".into()),
+            date_range: DateRange::Last7,
+        };
+        assert!(matches_at(&r, &f, fixed_now()));
+        // Flip the date range to Today; the row is from 3 days ago,
+        // so it must drop out.
+        f.date_range = DateRange::Today;
+        assert!(!matches_at(&r, &f, fixed_now()));
     }
 }

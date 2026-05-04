@@ -29,6 +29,12 @@ openbox-sdk = { path = "../../../rust" }
 # without restructuring the thread.
 tokio = { version = "1", features = ["rt", "macros"] }
 notify-rust = "4"
+# Used for parsing the RFC-3339 `decided_at` / `created_at` strings the
+# backend emits so the history-window date-range chip can compare
+# against an actual instant. Already a transitive dep via openbox-sdk;
+# pinning it here keeps `history_window::matches` independent of the
+# SDK's internal dep set.
+chrono = "0.4"
 objc2 = "0.6"
 block2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSString", "NSData", "NSGeometry", "NSThread", "NSArray", "NSEnumerator", "NSDate", "NSValue", "NSIndexSet", "NSOperation"] }
