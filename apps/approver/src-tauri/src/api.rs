@@ -23,15 +23,39 @@ pub use openbox_sdk::types::{Agent, Approval, UserProfile};
 pub struct ApiClient {
     sdk: OpenBoxClient,
     rt: Runtime,
+    #[allow(dead_code)]
+    env: EnvName,
 }
 
 impl ApiClient {
+    /// Build a client for an explicit env. Shares the path
+    /// `ApiClient::new()` always took (token-store lookup, optional
+    /// `OPENBOX_API_URL` override) but ignores `OPENBOX_ENV` so the
+    /// Settings window can flip envs without re-launching the
+    /// process. The env arg wins over the env var.
+    pub fn for_env(env: EnvName) -> Result<Self, String> {
+        Self::build(env)
+    }
+
     /// Build the client against the env selected via `OPENBOX_ENV`
     /// (production by default). Reads the X-API-Key from the on-disk
     /// token store written by `openbox auth set-api-key`. Returns an
     /// actionable error if no key is recorded for that env.
+    #[allow(dead_code)]
     pub fn new() -> Result<Self, String> {
         let env = resolve_env();
+        Self::build(env)
+    }
+
+    /// Read back the env this client was built against. Useful when
+    /// the Settings window's read-only "Active env" row needs to
+    /// reflect what the live polling thread is actually hitting.
+    #[allow(dead_code)]
+    pub fn env(&self) -> EnvName {
+        self.env
+    }
+
+    fn build(env: EnvName) -> Result<Self, String> {
         let api_key = load_api_key(env).ok_or_else(|| {
             let env_name = env.as_str();
             let flag = if env == EnvName::Production {
@@ -75,7 +99,7 @@ impl ApiClient {
             .build()
             .map_err(|e| format!("tokio runtime: {e}"))?;
 
-        Ok(ApiClient { sdk, rt })
+        Ok(ApiClient { sdk, rt, env })
     }
 
     pub fn get_profile(&self) -> Result<UserProfile, String> {
@@ -103,6 +127,29 @@ impl ApiClient {
             "status": "pending",
             "page": 0,
             "perPage": 50,
+        });
+        let resp = self
+            .rt
+            .block_on(self.sdk.get_org_approvals(org_id, Some(&query)))
+            .map_err(format_err)?;
+        Ok(resp.approvals.data)
+    }
+
+    /// List approvals for a decided status. The backend's
+    /// `getOrgApprovals` op accepts `status` of pending / approved /
+    /// rejected / expired (see specs/typespec/backend/main.tsp), so the
+    /// approver doesn't need to fetch the universe and filter
+    /// client-side; the status arg goes straight to the wire. Caller
+    /// passes one of "approved", "rejected", "expired".
+    pub fn list_decided(
+        &self,
+        org_id: &str,
+        status: &str,
+    ) -> Result<Vec<Approval>, String> {
+        let query = serde_json::json!({
+            "status": status,
+            "page": 0,
+            "perPage": 200,
         });
         let resp = self
             .rt

@@ -30,5 +30,6 @@ openbox-sdk = { path = "../../../rust" }
 tokio = { version = "1", features = ["rt", "macros"] }
 notify-rust = "4"
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", features = ["NSString", "NSData", "NSGeometry", "NSThread", "NSArray", "NSEnumerator"] }
-objc2-app-kit = { version = "0.3", features = ["NSStatusBar", "NSStatusItem", "NSMenu", "NSMenuItem", "NSImage", "NSButton", "NSControl", "NSView", "NSApplication", "NSRunningApplication", "NSEvent"] }
+block2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSString", "NSData", "NSGeometry", "NSThread", "NSArray", "NSEnumerator", "NSDate", "NSValue", "NSIndexSet", "NSOperation"] }
+objc2-app-kit = { version = "0.3", features = ["NSStatusBar", "NSStatusItem", "NSMenu", "NSMenuItem", "NSImage", "NSButton", "NSControl", "NSView", "NSApplication", "NSRunningApplication", "NSEvent", "NSWindow", "NSResponder", "NSStackView", "NSScrollView", "NSTableView", "NSTableColumn", "NSSearchField", "NSSearchFieldCell", "NSPopUpButton", "NSPopUpButtonCell", "NSSwitch", "NSSegmentedControl", "NSSegmentedCell", "NSImageView", "NSTextField", "NSText", "NSCell", "NSColor", "NSGraphicsContext", "NSAlert", "NSPanel", "NSLayoutConstraint", "NSUserInterfaceItemIdentification"] }
