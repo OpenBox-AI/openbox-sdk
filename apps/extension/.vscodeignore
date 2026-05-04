@@ -1,0 +1,16 @@
+src/**
+**/*.test.ts
+**/*.test.*
+*.test.ts
+tsconfig.json
+vitest.config.*
+*.map
+node_modules/**
+.env
+.env.*
+.gitignore
+.gitattributes
+.editorconfig
+.vscode/**
+.vscode-test/**
+**/*.log
