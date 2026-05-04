@@ -35,7 +35,7 @@ describe('OpenBoxClient', () => {
 
   beforeEach(() => {
     fetchMock = vi.fn();
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
   });
 
   afterEach(() => {
@@ -130,6 +130,7 @@ describe('OpenBoxClient', () => {
         agent_name: 'test',
         team_ids: ['t1'],
         icon: 'icon',
+        attestation_mode: 'kms',
         aivss_config: {
           base_security: {
             attack_vector: 1,
@@ -156,6 +157,7 @@ describe('OpenBoxClient', () => {
           alignment_threshold: 80,
           llama_firewall_model: 'gpt-4o-mini',
           drift_detection_action: 'alert_only',
+          evaluation_frequency: 'every_action',
         },
       });
       expect(fetchMock.mock.calls[0][1].method).toBe('POST');
@@ -169,7 +171,7 @@ describe('OpenBoxClient', () => {
 
     it('PATCH requests use PATCH method', async () => {
       fetchMock.mockResolvedValueOnce(mockResponse(200, { data: {} }));
-      await client.reorderGuardrail('agent-1', 'guard-1', 2);
+      await client.reorderGuardrail('agent-1', 'guard-1', { order: 2 });
       expect(fetchMock.mock.calls[0][1].method).toBe('PATCH');
     });
 
@@ -430,7 +432,7 @@ describe('OpenBoxClient', () => {
       await Promise.all([client.health(), client.getProfile()]);
 
       // Only 1 refresh call + 2 actual calls = 3 total
-      const refreshCalls = fetchMock.mock.calls.filter((c: [string, RequestInit]) =>
+      const refreshCalls = (fetchMock.mock.calls as [string, RequestInit][]).filter((c) =>
         c[0].includes('/auth/refresh'),
       );
       expect(refreshCalls).toHaveLength(1);

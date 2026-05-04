@@ -11,7 +11,7 @@ import {
 } from '../../ts/src/cli/commands/agent-audit';
 
 function stubClient(overrides: Record<string, () => Promise<any> | any> = {}): any {
-  const defaults: Record<string, () => any> = {
+  const defaults: Record<string, (...args: any[]) => any> = {
     getAgent: async () => ({ agent_name: 'test-agent' }),
     listSessions: async (_agentId: string, q: { page?: number; perPage?: number }) => ({
       data: q?.page === 0 ? [

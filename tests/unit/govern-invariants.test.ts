@@ -619,13 +619,14 @@ describe('WorkflowVerdict.guardrailsResult', () => {
 
   test('absent on the verdict when wire response has no guardrails_result', async () => {
     const mock = createMockCore('allow');
-    let captured: import('../../ts/src/core-client/generated/govern.js').WorkflowVerdict | null = null;
+    type WV = import('../../ts/src/core-client/generated/govern.js').WorkflowVerdict;
+    let captured: WV | null = null;
     await govern(
       { ...baseConfig(mock), preset: presets.claudeCode },
       async (session) => {
         captured = await session.preToolUse({ input: [{ tool: 'Bash' }] });
       },
     );
-    expect(captured?.guardrailsResult).toBeUndefined();
+    expect((captured as WV | null)?.guardrailsResult).toBeUndefined();
   });
 });
