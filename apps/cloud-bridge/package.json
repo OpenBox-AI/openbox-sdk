@@ -1,0 +1,22 @@
+{
+  "name": "openbox-cloud-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted webhook receiver that governs Cursor cloud / background agent runs (and any other webhook-fed agent flow) against an agent's OpenBox guardrails and policies. Optional sidecar; closes the local-hooks blind spot for cloud-side agentic surfaces.",
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "node --import tsx --watch src/server.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "openbox-sdk": "file:../.."
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.5.4",
+    "vitest": "^1.6.0"
+  }
+}
