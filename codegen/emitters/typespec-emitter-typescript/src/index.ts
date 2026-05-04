@@ -1502,10 +1502,18 @@ function emitAdapters(program: Program, project: Project, repoRoot: string): voi
     '',
     { overwrite: true },
   );
+  // Adapter modules share several symbol names by design (each preset has its
+  // own INSTALL_SPEC, PRE_TOOL_USE_ROUTING, build*Payload, etc). A flat
+  // `export *` from each would collide, so namespace each adapter under its
+  // kebab-cased name. Consumers should import directly from the per-adapter
+  // module (`./claude-code.js`, `./cursor.js`); the namespaces here are a
+  // convenience for tooling that walks the barrel.
   index.insertText(0, BANNER + '\n\n');
   index.addStatements([
     `export * from './envelopes.js';`,
-    ...adapters.map((a) => `export * from './${a.name}.js';`),
+    ...adapters.map(
+      (a) => `export * as ${kebabToCamel(a.name)} from './${a.name}.js';`,
+    ),
     '',
   ]);
 }
