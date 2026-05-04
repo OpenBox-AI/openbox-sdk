@@ -18,11 +18,11 @@ use objc2::rc::Retained;
 use objc2::runtime::{AnyClass, AnyObject, ClassBuilder, ProtocolObject, Sel};
 use objc2::{msg_send, sel};
 use objc2_app_kit::{
-    NSBackingStoreType, NSPopUpButton, NSScrollView, NSSearchField,
-    NSSegmentSwitchTracking, NSSegmentedControl, NSStackView, NSStackViewDistribution,
-    NSTableColumn, NSTableView, NSTableViewDataSource, NSTextField,
-    NSUserInterfaceItemIdentifier, NSUserInterfaceLayoutOrientation, NSView, NSWindow,
-    NSWindowStyleMask,
+    NSBackingStoreType, NSColor, NSImage, NSImageSymbolConfiguration, NSImageView,
+    NSPopUpButton, NSScrollView, NSSearchField, NSSegmentSwitchTracking,
+    NSSegmentedControl, NSStackView, NSStackViewDistribution, NSTableColumn, NSTableView,
+    NSTableViewDataSource, NSTableViewDelegate, NSTextField, NSUserInterfaceItemIdentifier,
+    NSUserInterfaceLayoutOrientation, NSView, NSWindow, NSWindowStyleMask,
 };
 use objc2_foundation::{
     MainThreadMarker, NSArray, NSInteger, NSPoint, NSRect, NSSize, NSString,
@@ -227,6 +227,25 @@ pub fn date_range_matches(
     }
 }
 
+/// Trust-tier color tokens for the history table's Tier column.
+/// Mirrors `ts/src/approvals/tier.ts` so the approver's shield matches
+/// the iOS card and the VS Code panel. Tier 4+ green (low risk),
+/// 3 blue (default brand), 2 orange (caution), 1 red (high risk),
+/// missing/unknown gray. Returns an `NSColor` rather than a hex
+/// string because the only consumer here hands it to
+/// `NSImageSymbolConfiguration::configurationWithHierarchicalColor`.
+fn tier_color(tier: Option<i32>) -> Retained<NSColor> {
+    unsafe {
+        match tier {
+            Some(t) if t >= 4 => NSColor::systemGreenColor(),
+            Some(3) => NSColor::systemBlueColor(),
+            Some(2) => NSColor::systemOrangeColor(),
+            Some(1) => NSColor::systemRedColor(),
+            _ => NSColor::systemGrayColor(),
+        }
+    }
+}
+
 /// Distinct action-type labels in display order. Used to populate
 /// the "Type" filter chip from the loaded data.
 pub fn distinct_actions(rows: &[HistoryRow]) -> Vec<String> {
@@ -325,6 +344,131 @@ unsafe extern "C" fn number_of_rows(
     } else {
         0
     }
+}
+
+// ---------- NSTableViewDelegate impl (view-based for the tier
+// column, plain text elsewhere) ----------
+//
+// The Tier column gets a colored shield SF Symbol next to the tier
+// number, matching the iOS app's `tierColor` mapping. Every other
+// column hands back a plain NSTextField, which is what AppKit would
+// have created automatically. We can't rely on the auto-created
+// NSTableCellView because we never wired up Interface Builder; this
+// delegate is the smallest path to a custom view per row.
+fn get_delegate_class() -> &'static AnyClass {
+    static CLASS: OnceLock<&'static AnyClass> = OnceLock::new();
+    CLASS.get_or_init(|| {
+        let superclass = AnyClass::get(c"NSObject").unwrap();
+        let mut builder = ClassBuilder::new(c"OBHistoryDelegate", superclass).unwrap();
+        unsafe {
+            builder.add_method(
+                sel!(tableView:viewForTableColumn:row:),
+                view_for_column
+                    as unsafe extern "C" fn(
+                        *const AnyObject,
+                        Sel,
+                        *const AnyObject,
+                        *const AnyObject,
+                        NSInteger,
+                    ) -> *mut AnyObject,
+            );
+        }
+        builder.register()
+    })
+}
+
+unsafe extern "C" fn view_for_column(
+    _this: *const AnyObject,
+    _sel: Sel,
+    _table: *const AnyObject,
+    column: *const AnyObject,
+    row: NSInteger,
+) -> *mut AnyObject {
+    if column.is_null() {
+        return std::ptr::null_mut();
+    }
+    let ident_obj: *const AnyObject = unsafe { msg_send![column, identifier] };
+    if ident_obj.is_null() {
+        return std::ptr::null_mut();
+    }
+    let id_str = unsafe { (&*(ident_obj as *const NSString)).to_string() };
+
+    let cell = ctx_cell();
+    let guard = cell.lock().unwrap();
+    let Some(ctx) = guard.as_ref() else { return std::ptr::null_mut() };
+    let rows = ctx.filtered.lock().unwrap();
+    let Some(r) = rows.get(row as usize) else { return std::ptr::null_mut() };
+    let r = r.clone();
+    drop(rows);
+    drop(guard);
+
+    let mtm = unsafe { MainThreadMarker::new_unchecked() };
+    if id_str == "tier" {
+        let view = build_tier_cell(mtm, r.tier);
+        let ptr: *mut AnyObject =
+            Retained::autorelease_return(view) as *mut AnyObject;
+        return ptr;
+    }
+
+    let text = match id_str.as_str() {
+        "agent" => r.agent,
+        "action" => r.action,
+        "reason" => r.reason,
+        "decided" => r.decided_at_text,
+        "status" => r.status,
+        _ => String::new(),
+    };
+    let tf = NSTextField::labelWithString(&NSString::from_str(&text), mtm);
+    unsafe {
+        tf.setSelectable(false);
+    }
+    let ptr: *mut AnyObject = Retained::autorelease_return(tf) as *mut AnyObject;
+    ptr
+}
+
+/// Build the tier-column cell: a horizontal NSStackView with a small
+/// colored shield NSImageView followed by the tier number ("1", "2",
+/// etc.) in a plain NSTextField. The shield is `shield.fill` from the
+/// SF Symbols catalog, tinted via
+/// `NSImageSymbolConfiguration::configurationWithHierarchicalColor`
+/// so the symbol picks up its system-aware fill plus the optional
+/// secondary stroke. A `None` tier collapses to a gray shield with no
+/// number, matching the empty-string behavior the cell-based path
+/// used to render.
+fn build_tier_cell(mtm: MainThreadMarker, tier: Option<i32>) -> Retained<NSStackView> {
+    let stack = NSStackView::new(mtm);
+    unsafe {
+        stack.setOrientation(NSUserInterfaceLayoutOrientation::Horizontal);
+        stack.setSpacing(4.0);
+        stack.setAlignment(objc2_app_kit::NSLayoutAttribute::CenterY);
+    }
+
+    let symbol_name = NSString::from_str("shield.fill");
+    let raw_image = unsafe {
+        NSImage::imageWithSystemSymbolName_accessibilityDescription(&symbol_name, None)
+    };
+    if let Some(img) = raw_image {
+        let color = tier_color(tier);
+        let cfg = unsafe {
+            NSImageSymbolConfiguration::configurationWithHierarchicalColor(&color)
+        };
+        let tinted = unsafe { img.imageWithSymbolConfiguration(&cfg) }.unwrap_or(img);
+        let iv = unsafe { NSImageView::imageViewWithImage(&tinted, mtm) };
+        unsafe {
+            stack.addArrangedSubview(as_view(&*iv));
+        }
+    }
+
+    let label_text = match tier {
+        Some(t) => format!("{}", t),
+        None => String::new(),
+    };
+    let tf = NSTextField::labelWithString(&NSString::from_str(&label_text), mtm);
+    unsafe {
+        tf.setSelectable(false);
+        stack.addArrangedSubview(as_view(&*tf));
+    }
+    stack
 }
 
 unsafe extern "C" fn object_value(
@@ -737,11 +881,13 @@ fn build(mtm: MainThreadMarker, state: Arc<Mutex<AppState>>) -> HistoryCtx {
         chip_row.addArrangedSubview(as_view(&*clear_btn));
     }
 
-    // Table + columns.
+    // Table + columns. Row height bumped from 22pt to 24pt so the
+    // colored shield + tier number stack reads at native SF Symbol
+    // size without the bottom of the symbol being clipped.
     let table = NSTableView::new(mtm);
     unsafe {
         table.setUsesAlternatingRowBackgroundColors(true);
-        table.setRowHeight(22.0);
+        table.setRowHeight(24.0);
     }
     add_column(&table, "agent", "Agent", 160.0);
     add_column(&table, "action", "Action", 160.0);
@@ -759,6 +905,22 @@ fn build(mtm: MainThreadMarker, state: Arc<Mutex<AppState>>) -> HistoryCtx {
             &*data_source as *const AnyObject as *const ProtocolObject<dyn NSTableViewDataSource>;
         table.setDataSource(Some(&*proto));
     }
+
+    // View-based delegate: returns the colored-shield NSImageView for
+    // the Tier column and a plain NSTextField for the rest. Keeping
+    // the `objectValue` data source live as a fallback gives AppKit a
+    // string for any path (sorting, accessibility) that asks for the
+    // raw cell value.
+    let delegate: Retained<AnyObject> = unsafe {
+        let cls = get_delegate_class();
+        msg_send![cls, new]
+    };
+    unsafe {
+        let proto: *const ProtocolObject<dyn NSTableViewDelegate> =
+            &*delegate as *const AnyObject as *const ProtocolObject<dyn NSTableViewDelegate>;
+        table.setDelegate(Some(&*proto));
+    }
+    hold_target(delegate);
 
     let scroll = NSScrollView::new(mtm);
     unsafe {
