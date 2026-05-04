@@ -212,7 +212,7 @@ function analyzeEvents(sessionEvents: Record<string, EventLog[]>): AuditReport['
       }
       if (e.event_type === 'WorkflowCompleted' || e.event_type === 'WorkflowFailed') hasTerminal = true;
 
-      if (e.event_type && !CANONICAL_EVENT_TYPES.has(e.event_type)) {
+      if (e.event_type && !CANONICAL_EVENT_TYPES.has(e.event_type as never)) {
         nonCanonicalEvent.add(e.event_type);
       }
       if (e.activity_type && !CANONICAL_ACTIVITY_TYPES.has(e.activity_type)) {

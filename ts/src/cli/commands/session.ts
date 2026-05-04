@@ -71,7 +71,7 @@ function inspectEvents(events: EventLog[]): InspectFinding[] {
     if (t === 'ActivityStarted' && e.activity_id) starts.set(e.activity_id, e);
     if (t === 'ActivityCompleted' && e.activity_id) completes.set(e.activity_id, e);
     if (t === 'WorkflowCompleted' || t === 'WorkflowFailed') hasTerminal = true;
-    if (e.event_type && !CANONICAL_EVENT_TYPES.has(e.event_type)) nonCanonicalEventTypes.add(e.event_type);
+    if (e.event_type && !CANONICAL_EVENT_TYPES.has(e.event_type as never)) nonCanonicalEventTypes.add(e.event_type);
     if (e.activity_type) {
       const bucket = CANONICAL_ACTIVITY_TYPES.has(e.activity_type) ? canonicalActivity : customActivity;
       bucket[e.activity_type] = (bucket[e.activity_type] || 0) + 1;

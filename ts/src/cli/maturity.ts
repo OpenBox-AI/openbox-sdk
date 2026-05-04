@@ -62,7 +62,7 @@ export function gateCommands(program: Command): void {
 
       if (!alwaysResolvable && !isMaturityVisible(target, current)) {
         const idx = parent.commands.indexOf(sub);
-        if (idx >= 0) parent.commands.splice(idx, 1);
+        if (idx >= 0) (parent.commands as Command[]).splice(idx, 1);
         continue;
       }
 
