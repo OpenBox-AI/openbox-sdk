@@ -99,6 +99,9 @@ impl NativeTray {
             menu.addItem(&NSMenuItem::separatorItem(mtm));
             Self::add_disabled_item_to(&menu, "No Pending Approvals", mtm);
             menu.addItem(&NSMenuItem::separatorItem(mtm));
+            Self::add_action_item_to(&menu, &target, "Show History...", "show_history", mtm);
+            Self::add_action_item_to(&menu, &target, "Settings...", "show_settings", mtm);
+            menu.addItem(&NSMenuItem::separatorItem(mtm));
             Self::add_action_item_to(&menu, &target, "Refresh", "refresh", mtm);
             Self::add_action_item_to(&menu, &target, "Quit", "quit", mtm);
 
@@ -195,6 +198,15 @@ impl NativeTray {
                     &format!("reject:{}:{}", approval.agent_id, approval.event_id), mtm);
             }
         }
+
+        // Auxiliary actions (history + settings) sit between the
+        // pending list and the operational footer (Refresh / Quit).
+        // These open real NSWindow surfaces; menu-bar menus aren't
+        // the right place for the search field + filter chips a
+        // history view needs.
+        self.menu.addItem(&NSMenuItem::separatorItem(mtm));
+        Self::add_action_item_to(&self.menu, &self.target, "Show History...", "show_history", mtm);
+        Self::add_action_item_to(&self.menu, &self.target, "Settings...", "show_settings", mtm);
 
         // Bottom
         self.menu.addItem(&NSMenuItem::separatorItem(mtm));
