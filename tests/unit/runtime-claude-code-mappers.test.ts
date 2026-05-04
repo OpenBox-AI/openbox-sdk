@@ -155,17 +155,20 @@ describe('cli/commands; versions + skill + core', () => {
     const install = program.commands.find((c) => c.name() === 'install');
     expect(install).toBeDefined();
     const targets = install!.commands.map((s) => s.name()).sort();
+    // `all` is the meta target: `openbox install` (no arg) and `openbox
+    // install all` both run every detectable target. The other names are
+    // the per-target verbs.
     expect(targets).toEqual(
-      ['approver', 'claude-code', 'cursor', 'extension', 'mcp', 'mobile', 'skill'].sort(),
+      ['all', 'approver', 'claude-code', 'cursor', 'extension', 'mcp', 'mobile', 'skill'].sort(),
     );
 
     const uninstall = program.commands.find((c) => c.name() === 'uninstall');
     expect(uninstall).toBeDefined();
     const utargets = uninstall!.commands.map((s) => s.name()).sort();
     // No uninstall path for `mobile`; the iOS app is removed from the
-    // device, not via this CLI.
+    // device, not via this CLI. `all` mirrors the install side.
     expect(utargets).toEqual(
-      ['approver', 'claude-code', 'cursor', 'extension', 'mcp'].sort(),
+      ['all', 'approver', 'claude-code', 'cursor', 'extension', 'mcp'].sort(),
     );
   });
 

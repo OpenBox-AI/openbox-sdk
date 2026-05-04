@@ -290,10 +290,399 @@ function pickMcpTargets(opts: InstallOpts): McpTarget[] | undefined {
   return targets.length > 0 ? targets : undefined;
 }
 
+// ---------------------------------------------------------------------------
+// `openbox install` (no target) / `openbox install all`
+// Auto-detects the current platform's relevant install targets and runs
+// them all. Skip with --skip <name> (repeatable). Whitelist with --only
+// <name> (repeatable, mutually exclusive with --skip). Preview with
+// --dry-run.
+// ---------------------------------------------------------------------------
+
+/** Canonical target names accepted by --only/--skip and printed in the
+ *  summary. Order here is also the run order. */
+export const INSTALL_ALL_TARGETS = [
+  'skill',
+  'extension',
+  'cursor',
+  'claude-code',
+  'mcp',
+  'approver',
+] as const;
+export type InstallAllTarget = (typeof INSTALL_ALL_TARGETS)[number];
+
+/** Seams for unit tests: every fact about the host that gates a target
+ *  goes through this object so tests can fake darwin/linux, present /
+ *  absent settings dirs, and present / absent `code`/`cursor` on PATH
+ *  without spawning real child processes. */
+export interface InstallAllEnv {
+  platform(): NodeJS.Platform;
+  homedir(): string;
+  exists(p: string): boolean;
+  hasOnPath(bin: string): boolean;
+}
+
+function defaultInstallAllEnv(): InstallAllEnv {
+  return {
+    platform: () => os.platform(),
+    homedir: () => os.homedir(),
+    exists: (p) => fs.existsSync(p),
+    hasOnPath: (bin) => whichSync(bin) !== null,
+  };
+}
+
+interface PlanEntry {
+  target: InstallAllTarget;
+  /** Either a runnable action or a skip reason. The summary distinguishes. */
+  skipReason?: string;
+  /** Human-readable detail printed alongside "Installing <target>..." */
+  detail?: string;
+  run?: () => void | Promise<void>;
+}
+
+interface AllOpts {
+  skip?: string[];
+  only?: string[];
+  dryRun?: boolean;
+}
+
+/** Build the run plan for `install all`. Pure: no side effects, just
+ *  detection + filtering. Exported for tests. */
+export function planInstallAll(
+  opts: AllOpts,
+  env: InstallAllEnv = defaultInstallAllEnv(),
+): PlanEntry[] {
+  if (opts.skip && opts.skip.length > 0 && opts.only && opts.only.length > 0) {
+    throw new Error('--skip and --only are mutually exclusive.');
+  }
+
+  const onlySet = opts.only && opts.only.length > 0 ? new Set(opts.only) : null;
+  const skipSet = new Set(opts.skip ?? []);
+
+  if (onlySet) {
+    for (const name of onlySet) {
+      if (!INSTALL_ALL_TARGETS.includes(name as InstallAllTarget)) {
+        throw new Error(
+          `Unknown --only target "${name}". Known: ${INSTALL_ALL_TARGETS.join(', ')}.`,
+        );
+      }
+    }
+  }
+  for (const name of skipSet) {
+    if (!INSTALL_ALL_TARGETS.includes(name as InstallAllTarget)) {
+      throw new Error(
+        `Unknown --skip target "${name}". Known: ${INSTALL_ALL_TARGETS.join(', ')}.`,
+      );
+    }
+  }
+
+  const home = env.homedir();
+  const cursorDir = path.join(home, '.cursor');
+  const claudeDir = path.join(home, '.claude');
+  const isMac = env.platform() === 'darwin';
+  const hasCode = env.hasOnPath('code');
+  const hasCursor = env.hasOnPath('cursor');
+
+  const plan: PlanEntry[] = [];
+
+  for (const target of INSTALL_ALL_TARGETS) {
+    if (onlySet && !onlySet.has(target)) continue;
+    if (skipSet.has(target)) {
+      plan.push({ target, skipReason: 'excluded by --skip' });
+      continue;
+    }
+
+    switch (target) {
+      case 'skill':
+        plan.push({
+          target,
+          run: async () => {
+            const { installSkill } = await import('./skill.js');
+            installSkill();
+          },
+        });
+        break;
+
+      case 'extension': {
+        if (!hasCode && !hasCursor) {
+          plan.push({ target, skipReason: 'neither `code` nor `cursor` on PATH' });
+          break;
+        }
+        const detected: string[] = [];
+        if (hasCode) detected.push('code');
+        if (hasCursor) detected.push('cursor');
+        plan.push({
+          target,
+          detail: `hosts: ${detected.join(', ')}`,
+          run: () => installExtension({ code: hasCode, cursor: hasCursor }),
+        });
+        break;
+      }
+
+      case 'cursor': {
+        if (!env.exists(cursorDir)) {
+          plan.push({ target, skipReason: `${cursorDir} not present` });
+          break;
+        }
+        plan.push({
+          target,
+          detail: cursorDir,
+          run: async () => {
+            const { installCursor } = await import('../../runtime/cursor/install.js');
+            installCursor();
+          },
+        });
+        break;
+      }
+
+      case 'claude-code': {
+        // Settings file may not exist yet; the parent dir reachability
+        // (homedir) is what the spec checks. Run unconditionally; the
+        // installer creates ~/.claude as needed.
+        plan.push({
+          target,
+          detail: path.join(claudeDir, 'settings.json'),
+          run: async () => {
+            const { installClaudeCode } = await import('../../runtime/claude-code/install.js');
+            installClaudeCode();
+          },
+        });
+        break;
+      }
+
+      case 'mcp':
+        plan.push({
+          target,
+          run: async () => {
+            const { installMcp } = await import('../../runtime/mcp/install.js');
+            installMcp({});
+          },
+        });
+        break;
+
+      case 'approver': {
+        if (!isMac) {
+          plan.push({ target, skipReason: 'macOS only' });
+          break;
+        }
+        plan.push({
+          target,
+          detail: APPLICATIONS_DIR,
+          run: () => installApprover({ dest: APPLICATIONS_DIR, cleanBuild: true }),
+        });
+        break;
+      }
+    }
+  }
+
+  return plan;
+}
+
+/** Build the uninstall plan. Mirror of `planInstallAll`: same detection
+ *  rules, but each `run` calls the matching uninstall handler. */
+export function planUninstallAll(
+  opts: AllOpts,
+  env: InstallAllEnv = defaultInstallAllEnv(),
+): PlanEntry[] {
+  // Reuse the install plan to get the skip/only validation + ordering,
+  // then swap each `run` for its uninstall counterpart.
+  const installPlan = planInstallAll(opts, env);
+  return installPlan.map((entry) => {
+    if (entry.skipReason) return entry;
+    switch (entry.target) {
+      case 'skill':
+        return {
+          ...entry,
+          run: () => {
+            // The skill installer just copies a dir; uninstall removes it.
+            const dst = path.join(env.homedir(), '.claude', 'skills', 'openbox');
+            if (fs.existsSync(dst)) {
+              execFileSync('rm', ['-rf', dst], { stdio: 'inherit' });
+              console.log(`Removed ${dst}`);
+            } else {
+              console.log(`${dst} is not installed.`);
+            }
+          },
+        };
+      case 'extension': {
+        const hasCode = env.hasOnPath('code');
+        const hasCursor = env.hasOnPath('cursor');
+        return {
+          ...entry,
+          run: () => uninstallExtension({ code: hasCode, cursor: hasCursor }),
+        };
+      }
+      case 'cursor':
+        return {
+          ...entry,
+          run: async () => {
+            const { uninstallCursor } = await import('../../runtime/cursor/install.js');
+            uninstallCursor();
+          },
+        };
+      case 'claude-code':
+        return {
+          ...entry,
+          run: async () => {
+            const { uninstallClaudeCode } = await import(
+              '../../runtime/claude-code/install.js'
+            );
+            uninstallClaudeCode();
+          },
+        };
+      case 'mcp':
+        return {
+          ...entry,
+          run: async () => {
+            const { uninstallMcp } = await import('../../runtime/mcp/install.js');
+            uninstallMcp({});
+          },
+        };
+      case 'approver':
+        return {
+          ...entry,
+          run: () => uninstallApprover(APPLICATIONS_DIR),
+        };
+    }
+  });
+}
+
+interface RunSummary {
+  installed: InstallAllTarget[];
+  skipped: Array<{ target: InstallAllTarget; reason: string }>;
+  failed: Array<{ target: InstallAllTarget; error: string }>;
+}
+
+/** Drive the plan: log per-target status, never bail on a single
+ *  failure, return a structured summary. Exported for tests. */
+export async function runPlan(
+  plan: PlanEntry[],
+  opts: { dryRun?: boolean; verb?: 'install' | 'uninstall' } = {},
+): Promise<RunSummary> {
+  const verb = opts.verb ?? 'install';
+  const summary: RunSummary = { installed: [], skipped: [], failed: [] };
+
+  for (const entry of plan) {
+    if (entry.skipReason) {
+      console.log(`Skipping ${entry.target}: ${entry.skipReason}`);
+      summary.skipped.push({ target: entry.target, reason: entry.skipReason });
+      continue;
+    }
+    const tag = entry.detail ? `${entry.target} (${entry.detail})` : entry.target;
+    if (opts.dryRun) {
+      console.log(`Would ${verb}: ${tag}`);
+      summary.installed.push(entry.target);
+      continue;
+    }
+    console.log(
+      `${verb === 'install' ? 'Installing' : 'Uninstalling'} ${tag}...`,
+    );
+    try {
+      await entry.run?.();
+      summary.installed.push(entry.target);
+      console.log(`  ok: ${entry.target}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      summary.failed.push({ target: entry.target, error: msg });
+      console.error(`  failed: ${entry.target}: ${msg}`);
+    }
+  }
+
+  const lines: string[] = [];
+  lines.push(
+    `${verb === 'install' ? 'Installed' : 'Uninstalled'}: ${
+      summary.installed.length > 0 ? summary.installed.join(', ') : '(none)'
+    }.`,
+  );
+  if (summary.skipped.length > 0) {
+    lines.push(
+      `Skipped: ${summary.skipped
+        .map((s) => `${s.target} (${s.reason})`)
+        .join(', ')}.`,
+    );
+  }
+  if (summary.failed.length > 0) {
+    lines.push(
+      `Failed: ${summary.failed.map((f) => `${f.target} (${f.error})`).join(', ')}.`,
+    );
+  }
+  console.log('\n' + lines.join(' '));
+
+  return summary;
+}
+
+interface AllCliOpts {
+  skip?: string[];
+  only?: string[];
+  dryRun?: boolean;
+}
+
+async function runInstallAll(opts: AllCliOpts): Promise<void> {
+  let plan: PlanEntry[];
+  try {
+    plan = planInstallAll(opts);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    bailWith(EXIT.USAGE);
+    return;
+  }
+  const summary = await runPlan(plan, { dryRun: opts.dryRun, verb: 'install' });
+  if (summary.failed.length > 0) bailWith(EXIT.GENERIC);
+}
+
+async function runUninstallAll(opts: AllCliOpts): Promise<void> {
+  let plan: PlanEntry[];
+  try {
+    plan = planUninstallAll(opts);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    bailWith(EXIT.USAGE);
+    return;
+  }
+  const summary = await runPlan(plan, { dryRun: opts.dryRun, verb: 'uninstall' });
+  if (summary.failed.length > 0) bailWith(EXIT.GENERIC);
+}
+
+function collect(value: string, prev: string[]): string[] {
+  return prev.concat([value]);
+}
+
 export function registerInstallCommands(program: Command): void {
   const install = program
     .command('install')
-    .description('Install an OpenBox client (approver, extension, cursor, claude-code, skill, mobile)');
+    .description(
+      'Install an OpenBox client. With no target, auto-detects the current ' +
+        "machine's relevant pieces (skill, extension, cursor hooks, claude-code " +
+        'hooks, MCP, and on macOS the approver app) and installs them all.',
+    )
+    .option('--skip <target>', 'Skip a target by name (repeatable)', collect, [])
+    .option(
+      '--only <target>',
+      'Only install named targets (repeatable). Mutually exclusive with --skip.',
+      collect,
+      [],
+    )
+    .option('--dry-run', 'Print what would be installed without running', false)
+    .action(async (opts: AllCliOpts) => {
+      await runInstallAll(opts);
+    });
+
+  install
+    .command('all')
+    .description(
+      'Install every OpenBox piece detectable on this machine (same as ' +
+        '`openbox install` with no target).',
+    )
+    .option('--skip <target>', 'Skip a target by name (repeatable)', collect, [])
+    .option(
+      '--only <target>',
+      'Only install named targets (repeatable). Mutually exclusive with --skip.',
+      collect,
+      [],
+    )
+    .option('--dry-run', 'Print what would be installed without running', false)
+    .action(async (opts: AllCliOpts) => {
+      await runInstallAll(opts);
+    });
 
   install
     .command('approver')
@@ -381,7 +770,39 @@ export function registerInstallCommands(program: Command): void {
 
   const uninstall = program
     .command('uninstall')
-    .description('Remove an OpenBox client (approver, extension, cursor, claude-code, skill)');
+    .description(
+      'Remove an OpenBox client. With no target, mirrors `openbox install` ' +
+        'and removes every piece detectable on this machine.',
+    )
+    .option('--skip <target>', 'Skip a target by name (repeatable)', collect, [])
+    .option(
+      '--only <target>',
+      'Only uninstall named targets (repeatable). Mutually exclusive with --skip.',
+      collect,
+      [],
+    )
+    .option('--dry-run', 'Print what would be uninstalled without running', false)
+    .action(async (opts: AllCliOpts) => {
+      await runUninstallAll(opts);
+    });
+
+  uninstall
+    .command('all')
+    .description(
+      'Remove every OpenBox piece detectable on this machine (same as ' +
+        '`openbox uninstall` with no target).',
+    )
+    .option('--skip <target>', 'Skip a target by name (repeatable)', collect, [])
+    .option(
+      '--only <target>',
+      'Only uninstall named targets (repeatable). Mutually exclusive with --skip.',
+      collect,
+      [],
+    )
+    .option('--dry-run', 'Print what would be uninstalled without running', false)
+    .action(async (opts: AllCliOpts) => {
+      await runUninstallAll(opts);
+    });
 
   uninstall
     .command('approver')
