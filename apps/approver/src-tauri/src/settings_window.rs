@@ -33,6 +33,7 @@ use objc2_foundation::{
 };
 use std::sync::{mpsc, Arc, Mutex, OnceLock};
 
+use crate::api::ApiClient;
 use crate::settings::{self, EnvChoice, Settings};
 use crate::{display_api_url, env_choice_to_name, AppState};
 
@@ -51,6 +52,13 @@ fn as_view(p: &impl objc2::Message) -> &NSView {
 struct WindowCtx {
     state: Arc<Mutex<AppState>>,
     wakeup: mpsc::Sender<()>,
+    /// Live API client handle the polling thread reads through. The
+    /// env-change selector pre-validates the new env by building a
+    /// fresh `ApiClient`, then locks this slot and swaps the inner
+    /// `Some(client)`. On a build failure (no recorded API key for
+    /// the new env), the slot is left untouched and the popup is
+    /// reverted to the previous selection.
+    client: Arc<Mutex<Option<ApiClient>>>,
     env_popup: Retained<NSPopUpButton>,
     notif_switch: Retained<NSSwitch>,
     poll_segments: Retained<NSSegmentedControl>,
@@ -124,32 +132,91 @@ unsafe extern "C" fn env_changed(_this: *const AnyObject, _sel: Sel, _sender: *c
             _ => EnvChoice::Local,
         };
         let prev_choice = {
-            let mut s = ctx.state.lock().unwrap();
-            let prev = s.settings.env.clone();
-            s.settings.env = new_choice.clone();
-            prev
+            let s = ctx.state.lock().unwrap();
+            s.settings.env.clone()
         };
-        let snap = ctx.state.lock().unwrap().settings.clone();
-        let _ = settings::save(&snap);
+        if prev_choice == new_choice {
+            // Same env re-selected; no work to do beyond the persist
+            // path, which is harmless to skip.
+            return;
+        }
 
-        // Refresh the read-only account rows so "Active env" + "API
-        // URL" reflect the new choice immediately.
-        update_account_labels(ctx);
+        let new_env = env_choice_to_name(&new_choice);
 
-        if prev_choice != new_choice {
-            // Env switch: the live API client + cached known_ids are
-            // for the old env, so a "Restart required" alert is the
-            // honest UX. The polling thread keeps running against the
-            // old env until the user relaunches; a hot client rebuild
-            // would race with the poll loop's existing client handle.
-            run_alert(
-                "Environment changed",
-                "Quit OpenBox Approver and relaunch for the new environment to take effect.",
-            );
-            // Best-effort wakeup so the next sleep ends quickly and
-            // the user sees a fresh tray refresh against the active
-            // (still old) client.
-            let _ = ctx.wakeup.send(());
+        // Pre-validate the new env BEFORE persisting the choice. If
+        // the user picks an env that has no recorded X-API-Key the
+        // build returns Err with a CLI hint; surface that as an
+        // alert and revert the popup so the live client (still on
+        // the previous env) keeps polling without a glitch.
+        match ApiClient::for_env(new_env) {
+            Ok(new_client) => {
+                // Persist the new env first; the polling thread
+                // reads `settings.env` for `for_env` resolution and
+                // we don't want a swap that re-bootstraps to read a
+                // stale env on the next iteration.
+                {
+                    let mut s = ctx.state.lock().unwrap();
+                    s.settings.env = new_choice.clone();
+                    // Reset the diff cache so the next post-swap
+                    // poll doesn't fire spurious "brand new" notifs
+                    // for IDs that simply belong to the new env.
+                    s.known_ids.clear();
+                    // Tell the polling thread to re-bootstrap on its
+                    // next iteration: profile + agents-list run
+                    // against the new client to refresh org_id /
+                    // user_email.
+                    s.needs_bootstrap = true;
+                    s.org_id = None;
+                    s.user_email = None;
+                }
+                let snap = ctx.state.lock().unwrap().settings.clone();
+                let _ = settings::save(&snap);
+
+                // Atomic swap: drop the old client and install the
+                // new one in the same critical section. The polling
+                // loop locks this same Mutex per iteration, so the
+                // worst case is one in-flight HTTP call against the
+                // old client finishing before the swap takes.
+                {
+                    let mut slot = ctx.client.lock().unwrap();
+                    *slot = Some(new_client);
+                }
+
+                update_account_labels(ctx);
+
+                // Best-effort wakeup so the polling thread breaks
+                // out of its sleep and the bootstrap + first poll
+                // against the new env happens immediately.
+                let _ = ctx.wakeup.send(());
+
+                run_alert(
+                    "Environment switched",
+                    &format!(
+                        "Now polling against the {} environment. Tray will refresh in a moment.",
+                        new_env.as_str()
+                    ),
+                );
+            }
+            Err(e) => {
+                // Revert the popup selection; the persisted setting
+                // and the live client both stay on prev_choice.
+                let prev_idx = match prev_choice {
+                    EnvChoice::Production => 0,
+                    EnvChoice::Staging => 1,
+                    EnvChoice::Local => 2,
+                };
+                unsafe {
+                    ctx.env_popup.selectItemAtIndex(prev_idx);
+                }
+                run_alert(
+                    "Cannot switch environment",
+                    &format!(
+                        "{}\n\nReverted to {}.",
+                        e,
+                        prev_choice.as_str()
+                    ),
+                );
+            }
         }
     });
 }
@@ -222,8 +289,15 @@ fn update_account_labels(ctx: &WindowCtx) {
 
 /// Show the settings window. Builds it on first call; subsequent
 /// calls just bring it to front. Must be called on the AppKit main
-/// thread.
-pub fn show(state: Arc<Mutex<AppState>>, wakeup: mpsc::Sender<()>) {
+/// thread. The `client` handle is the same `Arc<Mutex<...>>` the
+/// polling thread reads through; the env-change handler swaps a
+/// freshly-built `ApiClient` into it so an env switch doesn't
+/// require a relaunch.
+pub fn show(
+    state: Arc<Mutex<AppState>>,
+    wakeup: mpsc::Sender<()>,
+    client: Arc<Mutex<Option<ApiClient>>>,
+) {
     let mtm = unsafe { MainThreadMarker::new_unchecked() };
 
     let cell = ctx_cell();
@@ -239,7 +313,7 @@ pub fn show(state: Arc<Mutex<AppState>>, wakeup: mpsc::Sender<()>) {
         }
     }
 
-    let ctx = build_window(mtm, state, wakeup);
+    let ctx = build_window(mtm, state, wakeup, client);
     {
         let mut guard = cell.lock().unwrap();
         update_account_labels(&ctx);
@@ -255,6 +329,7 @@ fn build_window(
     mtm: MainThreadMarker,
     state: Arc<Mutex<AppState>>,
     wakeup: mpsc::Sender<()>,
+    client: Arc<Mutex<Option<ApiClient>>>,
 ) -> WindowCtx {
     let frame = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(480.0, 360.0));
     let mask = NSWindowStyleMask::Titled
@@ -373,6 +448,7 @@ fn build_window(
     WindowCtx {
         state,
         wakeup,
+        client,
         env_popup,
         notif_switch,
         poll_segments,

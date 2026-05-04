@@ -40,14 +40,22 @@ pub fn env_choice_to_name(c: &EnvChoice) -> EnvName {
     }
 }
 
-struct AppState {
-    org_id: Option<String>,
-    user_email: Option<String>,
-    known_ids: HashSet<String>,
-    pending_refresh: bool,
-    pending_decide: Option<(String, String, String)>,
-    consecutive_errors: u32,
-    settings: Settings,
+pub struct AppState {
+    pub org_id: Option<String>,
+    pub user_email: Option<String>,
+    pub known_ids: HashSet<String>,
+    pub pending_refresh: bool,
+    pub pending_decide: Option<(String, String, String)>,
+    pub consecutive_errors: u32,
+    pub settings: Settings,
+    /// Flips to `true` when the Settings window swaps the API client
+    /// to a new env. The polling thread checks this each iteration
+    /// before fetching: when set, it re-runs bootstrap (profile +
+    /// fallback agents-list) against the new client and clears the
+    /// flag. `known_ids` is reset on the same hop so a stale ID set
+    /// from the old env doesn't leak into the new env's "brand new"
+    /// diff and spam notifications on the first post-switch tick.
+    pub needs_bootstrap: bool,
 }
 
 /// Diff the current pending-approvals snapshot against the cached
@@ -96,6 +104,7 @@ pub fn run() {
                 pending_decide: None,
                 consecutive_errors: 0,
                 settings: initial_settings.clone(),
+                needs_bootstrap: false,
             }));
 
             #[cfg(target_os = "macos")]
@@ -103,8 +112,29 @@ pub fn run() {
                 let (wakeup_tx, wakeup_rx) = mpsc::channel::<()>();
                 let wakeup_tx_for_menu = wakeup_tx.clone();
 
+                // Shared API client lives behind a Mutex so the
+                // Settings window's env-change handler can swap in a
+                // freshly-built client without tearing down the
+                // polling thread. The polling loop locks per
+                // iteration; reads vastly outnumber writes (one swap
+                // per env-change vs N polls per minute), so the
+                // contention is in the noise. `Option<>` lets us cope
+                // with a startup where no key is recorded yet (the
+                // user opens Settings, picks an env that has a key,
+                // and we plug it in without a relaunch).
+                let initial_env = env_choice_to_name(&initial_settings.env);
+                let client_handle: Arc<Mutex<Option<api::ApiClient>>> =
+                    match api::ApiClient::for_env(initial_env) {
+                        Ok(c) => Arc::new(Mutex::new(Some(c))),
+                        Err(e) => {
+                            eprintln!("Failed to initialize: {}", e);
+                            Arc::new(Mutex::new(None))
+                        }
+                    };
+
                 let state_for_tray = state.clone();
                 let handle_for_actions = app.handle().clone();
+                let client_for_settings = client_handle.clone();
 
                 let tray = NativeTray::new(
                     include_bytes!("../icons/tray-icon@2x.png"),
@@ -123,8 +153,9 @@ pub fn run() {
                         if action_id == "show_settings" {
                             let state_w = state_for_tray.clone();
                             let wakeup_w = wakeup_tx_for_menu.clone();
+                            let client_w = client_for_settings.clone();
                             let _ = handle_for_actions.run_on_main_thread(move || {
-                                settings_window::show(state_w, wakeup_w);
+                                settings_window::show(state_w, wakeup_w, client_w);
                             });
                             return;
                         }
@@ -149,64 +180,132 @@ pub fn run() {
 
                 let tray = Arc::new(Mutex::new(tray));
 
+                // Surface a startup error in the tray menu after the
+                // tray exists. Earlier we only logged it; surface it
+                // visually too so users see why nothing's loading.
+                if client_handle.lock().unwrap().is_none() {
+                    let tray_c = tray.clone();
+                    let handle_c = app.handle().clone();
+                    let _ = handle_c.run_on_main_thread(move || {
+                        tray_c.lock().unwrap().update_menu(
+                            None,
+                            &[],
+                            Some(
+                                "No API client. Open Settings to pick an env with a recorded key.",
+                            ),
+                        );
+                    });
+                }
+
+                // Mark "bootstrap pending" up front; the polling loop
+                // runs profile + agents-list on its first iteration
+                // and again any time the env-switch handler flips
+                // this flag.
+                state.lock().unwrap().needs_bootstrap = true;
+
                 let state_poll = state.clone();
                 let tray_poll = tray.clone();
                 let handle = app.handle().clone();
+                let client_for_poll = client_handle.clone();
 
                 thread::spawn(move || {
-                    let env = env_choice_to_name(&initial_settings.env);
-                    let client = match api::ApiClient::for_env(env) {
-                        Ok(c) => c,
-                        Err(e) => {
-                            eprintln!("Failed to initialize: {}", e);
-                            let tray_c = tray_poll.clone();
-                            let _ = handle.run_on_main_thread(move || {
-                                tray_c.lock().unwrap().update_menu(None, &[], Some(&e));
-                            });
-                            return;
-                        }
-                    };
-
-                    let (user_email, org_id) = match bootstrap(&client) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            eprintln!("Bootstrap failed: {}", e);
-                            let tray_c = tray_poll.clone();
-                            let _ = handle.run_on_main_thread(move || {
-                                tray_c.lock().unwrap().update_menu(None, &[], Some(&e));
-                            });
-                            return;
-                        }
-                    };
-
-                    {
-                        let mut s = state_poll.lock().unwrap();
-                        s.org_id = Some(org_id.clone());
-                        s.user_email = Some(user_email.clone());
-                    }
-
-                    {
-                        let email = user_email.clone();
-                        let tray_c = tray_poll.clone();
-                        let _ = handle.run_on_main_thread(move || {
-                            tray_c.lock().unwrap().update_menu(Some(&email), &[], None);
-                        });
-                    }
-
                     loop {
-                        let decide = {
-                            let mut s = state_poll.lock().unwrap();
-                            s.pending_refresh = false;
-                            take_pending_decision(&mut s.pending_decide)
+                        // ---- Optional re-bootstrap ----
+                        let need = {
+                            let s = state_poll.lock().unwrap();
+                            s.needs_bootstrap
                         };
-
-                        if let Some((agent_id, event_id, action)) = decide {
-                            if let Err(e) = client.decide_approval(&agent_id, &event_id, &action) {
-                                eprintln!("Decision failed: {}", e);
+                        if need {
+                            let bootstrap_result = {
+                                let cg = client_for_poll.lock().unwrap();
+                                match cg.as_ref() {
+                                    Some(c) => bootstrap(c).map(|(e, o)| (Some(e), Some(o))),
+                                    None => Err("No API client built; configure an env in Settings.".to_string()),
+                                }
+                            };
+                            match bootstrap_result {
+                                Ok((email, org)) => {
+                                    let mut s = state_poll.lock().unwrap();
+                                    s.user_email = email.clone();
+                                    s.org_id = org.clone();
+                                    s.needs_bootstrap = false;
+                                    s.known_ids.clear();
+                                    drop(s);
+                                    let email_for_tray = email.clone().unwrap_or_default();
+                                    let tray_c = tray_poll.clone();
+                                    let _ = handle.run_on_main_thread(move || {
+                                        tray_c.lock().unwrap().update_menu(Some(&email_for_tray), &[], None);
+                                    });
+                                }
+                                Err(e) => {
+                                    eprintln!("Bootstrap failed: {}", e);
+                                    let tray_c = tray_poll.clone();
+                                    let _ = handle.run_on_main_thread(move || {
+                                        tray_c.lock().unwrap().update_menu(None, &[], Some(&e));
+                                    });
+                                    // Sleep at the configured cadence
+                                    // before retrying; an env without a
+                                    // valid key shouldn't busy-loop.
+                                    let interval_secs = state_poll.lock().unwrap().settings.normalized_poll_secs();
+                                    match wakeup_rx.recv_timeout(Duration::from_secs(interval_secs)) {
+                                        Ok(()) => { while wakeup_rx.try_recv().is_ok() {} }
+                                        Err(mpsc::RecvTimeoutError::Timeout) => {}
+                                        Err(mpsc::RecvTimeoutError::Disconnected) => {
+                                            thread::sleep(Duration::from_secs(interval_secs));
+                                        }
+                                    }
+                                    continue;
+                                }
                             }
                         }
 
-                        match client.get_org_approvals(&org_id) {
+                        let (decide, org_id, user_email) = {
+                            let mut s = state_poll.lock().unwrap();
+                            s.pending_refresh = false;
+                            (
+                                take_pending_decision(&mut s.pending_decide),
+                                s.org_id.clone(),
+                                s.user_email.clone(),
+                            )
+                        };
+
+                        let Some(org_id) = org_id else {
+                            // Bootstrap hasn't produced an org yet;
+                            // try again on the next tick.
+                            let interval_secs = state_poll.lock().unwrap().settings.normalized_poll_secs();
+                            let _ = wakeup_rx.recv_timeout(Duration::from_secs(interval_secs));
+                            continue;
+                        };
+                        let user_email = user_email.unwrap_or_default();
+
+                        if let Some((agent_id, event_id, action)) = decide {
+                            let res = {
+                                let cg = client_for_poll.lock().unwrap();
+                                match cg.as_ref() {
+                                    Some(c) => c.decide_approval(&agent_id, &event_id, &action),
+                                    None => Err("No API client".into()),
+                                }
+                            };
+                            if let Err(e) = res {
+                                eprintln!("Decision failed: {}", e);
+                                // Re-queue the decision so the next
+                                // tick retries; the failure was
+                                // transient (network blip, 5xx) most
+                                // of the time and we shouldn't drop
+                                // the user's intent on the floor.
+                                state_poll.lock().unwrap().pending_decide =
+                                    Some((agent_id, event_id, action));
+                            }
+                        }
+
+                        let poll_res = {
+                            let cg = client_for_poll.lock().unwrap();
+                            match cg.as_ref() {
+                                Some(c) => c.get_org_approvals(&org_id),
+                                None => Err("No API client".into()),
+                            }
+                        };
+                        match poll_res {
                             Ok(approvals) => {
                                 let snapshot_ids: Vec<String> = approvals.iter().map(|a| a.id.clone()).collect();
 
