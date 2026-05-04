@@ -274,6 +274,10 @@ interface InstallOpts {
   // mcp
   claudeDesktop?: boolean;
   claudeCode?: boolean;
+  // unified cursor install
+  hooksOnly?: boolean;
+  extension?: boolean;
+  mcp?: boolean;
 }
 
 type McpTarget = 'claude-desktop' | 'cursor' | 'claude-code';
@@ -313,10 +317,29 @@ export function registerInstallCommands(program: Command): void {
 
   install
     .command('cursor')
-    .description("Install OpenBox hooks into Cursor's settings")
-    .action(async () => {
+    .description(
+      "Install everything OpenBox needs in Cursor: the IDE extension, " +
+        "the runtime hooks in ~/.cursor/User/settings.json, and the MCP " +
+        "server entry. Pass --hooks-only to install just the runtime hooks " +
+        "(legacy behavior); --no-extension / --no-mcp to skip individual " +
+        "pieces.",
+    )
+    .option('--hooks-only', 'Install only the runtime hooks; skip extension and MCP', false)
+    .option('--no-extension', 'Skip installing the IDE extension', false)
+    .option('--no-mcp', 'Skip registering the MCP server entry', false)
+    .action(async (opts: InstallOpts & { hooksOnly?: boolean; extension?: boolean; mcp?: boolean }) => {
       const { installCursor } = await import('../../runtime/cursor/install.js');
       installCursor();
+      if (opts.hooksOnly) return;
+      if (opts.extension !== false) {
+        console.log('');
+        installExtension({ cursor: true });
+      }
+      if (opts.mcp !== false) {
+        console.log('');
+        const { installMcp } = await import('../../runtime/mcp/install.js');
+        installMcp({ targets: ['cursor'] });
+      }
     });
 
   install
@@ -375,10 +398,28 @@ export function registerInstallCommands(program: Command): void {
 
   uninstall
     .command('cursor')
-    .description("Remove OpenBox hooks from Cursor's settings")
-    .action(async () => {
+    .description(
+      "Remove everything OpenBox installed in Cursor: the runtime hooks, " +
+        "the IDE extension, and the MCP server entry. Pass --hooks-only " +
+        "to remove just the runtime hooks; --no-extension / --no-mcp to " +
+        "skip individual pieces.",
+    )
+    .option('--hooks-only', 'Uninstall only the runtime hooks; skip extension and MCP', false)
+    .option('--no-extension', 'Skip uninstalling the IDE extension', false)
+    .option('--no-mcp', 'Skip removing the MCP server entry', false)
+    .action(async (opts: InstallOpts) => {
       const { uninstallCursor } = await import('../../runtime/cursor/install.js');
       uninstallCursor();
+      if (opts.hooksOnly) return;
+      if (opts.extension !== false) {
+        console.log('');
+        uninstallExtension({ cursor: true });
+      }
+      if (opts.mcp !== false) {
+        console.log('');
+        const { uninstallMcp } = await import('../../runtime/mcp/install.js');
+        uninstallMcp({ targets: ['cursor'] });
+      }
     });
 
   uninstall
