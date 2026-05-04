@@ -1,4 +1,5 @@
 mod api;
+mod settings;
 #[cfg(target_os = "macos")]
 mod native_tray;
 
@@ -207,13 +208,19 @@ pub fn run() {
                             }
                         }
 
-                        match wakeup_rx.recv_timeout(Duration::from_secs(5)) {
+                        // Re-read the polling interval from on-disk
+                        // settings every tick so a Settings-window
+                        // change picks up by the next iteration. The
+                        // load is a tiny JSON read; the cost is far
+                        // below the seconds-scale interval.
+                        let interval_secs = settings::load().normalized_poll_secs();
+                        match wakeup_rx.recv_timeout(Duration::from_secs(interval_secs)) {
                             Ok(()) => {
                                 while wakeup_rx.try_recv().is_ok() {}
                             }
                             Err(mpsc::RecvTimeoutError::Timeout) => {}
                             Err(mpsc::RecvTimeoutError::Disconnected) => {
-                                thread::sleep(Duration::from_secs(5));
+                                thread::sleep(Duration::from_secs(interval_secs));
                             }
                         }
                     }
