@@ -76,6 +76,12 @@ const ALLOWED_PREFIXES: Record<string, string> = {
     'cursor install/uninstall delegates to runtime adapter.',
   '../../runtime/cursor/hook-handler.js':
     'cursor hook command runs the runtime hook handler.',
+  '../../runtime/cursor/enterprise.js':
+    'cursor harden / unharden delegate to the enterprise-profile renderer.',
+  '../../runtime/cursor/rules.js':
+    'cursor sync-rules delegates to the .cursor/rules/*.mdc renderer.',
+  '../../runtime/_shared/rules-projection.js':
+    'editor-agnostic guardrails+policies projection consumed by cursor sync-rules.',
   '../../runtime/mcp/index.js': 'mcp serve runs the MCP stdio server.',
   '../../runtime/mcp/install.js':
     'unified install command writes/removes the OpenBox MCP server entry across host configs.',
