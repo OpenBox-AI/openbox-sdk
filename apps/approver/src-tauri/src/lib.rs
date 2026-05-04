@@ -2,6 +2,13 @@ mod api;
 #[cfg(target_os = "macos")]
 mod native_tray;
 
+// Activity-label, verdict, and relative-time formatting all come from
+// `openbox_sdk::approvals` so the approver renders a given approval the
+// same way mobile and the VS Code extension do. The canonical
+// activity-label table itself is spec-emitted into
+// `rust/src/core/generated/govern.rs`; the SDK wraps it with a
+// title-case fallback for free-form custom-preset activity_types.
+use openbox_sdk::approvals::format::{format_label, time_ago, time_remaining};
 use openbox_sdk::verdict::verdict_label;
 
 use std::collections::HashSet;
@@ -12,40 +19,6 @@ use std::time::Duration;
 
 #[cfg(target_os = "macos")]
 use native_tray::{ApprovalData, NativeTray};
-
-fn now_epoch() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
-
-fn parse_ts(s: &str) -> i64 {
-    s.parse::<chrono::DateTime<chrono::Utc>>()
-        .ok()
-        .map(|dt| dt.timestamp())
-        .unwrap_or(0)
-}
-
-fn time_ago(created_at: &str) -> String {
-    let ts = parse_ts(created_at);
-    if ts == 0 { return String::new(); }
-    let diff = now_epoch() - ts;
-    if diff < 60 { "just now".into() }
-    else if diff < 3600 { format!("{}m ago", diff / 60) }
-    else if diff < 86400 { format!("{}h ago", diff / 3600) }
-    else { format!("{}d ago", diff / 86400) }
-}
-
-fn time_remaining(expires_at: &str) -> String {
-    let ts = parse_ts(expires_at);
-    if ts == 0 { return String::new(); }
-    let diff = ts - now_epoch();
-    if diff <= 0 { "expired".into() }
-    else if diff < 60 { format!("{}s", diff) }
-    else if diff < 3600 { format!("{}m {}s", diff / 60, diff % 60) }
-    else { format!("{}h {}m", diff / 3600, (diff % 3600) / 60) }
-}
 
 struct AppState {
     org_id: Option<String>,
@@ -186,7 +159,11 @@ pub fn run() {
                                                 .unwrap_or_else(|| "Unknown Agent".into()),
                                             agent_id: a.agent_id.clone().unwrap_or_default(),
                                             event_id: a.id.clone(),
-                                            action_type: a.activity_type.clone().unwrap_or_default(),
+                                            action_type: a
+                                                .activity_type
+                                                .as_deref()
+                                                .map(format_label)
+                                                .unwrap_or_default(),
                                             verdict: a
                                                 .verdict
                                                 .and_then(verdict_label)
@@ -294,7 +271,11 @@ fn notify_new_approvals(approvals: &[&api::Approval]) {
         let a = &approvals[0];
         let agent = a.agent.as_ref().map(|ag| ag.agent_name.as_str()).unwrap_or("Agent");
         let reason = a.reason.as_deref().unwrap_or("");
-        let action = a.activity_type.as_deref().unwrap_or("action");
+        let action = a
+            .activity_type
+            .as_deref()
+            .map(format_label)
+            .unwrap_or_else(|| "action".into());
         (
             format!("Approval Required: {}", agent),
             if reason.is_empty() { format!("{} needs approval", action) } else { reason.to_string() },
