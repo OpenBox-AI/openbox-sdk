@@ -153,3 +153,39 @@ describe('PreWriteGate', () => {
     expect(showWarningCalls.length).toBe(0);
   });
 });
+
+describe('extractTargetUri', () => {
+  it('pulls file_path from input[0]', async () => {
+    const { extractTargetUri } = await import('./preWriteGate');
+    expect(extractTargetUri([{ file_path: '/workspace/foo.ts' }])).toBe('file:///workspace/foo.ts');
+  });
+
+  it('falls back to filePath then path on input[0]', async () => {
+    const { extractTargetUri } = await import('./preWriteGate');
+    expect(extractTargetUri([{ filePath: '/a.ts' }])).toBe('file:///a.ts');
+    expect(extractTargetUri([{ path: '/b.ts' }])).toBe('file:///b.ts');
+  });
+
+  it('accepts a bare object as input (legacy adapters)', async () => {
+    const { extractTargetUri } = await import('./preWriteGate');
+    expect(extractTargetUri({ file_path: '/x.ts' })).toBe('file:///x.ts');
+  });
+
+  it('passes already-formed file:// URIs through unchanged', async () => {
+    const { extractTargetUri } = await import('./preWriteGate');
+    expect(extractTargetUri([{ file_path: 'file:///already.ts' }])).toBe('file:///already.ts');
+  });
+
+  it('returns undefined when no path is present', async () => {
+    const { extractTargetUri } = await import('./preWriteGate');
+    expect(extractTargetUri(undefined)).toBeUndefined();
+    expect(extractTargetUri([])).toBeUndefined();
+    expect(extractTargetUri([{ command: 'rm -rf /' }])).toBeUndefined();
+    expect(extractTargetUri({})).toBeUndefined();
+  });
+
+  it('encodes spaces and unicode in path segments', async () => {
+    const { extractTargetUri } = await import('./preWriteGate');
+    expect(extractTargetUri([{ file_path: '/work space/a.ts' }])).toBe('file:///work%20space/a.ts');
+  });
+});

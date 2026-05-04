@@ -5,8 +5,11 @@ import { createApi, createApiContext } from "./api";
 import { ApprovalsPollingService as PollingService } from "openbox-sdk/polling";
 import { ApprovalsTreeProvider } from "./approvalsView";
 import { createTabObserver } from "./tabObserver";
-import { PreWriteGate } from "./preWriteGate";
+import { PreWriteGate, extractTargetUri } from "./preWriteGate";
 import type { Approval } from "./types";
+
+/** Backend's Halt verdict; approvals with this code block the save flow. */
+const VERDICT_HALT = 4;
 
 // X-API-Key auth → polling-only (the WS gateway requires JWT today).
 type ApprovalsFeed = PollingService;
@@ -42,9 +45,36 @@ export async function activate(context: vscode.ExtensionContext) {
   let client: OpenBoxClient | undefined;
   let orgId: string | undefined;
 
+  // Pre-write gate. Constructed up front so the polling-changed handler
+  // (which lives inside `boot`) can record/clear halt verdicts on it.
+  // Entries land when the approvals feed reports a halt verdict for an
+  // open document.
+  const preWrite = new PreWriteGate();
+  preWrite.attach(context);
+  context.subscriptions.push({ dispose: () => preWrite.dispose() });
+
+  // URIs that previously had a halt deny recorded, so we can call
+  // clearDeny when the same approval transitions out of pending. Keyed
+  // by approval ID; the value is the document URI we recorded against.
+  const haltedApprovals = new Map<string, string>();
+
   function paintIdle(envTag: EnvName, count: number) {
     statusBar.text =
       count > 0 ? `$(shield) ${count} Pending · ${envTag}` : `$(shield) OpenBox · ${envTag}`;
+  }
+
+  /** True when `uri` is currently open in any editor tab. We only
+   *  record denies for files the user has open; recording for arbitrary
+   *  paths would surface modal save prompts on files the user hasn't
+   *  touched, which is worse than no gate at all. */
+  function isUriOpen(uri: string): boolean {
+    for (const group of vscode.window.tabGroups.all) {
+      for (const tab of group.tabs) {
+        const input = tab.input as { uri?: vscode.Uri } | undefined;
+        if (input?.uri && input.uri.toString() === uri) return true;
+      }
+    }
+    return false;
   }
 
   async function boot(nextEnv: EnvName) {
@@ -91,6 +121,34 @@ export async function activate(context: vscode.ExtensionContext) {
         paintIdle(env, count);
         treeView.badge = count > 0 ? { value: count, tooltip: `${count} pending approvals` } : undefined;
         vscode.commands.executeCommand("setContext", "openbox.hasApprovals", count > 0);
+
+        // Halt-verdict gating: any pending approval at verdict 4 whose
+        // target URI is currently open gets a recordDeny on the gate.
+        // Approvals previously halted that drop out of the pending set
+        // (decided / expired) get a clearDeny so saves stop being
+        // gated. Both maps are keyed by approval ID, not URI, because a
+        // single file can have multiple overlapping halts.
+        const seen = new Set<string>();
+        for (const a of approvals) {
+          if (a.verdict !== VERDICT_HALT) continue;
+          const uri = extractTargetUri(a.input);
+          if (!uri) continue;
+          if (!isUriOpen(uri)) continue;
+          seen.add(a.id);
+          if (haltedApprovals.has(a.id)) continue;
+          haltedApprovals.set(a.id, uri);
+          preWrite.recordDeny({
+            uri,
+            reason: a.reason || `${a.activity_type || "edit"} flagged`,
+            approvalId: a.id,
+            at: Date.now(),
+          });
+        }
+        for (const [id, uri] of haltedApprovals) {
+          if (seen.has(id)) continue;
+          preWrite.clearDeny(uri);
+          haltedApprovals.delete(id);
+        }
       });
 
       f.on("newApprovals", (newOnes: Approval[]) => {
@@ -132,21 +190,27 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push({ dispose: () => feed?.stop() });
 
   // Tab / Composer / Cmd-K observer. Cursor doesn't expose hooks for
-  // these surfaces, so we classify mutations heuristically and log to
-  // an OutputChannel. Off by default; flipped on via the setting.
+  // these surfaces, so we classify mutations heuristically. The
+  // OutputChannel log is on by default for visibility (gated by
+  // tabObserver.outputLog); the SDK-side wire is deferred until the
+  // core spec adds an activity-recording op.
   const observerEnabled = vscode.workspace
     .getConfiguration("openbox")
     .get<boolean>("tabObserver.enabled", false);
   if (observerEnabled) {
-    const obs = createTabObserver();
+    const outputLog = vscode.workspace
+      .getConfiguration("openbox")
+      .get<boolean>("tabObserver.outputLog", true);
+    const obs = createTabObserver({
+      // TODO(api): wire to client.recordTabActivity once specs/typespec/core adds the op.
+      // The classifier is the load-bearing part; emission is just an OutputChannel for now.
+      onChange: () => {
+        /* no-op until SDK exposes an activity-recording method */
+      },
+      suppressOutputChannel: !outputLog,
+    });
     context.subscriptions.push({ dispose: () => obs.dispose() });
   }
-
-  // Pre-write gate. Empty pending map at boot; entries land when the
-  // approvals feed reports a halt verdict for an open document.
-  const preWrite = new PreWriteGate();
-  preWrite.attach(context);
-  context.subscriptions.push({ dispose: () => preWrite.dispose() });
 
   // Settings change. Rebuild the client when the user toggles the env
   // via the QuickPick command below (which writes the setting and lets

@@ -90,3 +90,43 @@ export class PreWriteGate {
     }
   }
 }
+
+/**
+ * Pull the target document URI out of an approval's `input` payload,
+ * if any. The backend's `Approval.input` is freeform per action type;
+ * for file-touching actions (FileEdit, Write, MultiEdit) the path
+ * lives at `input[0].file_path` (canonical), with `filePath` and
+ * `path` accepted as fallbacks for older/alternate adapters. Returns
+ * the path coerced to a `file://` URI string so it matches what
+ * `vscode.Uri.toString()` produces on open editors.
+ *
+ * Returns undefined when the input has no recognizable file path; the
+ * caller should treat that as "no gating possible for this approval".
+ */
+export function extractTargetUri(input: unknown): string | undefined {
+  if (!input) return undefined;
+  // Approvals carry `input` as either an array (the wire-side norm,
+  // matching the SDK's activity adapters) or a bare object (legacy).
+  // Normalize to the first record either way.
+  const first =
+    Array.isArray(input) && input.length > 0
+      ? (input[0] as Record<string, unknown>)
+      : (input as Record<string, unknown>);
+  if (!first || typeof first !== 'object') return undefined;
+  const raw = (first.file_path ?? first.filePath ?? first.path) as unknown;
+  if (typeof raw !== 'string' || raw.length === 0) return undefined;
+  // Already a URI? Pass through. Otherwise coerce a filesystem path
+  // to file:// so it lines up with `vscode.Uri.file(p).toString()`.
+  if (raw.startsWith('file://') || raw.includes('://')) return raw;
+  // Encode each segment so spaces/unicode round-trip safely; matches
+  // `vscode.Uri.file(p).toString()` output for ASCII paths and is at
+  // worst slightly more aggressive on non-ASCII (still parses).
+  const segments = raw.split('/').map((s) => (s ? encodeURIComponent(s) : s));
+  const joined = segments.join('/');
+  // Absolute (POSIX) paths start with '/'; preserve that as the
+  // host-less form `file:///abs`. Relative paths get the same
+  // triple-slash anchor; matching them against open editor tabs
+  // depends on workspace resolution which is the caller's job, but we
+  // still emit a parseable URI rather than a bare path.
+  return raw.startsWith('/') ? `file://${joined}` : `file:///${joined}`;
+}

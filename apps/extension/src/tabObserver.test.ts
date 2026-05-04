@@ -111,4 +111,17 @@ describe('createTabObserver', () => {
     obs.dispose();
     expect(registeredListener).toBeUndefined();
   });
+
+  it('suppressOutputChannel skips channel writes but still fires onChange', async () => {
+    const { createTabObserver } = await import('./tabObserver');
+    const events: number[] = [];
+    const obs = createTabObserver({
+      suppressOutputChannel: true,
+      onChange: (e) => events.push(e.insertedChars),
+    });
+    fireChange('function foo() {\n  return 42;\n}');
+    expect(channelLines.length).toBe(0);
+    expect(events.length).toBe(1);
+    obs.dispose();
+  });
 });

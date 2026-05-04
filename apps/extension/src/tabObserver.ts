@@ -52,6 +52,10 @@ export interface TabObserverOptions {
   onChange?: (event: TabObservedEvent) => void;
   /** Set true to emit keystroke events too (noisy; default off). */
   includeKeystrokes?: boolean;
+  /** Set true to skip the OutputChannel writes (the `onChange`
+   *  callback still fires). Used by callers piping events to a
+   *  remote sink while keeping the panel quiet. Default false. */
+  suppressOutputChannel?: boolean;
 }
 
 export function createTabObserver(opts: TabObserverOptions = {}): TabObserver {
@@ -112,11 +116,13 @@ export function createTabObserver(opts: TabObserverOptions = {}): TabObserver {
         timestamp: now,
       };
 
-      const tag = source === 'non-keystroke' ? '[ai-or-paste]' : '[keystroke]';
-      channel.appendLine(
-        `${tag} ${observed.uri}:${observed.line + 1}:${observed.character + 1} ` +
-          `+${observed.insertedChars}c/${observed.insertedNewlines}nl  "${observed.preview}"`,
-      );
+      if (!opts.suppressOutputChannel) {
+        const tag = source === 'non-keystroke' ? '[ai-or-paste]' : '[keystroke]';
+        channel.appendLine(
+          `${tag} ${observed.uri}:${observed.line + 1}:${observed.character + 1} ` +
+            `+${observed.insertedChars}c/${observed.insertedNewlines}nl  "${observed.preview}"`,
+        );
+      }
 
       opts.onChange?.(observed);
     }

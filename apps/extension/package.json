@@ -81,6 +81,11 @@
           "type": "boolean",
           "default": false,
           "description": "Observe non-keystroke buffer mutations (Tab autocomplete accept, Cmd-K, Composer multi-file edits) and log them to the 'OpenBox: Tab Observer' output channel. Cursor does not expose hooks for these surfaces, so the observer classifies changes heuristically (size + idle timing). Off by default; turn on to inspect what the observer would report before piping to OpenBox."
+        },
+        "openbox.tabObserver.outputLog": {
+          "type": "boolean",
+          "default": true,
+          "description": "When tabObserver.enabled is true, also write each classified change to the 'OpenBox: Tab Observer' output channel. Set false to suppress that visibility; the in-process classification still runs. Has no effect when tabObserver.enabled is false."
         }
       }
     },
