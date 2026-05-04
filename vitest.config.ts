@@ -53,7 +53,7 @@ export default defineConfig({
         test: {
           name: 'e2e',
           include: ['tests/e2e/**/*.test.ts'],
-          setupFiles: ['./tests/setup.ts'],
+          setupFiles: ['./tests/setup.ts', './tests/setup-creds.ts'],
           testTimeout: 30000,
           sequence: { concurrent: false },
           fileParallelism: false,
@@ -67,7 +67,7 @@ export default defineConfig({
           // method-name drift and silent no-op regressions.
           name: 'contract',
           include: ['tests/contract/**/*.test.ts'],
-          setupFiles: ['./tests/setup.ts'],
+          setupFiles: ['./tests/setup.ts', './tests/setup-creds.ts'],
           testTimeout: 10000,
         },
       },
