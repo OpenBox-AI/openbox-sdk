@@ -19,3 +19,8 @@ serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio = { version = "1", features = ["macros", "rt"] }
 thiserror = "1"
+# Used by `approvals::format::{time_ago, time_remaining}` to parse the
+# RFC-3339 timestamps the backend serializes on `Approval.created_at`
+# / `Approval.approval_expired_at`. Default features (clock + std) are
+# what the relative-time helpers need.
+chrono = "0.4"

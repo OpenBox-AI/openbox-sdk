@@ -10,6 +10,7 @@ pub mod verdict;
 pub(crate) mod transport;
 pub mod client;
 pub mod core;
+pub mod approvals;
 
 pub use client::OpenBoxClient;
 pub use core::OpenBoxCoreClient;
