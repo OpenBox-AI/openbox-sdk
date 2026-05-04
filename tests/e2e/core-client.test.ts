@@ -78,6 +78,7 @@ describe('OpenBoxCoreClient E2E', () => {
         workflow_id: `e2e-test-${Date.now()}`,
         run_id: `run-${Date.now()}`,
         workflow_type: 'e2e-test',
+        task_queue: 'generic',
         source: 'workflow-telemetry',
         timestamp: new Date().toISOString(),
       });
@@ -97,6 +98,8 @@ describe('OpenBoxCoreClient E2E', () => {
         event_type: 'ActivityStarted',
         workflow_id: wfId,
         run_id: runId,
+        workflow_type: 'e2e-test',
+        task_queue: 'generic',
         activity_id: `act-${Date.now()}`,
         activity_type: 'test-activity',
         source: 'workflow-telemetry',

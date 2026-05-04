@@ -4,11 +4,12 @@ const ts = () => `${Date.now().toString(36)}${(counter++).toString(36)}`;
 export function makeCreateAgentDto(teamIds: string[], overrides: Record<string, any> = {}) {
   return {
     agent_name: `test-agent-${ts()}`,
-    description: 'E2E test agent - auto cleanup',
+    description: 'E2E test agent, auto cleanup',
     icon: 'robot',
     agent_type: 'temporal',
     team_ids: teamIds,
     tags: ['e2e-test'],
+    attestation_mode: 'kms' as const,
     aivss_config: {
       base_security: {
         attack_vector: 2,
@@ -31,6 +32,12 @@ export function makeCreateAgentDto(teamIds: string[], overrides: Record<string, 
         safety_impact: 1,
       },
     },
+    goal_alignment_config: {
+      alignment_threshold: 70,
+      drift_detection_action: 'alert_only' as const,
+      evaluation_frequency: 'every_action' as const,
+      llama_firewall_model: 'gpt-4o-mini' as const,
+    },
     ...overrides,
   };
 }
@@ -43,7 +50,7 @@ export function makeCreateGuardrailDto(overrides: Record<string, any> = {}) {
     processing_stage: 'output',
     params: {},
     settings: {},
-    trust_impact: 'medium',
+    trust_impact: 'medium' as const,
     ...overrides,
   };
 }

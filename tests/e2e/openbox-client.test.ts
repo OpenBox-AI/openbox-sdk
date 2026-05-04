@@ -66,7 +66,7 @@ describe('OpenBoxClient E2E', () => {
     it('lists agents and finds created agent', async () => {
       // Narrow the search; default pagination excludes status=0 drafts, so
       // freshly-created agents may not surface on page 1 without a search.
-      const result = (await client.listAgents({ search: agentName })) as Record<string, unknown>;
+      const result = (await client.listAgents({ search: agentName })) as unknown as Record<string, unknown>;
       const agents = result.data as Array<Record<string, unknown>>;
       expect(Array.isArray(agents)).toBe(true);
 
@@ -136,7 +136,7 @@ describe('OpenBoxClient E2E', () => {
     });
 
     it('lists guardrails and finds created guardrail', async () => {
-      const result = (await client.listGuardrails(guardrailAgentId)) as Record<string, unknown>;
+      const result = (await client.listGuardrails(guardrailAgentId)) as unknown as Record<string, unknown>;
       const guardrails = (result.data ?? result) as Array<Record<string, unknown>>;
       expect(Array.isArray(guardrails)).toBe(true);
 
