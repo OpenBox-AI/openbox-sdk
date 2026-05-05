@@ -6,8 +6,13 @@
 // Public surface preserved for tests:
 //   ENV_DEFAULTS  : { production, staging, local } → { api, core }
 //   resolveEnv()  : { name, apiUrl, coreUrl }
-//   readTokens()  : { access, refresh? }
+//   readTokens()  : { access?, refresh?, apiKey? } — at least one of access/apiKey
 //   createApi()   : (path, method?, body?) => Promise<unknown>
+//
+// Auth precedence in createApi(): X-API-Key (`obx_key_*`) wins when present,
+// otherwise the Bearer access JWT. The org-level X-API-Key has no
+// expiration so it survives JWT staleness; the OAuth path stays available
+// for users who only have a sign-in flow.
 //
 // Plus new:
 //   setMcpClientName(name): per-request `runtime/mcp/<name>` header
@@ -60,7 +65,9 @@ export interface TokenReaderOptions {
 // then plucks the env-namespaced entry. Legacy unprefixed tokens are
 // migrated by parseTokenStore into store.production, so production reads
 // pick them up; non-production envs see no leakage.
-export function readTokens(opts: TokenReaderOptions = {}): { access: string; refresh?: string } {
+export function readTokens(
+  opts: TokenReaderOptions = {},
+): { access?: string; refresh?: string; apiKey?: string } {
   const envName = (opts.envName || process.env.OPENBOX_ENV || "production").toLowerCase();
   let p = opts.tokensPath;
   if (!p) {
@@ -73,12 +80,16 @@ export function readTokens(opts: TokenReaderOptions = {}): { access: string; ref
   }
   const store = parseTokenStore(fs.readFileSync(p, "utf-8"));
   const entry = store[envName as EnvName];
-  if (!entry?.accessToken) {
+  if (!entry?.accessToken && !entry?.apiKey) {
     throw new Error(
-      `No ${envName} ACCESS_TOKEN in ${p}. Run: openbox --env ${envName} auth login`,
+      `No ${envName} ACCESS_TOKEN or API_KEY in ${p}. Run: openbox --env ${envName} auth login (OAuth) or openbox --env ${envName} auth set-api-key`,
     );
   }
-  return { access: entry.accessToken, refresh: entry.refreshToken };
+  return {
+    access: entry.accessToken,
+    refresh: entry.refreshToken,
+    apiKey: entry.apiKey,
+  };
 }
 
 // Per-request X-Openbox-Client value. McpServer doesn't know the calling
@@ -99,21 +110,29 @@ function currentClientName(): string {
 
 export function createApi(opts: { envName?: string; tokensPath?: string } = {}) {
   const env = resolveEnv(opts.envName ?? process.env.OPENBOX_ENV);
-  let cachedToken = "";
+  let cachedApiKey: string | undefined;
+  let cachedAccess: string | undefined;
   try {
-    cachedToken = readTokens({ envName: env.name, tokensPath: opts.tokensPath }).access;
+    const tok = readTokens({ envName: env.name, tokensPath: opts.tokensPath });
+    cachedApiKey = tok.apiKey;
+    cachedAccess = tok.access;
   } catch {
     /* defer until first call */
   }
 
   return async function api(urlPath: string, method = "GET", body?: unknown): Promise<any> {
-    if (!cachedToken) {
-      cachedToken = readTokens({ envName: env.name, tokensPath: opts.tokensPath }).access;
+    if (!cachedApiKey && !cachedAccess) {
+      const tok = readTokens({ envName: env.name, tokensPath: opts.tokensPath });
+      cachedApiKey = tok.apiKey;
+      cachedAccess = tok.access;
     }
+    const authHeader: Record<string, string> = cachedApiKey
+      ? { "X-API-Key": cachedApiKey }
+      : { Authorization: `Bearer ${cachedAccess}` };
     const res = await fetch(`${env.apiUrl}${urlPath}`, {
       method,
       headers: {
-        Authorization: `Bearer ${cachedToken}`,
+        ...authHeader,
         "Content-Type": "application/json",
         "X-Openbox-Client": currentClientName(),
       },

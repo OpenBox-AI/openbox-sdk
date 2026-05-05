@@ -126,8 +126,30 @@ describe('readTokens', () => {
   it('throws with a targeted message when the slot is empty for the requested env', () => {
     writeFileSync(tokensPath, 'staging.ACCESS_TOKEN=staging-only');
     expect(() => readTokens({ envName: 'local', tokensPath })).toThrow(
-      /No local ACCESS_TOKEN/,
+      /No local ACCESS_TOKEN or API_KEY/,
     );
+  });
+
+  it('returns api-key only (no ACCESS_TOKEN) when env slot has just an X-API-Key', () => {
+    writeFileSync(tokensPath, 'staging.API_KEY=obx_key_test');
+    const tok = readTokens({ envName: 'staging', tokensPath });
+    expect(tok.access).toBeUndefined();
+    expect(tok.apiKey).toBe('obx_key_test');
+  });
+
+  it('returns both access + apiKey when both are persisted', () => {
+    writeFileSync(
+      tokensPath,
+      [
+        'staging.ACCESS_TOKEN=jwt-staging',
+        'staging.REFRESH_TOKEN=refresh-staging',
+        'staging.API_KEY=obx_key_test',
+      ].join('\n'),
+    );
+    const tok = readTokens({ envName: 'staging', tokensPath });
+    expect(tok.access).toBe('jwt-staging');
+    expect(tok.refresh).toBe('refresh-staging');
+    expect(tok.apiKey).toBe('obx_key_test');
   });
 
   it('throws when the tokens file does not exist', () => {
@@ -199,5 +221,44 @@ describe('setMcpClientName + createApi header', () => {
   it('drops trailing-undefined and empty caller', async () => {
     setMcpClientName('');
     expect(await captureHeader()).toBe('runtime/mcp');
+  });
+
+  async function captureAuth(): Promise<{ apiKey?: string; bearer?: string }> {
+    let captured: { apiKey?: string; bearer?: string } = {};
+    global.fetch = (async (_url: any, init: any) => {
+      const h = init?.headers ?? {};
+      captured = { apiKey: h['X-API-Key'], bearer: h['Authorization'] };
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as any;
+    const api = createApi({ tokensPath });
+    await api('/auth/profile');
+    return captured;
+  }
+
+  it('prefers X-API-Key when API_KEY is present', async () => {
+    writeFileSync(
+      tokensPath,
+      ['production.ACCESS_TOKEN=fake-jwt', 'production.API_KEY=obx_key_xyz'].join('\n'),
+    );
+    const { apiKey, bearer } = await captureAuth();
+    expect(apiKey).toBe('obx_key_xyz');
+    expect(bearer).toBeUndefined();
+  });
+
+  it('falls back to Authorization Bearer when only ACCESS_TOKEN is set', async () => {
+    writeFileSync(tokensPath, 'production.ACCESS_TOKEN=fake-jwt\n');
+    const { apiKey, bearer } = await captureAuth();
+    expect(apiKey).toBeUndefined();
+    expect(bearer).toBe('Bearer fake-jwt');
+  });
+
+  it('uses X-API-Key when API_KEY is the only credential', async () => {
+    writeFileSync(tokensPath, 'production.API_KEY=obx_key_only\n');
+    const { apiKey, bearer } = await captureAuth();
+    expect(apiKey).toBe('obx_key_only');
+    expect(bearer).toBeUndefined();
   });
 });
