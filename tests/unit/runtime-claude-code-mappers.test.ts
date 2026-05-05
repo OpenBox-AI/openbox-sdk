@@ -75,6 +75,32 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     expect(session.calls.some((c: any) => c.method === 'workflowStarted')).toBe(true);
   });
 
+  it('session-end short-circuits when resolveSession created a fresh record (phantom session, e.g. `claude update`)', async () => {
+    const { handleSessionEnd } = await import('../../ts/src/runtime/claude-code/mappers/session');
+    const { resolveSession } = await import('../../ts/src/runtime/claude-code/session-resolver');
+    const cfg = { skipTools: [], sessionDir: dir } as any;
+    // Fresh session_id with no prior record on disk → resolveSession
+    // creates one and flags the caller. SessionEnd must skip HTTP.
+    await resolveSession({ session_id: 'PHANTOM' } as any, cfg);
+    const session = recordingSession();
+    await handleSessionEnd({ session_id: 'PHANTOM', reason: 'stop' } as any, session, cfg);
+    expect(session.calls.length).toBe(0);
+  });
+
+  it('session-end runs full flow when prior session record exists', async () => {
+    const { handleSessionEnd } = await import('../../ts/src/runtime/claude-code/mappers/session');
+    const { resolveSession } = await import('../../ts/src/runtime/claude-code/session-resolver');
+    const cfg = { skipTools: [], sessionDir: dir } as any;
+    // Two resolveSession calls — second sees the existing record, so
+    // the phantom flag clears and SessionEnd does the full HTTP path.
+    await resolveSession({ session_id: 'REAL' } as any, cfg);
+    await resolveSession({ session_id: 'REAL' } as any, cfg);
+    const session = recordingSession();
+    await handleSessionEnd({ session_id: 'REAL', reason: 'stop' } as any, session, cfg);
+    expect(session.calls.some((c: any) => c.method === 'activity')).toBe(true);
+    expect(session.calls.some((c: any) => c.method === 'workflowCompleted')).toBe(true);
+  });
+
   it('permission-request fires START activity', async () => {
     const { handlePermissionRequest } = await import('../../ts/src/runtime/claude-code/mappers/permission-request');
     const session = recordingSession();

@@ -45,6 +45,19 @@ export function resolveSessionByKey(
   return { workflowId, runId };
 }
 
+export function peekSessionByKey(
+  key: string,
+  cfg: SharedSessionConfig,
+): { workflowId: string; runId: string; halted: boolean } | null {
+  const existing = getStore(cfg).load(key) as PersistedSession | null;
+  if (!existing) return null;
+  return {
+    workflowId: existing.workflowId,
+    runId: existing.runId,
+    halted: existing.halted ?? false,
+  };
+}
+
 export function markHaltedByKey(key: string, cfg: SharedSessionConfig): void {
   const store = getStore(cfg);
   const existing = store.load(key) as PersistedSession | null;

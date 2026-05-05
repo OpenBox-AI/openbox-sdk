@@ -9,7 +9,11 @@ import {
   buildStopPayload,
 } from '../../../core-client/generated/runtime/claude-code.js';
 import type { ClaudeCodeConfig } from '../config.js';
-import { clearSession, markHalted } from '../session-resolver.js';
+import {
+  clearSession,
+  lastResolveCreatedFreshSession,
+  markHalted,
+} from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
 /**
@@ -56,12 +60,23 @@ export async function handleStop(
 /**
  * SessionEnd: observe-only. Closes the SESSION activity, completes the
  * workflow, and clears the session-store entry so disk doesn't grow.
+ *
+ * Phantom-session short-circuit: if no prior on-disk record existed
+ * before this hook (e.g. `claude update` fired SessionEnd without any
+ * preceding SessionStart / tool hook), there's nothing to observe and
+ * the parent process is already exiting — making HTTP calls just gets
+ * us cancelled mid-flight ("Hook cancelled" in the user's terminal).
+ * Skip cleanly.
  */
 export async function handleSessionEnd(
   env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
   cfg: ClaudeCodeConfig,
 ): Promise<undefined> {
+  if (lastResolveCreatedFreshSession()) {
+    clearSession(env.session_id, cfg);
+    return undefined;
+  }
   try {
     await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
       input: [buildSessionEndPayload(env)],
