@@ -87,3 +87,35 @@ export function requireYesForDestructive(commandPath: string): void {
   if (assumeYes()) return;
   throw new DestructiveConfirmRequiredError(commandPath);
 }
+
+/**
+ * Consent gate for install steps that mutate user-owned config beyond
+ * OpenBox's own scope (e.g., flipping privacy/cloud/telemetry knobs in
+ * the user's IDE settings).
+ *
+ *   --yes / OPENBOX_ASSUME_YES=1 → returns true (auto-consent; the user
+ *                                  opted in to "yes to everything")
+ *   non-interactive without --yes → returns false (silently skip; no
+ *                                   surprise mutation in scripts/CI)
+ *   interactive TTY → prompts `<question> [y/N]:` with default N
+ *
+ * Outcome is logged to stderr so scripts can grep for it.
+ */
+export async function consent(question: string): Promise<boolean> {
+  if (assumeYes()) {
+    console.error(`[consent] auto-yes (--yes): ${question}`);
+    return true;
+  }
+  if (isNonInteractive()) {
+    console.error(`[consent] non-interactive, skipping: ${question}`);
+    return false;
+  }
+  const { createInterface } = await import('node:readline/promises');
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    const ans = (await rl.question(`${question} [y/N]: `)).trim().toLowerCase();
+    return ans === 'y' || ans === 'yes';
+  } finally {
+    rl.close();
+  }
+}

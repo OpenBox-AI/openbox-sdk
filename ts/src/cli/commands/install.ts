@@ -707,36 +707,52 @@ export function registerInstallCommands(program: Command): void {
   install
     .command('cursor')
     .description(
-      "Install everything OpenBox needs in Cursor: the IDE extension, " +
-        "the runtime hooks in ~/.cursor/User/settings.json, and the MCP " +
-        "server entry. Pass --hooks-only to install just the runtime hooks " +
-        "(legacy behavior); --no-extension / --no-mcp to skip individual " +
-        "pieces.",
+      'Install the full Cursor surface: hooks in ~/.cursor/hooks.json, ' +
+        'the IDE extension, the MCP server entry, and (with consent) the ' +
+        "enterprise hardening profile in ~/.cursor/User/settings.json. " +
+        'Use --no-harden to skip the hardening prompt entirely.',
     )
-    .option('--hooks-only', 'Install only the runtime hooks; skip extension and MCP', false)
-    .option('--no-extension', 'Skip installing the IDE extension', false)
-    .option('--no-mcp', 'Skip registering the MCP server entry', false)
-    .action(async (opts: InstallOpts & { hooksOnly?: boolean; extension?: boolean; mcp?: boolean }) => {
+    .option('--no-harden', 'Skip the enterprise hardening profile (no prompt)')
+    .action(async (opts: { harden?: boolean }) => {
       const { installCursor } = await import('../../runtime/cursor/install.js');
       installCursor();
-      if (opts.hooksOnly) return;
-      if (opts.extension !== false) {
+      console.log('');
+      installExtension({ cursor: true });
+      console.log('');
+      const { installMcp } = await import('../../runtime/mcp/install.js');
+      installMcp({ targets: ['cursor'] });
+      if (opts.harden !== false) {
         console.log('');
-        installExtension({ cursor: true });
-      }
-      if (opts.mcp !== false) {
-        console.log('');
-        const { installMcp } = await import('../../runtime/mcp/install.js');
-        installMcp({ targets: ['cursor'] });
+        const { consent } = await import('../non-interactive.js');
+        const ok = await consent(
+          'Apply OpenBox enterprise hardening profile to ~/.cursor/User/settings.json (privacy mode on, cloud features off, telemetry off)?',
+        );
+        if (ok) {
+          const { hardenCursor } = await import('../../runtime/cursor/enterprise.js');
+          const r = hardenCursor({ profileName: 'enterprise-default' });
+          console.log(`Applied hardening profile: ${r.profile} → ${r.file}`);
+        } else {
+          console.log('Skipped hardening profile (run `openbox cursor harden` later to apply).');
+        }
       }
     });
 
   install
     .command('claude-code')
-    .description('Install OpenBox hooks into ~/.claude/settings.json')
+    .description(
+      'Install the full Claude Code surface: hooks in ' +
+        '~/.claude/settings.json, the MCP server entry in ~/.claude.json, ' +
+        'and the OpenBox skill in ~/.claude/skills/openbox.',
+    )
     .action(async () => {
       const { installClaudeCode } = await import('../../runtime/claude-code/install.js');
       installClaudeCode();
+      console.log('');
+      const { installMcp } = await import('../../runtime/mcp/install.js');
+      installMcp({ targets: ['claude-code'] });
+      console.log('');
+      const { installSkill } = await import('./skill.js');
+      installSkill();
     });
 
   install
@@ -820,35 +836,43 @@ export function registerInstallCommands(program: Command): void {
   uninstall
     .command('cursor')
     .description(
-      "Remove everything OpenBox installed in Cursor: the runtime hooks, " +
-        "the IDE extension, and the MCP server entry. Pass --hooks-only " +
-        "to remove just the runtime hooks; --no-extension / --no-mcp to " +
-        "skip individual pieces.",
+      'Remove the full Cursor surface: hooks, IDE extension, MCP server ' +
+        'entry, and any OpenBox-managed keys in ~/.cursor/User/settings.json.',
     )
-    .option('--hooks-only', 'Uninstall only the runtime hooks; skip extension and MCP', false)
-    .option('--no-extension', 'Skip uninstalling the IDE extension', false)
-    .option('--no-mcp', 'Skip removing the MCP server entry', false)
-    .action(async (opts: InstallOpts) => {
+    .action(async () => {
       const { uninstallCursor } = await import('../../runtime/cursor/install.js');
       uninstallCursor();
-      if (opts.hooksOnly) return;
-      if (opts.extension !== false) {
-        console.log('');
-        uninstallExtension({ cursor: true });
-      }
-      if (opts.mcp !== false) {
-        console.log('');
-        const { uninstallMcp } = await import('../../runtime/mcp/install.js');
-        uninstallMcp({ targets: ['cursor'] });
+      console.log('');
+      uninstallExtension({ cursor: true });
+      console.log('');
+      const { uninstallMcp } = await import('../../runtime/mcp/install.js');
+      uninstallMcp({ targets: ['cursor'] });
+      console.log('');
+      const { unhardenCursor } = await import('../../runtime/cursor/enterprise.js');
+      const r = unhardenCursor();
+      if (r.removed.length > 0) {
+        console.log(`Removed hardening profile keys (${r.removed.length}) from ${r.file}`);
       }
     });
 
   uninstall
     .command('claude-code')
-    .description('Remove OpenBox hooks from ~/.claude/settings.json')
+    .description(
+      'Remove the full Claude Code surface: hooks, MCP server entry, and ' +
+        'the OpenBox skill at ~/.claude/skills/openbox.',
+    )
     .action(async () => {
       const { uninstallClaudeCode } = await import('../../runtime/claude-code/install.js');
       uninstallClaudeCode();
+      console.log('');
+      const { uninstallMcp } = await import('../../runtime/mcp/install.js');
+      uninstallMcp({ targets: ['claude-code'] });
+      console.log('');
+      const skillDst = path.join(os.homedir(), '.claude', 'skills', 'openbox');
+      if (fs.existsSync(skillDst)) {
+        execFileSync('rm', ['-rf', skillDst], { stdio: 'inherit' });
+        console.log(`Removed ${skillDst}`);
+      }
     });
 
   uninstall
