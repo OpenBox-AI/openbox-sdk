@@ -70,6 +70,9 @@ vi.mock('vscode', () => {
         return { dispose: () => (onDidChangeTextDocumentListener = undefined) };
       },
       onWillSaveTextDocument: (_listener: unknown) => ({ dispose: () => undefined }),
+      onWillCreateFiles: (_listener: unknown) => ({ dispose: () => undefined }),
+      onWillDeleteFiles: (_listener: unknown) => ({ dispose: () => undefined }),
+      onWillRenameFiles: (_listener: unknown) => ({ dispose: () => undefined }),
     },
     window: {
       tabGroups: {

@@ -105,6 +105,10 @@
     "./runtime/mcp": {
       "types": "./dist/runtime/mcp/index.d.ts",
       "import": "./dist/runtime/mcp/index.js"
+    },
+    "./governance": {
+      "types": "./dist/governance/index.d.ts",
+      "import": "./dist/governance/index.js"
     }
   },
   "files": [

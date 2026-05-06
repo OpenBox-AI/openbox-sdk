@@ -21,6 +21,7 @@
 // observer's value here is the classification and the foundation it
 // gives later wiring.
 import * as vscode from 'vscode';
+import { GovernanceClient } from './governanceClient';
 
 const KEYSTROKE_IDLE_THRESHOLD_MS = 250;
 const MIN_NON_KEYSTROKE_CHARS = 20;
@@ -56,6 +57,12 @@ export interface TabObserverOptions {
    *  callback still fires). Used by callers piping events to a
    *  remote sink while keeping the panel quiet. Default false. */
   suppressOutputChannel?: boolean;
+  /** Active mode: when true, classified non-keystroke inserts call
+   *  check_governance(file_write) and reverted on deny. Requires the
+   *  governance client to have an agent ID configured. */
+  active?: boolean;
+  /** Injected governance client; defaults to a fresh instance. */
+  governance?: GovernanceClient;
 }
 
 export function createTabObserver(opts: TabObserverOptions = {}): TabObserver {
@@ -63,7 +70,56 @@ export function createTabObserver(opts: TabObserverOptions = {}): TabObserver {
     opts.channelName ?? 'OpenBox · Tab Observer',
   );
 
+  const governance = opts.governance ?? new GovernanceClient();
+  // Single in-flight per URI; coalesce rapid AI inserts so we don't
+  // pile up governance calls or revert mid-edit.
+  const inFlight = new Set<string>();
   let lastKeystrokeAt = 0;
+
+  async function evaluateActive(
+    doc: vscode.TextDocument,
+    change: vscode.TextDocumentContentChangeEvent,
+  ): Promise<void> {
+    const uri = doc.uri.toString();
+    if (inFlight.has(uri)) return;
+    if (!governance.agentId()) return;
+    inFlight.add(uri);
+    try {
+      const filePath = doc.uri.scheme === 'file' ? doc.uri.fsPath : uri;
+      const raw = await governance.check({
+        spanType: 'file_write',
+        activityInput: {
+          file_path: filePath,
+          content: change.text,
+          event_category: 'agent_action',
+        },
+      });
+      const result = governance.applyFailMode(raw);
+      if (result.outcome === 'allow') return;
+
+      // Compute the range that contains the new insert. The original
+      // change range was the pre-insert anchor; after VS Code applied
+      // the change, the new content occupies the same start, plus the
+      // length of the inserted text.
+      const start = change.range.start;
+      const end = computeEndPosition(start, change.text);
+      const edit = new vscode.WorkspaceEdit();
+      edit.delete(doc.uri, new vscode.Range(start, end));
+      const ok = await vscode.workspace.applyEdit(edit);
+      if (!ok) {
+        vscode.window.showWarningMessage(
+          `OpenBox flagged an AI insert in ${doc.fileName} but the revert failed.`,
+        );
+        return;
+      }
+      const summary = result.outcome === 'deny' ? 'blocked' : 'pending approval';
+      vscode.window.showWarningMessage(
+        `OpenBox ${summary} an AI insert in ${doc.fileName}: ${result.reason ?? 'policy match'}`,
+      );
+    } finally {
+      inFlight.delete(uri);
+    }
+  }
 
   function isKeystrokeChange(change: vscode.TextDocumentContentChangeEvent): boolean {
     // A keystroke is one or two chars (autoindent expands a Tab to
@@ -125,6 +181,11 @@ export function createTabObserver(opts: TabObserverOptions = {}): TabObserver {
       }
 
       opts.onChange?.(observed);
+
+      if (opts.active && source === 'non-keystroke') {
+        // Fire-and-forget; the revert (if any) lands in a follow-up tick.
+        void evaluateActive(event.document, change);
+      }
     }
   });
 
@@ -134,4 +195,20 @@ export function createTabObserver(opts: TabObserverOptions = {}): TabObserver {
       channel.dispose();
     },
   };
+}
+
+/** Walk through `text` to find where the cursor lands after applying
+ *  it as a single insert at `start`. Newlines reset the column. */
+function computeEndPosition(start: vscode.Position, text: string): vscode.Position {
+  let line = start.line;
+  let character = start.character;
+  for (const ch of text) {
+    if (ch === '\n') {
+      line += 1;
+      character = 0;
+    } else {
+      character += 1;
+    }
+  }
+  return new vscode.Position(line, character);
 }

@@ -37,6 +37,7 @@ export default defineConfig({
     'ts/src/runtime/claude-code/index.ts',
     'ts/src/runtime/cursor/index.ts',
     'ts/src/runtime/mcp/index.ts',
+    'ts/src/governance/index.ts',
   ],
   format: ['esm'],
   dts: { resolve: true, entry: undefined, compilerOptions: { rootDir: 'ts/src' } },

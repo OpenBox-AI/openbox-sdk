@@ -86,6 +86,31 @@
           "type": "boolean",
           "default": true,
           "description": "When tabObserver.enabled is true, also write each classified change to the 'OpenBox: Tab Observer' output channel. Set false to suppress that visibility; the in-process classification still runs. Has no effect when tabObserver.enabled is false."
+        },
+        "openbox.agentId": {
+          "type": "string",
+          "default": "",
+          "description": "OpenBox agent ID to evaluate file writes / AI inserts / file ops against. When unset, all active gates (preWriteGate.active, tabObserver.active, fileOpGate.enabled) become no-ops; without an agent ID there is no policy context. The runtime key for this agent must be present in ~/.openbox/agent-keys (populated by `openbox api-key rotate <agentId>`) or as the OPENBOX_API_KEY environment variable visible to the extension host."
+        },
+        "openbox.preWriteGate.active": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, every save calls check_governance(file_write) for the configured agent. `allow` lets the save proceed; `require_approval` blocks the save with a modal until decided; `deny` cancels the save with a notification. Network deadline is 4s under VS Code's ~5s save timeout; on timeout or network failure the gate fails open unless openbox.failClosed is set. Requires openbox.agentId."
+        },
+        "openbox.tabObserver.active": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true (and openbox.tabObserver.enabled is also true), classified non-keystroke inserts are evaluated via check_governance(file_write). Denied inserts get reverted via WorkspaceEdit and a notification is shown. UX is jarring (the insert briefly appears, then disappears); use sparingly and prefer preWriteGate.active for at-save enforcement when possible. Requires openbox.agentId."
+        },
+        "openbox.fileOpGate.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, intercepts onWillCreateFiles / onWillDeleteFiles / onWillRenameFiles and evaluates each via check_governance. Catches Composer multi-file creates and AI-driven file ops that don't route through the agent's Write tool. Requires openbox.agentId."
+        },
+        "openbox.failClosed": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, all active gates fail closed (cancel the action) on network errors / timeouts contacting core. Default false (fail open) so a transient network blip doesn't block the user; flip on for high-trust environments where blocking on uncertainty is preferred."
         }
       }
     },

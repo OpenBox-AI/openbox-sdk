@@ -6,6 +6,8 @@ import { ApprovalsPollingService as PollingService } from "openbox-sdk/polling";
 import { ApprovalsTreeProvider } from "./approvalsView";
 import { createTabObserver } from "./tabObserver";
 import { PreWriteGate, extractTargetUri } from "./preWriteGate";
+import { PreFileOpGate } from "./preFileOpGate";
+import { GovernanceClient } from "./governanceClient";
 import type { Approval } from "./types";
 
 /** Backend's Halt verdict; approvals with this code block the save flow. */
@@ -45,13 +47,26 @@ export async function activate(context: vscode.ExtensionContext) {
   let client: OpenBoxClient | undefined;
   let orgId: string | undefined;
 
+  // Governance client (workspace-config-driven; reads agent_id, env).
+  // Shared across PreWriteGate, TabObserver, PreFileOpGate so they
+  // resolve `openbox.agentId` consistently.
+  const governance = new GovernanceClient();
+
   // Pre-write gate. Constructed up front so the polling-changed handler
   // (which lives inside `boot`) can record/clear halt verdicts on it.
   // Entries land when the approvals feed reports a halt verdict for an
-  // open document.
-  const preWrite = new PreWriteGate();
+  // open document. Active mode (per-save check_governance) is gated by
+  // openbox.preWriteGate.active inside handleSave.
+  const preWrite = new PreWriteGate(governance);
   preWrite.attach(context);
   context.subscriptions.push({ dispose: () => preWrite.dispose() });
+
+  // File-operation gate (create / delete / rename). Gated by
+  // openbox.fileOpGate.enabled at call time so toggling the setting
+  // doesn't require a reload.
+  const fileOpGate = new PreFileOpGate(governance);
+  fileOpGate.attach(context);
+  context.subscriptions.push({ dispose: () => fileOpGate.dispose() });
 
   // URIs that previously had a halt deny recorded, so we can call
   // clearDeny when the same approval transitions out of pending. Keyed
@@ -190,10 +205,9 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push({ dispose: () => feed?.stop() });
 
   // Tab / Composer / Cmd-K observer. Cursor doesn't expose hooks for
-  // these surfaces, so we classify mutations heuristically. The
-  // OutputChannel log is on by default for visibility (gated by
-  // tabObserver.outputLog); the SDK-side wire is deferred until the
-  // core spec adds an activity-recording op.
+  // these surfaces, so we classify mutations heuristically. With
+  // openbox.tabObserver.active, classified non-keystroke inserts also
+  // call check_governance and revert on deny.
   const observerEnabled = vscode.workspace
     .getConfiguration("openbox")
     .get<boolean>("tabObserver.enabled", false);
@@ -201,13 +215,16 @@ export async function activate(context: vscode.ExtensionContext) {
     const outputLog = vscode.workspace
       .getConfiguration("openbox")
       .get<boolean>("tabObserver.outputLog", true);
+    const observerActive = vscode.workspace
+      .getConfiguration("openbox")
+      .get<boolean>("tabObserver.active", false);
     const obs = createTabObserver({
-      // TODO(api): wire to client.recordTabActivity once specs/typespec/core adds the op.
-      // The classifier is the load-bearing part; emission is just an OutputChannel for now.
       onChange: () => {
-        /* no-op until SDK exposes an activity-recording method */
+        /* no-op; active path handles enforcement, classifier handles telemetry */
       },
       suppressOutputChannel: !outputLog,
+      active: observerActive,
+      governance,
     });
     context.subscriptions.push({ dispose: () => obs.dispose() });
   }

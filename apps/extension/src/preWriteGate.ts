@@ -5,16 +5,23 @@
 // remaining surface is VS Code's `workspace.onWillSaveTextDocument`,
 // which can asynchronously veto a save.
 //
-// The gate keeps a small in-memory map of files with pending halt
-// verdicts (populated by the polling layer when an approval comes
-// back as denied). On save, it consults the map and either lets the
-// save proceed or shows a modal asking the user whether to override.
+// Two modes:
+//
+//   1. Reactive (always on): the polling layer feeds in pending halt
+//      verdicts via recordDeny()/clearDeny(); on save we check the
+//      map and prompt to override.
+//
+//   2. Active (openbox.preWriteGate.active=true + openbox.agentId):
+//      every save calls check_governance(file_write); allow proceeds,
+//      require_approval blocks until decided, deny cancels with a
+//      notification.
 //
 // Heads-up: this is a coarse veto. We can't undo the buffer change;
 // we can only block the save. Users who really want to commit a
 // flagged change can hit "Override"; the audit trail records both
 // the verdict and the override.
 import * as vscode from 'vscode';
+import { GovernanceClient } from './governanceClient';
 
 export interface PendingDeny {
   uri: string;
@@ -30,6 +37,11 @@ const STALENESS_MS = 60 * 60 * 1000;
 export class PreWriteGate {
   private pending = new Map<string, PendingDeny>();
   private subscription?: vscode.Disposable;
+  private governance: GovernanceClient;
+
+  constructor(governance?: GovernanceClient) {
+    this.governance = governance ?? new GovernanceClient();
+  }
 
   /** Mark `uri` as having a pending deny verdict. Called by the
    *  approvals polling layer when a verdict comes back as halt. */
@@ -45,12 +57,7 @@ export class PreWriteGate {
   attach(context: vscode.ExtensionContext): void {
     this.subscription = vscode.workspace.onWillSaveTextDocument((event) => {
       this.gc();
-      const uri = event.document.uri.toString();
-      const deny = this.pending.get(uri);
-      if (!deny) return;
-      // Returning a thenable from the event handler blocks the save
-      // until the promise resolves; rejecting cancels the save.
-      event.waitUntil(this.confirm(uri, deny));
+      event.waitUntil(this.handleSave(event.document));
     });
     context.subscriptions.push(this.subscription);
   }
@@ -59,6 +66,44 @@ export class PreWriteGate {
     this.subscription?.dispose();
     this.subscription = undefined;
     this.pending.clear();
+  }
+
+  private async handleSave(doc: vscode.TextDocument): Promise<vscode.TextEdit[]> {
+    const uri = doc.uri.toString();
+
+    // Reactive path: pre-existing halt verdict from the polling layer.
+    const deny = this.pending.get(uri);
+    if (deny) return this.confirm(uri, deny);
+
+    // Active path: every save calls check_governance when
+    // openbox.preWriteGate.active=true and an agent ID is set.
+    const active = vscode.workspace
+      .getConfiguration('openbox')
+      .get<boolean>('preWriteGate.active', false);
+    if (!active) return [];
+    if (!this.governance.agentId()) return [];
+
+    const filePath = doc.uri.scheme === 'file' ? doc.uri.fsPath : doc.uri.toString();
+    const raw = await this.governance.check({
+      spanType: 'file_write',
+      activityInput: { file_path: filePath, content: doc.getText() },
+    });
+    const result = this.governance.applyFailMode(raw);
+
+    if (result.outcome === 'allow') return [];
+    if (result.outcome === 'deny') {
+      vscode.window.showErrorMessage(
+        `OpenBox blocked save of ${doc.fileName}: ${result.reason ?? 'denied by policy'}`,
+      );
+      throw new Error('OpenBox: save denied by policy');
+    }
+    // require_approval: surface the pending approval and block the save.
+    return this.confirm(uri, {
+      uri,
+      reason: result.reason ?? 'Approval required for this save',
+      approvalId: result.approvalId,
+      at: Date.now(),
+    });
   }
 
   private async confirm(uri: string, deny: PendingDeny): Promise<vscode.TextEdit[]> {
