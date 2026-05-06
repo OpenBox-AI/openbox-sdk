@@ -5,7 +5,7 @@
 //   2. configured env has key   → use it
 //   3. another env has a key    → auto-fall-back, log to status bar
 //   4. no env has a key + no mock → one actionable info dialog
-//                                   (Use mock auth / Mint API key /
+//                                   (Use mock auth / Create API key /
 //                                    Open settings)
 //
 // Also handles agent_id resolution: workspace setting → ~/.openbox/config
@@ -97,7 +97,7 @@ export function resolveBoot(): BootView {
 }
 
 /** One-time first-run prompt when the user has no key for any env
- *  and mockAuth is off. Three actions: enable mock, mint a key, open
+ *  and mockAuth is off. Three actions: enable mock, create a key, open
  *  the settings UI. The user can also dismiss; we mark globalState so
  *  it doesn't fire again until they explicitly re-trigger. */
 export async function showUnconfiguredPrompt(
@@ -109,7 +109,7 @@ export async function showUnconfiguredPrompt(
   const choice = await vscode.window.showInformationMessage(
     `OpenBox: no API key configured for env '${env}'. Pick one to get started, or enable mock auth to try the UI without a backend.`,
     'Use Mock Auth',
-    'Mint API Key',
+    'Create API Key',
     'Open Settings',
     "Don't show again",
   );
@@ -117,7 +117,7 @@ export async function showUnconfiguredPrompt(
     await vscode.workspace
       .getConfiguration('openbox')
       .update('mockAuth', true, vscode.ConfigurationTarget.Global);
-  } else if (choice === 'Mint API Key') {
+  } else if (choice === 'Create API Key') {
     // Dashboard URL is env-specific; pull from the spec-driven env
     // table so a production user lands on the prod dashboard, a
     // staging user on staging, and a local-stack user on their

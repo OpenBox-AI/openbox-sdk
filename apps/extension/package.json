@@ -326,7 +326,7 @@
     "viewsWelcome": [
       {
         "view": "openbox.onboard",
-        "contents": "Welcome to OpenBox.\n\nPaste an org API key to start reviewing agent approvals. Mint one in the dashboard under Organization → API Keys.\n\n[Set API Key](command:openbox.setApiKey)\n[Open Dashboard](command:openbox.openDashboard)"
+        "contents": "Welcome to OpenBox.\n\nPaste an org API key to start reviewing agent approvals. Create one in the dashboard under Organization → API Keys.\n\n[Set API Key](command:openbox.setApiKey)\n[Open Dashboard](command:openbox.openDashboard)"
       },
       {
         "view": "openbox.approvals",

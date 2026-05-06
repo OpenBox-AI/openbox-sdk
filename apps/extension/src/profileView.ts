@@ -1,25 +1,16 @@
-// Profile view - always visible when an API key is set, regardless of
-// build flavor. Mirrors mobile's Profile tab's Account card in spirit.
+// Profile view. Mirrors the mobile app's Profile / Account card:
+// the user-facing identity rows only (Email, Org). Everything else
+// the extension knows about the active session (env, key prefix,
+// key id, permissions, polling stats) lives in the Debug view,
+// which only shows up in dev builds.
 //
-// Org API keys are NOT user-tied. The backend's validateApiKey
-// (the backend api-key service) sets
-// email = undefined and synthesizes sub = "api-key:<keyId>", so an
-// org-key's /auth/profile response carries no human identity. We
-// surface what's actually available for an org key:
-//   - Org id
-//   - Active environment
-//   - Key id (parsed from the synthetic sub)
-//   - Key prefix (first chars of the secret stored locally)
-//   - Permission scope count (the key's own permissions[] array)
-//
-// Sign Out / Change Key / Open Dashboard live in the view's title bar.
+// Sign Out / Set API Key / Open Dashboard sit in the view's title
+// bar (see package.json view/title menu).
 
 import * as vscode from "vscode";
 import type { DebugSnapshot } from "./debugInfoPanel";
 
-type Row = "orgId" | "env" | "keyId" | "keyPrefix" | "permissions";
-
-const ROW_ORDER: Row[] = ["orgId", "env", "keyId", "keyPrefix", "permissions"];
+type Row = "email" | "orgId";
 
 export class ProfileProvider implements vscode.TreeDataProvider<Row> {
   private _onDidChange = new vscode.EventEmitter<Row | undefined>();
@@ -39,22 +30,16 @@ export class ProfileProvider implements vscode.TreeDataProvider<Row> {
       return item;
     };
     switch (node) {
+      case "email": return row("Email", snap.email || snap.preferredUsername || "-", "account");
       case "orgId": return row("Org", snap.orgId || "-", "organization");
-      case "env": return row("Environment", snap.env, "globe");
-      case "keyId":
-        return row("Key ID", snap.keyId || (snap.isApiKeyAuth ? "-" : "(JWT auth)"), "tag");
-      case "keyPrefix": return row("API Key", snap.keyPrefix || "-", "key");
-      case "permissions": {
-        const perms = snap.apiKeyPermissions;
-        if (!perms || perms.length === 0) {
-          return row("Permissions", snap.isApiKeyAuth ? "(none)" : "(JWT auth)", "shield");
-        }
-        const description = perms.length <= 3 ? perms.join(", ") : `${perms.length} scopes`;
-        const tooltip = `Permissions: ${perms.join(", ")}`;
-        return row("Permissions", description, "shield", tooltip);
-      }
     }
   }
 
-  getChildren(): Row[] { return [...ROW_ORDER]; }
+  getChildren(): Row[] {
+    const snap = this.getSnapshot();
+    // Match mobile: Email is always rendered (with "-" placeholder
+    // when the session has no human identity, e.g. org API-key
+    // auth); Org only when present so the card stays compact.
+    return snap.orgId ? ["email", "orgId"] : ["email"];
+  }
 }

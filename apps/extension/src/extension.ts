@@ -230,7 +230,15 @@ export async function activate(context: vscode.ExtensionContext) {
 
   function paintIdle(envTag: EnvName, count: number) {
     const cfg = vscode.workspace.getConfiguration("openbox");
-    const tag = readMockAuth() ? `MOCK · ${envTag}` : envTag;
+    // Env tag is debug-only context. Production builds keep the bar
+    // clean so end users don't see "production" tacked onto every
+    // status bar refresh.
+    const showEnv = DEBUG_BUILD || readMockAuth();
+    const envSuffix = readMockAuth()
+      ? ` · MOCK · ${envTag}`
+      : showEnv
+        ? ` · ${envTag}`
+        : "";
     const anyActive =
       cfg.get<boolean>("preWriteGate.active", false) ||
       (cfg.get<boolean>("tabObserver.enabled", false) && cfg.get<boolean>("tabObserver.active", false)) ||
@@ -238,14 +246,21 @@ export async function activate(context: vscode.ExtensionContext) {
     const haveAgent = !!cfg.get<string>("agentId", "").trim();
     const idleNote = anyActive && !haveAgent ? " · gates idle (no agent)" : "";
     if (count > 0) {
-      statusBar.text = `$(shield) ${count} Pending · ${tag}${idleNote}`;
+      statusBar.text = `$(shield) ${count} Pending${envSuffix}${idleNote}`;
     } else {
-      statusBar.text = `$(shield) OpenBox · ${tag}${idleNote}`;
+      statusBar.text = `$(shield) OpenBox${envSuffix}${idleNote}`;
     }
     if (anyActive && !haveAgent) {
       statusBar.tooltip =
         "Active gates are turned on but `openbox.agentId` is empty, so check_governance is skipped. Set the agent ID in settings to enable enforcement.";
     }
+  }
+
+  /** Build the boot / error tag. Debug builds carry the env suffix
+   *  ("OpenBox · staging: Error"); production hides the env so end
+   *  users don't see "production" tagged on every transient state. */
+  function envTagFor(state: string): string {
+    return DEBUG_BUILD ? `OpenBox · ${env}: ${state}` : `OpenBox: ${state}`;
   }
 
   /** True when `uri` is currently open in any editor tab. */
@@ -298,16 +313,20 @@ export async function activate(context: vscode.ExtensionContext) {
     profileProvider.refresh();
 
     env = nextEnv;
-    statusBar.text = `$(sync~spin) OpenBox · ${env}`;
-    statusBar.tooltip = `Connecting to ${env}…`;
+    statusBar.text = DEBUG_BUILD
+      ? `$(sync~spin) OpenBox · ${env}`
+      : `$(sync~spin) OpenBox`;
+    statusBar.tooltip = DEBUG_BUILD ? `Connecting to ${env}…` : "Connecting…";
     vscode.commands.executeCommand("setContext", "openbox.hasApprovals", false);
     vscode.commands.executeCommand("setContext", "openbox.history.hasApprovals", false);
 
     const mockAuth = readMockAuth();
     if (!mockAuth && !hasApiKey(env)) {
       vscode.commands.executeCommand("setContext", "openbox.needsKey", true);
-      statusBar.text = `$(key) OpenBox · ${env}: Set API Key`;
-      statusBar.tooltip = `No API key set for ${env}. Click the OpenBox view and use "Set API Key".`;
+      statusBar.text = `$(key) ${envTagFor("Set API Key")}`;
+      statusBar.tooltip = DEBUG_BUILD
+        ? `No API key set for ${env}. Click the OpenBox view and use "Set API Key".`
+        : `No API key set. Click the OpenBox view and use "Set API Key".`;
       statusBar.command = "openbox.setApiKey";
       return;
     }
@@ -325,7 +344,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const ctx = await createApiContext(env);
         client = ctx.client;
       } catch (err: any) {
-        statusBar.text = `$(shield) OpenBox · ${env}: No Token`;
+        statusBar.text = `$(shield) ${envTagFor("No Token")}`;
         statusBar.tooltip = err.message;
         vscode.window.showErrorMessage(`OpenBox: ${err.message}`);
         return;
@@ -369,13 +388,13 @@ export async function activate(context: vscode.ExtensionContext) {
       }
 
       if (!orgId) {
-        statusBar.text = `$(shield) OpenBox · ${env}: No Org`;
+        statusBar.text = `$(shield) ${envTagFor("No Org")}`;
         return;
       }
       const tag = mockAuth ? "mock" : env;
       statusBar.tooltip = `Signed in as ${email || preferredUsername || userSub} (${tag})`;
     } catch (err: any) {
-      statusBar.text = `$(shield) OpenBox · ${env}: Error`;
+      statusBar.text = `$(shield) ${envTagFor("Error")}`;
       statusBar.tooltip = err.message;
       return;
     }
@@ -597,8 +616,8 @@ export async function activate(context: vscode.ExtensionContext) {
   function describeKeySource(envTag: EnvName): string {
     const url = apiKeysUrl(envTag);
     return url
-      ? `Mint a key in the dashboard: ${url}`
-      : `Mint a key in the dashboard under Organization → API Keys.`;
+      ? `Create a key in the dashboard: ${url}`
+      : `Create a key in the dashboard under Organization → API Keys.`;
   }
 
   // Snapshot builder for the debug panel and the sidebar Debug view.
