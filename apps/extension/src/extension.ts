@@ -158,9 +158,44 @@ export async function activate(context: vscode.ExtensionContext) {
   // build flavor. Holds the user-facing identity rows and the
   // Sign Out / Change Key toolbar buttons.
   const profileProvider = new ProfileProvider(() => buildDebugSnapshot());
-  context.subscriptions.push(
-    vscode.window.createTreeView("openbox.profile", { treeDataProvider: profileProvider }),
-  );
+  const profileTreeView = vscode.window.createTreeView("openbox.profile", {
+    treeDataProvider: profileProvider,
+  });
+  context.subscriptions.push(profileTreeView);
+
+  // Cursor 3.x sidebar2 cold-launch race: when the user has the
+  // OpenBox container saved as the active sidebar at startup,
+  // sidebar2's render effect runs *before* the
+  // viewsExtensionHandler workbench contribution registers our
+  // composite. It calls `compositeRegistry.getComposite("workbench.view.extension.openbox")`,
+  // gets undefined, logs `no composite descriptor found for ...`,
+  // and bails. The render effect is reactive on
+  // `activeViewContainerID` but NOT on `compositeRegistry`
+  // updates - so our composite gets registered moments later
+  // but sidebar2 never re-runs, leaving the panel empty until
+  // the user toggles to another container and back (which
+  // changes `activeViewContainerID` and forces a re-run).
+  //
+  // Workaround: watch the profile TreeView's visibility for 1
+  // second. If it never fires `onDidChangeVisibility(true)` we
+  // hit the race; force a toggle to the explorer container and
+  // back to trigger sidebar2's reactive re-run. By that time
+  // our composite IS registered, so it renders correctly. The
+  // toggle is a no-op for users on a different container - the
+  // .visible check still fails for them, but they never had the
+  // bug, and the brief flash to/from explorer is invisible.
+  let visibilitySettled = false;
+  const visibilitySub = profileTreeView.onDidChangeVisibility(() => {
+    visibilitySettled = true;
+  });
+  context.subscriptions.push(visibilitySub);
+  setTimeout(() => {
+    if (visibilitySettled) return;
+    void vscode.commands.executeCommand("workbench.view.explorer").then(
+      () => vscode.commands.executeCommand("workbench.view.extension.openbox"),
+      () => undefined,
+    );
+  }, 1000);
 
   // Debug controls only get registered in dev builds.
   let debugProvider: DebugControlsProvider | undefined;

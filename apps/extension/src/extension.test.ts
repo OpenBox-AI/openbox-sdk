@@ -94,6 +94,7 @@ vi.mock('vscode', () => {
       createTreeView: () => ({
         badge: undefined,
         dispose: vi.fn(),
+        onDidChangeVisibility: () => ({ dispose: vi.fn() }),
       }),
       createOutputChannel: () => ({
         appendLine: (line: string) => channelLines.push(line),
