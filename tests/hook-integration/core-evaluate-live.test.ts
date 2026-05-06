@@ -75,17 +75,13 @@ describe.runIf(SHOULD_RUN)('core evaluate — live verdict matrix', () => {
     expect(r.reason).toMatch(/e2e-deny-shell/);
   });
 
-  it('file_write → require_approval (e2e-approve-write rule fires)', () => {
+  it('file_write → block (e2e-deny-write rule fires)', () => {
     const r = evaluate({
       type: 'file_write',
       args: ['--file-path', '/tmp/openbox-e2e.txt', '--content', 'live'],
     });
-    expect(r.verdict).toBe('require_approval');
-    expect(r.reason).toMatch(/e2e-approve-write/);
-    // approval_expiration_time is set when the verdict materializes
-    // an approval row; it's a UTC ISO 8601 string about 60s in the
-    // future (the rule's approval_timeout).
-    expect(r.approval_expiration_time).toBeDefined();
+    expect(r.verdict).toBe('block');
+    expect(r.reason).toMatch(/e2e-deny-write/);
   });
 
   it('file_read with no matching rule → allow', () => {

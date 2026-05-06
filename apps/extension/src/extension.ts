@@ -345,6 +345,30 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.env.clipboard.writeText(value);
     }),
 
+    // Diagnostic: runs governance.check() from the extension host
+    // with the configured agent + env. Used by the live e2e suite
+    // to confirm the gate's network path works without going
+    // through the gate's own veto/save dance. Intentionally no
+    // surface in the package.json contributions, so it stays
+    // internal — only test code that knows the id can invoke it.
+    vscode.commands.registerCommand(
+      "openbox.__diag.checkGovernance",
+      async (input: {
+        spanType: "shell" | "file_write" | "file_read" | "http" | "db" | "mcp" | "llm";
+        activityInput: Record<string, unknown>;
+      }) => {
+        try {
+          const r = await governance.check({
+            spanType: input.spanType,
+            activityInput: input.activityInput,
+          });
+          return r;
+        } catch (err: any) {
+          return { outcome: "error", reason: String(err?.message ?? err) };
+        }
+      },
+    ),
+
     // QuickPick env switcher; writes the setting (Global scope), the
     // onDidChangeConfiguration handler above does the actual reboot.
     vscode.commands.registerCommand("openbox.switchEnvironment", async () => {

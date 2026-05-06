@@ -95,7 +95,14 @@ export class PreWriteGate {
       vscode.window.showErrorMessage(
         `OpenBox blocked save of ${doc.fileName}: ${result.reason ?? 'denied by policy'}`,
       );
-      throw new Error('OpenBox: save denied by policy');
+      // VS Code's onWillSaveTextDocument does NOT cancel saves on
+      // participant rejection — waitUntil's contract is only "inject
+      // pre-save edits". To actually veto, return edits that revert
+      // the buffer to whatever's on disk before the save commits.
+      // Reads from disk so the revert tracks the last successful save
+      // (not the live dirty buffer). The save still happens, but it
+      // writes the same bytes the file already had.
+      return revertToDisk(doc);
     }
     // require_approval: surface the pending approval and block the save.
     return this.confirm(uri, {
@@ -134,6 +141,28 @@ export class PreWriteGate {
       if (deny.at < cutoff) this.pending.delete(uri);
     }
   }
+}
+
+/** Build a TextEdit array that replaces the document's full content
+ *  with whatever's currently on disk. The save then writes the same
+ *  bytes the file already has — effective veto without VS Code
+ *  cooperation on participant rejection. */
+async function revertToDisk(doc: vscode.TextDocument): Promise<vscode.TextEdit[]> {
+  let onDisk = '';
+  try {
+    const buf = await vscode.workspace.fs.readFile(doc.uri);
+    onDisk = Buffer.from(buf).toString('utf-8');
+  } catch {
+    // File doesn't exist yet (a brand-new save): the only safe
+    // revert is to make the buffer empty. The user's new content
+    // is dropped on the floor; that's the deny.
+    onDisk = '';
+  }
+  const fullRange = new vscode.Range(
+    new vscode.Position(0, 0),
+    doc.lineAt(doc.lineCount - 1).range.end,
+  );
+  return [vscode.TextEdit.replace(fullRange, onDisk)];
 }
 
 /**
