@@ -105,6 +105,11 @@ export async function runCursorHook(): Promise<void> {
         async (env, s) => dryRun ? undefined : handleSessionStart(env, s, cfg)),
       stop: logged('stop', 'none',
         async (env, s) => dryRun ? undefined : handleStop(env, s, cfg)),
+      // postToolUse / postToolUseFailure carry no payload per the
+      // spec (@noPayload). We log them so the OutputChannel tail
+      // shows the full lifecycle, but there's nothing to map.
+      postToolUse: logged('postToolUse', 'observe', async () => undefined),
+      postToolUseFailure: logged('postToolUseFailure', 'observe', async () => undefined),
     },
   }).run();
 }

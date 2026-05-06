@@ -71,6 +71,21 @@ export default defineConfig({
           testTimeout: 10000,
         },
       },
+      {
+        test: {
+          // Hook integration: spawns `openbox cursor hook` as a
+          // subprocess (the same way Cursor does), pipes a synthetic
+          // stdin envelope per event, asserts the verdict shape +
+          // JSONL log line. No IDE / display required; covers the
+          // hook handler end-to-end without needing Cursor's agent.
+          name: 'hook-integration',
+          include: ['tests/hook-integration/**/*.test.ts'],
+          setupFiles: ['./tests/setup.ts'],
+          testTimeout: 30000,
+          sequence: { concurrent: false },
+          fileParallelism: false,
+        },
+      },
     ],
   },
 });

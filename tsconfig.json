@@ -6,5 +6,8 @@
     "noEmit": true
   },
   "include": ["ts/src/**/*", "codegen/**/src/**/*", "tests/**/*"],
-  "exclude": ["tests/fixtures/verify-samples/**/*"]
+  "exclude": [
+    "tests/fixtures/verify-samples/**/*",
+    "tests/e2e-extension/**/*"
+  ]
 }

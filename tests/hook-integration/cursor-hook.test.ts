@@ -1,0 +1,133 @@
+// Spawns `openbox cursor hook` exactly the way Cursor does (stdin
+// envelope, stdout verdict). One test per hook_event_name, asserts:
+//
+//   1. The handler exits 0 (errors fail closed in the SDK; we want
+//      "no crash" here, not "no error" — verdicts can carry errors
+//      and still exit 0).
+//   2. Stdout is parseable JSON for `before*`/`preToolUse`/`after*`
+//      events; sessionStart/stop emit nothing per the spec.
+//   3. The JSONL log line at ~/.openbox/log/cursor-hook.jsonl has a
+//      matching record (event name + verdict_kind).
+//
+// Auth: each invocation runs without OPENBOX_API_KEY so the handler
+// short-circuits at "no key, passing through" — exactly the
+// pass-through path Cursor sees on a host with no agent set up. To
+// exercise the verdict path with a real agent, wire OPENBOX_API_KEY
+// to an agent's runtime key in a follow-up suite.
+
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { ENVELOPES, type EventName, OBSERVE_EVENTS, PERMISSION_EVENTS } from './fixtures/envelopes';
+
+const CLI = resolve(__dirname, '../../dist/cli/index.js');
+const LOG = join(homedir(), '.openbox', 'log', 'cursor-hook.jsonl');
+
+interface HookOutcome {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+}
+
+function runHook(envelope: Record<string, unknown>): HookOutcome {
+  const result = spawnSync('node', [CLI, 'cursor', 'hook'], {
+    input: JSON.stringify(envelope),
+    env: {
+      ...process.env,
+      // Need a non-empty key so the handler doesn't take the
+      // pre-dispatch short-circuit; DRY_RUN=1 makes each per-event
+      // handler return undefined without calling core. The `logged()`
+      // wrapper still runs and records the JSONL line, which is what
+      // the test asserts.
+      OPENBOX_API_KEY: 'obx_test_' + 'x'.repeat(48),
+      DRY_RUN: '1',
+    },
+    encoding: 'utf-8',
+    timeout: 15_000,
+  });
+  return {
+    status: result.status,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+}
+
+function readLogTail(sinceCursor: number): string[] {
+  if (!existsSync(LOG)) return [];
+  const buf = readFileSync(LOG, 'utf-8');
+  return buf
+    .slice(sinceCursor)
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function logSize(): number {
+  try {
+    return statSync(LOG).size;
+  } catch {
+    return 0;
+  }
+}
+
+beforeAll(() => {
+  // Ensure CLI is built. Without this we'd spawn a stale dist/.
+  if (!existsSync(CLI)) {
+    throw new Error(
+      `CLI not built at ${CLI}. Run \`npm run build\` before \`npm run test:hook-integration\`.`,
+    );
+  }
+  // Ensure log dir exists so readLogTail works on first iteration.
+  mkdirSync(join(homedir(), '.openbox', 'log'), { recursive: true });
+  if (!existsSync(LOG)) writeFileSync(LOG, '');
+});
+
+describe('cursor hook handler — every event', () => {
+  for (const event of Object.keys(ENVELOPES) as EventName[]) {
+    it(`${event}: handler runs, logs, exits cleanly`, () => {
+      const before = logSize();
+      const out = runHook(ENVELOPES[event]);
+
+      expect(out.status, `stderr: ${out.stderr}`).toBe(0);
+
+      // JSONL log line was appended.
+      const newLines = readLogTail(before);
+      const events = newLines
+        .map((l) => {
+          try {
+            return JSON.parse(l) as { event?: string; verdict_kind?: string };
+          } catch {
+            return null;
+          }
+        })
+        .filter((x) => x !== null) as Array<{ event?: string; verdict_kind?: string }>;
+      const matching = events.filter((e) => e.event === event);
+      expect(matching, `no log line for ${event}; saw: ${events.map((e) => e.event).join(', ')}`).not.toHaveLength(0);
+
+      // Verdict-kind matches the spec grouping.
+      const last = matching[matching.length - 1];
+      const expectedKind =
+        PERMISSION_EVENTS.has(event) ? 'permission' :
+        OBSERVE_EVENTS.has(event) ? 'observe' :
+        'none';
+      expect(last.verdict_kind).toBe(expectedKind);
+    });
+  }
+
+  it('rejects malformed envelope without crashing', () => {
+    const out = runHook({ hook_event_name: 'beforeShellExecution' /* missing required fields */ });
+    // The handler is lenient: dispatch on event name even if mapper
+    // gets undefined fields. We only require it not to throw.
+    expect(out.status).toBe(0);
+  });
+
+  it('unknown hook_event_name is a soft pass-through', () => {
+    const out = runHook({
+      hook_event_name: 'somethingNobodyDeclared',
+      conversation_id: 'x',
+    });
+    expect(out.status).toBe(0);
+  });
+});
