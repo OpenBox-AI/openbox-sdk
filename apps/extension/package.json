@@ -77,6 +77,11 @@
           "default": "production",
           "description": "[Dev only] Which OpenBox environment the extension talks to. End users should leave this on 'production'. The Switch Environment command is only visible when the extension is running in development mode (Run Extension target). Each env has its own token namespace in ~/.openbox/tokens, so logging in via the CLI to staging won't clobber prod credentials."
         },
+        "openbox.mockAuth": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run the extension against a built-in fixture set (no API key, no backend). Useful for first-run demos, contributor onboarding, and exercising the UI without minting credentials. When true, the api-key load is skipped, the approvals panel is fed from local fixtures, and approve/reject decisions are kept in-memory only."
+        },
         "openbox.tabObserver.enabled": {
           "type": "boolean",
           "default": false,

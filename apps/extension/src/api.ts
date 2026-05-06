@@ -14,9 +14,9 @@ function loadApiKey(env: EnvName): string {
   if (!key) {
     const flag = env === "production" ? "" : `--env ${env} `;
     throw new Error(
-      `No X-API-Key for env '${env}'. The OpenBox extension reads the same ` +
-        `token store the CLI writes: install + log in via:\n  ` +
-        `npm i -g openbox\n  openbox ${flag}auth set-api-key`,
+      `No X-API-Key for env '${env}'. Either:\n` +
+        `  • Mint one in the OpenBox dashboard and run \`openbox ${flag}auth set-api-key\`\n` +
+        `  • Or set \`openbox.mockAuth\` in settings to run the UI with fixtures (no backend).`,
     );
   }
   return key;

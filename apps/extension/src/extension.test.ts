@@ -210,6 +210,10 @@ async function bootExtension() {
   const ctx = {
     subscriptions,
     extensionMode: 1, // Production
+    globalState: {
+      get: vi.fn(<T>(_k: string, def?: T) => def),
+      update: vi.fn(async () => undefined),
+    },
   } as unknown as Parameters<typeof activate>[0];
   await activate(ctx);
   return { ctx, subscriptions };

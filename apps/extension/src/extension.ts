@@ -1,26 +1,26 @@
 import * as vscode from "vscode";
 import type { OpenBoxClient } from "openbox-sdk/client";
 import type { EnvName } from "openbox-sdk/env";
-import { createApi, createApiContext } from "./api";
+import { createApiContext } from "./api";
 import { ApprovalsPollingService as PollingService } from "openbox-sdk/polling";
 import { ApprovalsTreeProvider } from "./approvalsView";
 import { createTabObserver } from "./tabObserver";
 import { PreWriteGate, extractTargetUri } from "./preWriteGate";
 import { PreFileOpGate } from "./preFileOpGate";
 import { GovernanceClient } from "./governanceClient";
+import { resolveBoot, showUnconfiguredPrompt } from "./bootResolver";
+import { MockApprovalsFeed } from "./mockFeed";
 import type { Approval } from "./types";
 
 /** Backend's Halt verdict; approvals with this code block the save flow. */
 const VERDICT_HALT = 4;
 
-// X-API-Key auth → polling-only (the WS gateway requires JWT today).
-type ApprovalsFeed = PollingService;
+// In mock mode the feed is the MockApprovalsFeed; in real mode it's the
+// network-driven PollingService. Both expose .stop() / .refresh() and
+// emit 'changed' / 'newApprovals' / 'error', which is all the consumer
+// uses.
+type ApprovalsFeed = PollingService | MockApprovalsFeed;
 let feed: ApprovalsFeed | undefined;
-
-function readEnv(): EnvName {
-  const v = vscode.workspace.getConfiguration("openbox").get<string>("environment", "production");
-  return v === "staging" || v === "local" ? v : "production";
-}
 
 export async function activate(context: vscode.ExtensionContext) {
   // The env switcher (openbox.switchEnvironment) is gated behind this
@@ -43,9 +43,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Booting and re-booting share state through these refs. A setting change or
   // a manual switch tears down polling and rebuilds with the new env.
-  let env: EnvName = readEnv();
+  let env: EnvName = resolveBoot().env;
   let client: OpenBoxClient | undefined;
   let orgId: string | undefined;
+  /** Active boot view. Drives status-bar painting + the no-key prompt. */
+  let lastView = resolveBoot();
 
   // Governance client (workspace-config-driven; reads agent_id, env).
   // Shared across PreWriteGate, TabObserver, PreFileOpGate so they
@@ -74,8 +76,23 @@ export async function activate(context: vscode.ExtensionContext) {
   const haltedApprovals = new Map<string, string>();
 
   function paintIdle(envTag: EnvName, count: number) {
-    statusBar.text =
-      count > 0 ? `$(shield) ${count} Pending · ${envTag}` : `$(shield) OpenBox · ${envTag}`;
+    const cfg = vscode.workspace.getConfiguration('openbox');
+    const tag = lastView.mode === 'mock' ? `MOCK · ${envTag}` : envTag;
+    const anyActive =
+      cfg.get<boolean>('preWriteGate.active', false) ||
+      (cfg.get<boolean>('tabObserver.enabled', false) && cfg.get<boolean>('tabObserver.active', false)) ||
+      cfg.get<boolean>('fileOpGate.enabled', false);
+    const haveAgent = !!(lastView.agentId);
+    const idleNote = anyActive && !haveAgent ? ' · gates idle (no agent)' : '';
+    if (count > 0) {
+      statusBar.text = `$(shield) ${count} Pending · ${tag}${idleNote}`;
+    } else {
+      statusBar.text = `$(shield) OpenBox · ${tag}${idleNote}`;
+    }
+    if (anyActive && !haveAgent) {
+      statusBar.tooltip =
+        'Active gates are turned on but `openbox.agentId` is empty, so check_governance is skipped. Set the agent ID in settings to enable enforcement.';
+    }
   }
 
   /** True when `uri` is currently open in any editor tab. We only
@@ -92,16 +109,112 @@ export async function activate(context: vscode.ExtensionContext) {
     return false;
   }
 
-  async function boot(nextEnv: EnvName) {
+  function wireFeed(f: ApprovalsFeed) {
+    f.on("changed", (approvals: Approval[]) => {
+      treeProvider.update(approvals);
+      const count = approvals.length;
+      paintIdle(env, count);
+      treeView.badge = count > 0 ? { value: count, tooltip: `${count} pending approvals` } : undefined;
+      vscode.commands.executeCommand("setContext", "openbox.hasApprovals", count > 0);
+
+      // Halt-verdict gating: any pending approval at verdict 4 whose
+      // target URI is currently open gets a recordDeny on the gate.
+      const seen = new Set<string>();
+      for (const a of approvals) {
+        if (a.verdict !== VERDICT_HALT) continue;
+        const uri = extractTargetUri(a.input);
+        if (!uri) continue;
+        if (!isUriOpen(uri)) continue;
+        seen.add(a.id);
+        if (haltedApprovals.has(a.id)) continue;
+        haltedApprovals.set(a.id, uri);
+        preWrite.recordDeny({
+          uri,
+          reason: a.reason || `${a.activity_type || "edit"} flagged`,
+          approvalId: a.id,
+          at: Date.now(),
+        });
+      }
+      for (const [id, uri] of haltedApprovals) {
+        if (seen.has(id)) continue;
+        preWrite.clearDeny(uri);
+        haltedApprovals.delete(id);
+      }
+    });
+
+    f.on("newApprovals", (newOnes: Approval[]) => {
+      for (const a of newOnes) {
+        const agent = a.agent?.agent_name || a.agent_id || "Agent";
+        const action = a.activity_type || "action";
+        const reason = a.reason || `${action} needs approval`;
+        const tag = lastView.mode === "mock" ? `[MOCK] ${agent}` : `[${env}] ${agent}`;
+
+        vscode.window
+          .showWarningMessage(`${tag}: ${reason}`, "Approve", "Reject", "View")
+          .then((choice) => {
+            if (choice === "Approve" || choice === "Reject") {
+              void decideApproval(a, choice === "Approve" ? "approve" : "reject");
+            } else if (choice === "View") {
+              vscode.commands.executeCommand("openbox.approvals.focus");
+            }
+          });
+      }
+    });
+
+    f.on("error", (err: Error) => {
+      console.error(`OpenBox feed error (${env}):`, err.message);
+    });
+  }
+
+  async function decideApproval(a: Approval, action: "approve" | "reject"): Promise<void> {
+    if (lastView.mode === "mock" && feed instanceof MockApprovalsFeed) {
+      await feed.decide(a.id);
+      return;
+    }
+    if (!client) return;
+    await client.decideApproval(a.agent_id || "", a.id, { action });
+    feed?.refresh();
+  }
+
+  async function boot() {
     feed?.stop();
     feed = undefined;
     treeProvider.update([]);
     treeView.badge = undefined;
     vscode.commands.executeCommand("setContext", "openbox.hasApprovals", false);
 
-    env = nextEnv;
+    lastView = resolveBoot();
+    env = lastView.env;
     statusBar.text = `$(sync~spin) OpenBox · ${env}`;
     statusBar.tooltip = `Connecting to ${env}…`;
+
+    if (lastView.mode === "mock") {
+      client = undefined;
+      orgId = "mock-org-001";
+      const mock = new MockApprovalsFeed();
+      wireFeed(mock);
+      mock.start();
+      feed = mock;
+      statusBar.tooltip = `Mock auth (no backend) · ${env}`;
+      return;
+    }
+
+    if (lastView.mode === "unconfigured") {
+      client = undefined;
+      statusBar.text = `$(shield) OpenBox · ${env} · no key`;
+      statusBar.tooltip = `No API key for any env. Click for setup options.`;
+      // One-time prompt with actionable buttons; respects "Don't show again".
+      void showUnconfiguredPrompt(context, env);
+      return;
+    }
+
+    if (lastView.fellBackFrom) {
+      // Surfaced silently in the status bar; no modal. The user picked
+      // an env that has no key, so we fell back to one that does.
+      console.log(
+        `OpenBox: '${lastView.fellBackFrom}' has no API key; using '${env}' instead. Set openbox.environment to suppress.`,
+      );
+    }
 
     let ctx: { client: OpenBoxClient; apiBase: string };
     try {
@@ -111,7 +224,7 @@ export async function activate(context: vscode.ExtensionContext) {
       client = undefined;
       statusBar.text = `$(shield) OpenBox · ${env}: No Token`;
       statusBar.tooltip = err.message;
-      vscode.window.showErrorMessage(`OpenBox: ${err.message}`);
+      void showUnconfiguredPrompt(context, env);
       return;
     }
 
@@ -122,77 +235,13 @@ export async function activate(context: vscode.ExtensionContext) {
         statusBar.text = `$(shield) OpenBox · ${env}: No Org`;
         return;
       }
-      statusBar.tooltip = `Signed in as ${profile.email || profile.preferred_username || profile.sub} (${env})`;
+      const fbNote = lastView.fellBackFrom ? ` (fell back from '${lastView.fellBackFrom}')` : "";
+      statusBar.tooltip = `Signed in as ${profile.email || profile.preferred_username || profile.sub} (${env})${fbNote}`;
     } catch (err: any) {
       statusBar.text = `$(shield) OpenBox · ${env}: Error`;
       statusBar.tooltip = err.message;
       return;
     }
-
-    const wireFeed = (f: ApprovalsFeed) => {
-      f.on("changed", (approvals: Approval[]) => {
-        treeProvider.update(approvals);
-        const count = approvals.length;
-        paintIdle(env, count);
-        treeView.badge = count > 0 ? { value: count, tooltip: `${count} pending approvals` } : undefined;
-        vscode.commands.executeCommand("setContext", "openbox.hasApprovals", count > 0);
-
-        // Halt-verdict gating: any pending approval at verdict 4 whose
-        // target URI is currently open gets a recordDeny on the gate.
-        // Approvals previously halted that drop out of the pending set
-        // (decided / expired) get a clearDeny so saves stop being
-        // gated. Both maps are keyed by approval ID, not URI, because a
-        // single file can have multiple overlapping halts.
-        const seen = new Set<string>();
-        for (const a of approvals) {
-          if (a.verdict !== VERDICT_HALT) continue;
-          const uri = extractTargetUri(a.input);
-          if (!uri) continue;
-          if (!isUriOpen(uri)) continue;
-          seen.add(a.id);
-          if (haltedApprovals.has(a.id)) continue;
-          haltedApprovals.set(a.id, uri);
-          preWrite.recordDeny({
-            uri,
-            reason: a.reason || `${a.activity_type || "edit"} flagged`,
-            approvalId: a.id,
-            at: Date.now(),
-          });
-        }
-        for (const [id, uri] of haltedApprovals) {
-          if (seen.has(id)) continue;
-          preWrite.clearDeny(uri);
-          haltedApprovals.delete(id);
-        }
-      });
-
-      f.on("newApprovals", (newOnes: Approval[]) => {
-        for (const a of newOnes) {
-          const agent = a.agent?.agent_name || a.agent_id || "Agent";
-          const action = a.activity_type || "action";
-          const reason = a.reason || `${action} needs approval`;
-          const tag = `[${env}] ${agent}`;
-
-          vscode.window
-            .showWarningMessage(`${tag}: ${reason}`, "Approve", "Reject", "View")
-            .then((choice) => {
-              if (!client) return;
-              const agentId = a.agent_id || "";
-              if (choice === "Approve") {
-                client.decideApproval(agentId, a.id, { action: "approve" }).then(() => feed?.refresh());
-              } else if (choice === "Reject") {
-                client.decideApproval(agentId, a.id, { action: "reject" }).then(() => feed?.refresh());
-              } else if (choice === "View") {
-                vscode.commands.executeCommand("openbox.approvals.focus");
-              }
-            });
-        }
-      });
-
-      f.on("error", (err: Error) => {
-        console.error(`OpenBox feed error (${env}):`, err.message);
-      });
-    };
 
     void ctx;
     const polling = new PollingService(client, orgId);
@@ -201,7 +250,7 @@ export async function activate(context: vscode.ExtensionContext) {
     feed = polling;
   }
 
-  await boot(env);
+  await boot();
   context.subscriptions.push({ dispose: () => feed?.stop() });
 
   // Tab / Composer / Cmd-K observer. Cursor doesn't expose hooks for
@@ -229,14 +278,26 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push({ dispose: () => obs.dispose() });
   }
 
-  // Settings change. Rebuild the client when the user toggles the env
-  // via the QuickPick command below (which writes the setting and lets
-  // this listener react uniformly).
+  // Settings change. Rebuild the client (or feed) when the user
+  // toggles env, mock auth, or agent_id; status bar repainted when
+  // active-gate toggles flip so the silent-no-op tag stays in sync.
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("openbox.environment")) {
-        const next = readEnv();
-        if (next !== env) boot(next);
+      if (
+        e.affectsConfiguration("openbox.environment") ||
+        e.affectsConfiguration("openbox.mockAuth")
+      ) {
+        void boot();
+        return;
+      }
+      if (
+        e.affectsConfiguration("openbox.agentId") ||
+        e.affectsConfiguration("openbox.preWriteGate.active") ||
+        e.affectsConfiguration("openbox.tabObserver.active") ||
+        e.affectsConfiguration("openbox.fileOpGate.enabled")
+      ) {
+        lastView = resolveBoot();
+        paintIdle(env, feed?.approvals?.length ?? 0);
       }
     }),
   );
@@ -244,11 +305,12 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand("openbox.approve", async (node: any) => {
       const approval: Approval | undefined = node?.approval ?? (node?.id ? node : undefined);
-      if (!approval || !client) return;
+      if (!approval) return;
       try {
-        await client.decideApproval(approval.agent_id || "", approval.id, { action: "approve" });
-        vscode.window.showInformationMessage(`Approved (${env})`);
-        feed?.refresh();
+        await decideApproval(approval, "approve");
+        vscode.window.showInformationMessage(
+          lastView.mode === "mock" ? `Approved (MOCK)` : `Approved (${env})`,
+        );
       } catch (err: any) {
         vscode.window.showErrorMessage(`Approve failed: ${err.message}`);
       }
@@ -256,11 +318,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand("openbox.reject", async (node: any) => {
       const approval: Approval | undefined = node?.approval ?? (node?.id ? node : undefined);
-      if (!approval || !client) return;
+      if (!approval) return;
       try {
-        await client.decideApproval(approval.agent_id || "", approval.id, { action: "reject" });
-        vscode.window.showInformationMessage(`Rejected (${env})`);
-        feed?.refresh();
+        await decideApproval(approval, "reject");
+        vscode.window.showInformationMessage(
+          lastView.mode === "mock" ? `Rejected (MOCK)` : `Rejected (${env})`,
+        );
       } catch (err: any) {
         vscode.window.showErrorMessage(`Reject failed: ${err.message}`);
       }
