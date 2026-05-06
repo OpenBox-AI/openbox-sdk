@@ -201,29 +201,29 @@ describe('runPlan - driver', () => {
   it('--dry-run runs nothing but logs each target', async () => {
     const ran: string[] = [];
     const plan = [
-      { target: 'skill' as const, run: () => ran.push('skill') },
-      { target: 'mcp' as const, run: () => ran.push('mcp') },
+      { target: 'skill' as const, run: () => { ran.push('skill'); } },
+      { target: 'mcp' as const, run: () => { ran.push('mcp'); } },
     ];
     const summary = await runPlan(plan, { dryRun: true });
     expect(ran).toEqual([]);
     expect(summary.installed).toEqual(['skill', 'mcp']);
     const dryLines = logSpy.mock.calls
-      .map((c) => String(c[0]))
-      .filter((s) => s.startsWith('Would install:'));
+      .map((c: unknown[]) => String(c[0]))
+      .filter((s: string) => s.startsWith('Would install:'));
     expect(dryLines).toHaveLength(2);
   });
 
   it('continues past a failing target and reports it in the summary', async () => {
     const ran: string[] = [];
     const plan = [
-      { target: 'skill' as const, run: () => ran.push('skill') },
+      { target: 'skill' as const, run: () => { ran.push('skill'); } },
       {
         target: 'mcp' as const,
         run: () => {
           throw new Error('boom');
         },
       },
-      { target: 'extension' as const, run: () => ran.push('extension') },
+      { target: 'extension' as const, run: () => { ran.push('extension'); } },
     ];
     const summary = await runPlan(plan);
     expect(ran).toEqual(['skill', 'extension']);
@@ -254,9 +254,9 @@ describe('runPlan - driver', () => {
   it('uninstall verb flips the log strings', async () => {
     const plan = [{ target: 'skill' as const, run: () => {} }];
     await runPlan(plan, { verb: 'uninstall' });
-    const lines = logSpy.mock.calls.map((c) => String(c[0]));
-    expect(lines.some((l) => l.startsWith('Uninstalling skill'))).toBe(true);
-    expect(lines.some((l) => l.includes('Uninstalled:'))).toBe(true);
+    const lines = logSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(lines.some((l: string) => l.startsWith('Uninstalling skill'))).toBe(true);
+    expect(lines.some((l: string) => l.includes('Uninstalled:'))).toBe(true);
   });
 
   it('summary line lists Installed, Skipped, and Failed when each is present', async () => {
@@ -272,8 +272,8 @@ describe('runPlan - driver', () => {
     ];
     await runPlan(plan);
     const summaryLine = logSpy.mock.calls
-      .map((c) => String(c[0]))
-      .find((l) => l.startsWith('\nInstalled:'));
+      .map((c: unknown[]) => String(c[0]))
+      .find((l: string) => l.startsWith('\nInstalled:'));
     expect(summaryLine).toContain('Installed: skill.');
     expect(summaryLine).toContain('Skipped: mcp (because).');
     expect(summaryLine).toContain('Failed: extension (nope).');

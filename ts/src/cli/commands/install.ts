@@ -448,7 +448,7 @@ export function planInstallAll(
             );
             if (ok) {
               const { hardenCursor } = await import('../../runtime/cursor/enterprise.js');
-              const r = hardenCursor({ profileName: 'enterprise-default' });
+              const r = hardenCursor({ profile: 'enterprise-default' });
               console.log(`Applied hardening profile: ${r.profile} → ${r.file}`);
             } else {
               console.log('Skipped hardening profile (run `openbox cursor harden` later to apply).');
@@ -793,7 +793,7 @@ export function registerInstallCommands(program: Command): void {
         );
         if (ok) {
           const { hardenCursor } = await import('../../runtime/cursor/enterprise.js');
-          const r = hardenCursor({ profileName: 'enterprise-default' });
+          const r = hardenCursor({ profile: 'enterprise-default' });
           console.log(`Applied hardening profile: ${r.profile} → ${r.file}`);
         } else {
           console.log('Skipped hardening profile (run `openbox cursor harden` later to apply).');
