@@ -1,65 +1,186 @@
+// OpenBox extension entry. Wires:
+//
+//   * Approvals UI surface — pending + history view sessions, detail
+//     panel, onboard view, profile view, debug controls (dev builds).
+//     Recovered from feat/approvals-shared-helpers; the rich surface
+//     went orphan when work moved to feat/cursor-runtime.
+//
+//   * Active governance gates — PreWriteGate, PreFileOpGate,
+//     TabObserver. Each independently consults the GovernanceClient,
+//     which reads `openbox.agentId` + the runtime key from
+//     ~/.openbox/agent-keys (or OPENBOX_API_KEY).
+//
+//   * Hook activity log — tails ~/.openbox/log/cursor-hook.jsonl into
+//     a Cursor OutputChannel so the user sees every hook the
+//     `openbox cursor hook` subprocess fires.
+//
+//   * Halt-verdict ↔ save coordination — when the approvals feed
+//     reports a pending row at verdict 4 whose target URI is open,
+//     PreWriteGate's recordDeny lights up so the next save reverts.
+
 import * as vscode from "vscode";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
 import type { OpenBoxClient } from "openbox-sdk/client";
 import type { EnvName } from "openbox-sdk/env";
-import { createApiContext } from "./api";
-import { ApprovalsPollingService as PollingService } from "openbox-sdk/polling";
-import { ApprovalsTreeProvider } from "./approvalsView";
+import {
+  apiKeyPrefix,
+  clearApiKey,
+  createApiContext,
+  hasApiKey,
+  readStore,
+  validateApiKey,
+  writeApiKey,
+} from "./api";
+import { ApprovalDetailPanel } from "./detailPanel";
+import { ViewSession, inlineDecide } from "./viewSession";
+import type { Approval, Member, Team } from "./types";
+import { apiKeysUrl } from "./dashboardUrl";
+import { showDebugInfoPanel, type DebugSnapshot } from "./debugInfoPanel";
+import { MockClient } from "./mockClient";
+import { mockStore } from "./mockStore";
+import { DebugControlsProvider } from "./debugView";
+import { ProfileProvider } from "./profileView";
+import { OnboardProvider } from "./onboardView";
 import { createTabObserver } from "./tabObserver";
 import { PreWriteGate, extractTargetUri } from "./preWriteGate";
 import { PreFileOpGate } from "./preFileOpGate";
 import { GovernanceClient } from "./governanceClient";
-import { resolveBoot, showUnconfiguredPrompt } from "./bootResolver";
-import { MockApprovalsFeed } from "./mockFeed";
 import { HookLogTail } from "./hookLogChannel";
-import type { Approval } from "./types";
+
+// Build-time flag, baked by esbuild via --define:process.env.OPENBOX_DEBUG_BUILD.
+// `npm run build` (production) sets it to "false"; `npm run build:dev` sets
+// "true". When false, all debug commands, the debug tree view, and mock-auth
+// affordances stay unregistered, and esbuild dead-code-eliminates the
+// branches below — so a prod .vsix can't be flipped into debug at runtime.
+const DEBUG_BUILD = process.env.OPENBOX_DEBUG_BUILD === "true";
+
+// Org API key shape; matches the CLI's auth.ts validator. Anything else
+// is rejected before it touches the token store so we surface the
+// problem at paste time rather than after a failed first request.
+const API_KEY_PATTERN = /^obx_key_[0-9a-f]{48}$/;
 
 /** Backend's Halt verdict; approvals with this code block the save flow. */
 const VERDICT_HALT = 4;
 
-// In mock mode the feed is the MockApprovalsFeed; in real mode it's the
-// network-driven PollingService. Both expose .stop() / .refresh() and
-// emit 'changed' / 'newApprovals' / 'error', which is all the consumer
-// uses.
-type ApprovalsFeed = PollingService | MockApprovalsFeed;
-let feed: ApprovalsFeed | undefined;
+interface ActiveBoot {
+  pending: ViewSession;
+  history: ViewSession;
+  client: OpenBoxClient;
+  orgId: string;
+  email: string | undefined;
+  sub: string | undefined;
+  name: string | undefined;
+  preferredUsername: string | undefined;
+  emailVerified: boolean | undefined;
+  keyId: string | undefined;
+  apiKeyPermissions: string[] | undefined;
+  isApiKeyAuth: boolean;
+  activeKey: ActiveKeyInfo | undefined;
+  activeKeyError: string | undefined;
+}
+
+interface ActiveKeyInfo {
+  id: string;
+  name: string;
+  description?: string;
+  permissions?: string[];
+  valid_from?: string | null;
+  expires_at?: string | null;
+  ip_whitelist?: string[] | null;
+  is_active?: boolean;
+  created_at?: string;
+  last_used_at?: string | null;
+}
+
+let active: ActiveBoot | undefined;
+
+function readEnv(): EnvName {
+  const v = vscode.workspace.getConfiguration("openbox").get<string>("environment", "production");
+  return v === "staging" || v === "local" ? v : "production";
+}
+
+function readNotifyOnNew(): boolean {
+  return vscode.workspace.getConfiguration("openbox").get<boolean>("notifyOnNewApprovals", true);
+}
+
+function readMockAuth(): boolean {
+  // Mock auth is itself a debug-only feature in published builds. The
+  // user-facing setting still toggles, but in DEBUG_BUILD=false the
+  // surrounding code paths gate on this value, so flipping it on in
+  // a prod .vsix is a no-op.
+  return DEBUG_BUILD && vscode.workspace.getConfiguration("openbox").get<boolean>("mockAuth", false);
+}
 
 export async function activate(context: vscode.ExtensionContext) {
-  // The env switcher (openbox.switchEnvironment) is gated behind this
-  // context key in package.json so end users running a published .vsix
-  // never see it in the command palette. ExtensionMode.Development is
-  // true when launched via "Run Extension" or extensionDevelopmentPath.
-  const isDev = context.extensionMode === vscode.ExtensionMode.Development;
-  vscode.commands.executeCommand("setContext", "openbox.devMode", isDev);
+  // openbox.devMode used to gate dev-only commands on
+  // ExtensionMode.Development; openbox.debug now drives the same
+  // gate so end users can flip on the env selector + debug panel
+  // without rebuilding.
+  function paintDebugContext() {
+    vscode.commands.executeCommand("setContext", "openbox.debug", DEBUG_BUILD);
+    vscode.commands.executeCommand("setContext", "openbox.mockAuth", readMockAuth());
+    vscode.commands.executeCommand(
+      "setContext",
+      "openbox.devMode",
+      context.extensionMode === vscode.ExtensionMode.Development,
+    );
+  }
+  paintDebugContext();
+
+  // Auto-open walkthrough on first activation. Subsequent activations
+  // skip; the user can always re-open via "OpenBox: Open Getting
+  // Started" from the palette. globalState survives across reloads.
+  if (!context.globalState.get<boolean>("openbox.walkthroughShown")) {
+    vscode.commands.executeCommand(
+      "workbench.action.openWalkthrough",
+      { category: "OpenBox.openbox#openbox.gettingStarted" },
+      false,
+    );
+    void context.globalState.update("openbox.walkthroughShown", true);
+  }
 
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBar.command = "openbox.approvals.focus";
   statusBar.show();
   context.subscriptions.push(statusBar);
 
-  const treeProvider = new ApprovalsTreeProvider();
-  const treeView = vscode.window.createTreeView("openbox.approvals", {
-    treeDataProvider: treeProvider,
-  });
-  context.subscriptions.push(treeView);
+  // Onboard view — single gated welcome page when no API key is set.
+  // Pending / History / Profile are all hidden in that state so the
+  // user lands on one clear "Set API Key" page instead of three
+  // half-empty views all repeating the same prompt.
+  context.subscriptions.push(
+    vscode.window.createTreeView("openbox.onboard", { treeDataProvider: new OnboardProvider() }),
+  );
 
-  // Booting and re-booting share state through these refs. A setting change or
-  // a manual switch tears down polling and rebuilds with the new env.
-  let env: EnvName = resolveBoot().env;
-  let client: OpenBoxClient | undefined;
-  let orgId: string | undefined;
-  /** Active boot view. Drives status-bar painting + the no-key prompt. */
-  let lastView = resolveBoot();
+  // Profile view — present whenever an API key is set, regardless of
+  // build flavor. Holds the user-facing identity rows and the
+  // Sign Out / Change Key toolbar buttons.
+  const profileProvider = new ProfileProvider(() => buildDebugSnapshot());
+  context.subscriptions.push(
+    vscode.window.createTreeView("openbox.profile", { treeDataProvider: profileProvider }),
+  );
+
+  // Debug controls only get registered in dev builds.
+  let debugProvider: DebugControlsProvider | undefined;
+  if (DEBUG_BUILD) {
+    debugProvider = new DebugControlsProvider(() => buildDebugSnapshot());
+    context.subscriptions.push(
+      debugProvider,
+      vscode.window.createTreeView("openbox.debugControls", { treeDataProvider: debugProvider }),
+    );
+  }
 
   // Governance client (workspace-config-driven; reads agent_id, env).
   // Shared across PreWriteGate, TabObserver, PreFileOpGate so they
   // resolve `openbox.agentId` consistently.
   const governance = new GovernanceClient();
 
-  // Pre-write gate. Constructed up front so the polling-changed handler
-  // (which lives inside `boot`) can record/clear halt verdicts on it.
-  // Entries land when the approvals feed reports a halt verdict for an
-  // open document. Active mode (per-save check_governance) is gated by
-  // openbox.preWriteGate.active inside handleSave.
+  // Pre-write gate. Constructed up front so the polling-changed
+  // handler can record/clear halt verdicts on it. Active mode
+  // (per-save check_governance) is gated by openbox.preWriteGate.active
+  // inside handleSave.
   const preWrite = new PreWriteGate(governance);
   preWrite.attach(context);
   context.subscriptions.push({ dispose: () => preWrite.dispose() });
@@ -71,195 +192,11 @@ export async function activate(context: vscode.ExtensionContext) {
   fileOpGate.attach(context);
   context.subscriptions.push({ dispose: () => fileOpGate.dispose() });
 
-  // Hook log channel. Tails ~/.openbox/log/cursor-hook.jsonl that the
-  // `openbox cursor hook` subprocess writes per event. Surfaces hook
-  // activity inside Cursor in real time so the user doesn't have to
-  // tail extension-host logs.
+  // Hook log channel. Tails ~/.openbox/log/cursor-hook.jsonl that
+  // `openbox cursor hook` writes per event. Surfaces hook activity
+  // inside Cursor in real time.
   const hookLog = new HookLogTail();
   hookLog.start(context);
-
-  // URIs that previously had a halt deny recorded, so we can call
-  // clearDeny when the same approval transitions out of pending. Keyed
-  // by approval ID; the value is the document URI we recorded against.
-  const haltedApprovals = new Map<string, string>();
-
-  function paintIdle(envTag: EnvName, count: number) {
-    const cfg = vscode.workspace.getConfiguration('openbox');
-    const tag = lastView.mode === 'mock' ? `MOCK · ${envTag}` : envTag;
-    const anyActive =
-      cfg.get<boolean>('preWriteGate.active', false) ||
-      (cfg.get<boolean>('tabObserver.enabled', false) && cfg.get<boolean>('tabObserver.active', false)) ||
-      cfg.get<boolean>('fileOpGate.enabled', false);
-    const haveAgent = !!(lastView.agentId);
-    const idleNote = anyActive && !haveAgent ? ' · gates idle (no agent)' : '';
-    if (count > 0) {
-      statusBar.text = `$(shield) ${count} Pending · ${tag}${idleNote}`;
-    } else {
-      statusBar.text = `$(shield) OpenBox · ${tag}${idleNote}`;
-    }
-    if (anyActive && !haveAgent) {
-      statusBar.tooltip =
-        'Active gates are turned on but `openbox.agentId` is empty, so check_governance is skipped. Set the agent ID in settings to enable enforcement.';
-    }
-  }
-
-  /** True when `uri` is currently open in any editor tab. We only
-   *  record denies for files the user has open; recording for arbitrary
-   *  paths would surface modal save prompts on files the user hasn't
-   *  touched, which is worse than no gate at all. */
-  function isUriOpen(uri: string): boolean {
-    for (const group of vscode.window.tabGroups.all) {
-      for (const tab of group.tabs) {
-        const input = tab.input as { uri?: vscode.Uri } | undefined;
-        if (input?.uri && input.uri.toString() === uri) return true;
-      }
-    }
-    return false;
-  }
-
-  function wireFeed(f: ApprovalsFeed) {
-    f.on("changed", (approvals: Approval[]) => {
-      treeProvider.update(approvals);
-      const count = approvals.length;
-      paintIdle(env, count);
-      treeView.badge = count > 0 ? { value: count, tooltip: `${count} pending approvals` } : undefined;
-      vscode.commands.executeCommand("setContext", "openbox.hasApprovals", count > 0);
-
-      // Halt-verdict gating: any pending approval at verdict 4 whose
-      // target URI is currently open gets a recordDeny on the gate.
-      const seen = new Set<string>();
-      for (const a of approvals) {
-        if (a.verdict !== VERDICT_HALT) continue;
-        const uri = extractTargetUri(a.input);
-        if (!uri) continue;
-        if (!isUriOpen(uri)) continue;
-        seen.add(a.id);
-        if (haltedApprovals.has(a.id)) continue;
-        haltedApprovals.set(a.id, uri);
-        preWrite.recordDeny({
-          uri,
-          reason: a.reason || `${a.activity_type || "edit"} flagged`,
-          approvalId: a.id,
-          at: Date.now(),
-        });
-      }
-      for (const [id, uri] of haltedApprovals) {
-        if (seen.has(id)) continue;
-        preWrite.clearDeny(uri);
-        haltedApprovals.delete(id);
-      }
-    });
-
-    f.on("newApprovals", (newOnes: Approval[]) => {
-      for (const a of newOnes) {
-        const agent = a.agent?.agent_name || a.agent_id || "Agent";
-        const action = a.activity_type || "action";
-        const reason = a.reason || `${action} needs approval`;
-        const tag = lastView.mode === "mock" ? `[MOCK] ${agent}` : `[${env}] ${agent}`;
-
-        vscode.window
-          .showWarningMessage(`${tag}: ${reason}`, "Approve", "Reject", "View")
-          .then((choice) => {
-            if (choice === "Approve" || choice === "Reject") {
-              void decideApproval(a, choice === "Approve" ? "approve" : "reject");
-            } else if (choice === "View") {
-              vscode.commands.executeCommand("openbox.approvals.focus");
-            }
-          });
-      }
-    });
-
-    f.on("error", (err: Error) => {
-      console.error(`OpenBox feed error (${env}):`, err.message);
-    });
-  }
-
-  async function decideApproval(a: Approval, action: "approve" | "reject"): Promise<void> {
-    if (lastView.mode === "mock" && feed instanceof MockApprovalsFeed) {
-      await feed.decide(a.id);
-      return;
-    }
-    if (!client) return;
-    await client.decideApproval(a.agent_id || "", a.id, { action });
-    feed?.refresh();
-  }
-
-  async function boot() {
-    feed?.stop();
-    feed = undefined;
-    treeProvider.update([]);
-    treeView.badge = undefined;
-    vscode.commands.executeCommand("setContext", "openbox.hasApprovals", false);
-
-    lastView = resolveBoot();
-    env = lastView.env;
-    statusBar.text = `$(sync~spin) OpenBox · ${env}`;
-    statusBar.tooltip = `Connecting to ${env}…`;
-
-    if (lastView.mode === "mock") {
-      client = undefined;
-      orgId = "mock-org-001";
-      const mock = new MockApprovalsFeed();
-      wireFeed(mock);
-      mock.start();
-      feed = mock;
-      statusBar.tooltip = `Mock auth (no backend) · ${env}`;
-      return;
-    }
-
-    if (lastView.mode === "unconfigured") {
-      client = undefined;
-      statusBar.text = `$(shield) OpenBox · ${env} · no key`;
-      statusBar.tooltip = `No API key for any env. Click for setup options.`;
-      // One-time prompt with actionable buttons; respects "Don't show again".
-      void showUnconfiguredPrompt(context, env);
-      return;
-    }
-
-    if (lastView.fellBackFrom) {
-      // Surfaced silently in the status bar; no modal. The user picked
-      // an env that has no key, so we fell back to one that does.
-      console.log(
-        `OpenBox: '${lastView.fellBackFrom}' has no API key; using '${env}' instead. Set openbox.environment to suppress.`,
-      );
-    }
-
-    let ctx: { client: OpenBoxClient; apiBase: string };
-    try {
-      ctx = await createApiContext(env);
-      client = ctx.client;
-    } catch (err: any) {
-      client = undefined;
-      statusBar.text = `$(shield) OpenBox · ${env}: No Token`;
-      statusBar.tooltip = err.message;
-      void showUnconfiguredPrompt(context, env);
-      return;
-    }
-
-    try {
-      const profile: any = await client.getProfile();
-      orgId = profile.orgId;
-      if (!orgId) {
-        statusBar.text = `$(shield) OpenBox · ${env}: No Org`;
-        return;
-      }
-      const fbNote = lastView.fellBackFrom ? ` (fell back from '${lastView.fellBackFrom}')` : "";
-      statusBar.tooltip = `Signed in as ${profile.email || profile.preferred_username || profile.sub} (${env})${fbNote}`;
-    } catch (err: any) {
-      statusBar.text = `$(shield) OpenBox · ${env}: Error`;
-      statusBar.tooltip = err.message;
-      return;
-    }
-
-    void ctx;
-    const polling = new PollingService(client, orgId);
-    wireFeed(polling);
-    polling.start();
-    feed = polling;
-  }
-
-  await boot();
-  context.subscriptions.push({ dispose: () => feed?.stop() });
 
   // Tab / Composer / Cmd-K observer. Cursor doesn't expose hooks for
   // these surfaces, so we classify mutations heuristically. With
@@ -285,71 +222,624 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push({ dispose: () => obs.dispose() });
   }
 
-  // Settings change. Rebuild the client (or feed) when the user
-  // toggles env, mock auth, or agent_id; status bar repainted when
-  // active-gate toggles flip so the silent-no-op tag stays in sync.
-  context.subscriptions.push(
-    vscode.workspace.onDidChangeConfiguration((e) => {
-      if (
-        e.affectsConfiguration("openbox.environment") ||
-        e.affectsConfiguration("openbox.mockAuth")
-      ) {
-        void boot();
+  // URIs that previously had a halt deny recorded, so we can call
+  // clearDeny when the same approval transitions out of pending.
+  const haltedApprovals = new Map<string, string>();
+
+  let env: EnvName = readEnv();
+
+  function paintIdle(envTag: EnvName, count: number) {
+    const cfg = vscode.workspace.getConfiguration("openbox");
+    const tag = readMockAuth() ? `MOCK · ${envTag}` : envTag;
+    const anyActive =
+      cfg.get<boolean>("preWriteGate.active", false) ||
+      (cfg.get<boolean>("tabObserver.enabled", false) && cfg.get<boolean>("tabObserver.active", false)) ||
+      cfg.get<boolean>("fileOpGate.enabled", false);
+    const haveAgent = !!cfg.get<string>("agentId", "").trim();
+    const idleNote = anyActive && !haveAgent ? " · gates idle (no agent)" : "";
+    if (count > 0) {
+      statusBar.text = `$(shield) ${count} Pending · ${tag}${idleNote}`;
+    } else {
+      statusBar.text = `$(shield) OpenBox · ${tag}${idleNote}`;
+    }
+    if (anyActive && !haveAgent) {
+      statusBar.tooltip =
+        "Active gates are turned on but `openbox.agentId` is empty, so check_governance is skipped. Set the agent ID in settings to enable enforcement.";
+    }
+  }
+
+  /** True when `uri` is currently open in any editor tab. */
+  function isUriOpen(uri: string): boolean {
+    for (const group of vscode.window.tabGroups.all) {
+      for (const tab of group.tabs) {
+        const input = tab.input as { uri?: vscode.Uri } | undefined;
+        if (input?.uri && input.uri.toString() === uri) return true;
+      }
+    }
+    return false;
+  }
+
+  /** Merge the halt-verdict tracking with the fresh approval set. */
+  function syncHaltedApprovals(approvals: Approval[]) {
+    const seen = new Set<string>();
+    for (const a of approvals) {
+      if (a.verdict !== VERDICT_HALT) continue;
+      const uri = extractTargetUri(a.input);
+      if (!uri) continue;
+      if (!isUriOpen(uri)) continue;
+      seen.add(a.id);
+      if (haltedApprovals.has(a.id)) continue;
+      haltedApprovals.set(a.id, uri);
+      preWrite.recordDeny({
+        uri,
+        reason: a.reason || `${a.activity_type || "edit"} flagged`,
+        approvalId: a.id,
+        at: Date.now(),
+      });
+    }
+    for (const [id, uri] of haltedApprovals) {
+      if (seen.has(id)) continue;
+      preWrite.clearDeny(uri);
+      haltedApprovals.delete(id);
+    }
+  }
+
+  async function boot(nextEnv: EnvName) {
+    // Wipe everything tied to the previous boot before we start the
+    // next one. Prevents a stale detail panel from sitting on top of
+    // a sign-out / env-switch and the Profile tree from showing a
+    // previous identity until the new poll lands.
+    if (active) {
+      active.pending.dispose();
+      active.history.dispose();
+      active = undefined;
+    }
+    ApprovalDetailPanel.disposeCurrent();
+    profileProvider.refresh();
+
+    env = nextEnv;
+    statusBar.text = `$(sync~spin) OpenBox · ${env}`;
+    statusBar.tooltip = `Connecting to ${env}…`;
+    vscode.commands.executeCommand("setContext", "openbox.hasApprovals", false);
+    vscode.commands.executeCommand("setContext", "openbox.history.hasApprovals", false);
+
+    const mockAuth = readMockAuth();
+    if (!mockAuth && !hasApiKey(env)) {
+      vscode.commands.executeCommand("setContext", "openbox.needsKey", true);
+      statusBar.text = `$(key) OpenBox · ${env}: Set API Key`;
+      statusBar.tooltip = `No API key set for ${env}. Click the OpenBox view and use "Set API Key".`;
+      statusBar.command = "openbox.setApiKey";
+      return;
+    }
+    vscode.commands.executeCommand("setContext", "openbox.needsKey", false);
+    statusBar.command = "openbox.approvals.focus";
+
+    let client: OpenBoxClient;
+    if (mockAuth) {
+      // MockClient duck-types the methods PollingService + others use;
+      // the cast keeps downstream typing consistent without polluting
+      // every call site with a union type.
+      client = new MockClient() as unknown as OpenBoxClient;
+    } else {
+      try {
+        const ctx = await createApiContext(env);
+        client = ctx.client;
+      } catch (err: any) {
+        statusBar.text = `$(shield) OpenBox · ${env}: No Token`;
+        statusBar.tooltip = err.message;
+        vscode.window.showErrorMessage(`OpenBox: ${err.message}`);
         return;
       }
+    }
+
+    let orgId: string | undefined;
+    let userSub: string | undefined;
+    let email: string | undefined;
+    let name: string | undefined;
+    let preferredUsername: string | undefined;
+    let emailVerified: boolean | undefined;
+    let keyId: string | undefined;
+    let apiKeyPermissions: string[] | undefined;
+    let isApiKeyAuth = false;
+    try {
+      const profile: any = await client.getProfile();
+      orgId = profile.orgId;
+      userSub = profile.sub;
+      email = profile.email;
+      name = profile.name;
+      preferredUsername = profile.preferred_username;
+      emailVerified = profile.email_verified;
+      isApiKeyAuth = profile.isApiKeyAuth === true;
+      if (isApiKeyAuth) {
+        if (typeof userSub === "string" && userSub.startsWith("api-key:")) {
+          keyId = userSub.slice("api-key:".length);
+        }
+        if (Array.isArray(profile.permissions)) {
+          apiKeyPermissions = profile.permissions as string[];
+        }
+      }
+
+      if (!orgId) {
+        try {
+          const agents: any = await client.listAgents();
+          orgId = agents?.data?.[0]?.organization_id;
+        } catch {
+          /* silent */
+        }
+      }
+
+      if (!orgId) {
+        statusBar.text = `$(shield) OpenBox · ${env}: No Org`;
+        return;
+      }
+      const tag = mockAuth ? "mock" : env;
+      statusBar.tooltip = `Signed in as ${email || preferredUsername || userSub} (${tag})`;
+    } catch (err: any) {
+      statusBar.text = `$(shield) OpenBox · ${env}: Error`;
+      statusBar.tooltip = err.message;
+      return;
+    }
+
+    let activeKey: ActiveKeyInfo | undefined;
+    let activeKeyError: string | undefined;
+    if (!mockAuth) {
+      try {
+        const res: any = await client.listApiKeys({ perPage: 100 });
+        const keys: any[] = res?.data ?? [];
+        if (keys.length === 0) {
+          activeKeyError = "no keys returned";
+        } else {
+          const sorted = [...keys].sort((a, b) => {
+            const ta = a.last_used_at ? Date.parse(a.last_used_at) : 0;
+            const tb = b.last_used_at ? Date.parse(b.last_used_at) : 0;
+            return tb - ta;
+          });
+          const top = sorted[0];
+          activeKey = {
+            id: top.id,
+            name: top.name,
+            description: top.description,
+            permissions: top.permissions,
+            valid_from: top.valid_from,
+            expires_at: top.expires_at,
+            ip_whitelist: top.ip_whitelist,
+            is_active: top.is_active,
+            created_at: top.created_at,
+            last_used_at: top.last_used_at,
+          };
+        }
+      } catch (err: any) {
+        const status = typeof err?.status === "number" ? err.status : undefined;
+        activeKeyError =
+          status === 401
+            ? "JWT-only endpoint"
+            : status === 403
+              ? "needs read:api_key"
+              : err?.message ?? "error";
+      }
+    } else {
+      activeKeyError = "mock auth";
+    }
+
+    let teams: Team[] = [];
+    let members: Member[] = [];
+    void (async () => {
+      try {
+        const res = (await client.listTeams(orgId!)) as { data?: Team[] };
+        teams = res?.data ?? [];
+      } catch {
+        /* silent */
+      }
+    })();
+    void (async () => {
+      try {
+        const res = (await client.listMembers(orgId!, { perPage: 200 })) as {
+          members?: Member[];
+          data?: Member[] | { members?: Member[] };
+        };
+        members =
+          (Array.isArray(res?.members) && res.members) ||
+          (Array.isArray(res?.data) && res.data) ||
+          (res?.data && !Array.isArray(res.data) && Array.isArray(res.data.members) ? res.data.members : []) ||
+          [];
+      } catch {
+        /* silent */
+      }
+    })();
+
+    const agentOwnerCache = new Map<string, string | undefined>();
+    const resolveAgentOwners = async (ids: string[]) => {
+      const missing = ids.filter((id) => !agentOwnerCache.has(id));
+      await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const res = (await client.getAgent(id)) as any;
+            agentOwnerCache.set(id, res?.owner_id as string | undefined);
+          } catch {
+            agentOwnerCache.set(id, undefined);
+          }
+        }),
+      );
+    };
+
+    paintIdle(env, 0);
+
+    const refreshActive = () => {
+      active?.pending.refresh();
+      active?.history.refresh();
+    };
+
+    const sessionDeps = {
+      context,
+      client,
+      orgId: orgId!,
+      env,
+      userSub,
+      teams: () => teams,
+      members: () => members,
+      agentOwnerLookup: (id: string) => agentOwnerCache.get(id),
+      resolveAgentOwners,
+      onPendingCount: (count: number) => paintIdle(env, count),
+      onError: (where: string, err: Error) =>
+        console.error(`OpenBox ${where} feed error (${env}):`, err.message),
+    };
+
+    const pending = new ViewSession(
+      {
+        viewId: "openbox.approvals",
+        scope: "pending",
+        cmdNs: "openbox",
+        ctxPrefix: "openbox",
+        initialStatus: "pending",
+        supportsStatus: false,
+      },
+      {
+        ...sessionDeps,
+        notifyOnNew: readNotifyOnNew(),
+        onNewApproval: (a, e) => void inlineDecide(a, e, client, orgId!, context, refreshActive),
+        onNewBatch: (count, e) => void notifyBatch(count, e),
+        onApprovalsRefreshed: syncHaltedApprovals,
+      },
+    );
+
+    const history = new ViewSession(
+      {
+        viewId: "openbox.history",
+        scope: "history",
+        cmdNs: "openbox.history",
+        ctxPrefix: "openbox.history",
+        // Slower cadence; mobile uses 30s for history because decided
+        // rows don't move and the user isn't waiting on triage.
+        pollMs: 30_000,
+        supportsStatus: true,
+        groupByStatus: true,
+      },
+      {
+        ...sessionDeps,
+        notifyOnNew: false,
+        onNewApproval: () => {},
+        onNewBatch: () => {},
+      },
+    );
+
+    active = {
+      pending,
+      history,
+      client,
+      orgId: orgId!,
+      email,
+      sub: userSub,
+      name,
+      preferredUsername,
+      emailVerified,
+      keyId,
+      apiKeyPermissions,
+      isApiKeyAuth,
+      activeKey,
+      activeKeyError,
+    };
+    profileProvider.refresh();
+    debugProvider?.refresh();
+  }
+
+  function notifyBatch(count: number, envTag: string) {
+    vscode.window
+      .showInformationMessage(`[${envTag}] ${count} new approvals pending`, "View")
+      .then((choice) => {
+        if (choice === "View") vscode.commands.executeCommand("openbox.approvals.focus");
+      });
+  }
+
+  await boot(env);
+  context.subscriptions.push({
+    dispose: () => {
+      if (active) {
+        active.pending.dispose();
+        active.history.dispose();
+        active = undefined;
+      }
+    },
+  });
+
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("openbox.environment")) {
+        const next = readEnv();
+        if (next !== env) {
+          void boot(next);
+        }
+        debugProvider?.refresh();
+        profileProvider.refresh();
+      }
+      // Mock toggle reboots from scratch.
+      if (e.affectsConfiguration("openbox.mockAuth")) {
+        paintDebugContext();
+        debugProvider?.refresh();
+        profileProvider.refresh();
+        if (DEBUG_BUILD) void boot(env);
+      }
+      // Gate-toggle / agentId changes only repaint the idle status —
+      // no polling restart needed.
       if (
         e.affectsConfiguration("openbox.agentId") ||
         e.affectsConfiguration("openbox.preWriteGate.active") ||
         e.affectsConfiguration("openbox.tabObserver.active") ||
         e.affectsConfiguration("openbox.fileOpGate.enabled")
       ) {
-        lastView = resolveBoot();
-        paintIdle(env, feed?.approvals?.length ?? 0);
+        paintIdle(env, active?.pending.count ?? 0);
       }
     }),
   );
 
+  const pickApproval = (node: any): Approval | undefined =>
+    node?.approval ?? (node?.id ? node : undefined);
+
+  function describeKeySource(envTag: EnvName): string {
+    const url = apiKeysUrl(envTag);
+    return url
+      ? `Mint a key in the dashboard: ${url}`
+      : `Mint a key in the dashboard under Organization → API Keys.`;
+  }
+
+  // Snapshot builder for the debug panel and the sidebar Debug view.
+  // Function declaration (not const arrow) so it's hoisted.
+  // eslint-disable-next-line no-inner-declarations
+  function buildDebugSnapshot(): DebugSnapshot {
+    const pendingErr = active?.pending.errorCount ?? 0;
+    const historyErr = active?.history.errorCount ?? 0;
+    const lastPendingPoll = active?.pending.lastPollAt;
+    const lastHistoryPoll = active?.history.lastPollAt;
+    const lastPoll = Math.max(lastPendingPoll || 0, lastHistoryPoll || 0) || undefined;
+    const lastPendingErr = active?.pending.lastErrorAt;
+    const lastHistoryErr = active?.history.lastErrorAt;
+    const lastErrorAt = Math.max(lastPendingErr || 0, lastHistoryErr || 0) || undefined;
+    const lastErrorMessage =
+      (lastPendingErr || 0) > (lastHistoryErr || 0)
+        ? active?.pending.lastErrorMessage
+        : active?.history.lastErrorMessage;
+    const tokenEntry = readStore()[env];
+    return {
+      env,
+      sub: active?.sub,
+      email: active?.email,
+      name: active?.name,
+      preferredUsername: active?.preferredUsername,
+      emailVerified: active?.emailVerified,
+      orgId: active?.orgId,
+      hasApiKey: hasApiKey(env),
+      keyPrefix: apiKeyPrefix(env),
+      keyId: active?.keyId,
+      apiKeyPermissions: active?.apiKeyPermissions,
+      isApiKeyAuth: active?.isApiKeyAuth ?? false,
+      keyUpdatedAt: tokenEntry?.updatedAt,
+      permissions: tokenEntry?.permissions,
+      features: tokenEntry?.features,
+      activeKey: active?.activeKey,
+      activeKeyError: active?.activeKeyError,
+      pendingCount: active?.pending.count ?? 0,
+      historyCount: active?.history.count ?? 0,
+      lastPollAt: lastPoll,
+      lastErrorAt,
+      lastErrorMessage,
+      errorCount: pendingErr + historyErr,
+    };
+  }
+
   context.subscriptions.push(
     vscode.commands.registerCommand("openbox.approve", async (node: any) => {
-      const approval: Approval | undefined = node?.approval ?? (node?.id ? node : undefined);
-      if (!approval) return;
+      const approval = pickApproval(node);
+      if (!approval || !active) return;
       try {
-        await decideApproval(approval, "approve");
-        vscode.window.showInformationMessage(
-          lastView.mode === "mock" ? `Approved (MOCK)` : `Approved (${env})`,
-        );
+        await active.client.decideApproval(approval.agent_id || "", approval.id, { action: "approve" });
+        vscode.window.showInformationMessage(`Approved (${env})`);
+        active.pending.refresh();
       } catch (err: any) {
         vscode.window.showErrorMessage(`Approve failed: ${err.message}`);
       }
     }),
 
     vscode.commands.registerCommand("openbox.reject", async (node: any) => {
-      const approval: Approval | undefined = node?.approval ?? (node?.id ? node : undefined);
-      if (!approval) return;
+      const approval = pickApproval(node);
+      if (!approval || !active) return;
+      const choice = await vscode.window.showWarningMessage(
+        `Reject ${approval.agent?.agent_name || "this approval"}?`,
+        { modal: true, detail: "This will block the action." },
+        "Reject",
+      );
+      if (choice !== "Reject") return;
       try {
-        await decideApproval(approval, "reject");
-        vscode.window.showInformationMessage(
-          lastView.mode === "mock" ? `Rejected (MOCK)` : `Rejected (${env})`,
-        );
+        await active.client.decideApproval(approval.agent_id || "", approval.id, { action: "reject" });
+        vscode.window.showInformationMessage(`Rejected (${env})`);
+        active.pending.refresh();
       } catch (err: any) {
         vscode.window.showErrorMessage(`Reject failed: ${err.message}`);
       }
     }),
 
     vscode.commands.registerCommand("openbox.refresh", () => {
-      feed?.refresh();
+      active?.pending.refresh();
+      active?.history.refresh();
     }),
 
     vscode.commands.registerCommand("openbox.copyDetail", (value: string) => {
       vscode.env.clipboard.writeText(value);
     }),
 
-    // Diagnostic: runs governance.check() from the extension host
-    // with the configured agent + env. Used by the live e2e suite
-    // to confirm the gate's network path works without going
-    // through the gate's own veto/save dance. Intentionally no
-    // surface in the package.json contributions, so it stays
-    // internal — only test code that knows the id can invoke it.
+    vscode.commands.registerCommand("openbox.openDetail", (node: any) => {
+      const approval = pickApproval(node);
+      if (!approval || !active) return;
+      ApprovalDetailPanel.show(approval, context, {
+        client: active.client,
+        orgId: active.orgId,
+        env,
+        onDecided: () => {
+          active?.pending.refresh();
+          active?.history.refresh();
+        },
+      });
+    }),
+
+    vscode.commands.registerCommand("openbox.setApiKey", async () => {
+      const value = await vscode.window.showInputBox({
+        title: `OpenBox: Set API Key (${env})`,
+        prompt: describeKeySource(env),
+        placeHolder: "obx_key_…",
+        password: true,
+        ignoreFocusOut: true,
+        validateInput: (v) => {
+          const t = v.trim();
+          if (!t) return "Key is required";
+          if (!API_KEY_PATTERN.test(t)) return "Expected obx_key_<48 hex>.";
+          return undefined;
+        },
+      });
+      if (!value) return;
+      const trimmed = value.trim();
+      if (!validateApiKey(trimmed)) {
+        vscode.window.showErrorMessage("Invalid API key shape (expected obx_key_<48 hex>).");
+        return;
+      }
+
+      // Round-trip /auth/profile to confirm the key works before
+      // persisting. Progress notification gives the user feedback
+      // during the network call.
+      const ok = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `OpenBox: validating ${env} API key…`,
+          cancellable: false,
+        },
+        async () => {
+          try {
+            // Stage the key on disk first so createApiContext picks
+            // it up; rollback below if /auth/profile rejects.
+            writeApiKey(env, trimmed);
+            const ctx = await createApiContext(env);
+            const profile: any = await ctx.client.getProfile();
+            return {
+              ok: true as const,
+              profile,
+            };
+          } catch (err: any) {
+            // Rollback: drop the key we just staged so a bad paste
+            // doesn't poison the next boot.
+            try {
+              clearApiKey(env);
+            } catch {
+              /* silent */
+            }
+            return { ok: false as const, message: String(err?.message ?? err) };
+          }
+        },
+      );
+
+      if (!ok.ok) {
+        const choice = await vscode.window.showErrorMessage(
+          `API key validation failed: ${ok.message}`,
+          "Try Again",
+        );
+        if (choice === "Try Again") {
+          vscode.commands.executeCommand("openbox.setApiKey");
+        }
+        return;
+      }
+      const who =
+        ok.profile.email || ok.profile.preferred_username || ok.profile.sub || "unknown user";
+      vscode.window.showInformationMessage(
+        `API key saved. Signed in as ${who} (${ok.profile.orgId ?? "no org"}).`,
+      );
+      void boot(env);
+    }),
+
+    vscode.commands.registerCommand("openbox.openDashboard", async () => {
+      const url = apiKeysUrl(env);
+      if (!url) {
+        vscode.window.showInformationMessage(`No dashboard URL configured for ${env}.`);
+        return;
+      }
+      vscode.env.openExternal(vscode.Uri.parse(url));
+    }),
+
+    vscode.commands.registerCommand("openbox.clearCredentials", async () => {
+      const choice = await vscode.window.showWarningMessage(
+        "Clear all OpenBox API keys?",
+        {
+          modal: true,
+          detail:
+            "This deletes ~/.openbox/tokens, removing keys for all environments. You'll need to set them again.",
+        },
+        "Clear",
+      );
+      if (choice !== "Clear") return;
+      const p = path.join(os.homedir(), ".openbox", "tokens");
+      try {
+        if (fs.existsSync(p)) fs.unlinkSync(p);
+        vscode.window.showInformationMessage("Cleared OpenBox credentials.");
+        void boot(env);
+      } catch (err: any) {
+        vscode.window.showErrorMessage(`Failed to clear credentials: ${err.message}`);
+      }
+    }),
+
+    // Per-env sign-out. Mirrors mobile's signOut button; clears just
+    // the active env's slot in the token store, leaves other envs
+    // alone. Distinct from clearCredentials which wipes everything.
+    vscode.commands.registerCommand("openbox.signOut", async () => {
+      const choice = await vscode.window.showWarningMessage(
+        `Sign out of ${env}?`,
+        {
+          modal: true,
+          detail: `This removes the API key for ${env}. Other environments are unaffected.`,
+        },
+        "Sign Out",
+      );
+      if (choice !== "Sign Out") return;
+      try {
+        clearApiKey(env);
+        const cfg = vscode.workspace.getConfiguration("openbox");
+        if (cfg.get<boolean>("mockAuth", false)) {
+          await cfg.update("mockAuth", false, vscode.ConfigurationTarget.Global);
+        } else {
+          void boot(env);
+        }
+        vscode.window.showInformationMessage(`Signed out of ${env}.`);
+      } catch (err: any) {
+        vscode.window.showErrorMessage(`Sign out failed: ${err.message}`);
+      }
+    }),
+
+    vscode.commands.registerCommand("openbox.reboot", () => void boot(env)),
+
+    vscode.commands.registerCommand("openbox.openWalkthrough", () => {
+      vscode.commands.executeCommand(
+        "workbench.action.openWalkthrough",
+        "OpenBox.openbox#openbox.gettingStarted",
+        false,
+      );
+    }),
+
+    // Diagnostic: governance.check from the extension host with the
+    // configured agent + env. Used by the live e2e suite.
     vscode.commands.registerCommand(
       "openbox.__diag.checkGovernance",
       async (input: {
@@ -357,46 +847,73 @@ export async function activate(context: vscode.ExtensionContext) {
         activityInput: Record<string, unknown>;
       }) => {
         try {
-          const r = await governance.check({
+          return await governance.check({
             spanType: input.spanType,
             activityInput: input.activityInput,
           });
-          return r;
         } catch (err: any) {
           return { outcome: "error", reason: String(err?.message ?? err) };
         }
       },
     ),
 
-    // Diagnostic: returns the current pending-approvals count from
-    // whatever feed is wired (mock or real). The e2e suites use
-    // this to assert "approve removed a row" without DOM-walking
-    // the tree (which is brittle across editor forks).
+    // Diagnostic: pending-approvals count.
     vscode.commands.registerCommand("openbox.__diag.approvalsCount", () => {
-      return feed?.approvals.length ?? 0;
-    }),
-
-    // QuickPick env switcher; writes the setting (Global scope), the
-    // onDidChangeConfiguration handler above does the actual reboot.
-    vscode.commands.registerCommand("openbox.switchEnvironment", async () => {
-      const choice = await vscode.window.showQuickPick(
-        [
-          { label: "production", description: "https://api.openbox.ai" },
-          { label: "staging", description: "internal; set OPENBOX_API_URL" },
-          { label: "local", description: "http://localhost:3000" },
-        ],
-        { placeHolder: `Current: ${env}; pick the new environment` },
-      );
-      if (!choice) return;
-      await vscode.workspace
-        .getConfiguration("openbox")
-        .update("environment", choice.label, vscode.ConfigurationTarget.Global);
+      return active?.pending.count ?? 0;
     }),
   );
 
-  context.subscriptions.push(treeProvider);
+  if (DEBUG_BUILD) {
+    context.subscriptions.push(
+      vscode.commands.registerCommand("openbox.switchEnvironment", async () => {
+        const choice = await vscode.window.showQuickPick(
+          [{ label: "production" }, { label: "staging" }, { label: "local" }],
+          { placeHolder: `Current: ${env}; pick the new environment` },
+        );
+        if (!choice) return;
+        await vscode.workspace
+          .getConfiguration("openbox")
+          .update("environment", choice.label, vscode.ConfigurationTarget.Global);
+      }),
+
+      vscode.commands.registerCommand("openbox.showDebugInfo", () => {
+        showDebugInfoPanel(context, buildDebugSnapshot);
+      }),
+
+      vscode.commands.registerCommand("openbox.toggleMockAuth", async () => {
+        const cfg = vscode.workspace.getConfiguration("openbox");
+        const next = !cfg.get<boolean>("mockAuth", false);
+        await cfg.update("mockAuth", next, vscode.ConfigurationTarget.Global);
+        vscode.window.showInformationMessage(`Mock auth ${next ? "enabled" : "disabled"}.`);
+      }),
+
+      vscode.commands.registerCommand("openbox.seedMockData", () => {
+        mockStore().seed(3);
+        active?.pending.refresh();
+        active?.history.refresh();
+        const c = mockStore().counts();
+        vscode.window.showInformationMessage(
+          `Seeded 3 mock approvals. Now ${c.pending} pending, ${c.approved + c.rejected + c.expired} decided.`,
+        );
+      }),
+
+      vscode.commands.registerCommand("openbox.resetMockData", () => {
+        mockStore().reset();
+        active?.pending.refresh();
+        active?.history.refresh();
+        const c = mockStore().counts();
+        vscode.window.showInformationMessage(
+          `Mock data reset. ${c.pending} pending, ${c.approved} approved, ${c.rejected} rejected, ${c.expired} expired.`,
+        );
+      }),
+    );
+  }
 }
 
 export function deactivate() {
-  feed?.stop();
+  if (active) {
+    active.pending.dispose();
+    active.history.dispose();
+    active = undefined;
+  }
 }

@@ -163,11 +163,23 @@ class FakePolling {
 
 let lastFakePolling: FakePolling | undefined;
 
-vi.mock('openbox-sdk/polling', () => ({
-  ApprovalsPollingService: class {
+// Local polling module (ViewSession constructs PollingService from
+// `./polling`). Drives the recovered ViewSession-based extension; the
+// halt-verdict pipeline now flows polling → ViewSession → onApprovalsRefreshed
+// → syncHaltedApprovals → preWrite.recordDeny. The fake's emit() entry
+// point still drives the chain end-to-end.
+vi.mock('./polling', () => ({
+  PollingService: class {
+    public approvals: unknown[] = [];
+    public hasMore = false;
+    public lastPollAt: number | undefined;
+    public lastErrorAt: number | undefined;
+    public lastErrorMessage: string | undefined;
+    public errorCount = 0;
     constructor(_client: unknown, _orgId: string) {
       lastFakePolling = new FakePolling();
-      // Return the polling instance so the activate() code wires onto it.
+      // Mirror the FakePolling surface back onto the constructed
+      // instance so ViewSession's wiring sees the same emitter.
       return lastFakePolling as unknown as object;
     }
   },
@@ -177,20 +189,106 @@ vi.mock('./api', () => ({
   createApi: vi.fn(),
   createApiContext: vi.fn(async () => ({
     client: {
-      getProfile: async () => ({ orgId: 'org_test', email: 'tester@example.com' }),
+      getProfile: async () => ({
+        orgId: 'org_test',
+        email: 'tester@example.com',
+        sub: 'tester',
+      }),
       decideApproval: vi.fn(async () => undefined),
+      listAgents: vi.fn(async () => ({ data: [] })),
+      listApiKeys: vi.fn(async () => ({ data: [] })),
+      listTeams: vi.fn(async () => ({ data: [] })),
+      listMembers: vi.fn(async () => ({ members: [] })),
+      getAgent: vi.fn(async () => ({})),
     },
     apiBase: 'https://api.test',
   })),
+  // Token store helpers — the recovered extension reads these on boot.
+  apiKeyPrefix: vi.fn(() => 'obx_key_test1234…'),
+  clearApiKey: vi.fn(),
+  hasApiKey: vi.fn(() => true),
+  readStore: vi.fn(() => ({ production: { apiKey: 'obx_key_test', updatedAt: '2026-05-06' } })),
+  validateApiKey: vi.fn(() => true),
+  writeApiKey: vi.fn(),
 }));
 
 vi.mock('./approvalsView', () => ({
   ApprovalsTreeProvider: class {
     update = vi.fn();
     dispose = vi.fn();
+    setLoadMoreCommand = vi.fn();
     onDidChangeTreeData = () => ({ dispose: () => undefined });
     getTreeItem = () => ({});
     getChildren = () => [];
+  },
+}));
+
+// Recovered UI surfaces — minimal shims so activate() can wire them
+// without exploding. The tests don't drive these surfaces; the
+// PreWriteGate / TabObserver assertions don't depend on them.
+vi.mock('./detailPanel', () => ({
+  ApprovalDetailPanel: { show: vi.fn(), disposeCurrent: vi.fn() },
+}));
+vi.mock('./viewSession', () => ({
+  ViewSession: class {
+    public count = 0;
+    public lastPollAt: number | undefined;
+    public lastErrorAt: number | undefined;
+    public lastErrorMessage: string | undefined;
+    public errorCount = 0;
+    constructor(cfg: { scope: string }, deps: { onApprovalsRefreshed?: (a: unknown[]) => void }) {
+      // Only the pending session subscribes to the halt-verdict
+      // pipeline; history doesn't carry actionable verdict-4 rows.
+      // Construct a FakePolling for the pending scope and bridge its
+      // 'changed' events into the deps callback so the existing tests
+      // (which emit on lastFakePolling) drive the halt-tracking
+      // pipeline end-to-end.
+      if (cfg.scope === 'pending') {
+        lastFakePolling = new FakePolling();
+        lastFakePolling.on('changed', (approvals: unknown[]) => {
+          deps.onApprovalsRefreshed?.(approvals);
+        });
+      }
+    }
+    refresh = vi.fn();
+    dispose = vi.fn();
+  },
+  inlineDecide: vi.fn(),
+}));
+vi.mock('./dashboardUrl', () => ({ apiKeysUrl: vi.fn(() => undefined) }));
+vi.mock('./debugInfoPanel', () => ({ showDebugInfoPanel: vi.fn() }));
+vi.mock('./mockClient', () => ({ MockClient: class { constructor() {} } }));
+vi.mock('./mockStore', () => ({
+  mockStore: () => ({ seed: vi.fn(), reset: vi.fn(), counts: () => ({ pending: 0, approved: 0, rejected: 0, expired: 0 }) }),
+}));
+vi.mock('./debugView', () => ({
+  DebugControlsProvider: class {
+    refresh = vi.fn();
+    dispose = vi.fn();
+    onDidChangeTreeData = () => ({ dispose: () => undefined });
+    getTreeItem = () => ({});
+    getChildren = () => [];
+  },
+}));
+vi.mock('./profileView', () => ({
+  ProfileProvider: class {
+    refresh = vi.fn();
+    onDidChangeTreeData = () => ({ dispose: () => undefined });
+    getTreeItem = () => ({});
+    getChildren = () => [];
+  },
+}));
+vi.mock('./onboardView', () => ({
+  OnboardProvider: class {
+    onDidChangeTreeData = () => ({ dispose: () => undefined });
+    getTreeItem = () => ({});
+    getChildren = () => [];
+  },
+}));
+vi.mock('./hookLogChannel', () => ({
+  HookLogTail: class {
+    start = vi.fn();
+    dispose = vi.fn();
   },
 }));
 

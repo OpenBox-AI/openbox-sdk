@@ -59,8 +59,29 @@
     "views": {
       "openbox": [
         {
+          "id": "openbox.onboard",
+          "name": "Welcome",
+          "when": "openbox.needsKey"
+        },
+        {
           "id": "openbox.approvals",
-          "name": "Pending Approvals"
+          "name": "Pending Approvals",
+          "when": "!openbox.needsKey"
+        },
+        {
+          "id": "openbox.history",
+          "name": "History",
+          "when": "!openbox.needsKey"
+        },
+        {
+          "id": "openbox.profile",
+          "name": "Profile",
+          "when": "!openbox.needsKey"
+        },
+        {
+          "id": "openbox.debugControls",
+          "name": "Debug",
+          "when": "openbox.debug"
         }
       ]
     },
@@ -81,10 +102,165 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "openbox.openDetail",
+        "title": "Open Approval Detail"
+      },
+      {
+        "command": "openbox.copyDetail",
+        "title": "Copy Approval Detail"
+      },
+      {
+        "command": "openbox.search",
+        "title": "OpenBox: Search Approvals",
+        "icon": "$(search)"
+      },
+      {
+        "command": "openbox.filter",
+        "title": "OpenBox: Filter Approvals",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "openbox.filterTier",
+        "title": "OpenBox: Filter by Tier"
+      },
+      {
+        "command": "openbox.filterType",
+        "title": "OpenBox: Filter by Activity Type"
+      },
+      {
+        "command": "openbox.filterTeam",
+        "title": "OpenBox: Filter by Team"
+      },
+      {
+        "command": "openbox.filterOwner",
+        "title": "OpenBox: Filter by Owner"
+      },
+      {
+        "command": "openbox.toggleSort",
+        "title": "OpenBox: Toggle Sort Order",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "openbox.clearFilters",
+        "title": "OpenBox: Clear Filters",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "openbox.loadMore",
+        "title": "Load More Approvals"
+      },
+      {
+        "command": "openbox.history.refresh",
+        "title": "Refresh History",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "openbox.history.search",
+        "title": "OpenBox: Search History",
+        "icon": "$(search)"
+      },
+      {
+        "command": "openbox.history.filter",
+        "title": "OpenBox: Filter History",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "openbox.history.filterTier",
+        "title": "OpenBox: Filter History by Tier"
+      },
+      {
+        "command": "openbox.history.filterType",
+        "title": "OpenBox: Filter History by Activity Type"
+      },
+      {
+        "command": "openbox.history.filterTeam",
+        "title": "OpenBox: Filter History by Team"
+      },
+      {
+        "command": "openbox.history.filterOwner",
+        "title": "OpenBox: Filter History by Owner"
+      },
+      {
+        "command": "openbox.history.toggleSort",
+        "title": "OpenBox: Toggle History Sort Order",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "openbox.history.clearFilters",
+        "title": "OpenBox: Clear History Filters",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "openbox.history.setStatus",
+        "title": "OpenBox: Set History Status",
+        "icon": "$(history)"
+      },
+      {
+        "command": "openbox.history.setDateRange",
+        "title": "OpenBox: Set History Date Range",
+        "icon": "$(calendar)"
+      },
+      {
+        "command": "openbox.history.loadMore",
+        "title": "Load More History"
+      },
+      {
+        "command": "openbox.setApiKey",
+        "title": "OpenBox: Set API Key…",
+        "icon": "$(key)"
+      },
+      {
+        "command": "openbox.openDashboard",
+        "title": "OpenBox: Open Dashboard",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "openbox.clearCredentials",
+        "title": "OpenBox: Clear All Credentials…"
+      },
+      {
+        "command": "openbox.signOut",
+        "title": "OpenBox: Sign Out",
+        "icon": "$(sign-out)"
+      },
+      {
+        "command": "openbox.reboot",
+        "title": "OpenBox: Reload",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "openbox.openWalkthrough",
+        "title": "OpenBox: Open Getting Started"
+      },
+      {
         "command": "openbox.switchEnvironment",
         "title": "OpenBox: Switch Environment (dev only)",
         "icon": "$(globe)",
-        "enablement": "openbox.devMode"
+        "enablement": "openbox.debug || openbox.devMode"
+      },
+      {
+        "command": "openbox.showDebugInfo",
+        "title": "OpenBox: Show Debug Info",
+        "icon": "$(info)",
+        "enablement": "openbox.debug"
+      },
+      {
+        "command": "openbox.toggleMockAuth",
+        "title": "OpenBox: Toggle Mock Auth",
+        "icon": "$(beaker)",
+        "enablement": "openbox.debug"
+      },
+      {
+        "command": "openbox.seedMockData",
+        "title": "OpenBox: Seed Mock Data",
+        "icon": "$(add)",
+        "enablement": "openbox.debug"
+      },
+      {
+        "command": "openbox.resetMockData",
+        "title": "OpenBox: Reset Mock Data",
+        "icon": "$(debug-restart)",
+        "enablement": "openbox.debug"
       }
     ],
     "configuration": {
@@ -149,22 +325,179 @@
     },
     "viewsWelcome": [
       {
+        "view": "openbox.onboard",
+        "contents": "Welcome to OpenBox.\n\nPaste an org API key to start reviewing agent approvals. Mint one in the dashboard under Organization → API Keys.\n\n[Set API Key](command:openbox.setApiKey)\n[Open Dashboard](command:openbox.openDashboard)"
+      },
+      {
         "view": "openbox.approvals",
-        "contents": "No pending approvals.\n\nAll agent actions are currently approved.\n[Refresh](command:openbox.refresh)"
+        "contents": "Loading…",
+        "when": "!openbox.needsKey && openbox.loading"
+      },
+      {
+        "view": "openbox.approvals",
+        "contents": "No pending approvals\n\nYou're all caught up.\n[Refresh](command:openbox.refresh)",
+        "when": "!openbox.needsKey && !openbox.loading && !openbox.hasFilters"
+      },
+      {
+        "view": "openbox.approvals",
+        "contents": "No matches\n\nTry clearing your filters.\n\n[Clear filters](command:openbox.clearFilters)",
+        "when": "!openbox.needsKey && !openbox.loading && openbox.hasFilters"
+      },
+      {
+        "view": "openbox.history",
+        "contents": "Loading…",
+        "when": "!openbox.needsKey && openbox.history.loading"
+      },
+      {
+        "view": "openbox.history",
+        "contents": "Nothing here yet\n\nDecided approvals will show up here.",
+        "when": "!openbox.needsKey && !openbox.history.loading && !openbox.history.hasFilters"
+      },
+      {
+        "view": "openbox.history",
+        "contents": "No matches\n\nTry clearing your filters.\n\n[Clear filters](command:openbox.history.clearFilters)",
+        "when": "!openbox.needsKey && !openbox.history.loading && openbox.history.hasFilters"
       }
     ],
     "menus": {
       "commandPalette": [
         {
           "command": "openbox.switchEnvironment",
-          "when": "openbox.devMode"
+          "when": "openbox.debug || openbox.devMode"
+        },
+        {
+          "command": "openbox.showDebugInfo",
+          "when": "openbox.debug"
+        },
+        {
+          "command": "openbox.toggleMockAuth",
+          "when": "openbox.debug"
+        },
+        {
+          "command": "openbox.seedMockData",
+          "when": "openbox.debug"
+        },
+        {
+          "command": "openbox.resetMockData",
+          "when": "openbox.debug"
+        },
+        {
+          "command": "openbox.openDetail",
+          "when": "false"
+        },
+        {
+          "command": "openbox.copyDetail",
+          "when": "false"
+        },
+        {
+          "command": "openbox.loadMore",
+          "when": "false"
+        },
+        {
+          "command": "openbox.history.loadMore",
+          "when": "false"
         }
       ],
       "view/title": [
         {
+          "command": "openbox.search",
+          "when": "view == openbox.approvals",
+          "group": "navigation@1"
+        },
+        {
+          "command": "openbox.filter",
+          "when": "view == openbox.approvals",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openbox.toggleSort",
+          "when": "view == openbox.approvals",
+          "group": "navigation@3"
+        },
+        {
+          "command": "openbox.clearFilters",
+          "when": "view == openbox.approvals && openbox.hasFilters",
+          "group": "navigation@4"
+        },
+        {
           "command": "openbox.refresh",
           "when": "view == openbox.approvals",
-          "group": "navigation"
+          "group": "navigation@5"
+        },
+        {
+          "command": "openbox.history.search",
+          "when": "view == openbox.history",
+          "group": "navigation@1"
+        },
+        {
+          "command": "openbox.history.setDateRange",
+          "when": "view == openbox.history",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openbox.history.filter",
+          "when": "view == openbox.history",
+          "group": "navigation@4"
+        },
+        {
+          "command": "openbox.history.toggleSort",
+          "when": "view == openbox.history",
+          "group": "navigation@5"
+        },
+        {
+          "command": "openbox.history.clearFilters",
+          "when": "view == openbox.history && openbox.history.hasFilters",
+          "group": "navigation@6"
+        },
+        {
+          "command": "openbox.history.refresh",
+          "when": "view == openbox.history",
+          "group": "navigation@7"
+        },
+        {
+          "command": "openbox.openDashboard",
+          "when": "view == openbox.profile",
+          "group": "navigation@1"
+        },
+        {
+          "command": "openbox.setApiKey",
+          "when": "view == openbox.profile",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openbox.signOut",
+          "when": "view == openbox.profile",
+          "group": "navigation@3"
+        },
+        {
+          "command": "openbox.switchEnvironment",
+          "when": "view == openbox.debugControls",
+          "group": "navigation@1"
+        },
+        {
+          "command": "openbox.toggleMockAuth",
+          "when": "view == openbox.debugControls",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openbox.seedMockData",
+          "when": "view == openbox.debugControls",
+          "group": "navigation@3"
+        },
+        {
+          "command": "openbox.resetMockData",
+          "when": "view == openbox.debugControls",
+          "group": "navigation@4"
+        },
+        {
+          "command": "openbox.showDebugInfo",
+          "when": "view == openbox.debugControls",
+          "group": "navigation@5"
+        },
+        {
+          "command": "openbox.reboot",
+          "when": "view == openbox.debugControls",
+          "group": "navigation@6"
         }
       ],
       "view/item/context": [

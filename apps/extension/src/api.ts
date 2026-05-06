@@ -1,13 +1,53 @@
-// Thin extension shim over `openbox-sdk/client-factory` +
-// `openbox-sdk/file-tokens`. The SDK owns env URL resolution, token
-// IO, and `OpenBoxClient` construction; this file only adds the
-// extension-flavored "no key configured" error message that points
-// the user at the CLI install path.
+// Thin extension shim over the SDK's token + client surfaces. The SDK
+// owns env URL resolution (`openbox-sdk/env`), token I/O
+// (`openbox-sdk/file-tokens`), and `OpenBoxClient` construction
+// (`openbox-sdk/client-factory`); this file only adds the
+// extension-flavored "no key configured" error message and the
+// debug-friendly `apiKeyPrefix` helper.
 
 import type { OpenBoxClient } from "openbox-sdk/client";
 import type { EnvName } from "openbox-sdk/env";
+import { validateApiKeyFormat } from "openbox-sdk/env";
+import {
+  loadApiKey as loadFileApiKey,
+  saveApiKey as saveFileApiKey,
+  clearApiKey as clearFileApiKey,
+  hasApiKey as hasFileApiKey,
+  readTokenStore,
+} from "openbox-sdk/file-tokens";
 import { createConsumerClient } from "openbox-sdk/client-factory";
-import { loadApiKey as loadFileApiKey } from "openbox-sdk/file-tokens";
+
+// Re-export the SDK helpers under the names the rest of the extension
+// already uses, so call sites don't have to know whether the work
+// happens in the SDK or here.
+export const clearApiKey = clearFileApiKey;
+export const writeApiKey = saveFileApiKey;
+export const hasApiKey = hasFileApiKey;
+export const readStore = readTokenStore;
+
+/** Validate that a key matches the org-API-key wire shape
+ *  (`obx_key_<48 hex>`). Returns true / false; the SDK throws on
+ *  malformed shapes via `validateApiKeyFormat`, so we wrap that to
+ *  keep the call site UX-friendly (silent boolean, no exception). */
+export function validateApiKey(key: string): boolean {
+  try {
+    validateApiKeyFormat(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** First N chars of the secret. The shape `obx_key_<48 hex>` makes the
+ *  prefix non-sensitive — entropy is in the trailing hex. Used for
+ *  debug display so the user has SOMETHING that uniquely identifies
+ *  the key at a glance even when the backend's listApiKeys is
+ *  unreachable. */
+export function apiKeyPrefix(env: EnvName, length = 16): string | undefined {
+  const k = loadFileApiKey(env);
+  if (!k) return undefined;
+  return k.length > length ? `${k.slice(0, length)}…` : k;
+}
 
 function loadApiKey(env: EnvName): string {
   const key = loadFileApiKey(env);
