@@ -429,6 +429,22 @@ export function planInstallAll(
           run: async () => {
             const { installCursor } = await import('../../runtime/cursor/install.js');
             installCursor();
+            // Harden is part of the full Cursor stack (mirrors what
+            // `install cursor` does standalone). Consent-gated:
+            // --yes auto-yes, non-interactive without --yes silently
+            // skip, interactive TTY prompt y/N.
+            console.log('');
+            const { consent } = await import('../non-interactive.js');
+            const ok = await consent(
+              'Apply OpenBox enterprise hardening profile to ~/.cursor/User/settings.json (privacy mode on, cloud features off, telemetry off)?',
+            );
+            if (ok) {
+              const { hardenCursor } = await import('../../runtime/cursor/enterprise.js');
+              const r = hardenCursor({ profileName: 'enterprise-default' });
+              console.log(`Applied hardening profile: ${r.profile} → ${r.file}`);
+            } else {
+              console.log('Skipped hardening profile (run `openbox cursor harden` later to apply).');
+            }
           },
         });
         break;

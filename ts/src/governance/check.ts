@@ -159,6 +159,10 @@ function buildSpan(spanType: SpanType, input: Record<string, unknown>): Record<s
   }
 }
 
+function resolveEnvName(envName?: EnvName): EnvName {
+  return (envName || (process.env.OPENBOX_ENV as EnvName) || 'production') as EnvName;
+}
+
 function resolveApiKey(opts: CheckGovernanceOptions): string {
   let key: string | undefined =
     opts.apiKey ?? process.env.OPENBOX_API_KEY ?? recallAgentKey(opts.agentId ?? '')?.runtimeKey;
@@ -175,13 +179,35 @@ function resolveApiKey(opts: CheckGovernanceOptions): string {
         'Expected `obx_live_*` or `obx_test_*`.',
     );
   }
+  // Env / prefix mismatch: agent-keys are not env-tagged on disk, so
+  // a production-issued key (`obx_live_*`) can sit in the cache while
+  // the caller is running against staging — the core server then
+  // returns a generic 401, which is hard to diagnose. Catch the
+  // common mismatches up front with an actionable message.
+  const env = resolveEnvName(opts.envName);
+  const isLive = key.startsWith('obx_live_');
+  const isTest = key.startsWith('obx_test_');
+  if (env === 'production' && isTest) {
+    throw new Error(
+      `Agent ${opts.agentId ?? ''} has a non-production runtime key (obx_test_*) ` +
+        `but the active env is 'production'. Either run with --env staging/local, or ` +
+        `rotate the agent's key from a production org via \`openbox --env production api-key rotate <agentId>\`.`,
+    );
+  }
+  if (env !== 'production' && isLive) {
+    throw new Error(
+      `Agent ${opts.agentId ?? ''} has a production runtime key (obx_live_*) ` +
+        `but the active env is '${env}'. Either run with --env production, or ` +
+        `rotate a non-production key via \`openbox --env ${env} api-key rotate <agentId>\`.`,
+    );
+  }
   return key;
 }
 
 function resolveCoreUrl(envName?: EnvName, coreUrlOverride?: string): string {
   if (coreUrlOverride) return coreUrlOverride;
   if (process.env.OPENBOX_CORE_URL) return process.env.OPENBOX_CORE_URL;
-  const env = (envName || (process.env.OPENBOX_ENV as EnvName) || 'production') as EnvName;
+  const env = resolveEnvName(envName);
   return ENVIRONMENTS[env]?.coreUrl ?? ENVIRONMENTS.production.coreUrl;
 }
 

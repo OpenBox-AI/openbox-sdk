@@ -10,6 +10,7 @@ import { PreFileOpGate } from "./preFileOpGate";
 import { GovernanceClient } from "./governanceClient";
 import { resolveBoot, showUnconfiguredPrompt } from "./bootResolver";
 import { MockApprovalsFeed } from "./mockFeed";
+import { HookLogTail } from "./hookLogChannel";
 import type { Approval } from "./types";
 
 /** Backend's Halt verdict; approvals with this code block the save flow. */
@@ -69,6 +70,13 @@ export async function activate(context: vscode.ExtensionContext) {
   const fileOpGate = new PreFileOpGate(governance);
   fileOpGate.attach(context);
   context.subscriptions.push({ dispose: () => fileOpGate.dispose() });
+
+  // Hook log channel. Tails ~/.openbox/log/cursor-hook.jsonl that the
+  // `openbox cursor hook` subprocess writes per event. Surfaces hook
+  // activity inside Cursor in real time so the user doesn't have to
+  // tail extension-host logs.
+  const hookLog = new HookLogTail();
+  hookLog.start(context);
 
   // URIs that previously had a halt deny recorded, so we can call
   // clearDeny when the same approval transitions out of pending. Keyed

@@ -291,6 +291,25 @@ async function resolveApiKey(agentId?: string): Promise<string> {
         "key.",
     );
   }
+  // Env / prefix mismatch: production keys are `obx_live_*`, non-production
+  // keys are `obx_test_*`. The disk cache isn't env-tagged, so a
+  // production key can leak into a staging session and 401 with no
+  // useful diagnostic. Catch the common cases up front.
+  const env = (process.env.OPENBOX_ENV || "production").toLowerCase();
+  const isLive = apiKey.startsWith("obx_live_");
+  const isTest = apiKey.startsWith("obx_test_");
+  if (env === "production" && isTest) {
+    throw new Error(
+      `Agent ${agentId ?? ""} has a non-production runtime key (obx_test_*) ` +
+        `but OPENBOX_ENV=production. Switch envs or rotate a production key.`,
+    );
+  }
+  if (env !== "production" && isLive) {
+    throw new Error(
+      `Agent ${agentId ?? ""} has a production runtime key (obx_live_*) ` +
+        `but OPENBOX_ENV=${env}. Switch to --env production or rotate a non-production key.`,
+    );
+  }
   return apiKey;
 }
 
