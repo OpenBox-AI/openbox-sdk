@@ -52,7 +52,14 @@ export function registerDoctorCommand(program: Command) {
           await getClient(env).health();
           checks.push({ name: 'backend /health', status: 'pass', detail: '200 OK' });
         } catch (err: any) {
-          checks.push({ name: 'backend /health', status: 'fail', detail: err.message || String(err) });
+          const msg = err.message || String(err);
+          // Distinguish network failure (URL unreachable) from auth /
+          // API failure so the user can act on the right thing.
+          const isNetwork = /fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|getaddrinfo/i.test(msg);
+          const detail = isNetwork
+            ? `${msg}; backend URL unreachable from this machine - check OPENBOX_API_URL or your network`
+            : `${msg}; run: openbox --env ${env} auth set-api-key (key may be invalid)`;
+          checks.push({ name: 'backend /health', status: 'fail', detail });
         }
       }
 
@@ -65,7 +72,12 @@ export function registerDoctorCommand(program: Command) {
         await core.health();
         checks.push({ name: 'core /health', status: 'pass', detail: '200 OK' });
       } catch (err: any) {
-        checks.push({ name: 'core /health', status: 'fail', detail: err.message || String(err) });
+        const msg = err.message || String(err);
+        const isNetwork = /fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|getaddrinfo/i.test(msg);
+        const detail = isNetwork
+          ? `${msg}; core URL unreachable from this machine - check OPENBOX_CORE_URL or your network`
+          : msg;
+        checks.push({ name: 'core /health', status: 'fail', detail });
       }
       if (!coreApiKey) {
         checks.push({

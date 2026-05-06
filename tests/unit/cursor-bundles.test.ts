@@ -104,8 +104,11 @@ describe('installCursorAgents', () => {
     // a future edit can't quietly delete the safeguard.
     expect(body).toMatch(/Never invent endpoints/);
     // And it routes through real CLI subcommands, not raw HTTP.
-    expect(body).toMatch(/openbox behavior list/);
-    expect(body).toMatch(/openbox core evaluate/);
+    // Gated commands: must be invoked with --experimental so the
+    // reviewer agent's CLI examples actually work. The audit pass
+    // in cursor-agents/openbox-reviewer.md added the flag everywhere.
+    expect(body).toMatch(/openbox --experimental behavior list/);
+    expect(body).toMatch(/openbox --experimental core evaluate/);
   });
 
   it('uninstall removes the agent but spares unrelated *.md', () => {
