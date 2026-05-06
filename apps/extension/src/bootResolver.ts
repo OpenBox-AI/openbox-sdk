@@ -18,6 +18,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { ENVIRONMENTS, type EnvName } from 'openbox-sdk/env';
 import { loadApiKey as loadFileApiKey } from 'openbox-sdk/file-tokens';
+import { readGlobalEnv } from './configStore';
 
 const ENVS: EnvName[] = ['production', 'staging', 'local'];
 
@@ -33,8 +34,19 @@ export interface BootView {
 }
 
 function configuredEnv(): EnvName {
-  const v = vscode.workspace.getConfiguration('openbox').get<string>('environment', 'production');
-  return v === 'staging' || v === 'local' ? v : 'production';
+  // Single source of truth: ~/.openbox/config (the CLI's config file).
+  // The vscode setting `openbox.environment` only takes precedence when
+  // the user has explicitly set it (workspace or global scope). If
+  // the setting is unset / left at default, fall through to the
+  // config file so CLI / MCP / slash commands / extension all agree.
+  // extension.ts also syncs the vscode setting INTO the config file
+  // when the user changes it, so both surfaces converge on the file.
+  const inspect = vscode.workspace.getConfiguration('openbox').inspect<string>('environment');
+  const explicit = inspect?.workspaceValue ?? inspect?.globalValue;
+  if (explicit && (explicit === 'staging' || explicit === 'local' || explicit === 'production')) {
+    return explicit;
+  }
+  return readGlobalEnv();
 }
 
 function isMockAuth(): boolean {

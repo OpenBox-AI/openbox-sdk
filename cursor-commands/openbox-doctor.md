@@ -11,10 +11,15 @@ Run the shell command exactly:
 openbox doctor
 ```
 
-Then report what doctor itself printed. Do NOT extrapolate, do NOT
-suggest extra remediation that doctor didn't tell the user about.
+The CLI reads its env from `~/.openbox/config` (the same file the
+editor extension syncs to), so `openbox doctor` automatically
+targets whichever backend the user is currently connected to. No
+need to specify `--env`.
 
 ## Output rules
+
+Report what doctor itself printed. Do NOT extrapolate, do NOT
+suggest extra remediation that doctor didn't tell the user about.
 
 - Lead with the bottom-line counts: `Pass: <n>, Warn: <n>, Fail: <n>`.
 - For each warn/fail row, print the check name + the `run: ...`
@@ -31,7 +36,7 @@ suggest extra remediation that doctor didn't tell the user about.
 
 ## Do not do
 
-- Don't mention env names (production / staging / local).
+- Don't mention env names (production / staging / local) in your output.
 - Don't add helpful-sounding next steps that doctor didn't print.
 - Don't run doctor more than once.
 

@@ -48,6 +48,7 @@ import { PreWriteGate, extractTargetUri } from "./preWriteGate";
 import { PreFileOpGate } from "./preFileOpGate";
 import { GovernanceClient } from "./governanceClient";
 import { HookLogTail } from "./hookLogChannel";
+import { writeGlobalEnv } from "./configStore";
 
 // Build-time flag, baked by esbuild via --define:process.env.OPENBOX_DEBUG_BUILD.
 // `npm run build` (production) sets it to "false"; `npm run build:dev` sets
@@ -262,6 +263,17 @@ export async function activate(context: vscode.ExtensionContext) {
   const haltedApprovals = new Map<string, string>();
 
   let env: EnvName = readEnv();
+
+  // Sync the resolved env to ~/.openbox/config on every activation
+  // so CLI / MCP / slash commands / any subprocess reading the file
+  // sees the same env the editor is currently bound to. Single
+  // source of truth: the config file. The vscode setting wins when
+  // explicitly set; whatever wins gets written here.
+  try {
+    writeGlobalEnv(env);
+  } catch {
+    /* permissions / disk error - non-fatal. */
+  }
 
   function paintIdle(envTag: EnvName, count: number) {
     const cfg = vscode.workspace.getConfiguration("openbox");
@@ -619,6 +631,16 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("openbox.environment")) {
         const next = readEnv();
+        // Sync the new env into ~/.openbox/config so CLI, MCP, slash
+        // commands, and any subprocess that reads the file picks it
+        // up too. Single source of truth: the config file.
+        try {
+          writeGlobalEnv(next);
+        } catch {
+          /* permissions / disk error - non-fatal; extension still
+             boots, but CLI surfaces may stay on the old env until
+             the user runs `openbox config set OPENBOX_ENV ...`. */
+        }
         if (next !== env) {
           void boot(next);
         }
