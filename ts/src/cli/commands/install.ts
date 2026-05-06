@@ -729,9 +729,30 @@ export function registerInstallCommands(program: Command): void {
         'Use --no-harden to skip the hardening prompt entirely.',
     )
     .option('--no-harden', 'Skip the enterprise hardening profile (no prompt)')
-    .action(async (opts: { harden?: boolean }) => {
+    .option(
+      '--matcher <pair>',
+      "Cursor hook matcher pair `<event>=<regex>`. Repeatable. Cursor " +
+        'skips the hook when the matcher does not match the event input ' +
+        '(shell command, file path, tool name, …), cutting process ' +
+        'spawns dramatically. Example: ' +
+        "--matcher 'beforeShellExecution=\\\\b(rm|sudo|curl|wget)\\\\b'",
+      collect,
+      [],
+    )
+    .action(async (opts: { harden?: boolean; matcher: string[] }) => {
+      const matchers: Record<string, string> = {};
+      for (const pair of opts.matcher ?? []) {
+        const idx = pair.indexOf('=');
+        if (idx <= 0) {
+          console.error(`--matcher: invalid pair '${pair}', expected <event>=<regex>`);
+          bailWith(EXIT.USAGE);
+        }
+        matchers[pair.slice(0, idx).trim()] = pair.slice(idx + 1);
+      }
       const { installCursor } = await import('../../runtime/cursor/install.js');
-      installCursor();
+      installCursor({
+        matchers: Object.keys(matchers).length > 0 ? matchers : undefined,
+      });
       console.log('');
       installExtension({ cursor: true });
       console.log('');

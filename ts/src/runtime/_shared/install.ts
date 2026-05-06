@@ -15,7 +15,23 @@ export interface InstallSpec {
   style: 'claude-array' | 'cursor-keyed';
   command: string;
   configDir: string;
-  events: Array<{ name: string; timeout?: number }>;
+  events: Array<{
+    name: string;
+    timeout?: number;
+    /**
+     * Cursor-only: regex string scoping when this hook fires. Cursor
+     * skips invoking the hook command entirely if the matcher
+     * doesn't hit, so a properly-scoped matcher cuts process spawns
+     * by 10× for shell-heavy sessions. Optional; absent → fires on
+     * every event (current default behavior).
+     *
+     * Matcher semantics differ per Cursor event:
+     *   beforeShellExecution → matched against the command string
+     *   beforeReadFile / afterFileEdit → matched against file_path
+     *   preToolUse → matched against tool_name
+     */
+    matcher?: string;
+  }>;
 }
 
 /** Expand a leading `~` to the user's home dir. */
@@ -54,20 +70,18 @@ function ruleIsOpenBox(rule: ClaudeRuleEntry, command: string): boolean {
     (h) =>
       h.command === command ||
       h.command?.includes('openbox claude-code') ||
-      h.command?.includes('openbox cursor') ||
-      h.command?.includes('claude-hooks') /* legacy */ ||
-      h.command?.includes('cursor-hooks') /* legacy */,
+      h.command?.includes('openbox cursor'),
   ) ?? false;
 }
 
 function isCursorOpenBoxHook(value: unknown, command: string): boolean {
-  if (!value || typeof value !== 'object') return false;
+  if (!value) return false;
+  if (Array.isArray(value)) {
+    return value.some((e) => isCursorOpenBoxHook(e, command));
+  }
+  if (typeof value !== 'object') return false;
   const cmd = (value as { command?: string }).command;
-  return (
-    cmd === command ||
-    cmd?.includes('openbox cursor') === true ||
-    cmd?.includes('cursor-hooks') === true /* legacy */
-  );
+  return cmd === command || cmd?.includes('openbox cursor') === true;
 }
 
 function dropExampleConfig(spec: InstallSpec): void {
@@ -112,14 +126,23 @@ export function installAdapter(spec: InstallSpec): void {
       hooksBlock[evt.name].push({ hooks: [inner] });
     }
   } else {
-    // cursor-keyed: events[evt] = { command }
-    let hooksBlock = settings[spec.key] as Record<string, { command: string }> | undefined;
+    // cursor-keyed: events[evt] = [{ command, matcher? }].
+    // Always the array form so hooks.json has one shape regardless
+    // of whether matchers are configured. Cursor honors both shapes
+    // but the array is the only one that supports matchers, so
+    // standardizing on it keeps the file uniform.
+    type CursorEntry = { command: string; matcher?: string };
+    let hooksBlock = settings[spec.key] as
+      | Record<string, CursorEntry[]>
+      | undefined;
     if (!hooksBlock) {
       hooksBlock = {};
       settings[spec.key] = hooksBlock;
     }
     for (const evt of spec.events) {
-      hooksBlock[evt.name] = { command: spec.command };
+      const entry: CursorEntry = { command: spec.command };
+      if (evt.matcher) entry.matcher = evt.matcher;
+      hooksBlock[evt.name] = [entry];
     }
   }
 

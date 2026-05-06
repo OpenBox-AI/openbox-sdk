@@ -16,7 +16,7 @@ import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import type { EnvName } from 'openbox-sdk/env';
+import { ENVIRONMENTS, type EnvName } from 'openbox-sdk/env';
 import { loadApiKey as loadFileApiKey } from 'openbox-sdk/file-tokens';
 
 const ENVS: EnvName[] = ['production', 'staging', 'local'];
@@ -118,7 +118,18 @@ export async function showUnconfiguredPrompt(
       .getConfiguration('openbox')
       .update('mockAuth', true, vscode.ConfigurationTarget.Global);
   } else if (choice === 'Mint API Key') {
-    void vscode.env.openExternal(vscode.Uri.parse('https://openbox.node.lat'));
+    // Dashboard URL is env-specific; pull from the spec-driven env
+    // table so a production user lands on the prod dashboard, a
+    // staging user on staging, and a local-stack user on their
+    // local platform host.
+    const platformUrl = ENVIRONMENTS[env]?.platformUrl;
+    if (platformUrl) {
+      void vscode.env.openExternal(vscode.Uri.parse(platformUrl));
+    } else {
+      void vscode.window.showWarningMessage(
+        `No platform URL configured for env '${env}'. Set OPENBOX_PLATFORM_URL or pick a different environment.`,
+      );
+    }
   } else if (choice === 'Open Settings') {
     void vscode.commands.executeCommand('workbench.action.openSettings', 'openbox');
   } else if (choice === "Don't show again") {
