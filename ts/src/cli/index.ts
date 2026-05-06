@@ -40,6 +40,7 @@ import { registerVersionsCommand } from './commands/versions.js';
 import { registerWebhookCommands } from './commands/webhook.js';
 import { registerSsoCommands } from './commands/sso.js';
 import { gateCommands, setMaturityOverride } from './maturity.js';
+import { maturityOf } from '../maturity/index.js';
 import { setExplicitFeatures } from './features.js';
 import { EXIT, bailWith } from './exit-codes.js';
 import { reportAndExit } from '../validators/index.js';
@@ -190,6 +191,43 @@ registerSsoCommands(program);
 // with [experimental] / [beta] in their description so users can see
 // the maturity at a glance without further filtering.
 gateCommands(program);
+
+// Pre-flight check: if the user typed a command that's gated behind
+// `--experimental` without passing the flag, commander would emit a
+// bare `error: unknown command '<verb>'`. That message is misleading -
+// the verb DOES exist, it's just hidden at the current maturity level.
+// LLMs (and humans) who see "unknown command 'agent'" tend to invent
+// explanations like "slim build" instead of trying --experimental.
+// Print a tighter, accurate error when we detect this case.
+{
+  const argv = process.argv.slice(2);
+  // First non-flag token is the candidate top-level verb.
+  const firstVerb = argv.find((a) => !a.startsWith('-'));
+  if (firstVerb && !argv.includes('--experimental')) {
+    // Use maturityOf() which defaults unlisted paths to
+    // 'experimental' (the same conservative default the gating
+    // walker uses). COMMAND_MATURITY only lists paths the spec
+    // explicitly tags; commands like `core` that aren't tagged
+    // still get gated as experimental at runtime, so the hint
+    // needs the same fallback or we'd miss them.
+    const fullPath = argv.filter((a) => !a.startsWith('-')).join(' ');
+    const topMaturity = maturityOf(firstVerb);
+    const fullMaturity = maturityOf(fullPath);
+    const gated = topMaturity === 'experimental' || fullMaturity === 'experimental';
+    // Only fire when the verb isn't currently registered (gated out)
+    // AND it's known-experimental in the spec. Otherwise commander's
+    // own error is the right one.
+    const knownToCommander = program.commands.some((c) => c.name() === firstVerb);
+    if (gated && !knownToCommander) {
+      console.error(
+        `error: '${firstVerb}' is an experimental command. Re-run with --experimental:\n` +
+          `  openbox --experimental ${argv.join(' ')}\n` +
+          `Or set OPENBOX_EXPERIMENTAL_LEVEL=experimental in your shell.`,
+      );
+      bailWith(EXIT.USAGE);
+    }
+  }
+}
 
 program.parseAsync(process.argv).catch((err) => {
   reportAndExit(err);
