@@ -34,7 +34,16 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onView:openbox.onboard",
+    "onView:openbox.approvals",
+    "onView:openbox.history",
+    "onView:openbox.profile",
+    "onView:openbox.debugControls",
+    "onCommand:openbox.setApiKey",
+    "onCommand:openbox.openDashboard",
+    "onCommand:openbox.openWalkthrough",
+    "onCommand:openbox.reboot"
   ],
   "main": "./dist/extension.js",
   "contributes": {

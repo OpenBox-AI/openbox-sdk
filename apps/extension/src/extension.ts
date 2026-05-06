@@ -681,7 +681,59 @@ export async function activate(context: vscode.ExtensionContext) {
     };
   }
 
+  /** Stable registration for ViewSession-driven commands. Every
+   *  title-bar button + command-palette filter / search entry
+   *  routes through `active?.<scope>?.<method>()` if a session has
+   *  booted, otherwise shows a "still booting" toast. The previous
+   *  shape registered these inside ViewSession.constructor, which
+   *  meant clicking a History title-bar button before the boot
+   *  finished surfaced "command not found" to the user. */
+  function notReady() {
+    vscode.window.showInformationMessage(
+      "OpenBox: still booting; wait for the sidebar to load and try again.",
+    );
+  }
+  function registerScopedCommand<S extends "pending" | "history">(
+    id: string,
+    scope: S,
+    method: keyof import("./viewSession").ViewSession,
+  ): vscode.Disposable {
+    return vscode.commands.registerCommand(id, () => {
+      const session = scope === "pending" ? active?.pending : active?.history;
+      if (!session) {
+        notReady();
+        return;
+      }
+      const m = (session as any)[method];
+      if (typeof m === "function") m.call(session);
+    });
+  }
+
   context.subscriptions.push(
+    // Pending view title-bar + palette commands.
+    registerScopedCommand("openbox.search", "pending", "search"),
+    registerScopedCommand("openbox.filter", "pending", "filter"),
+    registerScopedCommand("openbox.filterTier", "pending", "filterTier"),
+    registerScopedCommand("openbox.filterType", "pending", "filterType"),
+    registerScopedCommand("openbox.filterTeam", "pending", "filterTeam"),
+    registerScopedCommand("openbox.filterOwner", "pending", "filterOwner"),
+    registerScopedCommand("openbox.toggleSort", "pending", "toggleSort"),
+    registerScopedCommand("openbox.clearFilters", "pending", "clearFilters"),
+    registerScopedCommand("openbox.loadMore", "pending", "loadMore"),
+    // History view title-bar + palette commands.
+    registerScopedCommand("openbox.history.refresh", "history", "refresh"),
+    registerScopedCommand("openbox.history.search", "history", "search"),
+    registerScopedCommand("openbox.history.filter", "history", "filter"),
+    registerScopedCommand("openbox.history.filterTier", "history", "filterTier"),
+    registerScopedCommand("openbox.history.filterType", "history", "filterType"),
+    registerScopedCommand("openbox.history.filterTeam", "history", "filterTeam"),
+    registerScopedCommand("openbox.history.filterOwner", "history", "filterOwner"),
+    registerScopedCommand("openbox.history.toggleSort", "history", "toggleSort"),
+    registerScopedCommand("openbox.history.clearFilters", "history", "clearFilters"),
+    registerScopedCommand("openbox.history.setStatus", "history", "setStatus"),
+    registerScopedCommand("openbox.history.setDateRange", "history", "setDateRange"),
+    registerScopedCommand("openbox.history.loadMore", "history", "loadMore"),
+
     vscode.commands.registerCommand("openbox.approve", async (node: any) => {
       const approval = pickApproval(node);
       if (!approval || !active) return;

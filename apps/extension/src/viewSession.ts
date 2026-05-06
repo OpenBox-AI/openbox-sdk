@@ -140,7 +140,8 @@ export class ViewSession implements vscode.Disposable {
       },
     });
 
-    this.registerCommands();
+    // Commands now registered once in extension.ts; we just expose
+    // the action methods (search, filter, refresh, loadMore, ...).
   }
 
   refresh() { void this.feed.refresh(); }
@@ -235,27 +236,31 @@ export class ViewSession implements vscode.Disposable {
     supportsStatus: () => this.cfg.supportsStatus,
   };
 
-  private registerCommands() {
-    const ns = this.cfg.cmdNs;
-    const c = this.controller;
-    this.disposables.push(
-      vscode.commands.registerCommand(`${ns}.search`, () => pickSearch(c)),
-      vscode.commands.registerCommand(`${ns}.filter`, () => pickCategory(c)),
-      vscode.commands.registerCommand(`${ns}.filterTier`, () => pickTier(c)),
-      vscode.commands.registerCommand(`${ns}.filterType`, () => pickType(c)),
-      vscode.commands.registerCommand(`${ns}.filterTeam`, () => pickTeam(c)),
-      vscode.commands.registerCommand(`${ns}.filterOwner`, () => pickOwner(c)),
-      vscode.commands.registerCommand(`${ns}.toggleSort`, () => toggleSort(c)),
-      vscode.commands.registerCommand(`${ns}.clearFilters`, () => c.clear()),
-      vscode.commands.registerCommand(`${ns}.refresh`, () => this.refresh()),
-      vscode.commands.registerCommand(`${ns}.loadMore`, () => this.feed.loadMore()),
-    );
-    if (this.cfg.supportsStatus) {
-      this.disposables.push(
-        vscode.commands.registerCommand(`${ns}.setStatus`, () => pickStatus(c)),
-        vscode.commands.registerCommand(`${ns}.setDateRange`, () => pickDateRange(c)),
-      );
-    }
+  /** Public action surface so extension.ts's stable command
+   *  registrations can dispatch through whichever ViewSession is
+   *  currently active. The previous implementation registered
+   *  vscode.commands itself, which meant the title-bar buttons
+   *  surfaced "command not found" until the first successful boot
+   *  built a ViewSession. Now every command id is registered once
+   *  in extension.ts, the handler resolves to active?.<scope> at
+   *  call time, and a friendly toast appears if the boot hasn't
+   *  finished yet. */
+  search() { void pickSearch(this.controller); }
+  filter() { void pickCategory(this.controller); }
+  filterTier() { void pickTier(this.controller); }
+  filterType() { void pickType(this.controller); }
+  filterTeam() { void pickTeam(this.controller); }
+  filterOwner() { void pickOwner(this.controller); }
+  toggleSort() { void toggleSort(this.controller); }
+  clearFilters() { void this.controller.clear(); }
+  loadMore() { void this.feed.loadMore(); }
+  setStatus() {
+    if (!this.cfg.supportsStatus) return;
+    void pickStatus(this.controller);
+  }
+  setDateRange() {
+    if (!this.cfg.supportsStatus) return;
+    void pickDateRange(this.controller);
   }
 
   // Used by extension.ts when the env switches; the session is torn
