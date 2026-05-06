@@ -92,6 +92,11 @@
           "default": true,
           "description": "When tabObserver.enabled is true, also write each classified change to the 'OpenBox: Tab Observer' output channel. Set false to suppress that visibility; the in-process classification still runs. Has no effect when tabObserver.enabled is false."
         },
+        "openbox.tabObserver.emitAgentTrace": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true (and openbox.tabObserver.enabled is also true), every classified non-keystroke insert appends a TraceRecord to ~/.openbox/log/agent-trace.jsonl following the cursor/agent-trace v0.1.0 RFC. Records carry contributor type (human/ai), file path, line range, and SHA-256 content hash. Lets git tools / canvas / audit pipelines that ingest the open Agent Trace format pick up OpenBox's attribution data without bespoke wiring. Has no effect when tabObserver.enabled is false."
+        },
         "openbox.agentId": {
           "type": "string",
           "default": "",

@@ -109,6 +109,10 @@
     "./governance": {
       "types": "./dist/governance/index.d.ts",
       "import": "./dist/governance/index.js"
+    },
+    "./agent-trace": {
+      "types": "./dist/agent-trace/index.d.ts",
+      "import": "./dist/agent-trace/index.js"
     }
   },
   "files": [

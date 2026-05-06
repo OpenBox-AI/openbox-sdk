@@ -38,6 +38,7 @@ export default defineConfig({
     'ts/src/runtime/cursor/index.ts',
     'ts/src/runtime/mcp/index.ts',
     'ts/src/governance/index.ts',
+    'ts/src/agent-trace/index.ts',
   ],
   format: ['esm'],
   dts: { resolve: true, entry: undefined, compilerOptions: { rootDir: 'ts/src' } },

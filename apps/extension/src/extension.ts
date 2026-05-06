@@ -269,18 +269,17 @@ export async function activate(context: vscode.ExtensionContext) {
     .getConfiguration("openbox")
     .get<boolean>("tabObserver.enabled", false);
   if (observerEnabled) {
-    const outputLog = vscode.workspace
-      .getConfiguration("openbox")
-      .get<boolean>("tabObserver.outputLog", true);
-    const observerActive = vscode.workspace
-      .getConfiguration("openbox")
-      .get<boolean>("tabObserver.active", false);
+    const obsCfg = vscode.workspace.getConfiguration("openbox");
+    const outputLog = obsCfg.get<boolean>("tabObserver.outputLog", true);
+    const observerActive = obsCfg.get<boolean>("tabObserver.active", false);
+    const emitAgentTrace = obsCfg.get<boolean>("tabObserver.emitAgentTrace", false);
     const obs = createTabObserver({
       onChange: () => {
         /* no-op; active path handles enforcement, classifier handles telemetry */
       },
       suppressOutputChannel: !outputLog,
       active: observerActive,
+      emitAgentTrace,
       governance,
     });
     context.subscriptions.push({ dispose: () => obs.dispose() });

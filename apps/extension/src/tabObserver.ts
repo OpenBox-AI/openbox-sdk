@@ -22,6 +22,7 @@
 // gives later wiring.
 import * as vscode from 'vscode';
 import { GovernanceClient } from './governanceClient';
+import { buildRecord, writeTraceRecord, type ContributorType } from 'openbox-sdk/agent-trace';
 
 const KEYSTROKE_IDLE_THRESHOLD_MS = 250;
 const MIN_NON_KEYSTROKE_CHARS = 20;
@@ -63,6 +64,11 @@ export interface TabObserverOptions {
   active?: boolean;
   /** Injected governance client; defaults to a fresh instance. */
   governance?: GovernanceClient;
+  /** When true, every classified non-keystroke insert appends an
+   *  Agent Trace record to ~/.openbox/log/agent-trace.jsonl (per
+   *  cursor/agent-trace v0.1.0). Off by default; opt in via
+   *  openbox.tabObserver.emitAgentTrace. */
+  emitAgentTrace?: boolean;
 }
 
 export function createTabObserver(opts: TabObserverOptions = {}): TabObserver {
@@ -181,6 +187,43 @@ export function createTabObserver(opts: TabObserverOptions = {}): TabObserver {
       }
 
       opts.onChange?.(observed);
+
+      if (opts.emitAgentTrace) {
+        // Cursor/agent-trace records are an open format for AI
+        // attribution; downstream tools (canvas, blame integrations)
+        // ingest the same shape any compliant emitter produces.
+        // Mapping: keystroke → human; non-keystroke → ai (since the
+        // classifier already filtered out small idle-typing IDE
+        // noise; a multi-line / 20+ char idle insert is far more
+        // likely AI than a paste of human-authored code, but we
+        // don't claim certainty — use 'unknown' for keystroke
+        // non-keystrokes that are sub-threshold).
+        const contributorType: ContributorType =
+          source === 'non-keystroke' ? 'ai' : 'human';
+        const startLine = change.range.start.line + 1;
+        const inserted = change.text;
+        const endLine = startLine + (inserted.match(/\n/g)?.length ?? 0);
+        const filePath =
+          event.document.uri.scheme === 'file'
+            ? event.document.uri.fsPath
+            : event.document.uri.toString();
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        try {
+          const record = buildRecord({
+            filePath,
+            startLine,
+            endLine,
+            content: inserted,
+            contributorType,
+            workspaceRoot,
+            tool: { name: 'openbox', version: '0.1.0' },
+            metadata: { classifier: source, inserted_chars: inserted.length },
+          });
+          writeTraceRecord(record);
+        } catch {
+          /* writeTraceRecord swallows IO errors; this guards build errors */
+        }
+      }
 
       if (opts.active && source === 'non-keystroke') {
         // Fire-and-forget; the revert (if any) lands in a follow-up tick.
