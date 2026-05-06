@@ -351,9 +351,9 @@ not try to express the timeout inside Rego.
 that expires in N minutes":
 
 - If N matters, use the behavior_rule path:
-  `openbox behavior create <agent> --verdict 2 --approval-timeout <seconds> ...`.
+  `openbox --experimental behavior create <agent> --verdict 2 --approval-timeout <seconds> ...`.
 - If N does not matter, use the OPA policy path:
-  `openbox policy create <agent> --rego ...`. You will get the
+  `openbox --experimental policy create <agent> --rego ...`. You will get the
   server default.
 
 ### Policies are immutable
@@ -416,18 +416,18 @@ tool-call policies must go through `activity_input[0]`.
 
 ## Testing
 
-`openbox policy evaluate` takes the rego source as an inline string.
+`openbox --experimental policy evaluate` takes the rego source as an inline string.
 It does not expand `@file` syntax on this subcommand; that is on
 `policy create --rego-file` only. Shell-inline a file via `$(cat …)`:
 
 ```bash
 # Preferred: read from file via shell.
-openbox policy evaluate \
+openbox --experimental policy evaluate \
   --rego "$(cat policy.rego)" \
   --input '{"prompt": "drop table users", "activity_type": "PromptSubmission"}'
 
 # Inline the rego directly.
-openbox policy evaluate \
+openbox --experimental policy evaluate \
   --rego 'package test
 default result := {"decision":"ALLOW","reason":null}
 result := {"decision":"BLOCK","reason":"no drops"} if { contains(lower(input.prompt), "drop") }' \
@@ -437,9 +437,9 @@ result := {"decision":"BLOCK","reason":"no drops"} if { contains(lower(input.pro
 To create a policy on an agent after testing locally:
 
 ```bash
-openbox policy create <agentId> --rego-file policy.rego -n "Block DDL"
+openbox --experimental policy create <agentId> --rego-file policy.rego -n "Block DDL"
 # or
-openbox policy create <agentId> --rego "$(cat policy.rego)" -n "Block DDL"
+openbox --experimental policy create <agentId> --rego "$(cat policy.rego)" -n "Block DDL"
 ```
 
 Always test with a realistic payload shape (wrap inputs in `activity_input[0]` just like the wire format) so your policy exercises the real access paths, not root-level shortcuts that only work for prompt/messages.

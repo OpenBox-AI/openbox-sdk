@@ -30,6 +30,6 @@ openbox-governance:
   hook activity log via the **OpenBox Hooks** output channel in
   Cursor (registered by the extension) before guessing.
 - For new agent integrations, default to spec-driven SDK usage
-  (`openbox agent create`, `openbox behavior create`,
-  `openbox guardrail create`); hand-coded HTTP calls bypass the
+  (`openbox --experimental agent create`, `openbox --experimental behavior create`,
+  `openbox --experimental guardrail create`); hand-coded HTTP calls bypass the
   governance shape and decay.

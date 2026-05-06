@@ -12,20 +12,20 @@ configured - not a guessed-at policy.
 ## Workflow
 
 1. Resolve the active agent.
-   - `openbox config list` → confirm env
-   - `openbox agent list --json` → pick the agent the user is
+   - `openbox --experimental config list` → confirm env
+   - `openbox --experimental agent list --json` → pick the agent the user is
      binding the change to (or ask which one if ambiguous)
 
 2. Pull the rules in scope.
-   - `openbox behavior list --agent-id <id> --json`
-   - `openbox guardrail list --agent-id <id> --json`
-   - `openbox policy list --agent-id <id> --json`
+   - `openbox --experimental behavior list --agent-id <id> --json`
+   - `openbox --experimental guardrail list --agent-id <id> --json`
+   - `openbox --experimental policy list --agent-id <id> --json`
 
 3. For each risky action the change introduces (shell exec, file
    write outside the workspace root, network call, secret read),
    dry-run it:
    ```
-   openbox core evaluate \
+   openbox --experimental core evaluate \
      --agent-id <id> \
      --activity-type <ShellExecution|FileWrite|...> \
      --command "<the action>"
@@ -33,7 +33,7 @@ configured - not a guessed-at policy.
    Report the verdict and matching rule id.
 
 4. Surface the AIVSS posture for the agent
-   (`openbox agent get <id>` returns the AIVSS subscores). Flag any
+   (`openbox --experimental agent get <id>` returns the AIVSS subscores). Flag any
    change that worsens a vector (e.g., adds a new external network
    call when the agent's `network_egress` was scored low).
 

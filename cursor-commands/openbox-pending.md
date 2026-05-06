@@ -1,14 +1,16 @@
 ---
 name: openbox-pending
-description: List pending HITL approvals for an agent and offer to decide them inline.
+description: List pending HITL approvals for an agent and offer to decide them inline. (uses experimental commands)
 ---
 
 # Pending approvals
 
-Ask the user (one short sentence) which agent they want to inspect
-- they may have copied an agent id from the OpenBox sidebar's
-"Pending" view, or they can run `/openbox-list-agents` first to
-pick one. Then run:
+`approval` subcommands are gated behind `--experimental`. Always
+include the flag in invocations.
+
+Ask the user (one short sentence) which agent they want to inspect.
+They may have copied an agent id from the OpenBox sidebar's
+"Pending" view, or they can run `/openbox-list-agents` first.
 
 ```
 openbox --experimental approval pending <agentId> --json

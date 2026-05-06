@@ -9,6 +9,54 @@ description: |
 The TypeSpec specs at `specs/typespec/` are the source of truth when in
 doubt about live API shape.
 
+## CLI maturity gating
+
+Most CLI verbs are tagged `[experimental]` and require either the
+`--experimental` flag or `OPENBOX_EXPERIMENTAL_LEVEL=experimental`
+in the environment. The gate is intentional - experimental
+commands stay out of stable workflows by default.
+
+**Stable verbs (no flag needed):**
+
+- `openbox auth` (set-api-key / clear-api-key / status)
+- `openbox doctor`
+- `openbox health`
+- `openbox versions`
+- `openbox api-key rotate / recall / revoke`
+
+**Always-resolvable subtrees (tagged `[experimental]` but execute
+without the flag because install scripts run on a fresh shell):**
+
+- `openbox install`, `openbox uninstall`
+- `openbox mcp`, `openbox skill`
+- `openbox claude-code`, `openbox cursor`
+
+**Experimental verbs (the flag IS required):**
+
+- `agent`, `approval`, `audit`, `aivss`, `behavior`, `config`,
+  `core`, `goal`, `guardrail`, `member`, `observe`, `org`,
+  `policy`, `session`, `sso`, `team`, `trust`, `verify`,
+  `violation`, `webhook`
+- `api-key list / get / create / delete / update`
+  (the `rotate / recall / revoke` triplet is stable)
+
+When you write a CLI example in a code block, **always include
+`--experimental` for the verbs that need it**. Otherwise the user
+(or the LLM following the example) hits `error: unknown command`.
+
+```
+# Stable - no flag
+openbox doctor
+openbox auth set-api-key
+openbox api-key rotate <agentId>
+
+# Experimental - flag required
+openbox --experimental agent list
+openbox --experimental approval pending <agentId>
+openbox --experimental core evaluate --type shell --command "ls"
+openbox --experimental behavior create <agent> --verdict 2 ...
+```
+
 ## How to work with the user
 
 Don't run a survey. Pick up what they already said, ask one or two
@@ -31,8 +79,8 @@ scaffold.
 
 **C. Operate or debug an existing OpenBox integration.** User has a
 live agent and something's wrong (guardrail doesn't fire, approval
-hangs, trust score tanked). Go to `openbox session inspect`,
-`openbox agent audit`, `openbox violation agent`. The CLI surfaces the
+hangs, trust score tanked). Go to `openbox --experimental session inspect`,
+`openbox --experimental agent audit`, `openbox --experimental violation agent`. The CLI surfaces the
 issue faster than an interview.
 
 If the first message is ambiguous, ask one question with
@@ -78,15 +126,15 @@ plus the chosen SDK or framework. Second round: tools list and risks,
 same as the Path A round. Then scaffold.
 
 **Path C, debug.** No questions. Get the agent ID, then
-`openbox session list <agent>`,
-`openbox session inspect <agent> <session>`, and
-`openbox agent audit <agent>`. Only ask if the CLI surfaces something
+`openbox --experimental session list <agent>`,
+`openbox --experimental session inspect <agent> <session>`, and
+`openbox --experimental agent audit <agent>`. Only ask if the CLI surfaces something
 ambiguous.
 
 ### Hard rules regardless of path
 
 - Never hardcode org IDs, team IDs, or user IDs. Derive them at
-  runtime from `openbox org get` and `openbox team list <orgId>`.
+  runtime from `openbox --experimental org get` and `openbox --experimental team list <orgId>`.
 - The runtime API key has format `obx_live_*` or `obx_test_*` and is
   returned **once**, in the `agent create` response or `api-key
   rotate` output. Capture it on creation. The `token` field on
@@ -102,7 +150,7 @@ ambiguous.
   `openbox api-key rotate`, which is destructive and invalidates the
   running key.
 - Persistent CLI config removes the `export OPENBOX_*=...`
-  boilerplate. `openbox config set <KEY> <VALUE>` writes per-env, and
+  boilerplate. `openbox --experimental config set <KEY> <VALUE>` writes per-env, and
   `--global` writes to `~/.openbox/config` at mode `0o600`. Values
   layer into `process.env` on every command. Explicit shell exports
   still win. The keys auto-promoted to global scope are
@@ -128,7 +176,7 @@ Done once per conversation. Do not narrate each step.
    CLI ships in the same npm package.
 2. Auth: ensure the user has saved an org X-API-Key with
    `openbox auth set-api-key`. Confirm with `openbox auth status`.
-3. Run `openbox org get <orgId>` to pull the active org if you need
+3. Run `openbox --experimental org get <orgId>` to pull the active org if you need
    an `orgId` and the user has not given one.
 4. Run `openbox <command> --help` before any CLI command you have not
    used this turn.
@@ -152,7 +200,7 @@ If the CLI accepts your input, the backend will. No silent drift.
 
 **Build-order for a new agent:**
 
-1. Run `openbox agent create -n "name" -t <teamId>`. `-t` is
+1. Run `openbox --experimental agent create -n "name" -t <teamId>`. `-t` is
    required. Capture the returned runtime key, formatted `obx_live_*`
    or `obx_test_*`. The `token` field in the same response is the
    internal attestation token, not the API key. If the create
@@ -160,19 +208,19 @@ If the CLI accepts your input, the backend will. No silent drift.
    fresh key. The old key stops working immediately.
 2. Attach governance based on the path A or path B answers:
    - Guardrails for PII, content safety, or custom regex:
-     `openbox guardrail create <agent> --body @guardrail.json`. See
+     `openbox --experimental guardrail create <agent> --body @guardrail.json`. See
      `references/guardrails.md` for the `settings.activities` shape.
    - Policies in Rego: one per agent, so combine rules into a single
-     file. `openbox policy create <agent> --rego-file policy.rego`.
+     file. `openbox --experimental policy create <agent> --rego-file policy.rego`.
      See `references/rego-reference.md`.
    - Behavior rules for sequence, rate-limit, or state triggers:
-     `openbox behavior create <agent> ...`. See
+     `openbox --experimental behavior create <agent> ...`. See
      `references/behaviors.md`.
    - Goal alignment:
-     `openbox goal update <agent> --threshold 70 --action alert_only --frequency every_action --model gpt-4o-mini`.
+     `openbox --experimental goal update <agent> --threshold 70 --action alert_only --frequency every_action --model gpt-4o-mini`.
      All four fields required.
 3. Test each span type before wiring the app:
-   `openbox core evaluate --type llm --prompt "hi" --api-key <key>`.
+   `openbox --experimental core evaluate --type llm --prompt "hi" --api-key <key>`.
    See `references/commands.md` § core evaluate. Do not write custom
    HTTP scripts to test governance.
 4. Wire the application through a framework SDK from
@@ -193,7 +241,7 @@ is the canonical path because no management permissions are needed
 beyond a runtime key.
 
 1. Pick a target agent the user names, or one with prior approval
-   history via `openbox approval history <agentId> --json`. Do not
+   history via `openbox --experimental approval history <agentId> --json`. Do not
    attach a fresh policy to a fresh agent unless you have confirmed
    the user has `create:agent_policy` or `create:agent_behavior_rule`.
 2. Recover the runtime key with `openbox api-key recall <agentId>`.
@@ -209,7 +257,7 @@ beyond a runtime key.
    `governance_event_id`. If `verdict: allow`, the policy did not
    match. Try a different `--type`, or pass `--show-payload` to
    inspect what core sees.
-6. Verify: `openbox approval pending <agentId> --json` should show
+6. Verify: `openbox --experimental approval pending <agentId> --json` should show
    one new row matching the `governance_event_id`.
 
 **Approval timeout: pick the right surface.**
@@ -231,15 +279,15 @@ beyond a runtime key.
 
 **Debug-order for a live agent:**
 
-1. `openbox agent audit <agent> --sessions 50` aggregates protocol
+1. `openbox --experimental agent audit <agent> --sessions 50` aggregates protocol
    health, verdict distribution, dangling sessions, and the
    `activity_type` inventory across the last N sessions.
-2. `openbox session inspect <agent> <sessionId>` drills into one
+2. `openbox --experimental session inspect <agent> <sessionId>` drills into one
    session: paired Start and Complete, workflow terminal, per-session
    `activity_type` inventory.
-3. `openbox violation agent <agent>` paginates guardrail, policy, and
+3. `openbox --experimental violation agent <agent>` paginates guardrail, policy, and
    behavior violations.
-4. `openbox verify <path-to-integration-code>` is a static linter on
+4. `openbox --experimental verify <path-to-integration-code>` is a static linter on
    the user's integration source. Catches canonical-value drift,
    unbounded approval polls, GET with body, missing finally blocks,
    and hardcoded UUIDs.

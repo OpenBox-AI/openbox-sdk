@@ -228,7 +228,7 @@ validation:
   `"0"` or `"1"`. A raw client can store `"both"` and the guardrail
   silently skips every event forever. The CLI's `--stage 0|1` check
   exists to prevent this, but the backend itself does not.
-- Violation-log endpoint filter: `openbox guardrail violations` only
+- Violation-log endpoint filter: `openbox --experimental guardrail violations` only
   returns entries with non-`allow` status. Passing evaluations are
   filtered out at the query layer and will not appear in the
   violation log.

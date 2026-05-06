@@ -7,9 +7,9 @@ GET to confirm state.
 
 ```bash
 # Verify the agent exists and is accessible.
-openbox agent get $AGENT_ID
+openbox --experimental agent get $AGENT_ID
 # Verify the API key works.
-OPENBOX_API_KEY=$API_KEY openbox core validate
+OPENBOX_API_KEY=$API_KEY openbox --experimental core validate
 ```
 
 If either fails, the agent was created wrong. The usual cause is a
@@ -19,7 +19,7 @@ missing `-t` team ID.
 
 ```bash
 # Verify the guardrail is listed and active.
-openbox guardrail list $AGENT_ID
+openbox --experimental guardrail list $AGENT_ID
 ```
 
 Check that `is_active: true` and `processing_stage` matches the
@@ -29,7 +29,7 @@ intent: pre or post.
 
 ```bash
 # Verify the rule exists.
-openbox behavior list $AGENT_ID
+openbox --experimental behavior list $AGENT_ID
 ```
 
 Check `trigger`, `verdict`, and `is_active` match intent.
@@ -38,7 +38,7 @@ Check `trigger`, `verdict`, and `is_active` match intent.
 
 ```bash
 # Verify the config.
-openbox goal trend $AGENT_ID
+openbox --experimental goal trend $AGENT_ID
 ```
 
 ## Before running the app: exhaustive verification
@@ -48,19 +48,19 @@ Run every test. If any fails, fix before proceeding.
 ```bash
 # 1. Health
 openbox health
-OPENBOX_API_KEY=$API_KEY openbox core health
+OPENBOX_API_KEY=$API_KEY openbox --experimental core health
 
 # 2. API key validation
-OPENBOX_API_KEY=$API_KEY openbox core validate
+OPENBOX_API_KEY=$API_KEY openbox --experimental core validate
 # Must return: { valid: true, agent_id: "...", agent_name: "..." }
 
 # 3. Full lifecycle test
-OPENBOX_API_KEY=$API_KEY openbox core evaluate --json '{"event_type":"WorkflowStarted","workflow_id":"verify-test","run_id":"verify-run"}'
-OPENBOX_API_KEY=$API_KEY openbox core evaluate --json '{"event_type":"ActivityStarted","workflow_id":"verify-test","run_id":"verify-run","activity_id":"act-1","activity_type":"test","activity_input":[{"test":"data"}],"spans":[{"name":"POST /test","attributes":{"http.method":"POST"}}]}'
-OPENBOX_API_KEY=$API_KEY openbox core evaluate --json '{"event_type":"WorkflowCompleted","workflow_id":"verify-test","run_id":"verify-run"}'
+OPENBOX_API_KEY=$API_KEY openbox --experimental core evaluate --json '{"event_type":"WorkflowStarted","workflow_id":"verify-test","run_id":"verify-run"}'
+OPENBOX_API_KEY=$API_KEY openbox --experimental core evaluate --json '{"event_type":"ActivityStarted","workflow_id":"verify-test","run_id":"verify-run","activity_id":"act-1","activity_type":"test","activity_input":[{"test":"data"}],"spans":[{"name":"POST /test","attributes":{"http.method":"POST"}}]}'
+OPENBOX_API_KEY=$API_KEY openbox --experimental core evaluate --json '{"event_type":"WorkflowCompleted","workflow_id":"verify-test","run_id":"verify-run"}'
 
 # 4. Verify the session was created
-openbox session list $AGENT_ID
+openbox --experimental session list $AGENT_ID
 ```
 
 ### Per-feature verification
@@ -86,7 +86,7 @@ openbox session list $AGENT_ID
 **If HITL is configured:**
 
 - Trigger `require_approval`. Check that the approval appears in
-  `openbox approval pending $AGENT_ID`.
+  `openbox --experimental approval pending $AGENT_ID`.
 - Verify polling reads the `verdict` field, not `action`. SDK
   consumers see `verdict`; raw HTTP callers read `action`.
 
@@ -115,17 +115,17 @@ openbox session list $AGENT_ID
 
 ```bash
 # Check sessions were created.
-openbox session list $AGENT_ID
+openbox --experimental session list $AGENT_ID
 
 # Check for violations.
-openbox violation agent $AGENT_ID
+openbox --experimental violation agent $AGENT_ID
 
 # Check trust score.
-openbox trust histories $AGENT_ID
+openbox --experimental trust histories $AGENT_ID
 ```
 
 ## Cleanup
 
 ```bash
-openbox agent delete $AGENT_ID
+openbox --experimental agent delete $AGENT_ID
 ```

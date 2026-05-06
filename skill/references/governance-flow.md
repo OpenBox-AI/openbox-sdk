@@ -118,7 +118,7 @@ client sends is matched against the guardrail config created for the
 agent. First-party SDKs share conventions so agents stay portable
 across integrations.
 
-Canonical union, what `openbox verify` accepts as non-inventive:
+Canonical union, what `openbox --experimental verify` accepts as non-inventive:
 
 | Action | `activity_type` | Emitted by |
 |---|---|---|
@@ -196,11 +196,11 @@ entry per `activity_type`:
 
 ```bash
 # Stage-0 PII redaction on ActivityStarted events with activity_type=PromptSubmission.
-openbox guardrail create $AGENT_ID -n "Redact PII" --type pii --stage 0 \
+openbox --experimental guardrail create $AGENT_ID -n "Redact PII" --type pii --stage 0 \
   --body '{"settings":{"activities":[{"activity_type":"PromptSubmission","fields_to_check":["input.*.message"]}]}}'
 
 # Stage-1 toxicity filter on ActivityCompleted events with activity_type=LLMCompleted.
-openbox guardrail create $AGENT_ID -n "Toxicity filter" --type toxicity --stage 1 \
+openbox --experimental guardrail create $AGENT_ID -n "Toxicity filter" --type toxicity --stage 1 \
   --body '{"settings":{"activities":[{"activity_type":"LLMCompleted","fields_to_check":["output.response"]}]}}'
 ```
 
@@ -297,12 +297,12 @@ your code (success path and failure path) and confirm:
 - [ ] Raw-HTTP approval polling reads `response.action`. SDK
   consumers read `.verdict`; the SDK normalizes internally.
 
-Executable version: `openbox verify <your-integration-path>` lints
+Executable version: `openbox --experimental verify <your-integration-path>` lints
 for 14 common protocol drifts. The full rule list is in
 `references/commands.md` § verify. Exit code 1 on error-severity
 findings, useful in CI.
 
-For runtime validation against live sessions: `openbox session
+For runtime validation against live sessions: `openbox --experimental session
 inspect <agentId> <sessionIdOrWorkflowId>`. See
 `references/commands.md` § verify and § session inspect.
 
@@ -312,13 +312,13 @@ Use the CLI; never write custom HTTP scripts:
 
 ```bash
 # Test a specific tool type.
-OPENBOX_API_KEY=$KEY openbox core evaluate --json @test-event.json
+OPENBOX_API_KEY=$KEY openbox --experimental core evaluate --json @test-event.json
 
 # Poll approval.
-openbox core poll-approval --workflow-id $WF --run-id $RUN --activity-id $ACT
+openbox --experimental core poll-approval --workflow-id $WF --run-id $RUN --activity-id $ACT
 
 # Validate key.
-OPENBOX_API_KEY=$KEY openbox core validate
+OPENBOX_API_KEY=$KEY openbox --experimental core validate
 ```
 
 The CLI handles edge cases. Custom HTTP scripts introduce bugs in

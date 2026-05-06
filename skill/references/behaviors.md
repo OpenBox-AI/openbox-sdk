@@ -44,18 +44,18 @@ watching one subtype, or use a broader `trigger` with a wide
 
 ```bash
 # Block all HTTP POSTs.
-openbox behavior create $AGENT_ID -n "POST block" \
+openbox --experimental behavior create $AGENT_ID -n "POST block" \
   --trigger http_post --states http_post \
   --verdict 3 --window 60 --message "POSTs not allowed"
 
 # Require approval for destructive DB ops.
 # --states is a space-separated variadic in commander, not comma-separated.
-openbox behavior create $AGENT_ID -n "DB destroy needs approval" \
+openbox --experimental behavior create $AGENT_ID -n "DB destroy needs approval" \
   --trigger database_delete --states database_delete database_update \
   --verdict 2 --approval-timeout 300 --window 60 --message "destructive DB needs approval"
 
 # Allow any HTTP verb with observation.
-openbox behavior create $AGENT_ID -n "HTTP observe" \
+openbox --experimental behavior create $AGENT_ID -n "HTTP observe" \
   --trigger http --states http_get http_post http_put http_patch http_delete http \
   --verdict 0 --window 60 --message "observing HTTP traffic"
 ```
@@ -97,7 +97,7 @@ Shell spans don't have a dedicated semantic type. They fall through
 to `internal`. To rate-limit shell:
 
 ```bash
-openbox behavior create $AGENT_ID \
+openbox --experimental behavior create $AGENT_ID \
   -n "Block rm shells" \
   --trigger internal \
   --states internal \
@@ -124,7 +124,7 @@ Creating a `REQUIRE_APPROVAL` behavior rule without
 `approval_timeout required when verdict is 2`:
 
 ```bash
-openbox behavior create $AGENT_ID \
+openbox --experimental behavior create $AGENT_ID \
   -n "HTTP POST needs approval" \
   --trigger http_post \
   --states http_post \
@@ -148,13 +148,13 @@ behavior_rule, not a policy. See
   `@Max(100)`. The CLI defaults to `1` when omitted; values outside
   1-100 return 422. Higher priority wins when multiple rules match a
   single span.
-- `openbox behavior toggle <agentId> <ruleId>` flips `is_active`.
+- `openbox --experimental behavior toggle <agentId> <ruleId>` flips `is_active`.
   Inactive rules do not evaluate.
 - `rule_name` is unique per agent. Creating a rule whose name already
   exists on the agent returns 400. Unlike policies, there is no
   auto-deactivate-on-duplicate behavior. To rotate a rule, delete or
   toggle the old one first, then create the replacement.
-  `openbox behavior versions <agentId> <ruleId>` shows the version
+  `openbox --experimental behavior versions <agentId> <ruleId>` shows the version
   history within a single `base_rule_id`, populated by explicit
   update flows.
 

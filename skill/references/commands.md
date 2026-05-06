@@ -101,7 +101,7 @@ is one line per env with the masked key prefix or `none`.
 
 ## agent
 
-### `openbox agent list`
+### `openbox --experimental agent list`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
@@ -113,7 +113,7 @@ is one line per env with the masked key prefix or `none`.
 
 > **The `token` field in this response is NOT the runtime API key.** It is an internal attestation token. The runtime API key has format `obx_live_*` or `obx_test_*` and only exists in the `agent create` response or after `api-key rotate`. Passing `agent.token` as `OPENBOX_API_KEY` makes core return 500: `invalid API key format. Expected format: obx_live_... or obx_test_...`.
 
-### `openbox agent create`
+### `openbox --experimental agent create`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-n, --name <name>` | **required** | Agent name |
@@ -125,10 +125,10 @@ is one line per env with the masked key prefix or `none`.
 
 > **The response includes the runtime API key. Capture it now.** This is the only time the key is surfaced. `agent list` and `agent get` do not return it; the `token` field there is unrelated. To recover a lost key, run `openbox api-key rotate <agentId>`, which invalidates the previous one.
 
-### `openbox agent get <agentId>`
+### `openbox --experimental agent get <agentId>`
 Get agent details by ID.
 
-### `openbox agent update <agentId>`
+### `openbox --experimental agent update <agentId>`
 | Option | Description |
 |--------|-------------|
 | `-n, --name <name>` | Agent name |
@@ -139,10 +139,10 @@ Get agent details by ID.
 | `--team <ids...>` | Team IDs |
 | `--body <json>` | Full JSON body |
 
-### `openbox agent delete <agentId>`
+### `openbox --experimental agent delete <agentId>`
 Delete an agent by ID.
 
-### `openbox agent audit <agentId>`
+### `openbox --experimental agent audit <agentId>`
 
 Cross-session health report. Pulls recent sessions plus configured
 guardrails, policies, and behavior rules, then surfaces:
@@ -163,8 +163,8 @@ Exits `2` on any protocol violation, mismatch, or dangling session, so
 it works as a CI gate. Requires `read:agent`, `read:agent_session`,
 `read:agent_guardrail`, `read:agent_policy`.
 
-Pairs with `openbox session inspect <agentId> <sessionId>` for a
-single-session deep dive and `openbox verify <path>` for static code
+Pairs with `openbox --experimental session inspect <agentId> <sessionId>` for a
+single-session deep dive and `openbox --experimental verify <path>` for static code
 lint, completing the static, single, aggregate observability triad.
 
 ---
@@ -188,14 +188,14 @@ Revoke the runtime API key for an agent.
 
 ## guardrail
 
-### `openbox guardrail list <agentId>`
+### `openbox --experimental guardrail list <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
 | `-l, --limit <n>` | `10` | Items per page |
 | `--stage <stage>` | - | Filter by processing stage |
 
-### `openbox guardrail create <agentId>`
+### `openbox --experimental guardrail create <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-n, --name <name>` | **required** unless `--body` provides it | Guardrail name |
@@ -229,16 +229,16 @@ client emit and guardrail config agree.
 **Examples:**
 ```bash
 # Ban words.
-openbox guardrail create <agentId> -n "Injection Words" --type ban_words --stage 0 \
+openbox --experimental guardrail create <agentId> -n "Injection Words" --type ban_words --stage 0 \
   --body '{"params":{"banned_words":["ignore","bypass","jailbreak"]},"settings":{"on_fail":1,"log_violation":true,"activities":[{"activity_type":"DefaultActivity","fields_to_check":["input.*.text"]}]}}'
 
 # Regex with alternation.
-openbox guardrail create <agentId> -n "Injection Pattern" --type regex --stage 0 \
+openbox --experimental guardrail create <agentId> -n "Injection Pattern" --type regex --stage 0 \
   --body '{"params":{"regex":"(ignore.*previous|reveal.*system.*prompt)","match_type":"search"},"settings":{"on_fail":1,"log_violation":true,"activities":[{"activity_type":"DefaultActivity","fields_to_check":["input.*.text"]}]}}'
 ```
 
-### `openbox guardrail get <agentId> <guardrailId>`
-### `openbox guardrail update <agentId> <guardrailId>`
+### `openbox --experimental guardrail get <agentId> <guardrailId>`
+### `openbox --experimental guardrail update <agentId> <guardrailId>`
 | Option | Description |
 |--------|-------------|
 | `-n, --name <name>` | Guardrail name |
@@ -250,17 +250,17 @@ openbox guardrail create <agentId> -n "Injection Pattern" --type regex --stage 0
 | `--trust-threshold <n>` | Trust threshold |
 | `--body <json>` | Full JSON body |
 
-### `openbox guardrail delete <agentId> <guardrailId>`
-### `openbox guardrail reorder <agentId> <guardrailId> <order>`
+### `openbox --experimental guardrail delete <agentId> <guardrailId>`
+### `openbox --experimental guardrail reorder <agentId> <guardrailId> <order>`
 Reorder guardrail to the given position.
 
-### `openbox guardrail metrics <agentId>`
+### `openbox --experimental guardrail metrics <agentId>`
 | Option | Description |
 |--------|-------------|
 | `--from <date>` | Start date (ISO 8601) |
 | `--to <date>` | End date (ISO 8601) |
 
-### `openbox guardrail violations <agentId>`
+### `openbox --experimental guardrail violations <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
@@ -269,7 +269,7 @@ Reorder guardrail to the given position.
 | `--to <date>` | - | End date |
 | `--type <type>` | - | Guardrail type filter |
 
-### `openbox guardrail test`
+### `openbox --experimental guardrail test`
 | Option | Description |
 |--------|-------------|
 | `--type <type>` | Guardrail type |
@@ -279,13 +279,13 @@ Reorder guardrail to the given position.
 
 ## policy
 
-### `openbox policy list <agentId>`
+### `openbox --experimental policy list <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
 | `-l, --limit <n>` | `10` | Items per page |
 
-### `openbox policy create <agentId>`
+### `openbox --experimental policy create <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-n, --name <name>` | **required** | Policy name |
@@ -303,11 +303,11 @@ policy on the agent by setting `is_active=false` and
 `is_current_version=false`, then inserts the new one with
 `is_current_version=true`. Old versions remain as rollback targets.
 
-### `openbox policy current <agentId>`
+### `openbox --experimental policy current <agentId>`
 Get current active policies.
 
-### `openbox policy get <agentId> <policyId>`
-### `openbox policy update <agentId> <policyId>`
+### `openbox --experimental policy get <agentId> <policyId>`
+### `openbox --experimental policy update <agentId> <policyId>`
 **Rollback or toggle only; not a rego editor.** The backend
 `UpdatePolicyDto` accepts only `is_active`, `trust_impact`, and
 `trust_threshold`. Any `rego_code` in the request body is silently
@@ -331,19 +331,19 @@ to `false` when missing, which silently deactivates the policy. Pass
 | `--trust-threshold <n>` | Trust threshold |
 | `--body <json>` | Full JSON body. Must include `is_active`. |
 
-### `openbox policy evaluations <agentId> <policyId>`
+### `openbox --experimental policy evaluations <agentId> <policyId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
 | `-l, --limit <n>` | `10` | Items per page |
 
-### `openbox policy metrics <agentId>`
+### `openbox --experimental policy metrics <agentId>`
 | Option | Description |
 |--------|-------------|
 | `--from <date>` | Start date |
 | `--to <date>` | End date |
 
-### `openbox policy evaluate`
+### `openbox --experimental policy evaluate`
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--rego <code>` | Yes | Rego policy code |
@@ -353,13 +353,13 @@ to `false` when missing, which silently deactivates the policy. Pass
 
 ## behavior
 
-### `openbox behavior types`
+### `openbox --experimental behavior types`
 Get available semantic types. No arguments.
 
 > Backend route is singular: `GET /agent/{id}/behavior-rule`, not
 > `behavior-rules`. The response uses `rule_name`, not `name`.
 
-### `openbox behavior list <agentId>`
+### `openbox --experimental behavior list <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
@@ -368,10 +368,10 @@ Get available semantic types. No arguments.
 | `--active <bool>` | - | Filter by active status |
 | `--trigger <trigger>` | - | Filter by trigger type |
 
-### `openbox behavior current <agentId>`
+### `openbox --experimental behavior current <agentId>`
 Get current active behavior rules.
 
-### `openbox behavior create <agentId>`
+### `openbox --experimental behavior create <agentId>`
 
 Valid `--trigger` and `--states` values; anything else returns 422:
 `http_get`, `http_post`, `http_put`, `http_patch`, `http_delete`,
@@ -396,34 +396,34 @@ Valid `--trigger` and `--states` values; anything else returns 422:
 | `--approval-timeout <n>` | - | Approval timeout in seconds |
 | `--body <json>` | - | Full JSON body |
 
-### `openbox behavior get <agentId> <ruleId>`
-### `openbox behavior update <agentId> <ruleId>`
+### `openbox --experimental behavior get <agentId> <ruleId>`
+### `openbox --experimental behavior update <agentId> <ruleId>`
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--body <json>` | Yes | Full JSON body |
 
-### `openbox behavior delete <agentId> <ruleId>`
-### `openbox behavior restore <agentId> <ruleId>`
+### `openbox --experimental behavior delete <agentId> <ruleId>`
+### `openbox --experimental behavior restore <agentId> <ruleId>`
 Restore a deleted behavior rule.
 
-### `openbox behavior toggle <agentId> <ruleId>`
+### `openbox --experimental behavior toggle <agentId> <ruleId>`
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--active <bool>` | Yes | Active status |
 
-### `openbox behavior versions <agentId> <groupId>`
+### `openbox --experimental behavior versions <agentId> <groupId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
 | `-l, --limit <n>` | `10` | Items per page |
 
-### `openbox behavior metrics <agentId>`
+### `openbox --experimental behavior metrics <agentId>`
 | Option | Description |
 |--------|-------------|
 | `--from <date>` | Start date |
 | `--to <date>` | End date |
 
-### `openbox behavior violations <agentId>`
+### `openbox --experimental behavior violations <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
@@ -433,7 +433,7 @@ Restore a deleted behavior rule.
 
 ## session
 
-### `openbox session list <agentId>`
+### `openbox --experimental session list <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
@@ -444,20 +444,20 @@ Restore a deleted behavior rule.
 | `--duration <dur>` | - | `<1min\|1-5mins\|5-15mins\|>15mins` |
 | `-s, --search <text>` | - | Search |
 
-### `openbox session active <agentId>`
-### `openbox session get <agentId> <sessionId>`
-### `openbox session logs <agentId> <sessionId>`
+### `openbox --experimental session active <agentId>`
+### `openbox --experimental session get <agentId> <sessionId>`
+### `openbox --experimental session logs <agentId> <sessionId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
 | `-l, --limit <n>` | `10` | Items per page |
 | `--event-type <type>` | - | Event type filter |
 
-### `openbox session goal-stats <agentId> <sessionId>`
-### `openbox session trace <agentId> <sessionId>`
-### `openbox session terminate <agentId> <sessionId>`
+### `openbox --experimental session goal-stats <agentId> <sessionId>`
+### `openbox --experimental session trace <agentId> <sessionId>`
+### `openbox --experimental session terminate <agentId> <sessionId>`
 
-### `openbox session inspect <agentId> <sessionIdOrWorkflowId>`
+### `openbox --experimental session inspect <agentId> <sessionIdOrWorkflowId>`
 
 Validates the client-side workflow protocol against a real session.
 Fetches the session's events with pagination, then checks:
@@ -472,7 +472,7 @@ Accepts either a session UUID or a `workflow_id` string. The
 `workflow_id` form resolves via `listSessions(search: ...)`. Exits 2
 on protocol violations so CI can gate on it.
 
-### `openbox session prune <agentId>`
+### `openbox --experimental session prune <agentId>`
 
 Bulk-terminates dangling `PENDING` sessions older than the specified
 threshold. Use this when a misbehaving integration has left hundreds
@@ -494,12 +494,12 @@ and reports progress. Exits 1 if any terminations fail. Requires
 
 ## trust
 
-### `openbox trust histories <agentId>`
+### `openbox --experimental trust histories <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--duration <dur>` | `7d` | `7d\|30d\|90d\|1y` |
 
-### `openbox trust events <agentId>`
+### `openbox --experimental trust events <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
@@ -507,17 +507,17 @@ and reports progress. Exits 1 if any terminations fail. Requires
 | `--from <date>` | - | Start date |
 | `--to <date>` | - | End date |
 
-### `openbox trust tier-changes <agentId>`
+### `openbox --experimental trust tier-changes <agentId>`
 Same options as `trust events`.
 
-### `openbox trust recovery <agentId>`
+### `openbox --experimental trust recovery <agentId>`
 Get trust recovery status. No options.
 
 ---
 
 ## aivss
 
-### `openbox aivss assessments <agentId>`
+### `openbox --experimental aivss assessments <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
@@ -525,16 +525,16 @@ Get trust recovery status. No options.
 | `--from <date>` | - | Start date |
 | `--to <date>` | - | End date |
 
-### `openbox aivss update <agentId>`
+### `openbox --experimental aivss update <agentId>`
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--body <json>` | Yes | AIVSS config JSON |
 | `--reason <text>` | Yes | Reason for update |
 
-### `openbox aivss recalculate <agentId>`
+### `openbox --experimental aivss recalculate <agentId>`
 Recalculate AIVSS score. No options.
 
-### `openbox aivss calculate`
+### `openbox --experimental aivss calculate`
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--body <json>` | Yes | AIVSS config JSON |
@@ -543,7 +543,7 @@ Recalculate AIVSS score. No options.
 
 ## goal
 
-### `openbox goal update <agentId>`
+### `openbox --experimental goal update <agentId>`
 
 All four config fields are required unless you pass `--body`. Omitting
 any of them exits 2 locally with a list of the missing flags. The
@@ -558,13 +558,13 @@ update is always rejected.
 | `--model <model>` | Yes | LlamaFirewall model name. Backend enforces the enum; CLI forwards whatever value you give |
 | `--body <json>` | No | Full JSON body. Bypasses the four-flag requirement |
 
-### `openbox goal trend <agentId>`
+### `openbox --experimental goal trend <agentId>`
 | Option | Description |
 |--------|-------------|
 | `--from <date>` | Start date |
 | `--to <date>` | End date |
 
-### `openbox goal drifts <agentId>`
+### `openbox --experimental goal drifts <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-l, --limit <n>` | `10` | Number of drifts |
@@ -573,13 +573,13 @@ update is always rejected.
 
 ## approval
 
-### `openbox approval metrics <agentId>`
+### `openbox --experimental approval metrics <agentId>`
 | Option | Description |
 |--------|-------------|
 | `--from <date>` | Start date |
 | `--to <date>` | End date |
 
-### `openbox approval pending <agentId>`
+### `openbox --experimental approval pending <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
@@ -590,54 +590,54 @@ update is always rejected.
 | `--from <date>` | - | Start date |
 | `--to <date>` | - | End date |
 
-### `openbox approval history <agentId>`
+### `openbox --experimental approval history <agentId>`
 Same options as `approval pending`.
 
-### `openbox approval decide <agentId> <eventId> <action>`
+### `openbox --experimental approval decide <agentId> <eventId> <action>`
 Action must be `approve` or `reject`.
 
 ---
 
 ## observe
 
-### `openbox observe data <agentId>`
+### `openbox --experimental observe data <agentId>`
 | Option | Description |
 |--------|-------------|
 | `--from <date>` | Start date |
 | `--to <date>` | End date |
 
-### `openbox observe issues <agentId>`
+### `openbox --experimental observe issues <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
 | `-l, --limit <n>` | `10` | Items per page |
 
-### `openbox observe insights <agentId>`
+### `openbox --experimental observe insights <agentId>`
 | Option | Description |
 |--------|-------------|
 | `--from <date>` | Start date |
 | `--to <date>` | End date |
 
-### `openbox observe logs <agentId>`
+### `openbox --experimental observe logs <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
 | `-l, --limit <n>` | `10` | Items per page |
 
-### `openbox observe drift <agentId>`
+### `openbox --experimental observe drift <agentId>`
 Same options as `observe logs`.
 
-### `openbox observe metrics`
+### `openbox --experimental observe metrics`
 Get global agent metrics. No arguments or options.
 
 ---
 
 ## violation
 
-### `openbox violation list`
+### `openbox --experimental violation list`
 Get all violations. No arguments or options.
 
-### `openbox violation agent <agentId>`
+### `openbox --experimental violation agent <agentId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
@@ -645,16 +645,16 @@ Get all violations. No arguments or options.
 | `--pattern <pattern>` | - | Pattern filter |
 | `--source-type <type>` | - | Source type filter |
 
-### `openbox violation false-positive <agentId> <violationId> <sourceType>`
+### `openbox --experimental violation false-positive <agentId> <violationId> <sourceType>`
 Mark a violation as false positive.
 
 ---
 
 ## org
 
-### `openbox org get <orgId>`
-### `openbox org settings <orgId>`
-### `openbox org update-settings <orgId>`
+### `openbox --experimental org get <orgId>`
+### `openbox --experimental org settings <orgId>`
+### `openbox --experimental org update-settings <orgId>`
 | Option | Description |
 |--------|-------------|
 | `-n, --name <name>` | Organization name |
@@ -662,14 +662,14 @@ Mark a violation as false positive.
 | `--timezone <tz>` | Timezone |
 | `--body <json>` | Full JSON body |
 
-### `openbox org dashboard <orgId>`
+### `openbox --experimental org dashboard <orgId>`
 | Option | Description |
 |--------|-------------|
 | `--from <date>` | Start date |
 | `--to <date>` | End date |
 
-### `openbox org trends <orgId>`
-### `openbox org sessions <orgId>`
+### `openbox --experimental org trends <orgId>`
+### `openbox --experimental org sessions <orgId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
@@ -679,7 +679,7 @@ Mark a violation as false positive.
 | `--to <date>` | - | End date |
 | `-s, --search <text>` | - | Search |
 
-### `openbox org approvals <orgId>`
+### `openbox --experimental org approvals <orgId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
@@ -689,14 +689,14 @@ Mark a violation as false positive.
 | `--from <date>` | - | Start date |
 | `--to <date>` | - | End date |
 
-### `openbox org approval-metrics <orgId>`
+### `openbox --experimental org approval-metrics <orgId>`
 | Option | Description |
 |--------|-------------|
 | `--from <date>` | Start date |
 | `--to <date>` | End date |
 
-### `openbox org approval-sla <orgId>`
-### `openbox org approval-history <orgId>`
+### `openbox --experimental org approval-sla <orgId>`
+### `openbox --experimental org approval-history <orgId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
@@ -706,15 +706,15 @@ Mark a violation as false positive.
 
 ## team
 
-### `openbox team list <orgId>`
+### `openbox --experimental team list <orgId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
 | `-l, --limit <n>` | `10` | Items per page |
 
-### `openbox team stats <orgId>`
-### `openbox team get <orgId> <teamId>`
-### `openbox team update <orgId> <teamId>`
+### `openbox --experimental team stats <orgId>`
+### `openbox --experimental team get <orgId> <teamId>`
+### `openbox --experimental team update <orgId> <teamId>`
 | Option | Description |
 |--------|-------------|
 | `-n, --name <name>` | Team name |
@@ -722,13 +722,13 @@ Mark a violation as false positive.
 | `--icon <icon>` | Icon |
 | `--body <json>` | Full JSON body |
 
-### `openbox team members <orgId> <teamId>`
+### `openbox --experimental team members <orgId> <teamId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
 | `-l, --limit <n>` | `10` | Items per page |
 
-### `openbox team create <orgId>`
+### `openbox --experimental team create <orgId>`
 At least one of `--name` or `--icon` is required unless `--body` is
 provided.
 
@@ -739,17 +739,17 @@ provided.
 | `--icon <icon>` | Icon URL |
 | `--body <json>` | Full JSON body |
 
-### `openbox team delete <orgId>`
+### `openbox --experimental team delete <orgId>`
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--ids <ids...>` | Yes | Team IDs to delete; one or more |
 
-### `openbox team add-members <orgId> <teamId>`
+### `openbox --experimental team add-members <orgId> <teamId>`
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--user-ids <ids...>` | Yes | User IDs to add |
 
-### `openbox team remove-members <orgId> <teamId>`
+### `openbox --experimental team remove-members <orgId> <teamId>`
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--user-ids <ids...>` | Yes | User IDs to remove |
@@ -758,13 +758,13 @@ provided.
 
 ## member
 
-### `openbox member list <orgId>`
+### `openbox --experimental member list <orgId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
 | `-l, --limit <n>` | `10` | Items per page |
 
-### `openbox member create <orgId>`
+### `openbox --experimental member create <orgId>`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--username <name>` | **required** | Username |
@@ -775,29 +775,29 @@ provided.
 | `--verified` | `false` | Email verified |
 | `--body <json>` | - | Full JSON body |
 
-### `openbox member update <orgId> <userId>`
+### `openbox --experimental member update <orgId> <userId>`
 | Option | Description |
 |--------|-------------|
 | `--role <role>` | Role |
 | `--teams <ids...>` | Team IDs |
 | `--body <json>` | Full JSON body |
 
-### `openbox member assign-roles <orgId> <userId>`
+### `openbox --experimental member assign-roles <orgId> <userId>`
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--roles <roles...>` | Yes | Role names |
 
-### `openbox member remove-roles <orgId> <userId>`
+### `openbox --experimental member remove-roles <orgId> <userId>`
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--roles <roles...>` | Yes | Role names |
 
-### `openbox member remove <orgId>`
+### `openbox --experimental member remove <orgId>`
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--ids <ids...>` | Yes | Member IDs to remove |
 
-### `openbox member invite <orgId>`
+### `openbox --experimental member invite <orgId>`
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--email <email>` | Yes | Email address |
@@ -807,7 +807,7 @@ provided.
 
 ## audit
 
-### `openbox audit list`
+### `openbox --experimental audit list`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
@@ -819,8 +819,8 @@ provided.
 | `--from <date>` | - | Start date |
 | `--to <date>` | - | End date |
 
-### `openbox audit get <logId>`
-### `openbox audit export`
+### `openbox --experimental audit get <logId>`
+### `openbox --experimental audit export`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-n, --name <name>` | **required** | Export name |
@@ -832,7 +832,7 @@ provided.
 | `--to <date>` | - | End date |
 | `--body <json>` | - | Full JSON body |
 
-### `openbox audit preview`
+### `openbox --experimental audit preview`
 | Option | Description |
 |--------|-------------|
 | `--event-types <types...>` | Event types |
@@ -840,7 +840,7 @@ provided.
 | `--to <date>` | End date |
 | `--body <json>` | Full JSON body |
 
-### `openbox audit exports`
+### `openbox --experimental audit exports`
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
@@ -849,8 +849,8 @@ provided.
 | `--from <date>` | - | Start date |
 | `--to <date>` | - | End date |
 
-### `openbox audit download <exportId>`
-### `openbox audit delete-export <exportId>`
+### `openbox --experimental audit download <exportId>`
+### `openbox --experimental audit delete-export <exportId>`
 
 ---
 
@@ -863,7 +863,7 @@ Check backend API health. No arguments or options.
 
 ## verify
 
-### `openbox verify [path]`
+### `openbox --experimental verify [path]`
 
 Static lint. Scans integration code in TS, JS, Python, Go, Java,
 Kotlin, and Rust for OpenBox protocol drift. 14 rules split across
@@ -908,7 +908,7 @@ Exit codes: `0` if clean or findings stay below the `--fail-on`
 threshold; `1` if findings reach or pass it.
 
 Intended as a pre-commit or CI gate. Complements
-`openbox session inspect`, the runtime protocol check against live
+`openbox --experimental session inspect`, the runtime protocol check against live
 sessions: `verify` catches bugs in code before ship; `session inspect`
 catches bugs in events after they fire.
 
@@ -939,13 +939,13 @@ when auth is misbehaving. No flags.
 
 ## core
 
-### `openbox core health`
+### `openbox --experimental core health`
 Check core governance API health.
 
-### `openbox core validate`
+### `openbox --experimental core validate`
 Validate the runtime API key against the core API.
 
-### `openbox core evaluate`
+### `openbox --experimental core evaluate`
 
 Supports two modes: raw JSON or `--type` shorthand.
 
@@ -978,7 +978,7 @@ below apply only to the matching `--type` value.
 | `--tool-input <input>` | `mcp` | MCP tool input, or `@input.json` |
 | `--show-payload` | always | Print constructed payload without sending |
 
-### `openbox core poll-approval`
+### `openbox --experimental core poll-approval`
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--workflow-id <id>` | Yes | Workflow ID |

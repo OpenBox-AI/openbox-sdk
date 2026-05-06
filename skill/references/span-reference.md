@@ -147,20 +147,20 @@ The `http.method` and `http.url` attributes are intentional. Core's
 `llm_tool_call` classifier only fires on `http.method=POST` spans
 whose `http.url` matches a known LLM domain. `gen_ai.system: "mcp"`
 distinguishes MCP tool calls from real LLM completions downstream.
-Both `openbox core evaluate --type mcp` and the MCP runtime emit this
+Both `openbox --experimental core evaluate --type mcp` and the MCP runtime emit this
 exact shape.
 
 ## CLI testing
 
 ```bash
-openbox core evaluate --type llm --prompt "summarize this"
-openbox core evaluate --type file_read --file-path /etc/passwd
-openbox core evaluate --type file_write --file-path /tmp/out.csv
-openbox core evaluate --type shell --command "rm -rf /"
-openbox core evaluate --type http --method POST --url https://api.stripe.com/charges
-openbox core evaluate --type db --db-system postgresql --db-statement "DROP TABLE users"
-openbox core evaluate --type mcp --tool-name search --server github
-openbox core evaluate --type llm --prompt "test" --show-payload   # inspect the payload without sending
+openbox --experimental core evaluate --type llm --prompt "summarize this"
+openbox --experimental core evaluate --type file_read --file-path /etc/passwd
+openbox --experimental core evaluate --type file_write --file-path /tmp/out.csv
+openbox --experimental core evaluate --type shell --command "rm -rf /"
+openbox --experimental core evaluate --type http --method POST --url https://api.stripe.com/charges
+openbox --experimental core evaluate --type db --db-system postgresql --db-statement "DROP TABLE users"
+openbox --experimental core evaluate --type mcp --tool-name search --server github
+openbox --experimental core evaluate --type llm --prompt "test" --show-payload   # inspect the payload without sending
 ```
 
 ## MCP testing
