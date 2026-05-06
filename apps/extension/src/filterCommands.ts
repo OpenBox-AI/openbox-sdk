@@ -19,7 +19,7 @@ export interface FilterController {
   clear(): Promise<void>;
   // Activity types seen ACROSS the lifetime of this view session, not
   // just the current poll result. Mirrors mobile's
-  // `seenActivityTypesRef` — without stickiness, narrowing one filter
+  // `seenActivityTypesRef` - without stickiness, narrowing one filter
   // (e.g. tier) would shrink the type picker to whatever survived,
   // breaking the user's ability to widen back out.
   seenActivityTypes(): string[];
@@ -59,7 +59,7 @@ export async function pickCategory(controller: FilterController) {
     { label: "$(arrow-swap) Sort", description: f.sort === "oldest" ? "Oldest" : "Newest" },
   ];
   if (controller.supportsStatus()) {
-    // History only — date range. Status is handled by section headers
+    // History only - date range. Status is handled by section headers
     // in the tree, not a filter, so it's no longer a category here.
     const dateLabel = DATE_RANGES.find((d) => d.value === (f.dateRange || "all"))?.label || "All time";
     items.push(

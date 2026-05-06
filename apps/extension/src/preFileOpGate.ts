@@ -1,6 +1,6 @@
 // File-operation gate for create / delete / rename. Each VS Code
 // onWill*Files event accepts a `waitUntil(thenable)` that can throw
-// to cancel the op — same shape as the save gate.
+// to cancel the op - same shape as the save gate.
 //
 // We call check_governance once per file in the op, treating any
 // non-allow verdict as cancel. The gate is opt-in via
@@ -69,7 +69,7 @@ export class PreFileOpGate {
 
       const verb = category.replace('file_', '');
       const reason = result.reason ?? 'denied by policy';
-      vscode.window.showErrorMessage(`OpenBox blocked ${verb}: ${item} — ${reason}`);
+      vscode.window.showErrorMessage(`OpenBox blocked ${verb}: ${item} - ${reason}`);
       // Throwing from a `waitUntil` thenable cancels the file op the
       // same way a rejected save promise cancels a save.
       throw new Error(`OpenBox: ${verb} cancelled by policy`);

@@ -51,7 +51,7 @@ export interface SessionDeps {
   /** Fires every time the feed reports a new approvals snapshot.
    *  PreWriteGate's halt-verdict tracking subscribes here so it can
    *  paint denies for any URI-open file whose approval is at verdict
-   *  4 — and clear them when the same approval drops out of pending. */
+   *  4 - and clear them when the same approval drops out of pending. */
   onApprovalsRefreshed?: (approvals: Approval[]) => void;
 }
 
@@ -110,7 +110,7 @@ export class ViewSession implements vscode.Disposable {
     });
 
     this.feed.on("changed", (approvals: Approval[]) => {
-      // Sticky union — never removes types, even when a filter narrows
+      // Sticky union - never removes types, even when a filter narrows
       // the result. The picker's "All types" entry plus this set are
       // what the user picks from regardless of the live filter state.
       for (const a of approvals) {

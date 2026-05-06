@@ -20,7 +20,7 @@ vi.mock('vscode', () => ({
 // inside the module's `check()` result mapping.
 import { GovernanceClient } from './governanceClient';
 
-describe('GovernanceClient — verdict mapping (string + numeric)', () => {
+describe('GovernanceClient - verdict mapping (string + numeric)', () => {
   function clientWithStubbedCheck(verdict: number | string | undefined) {
     const c = new GovernanceClient();
     // Stub agentId so check() doesn't short-circuit.

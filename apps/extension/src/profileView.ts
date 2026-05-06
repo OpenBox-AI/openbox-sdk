@@ -1,4 +1,4 @@
-// Profile view — always visible when an API key is set, regardless of
+// Profile view - always visible when an API key is set, regardless of
 // build flavor. Mirrors mobile's Profile tab's Account card in spirit.
 //
 // Org API keys are NOT user-tied. The backend's validateApiKey

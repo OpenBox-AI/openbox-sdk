@@ -26,7 +26,7 @@ export interface DebugSnapshot {
   emailVerified: boolean | undefined;
   orgId: string | undefined;
   hasApiKey: boolean;
-  // First chars of the key secret (safe — entropy is in the trailing
+  // First chars of the key secret (safe - entropy is in the trailing
   // hex). Used as a stable visual identifier when the rich
   // listApiKeys metadata can't be fetched.
   keyPrefix: string | undefined;
@@ -40,7 +40,7 @@ export interface DebugSnapshot {
   // Token-store metadata for the org API key. updatedAt is when the
   // key was written; permissions / features come from the token store
   // if a flow hydrated them (CLI's full auth login does, the
-  // extension's Set API Key flow doesn't — it only knows the secret).
+  // extension's Set API Key flow doesn't - it only knows the secret).
   keyUpdatedAt: string | undefined;
   permissions: string[] | undefined;
   features: Record<string, boolean> | undefined;
@@ -147,7 +147,7 @@ function render(webview: vscode.Webview, context: vscode.ExtensionContext, snap:
   // /auth/profile UserProfile fields (email, sub, name,
   // preferred_username, email_verified) describe the human who
   // minted the key, not the key itself; hidden. Features (local
-  // TokenEntry field) is dropped — the extension's Set API Key flow
+  // TokenEntry field) is dropped - the extension's Set API Key flow
   // doesn't populate it.
   const rows: { label: string; value: string }[] = [
     { label: "Org ID", value: snap.orgId || "-" },

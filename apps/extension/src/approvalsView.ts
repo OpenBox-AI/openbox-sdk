@@ -6,7 +6,7 @@ import { formatLabel, summarizeInput, timeAgo, timeRemaining } from "openbox-sdk
 // for tier / reason / created / expiry, mimicking mobile's
 // ApprovalCard layout within VS Code's one-line-per-item constraint.
 // History view groups approvals under section headers (Approved /
-// Rejected / Expired) — same data, three buckets — so the user sees
+// Rejected / Expired) - same data, three buckets - so the user sees
 // status splits at a glance, equivalent to mobile's segmented picker
 // without forcing a one-at-a-time toggle. Empty state is not a node;
 // returning [] lets package.json's per-view viewsWelcome render.
@@ -140,8 +140,8 @@ export class ApprovalsTreeProvider implements vscode.TreeDataProvider<TreeNode> 
 // Bucket each approval into one of the three section kinds.
 // Precedence:
 //   1. wire `status` if present ("approved" / "rejected" / "expired" /
-//      "pending") — backend's explicit signal.
-//   2. otherwise: decided_at + verdict — Allow/Constrain on a decided
+//      "pending") - backend's explicit signal.
+//   2. otherwise: decided_at + verdict - Allow/Constrain on a decided
 //      row → approved; Block/Halt → rejected.
 //   3. otherwise: undecided + approval_expired_at past → expired.
 //      Mobile's fixtures encode expiry exactly this way (verdict=2 +
@@ -288,7 +288,7 @@ function buildTooltip(a: Approval, summary: string | null): vscode.MarkdownStrin
   const tier = a.metadata?.trust_tier;
   if (tier != null) md.appendMarkdown(`$(verified) Trust Tier ${tier}\n\n`);
 
-  // Outcome word for decided rows. Pending rows omit it — the shield
+  // Outcome word for decided rows. Pending rows omit it - the shield
   // icon + the Expires-in child row already convey the state. Raw
   // verdict labels (Allow/Constrain/Block/Halt) aren't shown anywhere
   // user-facing; they're backend enum values, not UX copy.

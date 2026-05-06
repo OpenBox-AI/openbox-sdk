@@ -378,7 +378,7 @@ function renderHtml(
 
   /* Stack Approve over Reject (mobile's actionsRow alignItems:center
      column). Approve is the proper primary button; Reject is a plain
-     text link styled red — the destructive action stays available
+     text link styled red - the destructive action stays available
      but visually subtle so the eye lands on Approve first. */
   .actions {
     display: flex;
@@ -437,7 +437,7 @@ function renderHtml(
     ${a.created_at ? `<div class="row"><span class="lbl">Created</span><span class="val">${escapeHtml(timeAgo(a.created_at))}</span></div>` : ""}
     ${/* Outcome row mirrors mobile: the row label IS the status word
         (Approved / Rejected / Expired / Expires in). No separate
-        "Verdict" row — that maps to backend enum values (Allow /
+        "Verdict" row - that maps to backend enum values (Allow /
         Constrain / Block / Halt) that don't read friendly. */ ""}
     ${timingRow}
   </div>

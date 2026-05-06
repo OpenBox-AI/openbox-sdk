@@ -39,7 +39,7 @@ export function validateApiKey(key: string): boolean {
 }
 
 /** First N chars of the secret. The shape `obx_key_<48 hex>` makes the
- *  prefix non-sensitive — entropy is in the trailing hex. Used for
+ *  prefix non-sensitive - entropy is in the trailing hex. Used for
  *  debug display so the user has SOMETHING that uniquely identifies
  *  the key at a glance even when the backend's listApiKeys is
  *  unreachable. */

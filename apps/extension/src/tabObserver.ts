@@ -196,7 +196,7 @@ export function createTabObserver(opts: TabObserverOptions = {}): TabObserver {
         // classifier already filtered out small idle-typing IDE
         // noise; a multi-line / 20+ char idle insert is far more
         // likely AI than a paste of human-authored code, but we
-        // don't claim certainty — use 'unknown' for keystroke
+        // don't claim certainty - use 'unknown' for keystroke
         // non-keystrokes that are sub-threshold).
         const contributorType: ContributorType =
           source === 'non-keystroke' ? 'ai' : 'human';

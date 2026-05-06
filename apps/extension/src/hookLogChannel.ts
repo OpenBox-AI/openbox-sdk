@@ -4,7 +4,7 @@
 // JSONL lines via runtime/cursor/event-log.ts; this side just
 // formats and prints them.
 //
-// Polling-based tail (1s) — simpler and more portable than fs.watch
+// Polling-based tail (1s) - simpler and more portable than fs.watch
 // on macOS/Linux/Windows, and the channel is read by humans
 // occasionally, not as a hot path.
 

@@ -30,8 +30,8 @@ export class PollingService extends EventEmitter {
   // send repeated notifications"). After seed, deltas are real arrivals.
   private seeded = false;
   // True when the next poll is a load-more (paging deeper into the
-  // backlog). The page-N rows aren't "new arrivals" — they were always
-  // there, we just hadn't asked for them — so newApprovals must not
+  // backlog). The page-N rows aren't "new arrivals" - they were always
+  // there, we just hadn't asked for them - so newApprovals must not
   // fire for that poll. Reset after the suppressed poll.
   private suppressNextBatch = false;
   private timer: ReturnType<typeof setInterval> | undefined;
@@ -107,8 +107,8 @@ export class PollingService extends EventEmitter {
   loadMore() {
     if (this.atPageLimit) return;
     this.loadedPages += 1;
-    // The page-N rows aren't "new arrivals" — they were always in the
-    // backlog, we just hadn't asked for them — so newApprovals must
+    // The page-N rows aren't "new arrivals" - they were always in the
+    // backlog, we just hadn't asked for them - so newApprovals must
     // not fire for the very next poll.
     this.suppressNextBatch = true;
     void this.poll();

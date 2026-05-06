@@ -203,7 +203,7 @@ vi.mock('./api', () => ({
     },
     apiBase: 'https://api.test',
   })),
-  // Token store helpers — the recovered extension reads these on boot.
+  // Token store helpers - the recovered extension reads these on boot.
   apiKeyPrefix: vi.fn(() => 'obx_key_test1234…'),
   clearApiKey: vi.fn(),
   hasApiKey: vi.fn(() => true),
@@ -223,7 +223,7 @@ vi.mock('./approvalsView', () => ({
   },
 }));
 
-// Recovered UI surfaces — minimal shims so activate() can wire them
+// Recovered UI surfaces - minimal shims so activate() can wire them
 // without exploding. The tests don't drive these surfaces; the
 // PreWriteGate / TabObserver assertions don't depend on them.
 vi.mock('./detailPanel', () => ({

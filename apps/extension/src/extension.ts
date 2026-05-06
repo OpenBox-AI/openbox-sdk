@@ -1,20 +1,20 @@
 // OpenBox extension entry. Wires:
 //
-//   * Approvals UI surface — pending + history view sessions, detail
+//   * Approvals UI surface - pending + history view sessions, detail
 //     panel, onboard view, profile view, debug controls (dev builds).
 //     Recovered from feat/approvals-shared-helpers; the rich surface
 //     went orphan when work moved to feat/cursor-runtime.
 //
-//   * Active governance gates — PreWriteGate, PreFileOpGate,
+//   * Active governance gates - PreWriteGate, PreFileOpGate,
 //     TabObserver. Each independently consults the GovernanceClient,
 //     which reads `openbox.agentId` + the runtime key from
 //     ~/.openbox/agent-keys (or OPENBOX_API_KEY).
 //
-//   * Hook activity log — tails ~/.openbox/log/cursor-hook.jsonl into
+//   * Hook activity log - tails ~/.openbox/log/cursor-hook.jsonl into
 //     a Cursor OutputChannel so the user sees every hook the
 //     `openbox cursor hook` subprocess fires.
 //
-//   * Halt-verdict ↔ save coordination — when the approvals feed
+//   * Halt-verdict ↔ save coordination - when the approvals feed
 //     reports a pending row at verdict 4 whose target URI is open,
 //     PreWriteGate's recordDeny lights up so the next save reverts.
 
@@ -53,7 +53,7 @@ import { HookLogTail } from "./hookLogChannel";
 // `npm run build` (production) sets it to "false"; `npm run build:dev` sets
 // "true". When false, all debug commands, the debug tree view, and mock-auth
 // affordances stay unregistered, and esbuild dead-code-eliminates the
-// branches below — so a prod .vsix can't be flipped into debug at runtime.
+// branches below - so a prod .vsix can't be flipped into debug at runtime.
 const DEBUG_BUILD = process.env.OPENBOX_DEBUG_BUILD === "true";
 
 // Org API key shape; matches the CLI's auth.ts validator. Anything else
@@ -146,7 +146,7 @@ export async function activate(context: vscode.ExtensionContext) {
   statusBar.show();
   context.subscriptions.push(statusBar);
 
-  // Onboard view — single gated welcome page when no API key is set.
+  // Onboard view - single gated welcome page when no API key is set.
   // Pending / History / Profile are all hidden in that state so the
   // user lands on one clear "Set API Key" page instead of three
   // half-empty views all repeating the same prompt.
@@ -154,7 +154,7 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.window.createTreeView("openbox.onboard", { treeDataProvider: new OnboardProvider() }),
   );
 
-  // Profile view — present whenever an API key is set, regardless of
+  // Profile view - present whenever an API key is set, regardless of
   // build flavor. Holds the user-facing identity rows and the
   // Sign Out / Change Key toolbar buttons.
   const profileProvider = new ProfileProvider(() => buildDebugSnapshot());
@@ -578,7 +578,7 @@ export async function activate(context: vscode.ExtensionContext) {
         profileProvider.refresh();
         if (DEBUG_BUILD) void boot(env);
       }
-      // Gate-toggle / agentId changes only repaint the idle status —
+      // Gate-toggle / agentId changes only repaint the idle status -
       // no polling restart needed.
       if (
         e.affectsConfiguration("openbox.agentId") ||

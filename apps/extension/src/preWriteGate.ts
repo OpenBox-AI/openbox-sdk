@@ -96,7 +96,7 @@ export class PreWriteGate {
         `OpenBox blocked save of ${doc.fileName}: ${result.reason ?? 'denied by policy'}`,
       );
       // VS Code's onWillSaveTextDocument does NOT cancel saves on
-      // participant rejection — waitUntil's contract is only "inject
+      // participant rejection - waitUntil's contract is only "inject
       // pre-save edits". To actually veto, return edits that revert
       // the buffer to whatever's on disk before the save commits.
       // Reads from disk so the revert tracks the last successful save
@@ -145,7 +145,7 @@ export class PreWriteGate {
 
 /** Build a TextEdit array that replaces the document's full content
  *  with whatever's currently on disk. The save then writes the same
- *  bytes the file already has — effective veto without VS Code
+ *  bytes the file already has - effective veto without VS Code
  *  cooperation on participant rejection. */
 async function revertToDisk(doc: vscode.TextDocument): Promise<vscode.TextEdit[]> {
   let onDisk = '';

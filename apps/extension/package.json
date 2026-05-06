@@ -1,7 +1,7 @@
 {
   "name": "openbox",
-  "displayName": "OpenBox AI Governance",
-  "description": "Active governance for AI coding agents — pre-shell, pre-write, and pre-file-op gates evaluate every action against your OPA policies, surface human-in-the-loop approvals in the editor, and emit cursor/agent-trace records for AI authorship attribution.",
+  "displayName": "OpenBox",
+  "description": "OpenBox Extension",
   "version": "0.1.0",
   "publisher": "openbox",
   "icon": "media/icon.png",

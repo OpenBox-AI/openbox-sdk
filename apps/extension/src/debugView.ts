@@ -5,8 +5,8 @@
 // in the title bar forces an immediate re-render.
 //
 // Actions live in the view title bar (env switch, mock toggle, seed,
-// reset, debug info, reload) — same pattern as Pending/History
-// search/filter/refresh — so the tree itself stays read-only.
+// reset, debug info, reload) - same pattern as Pending/History
+// search/filter/refresh - so the tree itself stays read-only.
 
 import * as vscode from "vscode";
 import * as os from "os";
