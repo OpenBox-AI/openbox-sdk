@@ -1,13 +1,36 @@
 {
   "name": "openbox",
-  "displayName": "OpenBox",
-  "description": "Approve or reject AI agent actions from OpenBox directly in your editor",
+  "displayName": "OpenBox AI Governance",
+  "description": "Active governance for AI coding agents — pre-shell, pre-write, and pre-file-op gates evaluate every action against your OPA policies, surface human-in-the-loop approvals in the editor, and emit cursor/agent-trace records for AI authorship attribution.",
   "version": "0.1.0",
   "publisher": "openbox",
+  "icon": "media/icon.png",
+  "license": "MIT",
+  "homepage": "https://openbox.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenBox-AI/openbox-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/OpenBox-AI/openbox-sdk/issues"
+  },
+  "keywords": [
+    "ai",
+    "ai-governance",
+    "guardrails",
+    "policy",
+    "opa",
+    "approvals",
+    "hitl",
+    "agent-trace",
+    "cursor",
+    "claude-code"
+  ],
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
+    "AI",
     "Other"
   ],
   "activationEvents": [
