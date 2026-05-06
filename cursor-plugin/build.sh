@@ -13,10 +13,12 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$here/.." && pwd)"
 
-if [[ ! -d "$root/skill" ]] || [[ ! -d "$root/cursor-commands" ]]; then
-  echo "missing source dirs (skill/, cursor-commands/) — run from openbox-sdk worktree" >&2
-  exit 1
-fi
+for d in skill cursor-commands cursor-rules cursor-agents; do
+  if [[ ! -d "$root/$d" ]]; then
+    echo "missing source dir $d/ — run from openbox-sdk worktree" >&2
+    exit 1
+  fi
+done
 
 # 1. skill mirror — Cursor expects skills under <plugin>/skills/<name>/SKILL.md
 rm -rf "$here/skills"
@@ -27,6 +29,16 @@ cp -R "$root/skill/." "$here/skills/openbox/"
 rm -rf "$here/commands"
 mkdir -p "$here/commands"
 cp "$root/cursor-commands/"*.md "$here/commands/"
+
+# 2b. project rules (.mdc)
+rm -rf "$here/rules"
+mkdir -p "$here/rules"
+cp "$root/cursor-rules/"*.mdc "$here/rules/"
+
+# 2c. plugin agents
+rm -rf "$here/agents"
+mkdir -p "$here/agents"
+cp "$root/cursor-agents/"*.md "$here/agents/"
 
 # 3. hooks — the install spec is generated; we read the same INSTALL_SPEC
 #    the runtime uses and emit the marketplace-shaped hooks.json.
@@ -60,6 +72,8 @@ JSON
 echo "Bundled cursor-plugin/ at $here"
 echo "  skills/openbox    ($(ls "$here/skills/openbox" | wc -l | tr -d ' ') entries)"
 echo "  commands/         ($(ls "$here/commands" | wc -l | tr -d ' ') files)"
+echo "  rules/            ($(ls "$here/rules" | wc -l | tr -d ' ') files)"
+echo "  agents/           ($(ls "$here/agents" | wc -l | tr -d ' ') files)"
 echo "  hooks/hooks.json"
 echo "  mcp.json"
 echo ""

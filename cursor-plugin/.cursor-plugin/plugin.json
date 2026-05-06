@@ -20,6 +20,9 @@
     "behavior-rules",
     "cursor",
     "skill",
-    "mcp"
+    "mcp",
+    "rules",
+    "agents",
+    "commands"
   ]
 }

@@ -431,12 +431,19 @@ export function planInstallAll(
             const { installCursor } = await import('../../runtime/cursor/install.js');
             installCursor();
             // Slash commands ship alongside hooks: bundle is meaningless
-            // without the in-chat surface that drives the CLI.
+            // without the in-chat surface that drives the CLI. Rules +
+            // plugin agents come along too — same pattern, same dir.
             console.log('');
-            const { installCursorCommands } = await import(
-              '../../runtime/cursor/commands.js'
-            );
+            const {
+              installCursorCommands,
+              installCursorRules,
+              installCursorAgents,
+            } = await import('../../runtime/cursor/commands.js');
             installCursorCommands();
+            console.log('');
+            installCursorRules();
+            console.log('');
+            installCursorAgents();
             // Harden is part of the full Cursor stack (mirrors what
             // `install cursor` does standalone). Consent-gated:
             // --yes auto-yes, non-interactive without --yes silently
@@ -548,10 +555,14 @@ export function planUninstallAll(
           run: async () => {
             const { uninstallCursor } = await import('../../runtime/cursor/install.js');
             uninstallCursor();
-            const { uninstallCursorCommands } = await import(
-              '../../runtime/cursor/commands.js'
-            );
+            const {
+              uninstallCursorCommands,
+              uninstallCursorRules,
+              uninstallCursorAgents,
+            } = await import('../../runtime/cursor/commands.js');
             uninstallCursorCommands();
+            uninstallCursorRules();
+            uninstallCursorAgents();
           },
         };
       case 'claude-code':
@@ -778,10 +789,16 @@ export function registerInstallCommands(program: Command): void {
       const { installMcp } = await import('../../runtime/mcp/install.js');
       installMcp({ targets: ['cursor'] });
       console.log('');
-      const { installCursorCommands } = await import(
-        '../../runtime/cursor/commands.js'
-      );
+      const {
+        installCursorCommands,
+        installCursorRules,
+        installCursorAgents,
+      } = await import('../../runtime/cursor/commands.js');
       installCursorCommands();
+      console.log('');
+      installCursorRules();
+      console.log('');
+      installCursorAgents();
       console.log('');
       const { installSkill } = await import('./skill.js');
       installSkill({ cursor: true });
@@ -917,10 +934,14 @@ export function registerInstallCommands(program: Command): void {
       const { uninstallMcp } = await import('../../runtime/mcp/install.js');
       uninstallMcp({ targets: ['cursor'] });
       console.log('');
-      const { uninstallCursorCommands } = await import(
-        '../../runtime/cursor/commands.js'
-      );
+      const {
+        uninstallCursorCommands,
+        uninstallCursorRules,
+        uninstallCursorAgents,
+      } = await import('../../runtime/cursor/commands.js');
       uninstallCursorCommands();
+      uninstallCursorRules();
+      uninstallCursorAgents();
       console.log('');
       const cursorSkillDst = path.join(os.homedir(), '.cursor', 'skills', 'openbox');
       if (fs.existsSync(cursorSkillDst)) {

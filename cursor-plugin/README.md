@@ -4,11 +4,11 @@ This directory is the [Cursor plugin](https://docs.cursor.com/plugins)
 manifest for OpenBox. It holds `.cursor-plugin/plugin.json` so the
 bundle is discoverable as a Marketplace plugin.
 
-The runtime contents — `skills/`, `commands/`, `hooks/`, `mcp.json` —
-are materialized at publish time from the canonical sources
-(`skill/`, `cursor-commands/`, `INSTALL_SPEC` from the cursor adapter
-spec). Those output dirs are `.gitignore`d to keep one source of
-truth.
+The runtime contents — `skills/`, `commands/`, `rules/`, `agents/`,
+`hooks/`, `mcp.json` — are materialized at publish time from the
+canonical sources (`skill/`, `cursor-commands/`, `cursor-rules/`,
+`cursor-agents/`, `INSTALL_SPEC` from the cursor adapter spec).
+Those output dirs are `.gitignore`d to keep one source of truth.
 
 ## Build the bundle
 
@@ -25,6 +25,12 @@ After `build.sh`, the directory holds everything Cursor expects.
 - **commands/openbox-*.md** — slash commands the user can run in
   Cursor chat (`/openbox-doctor`, `/openbox-status`,
   `/openbox-pending`, `/openbox-list-agents`, `/openbox-check`)
+- **rules/openbox.mdc** — `alwaysApply` project rule that surfaces
+  the active governance state (env, agent binding, gates,
+  approvals) to every chat
+- **agents/openbox-reviewer.md** — plugin agent template that
+  reviews changes against the active behavior rules / guardrails
+  / AIVSS posture using spec-driven CLI calls
 - **hooks/hooks.json** — pre/post hook config emitted from the
   cursor adapter TypeSpec (single source of truth: every event the
   CLI installs into `~/.cursor/hooks.json` is mirrored here)
