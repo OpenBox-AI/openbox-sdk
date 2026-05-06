@@ -1,17 +1,16 @@
 ---
 name: openbox-status
-description: Summarize current OpenBox install - active env, auth state, and pending approvals.
+description: One-line OpenBox health snapshot.
 ---
 
 # OpenBox status
 
-Pull a quick health snapshot:
+Run `openbox doctor` and print a single line:
 
-1. `openbox config list` - current env + saved settings
-2. `openbox auth status` - whether an X-API-Key is loaded for the
-   active env
-3. `openbox approval pending` - count of pending HITL items
+- All checks pass: `OpenBox: healthy`
+- Some warnings, no failures: `OpenBox: <N> warning(s); run /openbox-doctor for details`
+- Any failures: `OpenBox: <N> issue(s); run /openbox-doctor for details`
 
-Summarize the three answers in three short lines for the user. If
-any of the calls error, surface the message verbatim and suggest
-running `/openbox-doctor`.
+Do NOT mention environment names. Do NOT print the full doctor
+table; that's what `/openbox-doctor` is for. If `openbox` isn't
+on PATH, tell the user how to install (see `/openbox-doctor`).

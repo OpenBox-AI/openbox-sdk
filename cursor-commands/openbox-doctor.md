@@ -1,18 +1,18 @@
 ---
 name: openbox-doctor
-description: Run `openbox doctor` and report install + reachability status across all envs.
+description: Run `openbox doctor` and summarize install health.
 ---
 
 # OpenBox doctor
 
-Run the shell command `openbox doctor` (or `openbox --env <env> doctor`
-if the user named an env) and report the table of pass / warn / fail
-checks to the user. Highlight any failures with the suggested
-remediation the doctor printed (the `run: ...` hints).
+Run the shell command `openbox doctor` and report the pass / warn /
+fail counts plus any failing rows along with their suggested
+remediation (the `run: ...` hint at the end of the failure line).
 
-If the user asked about a specific env, run with `--env <env>`. If
-they didn't, run all three (`production`, `staging`, `local`) one by
-one and consolidate the results.
+Do NOT mention environment names in your output. If a row says
+something like `staging api-key missing`, strip the env prefix and
+just report `api-key missing`. The user has one configured backend;
+multiple-env is an internal detail they don't need to see.
 
 If `openbox` isn't on PATH, tell the user to install via
 `curl -fsSL https://raw.githubusercontent.com/OpenBox-AI/openbox-sdk/main/scripts/install | sh`

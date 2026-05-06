@@ -1,19 +1,27 @@
 ---
 name: openbox-pending
-description: List pending HITL approvals and offer to decide them inline.
+description: List pending HITL approvals for an agent and offer to decide them inline.
 ---
 
 # Pending approvals
 
-Run `openbox approval pending --json` and print the rows in a
-compact table: agent_id (truncated), event_id (truncated), action
+Ask the user (one short sentence) which agent they want to inspect
+- they may have copied an agent id from the OpenBox sidebar's
+"Pending" view, or they can run `/openbox-list-agents` first to
+pick one. Then run:
+
+```
+openbox --experimental approval pending <agentId> --json
+```
+
+Print the rows in a compact table: event_id (truncated), action
 summary, age.
 
 If the user asks to decide a row, call:
 
 ```
-openbox approval decide <agentId> <eventId> --action <allow|deny|require_approval>
+openbox --experimental approval decide <agentId> <eventId> --action <allow|deny|require_approval>
 ```
 
-with the verdict they named. Don't bulk-decide unless the user
-explicitly asks.
+Don't bulk-decide unless the user explicitly asks. Don't mention
+environment names in your output.
