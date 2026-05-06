@@ -1,0 +1,25 @@
+{
+  "name": "openbox",
+  "displayName": "OpenBox AI Governance",
+  "version": "0.1.0",
+  "description": "Active governance for AI coding agents in Cursor: pre-shell / pre-write / pre-file-op gates evaluate every action against your OPA policies, surface human-in-the-loop approvals in the editor, and emit cursor/agent-trace records for human-vs-AI authorship attribution.",
+  "author": {
+    "name": "OpenBox AI",
+    "email": "team@openbox.ai"
+  },
+  "license": "MIT",
+  "keywords": [
+    "openbox",
+    "ai-governance",
+    "guardrails",
+    "policy",
+    "opa",
+    "approvals",
+    "hitl",
+    "agent-trace",
+    "behavior-rules",
+    "cursor",
+    "skill",
+    "mcp"
+  ]
+}

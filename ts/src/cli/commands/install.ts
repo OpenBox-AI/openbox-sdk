@@ -397,7 +397,8 @@ export function planInstallAll(
           target,
           run: async () => {
             const { installSkill } = await import('./skill.js');
-            installSkill();
+            installSkill();          // ~/.claude/skills/openbox
+            installSkill({ cursor: true }); // ~/.cursor/skills/openbox
           },
         });
         break;
@@ -429,6 +430,13 @@ export function planInstallAll(
           run: async () => {
             const { installCursor } = await import('../../runtime/cursor/install.js');
             installCursor();
+            // Slash commands ship alongside hooks: bundle is meaningless
+            // without the in-chat surface that drives the CLI.
+            console.log('');
+            const { installCursorCommands } = await import(
+              '../../runtime/cursor/commands.js'
+            );
+            installCursorCommands();
             // Harden is part of the full Cursor stack (mirrors what
             // `install cursor` does standalone). Consent-gated:
             // --yes auto-yes, non-interactive without --yes silently
@@ -509,14 +517,21 @@ export function planUninstallAll(
         return {
           ...entry,
           run: () => {
-            // The skill installer just copies a dir; uninstall removes it.
-            const dst = path.join(env.homedir(), '.claude', 'skills', 'openbox');
-            if (fs.existsSync(dst)) {
-              execFileSync('rm', ['-rf', dst], { stdio: 'inherit' });
-              console.log(`Removed ${dst}`);
-            } else {
-              console.log(`${dst} is not installed.`);
+            // The skill installer copies into both ~/.claude and
+            // ~/.cursor; uninstall mirrors that.
+            const dsts = [
+              path.join(env.homedir(), '.claude', 'skills', 'openbox'),
+              path.join(env.homedir(), '.cursor', 'skills', 'openbox'),
+            ];
+            let removed = 0;
+            for (const dst of dsts) {
+              if (fs.existsSync(dst)) {
+                execFileSync('rm', ['-rf', dst], { stdio: 'inherit' });
+                console.log(`Removed ${dst}`);
+                removed++;
+              }
             }
+            if (removed === 0) console.log(`No skill copies installed under ${dsts.join(' / ')}.`);
           },
         };
       case 'extension': {
@@ -533,6 +548,10 @@ export function planUninstallAll(
           run: async () => {
             const { uninstallCursor } = await import('../../runtime/cursor/install.js');
             uninstallCursor();
+            const { uninstallCursorCommands } = await import(
+              '../../runtime/cursor/commands.js'
+            );
+            uninstallCursorCommands();
           },
         };
       case 'claude-code':
@@ -758,6 +777,14 @@ export function registerInstallCommands(program: Command): void {
       console.log('');
       const { installMcp } = await import('../../runtime/mcp/install.js');
       installMcp({ targets: ['cursor'] });
+      console.log('');
+      const { installCursorCommands } = await import(
+        '../../runtime/cursor/commands.js'
+      );
+      installCursorCommands();
+      console.log('');
+      const { installSkill } = await import('./skill.js');
+      installSkill({ cursor: true });
       if (opts.harden !== false) {
         console.log('');
         const { consent } = await import('../non-interactive.js');
@@ -810,10 +837,15 @@ export function registerInstallCommands(program: Command): void {
 
   install
     .command('skill')
-    .description('Install the OpenBox skill (SKILL.md) into ~/.claude/skills/openbox')
+    .description(
+      'Install the OpenBox skill (SKILL.md + references) into both ' +
+        '~/.claude/skills/openbox and ~/.cursor/skills/openbox so each ' +
+        'editor surfaces the same content.',
+    )
     .action(async () => {
       const { installSkill } = await import('./skill.js');
       installSkill();
+      installSkill({ cursor: true });
     });
 
   install
@@ -884,6 +916,17 @@ export function registerInstallCommands(program: Command): void {
       console.log('');
       const { uninstallMcp } = await import('../../runtime/mcp/install.js');
       uninstallMcp({ targets: ['cursor'] });
+      console.log('');
+      const { uninstallCursorCommands } = await import(
+        '../../runtime/cursor/commands.js'
+      );
+      uninstallCursorCommands();
+      console.log('');
+      const cursorSkillDst = path.join(os.homedir(), '.cursor', 'skills', 'openbox');
+      if (fs.existsSync(cursorSkillDst)) {
+        execFileSync('rm', ['-rf', cursorSkillDst], { stdio: 'inherit' });
+        console.log(`Removed ${cursorSkillDst}`);
+      }
       console.log('');
       const { unhardenCursor } = await import('../../runtime/cursor/enterprise.js');
       const r = unhardenCursor();
