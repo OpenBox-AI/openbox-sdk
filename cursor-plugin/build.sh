@@ -40,22 +40,20 @@ rm -rf "$here/agents"
 mkdir -p "$here/agents"
 cp "$root/cursor-agents/"*.md "$here/agents/"
 
-# 3. hooks — the install spec is generated; we read the same INSTALL_SPEC
-#    the runtime uses and emit the marketplace-shaped hooks.json.
+# 3. hooks — dogfood the CLI: run `install cursor` against a throwaway
+#    HOME and copy the resulting hooks.json out. That's the same spec
+#    the runtime uses, with the matcher / timeout / shape exactly as
+#    Cursor will see it.
 rm -rf "$here/hooks"
 mkdir -p "$here/hooks"
-node --input-type=module -e '
-import { INSTALL_SPEC } from "../ts/dist/core-client/generated/runtime/cursor.js";
-import { writeFileSync } from "node:fs";
-const hooks = {};
-for (const evt of INSTALL_SPEC.events) {
-  hooks[evt.name] = [{ command: evt.command, ...(evt.matcher ? { matcher: evt.matcher } : {}) }];
-}
-writeFileSync("'"$here"'/hooks/hooks.json", JSON.stringify({ hooks }, null, 2) + "\n");
-' || {
-  echo "ts must be built first: (cd $root/ts && npm run build)" >&2
+hooks_tmp="$(mktemp -d)"
+trap 'rm -rf "$hooks_tmp"' EXIT
+HOME="$hooks_tmp" OPENBOX_SKIP_EXTENSION=1 \
+  node "$root/dist/cli/index.js" install cursor --no-harden >/dev/null 2>&1 || {
+  echo "openbox CLI not built. Run (cd $root && npm run build:bundle) first." >&2
   exit 1
 }
+cp "$hooks_tmp/.cursor/hooks.json" "$here/hooks/hooks.json"
 
 # 4. mcp.json — point at the published openbox CLI's stdio MCP server
 cat >"$here/mcp.json" <<'JSON'

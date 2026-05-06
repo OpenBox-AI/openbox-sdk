@@ -80,6 +80,8 @@ const ALLOWED_PREFIXES: Record<string, string> = {
     'cursor harden / unharden delegate to the enterprise-profile renderer.',
   '../../runtime/cursor/rules.js':
     'cursor sync-rules delegates to the .cursor/rules/*.mdc renderer.',
+  '../../runtime/cursor/commands.js':
+    'unified cursor install copies the bundled slash commands, rules, and plugin agents into ~/.cursor/{commands,rules,agents}.',
   '../../runtime/_shared/rules-projection.js':
     'editor-agnostic guardrails+policies projection consumed by cursor sync-rules.',
   '../../runtime/mcp/index.js': 'mcp serve runs the MCP stdio server.',

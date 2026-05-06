@@ -210,6 +210,15 @@ function pickHosts(opts: { code?: boolean; cursor?: boolean }): string[] {
 }
 
 function installExtension(opts: { code?: boolean; cursor?: boolean }): void {
+  // Test escape hatch: integration tests run the full install flow
+  // against a throwaway HOME and don't want to touch the real
+  // VS Code / Cursor extension store. Setting OPENBOX_SKIP_EXTENSION=1
+  // makes the step a no-op so the rest of the install path
+  // (hooks, MCP, skill, commands, rules, agents) is still exercised.
+  if (process.env.OPENBOX_SKIP_EXTENSION === '1') {
+    console.log('Skipping extension install (OPENBOX_SKIP_EXTENSION=1).');
+    return;
+  }
   const hosts = pickHosts(opts);
   if (hosts.length === 0) {
     console.error(
@@ -230,6 +239,10 @@ function installExtension(opts: { code?: boolean; cursor?: boolean }): void {
 }
 
 function uninstallExtension(opts: { code?: boolean; cursor?: boolean }): void {
+  if (process.env.OPENBOX_SKIP_EXTENSION === '1') {
+    console.log('Skipping extension uninstall (OPENBOX_SKIP_EXTENSION=1).');
+    return;
+  }
   const hosts = pickHosts(opts);
   if (hosts.length === 0) {
     console.error('Neither `code` nor `cursor` is on PATH.');
