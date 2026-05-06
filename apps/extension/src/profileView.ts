@@ -1,8 +1,16 @@
 // Profile view. Mirrors the mobile app's Profile / Account card:
-// the user-facing identity rows only (Email, Org). Everything else
-// the extension knows about the active session (env, key prefix,
-// key id, permissions, polling stats) lives in the Debug view,
-// which only shows up in dev builds.
+// the user-facing identity rows only.
+//
+// Mobile signs in with JWT and surfaces Email + Org. The extension
+// only ever uses X-API-Key auth, where the backend sets
+// email = undefined and synthesises sub = "api-key:<keyId>" -
+// there's no human identity to render. Showing an empty "Email: -"
+// row would be noise, so the X-API-Key path renders Org alone (or
+// nothing if the org-id never came back from /auth/profile).
+//
+// If a future build ever adds JWT auth on this surface,
+// snap.isApiKeyAuth will flip false and the email row lights up
+// automatically.
 //
 // Sign Out / Set API Key / Open Dashboard sit in the view's title
 // bar (see package.json view/title menu).
@@ -37,9 +45,11 @@ export class ProfileProvider implements vscode.TreeDataProvider<Row> {
 
   getChildren(): Row[] {
     const snap = this.getSnapshot();
-    // Match mobile: Email is always rendered (with "-" placeholder
-    // when the session has no human identity, e.g. org API-key
-    // auth); Org only when present so the card stays compact.
-    return snap.orgId ? ["email", "orgId"] : ["email"];
+    const rows: Row[] = [];
+    // X-API-Key sessions don't carry a human identity. Hide the
+    // Email row entirely instead of showing a placeholder.
+    if (!snap.isApiKeyAuth) rows.push("email");
+    if (snap.orgId) rows.push("orgId");
+    return rows;
   }
 }
