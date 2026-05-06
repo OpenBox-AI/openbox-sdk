@@ -610,8 +610,25 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
   );
 
-  const pickApproval = (node: any): Approval | undefined =>
-    node?.approval ?? (node?.id ? node : undefined);
+  /** Resolve an Approval from the variety of shapes call sites pass:
+   *
+   *   - Tree node: `{ approval: Approval, ... }` (sidebar context-menu)
+   *   - Plain Approval: `{ id, agent_id, ... }` (history-item action)
+   *   - Bare id string: `"apr_xxx"` (preWriteGate's "Open in OpenBox"
+   *     modal button passes only the approvalId; lookup falls back to
+   *     pending → history → undefined). */
+  const pickApproval = (node: any): Approval | undefined => {
+    if (!node) return undefined;
+    if (typeof node === "string") {
+      return (
+        active?.pending.approvals.find((a) => a.id === node) ??
+        active?.history.approvals.find((a) => a.id === node)
+      );
+    }
+    if (node.approval) return node.approval as Approval;
+    if (node.id) return node as Approval;
+    return undefined;
+  };
 
   function describeKeySource(envTag: EnvName): string {
     const url = apiKeysUrl(envTag);
@@ -705,8 +722,21 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
 
     vscode.commands.registerCommand("openbox.openDetail", (node: any) => {
+      if (!active) {
+        vscode.window.showInformationMessage(
+          "OpenBox: still booting; wait for the sidebar to load and try again.",
+        );
+        return;
+      }
       const approval = pickApproval(node);
-      if (!approval || !active) return;
+      if (!approval) {
+        vscode.window.showInformationMessage(
+          typeof node === "string"
+            ? `OpenBox: approval ${node} is not in the current pending or history view.`
+            : "OpenBox: no approval row selected.",
+        );
+        return;
+      }
       ApprovalDetailPanel.show(approval, context, {
         client: active.client,
         orgId: active.orgId,

@@ -145,6 +145,12 @@ export class ViewSession implements vscode.Disposable {
 
   refresh() { void this.feed.refresh(); }
 
+  /** Live snapshot of the polled approvals. Used by extension.ts's
+   *  openDetail handler to look up an approval by id when other
+   *  surfaces (preWriteGate's deny modal, slash-command callbacks)
+   *  hand it a bare approvalId string. */
+  get approvals(): Approval[] { return this.feed.approvals; }
+
   // Telemetry surfaces for the debug panel.
   get count(): number { return this.feed.approvals.length; }
   get lastPollAt(): number | undefined { return this.feed.lastPollAt; }
