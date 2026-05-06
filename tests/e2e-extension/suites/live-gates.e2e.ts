@@ -66,9 +66,28 @@ describe('LIVE gates — local backend, real agent, planted rules', () => {
       if (!ext) throw new Error('openbox extension not found');
       if (!ext.isActive) await ext.activate();
     });
-    // boot() inside activate() is async; let it settle so gates are
-    // attached before the first save fires.
-    await new Promise((r) => setTimeout(r, 1500));
+    // boot() inside activate() is async (loads tokens, fetches the
+    // /me profile, attaches the three gate listeners). Race-prone —
+    // first PreWriteGate test occasionally lost the save-listener
+    // attach race at 1.5s. Wait until governance.check returns a
+    // verdict (means the boot promise has resolved) instead of
+    // sleeping a fixed amount.
+    await browser.waitUntil(
+      async () => {
+        try {
+          const r = (await browser.executeWorkbench(async (vscode: any) => {
+            return vscode.commands.executeCommand('openbox.__diag.checkGovernance', {
+              spanType: 'file_write',
+              activityInput: { file_path: '/tmp/probe.txt', content: 'probe' },
+            });
+          })) as { outcome?: string };
+          return !!r?.outcome;
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 15_000, timeoutMsg: 'governance.check never returned a verdict; gates may not be attached' },
+    );
   });
 
   it('governance.check returns block from extension host (planted file_write rule)', async () => {
