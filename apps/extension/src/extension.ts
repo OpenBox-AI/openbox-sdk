@@ -369,6 +369,14 @@ export async function activate(context: vscode.ExtensionContext) {
       },
     ),
 
+    // Diagnostic: returns the current pending-approvals count from
+    // whatever feed is wired (mock or real). The e2e suites use
+    // this to assert "approve removed a row" without DOM-walking
+    // the tree (which is brittle across editor forks).
+    vscode.commands.registerCommand("openbox.__diag.approvalsCount", () => {
+      return feed?.approvals.length ?? 0;
+    }),
+
     // QuickPick env switcher; writes the setting (Global scope), the
     // onDidChangeConfiguration handler above does the actual reboot.
     vscode.commands.registerCommand("openbox.switchEnvironment", async () => {

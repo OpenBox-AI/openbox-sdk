@@ -53,29 +53,21 @@ before(() => {
   writeFileSync(DELETE_TARGET, 'should-not-be-deleted\n');
 });
 
-async function openOpenBoxView(): Promise<void> {
-  const wb = await browser.getWorkbench();
-  for (const v of await (await wb.getActivityBar()).getViewControls()) {
-    if (/OpenBox/i.test(await v.getTitle())) {
-      await v.openView();
-      return;
-    }
-  }
-  throw new Error('OpenBox view control not found');
-}
-
 describe('LIVE gates — local backend, real agent, planted rules', () => {
   before(async () => {
-    // Wait for the extension to FULLY activate (preWriteGate.attach
-    // and friends only run inside activate()). Without this, the
-    // first save can race the listener registration.
+    // Activate via vscode API (not DOM); works on Cursor + VS Code.
     await browser.executeWorkbench(async (vscode: any) => {
+      try {
+        await vscode.commands.executeCommand('workbench.view.extension.openbox');
+      } catch {
+        /* ignore */
+      }
       const ext = vscode.extensions.getExtension('openbox.openbox');
       if (!ext) throw new Error('openbox extension not found');
       if (!ext.isActive) await ext.activate();
     });
-    await openOpenBoxView();
-    // Settle: the extension's `boot()` is async; let it land.
+    // boot() inside activate() is async; let it settle so gates are
+    // attached before the first save fires.
     await new Promise((r) => setTimeout(r, 1500));
   });
 

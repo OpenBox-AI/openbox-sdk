@@ -27,15 +27,17 @@ async function statusBarTexts(): Promise<string[]> {
   return (await wb.getStatusBar()).getItems();
 }
 
-async function openOpenBoxView(): Promise<void> {
-  const wb = await browser.getWorkbench();
-  for (const v of await (await wb.getActivityBar()).getViewControls()) {
-    if (/OpenBox/i.test(await v.getTitle())) {
-      await v.openView();
-      return;
+async function activate(): Promise<void> {
+  await browser.executeWorkbench(async (vscode: any) => {
+    try {
+      await vscode.commands.executeCommand('workbench.view.extension.openbox');
+    } catch {
+      /* ignore */
     }
-  }
-  throw new Error('OpenBox view control not found');
+    const ext = vscode.extensions.getExtension('openbox.openbox');
+    if (ext && !ext.isActive) await ext.activate();
+  });
+  await new Promise((r) => setTimeout(r, 1500));
 }
 
 /** Find the user-data-dir VS Code is using and patch settings.json
@@ -74,7 +76,7 @@ function patchUserSettings(patch: Record<string, unknown>): boolean {
 
 describe('Active PreWriteGate — status bar wiring', () => {
   before(async () => {
-    await openOpenBoxView();
+    await activate();
   });
 
   it('status bar carries the OpenBox tag with mock auth + no agent', async () => {

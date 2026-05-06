@@ -18,6 +18,15 @@
 //
 // Knobs:
 //   OPENBOX_E2E_VSCODE_VERSION — VS Code version (default: stable)
+//   OPENBOX_E2E_VSCODE_BINARY  — path to a VS Code-fork binary to
+//                                use instead of the downloaded one,
+//                                e.g. Cursor:
+//                                  /Applications/Cursor.app/Contents/MacOS/Cursor
+//                                The harness still uses the
+//                                bundled-VS Code-version's
+//                                chromedriver, so versions need to
+//                                stay close (Cursor tracks VS Code
+//                                releases within ~a few months).
 //   OPENBOX_E2E_HEADLESS=1     — pass `--no-sandbox`; rely on the
 //                                caller's Xvfb when running CI.
 
@@ -29,6 +38,7 @@ const ROOT = resolve(HERE, '../..');
 const EXTENSION_DIR = resolve(ROOT, 'apps/extension');
 
 const vscodeVersion = process.env.OPENBOX_E2E_VSCODE_VERSION ?? 'stable';
+const vscodeBinary = process.env.OPENBOX_E2E_VSCODE_BINARY;
 const headless = process.env.OPENBOX_E2E_HEADLESS === '1';
 
 const LIVE =
@@ -74,6 +84,7 @@ export const config = {
         extensionPath: EXTENSION_DIR,
         userSettings,
         workspacePath: resolve(HERE, 'fixtures-workspace'),
+        ...(vscodeBinary ? { binary: vscodeBinary } : {}),
         ...(headless ? { vscodeArgs: ['--no-sandbox'] } : {}),
       },
     },

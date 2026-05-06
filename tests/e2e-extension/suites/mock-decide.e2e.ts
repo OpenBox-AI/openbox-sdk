@@ -1,90 +1,73 @@
-// Mock-auth approve/reject flow. The fixture seeds 6 pending rows;
-// clicking Approve on the first one calls the in-memory mock decider
-// (mockFeed.decide), which removes the row, and the panel's tree
-// updates. Same for Reject.
-//
-// This is the only e2e suite that exercises the panel's
-// click-to-decide path; unit tests stub the feed.
+// Mock-auth approve/reject. Drives via vscode.commands +
+// __diag.approvalsCount so the suite is editor-fork-agnostic
+// (works on VS Code AND Cursor). The fixture seeds 6 pending rows
+// with stable ids (mock-appr-001..006).
 
 import { expect } from '@wdio/globals';
 
-async function openPanel() {
-  // First-paint of the workbench can return 0 view controls; poll
-  // until OpenBox shows up. Fresh wdio sessions sometimes start
-  // faster than the extension activates.
-  let openbox: any;
-  await browser.waitUntil(
-    async () => {
-      const wb = await browser.getWorkbench();
-      for (const v of await (await wb.getActivityBar()).getViewControls()) {
-        if (/OpenBox/i.test(await v.getTitle())) {
-          openbox = v;
-          return true;
-        }
-      }
-      return false;
-    },
-    { timeout: 15_000, timeoutMsg: 'OpenBox view control never appeared' },
-  );
-  return openbox.openView();
+async function activate(): Promise<void> {
+  await browser.executeWorkbench(async (vscode: any) => {
+    try {
+      await vscode.commands.executeCommand('workbench.view.extension.openbox');
+    } catch {
+      /* ignore */
+    }
+    const ext = vscode.extensions.getExtension('openbox.openbox');
+    if (ext && !ext.isActive) await ext.activate();
+  });
+  await new Promise((r) => setTimeout(r, 1500));
 }
 
-async function visibleRows(): Promise<number> {
-  const view = await openPanel();
-  const sections = await view.getContent().getSections();
-  if (sections.length === 0) return 0;
-  return (await sections[0].getVisibleItems()).length;
+async function approvalsCount(): Promise<number> {
+  return browser.executeWorkbench(async (vscode: any) => {
+    return vscode.commands.executeCommand('openbox.__diag.approvalsCount');
+  }) as Promise<number>;
+}
+
+async function dispatch(action: 'approve' | 'reject', ordinal: number): Promise<void> {
+  const id = `mock-appr-00${ordinal}`;
+  await browser.executeWorkbench(
+    async (vscode: any, command: string, approval: { id: string; agent_id: string }) => {
+      await vscode.commands.executeCommand(command, approval);
+    },
+    `openbox.${action}`,
+    { id, agent_id: 'mock-agent' },
+  );
 }
 
 describe('OpenBox panel — mock decide flow', () => {
   before(async () => {
-    await openPanel();
+    await activate();
   });
 
-  it('starts with 6 fixture rows (any tree-shape multiple of 6 ok)', async () => {
-    const n = await visibleRows();
-    expect(n).toBeGreaterThanOrEqual(6);
-    expect(n % 6).toBe(0);
+  it('starts with 6 fixture rows', async () => {
+    // Wait for the mock feed's first 'changed' emit (50ms timer +
+    // a bit of jitter on cold-start).
+    await browser.waitUntil(async () => (await approvalsCount()) === 6, {
+      timeout: 10_000,
+      timeoutMsg: 'mock fixture never reached 6 rows',
+    });
+    expect(await approvalsCount()).toBe(6);
   });
 
-  /** Dispatch the registered command directly inside the extension
-   *  host with a minimal approval shape — `{id, agent_id}` is what
-   *  the handler reads. wdio-vscode-service's executeWorkbench()
-   *  serializes the callback into the host so we get full vscode
-   *  API access. The fixture seeds use stable ids
-   *  (`mock-appr-001…006`) so we can hit them by ordinal. */
-  async function dispatch(action: 'approve' | 'reject', ordinal: number): Promise<void> {
-    const id = `mock-appr-00${ordinal}`;
-    await browser.executeWorkbench(
-      async (vscode: any, command: string, approval: { id: string; agent_id: string }) => {
-        await vscode.commands.executeCommand(command, approval);
-      },
-      `openbox.${action}`,
-      { id, agent_id: id.startsWith('mock-appr-00') ? `mock-agent` : '' },
-    );
-  }
-
-  it('approving mock-appr-001 removes it from the panel', async () => {
-    const startCount = await visibleRows();
+  it('approving mock-appr-001 removes it', async () => {
+    const start = await approvalsCount();
     await dispatch('approve', 1);
-    await browser.waitUntil(
-      async () => (await visibleRows()) < startCount,
-      { timeout: 10_000, timeoutMsg: 'panel did not shrink after approve' },
-    );
-    expect(await visibleRows()).toBeLessThan(startCount);
+    await browser.waitUntil(async () => (await approvalsCount()) < start, {
+      timeout: 10_000,
+      timeoutMsg: 'count did not drop after approve',
+    });
+    expect(await approvalsCount()).toBeLessThan(start);
   });
 
   it('rejecting mock-appr-002 removes it too', async () => {
-    const startCount = await visibleRows();
-    if (startCount === 0) {
-      console.log('[mock-decide] panel empty after approve test; nothing to reject');
-      return;
-    }
+    const start = await approvalsCount();
+    if (start === 0) return;
     await dispatch('reject', 2);
-    await browser.waitUntil(
-      async () => (await visibleRows()) < startCount,
-      { timeout: 10_000, timeoutMsg: 'panel did not shrink after reject' },
-    );
-    expect(await visibleRows()).toBeLessThan(startCount);
+    await browser.waitUntil(async () => (await approvalsCount()) < start, {
+      timeout: 10_000,
+      timeoutMsg: 'count did not drop after reject',
+    });
+    expect(await approvalsCount()).toBeLessThan(start);
   });
 });
