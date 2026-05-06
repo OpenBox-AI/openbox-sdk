@@ -39,12 +39,22 @@ const CLI = resolve(__dirname, '../../dist/cli/index.js');
 const LOG = join(homedir(), '.openbox', 'log', 'cursor-hook.jsonl');
 
 function runHook(envelope: Record<string, unknown>) {
+  // tests/setup.ts pins OPENBOX_API_URL/_CORE_URL to production
+  // defaults; strip them so the cursor hook handler picks up the
+  // env-table URL via OPENBOX_ENV. The hook reads OPENBOX_ENDPOINT
+  // (a different name); set it to local-core when OPENBOX_ENV=local.
+  const env: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+    OPENBOX_API_KEY: process.env.OPENBOX_E2E_RUNTIME_KEY!,
+  };
+  delete env.OPENBOX_API_URL;
+  delete env.OPENBOX_CORE_URL;
+  if ((process.env.OPENBOX_ENV ?? '') === 'local') {
+    env.OPENBOX_ENDPOINT = env.OPENBOX_ENDPOINT ?? 'http://localhost:8086';
+  }
   return spawnSync('node', [CLI, 'cursor', 'hook'], {
     input: JSON.stringify(envelope),
-    env: {
-      ...process.env,
-      OPENBOX_API_KEY: process.env.OPENBOX_E2E_RUNTIME_KEY!,
-    },
+    env,
     encoding: 'utf-8',
     timeout: 30_000,
   });

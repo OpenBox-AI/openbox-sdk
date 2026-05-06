@@ -25,15 +25,33 @@ export interface GovernanceResult {
 
 const DEFAULT_DEADLINE_MS = 4_000;
 
-// Backend verdict numerics:
-//   0 = Allow
-//   1 = ScoreLowered (allow but trust impacted)
-//   2 = RequireApproval
-//   3 = Block (alias for Deny on some surfaces)
-//   4 = Halt (deny + cancel chain)
-function verdictToOutcome(v: number | undefined): GovernanceOutcome {
-  if (v === 0 || v === 1 || v === undefined) return 'allow';
-  if (v === 2) return 'require_approval';
+// Verdicts from core's evaluate endpoint come back in two shapes
+// depending on the path that produced them:
+//
+//   Numeric (the spec's BehaviorVerdict enum, used by the backend's
+//   approval rows + the extension's polling layer):
+//     0 = Allow
+//     1 = ScoreLowered (allow but trust impacted)
+//     2 = RequireApproval
+//     3 = Block (alias for Deny)
+//     4 = Halt (deny + cancel chain)
+//
+//   String (the live response shape from /api/v1/governance/evaluate):
+//     "allow", "require_approval", "block", "halt", "deny"
+//
+// Both paths reach this function, so it handles either by unifying
+// to the tri-state outcome the gates consume.
+function verdictToOutcome(v: number | string | undefined): GovernanceOutcome {
+  if (v === undefined || v === null) return 'allow';
+  if (typeof v === 'number') {
+    if (v === 0 || v === 1) return 'allow';
+    if (v === 2) return 'require_approval';
+    return 'deny';
+  }
+  const s = String(v).toLowerCase();
+  if (s === 'allow' || s === 'allow_with_score_lowered' || s === 'score_lowered') return 'allow';
+  if (s === 'require_approval' || s === 'requires_approval') return 'require_approval';
+  // 'block', 'deny', 'halt', anything else → deny
   return 'deny';
 }
 
@@ -75,8 +93,10 @@ export class GovernanceClient {
           aborter.signal.addEventListener('abort', () => rej(new Error('governance deadline exceeded'))),
         ),
       ]);
-      // GovernanceVerdictResponse fields: verdict (number), reason?, approval_id?
-      const r = result as { verdict?: number; reason?: string; approval_id?: string };
+      // GovernanceVerdictResponse: verdict can be number (spec) or
+      // string (live core response). reason / approval_id sit at the
+      // top level either way.
+      const r = result as { verdict?: number | string; reason?: string; approval_id?: string };
       return {
         outcome: verdictToOutcome(r.verdict),
         reason: r.reason,
