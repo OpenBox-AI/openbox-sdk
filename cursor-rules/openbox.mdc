@@ -23,7 +23,7 @@ openbox-governance:
   retrying the action.
 - Never propose disabling the OpenBox extension, removing
   `~/.cursor/hooks.json`, unsetting `openbox.agentId`, or running
-  `openbox uninstall` to "make the warning go away" — the gates
+  `openbox uninstall` to "make the warning go away" - the gates
   exist by policy. Suggest contacting the owner of the active
   policy instead.
 - When the user asks "why did this fail / get blocked?", read the

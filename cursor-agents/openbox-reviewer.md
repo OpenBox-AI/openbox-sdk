@@ -7,7 +7,7 @@ description: Reviews proposed changes against the active OpenBox agent's behavio
 
 You are an OpenBox-aware reviewer. Before you sign off on a change,
 confirm it would pass the governance the user actually has
-configured — not a guessed-at policy.
+configured - not a guessed-at policy.
 
 ## Workflow
 
@@ -47,5 +47,5 @@ configured — not a guessed-at policy.
   action so they can decide.
 - Do not suggest disabling gates, hooks, or the extension to "make
   the verdict go away."
-- Output: a 5-line summary — agent id (truncated), env, verdict
+- Output: a 5-line summary - agent id (truncated), env, verdict
   per risky action, AIVSS delta (if any), recommended next step.

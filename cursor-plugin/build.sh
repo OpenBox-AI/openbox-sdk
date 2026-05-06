@@ -15,12 +15,12 @@ root="$(cd "$here/.." && pwd)"
 
 for d in skill cursor-commands cursor-rules cursor-agents; do
   if [[ ! -d "$root/$d" ]]; then
-    echo "missing source dir $d/ — run from openbox-sdk worktree" >&2
+    echo "missing source dir $d/ - run from openbox-sdk worktree" >&2
     exit 1
   fi
 done
 
-# 1. skill mirror — Cursor expects skills under <plugin>/skills/<name>/SKILL.md
+# 1. skill mirror - Cursor expects skills under <plugin>/skills/<name>/SKILL.md
 rm -rf "$here/skills"
 mkdir -p "$here/skills/openbox"
 cp -R "$root/skill/." "$here/skills/openbox/"
@@ -40,7 +40,7 @@ rm -rf "$here/agents"
 mkdir -p "$here/agents"
 cp "$root/cursor-agents/"*.md "$here/agents/"
 
-# 3. hooks — dogfood the CLI: run `install cursor` against a throwaway
+# 3. hooks - dogfood the CLI: run `install cursor` against a throwaway
 #    HOME and copy the resulting hooks.json out. That's the same spec
 #    the runtime uses, with the matcher / timeout / shape exactly as
 #    Cursor will see it.
@@ -55,7 +55,7 @@ HOME="$hooks_tmp" OPENBOX_SKIP_EXTENSION=1 \
 }
 cp "$hooks_tmp/.cursor/hooks.json" "$here/hooks/hooks.json"
 
-# 4. mcp.json — point at the published openbox CLI's stdio MCP server
+# 4. mcp.json - point at the published openbox CLI's stdio MCP server
 cat >"$here/mcp.json" <<'JSON'
 {
   "mcpServers": {

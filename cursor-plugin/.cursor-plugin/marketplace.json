@@ -5,7 +5,7 @@
     "email": "team@openbox.ai"
   },
   "metadata": {
-    "description": "OpenBox governance bundle for Cursor — gates, approvals, slash commands, MCP server, and the OpenBox skill, all driven from one source of truth.",
+    "description": "OpenBox governance bundle for Cursor - gates, approvals, slash commands, MCP server, and the OpenBox skill, all driven from one source of truth.",
     "version": "0.1.0"
   },
   "plugins": [
