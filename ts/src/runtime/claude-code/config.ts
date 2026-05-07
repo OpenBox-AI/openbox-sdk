@@ -1,6 +1,7 @@
-import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { DEFAULT_CORE_URL } from '../../env/index.js';
+import { loadJsonConfig, loadDotenv } from '../_shared/host-config.js';
 
 // os.homedir() honors USERPROFILE on Windows where HOME is unset.
 const CONFIG_DIR = path.join(os.homedir(), '.claude-hooks');
@@ -46,7 +47,7 @@ export function loadConfig(): ClaudeCodeConfig {
 
   return {
     openboxApiKey: get('OPENBOX_API_KEY'),
-    openboxEndpoint: get('OPENBOX_ENDPOINT', 'https://core.openbox.ai'),
+    openboxEndpoint: get('OPENBOX_ENDPOINT', DEFAULT_CORE_URL),
     governancePolicy: (get('GOVERNANCE_POLICY', 'fail_open') as 'fail_open' | 'fail_closed'),
     governanceTimeout: parseInt(get('GOVERNANCE_TIMEOUT', '15'), 10) || 15,
     sessionDir: get('SESSION_DIR', path.join(CONFIG_DIR, 'sessions')),
@@ -65,43 +66,8 @@ export function loadConfig(): ClaudeCodeConfig {
   };
 }
 
-function loadConfigFile(): Record<string, string> {
-  try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      const raw = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
-      const out: Record<string, string> = {};
-      for (const [k, v] of Object.entries(raw)) {
-        out[k.toUpperCase().replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase()] = String(v);
-        out[k] = String(v);
-      }
-      return out;
-    }
-  } catch { /* ignore */ }
-  return {};
-}
-
-function loadEnvFile(): Record<string, string> {
-  try {
-    if (fs.existsSync(ENV_FILE)) {
-      const lines = fs.readFileSync(ENV_FILE, 'utf-8').split('\n');
-      const out: Record<string, string> = {};
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) continue;
-        const eq = trimmed.indexOf('=');
-        if (eq === -1) continue;
-        const key = trimmed.slice(0, eq).trim();
-        let val = trimmed.slice(eq + 1).trim();
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-          val = val.slice(1, -1);
-        }
-        out[key] = val;
-      }
-      return out;
-    }
-  } catch { /* ignore */ }
-  return {};
-}
+const loadConfigFile = (): Record<string, string> => loadJsonConfig(CONFIG_FILE);
+const loadEnvFile = (): Record<string, string> => loadDotenv(ENV_FILE);
 
 export function getConfigDir(): string {
   return CONFIG_DIR;

@@ -19,8 +19,8 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
 import { randomUUID, createHash } from 'node:crypto';
+import { openboxDataRoot } from '../env/os-paths.js';
 
 export type ContributorType = 'human' | 'ai' | 'mixed' | 'unknown';
 
@@ -78,7 +78,7 @@ export interface TraceRecord {
 
 // Spec-current as of cursor/agent-trace v0.1.0 (RFC, January 2026).
 const SPEC_VERSION = '0.1.0';
-const LOG_DIR = path.join(os.homedir(), '.openbox', 'log');
+const LOG_DIR = path.join(openboxDataRoot(), 'log');
 const LOG_FILE = path.join(LOG_DIR, 'agent-trace.jsonl');
 
 /** Hash inserted content with sha256 — deterministic for

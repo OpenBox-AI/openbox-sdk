@@ -10,9 +10,9 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
+import { openboxDataRoot } from '../../env/os-paths.js';
 
-const DIR = path.join(os.homedir(), '.openbox', 'log');
+const DIR = path.join(openboxDataRoot(), 'log');
 const FILE = path.join(DIR, 'cursor-hook.jsonl');
 // Hard cap so a runaway hook can't fill the disk. ~5 MB keeps a
 // month of moderate use. When tripped, we rotate to .jsonl.1 and
