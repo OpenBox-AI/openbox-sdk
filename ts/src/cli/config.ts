@@ -69,10 +69,9 @@ function getClient(env?: EnvName): OpenBoxClient {
   const { apiUrl } = resolveUrls(resolved);
   const apiKey = loadApiKey(resolved);
   if (!apiKey) {
-    const flag = resolved === 'production' ? '' : `--env ${resolved} `;
-    console.error(`No X-API-Key found for environment '${resolved}'.`);
+    console.error(`No X-API-Key configured.`);
     console.error(`Mint one in the dashboard FE (Organization → API Keys), then:`);
-    console.error(`  openbox ${flag}auth set-api-key`);
+    console.error(`  openbox auth set-api-key`);
     console.error(`Or set OPENBOX_BACKEND_API_KEY=<key> in the environment.`);
     bailWith(EXIT.AUTH);
   }

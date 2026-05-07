@@ -1,12 +1,12 @@
 // `openbox versions`: report the deployed commit or tag for each
-// service in each env. Hits the public `/version` endpoint on each
-// service URL resolved from `openbox-sdk/env`. No filesystem reads,
-// no private-repo lookups; cells without `/version` print
-// "(no /version)".
+// service against the active env. One row per service; no env names
+// surfaced — the active env is whichever the rest of the CLI resolves
+// to via `resolveEnv()`. Hits the public `/version` endpoint on each
+// service URL; cells without `/version` print "(no /version)".
 
 import type { Command } from 'commander';
 import { OpenBoxClient } from '../../client/index.js';
-import { resolveUrls, type EnvName } from '../../env/index.js';
+import { resolveEnv, resolveUrls, type EnvName } from '../../env/index.js';
 
 type ServiceName = 'backend' | 'core' | 'guardrails';
 
@@ -51,55 +51,34 @@ function pad(s: string, n: number): string {
   return s.length >= n ? s : s + ' '.repeat(n - s.length);
 }
 
-function renderTable(rows: Record<EnvName, Record<ServiceName, VersionCell>>): string {
-  const envs: EnvName[] = ['production', 'staging', 'local'];
-  const tagWidth = Math.max(
-    10,
-    ...envs.flatMap((e) => SERVICES.map((s) => rows[e][s].tag.length + 2)),
-  );
-  const svcWidth = Math.max(...SERVICES.map((s) => s.length)) + 2;
-  const out: string[] = [];
-  out.push(pad('service', svcWidth) + envs.map((e) => pad(e, tagWidth)).join(''));
-  out.push('-'.repeat(svcWidth + tagWidth * envs.length));
-  for (const service of SERVICES) {
-    out.push(
-      pad(service, svcWidth) +
-        envs.map((e) => pad(rows[e][service].tag, tagWidth)).join(''),
-    );
-  }
-  return out.join('\n');
-}
-
 export function registerVersionsCommand(program: Command): void {
   program
     .command('versions')
-    .description('Show deployed versions per env via each service /version endpoint.')
+    .description('Show deployed versions for each service via /version.')
     .option('--sources', 'Print where each value was read from')
     .action(async (opts: { sources?: boolean }) => {
-      const envs: EnvName[] = ['production', 'staging', 'local'];
-      const rows: Record<EnvName, Record<ServiceName, VersionCell>> = {} as Record<
-        EnvName,
-        Record<ServiceName, VersionCell>
+      const env = resolveEnv();
+      const cells: Record<ServiceName, VersionCell> = {} as Record<
+        ServiceName,
+        VersionCell
       >;
-      const tasks: Promise<void>[] = [];
-      for (const env of envs) {
-        rows[env] = {} as Record<ServiceName, VersionCell>;
-        for (const svc of SERVICES) {
-          tasks.push(
-            cellFor(env, svc).then((cell) => {
-              rows[env][svc] = cell;
-            }),
-          );
-        }
+      await Promise.all(
+        SERVICES.map((svc) => cellFor(env, svc).then((c) => (cells[svc] = c))),
+      );
+      const svcWidth = Math.max(...SERVICES.map((s) => s.length)) + 2;
+      const tagWidth = Math.max(
+        10,
+        ...SERVICES.map((s) => cells[s].tag.length + 2),
+      );
+      console.log(pad('service', svcWidth) + pad('version', tagWidth));
+      console.log('-'.repeat(svcWidth + tagWidth));
+      for (const svc of SERVICES) {
+        console.log(pad(svc, svcWidth) + pad(cells[svc].tag, tagWidth));
       }
-      await Promise.all(tasks);
-      console.log(renderTable(rows));
       if (opts.sources) {
         console.log('\nsources:');
-        for (const env of envs) {
-          for (const svc of SERVICES) {
-            console.log(`  ${env}/${svc}: ${rows[env][svc].source}`);
-          }
+        for (const svc of SERVICES) {
+          console.log(`  ${svc}: ${cells[svc].source}`);
         }
       }
     });

@@ -35,15 +35,15 @@ export function registerDoctorCommand(program: Command) {
       const apiKey = loadApiKey(env);
       const haveKey = !!apiKey;
       checks.push({
-        name: `${env} api-key`,
+        name: 'api-key',
         status: haveKey ? 'pass' : 'fail',
         detail: haveKey
           ? `${apiKey!.slice(0, 12)}…`
-          : `missing; run: openbox --env ${env} auth set-api-key`,
+          : 'missing; run: openbox auth set-api-key',
       });
 
       checks.push({
-        name: `backend URL`,
+        name: 'backend URL',
         status: 'skip',
         detail: urls.apiUrl,
       });
@@ -58,7 +58,7 @@ export function registerDoctorCommand(program: Command) {
           const isNetwork = /fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|getaddrinfo/i.test(msg);
           const detail = isNetwork
             ? `${msg}; backend URL unreachable from this machine - check OPENBOX_API_URL or your network`
-            : `${msg}; run: openbox --env ${env} auth set-api-key (key may be invalid)`;
+            : `${msg}; run: openbox auth set-api-key (key may be invalid)`;
           checks.push({ name: 'backend /health', status: 'fail', detail });
         }
       }
@@ -95,23 +95,18 @@ export function registerDoctorCommand(program: Command) {
         }
       }
 
-      // Legacy tokens (flat format without env prefix; triggers migration).
+      // Token-format sanity. The codec writes flat lines for the
+      // primary env and namespaced lines for any user who opted into
+      // an override. Both shapes parse, so the doctor only flags a
+      // file we can't read at all.
       try {
-        const raw = readFileSync(tokenPath, 'utf-8');
-        if (/^ACCESS_TOKEN=/m.test(raw) && !/^production\.ACCESS_TOKEN=/m.test(raw)) {
-          checks.push({
-            name: 'token format',
-            status: 'warn',
-            detail: 'legacy flat format detected; will migrate to production.* on next auth command',
-          });
-        } else {
-          checks.push({ name: 'token format', status: 'pass', detail: 'env-namespaced' });
-        }
+        readFileSync(tokenPath, 'utf-8');
+        checks.push({ name: 'token file', status: 'pass', detail: 'readable' });
       } catch {
-        // already flagged above.
+        // already flagged above by the existsSync probe.
       }
 
-      console.log(`openbox doctor; env=${env}`);
+      console.log('openbox doctor');
       for (const c of checks) console.log(fmt(c));
 
       const failed = checks.filter((c) => c.status === 'fail');

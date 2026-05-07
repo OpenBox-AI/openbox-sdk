@@ -46,12 +46,12 @@ describe('auth commands', () => {
     expect(clearApiKey).toHaveBeenCalledWith(resolveEnv());
   });
 
-  it('status reads loadApiKey for every env', async () => {
+  it('status reads loadApiKey for the active env', async () => {
     vi.mocked(loadApiKey).mockReturnValue(undefined);
     const program = createTestProgram();
     registerAuthCommands(program);
     await program.parseAsync(['node', 'openbox', 'auth', 'status']);
-    // Three reads for production / staging / local.
-    expect(loadApiKey).toHaveBeenCalledTimes(3);
+    // Status now scopes to the active env only - no per-env enumeration.
+    expect(loadApiKey).toHaveBeenCalledTimes(1);
   });
 });

@@ -10,7 +10,6 @@ import {
   loadApiKey,
 } from '../config.js';
 import { resolveEnv } from '../../env/index.js';
-import type { EnvName } from '../../env/index.js';
 import { reportAndExit } from '../../validators/index.js';
 import { EXIT, bailWith } from '../exit-codes.js';
 import { isNonInteractive } from '../non-interactive.js';
@@ -51,7 +50,7 @@ export function registerAuthCommands(program: Command) {
           bailWith(EXIT.AUTH);
         }
         saveApiKey(env, key);
-        console.error(`X-API-Key saved for environment: ${env}`);
+        console.error('X-API-Key saved.');
       } catch (err: any) {
         reportAndExit(err);
       }
@@ -64,11 +63,7 @@ export function registerAuthCommands(program: Command) {
       try {
         const env = resolveEnv();
         const cleared = clearApiKey(env);
-        console.error(
-          cleared
-            ? `X-API-Key cleared for environment: ${env}`
-            : `No X-API-Key was stored for environment: ${env}`,
-        );
+        console.error(cleared ? 'X-API-Key cleared.' : 'No X-API-Key was stored.');
       } catch (err: any) {
         reportAndExit(err);
       }
@@ -76,15 +71,12 @@ export function registerAuthCommands(program: Command) {
 
   auth
     .command('status')
-    .description('Print whether an X-API-Key is saved per env')
+    .description('Print whether an X-API-Key is saved.')
     .action(() => {
       try {
-        const envs: EnvName[] = ['production', 'staging', 'local'];
-        for (const env of envs) {
-          const apiKey = loadApiKey(env);
-          const detail = apiKey ? `api-key (${apiKey.slice(0, 12)}...)` : 'none';
-          console.log(`  ${env.padEnd(10)} ${detail}`);
-        }
+        const env = resolveEnv();
+        const apiKey = loadApiKey(env);
+        console.log(apiKey ? `api-key (${apiKey.slice(0, 12)}...)` : 'none');
       } catch (err: any) {
         reportAndExit(err);
       }

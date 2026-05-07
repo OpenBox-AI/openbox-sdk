@@ -200,9 +200,26 @@ gateCommands(program);
 // explanations like "slim build" instead of trying --experimental.
 // Print a tighter, accurate error when we detect this case.
 {
+  // Walk argv past the top-level flags (and their values) to find the
+  // first real verb. Top-level flags that take a value: --env, --feature.
+  // Top-level boolean flags: --experimental, --yes, -y, --non-interactive,
+  // --no-color, -q, --quiet, --json, -V, --version, -h, --help. Any
+  // unknown -... flag is treated as boolean conservatively (we'd rather
+  // miss the hint than fire it at the wrong token).
+  const VALUE_FLAGS = new Set(['--env', '--feature']);
   const argv = process.argv.slice(2);
-  // First non-flag token is the candidate top-level verb.
-  const firstVerb = argv.find((a) => !a.startsWith('-'));
+  let firstVerb: string | undefined;
+  let positionalStart = -1;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a.startsWith('-')) {
+      if (VALUE_FLAGS.has(a)) i++; // skip the value too
+      continue;
+    }
+    firstVerb = a;
+    positionalStart = i;
+    break;
+  }
   if (firstVerb && !argv.includes('--experimental')) {
     // Use maturityOf() which defaults unlisted paths to
     // 'experimental' (the same conservative default the gating
@@ -210,7 +227,10 @@ gateCommands(program);
     // explicitly tags; commands like `core` that aren't tagged
     // still get gated as experimental at runtime, so the hint
     // needs the same fallback or we'd miss them.
-    const fullPath = argv.filter((a) => !a.startsWith('-')).join(' ');
+    const fullPath = argv
+      .slice(positionalStart)
+      .filter((a) => !a.startsWith('-'))
+      .join(' ');
     const topMaturity = maturityOf(firstVerb);
     const fullMaturity = maturityOf(fullPath);
     const gated = topMaturity === 'experimental' || fullMaturity === 'experimental';

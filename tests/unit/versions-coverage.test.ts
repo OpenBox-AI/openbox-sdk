@@ -1,6 +1,7 @@
 // Coverage for ts/src/cli/commands/versions.ts. Driven via stubbed
-// fetch for /version live calls. All three envs by three services
-// plus the --sources branch are exercised.
+// fetch for /version live calls. Single-env (active) shape: one row
+// per service, no env names surfaced. The --sources branch lists the
+// URL that produced each cell.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Command } from 'commander';
@@ -44,14 +45,15 @@ async function runVersions(args: string[]): Promise<{ out: string[]; exit: numbe
 }
 
 describe('versions command', () => {
-  it('renders the 3-env by 3-service table', async () => {
+  it('renders one row per service for the active env', async () => {
     const { out } = await runVersions([]);
     const flat = out.join('\n');
     expect(flat).toContain('backend');
     expect(flat).toContain('core');
-    expect(flat).toContain('production');
-    expect(flat).toContain('staging');
-    expect(flat).toContain('local');
+    expect(flat).toContain('guardrails');
+    // No env-name leak in the user-facing output.
+    expect(flat).not.toContain('production');
+    expect(flat).not.toContain('staging');
   });
 
   it('--sources adds a per-cell source breakdown', async () => {
