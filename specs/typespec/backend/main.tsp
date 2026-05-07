@@ -1285,7 +1285,7 @@ op AgentController_getGoalAlignmentTrend(
 op AgentController_getRecentDriftEvents(
   @path agentId: string,
   @query(#{ explode: true }) limit: numeric,
-): OkResponse;
+): Body<RecentDriftEvent[]>;
 
 @tag("Agent")
 @route("/agent/{agentId}/rotate-api-key")

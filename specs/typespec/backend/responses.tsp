@@ -561,6 +561,16 @@ model SessionGoalAlignmentStats {
   total_drifted: int32;
 }
 
+/** Single goal-drift event from /agent/{id}/goal-alignment/recent-drifts.
+ *  Backend returns an array of these, sorted by evaluated_at DESC. */
+model RecentDriftEvent {
+  session_id: string;
+  governance_event_id: string;
+  reason: Record<unknown> | null;
+  evaluated_at: string;
+  alignment_percentage: int32;
+}
+
 /** Single reasoning-trace entry from /agent/{id}/sessions/{sessionId}/
  *  reasoning-trace. The endpoint returns an array of these, ordered
  *  by governance-event created_at ASC. */

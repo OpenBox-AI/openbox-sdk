@@ -204,7 +204,7 @@ impl OpenBoxClient {
         self.request_get(&format!("/agent/{}/goal-alignment/trend", agent_id), None::<&()>, query).await
     }
 
-    pub async fn get_goal_alignment_recent_drifts(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_goal_alignment_recent_drifts(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<Vec<RecentDriftEvent>, ApiError> {
         self.request_get(&format!("/agent/{}/goal-alignment/recent-drifts", agent_id), None::<&()>, query).await
     }
 

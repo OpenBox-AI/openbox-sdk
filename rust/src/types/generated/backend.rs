@@ -968,6 +968,17 @@ pub struct ReasoningTraceEntry {
     pub alignment_consistency: Option<serde_json::Value>,
 }
 
+/// Single goal-drift event from /agent/{id}/goal-alignment/recent-drifts.
+/// Backend returns an array of these, sorted by evaluated_at DESC.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentDriftEvent {
+    pub session_id: String,
+    pub governance_event_id: String,
+    pub reason: serde_json::Value,
+    pub evaluated_at: String,
+    pub alignment_percentage: i32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiKeyResponse {
     pub token: String,

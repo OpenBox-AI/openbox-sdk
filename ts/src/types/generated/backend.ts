@@ -2517,6 +2517,20 @@ export interface components {
             /** Format: double */
             alignment_consistency?: number | null;
         };
+        /**
+         * @description Single goal-drift event from /agent/{id}/goal-alignment/recent-drifts.
+         *     Backend returns an array of these, sorted by evaluated_at DESC.
+         */
+        RecentDriftEvent: {
+            session_id: string;
+            governance_event_id: string;
+            reason: {
+                [key: string]: unknown;
+            } | null;
+            evaluated_at: string;
+            /** Format: int32 */
+            alignment_percentage: number;
+        };
         RefreshDto: Record<string, never>;
         RemoveMembersDto: {
             /** @description Array of User IDs to remove from organization */
@@ -3748,7 +3762,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RecentDriftEvent"][];
+                };
             };
         };
     };
