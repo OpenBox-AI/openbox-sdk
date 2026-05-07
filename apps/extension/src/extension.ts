@@ -1034,11 +1034,49 @@ export async function activate(context: vscode.ExtensionContext) {
         try {
           await active.client.decideApproval(agentId ?? "", id, { action });
           active.pending.refresh();
+          if (active.history) active.history.refresh();
         } catch {
           /* tests assert via approvalsCount; surface nothing here */
         }
       },
     ),
+
+    // Diagnostic: history bucket count. Tests assert decided rows
+    // land in the history view after decide.
+    vscode.commands.registerCommand("openbox.__diag.historyCount", () => {
+      return active?.history?.count ?? 0;
+    }),
+
+    // Diagnostic: snapshot of the active boot view. Tests assert
+    // profile + auth + agent IDs reach the active session.
+    vscode.commands.registerCommand("openbox.__diag.boot", () => {
+      if (!active) return null;
+      return {
+        orgId: active.orgId,
+        email: active.email,
+        sub: active.sub,
+        keyId: active.keyId,
+        isApiKeyAuth: active.isApiKeyAuth,
+        env,
+        agentId: governance.agentId(),
+        mockAuth: readMockAuth(),
+      };
+    }),
+
+    // Diagnostic: needsKey context state. Onboard view fires off this.
+    vscode.commands.registerCommand("openbox.__diag.needsKey", async () => {
+      const ctxKeys = await vscode.commands.executeCommand<unknown>("getContext", "openbox.needsKey").catch(() => undefined);
+      return ctxKeys === true;
+    }),
+
+    // Diagnostic: refresh + return new pending count. Used to assert
+    // a decide round-trip moves a row out of pending.
+    vscode.commands.registerCommand("openbox.__diag.refresh", async () => {
+      if (!active) return 0;
+      await active.pending.refresh();
+      if (active.history) await active.history.refresh();
+      return active.pending.count;
+    }),
   );
 
   if (DEBUG_BUILD) {
