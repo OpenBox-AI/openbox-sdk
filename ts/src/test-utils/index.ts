@@ -10,3 +10,17 @@ export {
   type SpanType,
   type SpanOptions,
 } from './span-builder.js';
+
+// DTO factories used by the e2e suite. Every shape matches a typed
+// `BackendClient` body parameter; downstream "spin up a deterministic
+// test agent" tooling consumes these instead of hand-rolling JSON.
+export {
+  makeCreateAgentDto,
+  makeCreateGuardrailDto,
+  makeCreatePolicyDto,
+  makeCreateBehaviorRuleDto,
+  makeUpdateAgentDto,
+  makeGovernanceEvent,
+  makeUpdateAivssConfigDto,
+  makeGoalAlignmentConfigDto,
+} from './fixtures.js';
