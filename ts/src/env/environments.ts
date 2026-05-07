@@ -36,7 +36,9 @@ export const DEFAULT_PLATFORM_URL: string = buildDefaults.platformUrl;
 // `resolveEnv` accepts; nothing else has to change. The default
 // fallback when OPENBOX_ENV is unset is whatever `Object.keys` yields
 // first (deterministic per the JSON-emit order in env-bindings.ts).
-const DEFAULT_ENV = Object.keys(ENVIRONMENTS)[0] as EnvName;
+// Exported so consumers can compare `env === DEFAULT_ENV` instead of
+// hand-typing the literal at every call site.
+export const DEFAULT_ENV: EnvName = Object.keys(ENVIRONMENTS)[0] as EnvName;
 export const resolveEnv: EnvLoader['resolveEnv'] = (cliFlag) => {
   const raw = cliFlag ?? process.env.OPENBOX_ENV ?? DEFAULT_ENV;
   const name = raw.toLowerCase() as EnvName;

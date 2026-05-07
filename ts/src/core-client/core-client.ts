@@ -1,5 +1,6 @@
 import { TokenBucket } from '../client/index.js';
-import { DEFAULT_CORE_URL } from '../env/index.js';
+import { DEFAULT_CORE_URL, resolveEnv } from '../env/index.js';
+import type { EnvName as SpecEnvName } from '../env/index.js';
 
 // Every wire-shape type in this module comes from the spec at
 // specs/typespec/core/main.tsp via codegen/emitters/ts/. This file
@@ -57,7 +58,7 @@ export interface BehavioralResult {
 // Configuration
 // ---------------------------------------------------------------------------
 
-export type EnvName = 'production' | 'staging' | 'local';
+export type EnvName = SpecEnvName;
 
 export interface CoreClientConfig {
   /** Base URL of the Core API. Defaults to the build-time-pinned DEFAULT_CORE_URL. */
@@ -75,7 +76,8 @@ export interface CoreClientConfig {
   retry?: { maxRetries?: number; initialDelayMs?: number; maxDelayMs?: number };
   /** Client-side rate limiting */
   rateLimit?: { requestsPerSecond: number; burst?: number };
-  /** Target environment. Branch on this.env when prod/staging diverge. Defaults to 'production'. */
+  /** Target environment. Defaults via resolveEnv (env var → global
+   *  config → first spec-emitted env). */
   env?: EnvName;
 }
 
@@ -108,7 +110,7 @@ export class OpenBoxCoreClient {
   constructor(config: CoreClientConfig) {
     this.config = { ...config };
     this.baseUrl = this.config.apiUrl ?? DEFAULT_CORE_URL;
-    this.env = this.config.env ?? 'production';
+    this.env = this.config.env ?? resolveEnv();
     if (config.rateLimit) {
       this.rateLimiter = new TokenBucket(
         config.rateLimit.requestsPerSecond,

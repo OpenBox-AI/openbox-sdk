@@ -6,7 +6,7 @@
 // debug-friendly `apiKeyPrefix` helper.
 
 import type { OpenBoxClient } from "openbox-sdk/client";
-import type { EnvName } from "openbox-sdk/env";
+import { DEFAULT_ENV, type EnvName } from "openbox-sdk/env";
 import { validateApiKeyFormat } from "openbox-sdk/env";
 import {
   loadApiKey as loadFileApiKey,
@@ -52,9 +52,9 @@ export function apiKeyPrefix(env: EnvName, length = 16): string | undefined {
 function loadApiKey(env: EnvName): string {
   const key = loadFileApiKey(env);
   if (!key) {
-    const flag = env === "production" ? "" : `--env ${env} `;
+    const flag = env === DEFAULT_ENV ? "" : `--env ${env} `;
     throw new Error(
-      `No X-API-Key for env '${env}'. Either:\n` +
+      `No X-API-Key configured. Either:\n` +
         `  • Create one in the OpenBox dashboard and run \`openbox ${flag}auth set-api-key\`\n` +
         `  • Or set \`openbox.mockAuth\` in settings to run the UI with fixtures (no backend).`,
     );

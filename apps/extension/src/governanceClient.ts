@@ -11,7 +11,7 @@
 
 import * as vscode from 'vscode';
 import { checkGovernance, type SpanType } from 'openbox-sdk/governance';
-import type { EnvName } from 'openbox-sdk/env';
+import { ENVIRONMENTS, DEFAULT_ENV, type EnvName } from 'openbox-sdk/env';
 
 export type GovernanceOutcome = 'allow' | 'require_approval' | 'deny' | 'unknown';
 
@@ -70,8 +70,8 @@ export class GovernanceClient {
   }
 
   envName(): EnvName {
-    const v = vscode.workspace.getConfiguration('openbox').get<string>('environment', 'production');
-    return v === 'staging' || v === 'local' ? v : 'production';
+    const v = vscode.workspace.getConfiguration('openbox').get<string>('environment', DEFAULT_ENV);
+    return (v in ENVIRONMENTS ? v : DEFAULT_ENV) as EnvName;
   }
 
   async check(opts: CheckOpts): Promise<GovernanceResult> {

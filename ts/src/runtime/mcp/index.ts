@@ -21,6 +21,7 @@ import { OpenBoxClient } from "../../client/index.js";
 import { OpenBoxCoreClient } from "../../core-client/index.js";
 import { loadApiKey } from "../../file-tokens/index.js";
 import { resolveEnv, setMcpClientName } from "./config.js";
+import { DEFAULT_ENV, resolveEnv as resolveEnvName } from "../../env/index.js";
 import { recallAgentKey } from "../_shared/agent-keys-store.js";
 
 export async function runMcpServer(): Promise<void> {
@@ -316,23 +317,23 @@ async function resolveApiKey(agentId?: string): Promise<string> {
         "key.",
     );
   }
-  // Env / prefix mismatch: production keys are `obx_live_*`, non-production
-  // keys are `obx_test_*`. The disk cache isn't env-tagged, so a
-  // production key can leak into a staging session and 401 with no
-  // useful diagnostic. Catch the common cases up front.
-  const env = (process.env.OPENBOX_ENV || "production").toLowerCase();
+  // Env / prefix mismatch: build-pinned env (DEFAULT_ENV) accepts only
+  // obx_live_*; any other env accepts only obx_test_*. The disk cache
+  // isn't env-tagged, so a key from one env can leak into a session in
+  // another and 401 with no useful diagnostic. Catch up front.
+  const env = resolveEnvName(process.env.OPENBOX_ENV);
   const isLive = apiKey.startsWith("obx_live_");
   const isTest = apiKey.startsWith("obx_test_");
-  if (env === "production" && isTest) {
+  if (env === DEFAULT_ENV && isTest) {
     throw new Error(
-      `Agent ${agentId ?? ""} has a non-production runtime key (obx_test_*) ` +
-        `but OPENBOX_ENV=production. Switch envs or rotate a production key.`,
+      `Agent ${agentId ?? ""} has a non-live runtime key (obx_test_*) ` +
+        `but the active env expects an obx_live_* key. Rotate via openbox api-key rotate.`,
     );
   }
-  if (env !== "production" && isLive) {
+  if (env !== DEFAULT_ENV && isLive) {
     throw new Error(
-      `Agent ${agentId ?? ""} has a production runtime key (obx_live_*) ` +
-        `but OPENBOX_ENV=${env}. Switch to --env production or rotate a non-production key.`,
+      `Agent ${agentId ?? ""} has an obx_live_* runtime key but the active ` +
+        `env expects an obx_test_* key. Rotate or remove the OPENBOX_ENV override.`,
     );
   }
   return apiKey;

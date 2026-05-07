@@ -18,7 +18,7 @@ import { loadApiKey as loadFileApiKey } from 'openbox-sdk/file-tokens';
 import { getConfig } from 'openbox-sdk/cli/config-store';
 import { readGlobalEnv } from './configStore';
 
-const ENVS: EnvName[] = ['production', 'staging', 'local'];
+const ENVS: EnvName[] = Object.keys(ENVIRONMENTS) as EnvName[];
 
 export interface BootView {
   /** Auth mode the extension should run in. */
@@ -41,8 +41,8 @@ function configuredEnv(): EnvName {
   // when the user changes it, so both surfaces converge on the file.
   const inspect = vscode.workspace.getConfiguration('openbox').inspect<string>('environment');
   const explicit = inspect?.workspaceValue ?? inspect?.globalValue;
-  if (explicit && (explicit === 'staging' || explicit === 'local' || explicit === 'production')) {
-    return explicit;
+  if (explicit && ENVS.includes(explicit as EnvName)) {
+    return explicit as EnvName;
   }
   return readGlobalEnv();
 }

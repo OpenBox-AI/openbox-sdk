@@ -23,7 +23,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import type { OpenBoxClient } from "openbox-sdk/client";
-import type { EnvName } from "openbox-sdk/env";
+import { ENVIRONMENTS, DEFAULT_ENV, type EnvName } from "openbox-sdk/env";
 import { resolveOsPath } from "openbox-sdk/os-paths";
 import {
   apiKeyPrefix,
@@ -98,9 +98,10 @@ interface ActiveKeyInfo {
 
 let active: ActiveBoot | undefined;
 
+const ENV_NAMES = new Set(Object.keys(ENVIRONMENTS));
 function readEnv(): EnvName {
-  const v = vscode.workspace.getConfiguration("openbox").get<string>("environment", "production");
-  return v === "staging" || v === "local" ? v : "production";
+  const v = vscode.workspace.getConfiguration("openbox").get<string>("environment", DEFAULT_ENV);
+  return ENV_NAMES.has(v) ? (v as EnvName) : DEFAULT_ENV;
 }
 
 function readNotifyOnNew(): boolean {
@@ -278,8 +279,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
   function paintIdle(envTag: EnvName, count: number) {
     const cfg = vscode.workspace.getConfiguration("openbox");
-    // Env tag is debug-only context. Production builds keep the bar
-    // clean so end users don't see "production" tacked onto every
+    // Env tag is debug-only context. Release builds keep the bar
+    // clean so end users never see env names tagged on every
     // status bar refresh.
     const showEnv = DEBUG_BUILD || readMockAuth();
     const envSuffix = readMockAuth()
@@ -305,8 +306,8 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   /** Build the boot / error tag. Debug builds carry the env suffix
-   *  ("OpenBox · staging: Error"); production hides the env so end
-   *  users don't see "production" tagged on every transient state. */
+   *  for development visibility; release builds hide it so end
+   *  users never see env names tagged on transient state. */
   function envTagFor(state: string): string {
     return DEBUG_BUILD ? `OpenBox · ${env}: ${state}` : `OpenBox: ${state}`;
   }
@@ -1025,10 +1026,13 @@ export async function activate(context: vscode.ExtensionContext) {
   if (DEBUG_BUILD) {
     context.subscriptions.push(
       vscode.commands.registerCommand("openbox.switchEnvironment", async () => {
-        const choice = await vscode.window.showQuickPick(
-          [{ label: "production" }, { label: "staging" }, { label: "local" }],
-          { placeHolder: `Current: ${env}; pick the new environment` },
-        );
+        // Pick list derived from the spec-emitted ENVIRONMENTS table
+        // so a new env added in TypeSpec automatically appears here
+        // without an extension edit.
+        const choices = Object.keys(ENVIRONMENTS).map((label) => ({ label }));
+        const choice = await vscode.window.showQuickPick(choices, {
+          placeHolder: `Current: ${env}; pick the new environment`,
+        });
         if (!choice) return;
         await vscode.workspace
           .getConfiguration("openbox")

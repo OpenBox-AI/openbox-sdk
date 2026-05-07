@@ -15,7 +15,7 @@
 
 import { OpenBoxCoreClient, type GovernanceVerdictResponse } from '../core-client/index.js';
 import { recallAgentKey } from '../runtime/_shared/agent-keys-store.js';
-import { ENVIRONMENTS, DEFAULT_CORE_URL, type EnvName } from '../env/index.js';
+import { ENVIRONMENTS, DEFAULT_CORE_URL, DEFAULT_ENV, resolveEnv, type EnvName } from '../env/index.js';
 
 export type SpanType = 'llm' | 'file_read' | 'file_write' | 'shell' | 'http' | 'db' | 'mcp';
 
@@ -160,7 +160,7 @@ function buildSpan(spanType: SpanType, input: Record<string, unknown>): Record<s
 }
 
 function resolveEnvName(envName?: EnvName): EnvName {
-  return (envName || (process.env.OPENBOX_ENV as EnvName) || 'production') as EnvName;
+  return resolveEnv(envName);
 }
 
 function resolveApiKey(opts: CheckGovernanceOptions): string {
@@ -187,18 +187,22 @@ function resolveApiKey(opts: CheckGovernanceOptions): string {
   const env = resolveEnvName(opts.envName);
   const isLive = key.startsWith('obx_live_');
   const isTest = key.startsWith('obx_test_');
-  if (env === 'production' && isTest) {
+  // Build-pinned env (DEFAULT_ENV) accepts only obx_live_*; any other
+  // env accepts only obx_test_*. The mismatch error is the common
+  // misconfig: cached agent key doesn't match the env the caller is
+  // running against.
+  if (env === DEFAULT_ENV && isTest) {
     throw new Error(
-      `Agent ${opts.agentId ?? ''} has a non-production runtime key (obx_test_*) ` +
-        `but the active env is 'production'. Either run with --env staging/local, or ` +
-        `rotate the agent's key from a production org via \`openbox --env production api-key rotate <agentId>\`.`,
+      `Agent ${opts.agentId ?? ''} has a non-live runtime key (obx_test_*) ` +
+        `but the active env expects an obx_live_* key. ` +
+        `Rotate via \`openbox api-key rotate <agentId>\` against the right env.`,
     );
   }
-  if (env !== 'production' && isLive) {
+  if (env !== DEFAULT_ENV && isLive) {
     throw new Error(
-      `Agent ${opts.agentId ?? ''} has a production runtime key (obx_live_*) ` +
-        `but the active env is '${env}'. Either run with --env production, or ` +
-        `rotate a non-production key via \`openbox --env ${env} api-key rotate <agentId>\`.`,
+      `Agent ${opts.agentId ?? ''} has an obx_live_* runtime key but the active ` +
+        `env expects an obx_test_* key. Either run without --env override, or ` +
+        `rotate a non-live key via \`openbox --env ${env} api-key rotate <agentId>\`.`,
     );
   }
   return key;

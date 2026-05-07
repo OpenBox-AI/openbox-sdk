@@ -1,6 +1,6 @@
 export type { EnvName, EnvConfig } from './environments.js';
 export { ENVIRONMENTS, resolveEnv, resolveUrls } from './environments.js';
-export { DEFAULT_API_URL, DEFAULT_CORE_URL, DEFAULT_PLATFORM_URL } from './environments.js';
+export { DEFAULT_API_URL, DEFAULT_CORE_URL, DEFAULT_PLATFORM_URL, DEFAULT_ENV } from './environments.js';
 
 export type { FeatureMap, TokenEntry, TokenStore } from './token-codec.js';
 export { parseTokenStore, serializeTokenStore } from './token-codec.js';

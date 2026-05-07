@@ -26,30 +26,26 @@ import {
   parseTokenStore,
   resolveClientName,
   buildAuthHeader,
+  resolveEnv as resolveEnvName,
   type EnvName,
 } from "../../env/index.js";
 import { resolveOsPath } from "../../env/os-paths.js";
 
-// Tests import this. Same shape as before, sourced from the SDK.
-export const ENV_DEFAULTS: Record<EnvName, { api: string; core: string }> = {
-  production: { api: ENVIRONMENTS.production.apiUrl, core: ENVIRONMENTS.production.coreUrl },
-  staging:    { api: ENVIRONMENTS.staging.apiUrl,    core: ENVIRONMENTS.staging.coreUrl },
-  local:      { api: ENVIRONMENTS.local.apiUrl,      core: ENVIRONMENTS.local.coreUrl },
-};
+// Tests import this. Derived from the spec-emitted ENVIRONMENTS table
+// instead of being hand-keyed; new env added in TypeSpec flows in
+// without an edit.
+export const ENV_DEFAULTS: Record<EnvName, { api: string; core: string }> = Object.fromEntries(
+  (Object.keys(ENVIRONMENTS) as EnvName[]).map((k) => [
+    k,
+    { api: ENVIRONMENTS[k].apiUrl, core: ENVIRONMENTS[k].coreUrl },
+  ]),
+) as Record<EnvName, { api: string; core: string }>;
 
-const VALID: readonly EnvName[] = ["production", "staging", "local"];
-
-// Returns the same object shape this module always returned. Unknown names
-// hard-fail (we used to silently fall back to production URLs while
-// returning the bogus name; a footgun for misconfigured installs).
+// Returns the resolved env with effective URLs (env vars override
+// the spec-emitted defaults). Validation goes through the SDK's
+// resolveEnv so the allowed-names list isn't duplicated here.
 export function resolveEnv(envVar: string | undefined = process.env.OPENBOX_ENV) {
-  const raw = (envVar || "production").toLowerCase();
-  if (!VALID.includes(raw as EnvName)) {
-    throw new Error(
-      `Unknown OPENBOX_ENV='${raw}'. Use 'production', 'staging', or 'local'.`,
-    );
-  }
-  const name = raw as EnvName;
+  const name = resolveEnvName(envVar);
   return {
     name,
     apiUrl: process.env.OPENBOX_API_URL || ENVIRONMENTS[name].apiUrl,
@@ -69,7 +65,9 @@ export interface TokenReaderOptions {
 export function readTokens(
   opts: TokenReaderOptions = {},
 ): { access?: string; refresh?: string; apiKey?: string } {
-  const envName = (opts.envName || process.env.OPENBOX_ENV || "production").toLowerCase();
+  // Resolve via the SDK so the env-name fallback chain stays in lockstep
+  // with the rest of the toolchain (env var → global config → spec default).
+  const envName = resolveEnvName(opts.envName || process.env.OPENBOX_ENV);
   let p = opts.tokensPath;
   if (!p) {
     const local = path.resolve(".tokens");

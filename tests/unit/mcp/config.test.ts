@@ -46,7 +46,9 @@ describe('resolveEnv', () => {
 
   it('throws on unknown env name (no silent fallback)', () => {
     process.env.OPENBOX_ENV = 'nonsense';
-    expect(() => resolveEnv()).toThrow(/Unknown OPENBOX_ENV='nonsense'/);
+    // Validation now goes through the SDK's resolveEnv; error format
+    // is "Unknown environment: nonsense. Allowed: ..."
+    expect(() => resolveEnv()).toThrow(/Unknown environment: nonsense/);
   });
 
   it('OPENBOX_API_URL / OPENBOX_CORE_URL override defaults', () => {
