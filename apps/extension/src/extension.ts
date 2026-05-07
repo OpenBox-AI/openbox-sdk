@@ -1021,6 +1021,24 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("openbox.__diag.approvalsCount", () => {
       return active?.pending.count ?? 0;
     }),
+
+    // Diagnostic: bypass-modal decide. The user-facing openbox.reject
+    // shows a confirmation modal; tests need a path that drives the
+    // network call directly. Approve has no modal so it just delegates.
+    vscode.commands.registerCommand(
+      "openbox.__diag.decide",
+      async (node: { id?: string; agent_id?: string } | undefined, action: "approve" | "reject") => {
+        const id = node?.id;
+        const agentId = node?.agent_id;
+        if (!id || !active) return;
+        try {
+          await active.client.decideApproval(agentId ?? "", id, { action });
+          active.pending.refresh();
+        } catch {
+          /* tests assert via approvalsCount; surface nothing here */
+        }
+      },
+    ),
   );
 
   if (DEBUG_BUILD) {

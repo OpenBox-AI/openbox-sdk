@@ -26,11 +26,15 @@ async function approvalsCount(): Promise<number> {
 
 async function dispatch(action: 'approve' | 'reject', ordinal: number): Promise<void> {
   const id = `mock-appr-00${ordinal}`;
+  // Use the modal-bypass diag command. The user-facing openbox.reject
+  // shows a showWarningMessage confirmation that wdio can't dismiss
+  // from inside executeWorkbench; the diag command drives the network
+  // call directly so tests assert the behavior, not the modal.
   await browser.executeWorkbench(
-    async (vscode: any, command: string, approval: { id: string; agent_id: string }) => {
-      await vscode.commands.executeCommand(command, approval);
+    async (vscode: any, action: string, approval: { id: string; agent_id: string }) => {
+      await vscode.commands.executeCommand('openbox.__diag.decide', approval, action);
     },
-    `openbox.${action}`,
+    action,
     { id, agent_id: 'mock-agent' },
   );
 }

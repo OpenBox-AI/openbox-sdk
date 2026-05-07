@@ -172,17 +172,21 @@ class MockStore {
   }
 
   reset() {
-    this.pending = SEED.map((t, i) => buildApproval(t, `mock-pending-${i}`, "pending"));
+    // IDs are zero-padded ordinals (`mock-appr-001`..`mock-appr-006`)
+    // because the e2e-extension mock-decide suite hits them by ordinal.
+    this.pending = SEED.map((t, i) =>
+      buildApproval(t, `mock-appr-${String(i + 1).padStart(3, '0')}`, "pending"),
+    );
     // Decided rows seeded across all three History buckets so the
     // section split is exercised on mock-auth first run. Without
     // expired examples, tier 1 / 2 expired-by-timeout flow stays
     // invisible and the user can't tell whether the bucket renders.
     this.decided = [
-      buildApproval(SEED[1], "mock-decided-0", "approved"),
-      buildApproval(SEED[2], "mock-decided-1", "rejected"),
-      buildApproval(SEED[3], "mock-decided-2", "expired"),
-      buildApproval(SEED[4], "mock-decided-3", "expired"),
-      buildApproval(SEED[0], "mock-decided-4", "approved"),
+      buildApproval(SEED[1], "mock-decided-001", "approved"),
+      buildApproval(SEED[2], "mock-decided-002", "rejected"),
+      buildApproval(SEED[3], "mock-decided-003", "expired"),
+      buildApproval(SEED[4], "mock-decided-004", "expired"),
+      buildApproval(SEED[0], "mock-decided-005", "approved"),
     ];
     this.nextId = SEED.length + 1;
   }
@@ -190,7 +194,7 @@ class MockStore {
   seed(count = 3) {
     for (let i = 0; i < count; i++) {
       const t = SEED[Math.floor(Math.random() * SEED.length)];
-      const id = `mock-pending-${this.nextId++}`;
+      const id = `mock-appr-${String(this.nextId++).padStart(3, '0')}`;
       const fresh: SeedTemplate = { ...t, createdMinutesAgo: 0, expiresMinutes: 5 + Math.floor(Math.random() * 60) };
       this.pending.unshift(buildApproval(fresh, id, "pending"));
     }
