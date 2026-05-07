@@ -632,7 +632,16 @@ model RemoveMembersDto {
 }
 
 model CreateTeamDto {
-  /** Icon URL of agent */
+  /** Team name */
+  @maxLength(255)
+  name: string;
+
+  /** Team description */
+  @maxLength(1000)
+  description?: string;
+
+  /** Icon URL */
+  @maxLength(2048)
   icon: string;
 }
 

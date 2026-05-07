@@ -585,7 +585,12 @@ pub struct RemoveMembersDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateTeamDto {
-    /// Icon URL of agent
+    /// Team name
+    pub name: String,
+    /// Team description
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Icon URL
     pub icon: String,
 }
 

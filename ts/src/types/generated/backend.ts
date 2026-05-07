@@ -2219,7 +2219,11 @@ export interface components {
             trust_threshold?: Record<string, never>;
         };
         CreateTeamDto: {
-            /** @description Icon URL of agent */
+            /** @description Team name */
+            name: string;
+            /** @description Team description */
+            description?: string;
+            /** @description Icon URL */
             icon: string;
         };
         CreateUserDto: {
