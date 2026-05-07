@@ -164,13 +164,16 @@ describe('openbox-sdk/env token-codec', () => {
         production: { accessToken: 'p' },
         staging: { refreshToken: 'orphan' }, // no accessToken
       });
-      expect(out).toContain('production.ACCESS_TOKEN=p');
+      // Primary env writes un-prefixed lines (no env name visible
+      // unless the user opts into multi-env). Non-primary envs skip
+      // entirely when they have no credential.
+      expect(out).toContain('ACCESS_TOKEN=p');
       expect(out).not.toContain('staging.');
     });
 
     it('writes empty REFRESH_TOKEN line when refresh is undefined', () => {
       const out = serializeTokenStore({ production: { accessToken: 'p' } });
-      expect(out).toContain('production.REFRESH_TOKEN=\n');
+      expect(out).toContain('REFRESH_TOKEN=\n');
     });
 
     it('omits PERMISSIONS line when array is empty', () => {
