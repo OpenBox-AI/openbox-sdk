@@ -571,6 +571,123 @@ model RecentDriftEvent {
   alignment_percentage: int32;
 }
 
+/** Counter pair on /agent/{id}/approvals/metrics. */
+model AgentApprovalsMetrics {
+  pending: int32;
+  approved: int32;
+  rejected: int32;
+  approvalRate: int32;
+}
+
+/** Counters + rates on /agent/{id}/behavior/metrics. */
+model AgentBehaviorMetrics {
+  active: int32;
+  violations_today: int32;
+  compliance_rate: float64;
+  pending_approvals: int32;
+}
+
+/** Guardrail summary on /agent/{id}/guardrails/metrics. */
+model GuardrailMetricsResult {
+  active_guardrails: int32;
+  violations_today: int32;
+  protection_rate: float64;
+  avg_response_time_ms: float64;
+  /** Time-series for violations; backend returns the row shape opaquely. */
+  violations_trend: Record<unknown>[];
+  /** {[type]: rate} aggregate. */
+  trigger_rate_by_type: Record<float64>;
+  latency_percentiles: Record<float64>;
+  evaluations_per_sec: float64;
+}
+
+/** Insight rollup on /agent/{id}/insights/metrics. */
+model InsightMetricsResult {
+  violation: {
+    total: int32;
+    violations: Record<unknown>[];
+  };
+  tier_changes: {
+    total: int32;
+  };
+}
+
+/** Policy summary on /agent/{id}/policies/metrics. */
+model PolicyMetricsResult {
+  total_evaluations: int32;
+  compliance_rate: float64;
+  avg_latency_ms: float64;
+  decision_distribution: Record<int32>;
+  timeline: Record<unknown>[];
+  top_rules_hit: Record<unknown>[];
+}
+
+/** Per-day point on /agent/{id}/goal-alignment/trend. */
+model GoalAlignmentTrendPoint {
+  date: string;
+  total_evaluations: int32;
+  aligned_count: int32;
+  drifted_count: int32;
+  alignment_percentage: float64;
+}
+
+/** Org-wide approvals metrics on /organization/{id}/approvals/metrics. */
+model OrgApprovalsMetrics {
+  pending: int32;
+  approved_today: int32;
+  rejected_today: int32;
+  expired_today: int32;
+  avg_time: float64;
+  avg_change: float64;
+}
+
+/** Composite agent metrics on /agent/metrics. Three opaque sub-rollups
+ *  (agent counts, guardrail violations, policy violations) - the
+ *  per-section shapes are dashboard-customized. */
+model AgentsMetricsResult {
+  agent: Record<unknown>;
+  guardrail: Record<unknown>;
+  policy: Record<unknown>;
+}
+
+/** Observability rollup on /agent/{id}/observability. The shape is a
+ *  large dashboard composite - invocations, tokens, tools, latency
+ *  percentiles + distribution, models timeline + stats + costs,
+ *  errors. Keeping the top-level keys typed; sub-shapes are opaque
+ *  because they're FE-shape-customized. */
+model ObservabilityResult {
+  invocations: Record<unknown>;
+  tokens: Record<unknown>;
+  tools: Record<unknown>;
+  latency: Record<unknown>;
+  models: Record<unknown>;
+  errors: Record<unknown>;
+}
+
+/** Result of POST /organization/audit-logs/export/preview. Counter +
+ *  echo of the filter the user passed. */
+model AuditExportPreview {
+  count: int32;
+  timeRange: {
+    startDate?: string;
+    endDate?: string;
+  };
+  eventTypes: string[];
+}
+
+/** Result of GET /organization/audit-logs/export/{id}/download. The
+ *  downloadable URL plus its short-lived TTL. */
+model AuditExportDownload {
+  downloadUrl: string;
+  expiresIn: int32;
+}
+
+/** Dashboard rollups under /organization/{id}/dashboard{,/...}. The
+ *  shapes are FE-customized aggregates of multiple metric tables; the
+ *  spec captures them as opaque Record<string, unknown> until the FE
+ *  consumers are extracted into typed models. */
+model DashboardResult is Record<unknown>;
+
 /** Single reasoning-trace entry from /agent/{id}/sessions/{sessionId}/
  *  reasoning-trace. The endpoint returns an array of these, ordered
  *  by governance-event created_at ASC. */

@@ -901,7 +901,7 @@ op AgentController_getViolations(): Body<Violation[]>;
 @tag("Agent")
 @route("/agent/metrics")
 @get
-op AgentController_getAgentsMetrics(): OkResponse;
+op AgentController_getAgentsMetrics(): Body<AgentsMetricsResult>;
 
 @tag("Agent")
 @route("/agent/list")
@@ -1071,7 +1071,7 @@ op AgentController_getGuardrailMetrics(
 
   /** Filter events ending before this time */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<GuardrailMetricsResult>;
 
 @tag("Agent")
 @route("/agent/{agentId}/guardrails/violation-logs")
@@ -1155,7 +1155,7 @@ op AgentController_getPolicesMetrics(
 
   /** Filter events ending before this time */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<PolicyMetricsResult>;
 
 @tag("Agent")
 @route("/agent/{agentId}/policies/current")
@@ -1277,7 +1277,7 @@ op AgentController_getGoalAlignmentTrend(
 
   /** Filter events ending before this time */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<GoalAlignmentTrendPoint[]>;
 
 @tag("Agent")
 @route("/agent/{agentId}/goal-alignment/recent-drifts")
@@ -1308,7 +1308,7 @@ op AgentController_getObservability(
 
   /** End time (ISO format). Default: now */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<ObservabilityResult>;
 
 @tag("Agent")
 @route("/agent/{agentId}/issues")
@@ -1446,7 +1446,7 @@ op AgentController_getBehaviorMetrics(
 
   /** Filter events ending before this time */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<AgentBehaviorMetrics>;
 
 @tag("Agent")
 @route("/agent/{agentId}/trust/histories")
@@ -1493,7 +1493,7 @@ op AgentController_getAgentApprovalsMetrics(
 
   /** Filter events ending before this time */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<AgentApprovalsMetrics>;
 
 @tag("Agent")
 @route("/agent/{agentId}/approvals/pending")
@@ -1577,7 +1577,7 @@ op AgentController_getInsightMetrics(
 
   /** Filter events ending before this time */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<InsightMetricsResult>;
 
 @tag("Agent")
 @route("/agent/{agentId}/behavior/violations")
@@ -1614,12 +1614,12 @@ op AgentController_getTrustTierChanges(
 @tag("Guardrail")
 @route("/guardrails/run-test")
 @post
-op GuardrailController_runTest(@body body: TestGuardrailDto): CreatedResponse;
+op GuardrailController_runTest(@body body: TestGuardrailDto): Body<Record<unknown>>;
 
 @tag("Policy")
 @route("/policy/evaluate")
 @post
-op PolicyController_evaluate(@body body: EvaluateRegoDto): CreatedResponse;
+op PolicyController_evaluate(@body body: EvaluateRegoDto): Body<Record<unknown>>;
 
 @tag("Webhook")
 @route("/webhook")
@@ -1904,7 +1904,7 @@ op OrganizationController_getAuditLogs(
 @tag("Organization")
 @route("/organization/audit-logs/export/preview")
 @post
-op OrganizationController_previewExport(@body body: PreviewExportDto): CreatedResponse;
+op OrganizationController_previewExport(@body body: PreviewExportDto): Body<AuditExportPreview>;
 
 @tag("Organization")
 @route("/organization/audit-logs/export")
@@ -1947,7 +1947,7 @@ op OrganizationController_getExportStatus(@path exportId: string): Body<AuditExp
 @tag("Organization")
 @route("/organization/audit-logs/export/{exportId}/download")
 @get
-op OrganizationController_downloadExport(@path exportId: string): OkResponse;
+op OrganizationController_downloadExport(@path exportId: string): Body<AuditExportDownload>;
 
 @tag("Organization")
 @route("/organization/audit-logs/{logId}")
@@ -1965,7 +1965,7 @@ op OrganizationController_getObservability(
 
   /** End time (ISO format). Default: now */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<DashboardResult>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/approvals/metrics")
@@ -1978,12 +1978,12 @@ op OrganizationController_getApprovalsMetrics(
 
   /** Filter events ending before this time */
   @query(#{ explode: true }) toTime?: string,
-): OkResponse;
+): Body<OrgApprovalsMetrics>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/approvals/sla")
 @get
-op OrganizationController_getSlaPerformance(@path organizationId: string): OkResponse;
+op OrganizationController_getSlaPerformance(@path organizationId: string): Body<DashboardResult>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/approvals")
@@ -2031,7 +2031,7 @@ op OrganizationController_getRecentDecisions(
 @tag("Organization")
 @route("/organization/{organizationId}/dashboard/tier-trends")
 @get
-op OrganizationController_getTrustTierTrends(@path organizationId: string): OkResponse;
+op OrganizationController_getTrustTierTrends(@path organizationId: string): Body<DashboardResult>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/dashboard/governance-feed")
@@ -2041,7 +2041,7 @@ op OrganizationController_getGovernanceFeed(
 
   /** Page size for the feed (default 20). */
   @query(#{ explode: true }) limit?: numeric,
-): OkResponse;
+): Body<DashboardResult>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/dashboard/trust-drift-lanes")
@@ -2051,7 +2051,7 @@ op OrganizationController_getTrustDriftLanes(
 
   /** Number of agent lanes to return (default 8). */
   @query(#{ explode: true }) limit?: numeric,
-): OkResponse;
+): Body<DashboardResult>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/dashboard/governance-slo")
@@ -2061,7 +2061,7 @@ op OrganizationController_getGovernanceSlo(
 
   /** Aggregation window: "7d" / "30d" / "90d" (default "30d"). */
   @query(#{ explode: true }) window?: string,
-): OkResponse;
+): Body<DashboardResult>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/dashboard/violation-heatcal")
@@ -2071,7 +2071,7 @@ op OrganizationController_getViolationHeatcal(
 
   /** Aggregation window: "7d" / "30d" / "90d" (default "30d"). */
   @query(#{ explode: true }) window?: string,
-): OkResponse;
+): Body<DashboardResult>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/sessions")

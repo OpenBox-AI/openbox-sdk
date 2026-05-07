@@ -52,7 +52,7 @@ impl OpenBoxClient {
         self.request_get("/agent/violations", None::<&()>, None::<&serde_json::Value>).await
     }
 
-    pub async fn get_agent_metrics(&self) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_agent_metrics(&self) -> Result<AgentsMetricsResult, ApiError> {
         self.request_get("/agent/metrics", None::<&()>, None::<&serde_json::Value>).await
     }
 
@@ -120,7 +120,7 @@ impl OpenBoxClient {
         self.request_post(&format!("/agent/{}/guardrails", agent_id), Some(body), None::<&serde_json::Value>).await
     }
 
-    pub async fn get_guardrail_metrics(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_guardrail_metrics(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<GuardrailMetricsResult, ApiError> {
         self.request_get(&format!("/agent/{}/guardrails/metrics", agent_id), None::<&()>, query).await
     }
 
@@ -152,7 +152,7 @@ impl OpenBoxClient {
         self.request_post(&format!("/agent/{}/policies", agent_id), Some(body), None::<&serde_json::Value>).await
     }
 
-    pub async fn get_policy_metrics(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_policy_metrics(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<PolicyMetricsResult, ApiError> {
         self.request_get(&format!("/agent/{}/policies/metrics", agent_id), None::<&()>, query).await
     }
 
@@ -200,7 +200,7 @@ impl OpenBoxClient {
         self.request_patch(&format!("/agent/{}/sessions/{}/terminate", agent_id, session_id), None::<&()>, None::<&serde_json::Value>).await
     }
 
-    pub async fn get_goal_alignment_trend(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_goal_alignment_trend(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<Vec<GoalAlignmentTrendPoint>, ApiError> {
         self.request_get(&format!("/agent/{}/goal-alignment/trend", agent_id), None::<&()>, query).await
     }
 
@@ -216,7 +216,7 @@ impl OpenBoxClient {
         self.request_post(&format!("/agent/{}/revoke-api-key", agent_id), None::<&()>, None::<&serde_json::Value>).await
     }
 
-    pub async fn get_observability(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_observability(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<ObservabilityResult, ApiError> {
         self.request_get(&format!("/agent/{}/observability", agent_id), None::<&()>, query).await
     }
 
@@ -264,7 +264,7 @@ impl OpenBoxClient {
         self.request_get(&format!("/agent/{}/behavior-rule/{}/versions", agent_id, behavior_groupd_id), None::<&()>, query).await
     }
 
-    pub async fn get_behavior_metrics(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_behavior_metrics(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<AgentBehaviorMetrics, ApiError> {
         self.request_get(&format!("/agent/{}/behavior/metrics", agent_id), None::<&()>, query).await
     }
 
@@ -280,7 +280,7 @@ impl OpenBoxClient {
         self.request_get(&format!("/agent/{}/trust/recovery-status", agent_id), None::<&()>, None::<&serde_json::Value>).await
     }
 
-    pub async fn get_approval_metrics(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_approval_metrics(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<AgentApprovalsMetrics, ApiError> {
         self.request_get(&format!("/agent/{}/approvals/metrics", agent_id), None::<&()>, query).await
     }
 
@@ -296,7 +296,7 @@ impl OpenBoxClient {
         self.request_put(&format!("/agent/{}/approvals/{}/decide", agent_id, event_id), None::<&()>, query).await
     }
 
-    pub async fn get_insights_metrics(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_insights_metrics(&self, agent_id: &str, query: Option<&serde_json::Value>) -> Result<InsightMetricsResult, ApiError> {
         self.request_get(&format!("/agent/{}/insights/metrics", agent_id), None::<&()>, query).await
     }
 
@@ -308,11 +308,11 @@ impl OpenBoxClient {
         self.request_get(&format!("/agent/{}/trust-tier-changes", agent_id), None::<&()>, query).await
     }
 
-    pub async fn run_guardrail_test(&self, body: &TestGuardrailDto) -> Result<serde_json::Value, ApiError> {
+    pub async fn run_guardrail_test(&self, body: &TestGuardrailDto) -> Result<std::collections::HashMap<String, serde_json::Value>, ApiError> {
         self.request_post("/guardrails/run-test", Some(body), None::<&serde_json::Value>).await
     }
 
-    pub async fn evaluate_rego(&self, body: &EvaluateRegoDto) -> Result<serde_json::Value, ApiError> {
+    pub async fn evaluate_rego(&self, body: &EvaluateRegoDto) -> Result<std::collections::HashMap<String, serde_json::Value>, ApiError> {
         self.request_post("/policy/evaluate", Some(body), None::<&serde_json::Value>).await
     }
 
@@ -440,7 +440,7 @@ impl OpenBoxClient {
         self.request_get("/organization/audit-logs", None::<&()>, query).await
     }
 
-    pub async fn preview_audit_export(&self, body: &PreviewExportDto) -> Result<serde_json::Value, ApiError> {
+    pub async fn preview_audit_export(&self, body: &PreviewExportDto) -> Result<AuditExportPreview, ApiError> {
         self.request_post("/organization/audit-logs/export/preview", Some(body), None::<&serde_json::Value>).await
     }
 
@@ -460,7 +460,7 @@ impl OpenBoxClient {
         self.request_get(&format!("/organization/audit-logs/export/{}", export_id), None::<&()>, None::<&serde_json::Value>).await
     }
 
-    pub async fn download_export(&self, export_id: &str) -> Result<serde_json::Value, ApiError> {
+    pub async fn download_export(&self, export_id: &str) -> Result<AuditExportDownload, ApiError> {
         self.request_get(&format!("/organization/audit-logs/export/{}/download", export_id), None::<&()>, None::<&serde_json::Value>).await
     }
 
@@ -468,15 +468,15 @@ impl OpenBoxClient {
         self.request_get(&format!("/organization/audit-logs/{}", log_id), None::<&()>, None::<&serde_json::Value>).await
     }
 
-    pub async fn get_dashboard(&self, organization_id: &str, query: Option<&serde_json::Value>) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_dashboard(&self, organization_id: &str, query: Option<&serde_json::Value>) -> Result<DashboardResult, ApiError> {
         self.request_get(&format!("/organization/{}/dashboard", organization_id), None::<&()>, query).await
     }
 
-    pub async fn get_org_approval_metrics(&self, organization_id: &str, query: Option<&serde_json::Value>) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_org_approval_metrics(&self, organization_id: &str, query: Option<&serde_json::Value>) -> Result<OrgApprovalsMetrics, ApiError> {
         self.request_get(&format!("/organization/{}/approvals/metrics", organization_id), None::<&()>, query).await
     }
 
-    pub async fn get_org_approval_sla(&self, organization_id: &str) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_org_approval_sla(&self, organization_id: &str) -> Result<DashboardResult, ApiError> {
         self.request_get(&format!("/organization/{}/approvals/sla", organization_id), None::<&()>, None::<&serde_json::Value>).await
     }
 
@@ -488,23 +488,23 @@ impl OpenBoxClient {
         self.request_get(&format!("/organization/{}/approvals/history", organization_id), None::<&()>, query).await
     }
 
-    pub async fn get_dashboard_tier_trends(&self, organization_id: &str) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_dashboard_tier_trends(&self, organization_id: &str) -> Result<DashboardResult, ApiError> {
         self.request_get(&format!("/organization/{}/dashboard/tier-trends", organization_id), None::<&()>, None::<&serde_json::Value>).await
     }
 
-    pub async fn get_governance_feed(&self, organization_id: &str, query: Option<&serde_json::Value>) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_governance_feed(&self, organization_id: &str, query: Option<&serde_json::Value>) -> Result<DashboardResult, ApiError> {
         self.request_get(&format!("/organization/{}/dashboard/governance-feed", organization_id), None::<&()>, query).await
     }
 
-    pub async fn get_trust_drift_lanes(&self, organization_id: &str, query: Option<&serde_json::Value>) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_trust_drift_lanes(&self, organization_id: &str, query: Option<&serde_json::Value>) -> Result<DashboardResult, ApiError> {
         self.request_get(&format!("/organization/{}/dashboard/trust-drift-lanes", organization_id), None::<&()>, query).await
     }
 
-    pub async fn get_governance_slo(&self, organization_id: &str, query: Option<&serde_json::Value>) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_governance_slo(&self, organization_id: &str, query: Option<&serde_json::Value>) -> Result<DashboardResult, ApiError> {
         self.request_get(&format!("/organization/{}/dashboard/governance-slo", organization_id), None::<&()>, query).await
     }
 
-    pub async fn get_violation_heatcal(&self, organization_id: &str, query: Option<&serde_json::Value>) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_violation_heatcal(&self, organization_id: &str, query: Option<&serde_json::Value>) -> Result<DashboardResult, ApiError> {
         self.request_get(&format!("/organization/{}/dashboard/violation-heatcal", organization_id), None::<&()>, query).await
     }
 

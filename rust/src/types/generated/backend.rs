@@ -781,6 +781,16 @@ pub struct Violation {
     pub timestamp: Option<String>,
 }
 
+/// Composite agent metrics on /agent/metrics. Three opaque sub-rollups
+/// (agent counts, guardrail violations, policy violations) - the
+/// per-section shapes are dashboard-customized.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentsMetricsResult {
+    pub agent: std::collections::HashMap<String, serde_json::Value>,
+    pub guardrail: std::collections::HashMap<String, serde_json::Value>,
+    pub policy: std::collections::HashMap<String, serde_json::Value>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaginatedResponse<T> {
     pub data: Vec<T>,
@@ -882,6 +892,21 @@ pub struct Guardrail {
     pub order: Option<i32>,
 }
 
+/// Guardrail summary on /agent/{id}/guardrails/metrics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuardrailMetricsResult {
+    pub active_guardrails: i32,
+    pub violations_today: i32,
+    pub protection_rate: f64,
+    pub avg_response_time_ms: f64,
+    /// Time-series for violations; backend returns the row shape opaquely.
+    pub violations_trend: Vec<std::collections::HashMap<String, serde_json::Value>>,
+    /// {[type]: rate} aggregate.
+    pub trigger_rate_by_type: std::collections::HashMap<String, f64>,
+    pub latency_percentiles: std::collections::HashMap<String, f64>,
+    pub evaluations_per_sec: f64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Policy {
     pub id: String,
@@ -896,6 +921,17 @@ pub struct Policy {
     pub trust_impact: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trust_threshold: Option<serde_json::Value>,
+}
+
+/// Policy summary on /agent/{id}/policies/metrics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PolicyMetricsResult {
+    pub total_evaluations: i32,
+    pub compliance_rate: f64,
+    pub avg_latency_ms: f64,
+    pub decision_distribution: std::collections::HashMap<String, i32>,
+    pub timeline: Vec<std::collections::HashMap<String, serde_json::Value>>,
+    pub top_rules_hit: Vec<std::collections::HashMap<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -968,6 +1004,16 @@ pub struct ReasoningTraceEntry {
     pub alignment_consistency: Option<serde_json::Value>,
 }
 
+/// Per-day point on /agent/{id}/goal-alignment/trend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GoalAlignmentTrendPoint {
+    pub date: String,
+    pub total_evaluations: i32,
+    pub aligned_count: i32,
+    pub drifted_count: i32,
+    pub alignment_percentage: f64,
+}
+
 /// Single goal-drift event from /agent/{id}/goal-alignment/recent-drifts.
 /// Backend returns an array of these, sorted by evaluated_at DESC.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -982,6 +1028,21 @@ pub struct RecentDriftEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiKeyResponse {
     pub token: String,
+}
+
+/// Observability rollup on /agent/{id}/observability. The shape is a
+/// large dashboard composite - invocations, tokens, tools, latency
+/// percentiles + distribution, models timeline + stats + costs,
+/// errors. Keeping the top-level keys typed; sub-shapes are opaque
+/// because they're FE-shape-customized.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObservabilityResult {
+    pub invocations: std::collections::HashMap<String, serde_json::Value>,
+    pub tokens: std::collections::HashMap<String, serde_json::Value>,
+    pub tools: std::collections::HashMap<String, serde_json::Value>,
+    pub latency: std::collections::HashMap<String, serde_json::Value>,
+    pub models: std::collections::HashMap<String, serde_json::Value>,
+    pub errors: std::collections::HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1001,6 +1062,15 @@ pub struct BehaviorRule {
     pub group_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<i32>,
+}
+
+/// Counters + rates on /agent/{id}/behavior/metrics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentBehaviorMetrics {
+    pub active: i32,
+    pub violations_today: i32,
+    pub compliance_rate: f64,
+    pub pending_approvals: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1043,6 +1113,16 @@ pub struct TrustPenalty {
     pub penalty_amount: f64,
     pub session_position: i32,
     pub sessions_until_cleared: i32,
+}
+
+/// Counter pair on /agent/{id}/approvals/metrics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentApprovalsMetrics {
+    pub pending: i32,
+    pub approved: i32,
+    pub rejected: i32,
+    #[serde(rename = "approvalRate")]
+    pub approval_rate: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1115,6 +1195,13 @@ pub struct ApprovalAgent {
 pub struct ApprovalMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trust_tier: Option<i32>,
+}
+
+/// Insight rollup on /agent/{id}/insights/metrics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InsightMetricsResult {
+    pub violation: serde_json::Value,
+    pub tier_changes: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1247,6 +1334,17 @@ pub struct AuditLog {
     pub created_at: Option<String>,
 }
 
+/// Result of POST /organization/audit-logs/export/preview. Counter +
+/// echo of the filter the user passed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditExportPreview {
+    pub count: i32,
+    #[serde(rename = "timeRange")]
+    pub time_range: serde_json::Value,
+    #[serde(rename = "eventTypes")]
+    pub event_types: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditExport {
     pub id: String,
@@ -1256,6 +1354,35 @@ pub struct AuditExport {
     pub status: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
+}
+
+/// Result of GET /organization/audit-logs/export/{id}/download. The
+/// downloadable URL plus its short-lived TTL.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditExportDownload {
+    #[serde(rename = "downloadUrl")]
+    pub download_url: String,
+    #[serde(rename = "expiresIn")]
+    pub expires_in: i32,
+}
+
+/// Dashboard rollups under /organization/{id}/dashboard{,/...}. The
+/// shapes are FE-customized aggregates of multiple metric tables; the
+/// spec captures them as opaque Record<string, unknown> until the FE
+/// consumers are extracted into typed models.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DashboardResult {
+}
+
+/// Org-wide approvals metrics on /organization/{id}/approvals/metrics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrgApprovalsMetrics {
+    pub pending: i32,
+    pub approved_today: i32,
+    pub rejected_today: i32,
+    pub expired_today: i32,
+    pub avg_time: f64,
+    pub avg_change: f64,
 }
 
 /// `getOrgApprovals` returns `{ approvals, metrics }` (after the

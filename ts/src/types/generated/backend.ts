@@ -1855,6 +1855,44 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /** @description Counter pair on /agent/{id}/approvals/metrics. */
+        AgentApprovalsMetrics: {
+            /** Format: int32 */
+            pending: number;
+            /** Format: int32 */
+            approved: number;
+            /** Format: int32 */
+            rejected: number;
+            /** Format: int32 */
+            approvalRate: number;
+        };
+        /** @description Counters + rates on /agent/{id}/behavior/metrics. */
+        AgentBehaviorMetrics: {
+            /** Format: int32 */
+            active: number;
+            /** Format: int32 */
+            violations_today: number;
+            /** Format: double */
+            compliance_rate: number;
+            /** Format: int32 */
+            pending_approvals: number;
+        };
+        /**
+         * @description Composite agent metrics on /agent/metrics. Three opaque sub-rollups
+         *     (agent counts, guardrail violations, policy violations) - the
+         *     per-section shapes are dashboard-customized.
+         */
+        AgentsMetricsResult: {
+            agent: {
+                [key: string]: unknown;
+            };
+            guardrail: {
+                [key: string]: unknown;
+            };
+            policy: {
+                [key: string]: unknown;
+            };
+        };
         /**
          * @description AIVSS calculation result from POST /agent/aivss. Computed from the
          *     request body's AivssConfig; no persistence.
@@ -2013,6 +2051,28 @@ export interface components {
             created_at?: string;
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * @description Result of GET /organization/audit-logs/export/{id}/download. The
+         *     downloadable URL plus its short-lived TTL.
+         */
+        AuditExportDownload: {
+            downloadUrl: string;
+            /** Format: int32 */
+            expiresIn: number;
+        };
+        /**
+         * @description Result of POST /organization/audit-logs/export/preview. Counter +
+         *     echo of the filter the user passed.
+         */
+        AuditExportPreview: {
+            /** Format: int32 */
+            count: number;
+            timeRange: {
+                startDate?: string;
+                endDate?: string;
+            };
+            eventTypes: string[];
         };
         AuditLog: {
             id: string;
@@ -2275,6 +2335,15 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * @description Dashboard rollups under /organization/{id}/dashboard{,/...}. The
+         *     shapes are FE-customized aggregates of multiple metric tables; the
+         *     spec captures them as opaque Record<string, unknown> until the FE
+         *     consumers are extracted into typed models.
+         */
+        DashboardResult: {
+            [key: string]: unknown;
+        };
         DeleteTeamMembersDto: {
             /** @description Array of user IDs */
             user_ids: string[];
@@ -2354,6 +2423,18 @@ export interface components {
              */
             evaluation_frequency: "every_action" | "every_5_actions" | "every_10_actions" | "session_end_only";
         };
+        /** @description Per-day point on /agent/{id}/goal-alignment/trend. */
+        GoalAlignmentTrendPoint: {
+            date: string;
+            /** Format: int32 */
+            total_evaluations: number;
+            /** Format: int32 */
+            aligned_count: number;
+            /** Format: int32 */
+            drifted_count: number;
+            /** Format: double */
+            alignment_percentage: number;
+        };
         Guardrail: {
             id: string;
             name: string;
@@ -2375,6 +2456,30 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /** @description Guardrail summary on /agent/{id}/guardrails/metrics. */
+        GuardrailMetricsResult: {
+            /** Format: int32 */
+            active_guardrails: number;
+            /** Format: int32 */
+            violations_today: number;
+            /** Format: double */
+            protection_rate: number;
+            /** Format: double */
+            avg_response_time_ms: number;
+            /** @description Time-series for violations; backend returns the row shape opaquely. */
+            violations_trend: {
+                [key: string]: unknown;
+            }[];
+            /** @description {[type]: rate} aggregate. */
+            trigger_rate_by_type: {
+                [key: string]: number;
+            };
+            latency_percentiles: {
+                [key: string]: number;
+            };
+            /** Format: double */
+            evaluations_per_sec: number;
+        };
         ImpactDto: {
             /** @description Confidentiality Impact: 1-5 (None to Critical) */
             confidentiality_impact: number;
@@ -2384,6 +2489,20 @@ export interface components {
             availability_impact: number;
             /** @description Safety Impact: 1-5 (None to Critical) */
             safety_impact: number;
+        };
+        /** @description Insight rollup on /agent/{id}/insights/metrics. */
+        InsightMetricsResult: {
+            violation: {
+                /** Format: int32 */
+                total: number;
+                violations: {
+                    [key: string]: unknown;
+                }[];
+            };
+            tier_changes: {
+                /** Format: int32 */
+                total: number;
+            };
         };
         InviteUserDto: {
             /** @description Email address of user to invite */
@@ -2415,6 +2534,48 @@ export interface components {
         /** @description Plain `{ message: string }` envelope used by mutation acks. */
         MessageResponse: {
             message: string;
+        };
+        /**
+         * @description Observability rollup on /agent/{id}/observability. The shape is a
+         *     large dashboard composite - invocations, tokens, tools, latency
+         *     percentiles + distribution, models timeline + stats + costs,
+         *     errors. Keeping the top-level keys typed; sub-shapes are opaque
+         *     because they're FE-shape-customized.
+         */
+        ObservabilityResult: {
+            invocations: {
+                [key: string]: unknown;
+            };
+            tokens: {
+                [key: string]: unknown;
+            };
+            tools: {
+                [key: string]: unknown;
+            };
+            latency: {
+                [key: string]: unknown;
+            };
+            models: {
+                [key: string]: unknown;
+            };
+            errors: {
+                [key: string]: unknown;
+            };
+        };
+        /** @description Org-wide approvals metrics on /organization/{id}/approvals/metrics. */
+        OrgApprovalsMetrics: {
+            /** Format: int32 */
+            pending: number;
+            /** Format: int32 */
+            approved_today: number;
+            /** Format: int32 */
+            rejected_today: number;
+            /** Format: int32 */
+            expired_today: number;
+            /** Format: double */
+            avg_time: number;
+            /** Format: double */
+            avg_change: number;
         };
         /**
          * @description `getOrgApprovals` returns `{ approvals, metrics }` (after the
@@ -2483,6 +2644,24 @@ export interface components {
             trust_threshold?: number | null;
         } & {
             [key: string]: unknown;
+        };
+        /** @description Policy summary on /agent/{id}/policies/metrics. */
+        PolicyMetricsResult: {
+            /** Format: int32 */
+            total_evaluations: number;
+            /** Format: double */
+            compliance_rate: number;
+            /** Format: double */
+            avg_latency_ms: number;
+            decision_distribution: {
+                [key: string]: number;
+            };
+            timeline: {
+                [key: string]: unknown;
+            }[];
+            top_rules_hit: {
+                [key: string]: unknown;
+            }[];
         };
         PreviewExportDto: {
             /** @description Filter by event types (multiple selection supported) */
@@ -3082,7 +3261,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AgentsMetricsResult"];
+                };
             };
         };
     };
@@ -3310,7 +3491,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AgentApprovalsMetrics"];
+                };
             };
         };
     };
@@ -3682,7 +3865,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AgentBehaviorMetrics"];
+                };
             };
         };
     };
@@ -3789,7 +3974,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GoalAlignmentTrendPoint"][];
+                };
             };
         };
     };
@@ -3874,7 +4061,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["GuardrailMetricsResult"];
+                };
             };
         };
     };
@@ -4037,7 +4226,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["InsightMetricsResult"];
+                };
             };
         };
     };
@@ -4158,7 +4349,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ObservabilityResult"];
+                };
             };
         };
     };
@@ -4263,7 +4456,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PolicyMetricsResult"];
+                };
             };
         };
     };
@@ -5053,12 +5248,16 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The request has succeeded and a new resource has been created as a result. */
-            201: {
+            /** @description The request has succeeded. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
             };
         };
     };
@@ -5162,12 +5361,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The request has succeeded and a new resource has been created as a result. */
-            201: {
+            /** @description The request has succeeded. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AuditExportPreview"];
+                };
             };
         };
     };
@@ -5231,7 +5432,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AuditExportDownload"];
+                };
             };
         };
     };
@@ -5450,7 +5653,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["OrgApprovalsMetrics"];
+                };
             };
         };
     };
@@ -5470,7 +5675,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DashboardResult"];
+                };
             };
         };
     };
@@ -5495,7 +5702,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DashboardResult"];
+                };
             };
         };
     };
@@ -5518,7 +5727,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DashboardResult"];
+                };
             };
         };
     };
@@ -5541,7 +5752,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DashboardResult"];
+                };
             };
         };
     };
@@ -5561,7 +5774,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DashboardResult"];
+                };
             };
         };
     };
@@ -5584,7 +5799,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DashboardResult"];
+                };
             };
         };
     };
@@ -5607,7 +5824,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DashboardResult"];
+                };
             };
         };
     };
@@ -6196,12 +6415,16 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The request has succeeded and a new resource has been created as a result. */
-            201: {
+            /** @description The request has succeeded. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
             };
         };
     };
