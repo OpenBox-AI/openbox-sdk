@@ -7,8 +7,7 @@ import { makeExpiredToken } from '../helpers/jwt';
 function createClient(): OpenBoxClient {
   return new OpenBoxClient({
     apiUrl: process.env.OPENBOX_API_URL,
-    accessToken: process.env.ACCESS_TOKEN!,
-    refreshToken: process.env.REFRESH_TOKEN || undefined,
+    apiKey: process.env.OPENBOX_BACKEND_API_KEY!,
   });
 }
 

@@ -95,17 +95,26 @@ async function viaSdk<T>(call: () => Promise<T>): Promise<{ data: any; status: n
   }
 }
 
-/** Backend API client (api.openbox.ai). Routes through OpenBoxClient
- *  so tests dogfood the SDK transport layer end-to-end. */
+/** Backend API client. Routes through OpenBoxClient so tests dogfood
+ *  the SDK transport layer end-to-end. Uses X-API-Key auth: every
+ *  non-mobile surface (CLI, MCP, IDE extension, MCP server, hooks)
+ *  consumes the org X-API-Key from `~/.openbox/tokens`, so the SDK's
+ *  own e2e tests do too. JWT auth is the mobile-only path; SDK tests
+ *  must not depend on a session token to run. */
 export function getBackendClient(): HttpClient {
   const baseURL = process.env.OPENBOX_API_URL || 'https://api.openbox.ai';
-  const token = process.env.ACCESS_TOKEN || '';
-  if (!token) throw new Error('No ACCESS_TOKEN found. Run scripts/set-token.sh first.');
+  const apiKey = process.env.OPENBOX_BACKEND_API_KEY || '';
+  if (!apiKey) {
+    throw new Error(
+      'No OPENBOX_BACKEND_API_KEY found. Set the X-API-Key for the active env, ' +
+        'e.g. `export OPENBOX_BACKEND_API_KEY=$(grep ^${OPENBOX_ENV:-local}.API_KEY ~/.openbox/tokens | cut -d= -f2)` — ' +
+        "or let tests/setup-creds.ts populate it from your tokens file.",
+    );
+  }
 
   const sdk = new TestOpenBoxClient({
     apiUrl: baseURL,
-    accessToken: token,
-    refreshToken: process.env.REFRESH_TOKEN,
+    apiKey,
     clientName: 'openbox-e2e',
   });
 
@@ -162,20 +171,15 @@ export function fullResponse<T = any>(response: { data: ApiResponse<T> }): ApiRe
   return response.data;
 }
 
-/** Get the org ID from env or token */
+/** Get the org ID. Resolution order:
+ *    1. OPENBOX_ORG_ID env var (explicit override)
+ *    2. tests/setup-creds.ts populates it from /auth/profile during
+ *       setup, so it's an env var by the time tests read it
+ *    3. derive from OPENBOX_ENV: local → openbox.local, prod → openbox.ai */
 export function getOrgId(): string {
   if (process.env.OPENBOX_ORG_ID) return process.env.OPENBOX_ORG_ID;
-  // Decode JWT to get orgId from iss claim
-  const token = process.env.ACCESS_TOKEN || '';
-  try {
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    // issuer is like https://identity.openbox.ai/realms/openbox.ai
-    const realm = payload.iss?.split('/realms/')[1];
-    if (realm) return realm;
-  } catch {
-    // Token may be invalid or missing; fall through to default
-  }
-  return 'openbox.ai';
+  const env = process.env.OPENBOX_ENV ?? 'production';
+  return env === 'production' ? 'openbox.ai' : `openbox.${env}`;
 }
 
 /** Get the team IDs the user has access to */
