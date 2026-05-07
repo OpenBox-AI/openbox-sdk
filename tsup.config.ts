@@ -29,6 +29,7 @@ export default defineConfig({
     'ts/src/test-utils/index.ts',
     'ts/src/maturity/index.ts',
     'ts/src/cli/index.ts',
+    'ts/src/cli/config-store.ts',
     'ts/src/approvals/index.ts',
     'ts/src/approvals/mocks/index.ts',
     'ts/src/client-factory/index.ts',

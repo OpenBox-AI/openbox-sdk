@@ -94,6 +94,10 @@
       "types": "./dist/cli/index.d.ts",
       "import": "./dist/cli/index.js"
     },
+    "./cli/config-store": {
+      "types": "./dist/cli/config-store.d.ts",
+      "import": "./dist/cli/config-store.js"
+    },
     "./runtime/claude-code": {
       "types": "./dist/runtime/claude-code/index.d.ts",
       "import": "./dist/runtime/claude-code/index.js"
@@ -151,7 +155,7 @@
     "specs:compile": "tsp compile specs/typespec",
     "specs:all": "npm run build:codegen && npm run specs:compile && npm run generate:types",
     "specs:watch": "tsp compile specs/typespec --watch",
-    "lint:generated-banners": "node scripts/check-generated-banners.mjs"
+    "lint:generated-banners": "node --experimental-strip-types scripts/check-generated-banners.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
