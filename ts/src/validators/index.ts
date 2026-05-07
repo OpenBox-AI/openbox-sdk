@@ -191,7 +191,12 @@ function hintForStatus(status: number): string | null {
 // Primitive validators
 // ---------------------------------------------------------------------------
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Canonical UUID body. Anchored via `UUID_RE` for "is this string a
+ *  UUID" checks, unanchored via `UUID_RE_BODY` for "find a UUID inside
+ *  a line of source" scans. Single source so both regex shapes track
+ *  the same character class. */
+export const UUID_PATTERN_BODY = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const UUID_RE = new RegExp(`^${UUID_PATTERN_BODY}$`, 'i');
 
 export function validateUuid(value: unknown, label: string): string {
   if (typeof value !== 'string' || !UUID_RE.test(value)) {
@@ -429,6 +434,37 @@ export function validateActivitiesConfig(activities: unknown, stage: '0' | '1'):
 // ---------------------------------------------------------------------------
 // Behavior rule validators
 // ---------------------------------------------------------------------------
+
+/** Every permission string the backend's `Permission` enum accepts;
+ *  mirrors the spec's `Permission` union. Static-asserted below: if the
+ *  generated `Permission` union ever drops/renames a value, the type
+ *  check at the bottom of this block fires at `tsc --noEmit`. Bootstrap
+ *  / installer / e2e tooling read this instead of hand-typing the list. */
+export const ALL_PERMISSIONS = [
+  'write:org', 'read:org',
+  'create:user', 'read:user', 'update:user', 'delete:user',
+  'create:agent', 'read:agent', 'update:agent', 'delete:agent',
+  'create:team', 'read:team', 'update:team', 'delete:team',
+  'create:webhook', 'read:webhook', 'update:webhook', 'delete:webhook',
+  'create:api_key', 'read:api_key', 'update:api_key', 'delete:api_key',
+  'manage:sso',
+  'read:agent_session', 'manage:agent_session', 'read:agent_log',
+  'create:agent_guardrail', 'read:agent_guardrail',
+  'update:agent_guardrail', 'delete:agent_guardrail',
+  'create:agent_policy', 'read:agent_policy',
+  'update:agent_policy', 'delete:agent_policy',
+  'create:agent_behavior_rule', 'read:agent_behavior_rule',
+  'update:agent_behavior_rule', 'delete:agent_behavior_rule',
+] as const;
+
+// Compile-time check: every member of ALL_PERMISSIONS is in the
+// generated `Permission` union. If the spec drops a value, the next
+// line errors at typecheck.
+type _Permission = NonNullable<
+  import('../types/generated/backend.js').components['schemas']['CreateApiKeyDto']['permissions']
+>[number];
+const _permissionDriftCheck: readonly _Permission[] = ALL_PERMISSIONS;
+void _permissionDriftCheck;
 
 /** Mirrors the live `BehaviorRuleTrigger` enum the backend persists. */
 export const BEHAVIOR_TRIGGER_ENUM = [
