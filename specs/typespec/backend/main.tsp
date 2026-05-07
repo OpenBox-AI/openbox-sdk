@@ -1480,7 +1480,7 @@ op AgentController_getAgentTrustScoreEvents(
 @tag("Agent")
 @route("/agent/{agentId}/trust/recovery-status")
 @get
-op AgentController_getAgentTrustRecoveryStatus(@path agentId: string): OkResponse;
+op AgentController_getAgentTrustRecoveryStatus(@path agentId: string): Body<TrustRecoveryStatus>;
 
 @tag("Agent")
 @route("/agent/{agentId}/approvals/metrics")
@@ -1683,7 +1683,7 @@ op OrganizationController_createOrganization(@body body: CreateOrganizationDto):
 @tag("Organization")
 @route("/organization/demo-setup-status")
 @get
-op OrganizationController_getDemoSetupStatus(): OkResponse;
+op OrganizationController_getDemoSetupStatus(): Body<DemoSetupStatus>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/settings")
@@ -2145,7 +2145,7 @@ op SsoController_removeConfig(): Body<MessageResponse>;
 @tag("SSO")
 @route("/sso")
 @get
-op SsoController_getConfig(): OkResponse;
+op SsoController_getConfig(): Body<SsoConfig>;
 
 @tag("SSO")
 @route("/sso/saml")
@@ -2165,7 +2165,7 @@ op SsoController_setEnforcement(@body body: EnforceSsoDto): Body<MessageResponse
 @tag("SSO")
 @route("/sso/metadata")
 @get
-op SsoController_getSpMetadata(): OkResponse;
+op SsoController_getSpMetadata(): Body<SsoMetadata>;
 
 @tag("SSO")
 @route("/sso/verify")

@@ -479,3 +479,57 @@ model OrganizationRegistrationResult {
   customer_id: string;
   customer_name: string;
 }
+
+/** Demo-agent seed status from /organization/demo-setup-status.
+ *  Polled by the FE while a fresh org's demo agent is being seeded. */
+model DemoSetupStatus {
+  status: "completed" | "running" | "failed" | "not_started";
+}
+
+/** SSO configuration view from /sso. Returned for both configured and
+ *  unconfigured orgs - protocol/displayName/alias drop to null when
+ *  no IdP is set up. */
+model SsoConfig {
+  configured: boolean;
+  protocol?: string | null;
+  displayName?: string | null;
+  enabled: boolean;
+  enforced: boolean;
+  `alias`?: string;
+}
+
+/** SAML/OIDC SP metadata from /sso/metadata, used by customers to
+ *  configure their IdP against this Keycloak realm. */
+model SsoMetadata {
+  entityId: string;
+  acsUrl: string;
+  singleLogoutUrl: string;
+  metadataUrl: string;
+  oidcRedirectUri: string;
+}
+
+/** Per-penalty row inside TrustRecoveryStatus.recovery.penalties. */
+model TrustPenalty {
+  penalty_id: string;
+  component: string;
+  trust_impact: string;
+  penalty_amount: float64;
+  session_position: int32;
+  sessions_until_cleared: int32;
+}
+
+/** Trust-recovery status from /agent/{id}/trust/recovery-status. When
+ *  has_penalty=false the recovery block is omitted; otherwise it
+ *  carries the active penalty count + per-penalty rows + projection
+ *  for when the agent's trust will fully clear. */
+model TrustRecoveryStatus {
+  has_penalty: boolean;
+  recovery?: {
+    window_size: int32;
+    active_count: int32;
+    total_penalty_amount: float64;
+    penalties: TrustPenalty[];
+    next_clearance_in: int32;
+    fully_clean_in: int32;
+  };
+}

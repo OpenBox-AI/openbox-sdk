@@ -2267,6 +2267,14 @@ export interface components {
             /** @description Array of team IDs */
             ids: string[];
         };
+        /**
+         * @description Demo-agent seed status from /organization/demo-setup-status.
+         *     Polled by the FE while a fresh org's demo agent is being seeded.
+         */
+        DemoSetupStatus: {
+            /** @enum {string} */
+            status: "completed" | "running" | "failed" | "not_started";
+        };
         EnforceSsoDto: Record<string, never>;
         EvaluateRegoDto: {
             /** @description Rego policy code */
@@ -2515,6 +2523,30 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * @description SSO configuration view from /sso. Returned for both configured and
+         *     unconfigured orgs - protocol/displayName/alias drop to null when
+         *     no IdP is set up.
+         */
+        SsoConfig: {
+            configured: boolean;
+            protocol?: string | null;
+            displayName?: string | null;
+            enabled: boolean;
+            enforced: boolean;
+            alias?: string;
+        };
+        /**
+         * @description SAML/OIDC SP metadata from /sso/metadata, used by customers to
+         *     configure their IdP against this Keycloak realm.
+         */
+        SsoMetadata: {
+            entityId: string;
+            acsUrl: string;
+            singleLogoutUrl: string;
+            metadataUrl: string;
+            oidcRedirectUri: string;
+        };
         SsoStatus: {
             enabled?: boolean;
             /** @enum {string|null} */
@@ -2564,6 +2596,40 @@ export interface components {
             timestamp?: string;
         } & {
             [key: string]: unknown;
+        };
+        /** @description Per-penalty row inside TrustRecoveryStatus.recovery.penalties. */
+        TrustPenalty: {
+            penalty_id: string;
+            component: string;
+            trust_impact: string;
+            /** Format: double */
+            penalty_amount: number;
+            /** Format: int32 */
+            session_position: number;
+            /** Format: int32 */
+            sessions_until_cleared: number;
+        };
+        /**
+         * @description Trust-recovery status from /agent/{id}/trust/recovery-status. When
+         *     has_penalty=false the recovery block is omitted; otherwise it
+         *     carries the active penalty count + per-penalty rows + projection
+         *     for when the agent's trust will fully clear.
+         */
+        TrustRecoveryStatus: {
+            has_penalty: boolean;
+            recovery?: {
+                /** Format: int32 */
+                window_size: number;
+                /** Format: int32 */
+                active_count: number;
+                /** Format: double */
+                total_penalty_amount: number;
+                penalties: components["schemas"]["TrustPenalty"][];
+                /** Format: int32 */
+                next_clearance_in: number;
+                /** Format: int32 */
+                fully_clean_in: number;
+            };
         };
         TrustTierChange: {
             id: string;
@@ -4517,7 +4583,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TrustRecoveryStatus"];
+                };
             };
         };
     };
@@ -5146,7 +5214,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DemoSetupStatus"];
+                };
             };
         };
     };
@@ -6046,7 +6116,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SsoConfig"];
+                };
             };
         };
     };
@@ -6108,7 +6180,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SsoMetadata"];
+                };
             };
         };
     };

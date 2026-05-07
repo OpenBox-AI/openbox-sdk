@@ -962,6 +962,28 @@ pub struct TrustEvent {
     pub timestamp: Option<String>,
 }
 
+/// Trust-recovery status from /agent/{id}/trust/recovery-status. When
+/// has_penalty=false the recovery block is omitted; otherwise it
+/// carries the active penalty count + per-penalty rows + projection
+/// for when the agent's trust will fully clear.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrustRecoveryStatus {
+    pub has_penalty: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery: Option<serde_json::Value>,
+}
+
+/// Per-penalty row inside TrustRecoveryStatus.recovery.penalties.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrustPenalty {
+    pub penalty_id: String,
+    pub component: String,
+    pub trust_impact: String,
+    pub penalty_amount: f64,
+    pub session_position: i32,
+    pub sessions_until_cleared: i32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Approval {
     pub id: String,
@@ -1091,6 +1113,13 @@ pub struct OrganizationRegistrationResult {
     pub customer_name: String,
 }
 
+/// Demo-agent seed status from /organization/demo-setup-status.
+/// Polled by the FE while a fresh org's demo agent is being seeded.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DemoSetupStatus {
+    pub status: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrgSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1210,6 +1239,39 @@ pub struct ApiKey {
     /// Only present on create; the raw `obx_key_*` secret, shown once.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
+}
+
+/// SSO configuration view from /sso. Returned for both configured and
+/// unconfigured orgs - protocol/displayName/alias drop to null when
+/// no IdP is set up.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SsoConfig {
+    pub configured: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protocol: Option<serde_json::Value>,
+    #[serde(rename = "displayName")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<serde_json::Value>,
+    pub enabled: bool,
+    pub enforced: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
+}
+
+/// SAML/OIDC SP metadata from /sso/metadata, used by customers to
+/// configure their IdP against this Keycloak realm.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SsoMetadata {
+    #[serde(rename = "entityId")]
+    pub entity_id: String,
+    #[serde(rename = "acsUrl")]
+    pub acs_url: String,
+    #[serde(rename = "singleLogoutUrl")]
+    pub single_logout_url: String,
+    #[serde(rename = "metadataUrl")]
+    pub metadata_url: String,
+    #[serde(rename = "oidcRedirectUri")]
+    pub oidc_redirect_uri: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

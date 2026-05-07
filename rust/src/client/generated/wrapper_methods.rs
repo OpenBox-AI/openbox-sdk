@@ -276,7 +276,7 @@ impl OpenBoxClient {
         self.request_get(&format!("/agent/{}/trust/events", agent_id), None::<&()>, query).await
     }
 
-    pub async fn get_trust_recovery_status(&self, agent_id: &str) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_trust_recovery_status(&self, agent_id: &str) -> Result<TrustRecoveryStatus, ApiError> {
         self.request_get(&format!("/agent/{}/trust/recovery-status", agent_id), None::<&()>, None::<&serde_json::Value>).await
     }
 
@@ -352,7 +352,7 @@ impl OpenBoxClient {
         self.request_post("/organization/register", Some(body), None::<&serde_json::Value>).await
     }
 
-    pub async fn get_demo_setup_status(&self) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_demo_setup_status(&self) -> Result<DemoSetupStatus, ApiError> {
         self.request_get("/organization/demo-setup-status", None::<&()>, None::<&serde_json::Value>).await
     }
 
@@ -540,7 +540,7 @@ impl OpenBoxClient {
         self.request_delete("/sso", None::<&()>, None::<&serde_json::Value>).await
     }
 
-    pub async fn get_sso_config(&self) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_sso_config(&self) -> Result<SsoConfig, ApiError> {
         self.request_get("/sso", None::<&()>, None::<&serde_json::Value>).await
     }
 
@@ -556,7 +556,7 @@ impl OpenBoxClient {
         self.request_put("/sso/enforce", Some(body), None::<&serde_json::Value>).await
     }
 
-    pub async fn get_sso_metadata(&self) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_sso_metadata(&self) -> Result<SsoMetadata, ApiError> {
         self.request_get("/sso/metadata", None::<&()>, None::<&serde_json::Value>).await
     }
 
