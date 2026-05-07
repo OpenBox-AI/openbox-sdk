@@ -163,20 +163,28 @@ function resolveEnvName(envName?: EnvName): EnvName {
   return resolveEnv(envName);
 }
 
+function isRuntimeKey(k: string | undefined): k is string {
+  return !!k && (k.startsWith('obx_live_') || k.startsWith('obx_test_'));
+}
+
 function resolveApiKey(opts: CheckGovernanceOptions): string {
-  let key: string | undefined =
-    opts.apiKey ?? process.env.OPENBOX_API_KEY ?? recallAgentKey(opts.agentId ?? '')?.runtimeKey;
+  // Each source supplies a candidate; the first that's actually a
+  // runtime key (obx_live_/obx_test_) wins. OPENBOX_API_KEY frequently
+  // holds the org-level X-API-Key (obx_key_*) for backend auth in
+  // shells that bootstrap both surfaces; that's not what governance
+  // needs, so we skip it and fall through to the agent-keys cache.
+  const candidates = [
+    opts.apiKey,
+    process.env.OPENBOX_API_KEY,
+    recallAgentKey(opts.agentId ?? '')?.runtimeKey,
+  ];
+  const key = candidates.find(isRuntimeKey);
   if (!key) {
     throw new Error(
       `No agent runtime key for ${opts.agentId ?? '(unset)'}. ` +
-        'Set OPENBOX_API_KEY, pass apiKey, or run `openbox api-key recall <agentId>` ' +
-        'to surface a cached key.',
-    );
-  }
-  if (!key.startsWith('obx_live_') && !key.startsWith('obx_test_')) {
-    throw new Error(
-      `Resolved key for agent ${opts.agentId ?? ''} doesn't look like a runtime key. ` +
-        'Expected `obx_live_*` or `obx_test_*`.',
+        'Pass apiKey, set OPENBOX_API_KEY to obx_live_*/obx_test_*, ' +
+        'or run `openbox api-key recall <agentId>` to surface a cached key. ' +
+        '(OPENBOX_API_KEY=obx_key_* is the org X-API-Key and is ignored here.)',
     );
   }
   // Env / prefix mismatch: agent-keys are not env-tagged on disk, so
