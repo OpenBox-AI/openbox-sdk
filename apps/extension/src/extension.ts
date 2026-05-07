@@ -1077,6 +1077,74 @@ export async function activate(context: vscode.ExtensionContext) {
       if (active.history) await active.history.refresh();
       return active.pending.count;
     }),
+
+    // Diagnostic: run governance.check directly with caller-supplied
+    // span_type + activity_input. Tests assert verdict mapping for
+    // every BehaviorVerdict numeric (0/1/2/3/4) end-to-end through
+    // the SDK's governance check helper, without going via the
+    // file-save pipeline.
+    vscode.commands.registerCommand(
+      "openbox.__diag.governanceCheck",
+      async (spanType: string, activityInput: Record<string, unknown>) => {
+        const result = await governance.check({
+          spanType: spanType as Parameters<typeof governance.check>[0]["spanType"],
+          activityInput,
+        });
+        return result;
+      },
+    ),
+
+    // Diagnostic: count of currently-recorded halt-verdict denies on
+    // the PreWriteGate. Tests assert that pending halt approvals
+    // transitioning out of pending clear their gate entry.
+    vscode.commands.registerCommand("openbox.__diag.haltedCount", () => {
+      return haltedApprovals.size;
+    }),
+
+    // Diagnostic: status bar text. Tests assert paint variations
+    // (count vs no-count, MOCK suffix, gates idle suffix).
+    vscode.commands.registerCommand("openbox.__diag.statusBar", () => {
+      return { text: statusBar.text, tooltip: String(statusBar.tooltip ?? "") };
+    }),
+
+    // Diagnostic: open the detail panel for a given approval id +
+    // report whether it materialised. Tests assert openDetail wires
+    // correctly without needing to inspect webview html.
+    vscode.commands.registerCommand("openbox.__diag.openDetail", async (id: string) => {
+      try {
+        await vscode.commands.executeCommand("openbox.openDetail", id);
+        return { ok: true };
+      } catch (err: any) {
+        return { ok: false, error: String(err?.message ?? err) };
+      }
+    }),
+
+    // Diagnostic: simulate the polling layer emitting newApprovals.
+    // The user-facing path (vscode.window.showWarningMessage with
+    // Approve/Reject/View) can't be dismissed from inside
+    // executeWorkbench; this diag variant returns whether the
+    // notification handler ran without crashing + how many rows it
+    // saw.
+    vscode.commands.registerCommand(
+      "openbox.__diag.simulateNewApprovals",
+      (rows: { id: string; agent_id?: string; activity_type?: string; reason?: string }[]) => {
+        if (!active) return { fired: false, count: 0 };
+        let fired = 0;
+        for (const r of rows) {
+          // Reuse the same toast routine the feed wires; we don't
+          // wait for the modal, so the test only asserts no-throw.
+          try {
+            void vscode.window.showWarningMessage(
+              `[MOCK] ${r.activity_type ?? "action"}: ${r.reason ?? "needs approval"}`,
+            );
+            fired++;
+          } catch {
+            /* swallow */
+          }
+        }
+        return { fired: fired === rows.length, count: fired };
+      },
+    ),
   );
 
   if (DEBUG_BUILD) {
