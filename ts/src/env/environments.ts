@@ -17,21 +17,36 @@ import {
   ENVIRONMENTS,
   ENV_VAR_BINDINGS,
   type EnvLoader,
+  type EnvName,
 } from './generated/env-bindings.js';
+import buildDefaults from '../../../specs/build-defaults.json' with { type: 'json' };
 
 export type { EnvName, EnvConfig, EnvLoader } from './generated/env-bindings.js';
 export { ENVIRONMENTS } from './generated/env-bindings.js';
 
+// Ship-time URLs. specs/build-defaults.json holds a single URL set
+// with no selector field; consumers reach for these constants and stay
+// agnostic to the multi-row table maintained for internal tooling.
+export const DEFAULT_API_URL: string = buildDefaults.apiUrl;
+export const DEFAULT_CORE_URL: string = buildDefaults.coreUrl;
+export const DEFAULT_PLATFORM_URL: string = buildDefaults.platformUrl;
+
+// Validate against the spec-emitted ENVIRONMENTS table - no string
+// literals here. Adding an env to TypeSpec automatically widens what
+// `resolveEnv` accepts; nothing else has to change. The default
+// fallback when OPENBOX_ENV is unset is whatever `Object.keys` yields
+// first (deterministic per the JSON-emit order in env-bindings.ts).
+const DEFAULT_ENV = Object.keys(ENVIRONMENTS)[0] as EnvName;
 export const resolveEnv: EnvLoader['resolveEnv'] = (cliFlag) => {
-  const raw = cliFlag ?? process.env.OPENBOX_ENV ?? 'production';
-  const name = raw.toLowerCase();
-  if (name !== 'production' && name !== 'staging' && name !== 'local') {
+  const raw = cliFlag ?? process.env.OPENBOX_ENV ?? DEFAULT_ENV;
+  const name = raw.toLowerCase() as EnvName;
+  if (!(name in ENVIRONMENTS)) {
     // Throw rather than process.exit; this module is a library export
     // (UI / IDE consumers depend on it) and shouldn't kill its host.
     // The CLI funnels everything through reportAndExit, which produces
     // exit code 2 (USAGE) for these.
     throw new Error(
-      `Unknown environment: ${raw}. Use 'production', 'staging', or 'local'.`,
+      `Unknown environment: ${raw}. Allowed: ${Object.keys(ENVIRONMENTS).join(', ')}.`,
     );
   }
   return name;

@@ -1,4 +1,5 @@
 import { TokenBucket } from '../client/index.js';
+import { DEFAULT_CORE_URL } from '../env/index.js';
 
 // Every wire-shape type in this module comes from the spec at
 // specs/typespec/core/main.tsp via codegen/emitters/ts/. This file
@@ -59,7 +60,7 @@ export interface BehavioralResult {
 export type EnvName = 'production' | 'staging' | 'local';
 
 export interface CoreClientConfig {
-  /** Base URL of the Core API. Defaults to https://core.openbox.ai */
+  /** Base URL of the Core API. Defaults to the build-time-pinned DEFAULT_CORE_URL. */
   apiUrl?: string;
   /** Agent API key (obx_live_* or obx_test_*) */
   apiKey: string;
@@ -106,7 +107,7 @@ export class OpenBoxCoreClient {
 
   constructor(config: CoreClientConfig) {
     this.config = { ...config };
-    this.baseUrl = this.config.apiUrl ?? 'https://core.openbox.ai';
+    this.baseUrl = this.config.apiUrl ?? DEFAULT_CORE_URL;
     this.env = this.config.env ?? 'production';
     if (config.rateLimit) {
       this.rateLimiter = new TokenBucket(

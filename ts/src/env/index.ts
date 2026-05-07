@@ -1,10 +1,12 @@
 export type { EnvName, EnvConfig } from './environments.js';
 export { ENVIRONMENTS, resolveEnv, resolveUrls } from './environments.js';
+export { DEFAULT_API_URL, DEFAULT_CORE_URL, DEFAULT_PLATFORM_URL } from './environments.js';
 
 export type { FeatureMap, TokenEntry, TokenStore } from './token-codec.js';
 export { parseTokenStore, serializeTokenStore } from './token-codec.js';
 
 export { resolveClientName } from './client-name.js';
+export { buildAuthHeader } from './auth-header.js';
 
 // Per-OS data-path resolver lives at the `openbox-sdk/os-paths` sub-path
 // instead of the default entry. The implementation imports Node's `os`

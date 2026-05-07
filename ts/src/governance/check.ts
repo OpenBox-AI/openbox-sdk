@@ -15,7 +15,7 @@
 
 import { OpenBoxCoreClient, type GovernanceVerdictResponse } from '../core-client/index.js';
 import { recallAgentKey } from '../runtime/_shared/agent-keys-store.js';
-import { ENVIRONMENTS, type EnvName } from '../env/index.js';
+import { ENVIRONMENTS, DEFAULT_CORE_URL, type EnvName } from '../env/index.js';
 
 export type SpanType = 'llm' | 'file_read' | 'file_write' | 'shell' | 'http' | 'db' | 'mcp';
 
@@ -208,7 +208,7 @@ function resolveCoreUrl(envName?: EnvName, coreUrlOverride?: string): string {
   if (coreUrlOverride) return coreUrlOverride;
   if (process.env.OPENBOX_CORE_URL) return process.env.OPENBOX_CORE_URL;
   const env = resolveEnvName(envName);
-  return ENVIRONMENTS[env]?.coreUrl ?? ENVIRONMENTS.production.coreUrl;
+  return ENVIRONMENTS[env]?.coreUrl ?? DEFAULT_CORE_URL;
 }
 
 /**

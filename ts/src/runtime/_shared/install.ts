@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { DEFAULT_CORE_URL } from '../../env/index.js';
 
 export interface InstallSpec {
   file: string;
@@ -91,7 +92,7 @@ function dropExampleConfig(spec: InstallSpec): void {
   if (fs.existsSync(file)) return;
   const example = {
     OPENBOX_API_KEY: 'obx_live_YOUR_API_KEY_HERE',
-    OPENBOX_ENDPOINT: 'https://core.openbox.ai',
+    OPENBOX_ENDPOINT: DEFAULT_CORE_URL,
     GOVERNANCE_POLICY: 'fail_open',
     HITL_ENABLED: true,
     HITL_MAX_WAIT: 300,
