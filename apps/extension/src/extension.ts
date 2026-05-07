@@ -49,6 +49,8 @@ import { PreWriteGate, extractTargetUri } from "./preWriteGate";
 import { PreFileOpGate } from "./preFileOpGate";
 import { GovernanceClient } from "./governanceClient";
 import { HookLogTail } from "./hookLogChannel";
+import { buildIdleStatusBar, envTagFor as envTagForPure } from "./statusBarText";
+import { pickApproval as pickApprovalPure } from "./pickApproval";
 import { writeGlobalEnv } from "./configStore";
 
 // Build-time flag, baked by esbuild via --define:process.env.OPENBOX_DEBUG_BUILD.
@@ -279,37 +281,23 @@ export async function activate(context: vscode.ExtensionContext) {
 
   function paintIdle(envTag: EnvName, count: number) {
     const cfg = vscode.workspace.getConfiguration("openbox");
-    // Env tag is debug-only context. Release builds keep the bar
-    // clean so end users never see env names tagged on every
-    // status bar refresh.
-    const showEnv = DEBUG_BUILD || readMockAuth();
-    const envSuffix = readMockAuth()
-      ? ` · MOCK · ${envTag}`
-      : showEnv
-        ? ` · ${envTag}`
-        : "";
-    const anyActive =
-      cfg.get<boolean>("preWriteGate.active", false) ||
-      (cfg.get<boolean>("tabObserver.enabled", false) && cfg.get<boolean>("tabObserver.active", false)) ||
-      cfg.get<boolean>("fileOpGate.enabled", false);
-    const haveAgent = !!cfg.get<string>("agentId", "").trim();
-    const idleNote = anyActive && !haveAgent ? " · gates idle (no agent)" : "";
-    if (count > 0) {
-      statusBar.text = `$(shield) ${count} Pending${envSuffix}${idleNote}`;
-    } else {
-      statusBar.text = `$(shield) OpenBox${envSuffix}${idleNote}`;
-    }
-    if (anyActive && !haveAgent) {
-      statusBar.tooltip =
-        "Active gates are turned on but `openbox.agentId` is empty, so check_governance is skipped. Set the agent ID in settings to enable enforcement.";
-    }
+    const out = buildIdleStatusBar({
+      env: envTag,
+      count,
+      mockAuth: readMockAuth(),
+      debugBuild: DEBUG_BUILD,
+      preWriteGateActive: cfg.get<boolean>("preWriteGate.active", false),
+      tabObserverEnabled: cfg.get<boolean>("tabObserver.enabled", false),
+      tabObserverActive: cfg.get<boolean>("tabObserver.active", false),
+      fileOpGateEnabled: cfg.get<boolean>("fileOpGate.enabled", false),
+      haveAgent: !!cfg.get<string>("agentId", "").trim(),
+    });
+    statusBar.text = out.text;
+    if (out.tooltip !== undefined) statusBar.tooltip = out.tooltip;
   }
 
-  /** Build the boot / error tag. Debug builds carry the env suffix
-   *  for development visibility; release builds hide it so end
-   *  users never see env names tagged on transient state. */
   function envTagFor(state: string): string {
-    return DEBUG_BUILD ? `OpenBox · ${env}: ${state}` : `OpenBox: ${state}`;
+    return envTagForPure(state, env, DEBUG_BUILD);
   }
 
   /** True when `uri` is currently open in any editor tab. */
@@ -676,18 +664,11 @@ export async function activate(context: vscode.ExtensionContext) {
    *   - Bare id string: `"apr_xxx"` (preWriteGate's "Open in OpenBox"
    *     modal button passes only the approvalId; lookup falls back to
    *     pending → history → undefined). */
-  const pickApproval = (node: any): Approval | undefined => {
-    if (!node) return undefined;
-    if (typeof node === "string") {
-      return (
-        active?.pending.approvals.find((a) => a.id === node) ??
-        active?.history.approvals.find((a) => a.id === node)
-      );
-    }
-    if (node.approval) return node.approval as Approval;
-    if (node.id) return node as Approval;
-    return undefined;
-  };
+  const pickApproval = (node: any): Approval | undefined =>
+    pickApprovalPure(node, {
+      pending: active?.pending.approvals ?? [],
+      history: active?.history.approvals ?? [],
+    });
 
   function describeKeySource(envTag: EnvName): string {
     const url = apiKeysUrl(envTag);
@@ -1017,30 +998,6 @@ export async function activate(context: vscode.ExtensionContext) {
       },
     ),
 
-    // Diagnostic: pending-approvals count.
-    vscode.commands.registerCommand("openbox.__diag.approvalsCount", () => {
-      return active?.pending.count ?? 0;
-    }),
-
-    // Diagnostic: bypass-modal decide. The user-facing openbox.reject
-    // shows a confirmation modal; tests need a path that drives the
-    // network call directly. Approve has no modal so it just delegates.
-    vscode.commands.registerCommand(
-      "openbox.__diag.decide",
-      async (node: { id?: string; agent_id?: string } | undefined, action: "approve" | "reject") => {
-        const id = node?.id;
-        const agentId = node?.agent_id;
-        if (!id || !active) return;
-        try {
-          await active.client.decideApproval(agentId ?? "", id, { action });
-          active.pending.refresh();
-          if (active.history) active.history.refresh();
-        } catch {
-          /* tests assert via approvalsCount; surface nothing here */
-        }
-      },
-    ),
-
     // Diagnostic: history bucket count. Tests assert decided rows
     // land in the history view after decide.
     vscode.commands.registerCommand("openbox.__diag.historyCount", () => {
@@ -1101,50 +1058,6 @@ export async function activate(context: vscode.ExtensionContext) {
       return haltedApprovals.size;
     }),
 
-    // Diagnostic: status bar text. Tests assert paint variations
-    // (count vs no-count, MOCK suffix, gates idle suffix).
-    vscode.commands.registerCommand("openbox.__diag.statusBar", () => {
-      return { text: statusBar.text, tooltip: String(statusBar.tooltip ?? "") };
-    }),
-
-    // Diagnostic: open the detail panel for a given approval id +
-    // report whether it materialised. Tests assert openDetail wires
-    // correctly without needing to inspect webview html.
-    vscode.commands.registerCommand("openbox.__diag.openDetail", async (id: string) => {
-      try {
-        await vscode.commands.executeCommand("openbox.openDetail", id);
-        return { ok: true };
-      } catch (err: any) {
-        return { ok: false, error: String(err?.message ?? err) };
-      }
-    }),
-
-    // Diagnostic: simulate the polling layer emitting newApprovals.
-    // The user-facing path (vscode.window.showWarningMessage with
-    // Approve/Reject/View) can't be dismissed from inside
-    // executeWorkbench; this diag variant returns whether the
-    // notification handler ran without crashing + how many rows it
-    // saw.
-    vscode.commands.registerCommand(
-      "openbox.__diag.simulateNewApprovals",
-      (rows: { id: string; agent_id?: string; activity_type?: string; reason?: string }[]) => {
-        if (!active) return { fired: false, count: 0 };
-        let fired = 0;
-        for (const r of rows) {
-          // Reuse the same toast routine the feed wires; we don't
-          // wait for the modal, so the test only asserts no-throw.
-          try {
-            void vscode.window.showWarningMessage(
-              `[MOCK] ${r.activity_type ?? "action"}: ${r.reason ?? "needs approval"}`,
-            );
-            fired++;
-          } catch {
-            /* swallow */
-          }
-        }
-        return { fired: fired === rows.length, count: fired };
-      },
-    ),
   );
 
   if (DEBUG_BUILD) {

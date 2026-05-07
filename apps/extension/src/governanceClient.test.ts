@@ -6,11 +6,15 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-// Mock vscode just enough that GovernanceClient instantiates.
+// Mock vscode just enough that GovernanceClient instantiates AND we can
+// flip openbox.failClosed through a mutable map for the applyFailMode
+// tests below.
+const configMap: Record<string, unknown> = {};
 vi.mock('vscode', () => ({
   workspace: {
     getConfiguration: () => ({
-      get: <T>(_k: string, def?: T): T => def as T,
+      get: <T>(k: string, def?: T): T =>
+        (configMap[k] !== undefined ? (configMap[k] as T) : (def as T)),
     }),
   },
 }));
@@ -87,4 +91,58 @@ describe('GovernanceClient - verdict mapping (string + numeric)', () => {
       expect(r.outcome).toBe(expected);
     });
   }
+});
+
+describe('GovernanceClient.applyFailMode - unknown outcome folding', () => {
+  // Replaces what mock-failmode.e2e.ts used to assert through a real
+  // workbench: the openbox.failClosed setting flips an `unknown`
+  // outcome to either `allow` (default; safe fallback for slow networks)
+  // or `deny` (paranoid mode for compliance).
+
+  function client() {
+    return new GovernanceClient();
+  }
+
+  it('failClosed=false (default): unknown → allow with synthesized reason', () => {
+    delete configMap['failClosed']; // default
+    const r = client().applyFailMode({ outcome: 'unknown', error: 'fetch timeout' });
+    expect(r.outcome).toBe('allow');
+    expect(r.reason).toMatch(/Governance check failed/);
+    expect(r.reason).toMatch(/fetch timeout/);
+  });
+
+  it('failClosed=true: unknown → deny with synthesized reason', () => {
+    configMap['failClosed'] = true;
+    const r = client().applyFailMode({ outcome: 'unknown', error: 'connection refused' });
+    expect(r.outcome).toBe('deny');
+    expect(r.reason).toMatch(/Governance check failed/);
+    expect(r.reason).toMatch(/connection refused/);
+  });
+
+  it('non-unknown outcomes pass through both fail modes unchanged', () => {
+    configMap['failClosed'] = true;
+    const denied = client().applyFailMode({ outcome: 'deny', reason: 'rule fired' });
+    expect(denied.outcome).toBe('deny');
+    expect(denied.reason).toBe('rule fired');
+
+    configMap['failClosed'] = false;
+    const allowed = client().applyFailMode({ outcome: 'allow' });
+    expect(allowed.outcome).toBe('allow');
+
+    const required = client().applyFailMode({ outcome: 'require_approval' });
+    expect(required.outcome).toBe('require_approval');
+  });
+
+  it('preserves existing reason when one is already set', () => {
+    configMap['failClosed'] = true;
+    const r = client().applyFailMode({ outcome: 'unknown', error: 'x', reason: 'preset' });
+    expect(r.outcome).toBe('deny');
+    expect(r.reason).toBe('preset');
+  });
+
+  it('fills in "unknown error" when neither error nor reason is set', () => {
+    delete configMap['failClosed'];
+    const r = client().applyFailMode({ outcome: 'unknown' });
+    expect(r.reason).toMatch(/unknown error/);
+  });
 });
