@@ -102,6 +102,3 @@ describe.runIf(SHOULD_RUN)('core evaluate — live verdict matrix', () => {
   });
 });
 
-describe.skipIf(SHOULD_RUN)('core evaluate — live (skipped: missing env)', () => {
-  it.skip('opt in via OPENBOX_E2E_LIVE=1 + OPENBOX_E2E_AGENT_ID + OPENBOX_E2E_RUNTIME_KEY', () => undefined);
-});
