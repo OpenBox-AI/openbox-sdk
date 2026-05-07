@@ -552,3 +552,29 @@ model TeamStats {
   active_agents: int32;
   total_team_members: int32;
 }
+
+/** Counters from /agent/{id}/sessions/{sessionId}/goal-alignment-stats:
+ *  how many evaluations were checked vs how many drifted in the
+ *  session window. */
+model SessionGoalAlignmentStats {
+  total_checked: int32;
+  total_drifted: int32;
+}
+
+/** Single reasoning-trace entry from /agent/{id}/sessions/{sessionId}/
+ *  reasoning-trace. The endpoint returns an array of these, ordered
+ *  by governance-event created_at ASC. */
+model ReasoningTraceEntry {
+  governance_event_id: string;
+  event_type?: string | null;
+  activity_type?: string | null;
+  signal_name?: string | null;
+  created_at?: string | null;
+  duration_ms?: int32 | null;
+  goal_alignment_checked?: boolean;
+  goal_drift?: boolean;
+  goal_alignment_detail?: Record<unknown> | null;
+  trust_score?: float64 | null;
+  trust_tier?: int32 | null;
+  alignment_consistency?: float64 | null;
+}

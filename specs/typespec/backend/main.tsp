@@ -1251,7 +1251,7 @@ op AgentController_getSessionLogs(
 op AgentController_getSessionGoalAlignmentStats(
   @path agentId: string,
   @path sessionId: string,
-): OkResponse;
+): Body<SessionGoalAlignmentStats>;
 
 @tag("Agent")
 @route("/agent/{agentId}/sessions/{sessionId}/reasoning-trace")
@@ -1259,7 +1259,7 @@ op AgentController_getSessionGoalAlignmentStats(
 op AgentController_getSessionReasoningTrace(
   @path agentId: string,
   @path sessionId: string,
-): OkResponse;
+): Body<ReasoningTraceEntry[]>;
 
 @tag("Agent")
 @route("/agent/{agentId}/sessions/{sessionId}/terminate")
@@ -1738,7 +1738,7 @@ op OrganizationController_createUser(
 op OrganizationController_sendWelcomeEmail(
   @path organizationId: string,
   @body body: SendWelcomeEmailDto,
-): CreatedResponse;
+): Body<MessageResponse>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/invitations")

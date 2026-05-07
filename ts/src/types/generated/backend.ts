@@ -2492,6 +2492,31 @@ export interface components {
             /** @description End date for filtering (ISO 8601 format) */
             endDate?: string;
         };
+        /**
+         * @description Single reasoning-trace entry from /agent/{id}/sessions/{sessionId}/
+         *     reasoning-trace. The endpoint returns an array of these, ordered
+         *     by governance-event created_at ASC.
+         */
+        ReasoningTraceEntry: {
+            governance_event_id: string;
+            event_type?: string | null;
+            activity_type?: string | null;
+            signal_name?: string | null;
+            created_at?: string | null;
+            /** Format: int32 */
+            duration_ms?: number | null;
+            goal_alignment_checked?: boolean;
+            goal_drift?: boolean;
+            goal_alignment_detail?: {
+                [key: string]: unknown;
+            } | null;
+            /** Format: double */
+            trust_score?: number | null;
+            /** Format: int32 */
+            trust_tier?: number | null;
+            /** Format: double */
+            alignment_consistency?: number | null;
+        };
         RefreshDto: Record<string, never>;
         RemoveMembersDto: {
             /** @description Array of User IDs to remove from organization */
@@ -2538,6 +2563,17 @@ export interface components {
             };
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * @description Counters from /agent/{id}/sessions/{sessionId}/goal-alignment-stats:
+         *     how many evaluations were checked vs how many drifted in the
+         *     session window.
+         */
+        SessionGoalAlignmentStats: {
+            /** Format: int32 */
+            total_checked: number;
+            /** Format: int32 */
+            total_drifted: number;
         };
         /**
          * @description SSO configuration view from /sso. Returned for both configured and
@@ -4424,7 +4460,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SessionGoalAlignmentStats"];
+                };
             };
         };
     };
@@ -4480,7 +4518,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ReasoningTraceEntry"][];
+                };
             };
         };
     };
@@ -5757,12 +5797,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The request has succeeded and a new resource has been created as a result. */
-            201: {
+            /** @description The request has succeeded. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
             };
         };
     };

@@ -188,11 +188,11 @@ impl OpenBoxClient {
         self.request_get(&format!("/agent/{}/sessions/{}/logs", agent_id, session_id), None::<&()>, query).await
     }
 
-    pub async fn get_session_goal_alignment_stats(&self, agent_id: &str, session_id: &str) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_session_goal_alignment_stats(&self, agent_id: &str, session_id: &str) -> Result<SessionGoalAlignmentStats, ApiError> {
         self.request_get(&format!("/agent/{}/sessions/{}/goal-alignment-stats", agent_id, session_id), None::<&()>, None::<&serde_json::Value>).await
     }
 
-    pub async fn get_session_reasoning_trace(&self, agent_id: &str, session_id: &str) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_session_reasoning_trace(&self, agent_id: &str, session_id: &str) -> Result<Vec<ReasoningTraceEntry>, ApiError> {
         self.request_get(&format!("/agent/{}/sessions/{}/reasoning-trace", agent_id, session_id), None::<&()>, None::<&serde_json::Value>).await
     }
 
@@ -380,7 +380,7 @@ impl OpenBoxClient {
         self.request_post(&format!("/organization/{}/users", organization_id), Some(body), None::<&serde_json::Value>).await
     }
 
-    pub async fn send_welcome_email(&self, organization_id: &str, body: &SendWelcomeEmailDto) -> Result<serde_json::Value, ApiError> {
+    pub async fn send_welcome_email(&self, organization_id: &str, body: &SendWelcomeEmailDto) -> Result<MessageResponse, ApiError> {
         self.request_post(&format!("/organization/{}/send-welcome-email", organization_id), Some(body), None::<&serde_json::Value>).await
     }
 

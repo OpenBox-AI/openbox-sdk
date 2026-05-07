@@ -929,6 +929,45 @@ pub struct Session {
     pub metadata: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 
+/// Counters from /agent/{id}/sessions/{sessionId}/goal-alignment-stats:
+/// how many evaluations were checked vs how many drifted in the
+/// session window.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionGoalAlignmentStats {
+    pub total_checked: i32,
+    pub total_drifted: i32,
+}
+
+/// Single reasoning-trace entry from /agent/{id}/sessions/{sessionId}/
+/// reasoning-trace. The endpoint returns an array of these, ordered
+/// by governance-event created_at ASC.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReasoningTraceEntry {
+    pub governance_event_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event_type: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity_type: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signal_name: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub goal_alignment_checked: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub goal_drift: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub goal_alignment_detail: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trust_score: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trust_tier: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alignment_consistency: Option<serde_json::Value>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiKeyResponse {
     pub token: String,
