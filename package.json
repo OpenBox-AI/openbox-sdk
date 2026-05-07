@@ -145,7 +145,7 @@
     "test:e2e": "vitest run --project e2e",
     "test:contract": "vitest run --project contract",
     "test:hook-integration": "vitest run --project hook-integration",
-    "test:e2e-extension": "npm --prefix apps/extension run build:dev && npm --prefix tests/e2e-extension test",
+    "test:e2e-extension": "npm --prefix apps/extension run build && npm --prefix tests/e2e-extension test",
     "test:e2e-extension:install": "npm --prefix tests/e2e-extension install",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest watch",
