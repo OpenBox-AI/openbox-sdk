@@ -107,7 +107,13 @@ describe('OpenBoxCoreClient E2E', () => {
       });
 
       expect(result).toBeDefined();
-      expect(['ALLOW', 'CONSTRAIN', 'REQUIRE_APPROVAL', 'BLOCK', 'HALT']).toContain(result.verdict);
+      // Core's verdict casing has varied between snake_case lowercase
+      // (`allow`, `require_approval`) and SCREAMING_SNAKE (`ALLOW`,
+      // `REQUIRE_APPROVAL`); accept either so the test rides through
+      // the next casing flip without a code change.
+      expect(typeof result.verdict).toBe('string');
+      expect(['allow', 'constrain', 'require_approval', 'block', 'halt'])
+        .toContain(String(result.verdict).toLowerCase());
     });
   });
 
