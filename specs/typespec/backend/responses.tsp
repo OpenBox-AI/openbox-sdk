@@ -471,3 +471,11 @@ model CsrfToken {
   token?: string;
   ...Record<unknown>;
 }
+
+/** Result of /organization/register. Backend returns just the
+ *  identity pair the FE needs to redirect into the new org; full
+ *  Organization model is not in the response. */
+model OrganizationRegistrationResult {
+  customer_id: string;
+  customer_name: string;
+}

@@ -753,6 +753,12 @@ pub struct TokenPair {
     pub refresh_token: Option<String>,
 }
 
+/// Plain `{ message: string }` envelope used by mutation acks.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageResponse {
+    pub message: String,
+}
+
 /// Single role row inside `UserProfile.roles[]`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserRole {
@@ -831,12 +837,6 @@ pub struct Agent {
 pub struct CreateAgentResponse {
     pub agent: Agent,
     pub token: String,
-}
-
-/// Plain `{ message: string }` envelope used by mutation acks.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MessageResponse {
-    pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1080,6 +1080,15 @@ pub struct WebhookDelivery {
     pub attempt_count: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delivered_at: Option<String>,
+}
+
+/// Result of /organization/register. Backend returns just the
+/// identity pair the FE needs to redirect into the new org; full
+/// Organization model is not in the response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrganizationRegistrationResult {
+    pub customer_id: String,
+    pub customer_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

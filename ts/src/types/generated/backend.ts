@@ -2427,6 +2427,15 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * @description Result of /organization/register. Backend returns just the
+         *     identity pair the FE needs to redirect into the new org; full
+         *     Organization model is not in the response.
+         */
+        OrganizationRegistrationResult: {
+            customer_id: string;
+            customer_name: string;
+        };
         /** @description Pagination meta block returned alongside list responses. */
         PaginationMeta: {
             /** Format: int32 */
@@ -2843,7 +2852,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": string[];
+                };
             };
         };
     };
@@ -4791,12 +4802,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The request has succeeded and a new resource has been created as a result. */
-            201: {
+            /** @description The request has succeeded. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
             };
         };
     };
@@ -5148,12 +5161,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The request has succeeded and a new resource has been created as a result. */
-            201: {
+            /** @description The request has succeeded. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["OrganizationRegistrationResult"];
+                };
             };
         };
     };

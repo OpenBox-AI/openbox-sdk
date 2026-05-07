@@ -24,7 +24,7 @@ impl OpenBoxClient {
         self.request_post("/auth/login", Some(body), None::<&serde_json::Value>).await
     }
 
-    pub async fn logout(&self, body: &LogoutDto) -> Result<serde_json::Value, ApiError> {
+    pub async fn logout(&self, body: &LogoutDto) -> Result<MessageResponse, ApiError> {
         self.request_post("/auth/logout", Some(body), None::<&serde_json::Value>).await
     }
 
@@ -224,7 +224,7 @@ impl OpenBoxClient {
         self.request_get(&format!("/agent/{}/issues", agent_id), None::<&()>, query).await
     }
 
-    pub async fn get_semantic_types(&self) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_semantic_types(&self) -> Result<Vec<String>, ApiError> {
         self.request_get("/agent/behavior-rule/semantic-types", None::<&()>, None::<&serde_json::Value>).await
     }
 
@@ -348,7 +348,7 @@ impl OpenBoxClient {
         self.request_post(&format!("/webhook/{}/regenerate-secret", id), None::<&()>, None::<&serde_json::Value>).await
     }
 
-    pub async fn register_organization(&self, body: &CreateOrganizationDto) -> Result<serde_json::Value, ApiError> {
+    pub async fn register_organization(&self, body: &CreateOrganizationDto) -> Result<OrganizationRegistrationResult, ApiError> {
         self.request_post("/organization/register", Some(body), None::<&serde_json::Value>).await
     }
 

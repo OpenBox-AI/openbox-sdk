@@ -866,7 +866,7 @@ op AuthController_login(@body body: LoginDto): Body<TokenPair>;
 @tag("Auth")
 @route("/auth/logout")
 @post
-op AuthController_logout(@body body: LogoutDto): CreatedResponse;
+op AuthController_logout(@body body: LogoutDto): Body<MessageResponse>;
 
 @tag("Auth")
 @route("/auth/forgot-password")
@@ -1326,7 +1326,7 @@ op AgentController_getIssues(
 @tag("Agent")
 @route("/agent/behavior-rule/semantic-types")
 @get
-op AgentController_getSemanticTypes(): OkResponse;
+op AgentController_getSemanticTypes(): Body<string[]>;
 
 @tag("Agent")
 @route("/agent/{agentId}/behavior-rule")
@@ -1678,7 +1678,7 @@ op WebhookController_regenerateSecret(@path id: string): Body<MessageResponse>;
 @tag("Organization")
 @route("/organization/register")
 @post
-op OrganizationController_createOrganization(@body body: CreateOrganizationDto): CreatedResponse;
+op OrganizationController_createOrganization(@body body: CreateOrganizationDto): Body<OrganizationRegistrationResult>;
 
 @tag("Organization")
 @route("/organization/demo-setup-status")
