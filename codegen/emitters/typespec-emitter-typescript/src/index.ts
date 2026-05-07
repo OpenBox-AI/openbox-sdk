@@ -407,7 +407,9 @@ function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSp
   // Most endpoints return ONE of 200/201; the prior `Record<200 | 201, ...>`
   // required BOTH keys to be present and silently fell through to `unknown`
   // for every endpoint that returns just 200, erasing the typed response.
-  // Match each status individually instead.
+  // Match each status individually. Also match text/plain (used by
+  // simple endpoints like /health that return a string body) as a
+  // fallback when application/json isn't declared.
   lines.push(`type ResponseOf<P extends keyof Paths, V extends keyof Paths[P]> =`);
   lines.push(
     `  Paths[P][V] extends { responses: infer R }`,
@@ -417,6 +419,12 @@ function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSp
   );
   lines.push(
     `    : R extends { 201: { content: { 'application/json': infer J } } } ? J`,
+  );
+  lines.push(
+    `    : R extends { 200: { content: { 'text/plain': infer J } } } ? J`,
+  );
+  lines.push(
+    `    : R extends { 201: { content: { 'text/plain': infer J } } } ? J`,
   );
   lines.push(
     `    : R extends { 200: unknown } ? unknown`,

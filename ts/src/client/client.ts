@@ -44,9 +44,11 @@ import type {
   BackendClientConfig as SpecBackendClientConfig,
   RetryConfig,
   RateLimitConfig,
+  EnvName,
 } from '../env/index.js';
+import { resolveEnv } from '../env/index.js';
 
-export type EnvName = 'production' | 'staging' | 'local';
+export type { EnvName } from '../env/index.js';
 
 /**
  * Backend HTTP client configuration. Mirrors `BackendClientConfig` in
@@ -154,14 +156,16 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
 
   constructor(config: ClientConfig) {
     super();
-    if (!config.apiKey && !config.accessToken) {
-      throw new Error(
-        'OpenBoxClient: must supply either `apiKey` (X-API-Key header) or `accessToken` (Bearer JWT).',
-      );
-    }
+    // No auth-required check at construction: public endpoints
+    // (login, health, version, register) are valid usages without
+    // any credential. Authenticated calls fail at request time with
+    // the backend's 401 (which buildAuthHeader reports clearly when
+    // both apiKey and accessToken are unset).
     this.config = { ...config };
     this.baseUrl = this.config.apiUrl ?? DEFAULT_API_URL;
-    this.env = this.config.env ?? 'production';
+    // Default the env from the spec-resolution path: explicit
+    // shell export → global config → spec's first-key fallback.
+    this.env = this.config.env ?? resolveEnv();
     // Apply OPENBOX_CLIENT_VARIANT (if set) on top of the configured base name.
     // Lets a skill running inside Claude Code / Codex / Cursor identify itself
     // in backend telemetry without each app having to plumb the variant.

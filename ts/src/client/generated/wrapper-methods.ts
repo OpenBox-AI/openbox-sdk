@@ -915,6 +915,8 @@ type ResponseOf<P extends keyof Paths, V extends keyof Paths[P]> =
 
     ? R extends { 200: { content: { 'application/json': infer J } } } ? J
     : R extends { 201: { content: { 'application/json': infer J } } } ? J
+    : R extends { 200: { content: { 'text/plain': infer J } } } ? J
+    : R extends { 201: { content: { 'text/plain': infer J } } } ? J
     : R extends { 200: unknown } ? unknown
     : R extends { 201: unknown } ? unknown
     : unknown
