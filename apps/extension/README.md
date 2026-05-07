@@ -90,5 +90,4 @@ cursor --install-extension openbox-0.1.0.vsix
 
 ```sh
 npm test                       # vitest unit tests
-npm run test:e2e-extension     # wdio against VS Code
 ```

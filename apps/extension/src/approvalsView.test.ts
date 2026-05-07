@@ -1,11 +1,6 @@
 // Coverage for the ApprovalsTreeProvider — the data adapter that
 // shapes the Approval rows into VS Code TreeItem nodes for both
 // the pending view (flat list) and the history view (status-grouped).
-//
-// Why test it: the wdio-mocked layer used to assert "history view
-// has at least 5 rows" and "decide moves a row out of pending"
-// through a real workbench. The actual logic lives here and can
-// be unit-tested without booting a workbench.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
