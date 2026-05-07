@@ -74,7 +74,17 @@ export const config = {
   },
 
   specs,
+  // One spec file at a time. Each launches its own VS Code instance
+  // (fresh state, fresh extension activation, no cross-suite leakage)
+  // because wdio-vscode-service models a session as one workbench.
+  // Sequential is by design: stable + isolated > fast.
   maxInstances: 1,
+  // Retry the whole spec file once on flaky launch failures (chromedriver
+  // racing the VS Code workbench during cold boot occasionally counts
+  // a spec as failed before any test runs). The actual mocha tests
+  // inside don't get "retried"; only the spec-level launch.
+  specFileRetries: 1,
+  specFileRetriesDelay: 2,
 
   capabilities: [
     {

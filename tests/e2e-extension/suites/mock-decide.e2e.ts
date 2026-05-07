@@ -44,6 +44,14 @@ describe('OpenBox panel — mock decide flow', () => {
     await activate();
   });
 
+  after(async () => {
+    // Decides mutate the mockStore. Reset to seeded baseline so the
+    // suite is replay-safe and won't poison a shared workbench.
+    await browser.executeWorkbench(async (vscode: any) => {
+      await vscode.commands.executeCommand('openbox.resetMockData');
+    });
+  });
+
   it('starts with 6 fixture rows', async () => {
     // Wait for the mock feed's first 'changed' emit (50ms timer +
     // a bit of jitter on cold-start).

@@ -46,6 +46,15 @@ describe('OpenBox views — mock auth', () => {
     });
   });
 
+  after(async () => {
+    // The 'decide moves a row out of pending' test mutates state.
+    // Reset back to the seeded baseline so anything that runs after
+    // this spec in the same workbench sees the canonical fixture set.
+    await browser.executeWorkbench(async (vscode: any) => {
+      await vscode.commands.executeCommand('openbox.resetMockData');
+    });
+  });
+
   it('history view exposes the seeded decided rows', async () => {
     // MockStore.reset seeds 5 decided fixtures (2 approved + 1
     // rejected + 2 expired). The history scope uses status=undefined

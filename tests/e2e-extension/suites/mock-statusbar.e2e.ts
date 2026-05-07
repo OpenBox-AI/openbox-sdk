@@ -39,6 +39,16 @@ describe('OpenBox status bar — paint variations', () => {
     });
   });
 
+  after(async () => {
+    // Drain test mutates the mockStore (6 pending → 0). Reset back
+    // to the seeded baseline so any later test that runs in the same
+    // workbench (today: nothing; tomorrow: maybe a consolidated suite)
+    // sees the same starting state the spec file's `before` did.
+    await browser.executeWorkbench(async (vscode: any) => {
+      await vscode.commands.executeCommand('openbox.resetMockData');
+    });
+  });
+
   it('shows the pending count + MOCK suffix when fixtures are loaded', async () => {
     const sb = await statusBar();
     // 6 fixtures + mock auth: "6 Pending · MOCK · staging"
