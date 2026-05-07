@@ -1,63 +1,24 @@
 import { isTokenExpired } from '../types/index.js';
-import { resolveClientName } from '../env/index.js';
-import type { TokenPair } from '../env/index.js';
+import { DEFAULT_API_URL, resolveClientName, buildAuthHeader } from '../env/index.js';
 import { TokenBucket } from './rate-limiter.js';
 import type {
   PaginationQuery,
   MetricsQuery,
   ApprovalListQuery,
   SessionListQuery,
-  AuditLogQuery,
-  ExportHistoryQuery,
   AivssConfig,
   GoalAlignmentConfig,
-  CreateAgentDto,
-  UpdateAgentDto,
-  CreateGuardrailDto,
   UpdateGuardrailDto,
-  CreatePolicyDto,
-  UpdatePolicyDto,
-  CreateBehaviorRuleDto,
   UpdateBehaviorRuleDto,
   TestGuardrailDto,
   EvaluateRegoDto,
-  UpdateOrgSettingsDto,
-  CreateUserDto,
-  UpdateMemberDto,
-  InviteUserDto,
-  UpdateTeamDto,
-  CreateTeamDto,
-  DeleteTeamsDto,
-  AddTeamMembersDto,
-  DeleteTeamMembersDto,
-  ExportAuditLogsDto,
-  PreviewExportDto,
-  GetAgentViolationsQuery,
-  ChangePasswordDto,
-  LoginDto,
-  ForgotPasswordDto,
-  ResetPasswordDto,
   CreateOrganizationDto,
-  SendWelcomeEmailDto,
-  CreateApiKeyDto,
-  UpdateApiKeyDto,
-  CreateWebhookDto,
-  UpdateWebhookDto,
-  ConfigureOidcDto,
-  ConfigureSamlDto,
-  EnforceSsoDto,
   PaginatedResponse,
   MessageResponse,
-  UserProfile,
-  UserRole,
   Agent,
-  CreateAgentResponse,
-  ApiKeyResponse,
   Guardrail,
-  Policy,
   BehaviorRule,
   Session,
-  TrustHistory,
   TrustEvent,
   TrustTierChange,
   Assessment,
@@ -65,17 +26,6 @@ import type {
   OrgApprovalsResponse,
   Violation,
   Organization,
-  OrgSettings,
-  Team,
-  Member,
-  AuditLog,
-  AuditExport,
-  ApiKey,
-  Webhook,
-  WebhookDelivery,
-  SsoStatus,
-  OrgFeatures,
-  CsrfToken,
 } from '../types/index.js';
 
 // ---------------------------------------------------------------------------
@@ -210,7 +160,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
       );
     }
     this.config = { ...config };
-    this.baseUrl = this.config.apiUrl ?? 'https://api.openbox.ai';
+    this.baseUrl = this.config.apiUrl ?? DEFAULT_API_URL;
     this.env = this.config.env ?? 'production';
     // Apply OPENBOX_CLIENT_VARIANT (if set) on top of the configured base name.
     // Lets a skill running inside Claude Code / Codex / Cursor identify itself
@@ -245,566 +195,28 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   // =========================================================================
 
 
-  async refreshTokens(): Promise<TokenPair> {
-    return this.httpPost('/auth/refresh', {
-      refreshToken: this.config.refreshToken,
-    }) as Promise<TokenPair>;
-  }
-
-  // Backend `LogoutDto` is an empty body; the bearer token identifies the
-  // session. Server-side invalidation plus local token wipe is the proper
-  // logout path; dropping tokens locally alone leaves the session live on
-  // Keycloak until the JWT expires.
-  async logout(): Promise<void> {
-    await this.httpPost('/auth/logout', {});
-  }
-
-
   /**
-   * Direct credential login. Bypasses the Keycloak browser redirect; useful
-   * for headless flows (CLI scripts, mobile sign-in screens, integration
-   * tests) where the caller already owns the username/password capture UI.
-   * Returns the same `{ accessToken, refreshToken }` pair the OAuth flow
-   * produces; persist them via the SDK's token store before further calls.
-   *
-   * The browser-redirect path (the one most apps actually use) lives outside
-   * the SDK by design; it's a Keycloak URL the host app navigates to and
-   * an OAuth code it captures on the way back. Once the code is exchanged,
-   * every subsequent backend call comes back through this client.
-   */
-
-  /**
-   * Trigger a password-reset email. The backend mails a single-use token
-   * to the address; the caller's UI prompts the user for that token + the
-   * new password and then calls `resetPassword`.
-   */
-
-  /**
-   * Complete the password-reset flow with the token from the email and the
-   * new password. The token is single-use and short-lived; failure means
-   * the caller should re-prompt for `forgotPassword`.
-   */
-
-  /**
-   * Service-health probe. Returns whatever the backend's AppController
-   * publishes at `/health`; typically `{ status: 'ok' }` plus version
-   * metadata. Use this for liveness checks; for build/version data prefer
-   * the static `OpenBoxClient.getVersion(baseUrl)` so you don't need a
-   * constructed client.
-   */
-  async getHealth(): Promise<unknown> {
-    return this.httpGet('/health');
-  }
-
-  // =========================================================================
-  // Organization onboarding
-  // =========================================================================
-
-  /**
-   * Provision a new organization. Public endpoint; no bearer token
-   * required, throttled to 10 requests per hour per IP. Used by the
-   * marketing-site signup form and by integration scripts that bootstrap
-   * test orgs against staging.
-   */
-  async registerOrganization(dto: CreateOrganizationDto): Promise<unknown> {
-    return this.httpPost('/organization/register', dto);
-  }
-
-  /**
-   * Re-fire the welcome email for a member. Admin-only path normally
-   * triggered server-side when a user is invited; surfaced here so admin
-   * tooling can resend without round-tripping through the dashboard.
-   */
-  async sendWelcomeEmail(orgId: string, dto: SendWelcomeEmailDto): Promise<unknown> {
-    return this.httpPost(`/organization/${orgId}/send-welcome-email`, dto);
-  }
-
   // =========================================================================
   // Agent CRUD
   // =========================================================================
 
-  async listAgents(query?: {
-    page?: number;
-    perPage?: number;
-    search?: string;
-    status?: number;
-    team_id?: string;
-    tiers?: string[];
-    owner_id?: string;
-  }): Promise<PaginatedResponse<Agent>> {
-    return this.httpGet('/agent/list', query) as Promise<PaginatedResponse<Agent>>;
-  }
+  // listAgents / registerOrganization come from the generated base.
 
 
+  // Every backend operation comes from the spec-emitted
+  // OpenBoxClientWrapperBase. The hand-written wrappers below are gone
+  // per the no-legacy-support rule; callers reach for the generated
+  // method directly. Where the spec under-declares a response (the
+  // generated method returns `unknown`), the call site casts through
+  // the wire-shape it depends on so the drift is visible at the use,
+  // not hidden in a hand-typed return.
 
 
 
-  // =========================================================================
-  // API Keys
-  // =========================================================================
-
-
-
-  // =========================================================================
-  // Guardrails
-  // =========================================================================
-
-  async listGuardrails(
-    agentId: string,
-    query?: PaginationQuery & { processing_stage?: string },
-  ): Promise<PaginatedResponse<Guardrail>> {
-    return this.httpGet(`/agent/${agentId}/guardrails`, query) as Promise<PaginatedResponse<Guardrail>>;
-  }
-
-
-
-  async updateGuardrail(
-    agentId: string,
-    guardrailId: string,
-    dto: UpdateGuardrailDto,
-  ): Promise<Guardrail> {
-    return this.httpPut(`/agent/${agentId}/guardrails/${guardrailId}`, dto) as Promise<Guardrail>;
-  }
-
-
-  // reorderGuardrail comes from the generated base; its body is `{ order }`.
-  // (Was previously a 3-arg wrapper that took `order` flat; consumers should
-  // now pass `{ order }` to match the spec.)
-
-  async getGuardrailMetrics(agentId: string, query?: MetricsQuery): Promise<unknown> {
-    return this.httpGet(`/agent/${agentId}/guardrails/metrics`, query);
-  }
-
-  async getGuardrailViolationLogs(
-    agentId: string,
-    query?: PaginationQuery & { fromTime?: string; toTime?: string; guardrail_type?: string },
-  ): Promise<PaginatedResponse<Violation>> {
-    return this.httpGet(`/agent/${agentId}/guardrails/violation-logs`, query) as Promise<
-      PaginatedResponse<Violation>
-    >;
-  }
-
-  async runGuardrailTest(dto: TestGuardrailDto): Promise<unknown> {
-    return this.httpPost('/guardrails/run-test', dto);
-  }
-
-  // =========================================================================
-  // Policies
-  // =========================================================================
-
-
-
-
-
-
-  async getPolicyEvaluations(
-    agentId: string,
-    policyId: string,
-    query?: PaginationQuery,
-  ): Promise<PaginatedResponse<unknown>> {
-    return this.httpGet(`/agent/${agentId}/policies/${policyId}/evaluations`, query) as Promise<
-      PaginatedResponse<unknown>
-    >;
-  }
-
-  async getPolicyMetrics(agentId: string, query?: MetricsQuery): Promise<unknown> {
-    return this.httpGet(`/agent/${agentId}/policies/metrics`, query);
-  }
-
-  async evaluateRego(dto: EvaluateRegoDto): Promise<unknown> {
-    return this.httpPost('/policy/evaluate', dto);
-  }
-
-  // =========================================================================
-  // Behavior Rules
-  // =========================================================================
-
-  async getSemanticTypes(): Promise<unknown> {
-    return this.httpGet('/agent/behavior-rule/semantic-types');
-  }
-
-  async listBehaviorRules(
-    agentId: string,
-    query?: PaginationQuery & { verdict?: number; is_active?: boolean; trigger?: string },
-  ): Promise<PaginatedResponse<BehaviorRule>> {
-    return this.httpGet(`/agent/${agentId}/behavior-rule`, query) as Promise<
-      PaginatedResponse<BehaviorRule>
-    >;
-  }
-
-
-
-
-  async updateBehaviorRule(
-    agentId: string,
-    ruleId: string,
-    dto: UpdateBehaviorRuleDto,
-  ): Promise<BehaviorRule> {
-    return this.httpPut(`/agent/${agentId}/behavior-rule/${ruleId}`, dto) as Promise<BehaviorRule>;
-  }
-
-
-
-  // toggleBehaviorRuleStatus: spec body is `{ is_active }`; call as
-  // `toggleBehaviorRuleStatus(agentId, ruleId, { is_active: true })`.
-  // Hand-written 3-arg ergonomic wrapper dropped per no-legacy-support.
-
-  async getBehaviorRuleVersions(
-    agentId: string,
-    groupId: string,
-    query?: PaginationQuery,
-  ): Promise<PaginatedResponse<BehaviorRule>> {
-    return this.httpGet(`/agent/${agentId}/behavior-rule/${groupId}/versions`, query) as Promise<
-      PaginatedResponse<BehaviorRule>
-    >;
-  }
-
-  async getBehaviorMetrics(agentId: string, query?: MetricsQuery): Promise<unknown> {
-    return this.httpGet(`/agent/${agentId}/behavior/metrics`, query);
-  }
-
-  async getBehaviorViolations(
-    agentId: string,
-    query?: PaginationQuery,
-  ): Promise<PaginatedResponse<Violation>> {
-    return this.httpGet(`/agent/${agentId}/behavior/violations`, query) as Promise<
-      PaginatedResponse<Violation>
-    >;
-  }
-
-  // =========================================================================
-  // Sessions
-  // =========================================================================
-
-  async listSessions(
-    agentId: string,
-    query?: SessionListQuery,
-  ): Promise<PaginatedResponse<Session>> {
-    return this.httpGet(`/agent/${agentId}/sessions`, query) as Promise<PaginatedResponse<Session>>;
-  }
-
-
-
-  async getSessionLogs(
-    agentId: string,
-    sessionId: string,
-    query?: PaginationQuery & { event_type?: string },
-  ): Promise<PaginatedResponse<unknown>> {
-    return this.httpGet(`/agent/${agentId}/sessions/${sessionId}/logs`, query) as Promise<
-      PaginatedResponse<unknown>
-    >;
-  }
-
-  async getSessionGoalAlignmentStats(agentId: string, sessionId: string): Promise<unknown> {
-    return this.httpGet(`/agent/${agentId}/sessions/${sessionId}/goal-alignment-stats`);
-  }
-
-  async getSessionReasoningTrace(agentId: string, sessionId: string): Promise<unknown> {
-    return this.httpGet(`/agent/${agentId}/sessions/${sessionId}/reasoning-trace`);
-  }
-
-  async terminateSession(agentId: string, sessionId: string): Promise<MessageResponse> {
-    return this.httpPatch(
-      `/agent/${agentId}/sessions/${sessionId}/terminate`,
-    ) as Promise<MessageResponse>;
-  }
-
-  // =========================================================================
-  // Trust
-  // =========================================================================
-
-  // getTrustHistories: spec query is a Record<string, unknown>; call as
-  // `getTrustHistories(agentId, { duration: '7d' })`.
-
-  async getTrustEvents(
-    agentId: string,
-    query?: PaginationQuery & { fromTime?: string; toTime?: string },
-  ): Promise<PaginatedResponse<TrustEvent>> {
-    return this.httpGet(`/agent/${agentId}/trust/events`, query) as Promise<
-      PaginatedResponse<TrustEvent>
-    >;
-  }
-
-  async getTrustTierChanges(
-    agentId: string,
-    query?: PaginationQuery & { fromTime?: string; toTime?: string },
-  ): Promise<PaginatedResponse<TrustTierChange>> {
-    return this.httpGet(`/agent/${agentId}/trust-tier-changes`, query) as Promise<
-      PaginatedResponse<TrustTierChange>
-    >;
-  }
-
-  async getTrustRecoveryStatus(agentId: string): Promise<unknown> {
-    return this.httpGet(`/agent/${agentId}/trust/recovery-status`);
-  }
-
-  // =========================================================================
-  // AIVSS
-  // =========================================================================
-
-  async getAssessments(
-    agentId: string,
-    query?: PaginationQuery & { fromTime?: string; toTime?: string },
-  ): Promise<PaginatedResponse<Assessment>> {
-    return this.httpGet(`/agent/${agentId}/assessments`, query) as Promise<
-      PaginatedResponse<Assessment>
-    >;
-  }
-
-  async updateAivssConfig(
-    agentId: string,
-    dto: { aivss_config: AivssConfig; reason: string },
-  ): Promise<unknown> {
-    return this.httpPut(`/agent/${agentId}/aivss`, dto);
-  }
-
-  async recalculateAivss(agentId: string): Promise<unknown> {
-    return this.httpPost(`/agent/${agentId}/aivss/recalculate`);
-  }
-
-  async calculateAivss(dto: AivssConfig): Promise<unknown> {
-    return this.httpPost('/agent/aivss', dto);
-  }
-
-  // =========================================================================
-  // Goal Alignment
-  // =========================================================================
-
-  async updateGoalAlignment(agentId: string, dto: GoalAlignmentConfig): Promise<unknown> {
-    return this.httpPut(`/agent/${agentId}/goal-alignment`, dto);
-  }
-
-  async getGoalAlignmentTrend(agentId: string, query?: MetricsQuery): Promise<unknown> {
-    return this.httpGet(`/agent/${agentId}/goal-alignment/trend`, query);
-  }
-
-  // getGoalAlignmentRecentDrifts: spec query is a Record<string, unknown> .
-  // call as `getGoalAlignmentRecentDrifts(agentId, { limit: 10 })`.
-
-  // =========================================================================
-  // Approvals
-  // =========================================================================
-
-  async getApprovalMetrics(agentId: string, query?: MetricsQuery): Promise<unknown> {
-    return this.httpGet(`/agent/${agentId}/approvals/metrics`, query);
-  }
-
-  async getPendingApprovals(
-    agentId: string,
-    query?: ApprovalListQuery,
-  ): Promise<PaginatedResponse<Approval>> {
-    return this.httpGet(`/agent/${agentId}/approvals/pending`, query) as Promise<
-      PaginatedResponse<Approval>
-    >;
-  }
-
-  async getApprovalHistory(
-    agentId: string,
-    query?: ApprovalListQuery,
-  ): Promise<PaginatedResponse<Approval>> {
-    return this.httpGet(`/agent/${agentId}/approvals/history`, query) as Promise<
-      PaginatedResponse<Approval>
-    >;
-  }
-
-  // decideApproval comes from the generated base. The spec types its body as
-  // a query param object; call as `decideApproval(agentId, eventId, { action: 'approve' })`.
-
-  // =========================================================================
-  // Observability
-  // =========================================================================
-
-  async getObservability(
-    agentId: string,
-    query?: { fromTime?: string; toTime?: string },
-  ): Promise<unknown> {
-    return this.httpGet(`/agent/${agentId}/observability`, query);
-  }
-
-
-  async getInsightsMetrics(agentId: string, query?: MetricsQuery): Promise<unknown> {
-    return this.httpGet(`/agent/${agentId}/insights/metrics`, query);
-  }
-
-  async getAgentLogs(
-    agentId: string,
-    query?: PaginationQuery,
-  ): Promise<PaginatedResponse<unknown>> {
-    return this.httpGet(`/agent/${agentId}/logs`, query) as Promise<PaginatedResponse<unknown>>;
-  }
-
-  async getDriftLogs(
-    agentId: string,
-    query?: PaginationQuery,
-  ): Promise<PaginatedResponse<unknown>> {
-    return this.httpGet(`/agent/${agentId}/logs/drift`, query) as Promise<PaginatedResponse<unknown>>;
-  }
-
-  async getAgentMetrics(): Promise<unknown> {
-    return this.httpGet('/agent/metrics');
-  }
-
-  // =========================================================================
-  // Violations
-  // =========================================================================
-
-
-  async getAgentViolations(
-    agentId: string,
-    query?: GetAgentViolationsQuery,
-  ): Promise<PaginatedResponse<Violation>> {
-    // Backend controller uses `@Body()` on a GET route; unusual, and Node's
-    // fetch (and the HTTP spec) forbids GET-with-body. We send the filters as
-    // query params instead; backend ignores them today, but at least the call
-    // reaches the server and returns the full list instead of a client-side
-    // "Request with GET/HEAD method cannot have body" TypeError. Filters
-    // (pattern / sourceType) are functionally dropped until the backend moves
-    // to `@Query()`; document as a known limitation in the CLI command.
-    return this.httpGet(`/agent/${agentId}/violations`, query) as Promise<
-      PaginatedResponse<Violation>
-    >;
-  }
-
-  // markFalsePositive: spec body is `{ sourceType }`; call as
-  // `markFalsePositive(agentId, violationId, { sourceType: '...' })`.
-
-  // =========================================================================
-  // Organization
-  // =========================================================================
-
-
-
-
-  async getDashboard(
-    orgId: string,
-    query?: { fromTime?: string; toTime?: string },
-  ): Promise<unknown> {
-    return this.httpGet(`/organization/${orgId}/dashboard`, query);
-  }
-
-  async getDashboardTierTrends(orgId: string): Promise<unknown> {
-    return this.httpGet(`/organization/${orgId}/dashboard/tier-trends`);
-  }
-
-  async getOrgSessions(
-    orgId: string,
-    query?: SessionListQuery,
-  ): Promise<PaginatedResponse<Session>> {
-    return this.httpGet(`/organization/${orgId}/sessions`, query) as Promise<
-      PaginatedResponse<Session>
-    >;
-  }
-
-  // Backend returns `{ approvals: PaginatedResponse<Approval>, metrics }`
-  // here, NOT a flat PaginatedResponse; list + count queries run in
-  // parallel server-side and both surface (organization.service.ts:487).
-  async getOrgApprovals(
-    orgId: string,
-    query?: ApprovalListQuery,
-  ): Promise<OrgApprovalsResponse> {
-    return this.httpGet(`/organization/${orgId}/approvals`, query) as Promise<
-      OrgApprovalsResponse
-    >;
-  }
-
-  async getOrgApprovalMetrics(orgId: string, query?: MetricsQuery): Promise<unknown> {
-    return this.httpGet(`/organization/${orgId}/approvals/metrics`, query);
-  }
-
-  async getOrgApprovalSla(orgId: string): Promise<unknown> {
-    return this.httpGet(`/organization/${orgId}/approvals/sla`);
-  }
-
-  async getOrgApprovalHistory(
-    orgId: string,
-    query?: PaginationQuery,
-  ): Promise<PaginatedResponse<Approval>> {
-    return this.httpGet(`/organization/${orgId}/approvals/history`, query) as Promise<
-      PaginatedResponse<Approval>
-    >;
-  }
-
-  // =========================================================================
-  // Teams
-  // =========================================================================
-
-
-  async getTeamStats(orgId: string): Promise<unknown> {
-    return this.httpGet(`/organization/${orgId}/teams/stats`);
-  }
-
-
-
-  async getTeamMembers(
-    orgId: string,
-    teamId: string,
-    query?: PaginationQuery,
-  ): Promise<PaginatedResponse<Member>> {
-    return this.httpGet(`/organization/${orgId}/teams/${teamId}/members`, query) as Promise<
-      PaginatedResponse<Member>
-    >;
-  }
-
-
-  async deleteTeams(orgId: string, dto: DeleteTeamsDto): Promise<unknown> {
-    // DELETE with body; backend takes `{ids: string[]}` in the request body.
-    return this.request('DELETE', `/organization/${orgId}/teams`, { data: dto });
-  }
-
-  async addTeamMembers(
-    orgId: string,
-    teamId: string,
-    dto: AddTeamMembersDto,
-  ): Promise<unknown> {
-    return this.httpPost(`/organization/${orgId}/teams/${teamId}/members`, dto);
-  }
-
-  async removeTeamMembers(
-    orgId: string,
-    teamId: string,
-    dto: DeleteTeamMembersDto,
-  ): Promise<unknown> {
-    return this.request('DELETE', `/organization/${orgId}/teams/${teamId}/members`, {
-      data: dto,
-    });
-  }
-
-  // =========================================================================
-  // Members
-  // =========================================================================
-
-
-
-
-  // assignRoles / removeRoles / removeMembers come from the generated base.
-  // The spec types each body as `{ roles }` / `{ memberIds }`; call as
-  // `assignRoles(orgId, userId, { roles: ['admin'] })` rather than passing
-  // the array flat.
-
-
-  // =========================================================================
-  // Audit Logs
-  // =========================================================================
-
-
-
-
-  async previewAuditExport(dto: PreviewExportDto): Promise<unknown> {
-    return this.httpPost('/organization/audit-logs/export/preview', dto);
-  }
-
-  async getExportHistory(query?: ExportHistoryQuery): Promise<PaginatedResponse<AuditExport>> {
-    return this.httpGet('/organization/audit-logs/exports', query) as Promise<
-      PaginatedResponse<AuditExport>
-    >;
-  }
-
-
-  async downloadExport(exportId: string): Promise<unknown> {
-    return this.httpGet(`/organization/audit-logs/export/${exportId}/download`);
-  }
-
-
+  // ---- removed: every method here was a hand-written wrapper around
+  // the generated typed method on OpenBoxClientWrapperBase. After the
+  // ResponseOf<> emitter fix the generated methods carry the real
+  // response types; the legacy wrappers are gone.
   // =========================================================================
   // User
   // =========================================================================
@@ -856,14 +268,6 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   }
 
   // =========================================================================
-  // Health
-  // =========================================================================
-
-  async health(): Promise<unknown> {
-    return this.httpGet('/health');
-  }
-
-  // =========================================================================
   // API keys; live backend, org-scoped, gated on create/read/update/delete:api_key
   // =========================================================================
 
@@ -881,50 +285,9 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
 
 
 
-  async getWebhookDeliveries(
-    id: string,
-    query?: PaginationQuery,
-  ): Promise<PaginatedResponse<WebhookDelivery>> {
-    return this.httpGet(`/webhook/${id}/deliveries`, query) as Promise<
-      PaginatedResponse<WebhookDelivery>
-    >;
-  }
-
-  async regenerateWebhookSecret(id: string): Promise<{ secret: string } & MessageResponse> {
-    return this.httpPost(`/webhook/${id}/regenerate-secret`) as Promise<
-      { secret: string } & MessageResponse
-    >;
-  }
 
 
   // =========================================================================
-  // SSO; live backend, gated on manage:sso
-  // =========================================================================
-
-  async getSsoConfig(): Promise<unknown> {
-    return this.httpGet('/sso');
-  }
-
-
-
-  async getSsoMetadata(): Promise<unknown> {
-    return this.httpGet('/sso/metadata');
-  }
-
-
-
-
-
-  // =========================================================================
-  // Miscellaneous live-backend endpoints (unwrapped pre-port)
-  // =========================================================================
-
-
-  async getDemoSetupStatus(): Promise<unknown> {
-    return this.httpGet('/organization/demo-setup-status');
-  }
-
-
   // =========================================================================
   // Private helpers
   // =========================================================================
@@ -1166,13 +529,13 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     const buildOptions = (): { init: RequestInit; cancel: () => void } => {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
-      // Prefer X-API-Key when an apiKey is configured; backend's
-      // jwt-auth.guard.ts accepts either header, but X-API-Key bypasses
-      // the JWT/Keycloak codepath entirely (cleaner CLI auth mode).
-      // Bearer JWT is the fallback for the OAuth/login flow.
-      const authHeader: Record<string, string> = this.config.apiKey
-        ? { 'X-API-Key': this.config.apiKey }
-        : { Authorization: `Bearer ${this.config.accessToken}` };
+      // X-API-Key wins over Bearer when both are set; the SDK's
+      // canonical buildAuthHeader keeps this in lockstep with the
+      // MCP server (and any future fetch-level consumer).
+      const authHeader = buildAuthHeader({
+        apiKey: this.config.apiKey,
+        accessToken: this.config.accessToken,
+      });
       return {
         init: {
           method,

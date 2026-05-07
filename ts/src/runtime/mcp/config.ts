@@ -21,13 +21,14 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import * as os from "os";
 import {
   ENVIRONMENTS,
   parseTokenStore,
   resolveClientName,
+  buildAuthHeader,
   type EnvName,
 } from "../../env/index.js";
+import { resolveOsPath } from "../../env/os-paths.js";
 
 // Tests import this. Same shape as before, sourced from the SDK.
 export const ENV_DEFAULTS: Record<EnvName, { api: string; core: string }> = {
@@ -72,7 +73,7 @@ export function readTokens(
   let p = opts.tokensPath;
   if (!p) {
     const local = path.resolve(".tokens");
-    const home = path.join(os.homedir(), ".openbox", "tokens");
+    const home = resolveOsPath("tokens");
     p = fs.existsSync(local) ? local : home;
   }
   if (!fs.existsSync(p)) {
@@ -126,9 +127,10 @@ export function createApi(opts: { envName?: string; tokensPath?: string } = {}) 
       cachedApiKey = tok.apiKey;
       cachedAccess = tok.access;
     }
-    const authHeader: Record<string, string> = cachedApiKey
-      ? { "X-API-Key": cachedApiKey }
-      : { Authorization: `Bearer ${cachedAccess}` };
+    const authHeader = buildAuthHeader({
+      apiKey: cachedApiKey,
+      accessToken: cachedAccess,
+    });
     const res = await fetch(`${env.apiUrl}${urlPath}`, {
       method,
       headers: {
