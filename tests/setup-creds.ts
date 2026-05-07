@@ -45,6 +45,18 @@ function populateUrls(): void {
   if (!process.env.OPENBOX_CORE_URL) process.env.OPENBOX_CORE_URL = DEFAULT_CORE_URL;
 }
 
+function unlockExperimentalCli(): void {
+  // The cli-commands suite shells out to the openbox binary as a
+  // subprocess. The CLI gates org / team / behavior / etc. behind
+  // --experimental to prevent accidental use; e2e is exactly the
+  // case the gate is designed to allow. Unlock at the parent-process
+  // level so spawned subprocesses inherit the level rather than
+  // threading --experimental through every runCli call.
+  if (!process.env.OPENBOX_EXPERIMENTAL_LEVEL) {
+    process.env.OPENBOX_EXPERIMENTAL_LEVEL = 'experimental';
+  }
+}
+
 function loadBackendKey(): void {
   // If the env var is already set with the right shape, trust it
   // (CI override path). Wrong shape = stale shell export from
@@ -112,6 +124,7 @@ async function populateOrgId(): Promise<void> {
 }
 
 populateUrls();
+unlockExperimentalCli();
 loadBackendKey();
 loadCoreRuntimeKey();
 await populateOrgId();

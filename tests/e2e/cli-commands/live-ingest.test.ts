@@ -20,15 +20,11 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { runCli } from '../helpers/cli-runner.js';
-import { existsSync } from 'fs';
-import { resolve } from 'path';
 import { randomUUID } from 'crypto';
 
 const CORE_URL = process.env.OPENBOX_CORE_URL || 'http://localhost:8086';
 
-const CAN_RUN = existsSync(resolve(__dirname, '../../../dist/index.js'))
-  && existsSync(resolve(__dirname, '../../../.tokens'))
-  && !!process.env.OPENBOX_ORG_ID;
+import { CAN_RUN_CLI as CAN_RUN } from './can-run.js';
 
 async function coreReachable(): Promise<boolean> {
   try {

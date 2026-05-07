@@ -3,12 +3,8 @@
 
 import { describe, it, expect, afterAll } from 'vitest';
 import { runCli } from '../helpers/cli-runner.js';
-import { existsSync } from 'fs';
-import { resolve } from 'path';
 
-const CAN_RUN = existsSync(resolve(__dirname, '../../../dist/index.js'))
-  && existsSync(resolve(__dirname, '../../../.tokens'))
-  && !!process.env.OPENBOX_ORG_ID;
+import { CAN_RUN_CLI as CAN_RUN } from './can-run.js';
 
 const describeOrSkip = CAN_RUN ? describe : describe.skip;
 

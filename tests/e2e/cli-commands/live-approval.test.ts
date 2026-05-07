@@ -26,8 +26,6 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { runCli } from '../helpers/cli-runner.js';
-import { existsSync } from 'fs';
-import { resolve } from 'path';
 import { randomUUID } from 'crypto';
 
 const CORE_URL = process.env.OPENBOX_CORE_URL || 'http://localhost:8086';
@@ -42,11 +40,8 @@ const OPA_PULL_WAIT_MS = Number(process.env.OPA_PULL_WAIT_MS || 8000);
 const apiUrl = process.env.OPENBOX_API_URL || 'https://api.openbox.ai';
 const isLocalStack =
   apiUrl.includes('localhost') || apiUrl.includes('127.0.0.1');
-const CAN_RUN =
-  existsSync(resolve(__dirname, '../../../dist/index.js')) &&
-  existsSync(resolve(__dirname, '../../../.tokens')) &&
-  !!process.env.OPENBOX_ORG_ID &&
-  isLocalStack;
+import { CAN_RUN_CLI } from './can-run.js';
+const CAN_RUN = CAN_RUN_CLI && isLocalStack;
 
 async function reachable(url: string): Promise<boolean> {
   try {
