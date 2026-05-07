@@ -12,9 +12,15 @@ describe('Auth Endpoints', () => {
     const profile = body.data;
     expect(profile).toHaveProperty('sub');
     expect(profile).toHaveProperty('orgId');
-    expect(profile).toHaveProperty('email');
     expect(profile).toHaveProperty('permissions');
     expect(Array.isArray(profile.permissions)).toBe(true);
+    // X-API-Key auth surfaces a synthetic principal: sub starts with
+    // `api-key:`, isApiKeyAuth is true, no email. JWT auth surfaces a
+    // human user: sub is a UUID, email is set, isApiKeyAuth is absent.
+    // SDK e2e dogfoods X-API-Key (mobile is the only sanctioned JWT
+    // consumer) so assert the api-key shape here.
+    expect(profile.sub).toMatch(/^api-key:/);
+    expect(profile.isApiKeyAuth).toBe(true);
   });
 
   it('POST /auth/login with empty body returns 422 with validation errors', async () => {
