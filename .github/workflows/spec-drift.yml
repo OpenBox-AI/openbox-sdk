@@ -21,7 +21,7 @@ on:
   # pull_request:
   #   paths:
   #     - 'specs/typespec/**'
-  #     - 'scripts/spec-drift.mjs'
+  #     - 'scripts/spec-drift.ts'
   #     - '.github/workflows/spec-drift.yml'
   # schedule:
   #   - cron: '0 6 * * *' # 06:00 UTC daily
@@ -61,7 +61,7 @@ jobs:
       - if: steps.gate.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - if: steps.gate.outputs.skip != 'true'
@@ -75,12 +75,12 @@ jobs:
         env:
           OPENBOX_STAGING_API_URL: ${{ secrets.OPENBOX_STAGING_API_URL }}
           GH_TOKEN: ${{ secrets.UPSTREAM_REPO_TOKEN }}
-        run: node scripts/spec-drift.mjs fetch --service ${{ matrix.service }} --tier ${{ matrix.tier }}
+        run: node --experimental-strip-types scripts/spec-drift.ts fetch --service ${{ matrix.service }} --tier ${{ matrix.tier }}
 
       - if: steps.gate.outputs.skip != 'true'
         id: diff
         name: Diff
-        run: node scripts/spec-drift.mjs diff --service ${{ matrix.service }} --tier ${{ matrix.tier }}
+        run: node --experimental-strip-types scripts/spec-drift.ts diff --service ${{ matrix.service }} --tier ${{ matrix.tier }}
 
       - if: steps.gate.outputs.skip != 'true'
         uses: actions/upload-artifact@v4

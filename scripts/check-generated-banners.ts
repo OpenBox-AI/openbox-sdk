@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --experimental-strip-types
 // Guard: every file under a `generated/` directory anywhere in the
 // monorepo MUST start with the AUTO-GENERATED banner emitted by
 // codegen/emitters/. Catches:
@@ -7,7 +7,7 @@
 //   - copy-paste from a generated file into a sibling location
 //
 // Run via:
-//   node scripts/check-generated-banners.mjs
+//   node --experimental-strip-types scripts/check-generated-banners.ts
 // or:
 //   npm run lint:generated-banners
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --experimental-strip-types
 // Spec-drift detector. Compares specs/typespec/ (compiled to
 // specs/generated/openapi3/Openbox{Backend,Core}.json) against:
 //   - prod/staging deployed swagger endpoints (via curl)
@@ -276,8 +276,8 @@ function usage(msg) {
   if (msg) stderr.write(`error: ${msg}\n\n`);
   stderr.write(
     'usage:\n' +
-      '  scripts/spec-drift.mjs fetch --service <backend|core> --tier <prod|staging|develop|main>\n' +
-      '  scripts/spec-drift.mjs diff  --service <backend|core> --tier <prod|staging|develop|main>\n',
+      '  scripts/spec-drift.ts fetch --service <backend|core> --tier <prod|staging|develop|main>\n' +
+      '  scripts/spec-drift.ts diff  --service <backend|core> --tier <prod|staging|develop|main>\n',
   );
   exit(1);
 }
