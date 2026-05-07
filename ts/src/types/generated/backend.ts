@@ -1855,6 +1855,22 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * @description AIVSS calculation result from POST /agent/aivss. Computed from the
+         *     request body's AivssConfig; no persistence.
+         */
+        AivssCalculationResult: {
+            /** Format: double */
+            aivss_score: number;
+            breakdown: {
+                [key: string]: number;
+            };
+            /** Format: double */
+            trust_score: number;
+            /** Format: int32 */
+            trust_tier: number;
+            trust_tier_name: string;
+        };
         AivssConfigDto: {
             /** @description Base Security parameters (25% weight) */
             base_security: components["schemas"]["BaseSecurityDto"];
@@ -2563,6 +2579,19 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /** @description Team-stats shape from /organization/{orgId}/teams/stats. */
+        TeamStats: {
+            /** Format: int32 */
+            total_teams: number;
+            /** Format: int32 */
+            new_teams_this_month: number;
+            /** Format: int32 */
+            total_agents: number;
+            /** Format: int32 */
+            active_agents: number;
+            /** Format: int32 */
+            total_team_members: number;
+        };
         TestGuardrailDto: {
             guardrail_type?: string;
             params?: Record<string, never>;
@@ -2895,12 +2924,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The request has succeeded and a new resource has been created as a result. */
-            201: {
+            /** @description The request has succeeded. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AivssCalculationResult"];
+                };
             };
         };
     };
@@ -3137,7 +3168,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Agent"];
+                };
             };
         };
     };
@@ -3152,12 +3185,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The request has succeeded and a new resource has been created as a result. */
-            201: {
+            /** @description The request has succeeded. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "text/plain": string;
+                };
             };
         };
     };
@@ -3653,7 +3688,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Agent"];
+                };
             };
         };
     };
@@ -5897,7 +5934,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
             };
         };
     };
@@ -5917,7 +5956,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TeamStats"];
+                };
             };
         };
     };
@@ -6020,12 +6061,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The request has succeeded and a new resource has been created as a result. */
-            201: {
+            /** @description The request has succeeded. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
             };
         };
     };
@@ -6050,7 +6093,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
             };
         };
     };

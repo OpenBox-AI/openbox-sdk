@@ -60,7 +60,7 @@ impl OpenBoxClient {
         self.request_get("/agent/list", None::<&()>, query).await
     }
 
-    pub async fn calculate_aivss(&self, body: &AivssConfigDto) -> Result<serde_json::Value, ApiError> {
+    pub async fn calculate_aivss(&self, body: &AivssConfigDto) -> Result<AivssCalculationResult, ApiError> {
         self.request_post("/agent/aivss", Some(body), None::<&serde_json::Value>).await
     }
 
@@ -100,15 +100,15 @@ impl OpenBoxClient {
         self.request_get(&format!("/agent/{}/assessments", agent_id), None::<&()>, query).await
     }
 
-    pub async fn update_aivss_config(&self, agent_id: &str, body: &UpdateAgentAivssConfigDto) -> Result<serde_json::Value, ApiError> {
+    pub async fn update_aivss_config(&self, agent_id: &str, body: &UpdateAgentAivssConfigDto) -> Result<Agent, ApiError> {
         self.request_put(&format!("/agent/{}/aivss", agent_id), Some(body), None::<&serde_json::Value>).await
     }
 
-    pub async fn update_goal_alignment(&self, agent_id: &str, body: &GoalAlignmentConfigDto) -> Result<serde_json::Value, ApiError> {
+    pub async fn update_goal_alignment(&self, agent_id: &str, body: &GoalAlignmentConfigDto) -> Result<Agent, ApiError> {
         self.request_put(&format!("/agent/{}/goal-alignment", agent_id), Some(body), None::<&serde_json::Value>).await
     }
 
-    pub async fn recalculate_aivss(&self, agent_id: &str) -> Result<serde_json::Value, ApiError> {
+    pub async fn recalculate_aivss(&self, agent_id: &str) -> Result<String, ApiError> {
         self.request_post(&format!("/agent/{}/aivss/recalculate", agent_id), None::<&()>, None::<&serde_json::Value>).await
     }
 
@@ -400,7 +400,7 @@ impl OpenBoxClient {
         self.request_put(&format!("/organization/{}/members/{}", organization_id, user_id), Some(body), None::<&serde_json::Value>).await
     }
 
-    pub async fn delete_teams(&self, organization_id: &str, body: &DeleteTeamsDto) -> Result<serde_json::Value, ApiError> {
+    pub async fn delete_teams(&self, organization_id: &str, body: &DeleteTeamsDto) -> Result<MessageResponse, ApiError> {
         self.request_delete(&format!("/organization/{}/teams", organization_id), Some(body), None::<&serde_json::Value>).await
     }
 
@@ -412,7 +412,7 @@ impl OpenBoxClient {
         self.request_post(&format!("/organization/{}/teams", organization_id), Some(body), None::<&serde_json::Value>).await
     }
 
-    pub async fn get_team_stats(&self, organization_id: &str) -> Result<serde_json::Value, ApiError> {
+    pub async fn get_team_stats(&self, organization_id: &str) -> Result<TeamStats, ApiError> {
         self.request_get(&format!("/organization/{}/teams/stats", organization_id), None::<&()>, None::<&serde_json::Value>).await
     }
 
@@ -424,7 +424,7 @@ impl OpenBoxClient {
         self.request_put(&format!("/organization/{}/teams/{}", organization_id, team_id), Some(body), None::<&serde_json::Value>).await
     }
 
-    pub async fn remove_team_members(&self, organization_id: &str, team_id: &str, body: &DeleteTeamMembersDto) -> Result<serde_json::Value, ApiError> {
+    pub async fn remove_team_members(&self, organization_id: &str, team_id: &str, body: &DeleteTeamMembersDto) -> Result<MessageResponse, ApiError> {
         self.request_delete(&format!("/organization/{}/teams/{}/members", organization_id, team_id), Some(body), None::<&serde_json::Value>).await
     }
 
@@ -432,7 +432,7 @@ impl OpenBoxClient {
         self.request_get(&format!("/organization/{}/teams/{}/members", organization_id, team_id), None::<&()>, query).await
     }
 
-    pub async fn add_team_members(&self, organization_id: &str, team_id: &str, body: &AddTeamMembersDto) -> Result<serde_json::Value, ApiError> {
+    pub async fn add_team_members(&self, organization_id: &str, team_id: &str, body: &AddTeamMembersDto) -> Result<MessageResponse, ApiError> {
         self.request_post(&format!("/organization/{}/teams/{}/members", organization_id, team_id), Some(body), None::<&serde_json::Value>).await
     }
 

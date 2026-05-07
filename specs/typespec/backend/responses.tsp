@@ -533,3 +533,22 @@ model TrustRecoveryStatus {
     fully_clean_in: int32;
   };
 }
+
+/** AIVSS calculation result from POST /agent/aivss. Computed from the
+ *  request body's AivssConfig; no persistence. */
+model AivssCalculationResult {
+  aivss_score: float64;
+  breakdown: Record<float64>;
+  trust_score: float64;
+  trust_tier: int32;
+  trust_tier_name: string;
+}
+
+/** Team-stats shape from /organization/{orgId}/teams/stats. */
+model TeamStats {
+  total_teams: int32;
+  new_teams_this_month: int32;
+  total_agents: int32;
+  active_agents: int32;
+  total_team_members: int32;
+}

@@ -931,7 +931,7 @@ op AgentController_getAgents(
 @tag("Agent")
 @route("/agent/aivss")
 @post
-op AgentController_getAivssScore(@body body: AivssConfigDto): CreatedResponse;
+op AgentController_getAivssScore(@body body: AivssConfigDto): Body<AivssCalculationResult>;
 
 @tag("Agent")
 @route("/agent/create")
@@ -1021,7 +1021,7 @@ op AgentController_getAssessments(
 op AgentController_updateAivssConfig(
   @path agentId: string,
   @body body: UpdateAgentAivssConfigDto,
-): OkResponse;
+): Body<Agent>;
 
 @tag("Agent")
 @route("/agent/{agentId}/goal-alignment")
@@ -1029,12 +1029,12 @@ op AgentController_updateAivssConfig(
 op AgentController_updateGoalAlignmentConfig(
   @path agentId: string,
   @body body: GoalAlignmentConfigDto,
-): OkResponse;
+): Body<Agent>;
 
 @tag("Agent")
 @route("/agent/{agentId}/aivss/recalculate")
 @post
-op AgentController_recalculateTrustScore(@path agentId: string): CreatedResponse;
+op AgentController_recalculateTrustScore(@path agentId: string): Body<string>;
 
 @tag("Agent")
 @route("/agent/{agentId}/guardrails")
@@ -1781,7 +1781,7 @@ op OrganizationController_updateMember(
 op OrganizationController_deleteTeams(
   @path organizationId: string,
   @body body: DeleteTeamsDto,
-): OkResponse;
+): Body<MessageResponse>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/teams")
@@ -1807,7 +1807,7 @@ op OrganizationController_createTeam(
 @tag("Organization")
 @route("/organization/{organizationId}/teams/stats")
 @get
-op OrganizationController_getTeamStats(@path organizationId: string): OkResponse;
+op OrganizationController_getTeamStats(@path organizationId: string): Body<TeamStats>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/teams/{teamId}")
@@ -1830,7 +1830,7 @@ op OrganizationController_removeTeamMembers(
   @path organizationId: string,
   @path teamId: string,
   @body body: DeleteTeamMembersDto,
-): OkResponse;
+): Body<MessageResponse>;
 
 @tag("Organization")
 @route("/organization/{organizationId}/teams/{teamId}/members")
@@ -1853,7 +1853,7 @@ op OrganizationController_addMembers(
   @path organizationId: string,
   @path teamId: string,
   @body body: AddTeamMembersDto,
-): CreatedResponse;
+): Body<MessageResponse>;
 
 @tag("Organization")
 @route("/organization/audit-logs")

@@ -830,6 +830,17 @@ pub struct Agent {
     pub updated_at: Option<String>,
 }
 
+/// AIVSS calculation result from POST /agent/aivss. Computed from the
+/// request body's AivssConfig; no persistence.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AivssCalculationResult {
+    pub aivss_score: f64,
+    pub breakdown: std::collections::HashMap<String, f64>,
+    pub trust_score: f64,
+    pub trust_tier: i32,
+    pub trust_tier_name: String,
+}
+
 /// `POST /agent/create` returns the agent + the runtime API key. The
 /// key is returned ONCE at this moment; it's never recoverable from
 /// `agent get` later. Consumers must persist it immediately.
@@ -1159,6 +1170,16 @@ pub struct Team {
     pub description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+}
+
+/// Team-stats shape from /organization/{orgId}/teams/stats.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamStats {
+    pub total_teams: i32,
+    pub new_teams_this_month: i32,
+    pub total_agents: i32,
+    pub active_agents: i32,
+    pub total_team_members: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
