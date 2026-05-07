@@ -404,9 +404,31 @@ function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSp
   lines.push(
     `  Paths[P][V] extends { requestBody?: { content: { 'application/json': infer B } } } ? B : never;`,
   );
+  // Most endpoints return ONE of 200/201; the prior `Record<200 | 201, ...>`
+  // required BOTH keys to be present and silently fell through to `unknown`
+  // for every endpoint that returns just 200, erasing the typed response.
+  // Match each status individually instead.
   lines.push(`type ResponseOf<P extends keyof Paths, V extends keyof Paths[P]> =`);
   lines.push(
-    `  Paths[P][V] extends { responses: infer R } ? R extends Record<200 | 201, { content: { 'application/json': infer J } }> ? J : R extends Record<200 | 201, infer N> ? (N extends { description?: string } ? unknown : never) : unknown : unknown;`,
+    `  Paths[P][V] extends { responses: infer R }`,
+  );
+  lines.push(
+    `    ? R extends { 200: { content: { 'application/json': infer J } } } ? J`,
+  );
+  lines.push(
+    `    : R extends { 201: { content: { 'application/json': infer J } } } ? J`,
+  );
+  lines.push(
+    `    : R extends { 200: unknown } ? unknown`,
+  );
+  lines.push(
+    `    : R extends { 201: unknown } ? unknown`,
+  );
+  lines.push(
+    `    : unknown`,
+  );
+  lines.push(
+    `    : unknown;`,
   );
   lines.push('');
 
@@ -587,6 +609,7 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
 >;`,
     '',
   ]);
+
 
   // Generate the env-var binding table from @env_var decorators across
   // RuntimeConfig (URLs) + Credentials (api key) + CliRuntimeConfig

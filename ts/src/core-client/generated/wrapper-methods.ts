@@ -5,7 +5,14 @@ type Paths = Core.paths;
 type RequestBodyOf<P extends keyof Paths, V extends keyof Paths[P]> =
   Paths[P][V] extends { requestBody?: { content: { 'application/json': infer B } } } ? B : never;
 type ResponseOf<P extends keyof Paths, V extends keyof Paths[P]> =
-  Paths[P][V] extends { responses: infer R } ? R extends Record<200 | 201, { content: { 'application/json': infer J } }> ? J : R extends Record<200 | 201, infer N> ? (N extends { description?: string } ? unknown : never) : unknown : unknown;
+  Paths[P][V] extends { responses: infer R }
+
+    ? R extends { 200: { content: { 'application/json': infer J } } } ? J
+    : R extends { 201: { content: { 'application/json': infer J } } } ? J
+    : R extends { 200: unknown } ? unknown
+    : R extends { 201: unknown } ? unknown
+    : unknown
+    : unknown;
 /**
  * AUTO-GENERATED wrapper base class; every HTTP operation declared on
  * the OpenboxCore TypeSpec namespace becomes a typed method here.
