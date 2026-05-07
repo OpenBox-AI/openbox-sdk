@@ -466,6 +466,24 @@ type _Permission = NonNullable<
 const _permissionDriftCheck: readonly _Permission[] = ALL_PERMISSIONS;
 void _permissionDriftCheck;
 
+/** Permissions an org X-API-Key may hold. Backend's API-key creation
+ *  excludes api_key CRUD + manage:sso to prevent self-escalation
+ *  (api-key.constants.ts: API_KEY_EXCLUDED_PERMISSIONS). The spec
+ *  doesn't currently express this narrower constraint - the
+ *  CreateApiKeyDto.permissions field is typed as the FULL Permission
+ *  union, but the runtime IsIn validator rejects the excluded set.
+ *  Bootstrap + installer tooling mints keys against this list. */
+const API_KEY_EXCLUDED_PERMISSIONS = new Set<string>([
+  'create:api_key',
+  'read:api_key',
+  'update:api_key',
+  'delete:api_key',
+  'manage:sso',
+]);
+export const API_KEY_GRANTABLE_PERMISSIONS = ALL_PERMISSIONS.filter(
+  (p) => !API_KEY_EXCLUDED_PERMISSIONS.has(p),
+);
+
 /** Mirrors the live `BehaviorRuleTrigger` enum the backend persists. */
 export const BEHAVIOR_TRIGGER_ENUM = [
   'http_get', 'http_post', 'http_put', 'http_patch', 'http_delete', 'http',
