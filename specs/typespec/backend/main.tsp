@@ -846,7 +846,7 @@ model EnforceSsoDto {}
 @tag("Health")
 @route("/health")
 @get
-op AppController_getHello(): OkResponse;
+op AppController_getHello(): Body<string>;
 
 @tag("Auth")
 @route("/auth/profile")

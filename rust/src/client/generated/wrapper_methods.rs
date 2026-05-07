@@ -8,7 +8,7 @@ use crate::types::*;
 use crate::client::{OpenBoxClient, ApiError};
 
 impl OpenBoxClient {
-    pub async fn health(&self) -> Result<serde_json::Value, ApiError> {
+    pub async fn health(&self) -> Result<String, ApiError> {
         self.request_get("/health", None::<&()>, None::<&serde_json::Value>).await
     }
 
