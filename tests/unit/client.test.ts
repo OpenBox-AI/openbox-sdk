@@ -364,11 +364,15 @@ describe('OpenBoxClient', () => {
   // Token refresh
   // =========================================================================
 
-  // Auto-refresh is currently disabled (OpenBoxClient.REFRESH_ENABLED = false)
-  // pending upstream /auth/refresh fixes. These tests verify the correct
-  // auto-refresh behavior; they'll re-enable automatically once the flag
-  // flips back to true. Do not rewrite them to assert the disabled path.
-  describe.skip('token refresh', () => {
+  // Auto-refresh is gated by OpenBoxClient.REFRESH_ENABLED (currently
+  // false; pending upstream /auth/refresh fixes). These tests verify
+  // the correct enabled-path behavior, so they only run when the flag
+  // is on. Reading the static via `as any` because it's `private` —
+  // we explicitly want the test to track the production value. Do not
+  // rewrite them to assert the disabled path.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const refreshEnabled = (OpenBoxClient as any).REFRESH_ENABLED === true;
+  describe.runIf(refreshEnabled)('token refresh', () => {
     it('auto-refreshes when access token is expired and refresh token is available', async () => {
       const newToken = makeValidToken();
       const client = createClient({
