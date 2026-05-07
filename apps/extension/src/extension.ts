@@ -24,6 +24,7 @@ import * as path from "path";
 import * as os from "os";
 import type { OpenBoxClient } from "openbox-sdk/client";
 import type { EnvName } from "openbox-sdk/env";
+import { resolveOsPath } from "openbox-sdk/os-paths";
 import {
   apiKeyPrefix,
   clearApiKey,
@@ -949,7 +950,7 @@ export async function activate(context: vscode.ExtensionContext) {
         "Clear",
       );
       if (choice !== "Clear") return;
-      const p = path.join(os.homedir(), ".openbox", "tokens");
+      const p = resolveOsPath("tokens");
       try {
         if (fs.existsSync(p)) fs.unlinkSync(p);
         vscode.window.showInformationMessage("Cleared OpenBox credentials.");

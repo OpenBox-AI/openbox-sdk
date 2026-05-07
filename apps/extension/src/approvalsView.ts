@@ -1,6 +1,12 @@
 import * as vscode from "vscode";
 import type { Approval } from "./types";
-import { formatLabel, summarizeInput, timeAgo, timeRemaining } from "openbox-sdk/approvals";
+import {
+  formatLabel,
+  summarizeInput,
+  timeAgo,
+  timeRemaining,
+  statusOf,
+} from "openbox-sdk/approvals";
 
 // Tree nodes. Each approval is a collapsible parent with child rows
 // for tier / reason / created / expiry, mimicking mobile's
@@ -149,21 +155,9 @@ export class ApprovalsTreeProvider implements vscode.TreeDataProvider<TreeNode> 
 //      consumer to derive the bucket. Without this branch every
 //      expired-by-timeout row falls through to "pending" and
 //      vanishes from the History view.
-function statusOf(a: Approval): SectionStatus | "pending" {
-  const s = (a.status || "").toLowerCase();
-  if (s === "approved") return "approved";
-  if (s === "rejected") return "rejected";
-  if (s === "expired") return "expired";
-  if (a.decided_at) {
-    if (a.verdict === 0 || a.verdict === 1) return "approved";
-    if (a.verdict === 3 || a.verdict === 4) return "rejected";
-  }
-  if (a.approval_expired_at && !a.decided_at) {
-    const t = Date.parse(a.approval_expired_at);
-    if (Number.isFinite(t) && t < Date.now()) return "expired";
-  }
-  return "pending";
-}
+// statusOf is the canonical SDK helper from openbox-sdk/approvals.
+// The extension hands it the same row shape the mobile app does, so
+// the bucket assignment stays consistent across surfaces.
 
 function renderSection(status: SectionStatus, count: number): vscode.TreeItem {
   const labels: Record<SectionStatus, string> = {

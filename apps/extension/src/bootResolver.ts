@@ -13,11 +13,9 @@
 // boot (mock feed vs real client).
 
 import * as vscode from 'vscode';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import * as os from 'node:os';
 import { ENVIRONMENTS, type EnvName } from 'openbox-sdk/env';
 import { loadApiKey as loadFileApiKey } from 'openbox-sdk/file-tokens';
+import { getConfig } from 'openbox-sdk/cli/config-store';
 import { readGlobalEnv } from './configStore';
 
 const ENVS: EnvName[] = ['production', 'staging', 'local'];
@@ -58,21 +56,11 @@ function workspaceAgentId(): string | undefined {
   return v || undefined;
 }
 
-/** Read `~/.openbox/config` for a global agent ID default. The file
- *  is plain `KEY=value` lines; we only care about OPENBOX_AGENT_ID. */
+/** Global agent ID default, read from `~/.openbox/config` via the
+ *  same module the CLI uses (no parser duplication). */
 function globalAgentId(): string | undefined {
-  const cfg = path.join(os.homedir(), '.openbox', 'config');
-  if (!fs.existsSync(cfg)) return undefined;
-  try {
-    const lines = fs.readFileSync(cfg, 'utf-8').split('\n');
-    for (const line of lines) {
-      const m = line.match(/^OPENBOX_AGENT_ID\s*=\s*(.+)$/);
-      if (m) return m[1].trim();
-    }
-  } catch {
-    /* ignore */
-  }
-  return undefined;
+  const v = getConfig('global', 'OPENBOX_AGENT_ID');
+  return v && v.trim() ? v.trim() : undefined;
 }
 
 function envsWithKey(): EnvName[] {
