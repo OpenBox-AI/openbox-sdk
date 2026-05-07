@@ -10,6 +10,7 @@
 // installed on the prototype. That keeps the tests honest about the
 // integration boundary instead of re-testing the gate's internal state.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { PollingService } from './polling';
 
 // ─── vscode mock ───────────────────────────────────────────────────────────
 type CmdHandler = (...args: unknown[]) => unknown;
@@ -181,7 +182,9 @@ vi.mock('./polling', () => ({
       lastFakePolling = new FakePolling();
       // Mirror the FakePolling surface back onto the constructed
       // instance so ViewSession's wiring sees the same emitter.
-      return lastFakePolling as unknown as object;
+      // The constructor return-as-PollingService cross-cast is the
+      // mock-class trick; TS sees the wider PollingService shape.
+      return lastFakePolling as unknown as PollingService;
     }
   },
 }));

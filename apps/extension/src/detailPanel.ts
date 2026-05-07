@@ -118,7 +118,12 @@ export class ApprovalDetailPanel {
     const agentId = this.approval.agent_id;
     if (!agentId) return;
     try {
-      const fetched = (await client.getAgent(agentId)) as Agent | null;
+      // The spec's Agent model is missing owner_id; the backend
+      // returns it via the index-signature passthrough, so cast at
+      // this site until the spec is filled in.
+      const fetched = (await client.getAgent(agentId)) as
+        | (Agent & { owner_id?: string })
+        | null;
       if (!fetched || this.approval.agent_id !== agentId) return;
       this.agent = fetched;
       if (fetched.owner_id) {
@@ -261,8 +266,11 @@ function renderHtml(
     "img-src data:",
   ].join("; ");
 
-  const teams = agent?.teams && agent.teams.length > 0
-    ? agent.teams.map((t) => t.name).join(", ")
+  // Spec's Agent model exposes team_ids[] but backend also returns
+  // teams[] populated via JOIN; cast through the wider runtime shape.
+  const agentTeams = (agent as (Agent & { teams?: { name: string }[] }) | null)?.teams;
+  const teams = agentTeams && agentTeams.length > 0
+    ? agentTeams.map((t) => t.name).join(", ")
     : agent
       ? "Unassigned"
       : null;

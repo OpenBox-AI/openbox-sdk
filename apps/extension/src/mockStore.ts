@@ -62,7 +62,10 @@ const AGENTS: Record<string, { agent_name: string; owner_id: string; teams: Team
 interface SeedTemplate {
   agentId: string;
   activity_type: string;
-  input: unknown;
+  // Backend returns input as either an object or an array; the spec
+  // currently types it narrowly. Mocks mirror real wire shapes so we
+  // accept both and cast on assignment below.
+  input: { [key: string]: unknown } | unknown[];
   reason: string;
   tier: number;
   createdMinutesAgo: number;
@@ -153,7 +156,7 @@ function buildApproval(t: SeedTemplate, id: string, status: "pending" | "approve
     created_at: created,
     decided_at: decided,
     approval_expired_at: expires,
-    input: t.input,
+    input: t.input as { [key: string]: unknown } | undefined,
     metadata: { trust_tier: t.tier },
     agent: { agent_name: agent.agent_name },
   };
