@@ -171,15 +171,22 @@ export function fullResponse<T = any>(response: { data: ApiResponse<T> }): ApiRe
   return response.data;
 }
 
-/** Get the org ID. Resolution order:
- *    1. OPENBOX_ORG_ID env var (explicit override)
- *    2. tests/setup-creds.ts populates it from /auth/profile during
- *       setup, so it's an env var by the time tests read it
- *    3. derive from OPENBOX_ENV: local → openbox.local, prod → openbox.ai */
+/** Get the org ID. Populated by tests/setup-creds.ts from
+ *  /auth/profile (the backend tells us what org the authenticated
+ *  principal belongs to). No env-name derivation: backend is the
+ *  source of truth, so a misconfigured token surfaces as an explicit
+ *  error rather than a wrong-host orgId silently 403'ing every
+ *  org-scoped endpoint. */
 export function getOrgId(): string {
-  if (process.env.OPENBOX_ORG_ID) return process.env.OPENBOX_ORG_ID;
-  const env = process.env.OPENBOX_ENV ?? 'production';
-  return env === 'production' ? 'openbox.ai' : `openbox.${env}`;
+  const id = process.env.OPENBOX_ORG_ID;
+  if (!id) {
+    throw new Error(
+      'OPENBOX_ORG_ID is not populated. tests/setup-creds.ts should have ' +
+        'fetched it from /auth/profile during setup — confirm OPENBOX_API_URL ' +
+        'and OPENBOX_BACKEND_API_KEY were set before the suite started.',
+    );
+  }
+  return id;
 }
 
 /** Get the team IDs the user has access to */

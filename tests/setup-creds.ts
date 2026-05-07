@@ -1,26 +1,21 @@
 // Loaded by e2e + contract projects on top of tests/setup.ts. Sets up
-// everything those projects need to talk to a real backend / core,
-// derived from the active OPENBOX_ENV:
+// what those projects need to talk to a real backend / core: two URLs
+// and two credentials. Nothing else.
 //
-//   OPENBOX_API_URL          ← env registry (local → :3000, prod → api.openbox.ai)
-//   OPENBOX_CORE_URL         ← env registry (local → :8086, prod → core.openbox.ai)
-//   OPENBOX_BACKEND_API_KEY  ← ~/.openbox/tokens (org X-API-Key, obx_key_*)
-//   OPENBOX_API_KEY          ← ~/.openbox/agent-keys (e2e-agent runtime, obx_(test|live)_*)
-//
-// The only env var the developer should ever set by hand is
-// OPENBOX_ENV. URL overrides are still honored (in case you're
-// pointing at a non-default host), but they're not required: a stale
-// shell export with the wrong shape (e.g. OPENBOX_API_KEY left over
-// from another env, or OPENBOX_BACKEND_API_KEY pointing at a runtime
-// key) is detected by prefix and overwritten from the cache rather
-// than silently breaking the run.
+// Defaults target the local stack. To run against a different host,
+// set OPENBOX_API_URL / OPENBOX_CORE_URL directly. Credentials come
+// from the developer's existing on-disk caches; pre-set credential
+// env vars are honored (CI override path) but their shape is
+// validated — a stale shell export with the wrong prefix is detected
+// and overwritten from the cache rather than silently 401'ing the run.
 //
 // Backend and Core are different auth systems on purpose: backend is
-// the human/dashboard control plane (org X-API-Key), Core is the
-// agent runtime (per-agent runtime key over Bearer auth). Mobile is
-// the only sanctioned JWT consumer for the backend; every other
-// surface (CLI, MCP, IDE extension, hooks) reads the X-API-Key from
-// ~/.openbox/tokens, so SDK e2e dogfoods the same path.
+// the human/dashboard control plane (org X-API-Key over header
+// `X-API-Key`), Core is the agent runtime (per-agent runtime key
+// over Bearer auth). Mobile is the only sanctioned JWT consumer for
+// the backend; every other surface (CLI, MCP, IDE extension, hooks)
+// reads the X-API-Key from ~/.openbox/tokens, so SDK e2e dogfoods
+// the same path.
 //
 // Unit tests deliberately do NOT load this file: file-tokens'
 // loadApiKey short-circuits on OPENBOX_BACKEND_API_KEY before reading
@@ -31,8 +26,10 @@
 import { resolve } from 'path';
 import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
-import { parseTokenStore, resolveEnv, resolveUrls } from '../ts/src/env/index';
+import { parseTokenStore } from '../ts/src/env/index';
 
+const DEFAULT_API_URL = 'http://localhost:3000';
+const DEFAULT_CORE_URL = 'http://localhost:8086';
 const E2E_AGENT_NAME = 'e2e-agent';
 const RUNTIME_KEY_PREFIX = /^obx_(test|live)_/;
 const BACKEND_KEY_PREFIX = /^obx_key_/;
@@ -44,19 +41,8 @@ interface AgentKeyRecord {
 }
 
 function populateUrls(): void {
-  // Derive API + Core URLs from OPENBOX_ENV via the spec-driven env
-  // registry. resolveUrls already honors any pre-set
-  // OPENBOX_API_URL / OPENBOX_CORE_URL override, so this is a pure
-  // "fill in the blanks" pass — explicit overrides win, derived
-  // defaults backfill.
-  const env = resolveEnv();
-  const urls = resolveUrls(env);
-  if (!process.env.OPENBOX_API_URL && urls.apiUrl) {
-    process.env.OPENBOX_API_URL = urls.apiUrl;
-  }
-  if (!process.env.OPENBOX_CORE_URL && urls.coreUrl) {
-    process.env.OPENBOX_CORE_URL = urls.coreUrl;
-  }
+  if (!process.env.OPENBOX_API_URL) process.env.OPENBOX_API_URL = DEFAULT_API_URL;
+  if (!process.env.OPENBOX_CORE_URL) process.env.OPENBOX_CORE_URL = DEFAULT_CORE_URL;
 }
 
 function loadBackendKey(): void {
@@ -74,9 +60,11 @@ function loadBackendKey(): void {
   if (!tokensPath) return;
 
   const store = parseTokenStore(readFileSync(tokensPath, 'utf-8'));
-  const entry = store[resolveEnv()];
-  if (entry?.apiKey) {
-    process.env.OPENBOX_BACKEND_API_KEY = entry.apiKey;
+  for (const entry of Object.values(store)) {
+    if (entry?.apiKey && BACKEND_KEY_PREFIX.test(entry.apiKey)) {
+      process.env.OPENBOX_BACKEND_API_KEY = entry.apiKey;
+      return;
+    }
   }
 }
 
@@ -99,6 +87,31 @@ function loadCoreRuntimeKey(): void {
   }
 }
 
+async function populateOrgId(): Promise<void> {
+  // The active orgId differs per backend host (localhost stack ≠ prod
+  // ≠ staging) and the e2e suite addresses many endpoints by
+  // `/organization/{orgId}/...`. Rather than derive it from the URL
+  // — which would re-introduce the env concept by another name — ask
+  // the backend itself: /auth/profile returns the orgId for the
+  // authenticated principal. Single source of truth, lives on the
+  // server we're already talking to.
+  if (process.env.OPENBOX_ORG_ID) return;
+  const apiUrl = process.env.OPENBOX_API_URL;
+  const apiKey = process.env.OPENBOX_BACKEND_API_KEY;
+  if (!apiUrl || !apiKey) return;
+  try {
+    const res = await fetch(`${apiUrl}/auth/profile`, {
+      headers: { 'X-API-Key': apiKey },
+    });
+    if (!res.ok) return;
+    const body = (await res.json()) as { data?: { orgId?: string } };
+    if (body?.data?.orgId) process.env.OPENBOX_ORG_ID = body.data.orgId;
+  } catch {
+    /* best-effort; tests requiring orgId will surface a clear error */
+  }
+}
+
 populateUrls();
 loadBackendKey();
 loadCoreRuntimeKey();
+await populateOrgId();
