@@ -532,7 +532,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^25.6.2",
     "@types/vscode": "^1.85.0",
     "esbuild": "^0.24.0",
     "openbox-sdk": "file:../..",

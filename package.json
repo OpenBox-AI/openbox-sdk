@@ -163,7 +163,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@types/node": "^25.5.2",
+    "@types/node": "^25.6.2",
     "@typespec/compiler": "^1.11.0",
     "@typespec/http": "^1.11.0",
     "@typespec/json-schema": "^1.11.0",
