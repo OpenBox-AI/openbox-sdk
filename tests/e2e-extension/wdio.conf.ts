@@ -92,76 +92,6 @@ const userSettings: Record<string, unknown> = {
   'openbox.failClosed': false,
 };
 
-// macOS focus-and-visibility hider. Has to run BEFORE the workbench
-// is launched (in `onPrepare`) and keep running for the whole test —
-// the launch is what steals focus, and a one-shot post-launch hide
-// fires too late.
-//
-// Layered defense:
-//   1. LSUIElement=1 on the test-only VS Code copy (no Dock icon,
-//      no Cmd-Tab, no menu bar).
-//   2. This persistent osascript loop polls every 50ms for any
-//      "Code" process, flips `visible` off AND `frontmost` off.
-//      Even if the launch transiently puts the window on top, it's
-//      pulled back within 50ms — total focus-theft window is
-//      sub-frame.
-//
-// Targets the test-only VS Code by process name "Code" — matches the
-// Microsoft VSCode binary the wdio cache downloads. The user's daily
-// Cursor process is named "Cursor" (different bundle) so it's
-// unaffected. If you point OPENBOX_E2E_VSCODE_BINARY at your real
-// VS Code install (process name "Code"), this WILL also hide that
-// — don't do it during a long-running editing session.
-
-let macOsHider: { kill: () => void } | null = null;
-
-async function startMacOsHider(): Promise<void> {
-  if (process.platform !== 'darwin') return;
-  if (macOsHider) return;
-  const { spawn } = await import('node:child_process');
-  // 600 iterations × 50ms = 30s. Restart on completion.
-  // Each pass tells System Events to:
-  //   - hide every "Code" process (covers re-shows from chromedriver)
-  //   - drop frontmost flag (undoes any focus theft)
-  // Errors are swallowed (process may not exist yet) — the loop
-  // keeps polling.
-  const script = `
-    repeat 600 times
-      try
-        tell application "System Events"
-          set codeProcs to (every process whose name is "Code")
-          repeat with p in codeProcs
-            try
-              set visible of p to false
-            end try
-            try
-              set frontmost of p to false
-            end try
-          end repeat
-        end tell
-      end try
-      delay 0.05
-    end repeat
-  `;
-  const child = spawn('osascript', ['-e', script], {
-    stdio: 'ignore',
-    detached: false,
-  });
-  macOsHider = child;
-  child.on('exit', () => {
-    macOsHider = null;
-  });
-}
-
-function stopMacOsHider(): void {
-  try {
-    macOsHider?.kill();
-  } catch {
-    /* best-effort */
-  }
-  macOsHider = null;
-}
-
 export const config = {
   runner: 'local',
   framework: 'mocha',
@@ -169,20 +99,6 @@ export const config = {
   mochaOpts: {
     ui: 'bdd',
     timeout: 90_000,
-  },
-
-  // EARLIEST hook in the wdio lifecycle — fires in the test runner
-  // BEFORE any worker starts (and therefore before the workbench
-  // is spawned). Kicking off the persistent macOS hider here means
-  // the loop is already polling when the launch happens; there's
-  // no window-up gap between launch and our first hide attempt.
-  async onPrepare(): Promise<void> {
-    await startMacOsHider();
-  },
-
-  // Stop the hider once all workers complete.
-  async onComplete(): Promise<void> {
-    stopMacOsHider();
   },
 
   // One consolidated spec file = one workbench launch = one window

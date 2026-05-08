@@ -41,15 +41,6 @@ async function activate(): Promise<void> {
     const ext = vscode.extensions.getExtension('openbox.openbox');
     if (!ext) throw new Error('openbox extension not found');
     if (!ext.isActive) await ext.activate();
-    // Minimize the workbench window so it doesn't sit on top of the
-    // user's editor for the duration of the run. macOS has no
-    // headless Electron mode; this is the next best thing — one
-    // brief flash on launch, then it tucks into the dock.
-    try {
-      await vscode.commands.executeCommand('workbench.action.minimizeWindow');
-    } catch {
-      /* not all platforms support it; non-fatal */
-    }
   });
 }
 
