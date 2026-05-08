@@ -182,6 +182,22 @@ interface Agent {
   @cli_output_kind("kv")
   get(agentId: string): void;
 
+  /** Full governance state for an agent in ONE call: agent metadata,
+   *  every guardrail, the current behavior-rule set, the current
+   *  policy set, and the current goal-alignment trend. The recipe
+   *  fans out and assembles the result into a single JSON envelope so
+   *  callers (humans, LLM agents, CI scripts) skip the N×M tier-1
+   *  walks they'd otherwise need. */
+  @cli_recipe(#[
+    #{ call: "getAgent",                args: #["agentId"], into: "agent" },
+    #{ call: "listGuardrails",          args: #["agentId"], into: "guardrails", paginate: true },
+    #{ call: "getCurrentBehaviorRules", args: #["agentId"], into: "behaviors" },
+    #{ call: "getCurrentPolicies",      args: #["agentId"], into: "policies" },
+    #{ call: "getGoalAlignmentTrend",   args: #["agentId"], into: "goal", optional: true },
+  ])
+  @cli_output_kind("json")
+  describe(agentId: string): void;
+
   /** Delete an agent. */
   @cli_calls("deleteAgent", "positional")
   @cli_destructive

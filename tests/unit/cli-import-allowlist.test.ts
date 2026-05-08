@@ -36,7 +36,8 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   // Hand-written CLI helpers.
   '../output.js': 'output / outputList renderers.',
   '../../validators/index.js': 'public openbox-sdk/validators surface; reportAndExit + named validators + parseJsonInput.',
-  '../wire-subcommands.js': 'spec-driven subcommand interpreter.',
+  '../wire-subcommands.js': 'spec-driven tier-1 subcommand interpreter.',
+  '../recipes.js': 'spec-driven tier-2 recipe interpreter (composite ops).',
   '../../test-utils/index.js': 'public openbox-sdk/test-utils surface; buildTestPayload, SPAN_TYPES.',
   '../features.js': 'isFeatureEnabled gate.',
   '../maturity.js': 'CLI maturity gate (gateCommands).',
@@ -58,6 +59,7 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   './skill.js': 'unified install command delegates to installSkill().',
   // Generated cli-handlers/<cmd>.ts manifests.
   '../generated/cli-handlers/': 'spec-driven SubcommandSpec[] manifests.',
+  '../generated/cli-recipes/': 'spec-driven RecipeSpec[] manifests (tier-2 composites).',
   // Spec-driven canonical sets (CANONICAL_EVENT_TYPES,
   // CANONICAL_ACTIVITY_TYPES, CANONICAL_VERDICT_ARMS) used by session
   // inspect, agent audit, and verify for protocol-conformance checks.

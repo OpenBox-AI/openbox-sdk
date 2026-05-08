@@ -248,6 +248,31 @@ extern dec cli_local_only(target: Operation);
 extern dec cli_destructive(target: Operation);
 
 /**
+ * Tier-2 composite operation. Declares a list of tier-1 backend calls
+ * that fan out in parallel and assemble into a single envelope keyed
+ * by `into`. Use for diagnostic / overview / describe commands that
+ * answer one question by combining several normalized API resources.
+ *
+ * Each step is an object with:
+ *   call:     name of a method on the active client (OpenBoxClient
+ *             or OpenBoxCoreClient depending on the parent command)
+ *   args:     names of recipe-op parameters to forward to the call,
+ *             in order, as positional client args
+ *   into:     key in the assembled output object
+ *   paginate: walk every page of a paginated listing into one flat
+ *             array (otherwise the raw first-page envelope passes
+ *             through unchanged)
+ *   optional: catch failures and store null instead of failing the
+ *             whole recipe (use for surfaces the user might lack
+ *             read access to)
+ *
+ * Recipes live ALONGSIDE tier-1 ops; they don't carry `@cli_calls`.
+ * The runtime registers them via `wireRecipes` instead of
+ * `wireSubcommands`.
+ */
+extern dec cli_recipe(target: Operation, steps: valueof unknown);
+
+/**
  * Names a callback registered in PREFLIGHT_REGISTRY (in
  * wire-subcommands.ts) the runtime invokes BEFORE the main backend
  * call. Receives the merged body + the client resolver. Used for

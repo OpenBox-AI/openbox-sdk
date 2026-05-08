@@ -9,6 +9,7 @@ export const COMMAND_MATURITY: Record<string, Maturity> = {
   "agent audit": "experimental",
   "agent create": "experimental",
   "agent delete": "experimental",
+  "agent describe": "experimental",
   "agent get": "experimental",
   "agent list": "experimental",
   "agent update": "experimental",

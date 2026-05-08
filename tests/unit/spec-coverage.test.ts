@@ -106,7 +106,7 @@ describe('adapters.tsp: every @adapter declares @installTarget', () => {
   }
 });
 
-describe('cli/main.tsp: every interface op carries @cli_calls or @cli_output_kind("custom")', () => {
+describe('cli/main.tsp: every interface op carries @cli_calls, @cli_recipe, or @cli_output_kind("custom")', () => {
   const blocks = cliOpBlocks(cliTsp);
 
   test('parser found at least one CLI op (sanity)', () => {
@@ -114,12 +114,13 @@ describe('cli/main.tsp: every interface op carries @cli_calls or @cli_output_kin
   });
 
   for (const { name, block } of blocks) {
-    test(`op '${name}' has @cli_calls or @cli_output_kind("custom")`, () => {
+    test(`op '${name}' is bound to a tier-1 call, a tier-2 recipe, or a custom action`, () => {
       const hasCalls = /@cli_calls\(/.test(block);
+      const hasRecipe = /@cli_recipe\(/.test(block);
       const customOutput = /@cli_output_kind\("custom"\)/.test(block);
       expect(
-        hasCalls || customOutput,
-        `op '${name}' must carry @cli_calls(...) or @cli_output_kind("custom")`,
+        hasCalls || hasRecipe || customOutput,
+        `op '${name}' must carry @cli_calls(...) (tier 1), @cli_recipe([...]) (tier 2), or @cli_output_kind("custom") (hand-coded)`,
       ).toBe(true);
     });
   }

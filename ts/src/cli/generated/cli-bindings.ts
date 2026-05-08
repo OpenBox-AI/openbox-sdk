@@ -22,6 +22,7 @@ export interface Config {
 export interface Agent {
   list(search?: string, status?: string, team?: string, tiers?: string[]): void;
   get(agentId: string): void;
+  describe(agentId: string): void;
   delete(agentId: string): void;
   create(name?: string, desc?: string, team?: string[], type?: string, icon?: string, skipPreflight?: boolean): void;
   update(agentId: string, name?: string, desc?: string, type?: string, model?: string, tags?: string[], team?: string[]): void;
@@ -298,6 +299,10 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "get",
+        "flags": []
+      },
+      {
+        "name": "describe",
         "flags": []
       },
       {

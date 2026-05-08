@@ -41,10 +41,12 @@ import {
   getPreflight,
   getDtoDefaults,
   getPostValidate,
+  getRecipe,
   isPaginated,
   getFlagExtra,
   getValidator,
   type Maturity,
+  type RecipeStep,
 } from 'typespec-cli/decorators';
 import {
   getMapsTo,
@@ -851,6 +853,7 @@ function emitCliPackage(program: Program, project: Project, repoRoot: string): v
   emitCliMaturityTable(program, cliNamespace, project, repoRoot);
   emitCliFeatureFlagTable(program, cliNamespace, project, repoRoot);
   emitCliHandlerSpecs(program, cliNamespace, project, repoRoot);
+  emitCliRecipeSpecs(program, cliNamespace, project, repoRoot);
 }
 
 /** Per-command handler manifest. For each @cli_command
@@ -873,7 +876,7 @@ function emitCliHandlerSpecs(
     const subcommands: unknown[] = [];
     for (const [opName, op] of iface.operations) {
       const calls = getCallsBackend(program, op);
-      if (!calls) continue; // op is not yet H.3-migrated; hand-coded below
+      if (!calls) continue; // op is not yet H.3-migrated, is hand-coded, or is a @cli_recipe
       const args: {
         name: string;
         bodyKey?: string;
@@ -980,6 +983,88 @@ function emitCliHandlerSpecs(
       '',
       `/** Spec-driven subcommand list for \`openbox ${cmd.name}\`. */`,
       `export const ${constName}: SubcommandSpec[] = ${JSON.stringify(subcommands, null, 2)};`,
+      '',
+    ]);
+  }
+}
+
+/** Per-command recipe manifest. For each @cli_command whose ops carry
+ *  @cli_recipe, write
+ *    ts/src/cli/generated/cli-recipes/<cmd>.ts:
+ *      `export const <CMD>_RECIPES: RecipeSpec[] = [...]`
+ *  Hand-coded `register*Commands` files call `wireRecipes(parent,
+ *  RECIPES, getClient)` alongside `wireSubcommands` for tier-1 ops. */
+function emitCliRecipeSpecs(
+  program: Program,
+  cliNamespace: Namespace,
+  project: Project,
+  repoRoot: string,
+): void {
+  for (const [, iface] of cliNamespace.interfaces) {
+    const cmd = getCommand(program, iface);
+    if (!cmd) continue;
+
+    const recipes: unknown[] = [];
+    for (const [opName, op] of iface.operations) {
+      const steps = getRecipe(program, op);
+      if (!steps) continue;
+
+      // Recipe op signatures use the same TypeSpec parameter list as
+      // tier-1 ops — every required param becomes a positional CLI arg.
+      // Recipes don't expose flags in v1; flag-binding semantics across
+      // multiple steps is a future addition.
+      const args: { name: string }[] = [];
+      for (const [pName, p] of op.parameters.properties) {
+        if (p.optional) continue;
+        args.push({ name: pName });
+      }
+
+      // Validate every step's `args` reference is a real recipe param.
+      const argNames = new Set(args.map((a) => a.name));
+      for (const step of steps as RecipeStep[]) {
+        for (const argName of step.args) {
+          if (!argNames.has(argName)) {
+            throw new Error(
+              `@cli_recipe on ${cmd.name}.${opName}: step.${step.call} ` +
+                `references unknown arg '${argName}'`,
+            );
+          }
+        }
+      }
+
+      const ok = getOutputKind(program, op);
+      const outputKind = ok?.kind === 'kv' ? 'kv' : 'json';
+
+      recipes.push({
+        name: kebabCaseLocal(opName),
+        description: getDoc(program, op) ?? '',
+        args,
+        steps,
+        output: { kind: outputKind },
+      });
+    }
+    if (recipes.length === 0) continue;
+
+    const file = project.createSourceFile(
+      resolvePath(
+        repoRoot,
+        'ts',
+        'src',
+        'cli',
+        'generated',
+        'cli-recipes',
+        `${cmd.name}.ts`,
+      ),
+      '',
+      { overwrite: true },
+    );
+    const constName = `${cmd.name.replace(/-/g, '_').toUpperCase()}_RECIPES`;
+    file.insertText(0, BANNER + '\n\n');
+    file.addStatements([
+      `import type { RecipeSpec } from '../../recipes.js';`,
+      '',
+      `/** Spec-driven recipe (tier-2) list for \`openbox ${cmd.name}\`. */`,
+      `export const ${constName}: RecipeSpec[] = ${JSON.stringify(recipes, null, 2)};`,
       '',
     ]);
   }

@@ -519,6 +519,67 @@ export function getPostValidate(program: Program, target: Operation): string[] |
   return program.stateMap(stateKeys.postValidate).get(target);
 }
 
+// ─── Recipes (tier-2 composites) ─────────────────────────────────────
+
+export interface RecipeStep {
+  /** Method on OpenBoxClient / OpenBoxCoreClient to call. */
+  readonly call: string;
+  /** Recipe-op parameter names to forward as positional args. */
+  readonly args: ReadonlyArray<string>;
+  /** Key in the assembled output envelope. */
+  readonly into: string;
+  /** Walk every page of a paginated listing into one flat array. */
+  readonly paginate?: boolean;
+  /** Catch failures and store null instead of failing the recipe. */
+  readonly optional?: boolean;
+}
+
+/** @cli_recipe binding. Stores the validated, normalized step list
+ *  on the op so the emitter can walk it. */
+export function $cli_recipe(
+  context: DecoratorContext,
+  target: Operation,
+  raw: unknown,
+): void {
+  const decoded = unwrapTspValue(raw);
+  if (!Array.isArray(decoded)) {
+    throw new Error(
+      `@cli_recipe: expected an array of steps, got ${typeof decoded}`,
+    );
+  }
+  const steps: RecipeStep[] = [];
+  for (const s of decoded) {
+    if (!s || typeof s !== 'object') {
+      throw new Error(`@cli_recipe: each step must be an object, got ${typeof s}`);
+    }
+    const o = s as Record<string, unknown>;
+    if (typeof o.call !== 'string' || !o.call) {
+      throw new Error(`@cli_recipe: step.call must be a non-empty string`);
+    }
+    if (!Array.isArray(o.args) || !o.args.every((a) => typeof a === 'string')) {
+      throw new Error(`@cli_recipe: step.args must be a string[]`);
+    }
+    if (typeof o.into !== 'string' || !o.into) {
+      throw new Error(`@cli_recipe: step.into must be a non-empty string`);
+    }
+    steps.push({
+      call: o.call,
+      args: o.args as string[],
+      into: o.into,
+      paginate: o.paginate === true ? true : undefined,
+      optional: o.optional === true ? true : undefined,
+    });
+  }
+  context.program.stateMap(stateKeys.recipe).set(target, steps);
+}
+
+export function getRecipe(
+  program: Program,
+  target: Operation,
+): RecipeStep[] | undefined {
+  return program.stateMap(stateKeys.recipe).get(target);
+}
+
 // `unwrapTspValue` lives next to the decorators it serves. Inline
 // minimal copy here so the file doesn't need to reach into another
 // module. (Workflow lib has the same helper for @payloadShape / @installTarget.)

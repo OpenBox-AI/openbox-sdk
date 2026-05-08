@@ -42,6 +42,7 @@ export const $lib = createTypeSpecLibrary({
     dtoDefaults: { description: 'declarative DTO defaults merged into the body for missing keys' },
     postValidate: { description: 'names of registered post-validate callbacks run before the call' },
     destructive: { description: 'flag: op is destructive (delete/revoke/etc); runtime requires --yes / non-interactive context' },
+    recipe: { description: 'tier-2 composite: list of tier-1 backend calls + how to assemble their results' },
   },
 });
 

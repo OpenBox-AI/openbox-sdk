@@ -14,11 +14,14 @@ import { EXIT, bailWith } from '../exit-codes.js';
 import { output } from '../output.js';
 import { runAgentAudit, renderAuditReport, auditHasIssues } from './agent-audit.js';
 import { wireSubcommands } from '../wire-subcommands.js';
+import { wireRecipes } from '../recipes.js';
 import { AGENT_HANDLERS } from '../generated/cli-handlers/agent.js';
+import { AGENT_RECIPES } from '../generated/cli-recipes/agent.js';
 
 export function registerAgentCommands(program: Command) {
   const agent = program.command('agent').description('Agent management');
   wireSubcommands(agent, AGENT_HANDLERS, getClient as never);
+  wireRecipes(agent, AGENT_RECIPES, getClient as never);
 
   agent
     .command('audit <agentId>')
