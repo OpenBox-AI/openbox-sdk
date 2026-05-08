@@ -57,6 +57,37 @@ openbox --experimental core evaluate --type shell --command "ls"
 openbox --experimental behavior create <agent> --verdict 2 ...
 ```
 
+## Common queries (read this first)
+
+The CLI has TWO tiers. Tier 1 ops map 1:1 to the OpenAPI surface
+(every `list`, `get`, `create`, `update`, `delete`). Tier 2 are
+**recipes** — composite commands that fan out to several tier-1 calls
+and assemble the result. **When the user asks a question, reach for
+the recipe first.** Recipes are why this skill exists; without them
+an LLM agent does 10–20 tier-1 calls to answer one question.
+
+| User asks | Run |
+|---|---|
+| "what guardrails / policies / behaviors does my agent have?" | `openbox --experimental agent describe <agentId>` |
+| "show me everything about agent X" | `openbox --experimental agent describe <agentId>` |
+| "what's pending approval?" | `openbox --experimental approval pending <agentId>` |
+| "is anything dangling on my agent?" | `openbox --experimental agent audit <agentId>` |
+| "did this session follow protocol?" | `openbox --experimental session inspect <agentId> <sessionIdOrWorkflowId>` |
+| "what trust score?" | `openbox --experimental trust score <agentId>` |
+| "is my CLI reachable?" | `openbox doctor` |
+| "what versions are deployed?" | `openbox versions` |
+| "is my code drift-free?" | `openbox --experimental verify <path>` |
+
+`agent describe` returns ONE JSON envelope:
+`{ agent, guardrails, behaviors, policies, goal }`. Do NOT loop
+`guardrail list`, `policy get`, `behavior list`, `goal trend`
+yourself — that's the recipe's job. If a user wants a flat per-agent
+view across the org, walk `agent list` then call `describe` per row.
+
+If a recipe fits the question, use it. Only drop to tier-1 ops when
+the user is editing state (`create`, `update`, `delete`) or wants a
+specific narrow read the recipe doesn't cover.
+
 ## How to work with the user
 
 Don't run a survey. Pick up what they already said, ask one or two
@@ -191,11 +222,11 @@ proper SDK. Missing any piece fails at runtime.
 **Pattern for every change: list, then create, then verify.** Run
 `openbox <kind> list <agent>` first to avoid duplicates. After
 creating, `get` it back to confirm. Trust the CLI exit code: `0`
-landed, `2` rejected the input and prints a `fix:` line, `1` is a
+landed, `2` rejected the input and prints a `help:` line, `1` is a
 backend failure.
 
 **The CLI is the contract enforcer.** Before any HTTP call it rejects
-OpenBox-broken inputs with exit `2` and a `fix:` plus `see:` pointer.
+OpenBox-broken inputs with exit `2` and a `help:` plus `see:` pointer.
 If the CLI accepts your input, the backend will. No silent drift.
 
 **Build-order for a new agent:**

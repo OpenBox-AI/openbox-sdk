@@ -77,9 +77,16 @@ export function wireRecipes(
 ): void {
   for (const spec of specs) {
     const argSig = spec.args.map((a) => `<${a.name}>`).join(' ');
+    // Lead each recipe's description with a `[recipe]` tag so they
+    // stand out from tier-1 ops in `<group> --help`. The tag also
+    // signals to LLM agents that this is a composite shortcut, not
+    // a 1:1 backend call. Steps list lives in the description so
+    // `--help` is enough to know what the recipe touches.
+    const stepSummary = spec.steps.map((s) => s.call).join(', ');
+    const tagged = `[recipe] ${spec.description}\n\nComposes: ${stepSummary}`;
     const cmd = parent
       .command(argSig ? `${spec.name} ${argSig}` : spec.name)
-      .description(spec.description);
+      .description(tagged);
 
     cmd.action(async (...rawArgs: unknown[]) => {
       try {

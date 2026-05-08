@@ -28,7 +28,7 @@ Experimental: `aivss`, `member`, `core`, `mcp`, `skill`, `claude-code`,
 |------|---------|
 | `0` | Success |
 | `1` | Operational error: HTTP failure, network, auth issues at call time, or other non-input failures |
-| `2` | User-input error. Input rejected by client-side validation before any HTTP call. Error messages include a `fix:` line and a `see:` pointer to the relevant skill reference |
+| `2` | User-input error. Input rejected by client-side validation before any HTTP call. Error messages include a `help:` line and a `see:` pointer to the relevant skill reference |
 | `3` | Permission denied by pre-flight check. The current role is missing a required permission for this env |
 | `4` | Feature disabled in this env by the pre-flight feature gate |
 
@@ -39,7 +39,7 @@ http_request` exits 2 because it is not a real enum value. `--verdict
 exits 2. Validators are declared in the spec via `@cli_validator`;
 each language's emitter produces a registry of matching impls. The TS
 implementation lives at `ts/src/validators/`. Failures always include
-an actionable `fix:` hint.
+an actionable `help:` hint.
 
 ## Table of contents
 
