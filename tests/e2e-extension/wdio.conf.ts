@@ -92,6 +92,39 @@ const userSettings: Record<string, unknown> = {
   'openbox.failClosed': false,
 };
 
+// macOS post-launch hide. LSUIElement on the test-only VS Code copy
+// (see scripts/patch-headless-mac.ts) kills the Dock icon + focus
+// stealing, but the window still renders briefly on launch. This
+// `osascript` poll makes it disappear visually as soon as the
+// process exists. Cross-spec because it polls — runs early via
+// `beforeSession` (after launch, before any test) and again via
+// `onWorkerStart` to catch the chromedriver-driven session reload.
+async function hideMacOsWindow(): Promise<void> {
+  if (process.platform !== 'darwin') return;
+  const { spawn } = await import('node:child_process');
+  const script = `
+    repeat 30 times
+      try
+        set procName to "Code"
+        if exists (process "Code" of application "System Events") then
+          tell application "System Events" to set visible of every process whose name is "Code" to false
+          return
+        end if
+      end try
+      delay 0.1
+    end repeat
+  `;
+  await new Promise<void>((resolve) => {
+    const child = spawn('osascript', ['-e', script], { stdio: 'ignore' });
+    child.on('exit', () => resolve());
+    child.on('error', () => resolve());
+    setTimeout(() => {
+      child.kill();
+      resolve();
+    }, 5_000);
+  });
+}
+
 export const config = {
   runner: 'local',
   framework: 'mocha',
@@ -99,6 +132,16 @@ export const config = {
   mochaOpts: {
     ui: 'bdd',
     timeout: 90_000,
+  },
+
+  // Lifecycle hook — runs in the wdio test runner (Node-side) once
+  // the worker has started but before any test executes. By the time
+  // this fires, the workbench process exists; osascript polls for it
+  // and flips visibility off. Combined with LSUIElement on the
+  // patched test-only .app, the window vanishes after a sub-second
+  // flash on launch.
+  async beforeSession(): Promise<void> {
+    void hideMacOsWindow();
   },
 
   // One consolidated spec file = one workbench launch = one window
