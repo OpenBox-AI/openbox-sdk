@@ -1,0 +1,5 @@
+node_modules/
+.wdio-cache/
+.wdio-vscode-service/
+fixtures-workspace/
+package-lock.json

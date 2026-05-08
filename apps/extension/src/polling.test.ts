@@ -1,6 +1,9 @@
 // Coverage for PollingService — the layer that drives the approvals
 // feed: cold-seeding, brand-new detection, load-more page suppression,
-// changed-event semantics.
+// changed-event semantics. Used to be exercised only end-to-end in
+// the wdio mock-toast suite (which observed showWarningMessage fire);
+// extracting it as a unit test means we no longer need a workbench
+// to assert seed gating + brand-new detection.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PollingService } from './polling';

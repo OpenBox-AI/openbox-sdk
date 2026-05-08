@@ -173,8 +173,7 @@ class MockStore {
 
   reset() {
     // IDs are zero-padded ordinals (`mock-appr-001`..`mock-appr-006`)
-    // so callers (debug commands, tests) can address fixtures by
-    // their position in SEED rather than memorising synthetic ids.
+    // because the e2e-extension mock-decide suite hits them by ordinal.
     this.pending = SEED.map((t, i) =>
       buildApproval(t, `mock-appr-${String(i + 1).padStart(3, '0')}`, "pending"),
     );
