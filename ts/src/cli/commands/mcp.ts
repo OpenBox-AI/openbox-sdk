@@ -11,7 +11,7 @@ export function registerMcpCommands(program: Command) {
 
   mcp
     .command('serve')
-    .description('Run the OpenBox MCP server (stdio transport). Invoked by the LLM tool, not the user directly.')
+    .description('Run the OpenBox MCP server over stdio (invoked by the LLM host, not the user directly)')
     .action(async () => {
       // Lazy-load so the CLI doesn't pay the @modelcontextprotocol/sdk
       // import cost on every invocation.

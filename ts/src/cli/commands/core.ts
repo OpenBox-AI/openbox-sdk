@@ -37,7 +37,7 @@ export function registerCoreCommands(program: Command) {
     .option('--prompt <text>', 'Prompt text, or @file.txt to read from file (for --type llm)')
     .option('--model <model>', 'Model name (for --type llm)')
     .option('--file-path <path>', 'File path (for --type file_read/file_write)')
-    .option('--content <text>', 'File content, or @file.txt to read from file. Auto-reads --file-path if omitted.')
+    .option('--content <text>', 'File content, or @file.txt to read from file. Auto-reads --file-path if omitted')
     .option('--command <cmd>', 'Shell command, or @script.sh to read from file (for --type shell)')
     .option('--cwd <dir>', 'Working directory (for --type shell)')
     .option('--method <method>', 'HTTP method (for --type http)')
@@ -49,7 +49,7 @@ export function registerCoreCommands(program: Command) {
     .option('--server <name>', 'MCP server name (for --type mcp)')
     .option('--tool-input <input>', 'MCP tool input, or @input.json to read from file (for --type mcp)')
     .option('--show-payload', 'Print the constructed payload instead of evaluating')
-    .option('--hook', 'Set hook_trigger=true (per the official temporal-sdk-python: only hook_governance.py-style events do this; activity-level events do NOT). Default false matches the activity-interceptor convention.')
+    .option('--hook', 'Set hook_trigger=true (per the official temporal-sdk-python: only hook_governance.py-style events do this; activity-level events do NOT). Default false matches the activity-interceptor convention')
     .action(async (opts) => {
       try {
         let payload: any;

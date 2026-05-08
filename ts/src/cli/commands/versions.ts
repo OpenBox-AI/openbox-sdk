@@ -51,7 +51,7 @@ async function cellFor(env: EnvName, service: ServiceName): Promise<VersionCell>
 export function registerVersionsCommand(program: Command): void {
   program
     .command('versions')
-    .description('Show deployed versions for each service via /version.')
+    .description('Show deployed versions for each service via /version')
     .option('--sources', 'Print where each value was read from')
     .action(async (opts: { sources?: boolean }) => {
       const env = resolveEnv();

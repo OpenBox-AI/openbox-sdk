@@ -7,7 +7,7 @@
 // the response surfaces `scope_promoted: true` so the user knows.
 import { Command } from 'commander';
 import { resolveEnv } from '../../env/index.js';
-import { output } from '../output.js';
+import { output, error } from '../output.js';
 import {
   setConfig,
   getConfig,
@@ -44,7 +44,7 @@ export function registerConfigCommands(program: Command) {
         Array.from(GLOBAL_ONLY_KEYS).join(', ') +
         '.',
     )
-    .option('-g, --global', 'Store globally across all envs.')
+    .option('-g, --global', 'Store globally across all envs')
     .action((key: string, value: string, opts: { global?: boolean }) => {
       try {
         const requested = pickScope(opts);
@@ -79,20 +79,23 @@ export function registerConfigCommands(program: Command) {
       const scope = effectiveScope(requested, key);
       const value = getConfig(scope, key);
       if (value === undefined) {
-        bailWith(
-          EXIT.NOT_FOUND,
-          `No config value for ${describeScope(scope)} / ${key}.\n` +
-            `  File: ${configStorePath()}\n` +
-            `  Set via: openbox ${scope === 'global' ? 'config set --global' : `--env ${scope} config set`} ${key} <value>`,
-        );
+        const setCmd =
+          scope === 'global'
+            ? 'config set --global'
+            : `--env ${scope} config set`;
+        error(`no config value for ${describeScope(scope)} / ${key}`, {
+          detail: `file: ${configStorePath()}`,
+          help: `openbox ${setCmd} ${key} <value>`,
+        });
+        bailWith(EXIT.NOT_FOUND);
       }
       output({ scope: describeScope(scope), key, value });
     });
 
   config
     .command('unset <key>')
-    .description("Remove a config value. No-op if it wasn't set.")
-    .option('-g, --global', 'Operate on global scope.')
+    .description("Remove a config value (no-op if unset)")
+    .option('-g, --global', 'Operate on global scope')
     .action((key: string, opts: { global?: boolean }) => {
       try {
         const requested = pickScope(opts);
@@ -109,8 +112,8 @@ export function registerConfigCommands(program: Command) {
       'Print persisted values. Default lists per-env (--env). With --global, ' +
         'lists global-scope values. With --all, prints both sections.',
     )
-    .option('-g, --global', 'List global-scope values only.')
-    .option('--all', 'List both global and per-env values.')
+    .option('-g, --global', 'List global-scope values only')
+    .option('--all', 'List both global and per-env values')
     .action((opts: { global?: boolean; all?: boolean }) => {
       const env = resolveEnv();
       if (opts.all) {

@@ -741,9 +741,9 @@ export function registerInstallCommands(program: Command): void {
   const install = program
     .command('install')
     .description(
-      'Install an OpenBox client. Targets are always opt-in: pass ' +
-        '`--only <target>` (repeatable) or use a per-target subcommand ' +
-        `(e.g. \`openbox install extension\`). Known targets: ${INSTALL_ALL_TARGETS.join(', ')}.`,
+      'Install OpenBox client surfaces. Targets are opt-in: pass ' +
+        `--only <target> (repeatable) or run \`openbox install <target>\`. ` +
+        `Targets: ${INSTALL_ALL_TARGETS.join(', ')}.`,
     )
     .option(
       '--only <target>',
@@ -779,10 +779,11 @@ export function registerInstallCommands(program: Command): void {
   install
     .command('cursor')
     .description(
-      'Install the full Cursor surface: hooks in ~/.cursor/hooks.json, ' +
-        'the IDE extension, the MCP server entry, and (with consent) the ' +
-        "enterprise hardening profile in ~/.cursor/User/settings.json. " +
-        'Use --no-harden to skip the hardening prompt entirely.',
+      'Install the full Cursor surface: hooks (~/.cursor/hooks.json), the ' +
+        'IDE extension, the MCP server entry, slash commands, rules, plugin ' +
+        'agents, the OpenBox skill, and (with consent) the enterprise ' +
+        'hardening profile (~/.cursor/User/settings.json). Use --no-harden ' +
+        'to skip the hardening prompt.',
     )
     .option('--no-harden', 'Skip the enterprise hardening profile (no prompt)')
     .option(
@@ -899,8 +900,9 @@ export function registerInstallCommands(program: Command): void {
   const uninstall = program
     .command('uninstall')
     .description(
-      'Remove an OpenBox client. With no target, mirrors `openbox install` ' +
-        'and removes every piece detectable on this machine.',
+      'Remove OpenBox client surfaces. With no target, removes every ' +
+        'detectable surface on this machine. Skill is opt-in (matches ' +
+        '`install`): pass `--only skill` to remove it.',
     )
     .option('--skip <target>', 'Skip a target by name (repeatable)', collect, [])
     .option(

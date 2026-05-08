@@ -74,7 +74,7 @@ export function registerAuthCommands(program: Command) {
 
   auth
     .command('status')
-    .description('Print whether an X-API-Key is saved.')
+    .description('Print whether an X-API-Key is saved')
     .action(() => {
       try {
         const env = resolveEnv();
