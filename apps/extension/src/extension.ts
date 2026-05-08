@@ -1058,6 +1058,59 @@ export async function activate(context: vscode.ExtensionContext) {
       return haltedApprovals.size;
     }),
 
+    // Diagnostic: pending-approvals count from the live polling
+    // layer. Used by LIVE e2e to assert that an approval created
+    // via governance.check shows up in the user-visible pending view
+    // after the next poll cycle.
+    vscode.commands.registerCommand("openbox.__diag.approvalsCount", () => {
+      return active?.pending.count ?? 0;
+    }),
+
+    // Diagnostic: snapshot of the status bar's currently-painted
+    // text + tooltip. Test infra reads this instead of trying to
+    // grep the DOM through wdio (DOM selectors break across VS Code
+    // versions; the StatusBarItem state is the canonical source).
+    vscode.commands.registerCommand("openbox.__diag.statusBar", () => {
+      return { text: statusBar.text, tooltip: String(statusBar.tooltip ?? "") };
+    }),
+
+    // Diagnostic: bypass-modal decide. The user-facing openbox.reject
+    // shows a confirmation modal that wdio can't dismiss from inside
+    // executeWorkbench; this fires the same network call directly so
+    // tests can assert the round-trip + UI updates without simulating
+    // a click. The modal-confirmation path itself is unit-tested.
+    vscode.commands.registerCommand(
+      "openbox.__diag.decide",
+      async (
+        approval: { id?: string; agent_id?: string } | undefined,
+        action: "approve" | "reject",
+      ) => {
+        const id = approval?.id;
+        const agentId = approval?.agent_id;
+        if (!id || !active) return false;
+        try {
+          await active.client.decideApproval(agentId ?? "", id, { action });
+          await active.pending.refresh();
+          if (active.history) await active.history.refresh();
+          return true;
+        } catch {
+          return false;
+        }
+      },
+    ),
+
+    // Diagnostic: open the detail panel programmatically. Returns
+    // {ok: true} when the WebviewPanel materialised cleanly. Tests
+    // assert the openDetail command resolves; the rendered HTML is
+    // unit-tested with a mocked WebviewPanel API.
+    vscode.commands.registerCommand("openbox.__diag.openDetail", async (id: string) => {
+      try {
+        await vscode.commands.executeCommand("openbox.openDetail", id);
+        return { ok: true };
+      } catch (err: any) {
+        return { ok: false, error: String(err?.message ?? err) };
+      }
+    }),
   );
 
   if (DEBUG_BUILD) {
