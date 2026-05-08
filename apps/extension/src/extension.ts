@@ -350,9 +350,7 @@ export async function activate(context: vscode.ExtensionContext) {
     profileProvider.refresh();
 
     env = nextEnv;
-    statusBar.text = DEBUG_BUILD
-      ? `$(sync~spin) OpenBox · ${env}`
-      : `$(sync~spin) OpenBox`;
+    statusBar.text = `$(openbox-logo) Connecting`;
     statusBar.tooltip = DEBUG_BUILD ? `Connecting to ${env}…` : "Connecting…";
     vscode.commands.executeCommand("setContext", "openbox.hasApprovals", false);
     vscode.commands.executeCommand("setContext", "openbox.history.hasApprovals", false);
@@ -360,7 +358,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const mockAuth = readMockAuth();
     if (!mockAuth && !hasApiKey(env)) {
       vscode.commands.executeCommand("setContext", "openbox.needsKey", true);
-      statusBar.text = `$(key) ${envTagFor("Set API Key")}`;
+      statusBar.text = `$(openbox-logo) ${envTagFor("Set API Key")}`;
       statusBar.tooltip = DEBUG_BUILD
         ? `No API key set for ${env}. Click the OpenBox view and use "Set API Key".`
         : `No API key set. Click the OpenBox view and use "Set API Key".`;
@@ -381,7 +379,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const ctx = await createApiContext(env);
         client = ctx.client;
       } catch (err: any) {
-        statusBar.text = `$(shield) ${envTagFor("No Token")}`;
+        statusBar.text = `$(openbox-logo) ${envTagFor("No Token")}`;
         statusBar.tooltip = err.message;
         vscode.window.showErrorMessage(`OpenBox: ${err.message}`);
         return;
@@ -425,13 +423,13 @@ export async function activate(context: vscode.ExtensionContext) {
       }
 
       if (!orgId) {
-        statusBar.text = `$(shield) ${envTagFor("No Org")}`;
+        statusBar.text = `$(openbox-logo) ${envTagFor("No Org")}`;
         return;
       }
       const tag = mockAuth ? "mock" : env;
       statusBar.tooltip = `Signed in as ${email || preferredUsername || userSub} (${tag})`;
     } catch (err: any) {
-      statusBar.text = `$(shield) ${envTagFor("Error")}`;
+      statusBar.text = `$(openbox-logo) ${envTagFor("Error")}`;
       statusBar.tooltip = err.message;
       return;
     }

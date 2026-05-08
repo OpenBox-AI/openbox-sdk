@@ -4,6 +4,11 @@
 // Everything that decides WHICH string to show lives here so the logic
 // is unit-testable without booting a workbench: same env tag rules,
 // same idle-gate annotation, same tooltip copy.
+//
+// Shape: $(openbox-logo) [info] — the icon identifies it as OpenBox,
+// info is just the relevant short action / state. No redundant
+// "OpenBox" word; if there's nothing to say, the bar is just the
+// icon.
 
 import type { EnvName } from "openbox-sdk/env";
 
@@ -26,28 +31,24 @@ export interface IdleStatusBarOutput {
 }
 
 export function buildIdleStatusBar(opts: IdleStatusBarInput): IdleStatusBarOutput {
-  // Env tag is debug-only context. Release builds keep the bar clean
-  // so end users never see env names tagged on every status-bar
-  // refresh; mock-auth always shows env so a tester can tell at a
-  // glance which fixture they're driving.
-  const showEnv = opts.debugBuild || opts.mockAuth;
-  const envSuffix = opts.mockAuth
-    ? ` · MOCK · ${opts.env}`
-    : showEnv
-      ? ` · ${opts.env}`
-      : "";
-
   const anyActive =
     opts.preWriteGateActive ||
     (opts.tabObserverEnabled && opts.tabObserverActive) ||
     opts.fileOpGateEnabled;
 
-  const idleNote = anyActive && !opts.haveAgent ? " · gates idle (no agent)" : "";
+  const parts: string[] = [];
+  if (opts.count > 0) parts.push(`${opts.count} Pending`);
+  // Status bar never carries the env name on its own — the Debug
+  // view (when DEBUG_BUILD is on) already shows it. Mock-auth still
+  // tags MOCK · <env> because testers need to know which fixture
+  // they're driving at a glance.
+  if (opts.mockAuth) parts.push(`MOCK · ${opts.env}`);
+  if (anyActive && !opts.haveAgent) parts.push("gates idle (no agent)");
 
   const text =
-    opts.count > 0
-      ? `$(shield) ${opts.count} Pending${envSuffix}${idleNote}`
-      : `$(shield) OpenBox${envSuffix}${idleNote}`;
+    parts.length > 0
+      ? `$(openbox-logo) ${parts.join(" · ")}`
+      : "$(openbox-logo)";
 
   const tooltip =
     anyActive && !opts.haveAgent
@@ -58,9 +59,9 @@ export function buildIdleStatusBar(opts: IdleStatusBarInput): IdleStatusBarOutpu
 }
 
 /** Boot/error tag used for transient states (Set API Key, No Org, ...).
- *  Debug builds carry the env suffix for development visibility; release
- *  builds hide it so end users never see env names tagged on transient
- *  state. */
+ *  Just the action text — the icon already identifies the bar as
+ *  OpenBox. Debug builds append the env name as a suffix for
+ *  development visibility. */
 export function envTagFor(state: string, env: EnvName, debugBuild: boolean): string {
-  return debugBuild ? `OpenBox · ${env}: ${state}` : `OpenBox: ${state}`;
+  return debugBuild ? `${state} · ${env}` : state;
 }

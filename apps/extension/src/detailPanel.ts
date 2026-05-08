@@ -89,11 +89,26 @@ export class ApprovalDetailPanel {
   }
 
   setApproval(approval: Approval) {
+    const isFirstRender = !this.panel.webview.html;
     this.approval = approval;
-    this.agent = null;
-    this.ownerName = null;
+    // Don't null out agent/ownerName synchronously. Keep the previous
+    // panel content visible while loadAgentAndOwner runs; replace
+    // once the new data lands. Two-render strategy was causing a
+    // double-flash on every card click — null render then populated
+    // render. Single render now: either the initial (when the panel
+    // is first shown) or a single replacement when fresh data
+    // arrives.
     this.panel.title = `OpenBox · ${approval.agent?.agent_name || approval.agent_id || "Approval"}`;
-    this.render();
+    if (isFirstRender) {
+      // First time: paint immediately with what we have (no enrichment
+      // yet). loadAgentAndOwner will refresh below.
+      this.agent = null;
+      this.ownerName = null;
+      this.render();
+    } else {
+      // Stale agent/ownerName left in place — visually cleaner. The
+      // load below will overwrite both before the user can interact.
+    }
     this.startCountdown();
     this.loadAgentAndOwner();
   }
@@ -307,6 +322,15 @@ function renderHtml(
     color: var(--vscode-foreground);
     background: var(--vscode-editor-background);
   }
+  /* Constrain the panel content to a readable column on wide screens.
+     Without this, the card + reason + action blocks stretch edge-to-
+     edge in any side-panel resize, which reads worse than a centered
+     column with breathing room on either side. 720px matches mobile's
+     ApprovalCard target reading width. */
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+  }
   .hero { text-align: center; padding: 16px 0 24px; }
   .agent {
     font-size: 22px;
@@ -429,33 +453,35 @@ function renderHtml(
 </style>
 </head>
 <body>
-  <div class="hero">
-    <div class="agent">${escapeHtml(a.agent?.agent_name || a.agent_id || "Unknown Agent")}</div>
-    <div class="pills">
-      ${tier != null ? `<span class="pill tier" style="color: ${tierColor(tier)}; background: ${tierBg(tier)}">Tier ${tier}</span>` : ""}
-      ${action ? `<span class="pill">${escapeHtml(formatLabel(action))}</span>` : ""}
+  <div class="container">
+    <div class="hero">
+      <div class="agent">${escapeHtml(a.agent?.agent_name || a.agent_id || "Unknown Agent")}</div>
+      <div class="pills">
+        ${tier != null ? `<span class="pill tier" style="color: ${tierColor(tier)}; background: ${tierBg(tier)}">Tier ${tier}</span>` : ""}
+        ${action ? `<span class="pill">${escapeHtml(formatLabel(action))}</span>` : ""}
+      </div>
     </div>
-  </div>
 
-  <div class="card">
-    ${summary ? `<div class="row col"><span class="lbl">Action</span><pre>${escapeHtml(summary)}</pre></div>` : ""}
-    ${a.reason ? `<div class="row col"><span class="lbl">Reason</span><div class="reason val">${escapeHtml(a.reason)}</div></div>` : ""}
-    ${teams ? `<div class="row"><span class="lbl">Team</span><span class="val">${escapeHtml(teams)}</span></div>` : ""}
-    ${ownerName ? `<div class="row"><span class="lbl">Owner</span><span class="val">${escapeHtml(ownerName)}</span></div>` : ""}
-    ${a.created_at ? `<div class="row"><span class="lbl">Created</span><span class="val">${escapeHtml(timeAgo(a.created_at))}</span></div>` : ""}
-    ${/* Outcome row mirrors mobile: the row label IS the status word
-        (Approved / Rejected / Expired / Expires in). No separate
-        "Verdict" row - that maps to backend enum values (Allow /
-        Constrain / Block / Halt) that don't read friendly. */ ""}
-    ${timingRow}
-  </div>
+    <div class="card">
+      ${summary ? `<div class="row col"><span class="lbl">Action</span><pre>${escapeHtml(summary)}</pre></div>` : ""}
+      ${a.reason ? `<div class="row col"><span class="lbl">Reason</span><div class="reason val">${escapeHtml(a.reason)}</div></div>` : ""}
+      ${teams ? `<div class="row"><span class="lbl">Team</span><span class="val">${escapeHtml(teams)}</span></div>` : ""}
+      ${ownerName ? `<div class="row"><span class="lbl">Owner</span><span class="val">${escapeHtml(ownerName)}</span></div>` : ""}
+      ${a.created_at ? `<div class="row"><span class="lbl">Created</span><span class="val">${escapeHtml(timeAgo(a.created_at))}</span></div>` : ""}
+      ${/* Outcome row mirrors mobile: the row label IS the status word
+          (Approved / Rejected / Expired / Expires in). No separate
+          "Verdict" row - that maps to backend enum values (Allow /
+          Constrain / Block / Halt) that don't read friendly. */ ""}
+      ${timingRow}
+    </div>
 
-  ${showActions
-    ? `<div class="actions">
-        <button id="approve" class="primary">Approve</button>
-        <button id="reject" class="subtle">Reject</button>
-      </div>`
-    : ""}
+    ${showActions
+      ? `<div class="actions">
+          <button id="approve" class="primary">Approve</button>
+          <button id="reject" class="subtle">Reject</button>
+        </div>`
+      : ""}
+  </div>
 
   <script nonce="${n}">
     const vscode = acquireVsCodeApi();

@@ -22,62 +22,62 @@ const baseInput = {
 };
 
 describe('buildIdleStatusBar - text shape', () => {
-  it('release build, no mock, no count: "$(shield) OpenBox" with no suffix', () => {
+  it('release build, idle, nothing to say: just the icon', () => {
     const out = buildIdleStatusBar(baseInput);
-    expect(out.text).toBe('$(shield) OpenBox');
+    expect(out.text).toBe('$(openbox-logo)');
     expect(out.tooltip).toBeUndefined();
   });
 
-  it('release build, no mock, count > 0: "$(shield) N Pending"', () => {
+  it('release build, count > 0: icon + "N Pending"', () => {
     const out = buildIdleStatusBar({ ...baseInput, count: 6 });
-    expect(out.text).toBe('$(shield) 6 Pending');
+    expect(out.text).toBe('$(openbox-logo) 6 Pending');
   });
 
-  it('debug build, no mock: env tag is appended', () => {
+  it('debug build, no count: icon + env name only', () => {
     const out = buildIdleStatusBar({ ...baseInput, debugBuild: true });
-    expect(out.text).toBe('$(shield) OpenBox · staging');
+    expect(out.text).toBe('$(openbox-logo) staging');
   });
 
-  it('debug build with count: env tag appended after Pending', () => {
+  it('debug build with count: env appended after Pending', () => {
     const out = buildIdleStatusBar({ ...baseInput, debugBuild: true, count: 3 });
-    expect(out.text).toBe('$(shield) 3 Pending · staging');
+    expect(out.text).toBe('$(openbox-logo) 3 Pending · staging');
   });
 
-  it('mock auth: MOCK suffix wins regardless of debug flag', () => {
+  it('mock auth: MOCK · env regardless of debug flag', () => {
     const release = buildIdleStatusBar({ ...baseInput, mockAuth: true });
     const debug = buildIdleStatusBar({ ...baseInput, mockAuth: true, debugBuild: true });
-    expect(release.text).toBe('$(shield) OpenBox · MOCK · staging');
-    expect(debug.text).toBe('$(shield) OpenBox · MOCK · staging');
+    expect(release.text).toBe('$(openbox-logo) MOCK · staging');
+    expect(debug.text).toBe('$(openbox-logo) MOCK · staging');
   });
 
   it('mock auth + count: MOCK suffix between count and env', () => {
     const out = buildIdleStatusBar({ ...baseInput, mockAuth: true, count: 6 });
-    expect(out.text).toBe('$(shield) 6 Pending · MOCK · staging');
+    expect(out.text).toBe('$(openbox-logo) 6 Pending · MOCK · staging');
   });
 
-  it('different env values land in the suffix verbatim', () => {
+  it('different env values land verbatim (debug build)', () => {
     expect(buildIdleStatusBar({ ...baseInput, env: 'local', debugBuild: true }).text)
-      .toBe('$(shield) OpenBox · local');
+      .toBe('$(openbox-logo) local');
     expect(buildIdleStatusBar({ ...baseInput, env: 'production', debugBuild: true }).text)
-      .toBe('$(shield) OpenBox · production');
+      .toBe('$(openbox-logo) production');
   });
 });
 
 describe('buildIdleStatusBar - idle-gate annotation', () => {
-  it('preWriteGate.active=true with no agent: " · gates idle (no agent)" appended', () => {
+  it('preWriteGate.active=true with no agent: gates-idle suffix appended', () => {
     const out = buildIdleStatusBar({ ...baseInput, preWriteGateActive: true });
-    expect(out.text).toBe('$(shield) OpenBox · gates idle (no agent)');
+    expect(out.text).toBe('$(openbox-logo) gates idle (no agent)');
     expect(out.tooltip).toMatch(/Active gates are turned on/);
     expect(out.tooltip).toMatch(/openbox\.agentId/);
   });
 
-  it('preWriteGate.active + haveAgent: no idle annotation, no tooltip override', () => {
+  it('preWriteGate.active + haveAgent: no idle annotation, just the icon', () => {
     const out = buildIdleStatusBar({
       ...baseInput,
       preWriteGateActive: true,
       haveAgent: true,
     });
-    expect(out.text).toBe('$(shield) OpenBox');
+    expect(out.text).toBe('$(openbox-logo)');
     expect(out.tooltip).toBeUndefined();
   });
 
@@ -87,7 +87,7 @@ describe('buildIdleStatusBar - idle-gate annotation', () => {
       tabObserverEnabled: true,
       tabObserverActive: false,
     });
-    expect(out.text).toBe('$(shield) OpenBox');
+    expect(out.text).toBe('$(openbox-logo)');
   });
 
   it('tabObserver enabled AND active, no agent: idle annotation', () => {
@@ -111,18 +111,18 @@ describe('buildIdleStatusBar - idle-gate annotation', () => {
       mockAuth: true,
       count: 6,
     });
-    expect(out.text).toBe('$(shield) 6 Pending · MOCK · staging · gates idle (no agent)');
+    expect(out.text).toBe('$(openbox-logo) 6 Pending · MOCK · staging · gates idle (no agent)');
   });
 });
 
 describe('envTagFor - boot/error tag', () => {
-  it('release build hides env name from transient state', () => {
-    expect(envTagFor('Set API Key', 'staging', false)).toBe('OpenBox: Set API Key');
-    expect(envTagFor('No Token', 'production', false)).toBe('OpenBox: No Token');
+  it('release build: just the action text (icon already identifies us)', () => {
+    expect(envTagFor('Set API Key', 'staging', false)).toBe('Set API Key');
+    expect(envTagFor('No Token', 'production', false)).toBe('No Token');
   });
 
-  it('debug build carries env in transient state for development visibility', () => {
-    expect(envTagFor('Set API Key', 'staging', true)).toBe('OpenBox · staging: Set API Key');
-    expect(envTagFor('Error', 'local', true)).toBe('OpenBox · local: Error');
+  it('debug build: appends env suffix', () => {
+    expect(envTagFor('Set API Key', 'staging', true)).toBe('Set API Key · staging');
+    expect(envTagFor('Error', 'local', true)).toBe('Error · local');
   });
 });
