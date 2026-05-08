@@ -181,11 +181,10 @@ describe('cli/commands; versions + skill + core', () => {
     const install = program.commands.find((c) => c.name() === 'install');
     expect(install).toBeDefined();
     const targets = install!.commands.map((s) => s.name()).sort();
-    // `all` is the meta target: `openbox install` (no arg) and `openbox
-    // install all` both run every detectable target. The other names are
-    // the per-target verbs.
+    // Bare `openbox install` is the selective meta-command (no
+    // subcommand) — the entries below are the per-target verbs only.
     expect(targets).toEqual(
-      ['all', 'approver', 'claude-code', 'cursor', 'extension', 'mcp', 'mobile', 'skill'].sort(),
+      ['approver', 'claude-code', 'cursor', 'extension', 'mcp', 'mobile', 'skill'].sort(),
     );
 
     const uninstall = program.commands.find((c) => c.name() === 'uninstall');

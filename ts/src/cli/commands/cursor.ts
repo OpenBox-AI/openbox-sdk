@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { EXIT, bailWith } from '../exit-codes.js';
+import { error, info, success, output } from '../output.js';
 
 /** `openbox cursor hook`: stdin → governance → stdout, invoked by
  *  Cursor per hook event. Install lives at `openbox install cursor`. */
@@ -15,8 +16,7 @@ export function registerCursorCommands(program: Command) {
         await runCursorHook();
       } catch (err) {
         // Fail-open: unhandled error → Cursor uses default permissioning.
-        // eslint-disable-next-line no-console
-        console.error('[openbox cursor hook] fatal:', (err as Error).message);
+        error(`cursor hook: ${(err as Error).message}`);
         bailWith(EXIT.OK);
       }
     });
@@ -37,13 +37,12 @@ export function registerCursorCommands(program: Command) {
           profile: opts.profile as 'enterprise-default' | 'enterprise-strict',
           dryRun: opts.dryRun,
         });
-        // eslint-disable-next-line no-console
-        console.log(`${opts.dryRun ? '[dry-run] ' : ''}Profile '${r.profile}' applied to ${r.file}`);
-        if (r.applied.length) console.log(`  applied:   ${r.applied.join(', ')}`);
-        if (r.unchanged.length) console.log(`  unchanged: ${r.unchanged.length} key(s)`);
+        const verb = opts.dryRun ? 'would apply' : 'applied';
+        success(`profile '${r.profile}' ${verb} to ${r.file}`);
+        if (r.applied.length) info(`  applied:   ${r.applied.join(', ')}`);
+        if (r.unchanged.length) info(`  unchanged: ${r.unchanged.length} key(s)`);
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[openbox cursor harden] failed:', (err as Error).message);
+        error(`cursor harden: ${(err as Error).message}`);
         bailWith(EXIT.GENERIC);
       }
     });
@@ -54,8 +53,7 @@ export function registerCursorCommands(program: Command) {
     .action(async () => {
       const { unhardenCursor } = await import('../../runtime/cursor/enterprise.js');
       const r = unhardenCursor();
-      // eslint-disable-next-line no-console
-      console.log(`Removed ${r.removed.length} OpenBox-managed key(s) from ${r.file}`);
+      success(`removed ${r.removed.length} OpenBox-managed key(s) from ${r.file}`);
     });
 
   cursor
@@ -84,27 +82,22 @@ export function registerCursorCommands(program: Command) {
         try {
           const projection = await fetchRulesProjection({ agentId: opts.agent });
           if (opts.dryRun) {
-            // eslint-disable-next-line no-console
-            console.log(JSON.stringify(projection, null, 2));
+            output(projection);
             return;
           }
           const result = renderRulesProjection(projection, {
             workspace: opts.workspace,
             noPrune: !opts.prune,
           });
-          // eslint-disable-next-line no-console
-          console.log(`Synced ${projection.rules.length} rule(s) to ${result.rulesDir}`);
+          success(`synced ${projection.rules.length} rule(s) to ${result.rulesDir}`);
           if (result.written.length > 0) {
-            // eslint-disable-next-line no-console
-            console.log(`  written: ${result.written.length} (${result.written.slice(0, 3).join(', ')}${result.written.length > 3 ? '…' : ''})`);
+            info(`  written: ${result.written.length} (${result.written.slice(0, 3).join(', ')}${result.written.length > 3 ? '…' : ''})`);
           }
           if (result.pruned.length > 0) {
-            // eslint-disable-next-line no-console
-            console.log(`  pruned:  ${result.pruned.length}`);
+            info(`  pruned:  ${result.pruned.length}`);
           }
         } catch (err) {
-          // eslint-disable-next-line no-console
-          console.error('[openbox cursor sync-rules] failed:', (err as Error).message);
+          error(`cursor sync-rules: ${(err as Error).message}`);
           bailWith(EXIT.GENERIC);
         }
       },

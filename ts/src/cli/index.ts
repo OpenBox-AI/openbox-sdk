@@ -43,6 +43,7 @@ import { gateCommands, setMaturityOverride } from './maturity.js';
 import { maturityOf } from '../maturity/index.js';
 import { setExplicitFeatures } from './features.js';
 import { EXIT, bailWith } from './exit-codes.js';
+import { error } from './output.js';
 import { reportAndExit } from '../validators/index.js';
 
 const program = new Command();
@@ -101,11 +102,9 @@ program
       if (Object.keys(features).length > 0) {
         const missingF = missingFeatures(requiredFeatures, features);
         if (missingF.length > 0) {
-          console.error(
-            `This env (${env}) has feature(s) disabled for \`openbox ${commandPath}\`: ${missingF.join(', ')}`,
-          );
-          console.error(
-            `To fix: ask your admin to enable the feature on the ${env} org.`,
+          error(
+            `this env (${env}) has feature(s) disabled for \`openbox ${commandPath}\`: ${missingF.join(', ')}.`,
+            { fix: `ask your admin to enable the feature on the ${env} org.` },
           );
           bailWith(EXIT.FEATURE_DISABLED);
         }
@@ -120,14 +119,12 @@ program
     const missing = missingPermissions(required, have);
     if (missing.length === 0) return;
 
-    console.error(
-      `This env (${env}) lacks required permission(s) for \`openbox ${commandPath}\`: ${missing.join(', ')}`,
-    );
-    console.error(
-      `Your api-key has ${have.length} permission(s); the server will return 403 if any are required.`,
-    );
-    console.error(
-      `To fix: ask your admin to grant the missing permission(s) on the ${env} Keycloak role.`,
+    error(
+      `this env (${env}) lacks required permission(s) for \`openbox ${commandPath}\`: ${missing.join(', ')}.`,
+      {
+        detail: `your api-key has ${have.length} permission(s); the server will return 403 if any are required.`,
+        fix: `ask your admin to grant the missing permission(s) on the ${env} Keycloak role.`,
+      },
     );
     bailWith(EXIT.AUTH);
   });
@@ -239,11 +236,9 @@ gateCommands(program);
     // own error is the right one.
     const knownToCommander = program.commands.some((c) => c.name() === firstVerb);
     if (gated && !knownToCommander) {
-      console.error(
-        `error: '${firstVerb}' is an experimental command. Re-run with --experimental:\n` +
-          `  openbox --experimental ${argv.join(' ')}\n` +
-          `Or set OPENBOX_EXPERIMENTAL_LEVEL=experimental in your shell.`,
-      );
+      error(`'${firstVerb}' is an experimental command.`, {
+        fix: `re-run with --experimental: \`openbox --experimental ${argv.join(' ')}\`. or set OPENBOX_EXPERIMENTAL_LEVEL=experimental in your shell.`,
+      });
       bailWith(EXIT.USAGE);
     }
   }

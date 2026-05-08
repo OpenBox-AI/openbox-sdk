@@ -6,7 +6,7 @@
 // from the spec; adding a new subcommand is a spec edit.
 
 import type { Command } from 'commander';
-import { output, outputList } from './output.js';
+import { output, outputList, banner, note } from './output.js';
 import { parseJsonInput } from '../validators/index.js';
 import {
   reportAndExit,
@@ -161,20 +161,21 @@ export const OUTPUT_POST_REGISTRY: Record<string, (data: unknown) => void> = {
         // mask the key from the user.
       }
     }
-    console.error('');
-    console.error('────────────────────────────────────────────────────────────');
-    console.error('  Runtime API key. Capture now; shown only once:');
-    console.error(`    ${key}`);
-    console.error('');
-    console.error('  Use this as OPENBOX_API_KEY for core governance calls.');
-    if (stored) {
-      console.error(`  Cached to: ${agentKeysPath()}`);
-      console.error(`  Recover later with: openbox api-key recall ${agentId}`);
-    } else {
-      console.error(`  To recover later: openbox api-key rotate ${agentId}`);
-      console.error('  Rotation invalidates the previous key.');
-    }
-    console.error('────────────────────────────────────────────────────────────');
+    const body = [
+      `  ${key}`,
+      '',
+      'Use this as OPENBOX_API_KEY for core governance calls.',
+      ...(stored
+        ? [
+            `Cached to: ${agentKeysPath()}`,
+            `Recover later with: openbox api-key recall ${agentId}`,
+          ]
+        : [
+            `To recover later: openbox api-key rotate ${agentId}`,
+            'Rotation invalidates the previous key.',
+          ]),
+    ];
+    banner('Runtime API key. Capture now; shown only once:', body);
   },
 
   /** Log the org-approvals response's `metrics` envelope to stderr. The
@@ -182,7 +183,7 @@ export const OUTPUT_POST_REGISTRY: Record<string, (data: unknown) => void> = {
    *  callback surfaces the metrics that were dropped. */
   logApprovalMetrics(data: unknown): void {
     const m = (data as { metrics?: unknown } | null)?.metrics;
-    if (m) console.error(`metrics: ${JSON.stringify(m)}`);
+    if (m) note(`metrics: ${JSON.stringify(m)}`);
   },
 
   /** Highlight a webhook's signing secret with a one-time display
@@ -190,11 +191,9 @@ export const OUTPUT_POST_REGISTRY: Record<string, (data: unknown) => void> = {
   highlightWebhookSecret(data: unknown): void {
     const secret = (data as { secret?: string } | null)?.secret;
     if (typeof secret !== 'string') return;
-    console.error('');
-    console.error('────────────────────────────────────────────────────────────');
-    console.error('  New webhook signing secret. Capture now; shown only once:');
-    console.error(`    ${secret}`);
-    console.error('────────────────────────────────────────────────────────────');
+    banner('New webhook signing secret. Capture now; shown only once:', [
+      `  ${secret}`,
+    ]);
   },
 };
 

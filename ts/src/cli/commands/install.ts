@@ -8,6 +8,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EXIT, bailWith } from '../exit-codes.js';
+import { error, warn, info, action, success, row, summary, kv } from '../output.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -34,10 +35,9 @@ const WORKSPACE_BUNDLE_CANDIDATES = [
 
 function ensureMac(target: string): void {
   if (os.platform() !== 'darwin') {
-    console.error(
-      `\`openbox install ${target}\` is macOS-only. ` +
-        'On Linux/Windows, use `openbox install extension` instead.',
-    );
+    error(`\`openbox install ${target}\` is macOS-only.`, {
+      hint: 'On Linux/Windows, use `openbox install extension` instead.',
+    });
     bailWith(EXIT.GENERIC);
   }
 }
@@ -121,47 +121,44 @@ function installApprover(opts: ApproverInstallOpts): void {
   const dest = opts.dest ?? APPLICATIONS_DIR;
   const located = findBuiltApproverApp();
   const dst = path.join(dest, APPROVER_BUNDLE_NAME);
-  console.log(`Source:      ${located.path}`);
-  console.log(`Destination: ${dst}`);
+  kv({ source: located.path, destination: dst });
   if (fs.existsSync(dst)) {
-    console.log(`Removing existing bundle at ${dst}...`);
+    action('Removing existing bundle', dst);
     execFileSync('rm', ['-rf', dst], { stdio: 'inherit' });
   }
   execFileSync('cp', ['-R', located.path, dst], { stdio: 'inherit' });
 
   if (opts.cleanBuild) {
     if (located.source === 'workspace') {
-      console.log(`Removing source bundle at ${located.path}...`);
+      action('Removing source bundle', located.path);
       try {
         execFileSync('rm', ['-rf', located.path], { stdio: 'inherit' });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`Warning: failed to remove source bundle: ${msg}. Continuing.`);
+        warn(`failed to remove source bundle: ${msg}. continuing.`);
       }
     } else {
-      console.log(
+      info(
         '--clean-build skipped: bundle was located via OPENBOX_APPROVER_APP_PATH or ' +
           'OPENBOX_APPROVER_APP_DIR. Those paths are user-managed; not auto-deleting.',
       );
     }
   }
 
-  console.log(
-    '\nDone. Launch from Spotlight ("OpenBox Approver"). ' +
-      "Run `openbox auth set-api-key` first if you haven't.",
-  );
+  success(`approver installed at ${dst}`);
+  info("Launch from Spotlight (\"OpenBox Approver\"). Run `openbox auth set-api-key` first if you haven't.");
 }
 
 function uninstallApprover(dest: string): void {
   ensureMac('approver');
   const dst = path.join(dest, APPROVER_BUNDLE_NAME);
   if (!fs.existsSync(dst)) {
-    console.log(`${dst} is not installed.`);
+    info(`${dst} is not installed.`);
     return;
   }
-  console.log(`Removing ${dst}...`);
+  action('Removing', dst);
   execFileSync('rm', ['-rf', dst], { stdio: 'inherit' });
-  console.log('Done.');
+  success(`approver removed from ${dst}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -216,41 +213,39 @@ function installExtension(opts: { code?: boolean; cursor?: boolean }): void {
   // makes the step a no-op so the rest of the install path
   // (hooks, MCP, skill, commands, rules, agents) is still exercised.
   if (process.env.OPENBOX_SKIP_EXTENSION === '1') {
-    console.log('Skipping extension install (OPENBOX_SKIP_EXTENSION=1).');
+    info('Skipping extension install (OPENBOX_SKIP_EXTENSION=1).');
     return;
   }
   const hosts = pickHosts(opts);
   if (hosts.length === 0) {
-    console.error(
-      'Neither `code` nor `cursor` is on PATH. ' +
-        'Install VS Code and run "Shell Command: Install \'code\' command in PATH".',
-    );
+    error('neither `code` nor `cursor` is on PATH.', {
+      fix: "Install VS Code and run \"Shell Command: Install 'code' command in PATH\".",
+    });
     bailWith(EXIT.GENERIC);
   }
   const vsix = findVsix();
-  console.log(`Using extension package: ${vsix}`);
+  info(`Using extension package: ${vsix}`);
   for (const host of hosts) {
-    console.log(`Installing into ${host}...`);
+    action('Installing into', host);
     execFileSync(host, ['--install-extension', vsix], { stdio: 'inherit' });
   }
-  console.log(
-    "\nDone. Run `openbox auth set-api-key` if you haven't, so the extension can authenticate.",
-  );
+  success('extension installed');
+  info("Run `openbox auth set-api-key` if you haven't, so the extension can authenticate.");
 }
 
 function uninstallExtension(opts: { code?: boolean; cursor?: boolean }): void {
   if (process.env.OPENBOX_SKIP_EXTENSION === '1') {
-    console.log('Skipping extension uninstall (OPENBOX_SKIP_EXTENSION=1).');
+    info('Skipping extension uninstall (OPENBOX_SKIP_EXTENSION=1).');
     return;
   }
   const hosts = pickHosts(opts);
   if (hosts.length === 0) {
-    console.error('Neither `code` nor `cursor` is on PATH.');
+    error('neither `code` nor `cursor` is on PATH.');
     bailWith(EXIT.GENERIC);
   }
   const id = 'openbox.openbox';
   for (const host of hosts) {
-    console.log(`Uninstalling from ${host}...`);
+    action('Uninstalling from', host);
     try {
       execFileSync(host, ['--uninstall-extension', id], { stdio: 'inherit' });
     } catch {
@@ -266,11 +261,8 @@ function uninstallExtension(opts: { code?: boolean; cursor?: boolean }): void {
 const MOBILE_APP_STORE_URL = 'https://apps.apple.com/app/openbox';
 
 function installMobile(): void {
-  console.log(
-    `\n  iOS app: ${MOBILE_APP_STORE_URL}\n` +
-      `  (Beta. App Store listing pending; the iOS app authenticates via\n` +
-      `   its own login flow: no CLI install step.)\n`,
-  );
+  info(`iOS app: ${MOBILE_APP_STORE_URL}`);
+  info('(Beta. App Store listing pending; the iOS app authenticates via its own login flow: no CLI install step.)');
 }
 
 // ---------------------------------------------------------------------------
@@ -304,11 +296,11 @@ function pickMcpTargets(opts: InstallOpts): McpTarget[] | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// `openbox install` (no target) / `openbox install all`
-// Auto-detects the current platform's relevant install targets and runs
-// them all. Skip with --skip <name> (repeatable). Whitelist with --only
-// <name> (repeatable, mutually exclusive with --skip). Preview with
-// --dry-run.
+// `openbox install` (no target)
+// Auto-detects the current platform's relevant install targets and prompts
+// per-surface. Whitelist with --only <name> (repeatable). Skip with --skip
+// <name> (repeatable, mutually exclusive with --only) — both flags imply
+// non-interactive. Preview with --dry-run.
 // ---------------------------------------------------------------------------
 
 /** Canonical target names accepted by --only/--skip and printed in the
@@ -358,8 +350,8 @@ interface AllOpts {
   dryRun?: boolean;
 }
 
-/** Build the run plan for `install all`. Pure: no side effects, just
- *  detection + filtering. Exported for tests. */
+/** Build the run plan for bare `openbox install`. Pure: no side effects,
+ *  just detection + filtering. Exported for tests. */
 export function planInstallAll(
   opts: AllOpts,
   env: InstallAllEnv = defaultInstallAllEnv(),
@@ -394,8 +386,29 @@ export function planInstallAll(
   const isMac = env.platform() === 'darwin';
   const hasCode = env.hasOnPath('code');
   const hasCursor = env.hasOnPath('cursor');
+  const hasClaudeDir = env.exists(claudeDir);
+  const hasCursorDir = env.exists(cursorDir);
+  // MCP host config locations we'd write into. Keep in sync with
+  // runtime/mcp/install.ts. Platform routes through `env` so tests
+  // can pin macOS / linux / win32 without faking process.platform.
+  const platform = env.platform();
+  const claudeDesktopCfg =
+    platform === 'darwin'
+      ? path.join(home, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json')
+      : platform === 'win32'
+        ? path.join(home, 'AppData', 'Roaming', 'Claude', 'claude_desktop_config.json')
+        : path.join(home, '.config', 'Claude', 'claude_desktop_config.json');
+  const hasClaudeDesktop = env.exists(path.dirname(claudeDesktopCfg));
 
   const plan: PlanEntry[] = [];
+
+  // Targets that the bare `openbox install` flow auto-suggests must
+  // earn it: each one gates on a host artifact actually being present
+  // on this machine, and the entry is omitted (not "skipped") when no
+  // host is found. The user can still install the surface directly
+  // via `openbox install <target>` or `--only <target>` — that path
+  // forces the target through (`onlySet` truthy) so creation-side
+  // installers still run.
 
   for (const target of INSTALL_ALL_TARGETS) {
     if (onlySet && !onlySet.has(target)) continue;
@@ -405,16 +418,27 @@ export function planInstallAll(
     }
 
     switch (target) {
-      case 'skill':
+      case 'skill': {
+        // Skill is opt-in only — never part of the bare-install
+        // auto-detect plan. Reach it via `openbox install skill` or
+        // `--only skill`. (The skill bundle is small and most users
+        // don't want it copied into both ~/.claude and ~/.cursor by
+        // default just because those dirs happen to exist.)
+        if (!onlySet) continue;
+        const hosts: string[] = [];
+        if (hasClaudeDir) hosts.push('claude');
+        if (hasCursorDir) hosts.push('cursor');
         plan.push({
           target,
+          detail: hosts.length > 0 ? `hosts: ${hosts.join(', ')}` : undefined,
           run: async () => {
             const { installSkill } = await import('./skill.js');
-            installSkill();          // ~/.claude/skills/openbox
-            installSkill({ cursor: true }); // ~/.cursor/skills/openbox
+            installSkill();
+            installSkill({ cursor: true });
           },
         });
         break;
+      }
 
       case 'extension': {
         if (!hasCode && !hasCursor) {
@@ -446,22 +470,22 @@ export function planInstallAll(
             // Slash commands ship alongside hooks: bundle is meaningless
             // without the in-chat surface that drives the CLI. Rules +
             // plugin agents come along too — same pattern, same dir.
-            console.log('');
+            info('');
             const {
               installCursorCommands,
               installCursorRules,
               installCursorAgents,
             } = await import('../../runtime/cursor/commands.js');
             installCursorCommands();
-            console.log('');
+            info('');
             installCursorRules();
-            console.log('');
+            info('');
             installCursorAgents();
             // Harden is part of the full Cursor stack (mirrors what
             // `install cursor` does standalone). Consent-gated:
             // --yes auto-yes, non-interactive without --yes silently
             // skip, interactive TTY prompt y/N.
-            console.log('');
+            info('');
             const { consent } = await import('../non-interactive.js');
             const ok = await consent(
               'Apply OpenBox enterprise hardening profile to ~/.cursor/User/settings.json (privacy mode on, cloud features off, telemetry off)?',
@@ -469,9 +493,9 @@ export function planInstallAll(
             if (ok) {
               const { hardenCursor } = await import('../../runtime/cursor/enterprise.js');
               const r = hardenCursor({ profile: 'enterprise-default' });
-              console.log(`Applied hardening profile: ${r.profile} → ${r.file}`);
+              success(`hardening profile applied: ${r.profile} → ${r.file}`);
             } else {
-              console.log('Skipped hardening profile (run `openbox cursor harden` later to apply).');
+              info('Skipped hardening profile (run `openbox cursor harden` later to apply).');
             }
           },
         });
@@ -479,9 +503,10 @@ export function planInstallAll(
       }
 
       case 'claude-code': {
-        // Settings file may not exist yet; the parent dir reachability
-        // (homedir) is what the spec checks. Run unconditionally; the
-        // installer creates ~/.claude as needed.
+        // Don't auto-suggest creating ~/.claude on a machine that
+        // never used Claude Code. Per-target subcommand and --only
+        // still install (creating the dir as needed).
+        if (!hasClaudeDir && !onlySet) continue;
         plan.push({
           target,
           detail: path.join(claudeDir, 'settings.json'),
@@ -493,15 +518,22 @@ export function planInstallAll(
         break;
       }
 
-      case 'mcp':
+      case 'mcp': {
+        const hosts: string[] = [];
+        if (hasClaudeDesktop) hosts.push('claude-desktop');
+        if (hasCursorDir) hosts.push('cursor');
+        if (hasClaudeDir) hosts.push('claude-code');
+        if (hosts.length === 0 && !onlySet) continue;
         plan.push({
           target,
+          detail: hosts.length > 0 ? `hosts: ${hosts.join(', ')}` : undefined,
           run: async () => {
             const { installMcp } = await import('../../runtime/mcp/install.js');
             installMcp({});
           },
         });
         break;
+      }
 
       case 'approver': {
         if (!isMac) {
@@ -547,11 +579,11 @@ export function planUninstallAll(
             for (const dst of dsts) {
               if (fs.existsSync(dst)) {
                 execFileSync('rm', ['-rf', dst], { stdio: 'inherit' });
-                console.log(`Removed ${dst}`);
+                success(`removed ${dst}`);
                 removed++;
               }
             }
-            if (removed === 0) console.log(`No skill copies installed under ${dsts.join(' / ')}.`);
+            if (removed === 0) info(`No skill copies installed under ${dsts.join(' / ')}.`);
           },
         };
       case 'extension': {
@@ -618,55 +650,38 @@ export async function runPlan(
   opts: { dryRun?: boolean; verb?: 'install' | 'uninstall' } = {},
 ): Promise<RunSummary> {
   const verb = opts.verb ?? 'install';
-  const summary: RunSummary = { installed: [], skipped: [], failed: [] };
+  const result: RunSummary = { installed: [], skipped: [], failed: [] };
 
   for (const entry of plan) {
     if (entry.skipReason) {
-      console.log(`Skipping ${entry.target}: ${entry.skipReason}`);
-      summary.skipped.push({ target: entry.target, reason: entry.skipReason });
+      row(entry.target, 'skipped', entry.skipReason);
+      result.skipped.push({ target: entry.target, reason: entry.skipReason });
       continue;
     }
-    const tag = entry.detail ? `${entry.target} (${entry.detail})` : entry.target;
     if (opts.dryRun) {
-      console.log(`Would ${verb}: ${tag}`);
-      summary.installed.push(entry.target);
+      row(entry.target, verb === 'install' ? 'would-install' : 'would-remove', entry.detail);
+      result.installed.push(entry.target);
       continue;
     }
-    console.log(
-      `${verb === 'install' ? 'Installing' : 'Uninstalling'} ${tag}...`,
-    );
+    action(verb === 'install' ? 'Installing' : 'Uninstalling', entry.target);
     try {
       await entry.run?.();
-      summary.installed.push(entry.target);
-      console.log(`  ok: ${entry.target}`);
+      result.installed.push(entry.target);
+      row(entry.target, verb === 'install' ? 'installed' : 'removed', entry.detail);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      summary.failed.push({ target: entry.target, error: msg });
-      console.error(`  failed: ${entry.target}: ${msg}`);
+      result.failed.push({ target: entry.target, error: msg });
+      row(entry.target, 'failed', msg);
     }
   }
 
-  const lines: string[] = [];
-  lines.push(
-    `${verb === 'install' ? 'Installed' : 'Uninstalled'}: ${
-      summary.installed.length > 0 ? summary.installed.join(', ') : '(none)'
-    }.`,
-  );
-  if (summary.skipped.length > 0) {
-    lines.push(
-      `Skipped: ${summary.skipped
-        .map((s) => `${s.target} (${s.reason})`)
-        .join(', ')}.`,
-    );
-  }
-  if (summary.failed.length > 0) {
-    lines.push(
-      `Failed: ${summary.failed.map((f) => `${f.target} (${f.error})`).join(', ')}.`,
-    );
-  }
-  console.log('\n' + lines.join(' '));
+  summary({
+    [verb === 'install' ? 'installed' : 'removed']: result.installed.length,
+    skipped: result.skipped.length,
+    failed: result.failed.length,
+  });
 
-  return summary;
+  return result;
 }
 
 interface AllCliOpts {
@@ -676,16 +691,33 @@ interface AllCliOpts {
 }
 
 async function runInstallAll(opts: AllCliOpts): Promise<void> {
+  // Bare `openbox install` does NOT auto-detect or suggest anything.
+  // Scripts and humans alike must name targets explicitly: either
+  // `--only <target>` (repeatable) or a per-target subcommand like
+  // `openbox install extension`.
+  const explicitlyScoped = opts.only && opts.only.length > 0;
+  if (!explicitlyScoped) {
+    error('no targets specified.', {
+      fix:
+        'Pass `--only <target>` (repeatable; one of: ' +
+        `${INSTALL_ALL_TARGETS.join(', ')}) or run a per-target subcommand directly, ` +
+        'e.g. `openbox install extension`.',
+    });
+    bailWith(EXIT.USAGE);
+    return;
+  }
+
   let plan: PlanEntry[];
   try {
     plan = planInstallAll(opts);
   } catch (err) {
-    console.error(err instanceof Error ? err.message : String(err));
+    error(err instanceof Error ? err.message : String(err));
     bailWith(EXIT.USAGE);
     return;
   }
-  const summary = await runPlan(plan, { dryRun: opts.dryRun, verb: 'install' });
-  if (summary.failed.length > 0) bailWith(EXIT.GENERIC);
+
+  const result = await runPlan(plan, { dryRun: opts.dryRun, verb: 'install' });
+  if (result.failed.length > 0) bailWith(EXIT.GENERIC);
 }
 
 async function runUninstallAll(opts: AllCliOpts): Promise<void> {
@@ -693,12 +725,12 @@ async function runUninstallAll(opts: AllCliOpts): Promise<void> {
   try {
     plan = planUninstallAll(opts);
   } catch (err) {
-    console.error(err instanceof Error ? err.message : String(err));
+    error(err instanceof Error ? err.message : String(err));
     bailWith(EXIT.USAGE);
     return;
   }
-  const summary = await runPlan(plan, { dryRun: opts.dryRun, verb: 'uninstall' });
-  if (summary.failed.length > 0) bailWith(EXIT.GENERIC);
+  const result = await runPlan(plan, { dryRun: opts.dryRun, verb: 'uninstall' });
+  if (result.failed.length > 0) bailWith(EXIT.GENERIC);
 }
 
 function collect(value: string, prev: string[]): string[] {
@@ -709,32 +741,13 @@ export function registerInstallCommands(program: Command): void {
   const install = program
     .command('install')
     .description(
-      'Install an OpenBox client. With no target, auto-detects the current ' +
-        "machine's relevant pieces (skill, extension, cursor hooks, claude-code " +
-        'hooks, MCP, and on macOS the approver app) and installs them all.',
+      'Install an OpenBox client. Targets are always opt-in: pass ' +
+        '`--only <target>` (repeatable) or use a per-target subcommand ' +
+        `(e.g. \`openbox install extension\`). Known targets: ${INSTALL_ALL_TARGETS.join(', ')}.`,
     )
-    .option('--skip <target>', 'Skip a target by name (repeatable)', collect, [])
     .option(
       '--only <target>',
-      'Only install named targets (repeatable). Mutually exclusive with --skip.',
-      collect,
-      [],
-    )
-    .option('--dry-run', 'Print what would be installed without running', false)
-    .action(async (opts: AllCliOpts) => {
-      await runInstallAll(opts);
-    });
-
-  install
-    .command('all')
-    .description(
-      'Install every OpenBox piece detectable on this machine (same as ' +
-        '`openbox install` with no target).',
-    )
-    .option('--skip <target>', 'Skip a target by name (repeatable)', collect, [])
-    .option(
-      '--only <target>',
-      'Only install named targets (repeatable). Mutually exclusive with --skip.',
+      'Install named targets (repeatable).',
       collect,
       [],
     )
@@ -787,7 +800,7 @@ export function registerInstallCommands(program: Command): void {
       for (const pair of opts.matcher ?? []) {
         const idx = pair.indexOf('=');
         if (idx <= 0) {
-          console.error(`--matcher: invalid pair '${pair}', expected <event>=<regex>`);
+          error(`--matcher: invalid pair '${pair}', expected <event>=<regex>`);
           bailWith(EXIT.USAGE);
         }
         matchers[pair.slice(0, idx).trim()] = pair.slice(idx + 1);
@@ -796,27 +809,27 @@ export function registerInstallCommands(program: Command): void {
       installCursor({
         matchers: Object.keys(matchers).length > 0 ? matchers : undefined,
       });
-      console.log('');
+      info('');
       installExtension({ cursor: true });
-      console.log('');
+      info('');
       const { installMcp } = await import('../../runtime/mcp/install.js');
       installMcp({ targets: ['cursor'] });
-      console.log('');
+      info('');
       const {
         installCursorCommands,
         installCursorRules,
         installCursorAgents,
       } = await import('../../runtime/cursor/commands.js');
       installCursorCommands();
-      console.log('');
+      info('');
       installCursorRules();
-      console.log('');
+      info('');
       installCursorAgents();
-      console.log('');
+      info('');
       const { installSkill } = await import('./skill.js');
       installSkill({ cursor: true });
       if (opts.harden !== false) {
-        console.log('');
+        info('');
         const { consent } = await import('../non-interactive.js');
         const ok = await consent(
           'Apply OpenBox enterprise hardening profile to ~/.cursor/User/settings.json (privacy mode on, cloud features off, telemetry off)?',
@@ -824,9 +837,9 @@ export function registerInstallCommands(program: Command): void {
         if (ok) {
           const { hardenCursor } = await import('../../runtime/cursor/enterprise.js');
           const r = hardenCursor({ profile: 'enterprise-default' });
-          console.log(`Applied hardening profile: ${r.profile} → ${r.file}`);
+          success(`hardening profile applied: ${r.profile} → ${r.file}`);
         } else {
-          console.log('Skipped hardening profile (run `openbox cursor harden` later to apply).');
+          info('Skipped hardening profile (run `openbox cursor harden` later to apply).');
         }
       }
     });
@@ -841,10 +854,10 @@ export function registerInstallCommands(program: Command): void {
     .action(async () => {
       const { installClaudeCode } = await import('../../runtime/claude-code/install.js');
       installClaudeCode();
-      console.log('');
+      info('');
       const { installMcp } = await import('../../runtime/mcp/install.js');
       installMcp({ targets: ['claude-code'] });
-      console.log('');
+      info('');
       const { installSkill } = await import('./skill.js');
       installSkill();
     });
@@ -941,12 +954,12 @@ export function registerInstallCommands(program: Command): void {
     .action(async () => {
       const { uninstallCursor } = await import('../../runtime/cursor/install.js');
       uninstallCursor();
-      console.log('');
+      info('');
       uninstallExtension({ cursor: true });
-      console.log('');
+      info('');
       const { uninstallMcp } = await import('../../runtime/mcp/install.js');
       uninstallMcp({ targets: ['cursor'] });
-      console.log('');
+      info('');
       const {
         uninstallCursorCommands,
         uninstallCursorRules,
@@ -955,17 +968,17 @@ export function registerInstallCommands(program: Command): void {
       uninstallCursorCommands();
       uninstallCursorRules();
       uninstallCursorAgents();
-      console.log('');
+      info('');
       const cursorSkillDst = path.join(os.homedir(), '.cursor', 'skills', 'openbox');
       if (fs.existsSync(cursorSkillDst)) {
         execFileSync('rm', ['-rf', cursorSkillDst], { stdio: 'inherit' });
-        console.log(`Removed ${cursorSkillDst}`);
+        success(`removed ${cursorSkillDst}`);
       }
-      console.log('');
+      info('');
       const { unhardenCursor } = await import('../../runtime/cursor/enterprise.js');
       const r = unhardenCursor();
       if (r.removed.length > 0) {
-        console.log(`Removed hardening profile keys (${r.removed.length}) from ${r.file}`);
+        success(`removed ${r.removed.length} hardening profile keys from ${r.file}`);
       }
     });
 
@@ -978,14 +991,14 @@ export function registerInstallCommands(program: Command): void {
     .action(async () => {
       const { uninstallClaudeCode } = await import('../../runtime/claude-code/install.js');
       uninstallClaudeCode();
-      console.log('');
+      info('');
       const { uninstallMcp } = await import('../../runtime/mcp/install.js');
       uninstallMcp({ targets: ['claude-code'] });
-      console.log('');
+      info('');
       const skillDst = path.join(os.homedir(), '.claude', 'skills', 'openbox');
       if (fs.existsSync(skillDst)) {
         execFileSync('rm', ['-rf', skillDst], { stdio: 'inherit' });
-        console.log(`Removed ${skillDst}`);
+        success(`removed ${skillDst}`);
       }
     });
 

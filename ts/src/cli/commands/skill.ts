@@ -7,6 +7,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { info, success } from '../output.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -56,8 +57,7 @@ export function installSkill(opts: SkillInstallOpts = {}): string {
     ? path.resolve(opts.target)
     : path.join(os.homedir(), opts.cursor ? '.cursor' : '.claude', 'skills', 'openbox');
   copyDir(src, dst);
-  // eslint-disable-next-line no-console
-  console.log(`Installed openbox skill → ${dst}`);
+  success(`skill installed → ${dst}`);
   return dst;
 }
 
@@ -68,7 +68,6 @@ export function registerSkillCommands(program: Command) {
     .command('path')
     .description('Print the source path of the bundled skill content')
     .action(() => {
-      // eslint-disable-next-line no-console
-      console.log(findSkillSourceDir());
+      info(findSkillSourceDir());
     });
 }

@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { EXIT, bailWith } from '../exit-codes.js';
+import { error } from '../output.js';
 
 /** `openbox claude-code hook`: stdin → governance → stdout, invoked
  *  by Claude Code per hook event. Install lives at `openbox install
@@ -16,8 +17,7 @@ export function registerClaudeCodeCommands(program: Command) {
         await runClaudeHook();
       } catch (err) {
         // Fail-open: unhandled error → Claude Code uses default permissioning.
-        // eslint-disable-next-line no-console
-        console.error('[openbox claude-code hook] fatal:', (err as Error).message);
+        error(`claude-code hook: ${(err as Error).message}`);
         bailWith(EXIT.OK);
       }
     });

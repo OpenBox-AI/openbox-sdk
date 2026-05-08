@@ -10,6 +10,7 @@ import { SESSION_HANDLERS } from '../generated/cli-handlers/session.js';
 import { reportAndExit } from '../../validators/index.js';
 import { EXIT, bailWith } from '../exit-codes.js';
 import { isQuiet, requireYesForDestructive } from '../non-interactive.js';
+import { error, warn, info, kv, row, summary } from '../output.js';
 import {
   CANONICAL_EVENT_TYPES,
   CANONICAL_ACTIVITY_TYPES,
@@ -149,7 +150,7 @@ export function registerSessionCommands(program: Command) {
           if (arr.length === 0) throw new Error(`no session found with id or workflow_id matching "${ref}"`);
           session = arr[0];
           sessionId = session.id;
-          if (arr.length > 1) console.error(`note: ${arr.length} sessions match "${ref}"; inspecting the first (${sessionId})`);
+          if (arr.length > 1) warn(`${arr.length} sessions match "${ref}"; inspecting the first (${sessionId})`);
         }
 
         const all: EventLog[] = [];
@@ -165,25 +166,31 @@ export function registerSessionCommands(program: Command) {
           if (page > 200) break;
         }
 
-        console.log(`session ${sessionId}`);
-        console.log(`  status:       ${session.status ?? 'unknown'}`);
-        console.log(`  workflow_id:  ${session.workflow_id ?? '-'}`);
-        console.log(`  run_id:       ${session.run_id ?? '-'}`);
-        console.log(`  started_at:   ${session.started_at ?? session.created_at ?? '-'}`);
-        console.log(`  completed_at: ${session.completed_at ?? '-'}`);
-        console.log(`  events:       ${all.length}`);
-        console.log();
+        info(`session ${sessionId}`);
+        kv({
+          status: session.status ?? 'unknown',
+          workflow_id: session.workflow_id ?? '-',
+          run_id: session.run_id ?? '-',
+          started_at: session.started_at ?? session.created_at ?? '-',
+          completed_at: session.completed_at ?? '-',
+          events: all.length,
+        });
+        info('');
 
         const findings = inspectEvents(all);
-        console.log('protocol check:');
+        info('protocol check:');
         for (const f of findings) {
-          const mark = f.level === 'ok' ? '✓' : f.level === 'info' ? 'i' : f.level === 'warn' ? '!' : '✗';
-          console.log(`  ${mark} ${f.message}`);
+          // Map inspect's level to a row status: ok→pass, fail→fail, warn→warn, info→unchanged.
+          const status = f.level === 'ok' ? 'pass' : f.level === 'info' ? 'unchanged' : f.level;
+          row('', status, f.message);
         }
 
-        const failed = findings.filter((f) => f.level === 'fail').length;
-        if (failed > 0) {
-          console.log(`\n${failed} protocol violation${failed === 1 ? '' : 's'}. See references/governance-flow.md for the full contract.`);
+        const failedCount = findings.filter((f) => f.level === 'fail').length;
+        const warnCount = findings.filter((f) => f.level === 'warn').length;
+        const passCount = findings.filter((f) => f.level === 'ok').length;
+        summary({ pass: passCount, warn: warnCount, fail: failedCount });
+        if (failedCount > 0) {
+          info('See references/governance-flow.md for the full contract.');
           bailWith(EXIT.GENERIC);
         }
       } catch (err) {
@@ -214,16 +221,17 @@ export function registerSessionCommands(program: Command) {
         });
 
         if (candidates.length === 0) {
-          console.log(`no dangling sessions older than ${opts.olderThan} found on agent ${agentId}.`);
+          info(`no dangling sessions older than ${opts.olderThan} found on agent ${agentId}.`);
           return;
         }
-        console.log(`found ${candidates.length} dangling session(s) older than ${opts.olderThan}:`);
-        for (const s of candidates.slice(0, 10)) console.log(`  ${s.id}  started=${s.started_at ?? s.created_at}  workflow_id=${s.workflow_id ?? '-'}`);
-        if (candidates.length > 10) console.log(`  … and ${candidates.length - 10} more`);
+        info(`found ${candidates.length} dangling session(s) older than ${opts.olderThan}:`);
+        for (const s of candidates.slice(0, 10)) info(`  ${s.id}  started=${s.started_at ?? s.created_at}  workflow_id=${s.workflow_id ?? '-'}`);
+        if (candidates.length > 10) info(`  … and ${candidates.length - 10} more`);
 
         const toTerminate = candidates.slice(0, limit);
         if (opts.dryRun) {
-          console.log(`\n--dry-run: would terminate ${toTerminate.length} session(s). Re-run without --dry-run to apply.`);
+          info('');
+          info(`--dry-run: would terminate ${toTerminate.length} session(s). Re-run without --dry-run to apply.`);
           return;
         }
 
@@ -236,13 +244,13 @@ export function registerSessionCommands(program: Command) {
             ok++;
           } catch (err: any) {
             failed++;
-            console.error(`  failed to terminate ${s.id}: ${err.message || err}`);
+            error(`failed to terminate ${s.id}: ${err.message || err}`);
           }
           if (!isQuiet() && ((i + 1) % 10 === 0 || i === toTerminate.length - 1)) {
-            console.error(`progress: terminated=${ok} failed=${failed} total=${toTerminate.length}`);
+            warn(`progress: terminated=${ok} failed=${failed} total=${toTerminate.length}`);
           }
         }
-        console.log(`done: ${ok} terminated, ${failed} failed. ${candidates.length - toTerminate.length} deferred by --limit.`);
+        summary({ removed: ok, failed, skipped: candidates.length - toTerminate.length });
         if (failed > 0) bailWith(EXIT.GENERIC);
       } catch (err) {
         reportAndExit(err);

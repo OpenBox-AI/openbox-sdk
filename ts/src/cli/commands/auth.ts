@@ -14,7 +14,7 @@ import { resolveEnv } from '../../env/index.js';
 import { reportAndExit } from '../../validators/index.js';
 import { EXIT, bailWith } from '../exit-codes.js';
 import { isNonInteractive } from '../non-interactive.js';
-import { output } from '../output.js';
+import { output, error, info, success } from '../output.js';
 
 export function registerAuthCommands(program: Command) {
   const auth = program.command('auth').description('Manage the local X-API-Key store for backend auth');
@@ -29,7 +29,7 @@ export function registerAuthCommands(program: Command) {
         let key = opts.key?.trim();
         if (!key) {
           if (isNonInteractive()) {
-            console.error('auth set-api-key needs --key <value> in non-interactive mode.');
+            error('auth set-api-key needs --key <value> in non-interactive mode.');
             bailWith(EXIT.USAGE);
           }
           const { createInterface } = await import('node:readline/promises');
@@ -41,18 +41,18 @@ export function registerAuthCommands(program: Command) {
           }
         }
         if (!key) {
-          console.error('No key provided.');
+          error('no key provided.');
           bailWith(EXIT.USAGE);
         }
         if (!/^obx_key_[0-9a-f]{48}$/.test(key)) {
-          console.error(
-            `Key does not match the org-key format (obx_key_<48 hex>). Got prefix: ${key.slice(0, 12)}...`,
+          error(
+            `key does not match the org-key format (obx_key_<48 hex>). got prefix: ${key.slice(0, 12)}...`,
+            { fix: 'Mint a key in the dashboard: Organization → API Keys → New key.' },
           );
-          console.error(`Mint a key in the dashboard: Organization → API Keys → New key.`);
           bailWith(EXIT.AUTH);
         }
         saveApiKey(env, key);
-        console.error('X-API-Key saved.');
+        success('X-API-Key saved.');
       } catch (err: any) {
         reportAndExit(err);
       }
@@ -65,7 +65,8 @@ export function registerAuthCommands(program: Command) {
       try {
         const env = resolveEnv();
         const cleared = clearApiKey(env);
-        console.error(cleared ? 'X-API-Key cleared.' : 'No X-API-Key was stored.');
+        if (cleared) success('X-API-Key cleared.');
+        else info('No X-API-Key was stored.');
       } catch (err: any) {
         reportAndExit(err);
       }
@@ -78,7 +79,7 @@ export function registerAuthCommands(program: Command) {
       try {
         const env = resolveEnv();
         const apiKey = loadApiKey(env);
-        console.log(apiKey ? `api-key (${apiKey.slice(0, 12)}...)` : 'none');
+        info(apiKey ? `api-key (${apiKey.slice(0, 12)}...)` : 'none');
       } catch (err: any) {
         reportAndExit(err);
       }

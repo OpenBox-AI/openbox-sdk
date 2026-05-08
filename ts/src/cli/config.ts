@@ -10,6 +10,7 @@ import {
   validateApiKeyFormat as generatedValidateApiKey,
 } from '../env/index.js';
 import { EXIT, bailWith } from './exit-codes.js';
+import { error } from './output.js';
 // File-backed X-API-Key store; canonical for every Node consumer
 // (CLI, extension). Mobile uses its own keychain-backed source via
 // `openbox-sdk/client-factory`'s `getApiKey` callback.
@@ -69,10 +70,9 @@ function getClient(env?: EnvName): OpenBoxClient {
   const { apiUrl } = resolveUrls(resolved);
   const apiKey = loadApiKey(resolved);
   if (!apiKey) {
-    console.error(`No X-API-Key configured.`);
-    console.error(`Mint one in the dashboard FE (Organization → API Keys), then:`);
-    console.error(`  openbox auth set-api-key`);
-    console.error(`Or set OPENBOX_BACKEND_API_KEY=<key> in the environment.`);
+    error('no X-API-Key configured.', {
+      fix: 'mint one in the dashboard FE (Organization → API Keys), then run `openbox auth set-api-key`. or set OPENBOX_BACKEND_API_KEY=<key> in the environment.',
+    });
     bailWith(EXIT.AUTH);
   }
   const cachedPerms = loadPermissions(resolved);
@@ -99,27 +99,13 @@ function validateAgentRuntimeKeyFormat(key: string): void {
   const result = generatedValidateApiKey(key);
   if (result === true) return;
   const looksLikeAgentToken = /^[a-f0-9]{32,}$/i.test(key);
-  console.error(
-    `Invalid OPENBOX_API_KEY format: must start with 'obx_live_' or 'obx_test_'.`,
+  const hint = looksLikeAgentToken
+    ? "this looks like the 'token' field from 'agent list'/'agent get'; that's NOT the runtime API key. the runtime API key is returned ONCE by 'agent create' or 'api-key rotate'. to recover: `openbox api-key rotate <agentId>` (invalidates the previous key)."
+    : "get a key from 'agent create' (returned once on create) or `openbox api-key rotate <agentId>`.";
+  error(
+    "invalid OPENBOX_API_KEY format: must start with 'obx_live_' or 'obx_test_'.",
+    { hint },
   );
-  if (looksLikeAgentToken) {
-    console.error(
-      `\nThis looks like the 'token' field from 'agent list'/'agent get'; that's NOT the runtime API key.`,
-    );
-    console.error(
-      `The runtime API key is returned ONCE by 'agent create' (in the response body) or 'api-key rotate'.`,
-    );
-    console.error(
-      `\nTo recover for an existing agent: openbox api-key rotate <agentId>`,
-    );
-    console.error(
-      `(rotation invalidates the previous key; update any deployed clients).`,
-    );
-  } else {
-    console.error(
-      `\nGet a key from 'agent create' (returned once on create) or 'api-key rotate <agentId>'.`,
-    );
-  }
   bailWith(EXIT.AUTH);
 }
 
@@ -127,7 +113,9 @@ function getCoreClient(env?: EnvName): OpenBoxCoreClient {
   const resolved = env ?? resolveEnv();
   const apiKey = process.env.OPENBOX_API_KEY || '';
   if (!apiKey) {
-    console.error('No OPENBOX_API_KEY found. Set it in your environment.');
+    error('no OPENBOX_API_KEY found.', {
+      fix: 'set it in your environment.',
+    });
     bailWith(EXIT.AUTH);
   }
   validateAgentRuntimeKeyFormat(apiKey);

@@ -4,17 +4,13 @@ import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { getClient, getTokenPath, loadApiKey } from '../config.js';
 import { resolveEnv, resolveUrls } from '../../env/index.js';
 import { EXIT, bailWith } from '../exit-codes.js';
+import { row, summary } from '../output.js';
 
 type Check = {
   name: string;
   status: 'pass' | 'fail' | 'warn' | 'skip';
   detail: string;
 };
-
-function fmt(c: Check): string {
-  const mark = c.status === 'pass' ? '✓' : c.status === 'fail' ? '✗' : c.status === 'warn' ? '!' : '-';
-  return `  ${mark} ${c.name.padEnd(32)} ${c.detail}`;
-}
 
 export function registerDoctorCommand(program: Command) {
   program
@@ -106,14 +102,21 @@ export function registerDoctorCommand(program: Command) {
         // already flagged above by the existsSync probe.
       }
 
-      console.log('openbox doctor');
-      for (const c of checks) console.log(fmt(c));
+      // Map `skip` to plain — doctor's "skip" is not a failure, just
+      // info ("we didn't probe this"). The row() colorizer falls back
+      // to plain rendering for unknown statuses.
+      for (const c of checks) {
+        const status = c.status === 'skip' ? 'unchanged' : c.status;
+        row(c.name, status, c.detail);
+      }
 
       const failed = checks.filter((c) => c.status === 'fail');
       const warned = checks.filter((c) => c.status === 'warn');
-      console.log(
-        `\n${checks.length - failed.length - warned.length} pass, ${warned.length} warn, ${failed.length} fail`,
-      );
+      summary({
+        pass: checks.length - failed.length - warned.length,
+        warn: warned.length,
+        fail: failed.length,
+      });
       if (failed.length > 0) bailWith(EXIT.GENERIC);
     });
 }

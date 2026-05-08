@@ -11,6 +11,7 @@ import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { reportAndExit } from '../../validators/index.js';
 import { EXIT, bailWith } from '../exit-codes.js';
+import { output } from '../output.js';
 import { runAgentAudit, renderAuditReport, auditHasIssues } from './agent-audit.js';
 import { wireSubcommands } from '../wire-subcommands.js';
 import { AGENT_HANDLERS } from '../generated/cli-handlers/agent.js';
@@ -31,7 +32,7 @@ export function registerAgentCommands(program: Command) {
           sessions: parseInt(opts.sessions, 10),
           maxEvents: parseInt(opts.maxEvents, 10),
         });
-        if (opts.json) console.log(JSON.stringify(report, null, 2));
+        if (opts.json) output(report);
         else renderAuditReport(agentId, report);
         if (auditHasIssues(report)) bailWith(EXIT.GENERIC);
       } catch (err) {

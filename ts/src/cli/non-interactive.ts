@@ -102,12 +102,14 @@ export function requireYesForDestructive(commandPath: string): void {
  * Outcome is logged to stderr so scripts can grep for it.
  */
 export async function consent(question: string): Promise<boolean> {
+  // Lazy import to avoid a circular dep through output → colors → here.
+  const { note } = await import('./output.js');
   if (assumeYes()) {
-    console.error(`[consent] auto-yes (--yes): ${question}`);
+    note(`[consent] auto-yes (--yes): ${question}`);
     return true;
   }
   if (isNonInteractive()) {
-    console.error(`[consent] non-interactive, skipping: ${question}`);
+    note(`[consent] non-interactive, skipping: ${question}`);
     return false;
   }
   const { createInterface } = await import('node:readline/promises');

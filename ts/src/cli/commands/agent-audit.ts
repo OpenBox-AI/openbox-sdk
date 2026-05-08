@@ -1,5 +1,6 @@
 import type { OpenBoxClient } from '../../client/index.js';
 import { color } from '../colors.js';
+import { info, warn, success, table } from '../output.js';
 
 /**
  * Cross-session analyzer for one agent. Used by `openbox agent audit <id>`.
@@ -369,79 +370,86 @@ export function renderAuditReport(agentId: string, report: AuditReport): void {
   const s = report.sessions;
   const e = report.events;
 
-  console.log(`openbox agent audit; ${name} (${agentId})`);
-  console.log();
-  console.log(`Sessions analyzed: ${s.total}`);
+  info(`openbox agent audit; ${name} (${agentId})`);
+  info('');
+  info(`Sessions analyzed: ${s.total}`);
   if (s.total > 0) {
     const statusLine = Object.entries(s.byStatus).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}=${v}`).join(', ');
-    console.log(`  status:   ${statusLine}`);
-    console.log(`  avg dur:  ${fmtMs(s.avgDurationMs)}`);
+    info(`  status:   ${statusLine}`);
+    info(`  avg dur:  ${fmtMs(s.avgDurationMs)}`);
     if (s.dangling > 0) {
-      console.log(`  ${color.yellow(`dangling: ${s.dangling} session(s) still PENDING after 1h; run \`openbox session prune ${agentId} --older-than 1h --dry-run\` to review`)}`);
+      warn(`dangling: ${s.dangling} session(s) still PENDING after 1h; run \`openbox session prune ${agentId} --older-than 1h --dry-run\` to review`);
     }
   }
-  console.log();
+  info('');
 
-  console.log(`Config: ${report.config.active_guardrails} active guardrail(s), ${report.config.active_policies} active policy/ies, ${report.config.active_behaviors} active behavior rule(s)`);
-  console.log();
+  info(`Config: ${report.config.active_guardrails} active guardrail(s), ${report.config.active_policies} active policy/ies, ${report.config.active_behaviors} active behavior rule(s)`);
+  info('');
 
   const protocolIssues = e.orphanStarts + e.orphanCompletes + e.sessionsMissingTerminal;
-  console.log(`Protocol health:`);
-  console.log(`  orphan ActivityStarted (no Completed pair):   ${e.orphanStarts}`);
-  console.log(`  orphan ActivityCompleted (no Started pair):   ${e.orphanCompletes}`);
-  console.log(`  sessions with no WorkflowCompleted/Failed:    ${e.sessionsMissingTerminal}`);
-  console.log(`  activities completed with status=failed:      ${e.failedActivityCount}`);
+  info('Protocol health:');
+  info(`  orphan ActivityStarted (no Completed pair):   ${e.orphanStarts}`);
+  info(`  orphan ActivityCompleted (no Started pair):   ${e.orphanCompletes}`);
+  info(`  sessions with no WorkflowCompleted/Failed:    ${e.sessionsMissingTerminal}`);
+  info(`  activities completed with status=failed:      ${e.failedActivityCount}`);
   if (protocolIssues === 0 && s.total > 0) {
-    console.log(`  ${color.green('✓ all sessions follow paired Start/Complete + terminal protocol')}`);
+    success('all sessions follow paired Start/Complete + terminal protocol');
   } else if (protocolIssues > 0) {
-    console.log(`  ${color.yellow(`${protocolIssues} protocol issue(s); run \`openbox session inspect ${agentId} <id>\` to drill in`)}`);
+    warn(`${protocolIssues} protocol issue(s); run \`openbox session inspect ${agentId} <id>\` to drill in`);
   }
-  console.log();
+  info('');
 
   if (Object.keys(e.verdictDistribution).length > 0) {
-    console.log(`Verdict distribution:`);
-    for (const [v, c] of Object.entries(e.verdictDistribution).sort((a, b) => b[1] - a[1])) {
-      console.log(`  ${v.padEnd(22)} ${c}`);
-    }
-    console.log();
+    info('Verdict distribution:');
+    table(
+      ['verdict', 'count'],
+      Object.entries(e.verdictDistribution)
+        .sort((a, b) => b[1] - a[1])
+        .map(([v, c]) => [v, String(c)]),
+    );
+    info('');
   }
 
   if (Object.keys(e.activityTypeDistribution).length > 0) {
-    console.log(`activity_type distribution (seen in events):`);
-    for (const [t, c] of Object.entries(e.activityTypeDistribution).sort((a, b) => b[1] - a[1]).slice(0, 10)) {
-      console.log(`  ${t.padEnd(24)} ${c}`);
-    }
-    console.log();
+    info('activity_type distribution (seen in events):');
+    table(
+      ['activity_type', 'count'],
+      Object.entries(e.activityTypeDistribution)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([t, c]) => [t, String(c)]),
+    );
+    info('');
   }
 
   if (report.mismatches.length > 0) {
-    console.log(color.yellow('Guardrails configured for activity_types never seen in events:'));
+    warn('Guardrails configured for activity_types never seen in events:');
     for (const m of report.mismatches) {
-      console.log(`  "${m.guardrail}" bound to activity_type="${m.configuredType}"; 0 matching events. The guardrail silently never fires.`);
+      info(`  "${m.guardrail}" bound to activity_type="${m.configuredType}"; 0 matching events. The guardrail silently never fires.`);
     }
-    console.log(`  fix: update the client to send that activity_type, OR edit the guardrail binding to match what the client actually sends.`);
-    console.log();
+    info('  fix: update the client to send that activity_type, OR edit the guardrail binding to match what the client actually sends.');
+    info('');
   } else if (report.config.active_guardrails > 0 && s.total > 0) {
-    console.log(color.green('✓ every active guardrail has at least one matching activity_type in recent events'));
-    console.log();
+    success('every active guardrail has at least one matching activity_type in recent events');
+    info('');
   }
 
   if (report.findings.length > 0) {
-    console.log(`Protocol findings:`);
+    info('Protocol findings:');
     for (const f of report.findings) {
       const tint =
         f.level === 'fail' ? color.red :
         f.level === 'warn' ? color.yellow :
         color.cyan;
-      console.log(`  ${tint(`[${f.level}] ${f.rule}:`)} ${f.message}`);
+      info(`  ${tint(`[${f.level}] ${f.rule}:`)} ${f.message}`);
     }
-    console.log();
+    info('');
   }
 
-  console.log(`Next actions:`);
-  console.log(`  openbox session inspect ${agentId} <id>       # drill into one session`);
-  if (s.dangling > 0) console.log(`  openbox session prune ${agentId} --older-than 1h --dry-run  # clean dangling`);
-  console.log(`  openbox verify <your-integration-path>        # lint your code for protocol drift`);
+  info('Next actions:');
+  info(`  openbox session inspect ${agentId} <id>       # drill into one session`);
+  if (s.dangling > 0) info(`  openbox session prune ${agentId} --older-than 1h --dry-run  # clean dangling`);
+  info('  openbox verify <your-integration-path>        # lint your code for protocol drift');
 }
 
 export function auditHasIssues(report: AuditReport): boolean {

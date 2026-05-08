@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, statSync, existsSync } from 'fs';
 import { join, extname, relative } from 'path';
 import { CANONICAL_EVENT_TYPES } from '../../core-client/generated/govern.js';
 import { EXIT, bailWith } from '../exit-codes.js';
+import { error, info, success, output, summary } from '../output.js';
 
 type Severity = 'error' | 'warn' | 'info';
 
@@ -428,29 +429,33 @@ function printReport(findings: Finding[], totalFiles: number, rootLabel: string)
     byRule.get(f.rule)!.push(f);
   }
 
-  console.log(`openbox verify; scanned ${totalFiles} file(s) under ${rootLabel}`);
-  console.log();
+  info(`openbox verify; scanned ${totalFiles} file(s) under ${rootLabel}`);
+  info('');
 
   if (findings.length === 0) {
-    console.log('✓ No drift patterns detected.');
-    console.log('  (This is a static scan. Use `openbox session inspect` to validate live protocol behavior.)');
+    success('no drift patterns detected.');
+    info('  (This is a static scan. Use `openbox session inspect` to validate live protocol behavior.)');
+    summary({ pass: 1, fail: 0, warn: 0 });
     return { errors: 0, warns: 0, infos: 0 };
   }
 
+  // Severity → row status: errors render as `fail`, warns as `warn`,
+  // infos as plain.
   for (const [rule, hits] of byRule) {
     const sev = hits[0].severity;
-    const mark = sev === 'error' ? '✗' : sev === 'warn' ? '!' : 'ℹ';
-    console.log(`${mark} ${rule} (${sev}); ${hits.length} finding${hits.length === 1 ? '' : 's'}`);
-    console.log(`  ${hits[0].message}`);
-    if (hits[0].fix) console.log(`  Fix: ${hits[0].fix}`);
+    const status = sev === 'error' ? 'fail' : sev === 'warn' ? 'warn' : 'info';
+    info(`${status === 'fail' ? '[fail]' : status === 'warn' ? '[warn]' : '[info]'} ${rule}; ${hits.length} finding${hits.length === 1 ? '' : 's'}`);
+    info(`  ${hits[0].message}`);
+    if (hits[0].fix) info(`  fix: ${hits[0].fix}`);
     for (const h of hits.slice(0, 10)) {
-      console.log(`    ${h.file}:${h.line}  ${h.snippet}`);
+      info(`    ${h.file}:${h.line}  ${h.snippet}`);
     }
-    if (hits.length > 10) console.log(`    … and ${hits.length - 10} more`);
-    console.log();
+    if (hits.length > 10) info(`    … and ${hits.length - 10} more`);
+    info('');
   }
 
-  console.log(`Summary: ${errs.length} error, ${warns.length} warn, ${infos.length} info`);
+  summary({ fail: errs.length, warn: warns.length, pass: 0 });
+  if (infos.length > 0) info(`(${infos.length} info-level finding${infos.length === 1 ? '' : 's'} not counted in summary)`);
   return { errors: errs.length, warns: warns.length, infos: infos.length };
 }
 
@@ -467,7 +472,7 @@ export function registerVerifyCommand(program: Command) {
     .action(async (path: string | undefined, opts) => {
       const root = path ? (path.startsWith('/') ? path : join(process.cwd(), path)) : process.cwd();
       if (!existsSync(root)) {
-        console.error(`path not found: ${root}`);
+        error(`path not found: ${root}`);
         bailWith(EXIT.USAGE);
       }
 
@@ -480,7 +485,7 @@ export function registerVerifyCommand(program: Command) {
       }
 
       if (opts.json) {
-        console.log(JSON.stringify({ root, scanned: files.length, findings }, null, 2));
+        output({ root, scanned: files.length, findings });
       } else {
         printReport(findings, files.length, root);
       }

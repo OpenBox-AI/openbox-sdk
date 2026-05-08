@@ -6,7 +6,7 @@
 import { readFileSync, existsSync } from 'fs';
 import { Command } from 'commander';
 import { getCoreClient } from '../config.js';
-import { output } from '../output.js';
+import { output, error } from '../output.js';
 import { parseJsonInput } from '../../validators/index.js';
 import { buildTestPayload, SPAN_TYPES, type SpanType } from '../../test-utils/index.js';
 import { reportAndExit } from '../../validators/index.js';
@@ -18,7 +18,7 @@ function resolveValue(value: string | undefined): string | undefined {
   if (!value || !value.startsWith('@')) return value;
   const filePath = value.slice(1);
   if (!existsSync(filePath)) {
-    console.error(`File not found: ${filePath}`);
+    error(`file not found: ${filePath}`);
     bailWith(EXIT.USAGE);
   }
   return readFileSync(filePath, 'utf-8');
@@ -58,7 +58,9 @@ export function registerCoreCommands(program: Command) {
           payload = parseJsonInput<any>(opts.json);
         } else if (opts.type) {
           if (!(SPAN_TYPES as readonly string[]).includes(opts.type)) {
-            console.error(`Invalid --type: ${opts.type}. Must be one of: ${SPAN_TYPES.join(', ')}`);
+            error(`invalid --type: ${opts.type}.`, {
+              fix: `must be one of: ${SPAN_TYPES.join(', ')}`,
+            });
             bailWith(EXIT.USAGE);
           }
           const prompt = resolveValue(opts.prompt);
@@ -90,7 +92,7 @@ export function registerCoreCommands(program: Command) {
             toolInput,
           });
         } else {
-          console.error('Either --json or --type is required');
+          error('either --json or --type is required.');
           bailWith(EXIT.USAGE);
         }
 

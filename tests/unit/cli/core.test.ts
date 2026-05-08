@@ -3,7 +3,12 @@ import { registerCoreCommands } from '../../../ts/src/cli/commands/core';
 import { createTestProgram } from '../../helpers/cli';
 
 vi.mock('../../../ts/src/cli/config', () => ({ getCoreClient: vi.fn() }));
-vi.mock('../../../ts/src/cli/output', () => ({ output: vi.fn(), outputList: vi.fn() }));
+vi.mock('../../../ts/src/cli/output', () => ({
+  output: vi.fn(), outputList: vi.fn(),
+  error: vi.fn(), warn: vi.fn(), note: vi.fn(), banner: vi.fn(),
+  info: vi.fn(), action: vi.fn(), success: vi.fn(),
+  row: vi.fn(), summary: vi.fn(), kv: vi.fn(), table: vi.fn(),
+}));
 
 import { getCoreClient } from '../../../ts/src/cli/config';
 import { output } from '../../../ts/src/cli/output';

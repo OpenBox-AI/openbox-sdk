@@ -7,6 +7,7 @@
 import type { Command } from 'commander';
 import { OpenBoxClient } from '../../client/index.js';
 import { resolveEnv, resolveUrls, type EnvName } from '../../env/index.js';
+import { table, info } from '../output.js';
 
 type ServiceName = 'backend' | 'core' | 'guardrails';
 
@@ -47,10 +48,6 @@ async function cellFor(env: EnvName, service: ServiceName): Promise<VersionCell>
   };
 }
 
-function pad(s: string, n: number): string {
-  return s.length >= n ? s : s + ' '.repeat(n - s.length);
-}
-
 export function registerVersionsCommand(program: Command): void {
   program
     .command('versions')
@@ -65,20 +62,15 @@ export function registerVersionsCommand(program: Command): void {
       await Promise.all(
         SERVICES.map((svc) => cellFor(env, svc).then((c) => (cells[svc] = c))),
       );
-      const svcWidth = Math.max(...SERVICES.map((s) => s.length)) + 2;
-      const tagWidth = Math.max(
-        10,
-        ...SERVICES.map((s) => cells[s].tag.length + 2),
+      table(
+        ['service', 'version'],
+        SERVICES.map((svc) => [svc, cells[svc].tag]),
       );
-      console.log(pad('service', svcWidth) + pad('version', tagWidth));
-      console.log('-'.repeat(svcWidth + tagWidth));
-      for (const svc of SERVICES) {
-        console.log(pad(svc, svcWidth) + pad(cells[svc].tag, tagWidth));
-      }
       if (opts.sources) {
-        console.log('\nsources:');
+        info('');
+        info('sources:');
         for (const svc of SERVICES) {
-          console.log(`  ${svc}: ${cells[svc].source}`);
+          info(`  ${svc}: ${cells[svc].source}`);
         }
       }
     });

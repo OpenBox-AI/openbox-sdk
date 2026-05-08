@@ -1,11 +1,18 @@
-// Unit coverage for the unified `openbox install` / `openbox install all`
-// meta-command. Covers the detection rules (`planInstallAll`) and the
-// driver (`runPlan`) without ever spawning a real installer.
+// Unit coverage for `openbox install` (no target). Covers the detection
+// rules (`planInstallAll`) and the driver (`runPlan`) without ever
+// spawning a real installer.
 //
 // Detection is gated on:
 //   - os.platform() (approver runs only on darwin)
 //   - existsSync(~/.cursor) (cursor hooks installer)
+//   - existsSync(~/.claude) (claude-code installer)
 //   - `code` / `cursor` on PATH (extension installer)
+//   - existsSync(any MCP host config) (mcp — needs at least one host)
+//   - skill is OPT-IN ONLY (never auto-suggested; reach via --only or
+//     the per-target subcommand)
+// Targets without a host are dropped from the plan entirely (not
+// shown as skipped) so bare `openbox install` only suggests work
+// the machine actually wants. `--only <target>` forces inclusion.
 // We inject these via a fake InstallAllEnv so each test pins one rule
 // at a time. Mirrors the testing style of install-approver.test.ts:
 // real branching exercised against fakes, no global module mocking.
@@ -20,6 +27,9 @@ import {
   type InstallAllEnv,
 } from '../../ts/src/cli/commands/install';
 
+const ANSI_RE = /\x1b\[[0-9;]*m/g;
+const stripAnsi = (s: string) => s.replace(ANSI_RE, '');
+
 function makeEnv(overrides: Partial<InstallAllEnv> = {}): InstallAllEnv {
   return {
     platform: () => 'darwin',
@@ -31,17 +41,22 @@ function makeEnv(overrides: Partial<InstallAllEnv> = {}): InstallAllEnv {
 }
 
 describe('planInstallAll - target gating', () => {
-  it('on darwin with everything available, plans every target', () => {
+  it('on darwin with everything available, plans every auto-detect target (skill is opt-in)', () => {
     const plan = planInstallAll({}, makeEnv());
     const runnable = plan.filter((p) => !p.skipReason).map((p) => p.target);
+    // skill is intentionally absent from bare-install auto-detect.
     expect(runnable).toEqual([
-      'skill',
       'extension',
       'cursor',
       'claude-code',
       'mcp',
       'approver',
     ]);
+  });
+
+  it('skill is never auto-suggested even when both hosts exist', () => {
+    const plan = planInstallAll({}, makeEnv());
+    expect(plan.find((p) => p.target === 'skill')).toBeUndefined();
   });
 
   it('skips approver on linux', () => {
@@ -74,11 +89,29 @@ describe('planInstallAll - target gating', () => {
     expect(cursor?.run).toBeDefined();
   });
 
-  it('always runs claude-code (installer creates ~/.claude as needed)', () => {
+  it('drops claude-code from auto-detect when ~/.claude is absent', () => {
     const plan = planInstallAll({}, makeEnv({ exists: () => false }));
+    expect(plan.find((p) => p.target === 'claude-code')).toBeUndefined();
+  });
+
+  it('runs claude-code when ~/.claude exists', () => {
+    const plan = planInstallAll(
+      {},
+      makeEnv({ exists: (p) => p.endsWith('/.claude') }),
+    );
     const cc = plan.find((p) => p.target === 'claude-code');
     expect(cc?.skipReason).toBeUndefined();
     expect(cc?.run).toBeDefined();
+  });
+
+  it('--only claude-code forces inclusion even when ~/.claude is absent', () => {
+    const plan = planInstallAll(
+      { only: ['claude-code'] },
+      makeEnv({ exists: () => false }),
+    );
+    expect(plan).toHaveLength(1);
+    expect(plan[0].target).toBe('claude-code');
+    expect(plan[0].skipReason).toBeUndefined();
   });
 
   it('skips extension when neither code nor cursor is on PATH', () => {
@@ -109,7 +142,7 @@ describe('planInstallAll - target gating', () => {
     expect(ext?.detail).not.toContain('code');
   });
 
-  it('always plans skill and mcp (no platform/path gates)', () => {
+  it('drops skill and mcp when no host artifacts exist', () => {
     const plan = planInstallAll(
       {},
       makeEnv({
@@ -118,10 +151,28 @@ describe('planInstallAll - target gating', () => {
         hasOnPath: () => false,
       }),
     );
-    const skill = plan.find((p) => p.target === 'skill');
-    const mcp = plan.find((p) => p.target === 'mcp');
-    expect(skill?.skipReason).toBeUndefined();
-    expect(mcp?.skipReason).toBeUndefined();
+    expect(plan.find((p) => p.target === 'skill')).toBeUndefined();
+    expect(plan.find((p) => p.target === 'mcp')).toBeUndefined();
+  });
+
+  it('--only skill forces inclusion with no host present', () => {
+    const plan = planInstallAll(
+      { only: ['skill'] },
+      makeEnv({ exists: () => false }),
+    );
+    expect(plan).toHaveLength(1);
+    expect(plan[0].target).toBe('skill');
+    expect(plan[0].skipReason).toBeUndefined();
+  });
+
+  it('--only mcp forces inclusion with no host present', () => {
+    const plan = planInstallAll(
+      { only: ['mcp'] },
+      makeEnv({ exists: () => false }),
+    );
+    expect(plan).toHaveLength(1);
+    expect(plan[0].target).toBe('mcp');
+    expect(plan[0].skipReason).toBeUndefined();
   });
 });
 
@@ -198,7 +249,7 @@ describe('runPlan - driver', () => {
     errSpy.mockRestore();
   });
 
-  it('--dry-run runs nothing but logs each target', async () => {
+  it('--dry-run runs nothing but logs each target as a `would-install` row', async () => {
     const ran: string[] = [];
     const plan = [
       { target: 'skill' as const, run: () => { ran.push('skill'); } },
@@ -208,8 +259,8 @@ describe('runPlan - driver', () => {
     expect(ran).toEqual([]);
     expect(summary.installed).toEqual(['skill', 'mcp']);
     const dryLines = logSpy.mock.calls
-      .map((c: unknown[]) => String(c[0]))
-      .filter((s: string) => s.startsWith('Would install:'));
+      .map((c: unknown[]) => stripAnsi(String(c[0])))
+      .filter((s: string) => s.includes('would-install'));
     expect(dryLines).toHaveLength(2);
   });
 
@@ -251,15 +302,16 @@ describe('runPlan - driver', () => {
     expect(summary.installed).toEqual(['skill']);
   });
 
-  it('uninstall verb flips the log strings', async () => {
+  it('uninstall verb routes through `Uninstalling` action and `removed` row', async () => {
     const plan = [{ target: 'skill' as const, run: () => {} }];
     await runPlan(plan, { verb: 'uninstall' });
-    const lines = logSpy.mock.calls.map((c: unknown[]) => String(c[0]));
-    expect(lines.some((l: string) => l.startsWith('Uninstalling skill'))).toBe(true);
-    expect(lines.some((l: string) => l.includes('Uninstalled:'))).toBe(true);
+    const lines = logSpy.mock.calls.map((c: unknown[]) => stripAnsi(String(c[0])));
+    expect(lines.some((l: string) => l.includes('Uninstalling skill…'))).toBe(true);
+    expect(lines.some((l: string) => l.includes('removed') && l.includes('skill'))).toBe(true);
+    expect(lines.some((l: string) => l.startsWith('done.') && l.includes('removed=1'))).toBe(true);
   });
 
-  it('summary line lists Installed, Skipped, and Failed when each is present', async () => {
+  it('summary line emits done. with installed/skipped/failed counts', async () => {
     const plan = [
       { target: 'skill' as const, run: () => {} },
       { target: 'mcp' as const, skipReason: 'because' },
@@ -272,11 +324,9 @@ describe('runPlan - driver', () => {
     ];
     await runPlan(plan);
     const summaryLine = logSpy.mock.calls
-      .map((c: unknown[]) => String(c[0]))
-      .find((l: string) => l.startsWith('\nInstalled:'));
-    expect(summaryLine).toContain('Installed: skill.');
-    expect(summaryLine).toContain('Skipped: mcp (because).');
-    expect(summaryLine).toContain('Failed: extension (nope).');
+      .map((c: unknown[]) => stripAnsi(String(c[0])))
+      .find((l: string) => l.startsWith('done.'));
+    expect(summaryLine).toBe('done. installed=1 skipped=1 failed=1');
   });
 });
 

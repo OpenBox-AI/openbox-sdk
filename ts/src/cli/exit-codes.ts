@@ -57,13 +57,16 @@ export function isRetryable(code: ExitCode): boolean {
   return code === EXIT.RATE_LIMIT || code === EXIT.SERVER || code === EXIT.NETWORK;
 }
 
-/** Clean (non-error) exit with a specific code + optional stderr message.
- *  Use for "this command intentionally exits non-zero to signal X" cases:
+/** Clean (non-error) exit with a specific code. Use for "this command
+ *  intentionally exits non-zero to signal X" cases:
  *    - feature flag disabled (EXIT.FEATURE_DISABLED)
  *    - verify rule severity above threshold (EXIT.GENERIC by convention,
  *      but the caller picks)
- *    - missing required input under --non-interactive (EXIT.USAGE) */
-export function bailWith(code: ExitCode, message?: string): never {
-  if (message) console.error(message);
+ *    - missing required input under --non-interactive (EXIT.USAGE)
+ *
+ *  Print any user-facing message via the helpers in `output.ts`
+ *  (`error(...)`, `warn(...)`, etc.) BEFORE calling this, so the format
+ *  is consistent across the CLI. `bailWith` is a pure exit primitive. */
+export function bailWith(code: ExitCode): never {
   process.exit(code);
 }

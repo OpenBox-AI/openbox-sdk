@@ -177,7 +177,7 @@ describe('session prune; bulk terminate', () => {
     // terminate loop.
     const r = await runSessionAction('prune', ['ag1', '--older-than', '30m'], client);
     expect(calls.length).toBe(1);
-    expect(r.out.some((l) => l.includes('done:'))).toBe(true);
+    expect(r.out.some((l) => /^done\./.test(l) && l.includes('removed=1'))).toBe(true);
   });
 
   it('no candidates → "no dangling sessions" message + exit 0', async () => {
