@@ -36,6 +36,8 @@ export const COMMAND_MATURITY: Record<string, Maturity> = {
   "audit preview": "experimental",
   "auth": "stable",
   "auth clear-api-key": "stable",
+  "auth permissions": "stable",
+  "auth profile": "stable",
   "auth set-api-key": "stable",
   "auth status": "stable",
   "behavior": "experimental",

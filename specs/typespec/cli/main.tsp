@@ -65,6 +65,18 @@ interface Auth {
   @cli_local_only
   @cli_output_kind("custom")
   status(): void;
+
+  /** Fetch /auth/profile for the active env. Returns the authenticated
+   *  principal: orgId, sub, permissions, and (for X-API-Key auth)
+   *  isApiKeyAuth=true with the api-key id encoded in `sub`. */
+  @cli_output_kind("custom")
+  profile(): void;
+
+  /** Print the authenticated principal's permission set. Equivalent to
+   *  `auth profile | jq .permissions`; convenience for permission
+   *  pre-flight checks in scripts. */
+  @cli_output_kind("custom")
+  permissions(): void;
 }
 
 @cli_command(

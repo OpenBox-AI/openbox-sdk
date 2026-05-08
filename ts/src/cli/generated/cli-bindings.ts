@@ -10,6 +10,8 @@ export interface Auth {
   setApiKey(): void;
   clearApiKey(): void;
   status(): void;
+  profile(): void;
+  permissions(): void;
 }
 export interface Config {
   set(key: string, value: string): void;
@@ -220,6 +222,14 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "status",
+        "flags": []
+      },
+      {
+        "name": "profile",
+        "flags": []
+      },
+      {
+        "name": "permissions",
         "flags": []
       }
     ]

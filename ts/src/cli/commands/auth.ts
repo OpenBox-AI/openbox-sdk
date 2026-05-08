@@ -8,11 +8,13 @@ import {
   saveApiKey,
   clearApiKey,
   loadApiKey,
+  getClient,
 } from '../config.js';
 import { resolveEnv } from '../../env/index.js';
 import { reportAndExit } from '../../validators/index.js';
 import { EXIT, bailWith } from '../exit-codes.js';
 import { isNonInteractive } from '../non-interactive.js';
+import { output } from '../output.js';
 
 export function registerAuthCommands(program: Command) {
   const auth = program.command('auth').description('Manage the local X-API-Key store for backend auth');
@@ -77,6 +79,30 @@ export function registerAuthCommands(program: Command) {
         const env = resolveEnv();
         const apiKey = loadApiKey(env);
         console.log(apiKey ? `api-key (${apiKey.slice(0, 12)}...)` : 'none');
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
+
+  auth
+    .command('profile')
+    .description('Fetch /auth/profile for the active env (orgId, sub, permissions)')
+    .action(async () => {
+      try {
+        const profile = await getClient().getProfile();
+        output(profile);
+      } catch (err: any) {
+        reportAndExit(err);
+      }
+    });
+
+  auth
+    .command('permissions')
+    .description('Print the authenticated principal\'s permission set')
+    .action(async () => {
+      try {
+        const profile = (await getClient().getProfile()) as { permissions?: string[] };
+        output(profile.permissions ?? []);
       } catch (err: any) {
         reportAndExit(err);
       }
