@@ -1,7 +1,8 @@
 // Cross-env read-only smoke: hits non-destructive endpoints against each
-// env (production, staging, local) that has a valid token in
-// ~/.openbox/tokens. The point isn't to re-verify CRUD; that's the
-// lifecycle suites' job, scoped to local. The point is to catch drift:
+// env (production, staging, local) that has a valid X-API-Key (or, for
+// mobile/SSO consumers, a JWT) in ~/.openbox/tokens. The point isn't
+// to re-verify CRUD; that's the lifecycle suites' job, scoped to
+// local. The point is to catch drift:
 //
 //   - Response envelope shape differs between envs
 //   - Permissions enum drifts (this suite reads /auth/profile.permissions
@@ -10,7 +11,7 @@
 //
 // Every command here is a GET / read; safe to run against prod. If a
 // token for a given env is missing or expired, that env's tests skip with
-// a clear "run openbox --env <env> auth login" message.
+// a clear "run openbox --env <env> auth set-api-key" message.
 //
 // Run:
 //   cd ts/cli && npx vitest run tests/e2e/cross-env-read.test.ts
@@ -27,9 +28,14 @@ const ENVS: EnvName[] = ['production', 'staging', 'local'];
 const TOKENS = resolve(homedir(), '.openbox', 'tokens');
 
 function hasTokenFor(env: EnvName): boolean {
+  // Either auth path is fine: X-API-Key (the desktop / CLI / MCP / IDE
+  // default — mint via dashboard, save via `openbox auth set-api-key`)
+  // or ACCESS_TOKEN (mobile / SSO consumers' JWT path).
   if (!existsSync(TOKENS)) return false;
   const content = readFileSync(TOKENS, 'utf8');
-  return content.split('\n').some((l) => l.startsWith(`${env}.ACCESS_TOKEN=`));
+  return content.split('\n').some(
+    (l) => l.startsWith(`${env}.API_KEY=`) || l.startsWith(`${env}.ACCESS_TOKEN=`),
+  );
 }
 
 // Run a CLI command against a specific env. Returns
@@ -65,7 +71,7 @@ beforeAll(async () => {
       envStates.push({
         env,
         skip: true,
-        reason: `no token; run: openbox --env ${env} auth login`,
+        reason: `no token; run: openbox --env ${env} auth set-api-key`,
       });
       continue;
     }

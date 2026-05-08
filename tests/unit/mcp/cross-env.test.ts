@@ -1,13 +1,14 @@
 import { describe, it, test, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from 'vitest';
-// Cross-env live smoke: for each env with a valid user JWT in
-// ~/.openbox/tokens, hit backend's /auth/profile via the exported
-// createApi() factory. Same pattern as openbox-sdk/packages/cli
-// cross-env-read.test.ts; catches drift between production, staging,
-// and local for a non-destructive read path.
+// Cross-env live smoke: for each env with a valid X-API-Key (or, for
+// mobile/SSO consumers, a JWT) in ~/.openbox/tokens, hit backend's
+// /auth/profile via the exported createApi() factory. Same pattern as
+// the cli-commands cross-env-read.test.ts; catches drift between
+// production, staging, and local for a non-destructive read path.
 //
 // Skips cleanly when a given env lacks a token; run
-//   openbox --env <env> auth login
-// first to unlock that env's cases.
+//   openbox --env <env> auth set-api-key
+// first to unlock that env's cases (or use the JWT path for
+// mobile/SSO consumers).
 
 import { createApi, resolveEnv, readTokens, ENV_DEFAULTS } from '../../../ts/src/runtime/mcp/config.js';
 
@@ -31,7 +32,7 @@ beforeAll(async () => {
       envStates.push({
         env,
         skip: true,
-        reason: `no token; run: openbox --env ${env} auth login`,
+        reason: `no token; run: openbox --env ${env} auth set-api-key`,
       });
       continue;
     }

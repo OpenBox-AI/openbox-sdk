@@ -128,7 +128,7 @@ describe('readTokens', () => {
   it('throws with a targeted message when the slot is empty for the requested env', () => {
     writeFileSync(tokensPath, 'staging.ACCESS_TOKEN=staging-only');
     expect(() => readTokens({ envName: 'local', tokensPath })).toThrow(
-      /No local ACCESS_TOKEN or API_KEY/,
+      /No local API_KEY/,
     );
   });
 

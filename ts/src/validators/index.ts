@@ -173,7 +173,7 @@ function hintForDetail(detail: string | null): string | null {
 function hintForStatus(status: number): string | null {
   switch (status) {
     case 401:
-      return 'Auth failed; token expired or missing. Run `openbox auth login` or `openbox doctor` to diagnose.';
+      return 'Auth failed; X-API-Key missing or revoked. Run `openbox auth set-api-key` (mint a key in the dashboard: Organization → API Keys) or `openbox doctor` to diagnose.';
     case 403:
       return 'Denied by the backend. Either the resource ID doesn\'t belong to your org/team, or your role lacks the required permission. Check `openbox auth permissions` and `openbox auth profile`.';
     case 404:

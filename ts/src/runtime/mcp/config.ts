@@ -75,13 +75,15 @@ export function readTokens(
     p = fs.existsSync(local) ? local : home;
   }
   if (!fs.existsSync(p)) {
-    throw new Error(`No tokens at ${p}. Run: openbox --env ${envName} auth login`);
+    throw new Error(`No tokens at ${p}. Run: openbox --env ${envName} auth set-api-key`);
   }
   const store = parseTokenStore(fs.readFileSync(p, "utf-8"));
   const entry = store[envName as EnvName];
   if (!entry?.accessToken && !entry?.apiKey) {
     throw new Error(
-      `No ${envName} ACCESS_TOKEN or API_KEY in ${p}. Run: openbox --env ${envName} auth login (OAuth) or openbox --env ${envName} auth set-api-key`,
+      `No ${envName} API_KEY in ${p}. Run: openbox --env ${envName} auth set-api-key ` +
+        `(mint a key in the dashboard: Organization → API Keys). ` +
+        `Mobile/SSO consumers can populate ACCESS_TOKEN via the JWT path; CLI / MCP / IDE / runtime use X-API-Key.`,
     );
   }
   return {

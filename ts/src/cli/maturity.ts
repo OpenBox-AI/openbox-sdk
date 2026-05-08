@@ -5,8 +5,8 @@
 // COMMAND_MATURITY table.
 //
 // Path syntax: space-separated command path from the program root.
-//   'auth login'      → `openbox auth login`
-//   'agent list'      → `openbox agent list`
+//   'auth set-api-key' → `openbox auth set-api-key`
+//   'agent list'       → `openbox agent list`
 
 import type { Command } from 'commander';
 import {

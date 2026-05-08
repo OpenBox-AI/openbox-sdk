@@ -87,28 +87,55 @@ footgun.
 ## 4. Token storage
 
 Tokens live in `~/.openbox/tokens`, or a project-local `.tokens` for
-dev work, in env-namespaced KV format:
+dev work, in env-namespaced KV format. **Default auth is X-API-Key** —
+mint a key in the dashboard (Organization → API Keys) and save it via
+`openbox --env <env> auth set-api-key`:
+
+```
+production.API_KEY=obx_key_...
+production.UPDATED_AT=...
+staging.API_KEY=obx_key_...
+local.API_KEY=obx_key_...
+```
+
+Mobile and SSO consumers use the JWT path instead — same file, same
+env-namespacing, different fields:
 
 ```
 production.ACCESS_TOKEN=...
 production.REFRESH_TOKEN=...
-production.UPDATED_AT=...
-production.API_KEY=obx_key_...
-staging.ACCESS_TOKEN=...
-local.ACCESS_TOKEN=...
 ```
+
+CLI / MCP / IDE / runtime surfaces all use X-API-Key; mobile and SSO
+are the sanctioned JWT consumers. Don't mix paths in one process.
 
 Use `parseTokenStore(content)` and `serializeTokenStore(store)` from
 `'openbox-sdk/env'`. The codec migrates legacy unprefixed entries from
 pre-multi-env installs into `production.*` automatically. Do not
 reinvent the parser.
 
-For platforms without a shared filesystem, such as mobile or browser
-extensions, keep the env-namespaced key convention but swap the
+For platforms without a shared filesystem (mobile or browser
+extensions), keep the env-namespaced key convention but swap the
 storage backend. iOS Keychain via `expo-secure-store` and
 `chrome.storage` are typical.
 
 ## 5. Build the client
+
+X-API-Key (default for non-mobile):
+
+```typescript
+const env = await resolveSelectedEnv();
+const apiKey = loadApiKey(env);
+
+const client = new OpenBoxClient({
+  apiUrl: ENVIRONMENTS[env].apiUrl,
+  env,
+  apiKey,
+  clientName: 'openbox-<your-app>',
+});
+```
+
+JWT (mobile / SSO):
 
 ```typescript
 const env = await resolveSelectedEnv();
@@ -127,21 +154,8 @@ const client = new OpenBoxClient({
 ```
 
 The SDK passes `refreshToken: undefined` when rotation is off; preserve
-the existing one in that case.
-
-For X-API-Key auth with org keys, construct with `apiKey` instead:
-
-```typescript
-const client = new OpenBoxClient({
-  apiUrl: ENVIRONMENTS[env].apiUrl,
-  env,
-  apiKey: process.env.OPENBOX_BACKEND_API_KEY!,
-  clientName: 'openbox-<your-app>',
-});
-```
-
-The wrapper picks X-API-Key when both `apiKey` and `accessToken` are
-provided.
+the existing one in that case. The wrapper picks X-API-Key when both
+`apiKey` and `accessToken` are provided.
 
 ## 6. The `X-Openbox-Client` header
 
