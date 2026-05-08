@@ -46,8 +46,8 @@ export function registerAuthCommands(program: Command) {
         }
         if (!/^obx_key_[0-9a-f]{48}$/.test(key)) {
           error(
-            `key does not match the org-key format (obx_key_<48 hex>). got prefix: ${key.slice(0, 12)}...`,
-            { fix: 'Mint a key in the dashboard: Organization → API Keys → New key.' },
+            `key does not match the org-key format (obx_key_<48 hex>); got prefix ${key.slice(0, 12)}...`,
+            { help: 'mint a key in the dashboard: Organization → API Keys → New key' },
           );
           bailWith(EXIT.AUTH);
         }

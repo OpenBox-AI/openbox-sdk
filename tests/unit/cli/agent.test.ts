@@ -11,7 +11,7 @@ vi.mock('../../../ts/src/cli/output', () => ({
 }));
 
 import { getClient } from '../../../ts/src/cli/config';
-import { output, outputList } from '../../../ts/src/cli/output';
+import { output, outputList, error as outputError } from '../../../ts/src/cli/output';
 
 describe('agent commands', () => {
   let mockClient: ReturnType<typeof createMockClient>;
@@ -117,15 +117,16 @@ describe('agent commands', () => {
   it('handles errors gracefully', async () => {
     mockClient.getAgent.mockRejectedValue(new Error('Not found'));
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const program = createTestProgram();
     registerAgentCommands(program);
     await program.parseAsync(['node', 'openbox', 'agent', 'get', 'bad']);
 
-    expect(errorSpy).toHaveBeenCalledWith('Not found');
+    // reportAndExit routes through output.error() — the test's vi.mock
+    // intercepts it. Assert the mock saw the message; the format prefix
+    // (`error:` etc.) is exercised by tests/unit/cli-output.test.ts.
+    expect(outputError).toHaveBeenCalledWith('Not found');
     expect(exitSpy).toHaveBeenCalledWith(1);
     exitSpy.mockRestore();
-    errorSpy.mockRestore();
   });
 });

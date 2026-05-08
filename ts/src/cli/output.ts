@@ -1,28 +1,39 @@
-// Single source of truth for CLI output formatting.
+// Single source of truth for CLI output formatting. The format follows
+// the cargo / git / rustc convention so output reads natural to anyone
+// who has used a modern CLI:
+//
+//   error: <terse one-liner, no trailing period>
+//   <blank>
+//   help: <one short hint, lowercase>
+//         <continuation lines hanging-indented under the first>
 //
 // Every command in `ts/src/cli/commands/**` MUST route human output
 // through these helpers (a drift test forbids raw `console.*` in the
-// commands directory). The format spec the helpers enforce:
+// CLI tree). The format spec:
 //
-//   stream      stderr: error / warn / prompts. stdout: everything else.
-//   prefix      error: / warn: / ok: (lowercase, colon, color via colors.ts).
+//   stream      stderr: error / warn / note / banner / prompts.
+//                 stdout: info / action / success / row / summary /
+//                 kv / table / output.
+//   prefix      `error: <msg>`  red, lowercase, no period
+//                 `warn:  <msg>` yellow, lowercase
+//                 `ok:    <msg>` green, lowercase (success)
 //                 info / action: no prefix; sentence-case msg.
-//   period      caller picks. Helpers do not append punctuation; we
-//                 just prefix + color + route to the right stream.
-//   color       only via `color.*`; NO_COLOR / OPENBOX_NO_COLOR / CI=1
-//                 disable automatically through `useColor()`.
+//   trailers    error() takes optional help / detail / hint / see.
+//                 each renders on its own line under a blank-line
+//                 separator. multi-line trailers (caller passes a
+//                 string with `\n`) hang-indent under the label.
 //   verbs       action() takes a present-progressive verb ("Installing",
-//                 "Removing"). Non-progressive verbs ("Install",
-//                 "Remove") are caller bugs.
+//                 "Removing"). Non-progressive ("Install", "Remove")
+//                 are caller bugs.
 //   rows        target<14> status<14> detail. Status drawn from a fixed
 //                 vocabulary; unknown statuses are rendered plain.
 //   summary     "done. installed=N skipped=M failed=K". Always last.
 //   tables      padded columns; first arg is the header row.
 //
-// Color is structural, not decorative: green = success / ok, red = fail
-// / error, yellow = warn / skip, dim = scaffolding (arrows, padding).
-// Nothing else uses color. Tests assert against the plain text by
-// stripping ANSI; `useColor()` returns false in tests anyway.
+// Color is structural, not decorative: green = success / ok, red =
+// fail / error, yellow = warn / skip, dim = scaffolding. Tests assert
+// against plain text by stripping ANSI; `useColor()` returns false in
+// tests anyway.
 
 import { color } from './colors.js';
 
@@ -49,31 +60,55 @@ export function outputList(data: unknown, label = 'items'): void {
 // Severity prefixes (stderr).
 
 export interface ErrorOpts {
-  /** Suggested fix the user can act on. Rendered indented under msg. */
-  fix?: string;
-  /** Pointer to docs / runbook / ticket for context. */
-  see?: string;
-  /** Extra mechanical detail (e.g. server response body). */
+  /** Short actionable suggestion. Multi-line strings hang-indent
+   *  under the `help:` label. Same convention as `cargo` / `rustc`. */
+  help?: string;
+  /** Mechanical detail (server response body, exception payload). */
   detail?: string;
-  /** Free-form actionable hint. */
+  /** Free-form pointer when neither `help` nor `detail` fit. */
   hint?: string;
+  /** Doc URL / runbook / ticket. */
+  see?: string;
 }
 
-/** Fatal error to stderr. Does not exit on its own — callers pair this
- *  with `bailWith` (clean intentional exit) or `reportAndExit` (error
- *  funnel that maps exception types to exit codes). */
+const TRAILER_INDENT = '      '; // 6 spaces — `help: ` / `hint: ` etc are 6 cols.
+
+/** Render a labelled trailer line, hang-indenting any continuation
+ *  lines so they line up under the value rather than the label. */
+function emitTrailer(label: string, value: string): void {
+  const lines = value.split('\n');
+  const head = `${label}: ${lines[0]}`;
+  console.error(head);
+  for (let i = 1; i < lines.length; i++) {
+    console.error(`${TRAILER_INDENT}${lines[i]}`);
+  }
+}
+
+/** Fatal error to stderr. Caller pairs with `bailWith` (clean
+ *  intentional exit) or `reportAndExit` (error funnel that maps
+ *  exception types to exit codes). The first line is a terse
+ *  one-liner with NO trailing period; trailers go under a blank
+ *  separator line (cargo / git / rustc convention). */
 export function error(message: string, opts: ErrorOpts = {}): void {
-  console.error(`${color.red('error:')} ${message}`);
-  if (opts.detail) console.error(`  detail: ${opts.detail}`);
-  if (opts.fix) console.error(`  fix: ${opts.fix}`);
-  if (opts.hint) console.error(`  hint: ${opts.hint}`);
-  if (opts.see) console.error(`  see: ${opts.see}`);
+  // Strip a trailing period if the caller forgot — keeps `error:` lines
+  // visually consistent regardless of where the message came from
+  // (validators, exception messages, etc.).
+  const msg = message.replace(/\.\s*$/, '');
+  console.error(`${color.red('error:')} ${msg}`);
+  if (opts.detail || opts.help || opts.hint || opts.see) {
+    console.error('');
+  }
+  if (opts.detail) emitTrailer('detail', opts.detail);
+  if (opts.help) emitTrailer('help', opts.help);
+  if (opts.hint) emitTrailer('hint', opts.hint);
+  if (opts.see) emitTrailer('see', opts.see);
 }
 
 /** Non-fatal cautionary message to stderr. */
 export function warn(message: string, reference?: string): void {
-  const ref = reference ? `  see ${reference}` : '';
-  console.error(`${color.yellow('warn:')} ${message}${ref}`);
+  const msg = message.replace(/\.\s*$/, '');
+  console.error(`${color.yellow('warn:')} ${msg}`);
+  if (reference) console.error(`see: ${reference}`);
 }
 
 /** Informational message routed to stderr. Use for context that

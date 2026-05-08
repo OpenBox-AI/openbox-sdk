@@ -43,31 +43,48 @@ describe('output: severity prefixes', () => {
     errSpy.mockRestore();
   });
 
-  it('error writes to stderr with `error:` prefix', () => {
-    error('boom');
+  it('error writes to stderr with `error:` prefix and no trailing period', () => {
+    error('boom.');
     expect(captureLog(logSpy)).toEqual([]);
     expect(captureLog(errSpy)).toEqual(['error: boom']);
   });
 
-  it('error renders fix / detail / hint / see in fixed order', () => {
-    error('boom', { fix: 'do thing', detail: 'body', hint: 'h', see: 'docs/x' });
+  it('error trailers render under a blank separator, in fixed order', () => {
+    error('boom', { help: 'do thing', detail: 'body', hint: 'h', see: 'docs/x' });
     expect(captureLog(errSpy)).toEqual([
       'error: boom',
-      '  detail: body',
-      '  fix: do thing',
-      '  hint: h',
-      '  see: docs/x',
+      '',
+      'detail: body',
+      'help: do thing',
+      'hint: h',
+      'see: docs/x',
     ]);
   });
 
-  it('warn writes to stderr with `warn:` prefix', () => {
-    warn('tread carefully');
+  it('error help with newlines hang-indents continuation under the value', () => {
+    error('no targets', {
+      help: 'pass --only <target>\nvalid:   skill, mcp\nexample: openbox install mcp',
+    });
+    expect(captureLog(errSpy)).toEqual([
+      'error: no targets',
+      '',
+      'help: pass --only <target>',
+      '      valid:   skill, mcp',
+      '      example: openbox install mcp',
+    ]);
+  });
+
+  it('warn writes to stderr with `warn:` prefix, no trailing period', () => {
+    warn('tread carefully.');
     expect(captureLog(errSpy)).toEqual(['warn: tread carefully']);
   });
 
-  it('warn appends optional reference', () => {
+  it('warn renders optional reference on its own line', () => {
     warn('drift', 'docs/v0.2.0');
-    expect(captureLog(errSpy)).toEqual(['warn: drift  see docs/v0.2.0']);
+    expect(captureLog(errSpy)).toEqual([
+      'warn: drift',
+      'see: docs/v0.2.0',
+    ]);
   });
 });
 

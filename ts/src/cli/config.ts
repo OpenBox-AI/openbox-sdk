@@ -70,8 +70,11 @@ function getClient(env?: EnvName): OpenBoxClient {
   const { apiUrl } = resolveUrls(resolved);
   const apiKey = loadApiKey(resolved);
   if (!apiKey) {
-    error('no X-API-Key configured.', {
-      fix: 'mint one in the dashboard FE (Organization → API Keys), then run `openbox auth set-api-key`. or set OPENBOX_BACKEND_API_KEY=<key> in the environment.',
+    error('no X-API-Key configured', {
+      help:
+        'mint a key in the dashboard FE (Organization → API Keys), then:\n' +
+        '  openbox auth set-api-key\n' +
+        'or set OPENBOX_BACKEND_API_KEY=<key> in the environment',
     });
     bailWith(EXIT.AUTH);
   }
@@ -113,8 +116,8 @@ function getCoreClient(env?: EnvName): OpenBoxCoreClient {
   const resolved = env ?? resolveEnv();
   const apiKey = process.env.OPENBOX_API_KEY || '';
   if (!apiKey) {
-    error('no OPENBOX_API_KEY found.', {
-      fix: 'set it in your environment.',
+    error('no OPENBOX_API_KEY found', {
+      help: 'set it in your environment',
     });
     bailWith(EXIT.AUTH);
   }

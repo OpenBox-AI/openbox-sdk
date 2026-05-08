@@ -35,8 +35,8 @@ const WORKSPACE_BUNDLE_CANDIDATES = [
 
 function ensureMac(target: string): void {
   if (os.platform() !== 'darwin') {
-    error(`\`openbox install ${target}\` is macOS-only.`, {
-      hint: 'On Linux/Windows, use `openbox install extension` instead.',
+    error(`\`openbox install ${target}\` is macOS-only`, {
+      help: 'on Linux / Windows, use `openbox install extension` instead',
     });
     bailWith(EXIT.GENERIC);
   }
@@ -218,8 +218,8 @@ function installExtension(opts: { code?: boolean; cursor?: boolean }): void {
   }
   const hosts = pickHosts(opts);
   if (hosts.length === 0) {
-    error('neither `code` nor `cursor` is on PATH.', {
-      fix: "Install VS Code and run \"Shell Command: Install 'code' command in PATH\".",
+    error('neither `code` nor `cursor` is on PATH', {
+      help: "install VS Code and run \"Shell Command: Install 'code' command in PATH\"",
     });
     bailWith(EXIT.GENERIC);
   }
@@ -697,11 +697,11 @@ async function runInstallAll(opts: AllCliOpts): Promise<void> {
   // `openbox install extension`.
   const explicitlyScoped = opts.only && opts.only.length > 0;
   if (!explicitlyScoped) {
-    error('no targets specified.', {
-      fix:
-        'Pass `--only <target>` (repeatable; one of: ' +
-        `${INSTALL_ALL_TARGETS.join(', ')}) or run a per-target subcommand directly, ` +
-        'e.g. `openbox install extension`.',
+    error('no targets specified', {
+      help:
+        'pass --only <target> or use a per-target subcommand\n' +
+        `valid:   ${INSTALL_ALL_TARGETS.join(', ')}\n` +
+        'example: openbox install extension',
     });
     bailWith(EXIT.USAGE);
     return;

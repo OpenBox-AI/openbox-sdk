@@ -148,7 +148,14 @@ describe('validators/index; extra surface', () => {
     } finally {
       console.error = orig;
     }
-    expect(sink.length).toBe(2);
+    // First call prints `warn: something` + `see: docs/section` (2 lines);
+    // second prints `warn: plain` only.
+    expect(sink.length).toBe(3);
+    expect(sink[0]).toContain('warn:');
+    expect(sink[0]).toContain('something');
+    expect(sink[1]).toContain('see:');
+    expect(sink[2]).toContain('warn:');
+    expect(sink[2]).toContain('plain');
   });
 });
 

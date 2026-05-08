@@ -58,8 +58,8 @@ export function registerCoreCommands(program: Command) {
           payload = parseJsonInput<any>(opts.json);
         } else if (opts.type) {
           if (!(SPAN_TYPES as readonly string[]).includes(opts.type)) {
-            error(`invalid --type: ${opts.type}.`, {
-              fix: `must be one of: ${SPAN_TYPES.join(', ')}`,
+            error(`invalid --type: ${opts.type}`, {
+              help: `must be one of: ${SPAN_TYPES.join(', ')}`,
             });
             bailWith(EXIT.USAGE);
           }

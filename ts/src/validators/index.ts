@@ -27,7 +27,7 @@
 export { parseJsonInput } from './input.js';
 
 import { EXIT, exitCodeForStatus } from '../cli/exit-codes.js';
-import { color } from '../cli/colors.js';
+import { error as printError, warn } from '../cli/output.js';
 export { EXIT, exitCodeForStatus, isRetryable, bailWith } from '../cli/exit-codes.js';
 export type { ExitCode } from '../cli/exit-codes.js';
 
@@ -43,11 +43,10 @@ export class ValidationError extends Error {
   }
 }
 
-/** Print a warning to stderr. Non-fatal. */
-export function warn(message: string, reference?: string): void {
-  const ref = reference ? `  See ${reference}.` : '';
-  console.error(`${color.yellow('warn:')} ${message}${ref}`);
-}
+// `warn` is imported above and re-exported so legacy callers
+// (`import { warn } from '../validators'`) keep working. The
+// implementation lives in `../cli/output.ts`.
+export { warn };
 
 /** Block with a hard error. Caller exits with code 2 (user-input error). */
 export function block(rule: string, message: string, fix?: string, reference?: string): never {
@@ -55,17 +54,18 @@ export function block(rule: string, message: string, fix?: string, reference?: s
 }
 
 export function reportAndExit(err: unknown): never {
-  // Destructive-op gate.Surfaces a clean USAGE error
-  // rather than dumping a stack trace from the runtime helper.
+  // Destructive-op gate. Surfaces a clean USAGE error rather than
+  // dumping a stack trace from the runtime helper.
   if (err instanceof Error && err.name === 'DestructiveConfirmRequiredError') {
-    console.error(`${color.red('error:')} ${err.message}`);
+    printError(err.message);
     process.exit(EXIT.USAGE);
   }
 
   if (err instanceof ValidationError) {
-    console.error(`${color.red('error:')} ${err.message}`);
-    if (err.fix) console.error(`  fix: ${err.fix}`);
-    if (err.reference) console.error(`  see: ${err.reference}`);
+    printError(err.message, {
+      help: err.fix,
+      see: err.reference,
+    });
     process.exit(EXIT.USAGE);
   }
 
@@ -79,14 +79,15 @@ export function reportAndExit(err: unknown): never {
     (apiErr.name === 'OpenBoxApiError' || apiErr.name === 'CoreApiError') &&
     typeof apiErr.status === 'number'
   ) {
-    console.error(`${color.red('error:')} ${apiErr.message}`);
     const detail = extractApiErrorDetail(apiErr.body);
-    if (detail) console.error(`  detail: ${detail}`);
-    // Detail-aware hint takes precedence over the generic status hint .
+    // Detail-aware hint takes precedence over the generic status hint;
     // surfaces specific known failure modes (deployed-environment bugs,
     // fail-closed responses) that the user can act on directly.
     const hint = hintForDetail(detail) ?? hintForStatus(apiErr.status);
-    if (hint) console.error(`  hint: ${hint}`);
+    printError(apiErr.message ?? 'request failed', {
+      detail: detail ?? undefined,
+      hint: hint ?? undefined,
+    });
     process.exit(exitCodeForStatus(apiErr.status));
   }
 
@@ -101,11 +102,11 @@ export function reportAndExit(err: unknown): never {
     code === 'UND_ERR_SOCKET' ||
     code === 'UND_ERR_CONNECT_TIMEOUT'
   ) {
-    console.error(`${color.red('error:')} network: ${err instanceof Error ? err.message : String(err)}`);
+    printError(`network: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(EXIT.NETWORK);
   }
 
-  console.error(err instanceof Error ? err.message : String(err));
+  printError(err instanceof Error ? err.message : String(err));
   process.exit(EXIT.GENERIC);
 }
 
