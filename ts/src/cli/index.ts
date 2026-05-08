@@ -48,6 +48,27 @@ import { reportAndExit } from '../validators/index.js';
 
 const program = new Command();
 
+// Reroute Commander's own error messages through the same `error()` helper
+// the rest of the CLI uses. Without this, Commander prints in its own
+// format ("error: <msg>.\n") which collides with the cargo-style format
+// the helpers produce. Hooks every subcommand transparently because
+// configureOutput is inherited.
+program.configureOutput({
+  outputError: (str) => {
+    const lines = str.split('\n').map((l) => l.trim()).filter(Boolean);
+    const stripped = lines[0]?.replace(/^error:\s*/, '') ?? '';
+    // Many Commander errors are two sentences ("too many arguments for 'foo'.
+    // Expected 0 arguments but got 1."); split on the first sentence boundary
+    // so the second becomes a `help:` trailer instead of running on.
+    const split = stripped.match(/^([^.]+?)\.\s+(.+?)\.?\s*$/);
+    if (split) {
+      error(split[1], { help: split[2].toLowerCase() });
+    } else {
+      error(stripped.replace(/\.\s*$/, ''));
+    }
+  },
+});
+
 program
   .name('openbox')
   .description('openbox-sdk')
