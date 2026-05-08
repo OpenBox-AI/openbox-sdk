@@ -1,18 +1,25 @@
-// Make the test-only VS Code download invisible on macOS — no Dock
-// icon, no Cmd-Tab entry, no focus steal. The wdio LIVE suite needs
-// a real Electron workbench (chromedriver attaches to the window),
-// so we can't run truly headless on macOS. The next-best thing is
-// LSUIElement = 1, which tells macOS the app is a "background-only
-// agent" — the window still renders (chromedriver is happy) but the
-// OS treats it as invisible from the user's POV.
+// Headless-on-macOS patches for the test-only VS Code download. Two
+// layered patches; both target ONLY the cached copy under
+// `.wdio-vscode-service/` and never the developer's daily Cursor
+// or VS Code install.
 //
-// IMPORTANT: this patches ONLY the cached test copy under
-// `.wdio-vscode-service/` — never the developer's real VS Code or
-// Cursor install. If you point OPENBOX_E2E_VSCODE_BINARY at your
-// daily-driver Cursor, this script does nothing for that path.
+//   1. Info.plist: LSUIElement = 1
+//      Removes Dock icon + Cmd-Tab entry + menu bar. Persistent
+//      property of the app bundle.
 //
-// Re-runnable. Idempotent. Skips silently when nothing to patch
-// (non-macOS, no cache yet, already patched).
+//   2. out/main.js: prepend app.setActivationPolicy('accessory')
+//      The actual focus-theft fix. The wdio research path made it
+//      clear that no Electron CLI flag, no plist entry, and no
+//      post-launch osascript hider can prevent the AppKit
+//      activation that fires when chromedriver attaches via CDP.
+//      The fix has to live INSIDE the main process — flipping the
+//      activation policy to 'accessory' before app.whenReady()
+//      resolves makes [NSApp activate] calls no-ops at the OS
+//      level. Windows still create normally, so chromedriver works
+//      fine; the app simply never enters the active-app rotation.
+//
+// Both are idempotent — re-runnable; skip silently when already
+// applied / not on macOS / no cache yet.
 
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
@@ -42,34 +49,56 @@ if (versionDirs.length === 0) {
   process.exit(0);
 }
 
-let patched = 0;
-let already = 0;
+const SENTINEL = '/* openbox-test-headless: setActivationPolicy injected */';
+const ACTIVATION_PREPEND = `${SENTINEL}
+import { app as __obxApp } from 'electron';
+try {
+  if (process.platform === 'darwin') __obxApp.setActivationPolicy('accessory');
+} catch { /* noop */ }
+`;
+
+let plistPatched = 0;
+let plistAlready = 0;
+let mainPatched = 0;
+let mainAlready = 0;
 
 for (const dir of versionDirs) {
-  const plist = join(CACHE_DIR, dir, 'Visual Studio Code.app', 'Contents', 'Info.plist');
-  if (!existsSync(plist)) {
-    log(`skip ${dir}: Info.plist not found`);
-    continue;
+  const appRoot = join(CACHE_DIR, dir, 'Visual Studio Code.app');
+
+  // ── 1. LSUIElement on Info.plist ──────────────────────────────
+  const plist = join(appRoot, 'Contents', 'Info.plist');
+  if (existsSync(plist)) {
+    const content = readFileSync(plist, 'utf-8');
+    if (content.includes('<key>LSUIElement</key>')) {
+      plistAlready++;
+    } else {
+      const next = content.replace(
+        /<\/dict>\n<\/plist>\s*$/,
+        '\t<key>LSUIElement</key>\n\t<true/>\n</dict>\n</plist>\n',
+      );
+      if (next !== content) {
+        writeFileSync(plist, next);
+        plistPatched++;
+        log(`Info.plist patched: ${dir}`);
+      }
+    }
   }
-  const content = readFileSync(plist, 'utf-8');
-  if (content.includes('<key>LSUIElement</key>')) {
-    already++;
-    continue;
+
+  // ── 2. setActivationPolicy('accessory') in out/main.js ────────
+  const mainJs = join(appRoot, 'Contents', 'Resources', 'app', 'out', 'main.js');
+  if (existsSync(mainJs)) {
+    const content = readFileSync(mainJs, 'utf-8');
+    if (content.includes(SENTINEL)) {
+      mainAlready++;
+    } else {
+      writeFileSync(mainJs, ACTIVATION_PREPEND + content);
+      mainPatched++;
+      log(`main.js patched: ${dir}`);
+    }
   }
-  // Insert LSUIElement immediately before the closing </dict> of
-  // the top-level plist. The keys are tab-indented in VS Code's
-  // Info.plist; match that style.
-  const next = content.replace(
-    /<\/dict>\n<\/plist>\s*$/,
-    '\t<key>LSUIElement</key>\n\t<true/>\n</dict>\n</plist>\n',
-  );
-  if (next === content) {
-    log(`skip ${dir}: could not find </dict></plist> tail to patch`);
-    continue;
-  }
-  writeFileSync(plist, next);
-  patched++;
-  log(`patched ${dir}`);
 }
 
-log(`done — patched ${patched}, already-patched ${already}`);
+log(
+  `done — Info.plist: ${plistPatched} patched, ${plistAlready} already; ` +
+    `main.js: ${mainPatched} patched, ${mainAlready} already`,
+);
