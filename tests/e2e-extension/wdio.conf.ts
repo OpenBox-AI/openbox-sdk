@@ -2,59 +2,87 @@
 //
 // Run: `npm run test:e2e-extension`
 //
-// LIVE-only end-to-end suite. The extension activates inside a real
+// LIVE end-to-end suite — the extension activates inside a real
 // VS Code / Cursor workbench and talks through the real SDK to the
-// real backend. UI/glue layer behavior (status bar paint, mockStore
-// fixtures, view contributions, fail-mode folding, approval-row
-// resolution) is covered by the unit-test suite under
-// `apps/extension/src/*.test.ts`; this suite only exercises what
-// can't be unit tested: the SDK ↔ backend wire and the editor host.
+// real backend. UI/glue layer logic (status bar paint shapes,
+// MockStore fixtures, view contributions, fail-mode folding,
+// approval-row resolution) is covered by unit tests under
+// `apps/extension/src/*.test.ts`. This suite covers what those can't:
+// extension activation, view registration, real polling round-trips,
+// real governance.check verdicts, real save → revert flows.
 //
-// Required env (refuses to run without it):
-//   OPENBOX_E2E_LIVE=1
-//   OPENBOX_E2E_AGENT_ID    — agent id from openbox-local's bootstrap
-//   OPENBOX_E2E_RUNTIME_KEY — runtime key from the same bootstrap
+// Zero env vars required for a default localhost run. URLs and
+// credentials auto-load the same way the SDK e2e suite does:
 //
-// Optional knobs:
+//   OPENBOX_API_URL          ← override OR http://localhost:3000
+//   OPENBOX_CORE_URL         ← override OR http://localhost:8086
+//   OPENBOX_E2E_AGENT_ID     ← override OR e2e-agent from ~/.openbox/agent-keys
+//   OPENBOX_E2E_RUNTIME_KEY  ← override OR e2e-agent runtime key from same
+//
+// Knobs:
 //   OPENBOX_E2E_VSCODE_VERSION — VS Code version (default: stable)
 //   OPENBOX_E2E_VSCODE_BINARY  — path to a VS Code-fork binary
 //                                 (e.g. Cursor) to use instead of the
-//                                 downloaded one. The harness still
-//                                 uses the bundled VS Code version's
-//                                 chromedriver, so versions must
-//                                 stay close.
-//   OPENBOX_ENV                — env tag the launched workbench binds
-//                                 to (default: 'local').
-//   OPENBOX_E2E_HEADLESS=1     — pass `--no-sandbox`; rely on the
-//                                 caller's Xvfb when running CI.
+//                                 downloaded one. Versions must stay
+//                                 close — chromedriver is bundled to
+//                                 the VS Code version we downloaded.
+//   OPENBOX_E2E_HEADLESS=1     — pass `--no-sandbox` for Linux + Xvfb
+//                                 environments. macOS shows the
+//                                 workbench window; the in-test
+//                                 before-hook minimizes it after launch.
 
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
 const EXTENSION_DIR = resolve(ROOT, 'apps/extension');
 
-const vscodeVersion = process.env.OPENBOX_E2E_VSCODE_VERSION ?? 'stable';
-const vscodeBinary = process.env.OPENBOX_E2E_VSCODE_BINARY;
-const headless = process.env.OPENBOX_E2E_HEADLESS === '1';
+// ─── credential auto-load ────────────────────────────────────────────
+//
+// Pull the e2e-agent's runtime key from ~/.openbox/agent-keys (the
+// canonical store openbox-local's bootstrap writes to). Same pattern
+// as tests/setup-creds.ts; lets `npm run test:e2e-extension` Just Work
+// after `cd ~/workspace/openbox-local && npm run bootstrap`.
 
-if (
-  process.env.OPENBOX_E2E_LIVE !== '1' ||
-  !process.env.OPENBOX_E2E_AGENT_ID ||
-  !process.env.OPENBOX_E2E_RUNTIME_KEY
-) {
+const E2E_AGENT_NAME = 'e2e-agent';
+
+if (!process.env.OPENBOX_E2E_AGENT_ID || !process.env.OPENBOX_E2E_RUNTIME_KEY) {
+  const keysFile = resolve(homedir(), '.openbox', 'agent-keys');
+  if (existsSync(keysFile)) {
+    try {
+      const cache = JSON.parse(readFileSync(keysFile, 'utf-8')) as Record<
+        string,
+        { agentId: string; agentName: string; runtimeKey: string }
+      >;
+      const entry = Object.values(cache).find((r) => r.agentName === E2E_AGENT_NAME);
+      if (entry) {
+        if (!process.env.OPENBOX_E2E_AGENT_ID) process.env.OPENBOX_E2E_AGENT_ID = entry.agentId;
+        if (!process.env.OPENBOX_E2E_RUNTIME_KEY) process.env.OPENBOX_E2E_RUNTIME_KEY = entry.runtimeKey;
+      }
+    } catch {
+      /* best-effort; the explicit-error path below catches missing creds */
+    }
+  }
+}
+
+if (!process.env.OPENBOX_E2E_AGENT_ID || !process.env.OPENBOX_E2E_RUNTIME_KEY) {
   console.error(
-    'test:e2e-extension is LIVE-only. Set OPENBOX_E2E_LIVE=1 + ' +
-      'OPENBOX_E2E_AGENT_ID + OPENBOX_E2E_RUNTIME_KEY (run ' +
-      '`cd ~/workspace/openbox-local && npm run bootstrap` to get them). ' +
-      'Mock-data UI coverage moved to apps/extension/src/*.test.ts.',
+    'No e2e agent credentials. Run `cd ~/workspace/openbox-local && npm run bootstrap` ' +
+      'to provision the canonical e2e-agent (writes to ~/.openbox/agent-keys), or set ' +
+      'OPENBOX_E2E_AGENT_ID + OPENBOX_E2E_RUNTIME_KEY explicitly for a different agent.',
   );
   process.exit(1);
 }
 
+const vscodeVersion = process.env.OPENBOX_E2E_VSCODE_VERSION ?? 'stable';
+const vscodeBinary = process.env.OPENBOX_E2E_VSCODE_BINARY;
+const headless = process.env.OPENBOX_E2E_HEADLESS === '1';
+
 const userSettings: Record<string, unknown> = {
-  'openbox.environment': process.env.OPENBOX_ENV ?? 'local',
+  'openbox.environment': 'local',
   'openbox.mockAuth': false,
   'openbox.agentId': process.env.OPENBOX_E2E_AGENT_ID!,
   'openbox.preWriteGate.active': true,
@@ -73,15 +101,15 @@ export const config = {
     timeout: 90_000,
   },
 
-  specs: ['./suites/live-*.e2e.ts'],
-  // One spec file at a time. Each launches its own VS Code instance
-  // (fresh state, fresh extension activation, no cross-suite leakage)
-  // because wdio-vscode-service models a session as one workbench.
-  // Sequential is by design: stable + isolated > fast.
+  // One consolidated spec file = one workbench launch = one window
+  // flash on macOS. Splitting across N files multiplies the launch
+  // count by N. The single spec file groups concerns via describe()
+  // blocks for navigability.
+  specs: ['./suites/live-e2e.e2e.ts'],
   maxInstances: 1,
-  // Retry the whole spec file once on flaky launch failures
-  // (chromedriver racing the VS Code workbench during cold boot
-  // occasionally counts a spec as failed before any test runs).
+  // Retry the spec file once on flaky launch failures (chromedriver
+  // racing the workbench during cold boot occasionally counts a spec
+  // as failed before any test runs).
   specFileRetries: 1,
   specFileRetriesDelay: 2,
 
