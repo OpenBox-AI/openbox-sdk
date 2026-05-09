@@ -48,6 +48,7 @@ export interface Webhook {
   list(): void;
   create(): void;
   get(id: string): void;
+  describe(id: string): void;
   update(id: string): void;
   delete(id: string): void;
   test(id: string): void;
@@ -55,6 +56,7 @@ export interface Webhook {
   deliveries(id: string): void;
 }
 export interface Sso {
+  overview(): void;
   status(): void;
   config(): void;
   getMetadata(): void;
@@ -65,6 +67,7 @@ export interface Sso {
   verify(): void;
 }
 export interface Approval {
+  describe(agentId: string): void;
   metrics(agentId: string, from?: string, to?: string): void;
   pending(agentId: string, search?: string, status?: string, tiers?: string[], from?: string, to?: string): void;
   history(agentId: string, search?: string, status?: string, tiers?: string[], from?: string, to?: string): void;
@@ -129,6 +132,7 @@ export interface Member {
   invite(orgId: string, email?: string, roles?: string[]): void;
 }
 export interface Observe {
+  overview(agentId: string): void;
   data(agentId: string, from?: string, to?: string): void;
   issues(agentId: string): void;
   insights(agentId: string, from?: string, to?: string): void;
@@ -179,6 +183,7 @@ export interface Session {
 }
 export interface Team {
   list(orgId: string): void;
+  describe(orgId: string, teamId: string): void;
   stats(orgId: string): void;
   get(orgId: string, teamId: string): void;
   members(orgId: string, teamId: string): void;
@@ -527,6 +532,10 @@ export const CLI_COMMAND_MANIFEST = [
         "flags": []
       },
       {
+        "name": "describe",
+        "flags": []
+      },
+      {
         "name": "update",
         "flags": []
       },
@@ -553,6 +562,10 @@ export const CLI_COMMAND_MANIFEST = [
     "description": "SSO configuration (admin).",
     "interfaceName": "Sso",
     "subcommands": [
+      {
+        "name": "overview",
+        "flags": []
+      },
       {
         "name": "status",
         "flags": []
@@ -592,6 +605,10 @@ export const CLI_COMMAND_MANIFEST = [
     "description": "Approval queue management.",
     "interfaceName": "Approval",
     "subcommands": [
+      {
+        "name": "describe",
+        "flags": []
+      },
       {
         "name": "metrics",
         "flags": [
@@ -1454,6 +1471,10 @@ export const CLI_COMMAND_MANIFEST = [
     "interfaceName": "Observe",
     "subcommands": [
       {
+        "name": "overview",
+        "flags": []
+      },
+      {
         "name": "data",
         "flags": [
           {
@@ -1892,6 +1913,10 @@ export const CLI_COMMAND_MANIFEST = [
     "subcommands": [
       {
         "name": "list",
+        "flags": []
+      },
+      {
+        "name": "describe",
         "flags": []
       },
       {

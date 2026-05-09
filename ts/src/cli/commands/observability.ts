@@ -4,9 +4,12 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { wireSubcommands } from '../wire-subcommands.js';
+import { wireRecipes } from '../recipes.js';
 import { OBSERVE_HANDLERS } from '../generated/cli-handlers/observe.js';
+import { OBSERVE_RECIPES } from '../generated/cli-recipes/observe.js';
 
 export function registerObservabilityCommands(program: Command) {
   const observe = program.command('observe').description('Observability');
   wireSubcommands(observe, OBSERVE_HANDLERS, getClient as never);
+  wireRecipes(observe, OBSERVE_RECIPES, getClient as never);
 }

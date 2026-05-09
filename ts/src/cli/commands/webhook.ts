@@ -4,9 +4,12 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { wireSubcommands } from '../wire-subcommands.js';
+import { wireRecipes } from '../recipes.js';
 import { WEBHOOK_HANDLERS } from '../generated/cli-handlers/webhook.js';
+import { WEBHOOK_RECIPES } from '../generated/cli-recipes/webhook.js';
 
 export function registerWebhookCommands(program: Command) {
   const webhook = program.command('webhook').description('Webhook management');
   wireSubcommands(webhook, WEBHOOK_HANDLERS, getClient as never);
+  wireRecipes(webhook, WEBHOOK_RECIPES, getClient as never);
 }

@@ -3,9 +3,12 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { wireSubcommands } from '../wire-subcommands.js';
+import { wireRecipes } from '../recipes.js';
 import { SSO_HANDLERS } from '../generated/cli-handlers/sso.js';
+import { SSO_RECIPES } from '../generated/cli-recipes/sso.js';
 
 export function registerSsoCommands(program: Command) {
   const sso = program.command('sso').description('SSO configuration (admin)');
   wireSubcommands(sso, SSO_HANDLERS, getClient as never);
+  wireRecipes(sso, SSO_RECIPES, getClient as never);
 }

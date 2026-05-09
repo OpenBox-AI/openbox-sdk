@@ -399,6 +399,17 @@ interface Webhook {
   @cli_output_kind("kv")
   get(id: string): void;
 
+  /** Full webhook view in ONE call: webhook metadata + recent
+   *  delivery attempts. Recipe over getWebhook + getWebhookDeliveries
+   *  so callers don't have to fetch the webhook and then ask for its
+   *  delivery log separately. */
+  @cli_recipe(#[
+    #{ call: "getWebhook",           args: #["id"], into: "webhook" },
+    #{ call: "getWebhookDeliveries", args: #["id"], into: "deliveries", paginate: true },
+  ])
+  @cli_output_kind("json")
+  describe(id: string): void;
+
   /** Update a webhook. */
   @cli_calls("updateWebhook")
   @cli_output_kind("kv")
@@ -432,6 +443,18 @@ interface Webhook {
 
 @cli_command("sso", "SSO configuration (admin).")
 interface Sso {
+  /** Full SSO surface in ONE call: enabled/method/enforced status,
+   *  the active config, and SP metadata. Recipe over the read-only
+   *  ops; the configureOidc / configureSaml / enforce / delete /
+   *  verify side stays per-op (mutations). */
+  @cli_recipe(#[
+    #{ call: "getSsoStatus",   args: #[], into: "status" },
+    #{ call: "getSsoConfig",   args: #[], into: "config", optional: true },
+    #{ call: "getSsoMetadata", args: #[], into: "metadata", optional: true },
+  ])
+  @cli_output_kind("json")
+  overview(): void;
+
   /** Get SSO status (enabled / method / enforced). */
   @cli_calls("getSsoStatus", "positional")
   @cli_output_kind("kv")
@@ -480,6 +503,17 @@ interface Sso {
 @cli_command("approval", "Approval queue management.")
 @cli_maturity("experimental")
 interface Approval {
+  /** Approval state for an agent in ONE call: per-agent metrics,
+   *  the current pending queue, and recent history. Recipe over the
+   *  per-resource ops; saves the caller from running getApprovalMetrics +
+   *  getPendingApprovals + getApprovalHistory by hand. */
+  @cli_recipe(#[
+    #{ call: "getApprovalMetrics",  args: #["agentId"], into: "metrics", optional: true },
+    #{ call: "getPendingApprovals", args: #["agentId"], into: "pending", paginate: true },
+    #{ call: "getApprovalHistory",  args: #["agentId"], into: "history", paginate: true },
+  ])
+  @cli_output_kind("json")
+  describe(agentId: string): void;
   /** Get approval metrics. */
   @cli_calls("getApprovalMetrics")
   @cli_output_kind("kv")
@@ -1057,6 +1091,19 @@ interface Member {
 @cli_command("observe", "Observability dashboards + metrics.")
 @cli_maturity("experimental")
 interface Observe {
+  /** Observability snapshot for an agent in ONE call: open issues,
+   *  insights metrics, drift logs, and recent activity logs. Recipe
+   *  over the per-resource ops so the caller doesn't run getIssues +
+   *  getInsightsMetrics + getDriftLogs + getAgentLogs by hand. */
+  @cli_recipe(#[
+    #{ call: "getIssues",          args: #["agentId"], into: "issues", paginate: true },
+    #{ call: "getInsightsMetrics", args: #["agentId"], into: "insights", optional: true },
+    #{ call: "getDriftLogs",       args: #["agentId"], into: "drift", paginate: true },
+    #{ call: "getAgentLogs",       args: #["agentId"], into: "logs", paginate: true },
+  ])
+  @cli_output_kind("json")
+  overview(agentId: string): void;
+
   /** Get observability data. */
   @cli_calls("getObservability")
   @cli_output_kind("kv")
@@ -1475,6 +1522,16 @@ interface Team {
   @cli_pagination
   @cli_output_kind("list", "teams")
   list(orgId: string): void;
+
+  /** Full team view in ONE call: team metadata + member roster.
+   *  Recipe over getTeam + getTeamMembers; saves the caller from
+   *  fetching the team and then asking who's in it. */
+  @cli_recipe(#[
+    #{ call: "getTeam",        args: #["orgId", "teamId"], into: "team" },
+    #{ call: "getTeamMembers", args: #["orgId", "teamId"], into: "members", paginate: true },
+  ])
+  @cli_output_kind("json")
+  describe(orgId: string, teamId: string): void;
 
   /** Get team stats. */
   @cli_maturity("experimental")
