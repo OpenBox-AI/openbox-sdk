@@ -8,7 +8,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EXIT, bailWith } from '../exit-codes.js';
-import { error, warn, info, action, success, row, summary, kv } from '../output.js';
+import { error, warn, info, action, success, row, summary, kv, output } from '../output.js';
+import { isMachineMode } from '../non-interactive.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -675,11 +676,22 @@ export async function runPlan(
     }
   }
 
-  summary({
-    [verb === 'install' ? 'installed' : 'removed']: result.installed.length,
-    skipped: result.skipped.length,
-    failed: result.failed.length,
-  });
+  if (isMachineMode()) {
+    // In machine mode, the per-step row()/action()/success() calls
+    // were silenced. Emit ONE JSON envelope so stdout still has a
+    // single document agents can parse. Shape mirrors RunSummary.
+    output({
+      [verb === 'install' ? 'installed' : 'removed']: result.installed,
+      skipped: result.skipped,
+      failed: result.failed,
+    });
+  } else {
+    summary({
+      [verb === 'install' ? 'installed' : 'removed']: result.installed.length,
+      skipped: result.skipped.length,
+      failed: result.failed.length,
+    });
+  }
 
   return result;
 }

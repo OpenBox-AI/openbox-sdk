@@ -1,55 +1,71 @@
-// Single source of truth for CLI output formatting. The format follows
-// the cargo / git / rustc convention so output reads natural to anyone
-// who has used a modern CLI:
+// Single source of truth for CLI output. Two operating modes:
+//
+//   TTY mode (humans):
+//     stdout = prose / progress / formatted JSON
+//     stderr = errors / warnings / banners (multi-line cargo style)
+//
+//   Machine mode (`--json` flag, OR stdout is not a TTY):
+//     stdout = exactly one JSON document, nothing else
+//     stderr = empty on success; single-line `{"error":{...}}` on failure
+//     exit code = source of truth
+//     colors / progress / banners / `[recipe]` tags are silenced
+//
+// `isMachineMode()` is the single switch. Every helper consults it so
+// tools / MCP / agents reading piped output get a clean JSON contract
+// without having to remember a flag.
+//
+// Format spec for TTY mode follows cargo / git / rustc:
 //
 //   error: <terse one-liner, no trailing period>
 //   <blank>
 //   help: <one short hint, lowercase>
 //         <continuation lines hanging-indented under the first>
 //
-// Every command in `ts/src/cli/commands/**` MUST route human output
-// through these helpers (a drift test forbids raw `console.*` in the
-// CLI tree). The format spec:
+// Helpers and their TTY-vs-machine behavior:
 //
 //   stream      stderr: error / warn / note / banner / prompts.
 //                 stdout: info / action / success / row / summary /
 //                 kv / table / output.
-//   prefix      `error: <msg>`  red, lowercase, no period
-//                 `warn:  <msg>` yellow, lowercase
-//                 `ok:    <msg>` green, lowercase (success)
-//                 info / action: no prefix; sentence-case msg.
-//   trailers    error() takes optional help / detail / hint / see.
-//                 each renders on its own line under a blank-line
-//                 separator. multi-line trailers (caller passes a
-//                 string with `\n`) hang-indent under the label.
-//   verbs       action() takes a present-progressive verb ("Installing",
-//                 "Removing"). Non-progressive ("Install", "Remove")
-//                 are caller bugs.
-//   rows        target<14> status<14> detail. Status drawn from a fixed
-//                 vocabulary; unknown statuses are rendered plain.
-//   summary     "done. installed=N skipped=M failed=K". Always last.
-//   tables      padded columns; first arg is the header row.
+//   error       TTY: red `error:` + trailers.  Machine: `{"error":{...}}` line on stderr.
+//   warn        TTY: yellow `warn:` line.       Machine: silent (or routed to a future warning channel).
+//   info / action / success / note / banner / row / summary
+//                 TTY: prose / progress.        Machine: silent.
+//   kv / table  TTY: padded human layout.       Machine: JSON object / array on stdout.
+//   output      TTY + machine: pretty JSON to stdout.
+//   outputList  TTY: count to stderr + JSON to stdout.
+//                 Machine: bare JSON; no count.
 //
-// Color is structural, not decorative: green = success / ok, red =
-// fail / error, yellow = warn / skip, dim = scaffolding. Tests assert
-// against plain text by stripping ANSI; `useColor()` returns false in
-// tests anyway.
+// Drift test (cli-output-drift.test.ts) bans raw `console.*` in
+// `ts/src/cli/**` (except this file) so this module is the only place
+// the contract lives.
 
 import { color } from './colors.js';
+import { isMachineMode } from './non-interactive.js';
 
-// JSON envelope — preserved from the prior version of this file. Used
-// by list/show commands that opt into machine-readable output.
+// ---------------------------------------------------------------------------
+// JSON-shaped output (always emit, both modes).
+
+/** Emit a value as pretty JSON on stdout. The fundamental unit; every
+ *  recipe and every spec op with `@cli_output_kind("json")` ends here. */
 export function output(data: unknown): void {
   console.log(JSON.stringify(data, null, 2));
 }
 
+/** List output. In TTY mode, emit a `<count> <label>` line on stderr
+ *  before the JSON on stdout (the count is human scaffolding). In
+ *  machine mode, suppress the count so stdout is pure JSON. */
 export function outputList(data: unknown, label = 'items'): void {
   const obj = data as Record<string, unknown>;
+  const machine = isMachineMode();
   if (obj?.data && Array.isArray(obj.data)) {
-    console.error(`${(obj.total as number) ?? obj.data.length} ${label}`);
+    if (!machine) {
+      console.error(`${(obj.total as number) ?? obj.data.length} ${label}`);
+    }
     console.log(JSON.stringify(obj.data, null, 2));
   } else if (Array.isArray(data)) {
-    console.error(`${data.length} ${label}`);
+    if (!machine) {
+      console.error(`${data.length} ${label}`);
+    }
     console.log(JSON.stringify(data, null, 2));
   } else {
     console.log(JSON.stringify(data, null, 2));
@@ -73,8 +89,6 @@ export interface ErrorOpts {
 
 const TRAILER_INDENT = '      '; // 6 spaces — `help: ` / `hint: ` etc are 6 cols.
 
-/** Render a labelled trailer line, hang-indenting any continuation
- *  lines so they line up under the value rather than the label. */
 function emitTrailer(label: string, value: string): void {
   const lines = value.split('\n');
   const head = `${label}: ${lines[0]}`;
@@ -84,16 +98,21 @@ function emitTrailer(label: string, value: string): void {
   }
 }
 
-/** Fatal error to stderr. Caller pairs with `bailWith` (clean
- *  intentional exit) or `reportAndExit` (error funnel that maps
- *  exception types to exit codes). The first line is a terse
- *  one-liner with NO trailing period; trailers go under a blank
- *  separator line (cargo / git / rustc convention). */
+/** Fatal error. TTY mode: cargo-style multi-line stderr. Machine
+ *  mode: single-line `{"error":{...}}` JSON to stderr. Either way,
+ *  caller pairs with `bailWith` / `reportAndExit` so the exit code
+ *  is the source of truth. */
 export function error(message: string, opts: ErrorOpts = {}): void {
-  // Strip a trailing period if the caller forgot — keeps `error:` lines
-  // visually consistent regardless of where the message came from
-  // (validators, exception messages, etc.).
   const msg = message.replace(/\.\s*$/, '');
+  if (isMachineMode()) {
+    const payload: Record<string, unknown> = { message: msg };
+    if (opts.detail) payload.detail = opts.detail;
+    if (opts.help) payload.help = opts.help;
+    if (opts.hint) payload.hint = opts.hint;
+    if (opts.see) payload.see = opts.see;
+    console.error(JSON.stringify({ error: payload }));
+    return;
+  }
   console.error(`${color.red('error:')} ${msg}`);
   if (opts.detail || opts.help || opts.hint || opts.see) {
     console.error('');
@@ -104,26 +123,31 @@ export function error(message: string, opts: ErrorOpts = {}): void {
   if (opts.see) emitTrailer('see', opts.see);
 }
 
-/** Non-fatal cautionary message to stderr. */
+/** Non-fatal cautionary message. TTY: `warn:` line on stderr.
+ *  Machine: silent — warnings are advisory, and the contract is "stderr
+ *  is empty on success". A future enhancement could route to a separate
+ *  warning channel; today, silenced is honest. */
 export function warn(message: string, reference?: string): void {
+  if (isMachineMode()) return;
   const msg = message.replace(/\.\s*$/, '');
   console.error(`${color.yellow('warn:')} ${msg}`);
   if (reference) console.error(`see: ${reference}`);
 }
 
-/** Informational message routed to stderr. Use for context that
- *  shouldn't pollute stdout (so JSON / piped output stays clean) but
- *  isn't a warning either: `metrics: {...}`, `note: <auxiliary fact>`. */
+/** Stderr informational line in TTY mode. Used for "auxiliary fact"
+ *  context (`metrics: {...}` after a list output). Silent in machine
+ *  mode for the same reason as `warn`. */
 export function note(message: string): void {
+  if (isMachineMode()) return;
   console.error(message);
 }
 
-/** One-time boxed display on stderr. Use when you need to make sure a
- *  value (a secret, a recovery hint) catches the user's eye even when
- *  stdout is being piped. Title goes on the first inner line; body
- *  lines render below in order, including any blank-line spacers the
- *  caller wants. */
+/** One-time boxed display on stderr. Silent in machine mode — the
+ *  banner is human-only scaffolding (one-time secret reveal); the
+ *  underlying value already lives in the JSON envelope of the op
+ *  that generated it. */
 export function banner(title: string, body: ReadonlyArray<string>): void {
+  if (isMachineMode()) return;
   const rule = '────────────────────────────────────────────────────────────';
   console.error('');
   console.error(rule);
@@ -133,29 +157,25 @@ export function banner(title: string, body: ReadonlyArray<string>): void {
 }
 
 // ---------------------------------------------------------------------------
-// Plain stdout output.
+// Plain stdout output (TTY only — silent in machine mode so stdout
+// stays exactly one JSON document).
 
-/** Sentence-case message to stdout. No prefix, no color. The default
- *  surface for command-level info ("Using bundle at /path", "Skipping
- *  hardening profile."). */
+/** Sentence-case message to stdout. */
 export function info(message: string): void {
+  if (isMachineMode()) return;
   console.log(message);
 }
 
-/** Long-running action banner. Use to announce work that's about to
- *  start; pair with `success`/`error` once it finishes.
- *
- *    action('Installing', 'extension')   // → Installing extension…
- *    action('Building bundle')           // → Building bundle…
- */
+/** Long-running action banner: `→ Installing extension…`. */
 export function action(verb: string, target?: string): void {
+  if (isMachineMode()) return;
   const tail = target ? ` ${target}` : '';
   console.log(color.dim('→') + ` ${verb}${tail}…`);
 }
 
-/** Successful completion line. Use after an `action` finishes, or when
- *  a command's primary side effect is done. */
+/** Successful completion line: `ok: <msg>`. */
 export function success(message: string): void {
+  if (isMachineMode()) return;
   console.log(`${color.green('ok:')} ${message}`);
 }
 
@@ -194,18 +214,23 @@ const STATUS_COLORS: Record<RowStatus, (s: string) => string> = {
 const TARGET_COL = 14;
 const STATUS_COL = 14;
 
-/** Per-target line in a plan / progress table.
- *
- *    row('extension', 'installed', 'host: cursor')
- *    → "extension     installed      host: cursor"
- */
+/** Per-target line in a plan / progress table. Silent in machine
+ *  mode — callers (runPlan etc.) emit a structured envelope instead. */
 export function row(target: string, status: string, detail?: string): void {
+  if (isMachineMode()) return;
   const colorize =
     (STATUS_COLORS as Record<string, (s: string) => string>)[status] ??
     ((s) => s);
   const left = target.padEnd(TARGET_COL);
-  const mid = colorize(status.padEnd(STATUS_COL));
-  console.log(detail ? `${left}${mid}${detail}` : `${left}${mid}`.trimEnd());
+  // When detail is present, pad status to STATUS_COL so the detail
+  // column aligns. Without detail, drop the padding so the line has
+  // no trailing whitespace (the prior `.trimEnd()` couldn't strip
+  // padding that lived inside ANSI color escapes).
+  if (detail) {
+    console.log(`${left}${colorize(status.padEnd(STATUS_COL))}${detail}`);
+  } else {
+    console.log(`${left}${colorize(status)}`);
+  }
 }
 
 export interface SummaryCounts {
@@ -219,10 +244,10 @@ export interface SummaryCounts {
   fail?: number;
 }
 
-/** Closing summary line. Format: `done. key1=N key2=M …`. Keys appear
- *  in the order: installed, removed, unchanged, pass, skipped, warn,
- *  fail, failed (severity ascending so the eye lands on failure last). */
+/** Closing summary line. Silent in machine mode — the structured
+ *  envelope from the caller (e.g., runPlan) carries the counts. */
 export function summary(counts: SummaryCounts): void {
+  if (isMachineMode()) return;
   const order: (keyof SummaryCounts)[] = [
     'installed',
     'removed',
@@ -243,24 +268,35 @@ export function summary(counts: SummaryCounts): void {
 }
 
 // ---------------------------------------------------------------------------
-// Padded structures.
+// Padded structures. In machine mode, emit as JSON on stdout; the
+// padding is purely a TTY-rendering artifact.
 
-/** Padded key/value block. Keys are right-aligned; values plain. Use
- *  for `openbox auth profile`, `openbox config show`, etc. */
+/** Padded key/value block (TTY) or JSON object (machine). */
 export function kv(pairs: Record<string, string | number | boolean | null | undefined>): void {
   const entries = Object.entries(pairs).filter(([, v]) => v !== undefined);
   if (entries.length === 0) return;
+  if (isMachineMode()) {
+    console.log(JSON.stringify(Object.fromEntries(entries), null, 2));
+    return;
+  }
   const width = Math.max(...entries.map(([k]) => k.length));
   for (const [k, v] of entries) {
     console.log(`${k.padEnd(width)}  ${v ?? ''}`);
   }
 }
 
-/** Padded table. First arg is the header row; remaining are body rows.
- *  Column widths fit the widest cell in each column. Header rendered in
- *  bold; a dim separator line is drawn under it. */
+/** Padded table (TTY) or JSON array of header-keyed objects (machine). */
 export function table(headers: string[], rows: ReadonlyArray<ReadonlyArray<string>>): void {
   if (headers.length === 0) return;
+  if (isMachineMode()) {
+    const out = rows.map((r) => {
+      const o: Record<string, string> = {};
+      for (let i = 0; i < headers.length; i++) o[headers[i]] = r[i] ?? '';
+      return o;
+    });
+    console.log(JSON.stringify(out, null, 2));
+    return;
+  }
   const widths = headers.map((h, i) =>
     Math.max(h.length, ...rows.map((r) => (r[i] ?? '').length)),
   );

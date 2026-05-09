@@ -57,6 +57,40 @@ openbox --experimental core evaluate --type shell --command "ls"
 openbox --experimental behavior create <agent> --verdict 2 ...
 ```
 
+## Tool / agent contract
+
+The CLI guarantees a strict output contract whenever it's NOT running
+under a real terminal. Anything that captures stdout (Cursor's bash
+tool, MCP servers, CI scripts, `node child_process.exec`) gets clean
+JSON automatically. Pass `--json` explicitly to force the same
+behavior in a TTY.
+
+In machine mode:
+
+- **stdout** = exactly one JSON document, nothing else
+- **stderr** = empty on success; one-line `{"error":{...}}` on failure
+- **exit code** = source of truth (`0` success, `2` usage, `3` auth, `4` feature-disabled, `5` not-found, `1` everything else)
+- progress / banners / `[recipe]` description tags / colors are silenced
+
+Concretely:
+
+```sh
+# Capture combined output and parse — works:
+openbox --experimental agent list 2>&1 | jq '.'
+
+# Catch errors as JSON:
+openbox --experimental api-key rotate 2>&1 | jq '.error.message'
+
+# Install summary as a structured envelope:
+openbox install --only mcp --dry-run 2>&1
+# → { "installed": ["mcp"], "skipped": [], "failed": [] }
+```
+
+Don't try to extract data from stderr in machine mode; it's only
+populated on failure (and then it's a single JSON line). For TTY
+sessions the format reverts to cargo-style multi-line errors and
+human-readable progress.
+
 ## Common queries (read this first)
 
 The CLI has TWO tiers. Tier 1 ops map 1:1 to the OpenAPI surface

@@ -66,6 +66,29 @@ export function isJsonMode(): boolean {
 }
 
 /**
+ * "Machine mode" = the caller is a tool / MCP / agent / pipe, not a
+ * human. True when `--json` is explicit OR stdout is not a TTY (piped,
+ * redirected, captured by Cursor's bash tool, etc.). Every output
+ * helper consults this to decide whether to emit human prose or to
+ * stay silent so stdout remains exactly one JSON document.
+ *
+ * Contract: in machine mode,
+ *   - stdout = exactly one JSON document (or empty for ack-only ops)
+ *   - stderr = empty on success; single-line `{"error":{...}}` on
+ *     failure
+ *   - exit code = source of truth (0 success, 2 usage, 3 auth, …)
+ *   - colors / progress / banners / `[recipe]` description tags are
+ *     all silenced
+ */
+export function isMachineMode(): boolean {
+  if (isJsonMode()) return true;
+  // Node sets `isTTY` to `true` only when stdout is genuinely a TTY;
+  // it's `undefined` for pipes, redirects, and child-process captures.
+  // Treat anything that isn't truthy as machine mode.
+  return !process.stdout.isTTY;
+}
+
+/**
  * Runtime gate for destructive ops (`@cli_destructive` in spec, plus a
  * handful of hand-coded sites). Refuses to run without `--yes` / `-y`
  * (or OPENBOX_ASSUME_YES=1). Fails closed in every context; we never

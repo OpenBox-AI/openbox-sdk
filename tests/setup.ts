@@ -28,3 +28,15 @@ if (!process.env.OPENBOX_ASSUME_YES) {
 delete process.env.OPENBOX_BACKEND_API_KEY;
 delete process.env.ACCESS_TOKEN;
 delete process.env.REFRESH_TOKEN;
+
+// Default test mode is TTY-mode: `isMachineMode()` flips on whenever
+// stdout isn't a TTY, and vitest captures stdout into a non-TTY
+// stream. Without this, every helper that's silenced in machine mode
+// would no-op in tests and assertions on prose output would fail.
+// Tests that EXERCISE machine mode (cli-machine-contract.test.ts)
+// override locally via setArgvForTesting / their own isTTY flag.
+Object.defineProperty(process.stdout, 'isTTY', {
+  value: true,
+  configurable: true,
+  writable: true,
+});
