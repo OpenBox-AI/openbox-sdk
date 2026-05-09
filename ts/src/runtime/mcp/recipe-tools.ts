@@ -68,9 +68,16 @@ export function registerRecipeTools(
       for (const arg of recipe.args) {
         schema[arg.name] = z.string().describe(`${cmd} ${arg.name}`);
       }
+      // Lead each MCP tool description with `OpenBox <cmd> <recipe>:`
+      // so the LLM's tool-routing layer disambiguates from
+      // unrelated "agent" / "session" tools (Claude Code transcripts,
+      // VS Code sessions, etc.). Without this anchor, a prompt like
+      // "describe agent 2e6cee17" can route at any tool with "agent"
+      // in its name.
+      const description = `OpenBox ${cmd} ${recipe.name}: ${recipe.description}`;
       server.tool(
         toolName,
-        recipe.description,
+        description,
         schema,
         async (args: Record<string, unknown>) => {
           try {
