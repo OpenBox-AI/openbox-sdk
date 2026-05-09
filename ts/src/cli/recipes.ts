@@ -10,6 +10,32 @@
 // a `RecipeSpec` per op into `ts/src/cli/generated/cli-recipes/<cmd>.ts`;
 // hand-coded `register*Commands` files call `wireRecipes(parent, RECIPES,
 // getClient)` alongside the existing `wireSubcommands` for tier-1 ops.
+//
+// ─── What recipes can express, and what they can't ───────────────────
+//
+// Recipes ARE pure parallel fanout over tier-1 ops:
+//   - every step's args resolve from the recipe op's positional CLI
+//     args by name (no derived values; no step-A-feeds-step-B)
+//   - all steps run via Promise.all (no sequential ordering)
+//   - paginate: true walks every page of a paged listing; otherwise
+//     the raw client return value passes through
+//   - optional: true catches failures and stores null
+//
+// What stays HAND-CODED (and shouldn't be migrated to a recipe):
+//   - protocol-validation logic   → session inspect (paired Start/Complete)
+//   - cross-session aggregation   → agent audit (analyzeSessions)
+//   - filter-then-act loops       → session prune
+//   - filesystem operations       → install / uninstall / verify / cursor sync-rules
+//   - sequential / dependent      → mcp:list_pending_approvals (orgId from
+//                                    getProfile, then getOrgApprovals)
+//   - try-fallback patterns       → session inspect's id-or-search lookup
+//   - shorthand-to-API translation → core evaluate (--type → span shape)
+//
+// The runtime intentionally does NOT support `dependsOn` /
+// `forEach` / nested recipes; if a question genuinely needs them,
+// it's not a fanout — it's a procedure, and a hand-coded action is
+// the right surface. Push back on adding those step types until we
+// have at least three real cases that demand them.
 
 import type { Command } from 'commander';
 import { reportAndExit } from '../validators/index.js';

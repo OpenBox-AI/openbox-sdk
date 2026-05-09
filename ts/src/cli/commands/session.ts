@@ -6,7 +6,9 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { wireSubcommands } from '../wire-subcommands.js';
+import { wireRecipes } from '../recipes.js';
 import { SESSION_HANDLERS } from '../generated/cli-handlers/session.js';
+import { SESSION_RECIPES } from '../generated/cli-recipes/session.js';
 import { reportAndExit } from '../../validators/index.js';
 import { EXIT, bailWith } from '../exit-codes.js';
 import { isQuiet, requireYesForDestructive } from '../non-interactive.js';
@@ -130,6 +132,7 @@ function inspectEvents(events: EventLog[]): InspectFinding[] {
 export function registerSessionCommands(program: Command) {
   const session = program.command('session').description('Session management');
   wireSubcommands(session, SESSION_HANDLERS, getClient as never);
+  wireRecipes(session, SESSION_RECIPES, getClient as never);
 
   // Custom: protocol-validate a session against the canonical event_type
   // contract. The body is a multi-page paginate + ad-hoc renderer.

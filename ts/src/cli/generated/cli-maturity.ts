@@ -111,6 +111,7 @@ export const COMMAND_MATURITY: Record<string, Maturity> = {
   "policy update": "experimental",
   "session": "experimental",
   "session active": "experimental",
+  "session describe": "experimental",
   "session get": "experimental",
   "session goal-stats": "experimental",
   "session inspect": "experimental",

@@ -1407,6 +1407,20 @@ interface Session {
   @cli_output_kind("kv")
   get(agentId: string, sessionId: string): void;
 
+  /** Full session view in ONE call: session metadata + every event
+   *  in the workflow + the session's goal-alignment stats. Recipe
+   *  over the per-resource ops; the events list is paginated under
+   *  the hood so the caller doesn't page-walk. Use this when the
+   *  user wants raw session data; for protocol validation use
+   *  `session inspect` (which adds the paired-event analysis). */
+  @cli_recipe(#[
+    #{ call: "getSession",                   args: #["agentId", "sessionId"], into: "session" },
+    #{ call: "getSessionLogs",               args: #["agentId", "sessionId"], into: "events", paginate: true },
+    #{ call: "getSessionGoalAlignmentStats", args: #["agentId", "sessionId"], into: "goal_stats", optional: true },
+  ])
+  @cli_output_kind("json")
+  describe(agentId: string, sessionId: string): void;
+
   /** Get session logs. */
   @cli_calls("getSessionLogs")
   @cli_pagination

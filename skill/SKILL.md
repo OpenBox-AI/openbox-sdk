@@ -74,6 +74,7 @@ an LLM agent does 10–20 tier-1 calls to answer one question.
 | "what's the trust state of my agent?" | `openbox --experimental trust overview <agentId>` |
 | "what's pending approval?" | `openbox --experimental approval pending <agentId>` |
 | "is anything dangling on my agent?" | `openbox --experimental agent audit <agentId>` |
+| "show me everything about session X" | `openbox --experimental session describe <agentId> <sessionId>` |
 | "did this session follow protocol?" | `openbox --experimental session inspect <agentId> <sessionIdOrWorkflowId>` |
 | "is my CLI reachable?" | `openbox doctor` |
 | "what versions are deployed?" | `openbox versions` |
@@ -84,6 +85,7 @@ Recipe envelopes:
 - `agent describe <id>` → `{ agent, guardrails, behaviors, policies, goal }`
 - `org overview <orgId>` → `{ org, settings, dashboard, approval_metrics, approval_sla, feed }`
 - `trust overview <agentId>` → `{ histories, events, tier_changes, recovery }`
+- `session describe <agentId> <sessionId>` → `{ session, events, goal_stats }`
 
 Do NOT loop the underlying tier-1 calls yourself — that's what the
 recipe is for. If the user wants a flat per-agent view across the

@@ -169,6 +169,7 @@ export interface Session {
   list(agentId: string, status?: string, from?: string, to?: string, duration?: string, search?: string): void;
   active(agentId: string): void;
   get(agentId: string, sessionId: string): void;
+  describe(agentId: string, sessionId: string): void;
   logs(agentId: string, sessionId: string, eventType?: string): void;
   goalStats(agentId: string, sessionId: string): void;
   terminate(agentId: string, sessionId: string): void;
@@ -1844,6 +1845,10 @@ export const CLI_COMMAND_MANIFEST = [
       },
       {
         "name": "get",
+        "flags": []
+      },
+      {
+        "name": "describe",
         "flags": []
       },
       {
