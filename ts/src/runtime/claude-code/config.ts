@@ -45,9 +45,17 @@ export function loadConfig(): ClaudeCodeConfig {
   const skipActivityRaw = get('SKIP_ACTIVITY_TYPES');
   const skipActivityTypes = skipActivityRaw ? skipActivityRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
 
+  // Prefer canonical OPENBOX_CORE_URL (set by applyEnvSource() from
+  // ~/.openbox/config). Legacy OPENBOX_ENDPOINT honored as fallback
+  // for installs whose config.json predates unification.
+  const coreUrl =
+    process.env.OPENBOX_CORE_URL ??
+    fileConfig.OPENBOX_CORE_URL ??
+    envConfig.OPENBOX_CORE_URL ??
+    get('OPENBOX_ENDPOINT', DEFAULT_CORE_URL);
   return {
     openboxApiKey: get('OPENBOX_API_KEY'),
-    openboxEndpoint: get('OPENBOX_ENDPOINT', DEFAULT_CORE_URL),
+    openboxEndpoint: coreUrl,
     governancePolicy: (get('GOVERNANCE_POLICY', 'fail_open') as 'fail_open' | 'fail_closed'),
     governanceTimeout: parseInt(get('GOVERNANCE_TIMEOUT', '15'), 10) || 15,
     sessionDir: get('SESSION_DIR', path.join(CONFIG_DIR, 'sessions')),

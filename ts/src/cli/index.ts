@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import type { CommanderError } from 'commander';
 import { loadFeatures, loadPermissions } from './config.js';
 import { resolveEnv } from '../env/index.js';
+import { applyEnvSource } from './env-source.js';
 import {
   COMMAND_FEATURES,
   COMMAND_PERMISSIONS,
@@ -11,7 +12,6 @@ import {
 } from './permissions.js';
 import { registerAuthCommands } from './commands/auth.js';
 import { registerConfigCommands } from './commands/config.js';
-import { applyConfigToProcessEnv, applyGlobalConfigToProcessEnv } from './config-store.js';
 import { registerAgentCommands } from './commands/agent.js';
 import { registerApiKeyCommands } from './commands/api-key.js';
 import { registerGuardrailCommands } from './commands/guardrail.js';
@@ -227,21 +227,11 @@ program
     const flag = thisCommand.opts().env as string | undefined;
     if (flag) process.env.OPENBOX_ENV = flag;
 
-    // Apply GLOBAL config BEFORE env resolution so a persisted
-    // `OPENBOX_ENV=staging` (or OPENBOX_HOME, OPENBOX_CLIENT_VARIANT)
-    // can actually default the env. Only fills unset vars; explicit
-    // shell exports and --env always win.
-    applyGlobalConfigToProcessEnv();
-
-    // Pre-flight gates: each env's live role AND feature flags may differ.
-    // Catch problems locally instead of firing a request and getting 403.
+    // Single-source env resolution. Same call every other surface
+    // makes (MCP, cursor hook, claude-code hook) so all OpenBox
+    // processes on this machine agree on the active env.
     const commandPath = buildCommandKey(actionCommand);
-    const env = resolveEnv();
-
-    // Layer per-env CLI config AFTER env is known. Used to pin
-    // OPENBOX_API_URL, OPENBOX_CORE_URL, or OPENBOX_PLATFORM_URL for
-    // a specific env, such as staging, without re-exporting every shell.
-    applyConfigToProcessEnv(env);
+    const env = applyEnvSource();
 
     // 1. Feature-flag check, mirroring `@RequireFeature` on the backend.
     const requiredFeatures = COMMAND_FEATURES[commandPath];

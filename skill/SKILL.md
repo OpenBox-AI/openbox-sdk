@@ -57,7 +57,39 @@ openbox --experimental core evaluate --type shell --command "ls"
 openbox --experimental behavior create <agent> --verdict 2 ...
 ```
 
-## Tool / agent contract
+## Active env: single source of truth
+
+`~/.openbox/config` is the one place every OpenBox process reads the
+active env. Every surface running on this machine — CLI invocations,
+the MCP server Cursor launches, cursor hooks, claude-code hooks, the
+extension's pending-approvals view, slash commands — applies the
+same precedence chain at startup (or per-event for stateless hooks):
+
+1. `--env <flag>` (CLI surfaces only, per-invocation)
+2. `process.env.OPENBOX_ENV` (per-process, when explicitly exported)
+3. `~/.openbox/config`'s global `OPENBOX_ENV=...`
+4. build-pinned `DEFAULT_ENV`
+
+Same chain governs `OPENBOX_API_URL`, `OPENBOX_CORE_URL`, and
+`OPENBOX_API_KEY` (the runtime key hooks use). Per-env keys live
+under `<env>.<KEY>` lines in the file:
+
+```
+OPENBOX_ENV=local
+local.OPENBOX_API_URL=http://localhost:3000
+local.OPENBOX_CORE_URL=http://localhost:8086
+local.OPENBOX_API_KEY=obx_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+production.OPENBOX_API_KEY=obx_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Switching env: edit the file (or the extension's debug-view env
+switcher writes there for you, or `openbox --experimental config set
+OPENBOX_ENV staging --global`). The next CLI command, the next hook
+event, the next MCP tool call all see the new env. The MCP daemon
+itself reads env at startup; restart Cursor to flip a long-running
+MCP server (or the extension's switcher does this).
+
+
 
 The CLI guarantees a strict output contract whenever it's NOT running
 under a real terminal. Anything that captures stdout (Cursor's bash

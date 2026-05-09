@@ -6,6 +6,7 @@
 import { createCursorAdapter } from '../../core-client/generated/runtime/cursor.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { loadConfig } from './config.js';
+import { applyEnvSource } from '../../cli/env-source.js';
 import { initLogger } from './logger.js';
 import { resolveSession } from './session-resolver.js';
 import { recordHookEvent } from './event-log.js';
@@ -61,6 +62,15 @@ function logged<E, S, R>(
 }
 
 export async function runCursorHook(): Promise<void> {
+  // Single-source env resolution. Layers ~/.openbox/config into
+  // process.env BEFORE loadConfig reads it, so a user who switched
+  // env via the extension (or `openbox config set --global`) sees
+  // their hook fire against the matching env automatically. Without
+  // this, the hook would use whatever was snapshotted into
+  // ~/.cursor-hooks/config.json at install time — which produces
+  // exactly the prod-key-on-local-backend bug we hit during testing.
+  applyEnvSource();
+
   const cfg = loadConfig();
   initLogger(cfg);
 

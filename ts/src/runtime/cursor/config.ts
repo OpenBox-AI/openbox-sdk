@@ -43,9 +43,21 @@ export function loadConfig(): CursorConfig {
   const skipRaw = get('SKIP_ACTIVITY_TYPES');
   const skipList = skipRaw ? skipRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
 
+  // OPENBOX_CORE_URL is the canonical name used everywhere else (CLI,
+  // MCP, env registry). OPENBOX_ENDPOINT is the legacy name we wrote
+  // into snapshotted ~/.cursor-hooks/config.json before unification;
+  // honor it as a fallback so existing installs keep working, but
+  // prefer the canonical key. After applyEnvSource() runs at the
+  // hook handler's top, process.env.OPENBOX_CORE_URL carries the
+  // active env's core URL automatically.
+  const coreUrl =
+    process.env.OPENBOX_CORE_URL ??
+    fileConfig.OPENBOX_CORE_URL ??
+    envConfig.OPENBOX_CORE_URL ??
+    get('OPENBOX_ENDPOINT', DEFAULT_CORE_URL);
   return {
     openboxApiKey: get('OPENBOX_API_KEY'),
-    openboxEndpoint: get('OPENBOX_ENDPOINT', DEFAULT_CORE_URL),
+    openboxEndpoint: coreUrl,
     governancePolicy: (get('GOVERNANCE_POLICY', 'fail_open') as 'fail_open' | 'fail_closed'),
     governanceTimeout: parseInt(get('GOVERNANCE_TIMEOUT', '15'), 10) || 15,
     activityType: get('ACTIVITY_TYPE', 'CursorIDE'),

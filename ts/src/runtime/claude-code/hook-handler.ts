@@ -5,6 +5,7 @@
 import { createClaudeCodeAdapter } from '../../core-client/generated/runtime/claude-code.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { loadConfig } from './config.js';
+import { applyEnvSource } from '../../cli/env-source.js';
 import { initLogger } from './logger.js';
 import { resolveSession } from './session-resolver.js';
 import { handlePreToolUse } from './mappers/pre-tool-use.js';
@@ -19,6 +20,11 @@ import {
 import { handleSubagentStart, handleSubagentStop } from './mappers/subagent.js';
 
 export async function runClaudeHook(): Promise<void> {
+  // Single-source env resolution. Same call CLI / MCP / cursor hook
+  // make so every OpenBox process on this machine converges on the
+  // active env from ~/.openbox/config.
+  applyEnvSource();
+
   const cfg = loadConfig();
   initLogger(cfg);
 

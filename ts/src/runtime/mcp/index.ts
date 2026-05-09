@@ -24,18 +24,14 @@ import { resolveEnv, setMcpClientName } from "./config.js";
 import { DEFAULT_ENV, resolveEnv as resolveEnvName } from "../../env/index.js";
 import { recallAgentKey } from "../_shared/agent-keys-store.js";
 import { registerRecipeTools } from "./recipe-tools.js";
-import { applyGlobalConfigToProcessEnv } from "../../cli/config-store.js";
+import { applyEnvSource } from "../../cli/env-source.js";
 
 export async function runMcpServer(): Promise<void> {
-  // The extension and CLI agree on `~/.openbox/config` as the single
-  // source of truth for OPENBOX_ENV, OPENBOX_HOME, etc. The MCP server
-  // runs in a child process Cursor launches; that child inherits the
-  // user's shell env, NOT the extension's stored state. Layer the
-  // global config into process.env on startup so MCP, CLI, and the
-  // extension all converge on the same active env. Without this, the
-  // extension's "Environment local" flips to production whenever the
-  // shell that started Cursor didn't export OPENBOX_ENV.
-  applyGlobalConfigToProcessEnv();
+  // Single-source env resolution. Same call every other surface
+  // makes (CLI, cursor hook, claude-code hook) so the MCP server,
+  // extension, hooks, and any CLI run from this user converge on
+  // the same active env without anyone exporting OPENBOX_ENV.
+  applyEnvSource();
 
   // See ./config.ts for OPENBOX_ENV / OPENBOX_API_URL / OPENBOX_CORE_URL.
   const ENV = resolveEnv();
