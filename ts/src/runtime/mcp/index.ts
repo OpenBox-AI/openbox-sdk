@@ -23,6 +23,7 @@ import { loadApiKey } from "../../file-tokens/index.js";
 import { resolveEnv, setMcpClientName } from "./config.js";
 import { DEFAULT_ENV, resolveEnv as resolveEnvName } from "../../env/index.js";
 import { recallAgentKey } from "../_shared/agent-keys-store.js";
+import { registerRecipeTools } from "./recipe-tools.js";
 
 export async function runMcpServer(): Promise<void> {
   // See ./config.ts for OPENBOX_ENV / OPENBOX_API_URL / OPENBOX_CORE_URL.
@@ -384,6 +385,15 @@ for (const ref of SKILL_PATHS) {
     return { contents: [{ uri: `openbox://skill/${ref.name}`, text, mimeType: "text/markdown" }] };
   });
 }
+
+  // Auto-register every spec @cli_recipe as an MCP tool. LLMs get
+  // `agent_describe`, `org_overview`, `trust_overview`, ... alongside
+  // the hand-coded tier-1 tools above. Same fanout semantics as the
+  // CLI (parallel via Promise.all, paginate-walk, null-on-optional).
+  registerRecipeTools(
+    server,
+    client as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>,
+  );
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

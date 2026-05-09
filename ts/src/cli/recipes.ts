@@ -95,6 +95,39 @@ async function paginateAll(
   return all;
 }
 
+/** Execute a recipe's parallel fanout against the given client and
+ *  argument map. Pure: no I/O, no console writes. Both the CLI runtime
+ *  (`wireRecipes` below) and the MCP runtime (`runtime/mcp/recipe-tools.ts`)
+ *  call this so the two surfaces never drift on fanout semantics. */
+export async function runRecipe(
+  spec: RecipeSpec,
+  argMap: Record<string, unknown>,
+  client: Record<string, (...a: unknown[]) => Promise<unknown>>,
+): Promise<Record<string, unknown>> {
+  const tasks = spec.steps.map(async (step) => {
+    const fn = client[step.call];
+    if (typeof fn !== 'function') {
+      throw new Error(
+        `recipe '${spec.name}': step '${step.call}' is not a method on the client`,
+      );
+    }
+    const callArgs = step.args.map((name) => argMap[name]);
+    try {
+      const result = step.paginate
+        ? await paginateAll(fn, client, callArgs)
+        : await fn.apply(client, callArgs);
+      return [step.into, result] as const;
+    } catch (err) {
+      if (step.optional) return [step.into, null] as const;
+      throw err;
+    }
+  });
+  const results = await Promise.all(tasks);
+  const envelope: Record<string, unknown> = {};
+  for (const [key, value] of results) envelope[key] = value;
+  return envelope;
+}
+
 /** Register every recipe in `specs` as a subcommand under `parent`. */
 export function wireRecipes(
   parent: Command,
@@ -121,31 +154,7 @@ export function wireRecipes(
         for (let i = 0; i < spec.args.length; i++) {
           argMap[spec.args[i].name] = positionals[i];
         }
-
-        const client = getClient();
-        const tasks = spec.steps.map(async (step) => {
-          const fn = client[step.call];
-          if (typeof fn !== 'function') {
-            throw new Error(
-              `recipe '${spec.name}': step '${step.call}' is not a method on the client`,
-            );
-          }
-          const callArgs = step.args.map((name) => argMap[name]);
-          try {
-            const result = step.paginate
-              ? await paginateAll(fn, client, callArgs)
-              : await fn.apply(client, callArgs);
-            return [step.into, result] as const;
-          } catch (err) {
-            if (step.optional) return [step.into, null] as const;
-            throw err;
-          }
-        });
-
-        const results = await Promise.all(tasks);
-        const envelope: Record<string, unknown> = {};
-        for (const [key, value] of results) envelope[key] = value;
-
+        const envelope = await runRecipe(spec, argMap, getClient());
         output(envelope);
       } catch (err) {
         reportAndExit(err);
