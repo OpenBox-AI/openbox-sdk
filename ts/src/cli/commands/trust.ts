@@ -7,9 +7,12 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { wireSubcommands } from '../wire-subcommands.js';
+import { wireRecipes } from '../recipes.js';
 import { TRUST_HANDLERS } from '../generated/cli-handlers/trust.js';
+import { TRUST_RECIPES } from '../generated/cli-recipes/trust.js';
 
 export function registerTrustCommands(program: Command) {
   const trust = program.command('trust').description('Trust management');
   wireSubcommands(trust, TRUST_HANDLERS, getClient as never);
+  wireRecipes(trust, TRUST_RECIPES, getClient as never);
 }

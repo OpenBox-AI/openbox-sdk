@@ -138,6 +138,7 @@ export interface Observe {
 }
 export interface Org {
   get(orgId: string): void;
+  overview(orgId: string): void;
   settings(orgId: string): void;
   dashboard(orgId: string, from?: string, to?: string): void;
   sessions(orgId: string, status?: string): void;
@@ -188,6 +189,7 @@ export interface Team {
 }
 export interface Trust {
   histories(agentId: string, duration?: string): void;
+  overview(agentId: string): void;
   events(agentId: string, from?: string, to?: string): void;
   tierChanges(agentId: string, from?: string, to?: string): void;
   recovery(agentId: string): void;
@@ -1516,6 +1518,10 @@ export const CLI_COMMAND_MANIFEST = [
         "flags": []
       },
       {
+        "name": "overview",
+        "flags": []
+      },
+      {
         "name": "settings",
         "flags": []
       },
@@ -2005,6 +2011,10 @@ export const CLI_COMMAND_MANIFEST = [
             "tsType": "string"
           }
         ]
+      },
+      {
+        "name": "overview",
+        "flags": []
       },
       {
         "name": "events",

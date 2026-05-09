@@ -70,19 +70,24 @@ an LLM agent does 10–20 tier-1 calls to answer one question.
 |---|---|
 | "what guardrails / policies / behaviors does my agent have?" | `openbox --experimental agent describe <agentId>` |
 | "show me everything about agent X" | `openbox --experimental agent describe <agentId>` |
+| "show me everything about my org" | `openbox --experimental org overview <orgId>` |
+| "what's the trust state of my agent?" | `openbox --experimental trust overview <agentId>` |
 | "what's pending approval?" | `openbox --experimental approval pending <agentId>` |
 | "is anything dangling on my agent?" | `openbox --experimental agent audit <agentId>` |
 | "did this session follow protocol?" | `openbox --experimental session inspect <agentId> <sessionIdOrWorkflowId>` |
-| "what trust score?" | `openbox --experimental trust score <agentId>` |
 | "is my CLI reachable?" | `openbox doctor` |
 | "what versions are deployed?" | `openbox versions` |
 | "is my code drift-free?" | `openbox --experimental verify <path>` |
 
-`agent describe` returns ONE JSON envelope:
-`{ agent, guardrails, behaviors, policies, goal }`. Do NOT loop
-`guardrail list`, `policy get`, `behavior list`, `goal trend`
-yourself — that's the recipe's job. If a user wants a flat per-agent
-view across the org, walk `agent list` then call `describe` per row.
+Recipe envelopes:
+
+- `agent describe <id>` → `{ agent, guardrails, behaviors, policies, goal }`
+- `org overview <orgId>` → `{ org, settings, dashboard, approval_metrics, approval_sla, feed }`
+- `trust overview <agentId>` → `{ histories, events, tier_changes, recovery }`
+
+Do NOT loop the underlying tier-1 calls yourself — that's what the
+recipe is for. If the user wants a flat per-agent view across the
+org, walk `agent list` then call `describe` per row.
 
 If a recipe fits the question, use it. Only drop to tier-1 ops when
 the user is editing state (`create`, `update`, `delete`) or wants a

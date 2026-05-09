@@ -1112,6 +1112,23 @@ interface Org {
   @cli_output_kind("kv")
   get(orgId: string): void;
 
+  /** Org-wide overview in ONE call: org info, settings, dashboard
+   *  counts, approval metrics, approval SLA, and the latest
+   *  governance feed. Recipe over the per-resource ops; saves the
+   *  caller from running getOrganization + getOrgSettings +
+   *  getDashboard + getOrgApprovalMetrics + getOrgApprovalSla +
+   *  getGovernanceFeed by hand. */
+  @cli_recipe(#[
+    #{ call: "getOrganization",         args: #["orgId"], into: "org" },
+    #{ call: "getOrgSettings",          args: #["orgId"], into: "settings", optional: true },
+    #{ call: "getDashboard",            args: #["orgId"], into: "dashboard", optional: true },
+    #{ call: "getOrgApprovalMetrics",   args: #["orgId"], into: "approval_metrics", optional: true },
+    #{ call: "getOrgApprovalSla",       args: #["orgId"], into: "approval_sla", optional: true },
+    #{ call: "getGovernanceFeed",       args: #["orgId"], into: "feed", optional: true },
+  ])
+  @cli_output_kind("json")
+  overview(orgId: string): void;
+
   /** Get organization settings. */
   @cli_calls("getOrgSettings", "positional")
   @cli_output_kind("kv")
@@ -1550,6 +1567,19 @@ interface Trust {
     @cli_default("7d")
     duration?: string,
   ): void;
+
+  /** Trust state for an agent in ONE call: histories, recent events,
+   *  recent tier changes, and the recovery status. Recipe over the
+   *  per-resource ops so callers see the full picture without
+   *  walking each surface. */
+  @cli_recipe(#[
+    #{ call: "getTrustHistories",       args: #["agentId"], into: "histories", optional: true },
+    #{ call: "getTrustEvents",          args: #["agentId"], into: "events", optional: true },
+    #{ call: "getTrustTierChanges",     args: #["agentId"], into: "tier_changes", optional: true },
+    #{ call: "getTrustRecoveryStatus",  args: #["agentId"], into: "recovery", optional: true },
+  ])
+  @cli_output_kind("json")
+  overview(agentId: string): void;
 
   /** Get trust events. */
   @cli_calls("getTrustEvents")
