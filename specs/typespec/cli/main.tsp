@@ -282,6 +282,18 @@ interface Agent {
 
 @cli_command("aivss", "Agent AIVSS scoring.")
 interface Aivss {
+  /** AIVSS picture for an agent in ONE call: agent metadata (the
+   *  current `aivss_config` lives there) + the full assessment
+   *  history. Recipe over getAgent + getAssessments so callers see
+   *  current config + how the score moved over time without two
+   *  trips. */
+  @cli_recipe(#[
+    #{ call: "getAgent",       args: #["agentId"], into: "agent" },
+    #{ call: "getAssessments", args: #["agentId"], into: "assessments", paginate: true },
+  ])
+  @cli_output_kind("json")
+  describe(agentId: string): void;
+
   /** Get AIVSS assessments. */
   @cli_calls("getAssessments")
   @cli_pagination
@@ -580,6 +592,18 @@ interface Approval {
 @cli_command("audit", "Audit log queries + exports.")
 @cli_maturity("experimental")
 interface Audit {
+  /** Audit-log surface in ONE call: recent log entries + recent
+   *  export jobs. Recipe over getAuditLogs + getExportHistory so
+   *  the caller sees what's logged AND what's been exported in a
+   *  single envelope. Both lists paginate; this recipe walks every
+   *  page. */
+  @cli_recipe(#[
+    #{ call: "getAuditLogs",     args: #[], into: "logs", paginate: true },
+    #{ call: "getExportHistory", args: #[], into: "exports", paginate: true },
+  ])
+  @cli_output_kind("json")
+  overview(): void;
+
   /** List audit logs. */
   @cli_calls("getAuditLogs")
   @cli_pagination
@@ -679,6 +703,20 @@ interface Audit {
 @cli_command("behavior", "Behavior rule management.")
 @cli_maturity("experimental")
 interface Behavior {
+  /** Behavior-rule picture for an agent in ONE call: the full rule
+   *  history (active + inactive), the currently-deployed set, the
+   *  per-agent metrics, and the recent violations. Recipe over the
+   *  per-resource ops; saves the caller from running list + current
+   *  + metrics + violations by hand. */
+  @cli_recipe(#[
+    #{ call: "listBehaviorRules",       args: #["agentId"], into: "rules", paginate: true },
+    #{ call: "getCurrentBehaviorRules", args: #["agentId"], into: "current" },
+    #{ call: "getBehaviorMetrics",      args: #["agentId"], into: "metrics", optional: true },
+    #{ call: "getBehaviorViolations",   args: #["agentId"], into: "violations", paginate: true },
+  ])
+  @cli_output_kind("json")
+  overview(agentId: string): void;
+
   /** List supported behavior-rule semantic types. */
   @cli_calls("getSemanticTypes", "positional")
   @cli_output_kind("list", "behavior types")
@@ -803,6 +841,16 @@ interface Behavior {
 
 @cli_command("core", "Direct access to the core governance API.")
 interface Core {
+  /** Core diagnostic in ONE call: API health probe + API-key
+   *  validity. Recipe over the two read ops so callers running
+   *  end-to-end smoke can capture both signals at once. */
+  @cli_recipe(#[
+    #{ call: "health",         args: #[], into: "health" },
+    #{ call: "validateApiKey", args: #[], into: "api_key", optional: true },
+  ])
+  @cli_output_kind("json")
+  overview(): void;
+
   /** Check core API health. */
   @cli_calls("health", "positional")
   @cli_output_kind("kv")
@@ -852,6 +900,17 @@ interface Doctor {}
 @cli_command("goal", "Goal alignment configuration.")
 @cli_maturity("experimental")
 interface Goal {
+  /** Goal-alignment picture for an agent in ONE call: trend (over
+   *  the default window) + recent drifts. Recipe over the per-
+   *  resource ops so the user sees overall trajectory plus
+   *  individual drift events without two trips. */
+  @cli_recipe(#[
+    #{ call: "getGoalAlignmentTrend",        args: #["agentId"], into: "trend", optional: true },
+    #{ call: "getGoalAlignmentRecentDrifts", args: #["agentId"], into: "drifts", optional: true },
+  ])
+  @cli_output_kind("json")
+  overview(agentId: string): void;
+
   /** Get goal alignment trend. */
   @cli_calls("getGoalAlignmentTrend")
   @cli_output_kind("kv")
@@ -902,6 +961,19 @@ interface Goal {
 @cli_command("guardrail", "Guardrail management + testing.")
 @cli_maturity("experimental")
 interface Guardrail {
+  /** Guardrail picture for an agent in ONE call: every guardrail,
+   *  the per-agent metrics, and the recent violation log. Recipe
+   *  over list + metrics + violations so callers don't have to ask
+   *  "what's deployed", "how often does it fire", and "what blocked
+   *  recently" as three separate questions. */
+  @cli_recipe(#[
+    #{ call: "listGuardrails",            args: #["agentId"], into: "guardrails", paginate: true },
+    #{ call: "getGuardrailMetrics",       args: #["agentId"], into: "metrics", optional: true },
+    #{ call: "getGuardrailViolationLogs", args: #["agentId"], into: "violations", paginate: true },
+  ])
+  @cli_output_kind("json")
+  overview(agentId: string): void;
+
   /** List guardrails for an agent. */
   @cli_calls("listGuardrails")
   @cli_pagination
@@ -1091,11 +1163,14 @@ interface Member {
 @cli_command("observe", "Observability dashboards + metrics.")
 @cli_maturity("experimental")
 interface Observe {
-  /** Observability snapshot for an agent in ONE call: open issues,
-   *  insights metrics, drift logs, and recent activity logs. Recipe
-   *  over the per-resource ops so the caller doesn't run getIssues +
-   *  getInsightsMetrics + getDriftLogs + getAgentLogs by hand. */
+  /** Observability snapshot for an agent in ONE call: full
+   *  observability data envelope, open issues, insights metrics,
+   *  drift logs, and recent activity logs. Recipe over every
+   *  read-only per-agent observe surface so the caller skips the
+   *  five-trip walk. (Org-wide getAgentMetrics stays its own command
+   *  since it doesn't take an agentId.) */
   @cli_recipe(#[
+    #{ call: "getObservability",   args: #["agentId"], into: "data", optional: true },
     #{ call: "getIssues",          args: #["agentId"], into: "issues", paginate: true },
     #{ call: "getInsightsMetrics", args: #["agentId"], into: "insights", optional: true },
     #{ call: "getDriftLogs",       args: #["agentId"], into: "drift", paginate: true },
@@ -1160,11 +1235,12 @@ interface Org {
   get(orgId: string): void;
 
   /** Org-wide overview in ONE call: org info, settings, dashboard
-   *  counts, approval metrics, approval SLA, and the latest
-   *  governance feed. Recipe over the per-resource ops; saves the
-   *  caller from running getOrganization + getOrgSettings +
-   *  getDashboard + getOrgApprovalMetrics + getOrgApprovalSla +
-   *  getGovernanceFeed by hand. */
+   *  counts, approval metrics, approval SLA, governance feed, tier
+   *  trends, trust-drift lanes, governance SLO, and the violation
+   *  heatmap. Recipe over every read-only org dashboard surface;
+   *  saves callers from manually walking the per-panel ops. The
+   *  paginated lists (sessions, approval history, audit log) stay
+   *  separate since they're typically read with filters. */
   @cli_recipe(#[
     #{ call: "getOrganization",         args: #["orgId"], into: "org" },
     #{ call: "getOrgSettings",          args: #["orgId"], into: "settings", optional: true },
@@ -1172,6 +1248,10 @@ interface Org {
     #{ call: "getOrgApprovalMetrics",   args: #["orgId"], into: "approval_metrics", optional: true },
     #{ call: "getOrgApprovalSla",       args: #["orgId"], into: "approval_sla", optional: true },
     #{ call: "getGovernanceFeed",       args: #["orgId"], into: "feed", optional: true },
+    #{ call: "getDashboardTierTrends",  args: #["orgId"], into: "tier_trends", optional: true },
+    #{ call: "getTrustDriftLanes",      args: #["orgId"], into: "trust_drift", optional: true },
+    #{ call: "getGovernanceSlo",        args: #["orgId"], into: "slo", optional: true },
+    #{ call: "getViolationHeatcal",     args: #["orgId"], into: "violation_heatmap", optional: true },
   ])
   @cli_output_kind("json")
   overview(orgId: string): void;
@@ -1323,6 +1403,20 @@ interface Org {
 @cli_command("policy", "Policy management.")
 @cli_maturity("experimental")
 interface Policy {
+  /** Policy picture for an agent in ONE call: full version history,
+   *  the currently-active set, and the per-agent policy metrics.
+   *  Recipe over list + current + metrics. Per-policy evaluations
+   *  (getPolicyEvaluations) stay separate because they require
+   *  a policyId — once you've picked one from `current`, run
+   *  `policy evaluations <agentId> <policyId>` directly. */
+  @cli_recipe(#[
+    #{ call: "listPolicies",       args: #["agentId"], into: "policies", paginate: true },
+    #{ call: "getCurrentPolicies", args: #["agentId"], into: "current" },
+    #{ call: "getPolicyMetrics",   args: #["agentId"], into: "metrics", optional: true },
+  ])
+  @cli_output_kind("json")
+  overview(agentId: string): void;
+
   /** List policies for an agent. */
   @cli_calls("listPolicies")
   @cli_pagination

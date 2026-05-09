@@ -5,7 +5,7 @@ import type { RecipeSpec } from '../../recipes.js';
 export const ORG_RECIPES: RecipeSpec[] = [
   {
     "name": "overview",
-    "description": "Org-wide overview in ONE call: org info, settings, dashboard\ncounts, approval metrics, approval SLA, and the latest\ngovernance feed. Recipe over the per-resource ops; saves the\ncaller from running getOrganization + getOrgSettings +\ngetDashboard + getOrgApprovalMetrics + getOrgApprovalSla +\ngetGovernanceFeed by hand.",
+    "description": "Org-wide overview in ONE call: org info, settings, dashboard\ncounts, approval metrics, approval SLA, governance feed, tier\ntrends, trust-drift lanes, governance SLO, and the violation\nheatmap. Recipe over every read-only org dashboard surface;\nsaves callers from manually walking the per-panel ops. The\npaginated lists (sessions, approval history, audit log) stay\nseparate since they're typically read with filters.",
     "args": [
       {
         "name": "orgId"
@@ -57,6 +57,38 @@ export const ORG_RECIPES: RecipeSpec[] = [
           "orgId"
         ],
         "into": "feed",
+        "optional": true
+      },
+      {
+        "call": "getDashboardTierTrends",
+        "args": [
+          "orgId"
+        ],
+        "into": "tier_trends",
+        "optional": true
+      },
+      {
+        "call": "getTrustDriftLanes",
+        "args": [
+          "orgId"
+        ],
+        "into": "trust_drift",
+        "optional": true
+      },
+      {
+        "call": "getGovernanceSlo",
+        "args": [
+          "orgId"
+        ],
+        "into": "slo",
+        "optional": true
+      },
+      {
+        "call": "getViolationHeatcal",
+        "args": [
+          "orgId"
+        ],
+        "into": "violation_heatmap",
         "optional": true
       }
     ],

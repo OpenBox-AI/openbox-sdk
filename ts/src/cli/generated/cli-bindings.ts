@@ -29,6 +29,7 @@ export interface Agent {
   audit(agentId: string): void;
 }
 export interface Aivss {
+  describe(agentId: string): void;
   assessments(agentId: string, from?: string, to?: string): void;
   update(agentId: string, json?: string, reason?: string): void;
   recalculate(agentId: string): void;
@@ -74,6 +75,7 @@ export interface Approval {
   decide(agentId: string, eventId: string, action: string): void;
 }
 export interface Audit {
+  overview(): void;
   list(eventType?: string, actor?: string, result?: string, search?: string, from?: string, to?: string): void;
   export(name?: string, eventTypes?: string[], actor?: string, result?: string, search?: string, from?: string, to?: string): void;
   preview(eventTypes?: string[], from?: string, to?: string): void;
@@ -83,6 +85,7 @@ export interface Audit {
   get(logId: string): void;
 }
 export interface Behavior {
+  overview(agentId: string): void;
   types(): void;
   list(agentId: string): void;
   current(agentId: string): void;
@@ -97,6 +100,7 @@ export interface Behavior {
   violations(agentId: string): void;
 }
 export interface Core {
+  overview(): void;
   health(): void;
   validate(): void;
   pollApproval(workflowId?: string, runId?: string, activityId?: string): void;
@@ -105,11 +109,13 @@ export interface Core {
 export interface Doctor {
 }
 export interface Goal {
+  overview(agentId: string): void;
   trend(agentId: string, from?: string, to?: string): void;
   drifts(agentId: string, limit?: string): void;
   update(agentId: string, threshold?: string, action?: string, frequency?: string, model?: string): void;
 }
 export interface Guardrail {
+  overview(agentId: string): void;
   list(agentId: string): void;
   get(agentId: string, guardrailId: string): void;
   delete(agentId: string, guardrailId: string): void;
@@ -160,6 +166,7 @@ export interface Org {
   demoStatus(): void;
 }
 export interface Policy {
+  overview(agentId: string): void;
   list(agentId: string): void;
   current(agentId: string): void;
   get(agentId: string, policyId: string): void;
@@ -427,6 +434,10 @@ export const CLI_COMMAND_MANIFEST = [
     "description": "Agent AIVSS scoring.",
     "interfaceName": "Aivss",
     "subcommands": [
+      {
+        "name": "describe",
+        "flags": []
+      },
       {
         "name": "assessments",
         "flags": [
@@ -722,6 +733,10 @@ export const CLI_COMMAND_MANIFEST = [
     "interfaceName": "Audit",
     "subcommands": [
       {
+        "name": "overview",
+        "flags": []
+      },
+      {
         "name": "list",
         "flags": [
           {
@@ -897,6 +912,10 @@ export const CLI_COMMAND_MANIFEST = [
     "interfaceName": "Behavior",
     "subcommands": [
       {
+        "name": "overview",
+        "flags": []
+      },
+      {
         "name": "types",
         "flags": []
       },
@@ -1048,6 +1067,10 @@ export const CLI_COMMAND_MANIFEST = [
     "interfaceName": "Core",
     "subcommands": [
       {
+        "name": "overview",
+        "flags": []
+      },
+      {
         "name": "health",
         "flags": []
       },
@@ -1098,6 +1121,10 @@ export const CLI_COMMAND_MANIFEST = [
     "description": "Goal alignment configuration.",
     "interfaceName": "Goal",
     "subcommands": [
+      {
+        "name": "overview",
+        "flags": []
+      },
       {
         "name": "trend",
         "flags": [
@@ -1170,6 +1197,10 @@ export const CLI_COMMAND_MANIFEST = [
     "description": "Guardrail management + testing.",
     "interfaceName": "Guardrail",
     "subcommands": [
+      {
+        "name": "overview",
+        "flags": []
+      },
       {
         "name": "list",
         "flags": []
@@ -1713,6 +1744,10 @@ export const CLI_COMMAND_MANIFEST = [
     "description": "Policy management.",
     "interfaceName": "Policy",
     "subcommands": [
+      {
+        "name": "overview",
+        "flags": []
+      },
       {
         "name": "list",
         "flags": []

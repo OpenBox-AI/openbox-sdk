@@ -7,11 +7,14 @@ import { getClient } from '../config.js';
 import { output } from '../output.js';
 import { reportAndExit } from '../../validators/index.js';
 import { wireSubcommands } from '../wire-subcommands.js';
+import { wireRecipes } from '../recipes.js';
 import { POLICY_HANDLERS } from '../generated/cli-handlers/policy.js';
+import { POLICY_RECIPES } from '../generated/cli-recipes/policy.js';
 
 export function registerPolicyCommands(program: Command) {
   const policy = program.command('policy').description('Policy management');
   wireSubcommands(policy, POLICY_HANDLERS, getClient as never);
+  wireRecipes(policy, POLICY_RECIPES, getClient as never);
 
   policy
     .command('evaluate')

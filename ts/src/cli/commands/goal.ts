@@ -4,9 +4,12 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { wireSubcommands } from '../wire-subcommands.js';
+import { wireRecipes } from '../recipes.js';
 import { GOAL_HANDLERS } from '../generated/cli-handlers/goal.js';
+import { GOAL_RECIPES } from '../generated/cli-recipes/goal.js';
 
 export function registerGoalCommands(program: Command) {
   const goal = program.command('goal').description('Goal alignment management');
   wireSubcommands(goal, GOAL_HANDLERS, getClient as never);
+  wireRecipes(goal, GOAL_RECIPES, getClient as never);
 }

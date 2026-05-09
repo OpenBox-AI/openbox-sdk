@@ -5,9 +5,12 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { wireSubcommands } from '../wire-subcommands.js';
+import { wireRecipes } from '../recipes.js';
 import { AIVSS_HANDLERS } from '../generated/cli-handlers/aivss.js';
+import { AIVSS_RECIPES } from '../generated/cli-recipes/aivss.js';
 
 export function registerAivssCommands(program: Command) {
   const aivss = program.command('aivss').description('AIVSS risk assessment');
   wireSubcommands(aivss, AIVSS_HANDLERS, getClient as never);
+  wireRecipes(aivss, AIVSS_RECIPES, getClient as never);
 }

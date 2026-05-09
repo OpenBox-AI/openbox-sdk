@@ -12,7 +12,9 @@ import { buildTestPayload, SPAN_TYPES, type SpanType } from '../../test-utils/in
 import { reportAndExit } from '../../validators/index.js';
 import { EXIT, bailWith } from '../exit-codes.js';
 import { wireSubcommands } from '../wire-subcommands.js';
+import { wireRecipes } from '../recipes.js';
 import { CORE_HANDLERS } from '../generated/cli-handlers/core.js';
+import { CORE_RECIPES } from '../generated/cli-recipes/core.js';
 
 function resolveValue(value: string | undefined): string | undefined {
   if (!value || !value.startsWith('@')) return value;
@@ -27,6 +29,7 @@ function resolveValue(value: string | undefined): string | undefined {
 export function registerCoreCommands(program: Command) {
   const core = program.command('core').description('Core governance API');
   wireSubcommands(core, CORE_HANDLERS, getCoreClient as never);
+  wireRecipes(core, CORE_RECIPES, getCoreClient as never);
 
   core
     .command('evaluate')

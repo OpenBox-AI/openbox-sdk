@@ -5,9 +5,12 @@
 import { Command } from 'commander';
 import { getClient } from '../config.js';
 import { wireSubcommands } from '../wire-subcommands.js';
+import { wireRecipes } from '../recipes.js';
 import { AUDIT_HANDLERS } from '../generated/cli-handlers/audit.js';
+import { AUDIT_RECIPES } from '../generated/cli-recipes/audit.js';
 
 export function registerAuditCommands(program: Command) {
   const audit = program.command('audit').description('Audit log management');
   wireSubcommands(audit, AUDIT_HANDLERS, getClient as never);
+  wireRecipes(audit, AUDIT_RECIPES, getClient as never);
 }

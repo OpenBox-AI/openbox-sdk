@@ -8,11 +8,14 @@ import { output } from '../output.js';
 import { parseJsonInput } from '../../validators/index.js';
 import { reportAndExit } from '../../validators/index.js';
 import { wireSubcommands } from '../wire-subcommands.js';
+import { wireRecipes } from '../recipes.js';
 import { GUARDRAIL_HANDLERS } from '../generated/cli-handlers/guardrail.js';
+import { GUARDRAIL_RECIPES } from '../generated/cli-recipes/guardrail.js';
 
 export function registerGuardrailCommands(program: Command) {
   const guardrail = program.command('guardrail').description('Guardrail management');
   wireSubcommands(guardrail, GUARDRAIL_HANDLERS, getClient as never);
+  wireRecipes(guardrail, GUARDRAIL_RECIPES, getClient as never);
 
   guardrail
     .command('reorder <agentId> <guardrailId> <order>')

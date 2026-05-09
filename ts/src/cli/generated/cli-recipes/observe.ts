@@ -5,13 +5,21 @@ import type { RecipeSpec } from '../../recipes.js';
 export const OBSERVE_RECIPES: RecipeSpec[] = [
   {
     "name": "overview",
-    "description": "Observability snapshot for an agent in ONE call: open issues,\ninsights metrics, drift logs, and recent activity logs. Recipe\nover the per-resource ops so the caller doesn't run getIssues +\ngetInsightsMetrics + getDriftLogs + getAgentLogs by hand.",
+    "description": "Observability snapshot for an agent in ONE call: full\nobservability data envelope, open issues, insights metrics,\ndrift logs, and recent activity logs. Recipe over every\nread-only per-agent observe surface so the caller skips the\nfive-trip walk. (Org-wide getAgentMetrics stays its own command\nsince it doesn't take an agentId.)",
     "args": [
       {
         "name": "agentId"
       }
     ],
     "steps": [
+      {
+        "call": "getObservability",
+        "args": [
+          "agentId"
+        ],
+        "into": "data",
+        "optional": true
+      },
       {
         "call": "getIssues",
         "args": [

@@ -72,11 +72,18 @@ an LLM agent does 10–20 tier-1 calls to answer one question.
 | "show me everything about agent X" | `openbox --experimental agent describe <agentId>` |
 | "show me everything about my org" | `openbox --experimental org overview <orgId>` |
 | "what's the trust state of my agent?" | `openbox --experimental trust overview <agentId>` |
+| "what's the AIVSS picture for agent X?" | `openbox --experimental aivss describe <agentId>` |
+| "what's the goal-alignment state?" | `openbox --experimental goal overview <agentId>` |
+| "show me the full guardrail picture" | `openbox --experimental guardrail overview <agentId>` |
+| "show me the full behavior-rule picture" | `openbox --experimental behavior overview <agentId>` |
+| "show me the full policy picture" | `openbox --experimental policy overview <agentId>` |
 | "show me everything approval-side for agent X" | `openbox --experimental approval describe <agentId>` |
 | "what's the observability picture for agent X?" | `openbox --experimental observe overview <agentId>` |
 | "show me everything about team X" | `openbox --experimental team describe <orgId> <teamId>` |
 | "show me everything about webhook X" | `openbox --experimental webhook describe <id>` |
 | "what's the SSO state?" | `openbox --experimental sso overview` |
+| "audit-log surface" | `openbox --experimental audit overview` |
+| "core diagnostic" | `openbox --experimental core overview` |
 | "what's pending approval?" | `openbox --experimental approval pending <agentId>` |
 | "is anything dangling on my agent?" | `openbox --experimental agent audit <agentId>` |
 | "show me everything about session X" | `openbox --experimental session describe <agentId> <sessionId>` |
@@ -88,14 +95,21 @@ an LLM agent does 10–20 tier-1 calls to answer one question.
 Recipe envelopes:
 
 - `agent describe <id>` → `{ agent, guardrails, behaviors, policies, goal }`
-- `org overview <orgId>` → `{ org, settings, dashboard, approval_metrics, approval_sla, feed }`
+- `aivss describe <id>` → `{ agent, assessments }`
+- `goal overview <agentId>` → `{ trend, drifts }`
+- `guardrail overview <agentId>` → `{ guardrails, metrics, violations }`
+- `behavior overview <agentId>` → `{ rules, current, metrics, violations }`
+- `policy overview <agentId>` → `{ policies, current, metrics }`
+- `org overview <orgId>` → `{ org, settings, dashboard, approval_metrics, approval_sla, feed, tier_trends, trust_drift, slo, violation_heatmap }`
 - `trust overview <agentId>` → `{ histories, events, tier_changes, recovery }`
 - `session describe <agentId> <sessionId>` → `{ session, events, goal_stats }`
 - `approval describe <agentId>` → `{ metrics, pending, history }`
-- `observe overview <agentId>` → `{ issues, insights, drift, logs }`
+- `observe overview <agentId>` → `{ data, issues, insights, drift, logs }`
 - `team describe <orgId> <teamId>` → `{ team, members }`
 - `webhook describe <id>` → `{ webhook, deliveries }`
 - `sso overview` → `{ status, config, metadata }`
+- `audit overview` → `{ logs, exports }`
+- `core overview` → `{ health, api_key }`
 
 Do NOT loop the underlying tier-1 calls yourself — that's what the
 recipe is for. If the user wants a flat per-agent view across the
