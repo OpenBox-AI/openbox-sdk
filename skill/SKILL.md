@@ -100,10 +100,28 @@ and assemble the result. **When the user asks a question, reach for
 the recipe first.** Recipes are why this skill exists; without them
 an LLM agent does 10–20 tier-1 calls to answer one question.
 
+### Two ground rules (do not skip these)
+
+**Act first, narrate second.** When the user says *"what guardrails do
+I have"*, *"what's pending"*, *"show me my agents"*, etc., they want
+LIVE STATE — run the recipe and report what came back. Do NOT recite
+the skill's conceptual content (verdict ladder, lifecycle, etc.) as if
+you were summarizing a spec. The skill is a tool for YOU; the user
+wants their data.
+
+**Plural questions = enumerate first.** When the user says *"agents"*,
+*"my agents"*, *"all agents"* without naming one, do NOT ask which
+agent — run `agent list` (or `org overview` if they said "org") then
+loop the per-agent recipe over each row. Same for *"my teams"*,
+*"my webhooks"*, *"my sessions on agent X"*: list, then describe.
+Asking the user *"which agent ID?"* when the question is plural is a
+failure mode — they'd have already named one if they meant one.
+
 | User asks | Run |
 |---|---|
-| "what guardrails / policies / behaviors does my agent have?" | `openbox --experimental agent describe <agentId>` |
+| "what guardrails / policies / behaviors does my agent have?" (plural OR singular) | `openbox --experimental agent list` then `openbox --experimental agent describe <id>` per agent |
 | "show me everything about agent X" | `openbox --experimental agent describe <agentId>` |
+| "show me my agents" | `openbox --experimental agent list` then describe per row |
 | "show me everything about my org" | `openbox --experimental org overview <orgId>` |
 | "what's the trust state of my agent?" | `openbox --experimental trust overview <agentId>` |
 | "what's the AIVSS picture for agent X?" | `openbox --experimental aivss describe <agentId>` |
