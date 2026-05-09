@@ -40,6 +40,7 @@
 import type { Command } from 'commander';
 import { reportAndExit } from '../validators/index.js';
 import { output } from './output.js';
+import { resolveArgs } from './id-resolver.js';
 
 /** One backend call inside a recipe. */
 export interface RecipeStep {
@@ -104,6 +105,12 @@ export async function runRecipe(
   argMap: Record<string, unknown>,
   client: Record<string, (...a: unknown[]) => Promise<unknown>>,
 ): Promise<Record<string, unknown>> {
+  // Resolve any short / partial IDs before fanning out. No-op for
+  // fully-formed UUIDs; users / LLMs that pass `2e6cee17-…` get the
+  // full ID looked up via listAgents (or equivalent) and then the
+  // recipe steps see the canonical form. Same path runs for both
+  // CLI invocations and MCP tool calls.
+  const resolved = await resolveArgs(argMap, client);
   const tasks = spec.steps.map(async (step) => {
     const fn = client[step.call];
     if (typeof fn !== 'function') {
@@ -111,7 +118,7 @@ export async function runRecipe(
         `recipe '${spec.name}': step '${step.call}' is not a method on the client`,
       );
     }
-    const callArgs = step.args.map((name) => argMap[name]);
+    const callArgs = step.args.map((name) => resolved[name]);
     try {
       const result = step.paginate
         ? await paginateAll(fn, client, callArgs)

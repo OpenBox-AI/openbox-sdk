@@ -30,6 +30,7 @@ import {
 import type { OpenBoxClient } from '../client/index.js';
 import { requireYesForDestructive } from './non-interactive.js';
 import { recordAgentKey, agentKeysPath } from '../runtime/_shared/agent-keys-store.js';
+import { resolveArgs } from './id-resolver.js';
 
 export interface FlagSpec {
   /** TypeSpec parameter name (camelCase). */
@@ -591,6 +592,21 @@ export function wireSubcommands(
         const fn = client[sub.backend.method];
         if (typeof fn !== 'function') {
           throw new Error(`Backend method '${sub.backend.method}' missing on OpenBoxClient`);
+        }
+
+        // Short-ID resolution: if the user passed `2e6cee17` or
+        // `2e6cee17-…` for an `agentId` (or any arg with a known
+        // resolver), look it up via the matching list method and
+        // substitute the canonical UUID. No-op for full UUIDs;
+        // happens before any other arg processing so the value the
+        // backend sees is already canonical.
+        const argByName: Record<string, unknown> = {};
+        for (let i = 0; i < sub.args.length; i++) {
+          argByName[sub.args[i].name] = positionalValues[i];
+        }
+        const resolved = await resolveArgs(argByName, client);
+        for (let i = 0; i < sub.args.length; i++) {
+          positionalValues[i] = resolved[sub.args[i].name];
         }
 
         // Positional-with-body-key: argument is captured positionally on
