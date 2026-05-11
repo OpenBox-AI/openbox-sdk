@@ -49,6 +49,9 @@ vi.mock('vscode', () => {
     ThemeIcon: class {
       constructor(public id: string) {}
     },
+    ThemeColor: class {
+      constructor(public id: string) {}
+    },
     TreeItem: class {
       constructor(
         public label: string,
@@ -257,7 +260,6 @@ vi.mock('./viewSession', () => ({
     refresh = vi.fn();
     dispose = vi.fn();
   },
-  inlineDecide: vi.fn(),
 }));
 vi.mock('./dashboardUrl', () => ({ apiKeysUrl: vi.fn(() => undefined) }));
 vi.mock('./debugInfoPanel', () => ({ showDebugInfoPanel: vi.fn() }));

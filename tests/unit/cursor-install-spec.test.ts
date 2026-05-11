@@ -22,10 +22,16 @@ const EXPECTED_EVENTS = [
   'postToolUseFailure',
   'sessionStart',
   'stop',
+  'beforeTabFileRead',
+  'afterTabFileEdit',
+  'sessionEnd',
+  'preCompact',
+  'subagentStart',
+  'subagentStop',
 ];
 
 describe('cursor INSTALL_SPEC', () => {
-  it('exposes the canonical 14 events in spec order', () => {
+  it('exposes every Cursor hook event in spec order', () => {
     const names = INSTALL_SPEC.events.map((e) => e.name);
     expect(names).toEqual(EXPECTED_EVENTS);
   });

@@ -108,7 +108,7 @@ describe('createClaudeCodeAdapter', () => {
     const out = JSON.parse(cap.stdout[0]);
     expect(out.hookSpecificOutput.permissionDecision).toBe('deny');
     expect(out.hookSpecificOutput.permissionDecisionReason).toBe(
-      'destructive command',
+      '[OpenBox] destructive command',
     );
   });
 
@@ -157,7 +157,7 @@ describe('createClaudeCodeAdapter', () => {
     }).run();
     const out = JSON.parse(cap.stdout[0]);
     expect(out.decision).toBe('block');
-    expect(out.reason).toBe('output contains secret');
+    expect(out.reason).toBe('[OpenBox] output contains secret');
   });
 
   test('permission-request allow → decision.behavior:"allow"', async () => {
@@ -280,7 +280,7 @@ describe('createCursorAdapter', () => {
     expect(JSON.parse(cap.stdout[0])).toEqual({ permission: 'allow' });
   });
 
-  test('cursor-permission block → permission:"deny" + userMessage', async () => {
+  test('cursor-permission block → permission:"deny" + user_message', async () => {
     const cap = capture();
     await createCursorAdapter({
       core: makeMockCore(),
@@ -292,7 +292,7 @@ describe('createCursorAdapter', () => {
     }).run();
     const out = JSON.parse(cap.stdout[0]);
     expect(out.permission).toBe('deny');
-    expect(out.userMessage).toBe('forbidden cmd');
+    expect(out.user_message).toBe('[OpenBox] forbidden cmd');
   });
 
   test('cursor-permission halt → "OpenBox HALT:" prefix', async () => {
@@ -307,7 +307,7 @@ describe('createCursorAdapter', () => {
     }).run();
     const out = JSON.parse(cap.stdout[0]);
     expect(out.permission).toBe('deny');
-    expect(out.userMessage).toMatch(/^OpenBox HALT:/);
+    expect(out.user_message).toMatch(/^\[OpenBox\] HALT:/);
   });
 
   test('cursor-observe (afterShellExecution) → empty object', async () => {

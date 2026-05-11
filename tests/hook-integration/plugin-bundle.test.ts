@@ -84,10 +84,10 @@ describe('cursor-plugin/build.sh — marketplace bundle layout', () => {
     expect(existsSync(join(BUNDLE, 'agents', 'openbox-reviewer.md'))).toBe(true);
   });
 
-  it('hooks/hooks.json contains all 14 events from INSTALL_SPEC', () => {
+  it('hooks/hooks.json contains every event from INSTALL_SPEC', () => {
     const hooks = JSON.parse(readFileSync(join(BUNDLE, 'hooks', 'hooks.json'), 'utf-8'));
     const eventNames = new Set(Object.keys(hooks.hooks));
-    expect(eventNames.size).toBe(14);
+    expect(eventNames.size).toBe(20);
     expect(eventNames).toEqual(new Set([
       'beforeSubmitPrompt',
       'beforeReadFile',
@@ -103,6 +103,12 @@ describe('cursor-plugin/build.sh — marketplace bundle layout', () => {
       'postToolUseFailure',
       'sessionStart',
       'stop',
+      'beforeTabFileRead',
+      'afterTabFileEdit',
+      'sessionEnd',
+      'preCompact',
+      'subagentStart',
+      'subagentStop',
     ]));
     // Each event entry is the new-shape array — never the legacy
     // `{command}` object the user explicitly forbade.

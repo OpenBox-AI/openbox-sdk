@@ -47,10 +47,10 @@ describe('openbox install cursor — full bundle into a throwaway HOME', () => {
     const r = runCLI(['install', 'cursor', '--no-harden']);
     expect(r.status, r.err).toBe(0);
 
-    // 1. Hooks file with all 14 events under the cursor-keyed shape.
-    // Hooks file write-order is implementation detail (the writer
-    // iterates the spec but JSON.stringify preserves insertion order
-    // which can differ on merge); assert as a set instead.
+    // 1. Hooks file with every Cursor event under the cursor-keyed
+    // shape. Hooks file write-order is implementation detail (the
+    // writer iterates the spec but JSON.stringify preserves insertion
+    // order which can differ on merge); assert as a set instead.
     const hooks = JSON.parse(readFileSync(join(HOME, '.cursor', 'hooks.json'), 'utf-8'));
     const eventNames = new Set(Object.keys(hooks.hooks));
     expect(eventNames).toEqual(new Set([
@@ -68,6 +68,12 @@ describe('openbox install cursor — full bundle into a throwaway HOME', () => {
       'postToolUseFailure',
       'sessionStart',
       'stop',
+      'beforeTabFileRead',
+      'afterTabFileEdit',
+      'sessionEnd',
+      'preCompact',
+      'subagentStart',
+      'subagentStop',
     ]));
 
     // Each event entry is the new array shape `[{command, ...}]`,
