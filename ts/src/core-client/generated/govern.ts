@@ -23,6 +23,7 @@ export interface GuardrailsVerdict {
 export interface WorkflowVerdict {
   arm: VerdictArm;
   approvalId?: string;
+  governanceEventId?: string;
   approvalExpiresAt?: string;
   reason?: string;
   riskScore: number;
@@ -32,6 +33,7 @@ export interface WorkflowVerdict {
 export interface GovernedPayload {
   input?: unknown[];
   output?: unknown;
+  spans?: unknown[];
 }
 export type CanonicalVerdict = WorkflowVerdict;
 /** Spec-driven manifest of every preset + its method envelopes. */
@@ -955,14 +957,14 @@ export const CANONICAL_EVENT_TYPES: ReadonlySet<CanonicalEventType> = new Set(["
  *  the wire (custom agents legitimately emit custom names); this
  *  is the *first-party* vocabulary, useful for guardrail authors
  *  and conformance reports. */
-export const CANONICAL_ACTIVITY_TYPES: ReadonlySet<string> = new Set(["AGENT_STEP","ActivityTaskCanceled","ActivityTaskCompleted","ActivityTaskFailed","ActivityTaskScheduled","ActivityTaskStarted","ActivityTaskTimedOut","AgentExecutionCompleted","AgentExecutionStarted","AgentSpawn","CHUNKING","CallToolsNode","ChildWorkflowExecutionCompleted","ChildWorkflowExecutionInitiated","CrewKickoffCompleted","CrewKickoffStarted","EMBEDDING","EXCEPTION","End","FUNCTION_CALL","FileDelete","FileEdit","FileRead","HTTPRequest","HandoffMessage","LLM","LLMCallCompleted","LLMCallStarted","LLMCompleted","MCPToolCall","MarkerRecorded","MemoryQueryEvent","ModelRequestNode","MultiModalMessage","Notification","OperationCompleted","OperationStarted","PermissionRequest","PostToolUse","PreCompact","PreSyncHookStarted","PreSyncHookSucceeded","PreToolUse","PromptSubmission","QUERY","RERANKING","RETRIEVE","ResourceUpdated","SUB_QUESTION","SYNTHESIZE","ShellExecution","Stop","StopMessage","SubagentStop","SyncStatusChanged","TaskCompleted","TaskStart","TaskStarted","TextMessage","TimerFired","TimerStarted","ToolCallExecutionEvent","ToolCallRequestEvent","ToolCompleted","ToolStarted","ToolUsageError","ToolUsageFinished","ToolUsageStarted","UserInputRequestedEvent","UserPromptNode","UserPromptSubmit","WorkflowExecutionSignaled","afterAgentResponse","afterAgentThought","afterFileEdit","afterMCPExecution","afterShellExecution","agentStop","agent_action","auto_function_invocation_post","auto_function_invocation_pre","beforeMCPExecution","beforeReadFile","beforeShellExecution","beforeSubmitPrompt","checkpoint","custom_event","error","error-trigger","errorOccurred","file_read","file_write","function_invocation_post","function_invocation_pre","incident.acknowledged","incident.annotated","incident.delegated","incident.escalated","incident.priority_updated","incident.reassigned","incident.reopened","incident.resolved","incident.triggered","incident.unacknowledged","interrupt","node-post-execute","node-pre-execute","node_end","node_start","onAbort","onError","onFinish","onStepFinish","on_agent_action","on_agent_finish","on_chain_end","on_chain_start","on_chat_model_start","on_execute_callback","on_failure_callback","on_llm_end","on_llm_error","on_llm_start","on_retriever_end","on_retriever_start","on_retry_callback","on_skipped_callback","on_success_callback","on_tool_end","on_tool_error","on_tool_start","output_validator","payment_order.approved","payment_order.begin_processing","payment_order.failed","payment_order.reconciled","payment_reference.created","postToolUse","preToolUse","prompt_render_post","prompt_render_pre","sla_miss_callback","subagentStop","task_end","task_start","tool-call","tool-result","tool_retry","userPromptSubmitted","workflow-step-finish","workflow-step-progress","workflow-step-start"]);
+export const CANONICAL_ACTIVITY_TYPES: ReadonlySet<string> = new Set(["AGENT_STEP","ActivityTaskCanceled","ActivityTaskCompleted","ActivityTaskFailed","ActivityTaskScheduled","ActivityTaskStarted","ActivityTaskTimedOut","AgentExecutionCompleted","AgentExecutionStarted","AgentSpawn","CHUNKING","CallToolsNode","ChildWorkflowExecutionCompleted","ChildWorkflowExecutionInitiated","CrewKickoffCompleted","CrewKickoffStarted","EMBEDDING","EXCEPTION","End","FUNCTION_CALL","FileDelete","FileEdit","FileRead","HTTPRequest","HandoffMessage","LLM","LLMCallCompleted","LLMCallStarted","LLMCompleted","MCPToolCall","MarkerRecorded","MemoryQueryEvent","ModelRequestNode","MultiModalMessage","Notification","OperationCompleted","OperationStarted","PermissionRequest","PostToolUse","PreCompact","PreSyncHookStarted","PreSyncHookSucceeded","PreToolUse","PromptSubmission","QUERY","RERANKING","RETRIEVE","ResourceUpdated","SUB_QUESTION","SYNTHESIZE","ShellExecution","Stop","StopMessage","SubagentStart","SubagentStop","SyncStatusChanged","TaskCompleted","TaskStart","TaskStarted","TextMessage","TimerFired","TimerStarted","ToolCallExecutionEvent","ToolCallRequestEvent","ToolCompleted","ToolStarted","ToolUsageError","ToolUsageFinished","ToolUsageStarted","UserInputRequestedEvent","UserPromptNode","UserPromptSubmit","WorkflowExecutionSignaled","afterAgentResponse","afterAgentThought","afterFileEdit","afterMCPExecution","afterShellExecution","agentStop","auto_function_invocation_post","auto_function_invocation_pre","beforeMCPExecution","beforeReadFile","beforeShellExecution","beforeSubmitPrompt","checkpoint","custom_event","error","error-trigger","errorOccurred","function_invocation_post","function_invocation_pre","incident.acknowledged","incident.annotated","incident.delegated","incident.escalated","incident.priority_updated","incident.reassigned","incident.reopened","incident.resolved","incident.triggered","incident.unacknowledged","interrupt","node-post-execute","node-pre-execute","node_end","node_start","onAbort","onError","onFinish","onStepFinish","on_agent_action","on_agent_finish","on_chain_end","on_chain_start","on_chat_model_start","on_execute_callback","on_failure_callback","on_llm_end","on_llm_error","on_llm_start","on_retriever_end","on_retriever_start","on_retry_callback","on_skipped_callback","on_success_callback","on_tool_end","on_tool_error","on_tool_start","output_validator","payment_order.approved","payment_order.begin_processing","payment_order.failed","payment_order.reconciled","payment_reference.created","postToolUse","preToolUse","prompt_render_post","prompt_render_pre","sla_miss_callback","subagentStop","task_end","task_start","tool-call","tool-result","tool_retry","userPromptSubmitted","workflow-step-finish","workflow-step-progress","workflow-step-start"]);
 /** Spec-driven display label for each canonical activity_type.
  *  Source of truth for any UI that renders activity types
  *  (mobile, web dashboard, CLI list views, audit reports). Consumers
  *  fall back to a Title-Case formatter for activity_types not in
  *  this table; custom-preset domain agents emit free-form strings
  *  that legitimately aren't covered here. */
-export const CANONICAL_ACTIVITY_LABELS: Readonly<Record<string, string>> = Object.freeze({"AGENT_STEP":"Agent Step","ActivityTaskCanceled":"Activity Task Canceled","ActivityTaskCompleted":"Activity Task Completed","ActivityTaskFailed":"Activity Task Failed","ActivityTaskScheduled":"Activity Task Scheduled","ActivityTaskStarted":"Activity Task Started","ActivityTaskTimedOut":"Activity Task Timed Out","AgentExecutionCompleted":"Agent Execution Completed","AgentExecutionStarted":"Agent Execution Started","AgentSpawn":"Agent Spawn","CHUNKING":"Chunking","CallToolsNode":"Call Tools Node","ChildWorkflowExecutionCompleted":"Child Workflow Execution Completed","ChildWorkflowExecutionInitiated":"Child Workflow Execution Initiated","CrewKickoffCompleted":"Crew Kickoff Completed","CrewKickoffStarted":"Crew Kickoff Started","EMBEDDING":"Embedding","EXCEPTION":"Exception","End":"End","FUNCTION_CALL":"Function Call","FileDelete":"File Delete","FileEdit":"File Edit","FileRead":"File Read","HTTPRequest":"HTTP Request","HandoffMessage":"Handoff Message","LLM":"LLM","LLMCallCompleted":"LLM Call Completed","LLMCallStarted":"LLM Call Started","LLMCompleted":"LLM Completed","MCPToolCall":"MCP Tool Call","MarkerRecorded":"Marker Recorded","MemoryQueryEvent":"Memory Query","ModelRequestNode":"Model Request Node","MultiModalMessage":"Multi-Modal Message","Notification":"Notification","OperationCompleted":"Operation Completed","OperationStarted":"Operation Started","PermissionRequest":"Permission Request","PostToolUse":"Post-Tool Use","PreCompact":"Pre-Compact","PreSyncHookStarted":"Pre-Sync Hook Started","PreSyncHookSucceeded":"Pre-Sync Hook Succeeded","PreToolUse":"Pre-Tool Use","PromptSubmission":"Prompt Submission","QUERY":"Query","RERANKING":"Reranking","RETRIEVE":"Retrieve","ResourceUpdated":"Resource Updated","SUB_QUESTION":"Sub-Question","SYNTHESIZE":"Synthesize","ShellExecution":"Shell Execution","Stop":"Stop","StopMessage":"Stop Message","SubagentStop":"Subagent Stop","SyncStatusChanged":"Sync Status Changed","TaskCompleted":"Task Completed","TaskStart":"Task Start","TaskStarted":"Task Started","TextMessage":"Text Message","TimerFired":"Timer Fired","TimerStarted":"Timer Started","ToolCallExecutionEvent":"Tool Call Execution","ToolCallRequestEvent":"Tool Call Request","ToolCompleted":"Tool Completed","ToolStarted":"Tool Started","ToolUsageError":"Tool Usage Error","ToolUsageFinished":"Tool Usage Finished","ToolUsageStarted":"Tool Usage Started","UserInputRequestedEvent":"User Input Requested","UserPromptNode":"User Prompt Node","UserPromptSubmit":"User Prompt Submit","WorkflowExecutionSignaled":"Workflow Execution Signaled","afterAgentResponse":"After Agent Response","afterAgentThought":"After Agent Thought","afterFileEdit":"After File Edit","afterMCPExecution":"After MCP Execution","afterShellExecution":"After Shell Execution","agentStop":"Agent Stop","agent_action":"Agent Action","auto_function_invocation_post":"Auto Function Invocation Post","auto_function_invocation_pre":"Auto Function Invocation Pre","beforeMCPExecution":"Before MCP Execution","beforeReadFile":"Before Read File","beforeShellExecution":"Before Shell Execution","beforeSubmitPrompt":"Before Submit Prompt","checkpoint":"Checkpoint","custom_event":"Custom Event","error":"Error","error-trigger":"Error Trigger","errorOccurred":"Error Occurred","file_read":"File Read","file_write":"File Write","function_invocation_post":"Function Invocation Post","function_invocation_pre":"Function Invocation Pre","incident.acknowledged":"Incident Acknowledged","incident.annotated":"Incident Annotated","incident.delegated":"Incident Delegated","incident.escalated":"Incident Escalated","incident.priority_updated":"Incident Priority Updated","incident.reassigned":"Incident Reassigned","incident.reopened":"Incident Reopened","incident.resolved":"Incident Resolved","incident.triggered":"Incident Triggered","incident.unacknowledged":"Incident Unacknowledged","interrupt":"Interrupt","node-post-execute":"Node Post-Execute","node-pre-execute":"Node Pre-Execute","node_end":"Node End","node_start":"Node Start","onAbort":"Abort","onError":"Error","onFinish":"Finish","onStepFinish":"Step Finish","on_agent_action":"Agent Action","on_agent_finish":"Agent Finish","on_chain_end":"Chain End","on_chain_start":"Chain Start","on_chat_model_start":"Chat Model Start","on_execute_callback":"Execute Callback","on_failure_callback":"Failure Callback","on_llm_end":"LLM End","on_llm_error":"LLM Error","on_llm_start":"LLM Start","on_retriever_end":"Retriever End","on_retriever_start":"Retriever Start","on_retry_callback":"Retry Callback","on_skipped_callback":"Skipped Callback","on_success_callback":"Success Callback","on_tool_end":"Tool End","on_tool_error":"Tool Error","on_tool_start":"Tool Start","output_validator":"Output Validator","payment_order.approved":"Payment Order Approved","payment_order.begin_processing":"Payment Order Begin Processing","payment_order.failed":"Payment Order Failed","payment_order.reconciled":"Payment Order Reconciled","payment_reference.created":"Payment Reference Created","postToolUse":"Post-Tool Use","preToolUse":"Pre-Tool Use","prompt_render_post":"Prompt Render Post","prompt_render_pre":"Prompt Render Pre","sla_miss_callback":"SLA Miss Callback","subagentStop":"Subagent Stop","task_end":"Task End","task_start":"Task Start","tool-call":"Tool Call","tool-result":"Tool Result","tool_retry":"Tool Retry","userPromptSubmitted":"User Prompt Submitted","workflow-step-finish":"Workflow Step Finish","workflow-step-progress":"Workflow Step Progress","workflow-step-start":"Workflow Step Start"});
+export const CANONICAL_ACTIVITY_LABELS: Readonly<Record<string, string>> = Object.freeze({"AGENT_STEP":"Agent Step","ActivityTaskCanceled":"Activity Task Canceled","ActivityTaskCompleted":"Activity Task Completed","ActivityTaskFailed":"Activity Task Failed","ActivityTaskScheduled":"Activity Task Scheduled","ActivityTaskStarted":"Activity Task Started","ActivityTaskTimedOut":"Activity Task Timed Out","AgentExecutionCompleted":"Agent Execution Completed","AgentExecutionStarted":"Agent Execution Started","AgentSpawn":"Agent Spawn","CHUNKING":"Chunking","CallToolsNode":"Call Tools Node","ChildWorkflowExecutionCompleted":"Child Workflow Execution Completed","ChildWorkflowExecutionInitiated":"Child Workflow Execution Initiated","CrewKickoffCompleted":"Crew Kickoff Completed","CrewKickoffStarted":"Crew Kickoff Started","EMBEDDING":"Embedding","EXCEPTION":"Exception","End":"End","FUNCTION_CALL":"Function Call","FileDelete":"File Delete","FileEdit":"File Edit","FileRead":"File Read","HTTPRequest":"HTTP Request","HandoffMessage":"Handoff Message","LLM":"LLM","LLMCallCompleted":"LLM Call Completed","LLMCallStarted":"LLM Call Started","LLMCompleted":"LLM Completed","MCPToolCall":"MCP Tool Call","MarkerRecorded":"Marker Recorded","MemoryQueryEvent":"Memory Query","ModelRequestNode":"Model Request Node","MultiModalMessage":"Multi-Modal Message","Notification":"Notification","OperationCompleted":"Operation Completed","OperationStarted":"Operation Started","PermissionRequest":"Permission Request","PostToolUse":"Post-Tool Use","PreCompact":"Pre-Compact","PreSyncHookStarted":"Pre-Sync Hook Started","PreSyncHookSucceeded":"Pre-Sync Hook Succeeded","PreToolUse":"Pre-Tool Use","PromptSubmission":"Prompt Submission","QUERY":"Query","RERANKING":"Reranking","RETRIEVE":"Retrieve","ResourceUpdated":"Resource Updated","SUB_QUESTION":"Sub-Question","SYNTHESIZE":"Synthesize","ShellExecution":"Shell Execution","Stop":"Stop","StopMessage":"Stop Message","SubagentStart":"Subagent Start","SubagentStop":"Subagent Stop","SyncStatusChanged":"Sync Status Changed","TaskCompleted":"Task Completed","TaskStart":"Task Start","TaskStarted":"Task Started","TextMessage":"Text Message","TimerFired":"Timer Fired","TimerStarted":"Timer Started","ToolCallExecutionEvent":"Tool Call Execution","ToolCallRequestEvent":"Tool Call Request","ToolCompleted":"Tool Completed","ToolStarted":"Tool Started","ToolUsageError":"Tool Usage Error","ToolUsageFinished":"Tool Usage Finished","ToolUsageStarted":"Tool Usage Started","UserInputRequestedEvent":"User Input Requested","UserPromptNode":"User Prompt Node","UserPromptSubmit":"User Prompt Submit","WorkflowExecutionSignaled":"Workflow Execution Signaled","afterAgentResponse":"After Agent Response","afterAgentThought":"After Agent Thought","afterFileEdit":"After File Edit","afterMCPExecution":"After MCP Execution","afterShellExecution":"After Shell Execution","agentStop":"Agent Stop","auto_function_invocation_post":"Auto Function Invocation Post","auto_function_invocation_pre":"Auto Function Invocation Pre","beforeMCPExecution":"Before MCP Execution","beforeReadFile":"Before Read File","beforeShellExecution":"Before Shell Execution","beforeSubmitPrompt":"Before Submit Prompt","checkpoint":"Checkpoint","custom_event":"Custom Event","error":"Error","error-trigger":"Error Trigger","errorOccurred":"Error Occurred","function_invocation_post":"Function Invocation Post","function_invocation_pre":"Function Invocation Pre","incident.acknowledged":"Incident Acknowledged","incident.annotated":"Incident Annotated","incident.delegated":"Incident Delegated","incident.escalated":"Incident Escalated","incident.priority_updated":"Incident Priority Updated","incident.reassigned":"Incident Reassigned","incident.reopened":"Incident Reopened","incident.resolved":"Incident Resolved","incident.triggered":"Incident Triggered","incident.unacknowledged":"Incident Unacknowledged","interrupt":"Interrupt","node-post-execute":"Node Post-Execute","node-pre-execute":"Node Pre-Execute","node_end":"Node End","node_start":"Node Start","onAbort":"Abort","onError":"Error","onFinish":"Finish","onStepFinish":"Step Finish","on_agent_action":"Agent Action","on_agent_finish":"Agent Finish","on_chain_end":"Chain End","on_chain_start":"Chain Start","on_chat_model_start":"Chat Model Start","on_execute_callback":"Execute Callback","on_failure_callback":"Failure Callback","on_llm_end":"LLM End","on_llm_error":"LLM Error","on_llm_start":"LLM Start","on_retriever_end":"Retriever End","on_retriever_start":"Retriever Start","on_retry_callback":"Retry Callback","on_skipped_callback":"Skipped Callback","on_success_callback":"Success Callback","on_tool_end":"Tool End","on_tool_error":"Tool Error","on_tool_start":"Tool Start","output_validator":"Output Validator","payment_order.approved":"Payment Order Approved","payment_order.begin_processing":"Payment Order Begin Processing","payment_order.failed":"Payment Order Failed","payment_order.reconciled":"Payment Order Reconciled","payment_reference.created":"Payment Reference Created","postToolUse":"Post-Tool Use","preToolUse":"Pre-Tool Use","prompt_render_post":"Prompt Render Post","prompt_render_pre":"Prompt Render Pre","sla_miss_callback":"SLA Miss Callback","subagentStop":"Subagent Stop","task_end":"Task End","task_start":"Task Start","tool-call":"Tool Call","tool-result":"Tool Result","tool_retry":"Tool Retry","userPromptSubmitted":"User Prompt Submitted","workflow-step-finish":"Workflow Step Finish","workflow-step-progress":"Workflow Step Progress","workflow-step-start":"Workflow Step Start"});
 /** Every verdict arm the runtime emits. Production sets typically
  *  exclude `constrain`; consumers can re-filter. */
 export const CANONICAL_VERDICT_ARMS: ReadonlySet<VerdictArm> = new Set(["allow","block","constrain","halt","require_approval"] as const);
@@ -1048,6 +1050,56 @@ export interface GovernedSessionConfig {
    * event. Don't set this manually; use `govern.attach()`.
    */
   attached?: boolean;
+  /**
+   * Fired the moment the backend returns a `require_approval` verdict
+   * with an `approval_id` — BEFORE pollApproval starts the long wait.
+   * Lets harnesses (cursor-hooks, claude-hooks) surface inline approval
+   * UI in their host IDE without first burning the full poll deadline.
+   * Errors thrown here are swallowed; this hook is observability, not
+   * a gate.
+   */
+  onPendingApproval?: (info: {
+    approvalId: string;
+    /** Backend's governance_event_id; cross-reference to the Approval row's event_id. */
+    governanceEventId?: string;
+    activityId: string;
+    activityType: string;
+    expiresAt?: string;
+    reason?: string;
+  }) => void | Promise<void>;
+  /**
+   * Fired when pollApproval resolves (decision came back) OR times out
+   * (no decision; arm stays `require_approval`). Lets harnesses clear
+   * any UI / pending markers they staged in onPendingApproval.
+   */
+  onApprovalResolved?: (info: {
+    approvalId: string;
+    activityId: string;
+    activityType: string;
+    /** 'allow' | 'block' | 'halt' | 'require_approval' (timeout). */
+    arm: string;
+  }) => void | Promise<void>;
+  /**
+   * Optional out-of-band decision channel for harnesses that have a
+   * faster path than HTTP polling (e.g. a local IPC socket from a UI
+   * extension). Called with the same metadata as onPendingApproval and
+   * returns a promise that resolves to a final arm when an external
+   * source has the decision. The poll loop races this against its
+   * normal HTTP cycle and takes whichever finishes first.
+   *
+   * If the promise rejects or resolves to undefined, the poll loop
+   * continues uninterrupted. If it resolves to an arm, the SDK does
+   * one confirmatory pollApproval() to read the authoritative verdict
+   * from the backend (the external signal might be stale or have
+   * arrived in parallel with the backend mutation), then returns.
+   */
+  awaitExternalDecision?: (info: {
+    approvalId: string;
+    governanceEventId?: string;
+    activityId: string;
+    activityType: string;
+    expiresAt?: string;
+  }) => Promise<'approve' | 'reject' | undefined>;
 }
 
 /**
@@ -1086,6 +1138,9 @@ export class BaseGovernedSession {
   private readonly autoOpenSuppressed: boolean;
   private readonly inFlight = new Set<string>();
   private readonly exitHandlerCleanup: Array<() => void> = [];
+  protected readonly onPendingApproval?: GovernedSessionConfig['onPendingApproval'];
+  protected readonly onApprovalResolved?: GovernedSessionConfig['onApprovalResolved'];
+  protected readonly awaitExternalDecision?: GovernedSessionConfig['awaitExternalDecision'];
 
   constructor(config: GovernedSessionConfig) {
     this.core = config.core;
@@ -1099,6 +1154,9 @@ export class BaseGovernedSession {
     this.approvalPollJitter = config.approvalPollJitter ?? 0.25;
     this.approvalMaxWaitMs = config.approvalMaxWaitMs ?? 60_000;
     this.autoOpenSuppressed = config.attached === true;
+    this.onPendingApproval = config.onPendingApproval;
+    this.onApprovalResolved = config.onApprovalResolved;
+    this.awaitExternalDecision = config.awaitExternalDecision;
     if (config.registerExitHandlers !== false) {
       this.installExitHandlers();
     }
@@ -1221,6 +1279,7 @@ export class BaseGovernedSession {
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
+          spans: payload.spans as unknown as GovernanceEventPayload['spans'],
         });
       }
 
@@ -1230,15 +1289,43 @@ export class BaseGovernedSession {
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
+          spans: payload.spans as unknown as GovernanceEventPayload['spans'],
         });
         if (startedVerdict.arm !== 'allow') {
           // Pre-stage block; never emit ActivityCompleted, but if the
           // gate said require_approval, poll for the approval decision.
-          if (
-            startedVerdict.arm === 'require_approval' &&
-            startedVerdict.approvalId
-          ) {
-            return this.pollApproval(activityId, startedVerdict);
+          // pollApproval keys on workflow_id + run_id + activity_id —
+          // approval_id is informational. Some backends omit it from
+          // /governance/evaluate responses (only return governance_event_id);
+          // gating on approvalId there silently skips polling and the
+          // user sees an instant "approval pending" message that never
+          // resolves even when the dashboard click lands.
+          if (startedVerdict.arm === 'require_approval') {
+            const approvalId = startedVerdict.approvalId ?? activityId;
+            if (this.onPendingApproval) {
+              try {
+                await this.onPendingApproval({
+                  approvalId,
+                  governanceEventId: startedVerdict.governanceEventId,
+                  activityId,
+                  activityType,
+                  expiresAt: startedVerdict.approvalExpiresAt,
+                  reason: startedVerdict.reason,
+                });
+              } catch { /* observability hook; never blocks */ }
+            }
+            const polled = await this.pollApproval(activityId, activityType, startedVerdict);
+            if (this.onApprovalResolved) {
+              try {
+                await this.onApprovalResolved({
+                  approvalId,
+                  activityId,
+                  activityType,
+                  arm: polled.arm,
+                });
+              } catch { /* observability hook */ }
+            }
+            return polled;
           }
           return startedVerdict;
         }
@@ -1265,12 +1352,31 @@ export class BaseGovernedSession {
       activity_type: activityType,
       activity_input: payload.input,
       activity_output: payload.output,
+      spans: payload.spans as unknown as GovernanceEventPayload['spans'],
     });
-    if (
-      completedVerdict.arm === 'require_approval' &&
-      completedVerdict.approvalId
-    ) {
-      return this.pollApproval(activityId, completedVerdict);
+    if (completedVerdict.arm === 'require_approval') {
+      // See comment in runActivity: poll on activity_id even if the
+      // backend omitted approval_id in the evaluate response.
+      const approvalId = completedVerdict.approvalId ?? activityId;
+      if (this.onPendingApproval) {
+        try {
+          await this.onPendingApproval({
+            approvalId,
+            governanceEventId: completedVerdict.governanceEventId,
+            activityId,
+            activityType,
+            expiresAt: completedVerdict.approvalExpiresAt,
+            reason: completedVerdict.reason,
+          });
+        } catch { /* observability */ }
+      }
+      const polled = await this.pollApproval(activityId, activityType, completedVerdict);
+      if (this.onApprovalResolved) {
+        try {
+          await this.onApprovalResolved({ approvalId, activityId, activityType, arm: polled.arm });
+        } catch { /* observability */ }
+      }
+      return polled;
     }
     return completedVerdict;
   }
@@ -1278,7 +1384,7 @@ export class BaseGovernedSession {
   private async emit(
     event: Pick<
       GovernanceEventPayload,
-      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error'
+      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'spans'
     >,
   ): Promise<WorkflowVerdict> {
     const payload = {
@@ -1289,6 +1395,7 @@ export class BaseGovernedSession {
       workflow_type: this.workflowType,
       task_queue: this.taskQueue,
       timestamp: new Date().toISOString(),
+      span_count: event.spans?.length,
     } as unknown as GovernanceEventPayload;
     const response = await this.core.evaluate(payload);
     return mapVerdict(response);
@@ -1296,6 +1403,7 @@ export class BaseGovernedSession {
 
   private async pollApproval(
     activityId: string,
+    activityType: string,
     initial: WorkflowVerdict,
   ): Promise<WorkflowVerdict> {
     // ── Polling design notes ──
@@ -1305,26 +1413,51 @@ export class BaseGovernedSession {
     // matches the bimodal latency of approvals (decided in seconds OR
     // minutes) without burning a long sleep when the answer's right there.
     // ±jitter randomizes per-attempt delay so a fleet of agents waiting
-    // on the same approval window doesn't thunder-herd core in lockstep.
+    // on the same approval window doesn't thunder-herd the API in
+    // lockstep.
     //
-    // Future: the backend WebSocket gateway already broadcasts
-    // APPROVAL_DECIDED to org rooms, but its auth path requires a
-    // Keycloak JWT while the SDK runtime carries an `obx_live_*` API
-    // key; wire-incompatible. Replacing this poll loop with a WS
-    // subscription requires API-key auth to land on the `/ws`
-    // namespace upstream first.
+    // If the harness provides `awaitExternalDecision`, we race that
+    // promise against the poll loop. The external signal (e.g. a local
+    // IPC socket push) typically arrives orders of magnitude faster
+    // than the next HTTP tick; when it does, we exit the sleep early
+    // and run one confirmatory pollApproval() to fetch the backend's
+    // authoritative verdict for this activity_id.
+    const approvalId = initial.approvalId ?? activityId;
     const cfgDeadline = Date.now() + this.approvalMaxWaitMs;
     const srvDeadline = initial.approvalExpiresAt
       ? new Date(initial.approvalExpiresAt).getTime()
       : Number.POSITIVE_INFINITY;
     const deadline = Math.min(cfgDeadline, srvDeadline);
 
+    let externalSignaled = false;
+    const externalDecision = this.awaitExternalDecision
+      ? this.awaitExternalDecision({
+          approvalId,
+          governanceEventId: initial.governanceEventId,
+          activityId,
+          activityType,
+          expiresAt: initial.approvalExpiresAt,
+        }).then(
+          (d) => {
+            externalSignaled = d === 'approve' || d === 'reject';
+            return d;
+          },
+          () => undefined,
+        )
+      : undefined;
+
     let nextInterval = this.approvalPollIntervalMs;
     while (Date.now() < deadline) {
       const remaining = deadline - Date.now();
       const jittered = applyJitter(nextInterval, this.approvalPollJitter);
-      // Never sleep past the deadline.
-      await sleep(Math.max(0, Math.min(jittered, remaining)));
+      // Never sleep past the deadline. Wake early if an external
+      // decision arrives.
+      const sleepMs = Math.max(0, Math.min(jittered, remaining));
+      if (externalDecision) {
+        await Promise.race([sleep(sleepMs), externalDecision]);
+      } else {
+        await sleep(sleepMs);
+      }
       const status = await this.core.pollApproval({
         workflow_id: this.workflowId,
         run_id: this.runId,
@@ -1334,16 +1467,22 @@ export class BaseGovernedSession {
         return {
           arm: normalizeArm(status.action),
           approvalId: initial.approvalId,
+          governanceEventId: initial.governanceEventId,
           approvalExpiresAt: status.approval_expiration_time,
           reason: status.reason,
           riskScore: initial.riskScore,
           trustTier: initial.trustTier,
         };
       }
-      nextInterval = Math.min(
-        nextInterval * this.approvalPollBackoffFactor,
-        this.approvalPollMaxIntervalMs,
-      );
+      // External signal said "decided" but backend hasn't caught up
+      // yet (mutation in flight). Tighten the cadence to catch it
+      // promptly instead of waiting for the next backoff step.
+      nextInterval = externalSignaled
+        ? this.approvalPollIntervalMs
+        : Math.min(
+            nextInterval * this.approvalPollBackoffFactor,
+            this.approvalPollMaxIntervalMs,
+          );
     }
     return initial;
   }
@@ -2219,6 +2358,13 @@ function mapVerdict(response: GovernanceVerdictResponse): WorkflowVerdict {
   return {
     arm: normalizeArm(response.verdict ?? response.action ?? 'allow'),
     approvalId: response.approval_id,
+    // Cross-reference key for matching this verdict against the
+    // backend's persisted Approval row (whose `event_id` field equals
+    // the response's `governance_event_id`). The backend currently
+    // omits `approval_id` from /governance/evaluate responses, so this
+    // is the one stable identifier consumers can use to dedup against
+    // the dashboard's pending-approvals list.
+    governanceEventId: (response as { governance_event_id?: string }).governance_event_id,
     approvalExpiresAt: response.approval_expiration_time,
     reason: response.reason,
     riskScore: response.risk_score ?? 0,

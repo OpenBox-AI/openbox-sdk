@@ -7,10 +7,34 @@ import type { CursorEnvelope } from './envelopes.js';
 export type { CursorEnvelope };
 
 export const PRE_TOOL_USE_ROUTING: Record<string, string> = {
-  "Read": "file_read",
-  "Write": "file_write",
-  "Shell": "agent_action"
+  "Read": "FileRead",
+  "Write": "FileEdit",
+  "Shell": "ShellExecution"
 };
+
+export const BEFORE_SUBMIT_PROMPT_ACTIVITY_TYPE: string = "PromptSubmission";
+
+export const BEFORE_READ_FILE_ACTIVITY_TYPE: string = "FileRead";
+
+export const BEFORE_SHELL_EXECUTION_ACTIVITY_TYPE: string = "ShellExecution";
+
+export const BEFORE_MCPEXECUTION_ACTIVITY_TYPE: string = "MCPToolCall";
+
+export const AFTER_AGENT_RESPONSE_ACTIVITY_TYPE: string = "LLMCompleted";
+
+export const AFTER_AGENT_THOUGHT_ACTIVITY_TYPE: string = "LLMCompleted";
+
+export const AFTER_SHELL_EXECUTION_ACTIVITY_TYPE: string = "ShellExecution";
+
+export const AFTER_FILE_EDIT_ACTIVITY_TYPE: string = "FileEdit";
+
+export const AFTER_MCPEXECUTION_ACTIVITY_TYPE: string = "MCPToolCall";
+
+export const BEFORE_TAB_FILE_READ_ACTIVITY_TYPE: string = "FileRead";
+
+export const AFTER_TAB_FILE_EDIT_ACTIVITY_TYPE: string = "FileEdit";
+
+export const SUBAGENT_START_ACTIVITY_TYPE: string = "SubagentStart";
 
 export interface InstallSpec {
   file: string;
@@ -31,19 +55,24 @@ export const INSTALL_SPEC: InstallSpec = {
   "configDir": "~/.cursor-hooks",
   "events": [
     {
-      "name": "beforeSubmitPrompt"
+      "name": "beforeSubmitPrompt",
+      "timeout": 1800
     },
     {
-      "name": "beforeReadFile"
+      "name": "beforeReadFile",
+      "timeout": 1800
     },
     {
-      "name": "beforeShellExecution"
+      "name": "beforeShellExecution",
+      "timeout": 1800
     },
     {
-      "name": "beforeMCPExecution"
+      "name": "beforeMCPExecution",
+      "timeout": 1800
     },
     {
-      "name": "preToolUse"
+      "name": "preToolUse",
+      "timeout": 1800
     },
     {
       "name": "afterAgentResponse"
@@ -71,6 +100,26 @@ export const INSTALL_SPEC: InstallSpec = {
     },
     {
       "name": "stop"
+    },
+    {
+      "name": "beforeTabFileRead",
+      "timeout": 1800
+    },
+    {
+      "name": "afterTabFileEdit"
+    },
+    {
+      "name": "sessionEnd"
+    },
+    {
+      "name": "preCompact"
+    },
+    {
+      "name": "subagentStart",
+      "timeout": 1800
+    },
+    {
+      "name": "subagentStop"
     }
   ]
 };
@@ -115,7 +164,7 @@ export const PRE_TOOL_USE_VARIANTS: ActivityVariant[] = [
     "tool": "Shell",
     "field": "tool_input.command",
     "pattern": "\\b(rm|unlink|rmdir|shred)\\b",
-    "activityType": "file_write",
+    "activityType": "FileDelete",
     "eventCategory": "file_delete"
   }
 ];
@@ -266,6 +315,49 @@ export function buildStopPayload(env: CursorEnvelope): Record<string, unknown> {
     };
 }
 
+export function buildBeforeTabFileReadPayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "file_path": getPath(env, "file_path"),
+      "content": getPath(env, "content"),
+      "generation_id": getPath(env, "generation_id"),
+      "event_category": "file_read",
+    };
+}
+
+export function buildAfterTabFileEditPayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "file_path": getPath(env, "file_path"),
+      "generation_id": getPath(env, "generation_id"),
+      "event_category": "file_write",
+    };
+}
+
+export function buildSessionEndPayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "status": "completed",
+      "event_category": "workflow_complete",
+    };
+}
+
+export function buildSubagentStartPayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+  return {
+      "subagent_id": getPath(env, "subagent_id"),
+      "subagent_type": getPath(env, "subagent_type"),
+      "subagent_model": getPath(env, "subagent_model"),
+      "task": getPath(env, "task"),
+      "tool_call_id": getPath(env, "tool_call_id"),
+      "parent_conversation_id": getPath(env, "parent_conversation_id"),
+      "is_parallel_worker": getPath(env, "is_parallel_worker"),
+      "git_branch": getPath(env, "git_branch"),
+      "generation_id": getPath(env, "generation_id"),
+      "event_category": "agent_action",
+    };
+}
+
 /**
  * Per-event handlers. Each handler receives the parsed stdin envelope
  * + an attached CursorSession (workflowId/runId resolved by
@@ -289,6 +381,12 @@ export interface CursorAdapterHandlers {
   postToolUseFailure?: (input: CursorEnvelope, session: CursorSession) => Promise<WorkflowVerdict | undefined | void>;
   sessionStart?: (input: CursorEnvelope, session: CursorSession) => Promise<WorkflowVerdict | undefined | void>;
   stop?: (input: CursorEnvelope, session: CursorSession) => Promise<WorkflowVerdict | undefined | void>;
+  beforeTabFileRead?: (input: CursorEnvelope, session: CursorSession) => Promise<WorkflowVerdict | undefined | void>;
+  afterTabFileEdit?: (input: CursorEnvelope, session: CursorSession) => Promise<WorkflowVerdict | undefined | void>;
+  sessionEnd?: (input: CursorEnvelope, session: CursorSession) => Promise<WorkflowVerdict | undefined | void>;
+  preCompact?: (input: CursorEnvelope, session: CursorSession) => Promise<WorkflowVerdict | undefined | void>;
+  subagentStart?: (input: CursorEnvelope, session: CursorSession) => Promise<WorkflowVerdict | undefined | void>;
+  subagentStop?: (input: CursorEnvelope, session: CursorSession) => Promise<WorkflowVerdict | undefined | void>;
 }
 
 export interface CursorAdapterConfig {
@@ -305,6 +403,46 @@ export interface CursorAdapterConfig {
   writeStdout?: (data: string) => void;
   /** Override exit (test injection). Default: process.exit. */
   exit?: (code: number) => never;
+  /**
+   * Cap (ms) on how long the SDK polls a require_approval verdict
+   * before giving up. The actual wait is min(this, server-side
+   * approvalExpiresAt). Hook subprocesses have a finite lifetime
+   * imposed by the host IDE — set this slightly under that ceiling so
+   * the poll resolves before the host kills the process. Default: SDK
+   * default (60s).
+   */
+  approvalMaxWaitMs?: number;
+  /**
+   * Fired the moment the backend returns require_approval — before
+   * the SDK starts polling. Receives the approval metadata plus the
+   * stdin envelope (so harness code can correlate on conversation_id /
+   * hook_event_name / prompt). Used by the hook handler to write a
+   * pending-approval marker for the OpenBox extension.
+   */
+  onPendingApproval?: (
+    info: { approvalId: string; governanceEventId?: string; activityId: string; activityType: string; expiresAt?: string; reason?: string },
+    env: CursorEnvelope,
+  ) => void | Promise<void>;
+  /**
+   * Fired when pollApproval resolves OR times out. Lets the harness
+   * clear pending markers and any inline UI it staged.
+   */
+  onApprovalResolved?: (
+    info: { approvalId: string; activityId: string; activityType: string; arm: string },
+    env: CursorEnvelope,
+  ) => void | Promise<void>;
+  /**
+   * Optional out-of-band decision channel. When the harness has a
+   * faster path than HTTP polling (e.g. a local IPC socket from a UI
+   * extension that received an Approve / Deny click) it can return a
+   * promise that resolves when that decision is in. The poll loop
+   * races this promise against its normal HTTP cycle and runs a
+   * confirmatory pollApproval as soon as either fires.
+   */
+  awaitExternalDecision?: (
+    info: { approvalId: string; governanceEventId?: string; activityId: string; activityType: string; expiresAt?: string },
+    env: CursorEnvelope,
+  ) => Promise<'approve' | 'reject' | undefined>;
 }
 
 /**
@@ -344,6 +482,17 @@ export function createCursorAdapter(config: CursorAdapterConfig) {
         preset: presets.cursor,
         workflowId,
         runId,
+        approvalPollIntervalMs: 500,
+        approvalMaxWaitMs: config.approvalMaxWaitMs,
+        onPendingApproval: config.onPendingApproval
+          ? (info) => config.onPendingApproval!(info, env)
+          : undefined,
+        onApprovalResolved: config.onApprovalResolved
+          ? (info) => config.onApprovalResolved!(info, env)
+          : undefined,
+        awaitExternalDecision: config.awaitExternalDecision
+          ? (info) => config.awaitExternalDecision!(info, env)
+          : undefined,
       });
 
       const handlers = config.handlers;
@@ -367,11 +516,11 @@ async function dispatch(
   switch (eventName) {
     case "beforeSubmitPrompt": {
       if (!handlers.beforeSubmitPrompt) {
-        writeFallback("cursor-permission", undefined, env);
+        writeFallback("cursor-continue", undefined, env);
         return;
       }
       const verdict = await handlers.beforeSubmitPrompt(env, session);
-      writeVerdict("cursor-permission", verdict, env);
+      writeVerdict("cursor-continue", verdict, env);
       return;
     }
     case "beforeReadFile": {
@@ -491,6 +640,60 @@ async function dispatch(
       writeVerdict("none", verdict, env);
       return;
     }
+    case "beforeTabFileRead": {
+      if (!handlers.beforeTabFileRead) {
+        writeFallback("cursor-permission", undefined, env);
+        return;
+      }
+      const verdict = await handlers.beforeTabFileRead(env, session);
+      writeVerdict("cursor-permission", verdict, env);
+      return;
+    }
+    case "afterTabFileEdit": {
+      if (!handlers.afterTabFileEdit) {
+        writeFallback("cursor-observe", undefined, env);
+        return;
+      }
+      const verdict = await handlers.afterTabFileEdit(env, session);
+      writeVerdict("cursor-observe", verdict, env);
+      return;
+    }
+    case "sessionEnd": {
+      if (!handlers.sessionEnd) {
+        writeFallback("none", undefined, env);
+        return;
+      }
+      const verdict = await handlers.sessionEnd(env, session);
+      writeVerdict("none", verdict, env);
+      return;
+    }
+    case "preCompact": {
+      if (!handlers.preCompact) {
+        writeFallback("cursor-observe", undefined, env);
+        return;
+      }
+      const verdict = await handlers.preCompact(env, session);
+      writeVerdict("cursor-observe", verdict, env);
+      return;
+    }
+    case "subagentStart": {
+      if (!handlers.subagentStart) {
+        writeFallback("cursor-permission", undefined, env);
+        return;
+      }
+      const verdict = await handlers.subagentStart(env, session);
+      writeVerdict("cursor-permission", verdict, env);
+      return;
+    }
+    case "subagentStop": {
+      if (!handlers.subagentStop) {
+        writeFallback("cursor-observe", undefined, env);
+        return;
+      }
+      const verdict = await handlers.subagentStop(env, session);
+      writeVerdict("cursor-observe", verdict, env);
+      return;
+    }
     default:
       return;
   }
@@ -529,7 +732,28 @@ type Shape =
   | 'permission-request'
   | 'cursor-permission'
   | 'cursor-observe'
+  | 'cursor-continue'
   | 'none';
+
+/**
+ * Normalize and brand any user-facing verdict reason so the host UI
+ * (Cursor inline panel, Claude Code stdout) consistently:
+ *   - shows it came from OpenBox (rules from the backend usually omit
+ *     attribution, so a bare "Behavioral violation: ..." is ambiguous);
+ *   - never contains em/en dashes — they are forbidden in user-visible
+ *     OpenBox copy. Replaced with ASCII " - ".
+ *
+ * Idempotent: skips the prefix when the reason already starts with the
+ * `[OpenBox]` tag.
+ */
+function brand(raw: string): string {
+  // Em dash + en dash become a spaced ASCII hyphen so the result reads as
+  // a clause separator. We do NOT touch hyphens that were already in the
+  // string (e.g. "high-trust") since those are intra-word.
+  const sanitized = raw.replace(/[\u2014\u2013]/g, ' - ').replace(/ {2,}/g, ' ').trim();
+  if (!sanitized) return '';
+  return sanitized.startsWith('[OpenBox]') ? sanitized : '[OpenBox] ' + sanitized;
+}
 
 function renderVerdictOutput(
   shape: Shape,
@@ -537,7 +761,7 @@ function renderVerdictOutput(
   env: { hook_event_name?: string },
 ): unknown {
   const arm = v?.arm ?? 'allow';
-  const reason = v?.reason ?? '';
+  const reason = brand(v?.reason ?? '');
   switch (shape) {
     case 'permission-decision': {
       const eventName = env.hook_event_name ?? 'PreToolUse';
@@ -554,7 +778,7 @@ function renderVerdictOutput(
           hookSpecificOutput: {
             hookEventName: eventName,
             permissionDecision: 'ask',
-            permissionDecisionReason: reason || 'OpenBox: approval required',
+            permissionDecisionReason: reason || '[OpenBox] approval required',
           },
         };
       }
@@ -563,7 +787,7 @@ function renderVerdictOutput(
         hookSpecificOutput: {
           hookEventName: eventName,
           permissionDecision: 'deny',
-          permissionDecisionReason: reason || 'OpenBox: blocked by policy',
+          permissionDecisionReason: reason || '[OpenBox] blocked by policy',
         },
       };
     }
@@ -571,7 +795,7 @@ function renderVerdictOutput(
       if (arm === 'block' || arm === 'halt') {
         return {
           decision: 'block',
-          reason: reason || 'OpenBox: blocked by policy',
+          reason: reason || '[OpenBox] blocked by policy',
         };
       }
       return {};
@@ -591,30 +815,99 @@ function renderVerdictOutput(
           hookEventName: eventName,
           decision: {
             behavior: 'deny',
-            message: reason || 'OpenBox: blocked by policy',
+            message: reason || '[OpenBox] blocked by policy',
           },
         },
       };
     }
     case 'cursor-permission': {
+      // Per cursor.com/docs/hooks: user_message / agent_message are
+      // snake_case. Permission consumer surface (confirmed via the
+      // Cursor bundle):
+      //   - `permission==="deny"` is honored on 3 events: subagentStart,
+      //     beforeReadFile, beforeTabFileRead. The other validators
+      //     accept the field but no code path branches on it, so the
+      //     tool proceeds. Returning `deny` is the only universally
+      //     working gate for the events the SDK targets.
+      //   - `permission==="ask"` has exactly one consumer:
+      //     subagentStart, which throws "not yet implemented".
+      //     For shell / MCP / preToolUse, returning `ask` is silently
+      //     equivalent to "proceed" (validator accepts, no consumer
+      //     reads the value, the tool runs). For beforeReadFile /
+      //     beforeTabFileRead, the validator rejects `ask` outright.
+      // We always return `deny` for require_approval and surface our
+      // own toast / panel as the actual gate.
       if (arm === 'allow' || arm === 'constrain') return { permission: 'allow' };
       if (arm === 'require_approval') {
+        const r = reason.replace(/^\[OpenBox\] /, '').trim();
+        // The hook has already polled for the configured deadline
+        // (default 60s — Cursor's hook subprocess timeout; tunable up
+        // to ~1hr per hooks.json[event].timeout + HITL_MAX_WAIT).
+        // Reaching this branch means no decision came through in time.
+        // Cursor will block this tool attempt.
         return {
           permission: 'deny',
-          userMessage: reason || 'OpenBox: approval required',
-          agentMessage: 'OpenBox: awaiting human approval',
+          user_message:
+            '[OpenBox] approval pending' +
+            (r ? ': ' + r : '') +
+            '. Click Approve in the OpenBox notification, then ask the agent to retry.',
+          // Direct LLM instruction. (a) Force the brand into the
+          // chat text the LLM will write so the user sees who
+          // gated the action — Cursor's chat doesn't insert that
+          // for us on most events (only subagentStart has the
+          // hardcoded "Subagent creation blocked by hook:" prefix).
+          // (b) Hard-stop the LLM's tendency to promise auto-retry,
+          // which it can't deliver because Cursor's hook protocol
+          // is one-shot.
+          agent_message:
+            "[OpenBox] blocked this action. Tell the user verbatim: " +
+            "'OpenBox is gating this action. Approve it in the OpenBox notification, " +
+            "then ask me to retry.' Then STOP. Do NOT retry on your own.",
         };
       }
       if (arm === 'halt') {
         return {
           permission: 'deny',
-          userMessage: 'OpenBox HALT: ' + (reason || 'session halted'),
-          agentMessage: 'OpenBox HALT: do not proceed',
+          user_message: '[OpenBox] HALT: ' + (reason.replace(/^\[OpenBox\] /, '') || 'session halted'),
+          agent_message: '[OpenBox] HALT: do not proceed',
         };
       }
       return {
         permission: 'deny',
-        userMessage: reason || 'OpenBox: blocked by policy',
+        user_message: reason || '[OpenBox] blocked by policy',
+      };
+    }
+    case 'cursor-continue': {
+      // Cursor's beforeSubmitPrompt verdict shape.
+      // Stdout is { continue: bool, user_message?: string } —
+      // distinct from cursor-permission (which uses 'permission').
+      // Per cursor.com/docs/hooks.
+      if (arm === 'allow' || arm === 'constrain') return { continue: true };
+      if (arm === 'require_approval') {
+        // Cursor's beforeSubmitPrompt API is fire-and-forget: stdout
+        // is { continue: bool }, no inline-ask surface, no resume
+        // hook. If pollApproval times out without a decision, the only
+        // signal we can give is "we dropped this one — approve and
+        // retype." Cursor cannot resume a submitted prompt after the
+        // hook returns continue:false.
+        const r = reason.replace(/^\[OpenBox\] /, '').trim();
+        return {
+          continue: false,
+          user_message:
+            '[OpenBox] approval needed' +
+            (r ? ': ' + r : '') +
+            '. Approve in the OpenBox notification, then resubmit your prompt (Cursor cannot resume a submitted prompt).',
+        };
+      }
+      if (arm === 'halt') {
+        return {
+          continue: false,
+          user_message: '[OpenBox] HALT: ' + (reason.replace(/^\[OpenBox\] /, '') || 'session halted'),
+        };
+      }
+      return {
+        continue: false,
+        user_message: reason || '[OpenBox] blocked by policy',
       };
     }
     case 'cursor-observe':

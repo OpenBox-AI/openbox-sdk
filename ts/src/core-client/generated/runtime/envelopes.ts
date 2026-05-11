@@ -31,6 +31,15 @@ export interface CursorEnvelope {
   response?: string;
   content?: string;
   result_json?: string;
+  workspace_roots?: string[];
+  subagent_model?: string;
+  tool_call_id?: string;
+  subagent_id?: string;
+  subagent_type?: string;
+  task?: string;
+  parent_conversation_id?: string;
+  is_parallel_worker?: boolean;
+  git_branch?: string;
 }
 
 
