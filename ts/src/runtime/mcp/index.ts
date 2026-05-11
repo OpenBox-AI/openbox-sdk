@@ -5,12 +5,10 @@
 // from OPENBOX_ENV / OPENBOX_API_URL / OPENBOX_CORE_URL / OPENBOX_API_KEY.
 //
 // Every backend call goes through the spec-emitted OpenBoxClient
-// (ts/src/client/generated/wrapper-methods.ts) so the URL strings are
-// validated against the OpenAPI manifest at compile time. Hand-rolled
-// `api(<path>)` calls used to live here and that's how
-// `get_trust_score` shipped pointing at a non-existent
-// `/agent/{id}/trust` route — exactly the spec-drift the wrapper
-// methods exist to prevent.
+// (ts/src/client/generated/wrapper-methods.ts) so URL strings are
+// validated against the OpenAPI manifest at compile time. Hand-rolling
+// `api(<path>)` calls here bypasses that guardrail and lets endpoint
+// drift through silently.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";

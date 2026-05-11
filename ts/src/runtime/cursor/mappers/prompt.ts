@@ -3,10 +3,14 @@ import type {
   WorkflowVerdict,
 } from '../../../core-client/index.js';
 import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
-import { buildBeforeSubmitPromptPayload } from '../../../core-client/generated/runtime/cursor.js';
+import {
+  buildBeforeSubmitPromptPayload,
+  BEFORE_SUBMIT_PROMPT_ACTIVITY_TYPE,
+} from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
+import { buildCursorSpan } from '../span-builder.js';
 
 /** beforeSubmitPrompt: fire goal signal + govern the prompt as input. */
 export async function handleBeforeSubmitPrompt(
@@ -23,7 +27,12 @@ export async function handleBeforeSubmitPrompt(
   }).catch(() => undefined);
 
   const payload = buildBeforeSubmitPromptPayload(env);
-  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, { input: [payload] });
+  const span = buildCursorSpan('llm', { prompt });
+  const verdict = await session.activity(
+    EVENT.START,
+    BEFORE_SUBMIT_PROMPT_ACTIVITY_TYPE,
+    { input: [payload], spans: [span] },
+  );
   if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
   return verdict;
 }

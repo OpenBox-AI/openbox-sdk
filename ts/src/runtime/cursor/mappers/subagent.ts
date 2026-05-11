@@ -4,30 +4,29 @@ import type {
 } from '../../../core-client/index.js';
 import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
 import {
-  buildBeforeMCPExecutionPayload,
-  BEFORE_MCPEXECUTION_ACTIVITY_TYPE,
+  buildSubagentStartPayload,
+  SUBAGENT_START_ACTIVITY_TYPE,
 } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
-import { sideEffects } from '../side-effects.js';
-import { buildCursorSpan } from '../span-builder.js';
 
-/** beforeMCPExecution: govern an MCP tool call before Cursor invokes it. */
-export async function handleBeforeMCPExecution(
+/**
+ * subagentStart: govern delegation to a subagent. This is the only
+ * Cursor hook with a hardcoded chat-side wrapper string ("Subagent
+ * creation blocked by hook: <user_message>"), so a deny verdict
+ * produces user-visible attribution to OpenBox automatically.
+ */
+export async function handleSubagentStart(
   env: CursorEnvelope,
   session: CursorSession,
   cfg: CursorConfig,
 ): Promise<WorkflowVerdict | undefined> {
-  const toolName = env.tool_name ?? '';
-  if (!toolName) return undefined;
-
-  const payload = buildBeforeMCPExecutionPayload(env, sideEffects);
-  const span = buildCursorSpan('mcp', { tool_name: toolName, tool_input: env.tool_input });
+  const payload = buildSubagentStartPayload(env);
   const verdict = await session.activity(
     EVENT.START,
-    BEFORE_MCPEXECUTION_ACTIVITY_TYPE,
-    { input: [payload], spans: [span] },
+    SUBAGENT_START_ACTIVITY_TYPE,
+    { input: [payload] },
   );
   if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
   return verdict;

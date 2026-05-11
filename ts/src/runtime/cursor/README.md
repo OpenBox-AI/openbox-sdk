@@ -24,14 +24,19 @@ Differences from claude-code:
 
 - Cursor's `before*` events are gating. Verdict shape is
   `cursor-permission`:
-  `{ permission: 'allow' | 'deny', userMessage?, agentMessage? }`.
+  `{ permission: 'allow' | 'deny', user_message?, agent_message? }`
+  (snake_case per cursor.com/docs/hooks).
+- `beforeSubmitPrompt` uses its own shape:
+  `{ continue: boolean, user_message? }`.
 - Cursor's `after*` events are observe-only. Verdict shape is
   `cursor-observe`: empty `{}` stdout.
 - Session ID is `conversation_id`, not `session_id`.
-- Cursor 3.x's `preToolUse` is the primary tool-routing hook.
-  `beforeShellExecution` and `beforeReadFile` only fire in cmd-k or
-  duplicate coverage of `preToolUse`. The integration treats
-  `preToolUse` as authoritative and lets the others pass through.
+- Cursor fires both `preToolUse` AND the matching specialized
+  `before*` event (e.g. `beforeShellExecution`) for one tool
+  invocation. The integration coordinates them via a filesystem
+  claim in `_shared/dedup.ts`: whichever subprocess wins the claim
+  runs the gate; the loser waits for the winner's published verdict
+  and mirrors it. Both block until consent is real.
 
 Same module structure as `runtime/claude-code/`: `hook-handler.ts`,
 `install.ts`, `mappers/*.ts`, `config.ts`, `session-resolver.ts`,

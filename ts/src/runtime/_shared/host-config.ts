@@ -1,8 +1,8 @@
 // Shared config-file readers for host-app runtime hooks (claude-code,
 // cursor). Both flavors of `loadConfig()` consume the same on-disk
 // formats — a JSON config + a dotenv-style file under
-// <hostHomeDir>/{config.json,.env} — and used to ship two byte-for-byte
-// identical readers. Consolidating here keeps the parsers from drifting.
+// <hostHomeDir>/{config.json,.env} — and share these parsers so they
+// can't drift apart.
 
 import * as fs from 'node:fs';
 

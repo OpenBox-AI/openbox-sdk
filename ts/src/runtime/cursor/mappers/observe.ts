@@ -1,114 +1,136 @@
 import type { CursorSession } from '../../../core-client/index.js';
 import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
-import {
-  buildAfterAgentResponsePayload,
-  buildAfterAgentThoughtPayload,
-  buildAfterShellExecutionPayload,
-  buildAfterFileEditPayload,
-  buildSessionStartPayload,
-  buildStopPayload,
-} from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { clearSession } from '../session-resolver.js';
-import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
-/**
- * Cursor's `after*` events are observe-only; they fire telemetry into
- * OpenBox without gating Cursor's behavior. The `cursor-observe` verdict
- * shape returns `{}`; these handlers just emit the underlying activity.
- */
-
-async function fireSafe(fn: () => Promise<unknown>): Promise<undefined> {
-  try {
-    await fn();
-  } catch {
-    /* observe-only; never block on failures */
-  }
-  return undefined;
-}
+// Cursor's `after*` events are observe-only — they fire AFTER the
+// action has happened, and verdictShape "cursor-observe" renders {}
+// regardless of any rule outcome. So the mappers are no-ops; we
+// don't round-trip to the backend.
+//
+// Why: a backend evaluate on an after-event hits the same rule
+// engine as the before-event, which would match the same span and
+// emit a second require_approval row — a phantom the user can never
+// resolve (no UI surfaces an after-event approval). Telemetry loss
+// is acceptable; phantom approvals are not. If after-event telemetry
+// is wanted later, route through a separate observability endpoint
+// that doesn't share the rule engine.
 
 export function handleAfterAgentResponse(
-  env: CursorEnvelope,
-  session: CursorSession,
+  _env: CursorEnvelope,
+  _session: CursorSession,
   _cfg: CursorConfig,
 ): Promise<undefined> {
-  return fireSafe(() =>
-    session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.COMPLETION, {
-      input: [buildAfterAgentResponsePayload(env)],
-    }),
-  );
+  return Promise.resolve(undefined);
 }
 
 export function handleAfterAgentThought(
-  env: CursorEnvelope,
-  session: CursorSession,
+  _env: CursorEnvelope,
+  _session: CursorSession,
   _cfg: CursorConfig,
 ): Promise<undefined> {
-  return fireSafe(() =>
-    session.activity(EVENT.SIGNAL, ACTIVITY_TYPES.AGENT_DECISION, {
-      input: [buildAfterAgentThoughtPayload(env)],
-    }),
-  );
+  return Promise.resolve(undefined);
 }
 
 export function handleAfterShellExecution(
-  env: CursorEnvelope,
-  session: CursorSession,
+  _env: CursorEnvelope,
+  _session: CursorSession,
   _cfg: CursorConfig,
 ): Promise<undefined> {
-  return fireSafe(() =>
-    session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.AGENT_OBSERVATION, {
-      input: [buildAfterShellExecutionPayload(env)],
-    }),
-  );
+  return Promise.resolve(undefined);
 }
 
 export function handleAfterFileEdit(
-  env: CursorEnvelope,
-  session: CursorSession,
+  _env: CursorEnvelope,
+  _session: CursorSession,
   _cfg: CursorConfig,
 ): Promise<undefined> {
-  return fireSafe(() =>
-    session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.FILE_WRITE, {
-      input: [buildAfterFileEditPayload(env)],
-    }),
-  );
+  return Promise.resolve(undefined);
 }
 
+// Lifecycle: still fire workflowStarted / workflowCompleted so the
+// SDK's session lifecycle is bookended properly (Temporal workflow
+// open/close), but no activity emission alongside.
 export async function handleSessionStart(
-  env: CursorEnvelope,
+  _env: CursorEnvelope,
   session: CursorSession,
   _cfg: CursorConfig,
 ): Promise<undefined> {
   try {
     await session.workflowStarted();
-    await session.activity(EVENT.START, ACTIVITY_TYPES.WORKFLOW_START, {
-      input: [buildSessionStartPayload(env)],
-    });
   } catch {
     /* best-effort */
   }
   return undefined;
 }
 
-/**
- * `stop` fires when Cursor is about to wind down. Close the workflow
- * envelope, then clear the session-store entry. Observe-only; no
- * decision returned (verdictShape: "none").
- */
 export async function handleStop(
   env: CursorEnvelope,
   session: CursorSession,
   cfg: CursorConfig,
 ): Promise<undefined> {
   try {
-    await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.WORKFLOW_COMPLETE, {
-      input: [buildStopPayload(env)],
-    });
     await session.workflowCompleted();
   } catch {
     /* best-effort */
   }
   clearSession(env.conversation_id, cfg);
   return undefined;
+}
+
+// sessionEnd is distinct from `stop` (`stop` is per-turn, sessionEnd
+// is per-conversation). Mirror handleStop so either signal closes
+// the workflow cleanly.
+export async function handleSessionEnd(
+  env: CursorEnvelope,
+  session: CursorSession,
+  cfg: CursorConfig,
+): Promise<undefined> {
+  try {
+    await session.workflowCompleted();
+  } catch {
+    /* best-effort */
+  }
+  clearSession(env.conversation_id, cfg);
+  return undefined;
+}
+
+// KNOWN GAP — afterFileEdit (and its tab/MCP siblings) do not fire
+// `ActivityCompleted` to the backend. preToolUse(Write) emits
+// `ActivityStarted FileEdit`; the matching Completed event for an
+// audit trail / dashboard metrics is missing. Adding it here is
+// tempting but re-introduces the phantom-approval bug (the backend's
+// behavior rule engine re-evaluates on Completed and creates a new
+// require_approval row if the rule matches). The clean fix is a
+// backend-side "Completed is a finalize, never a gate" signal, which
+// is out of scope for the SDK. Documented here so a future change
+// doesn't bring back the round-trip without also handling the rule
+// engine.
+
+// Observe-only siblings for the tab-driven file ops and pre-compact /
+// subagent-stop signals. Same reasoning as the other after* mappers:
+// the action either already happened or carries no governance value,
+// so skip the backend round-trip.
+export function handleAfterTabFileEdit(
+  _env: CursorEnvelope,
+  _session: CursorSession,
+  _cfg: CursorConfig,
+): Promise<undefined> {
+  return Promise.resolve(undefined);
+}
+
+export function handlePreCompact(
+  _env: CursorEnvelope,
+  _session: CursorSession,
+  _cfg: CursorConfig,
+): Promise<undefined> {
+  return Promise.resolve(undefined);
+}
+
+export function handleSubagentStop(
+  _env: CursorEnvelope,
+  _session: CursorSession,
+  _cfg: CursorConfig,
+): Promise<undefined> {
+  return Promise.resolve(undefined);
 }

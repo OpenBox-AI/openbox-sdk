@@ -3,13 +3,31 @@ import type {
   WorkflowVerdict,
 } from '../../../core-client/index.js';
 import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
-import { buildBeforeReadFilePayload } from '../../../core-client/generated/runtime/cursor.js';
+import {
+  buildBeforeReadFilePayload,
+  BEFORE_READ_FILE_ACTIVITY_TYPE,
+  buildBeforeTabFileReadPayload,
+  BEFORE_TAB_FILE_READ_ACTIVITY_TYPE,
+} from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
-import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
-import { isSkipped } from '../../_shared/skip-patterns.js';
+import { EVENT } from '../activity-types.js';
+import { buildCursorSpan } from '../span-builder.js';
+import { isInsideAnyRoot, isSkipped } from '../../_shared/skip-patterns.js';
+import {
+  buildActionKey,
+  claimAction,
+  awaitClaimDecision,
+  publishClaimDecision,
+} from '../../_shared/dedup.js';
 
-/** beforeReadFile: scan file content for PII / banned terms before Cursor reads it. */
+/**
+ * beforeReadFile: govern an agent-initiated file read before Cursor
+ * delivers the content. Coordinates with preToolUse(Read) via the
+ * shared filesystem claim — whichever subprocess wins runs the gate;
+ * the loser waits for and mirrors the winner's decision. See
+ * _shared/dedup.ts for why we wait instead of skipping.
+ */
 export async function handleBeforeReadFile(
   env: CursorEnvelope,
   session: CursorSession,
@@ -18,9 +36,77 @@ export async function handleBeforeReadFile(
   const filePath = env.file_path ?? '';
   if (!filePath) return undefined;
   if (isSkipped(filePath)) return undefined;
+  // In-workspace reads are routine agent activity (source files,
+  // package.json, configs). Skip evaluate so the user's `file_read`
+  // approval rule fires only for reads OUTSIDE the project — the
+  // actual security boundary the user cares about.
+  if (isInsideAnyRoot(filePath, env.workspace_roots)) return undefined;
+
+  const key = buildActionKey({
+    generation_id: env.generation_id,
+    conversation_id: env.conversation_id,
+    kind: 'read',
+    arg: filePath,
+  });
+  const claim = claimAction(key);
+  if (!claim.won) {
+    const decision = await awaitClaimDecision(claim, cfg.hitlMaxWait * 1000);
+    if (!decision) return undefined;
+    if (decision.arm === 'allow' || decision.arm === 'constrain') return undefined;
+    if (decision.arm === 'halt') markHalted(env.conversation_id, cfg);
+    return { arm: decision.arm, reason: decision.reason };
+  }
 
   const payload = buildBeforeReadFilePayload(env);
-  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.FILE_READ, { input: [payload] });
+  const span = buildCursorSpan('file_read', { file_path: filePath });
+  try {
+    const verdict = await session.activity(
+      EVENT.START,
+      BEFORE_READ_FILE_ACTIVITY_TYPE,
+      { input: [payload], spans: [span] },
+    );
+    publishClaimDecision(claim, { arm: verdict.arm, reason: verdict.reason ?? '' });
+    if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
+    return verdict;
+  } catch (err) {
+    publishClaimDecision(claim, { arm: 'block', reason: '[OpenBox] gate failed' });
+    throw err;
+  }
+}
+
+/**
+ * beforeTabFileRead: same gate as beforeReadFile but triggered by the
+ * user opening a tab (not by an agent tool call). Cursor's validator
+ * for this event accepts only allow/deny (no ask), and uses the same
+ * envelope fields (file_path, content). We reuse the file_read span
+ * + activity type so behavior rules written against agent file_reads
+ * also catch tab-driven reads of sensitive paths.
+ *
+ * DESIGN QUESTION — the `isInsideAnyRoot` filter below was copied
+ * verbatim from the agent file_read path. The threat model differs
+ * for user-initiated tab reads: an in-workspace `.env` is a likely
+ * exfil target that the user might be tricked into opening (paste an
+ * AI-suggested path into a deep-link). Suppressing it because the
+ * file is in-workspace may be wrong. Re-evaluate when adding any
+ * sensitive-path behavior rules.
+ */
+export async function handleBeforeTabFileRead(
+  env: CursorEnvelope,
+  session: CursorSession,
+  cfg: CursorConfig,
+): Promise<WorkflowVerdict | undefined> {
+  const filePath = env.file_path ?? '';
+  if (!filePath) return undefined;
+  if (isSkipped(filePath)) return undefined;
+  if (isInsideAnyRoot(filePath, env.workspace_roots)) return undefined;
+
+  const payload = buildBeforeTabFileReadPayload(env);
+  const span = buildCursorSpan('file_read', { file_path: filePath });
+  const verdict = await session.activity(
+    EVENT.START,
+    BEFORE_TAB_FILE_READ_ACTIVITY_TYPE,
+    { input: [payload], spans: [span] },
+  );
   if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
   return verdict;
 }

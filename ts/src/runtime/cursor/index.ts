@@ -20,3 +20,4 @@ export {
 // ─── Platform integration ───────────────────────────────────────────
 export { runCursorHook } from './hook-handler.js';
 export { installCursor, uninstallCursor } from './install.js';
+export { HOOK_LOG_PATH } from './event-log.js';
