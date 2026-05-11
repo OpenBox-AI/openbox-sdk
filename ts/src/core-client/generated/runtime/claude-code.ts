@@ -729,7 +729,12 @@ function renderVerdictOutput(
           agent_message:
             "[OpenBox] blocked this action. Tell the user verbatim: " +
             "'OpenBox is gating this action. Approve it in the OpenBox notification, " +
-            "then ask me to retry.' Then STOP. Do NOT retry on your own.",
+            "then ask me to retry.' Then STOP. " +
+            "Do NOT retry on your own. " +
+            "Do NOT speculate, describe, or invent what the blocked command WOULD have produced — " +
+            "you didn't run it, you don't know. " +
+            "Do NOT show 'expected output' or 'if you run it locally'. " +
+            "Just relay the gate message and wait for approval.",
         };
       }
       if (arm === 'halt') {
