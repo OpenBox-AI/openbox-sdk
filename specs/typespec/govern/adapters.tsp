@@ -317,6 +317,49 @@ interface ClaudeCodeAdapter {
 // ---------------------------------------------------------------------------
 // Cursor hook protocol
 // ---------------------------------------------------------------------------
+//
+// CANONICAL SOURCE: https://cursor.com/docs/hooks (cursor.com docs are
+// the only authoritative spec; there is no per-version pin or OpenAPI
+// document published by Cursor). Last verified 2026-05-09.
+//
+// Verdict-shape contract per Cursor docs:
+//   * `before*` permission hooks (beforeReadFile / beforeShellExecution
+//     / beforeMCPExecution): stdout `{ permission: "allow"|"deny"|"ask",
+//     user_message?: string }`. Field names are **snake_case** —
+//     emitting `userMessage` silently no-ops the user-facing message.
+//   * `beforeSubmitPrompt`: distinct shape — stdout `{ continue: bool,
+//     user_message?: string, agent_message?: string }`. Cursor does NOT
+//     accept `permission` here; emitting it causes the prompt to fall
+//     through ungoverned.
+//   * `after*` observe hooks: stdout `{}`; telemetry-only.
+//
+// Drift guards downstream: tests/contract/cursor-hook-contract.test.ts
+// asserts each event's stdout JSON shape; tests/unit/cursor-activity-type-drift.test.ts
+// asserts spec @activityType ↔ runtime mapper parity.
+//
+// Two distinct vocabularies are at play here:
+//
+//   1. `activity_type` — free-form indexing string the backend persists
+//      and the dashboard renders. PascalCase canonical labels
+//      (`PromptSubmission`, `FileRead`, `ShellExecution`, ...) so the
+//      `@activityLabels` table can render them; this is what the
+//      `@activityType` decorator drives.
+//
+//   2. Span `semantic_type` + classifier gate attributes — the actual
+//      input to behavior-rule matching. Core's classifier reads each
+//      span (HTTP method/url, file.path/operation, db.system, gen_ai.system,
+//      shell.command) and resolves one of 19 trigger values (snake_case;
+//      file_read, file_write, file_delete, http_post, llm_completion,
+//      llm_tool_call, internal, ...; see `skill/references/behaviors.md`).
+//      Behavior rules MATCH against this trigger, NOT against `activity_type`.
+//
+// Without spans on the wire, the classifier has nothing to read, so
+// behavior rules silently never fire and every evaluate falls through to
+// default-allow with `policy_id="00000000-0000-0000-0000-000000000000"`.
+// Each cursor mapper builds a span via runtime/cursor/span-builder.ts
+// and passes it through `session.activity({ input, spans })`.
+// See `skill/references/span-reference.md` for the canonical span shape
+// per semantic type.
 
 /**
  * Common stdin envelope Cursor writes for every hook. Like the Claude
@@ -340,6 +383,30 @@ model CursorEnvelope {
   content?: string;
   /** afterMCPExecution legacy harness wire field; sometimes JSON-string-encoded. */
   result_json?: string;
+  /**
+   * The IDE's open workspace folders, sent on every hook envelope per
+   * cursor.com/docs/hooks. Used by the runtime to decide "is this
+   * file action inside the project?" — reads inside any root skip
+   * governance evaluate (silent allow); reads outside trigger normal
+   * behavior-rule matching (typically `file_read` → require_approval).
+   */
+  workspace_roots?: string[];
+  /** subagentStart: model the parent agent is delegating to. */
+  subagent_model?: string;
+  /** subagentStart: tool-call id that triggered the subagent creation. */
+  tool_call_id?: string;
+  /** subagentStart: unique identifier for the subagent instance. */
+  subagent_id?: string;
+  /** subagentStart: subagent classifier (e.g. "general-purpose", "code-reviewer"). */
+  subagent_type?: string;
+  /** subagentStart: the prompt/task the parent is delegating. */
+  task?: string;
+  /** subagentStart: parent's conversation id for cross-reference. */
+  parent_conversation_id?: string;
+  /** subagentStart: true if running in a parallel worker rather than serial. */
+  is_parallel_worker?: boolean;
+  /** subagentStart: git worktree branch (when Cursor is sandboxing the subagent). */
+  git_branch?: string;
 }
 
 /**
@@ -360,7 +427,9 @@ model CursorEnvelope {
 })
 interface CursorAdapter {
   @hookEvent("beforeSubmitPrompt")
-  @verdictShape("cursor-permission")
+  @verdictShape("cursor-continue")
+  @installTimeout(1800)
+  @activityType("PromptSubmission")
   @payloadShape(#{
     default: #{
       prompt: #{ from: "prompt" },
@@ -372,6 +441,8 @@ interface CursorAdapter {
 
   @hookEvent("beforeReadFile")
   @verdictShape("cursor-permission")
+  @installTimeout(1800)
+  @activityType("FileRead")
   @payloadShape(#{
     default: #{
       file_path: #{ from: "file_path" },
@@ -384,6 +455,8 @@ interface CursorAdapter {
 
   @hookEvent("beforeShellExecution")
   @verdictShape("cursor-permission")
+  @installTimeout(1800)
+  @activityType("ShellExecution")
   @payloadShape(#{
     default: #{
       command: #{ from: "command" },
@@ -396,6 +469,8 @@ interface CursorAdapter {
 
   @hookEvent("beforeMCPExecution")
   @verdictShape("cursor-permission")
+  @installTimeout(1800)
+  @activityType("MCPToolCall")
   @payloadShape(#{
     default: #{
       tool_name: #{ from: "tool_name" },
@@ -416,15 +491,16 @@ interface CursorAdapter {
    */
   @hookEvent("preToolUse")
   @verdictShape("cursor-permission")
+  @installTimeout(1800)
   @activityRouting(#{
-    Read: "file_read",
-    Write: "file_write",
-    Shell: "agent_action",
+    Read: "FileRead",
+    Write: "FileEdit",
+    Shell: "ShellExecution",
   })
   @activityVariant("Shell", #{
     field: "tool_input.command",
     pattern: "\\b(rm|unlink|rmdir|shred)\\b",
-    activityType: "file_write",
+    activityType: "FileDelete",
     eventCategory: "file_delete",
   })
   @payloadShape(#{
@@ -450,6 +526,7 @@ interface CursorAdapter {
 
   @hookEvent("afterAgentResponse")
   @verdictShape("cursor-observe")
+  @activityType("LLMCompleted")
   @payloadShape(#{
     default: #{
       response: #{ from: "response" },
@@ -461,6 +538,7 @@ interface CursorAdapter {
 
   @hookEvent("afterAgentThought")
   @verdictShape("cursor-observe")
+  @activityType("LLMCompleted")
   @payloadShape(#{
     default: #{
       thought: #{ from: "thought" },
@@ -472,6 +550,7 @@ interface CursorAdapter {
 
   @hookEvent("afterShellExecution")
   @verdictShape("cursor-observe")
+  @activityType("ShellExecution")
   @payloadShape(#{
     default: #{
       command: #{ from: "command" },
@@ -483,6 +562,7 @@ interface CursorAdapter {
 
   @hookEvent("afterFileEdit")
   @verdictShape("cursor-observe")
+  @activityType("FileEdit")
   @payloadShape(#{
     default: #{
       file_path: #{ from: "file_path" },
@@ -494,6 +574,7 @@ interface CursorAdapter {
 
   @hookEvent("afterMCPExecution")
   @verdictShape("cursor-observe")
+  @activityType("MCPToolCall")
   @payloadShape(#{
     default: #{
       tool_name: #{ from: "tool_name" },
@@ -533,4 +614,88 @@ interface CursorAdapter {
     },
   })
   stop(input: CursorEnvelope): unknown;
+
+  /**
+   * Cursor fires this when the user opens a file by clicking a tab
+   * (not via an agent tool call). Validator accepts only "allow" /
+   * "deny" (no "ask"). Useful for governing reads of sensitive files
+   * the agent didn't request but happened to be in the workspace.
+   */
+  @hookEvent("beforeTabFileRead")
+  @verdictShape("cursor-permission")
+  @installTimeout(1800)
+  @activityType("FileRead")
+  @payloadShape(#{
+    default: #{
+      file_path: #{ from: "file_path" },
+      content: #{ from: "content" },
+      generation_id: #{ from: "generation_id" },
+      event_category: #{ literal: "file_read" },
+    },
+  })
+  beforeTabFileRead(input: CursorEnvelope): unknown;
+
+  /** Observe-only completion signal for tab-driven file edits. */
+  @hookEvent("afterTabFileEdit")
+  @verdictShape("cursor-observe")
+  @activityType("FileEdit")
+  @payloadShape(#{
+    default: #{
+      file_path: #{ from: "file_path" },
+      generation_id: #{ from: "generation_id" },
+      event_category: #{ literal: "file_write" },
+    },
+  })
+  afterTabFileEdit(input: CursorEnvelope): unknown;
+
+  /** Cursor's session close (distinct from `stop`, which fires on chat-turn boundary). */
+  @hookEvent("sessionEnd")
+  @verdictShape("none")
+  @payloadShape(#{
+    default: #{
+      status: #{ literal: "completed" },
+      event_category: #{ literal: "workflow_complete" },
+    },
+  })
+  sessionEnd(input: CursorEnvelope): unknown;
+
+  /** Pre-context-compact; observe-only. */
+  @hookEvent("preCompact")
+  @verdictShape("cursor-observe")
+  @noPayload
+  preCompact(input: CursorEnvelope): unknown;
+
+  /**
+   * Cursor's multi-agent boundary. As of this writing, this is the
+   * only event where Cursor has a hardcoded chat wrapper string
+   * ("Subagent creation blocked by hook: <user_message>") and the
+   * only event whose validator stubs `permission: "ask"` (currently
+   * throws). Returning `permission: "deny"` blocks subagent
+   * creation; the user_message surfaces in the chat verbatim.
+   */
+  @hookEvent("subagentStart")
+  @verdictShape("cursor-permission")
+  @installTimeout(1800)
+  @activityType("SubagentStart")
+  @payloadShape(#{
+    default: #{
+      subagent_id: #{ from: "subagent_id" },
+      subagent_type: #{ from: "subagent_type" },
+      subagent_model: #{ from: "subagent_model" },
+      task: #{ from: "task" },
+      tool_call_id: #{ from: "tool_call_id" },
+      parent_conversation_id: #{ from: "parent_conversation_id" },
+      is_parallel_worker: #{ from: "is_parallel_worker" },
+      git_branch: #{ from: "git_branch" },
+      generation_id: #{ from: "generation_id" },
+      event_category: #{ literal: "agent_action" },
+    },
+  })
+  subagentStart(input: CursorEnvelope): unknown;
+
+  /** Observe-only subagent close. */
+  @hookEvent("subagentStop")
+  @verdictShape("cursor-observe")
+  @noPayload
+  subagentStop(input: CursorEnvelope): unknown;
 }

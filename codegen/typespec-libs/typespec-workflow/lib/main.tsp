@@ -111,8 +111,27 @@ extern dec verdictShape(
     | "permission-request"
     | "cursor-permission"
     | "cursor-observe"
+    | "cursor-continue"
     | "none",
 );
+
+/**
+ * Per-event activity_type binding for adapters whose hook events are
+ * already action-specific (each Cursor hook is one action; Claude Code's
+ * `PreToolUse` is multi-tool and uses `@activityRouting` instead).
+ *
+ * Specifies the canonical activity_type the runtime mapper should emit
+ * when this hook fires. The emitter materializes a per-event constant
+ * in the generated adapter module so mappers never hand-code the value.
+ *
+ * Mutually exclusive with `@activityRouting` on the same op: an op
+ * either routes by sub-discriminator or has one fixed activity_type.
+ *
+ * @param name Canonical activity_type from CANONICAL_ACTIVITY_TYPES
+ *   in the spec (e.g., `ShellExecution`, `FileRead`, `MCPToolCall`,
+ *   `PromptSubmission`).
+ */
+extern dec activityType(target: Operation, name: valueof string);
 
 /**
  * Per-event tool-name to activity_type table. For adapter operations

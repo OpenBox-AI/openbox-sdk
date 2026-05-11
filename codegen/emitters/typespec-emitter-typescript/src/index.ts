@@ -56,6 +56,7 @@ import {
   getHookEvent,
   getVerdictShape,
   getActivityRouting,
+  getActivityType,
   getPayloadShape,
   isNoPayload,
   getInstallTarget,
@@ -1406,8 +1407,11 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
     for (const [, iface] of adaptersNs.interfaces) {
       for (const [, op] of iface.operations) {
         const ar = getActivityRouting(program, op);
-        if (!ar) continue;
-        for (const v of Object.values(ar.table)) activityTypes.add(v);
+        if (ar) {
+          for (const v of Object.values(ar.table)) activityTypes.add(v);
+        }
+        const at = getActivityType(program, op);
+        if (at) activityTypes.add(at);
       }
     }
   }
@@ -1502,6 +1506,8 @@ interface AdapterMethod {
   shape: VerdictShape;
   /** Optional sub-discriminator → activity_type table from @activityRouting. */
   routing?: Record<string, string>;
+  /** Single fixed activity_type from @activityType (mutually exclusive with routing). */
+  activityType?: string;
   /** Spec-driven payload shape from @payloadShape. */
   payload?: PayloadShapeBinding;
   /** Marked @noPayload; explicit "this op has no scannable payload". */
@@ -1551,6 +1557,14 @@ function emitAdapters(program: Program, project: Project, repoRoot: string): voi
         envelopeName ??= param.type.name;
       }
       const ar = getActivityRouting(program, op);
+      const at = getActivityType(program, op);
+      if (ar && at) {
+        // Mutually exclusive: either route by tool, or have a fixed
+        // type — not both.
+        throw new Error(
+          `${ifaceName}.${opName}: @activityRouting and @activityType are mutually exclusive`,
+        );
+      }
       const ps = getPayloadShape(program, op);
       const np = isNoPayload(program, op);
       const it = getInstallTimeout(program, op);
@@ -1560,6 +1574,7 @@ function emitAdapters(program: Program, project: Project, repoRoot: string): voi
         eventName: ev.eventName,
         shape: vs.shape,
         routing: ar?.table,
+        activityType: at,
         payload: ps,
         noPayload: np,
         installTimeout: it,
@@ -1674,6 +1689,17 @@ function emitAdapterModule(a: AdapterEntry): string {
     })
     .join('\n\n');
 
+  // Activity-type constants per @activityType on each operation. One
+  // canonical activity_type per event; mappers import the constant
+  // instead of hand-coding strings.
+  const activityTypeExports = a.methods
+    .filter((m) => m.activityType)
+    .map((m) => {
+      const constName = eventConstPrefix(m.eventName) + '_ACTIVITY_TYPE';
+      return `export const ${constName}: string = ${JSON.stringify(m.activityType)};`;
+    })
+    .join('\n\n');
+
   // Predicate-based reroute tables per @activityVariant. One table per
   // op; the runtime helper applyActivityVariant() picks the first match.
   const variantExports = a.methods
@@ -1685,8 +1711,9 @@ function emitAdapterModule(a: AdapterEntry): string {
     .join('\n\n');
   const hasAnyVariants = a.methods.some((m) => m.variants && m.variants.length > 0);
 
-  // Payload builders per @payloadShape. Replaces the per-tool switch
-  // statement that used to live in every adapter mapper.
+  // Per-event payload builders emitted from @payloadShape. Each
+  // adapter mapper imports the builder for its event instead of
+  // hand-coding per-tool field extraction.
   const sideEffectsIface = `${a.pascal}SideEffects`;
   const payloadBuilders = a.methods
     .filter((m) => m.payload)
@@ -1703,7 +1730,7 @@ import type { ${a.envelopeName} } from './envelopes.js';
 
 export type { ${a.envelopeName} };
 
-${routingExports ? routingExports + '\n\n' : ''}${installSpec ? installSpec + '\n\n' : ''}${hasAnyVariants ? VARIANT_RUNTIME_HELPERS + '\n\n' + variantExports + '\n\n' : ''}${sideEffectsBlock ? sideEffectsBlock + '\n\n' : ''}${payloadBuilders ? PAYLOAD_RUNTIME_HELPERS + '\n\n' + payloadBuilders + '\n\n' : ''}/**
+${routingExports ? routingExports + '\n\n' : ''}${activityTypeExports ? activityTypeExports + '\n\n' : ''}${installSpec ? installSpec + '\n\n' : ''}${hasAnyVariants ? VARIANT_RUNTIME_HELPERS + '\n\n' + variantExports + '\n\n' : ''}${sideEffectsBlock ? sideEffectsBlock + '\n\n' : ''}${payloadBuilders ? PAYLOAD_RUNTIME_HELPERS + '\n\n' + payloadBuilders + '\n\n' : ''}/**
  * Per-event handlers. Each handler receives the parsed stdin envelope
  * + an attached ${presetSessionTy} (workflowId/runId resolved by
  * \`config.resolveSession\`). Return a WorkflowVerdict; usually by calling
@@ -1729,6 +1756,46 @@ export interface ${configIface} {
   writeStdout?: (data: string) => void;
   /** Override exit (test injection). Default: process.exit. */
   exit?: (code: number) => never;
+  /**
+   * Cap (ms) on how long the SDK polls a require_approval verdict
+   * before giving up. The actual wait is min(this, server-side
+   * approvalExpiresAt). Hook subprocesses have a finite lifetime
+   * imposed by the host IDE — set this slightly under that ceiling so
+   * the poll resolves before the host kills the process. Default: SDK
+   * default (60s).
+   */
+  approvalMaxWaitMs?: number;
+  /**
+   * Fired the moment the backend returns require_approval — before
+   * the SDK starts polling. Receives the approval metadata plus the
+   * stdin envelope (so harness code can correlate on conversation_id /
+   * hook_event_name / prompt). Used by the hook handler to write a
+   * pending-approval marker for the OpenBox extension.
+   */
+  onPendingApproval?: (
+    info: { approvalId: string; governanceEventId?: string; activityId: string; activityType: string; expiresAt?: string; reason?: string },
+    env: ${a.envelopeName},
+  ) => void | Promise<void>;
+  /**
+   * Fired when pollApproval resolves OR times out. Lets the harness
+   * clear pending markers and any inline UI it staged.
+   */
+  onApprovalResolved?: (
+    info: { approvalId: string; activityId: string; activityType: string; arm: string },
+    env: ${a.envelopeName},
+  ) => void | Promise<void>;
+  /**
+   * Optional out-of-band decision channel. When the harness has a
+   * faster path than HTTP polling (e.g. a local IPC socket from a UI
+   * extension that received an Approve / Deny click) it can return a
+   * promise that resolves when that decision is in. The poll loop
+   * races this promise against its normal HTTP cycle and runs a
+   * confirmatory pollApproval as soon as either fires.
+   */
+  awaitExternalDecision?: (
+    info: { approvalId: string; governanceEventId?: string; activityId: string; activityType: string; expiresAt?: string },
+    env: ${a.envelopeName},
+  ) => Promise<'approve' | 'reject' | undefined>;
 }
 
 /**
@@ -1768,6 +1835,17 @@ export function ${factoryName}(config: ${configIface}) {
         preset: presets.${presetCamel},
         workflowId,
         runId,
+        approvalPollIntervalMs: 500,
+        approvalMaxWaitMs: config.approvalMaxWaitMs,
+        onPendingApproval: config.onPendingApproval
+          ? (info) => config.onPendingApproval!(info, env)
+          : undefined,
+        onApprovalResolved: config.onApprovalResolved
+          ? (info) => config.onApprovalResolved!(info, env)
+          : undefined,
+        awaitExternalDecision: config.awaitExternalDecision
+          ? (info) => config.awaitExternalDecision!(info, env)
+          : undefined,
       });
 
       const handlers = config.handlers;
@@ -1992,7 +2070,28 @@ type Shape =
   | 'permission-request'
   | 'cursor-permission'
   | 'cursor-observe'
+  | 'cursor-continue'
   | 'none';
+
+/**
+ * Normalize and brand any user-facing verdict reason so the host UI
+ * (Cursor inline panel, Claude Code stdout) consistently:
+ *   - shows it came from OpenBox (rules from the backend usually omit
+ *     attribution, so a bare "Behavioral violation: ..." is ambiguous);
+ *   - never contains em/en dashes — they are forbidden in user-visible
+ *     OpenBox copy. Replaced with ASCII " - ".
+ *
+ * Idempotent: skips the prefix when the reason already starts with the
+ * \`[OpenBox]\` tag.
+ */
+function brand(raw: string): string {
+  // Em dash + en dash become a spaced ASCII hyphen so the result reads as
+  // a clause separator. We do NOT touch hyphens that were already in the
+  // string (e.g. "high-trust") since those are intra-word.
+  const sanitized = raw.replace(/[\\u2014\\u2013]/g, ' - ').replace(/ {2,}/g, ' ').trim();
+  if (!sanitized) return '';
+  return sanitized.startsWith('[OpenBox]') ? sanitized : '[OpenBox] ' + sanitized;
+}
 
 function renderVerdictOutput(
   shape: Shape,
@@ -2000,7 +2099,7 @@ function renderVerdictOutput(
   env: { hook_event_name?: string },
 ): unknown {
   const arm = v?.arm ?? 'allow';
-  const reason = v?.reason ?? '';
+  const reason = brand(v?.reason ?? '');
   switch (shape) {
     case 'permission-decision': {
       const eventName = env.hook_event_name ?? 'PreToolUse';
@@ -2017,7 +2116,7 @@ function renderVerdictOutput(
           hookSpecificOutput: {
             hookEventName: eventName,
             permissionDecision: 'ask',
-            permissionDecisionReason: reason || 'OpenBox: approval required',
+            permissionDecisionReason: reason || '[OpenBox] approval required',
           },
         };
       }
@@ -2026,7 +2125,7 @@ function renderVerdictOutput(
         hookSpecificOutput: {
           hookEventName: eventName,
           permissionDecision: 'deny',
-          permissionDecisionReason: reason || 'OpenBox: blocked by policy',
+          permissionDecisionReason: reason || '[OpenBox] blocked by policy',
         },
       };
     }
@@ -2034,7 +2133,7 @@ function renderVerdictOutput(
       if (arm === 'block' || arm === 'halt') {
         return {
           decision: 'block',
-          reason: reason || 'OpenBox: blocked by policy',
+          reason: reason || '[OpenBox] blocked by policy',
         };
       }
       return {};
@@ -2054,30 +2153,104 @@ function renderVerdictOutput(
           hookEventName: eventName,
           decision: {
             behavior: 'deny',
-            message: reason || 'OpenBox: blocked by policy',
+            message: reason || '[OpenBox] blocked by policy',
           },
         },
       };
     }
     case 'cursor-permission': {
+      // Per cursor.com/docs/hooks: user_message / agent_message are
+      // snake_case. Permission consumer surface (confirmed via the
+      // Cursor bundle):
+      //   - \`permission==="deny"\` is honored on 3 events: subagentStart,
+      //     beforeReadFile, beforeTabFileRead. The other validators
+      //     accept the field but no code path branches on it, so the
+      //     tool proceeds. Returning \`deny\` is the only universally
+      //     working gate for the events the SDK targets.
+      //   - \`permission==="ask"\` has exactly one consumer:
+      //     subagentStart, which throws "not yet implemented".
+      //     For shell / MCP / preToolUse, returning \`ask\` is silently
+      //     equivalent to "proceed" (validator accepts, no consumer
+      //     reads the value, the tool runs). For beforeReadFile /
+      //     beforeTabFileRead, the validator rejects \`ask\` outright.
+      // We always return \`deny\` for require_approval and surface our
+      // own toast / panel as the actual gate.
       if (arm === 'allow' || arm === 'constrain') return { permission: 'allow' };
       if (arm === 'require_approval') {
+        const r = reason.replace(/^\\[OpenBox\\] /, '').trim();
+        // The hook has already polled for the configured deadline
+        // (default 60s — Cursor's hook subprocess timeout; tunable up
+        // to ~1hr per hooks.json[event].timeout + HITL_MAX_WAIT).
+        // Reaching this branch means no decision came through in time.
+        // Cursor will block this tool attempt.
         return {
           permission: 'deny',
-          userMessage: reason || 'OpenBox: approval required',
-          agentMessage: 'OpenBox: awaiting human approval',
+          user_message:
+            '[OpenBox] approval pending' +
+            (r ? ': ' + r : '') +
+            '. Click Approve in the OpenBox notification, then ask the agent to retry.',
+          // Direct LLM instruction. (a) Force the brand into the
+          // chat text the LLM will write so the user sees who
+          // gated the action — Cursor's chat doesn't insert that
+          // for us on most events (only subagentStart has the
+          // hardcoded "Subagent creation blocked by hook:" prefix).
+          // (b) Hard-stop the LLM's tendency to promise auto-retry,
+          // which it can't deliver because Cursor's hook protocol
+          // is one-shot.
+          agent_message:
+            "[OpenBox] blocked this action. Tell the user verbatim: " +
+            "'OpenBox is gating this action. Approve it in the OpenBox notification, " +
+            "then ask me to retry.' Then STOP. " +
+            "Do NOT retry on your own. " +
+            "Do NOT speculate, describe, or invent what the blocked command WOULD have produced — " +
+            "you didn't run it, you don't know. " +
+            "Do NOT show 'expected output' or 'if you run it locally'. " +
+            "Just relay the gate message and wait for approval.",
         };
       }
       if (arm === 'halt') {
         return {
           permission: 'deny',
-          userMessage: 'OpenBox HALT: ' + (reason || 'session halted'),
-          agentMessage: 'OpenBox HALT: do not proceed',
+          user_message: '[OpenBox] HALT: ' + (reason.replace(/^\\[OpenBox\\] /, '') || 'session halted'),
+          agent_message: '[OpenBox] HALT: do not proceed',
         };
       }
       return {
         permission: 'deny',
-        userMessage: reason || 'OpenBox: blocked by policy',
+        user_message: reason || '[OpenBox] blocked by policy',
+      };
+    }
+    case 'cursor-continue': {
+      // Cursor's beforeSubmitPrompt verdict shape.
+      // Stdout is { continue: bool, user_message?: string } —
+      // distinct from cursor-permission (which uses 'permission').
+      // Per cursor.com/docs/hooks.
+      if (arm === 'allow' || arm === 'constrain') return { continue: true };
+      if (arm === 'require_approval') {
+        // Cursor's beforeSubmitPrompt API is fire-and-forget: stdout
+        // is { continue: bool }, no inline-ask surface, no resume
+        // hook. If pollApproval times out without a decision, the only
+        // signal we can give is "we dropped this one — approve and
+        // retype." Cursor cannot resume a submitted prompt after the
+        // hook returns continue:false.
+        const r = reason.replace(/^\\[OpenBox\\] /, '').trim();
+        return {
+          continue: false,
+          user_message:
+            '[OpenBox] approval needed' +
+            (r ? ': ' + r : '') +
+            '. Approve in the OpenBox notification, then resubmit your prompt (Cursor cannot resume a submitted prompt).',
+        };
+      }
+      if (arm === 'halt') {
+        return {
+          continue: false,
+          user_message: '[OpenBox] HALT: ' + (reason.replace(/^\\[OpenBox\\] /, '') || 'session halted'),
+        };
+      }
+      return {
+        continue: false,
+        user_message: reason || '[OpenBox] blocked by policy',
       };
     }
     case 'cursor-observe':
@@ -2171,6 +2344,56 @@ export interface GovernedSessionConfig {
    * event. Don't set this manually; use \`govern.attach()\`.
    */
   attached?: boolean;
+  /**
+   * Fired the moment the backend returns a \`require_approval\` verdict
+   * with an \`approval_id\` — BEFORE pollApproval starts the long wait.
+   * Lets harnesses (cursor-hooks, claude-hooks) surface inline approval
+   * UI in their host IDE without first burning the full poll deadline.
+   * Errors thrown here are swallowed; this hook is observability, not
+   * a gate.
+   */
+  onPendingApproval?: (info: {
+    approvalId: string;
+    /** Backend's governance_event_id; cross-reference to the Approval row's event_id. */
+    governanceEventId?: string;
+    activityId: string;
+    activityType: string;
+    expiresAt?: string;
+    reason?: string;
+  }) => void | Promise<void>;
+  /**
+   * Fired when pollApproval resolves (decision came back) OR times out
+   * (no decision; arm stays \`require_approval\`). Lets harnesses clear
+   * any UI / pending markers they staged in onPendingApproval.
+   */
+  onApprovalResolved?: (info: {
+    approvalId: string;
+    activityId: string;
+    activityType: string;
+    /** 'allow' | 'block' | 'halt' | 'require_approval' (timeout). */
+    arm: string;
+  }) => void | Promise<void>;
+  /**
+   * Optional out-of-band decision channel for harnesses that have a
+   * faster path than HTTP polling (e.g. a local IPC socket from a UI
+   * extension). Called with the same metadata as onPendingApproval and
+   * returns a promise that resolves to a final arm when an external
+   * source has the decision. The poll loop races this against its
+   * normal HTTP cycle and takes whichever finishes first.
+   *
+   * If the promise rejects or resolves to undefined, the poll loop
+   * continues uninterrupted. If it resolves to an arm, the SDK does
+   * one confirmatory pollApproval() to read the authoritative verdict
+   * from the backend (the external signal might be stale or have
+   * arrived in parallel with the backend mutation), then returns.
+   */
+  awaitExternalDecision?: (info: {
+    approvalId: string;
+    governanceEventId?: string;
+    activityId: string;
+    activityType: string;
+    expiresAt?: string;
+  }) => Promise<'approve' | 'reject' | undefined>;
 }
 
 /**
@@ -2209,6 +2432,9 @@ export class BaseGovernedSession {
   private readonly autoOpenSuppressed: boolean;
   private readonly inFlight = new Set<string>();
   private readonly exitHandlerCleanup: Array<() => void> = [];
+  protected readonly onPendingApproval?: GovernedSessionConfig['onPendingApproval'];
+  protected readonly onApprovalResolved?: GovernedSessionConfig['onApprovalResolved'];
+  protected readonly awaitExternalDecision?: GovernedSessionConfig['awaitExternalDecision'];
 
   constructor(config: GovernedSessionConfig) {
     this.core = config.core;
@@ -2222,6 +2448,9 @@ export class BaseGovernedSession {
     this.approvalPollJitter = config.approvalPollJitter ?? 0.25;
     this.approvalMaxWaitMs = config.approvalMaxWaitMs ?? 60_000;
     this.autoOpenSuppressed = config.attached === true;
+    this.onPendingApproval = config.onPendingApproval;
+    this.onApprovalResolved = config.onApprovalResolved;
+    this.awaitExternalDecision = config.awaitExternalDecision;
     if (config.registerExitHandlers !== false) {
       this.installExitHandlers();
     }
@@ -2344,6 +2573,7 @@ export class BaseGovernedSession {
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
+          spans: payload.spans as unknown as GovernanceEventPayload['spans'],
         });
       }
 
@@ -2353,15 +2583,43 @@ export class BaseGovernedSession {
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
+          spans: payload.spans as unknown as GovernanceEventPayload['spans'],
         });
         if (startedVerdict.arm !== 'allow') {
           // Pre-stage block; never emit ActivityCompleted, but if the
           // gate said require_approval, poll for the approval decision.
-          if (
-            startedVerdict.arm === 'require_approval' &&
-            startedVerdict.approvalId
-          ) {
-            return this.pollApproval(activityId, startedVerdict);
+          // pollApproval keys on workflow_id + run_id + activity_id —
+          // approval_id is informational. Some backends omit it from
+          // /governance/evaluate responses (only return governance_event_id);
+          // gating on approvalId there silently skips polling and the
+          // user sees an instant "approval pending" message that never
+          // resolves even when the dashboard click lands.
+          if (startedVerdict.arm === 'require_approval') {
+            const approvalId = startedVerdict.approvalId ?? activityId;
+            if (this.onPendingApproval) {
+              try {
+                await this.onPendingApproval({
+                  approvalId,
+                  governanceEventId: startedVerdict.governanceEventId,
+                  activityId,
+                  activityType,
+                  expiresAt: startedVerdict.approvalExpiresAt,
+                  reason: startedVerdict.reason,
+                });
+              } catch { /* observability hook; never blocks */ }
+            }
+            const polled = await this.pollApproval(activityId, activityType, startedVerdict);
+            if (this.onApprovalResolved) {
+              try {
+                await this.onApprovalResolved({
+                  approvalId,
+                  activityId,
+                  activityType,
+                  arm: polled.arm,
+                });
+              } catch { /* observability hook */ }
+            }
+            return polled;
           }
           return startedVerdict;
         }
@@ -2388,12 +2646,31 @@ export class BaseGovernedSession {
       activity_type: activityType,
       activity_input: payload.input,
       activity_output: payload.output,
+      spans: payload.spans as unknown as GovernanceEventPayload['spans'],
     });
-    if (
-      completedVerdict.arm === 'require_approval' &&
-      completedVerdict.approvalId
-    ) {
-      return this.pollApproval(activityId, completedVerdict);
+    if (completedVerdict.arm === 'require_approval') {
+      // See comment in runActivity: poll on activity_id even if the
+      // backend omitted approval_id in the evaluate response.
+      const approvalId = completedVerdict.approvalId ?? activityId;
+      if (this.onPendingApproval) {
+        try {
+          await this.onPendingApproval({
+            approvalId,
+            governanceEventId: completedVerdict.governanceEventId,
+            activityId,
+            activityType,
+            expiresAt: completedVerdict.approvalExpiresAt,
+            reason: completedVerdict.reason,
+          });
+        } catch { /* observability */ }
+      }
+      const polled = await this.pollApproval(activityId, activityType, completedVerdict);
+      if (this.onApprovalResolved) {
+        try {
+          await this.onApprovalResolved({ approvalId, activityId, activityType, arm: polled.arm });
+        } catch { /* observability */ }
+      }
+      return polled;
     }
     return completedVerdict;
   }
@@ -2401,7 +2678,7 @@ export class BaseGovernedSession {
   private async emit(
     event: Pick<
       GovernanceEventPayload,
-      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error'
+      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'spans'
     >,
   ): Promise<${verdictModelName}> {
     const payload = {
@@ -2412,6 +2689,7 @@ export class BaseGovernedSession {
       workflow_type: this.workflowType,
       task_queue: this.taskQueue,
       timestamp: new Date().toISOString(),
+      span_count: event.spans?.length,
     } as unknown as GovernanceEventPayload;
     const response = await this.core.evaluate(payload);
     return mapVerdict(response);
@@ -2419,6 +2697,7 @@ export class BaseGovernedSession {
 
   private async pollApproval(
     activityId: string,
+    activityType: string,
     initial: ${verdictModelName},
   ): Promise<${verdictModelName}> {
     // ── Polling design notes ──
@@ -2428,26 +2707,51 @@ export class BaseGovernedSession {
     // matches the bimodal latency of approvals (decided in seconds OR
     // minutes) without burning a long sleep when the answer's right there.
     // ±jitter randomizes per-attempt delay so a fleet of agents waiting
-    // on the same approval window doesn't thunder-herd core in lockstep.
+    // on the same approval window doesn't thunder-herd the API in
+    // lockstep.
     //
-    // Future: the backend WebSocket gateway already broadcasts
-    // APPROVAL_DECIDED to org rooms, but its auth path requires a
-    // Keycloak JWT while the SDK runtime carries an \`obx_live_*\` API
-    // key; wire-incompatible. Replacing this poll loop with a WS
-    // subscription requires API-key auth to land on the \`/ws\`
-    // namespace upstream first.
+    // If the harness provides \`awaitExternalDecision\`, we race that
+    // promise against the poll loop. The external signal (e.g. a local
+    // IPC socket push) typically arrives orders of magnitude faster
+    // than the next HTTP tick; when it does, we exit the sleep early
+    // and run one confirmatory pollApproval() to fetch the backend's
+    // authoritative verdict for this activity_id.
+    const approvalId = initial.approvalId ?? activityId;
     const cfgDeadline = Date.now() + this.approvalMaxWaitMs;
     const srvDeadline = initial.approvalExpiresAt
       ? new Date(initial.approvalExpiresAt).getTime()
       : Number.POSITIVE_INFINITY;
     const deadline = Math.min(cfgDeadline, srvDeadline);
 
+    let externalSignaled = false;
+    const externalDecision = this.awaitExternalDecision
+      ? this.awaitExternalDecision({
+          approvalId,
+          governanceEventId: initial.governanceEventId,
+          activityId,
+          activityType,
+          expiresAt: initial.approvalExpiresAt,
+        }).then(
+          (d) => {
+            externalSignaled = d === 'approve' || d === 'reject';
+            return d;
+          },
+          () => undefined,
+        )
+      : undefined;
+
     let nextInterval = this.approvalPollIntervalMs;
     while (Date.now() < deadline) {
       const remaining = deadline - Date.now();
       const jittered = applyJitter(nextInterval, this.approvalPollJitter);
-      // Never sleep past the deadline.
-      await sleep(Math.max(0, Math.min(jittered, remaining)));
+      // Never sleep past the deadline. Wake early if an external
+      // decision arrives.
+      const sleepMs = Math.max(0, Math.min(jittered, remaining));
+      if (externalDecision) {
+        await Promise.race([sleep(sleepMs), externalDecision]);
+      } else {
+        await sleep(sleepMs);
+      }
       const status = await this.core.pollApproval({
         workflow_id: this.workflowId,
         run_id: this.runId,
@@ -2457,16 +2761,22 @@ export class BaseGovernedSession {
         return {
           arm: normalizeArm(status.action),
           approvalId: initial.approvalId,
+          governanceEventId: initial.governanceEventId,
           approvalExpiresAt: status.approval_expiration_time,
           reason: status.reason,
           riskScore: initial.riskScore,
           trustTier: initial.trustTier,
         };
       }
-      nextInterval = Math.min(
-        nextInterval * this.approvalPollBackoffFactor,
-        this.approvalPollMaxIntervalMs,
-      );
+      // External signal said "decided" but backend hasn't caught up
+      // yet (mutation in flight). Tighten the cadence to catch it
+      // promptly instead of waiting for the next backoff step.
+      nextInterval = externalSignaled
+        ? this.approvalPollIntervalMs
+        : Math.min(
+            nextInterval * this.approvalPollBackoffFactor,
+            this.approvalPollMaxIntervalMs,
+          );
     }
     return initial;
   }
@@ -2698,6 +3008,13 @@ function emitVerdictHelpers(verdictModelName: string): string {
   return {
     arm: normalizeArm(response.verdict ?? response.action ?? 'allow'),
     approvalId: response.approval_id,
+    // Cross-reference key for matching this verdict against the
+    // backend's persisted Approval row (whose \`event_id\` field equals
+    // the response's \`governance_event_id\`). The backend currently
+    // omits \`approval_id\` from /governance/evaluate responses, so this
+    // is the one stable identifier consumers can use to dedup against
+    // the dashboard's pending-approvals list.
+    governanceEventId: (response as { governance_event_id?: string }).governance_event_id,
     approvalExpiresAt: response.approval_expiration_time,
     reason: response.reason,
     riskScore: response.risk_score ?? 0,

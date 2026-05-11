@@ -127,12 +127,18 @@ export function installAdapter(spec: InstallSpec): void {
       hooksBlock[evt.name].push({ hooks: [inner] });
     }
   } else {
-    // cursor-keyed: events[evt] = [{ command, matcher? }].
+    // cursor-keyed: events[evt] = [{ command, timeout?, matcher? }].
     // Always the array form so hooks.json has one shape regardless
     // of whether matchers are configured. Cursor honors both shapes
     // but the array is the only one that supports matchers, so
     // standardizing on it keeps the file uniform.
-    type CursorEntry = { command: string; matcher?: string };
+    //
+    // `timeout` is in SECONDS per Cursor's hook protocol (see the
+    // bundle's validator warning at >3600s). Without an explicit
+    // timeout Cursor falls back to its 60s default, which is far too
+    // short for human-in-the-loop approval. Gating events in the
+    // spec declare `@installTimeout(...)`; that lands here.
+    type CursorEntry = { command: string; timeout?: number; matcher?: string };
     let hooksBlock = settings[spec.key] as
       | Record<string, CursorEntry[]>
       | undefined;
@@ -142,6 +148,7 @@ export function installAdapter(spec: InstallSpec): void {
     }
     for (const evt of spec.events) {
       const entry: CursorEntry = { command: spec.command };
+      if (evt.timeout) entry.timeout = evt.timeout;
       if (evt.matcher) entry.matcher = evt.matcher;
       hooksBlock[evt.name] = [entry];
     }

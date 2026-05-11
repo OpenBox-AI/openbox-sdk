@@ -214,8 +214,9 @@ export type VerdictShape =
   | 'permission-decision' // PreToolUse: { hookSpecificOutput: { permissionDecision } }
   | 'decision-block' // PostToolUse / UserPromptSubmit: { decision?: 'block', reason? }
   | 'permission-request' // PermissionRequest: { hookSpecificOutput: { decision: { behavior } } }
-  | 'cursor-permission' // cursor-hooks beforeXxx: { permission: 'allow'|'deny'|'ask', userMessage? }
+  | 'cursor-permission' // cursor-hooks beforeXxx: { permission: 'allow'|'deny'|'ask', user_message? }
   | 'cursor-observe' // cursor-hooks afterXxx: telemetry-only, no verdict gate
+  | 'cursor-continue' // cursor-hooks beforeSubmitPrompt: { continue: bool, user_message? }
   | 'none'; // adapter writes nothing (fire-and-forget signal)
 
 const VERDICT_SHAPES: ReadonlySet<VerdictShape> = new Set([
@@ -224,6 +225,7 @@ const VERDICT_SHAPES: ReadonlySet<VerdictShape> = new Set([
   'permission-request',
   'cursor-permission',
   'cursor-observe',
+  'cursor-continue',
   'none',
 ]);
 
@@ -306,6 +308,33 @@ export function getActivityRouting(
   target: Operation,
 ): ActivityRoutingBinding | undefined {
   return program.stateMap(stateKeys.activityRouting).get(target);
+}
+
+// ─── Activity type (single, fixed) ───────────────────────────
+// For adapter ops whose hook events are action-specific (each Cursor
+// hook = one action). Mutually exclusive with @activityRouting.
+
+export function $activityType(
+  context: DecoratorContext,
+  target: Operation,
+  name: string,
+): void {
+  if (typeof name !== 'string' || name.length === 0) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-activity-routing',
+      format: { reason: '@activityType requires a non-empty string' },
+      target,
+    });
+    return;
+  }
+  context.program.stateMap(stateKeys.activityType).set(target, name);
+}
+
+export function getActivityType(
+  program: Program,
+  target: Operation,
+): string | undefined {
+  return program.stateMap(stateKeys.activityType).get(target);
 }
 
 // ─── Payload shape ────────────────────────────────────────────

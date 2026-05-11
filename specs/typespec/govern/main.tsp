@@ -67,6 +67,7 @@ using OpenBox.Workflow;
   UserPromptSubmit: "User Prompt Submit",
   PermissionRequest: "Permission Request",
   PreCompact: "Pre-Compact",
+  SubagentStart: "Subagent Start",
   SubagentStop: "Subagent Stop",
   Notification: "Notification",
   Stop: "Stop",
@@ -327,6 +328,15 @@ model WorkflowVerdict {
   /** Set on `require_approval`; opaque ID for the polling endpoint. */
   approvalId?: string;
 
+  /**
+   * Backend's `governance_event_id` echoed verbatim. Cross-reference
+   * key matching the persisted Approval row's `event_id` field, used
+   * by hook adapters to dedup against the dashboard's pending list
+   * when the evaluate response omits `approvalId` (current backend
+   * behavior).
+   */
+  governanceEventId?: string;
+
   /** Wall-clock cutoff for `require_approval`; SDK stops polling after this. */
   approvalExpiresAt?: utcDateTime;
 
@@ -356,6 +366,18 @@ model GovernedPayload {
 
   /** Activity output (response side); only set on completion events. */
   output?: unknown;
+
+  /**
+   * Spans describing the underlying operation. REQUIRED for behavior-rule
+   * matching: core's classifier reads each span's `semantic_type` plus the
+   * gate attributes (`http.method`, `http.url`, `file.path`, `db.system`,
+   * `gen_ai.system`, `shell.command`) and resolves the trigger the rule
+   * was created against. Without spans, behavior rules silently never
+   * fire — the verdict falls through to default-allow with
+   * `policy_id="00000000-0000-0000-0000-000000000000"`. See
+   * `skill/references/span-reference.md` for span shapes by semantic type.
+   */
+  spans?: unknown[];
 }
 
 // ---------------------------------------------------------------------------

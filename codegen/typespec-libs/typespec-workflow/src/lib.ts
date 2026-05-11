@@ -48,7 +48,7 @@ export const $lib = createTypeSpecLibrary({
     'invalid-verdict-shape': {
       severity: 'error',
       messages: {
-        default: paramMessage`Invalid @verdictShape '${'shape'}'; must be one of permission-decision, decision-block, permission-request, cursor-permission, cursor-observe, none`,
+        default: paramMessage`Invalid @verdictShape '${'shape'}'; must be one of permission-decision, decision-block, permission-request, cursor-permission, cursor-observe, cursor-continue, none`,
       },
     },
     'invalid-activity-routing': {
@@ -89,6 +89,7 @@ export const $lib = createTypeSpecLibrary({
     installTarget: { description: 'install file/key/style/command attached to an adapter interface' },
     installTimeout: { description: 'per-event install timeout (seconds) attached to an adapter operation' },
     activityVariants: { description: 'predicate-based activity-type reroute table attached to an adapter operation' },
+    activityType: { description: 'fixed activity_type binding attached to an adapter operation (single value, mutually exclusive with activityRouting)' },
     activityLabels: { description: 'activity_type → human-readable display label table attached to a namespace' },
   },
 });
