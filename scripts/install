@@ -342,9 +342,18 @@ run "build"                     -- sh -c "$pm_build"
 cli_entry="$SRC_DIR/dist/cli/index.js"
 [ -x "$cli_entry" ] || fatal "build did not produce $cli_entry"
 
+# Install a wrapper script (not a symlink) so the CLI keeps working
+# even if the source tree later moves or the dist path changes.
+# Wrapper resolves dist via $OPENBOX_INSTALL_DIR > ~/.openbox/install-path
+# > ~/.openbox/src at every invocation; see scripts/openbox-cli-wrapper.sh
+# for the lookup contract.
 target="$BIN_DIR/openbox"
-ln -sf "$cli_entry" "$target"
-note "linked  ${C_BOLD}${target}${C_RESET}"
+rm -f "$target"
+install -m 0755 "$SRC_DIR/scripts/openbox-cli-wrapper.sh" "$target"
+# Default the install-path file to this checkout so the wrapper
+# resolves correctly even before the user customizes anything.
+printf '%s\n' "$SRC_DIR" > "$INSTALL_ROOT/install-path"
+note "installed wrapper  ${C_BOLD}${target}${C_RESET}"
 
 # ---------------------------------------------------------------------------
 # Footer
