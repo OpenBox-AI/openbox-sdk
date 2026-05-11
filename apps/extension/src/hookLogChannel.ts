@@ -10,10 +10,8 @@
 
 import * as vscode from 'vscode';
 import * as fs from 'node:fs';
-import * as path from 'node:path';
-import * as os from 'node:os';
+import { HOOK_LOG_PATH as LOG_PATH } from 'openbox-sdk/runtime/cursor';
 
-const LOG_PATH = path.join(os.homedir(), '.openbox', 'log', 'cursor-hook.jsonl');
 const POLL_MS = 1000;
 
 interface HookLine {

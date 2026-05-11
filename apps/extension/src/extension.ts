@@ -35,7 +35,7 @@ import {
   writeApiKey,
 } from "./api";
 import { ApprovalDetailPanel } from "./detailPanel";
-import { ViewSession, inlineDecide } from "./viewSession";
+import { ViewSession } from "./viewSession";
 import type { Approval, Member, Team } from "./types";
 import { apiKeysUrl } from "./dashboardUrl";
 import { showDebugInfoPanel, type DebugSnapshot } from "./debugInfoPanel";
@@ -49,6 +49,10 @@ import { PreWriteGate, extractTargetUri } from "./preWriteGate";
 import { PreFileOpGate } from "./preFileOpGate";
 import { GovernanceClient } from "./governanceClient";
 import { HookLogTail } from "./hookLogChannel";
+import { ApprovalStore } from "./approvalStore";
+import { ApprovalSocketServer } from "./approvalSocketServer";
+import { startApprovalToastView } from "./approvalToastView";
+import { startApprovalPollSource } from "./approvalPollSource";
 import { buildIdleStatusBar, envTagFor as envTagForPure } from "./statusBarText";
 import { pickApproval as pickApprovalPure } from "./pickApproval";
 import { writeGlobalEnv } from "./configStore";
@@ -119,10 +123,9 @@ function readMockAuth(): boolean {
 }
 
 export async function activate(context: vscode.ExtensionContext) {
-  // openbox.devMode used to gate dev-only commands on
-  // ExtensionMode.Development; openbox.debug now drives the same
-  // gate so end users can flip on the env selector + debug panel
-  // without rebuilding.
+  // openbox.debug drives the dev-only command gate (env selector,
+  // debug panel) so users can flip these on at runtime without
+  // having to install a debug build.
   function paintDebugContext() {
     vscode.commands.executeCommand("setContext", "openbox.debug", DEBUG_BUILD);
     vscode.commands.executeCommand("setContext", "openbox.mockAuth", readMockAuth());
@@ -150,6 +153,36 @@ export async function activate(context: vscode.ExtensionContext) {
   statusBar.command = "openbox.approvals.focus";
   statusBar.show();
   context.subscriptions.push(statusBar);
+
+  // Single source of truth for pending approvals. Two ingest sources
+  // (socket from hook subprocesses + dashboard polling for everything
+  // else) both upsert into one Map. Three view sinks (toast, panel,
+  // status bar pulse) subscribe and re-render off store snapshots.
+  const approvalStore = new ApprovalStore();
+  context.subscriptions.push(approvalStore);
+
+  // Socket server: hook subprocesses connect on require_approval and
+  // push pending notifications. Decisions made via the toast push
+  // back over the same connection so the hook's pollApproval race
+  // resolves immediately (sub-millisecond round-trip).
+  const approvalSocket = new ApprovalSocketServer(approvalStore);
+  approvalSocket.start();
+  context.subscriptions.push(approvalSocket);
+
+  // Toast view subscribes to the store and renders one notification
+  // per pending entry. Single notification path; dedup happens at
+  // the store layer keyed by governance_event_id.
+  context.subscriptions.push(
+    startApprovalToastView({
+      store: approvalStore,
+      getClient: () => active?.client,
+      statusBar,
+    }),
+  );
+
+  // Periodic reaper for expired entries. Fires every 5s; cheap.
+  const reapTimer = setInterval(() => approvalStore.reapExpired(), 5_000);
+  context.subscriptions.push({ dispose: () => clearInterval(reapTimer) });
 
   // Onboard view - single gated welcome page when no API key is set.
   // Pending / History / Profile are all hidden in that state so the
@@ -311,6 +344,75 @@ export async function activate(context: vscode.ExtensionContext) {
     return false;
   }
 
+  /** Mirror dashboard pending rows into ApprovalStore. The store may
+   *  already have the entry (from a hook subprocess's socket push);
+   *  upsert merges fields without clobbering the resolver. Out-of-band
+   *  resolutions (dashboard reviewer click) land here on the next
+   *  poll tick — store.resolve fires resolver if any, dismisses toast,
+   *  refreshes panel. */
+  function syncPollRows(rows: Approval[]) {
+    const seen = new Set<string>();
+    for (const r of rows) {
+      if (!r.id) continue;
+      seen.add(r.id);
+      const status = (r.status ?? "").toLowerCase();
+      if (status === "pending" || (!r.decided_at && !status)) {
+        approvalStore.upsert({
+          governance_event_id: r.id,
+          agent_id: r.agent_id ?? "",
+          hook_event_name:
+            approvalStore.get(r.id)?.hook_event_name ??
+            (r.action_type || r.activity_type || "approval"),
+          source: approvalStore.get(r.id)?.source ?? "poll",
+          summary:
+            approvalStore.get(r.id)?.summary ??
+            pollRowSummary(r),
+          reason: r.reason ?? "",
+          expires_at:
+            r.approval_expired_at ??
+            new Date(Date.now() + 30 * 60_000).toISOString(),
+          created_at:
+            approvalStore.get(r.id)?.created_at ?? Date.now(),
+          status: "pending",
+          resolver: approvalStore.get(r.id)?.resolver,
+        });
+      } else if (approvalStore.get(r.id)?.status === "pending") {
+        approvalStore.resolve(
+          r.id,
+          status === "approved"
+            ? "approved"
+            : status === "rejected"
+              ? "rejected"
+              : "expired",
+        );
+      }
+    }
+    // Anything pending in the store but not in the latest poll is
+    // missing from the dashboard's view — backend resolved/expired it.
+    // Mark expired so the toast clears. Don't drop socket-source
+    // entries here; the live hook subprocess may still own them and
+    // the dashboard polling lags by a tick.
+    for (const e of approvalStore.pending()) {
+      if (e.source === "poll" && !seen.has(e.governance_event_id)) {
+        approvalStore.resolve(e.governance_event_id, "expired");
+      }
+    }
+  }
+
+  function pollRowSummary(r: Approval): string {
+    const inputAny = r.input as unknown;
+    const arr = Array.isArray(inputAny) ? inputAny : [inputAny];
+    const first = (arr[0] ?? {}) as Record<string, unknown>;
+    return (
+      (first?.command as string) ??
+      (first?.file_path as string) ??
+      (first?.tool_name as string) ??
+      (first?.prompt as string) ??
+      r.activity_type ??
+      ""
+    );
+  }
+
   /** Merge the halt-verdict tracking with the fresh approval set. */
   function syncHaltedApprovals(approvals: Approval[]) {
     const seen = new Set<string>();
@@ -429,8 +531,17 @@ export async function activate(context: vscode.ExtensionContext) {
       const tag = mockAuth ? "mock" : env;
       statusBar.tooltip = `Signed in as ${email || preferredUsername || userSub} (${tag})`;
     } catch (err: any) {
-      statusBar.text = `$(openbox-logo) ${envTagFor("Error")}`;
-      statusBar.tooltip = err.message;
+      // Distinguish "can't reach the API" from "API rejected us"
+      // (bad key / real error). The two signals belong on the bar
+      // separately so the user knows whether to check their network
+      // vs. their credentials.
+      const msg = err?.message ?? String(err);
+      const isNetwork = /fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|getaddrinfo/i.test(msg);
+      const label = isNetwork ? "Disconnected" : "Error";
+      statusBar.text = `$(openbox-logo) ${envTagFor(label)}`;
+      statusBar.tooltip = isNetwork
+        ? `Cannot reach the OpenBox API. Check your network connection and the OPENBOX_API_URL setting; the extension will reconnect automatically.`
+        : msg;
       return;
     }
 
@@ -550,9 +661,25 @@ export async function activate(context: vscode.ExtensionContext) {
       {
         ...sessionDeps,
         notifyOnNew: readNotifyOnNew(),
-        onNewApproval: (a, e) => void inlineDecide(a, e, client, orgId!, context, refreshActive),
-        onNewBatch: (count, e) => void notifyBatch(count, e),
-        onApprovalsRefreshed: syncHaltedApprovals,
+        // ApprovalToastView (subscribes to ApprovalStore) is the only
+        // notification path. It already shows one Approve/Deny toast
+        // per pending row regardless of source (socket from local
+        // hook subprocesses, or poll-discovered out-of-band rows
+        // from another agent / the dashboard). Both onNew callbacks
+        // are no-ops so the batch summary "[<env>] N new approvals
+        // pending" — historically used alongside the toasts — no
+        // longer fires on parallel tool-call batches.
+        onNewApproval: () => undefined,
+        onNewBatch: () => undefined,
+        onApprovalsRefreshed: (rows) => {
+          syncHaltedApprovals(rows);
+          // Feed the store with whatever the dashboard sees on each
+          // poll cycle. Out-of-band approvals (created via dashboard
+          // web UI / programmatic API) land here; resolutions made
+          // via dashboard reach the store the same way and propagate
+          // to the toast view via store.onChange.
+          syncPollRows(rows);
+        },
       },
     );
 
@@ -596,13 +723,50 @@ export async function activate(context: vscode.ExtensionContext) {
     debugProvider?.refresh();
   }
 
-  function notifyBatch(count: number, envTag: string) {
-    vscode.window
-      .showInformationMessage(`[${envTag}] ${count} new approvals pending`, "View")
-      .then((choice) => {
-        if (choice === "View") vscode.commands.executeCommand("openbox.approvals.focus");
+  // Register commands BEFORE `boot()` so a click on a stale tree
+  // item rendered during reinstall/reload doesn't surface as
+  // "command 'openbox.openDetail' not found". Boot is async (network
+  // calls to validate the API key, fetch org metadata, seed the
+  // first poll); registrations enqueued *after* boot leave a window
+  // where VS Code thinks the extension is active but the command
+  // registry still has nothing. Every handler below already checks
+  // `if (!active)` and falls back to a "still booting" toast so
+  // pre-boot invocations are safe.
+  context.subscriptions.push(
+    vscode.commands.registerCommand("openbox.openDetail", (node: any) => {
+      if (!active) {
+        vscode.window.showInformationMessage(
+          "OpenBox: still booting; wait for the sidebar to load and try again.",
+        );
+        return;
+      }
+      const approval = pickApproval(node);
+      if (!approval) {
+        vscode.window.showInformationMessage(
+          typeof node === "string"
+            ? `OpenBox: approval ${node} is not in the current pending or history view.`
+            : "OpenBox: no approval row selected.",
+        );
+        return;
+      }
+      ApprovalDetailPanel.show(approval, context, {
+        client: active.client,
+        orgId: active.orgId,
+        env,
+        onDecided: () => {
+          active?.pending.refresh();
+          active?.history.refresh();
+        },
       });
-  }
+    }),
+    vscode.commands.registerCommand("openbox.copyDetail", (value: string) => {
+      vscode.env.clipboard.writeText(value);
+    }),
+    vscode.commands.registerCommand("openbox.refresh", () => {
+      active?.pending.refresh();
+      active?.history.refresh();
+    }),
+  );
 
   await boot(env);
   context.subscriptions.push({
@@ -802,41 +966,9 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     }),
 
-    vscode.commands.registerCommand("openbox.refresh", () => {
-      active?.pending.refresh();
-      active?.history.refresh();
-    }),
-
-    vscode.commands.registerCommand("openbox.copyDetail", (value: string) => {
-      vscode.env.clipboard.writeText(value);
-    }),
-
-    vscode.commands.registerCommand("openbox.openDetail", (node: any) => {
-      if (!active) {
-        vscode.window.showInformationMessage(
-          "OpenBox: still booting; wait for the sidebar to load and try again.",
-        );
-        return;
-      }
-      const approval = pickApproval(node);
-      if (!approval) {
-        vscode.window.showInformationMessage(
-          typeof node === "string"
-            ? `OpenBox: approval ${node} is not in the current pending or history view.`
-            : "OpenBox: no approval row selected.",
-        );
-        return;
-      }
-      ApprovalDetailPanel.show(approval, context, {
-        client: active.client,
-        orgId: active.orgId,
-        env,
-        onDecided: () => {
-          active?.pending.refresh();
-          active?.history.refresh();
-        },
-      });
-    }),
+    // openbox.refresh, openbox.copyDetail, openbox.openDetail are
+    // registered before boot() above so they survive activation
+    // races (tree-item click during reinstall reload).
 
     vscode.commands.registerCommand("openbox.setApiKey", async () => {
       const value = await vscode.window.showInputBox({

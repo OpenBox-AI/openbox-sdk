@@ -1,9 +1,9 @@
 # OpenBox
 
 Review and act on OpenBox approval requests directly inside VS Code
-and Cursor. When an AI agent in your stack pauses for a human
-decision, this extension surfaces it in the editor sidebar so you
-can approve or reject without leaving your code.
+and Cursor. When an AI agent pauses for a human decision, this
+extension surfaces it in the editor sidebar so you can approve or
+reject without leaving your code.
 
 ## Features
 

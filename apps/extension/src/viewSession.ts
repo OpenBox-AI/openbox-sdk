@@ -7,7 +7,6 @@
 import * as vscode from "vscode";
 import type { OpenBoxClient } from "openbox-sdk/client";
 import { ApprovalsTreeProvider } from "./approvalsView";
-import { ApprovalDetailPanel } from "./detailPanel";
 import {
   EMPTY_FILTERS,
   applyClientFilters,
@@ -273,51 +272,3 @@ export class ViewSession implements vscode.Disposable {
   }
 }
 
-// Helper used by extension.ts' notifyNew handler so the inline
-// Approve/Reject/View flow lives in one place. Lives here, not in
-// detailPanel.ts, because it owns the per-env phrasing.
-export async function inlineDecide(
-  a: Approval,
-  env: string,
-  client: OpenBoxClient,
-  orgId: string,
-  context: vscode.ExtensionContext,
-  refresh: () => void,
-) {
-  const agent = a.agent?.agent_name || a.agent_id || "Agent";
-  const action = a.action_type || a.activity_type || "action";
-  const reason = a.reason || `${action} needs approval`;
-  const tag = `[${env}] ${agent}`;
-  const choice = await vscode.window.showInformationMessage(
-    `${tag}: ${reason}`,
-    "Approve",
-    "Reject",
-    "View",
-  );
-  const agentId = a.agent_id || "";
-  if (choice === "Approve") {
-    try {
-      await client.decideApproval(agentId, a.id, { action: "approve" });
-      vscode.window.showInformationMessage(`Approved (${env})`);
-      refresh();
-    } catch (err: any) {
-      vscode.window.showErrorMessage(`Approve failed: ${err.message}`);
-    }
-  } else if (choice === "Reject") {
-    const ok = await vscode.window.showWarningMessage(
-      `Reject ${a.agent?.agent_name || "this approval"}?`,
-      { modal: true, detail: "This will block the action." },
-      "Reject",
-    );
-    if (ok !== "Reject") return;
-    try {
-      await client.decideApproval(agentId, a.id, { action: "reject" });
-      vscode.window.showInformationMessage(`Rejected (${env})`);
-      refresh();
-    } catch (err: any) {
-      vscode.window.showErrorMessage(`Reject failed: ${err.message}`);
-    }
-  } else if (choice === "View") {
-    ApprovalDetailPanel.show(a, context, { client, orgId, env, onDecided: () => refresh() });
-  }
-}

@@ -38,11 +38,12 @@ export function buildIdleStatusBar(opts: IdleStatusBarInput): IdleStatusBarOutpu
 
   const parts: string[] = [];
   if (opts.count > 0) parts.push(`${opts.count} Pending`);
-  // Status bar never carries the env name on its own — the Debug
-  // view (when DEBUG_BUILD is on) already shows it. Mock-auth still
-  // tags MOCK · <env> because testers need to know which fixture
-  // they're driving at a glance.
+  // Mock-auth wins the env-suffix slot (`MOCK · <env>`) regardless of
+  // build flavor, since testers need to see the fixture they're driving.
+  // Otherwise debug builds carry the env name on its own so we can
+  // distinguish local / staging / production at a glance.
   if (opts.mockAuth) parts.push(`MOCK · ${opts.env}`);
+  else if (opts.debugBuild) parts.push(opts.env);
   if (anyActive && !opts.haveAgent) parts.push("gates idle (no agent)");
 
   const text =

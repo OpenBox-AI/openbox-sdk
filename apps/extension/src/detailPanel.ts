@@ -10,6 +10,7 @@ import * as vscode from "vscode";
 import type { OpenBoxClient } from "openbox-sdk/client";
 import type { Approval, Agent, Member } from "./types";
 import { formatLabel, summarizeInput, timeAgo, timeRemaining } from "openbox-sdk/approvals";
+import { sanitizeReason } from "./format";
 
 type DecideAction = "approve" | "reject";
 
@@ -464,7 +465,7 @@ function renderHtml(
 
     <div class="card">
       ${summary ? `<div class="row col"><span class="lbl">Action</span><pre>${escapeHtml(summary)}</pre></div>` : ""}
-      ${a.reason ? `<div class="row col"><span class="lbl">Reason</span><div class="reason val">${escapeHtml(a.reason)}</div></div>` : ""}
+      ${a.reason ? `<div class="row col"><span class="lbl">Reason</span><div class="reason val">${escapeHtml(sanitizeReason(a.reason))}</div></div>` : ""}
       ${teams ? `<div class="row"><span class="lbl">Team</span><span class="val">${escapeHtml(teams)}</span></div>` : ""}
       ${ownerName ? `<div class="row"><span class="lbl">Owner</span><span class="val">${escapeHtml(ownerName)}</span></div>` : ""}
       ${a.created_at ? `<div class="row"><span class="lbl">Created</span><span class="val">${escapeHtml(timeAgo(a.created_at))}</span></div>` : ""}

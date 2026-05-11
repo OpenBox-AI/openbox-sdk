@@ -7,6 +7,7 @@ import {
   timeRemaining,
   statusOf,
 } from "openbox-sdk/approvals";
+import { sanitizeReason } from "./format";
 
 // Tree nodes. Each approval is a collapsible parent with child rows
 // for tier / reason / created / expiry, mimicking mobile's
@@ -207,9 +208,10 @@ function renderField(a: Approval, field: FieldKind): vscode.TreeItem {
       break;
     }
     case "reason": {
-      item.label = truncate(a.reason || "", 200);
+      const clean = sanitizeReason(a.reason);
+      item.label = truncate(clean, 200);
       item.iconPath = new vscode.ThemeIcon("comment");
-      item.tooltip = a.reason;
+      item.tooltip = clean;
       break;
     }
     case "created": {
@@ -295,7 +297,7 @@ function buildTooltip(a: Approval, summary: string | null): vscode.MarkdownStrin
     md.appendMarkdown(`$(circle-slash) Expired\n\n`);
   }
 
-  if (a.reason) md.appendMarkdown(`> ${escapeMd(a.reason)}\n\n`);
+  if (a.reason) md.appendMarkdown(`> ${escapeMd(sanitizeReason(a.reason))}\n\n`);
 
   if (summary) {
     const lang = action === "ShellExecution" || action === "ShellOutput" ? "bash" : "";
