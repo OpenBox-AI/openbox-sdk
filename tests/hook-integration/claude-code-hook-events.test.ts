@@ -51,7 +51,7 @@ describe.runIf(SHOULD_RUN)('claude-code hook events', () => {
       // and the SDK eventually times out, which still produces all the
       // session-lifecycle events.
       allowedTool: '',
-      timeoutMs: 150_000,
+      timeoutMs: 45_000,
     });
     const lines = hookLogSince(offset);
     expect(lines.length).toBeGreaterThan(0);
@@ -78,7 +78,7 @@ describe.runIf(SHOULD_RUN)('claude-code hook events', () => {
         expect(line.took_ms).toBeLessThan(120_000);
       }
     }
-  }, 180_000);
+  }, 60_000);
 
   it('preToolUse fires when claude invokes a tool', () => {
     const offset = snapshotHookLog();
@@ -88,12 +88,12 @@ describe.runIf(SHOULD_RUN)('claude-code hook events', () => {
     // ceiling rather than the short block-verdict roundtrip.
     runClaude('Run shell: echo hook-event-test', {
       allowedTool: 'Bash',
-      timeoutMs: 150_000,
+      timeoutMs: 45_000,
     });
     const events = hookLogSince(offset).map((l) => l.event);
     expect(events).toContain('preToolUse');
     // postToolUse only fires on the allow path, so we do not
     // require it here; preToolUse plus the eventual deny is
     // enough to prove the tool-attempt hook fired.
-  }, 180_000);
+  }, 60_000);
 });

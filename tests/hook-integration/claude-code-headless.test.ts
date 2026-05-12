@@ -106,7 +106,7 @@ describe.runIf(SHOULD_RUN)('claude-code headless host matrix', () => {
           expect(r.permission_denials ?? []).toEqual([]);
         }
       },
-      150_000,
+      60_000,
     );
   }
 });

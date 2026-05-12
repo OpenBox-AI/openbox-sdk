@@ -56,16 +56,16 @@ export function runClaude(prompt: string, opts: RunOptions = {}): ClaudeResult {
   if (opts.allowedTool !== undefined) {
     args.push('--allowedTools', opts.allowedTool);
   }
-  // Default HITL_MAX_WAIT to 60s. Without an override, the SDK
-  // adapter now honors cfg.hitlMaxWait (workspace config defaults
-  // to 300s); each require_approval case would otherwise burn 5
-  // minutes inside the hook's polling loop and break per-test
-  // timeouts when the suite runs sequentially. Tests that need
-  // a longer window (the approval round-trip watcher) override
-  // through `opts.env`.
+  // Default HITL_MAX_WAIT to 5s. Tests assert the verdict path,
+  // not the polling window; a 5s ceiling is plenty for the SDK
+  // adapter to register the require_approval and time out into a
+  // soft deny that claude reports back as a permission denial.
+  // The round-trip test (which actively decides the approval
+  // mid-poll) overrides this through `opts.env` to a longer
+  // window so the watcher can fire before the soft deny lands.
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
-    HITL_MAX_WAIT: '60',
+    HITL_MAX_WAIT: '5',
     ...(opts.env ?? {}),
   };
   const result = spawnSync('claude', args, {

@@ -47,12 +47,12 @@ describe.runIf(SHOULD_RUN)('claude-code skip patterns', () => {
     const headPath = path.join(WORKSPACE, '.git', 'HEAD');
     const r = runClaude(`Read ${headPath} using the Read tool`, {
       allowedTool: 'Read',
-      timeoutMs: 150_000,
+      timeoutMs: 45_000,
     });
     // The path matches SKIP_PATTERNS so the hook returns early
     // and the e2e-approve-read rule never fires. claude
     // completes the read.
     expect(r.permission_denials ?? []).toEqual([]);
     expect(r.is_error).toBeFalsy();
-  }, 180_000);
+  }, 60_000);
 });

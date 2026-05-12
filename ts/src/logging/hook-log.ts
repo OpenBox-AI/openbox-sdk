@@ -16,12 +16,18 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { openboxDataRoot } from '../env/os-paths.js';
 
-const DIR = path.join(openboxDataRoot(), 'log');
+/** Per-host log dir. Resolved lazily so tests can override
+ *  `OPENBOX_HOME` between cases and have each writer hit its own
+ *  data root. Caching the value at module-load would freeze it to
+ *  whatever `OPENBOX_HOME` was when the first test ran. */
+function logDir(): string {
+  return path.join(openboxDataRoot(), 'log');
+}
 // Hard cap so a runaway hook cannot fill the disk. Five megabytes
 // holds about a month of moderate use. When the cap is reached the
 // file rotates to `.jsonl.1` and a fresh file starts. Only one
 // rotation generation is retained.
-const MAX_BYTES = 5 * 1024 * 1024;
+export const MAX_BYTES = 5 * 1024 * 1024;
 
 export interface HookLogLine {
   ts: string;
@@ -36,8 +42,8 @@ export interface HookLogger {
   readonly path: string;
 }
 
-function ensureDir(): void {
-  if (!fs.existsSync(DIR)) fs.mkdirSync(DIR, { recursive: true, mode: 0o700 });
+function ensureDir(dir: string): void {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
 }
 
 function rotateIfNeeded(file: string): void {
@@ -61,12 +67,20 @@ function rotateIfNeeded(file: string): void {
  * as `cursor` or `claude-code`.
  */
 export function makeHookLog(host: string): HookLogger {
-  const file = path.join(DIR, `${host}-hook.jsonl`);
+  // Resolve the dir + path each time so OPENBOX_HOME overrides take
+  // effect for tests that run in the same process. The `path`
+  // property captures the value at construction so callers that
+  // cached it before changing OPENBOX_HOME still get a sensible
+  // (if stale) absolute path.
+  const initialDir = logDir();
+  const initialFile = path.join(initialDir, `${host}-hook.jsonl`);
   return {
-    path: file,
+    path: initialFile,
     record(line: HookLogLine): void {
       try {
-        ensureDir();
+        const dir = logDir();
+        const file = path.join(dir, `${host}-hook.jsonl`);
+        ensureDir(dir);
         rotateIfNeeded(file);
         fs.appendFileSync(file, JSON.stringify(line) + '\n', { mode: 0o600 });
       } catch {

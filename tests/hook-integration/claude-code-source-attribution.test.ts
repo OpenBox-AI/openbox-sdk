@@ -140,7 +140,7 @@ describe.runIf(SHOULD_RUN)('claude-code activity round-trip', () => {
 
     runClaude(`Read ${targetPath} using the Read tool`, {
       allowedTool: 'Read',
-      timeoutMs: 200_000,
+      timeoutMs: 45_000,
     });
 
     // The CLI's pending list paginates and orders by oldest-first
@@ -174,5 +174,5 @@ describe.runIf(SHOULD_RUN)('claude-code activity round-trip', () => {
       match,
       `expected file_path=${targetPath} in row.input but got ${JSON.stringify(input).slice(0, 200)}`,
     ).toBeDefined();
-  }, 240_000);
+  }, 60_000);
 });

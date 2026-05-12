@@ -161,7 +161,7 @@ describe.runIf(SHOULD_RUN)('claude-code approval round-trip', () => {
       ],
       {
         cwd: WORKSPACE,
-        env: { ...process.env, HITL_MAX_WAIT: '90' },
+        env: { ...process.env, HITL_MAX_WAIT: '60' },
         stdio: ['ignore', 'pipe', 'pipe'],
       },
     );
@@ -183,7 +183,7 @@ describe.runIf(SHOULD_RUN)('claude-code approval round-trip', () => {
       claudeExited = true;
     });
 
-    for (let i = 0; i < 240 && !claudeExited; i++) {
+    for (let i = 0; i < 90 && !claudeExited; i++) {
       await sleep(1000);
       for (const row of fetchPending(aid)) {
         const key = rowKey(row);
@@ -216,5 +216,5 @@ describe.runIf(SHOULD_RUN)('claude-code approval round-trip', () => {
     // After approves, the action should proceed: no permission_denials.
     expect(parsed!.permission_denials ?? []).toEqual([]);
     expect(parsed!.is_error).toBeFalsy();
-  }, 300_000);
+  }, 120_000);
 });
