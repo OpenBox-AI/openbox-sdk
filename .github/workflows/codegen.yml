@@ -32,10 +32,14 @@ jobs:
           node-version: 22
           cache: npm
 
-      # `--ignore-scripts` skips the `prepare` lifecycle (which runs
-      # `npm run build` and OOMs the runner during DTS generation).
-      # The pipeline runs the build steps it needs explicitly below.
-      - run: npm ci --ignore-scripts
+      # The root `prepare` lifecycle runs `npm run build` (needed so
+      # github-URL consumers like the mobile app get a built dist/
+      # after `npm install`). On ubuntu-latest the default Node heap
+      # runs out partway through; bumping `--max-old-space-size` to
+      # 4 GiB keeps the build inside the runner's memory budget.
+      - run: npm ci
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
 
       - name: Build TypeSpec libraries + TS emitter
         run: npm run build:codegen
@@ -74,10 +78,14 @@ jobs:
           node-version: 22
           cache: npm
 
-      # `--ignore-scripts` skips the `prepare` lifecycle (which runs
-      # `npm run build` and OOMs the runner during DTS generation).
-      # The pipeline runs the build steps it needs explicitly below.
-      - run: npm ci --ignore-scripts
+      # The root `prepare` lifecycle runs `npm run build` (needed so
+      # github-URL consumers like the mobile app get a built dist/
+      # after `npm install`). On ubuntu-latest the default Node heap
+      # runs out partway through; bumping `--max-old-space-size` to
+      # 4 GiB keeps the build inside the runner's memory budget.
+      - run: npm ci
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
       - name: Compile specs
         run: npm run specs:compile
 
@@ -104,10 +112,14 @@ jobs:
           node-version: 22
           cache: npm
 
-      # `--ignore-scripts` skips the `prepare` lifecycle (which runs
-      # `npm run build` and OOMs the runner during DTS generation).
-      # The pipeline runs the build steps it needs explicitly below.
-      - run: npm ci --ignore-scripts
+      # The root `prepare` lifecycle runs `npm run build` (needed so
+      # github-URL consumers like the mobile app get a built dist/
+      # after `npm install`). On ubuntu-latest the default Node heap
+      # runs out partway through; bumping `--max-old-space-size` to
+      # 4 GiB keeps the build inside the runner's memory budget.
+      - run: npm ci
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
       - name: Compile head spec
         run: npm run specs:compile
 
