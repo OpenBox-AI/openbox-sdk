@@ -1,0 +1,129 @@
+// Test helper. Spawns `claude -p ...` inside a project-scope test
+// workspace and returns the parsed JSON envelope. Shared across
+// every `claude-code-*.test.ts` so each test stays focused on
+// what it's asserting.
+
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+export const WORKSPACE =
+  process.env.OPENBOX_E2E_CLAUDE_WORKSPACE ??
+  path.join(os.homedir(), 'workspace', 'openbox-claude-test');
+
+export const SHOULD_RUN =
+  process.env.OPENBOX_E2E_LIVE === '1' &&
+  existsSync(path.join(WORKSPACE, '.claude', 'settings.json')) &&
+  existsSync(path.join(WORKSPACE, '.claude-hooks', 'config.json'));
+
+export const HOOK_LOG = path.join(
+  os.homedir(),
+  '.openbox',
+  'log',
+  'claude-code-hook.jsonl',
+);
+
+export interface ClaudeResult {
+  result: string;
+  session_id?: string;
+  permission_denials?: Array<{
+    tool_name: string;
+    tool_input?: unknown;
+  }>;
+  is_error?: boolean;
+}
+
+export interface RunOptions {
+  /** Per-run override for `--allowedTools`. Empty string means
+   *  the prompt should answer without any tool. */
+  allowedTool?: string;
+  /** Hard ceiling on the spawn. Defaults to 150s; long enough for
+   *  the SDK's `approvalMaxWaitMs` (60s) plus session boilerplate. */
+  timeoutMs?: number;
+  /** Extra env overrides. Merged onto `process.env` before spawn. */
+  env?: Record<string, string>;
+}
+
+export function runClaude(prompt: string, opts: RunOptions = {}): ClaudeResult {
+  const args = [
+    '-p',
+    prompt,
+    '--output-format',
+    'json',
+    '--dangerously-skip-permissions',
+  ];
+  if (opts.allowedTool !== undefined) {
+    args.push('--allowedTools', opts.allowedTool);
+  }
+  // Default HITL_MAX_WAIT to 60s. Without an override, the SDK
+  // adapter now honors cfg.hitlMaxWait (workspace config defaults
+  // to 300s); each require_approval case would otherwise burn 5
+  // minutes inside the hook's polling loop and break per-test
+  // timeouts when the suite runs sequentially. Tests that need
+  // a longer window (the approval round-trip watcher) override
+  // through `opts.env`.
+  const env: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+    HITL_MAX_WAIT: '60',
+    ...(opts.env ?? {}),
+  };
+  const result = spawnSync('claude', args, {
+    cwd: WORKSPACE,
+    encoding: 'utf-8',
+    timeout: opts.timeoutMs ?? 150_000,
+    input: '',
+    env,
+  });
+  if (result.status !== 0 && !result.stdout) {
+    throw new Error(
+      `claude -p exited ${result.status}; stderr: ${result.stderr}`,
+    );
+  }
+  const text = result.stdout.trim();
+  const start = text.indexOf('{');
+  if (start < 0) {
+    throw new Error(`no JSON in claude -p output: ${text.slice(0, 200)}`);
+  }
+  return JSON.parse(text.slice(start)) as ClaudeResult;
+}
+
+export interface HookLogLine {
+  ts: string;
+  event: string;
+  verdict_kind?: 'permission' | 'observe' | 'none' | 'fallback';
+  took_ms?: number;
+  error?: string | null;
+}
+
+/** Snapshot the hook log size before running, then return everything
+ *  appended after the snapshot. Captures events from the current
+ *  claude session (or whichever spawn ran between snapshots). */
+export function snapshotHookLog(): number {
+  try {
+    return readFileSync(HOOK_LOG, 'utf-8').length;
+  } catch {
+    return 0;
+  }
+}
+
+export function hookLogSince(offset: number): HookLogLine[] {
+  try {
+    const text = readFileSync(HOOK_LOG, 'utf-8').slice(offset);
+    return text
+      .split('\n')
+      .filter((l) => l.trim().length > 0)
+      .map((l) => JSON.parse(l) as HookLogLine);
+  } catch {
+    return [];
+  }
+}
+
+/** Probe that `claude` is on PATH. Throws with a clear message so
+ *  tests fail fast instead of timing out per-case. */
+export function assertClaudeOnPath(): void {
+  const v = spawnSync('claude', ['--version'], { encoding: 'utf-8' });
+  if (v.status !== 0) {
+    throw new Error(`claude CLI not on PATH: ${v.stderr}`);
+  }
+}

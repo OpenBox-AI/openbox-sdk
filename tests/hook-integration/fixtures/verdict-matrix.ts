@@ -63,6 +63,22 @@ export const VERDICT_MATRIX: readonly VerdictMatrixCase[] = [
     expectedOutcome: 'require_approval',
   },
   {
+    name: 'file_read requires approval',
+    spanType: 'file_read',
+    activityInput: { file_path: '/etc/hostname' },
+    expectedRule: 'e2e-approve-read',
+    expectedVerdict: 'require_approval',
+    expectedOutcome: 'require_approval',
+  },
+  {
+    name: 'shell execution is blocked',
+    spanType: 'shell',
+    activityInput: { command: 'echo hello' },
+    expectedRule: 'e2e-deny-shell',
+    expectedVerdict: 'block',
+    expectedOutcome: 'deny',
+  },
+  {
     name: 'file_write is blocked',
     spanType: 'file_write',
     activityInput: { file_path: '/tmp/blocked.txt' },

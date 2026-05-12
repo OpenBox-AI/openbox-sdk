@@ -17,9 +17,13 @@ const GLOBAL_CONFIG_DIR = path.join(os.homedir(), '.claude-hooks');
  * its working directory inside `<dir>`. Falls back to the global
  * `~/.claude-hooks/` so any pre-existing user install keeps
  * working unchanged.
+ *
+ * Exported so tests can drive the walk-up logic against synthetic
+ * directory layouts without spawning the hook subprocess. The
+ * production callsite below passes `process.cwd()`.
  */
-function resolveConfigDir(): string {
-  let cur = process.cwd();
+export function resolveConfigDir(startDir: string = process.cwd()): string {
+  let cur = startDir;
   for (let i = 0; i < 8; i++) {
     const candidate = path.join(cur, '.claude-hooks');
     if (fs.existsSync(path.join(candidate, 'config.json'))) {

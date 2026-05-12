@@ -121,6 +121,7 @@ export function buildSpan(
           'file.path': input.file_path ?? '',
           'file.operation': 'read',
         },
+        module: host,
         file_path: input.file_path ?? '',
         file_mode: 'r',
         file_operation: 'read',
@@ -136,6 +137,7 @@ export function buildSpan(
           'file.path': input.file_path ?? '',
           'file.operation': 'write',
         },
+        module: host,
         file_path: input.file_path ?? '',
         file_mode: 'w',
         file_operation: 'write',
@@ -151,6 +153,7 @@ export function buildSpan(
           'file.path': input.file_path ?? '',
           'file.operation': 'delete',
         },
+        module: host,
         file_path: input.file_path ?? '',
         file_operation: 'delete',
       };

@@ -81,9 +81,20 @@ export async function runClaudeHook(): Promise<void> {
     timeoutMs: cfg.governanceTimeout * 1000,
   });
 
+  // Respect the user's HITL_MAX_WAIT knob (claude-hooks/config.json or
+  // env). Without this wiring the SDK falls back to its 60s default,
+  // which is much shorter than the 300s claude-code installs default to;
+  // the hook would soft-deny long before the user could decide an
+  // approval via the dashboard or mobile.
+  const approvalMaxWaitMs = Math.min(
+    Math.max(1, cfg.hitlMaxWait) * 1000,
+    3600_000,
+  );
+
   await createClaudeCodeAdapter({
     core,
     resolveSession: (env) => resolveSession(env, cfg),
+    approvalMaxWaitMs,
     handlers: {
       preToolUse: logged('preToolUse', 'permission',
         async (env, s) => dryRun ? undefined : handlePreToolUse(env, s, cfg)),

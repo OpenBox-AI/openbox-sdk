@@ -15,9 +15,12 @@ const GLOBAL_CONFIG_DIR = path.join(os.homedir(), '.cursor-hooks');
  * carry its own `config.json` without polluting the global one.
  * Falls back to `~/.cursor-hooks/` so existing user installs keep
  * working unchanged.
+ *
+ * Exported for tests; production callsite below passes
+ * `process.cwd()`.
  */
-function resolveConfigDir(): string {
-  let cur = process.cwd();
+export function resolveConfigDir(startDir: string = process.cwd()): string {
+  let cur = startDir;
   for (let i = 0; i < 8; i++) {
     const candidate = path.join(cur, '.cursor-hooks');
     if (fs.existsSync(path.join(candidate, 'config.json'))) {

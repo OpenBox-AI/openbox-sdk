@@ -22,72 +22,15 @@
 // local stack with a runtime key.
 
 import { describe, expect, it, beforeAll } from 'vitest';
-import { existsSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
-import os from 'node:os';
-import path from 'node:path';
 import {
   VERDICT_MATRIX,
   type VerdictMatrixCase,
 } from './fixtures/verdict-matrix.js';
-
-const WORKSPACE =
-  process.env.OPENBOX_E2E_CLAUDE_WORKSPACE ??
-  path.join(os.homedir(), 'workspace', 'openbox-claude-test');
-
-const SHOULD_RUN =
-  process.env.OPENBOX_E2E_LIVE === '1' &&
-  existsSync(path.join(WORKSPACE, '.claude', 'settings.json')) &&
-  existsSync(path.join(WORKSPACE, '.claude-hooks', 'config.json'));
-
-interface ClaudeResult {
-  result: string;
-  permission_denials?: Array<{
-    tool_name: string;
-    tool_input?: unknown;
-  }>;
-  is_error?: boolean;
-}
-
-/**
- * One claude session for one case. `--allowedTools` is scoped to
- * the single tool the case needs so claude does not retry through
- * other tools after a deny.
- */
-function runClaude(prompt: string, allowedTool: string): ClaudeResult {
-  const result = spawnSync(
-    'claude',
-    [
-      '-p',
-      prompt,
-      '--output-format',
-      'json',
-      '--dangerously-skip-permissions',
-      '--allowedTools',
-      allowedTool,
-    ],
-    {
-      cwd: WORKSPACE,
-      encoding: 'utf-8',
-      // Two minutes is enough for either a deny (sub-second) or
-      // for the SDK's `approvalMaxWaitMs` ceiling on require_approval
-      // (60s) plus the rest of the session boilerplate.
-      timeout: 120_000,
-      input: '',
-    },
-  );
-  if (result.status !== 0 && !result.stdout) {
-    throw new Error(
-      `claude -p exited ${result.status}; stderr: ${result.stderr}`,
-    );
-  }
-  const text = result.stdout.trim();
-  const start = text.indexOf('{');
-  if (start < 0) {
-    throw new Error(`no JSON in claude -p output: ${text.slice(0, 200)}`);
-  }
-  return JSON.parse(text.slice(start)) as ClaudeResult;
-}
+import {
+  runClaude,
+  SHOULD_RUN,
+  assertClaudeOnPath,
+} from './helpers/claude-runner.js';
 
 /** Translate a fixture case into a (prompt, tool) pair claude can
  *  run. Only the cases the claude-code runtime can realistically
@@ -117,13 +60,7 @@ function prompt(c: VerdictMatrixCase): { prompt: string; tool: string } | null {
 
 describe.runIf(SHOULD_RUN)('claude-code headless host matrix', () => {
   beforeAll(() => {
-    // Cheap probe that the CLI is actually on PATH; the matrix
-    // itself runs claude many times so failing here gives a
-    // clearer signal than each case timing out.
-    const v = spawnSync('claude', ['--version'], { encoding: 'utf-8' });
-    if (v.status !== 0) {
-      throw new Error(`claude CLI not on PATH: ${v.stderr}`);
-    }
+    assertClaudeOnPath();
   });
 
   for (const c of VERDICT_MATRIX) {
@@ -136,7 +73,7 @@ describe.runIf(SHOULD_RUN)('claude-code headless host matrix', () => {
       `${c.name}${skipReason ? ` (${skipReason})` : ''}`,
       () => {
         if (!driver) return;
-        const r = runClaude(driver.prompt, driver.tool);
+        const r = runClaude(driver.prompt, { allowedTool: driver.tool });
 
         if (c.expectedOutcome === 'deny') {
           // The hook returned block (or halt); claude refused.
