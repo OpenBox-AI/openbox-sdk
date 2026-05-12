@@ -10,6 +10,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 export type McpTarget = 'claude-desktop' | 'cursor' | 'claude-code';
+export type McpScope = 'global' | 'project';
 
 const SERVER_NAME = 'openbox';
 
@@ -27,6 +28,20 @@ interface McpHost {
   configFile: string;
   /** What to print after install so the user knows the next step. */
   postInstallNote?: string;
+}
+
+/** Resolve the project-scoped MCP config path for each host. */
+function projectConfigPath(target: McpTarget, cwd: string): string {
+  switch (target) {
+    case 'cursor':
+      return path.join(cwd, '.cursor', 'mcp.json');
+    case 'claude-code':
+      return path.join(cwd, '.mcp.json');
+    case 'claude-desktop':
+      // Claude Desktop reads only its global config path; project
+      // scope is not supported.
+      throw new Error('scope `project` is not supported for claude-desktop');
+  }
 }
 
 /** Claude Desktop's config path varies per OS. */
@@ -97,9 +112,20 @@ function pickHosts(targets: McpTarget[] | undefined): McpHost[] {
 }
 
 export interface McpInstallOpts {
-  /** Pick specific hosts. Empty / undefined = install into every
-   *  known host. */
+  /** Pick specific hosts. Empty / undefined means every known host. */
   targets?: McpTarget[];
+  /** `global` writes to the user-level config; `project` writes to
+   *  the per-project config under `cwd`. Defaults to `global`.
+   *  Claude Desktop only supports `global`. */
+  scope?: McpScope;
+  /** Project root for `scope: 'project'`. Defaults to
+   *  `process.cwd()`. */
+  cwd?: string;
+}
+
+function resolveHost(host: McpHost, scope: McpScope, cwd: string): McpHost {
+  if (scope === 'global') return host;
+  return { ...host, configFile: projectConfigPath(host.target, cwd) };
 }
 
 export function installMcp(opts: McpInstallOpts = {}): void {
@@ -111,7 +137,11 @@ export function installMcp(opts: McpInstallOpts = {}): void {
       `   "openbox: command not found")\n`,
   );
 
-  for (const host of pickHosts(opts.targets)) {
+  const scope = opts.scope ?? 'global';
+  const cwd = opts.cwd ?? process.cwd();
+
+  for (const base of pickHosts(opts.targets)) {
+    const host = resolveHost(base, scope, cwd);
     const cfg = loadConfig(host.configFile);
     const servers = (cfg.mcpServers as Record<string, unknown> | undefined) ?? {};
     servers[SERVER_NAME] = SERVER_ENTRY;
@@ -129,7 +159,10 @@ export function installMcp(opts: McpInstallOpts = {}): void {
 }
 
 export function uninstallMcp(opts: McpInstallOpts = {}): void {
-  for (const host of pickHosts(opts.targets)) {
+  const scope = opts.scope ?? 'global';
+  const cwd = opts.cwd ?? process.cwd();
+  for (const base of pickHosts(opts.targets)) {
+    const host = resolveHost(base, scope, cwd);
     if (!fs.existsSync(host.configFile)) {
       console.log(`  - ${host.label.padEnd(16)} ${host.configFile} not present`);
       continue;

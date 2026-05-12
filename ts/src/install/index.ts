@@ -8,5 +8,11 @@
 export {
   installAdapter,
   uninstallAdapter,
+  installMcpEntry,
+  uninstallMcpEntry,
+  resolveInstallPaths,
   type InstallSpec,
+  type InstallOptions,
+  type InstallScope,
+  type McpServerEntry,
 } from './from-spec.js';

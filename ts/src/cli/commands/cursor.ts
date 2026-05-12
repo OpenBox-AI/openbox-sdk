@@ -2,8 +2,21 @@ import { Command } from 'commander';
 import { EXIT, bailWith } from '../exit-codes.js';
 import { error, info, success, output } from '../output.js';
 
-/** `openbox cursor hook`: stdin → governance → stdout, invoked by
- *  Cursor per hook event. Install lives at `openbox install cursor`. */
+function collectPair(value: string, prior: string[]): string[] {
+  return [...prior, value];
+}
+
+/** `openbox cursor <subcommand>`:
+ *
+ *    hook         stdin to governance to stdout, invoked by Cursor
+ *                 per hook event.
+ *    install      write the hook block (and optionally the MCP
+ *                 entry) at the chosen scope.
+ *    uninstall    remove the same block.
+ *    harden       apply the enterprise hardening profile.
+ *    unharden     revert the hardening profile.
+ *    sync-rules   render an agent's rules into .cursor/rules/.
+ */
 export function registerCursorCommands(program: Command) {
   const cursor = program.command('cursor').description('Cursor IDE integration');
 
@@ -20,6 +33,89 @@ export function registerCursorCommands(program: Command) {
         bailWith(EXIT.OK);
       }
     });
+
+  cursor
+    .command('install')
+    .description(
+      'Install the Cursor hook block and (optionally) the MCP server ' +
+        'entry. Use --scope project to scope to <cwd>.',
+    )
+    .option('--no-mcp', 'Skip the MCP server entry')
+    .option('--scope <scope>', 'global | project', 'global')
+    .option('--cwd <dir>', 'Project root for --scope project')
+    .option(
+      '--matcher <pair>',
+      "Hook matcher pair `<event>=<regex>`. Repeatable.",
+      collectPair,
+      [],
+    )
+    .action(
+      async (opts: {
+        mcp?: boolean;
+        scope?: string;
+        cwd?: string;
+        matcher: string[];
+      }) => {
+        const scope = (opts.scope ?? 'global').toLowerCase();
+        if (scope !== 'global' && scope !== 'project') {
+          error(`--scope: invalid value '${opts.scope}'; expected global or project`);
+          bailWith(EXIT.USAGE);
+        }
+        const cwd = opts.cwd ?? process.cwd();
+        const matchers: Record<string, string> = {};
+        for (const pair of opts.matcher ?? []) {
+          const idx = pair.indexOf('=');
+          if (idx <= 0) {
+            error(`--matcher: invalid pair '${pair}', expected <event>=<regex>`);
+            bailWith(EXIT.USAGE);
+          }
+          matchers[pair.slice(0, idx).trim()] = pair.slice(idx + 1);
+        }
+        const { installCursor } = await import('../../runtime/cursor/install.js');
+        installCursor({
+          scope: scope as 'global' | 'project',
+          cwd,
+          matchers: Object.keys(matchers).length > 0 ? matchers : undefined,
+        });
+        if (opts.mcp !== false) {
+          info('');
+          const { installMcp } = await import('../../runtime/mcp/install.js');
+          installMcp({
+            targets: ['cursor'],
+            scope: scope as 'global' | 'project',
+            cwd,
+          });
+        }
+      },
+    );
+
+  cursor
+    .command('uninstall')
+    .description('Remove the Cursor hook block and (optionally) the MCP entry')
+    .option('--no-mcp', 'Skip removing the MCP server entry')
+    .option('--scope <scope>', 'global | project', 'global')
+    .option('--cwd <dir>', 'Project root for --scope project')
+    .action(
+      async (opts: { mcp?: boolean; scope?: string; cwd?: string }) => {
+        const scope = (opts.scope ?? 'global').toLowerCase();
+        if (scope !== 'global' && scope !== 'project') {
+          error(`--scope: invalid value '${opts.scope}'; expected global or project`);
+          bailWith(EXIT.USAGE);
+        }
+        const cwd = opts.cwd ?? process.cwd();
+        const { uninstallCursor } = await import('../../runtime/cursor/install.js');
+        uninstallCursor({ scope: scope as 'global' | 'project', cwd });
+        if (opts.mcp !== false) {
+          info('');
+          const { uninstallMcp } = await import('../../runtime/mcp/install.js');
+          uninstallMcp({
+            targets: ['cursor'],
+            scope: scope as 'global' | 'project',
+            cwd,
+          });
+        }
+      },
+    );
 
   cursor
     .command('harden')

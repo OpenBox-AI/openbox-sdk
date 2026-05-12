@@ -266,6 +266,25 @@ function installMobile(): void {
   info('(Beta. App Store listing pending; the iOS app authenticates via its own login flow: no CLI install step.)');
 }
 
+type HostScope = 'global' | 'project' | 'local';
+
+/**
+ * Validates and normalizes the `--scope` flag. `local` is only
+ * meaningful for Claude Code; cursor rejects it.
+ */
+function parseHostScope(raw: string | undefined, host: 'cursor' | 'claude-code'): HostScope {
+  const value = (raw ?? 'global').toLowerCase() as HostScope;
+  if (value !== 'global' && value !== 'project' && value !== 'local') {
+    error(`--scope: invalid value '${raw}'; expected global, project, or local`);
+    bailWith(EXIT.USAGE);
+  }
+  if (value === 'local' && host !== 'claude-code') {
+    error(`--scope local is only supported for claude-code`);
+    bailWith(EXIT.USAGE);
+  }
+  return value;
+}
+
 // ---------------------------------------------------------------------------
 // Wire the install / uninstall trees
 // ---------------------------------------------------------------------------
@@ -798,97 +817,183 @@ export function registerInstallCommands(program: Command): void {
         'to skip the hardening prompt.',
     )
     .option('--no-harden', 'Skip the enterprise hardening profile (no prompt)')
+    .option('--no-mcp', 'Skip the MCP server entry')
+    .option(
+      '--scope <scope>',
+      'Install scope: `global` writes to ~/.cursor; `project` writes ' +
+        'to <cwd>/.cursor so the hook block only applies inside the ' +
+        'project. Defaults to `global`.',
+      'global',
+    )
+    .option(
+      '--cwd <dir>',
+      'Project root for `--scope project`. Defaults to the current ' +
+        'working directory.',
+    )
     .option(
       '--matcher <pair>',
       "Cursor hook matcher pair `<event>=<regex>`. Repeatable. Cursor " +
         'skips the hook when the matcher does not match the event input ' +
-        '(shell command, file path, tool name, …), cutting process ' +
+        '(shell command, file path, tool name, etc.), cutting process ' +
         'spawns dramatically. Example: ' +
         "--matcher 'beforeShellExecution=\\\\b(rm|sudo|curl|wget)\\\\b'",
       collect,
       [],
     )
-    .action(async (opts: { harden?: boolean; matcher: string[] }) => {
-      const matchers: Record<string, string> = {};
-      for (const pair of opts.matcher ?? []) {
-        const idx = pair.indexOf('=');
-        if (idx <= 0) {
-          error(`--matcher: invalid pair '${pair}', expected <event>=<regex>`);
-          bailWith(EXIT.USAGE);
+    .action(
+      async (opts: {
+        harden?: boolean;
+        mcp?: boolean;
+        scope?: string;
+        cwd?: string;
+        matcher: string[];
+      }) => {
+        const scope = parseHostScope(opts.scope, 'cursor');
+        const cwd = opts.cwd ?? process.cwd();
+        const matchers: Record<string, string> = {};
+        for (const pair of opts.matcher ?? []) {
+          const idx = pair.indexOf('=');
+          if (idx <= 0) {
+            error(`--matcher: invalid pair '${pair}', expected <event>=<regex>`);
+            bailWith(EXIT.USAGE);
+          }
+          matchers[pair.slice(0, idx).trim()] = pair.slice(idx + 1);
         }
-        matchers[pair.slice(0, idx).trim()] = pair.slice(idx + 1);
-      }
-      const { installCursor } = await import('../../runtime/cursor/install.js');
-      installCursor({
-        matchers: Object.keys(matchers).length > 0 ? matchers : undefined,
-      });
-      info('');
-      installExtension({ cursor: true });
-      info('');
-      const { installMcp } = await import('../../runtime/mcp/install.js');
-      installMcp({ targets: ['cursor'] });
-      info('');
-      const {
-        installCursorCommands,
-        installCursorRules,
-        installCursorAgents,
-      } = await import('../../runtime/cursor/commands.js');
-      installCursorCommands();
-      info('');
-      installCursorRules();
-      info('');
-      installCursorAgents();
-      info('');
-      const { installSkill } = await import('./skill.js');
-      installSkill({ cursor: true });
-      if (opts.harden !== false) {
+        const { installCursor } = await import('../../runtime/cursor/install.js');
+        installCursor({
+          scope,
+          cwd,
+          matchers: Object.keys(matchers).length > 0 ? matchers : undefined,
+        });
+        if (opts.mcp !== false) {
+          info('');
+          const { installMcp } = await import('../../runtime/mcp/install.js');
+          installMcp({ targets: ['cursor'], scope, cwd });
+        }
+        // Per-extension, slash commands, rules, plugin agents, the
+        // OpenBox skill, and the hardening profile are user-level
+        // installs that do not change with `--scope project`. Skip
+        // them unless installing globally.
+        if (scope !== 'global') return;
         info('');
-        const { consent } = await import('../non-interactive.js');
-        const ok = await consent(
-          'Apply OpenBox enterprise hardening profile to ~/.cursor/User/settings.json (privacy mode on, cloud features off, telemetry off)?',
-        );
-        if (ok) {
-          const { hardenCursor } = await import('../../runtime/cursor/enterprise.js');
-          const r = hardenCursor({ profile: 'enterprise-default' });
-          success(`hardening profile applied: ${r.profile} → ${r.file}`);
-        } else {
-          info('Skipped hardening profile (run `openbox cursor harden` later to apply).');
+        installExtension({ cursor: true });
+        info('');
+        const {
+          installCursorCommands,
+          installCursorRules,
+          installCursorAgents,
+        } = await import('../../runtime/cursor/commands.js');
+        installCursorCommands();
+        info('');
+        installCursorRules();
+        info('');
+        installCursorAgents();
+        info('');
+        const { installSkill } = await import('./skill.js');
+        installSkill({ cursor: true });
+        if (opts.harden !== false) {
+          info('');
+          const { consent } = await import('../non-interactive.js');
+          const ok = await consent(
+            'Apply OpenBox enterprise hardening profile to ~/.cursor/User/settings.json (privacy mode on, cloud features off, telemetry off)?',
+          );
+          if (ok) {
+            const { hardenCursor } = await import('../../runtime/cursor/enterprise.js');
+            const r = hardenCursor({ profile: 'enterprise-default' });
+            success(`hardening profile applied: ${r.profile} → ${r.file}`);
+          } else {
+            info('Skipped hardening profile (run `openbox cursor harden` later to apply).');
+          }
         }
-      }
-    });
+      },
+    );
 
   install
     .command('claude-code')
     .description(
-      'Install the full Claude Code surface: hooks in ' +
-        '~/.claude/settings.json, the MCP server entry in ~/.claude.json, ' +
-        'and the OpenBox skill in ~/.claude/skills/openbox.',
+      'Install the full Claude Code surface: hooks, the MCP server ' +
+        'entry, and the OpenBox skill. Use --scope project to scope ' +
+        'the hooks and MCP entry to a single project rather than the ' +
+        'user account.',
     )
-    .action(async () => {
-      const { installClaudeCode } = await import('../../runtime/claude-code/install.js');
-      installClaudeCode();
-      info('');
-      const { installMcp } = await import('../../runtime/mcp/install.js');
-      installMcp({ targets: ['claude-code'] });
-      info('');
-      const { installSkill } = await import('./skill.js');
-      installSkill();
-    });
+    .option('--no-mcp', 'Skip the MCP server entry')
+    .option(
+      '--scope <scope>',
+      'Install scope: `global` writes to ~/.claude; `project` writes ' +
+        'to <cwd>/.claude so the hook block applies only inside the ' +
+        'project; `local` writes to <cwd>/.claude/settings.local.json ' +
+        '(personal override, typically gitignored). Defaults to ' +
+        '`global`.',
+      'global',
+    )
+    .option(
+      '--cwd <dir>',
+      'Project root for `--scope project` or `--scope local`. ' +
+        'Defaults to the current working directory.',
+    )
+    .action(
+      async (opts: { mcp?: boolean; scope?: string; cwd?: string }) => {
+        const scope = parseHostScope(opts.scope, 'claude-code');
+        const cwd = opts.cwd ?? process.cwd();
+        const { installClaudeCode } = await import('../../runtime/claude-code/install.js');
+        installClaudeCode({ scope, cwd });
+        if (opts.mcp !== false) {
+          info('');
+          const { installMcp } = await import('../../runtime/mcp/install.js');
+          installMcp({
+            targets: ['claude-code'],
+            scope: scope === 'local' ? 'project' : scope,
+            cwd,
+          });
+        }
+        // The skill copy is a user-level install; skip when scoping
+        // hooks to a project to avoid scribbling into the user dir
+        // from a project flow.
+        if (scope === 'global') {
+          info('');
+          const { installSkill } = await import('./skill.js');
+          installSkill();
+        }
+      },
+    );
 
   install
     .command('mcp')
     .description(
-      'Register OpenBox as an MCP server in Claude Desktop, Cursor, and ' +
-        'Claude Code. Writes a config entry that points at the absolute ' +
-        "path of this CLI's `dist/cli/index.js` so the host can launch the " +
-        'server with no global install / npm package required.',
+      'Register OpenBox as an MCP server in Claude Desktop, Cursor, ' +
+        'and Claude Code. Writes a config entry that launches the ' +
+        'openbox CLI so the host can start the server with no global ' +
+        'install or npm package.',
     )
     .option('--claude-desktop', 'Claude Desktop only', false)
     .option('--cursor', 'Cursor only', false)
     .option('--claude-code', 'Claude Code only', false)
-    .action(async (opts: InstallOpts) => {
+    .option(
+      '--scope <scope>',
+      '`global` writes to each host\'s user-level MCP config; ' +
+        '`project` writes to <cwd>/.cursor/mcp.json (Cursor) or ' +
+        '<cwd>/.mcp.json (Claude Code). Claude Desktop only supports ' +
+        '`global`. Defaults to `global`.',
+      'global',
+    )
+    .option(
+      '--cwd <dir>',
+      'Project root for `--scope project`. Defaults to the current ' +
+        'working directory.',
+    )
+    .action(async (opts: InstallOpts & { scope?: string; cwd?: string }) => {
+      const scope = (opts.scope ?? 'global').toLowerCase();
+      if (scope !== 'global' && scope !== 'project') {
+        error(`--scope: invalid value '${opts.scope}'; expected global or project`);
+        bailWith(EXIT.USAGE);
+      }
+      const cwd = opts.cwd ?? process.cwd();
       const { installMcp } = await import('../../runtime/mcp/install.js');
-      installMcp({ targets: pickMcpTargets(opts) });
+      installMcp({
+        targets: pickMcpTargets(opts),
+        scope: scope as 'global' | 'project',
+        cwd,
+      });
     });
 
   install
@@ -962,69 +1067,141 @@ export function registerInstallCommands(program: Command): void {
   uninstall
     .command('cursor')
     .description(
-      'Remove the full Cursor surface: hooks, IDE extension, MCP server ' +
-        'entry, and any OpenBox-managed keys in ~/.cursor/User/settings.json.',
+      'Remove the Cursor surface: hooks, IDE extension, MCP server ' +
+        'entry, and any OpenBox-managed keys in ' +
+        '~/.cursor/User/settings.json. Use --scope project to remove ' +
+        'a project-scoped install only.',
     )
-    .action(async () => {
-      const { uninstallCursor } = await import('../../runtime/cursor/install.js');
-      uninstallCursor();
-      info('');
-      uninstallExtension({ cursor: true });
-      info('');
-      const { uninstallMcp } = await import('../../runtime/mcp/install.js');
-      uninstallMcp({ targets: ['cursor'] });
-      info('');
-      const {
-        uninstallCursorCommands,
-        uninstallCursorRules,
-        uninstallCursorAgents,
-      } = await import('../../runtime/cursor/commands.js');
-      uninstallCursorCommands();
-      uninstallCursorRules();
-      uninstallCursorAgents();
-      info('');
-      const cursorSkillDst = path.join(os.homedir(), '.cursor', 'skills', 'openbox');
-      if (fs.existsSync(cursorSkillDst)) {
-        execFileSync('rm', ['-rf', cursorSkillDst], { stdio: 'inherit' });
-        success(`removed ${cursorSkillDst}`);
-      }
-      info('');
-      const { unhardenCursor } = await import('../../runtime/cursor/enterprise.js');
-      const r = unhardenCursor();
-      if (r.removed.length > 0) {
-        success(`removed ${r.removed.length} hardening profile keys from ${r.file}`);
-      }
-    });
+    .option('--no-mcp', 'Skip removing the MCP server entry')
+    .option(
+      '--scope <scope>',
+      'Uninstall scope: `global` removes from ~/.cursor; `project` ' +
+        'removes from <cwd>/.cursor only. Defaults to `global`.',
+      'global',
+    )
+    .option(
+      '--cwd <dir>',
+      'Project root for `--scope project`. Defaults to the current ' +
+        'working directory.',
+    )
+    .action(
+      async (opts: { mcp?: boolean; scope?: string; cwd?: string }) => {
+        const scope = parseHostScope(opts.scope, 'cursor');
+        const cwd = opts.cwd ?? process.cwd();
+        const { uninstallCursor } = await import('../../runtime/cursor/install.js');
+        uninstallCursor({ scope, cwd });
+        if (opts.mcp !== false) {
+          info('');
+          const { uninstallMcp } = await import('../../runtime/mcp/install.js');
+          uninstallMcp({ targets: ['cursor'], scope, cwd });
+        }
+        if (scope !== 'global') return;
+        info('');
+        uninstallExtension({ cursor: true });
+        info('');
+        const {
+          uninstallCursorCommands,
+          uninstallCursorRules,
+          uninstallCursorAgents,
+        } = await import('../../runtime/cursor/commands.js');
+        uninstallCursorCommands();
+        uninstallCursorRules();
+        uninstallCursorAgents();
+        info('');
+        const cursorSkillDst = path.join(os.homedir(), '.cursor', 'skills', 'openbox');
+        if (fs.existsSync(cursorSkillDst)) {
+          execFileSync('rm', ['-rf', cursorSkillDst], { stdio: 'inherit' });
+          success(`removed ${cursorSkillDst}`);
+        }
+        info('');
+        const { unhardenCursor } = await import('../../runtime/cursor/enterprise.js');
+        const r = unhardenCursor();
+        if (r.removed.length > 0) {
+          success(`removed ${r.removed.length} hardening profile keys from ${r.file}`);
+        }
+      },
+    );
 
   uninstall
     .command('claude-code')
     .description(
-      'Remove the full Claude Code surface: hooks, MCP server entry, and ' +
-        'the OpenBox skill at ~/.claude/skills/openbox.',
+      'Remove the Claude Code surface: hooks, MCP server entry, and ' +
+        'the OpenBox skill. Use --scope project or --scope local to ' +
+        'remove a project-scoped install only.',
     )
-    .action(async () => {
-      const { uninstallClaudeCode } = await import('../../runtime/claude-code/install.js');
-      uninstallClaudeCode();
-      info('');
-      const { uninstallMcp } = await import('../../runtime/mcp/install.js');
-      uninstallMcp({ targets: ['claude-code'] });
-      info('');
-      const skillDst = path.join(os.homedir(), '.claude', 'skills', 'openbox');
-      if (fs.existsSync(skillDst)) {
-        execFileSync('rm', ['-rf', skillDst], { stdio: 'inherit' });
-        success(`removed ${skillDst}`);
-      }
-    });
+    .option('--no-mcp', 'Skip removing the MCP server entry')
+    .option(
+      '--scope <scope>',
+      'Uninstall scope: `global` removes from ~/.claude; `project` ' +
+        'removes from <cwd>/.claude; `local` removes only the ' +
+        '<cwd>/.claude/settings.local.json hook block. Defaults to ' +
+        '`global`.',
+      'global',
+    )
+    .option(
+      '--cwd <dir>',
+      'Project root for `--scope project` or `--scope local`. ' +
+        'Defaults to the current working directory.',
+    )
+    .action(
+      async (opts: { mcp?: boolean; scope?: string; cwd?: string }) => {
+        const scope = parseHostScope(opts.scope, 'claude-code');
+        const cwd = opts.cwd ?? process.cwd();
+        const { uninstallClaudeCode } = await import('../../runtime/claude-code/install.js');
+        uninstallClaudeCode({ scope, cwd });
+        if (opts.mcp !== false) {
+          info('');
+          const { uninstallMcp } = await import('../../runtime/mcp/install.js');
+          uninstallMcp({
+            targets: ['claude-code'],
+            scope: scope === 'local' ? 'project' : scope,
+            cwd,
+          });
+        }
+        if (scope !== 'global') return;
+        info('');
+        const skillDst = path.join(os.homedir(), '.claude', 'skills', 'openbox');
+        if (fs.existsSync(skillDst)) {
+          execFileSync('rm', ['-rf', skillDst], { stdio: 'inherit' });
+          success(`removed ${skillDst}`);
+        }
+      },
+    );
 
   uninstall
     .command('mcp')
-    .description('Remove the OpenBox MCP server entry from Claude Desktop / Cursor / Claude Code')
+    .description(
+      'Remove the OpenBox MCP server entry from Claude Desktop, ' +
+        'Cursor, and Claude Code. Use --scope project to remove ' +
+        'project-scoped entries.',
+    )
     .option('--claude-desktop', 'Claude Desktop only', false)
     .option('--cursor', 'Cursor only', false)
     .option('--claude-code', 'Claude Code only', false)
-    .action(async (opts: InstallOpts) => {
+    .option(
+      '--scope <scope>',
+      'Uninstall scope: `global` (default) or `project`. Claude ' +
+        'Desktop only supports `global`.',
+      'global',
+    )
+    .option(
+      '--cwd <dir>',
+      'Project root for `--scope project`. Defaults to the current ' +
+        'working directory.',
+    )
+    .action(async (opts: InstallOpts & { scope?: string; cwd?: string }) => {
+      const scope = (opts.scope ?? 'global').toLowerCase();
+      if (scope !== 'global' && scope !== 'project') {
+        error(`--scope: invalid value '${opts.scope}'; expected global or project`);
+        bailWith(EXIT.USAGE);
+      }
+      const cwd = opts.cwd ?? process.cwd();
       const { uninstallMcp } = await import('../../runtime/mcp/install.js');
-      uninstallMcp({ targets: pickMcpTargets(opts) });
+      uninstallMcp({
+        targets: pickMcpTargets(opts),
+        scope: scope as 'global' | 'project',
+        cwd,
+      });
     });
 
   // Mobile has no uninstall: the iOS app is removed device-side.
