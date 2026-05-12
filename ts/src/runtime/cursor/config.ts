@@ -1,10 +1,36 @@
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DEFAULT_CORE_URL } from '../../env/index.js';
 import { loadJsonConfig, loadDotenv } from '../../config/host-config.js';
 
-// os.homedir() honors USERPROFILE on Windows where HOME is unset.
-const CONFIG_DIR = path.join(os.homedir(), '.cursor-hooks');
+// `os.homedir()` honors USERPROFILE on Windows where HOME is unset.
+const GLOBAL_CONFIG_DIR = path.join(os.homedir(), '.cursor-hooks');
+
+/**
+ * Resolve which `.cursor-hooks/` directory the hook subprocess
+ * should read from. The lookup walks the current working directory
+ * upward and prefers the closest one; this lets a project-scoped
+ * install (`openbox cursor install --scope project --cwd <dir>`)
+ * carry its own `config.json` without polluting the global one.
+ * Falls back to `~/.cursor-hooks/` so existing user installs keep
+ * working unchanged.
+ */
+function resolveConfigDir(): string {
+  let cur = process.cwd();
+  for (let i = 0; i < 8; i++) {
+    const candidate = path.join(cur, '.cursor-hooks');
+    if (fs.existsSync(path.join(candidate, 'config.json'))) {
+      return candidate;
+    }
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+  return GLOBAL_CONFIG_DIR;
+}
+
+const CONFIG_DIR = resolveConfigDir();
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
 
