@@ -32,7 +32,10 @@ jobs:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      # `--ignore-scripts` skips the `prepare` lifecycle (which runs
+      # `npm run build` and OOMs the runner during DTS generation).
+      # The pipeline runs the build steps it needs explicitly below.
+      - run: npm ci --ignore-scripts
 
       - name: Build TypeSpec libraries + TS emitter
         run: npm run build:codegen
@@ -71,7 +74,10 @@ jobs:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      # `--ignore-scripts` skips the `prepare` lifecycle (which runs
+      # `npm run build` and OOMs the runner during DTS generation).
+      # The pipeline runs the build steps it needs explicitly below.
+      - run: npm ci --ignore-scripts
       - name: Compile specs
         run: npm run specs:compile
 
@@ -98,7 +104,10 @@ jobs:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      # `--ignore-scripts` skips the `prepare` lifecycle (which runs
+      # `npm run build` and OOMs the runner during DTS generation).
+      # The pipeline runs the build steps it needs explicitly below.
+      - run: npm ci --ignore-scripts
       - name: Compile head spec
         run: npm run specs:compile
 
