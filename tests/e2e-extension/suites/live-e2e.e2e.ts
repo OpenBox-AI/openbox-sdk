@@ -87,39 +87,31 @@ before(async () => {
 
 // ─── 1. Verdict matrix ──────────────────────────────────────────────
 
+// Verdict matrix sourced from the shared fixture so the host
+// runtime tests stay aligned across hosts as more get added.
+import {
+  VERDICT_MATRIX,
+  type VerdictMatrixCase,
+} from '../../hook-integration/fixtures/verdict-matrix.js';
+
 describe('LIVE; full BehaviorVerdict enum matrix', () => {
   // The bootstrap plants a rule against every SDK span type
   // (`file_read`, `file_write`, `llm`, `shell`, `http_*`, `db`,
   // `mcp`), so no span type lands as a clean verdict-0 allow.
-  // The verdict-1 (constrain) case below already exercises the
-  // "outcome is allow even though a rule fired" path, which is
-  // what the gate code cares about; verdict 0 is intentionally
-  // absent from this matrix.
+  // The verdict-1 (constrain) case in the fixture already
+  // exercises the "outcome is allow even though a rule fired"
+  // path, which is what the gate code cares about; verdict 0 is
+  // intentionally absent.
 
-  it('verdict 1 (constrain): database_query → e2e-constrain-db → outcome allow (score lowered)', async () => {
-    const r = await check('db', { query: 'SELECT 1' });
-    expect(r.outcome).toBe('allow');
-  });
-
-  it('verdict 2 (require_approval): llm_completion → e2e-approve-llm', async () => {
-    const r = await check('llm', { prompt: 'summarize this' });
-    expect(r.outcome).toBe('require_approval');
-  });
-
-  it('verdict 3 (block): file_write → e2e-deny-write → outcome deny', async () => {
-    const r = await check('file_write', { file_path: '/tmp/blocked.txt' });
-    expect(r.outcome).toBe('deny');
-    expect(r.reason).toMatch(/e2e-deny-write/);
-  });
-
-  it('verdict 4 (halt): http_post → e2e-halt-http → outcome deny', async () => {
-    const r = await check('http', {
-      method: 'POST',
-      url: 'https://example.com/blocked',
+  for (const c of VERDICT_MATRIX as readonly VerdictMatrixCase[]) {
+    it(c.name, async () => {
+      const r = await check(c.spanType, c.activityInput);
+      expect(r.outcome).toBe(c.expectedOutcome);
+      if (c.expectedOutcome === 'deny') {
+        expect(r.reason).toMatch(new RegExp(c.expectedRule));
+      }
     });
-    expect(r.outcome).toBe('deny');
-    expect(r.reason).toMatch(/e2e-halt-http/);
-  });
+  }
 });
 
 // ─── 2. Active gates (preWriteGate / fileOpGate / tabObserver) ─────
