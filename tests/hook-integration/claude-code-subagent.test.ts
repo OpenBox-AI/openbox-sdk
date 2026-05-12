@@ -8,11 +8,18 @@
 // hook subprocess directly with synthetic envelopes and asserts
 // the activity_type fingerprint + the log entries.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
 import path from 'node:path';
+import {
+  runClaude,
+  snapshotHookLog,
+  hookLogSince,
+  SHOULD_RUN as LIVE_SHOULD_RUN,
+  assertClaudeOnPath,
+} from './helpers/claude-runner.js';
 
 const OPENBOX = process.env.OPENBOX_CLI ?? 'openbox';
 
@@ -94,4 +101,45 @@ describe('claude-code subagent events', () => {
       expect(parsed.decision).toBeUndefined();
     }
   });
+});
+
+describe.runIf(LIVE_SHOULD_RUN)('real subagent spawn through claude Task tool', () => {
+  beforeAll(() => {
+    assertClaudeOnPath();
+  });
+
+  it('a Task delegation fires subagentStart at least once in the hook log', () => {
+    const offset = snapshotHookLog();
+    // Prompt explicitly asks claude to delegate. The Task tool
+    // spawns a subagent which fires SubagentStart through the
+    // hook subprocess. The model occasionally decides to do the
+    // work inline instead, so we accept either outcome and only
+    // assert the event when the tool ran.
+    runClaude(
+      'Use the Task tool to delegate a subagent that returns the literal string OK. Do not do the work yourself.',
+      {
+        allowedTool: 'Task',
+        timeoutMs: 60_000,
+      },
+    );
+
+    const lines = hookLogSince(offset);
+    const sawSubagent = lines.some((l) => l.event === 'subagentStart' || l.event === 'subagentStop');
+
+    // When claude chose to delegate, the subagent hooks fired. When
+    // it answered inline, no subagent event appears; that path is
+    // not a regression (we cannot force the model). We assert that
+    // EITHER the subagent events landed OR claude declined the Task
+    // tool with a clean exit (no crash in the adapter).
+    if (sawSubagent) {
+      expect(
+        lines.some((l) => l.event === 'subagentStart'),
+        'subagentStop appeared without subagentStart',
+      ).toBe(true);
+    } else {
+      // The session still went through; preToolUse / stop fired,
+      // which is enough to prove the dispatch path is healthy.
+      expect(lines.some((l) => l.event === 'stop')).toBe(true);
+    }
+  }, 90_000);
 });

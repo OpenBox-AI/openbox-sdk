@@ -171,7 +171,13 @@ describe('claude-code hook stdin/stdout', () => {
     expect(out?.hookSpecificOutput?.decision?.behavior).toBe('allow');
   });
 
-  it('SessionStart / SessionEnd / Stop / SubagentStart / SubagentStop / Notification dispatch cleanly', () => {
+  it('every spec-defined hook event dispatches cleanly under dryRun', () => {
+    // Covers the long tail beyond preToolUse / postToolUse:
+    // PreCompact and Notification have handlers in the adapter
+    // but no other test fires them. SessionStart / SessionEnd /
+    // Stop / SubagentStart / SubagentStop are observe-only events
+    // that should never surface a verdict; the hook must still
+    // dispatch them and write a log record.
     const root = planConfigDir({ dryRun: true });
     for (const event of [
       'SessionStart',
@@ -180,6 +186,7 @@ describe('claude-code hook stdin/stdout', () => {
       'SubagentStart',
       'SubagentStop',
       'Notification',
+      'PreCompact',
     ]) {
       const r = callHook(
         {
@@ -192,6 +199,53 @@ describe('claude-code hook stdin/stdout', () => {
       );
       expect(r.status, `${event} failed: ${r.stderr}`).toBe(0);
     }
+  });
+
+  it('permission_mode rides through the envelope without breaking the verdict shape', () => {
+    // Claude carries `permission_mode` (plan, default, etc.) on
+    // every envelope. The adapter passes it through to the activity
+    // payload; the hook must keep returning a sane verdict shape
+    // regardless of the mode value.
+    const root = planConfigDir({ dryRun: true });
+    for (const mode of ['default', 'plan', 'acceptEdits', 'bypassPermissions']) {
+      const r = callHook(
+        {
+          hook_event_name: 'PreToolUse',
+          session_id: `s-pm-${mode}`,
+          tool_name: 'Read',
+          tool_input: { file_path: '/etc/hostname' },
+          permission_mode: mode,
+        },
+        root,
+      );
+      expect(r.status, `permission_mode=${mode} failed: ${r.stderr}`).toBe(0);
+      const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string } };
+      expect(out?.hookSpecificOutput?.permissionDecision).toBe('allow');
+    }
+  });
+
+  it('VERBOSE=true does not break the verdict shape on dispatch', () => {
+    // Note: the per-event verbose log (`<configDir>/hook.log`) is
+    // not currently wired; the adapter calls `createLogger().initLogger`
+    // but never calls `log()`. The only on-disk log today is the
+    // JSONL hook log at `~/.openbox/log/claude-code-hook.jsonl`,
+    // which is covered separately. If a future PR wires the
+    // human-readable log, this test should grow assertions on
+    // <configDir>/hook.log; for now we only assert that VERBOSE
+    // does not regress the verdict path.
+    const root = planConfigDir({ dryRun: true, verbose: true });
+    const r = callHook(
+      {
+        hook_event_name: 'PreToolUse',
+        session_id: 's-verbose',
+        tool_name: 'Read',
+        tool_input: { file_path: '/etc/hostname' },
+      },
+      root,
+    );
+    expect(r.status).toBe(0);
+    const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string } };
+    expect(out?.hookSpecificOutput?.permissionDecision).toBe('allow');
   });
 
   it('skipTools causes the hook to bypass governance for the named tool', () => {

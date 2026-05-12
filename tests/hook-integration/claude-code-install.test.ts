@@ -131,6 +131,66 @@ describe('claude-code install / uninstall / doctor', () => {
     expect(settings.unrelated?.keep).toBe('me');
   });
 
+  it('install merges with a pre-existing user PreToolUse hook (both coexist)', () => {
+    const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-merge-'));
+    const settingsPath = path.join(project, '.claude', 'settings.json');
+    spawnSync('mkdir', ['-p', path.dirname(settingsPath)], { cwd: project });
+
+    // Pre-seed with the user's own PreToolUse hook in the exact
+    // claude-array shape so the install must merge rather than
+    // overwrite.
+    const userHook = {
+      matcher: 'Bash',
+      hooks: [{ type: 'command', command: 'echo user-pre-tool', timeout: 5 }],
+    };
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({ hooks: { PreToolUse: [userHook] } }, null, 2),
+    );
+
+    const r = runCli(
+      ['--experimental', 'claude-code', 'install', '--scope', 'project', '--cwd', project, '--no-mcp'],
+      project,
+    );
+    expect(r.status, `install failed: ${r.stderr}`).toBe(0);
+
+    const settings = JSON.parse(readFileSync(settingsPath, 'utf-8')) as {
+      hooks: { PreToolUse: Array<{ matcher?: string; hooks: Array<{ command: string }> }> };
+    };
+    const preToolUse = settings.hooks.PreToolUse;
+    expect(preToolUse.length).toBeGreaterThanOrEqual(2);
+
+    const userKept = preToolUse.some(
+      (m) => m.matcher === 'Bash' && m.hooks.some((h) => h.command === 'echo user-pre-tool'),
+    );
+    const openboxAdded = preToolUse.some((m) =>
+      m.hooks.some((h) => h.command === 'openbox claude-code hook'),
+    );
+    expect(userKept, 'install clobbered the user PreToolUse hook').toBe(true);
+    expect(openboxAdded, 'install did not add the openbox PreToolUse hook').toBe(true);
+
+    // Uninstall must remove only the openbox entry; the user hook
+    // survives.
+    const uninstall = runCli(
+      ['--experimental', 'claude-code', 'uninstall', '--scope', 'project', '--cwd', project, '--no-mcp'],
+      project,
+    );
+    expect(uninstall.status, `uninstall failed: ${uninstall.stderr}`).toBe(0);
+
+    const after = JSON.parse(readFileSync(settingsPath, 'utf-8')) as {
+      hooks: { PreToolUse?: Array<{ matcher?: string; hooks: Array<{ command: string }> }> };
+    };
+    const remaining = after.hooks.PreToolUse ?? [];
+    expect(
+      remaining.some((m) => m.hooks.some((h) => h.command.includes('openbox'))),
+      'uninstall left openbox entry behind',
+    ).toBe(false);
+    expect(
+      remaining.some((m) => m.matcher === 'Bash' && m.hooks.some((h) => h.command === 'echo user-pre-tool')),
+      'uninstall removed the user hook (should have kept it)',
+    ).toBe(true);
+  });
+
   it('install --no-mcp keeps the MCP server entry out of settings', () => {
     const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-nomcp-'));
     const r = runCli(
