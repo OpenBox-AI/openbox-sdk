@@ -11,6 +11,8 @@ pub(crate) mod transport;
 pub mod client;
 pub mod core;
 pub mod approvals;
+pub mod polling;
+pub mod governance;
 
 pub use client::OpenBoxClient;
 pub use core::OpenBoxCoreClient;

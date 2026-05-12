@@ -11,7 +11,7 @@ import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
 import { sideEffects } from '../side-effects.js';
-import { buildCursorSpan } from '../span-builder.js';
+import { buildSpan } from '../../../governance/spans.js';
 
 /** beforeMCPExecution: govern an MCP tool call before Cursor invokes it. */
 export async function handleBeforeMCPExecution(
@@ -23,7 +23,7 @@ export async function handleBeforeMCPExecution(
   if (!toolName) return undefined;
 
   const payload = buildBeforeMCPExecutionPayload(env, sideEffects);
-  const span = buildCursorSpan('mcp', { tool_name: toolName, tool_input: env.tool_input });
+  const span = buildSpan('cursor', 'mcp', { tool_name: toolName, tool_input: env.tool_input });
   const verdict = await session.activity(
     EVENT.START,
     BEFORE_MCPEXECUTION_ACTIVITY_TYPE,

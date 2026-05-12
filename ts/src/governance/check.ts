@@ -14,7 +14,7 @@
 // the org's.
 
 import { OpenBoxCoreClient, type GovernanceVerdictResponse } from '../core-client/index.js';
-import { recallAgentKey } from '../runtime/_shared/agent-keys-store.js';
+import { recallAgentKey } from '../file-tokens/agent-keys.js';
 import { ENVIRONMENTS, DEFAULT_CORE_URL, DEFAULT_ENV, resolveEnv, type EnvName } from '../env/index.js';
 
 export type SpanType = 'llm' | 'file_read' | 'file_write' | 'shell' | 'http' | 'db' | 'mcp';

@@ -1,5 +1,5 @@
-// End-to-end: real unix socket round trip between the SDK's client
-// (runtime/_shared/approval-socket-client) and the extension's server.
+// End-to-end: real unix socket round trip between the SDK client +
+// SDK server and the extension's `ApprovalStore`-binding wrapper.
 // Runs against a temp socket path so the dev's real ~/.openbox/run/
 // is untouched.
 
@@ -7,7 +7,12 @@ import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import * as path from "node:path";
 import * as os from "node:os";
 import * as fs from "node:fs";
-import { connectApprovalSocket } from "../../../ts/src/runtime/_shared/approval-socket-client";
+import { connectApprovalSocket } from "../../../ts/src/approvals/socket-client";
+import {
+  ApprovalSocketServer as SdkApprovalSocketServer,
+  type ApprovalPendingMessage,
+  type ApprovalServerConnection,
+} from "../../../ts/src/approvals/socket-server";
 
 vi.mock("vscode", () => ({
   EventEmitter: class {
@@ -26,51 +31,53 @@ vi.mock("vscode", () => ({
 }));
 
 import { ApprovalStore } from "./approvalStore";
-import { ApprovalSocketServer } from "./approvalSocketServer";
 
 const TMP_RUN = fs.mkdtempSync(path.join(os.tmpdir(), "openbox-test-"));
 const SOCK = path.join(TMP_RUN, "openbox.sock");
 
-// Patch the client's default path by passing the override.
+// Wire SDK server → extension's ApprovalStore. Same shape as the
+// production wrapper in approvalSocketServer.ts; just runs against
+// a temp socket path.
+function startServerOnStore(store: ApprovalStore): SdkApprovalSocketServer {
+  const server = new SdkApprovalSocketServer(
+    {
+      onPending: (msg: ApprovalPendingMessage, conn: ApprovalServerConnection) => {
+        store.upsert({
+          governance_event_id: msg.governance_event_id,
+          agent_id: msg.agent_id,
+          hook_event_name: msg.hook_event_name,
+          source: "socket",
+          summary: msg.summary ?? "",
+          reason: msg.reason ?? "",
+          expires_at:
+            msg.expires_at ?? new Date(Date.now() + 30 * 60_000).toISOString(),
+          created_at: Date.now(),
+          status: "pending",
+          resolver: (decision) =>
+            conn.writeDecision(msg.governance_event_id, decision),
+        });
+      },
+      onConnectionClosed: (conn) => {
+        for (const geid of conn.geids) store.detachResolver(geid);
+      },
+    },
+    { socketPath: SOCK },
+  );
+  server.start();
+  return server;
+}
 
 describe("approval socket round trip", () => {
   let store: ApprovalStore;
-  let server: ApprovalSocketServer;
+  let server: SdkApprovalSocketServer;
 
   beforeEach(() => {
     store = new ApprovalStore();
-    server = new (class extends ApprovalSocketServer {
-      // Override the constant path with our temp by re-implementing start().
-      start(): void {
-        const net = require("node:net");
-        // @ts-expect-error: poke into private to wire to TMP_RUN
-        this.server = net.createServer((s: import("net").Socket) =>
-          // @ts-expect-error: private
-          this.onConnection(s),
-        );
-        try {
-          fs.unlinkSync(SOCK);
-        } catch {
-          /* ignore */
-        }
-        // @ts-expect-error: private
-        this.server.listen(SOCK);
-      }
-      dispose(): void {
-        // @ts-expect-error: private
-        this.server?.close();
-        try {
-          fs.unlinkSync(SOCK);
-        } catch {
-          /* ignore */
-        }
-      }
-    })(store);
-    server.start();
+    server = startServerOnStore(store);
   });
 
   afterEach(() => {
-    server.dispose();
+    server.stop();
   });
 
   test("hook → ext: pending message lands in store", async () => {
@@ -85,7 +92,6 @@ describe("approval socket round trip", () => {
       reason: "rule",
       expires_at: new Date(Date.now() + 60_000).toISOString(),
     });
-    // Allow the server's data handler to run.
     await new Promise((r) => setTimeout(r, 50));
     const entry = store.get("geid-x");
     expect(entry?.status).toBe("pending");
@@ -106,9 +112,7 @@ describe("approval socket round trip", () => {
       expires_at: new Date(Date.now() + 60_000).toISOString(),
     });
     await new Promise((r) => setTimeout(r, 50));
-    // Begin awaiting the decision (would race pollApproval in real life).
     const decisionP = conn!.awaitDecision("geid-y", 2_000);
-    // Simulate the user clicking Approve in the toast.
     store.resolve("geid-y", "approved");
     const r = await decisionP;
     expect(r).toEqual({ kind: "decision", decision: "approve" });
@@ -116,7 +120,7 @@ describe("approval socket round trip", () => {
   });
 
   test("graceful: connect fails when no server", async () => {
-    server.dispose();
+    server.stop();
     const conn = await connectApprovalSocket(SOCK);
     expect(conn).toBeNull();
   });

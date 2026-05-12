@@ -5,7 +5,7 @@
 // as a missing key and the type system flags it.
 
 import * as fs from 'node:fs';
-import { isSkipped } from '../_shared/skip-patterns.js';
+import { isSkipped } from '../../governance/skip-patterns.js';
 import type { ClaudeCodeSideEffects } from '../../core-client/generated/runtime/claude-code.js';
 
 const TRUNCATE_LIMIT = 5000;

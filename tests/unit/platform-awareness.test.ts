@@ -80,10 +80,10 @@ describe('platform / OS awareness contract', () => {
   });
 
   it('session-store and install template writes carry mode: 0o600', () => {
-    const sessSrc = readFileSync(`${SRC_ROOT}/runtime/_shared/session-store.ts`, 'utf-8');
+    const sessSrc = readFileSync(`${SRC_ROOT}/session/store.ts`, 'utf-8');
     expect(sessSrc).toMatch(/\bwriteFileSync\b[^;]*0o600/s);
 
-    const installSrc = readFileSync(`${SRC_ROOT}/runtime/_shared/install.ts`, 'utf-8');
+    const installSrc = readFileSync(`${SRC_ROOT}/install/from-spec.ts`, 'utf-8');
     // The template-config write (the one that contains a user-pasted
     // API key) MUST be 0o600. The settings.json/hooks.json saveJson is
     // editor-managed; kept at default mode by design.
@@ -95,7 +95,7 @@ describe('platform / OS awareness contract', () => {
     // `agent create` and `api-key rotate` post-callbacks. A regression
     // that drops the bit would leave runtime keys world-readable on
     // shared Unix boxes.
-    const src = readFileSync(`${SRC_ROOT}/runtime/_shared/agent-keys-store.ts`, 'utf-8');
+    const src = readFileSync(`${SRC_ROOT}/file-tokens/agent-keys.ts`, 'utf-8');
     const total = (src.match(/\bwriteFileSync\s*\(/g) ?? []).length;
     const secured = (src.match(/\bwriteFileSync\b[^;]*0o600/gs) ?? []).length;
     expect(total).toBeGreaterThanOrEqual(1);

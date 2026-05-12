@@ -11,7 +11,7 @@ import { parseJsonInput } from '../../validators/index.js';
 import { reportAndExit } from '../../validators/index.js';
 import { wireSubcommands } from '../wire-subcommands.js';
 import { API_KEY_HANDLERS } from '../generated/cli-handlers/api-key.js';
-import { recallAgentKey, agentKeysPath } from '../../runtime/_shared/agent-keys-store.js';
+import { recallAgentKey, agentKeysPath } from '../../file-tokens/agent-keys.js';
 import { EXIT, bailWith } from '../exit-codes.js';
 
 export function registerApiKeyCommands(program: Command) {

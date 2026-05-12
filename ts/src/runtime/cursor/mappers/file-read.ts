@@ -12,21 +12,21 @@ import {
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
-import { buildCursorSpan } from '../span-builder.js';
-import { isInsideAnyRoot, isSkipped } from '../../_shared/skip-patterns.js';
+import { buildSpan } from '../../../governance/spans.js';
+import { isInsideAnyRoot, isSkipped } from '../../../governance/skip-patterns.js';
 import {
   buildActionKey,
   claimAction,
   awaitClaimDecision,
   publishClaimDecision,
-} from '../../_shared/dedup.js';
+} from '../dedup.js';
 
 /**
  * beforeReadFile: govern an agent-initiated file read before Cursor
  * delivers the content. Coordinates with preToolUse(Read) via the
  * shared filesystem claim — whichever subprocess wins runs the gate;
  * the loser waits for and mirrors the winner's decision. See
- * _shared/dedup.ts for why we wait instead of skipping.
+ * cursor/dedup.ts for why we wait instead of skipping.
  */
 export async function handleBeforeReadFile(
   env: CursorEnvelope,
@@ -58,7 +58,7 @@ export async function handleBeforeReadFile(
   }
 
   const payload = buildBeforeReadFilePayload(env);
-  const span = buildCursorSpan('file_read', { file_path: filePath });
+  const span = buildSpan('cursor', 'file_read', { file_path: filePath });
   try {
     const verdict = await session.activity(
       EVENT.START,
@@ -101,7 +101,7 @@ export async function handleBeforeTabFileRead(
   if (isInsideAnyRoot(filePath, env.workspace_roots)) return undefined;
 
   const payload = buildBeforeTabFileReadPayload(env);
-  const span = buildCursorSpan('file_read', { file_path: filePath });
+  const span = buildSpan('cursor', 'file_read', { file_path: filePath });
   const verdict = await session.activity(
     EVENT.START,
     BEFORE_TAB_FILE_READ_ACTIVITY_TYPE,

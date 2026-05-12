@@ -1,51 +1,33 @@
-// Single source for any user-visible OpenBox copy.
+// Extension-specific message hygiene. `eventLabel` delegates to
+// the SDK's `hookEventLabel`, which is the canonical hook-event
+// label map every consumer should read from.
 //
-// Em / en dashes (U+2014, U+2013) are forbidden in OpenBox strings.
-// Backend rule reject_messages frequently include them; every render
-// site has to call sanitizeReason() before showing the text. The
-// `[OpenBox]` prefix is enforced through brandedMessage(); applying
-// it twice is a no-op (idempotent).
+// Em and en dashes (U+2014, U+2013) are forbidden in OpenBox
+// user-visible strings. Backend rule reject messages frequently
+// include them, so every render site must call `sanitizeReason`
+// before display. The `[OpenBox]` prefix is enforced through
+// `brandedMessage`; applying it twice is a no-op.
+
+import { hookEventLabel } from "openbox-sdk/governance";
 
 const DASH_RE = /[—–]/g;
 const COLLAPSE_SPACES = / {2,}/g;
 
-/** Strip em / en dashes; collapse multi-spaces; trim. Idempotent. */
+/** Strips em and en dashes, collapses runs of spaces, and trims.
+ *  Idempotent. */
 export function sanitizeReason(raw: string | undefined | null): string {
   if (!raw) return "";
   return raw.replace(DASH_RE, " - ").replace(COLLAPSE_SPACES, " ").trim();
 }
 
-/** Sanitize and ensure the message starts with `[OpenBox]`. */
+/** Sanitizes the input and ensures the message starts with
+ *  `[OpenBox]`. */
 export function brandedMessage(raw: string | undefined | null): string {
   const clean = sanitizeReason(raw);
   if (!clean) return "[OpenBox]";
   return clean.startsWith("[OpenBox]") ? clean : `[OpenBox] ${clean}`;
 }
 
-/** Human label for a Cursor hook event name (used in toasts). */
-export function eventLabel(hookEvent: string | undefined | null): string {
-  switch (hookEvent) {
-    case "beforeShellExecution":
-      return "Shell command";
-    case "beforeReadFile":
-      return "File read";
-    case "beforeMCPExecution":
-      return "MCP tool call";
-    case "beforeSubmitPrompt":
-      return "Prompt submission";
-    case "beforeTabFileRead":
-      return "Tab file read";
-    case "preToolUse":
-      return "Tool call";
-    case "subagentStart":
-      return "Subagent spawn";
-    case "afterFileEdit":
-      return "File edit";
-    case "afterShellExecution":
-      return "Shell completion";
-    case "afterMCPExecution":
-      return "MCP completion";
-    default:
-      return hookEvent ?? "Action";
-  }
-}
+/** Human label for a hook event name. Delegates to the SDK so the
+ *  map stays consistent across mobile, extension, and CLI. */
+export const eventLabel = hookEventLabel;

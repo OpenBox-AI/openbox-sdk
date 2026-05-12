@@ -1,4 +1,4 @@
-// Unit coverage for runtime/_shared/agent-keys-store.ts. The store
+// Unit coverage for file-tokens/agent-keys.ts. The store
 // backs the `api-key recall` CLI command and is also read by the MCP
 // server's resolveApiKey path. Populated by the highlightRuntimeKey
 // post-callback (fires on agent create + rotate).
@@ -17,7 +17,7 @@ const originalHome = process.env.OPENBOX_HOME;
 process.env.OPENBOX_HOME = sandbox;
 
 const { recordAgentKey, recallAgentKey, agentKeysPath } = await import(
-  '../../ts/src/runtime/_shared/agent-keys-store.js'
+  '../../ts/src/file-tokens/agent-keys.js'
 );
 
 afterAll(() => {

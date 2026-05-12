@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { DEFAULT_CORE_URL } from '../../env/index.js';
+import { DEFAULT_CORE_URL } from '../env/index.js';
 
 export interface InstallSpec {
   file: string;

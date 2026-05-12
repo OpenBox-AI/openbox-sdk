@@ -16,8 +16,9 @@ import {
   $activityVariant,
   $activityType,
   $activityLabels,
+  $hookEventLabel,
 } from './decorators.js';
-export { getActivityType } from './decorators.js';
+export { getActivityType, getHookEventLabel } from './decorators.js';
 
 export { $lib } from './lib.js';
 
@@ -37,5 +38,6 @@ export const $decorators = {
     activityVariant: $activityVariant,
     activityType: $activityType,
     activityLabels: $activityLabels,
+    hookEventLabel: $hookEventLabel,
   },
 };

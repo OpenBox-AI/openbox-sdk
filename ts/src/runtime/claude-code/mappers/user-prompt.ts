@@ -7,6 +7,7 @@ import { buildUserPromptSubmitPayload } from '../../../core-client/generated/run
 import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
+import { buildSpan } from '../../../governance/spans.js';
 
 /**
  * UserPromptSubmit: user typed something into Claude Code. We govern the
@@ -28,7 +29,11 @@ export async function handleUserPromptSubmit(
   }).catch(() => undefined);
 
   const payload = buildUserPromptSubmitPayload(env);
-  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, { input: [payload] });
+  const span = buildSpan('claude-code', 'llm', { prompt });
+  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, {
+    input: [payload],
+    spans: [span],
+  });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;
 }

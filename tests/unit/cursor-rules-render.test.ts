@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { renderRulesProjection } from '../../ts/src/runtime/cursor/rules.js';
-import type { RulesProjection, ProjectedRule } from '../../ts/src/runtime/_shared/rules-projection.js';
+import type { RulesProjection, ProjectedRule } from '../../ts/src/governance/rules-projection.js';
 
 function tempWorkspace(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'openbox-rules-'));

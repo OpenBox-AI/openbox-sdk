@@ -75,6 +75,12 @@ export const $lib = createTypeSpecLibrary({
         default: paramMessage`Invalid @activityLabels: ${'reason'}`,
       },
     },
+    'invalid-hook-event-label': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @hookEventLabel '${'label'}'; must be a non-empty string`,
+      },
+    },
   },
   state: {
     verdict: { description: 'flag: model is the canonical verdict shape' },
@@ -91,6 +97,7 @@ export const $lib = createTypeSpecLibrary({
     activityVariants: { description: 'predicate-based activity-type reroute table attached to an adapter operation' },
     activityType: { description: 'fixed activity_type binding attached to an adapter operation (single value, mutually exclusive with activityRouting)' },
     activityLabels: { description: 'activity_type → human-readable display label table attached to a namespace' },
+    hookEventLabel: { description: 'human-readable label attached to an adapter @hookEvent operation' },
   },
 });
 

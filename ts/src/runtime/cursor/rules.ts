@@ -15,7 +15,7 @@
 // marker) are never touched.
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ProjectedRule, RulesProjection } from '../_shared/rules-projection.js';
+import type { ProjectedRule, RulesProjection } from '../../governance/rules-projection.js';
 
 const FILE_PREFIX = 'openbox-';
 const HEADER_MARKER = '<!-- openbox-managed: do-not-edit -->';

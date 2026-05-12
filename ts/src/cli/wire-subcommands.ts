@@ -29,7 +29,7 @@ import {
 } from '../validators/index.js';
 import type { OpenBoxClient } from '../client/index.js';
 import { requireYesForDestructive } from './non-interactive.js';
-import { recordAgentKey, agentKeysPath } from '../runtime/_shared/agent-keys-store.js';
+import { recordAgentKey, agentKeysPath } from '../file-tokens/agent-keys.js';
 import { resolveArgs } from './id-resolver.js';
 
 export interface FlagSpec {

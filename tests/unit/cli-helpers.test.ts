@@ -16,8 +16,8 @@ import { describe, it, expect } from 'vitest';
 import { Command } from 'commander';
 
 describe('thin exports', () => {
-  it('runtime/_shared/skip-patterns exports SKIP_PATTERNS', async () => {
-    const { SKIP_PATTERNS } = await import('../../ts/src/runtime/_shared/skip-patterns');
+  it('governance/skip-patterns exports SKIP_PATTERNS', async () => {
+    const { SKIP_PATTERNS } = await import('../../ts/src/governance/skip-patterns');
     expect(Array.isArray(SKIP_PATTERNS)).toBe(true);
     expect(SKIP_PATTERNS.length).toBeGreaterThan(0);
     expect(SKIP_PATTERNS.every((p) => p instanceof RegExp)).toBe(true);

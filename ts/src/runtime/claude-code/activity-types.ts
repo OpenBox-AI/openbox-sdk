@@ -1,12 +1,18 @@
-/**
- * Per-tool activity_type strings the runtime adapter fires. These match the
- * `default` preset's vocabulary in openbox-sdk and are what production
- * governance rules (guardrails, policies, behavior rules) target.
- *
- * The runtime adapter binds to the `claude-code` preset (so hook events
- * route correctly) but per-tool granularity comes from these strings,
- * fired via session.activity() rather than session.preToolUse().
- */
+// Claude Code-specific activity_type vocabulary. PascalCase strings
+// matching the `default` preset in openbox-sdk; production governance
+// rules (guardrails, policies, behavior rules) target these names.
+//
+// Why this isn't generated: the *standard* tool routing IS generated
+// (see PRE_TOOL_USE_ROUTING in core-client/generated/runtime/claude-code).
+// This file names the activity-types we fire for non-routed events —
+// session lifecycle, prompts, and the `mcp__*` fallback — so mappers
+// reference symbolic constants instead of bare strings.
+//
+// EVENT (ActivityStarted/Completed/SignalReceived) is shared across
+// adapters; it's re-exported from `governance/events.ts`.
+
+export { EVENT } from '../../governance/events.js';
+
 export const ACTIVITY_TYPES = {
   PROMPT: 'PromptSubmission',
   FILE_READ: 'FileRead',
@@ -17,10 +23,4 @@ export const ACTIVITY_TYPES = {
   MCP_CALL: 'MCPToolCall',
   AGENT_SPAWN: 'AgentSpawn',
   SESSION: 'ClaudeCodeSession',
-} as const;
-
-export const EVENT = {
-  START: 'ActivityStarted',
-  COMPLETE: 'ActivityCompleted',
-  SIGNAL: 'SignalReceived',
 } as const;

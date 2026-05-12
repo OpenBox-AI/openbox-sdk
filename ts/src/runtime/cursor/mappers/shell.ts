@@ -10,14 +10,14 @@ import {
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
-import { buildCursorSpan } from '../span-builder.js';
+import { buildSpan } from '../../../governance/spans.js';
 import {
   buildActionKey,
   claimAction,
   awaitClaimDecision,
   publishClaimDecision,
   isFileDeleteCommand,
-} from '../../_shared/dedup.js';
+} from '../dedup.js';
 
 /**
  * beforeShellExecution: govern shell command before Cursor runs it.
@@ -27,7 +27,7 @@ import {
  * claim runs the gate; the loser waits for the winner's decision and
  * mirrors it. This stops Cursor from proceeding on a fast "allow"
  * from one event while the other is still showing the user a toast
- * — see _shared/dedup.ts for the rationale.
+ * — see cursor/dedup.ts for the rationale.
  *
  * FileDelete reroute (mirrors preToolUse's @activityVariant): when
  * the command starts with rm/unlink/rmdir/shred, classify the
@@ -61,7 +61,7 @@ export async function handleBeforeShellExecution(
   const payload = buildBeforeShellExecutionPayload(env);
   const isDelete = isFileDeleteCommand(command);
   const activityType = isDelete ? 'FileDelete' : BEFORE_SHELL_EXECUTION_ACTIVITY_TYPE;
-  const span = buildCursorSpan(isDelete ? 'file_delete' : 'shell', {
+  const span = buildSpan('cursor', isDelete ? 'file_delete' : 'shell', {
     command,
     cwd: env.cwd,
   });

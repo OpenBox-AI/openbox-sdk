@@ -3,7 +3,7 @@
 // these by name; missing impls surface as type errors at consumer sites.
 
 import * as fs from 'node:fs';
-import { isSkipped } from '../_shared/skip-patterns.js';
+import { isSkipped } from '../../governance/skip-patterns.js';
 import type { CursorSideEffects } from '../../core-client/generated/runtime/cursor.js';
 
 export const sideEffects: CursorSideEffects = {

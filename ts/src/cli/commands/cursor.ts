@@ -76,7 +76,7 @@ export function registerCursorCommands(program: Command) {
         prune: boolean;
       }) => {
         const { fetchRulesProjection } = await import(
-          '../../runtime/_shared/rules-projection.js'
+          '../../governance/rules-projection.js'
         );
         const { renderRulesProjection } = await import('../../runtime/cursor/rules.js');
         try {

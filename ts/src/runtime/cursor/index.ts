@@ -20,4 +20,9 @@ export {
 // ─── Platform integration ───────────────────────────────────────────
 export { runCursorHook } from './hook-handler.js';
 export { installCursor, uninstallCursor } from './install.js';
-export { HOOK_LOG_PATH } from './event-log.js';
+
+import { makeHookLog } from '../../logging/hook-log.js';
+/** Path of the JSONL log written by the cursor hook subprocess.
+ *  Kept as a public symbol because the extension's OutputChannel
+ *  tails this file. */
+export const HOOK_LOG_PATH = makeHookLog('cursor').path;

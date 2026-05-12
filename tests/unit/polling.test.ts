@@ -1,119 +1,224 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ApprovalsPollingService } from '../../ts/src/polling/index.js';
+// Coverage for PollingService — the layer that drives the approvals
+// feed: cold-seeding, brand-new detection, load-more page suppression,
+// changed-event semantics. Used to be exercised only end-to-end in
+// the wdio mock-toast suite (which observed showWarningMessage fire);
+// extracting it as a unit test means we no longer need a workbench
+// to assert seed gating + brand-new detection.
 
-interface MinimalClient {
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { ApprovalsPollingService as PollingService } from '../../ts/src/polling/index.js';
+import type { Approval } from '../../ts/src/types/index.js';
+
+function row(id: string): Approval {
+  return {
+    id,
+    agent_id: 'agent-x',
+    status: 'pending',
+    activity_type: 'ShellExecution',
+    verdict: 2,
+    reason: '',
+    created_at: new Date().toISOString(),
+  };
+}
+
+interface FakeClient {
   getOrgApprovals: ReturnType<typeof vi.fn>;
 }
 
-function makeApproval(id: string) {
-  return { id, agent_id: 'a', activity_type: 't', verdict: 0 };
-}
-
-function makeClient(pages: Array<Array<{ id: string }>>): MinimalClient {
+function makeClient(scriptedReturns: Approval[][]): FakeClient {
   let i = 0;
   return {
     getOrgApprovals: vi.fn(async () => {
-      const data = pages[Math.min(i, pages.length - 1)];
-      i++;
+      const data = scriptedReturns[Math.min(i, scriptedReturns.length - 1)] ?? [];
+      i += 1;
       return { approvals: { data } };
     }),
   };
 }
 
-beforeEach(() => {
-  vi.useFakeTimers();
-});
-
-afterEach(() => {
-  vi.useRealTimers();
-});
-
-describe('ApprovalsPollingService', () => {
-  it('emits initial empty changed before the first network round-trip', async () => {
-    const client = makeClient([[]]);
-    const svc = new ApprovalsPollingService(client as never, 'org_x');
-    const seen: number[] = [];
-    svc.on('changed', (a: unknown[]) => seen.push(a.length));
-    svc.start();
-    expect(seen[0]).toBe(0);
-    svc.stop();
+describe('PollingService - seed gating', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it('does NOT fire newApprovals on cold start (existing rows are not "new")', async () => {
-    const client = makeClient([[makeApproval('a'), makeApproval('b')]]);
-    const svc = new ApprovalsPollingService(client as never, 'org_x');
-    let newApprovalsFired = false;
-    svc.on('newApprovals', () => { newApprovalsFired = true; });
-    svc.start();
-    await vi.runOnlyPendingTimersAsync();
-    expect(newApprovalsFired).toBe(false);
-    svc.stop();
-  });
-
-  it('fires newApprovals on subsequent polls when an unseen row appears', async () => {
+  it('first poll never emits newApprovals (cold seed); subsequent poll with new ids does', async () => {
     const client = makeClient([
-      [makeApproval('a')],
-      [makeApproval('a'), makeApproval('b')],
+      [row('a'), row('b')],            // first poll: seeding
+      [row('a'), row('b'), row('c')],  // second poll: 'c' is brand new
     ]);
-    const svc = new ApprovalsPollingService(client as never, 'org_x', { intervalMs: 100 });
-    const newOnes: string[][] = [];
-    svc.on('newApprovals', (a: Array<{ id: string }>) => newOnes.push(a.map((x) => x.id)));
-    svc.start();
-    await vi.runOnlyPendingTimersAsync();
-    await vi.advanceTimersByTimeAsync(100);
-    await vi.runOnlyPendingTimersAsync();
-    expect(newOnes).toEqual([['b']]);
-    svc.stop();
-  });
+    const svc = new PollingService(client as unknown as never, 'org-1', { intervalMs: 100 });
 
-  it('emits changed when the set shrinks (an approval was decided away)', async () => {
-    const client = makeClient([
-      [makeApproval('a'), makeApproval('b')],
-      [makeApproval('a')],
-    ]);
-    const svc = new ApprovalsPollingService(client as never, 'org_x', { intervalMs: 100 });
-    const sizes: number[] = [];
-    svc.on('changed', (a: unknown[]) => sizes.push(a.length));
-    svc.start();
-    await vi.runOnlyPendingTimersAsync();
-    await vi.advanceTimersByTimeAsync(100);
-    await vi.runOnlyPendingTimersAsync();
-    // [empty initial, 2 rows after first poll, 1 row after second poll]
-    expect(sizes).toEqual([0, 2, 1]);
-    svc.stop();
-  });
+    const seen: { event: string; payload: Approval[] }[] = [];
+    svc.on('newApprovals', (p: Approval[]) => seen.push({ event: 'newApprovals', payload: p }));
+    svc.on('changed', (p: Approval[]) => seen.push({ event: 'changed', payload: p }));
 
-  it('emits error when the API throws, and keeps polling', async () => {
-    let throwCount = 0;
-    const client: MinimalClient = {
-      getOrgApprovals: vi.fn(async () => {
-        if (throwCount++ === 0) throw new Error('boom');
-        return { approvals: { data: [] } };
-      }),
-    };
-    const svc = new ApprovalsPollingService(client as never, 'org_x', { intervalMs: 100 });
-    const errors: Error[] = [];
-    svc.on('error', (e: Error) => errors.push(e));
     svc.start();
-    await vi.runOnlyPendingTimersAsync();
-    await vi.advanceTimersByTimeAsync(100);
-    await vi.runOnlyPendingTimersAsync();
-    expect(errors.length).toBe(1);
-    expect(errors[0].message).toBe('boom');
-    svc.stop();
-  });
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
 
-  it('refresh forces an immediate poll', async () => {
-    const client = makeClient([[makeApproval('a')]]);
-    const svc = new ApprovalsPollingService(client as never, 'org_x');
-    const sizes: number[] = [];
-    svc.on('changed', (a: unknown[]) => sizes.push(a.length));
-    svc.start();
+    // First poll: a 'changed' fired (start emits empty, then real one
+    // post-fetch); no newApprovals.
+    const newAfterFirst = seen.filter((e) => e.event === 'newApprovals');
+    expect(newAfterFirst).toHaveLength(0);
+
+    // Drive a second poll and let the await settle.
     await svc.refresh();
-    // initial empty changed + first poll + refresh poll (the second
-    // refresh poll sees no diff so no new "changed" fires)
-    expect(sizes[0]).toBe(0);
-    expect(sizes[1]).toBe(1);
+    await Promise.resolve();
+
+    const newAfterSecond = seen.filter((e) => e.event === 'newApprovals');
+    expect(newAfterSecond).toHaveLength(1);
+    expect(newAfterSecond[0].payload.map((a) => a.id)).toEqual(['c']);
+
+    svc.stop();
+  });
+
+  it('changed event does fire for the cold seed (so views render initial rows)', async () => {
+    const client = makeClient([[row('a'), row('b')]]);
+    const svc = new PollingService(client as unknown as never, 'org-1', { intervalMs: 100 });
+    const changed: Approval[][] = [];
+    svc.on('changed', (p: Approval[]) => changed.push(p));
+
+    svc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    // Two changed: the start() empty-array prime + the post-fetch
+    // emission with real rows.
+    expect(changed.length).toBeGreaterThanOrEqual(2);
+    expect(changed.at(-1)?.map((a) => a.id)).toEqual(['a', 'b']);
+
+    svc.stop();
+  });
+
+  it('repeated identical poll does NOT re-emit changed (id set unchanged)', async () => {
+    const client = makeClient([
+      [row('a'), row('b')],
+      [row('a'), row('b')],
+    ]);
+    const svc = new PollingService(client as unknown as never, 'org-1', { intervalMs: 100 });
+    const changed: Approval[][] = [];
+    svc.on('changed', (p: Approval[]) => changed.push(p));
+
+    svc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    const countAfterFirstFetch = changed.length;
+
+    await svc.refresh();
+    await Promise.resolve();
+    // Second poll has the same ids: no new 'changed' emission since
+    // the only emit triggers are (a) seed completion (first time) or
+    // (b) id set drift.
+    expect(changed.length).toBe(countAfterFirstFetch);
+
+    svc.stop();
+  });
+});
+
+describe('PollingService - load-more / brand-new suppression', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('loadMore() suppresses newApprovals for the immediately-following poll', async () => {
+    const client = makeClient([
+      [row('a'), row('b')],                         // initial seed
+      [row('a'), row('b'), row('c'), row('d')],     // load-more: c,d are NOT new arrivals
+      [row('a'), row('b'), row('c'), row('d'), row('e')], // genuine arrival: e is new
+    ]);
+    const svc = new PollingService(client as unknown as never, 'org-1', { intervalMs: 100 });
+    const newOnes: Approval[][] = [];
+    svc.on('newApprovals', (p: Approval[]) => newOnes.push(p));
+
+    svc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    svc.loadMore();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    // c, d came in via load-more → no toast.
+    expect(newOnes).toHaveLength(0);
+
+    await svc.refresh();
+    await Promise.resolve();
+    // e arrived in a normal poll after load-more cleared.
+    expect(newOnes).toHaveLength(1);
+    expect(newOnes[0].map((a) => a.id)).toEqual(['e']);
+
+    svc.stop();
+  });
+
+  it('loadMore() respects MAX_PAGES (5 pages); past the cap, no further effect', () => {
+    const client = makeClient([[row('a')]]);
+    const svc = new PollingService(client as unknown as never, 'org-1');
+    for (let i = 0; i < 10; i++) svc.loadMore();
+    expect(svc.atPageLimit).toBe(true);
+  });
+});
+
+describe('PollingService - filter/status reset semantics', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('setStatus() clears seeded so the post-status-change rows are NOT toasted as new', async () => {
+    const client = makeClient([
+      [row('a')],          // seed under default status
+      [row('b'), row('c')], // post-setStatus poll: must NOT toast b/c
+    ]);
+    const svc = new PollingService(client as unknown as never, 'org-1', { intervalMs: 100 });
+    const newOnes: Approval[][] = [];
+    svc.on('newApprovals', (p: Approval[]) => newOnes.push(p));
+
+    svc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(newOnes).toHaveLength(0); // cold seed
+
+    svc.setStatus('pending');
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    // setStatus reset seeded, so the next poll re-seeds: still no toast.
+    expect(newOnes).toHaveLength(0);
+
+    svc.stop();
+  });
+
+  it('setFilters() also resets seeding', async () => {
+    const client = makeClient([
+      [row('a')],
+      [row('b')],
+    ]);
+    const svc = new PollingService(client as unknown as never, 'org-1', { intervalMs: 100 });
+    const newOnes: Approval[][] = [];
+    svc.on('newApprovals', (p: Approval[]) => newOnes.push(p));
+
+    svc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    svc.setFilters({ sort: 'oldest', dateRange: 'all' });
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(newOnes).toHaveLength(0); // re-seed after filter change
+
+    svc.stop();
+  });
+});
+
+describe('PollingService - error handling', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('thrown error from getOrgApprovals emits "error" and increments errorCount', async () => {
+    const client = {
+      getOrgApprovals: vi.fn(async () => { throw new Error('network down'); }),
+    };
+    const svc = new PollingService(client as unknown as never, 'org-1', { intervalMs: 100 });
+    const errs: Error[] = [];
+    svc.on('error', (e: Error) => errs.push(e));
+
+    svc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    expect(errs.length).toBeGreaterThanOrEqual(1);
+    expect(errs[0].message).toMatch(/network down/);
+    expect(svc.errorCount).toBeGreaterThanOrEqual(1);
+    expect(svc.lastErrorMessage).toMatch(/network down/);
+
     svc.stop();
   });
 });

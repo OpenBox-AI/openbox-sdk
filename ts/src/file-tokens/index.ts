@@ -91,3 +91,13 @@ export function clearApiKey(env: EnvName): boolean {
 export function hasApiKey(env: EnvName): boolean {
   return loadApiKey(env) !== undefined;
 }
+
+// Per-agent runtime-key cache. Lives alongside the token store
+// because both surfaces are file-backed credentials with the same
+// lifecycle.
+export {
+  recordAgentKey,
+  recallAgentKey,
+  agentKeysPath,
+  type AgentKeyRecord,
+} from './agent-keys.js';

@@ -10,7 +10,7 @@ import {
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
-import { buildCursorSpan } from '../span-builder.js';
+import { buildSpan } from '../../../governance/spans.js';
 
 /** beforeSubmitPrompt: fire goal signal + govern the prompt as input. */
 export async function handleBeforeSubmitPrompt(
@@ -27,7 +27,7 @@ export async function handleBeforeSubmitPrompt(
   }).catch(() => undefined);
 
   const payload = buildBeforeSubmitPromptPayload(env);
-  const span = buildCursorSpan('llm', { prompt });
+  const span = buildSpan('cursor', 'llm', { prompt });
   const verdict = await session.activity(
     EVENT.START,
     BEFORE_SUBMIT_PROMPT_ACTIVITY_TYPE,

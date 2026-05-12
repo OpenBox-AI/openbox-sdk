@@ -69,6 +69,7 @@ interface ClaudeCodeAdapter {
    * mcp__* tools resolve to MCPToolCall via runtime fallback.
    */
   @hookEvent("PreToolUse")
+  @hookEventLabel("Tool call")
   @verdictShape("permission-decision")
   @installTimeout(86400)
   @activityRouting(#{
@@ -137,6 +138,7 @@ interface ClaudeCodeAdapter {
   preToolUse(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("PostToolUse")
+  @hookEventLabel("Tool completion")
   @verdictShape("decision-block")
   @activityRouting(#{
     Read: "FileRead",
@@ -158,6 +160,7 @@ interface ClaudeCodeAdapter {
   postToolUse(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("UserPromptSubmit")
+  @hookEventLabel("Prompt submission")
   @verdictShape("decision-block")
   @installTimeout(86400)
   @payloadShape(#{
@@ -171,6 +174,7 @@ interface ClaudeCodeAdapter {
   userPromptSubmit(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("PermissionRequest")
+  @hookEventLabel("Permission request")
   @verdictShape("permission-request")
   @installTimeout(86400)
   @activityRouting(#{
@@ -250,11 +254,13 @@ interface ClaudeCodeAdapter {
   permissionRequest(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("PreCompact")
+  @hookEventLabel("Pre-compact")
   @verdictShape("none")
   @noPayload
   preCompact(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("SessionStart")
+  @hookEventLabel("Session start")
   @verdictShape("none")
   @payloadShape(#{
     default: #{
@@ -266,6 +272,7 @@ interface ClaudeCodeAdapter {
   sessionStart(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("SessionEnd")
+  @hookEventLabel("Session end")
   @verdictShape("none")
   @payloadShape(#{
     default: #{
@@ -276,6 +283,7 @@ interface ClaudeCodeAdapter {
   sessionEnd(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("SubagentStart")
+  @hookEventLabel("Subagent spawn")
   @verdictShape("none")
   @payloadShape(#{
     default: #{
@@ -287,6 +295,7 @@ interface ClaudeCodeAdapter {
   subagentStart(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("SubagentStop")
+  @hookEventLabel("Subagent stop")
   @verdictShape("none")
   @payloadShape(#{
     default: #{
@@ -299,6 +308,7 @@ interface ClaudeCodeAdapter {
   subagentStop(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("Stop")
+  @hookEventLabel("Stop")
   @verdictShape("none")
   @payloadShape(#{
     default: #{
@@ -309,6 +319,7 @@ interface ClaudeCodeAdapter {
   stop(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("Notification")
+  @hookEventLabel("Notification")
   @verdictShape("none")
   @noPayload
   notification(input: ClaudeCodeEnvelope): unknown;
@@ -427,6 +438,7 @@ model CursorEnvelope {
 })
 interface CursorAdapter {
   @hookEvent("beforeSubmitPrompt")
+  @hookEventLabel("Prompt submission")
   @verdictShape("cursor-continue")
   @installTimeout(1800)
   @activityType("PromptSubmission")
@@ -440,6 +452,7 @@ interface CursorAdapter {
   beforeSubmitPrompt(input: CursorEnvelope): unknown;
 
   @hookEvent("beforeReadFile")
+  @hookEventLabel("File read")
   @verdictShape("cursor-permission")
   @installTimeout(1800)
   @activityType("FileRead")
@@ -454,6 +467,7 @@ interface CursorAdapter {
   beforeReadFile(input: CursorEnvelope): unknown;
 
   @hookEvent("beforeShellExecution")
+  @hookEventLabel("Shell command")
   @verdictShape("cursor-permission")
   @installTimeout(1800)
   @activityType("ShellExecution")
@@ -468,6 +482,7 @@ interface CursorAdapter {
   beforeShellExecution(input: CursorEnvelope): unknown;
 
   @hookEvent("beforeMCPExecution")
+  @hookEventLabel("MCP tool call")
   @verdictShape("cursor-permission")
   @installTimeout(1800)
   @activityType("MCPToolCall")
@@ -490,6 +505,7 @@ interface CursorAdapter {
    * after the routing-table lookup.
    */
   @hookEvent("preToolUse")
+  @hookEventLabel("Tool call")
   @verdictShape("cursor-permission")
   @installTimeout(1800)
   @activityRouting(#{
@@ -525,6 +541,7 @@ interface CursorAdapter {
   preToolUse(input: CursorEnvelope): unknown;
 
   @hookEvent("afterAgentResponse")
+  @hookEventLabel("Agent response")
   @verdictShape("cursor-observe")
   @activityType("LLMCompleted")
   @payloadShape(#{
@@ -537,6 +554,7 @@ interface CursorAdapter {
   afterAgentResponse(input: CursorEnvelope): unknown;
 
   @hookEvent("afterAgentThought")
+  @hookEventLabel("Agent thought")
   @verdictShape("cursor-observe")
   @activityType("LLMCompleted")
   @payloadShape(#{
@@ -549,6 +567,7 @@ interface CursorAdapter {
   afterAgentThought(input: CursorEnvelope): unknown;
 
   @hookEvent("afterShellExecution")
+  @hookEventLabel("Shell completion")
   @verdictShape("cursor-observe")
   @activityType("ShellExecution")
   @payloadShape(#{
@@ -561,6 +580,7 @@ interface CursorAdapter {
   afterShellExecution(input: CursorEnvelope): unknown;
 
   @hookEvent("afterFileEdit")
+  @hookEventLabel("File edit")
   @verdictShape("cursor-observe")
   @activityType("FileEdit")
   @payloadShape(#{
@@ -573,6 +593,7 @@ interface CursorAdapter {
   afterFileEdit(input: CursorEnvelope): unknown;
 
   @hookEvent("afterMCPExecution")
+  @hookEventLabel("MCP completion")
   @verdictShape("cursor-observe")
   @activityType("MCPToolCall")
   @payloadShape(#{
@@ -586,16 +607,19 @@ interface CursorAdapter {
   afterMCPExecution(input: CursorEnvelope): unknown;
 
   @hookEvent("postToolUse")
+  @hookEventLabel("Tool completion")
   @verdictShape("cursor-observe")
   @noPayload
   postToolUse(input: CursorEnvelope): unknown;
 
   @hookEvent("postToolUseFailure")
+  @hookEventLabel("Tool failure")
   @verdictShape("cursor-observe")
   @noPayload
   postToolUseFailure(input: CursorEnvelope): unknown;
 
   @hookEvent("sessionStart")
+  @hookEventLabel("Session start")
   @verdictShape("none")
   @payloadShape(#{
     default: #{
@@ -606,6 +630,7 @@ interface CursorAdapter {
   sessionStart(input: CursorEnvelope): unknown;
 
   @hookEvent("stop")
+  @hookEventLabel("Stop")
   @verdictShape("none")
   @payloadShape(#{
     default: #{
@@ -622,6 +647,7 @@ interface CursorAdapter {
    * the agent didn't request but happened to be in the workspace.
    */
   @hookEvent("beforeTabFileRead")
+  @hookEventLabel("Tab file read")
   @verdictShape("cursor-permission")
   @installTimeout(1800)
   @activityType("FileRead")
@@ -637,6 +663,7 @@ interface CursorAdapter {
 
   /** Observe-only completion signal for tab-driven file edits. */
   @hookEvent("afterTabFileEdit")
+  @hookEventLabel("Tab file edit")
   @verdictShape("cursor-observe")
   @activityType("FileEdit")
   @payloadShape(#{
@@ -650,6 +677,7 @@ interface CursorAdapter {
 
   /** Cursor's session close (distinct from `stop`, which fires on chat-turn boundary). */
   @hookEvent("sessionEnd")
+  @hookEventLabel("Session end")
   @verdictShape("none")
   @payloadShape(#{
     default: #{
@@ -661,6 +689,7 @@ interface CursorAdapter {
 
   /** Pre-context-compact; observe-only. */
   @hookEvent("preCompact")
+  @hookEventLabel("Pre-compact")
   @verdictShape("cursor-observe")
   @noPayload
   preCompact(input: CursorEnvelope): unknown;
@@ -674,6 +703,7 @@ interface CursorAdapter {
    * creation; the user_message surfaces in the chat verbatim.
    */
   @hookEvent("subagentStart")
+  @hookEventLabel("Subagent spawn")
   @verdictShape("cursor-permission")
   @installTimeout(1800)
   @activityType("SubagentStart")
@@ -695,6 +725,7 @@ interface CursorAdapter {
 
   /** Observe-only subagent close. */
   @hookEvent("subagentStop")
+  @hookEventLabel("Subagent stop")
   @verdictShape("cursor-observe")
   @noPayload
   subagentStop(input: CursorEnvelope): unknown;

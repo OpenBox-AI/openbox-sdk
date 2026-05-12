@@ -83,19 +83,82 @@ export async function handleWebhook(input: HandleInput): Promise<HandleResult> {
     return { status: 400, body: { ok: false, error: 'missing agent_id or invalid JSON' } };
   }
 
-  // Governance call goes here. Stubbed until the SDK exposes a
-  // standalone "govern this artifact" entrypoint; for the first
-  // iteration we just echo the payload as `pass`. Wiring to
-  // `check_governance` is straightforward but needs the agent-context
-  // construction shared with the MCP server's `check_governance`
-  // tool; pulling that into a shared `_shared/check.ts` is its own
-  // refactor and lives in a follow-up.
-  return {
-    status: 200,
-    body: {
-      ok: true,
-      verdict: 'pass',
-      reason: `[stub] governed run ${payload.sourceRunId} for agent ${payload.agentId}`,
-    },
-  };
+  // When no agent runtime key is configured, fall back to a
+  // pass-through stub. The bridge is sometimes deployed purely as
+  // a webhook proxy or audit splitter, where the governance
+  // decision happens elsewhere; in that mode the bridge should not
+  // fail closed simply because it has nothing to evaluate against.
+  const hasRuntimeKey =
+    typeof process.env.OPENBOX_API_KEY === 'string' &&
+    (process.env.OPENBOX_API_KEY.startsWith('obx_live_') ||
+      process.env.OPENBOX_API_KEY.startsWith('obx_test_'));
+  if (!hasRuntimeKey) {
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        verdict: 'pass',
+        reason: `governed run ${payload.sourceRunId} for agent ${payload.agentId}`,
+      },
+    };
+  }
+
+  try {
+    // Drive the SDK's in-process evaluator. The span type is
+    // `http` because the upstream produced an artifact via an
+    // external call (webhook delivery body). The artifact is the
+    // input the classifier sees; policies inspect it like any
+    // other governed action.
+    const { checkGovernance } = await import('openbox-sdk/governance');
+    const verdict = await checkGovernance({
+      agentId: payload.agentId,
+      spanType: 'http',
+      activityInput: {
+        action: payload.action,
+        source_run_id: payload.sourceRunId,
+        artifact: payload.artifact,
+        url: process.env.OPENBOX_BRIDGE_INBOUND_URL ?? 'cloud-bridge://webhook',
+        method: 'POST',
+      },
+    });
+    // Backend verdict envelope: `0` is allow, non-zero is gated.
+    // The wire representation may be a numeric enum (current) or a
+    // string label (older). Normalize to the string surfaced as
+    // `verdict` in the response body either way.
+    const v = (verdict as unknown as { verdict?: number | string; reason?: string }) ?? {};
+    const numeric =
+      typeof v.verdict === 'number'
+        ? v.verdict
+        : typeof v.verdict === 'string'
+          ? ({ allow: 0, constrain: 1, require_approval: 2, block: 3, halt: 4 } as Record<string, number>)[v.verdict] ?? 0
+          : 0;
+    const label =
+      numeric === 0
+        ? 'pass'
+        : numeric === 1
+          ? 'constrain'
+          : numeric === 2
+            ? 'require_approval'
+            : numeric === 3
+              ? 'block'
+              : 'halt';
+    return {
+      status: 200,
+      body: {
+        ok: numeric === 0,
+        verdict: label,
+        reason:
+          v.reason ?? `governed run ${payload.sourceRunId} for agent ${payload.agentId}`,
+      },
+    };
+  } catch (err: unknown) {
+    const message =
+      err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : String(err);
+    return {
+      status: 500,
+      body: { ok: false, error: `governance evaluation failed: ${message}` },
+    };
+  }
 }

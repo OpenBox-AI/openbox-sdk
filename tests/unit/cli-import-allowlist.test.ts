@@ -42,7 +42,7 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   '../features.js': 'isFeatureEnabled gate.',
   '../maturity.js': 'CLI maturity gate (gateCommands).',
   '../exit-codes.js': 'EXIT taxonomy + bailWith; exit-code contract.',
-  '../../runtime/_shared/agent-keys-store.js':
+  '../../file-tokens/agent-keys.js':
     'recordAgentKey / recallAgentKey; local 0o600 cache for runtime API keys captured by agent create + api-key rotate (shared between cli and runtime/mcp).',
   '../config-store.js':
     'setConfig / getConfig / unsetConfig / listConfig / configStorePath / applyConfigToProcessEnv; persistent per-env CLI config, layered into process.env at startup.',
@@ -84,7 +84,7 @@ const ALLOWED_PREFIXES: Record<string, string> = {
     'cursor sync-rules delegates to the .cursor/rules/*.mdc renderer.',
   '../../runtime/cursor/commands.js':
     'unified cursor install copies the bundled slash commands, rules, and plugin agents into ~/.cursor/{commands,rules,agents}.',
-  '../../runtime/_shared/rules-projection.js':
+  '../../governance/rules-projection.js':
     'editor-agnostic guardrails+policies projection consumed by cursor sync-rules.',
   '../../runtime/mcp/index.js': 'mcp serve runs the MCP stdio server.',
   '../../runtime/mcp/install.js':

@@ -36,6 +36,29 @@ export const AFTER_TAB_FILE_EDIT_ACTIVITY_TYPE: string = "FileEdit";
 
 export const SUBAGENT_START_ACTIVITY_TYPE: string = "SubagentStart";
 
+export const HOOK_EVENT_LABELS: Record<string, string> = {
+  "beforeSubmitPrompt": "Prompt submission",
+  "beforeReadFile": "File read",
+  "beforeShellExecution": "Shell command",
+  "beforeMCPExecution": "MCP tool call",
+  "preToolUse": "Tool call",
+  "afterAgentResponse": "Agent response",
+  "afterAgentThought": "Agent thought",
+  "afterShellExecution": "Shell completion",
+  "afterFileEdit": "File edit",
+  "afterMCPExecution": "MCP completion",
+  "postToolUse": "Tool completion",
+  "postToolUseFailure": "Tool failure",
+  "sessionStart": "Session start",
+  "stop": "Stop",
+  "beforeTabFileRead": "Tab file read",
+  "afterTabFileEdit": "Tab file edit",
+  "sessionEnd": "Session end",
+  "preCompact": "Pre-compact",
+  "subagentStart": "Subagent spawn",
+  "subagentStop": "Subagent stop"
+};
+
 export interface InstallSpec {
   file: string;
   key: string;
@@ -46,7 +69,7 @@ export interface InstallSpec {
 }
 
 /** Where this adapter's install command writes its hook block. The
- *  shared installer in runtime/_shared/install.ts reads this spec. */
+ *  shared installer in install/from-spec.ts reads this spec. */
 export const INSTALL_SPEC: InstallSpec = {
   "file": "~/.cursor/hooks.json",
   "key": "hooks",

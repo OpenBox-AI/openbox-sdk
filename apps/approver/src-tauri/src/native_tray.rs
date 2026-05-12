@@ -152,8 +152,15 @@ impl NativeTray {
             for approval in approvals {
                 self.menu.addItem(&NSMenuItem::separatorItem(mtm));
 
-                // Agent name as bold header
-                Self::add_disabled_item_to(&self.menu, &format!("  {}", approval.agent_name), mtm);
+                // Agent name plus a source chip as the bold
+                // header. The source identifies the originating
+                // host (for example `cursor` or `claude-code`)
+                // and is omitted when unknown.
+                let header = match &approval.source {
+                    Some(src) => format!("  [{}] {}", src, approval.agent_name),
+                    None => format!("  {}", approval.agent_name),
+                };
+                Self::add_disabled_item_to(&self.menu, &header, mtm);
 
                 // Details inline, no submenu.
                 if !approval.trust_tier.is_empty() || !approval.action_type.is_empty() {
@@ -265,4 +272,9 @@ pub struct ApprovalData {
     pub reason: String,
     pub time_ago: String,
     pub expires_in: String,
+    /// Originating host (for example `cursor` or `claude-code`).
+    /// `None` when the approval's spans carry neither `module` nor
+    /// `gen_ai.system`; the approver renders nothing in that case
+    /// rather than guessing.
+    pub source: Option<String>,
 }

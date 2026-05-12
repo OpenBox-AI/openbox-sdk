@@ -1,13 +1,13 @@
 // Resolves Claude Code's `session_id` (one per chat session) to the
 // workflowId/runId pair the OpenBox runtime requires. Logic lives in
-// `_shared/session-resolver`; this file just supplies the right field
+// `session/resolver`; this file just supplies the right field
 // from the envelope.
 import {
   resolveSessionByKey,
   peekSessionByKey,
   markHaltedByKey,
   clearSessionByKey,
-} from '../_shared/session-resolver.js';
+} from '../../session/resolver.js';
 import type { ClaudeCodeConfig } from './config.js';
 import type { ClaudeCodeEnvelope } from '../../core-client/generated/runtime/claude-code.js';
 

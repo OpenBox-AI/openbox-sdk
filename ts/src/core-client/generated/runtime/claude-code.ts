@@ -39,6 +39,20 @@ export const PERMISSION_REQUEST_ROUTING: Record<string, string> = {
   "Agent": "AgentSpawn"
 };
 
+export const HOOK_EVENT_LABELS: Record<string, string> = {
+  "PreToolUse": "Tool call",
+  "PostToolUse": "Tool completion",
+  "UserPromptSubmit": "Prompt submission",
+  "PermissionRequest": "Permission request",
+  "PreCompact": "Pre-compact",
+  "SessionStart": "Session start",
+  "SessionEnd": "Session end",
+  "SubagentStart": "Subagent spawn",
+  "SubagentStop": "Subagent stop",
+  "Stop": "Stop",
+  "Notification": "Notification"
+};
+
 export interface InstallSpec {
   file: string;
   key: string;
@@ -49,7 +63,7 @@ export interface InstallSpec {
 }
 
 /** Where this adapter's install command writes its hook block. The
- *  shared installer in runtime/_shared/install.ts reads this spec. */
+ *  shared installer in install/from-spec.ts reads this spec. */
 export const INSTALL_SPEC: InstallSpec = {
   "file": "~/.claude/settings.json",
   "key": "hooks",

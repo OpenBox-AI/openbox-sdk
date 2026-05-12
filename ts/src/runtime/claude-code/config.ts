@@ -1,7 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { DEFAULT_CORE_URL } from '../../env/index.js';
-import { loadJsonConfig, loadDotenv } from '../_shared/host-config.js';
+import { loadJsonConfig, loadDotenv } from '../../config/host-config.js';
 
 // os.homedir() honors USERPROFILE on Windows where HOME is unset.
 const CONFIG_DIR = path.join(os.homedir(), '.claude-hooks');

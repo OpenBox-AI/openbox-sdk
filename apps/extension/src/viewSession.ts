@@ -28,7 +28,7 @@ import {
   toggleSort,
   type FilterController,
 } from "./filterCommands";
-import { PollingService } from "./polling";
+import { ApprovalsPollingService } from "openbox-sdk/polling";
 import type { Approval, Member, Team } from "./types";
 
 export interface SessionDeps {
@@ -74,7 +74,7 @@ export class ViewSession implements vscode.Disposable {
   private readonly treeProvider: ApprovalsTreeProvider;
   private readonly treeView: vscode.TreeView<unknown>;
   private filters: FilterState;
-  private feed: PollingService;
+  private feed: ApprovalsPollingService;
   // Activity types seen across all polls in this session. Sticky on
   // purpose: filtering down to one tier shouldn't shrink the type
   // picker to that tier's types only. Mirrors mobile's
@@ -102,10 +102,17 @@ export class ViewSession implements vscode.Disposable {
     this.disposables.push(this.treeView, this.treeProvider);
 
     const status = cfg.supportsStatus ? this.filters.status : cfg.initialStatus;
-    this.feed = new PollingService(deps.client, deps.orgId, {
+    this.feed = new ApprovalsPollingService(deps.client, deps.orgId, {
       status,
-      pollMs: cfg.pollMs,
+      intervalMs: cfg.pollMs,
       filters: this.filters,
+      // Scope the approvals tree to the host that owns this
+      // extension. The Cursor IDE should only surface approvals
+      // originating from Cursor; approvals from other hosts belong
+      // in the source-neutral desktop approver and mobile app.
+      // Approvals with no resolvable source pass through so a real
+      // row never vanishes silently.
+      sourceFilter: "cursor",
     });
 
     this.feed.on("changed", (approvals: Approval[]) => {
@@ -208,7 +215,7 @@ export class ViewSession implements vscode.Disposable {
       }
       await saveFilters(this.deps.context.globalState, this.cfg.scope, this.deps.env, this.filters);
       this.paintBanner();
-      // Status changes go through the dedicated setter so PollingService
+      // Status changes go through the dedicated setter so ApprovalsPollingService
       // resets the seed gate; otherwise setFilters' reset is enough.
       if (this.cfg.supportsStatus && "status" in (next as any)) {
         this.feed.setStatus(this.filters.status);

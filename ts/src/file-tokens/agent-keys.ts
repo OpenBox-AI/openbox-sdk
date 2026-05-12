@@ -3,8 +3,9 @@
 // `api-key rotate`); read by both `openbox api-key recall` (the CLI
 // recovery path) and the MCP server's resolveApiKey (so MCP-driven
 // governance calls can find a runtime key without the caller re-
-// pasting it). Lives under runtime/_shared/ because both surfaces
-// depend on it; sibling to install.ts and session-store.ts.
+// pasting it). Sits in file-tokens/ because it's the second of the
+// two file-backed credentials the SDK owns (the other being the
+// env-namespaced X-API-Key store).
 //
 // File: <openbox-data-root>/agent-keys (per-OS, see env/os-paths.ts).
 // Mode: 0o600; drift-locked by tests/unit/platform-awareness.test.ts.
@@ -15,7 +16,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
-import { resolveOsPath } from '../../env/os-paths.js';
+import { resolveOsPath } from '../env/os-paths.js';
 
 export interface AgentKeyRecord {
   agentId: string;

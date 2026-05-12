@@ -79,9 +79,21 @@ async function renderOneToast(
     { modal: false, detail },
     "Approve",
     "Deny",
+    "View",
   );
   shownFor.delete(entry.governance_event_id);
   if (!choice) return;
+  if (choice === "View") {
+    // Open the detail panel for this approval. The command
+    // resolves by governance event id when handed a plain string
+    // (see the `openbox.openDetail` registration in
+    // `extension.ts`).
+    void vscode.commands.executeCommand(
+      "openbox.openDetail",
+      entry.governance_event_id,
+    );
+    return;
+  }
   await resolveApproval(
     deps.store,
     deps.getClient(),

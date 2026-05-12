@@ -20,7 +20,7 @@ import { OpenBoxCoreClient } from "../../core-client/index.js";
 import { loadApiKey } from "../../file-tokens/index.js";
 import { resolveEnv, setMcpClientName } from "./config.js";
 import { DEFAULT_ENV, resolveEnv as resolveEnvName } from "../../env/index.js";
-import { recallAgentKey } from "../_shared/agent-keys-store.js";
+import { recallAgentKey } from "../../file-tokens/agent-keys.js";
 import { registerRecipeTools } from "./recipe-tools.js";
 import { applyEnvSource } from "../../cli/env-source.js";
 

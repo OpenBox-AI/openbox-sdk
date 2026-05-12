@@ -6,7 +6,7 @@
 // generated; once codegen lights it up, switch the imports to
 // generated types and delete the duplication. Until then, treat this
 // file as the source of truth for what the spec says.
-import { createApi } from '../mcp/config.js';
+import { createApi } from '../runtime/mcp/config.js';
 
 export type RuleTrigger = 'always' | 'globMatch' | 'agentRequested' | 'manual';
 export type RuleSeverity = 'block' | 'warn' | 'info';

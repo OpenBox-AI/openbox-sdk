@@ -1,8 +1,8 @@
 // Installer for Cursor hooks. Spec-driven: target file, JSON key, hook
 // command all come from `INSTALL_SPEC` (generated from @installTarget
-// in adapters.tsp). All JSON-merge work lives in runtime/_shared/install.ts.
+// in adapters.tsp). All JSON-merge work lives in install/from-spec.ts.
 import { INSTALL_SPEC } from '../../core-client/generated/runtime/cursor.js';
-import { installAdapter, uninstallAdapter, type InstallSpec } from '../_shared/install.js';
+import { installAdapter, uninstallAdapter, type InstallSpec } from '../../install/from-spec.js';
 
 export interface InstallCursorOptions {
   /**

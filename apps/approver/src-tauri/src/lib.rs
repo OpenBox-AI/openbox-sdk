@@ -14,6 +14,7 @@ mod settings_window;
 // `rust/src/core/generated/govern.rs`; the SDK wraps it with a
 // title-case fallback for free-form custom-preset activity_types.
 use openbox_sdk::approvals::format::{format_label, time_ago, time_remaining};
+use openbox_sdk::approvals::approval_source;
 use openbox_sdk::env::{resolve_urls, EnvName};
 use openbox_sdk::verdict::verdict_label;
 
@@ -58,25 +59,12 @@ pub struct AppState {
     pub needs_bootstrap: bool,
 }
 
-/// Diff the current pending-approvals snapshot against the cached
-/// `known_ids`. Returns `(new_ids_set, brand_new_ids_vec)`. Pulled out
-/// of the polling loop so unit tests can exercise the dedupe logic
-/// without needing an SDK client. The polling thread feeds two
-/// successive snapshots through this and decides whether to fire the
-/// notification path.
-pub fn diff_known_ids(known: &HashSet<String>, snapshot: &[String]) -> (HashSet<String>, Vec<String>) {
-    let new_ids: HashSet<String> = snapshot.iter().cloned().collect();
-    let brand_new: Vec<String> = if known.is_empty() {
-        Vec::new()
-    } else {
-        snapshot
-            .iter()
-            .filter(|id| !known.contains(*id))
-            .cloned()
-            .collect()
-    };
-    (new_ids, brand_new)
-}
+/// Re-export of `openbox_sdk::polling::diff_known_ids`. The
+/// approver's poll loop keeps its own machinery (tray-update
+/// plumbing, retry queue, configurable cadence), but the dedupe
+/// arithmetic is the same as for every other SDK consumer and
+/// therefore lives in the SDK.
+pub use openbox_sdk::polling::diff_known_ids;
 
 /// Drain the queued decision off `AppState`. Mirrors the inline pop
 /// the polling loop runs every tick, but factored out so a test can
@@ -459,6 +447,7 @@ pub fn run() {
                                         reason: a.reason.clone().unwrap_or_default(),
                                         time_ago: a.created_at.as_deref().map(time_ago).unwrap_or_default(),
                                         expires_in: a.approval_expired_at.as_deref().map(time_remaining).unwrap_or_default(),
+                                        source: approval_source(a),
                                     }
                                 }).collect();
 

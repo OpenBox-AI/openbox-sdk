@@ -25,7 +25,7 @@ beforeEach(() => {
 
 describe('fetchRulesProjection', () => {
   async function loadModule() {
-    return await import('../../ts/src/runtime/_shared/rules-projection.js');
+    return await import('../../ts/src/governance/rules-projection.js');
   }
 
   it('skips inactive guardrails and inactive policies', async () => {

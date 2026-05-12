@@ -27,3 +27,8 @@ export {
 // ─── Platform integration (called from the CLI) ─────────────────────
 export { runClaudeHook } from './hook-handler.js';
 export { installClaudeCode, uninstallClaudeCode } from './install.js';
+
+import { makeHookLog } from '../../logging/hook-log.js';
+/** Path of the JSONL log written by the claude-code hook subprocess.
+ *  Mirrors cursor's HOOK_LOG_PATH so the extension can tail both. */
+export const HOOK_LOG_PATH = makeHookLog('claude-code').path;

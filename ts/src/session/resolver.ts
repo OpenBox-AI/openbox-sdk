@@ -6,7 +6,7 @@
 // Adapters wrap this with their own envelope-field accessor:
 // `env.session_id` for claude-code, `env.conversation_id` for cursor.
 import { randomUUID } from 'node:crypto';
-import { SessionStore } from './session-store.js';
+import { SessionStore } from './store.js';
 
 interface PersistedSession {
   workflowId: string;

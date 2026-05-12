@@ -1,4 +1,4 @@
-// Coverage for ts/src/runtime/_shared/*; pure primitives the
+// Coverage for ts/src/{governance,session,logging,install,approvals}/*; pure primitives the
 // claude-code/cursor adapters compose against. Each helper is small
 // and deterministic; tests use the real fs (in a temp dir) rather
 // than mocking it, so the file-mode contract from O.1 also stays
@@ -17,9 +17,9 @@ afterEach(() => {
   if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
 });
 
-describe('runtime/_shared/skip-patterns', () => {
+describe('governance/skip-patterns', () => {
   it('SKIP_PATTERNS hides editor + secret + dependency dirs', async () => {
-    const { SKIP_PATTERNS } = await import('../../ts/src/runtime/_shared/skip-patterns');
+    const { SKIP_PATTERNS } = await import('../../ts/src/governance/skip-patterns');
     const cases: [string, boolean][] = [
       ['/foo/.cursor/settings.json', true],
       ['/foo/.claude/anything', true],
@@ -34,9 +34,9 @@ describe('runtime/_shared/skip-patterns', () => {
   });
 });
 
-describe('runtime/_shared/session-store', () => {
+describe('session/store', () => {
   it('save() writes 0o600 file; load round-trips; delete removes', async () => {
-    const { SessionStore } = await import('../../ts/src/runtime/_shared/session-store');
+    const { SessionStore } = await import('../../ts/src/session/store');
     const s = new SessionStore(dir);
     s.save('abc/123', { hello: 'world' });
     // sanitization: '/' replaced
@@ -47,7 +47,7 @@ describe('runtime/_shared/session-store', () => {
   });
 
   it('cleanup() removes stale sessions older than maxAgeMs', async () => {
-    const { SessionStore } = await import('../../ts/src/runtime/_shared/session-store');
+    const { SessionStore } = await import('../../ts/src/session/store');
     const s = new SessionStore(dir);
     s.save('keep', { x: 1 });
     s.save('drop', { x: 2 });
@@ -61,15 +61,15 @@ describe('runtime/_shared/session-store', () => {
   });
 
   it('load() on missing key returns null without throwing', async () => {
-    const { SessionStore } = await import('../../ts/src/runtime/_shared/session-store');
+    const { SessionStore } = await import('../../ts/src/session/store');
     const s = new SessionStore(dir);
     expect(s.load('nope')).toBeNull();
   });
 });
 
-describe('runtime/_shared/session-resolver', () => {
+describe('session/resolver', () => {
   it('resolveSessionByKey creates new IDs on first call, reuses on second', async () => {
-    const mod = await import('../../ts/src/runtime/_shared/session-resolver');
+    const mod = await import('../../ts/src/session/resolver');
     const cfg = { sessionDir: dir };
     const a = mod.resolveSessionByKey('S1', cfg);
     expect(a.workflowId).toMatch(/[0-9a-f-]{36}/);
@@ -80,7 +80,7 @@ describe('runtime/_shared/session-resolver', () => {
   });
 
   it('markHaltedByKey + clearSessionByKey mutate persisted state', async () => {
-    const mod = await import('../../ts/src/runtime/_shared/session-resolver');
+    const mod = await import('../../ts/src/session/resolver');
     const cfg = { sessionDir: dir };
     mod.resolveSessionByKey('S2', cfg);
     mod.markHaltedByKey('S2', cfg);
@@ -91,9 +91,9 @@ describe('runtime/_shared/session-resolver', () => {
   });
 });
 
-describe('runtime/_shared/logger', () => {
+describe('logging/logger', () => {
   it('createLogger returns init+log; log writes a JSON line to stderr + file', async () => {
-    const { createLogger } = await import('../../ts/src/runtime/_shared/logger');
+    const { createLogger } = await import('../../ts/src/logging/logger');
     const { initLogger, log } = createLogger('test');
     const logFile = join(dir, 'log.jsonl');
     initLogger({ logFile });
@@ -113,7 +113,7 @@ describe('runtime/_shared/logger', () => {
   });
 
   it('initLogger with logFile=null is a no-op (no FS writes)', async () => {
-    const { createLogger } = await import('../../ts/src/runtime/_shared/logger');
+    const { createLogger } = await import('../../ts/src/logging/logger');
     const { initLogger, log } = createLogger('null-test');
     initLogger({ logFile: null });
     const orig = console.error;
@@ -126,9 +126,9 @@ describe('runtime/_shared/logger', () => {
   });
 });
 
-describe('runtime/_shared/install', () => {
+describe('install/from-spec', () => {
   it('installAdapter (claude-array) writes the configured key into the target file', async () => {
-    const { installAdapter, uninstallAdapter } = await import('../../ts/src/runtime/_shared/install');
+    const { installAdapter, uninstallAdapter } = await import('../../ts/src/install/from-spec');
     const target = join(dir, 'settings.json');
     const spec = {
       file: target,
@@ -151,7 +151,7 @@ describe('runtime/_shared/install', () => {
   });
 
   it('installAdapter (cursor-keyed) writes per-event entries', async () => {
-    const { installAdapter } = await import('../../ts/src/runtime/_shared/install');
+    const { installAdapter } = await import('../../ts/src/install/from-spec');
     const target = join(dir, 'hooks.json');
     const spec = {
       file: target,

@@ -19,10 +19,14 @@ export interface ApprovalLookup {
 export function pickApproval(node: unknown, lookup: ApprovalLookup): Approval | undefined {
   if (!node) return undefined;
   if (typeof node === "string") {
-    return (
-      lookup.pending.find((a) => a.id === node) ??
-      lookup.history.find((a) => a.id === node)
-    );
+    // The toast's "View" button passes the socket-supplied
+    // governance event id, which the backend row stores as
+    // `event_id` rather than `id`. Older callers pass the row's
+    // primary key. Check both so either path resolves.
+    const findIn = (rows: Approval[]) =>
+      rows.find((a) => a.id === node) ??
+      rows.find((a) => (a as { event_id?: string }).event_id === node);
+    return findIn(lookup.pending) ?? findIn(lookup.history);
   }
   if (typeof node === "object" && node !== null) {
     const obj = node as { approval?: Approval; id?: string };

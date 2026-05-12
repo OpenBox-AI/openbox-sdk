@@ -63,6 +63,7 @@ import {
   getInstallTimeout,
   getActivityVariants,
   getActivityLabels,
+  getHookEventLabel,
   type CanonicalEventType,
   type VerdictShape,
   type PayloadShapeBinding,
@@ -1516,6 +1517,8 @@ interface AdapterMethod {
   installTimeout?: number;
   /** Predicate-based activity-type reroutes from @activityVariant. */
   variants?: ActivityVariant[];
+  /** Human-readable display label from @hookEventLabel. */
+  eventLabel?: string;
 }
 
 interface AdapterEntry {
@@ -1569,6 +1572,7 @@ function emitAdapters(program: Program, project: Project, repoRoot: string): voi
       const np = isNoPayload(program, op);
       const it = getInstallTimeout(program, op);
       const av = getActivityVariants(program, op);
+      const hl = getHookEventLabel(program, op);
       methods.push({
         name: opName,
         eventName: ev.eventName,
@@ -1579,6 +1583,7 @@ function emitAdapters(program: Program, project: Project, repoRoot: string): voi
         noPayload: np,
         installTimeout: it,
         variants: av,
+        eventLabel: hl,
       });
     }
     if (methods.length === 0) continue;
@@ -1724,13 +1729,29 @@ function emitAdapterModule(a: AdapterEntry): string {
   // Install spec; where the install command writes the hook block.
   const installSpec = a.installTarget ? emitInstallSpec(a) : '';
 
+  // Per-event human display labels. UI surfaces (toast titles,
+  // detail panels, mobile sheets) read this map so labels stay
+  // consistent across consumers.
+  const labelEntries: Array<[string, string]> = [];
+  for (const m of a.methods) {
+    if (m.eventLabel) labelEntries.push([m.eventName, m.eventLabel]);
+  }
+  const hookLabelsExport =
+    labelEntries.length === 0
+      ? ''
+      : `export const HOOK_EVENT_LABELS: Record<string, string> = ${JSON.stringify(
+          Object.fromEntries(labelEntries),
+          null,
+          2,
+        )};`;
+
   return `import type { OpenBoxCoreClient } from '../../core-client.js';
 import { govern, presets, type ${presetSessionTy}, type WorkflowVerdict } from '../govern.js';
 import type { ${a.envelopeName} } from './envelopes.js';
 
 export type { ${a.envelopeName} };
 
-${routingExports ? routingExports + '\n\n' : ''}${activityTypeExports ? activityTypeExports + '\n\n' : ''}${installSpec ? installSpec + '\n\n' : ''}${hasAnyVariants ? VARIANT_RUNTIME_HELPERS + '\n\n' + variantExports + '\n\n' : ''}${sideEffectsBlock ? sideEffectsBlock + '\n\n' : ''}${payloadBuilders ? PAYLOAD_RUNTIME_HELPERS + '\n\n' + payloadBuilders + '\n\n' : ''}/**
+${routingExports ? routingExports + '\n\n' : ''}${activityTypeExports ? activityTypeExports + '\n\n' : ''}${hookLabelsExport ? hookLabelsExport + '\n\n' : ''}${installSpec ? installSpec + '\n\n' : ''}${hasAnyVariants ? VARIANT_RUNTIME_HELPERS + '\n\n' + variantExports + '\n\n' : ''}${sideEffectsBlock ? sideEffectsBlock + '\n\n' : ''}${payloadBuilders ? PAYLOAD_RUNTIME_HELPERS + '\n\n' + payloadBuilders + '\n\n' : ''}/**
  * Per-event handlers. Each handler receives the parsed stdin envelope
  * + an attached ${presetSessionTy} (workflowId/runId resolved by
  * \`config.resolveSession\`). Return a WorkflowVerdict; usually by calling
@@ -1996,7 +2017,7 @@ function compileFieldMap(fields: Record<string, FieldSource>): string {
 }
 
 /** Emit the per-adapter INSTALL_SPEC constant. The hand-coded
- *  install.ts loads it and delegates to runtime/_shared/install.ts. */
+ *  install.ts loads it and delegates to install/from-spec.ts. */
 function emitInstallSpec(a: AdapterEntry): string {
   const it = a.installTarget!;
   const events = a.methods.map((m) => ({
@@ -2021,7 +2042,7 @@ function emitInstallSpec(a: AdapterEntry): string {
 }
 
 /** Where this adapter's install command writes its hook block. The
- *  shared installer in runtime/_shared/install.ts reads this spec. */
+ *  shared installer in install/from-spec.ts reads this spec. */
 export const INSTALL_SPEC: InstallSpec = ${JSON.stringify(spec, null, 2)};`;
 }
 

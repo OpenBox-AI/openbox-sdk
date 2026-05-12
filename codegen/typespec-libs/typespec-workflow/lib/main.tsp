@@ -258,3 +258,17 @@ extern dec activityVariant(
  *   e.g. `#{ LLMCompleted: "LLM Completed", MCPToolCall: "MCP Tool Call" }`.
  */
 extern dec activityLabels(target: Namespace, table: valueof Record<string>);
+
+/**
+ * Human-readable label for a single adapter hook event.
+ *
+ * Applied alongside `@hookEvent` on an adapter operation. The
+ * emitter collects every `(hookEventName, label)` pair into the
+ * adapter's generated `HOOK_EVENT_LABELS` constant. UI surfaces
+ * (toast titles, detail-panel headers, mobile sheet labels) read
+ * the constant so labels stay consistent across consumers.
+ *
+ * @param label Display label such as `"Shell command"` or
+ *              `"File read"`.
+ */
+extern dec hookEventLabel(target: Operation, label: valueof string);

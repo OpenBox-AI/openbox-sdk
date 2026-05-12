@@ -6,8 +6,9 @@ import { createClaudeCodeAdapter } from '../../core-client/generated/runtime/cla
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { loadConfig } from './config.js';
 import { applyEnvSource } from '../../cli/env-source.js';
-import { initLogger } from './logger.js';
+import { createLogger } from '../../logging/logger.js';
 import { resolveSession } from './session-resolver.js';
+import { makeHookLog } from '../../logging/hook-log.js';
 import { handlePreToolUse } from './mappers/pre-tool-use.js';
 import { handlePostToolUse } from './mappers/post-tool-use.js';
 import { handleUserPromptSubmit } from './mappers/user-prompt.js';
@@ -19,6 +20,40 @@ import {
 } from './mappers/session.js';
 import { handleSubagentStart, handleSubagentStop } from './mappers/subagent.js';
 
+const hookLog = makeHookLog('claude-code');
+
+/** Wrap a per-event handler with a JSONL log line for the OutputChannel
+ *  tail. Mirrors the cursor adapter so the extension can show both
+ *  hosts' hook activity through the same code path. */
+function logged<E, S, R>(
+  event: string,
+  verdictKind: 'permission' | 'observe' | 'none',
+  fn: (env: E, s: S) => Promise<R>,
+): (env: E, s: S) => Promise<R> {
+  return async (env, s) => {
+    const start = Date.now();
+    try {
+      const out = await fn(env, s);
+      hookLog.record({
+        ts: new Date().toISOString(),
+        event,
+        verdict_kind: verdictKind,
+        took_ms: Date.now() - start,
+      });
+      return out;
+    } catch (err: any) {
+      hookLog.record({
+        ts: new Date().toISOString(),
+        event,
+        verdict_kind: verdictKind,
+        took_ms: Date.now() - start,
+        error: String(err?.message ?? err),
+      });
+      throw err;
+    }
+  };
+}
+
 export async function runClaudeHook(): Promise<void> {
   // Single-source env resolution. Same call CLI / MCP / cursor hook
   // make so every OpenBox process on this machine converges on the
@@ -26,7 +61,7 @@ export async function runClaudeHook(): Promise<void> {
   applyEnvSource();
 
   const cfg = loadConfig();
-  initLogger(cfg);
+  createLogger('claude-code').initLogger(cfg);
 
   // Pass-through if not configured. The adapter would still be willing to
   // run but with no API key the core client can't call /evaluate; better to
@@ -50,15 +85,24 @@ export async function runClaudeHook(): Promise<void> {
     core,
     resolveSession: (env) => resolveSession(env, cfg),
     handlers: {
-      preToolUse: async (env, s) => dryRun ? undefined : handlePreToolUse(env, s, cfg),
-      postToolUse: async (env, s) => dryRun ? undefined : handlePostToolUse(env, s, cfg),
-      userPromptSubmit: async (env, s) => dryRun ? undefined : handleUserPromptSubmit(env, s, cfg),
-      permissionRequest: async (env, s) => dryRun ? undefined : handlePermissionRequest(env, s, cfg),
-      sessionStart: async (env, s) => dryRun ? undefined : handleSessionStart(env, s, cfg),
-      sessionEnd: async (env, s) => dryRun ? undefined : handleSessionEnd(env, s, cfg),
-      stop: async (env, s) => dryRun ? undefined : handleStop(env, s, cfg),
-      subagentStart: async (env, s) => dryRun ? undefined : handleSubagentStart(env, s, cfg),
-      subagentStop: async (env, s) => dryRun ? undefined : handleSubagentStop(env, s, cfg),
+      preToolUse: logged('preToolUse', 'permission',
+        async (env, s) => dryRun ? undefined : handlePreToolUse(env, s, cfg)),
+      postToolUse: logged('postToolUse', 'observe',
+        async (env, s) => dryRun ? undefined : handlePostToolUse(env, s, cfg)),
+      userPromptSubmit: logged('userPromptSubmit', 'permission',
+        async (env, s) => dryRun ? undefined : handleUserPromptSubmit(env, s, cfg)),
+      permissionRequest: logged('permissionRequest', 'permission',
+        async (env, s) => dryRun ? undefined : handlePermissionRequest(env, s, cfg)),
+      sessionStart: logged('sessionStart', 'none',
+        async (env, s) => dryRun ? undefined : handleSessionStart(env, s, cfg)),
+      sessionEnd: logged('sessionEnd', 'none',
+        async (env, s) => dryRun ? undefined : handleSessionEnd(env, s, cfg)),
+      stop: logged('stop', 'observe',
+        async (env, s) => dryRun ? undefined : handleStop(env, s, cfg)),
+      subagentStart: logged('subagentStart', 'permission',
+        async (env, s) => dryRun ? undefined : handleSubagentStart(env, s, cfg)),
+      subagentStop: logged('subagentStop', 'observe',
+        async (env, s) => dryRun ? undefined : handleSubagentStop(env, s, cfg)),
     },
   }).run();
 }

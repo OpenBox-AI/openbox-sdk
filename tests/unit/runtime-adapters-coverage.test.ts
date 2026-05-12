@@ -208,9 +208,9 @@ describe('runtime/mcp/config', () => {
   });
 });
 
-describe('runtime/_shared/install; defensive paths', () => {
+describe('install/from-spec; defensive paths', () => {
   it('install + uninstall are idempotent across re-runs', async () => {
-    const { installAdapter, uninstallAdapter } = await import('../../ts/src/runtime/_shared/install');
+    const { installAdapter, uninstallAdapter } = await import('../../ts/src/install/from-spec');
     const target = join(dir, 'settings.json');
     const spec = {
       file: target,

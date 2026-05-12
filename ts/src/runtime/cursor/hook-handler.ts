@@ -7,10 +7,12 @@ import { createCursorAdapter } from '../../core-client/generated/runtime/cursor.
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { loadConfig } from './config.js';
 import { applyEnvSource } from '../../cli/env-source.js';
-import { initLogger } from './logger.js';
+import { createLogger } from '../../logging/logger.js';
 import { resolveSession } from './session-resolver.js';
-import { recordHookEvent } from './event-log.js';
-import { connectApprovalSocket } from '../_shared/approval-socket-client.js';
+import { makeHookLog } from '../../logging/hook-log.js';
+
+const hookLog = makeHookLog('cursor');
+import { connectApprovalSocket } from '../../approvals/socket-client.js';
 import { handleBeforeSubmitPrompt } from './mappers/prompt.js';
 import { handleBeforeShellExecution } from './mappers/shell.js';
 import { handleBeforeMCPExecution } from './mappers/mcp.js';
@@ -47,7 +49,7 @@ function logged<E, S, R>(
     const start = Date.now();
     try {
       const out = await fn(env, s);
-      recordHookEvent({
+      hookLog.record({
         ts: new Date().toISOString(),
         event,
         verdict_kind: verdictKind,
@@ -55,7 +57,7 @@ function logged<E, S, R>(
       });
       return out;
     } catch (err: any) {
-      recordHookEvent({
+      hookLog.record({
         ts: new Date().toISOString(),
         event,
         verdict_kind: verdictKind,
@@ -78,7 +80,7 @@ export async function runCursorHook(): Promise<void> {
   applyEnvSource();
 
   const cfg = loadConfig();
-  initLogger(cfg);
+  createLogger('cursor').initLogger(cfg);
 
   if (!cfg.openboxApiKey) {
     if (cfg.verbose) console.error('[openbox cursor] no OPENBOX_API_KEY set, passing through');

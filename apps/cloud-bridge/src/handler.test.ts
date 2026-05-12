@@ -1,8 +1,21 @@
-// Handler tests run with the env-driven verifier set in beforeEach.
-// We can't `vi.mock('node:crypto')` reliably, so we just compute the
-// expected signature inline for the HMAC tests.
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+// Handler tests run with the env-driven verifier set in
+// `beforeEach`. `vi.mock('node:crypto')` is unreliable, so the
+// HMAC tests compute the expected signature inline.
+//
+// `openbox-sdk/governance` is mocked because the handler drives
+// the SDK's in-process evaluator and the tests should not reach
+// out for a runtime API key. The mock returns
+// `{ verdict: 0, reason: <run-id + agent> }` so existing
+// assertions on `body.reason` continue to hold.
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import crypto from 'node:crypto';
+
+vi.mock('openbox-sdk/governance', () => ({
+  checkGovernance: vi.fn(async (opts: { agentId?: string; activityInput?: Record<string, unknown> }) => ({
+    verdict: 0,
+    reason: `governed run ${(opts.activityInput?.source_run_id as string) ?? 'unknown'} for agent ${opts.agentId ?? 'unknown'}`,
+  })),
+}));
 
 const ORIG_ENV = { ...process.env };
 

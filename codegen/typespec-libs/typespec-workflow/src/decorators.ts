@@ -623,3 +623,31 @@ export function getActivityLabels(
 ): ActivityLabelsBinding | undefined {
   return program.stateMap(stateKeys.activityLabels).get(target);
 }
+
+// ─── Hook event labels (per-event display strings) ───────────────────
+// Display label attached to an adapter `@hookEvent` operation. The
+// emitter folds each adapter's collected labels into a generated
+// `HOOK_EVENT_LABELS` constant so UIs render consistent names.
+
+export function $hookEventLabel(
+  context: DecoratorContext,
+  target: Operation,
+  label: string,
+): void {
+  if (typeof label !== 'string' || label.length === 0) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-hook-event-label',
+      format: { label: String(label) },
+      target,
+    });
+    return;
+  }
+  context.program.stateMap(stateKeys.hookEventLabel).set(target, label);
+}
+
+export function getHookEventLabel(
+  program: Program,
+  target: Operation,
+): string | undefined {
+  return program.stateMap(stateKeys.hookEventLabel).get(target);
+}

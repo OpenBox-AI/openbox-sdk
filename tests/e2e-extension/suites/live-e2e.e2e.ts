@@ -88,10 +88,13 @@ before(async () => {
 // ─── 1. Verdict matrix ──────────────────────────────────────────────
 
 describe('LIVE — full BehaviorVerdict enum matrix', () => {
-  it('verdict 0 (allow): file_read with no matching rule → outcome allow', async () => {
-    const r = await check('file_read', { file_path: '/tmp/whatever-no-rule-fires.txt' });
-    expect(r.outcome).toBe('allow');
-  });
+  // The bootstrap plants a rule against every SDK span type
+  // (`file_read`, `file_write`, `llm`, `shell`, `http_*`, `db`,
+  // `mcp`), so no span type lands as a clean verdict-0 allow.
+  // The verdict-1 (constrain) case below already exercises the
+  // "outcome is allow even though a rule fired" path, which is
+  // what the gate code cares about; verdict 0 is intentionally
+  // absent from this matrix.
 
   it('verdict 1 (constrain): database_query → e2e-constrain-db → outcome allow (score lowered)', async () => {
     const r = await check('db', { query: 'SELECT 1' });

@@ -3,7 +3,7 @@
 // session.activity → two backend approval rows → two toasts → orphan
 // rows when the extension auto-dismisses one toast.
 //
-// The dedup helper (ts/src/runtime/_shared/dedup.ts) serializes via
+// The dedup helper (ts/src/runtime/cursor/dedup.ts) serializes via
 // an atomic filesystem claim. This test pins that contract end-to-end:
 //
 //   1. Two simulated mappers run for the same logical action.
@@ -30,7 +30,7 @@ import {
   awaitClaimDecision,
   publishClaimDecision,
   isFileDeleteCommand,
-} from '../../ts/src/runtime/_shared/dedup.ts';
+} from '../../ts/src/runtime/cursor/dedup.ts';
 
 const DEDUP_DIR = path.join(os.homedir(), '.openbox', 'run', 'dedup');
 

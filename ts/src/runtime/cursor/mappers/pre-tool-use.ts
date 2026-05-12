@@ -12,15 +12,15 @@ import {
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
-import { isSkipped, isInsideAnyRoot } from '../../_shared/skip-patterns.js';
+import { isSkipped, isInsideAnyRoot } from '../../../governance/skip-patterns.js';
 import { sideEffects } from '../side-effects.js';
-import { buildCursorSpan, type CursorSpanType } from '../span-builder.js';
+import { buildSpan, type SpanType } from '../../../governance/spans.js';
 import {
   buildActionKey,
   claimAction,
   awaitClaimDecision,
   publishClaimDecision,
-} from '../../_shared/dedup.js';
+} from '../dedup.js';
 
 /**
  * preToolUse: Cursor 3.x's primary agent-action hook. Activity routing,
@@ -31,7 +31,7 @@ import {
  * Coordination with the specialized before* hook for the same tool:
  * whichever subprocess wins the filesystem claim runs the gate; the
  * other waits for the winner to publish its verdict, then mirrors
- * it. See _shared/dedup.ts for why dedup-skip would be incorrect
+ * it. See cursor/dedup.ts for why dedup-skip would be incorrect
  * (subagent first-call timing).
  */
 export async function handlePreToolUse(
@@ -90,7 +90,7 @@ export async function handlePreToolUse(
   // (file_read / file_write / file_delete / internal). Tool name decides
   // which span shape we emit; the @activityVariant override (rm/unlink
   // patterns on Shell) reroutes to file_delete.
-  const spanType: CursorSpanType =
+  const spanType: SpanType =
     override?.activityType === 'FileDelete'
       ? 'file_delete'
       : toolName === 'Read'
@@ -98,7 +98,7 @@ export async function handlePreToolUse(
         : toolName === 'Write'
           ? 'file_write'
           : 'shell';
-  const span = buildCursorSpan(spanType, {
+  const span = buildSpan('cursor', spanType, {
     file_path: filePath || undefined,
     command: (toolInput.command as string) || undefined,
     cwd: (toolInput.cwd as string) || (env.cwd as string) || undefined,

@@ -1,11 +1,11 @@
 // Resolves Cursor's `conversation_id` → workflowId/runId. Logic lives
-// in `_shared/session-resolver`; this file just supplies the right
+// in `session/resolver`; this file just supplies the right
 // field from the envelope.
 import {
   resolveSessionByKey,
   markHaltedByKey,
   clearSessionByKey,
-} from '../_shared/session-resolver.js';
+} from '../../session/resolver.js';
 import type { CursorConfig } from './config.js';
 import type { CursorEnvelope } from '../../core-client/generated/runtime/cursor.js';
 
