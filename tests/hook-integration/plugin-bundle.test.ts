@@ -1,4 +1,4 @@
-// `cursor-plugin/build.sh` materializes the marketplace-shaped
+// `apps/cursor-plugin/build.sh` materializes the marketplace-shaped
 // plugin bundle from canonical sources (skill/, cursor-commands/,
 // cursor-rules/, cursor-agents/) plus the spec-emitted hooks.json
 // (dogfooded via `openbox install cursor` against a throwaway HOME).
@@ -12,7 +12,7 @@ import { join, resolve } from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 const ROOT = resolve(__dirname, '../..');
-const BUNDLE = join(ROOT, 'cursor-plugin');
+const BUNDLE = join(ROOT, 'apps', 'cursor-plugin');
 
 beforeAll(() => {
   // Clean any previous run output so we know the script writes from
@@ -37,7 +37,7 @@ afterAll(() => {
   // is the natural state when publishing to the marketplace.
 });
 
-describe('cursor-plugin/build.sh — marketplace bundle layout', () => {
+describe('apps/cursor-plugin/build.sh — marketplace bundle layout', () => {
   it('manifest is valid JSON with the expected name + version', () => {
     const m = JSON.parse(
       readFileSync(join(BUNDLE, '.cursor-plugin', 'plugin.json'), 'utf-8'),

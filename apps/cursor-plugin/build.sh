@@ -19,7 +19,7 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-root="$(cd "$here/.." && pwd)"
+root="$(cd "$here/../.." && pwd)"
 src="$here/src"
 
 for d in "$root/skill" "$src/commands" "$src/rules" "$src/agents"; do

@@ -31,15 +31,14 @@ const BUNDLES: Record<'commands' | 'rules' | 'agents', BundleKind> = {
 };
 
 function findSourceDir(srcName: string): string {
-  // Sources live under `cursor-plugin/src/<kind>/` alongside the
-  // plugin they belong to. From `dist/runtime/cursor` or
+  // Sources live under `apps/cursor-plugin/src/<kind>/` alongside
+  // the plugin they belong to. From `dist/runtime/cursor` or
   // `ts/src/runtime/cursor` we walk up to the repo root and look
-  // there. The previous root-level `cursor-<kind>/` dirs were
-  // moved here in the plugin reorganization.
+  // there.
   const candidates = [
-    path.resolve(__dirname, '../../../cursor-plugin/src', srcName),
-    path.resolve(__dirname, '../../../../cursor-plugin/src', srcName),
-    path.resolve(__dirname, '../../cursor-plugin/src', srcName),
+    path.resolve(__dirname, '../../../apps/cursor-plugin/src', srcName),
+    path.resolve(__dirname, '../../../../apps/cursor-plugin/src', srcName),
+    path.resolve(__dirname, '../../apps/cursor-plugin/src', srcName),
   ];
   for (const c of candidates) {
     if (fs.existsSync(c) && fs.readdirSync(c).some((f) => f.endsWith('.md') || f.endsWith('.mdc'))) {
@@ -47,7 +46,7 @@ function findSourceDir(srcName: string): string {
     }
   }
   throw new Error(
-    `Couldn't find cursor-plugin/src/${srcName}/ in any of:\n${candidates.map((c) => `  - ${c}`).join('\n')}`,
+    `Couldn't find apps/cursor-plugin/src/${srcName}/ in any of:\n${candidates.map((c) => `  - ${c}`).join('\n')}`,
   );
 }
 
