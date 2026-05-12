@@ -126,8 +126,8 @@ Mint an X-API-Key in the dashboard under **Organization → API Keys**,
 paste it via `openbox auth set-api-key`, then `openbox install <target>`
 for whichever client you're wiring up. The desktop clients (approver,
 extension) and the integrations (cursor, claude-code, mcp) all read
-the X-API-Key from `~/.openbox/tokens` that the CLI writes — they
-require the CLI installed first. Mobile is the only client that uses
+the X-API-Key from `~/.openbox/tokens` that the CLI writes, so the
+CLI install has to come first. Mobile is the only client that uses
 its own JWT login flow.
 
 ## Public sub-paths

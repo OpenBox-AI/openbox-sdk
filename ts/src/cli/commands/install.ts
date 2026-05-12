@@ -319,7 +319,7 @@ function pickMcpTargets(opts: InstallOpts): McpTarget[] | undefined {
 // `openbox install` (no target)
 // Auto-detects the current platform's relevant install targets and prompts
 // per-surface. Whitelist with --only <name> (repeatable). Skip with --skip
-// <name> (repeatable, mutually exclusive with --only) — both flags imply
+// <name> (repeatable, mutually exclusive with --only); both flags imply
 // non-interactive. Preview with --dry-run.
 // ---------------------------------------------------------------------------
 
@@ -426,7 +426,7 @@ export function planInstallAll(
   // earn it: each one gates on a host artifact actually being present
   // on this machine, and the entry is omitted (not "skipped") when no
   // host is found. The user can still install the surface directly
-  // via `openbox install <target>` or `--only <target>` — that path
+  // via `openbox install <target>` or `--only <target>`; that path
   // forces the target through (`onlySet` truthy) so creation-side
   // installers still run.
 
@@ -439,7 +439,7 @@ export function planInstallAll(
 
     switch (target) {
       case 'skill': {
-        // Skill is opt-in only — never part of the bare-install
+        // Skill is opt-in only and never part of the bare-install
         // auto-detect plan. Reach it via `openbox install skill` or
         // `--only skill`. (The skill bundle is small and most users
         // don't want it copied into both ~/.claude and ~/.cursor by
@@ -489,7 +489,7 @@ export function planInstallAll(
             installCursor();
             // Slash commands ship alongside hooks: bundle is meaningless
             // without the in-chat surface that drives the CLI. Rules +
-            // plugin agents come along too — same pattern, same dir.
+            // plugin agents come along too: same pattern, same dir.
             info('');
             const {
               installCursorCommands,

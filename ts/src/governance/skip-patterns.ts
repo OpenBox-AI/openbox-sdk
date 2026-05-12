@@ -1,9 +1,9 @@
 // Paths that should never be governed: IDE / agent metadata that
-// gets read on every turn, where evaluation is pure noise. Sensitive
-// files (.env, ssh keys, aws creds) used to be in this list to avoid
-// PII halts — but that silently bypassed governance on the very
-// files most worth gating. Removed; rely on rules + workspace-root
-// scoping instead.
+// gets read on every turn, where evaluation is pure noise.
+// Sensitive files (.env, ssh keys, aws creds) used to live in this
+// list to avoid PII halts, but doing so silently bypassed
+// governance on the very files most worth gating. They are removed
+// now; rely on rules and workspace-root scoping instead.
 export const SKIP_PATTERNS: readonly RegExp[] = [
   /\.cursor\//,
   /\.claude\//,
@@ -20,15 +20,16 @@ export function isSkipped(filePath: string): boolean {
 }
 
 /**
- * True when `filePath` lives inside any of the IDE's open workspace
- * folders. Used by the cursor runtime to decide whether a file
- * action is "in-project" (skip governance — most reads of source
- * files / configs / package.json are routine) vs "external" (the
- * agent reaching for /etc/passwd, /home/.../.aws/credentials, etc.).
+ * True when `filePath` lives inside any of the IDE's open
+ * workspace folders. Used by the cursor runtime to decide whether
+ * a file action is "in-project" (skip governance; most reads of
+ * source files, configs, or `package.json` are routine) versus
+ * "external" (the agent reaching for `/etc/passwd`,
+ * `/home/.../.aws/credentials`, and the like).
  *
- * Empty / missing roots → returns false: no scope information, treat
- * everything as external (safer default — gates more, doesn't silently
- * pass anything).
+ * Empty or missing roots return `false`. Without scope
+ * information, treat every path as external. The result gates more
+ * activity rather than less, which is the safer default.
  */
 export function isInsideAnyRoot(
   filePath: string | undefined,

@@ -23,21 +23,21 @@ After `build.sh`, the directory holds everything Cursor expects.
 
 ## What ships
 
-- **skills/openbox** — the OpenBox skill (mirror of `../../skill/`).
-- **commands/openbox-*.md** — slash commands the user can run in
+- **skills/openbox**: the OpenBox skill (mirror of `../../skill/`).
+- **commands/openbox-*.md**: slash commands the user can run in
   Cursor chat (`/openbox-doctor`, `/openbox-status`,
   `/openbox-pending`, `/openbox-list-agents`, `/openbox-check`).
-- **rules/openbox.mdc** — `alwaysApply` project rule that surfaces
+- **rules/openbox.mdc**: `alwaysApply` project rule that surfaces
   the active governance state (environment, agent binding, gates,
   approvals) to every chat.
-- **agents/openbox-reviewer.md** — plugin agent template that
+- **agents/openbox-reviewer.md**: plugin agent template that
   reviews changes against the active behavior rules, guardrails,
   and AIVSS posture using spec-driven CLI calls.
-- **hooks/hooks.json** — pre and post hook config emitted from the
+- **hooks/hooks.json**: pre and post hook config emitted from the
   cursor adapter TypeSpec. Every event the CLI installs into
   `~/.cursor/hooks.json` is mirrored here from the single spec
   source.
-- **mcp.json** — registers `openbox mcp serve` as an MCP server.
+- **mcp.json**: registers `openbox mcp serve` as an MCP server.
 
 ## Tracked vs generated
 

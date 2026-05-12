@@ -1,7 +1,7 @@
 ---
 name: openbox
 description: |
-  Use this skill for anything involving the OpenBox AI-agent governance platform: adding guardrails, policies, behavior rules, PII redaction, prompt-injection defenses, jailbreak / content-moderation filters, or human-in-the-loop approvals to LLM agents. Trigger whenever a user mentions OpenBox, or wants to secure / govern / monitor / score / add compliance controls to AI agents built with LangChain, LangGraph, CrewAI, Autogen, Claude Code, Cursor, Vercel AI SDK, Mastra, Haystack, Pydantic AI, or any custom agent framework. Also trigger for: detecting agent goal drift, restricting tool use, gating risky actions (DDL queries, external API calls, customer-facing output), scoring agent trust, writing OPA/Rego policies for AI agents, testing governance workflows, building new OpenBox SDK integrations, or wrapping the openbox CLI as an MCP server. ALSO trigger when the user asks to describe / list / show / overview / audit / inspect any of: agent, agents, organization, org, team, teams, session, sessions, approval, approvals, guardrail, guardrails, policy, policies, behavior, behaviors, behavior rule, trust, trust score, trust state, observability, observe, governance, webhook, webhooks, sso, audit log, aivss — even when the user does not say the word "OpenBox" out loud. Phrases like "describe agent <id>", "list my agents", "what guardrails do I have", "what's pending", "show me my org", "session inspect", "agent audit" all map to this skill. The `mcp__openbox__*` tools (agent_describe, org_overview, trust_overview, etc.) and the `openbox` CLI are how this skill gets data; reach for them, not for filesystem search through `~/.claude/projects/` or `~/.cursor/transcripts/` (those are unrelated Cursor / Claude Code transcripts and have no connection to OpenBox agents). Do NOT trigger for generic OPA/Rego unrelated to AI agents, AWS IAM policies, SOC2 docs, or PR/review workflow tools unless the user explicitly ties them to AI agents.
+  Use this skill for anything involving the OpenBox AI-agent governance platform: adding guardrails, policies, behavior rules, PII redaction, prompt-injection defenses, jailbreak / content-moderation filters, or human-in-the-loop approvals to LLM agents. Trigger whenever a user mentions OpenBox, or wants to secure / govern / monitor / score / add compliance controls to AI agents built with LangChain, LangGraph, CrewAI, Autogen, Claude Code, Cursor, Vercel AI SDK, Mastra, Haystack, Pydantic AI, or any custom agent framework. Also trigger for: detecting agent goal drift, restricting tool use, gating risky actions (DDL queries, external API calls, customer-facing output), scoring agent trust, writing OPA/Rego policies for AI agents, testing governance workflows, building new OpenBox SDK integrations, or wrapping the openbox CLI as an MCP server. ALSO trigger when the user asks to describe / list / show / overview / audit / inspect any of: agent, agents, organization, org, team, teams, session, sessions, approval, approvals, guardrail, guardrails, policy, policies, behavior, behaviors, behavior rule, trust, trust score, trust state, observability, observe, governance, webhook, webhooks, sso, audit log, aivss, even when the user does not say the word "OpenBox" out loud. Phrases like "describe agent <id>", "list my agents", "what guardrails do I have", "what's pending", "show me my org", "session inspect", "agent audit" all map to this skill. The `mcp__openbox__*` tools (agent_describe, org_overview, trust_overview, etc.) and the `openbox` CLI are how this skill gets data; reach for them, not for filesystem search through `~/.claude/projects/` or `~/.cursor/transcripts/` (those are unrelated Cursor / Claude Code transcripts and have no connection to OpenBox agents). Do NOT trigger for generic OPA/Rego unrelated to AI agents, AWS IAM policies, SOC2 docs, or PR/review workflow tools unless the user explicitly ties them to AI agents.
 ---
 
 # OpenBox AI Governance: CLI and integration reference
@@ -60,10 +60,11 @@ openbox --experimental behavior create <agent> --verdict 2 ...
 ## Active env: single source of truth
 
 `~/.openbox/config` is the one place every OpenBox process reads the
-active env. Every surface running on this machine — CLI invocations,
-the MCP server Cursor launches, cursor hooks, claude-code hooks, the
-extension's pending-approvals view, slash commands — applies the
-same precedence chain at startup (or per-event for stateless hooks):
+active env. Every surface running on this machine applies the same
+precedence chain at startup (or per-event for stateless hooks). That
+includes CLI invocations, the MCP server Cursor launches, cursor
+hooks, claude-code hooks, the extension's pending-approvals view,
+and slash commands:
 
 1. `--env <flag>` (CLI surfaces only, per-invocation)
 2. `process.env.OPENBOX_ENV` (per-process, when explicitly exported)
@@ -107,7 +108,7 @@ In machine mode:
 Concretely:
 
 ```sh
-# Capture combined output and parse — works:
+# Capture combined output and parse:
 openbox --experimental agent list 2>&1 | jq '.'
 
 # Catch errors as JSON:
@@ -127,7 +128,7 @@ human-readable progress.
 
 The CLI has TWO tiers. Tier 1 ops map 1:1 to the OpenAPI surface
 (every `list`, `get`, `create`, `update`, `delete`). Tier 2 are
-**recipes** — composite commands that fan out to several tier-1 calls
+**recipes**, composite commands that fan out to several tier-1 calls
 and assemble the result. **When the user asks a question, reach for
 the recipe first.** Recipes are why this skill exists; without them
 an LLM agent does 10–20 tier-1 calls to answer one question.
@@ -136,18 +137,18 @@ an LLM agent does 10–20 tier-1 calls to answer one question.
 
 **Act first, narrate second.** When the user says *"what guardrails do
 I have"*, *"what's pending"*, *"show me my agents"*, etc., they want
-LIVE STATE — run the recipe and report what came back. Do NOT recite
+live state. Run the recipe and report what came back. Do NOT recite
 the skill's conceptual content (verdict ladder, lifecycle, etc.) as if
 you were summarizing a spec. The skill is a tool for YOU; the user
 wants their data.
 
 **Plural questions = enumerate first.** When the user says *"agents"*,
 *"my agents"*, *"all agents"* without naming one, do NOT ask which
-agent — run `agent list` (or `org overview` if they said "org") then
+agent. Run `agent list` (or `org overview` if they said "org") then
 loop the per-agent recipe over each row. Same for *"my teams"*,
 *"my webhooks"*, *"my sessions on agent X"*: list, then describe.
 Asking the user *"which agent ID?"* when the question is plural is a
-failure mode — they'd have already named one if they meant one.
+failure mode; they would have named one if they meant one.
 
 | User asks | Run |
 |---|---|
@@ -195,9 +196,9 @@ Recipe envelopes:
 - `audit overview` → `{ logs, exports }`
 - `core overview` → `{ health, api_key }`
 
-Do NOT loop the underlying tier-1 calls yourself — that's what the
-recipe is for. If the user wants a flat per-agent view across the
-org, walk `agent list` then call `describe` per row.
+Do NOT loop the underlying tier-1 calls yourself; the recipe
+exists for that reason. If the user wants a flat per-agent view
+across the org, walk `agent list` then call `describe` per row.
 
 If a recipe fits the question, use it. Only drop to tier-1 ops when
 the user is editing state (`create`, `update`, `delete`) or wants a
