@@ -25,18 +25,21 @@ interface BundleKind {
 }
 
 const BUNDLES: Record<'commands' | 'rules' | 'agents', BundleKind> = {
-  commands: { src: 'cursor-commands', dst: 'commands', ext: '.md', label: 'slash command', slashPrefix: '/' },
-  rules: { src: 'cursor-rules', dst: 'rules', ext: '.mdc', label: 'project rule' },
-  agents: { src: 'cursor-agents', dst: 'agents', ext: '.md', label: 'plugin agent' },
+  commands: { src: 'commands', dst: 'commands', ext: '.md', label: 'slash command', slashPrefix: '/' },
+  rules: { src: 'rules', dst: 'rules', ext: '.mdc', label: 'project rule' },
+  agents: { src: 'agents', dst: 'agents', ext: '.md', label: 'plugin agent' },
 };
 
 function findSourceDir(srcName: string): string {
-  // Mirror skill.ts's resolution. From dist/runtime/cursor → repo root /<src>.
-  // From ts/src/runtime/cursor (dev) → repo root /<src>.
+  // Sources live under `cursor-plugin/src/<kind>/` alongside the
+  // plugin they belong to. From `dist/runtime/cursor` or
+  // `ts/src/runtime/cursor` we walk up to the repo root and look
+  // there. The previous root-level `cursor-<kind>/` dirs were
+  // moved here in the plugin reorganization.
   const candidates = [
-    path.resolve(__dirname, '../../../', srcName),
-    path.resolve(__dirname, '../../../../', srcName),
-    path.resolve(__dirname, '../../', srcName),
+    path.resolve(__dirname, '../../../cursor-plugin/src', srcName),
+    path.resolve(__dirname, '../../../../cursor-plugin/src', srcName),
+    path.resolve(__dirname, '../../cursor-plugin/src', srcName),
   ];
   for (const c of candidates) {
     if (fs.existsSync(c) && fs.readdirSync(c).some((f) => f.endsWith('.md') || f.endsWith('.mdc'))) {
@@ -44,7 +47,7 @@ function findSourceDir(srcName: string): string {
     }
   }
   throw new Error(
-    `Couldn't find ${srcName}/ in any of:\n${candidates.map((c) => `  - ${c}`).join('\n')}`,
+    `Couldn't find cursor-plugin/src/${srcName}/ in any of:\n${candidates.map((c) => `  - ${c}`).join('\n')}`,
   );
 }
 
