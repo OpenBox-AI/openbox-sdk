@@ -67,7 +67,7 @@ The TypeScript boundary is enforced by:
    `stringify`, `extractMcpText`, etc).
 4. Add `ts/src/runtime/<platform>/install.ts`. Around 10 LOC: import
    `INSTALL_SPEC` and delegate to `installAdapter` / `uninstallAdapter`
-   from `runtime/_shared/install.ts`.
+   from `openbox-sdk/install`.
 5. Add per-event mappers under `ts/src/runtime/<platform>/mappers/`.
    Each mapper is a thin shell: load envelope, call generated builder,
    fire activity, mark halt. Around 30–50 LOC each.

@@ -10,19 +10,26 @@ emitters are planned.
 ## Layout
 
 ```
-specs/typespec/   source of truth, .tsp
-codegen/          TypeSpec decorator libs and per-language emitters
-ts/               TypeScript SDK, CLI, runtime adapters
-rust/             Rust crate
-apps/extension/   VS Code extension on the TS SDK
-skill/            Claude and Cursor skill content
-tests/            Vitest unit and e2e for the TS surface
+specs/typespec/         source of truth (.tsp)
+codegen/                TypeSpec decorator libs and per-language emitters
+ts/                     TypeScript SDK, CLI, runtime adapters
+rust/                   Rust crate
+skill/                  shared OpenBox skill content (Claude + Cursor)
+tests/                  Vitest unit, e2e, and hook-integration suites
+scripts/                build and install helpers
+apps/
+  approver/             macOS menu-bar Tauri app
+  cloud-bridge/         self-hosted webhook receiver
+  extension/            VS Code / Cursor extension
+  cursor-plugin/        Cursor Marketplace bundle
 ```
 
-The TS surface publishes one npm package, `openbox-sdk`. The sub-paths
-under **Public sub-paths** cover every consumer-visible surface in that
-package. Other-language packages live under their own top-level
-directory with their native build and read the same emitted spec.
+The TS surface publishes one npm package, `openbox-sdk`. The
+sub-paths under **Public sub-paths** cover every consumer-visible
+surface in that package. Other-language SDKs (`rust/`) live under
+their own top-level directory with their native build and read the
+same emitted spec. Client applications under `apps/` consume the
+SDK; the SDK never depends on them.
 
 ## Install
 
@@ -104,6 +111,13 @@ openbox install <target>                  # install one of the supported clients
 #   skill         SKILL.md content for Claude Code / Cursor
 #   mobile        iOS App Store link (placeholder)
 openbox uninstall <target>                # mirror of install
+
+# Per-scope install. `cursor` and `claude-code` accept `--scope`
+# (global / project / local) and `--cwd <dir>` so the hook block
+# and MCP entry can be confined to a single project.
+openbox install cursor --scope project --cwd ./my-app
+openbox install claude-code --scope local
+
 openbox doctor                            # verify auth + reachability
 openbox --experimental agent list         # the API surface (experimental until validated)
 ```

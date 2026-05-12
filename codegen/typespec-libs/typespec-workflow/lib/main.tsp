@@ -193,7 +193,8 @@ extern dec noPayload(target: Operation);
  * The emitter materializes an `INSTALL_SPEC` constant per adapter
  * carrying these fields; the hand-coded install.ts reads it and
  * delegates to the shared JSON-merge primitive in
- * runtime/_shared/install.ts.
+ * `ts/src/install/from-spec.ts` (exposed under
+ * `openbox-sdk/install`).
  *
  * Shape:
  *   #{

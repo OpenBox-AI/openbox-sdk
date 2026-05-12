@@ -993,17 +993,42 @@ Each LLM host has its own top-level subcommand: an install command
 plus a per-event hook entry. Supported hosts are Claude Code, Cursor,
 and MCP-compatible hosts.
 
-### `openbox claude-code install [--uninstall]`
+### `openbox claude-code install [--scope] [--cwd] [--no-mcp]`
 
-Writes the OpenBox hook block into `~/.claude/settings.json` and
+Writes the OpenBox hook block into the chosen settings file and
 points each Claude Code hook event at `openbox claude-code hook`.
-`--uninstall` removes the block.
 
-### `openbox cursor install [--uninstall]`
+Scopes:
 
-Writes the OpenBox hook block into `~/.cursor/hooks.json` and points
-each Cursor hook event at `openbox cursor hook`. `--uninstall` removes
-the block.
+- `global` (default) writes to `~/.claude/settings.json` plus the
+  MCP server entry in `~/.claude.json`.
+- `project` writes to `<cwd>/.claude/settings.json` plus
+  `<cwd>/.mcp.json`. Use `--cwd <dir>` to point at a directory other
+  than the current working directory.
+- `local` writes to `<cwd>/.claude/settings.local.json`, the
+  personal override Claude Code expects to be gitignored.
+
+`--no-mcp` skips the MCP server entry. The matching uninstall is
+`openbox claude-code uninstall` with the same flags.
+
+### `openbox cursor install [--scope] [--cwd] [--no-mcp] [--matcher pair]`
+
+Writes the OpenBox hook block into the chosen Cursor hook file and
+points each event at `openbox cursor hook`.
+
+Scopes:
+
+- `global` (default) writes to `~/.cursor/hooks.json` plus the MCP
+  server entry in `~/.cursor/mcp.json`.
+- `project` writes to `<cwd>/.cursor/hooks.json` plus
+  `<cwd>/.cursor/mcp.json`. Use `--cwd <dir>` to override the
+  project root.
+
+`--no-mcp` skips the MCP server entry. `--matcher <event>=<regex>`
+(repeatable) attaches a per-event matcher regex; Cursor evaluates
+the matcher before invoking the hook command, cutting process
+spawns dramatically. The matching uninstall is
+`openbox cursor uninstall` with the same flags.
 
 ### `openbox mcp serve`
 

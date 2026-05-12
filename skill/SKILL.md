@@ -574,6 +574,12 @@ openbox claude-code install   # writes ~/.claude/settings.json hooks
 openbox cursor install        # writes ~/.cursor/hooks.json
 openbox mcp serve             # MCP stdio server
 openbox skill install         # copies SKILL.md and references to ~/.claude/skills/openbox/
+
+# Confine the install to a single project instead of the user account:
+openbox claude-code install --scope project
+openbox cursor install --scope project
+# Claude Code also supports `--scope local` for a personal,
+# gitignored override (~/.claude/settings.local.json under <cwd>).
 ```
 
 ## CLI
