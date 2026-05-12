@@ -6,7 +6,7 @@
 // set OPENBOX_API_URL / OPENBOX_CORE_URL directly. Credentials come
 // from the developer's existing on-disk caches; pre-set credential
 // env vars are honored (CI override path) but their shape is
-// validated — a stale shell export with the wrong prefix is detected
+// validated; a stale shell export with the wrong prefix is detected
 // and overwritten from the cache rather than silently 401'ing the run.
 //
 // Backend and Core are different auth systems on purpose: backend is
@@ -60,7 +60,7 @@ function unlockExperimentalCli(): void {
 function loadBackendKey(): void {
   // If the env var is already set with the right shape, trust it
   // (CI override path). Wrong shape = stale shell export from
-  // another context — overwrite rather than break the run.
+  // another context; overwrite rather than break the run.
   const existing = process.env.OPENBOX_BACKEND_API_KEY;
   if (existing && BACKEND_KEY_PREFIX.test(existing)) return;
 
@@ -103,7 +103,7 @@ async function populateOrgId(): Promise<void> {
   // The active orgId differs per backend host (localhost stack ≠ prod
   // ≠ staging) and the e2e suite addresses many endpoints by
   // `/organization/{orgId}/...`. Rather than derive it from the URL
-  // — which would re-introduce the env concept by another name — ask
+  //; which would re-introduce the env concept by another name; ask
   // the backend itself: /auth/profile returns the orgId for the
   // authenticated principal. Single source of truth, lives on the
   // server we're already talking to.

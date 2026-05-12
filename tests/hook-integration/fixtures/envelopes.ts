@@ -8,7 +8,7 @@
 // path, model name, telemetry IDs); the hook handler ignores anything
 // it doesn't map, so a minimal fixture is sufficient for the verdict
 // path. We deliberately don't include conversation_id values that
-// pretend to be real session IDs — the hook tolerates fresh ones.
+// pretend to be real session IDs; the hook tolerates fresh ones.
 
 export type EventName =
   | 'sessionStart'

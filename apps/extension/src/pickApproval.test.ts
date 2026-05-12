@@ -1,4 +1,4 @@
-// Coverage for pickApproval — the resolver every approve/reject/openDetail
+// Coverage for pickApproval; the resolver every approve/reject/openDetail
 // command runs incoming arguments through. Three call shapes exist in
 // the user-facing flow (tree node, plain Approval, bare id string)
 // plus one optional fallback (preWriteGate's modal button).

@@ -3,14 +3,14 @@ import type { CursorEnvelope } from '../../../core-client/generated/runtime/curs
 import type { CursorConfig } from '../config.js';
 import { clearSession } from '../session-resolver.js';
 
-// Cursor's `after*` events are observe-only — they fire AFTER the
+// Cursor's `after*` events are observe-only; they fire AFTER the
 // action has happened, and verdictShape "cursor-observe" renders {}
 // regardless of any rule outcome. So the mappers are no-ops; we
 // don't round-trip to the backend.
 //
 // Why: a backend evaluate on an after-event hits the same rule
 // engine as the before-event, which would match the same span and
-// emit a second require_approval row — a phantom the user can never
+// emit a second require_approval row; a phantom the user can never
 // resolve (no UI surfaces an after-event approval). Telemetry loss
 // is acceptable; phantom approvals are not. If after-event telemetry
 // is wanted later, route through a separate observability endpoint
@@ -95,7 +95,7 @@ export async function handleSessionEnd(
   return undefined;
 }
 
-// KNOWN GAP — afterFileEdit (and its tab/MCP siblings) do not fire
+// KNOWN GAP; afterFileEdit (and its tab/MCP siblings) do not fire
 // `ActivityCompleted` to the backend. preToolUse(Write) emits
 // `ActivityStarted FileEdit`; the matching Completed event for an
 // audit trail / dashboard metrics is missing. Adding it here is

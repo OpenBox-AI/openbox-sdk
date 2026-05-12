@@ -6,7 +6,7 @@
 // the approvals payload, and sort is cheap on a polled page.
 //
 // Persistence (e.g. VS Code memento, AsyncStorage) is the consumer's
-// job — this module only owns the shape and the pure transforms.
+// job; this module only owns the shape and the pure transforms.
 
 import type { Approval } from '../types/index.js';
 

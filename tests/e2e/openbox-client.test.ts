@@ -95,7 +95,7 @@ describe('OpenBoxClient E2E', () => {
       expect(result).toBeDefined();
     });
 
-    // SKIPPED — backend bug: soft-deleted agents are still readable
+    // SKIPPED; backend bug: soft-deleted agents are still readable
     //   (see the matching skip in tests/e2e/agent-crud.test.ts).
     //   getAgent on a deleted id returns 200 instead of throwing
     //   404. Backend should filter soft-deleted rows from the GET

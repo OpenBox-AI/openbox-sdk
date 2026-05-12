@@ -7,7 +7,7 @@ const rootDir = resolve(__dirname, '..');
 config({ path: resolve(rootDir, '.env') });
 
 // URLs are NOT defaulted here. Hardcoding production literals would
-// override OPENBOX_ENV-driven derivation — a developer running with
+// override OPENBOX_ENV-driven derivation; a developer running with
 // OPENBOX_ENV=local would silently hit api.openbox.ai. URL resolution
 // belongs to the env registry (ts/src/env/environments.ts → resolveUrls)
 // and is wired into projects that actually need it via tests/setup-creds.ts.

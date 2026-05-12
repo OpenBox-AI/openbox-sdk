@@ -33,11 +33,11 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  // Leave the bundle in place — it's gitignored, and a built bundle
+  // Leave the bundle in place; it's gitignored, and a built bundle
   // is the natural state when publishing to the marketplace.
 });
 
-describe('apps/cursor-plugin/build.sh — marketplace bundle layout', () => {
+describe('apps/cursor-plugin/build.sh; marketplace bundle layout', () => {
   it('manifest is valid JSON with the expected name + version', () => {
     const m = JSON.parse(
       readFileSync(join(BUNDLE, '.cursor-plugin', 'plugin.json'), 'utf-8'),
@@ -110,7 +110,7 @@ describe('apps/cursor-plugin/build.sh — marketplace bundle layout', () => {
       'subagentStart',
       'subagentStop',
     ]));
-    // Each event entry is the new-shape array — never the legacy
+    // Each event entry is the new-shape array; never the legacy
     // `{command}` object the user explicitly forbade.
     for (const evt of eventNames) {
       expect(Array.isArray(hooks.hooks[evt]), evt).toBe(true);

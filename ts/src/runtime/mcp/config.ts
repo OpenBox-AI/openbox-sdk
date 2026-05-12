@@ -6,7 +6,7 @@
 // Public surface preserved for tests:
 //   ENV_DEFAULTS  : { production, staging, local } → { api, core }
 //   resolveEnv()  : { name, apiUrl, coreUrl }
-//   readTokens()  : { access?, refresh?, apiKey? } — at least one of access/apiKey
+//   readTokens()  : { access?, refresh?, apiKey? }; at least one of access/apiKey
 //   createApi()   : (path, method?, body?) => Promise<unknown>
 //
 // Auth precedence in createApi(): X-API-Key (`obx_key_*`) wins when present,

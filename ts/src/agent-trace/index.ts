@@ -3,7 +3,7 @@
 //
 // We emit one TraceRecord per classified non-keystroke insert in the
 // extension's TabObserver. The records land at
-// ~/.openbox/log/agent-trace.jsonl (JSONL — one record per line) so
+// ~/.openbox/log/agent-trace.jsonl (JSONL; one record per line) so
 // downstream tools (Cursor canvas, git blame integrations, audit
 // pipelines) can ingest the same shape that any compliant emitter
 // produces.
@@ -81,7 +81,7 @@ const SPEC_VERSION = '0.1.0';
 const LOG_DIR = path.join(openboxDataRoot(), 'log');
 const LOG_FILE = path.join(LOG_DIR, 'agent-trace.jsonl');
 
-/** Hash inserted content with sha256 — deterministic for
+/** Hash inserted content with sha256; deterministic for
  *  position-independent tracking per the spec's `content_hash`
  *  field. Hex-encoded; no truncation. */
 export function hashContent(text: string): string {
@@ -146,7 +146,7 @@ export function buildRecord(args: BuildRecordArgs): TraceRecord {
 }
 
 /** Append a record to the JSONL log. Idempotent on the directory
- *  (mkdirs as needed). Any IO failure is swallowed — telemetry
+ *  (mkdirs as needed). Any IO failure is swallowed; telemetry
  *  must never break the caller. */
 export function writeTraceRecord(record: TraceRecord, opts: { logFile?: string } = {}): void {
   const file = opts.logFile ?? LOG_FILE;

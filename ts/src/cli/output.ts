@@ -87,7 +87,7 @@ export interface ErrorOpts {
   see?: string;
 }
 
-const TRAILER_INDENT = '      '; // 6 spaces — `help: ` / `hint: ` etc are 6 cols.
+const TRAILER_INDENT = '      '; // 6 spaces; `help: ` / `hint: ` etc are 6 cols.
 
 function emitTrailer(label: string, value: string): void {
   const lines = value.split('\n');
@@ -124,7 +124,7 @@ export function error(message: string, opts: ErrorOpts = {}): void {
 }
 
 /** Non-fatal cautionary message. TTY: `warn:` line on stderr.
- *  Machine: silent — warnings are advisory, and the contract is "stderr
+ *  Machine: silent; warnings are advisory, and the contract is "stderr
  *  is empty on success". A future enhancement could route to a separate
  *  warning channel; today, silenced is honest. */
 export function warn(message: string, reference?: string): void {
@@ -142,7 +142,7 @@ export function note(message: string): void {
   console.error(message);
 }
 
-/** One-time boxed display on stderr. Silent in machine mode — the
+/** One-time boxed display on stderr. Silent in machine mode; the
  *  banner is human-only scaffolding (one-time secret reveal); the
  *  underlying value already lives in the JSON envelope of the op
  *  that generated it. */
@@ -157,7 +157,7 @@ export function banner(title: string, body: ReadonlyArray<string>): void {
 }
 
 // ---------------------------------------------------------------------------
-// Plain stdout output (TTY only — silent in machine mode so stdout
+// Plain stdout output (TTY only; silent in machine mode so stdout
 // stays exactly one JSON document).
 
 /** Sentence-case message to stdout. */
@@ -215,7 +215,7 @@ const TARGET_COL = 14;
 const STATUS_COL = 14;
 
 /** Per-target line in a plan / progress table. Silent in machine
- *  mode — callers (runPlan etc.) emit a structured envelope instead. */
+ *  mode; callers (runPlan etc.) emit a structured envelope instead. */
 export function row(target: string, status: string, detail?: string): void {
   if (isMachineMode()) return;
   const colorize =
@@ -244,7 +244,7 @@ export interface SummaryCounts {
   fail?: number;
 }
 
-/** Closing summary line. Silent in machine mode — the structured
+/** Closing summary line. Silent in machine mode; the structured
  *  envelope from the caller (e.g., runPlan) carries the counts. */
 export function summary(counts: SummaryCounts): void {
   if (isMachineMode()) return;

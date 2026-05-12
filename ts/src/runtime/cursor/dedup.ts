@@ -9,10 +9,11 @@
 //
 // Cursor's gating contract proceeds the moment any installed hook
 // returns allow. The naive "loser just returns allow" dedup loses
-// consent when the loser arrives before the winner has its verdict —
-// the action runs before the user clicks. So the lock file is also
-// the loser's mailbox: the winner writes its eventual decision to
-// the file when session.activity returns, and the loser polls until
+// consent when the loser arrives before the winner has its
+// verdict; the action runs before the user clicks. So the lock
+// file is also the loser's mailbox: the winner writes its
+// eventual decision to the file when session.activity returns,
+// and the loser polls until
 // the decision is present (or hook timeout) before responding to
 // Cursor. Both subprocesses block until consent is real, regardless
 // of which event Cursor uses to gate.
@@ -77,11 +78,11 @@ function hashKey(raw: string): string {
  * length anyway.
  *
  * `generation_id` (per-model-generation) + `kind` (shell/read/...) +
- * `arg` (the discriminating field — command / file_path / tool_name)
+ * `arg` (the discriminating field; command / file_path / tool_name)
  * is enough to identify one action across the events Cursor fires
  * for it. Two different actions with the same command in the same
  * generation would collide (rare), but the worst case is "one of
- * them sees an allow without a fresh evaluate" — falls open on
+ * them sees an allow without a fresh evaluate"; falls open on
  * accident, which matches the SDK's overall fail-open posture.
  *
  * conversation_id is the fallback when generation_id is missing
@@ -206,7 +207,7 @@ export function publishClaimDecision(claim: ActionClaim, decision: ClaimDecision
     // Schedule the cleanup. NOT unref'd: we want the subprocess to
     // stay alive long enough for the timer to fire and unlink the
     // lock. Otherwise the subprocess exits, the timer is cancelled,
-    // and the lock orphans for its full TTL — turning the
+    // and the lock orphans for its full TTL; turning the
     // wait-for-decision lock into a cross-turn approval cache.
     setTimeout(() => {
       try { fs.unlinkSync(claim.path); } catch { /* already gone */ }

@@ -68,7 +68,7 @@ function evaluate(opts: {
   return JSON.parse(text.slice(start));
 }
 
-describe.runIf(SHOULD_RUN)('core evaluate — live verdict matrix', () => {
+describe.runIf(SHOULD_RUN)('core evaluate; live verdict matrix', () => {
   it('shell command → block (e2e-deny-shell rule fires)', () => {
     const r = evaluate({ type: 'shell', args: ['--command', 'echo from e2e test'] });
     expect(r.verdict).toBe('block');

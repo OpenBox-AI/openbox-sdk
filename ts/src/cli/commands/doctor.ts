@@ -102,7 +102,7 @@ export function registerDoctorCommand(program: Command) {
         // already flagged above by the existsSync probe.
       }
 
-      // Map `skip` to plain — doctor's "skip" is not a failure, just
+      // Map `skip` to plain; doctor's "skip" is not a failure, just
       // info ("we didn't probe this"). The row() colorizer falls back
       // to plain rendering for unknown statuses.
       for (const c of checks) {

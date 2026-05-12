@@ -33,7 +33,7 @@
 //
 // The runtime intentionally does NOT support `dependsOn` /
 // `forEach` / nested recipes; if a question genuinely needs them,
-// it's not a fanout — it's a procedure, and a hand-coded action is
+// it's not a fanout; it's a procedure, and a hand-coded action is
 // the right surface. Push back on adding those step types until we
 // have at least three real cases that demand them.
 

@@ -2,7 +2,7 @@
 // envelope, stdout verdict). One test per hook_event_name, asserts:
 //
 //   1. The handler exits 0 (errors fail closed in the SDK; we want
-//      "no crash" here, not "no error" — verdicts can carry errors
+//      "no crash" here, not "no error"; verdicts can carry errors
 //      and still exit 0).
 //   2. Stdout is parseable JSON for `before*`/`preToolUse`/`after*`
 //      events; sessionStart/stop emit nothing per the spec.
@@ -10,7 +10,7 @@
 //      matching record (event name + verdict_kind).
 //
 // Auth: each invocation runs without OPENBOX_API_KEY so the handler
-// short-circuits at "no key, passing through" — exactly the
+// short-circuits at "no key, passing through"; exactly the
 // pass-through path Cursor sees on a host with no agent set up. To
 // exercise the verdict path with a real agent, wire OPENBOX_API_KEY
 // to an agent's runtime key in a follow-up suite.
@@ -84,7 +84,7 @@ beforeAll(() => {
   if (!existsSync(LOG)) writeFileSync(LOG, '');
 });
 
-describe('cursor hook handler — every event', () => {
+describe('cursor hook handler; every event', () => {
   for (const event of Object.keys(ENVELOPES) as EventName[]) {
     it(`${event}: handler runs, logs, exits cleanly`, () => {
       const before = logSize();

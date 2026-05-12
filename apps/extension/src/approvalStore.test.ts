@@ -1,4 +1,4 @@
-// ApprovalStore is the dedup point — verify the merge / resolve /
+// ApprovalStore is the dedup point; verify the merge / resolve /
 // reap contracts directly, since the whole "no duplicate toasts"
 // guarantee rests on Map.set being the ONLY writer.
 

@@ -95,7 +95,7 @@ export class ApprovalDetailPanel {
     // Don't null out agent/ownerName synchronously. Keep the previous
     // panel content visible while loadAgentAndOwner runs; replace
     // once the new data lands. Two-render strategy was causing a
-    // double-flash on every card click — null render then populated
+    // double-flash on every card click; null render then populated
     // render. Single render now: either the initial (when the panel
     // is first shown) or a single replacement when fresh data
     // arrives.
@@ -107,7 +107,7 @@ export class ApprovalDetailPanel {
       this.ownerName = null;
       this.render();
     } else {
-      // Stale agent/ownerName left in place — visually cleaner. The
+      // Stale agent/ownerName left in place; visually cleaner. The
       // load below will overwrite both before the user can interact.
     }
     this.startCountdown();

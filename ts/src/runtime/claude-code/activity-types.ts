@@ -4,9 +4,9 @@
 //
 // Why this isn't generated: the *standard* tool routing IS generated
 // (see PRE_TOOL_USE_ROUTING in core-client/generated/runtime/claude-code).
-// This file names the activity-types we fire for non-routed events —
-// session lifecycle, prompts, and the `mcp__*` fallback — so mappers
-// reference symbolic constants instead of bare strings.
+// This file names the activity-types we fire for non-routed
+// events (session lifecycle, prompts, and the `mcp__*` fallback)
+// so mappers reference symbolic constants instead of bare strings.
 //
 // EVENT (ActivityStarted/Completed/SignalReceived) is shared across
 // adapters; it's re-exported from `governance/events.ts`.

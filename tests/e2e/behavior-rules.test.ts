@@ -37,7 +37,7 @@ describe('Behavior Rules', () => {
     expect(types).toEqual(expect.arrayContaining(['http_get', 'database_select']));
   });
 
-  // SKIPPED — backend bug: NOT NULL violation on
+  // SKIPPED; backend bug: NOT NULL violation on
   //   agent_behavior_rules.created_by under X-API-Key auth.
   //
   // Symptom: HTTP 500 with
@@ -49,7 +49,7 @@ describe('Behavior Rules', () => {
   //   X-API-Key auth populates `req.user.sub = "api-key:<id>"` and
   //   leaves `req.user.id` undefined, so the INSERT runs with NULL.
   //
-  // Fix direction (backend, not here): coalesce — when the
+  // Fix direction (backend, not here): coalesce; when the
   //   authenticated principal is X-API-Key, write a stable system
   //   UUID (or the api-key's owner_id) to audit columns instead of
   //   attempting `req.user.id`. Same fix unblocks

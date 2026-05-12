@@ -191,7 +191,7 @@ describe('public library entry points', () => {
     expect(mod.isMaturityVisible('beta', 'beta')).toBe(true);
     expect(mod.isMaturityVisible('experimental', 'beta')).toBe(false);
 
-    // maturityOf — `auth` is the canonical "always-stable" parent
+    // maturityOf; `auth` is the canonical "always-stable" parent
     // (any owner-tested CLI must keep auth stable since it's the
     // entry point); `agent list` was demoted to experimental when the
     // Agent interface lost its `@cli_maturity("stable")`.

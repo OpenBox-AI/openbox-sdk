@@ -1,4 +1,4 @@
-// Cursor bundle installers — slash commands, project rules, plugin
+// Cursor bundle installers; slash commands, project rules, plugin
 // agents. Each kind copies a flat directory of markdown files into
 // `~/.cursor/<kind>/`. Tests run against tmpdir targets so the real
 // ~/.cursor/ is never touched.

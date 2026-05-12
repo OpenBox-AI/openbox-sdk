@@ -1978,7 +1978,7 @@ export interface components {
             metadata?: components["schemas"]["ApprovalMetadata"];
             /**
              * @description Activity input payload captured at queue time. Shape depends on
-             *     the action type — Shell carries `[{ command, cwd }]`, LLM carries
+             *     the action type; Shell carries `[{ command, cwd }]`, LLM carries
              *     `[{ prompt, model }]`. Mobile + approver UIs pretty-print this
              *     in the detail sheet; CLI surfaces a one-line summary.
              */

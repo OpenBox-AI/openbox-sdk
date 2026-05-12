@@ -11,7 +11,7 @@
 //   3. The other returns undefined (Cursor: proceed).
 //
 // Also covers: the subagent-first-call case where only the specialized
-// event fires (preToolUse missed) — the specialized handler still gates.
+// event fires (preToolUse missed); the specialized handler still gates.
 //
 // And: the FileDelete reroute living in beforeShellExecution now, so
 // a subagent's first `rm` still classifies correctly when preToolUse
@@ -197,14 +197,14 @@ describe('per-action dedup across hook subprocesses', () => {
       cfg,
     );
 
-    // Two session.activity calls — confirms lock cleanup happened.
+    // Two session.activity calls; confirms lock cleanup happened.
     expect(captured).toHaveLength(2);
   });
 
   test('loser fails open if winner never publishes (deadline elapses)', async () => {
     const generation_id = uniqueGenId();
     const command = 'echo orphan-claim';
-    // Hand-write a lock with no decision — simulates a winner that
+    // Hand-write a lock with no decision; simulates a winner that
     // crashed before publishing. The loser should poll until cfg's
     // hitlMaxWait (set to 2s here) and then fail open (undefined).
     const key = buildActionKey({ generation_id, kind: 'shell', arg: command });
@@ -228,7 +228,7 @@ describe('per-action dedup across hook subprocesses', () => {
     const command = 'ls /tmp';
     const captured: ActivityCall[] = [];
 
-    // Skip preToolUse — simulates Cursor's subagent first-tool behavior.
+    // Skip preToolUse; simulates Cursor's subagent first-tool behavior.
     await handleBeforeShellExecution(
       { conversation_id: 'c', generation_id, command } as never,
       makeCapturingSession(captured) as never,
@@ -291,7 +291,7 @@ describe('per-action dedup across hook subprocesses', () => {
 
   test('isFileDeleteCommand pattern coverage', () => {
     // Matches the spec's @activityVariant pattern \b(rm|unlink|rmdir|
-    // shred)\b — \b word boundary is intentionally permissive so a
+    // shred)\b; \b word boundary is intentionally permissive so a
     // sneaky `rm` inside any compound shell expression still flags
     // as FileDelete. Over-flagging beats under-flagging here.
     expect(isFileDeleteCommand('rm -rf /tmp/x')).toBe(true);

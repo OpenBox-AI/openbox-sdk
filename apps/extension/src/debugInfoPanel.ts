@@ -40,7 +40,7 @@ export interface DebugSnapshot {
   // Token-store metadata for the org API key. updatedAt is when the
   // key was written; permissions / features come from the token store
   // if a flow hydrated them (the CLI's set-api-key + permission probe
-  // does, the extension's Set API Key flow doesn't — it only knows
+  // does, the extension's Set API Key flow doesn't; it only knows
   // the secret).
   keyUpdatedAt: string | undefined;
   permissions: string[] | undefined;

@@ -1,4 +1,4 @@
-// Cursor "bundle" installers — slash commands, project rules, and
+// Cursor "bundle" installers; slash commands, project rules, and
 // plugin agents. All three are flat directories of markdown files
 // copied verbatim from a repo-root source dir to a per-user
 // `~/.cursor/<kind>/` dir, so they share one helper.

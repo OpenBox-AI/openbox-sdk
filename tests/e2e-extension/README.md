@@ -30,7 +30,7 @@ OPENBOX_E2E_VSCODE_BINARY="/Applications/Cursor.app/Contents/MacOS/Cursor" \
 
 Cursor is a VS Code fork so the workbench page objects work; the
 hook-system surfaces (`~/.cursor/hooks.json`) only fire when Cursor's
-agent runs, which is out of scope for these UI tests — see
+agent runs, which is out of scope for these UI tests; see
 `tests/hook-integration/` for that layer.
 
 ## Headless / CI
@@ -44,10 +44,10 @@ provides the X display.
 
 ## Suites
 
-- `panel.e2e.ts` — extension activates, status bar paints with the
+- `panel.e2e.ts`; extension activates, status bar paints with the
   `MOCK · staging` tag, OpenBox view container is in the activity bar,
   Pending Approvals lists the 6 mock-auth fixture rows.
-- `save-gate.e2e.ts` — Active PreWriteGate behaviors when
+- `save-gate.e2e.ts`; Active PreWriteGate behaviors when
   `openbox.agentId` is empty vs set. (See TODO inside; the harness
   doesn't yet flip arbitrary settings reliably.)
 

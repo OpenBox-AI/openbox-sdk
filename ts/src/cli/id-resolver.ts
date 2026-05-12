@@ -20,7 +20,7 @@ const FULL_UUID_RE =
 // truncated IDs like `2e6cee17`, `2e6cee17-6302`, `2e6cee17-6302-…`,
 // while excluding obvious non-UUIDs like test strings (`bad`, `a1`,
 // `bogus`, `agent-1`). The lower bound (4) keeps the resolver from
-// firing on noise — real users pasting from `agent list` always
+// firing on noise; real users pasting from `agent list` always
 // have at least the first segment.
 const UUID_PREFIX_RE = /^[0-9a-f]{4,}(-[0-9a-f]+)*[-…]*\.{0,3}$/i;
 
@@ -91,7 +91,7 @@ async function fetchAllRows(
   // Some surfaces (CoreClient for `core overview`, mocked clients in
   // unit tests) legitimately don't carry the list method. Return null
   // so resolveOne short-circuits to pass-through instead of failing
-  // — the caller's intent was "resolve if you can, otherwise let
+  //; the caller's intent was "resolve if you can, otherwise let
   // the backend handle it" anyway.
   if (typeof fn !== 'function') return null;
   const all: unknown[] = [];

@@ -27,7 +27,7 @@ export interface ApprovalState {
   /** When the source is a live hook subprocess connection, this
    *  closure pushes the user's decision back over the socket so the
    *  hook's pollApproval race can resolve immediately. Poll-source
-   *  entries don't have one — the hook will pick up the decision via
+   *  entries don't have one; the hook will pick up the decision via
    *  its own pollApproval cycle (~500ms slower). */
   resolver?: (decision: "approve" | "reject") => void;
 }
@@ -53,7 +53,7 @@ export class ApprovalStore implements vscode.Disposable {
 
   /**
    * Insert or merge state. Sources call this; multiple sources merging
-   * into one entry is fine — later upserts override earlier fields,
+   * into one entry is fine; later upserts override earlier fields,
    * with the resolver preserved if the upsert doesn't carry one.
    */
   upsert(state: ApprovalState): void {
@@ -112,8 +112,8 @@ export class ApprovalStore implements vscode.Disposable {
   /**
    * Detach the live resolver from an entry (the hook subprocess that
    * was waiting on the socket disconnected). The entry stays pending
-   * — pollApproval will eventually resolve it via the dashboard path
-   * — but we no longer have a live socket to push the decision over.
+   *; pollApproval will eventually resolve it via the dashboard path
+   *; but we no longer have a live socket to push the decision over.
    */
   detachResolver(geid: string): void {
     const entry = this.map.get(geid);

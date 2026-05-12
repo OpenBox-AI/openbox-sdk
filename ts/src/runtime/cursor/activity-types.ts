@@ -5,8 +5,8 @@
 // Why this isn't generated: the *standard* per-event activity-type
 // constants ARE generated (e.g. `BEFORE_SUBMIT_PROMPT_ACTIVITY_TYPE`
 // in core-client/generated/runtime/cursor). This file names the
-// activity-types we fire for *non-event* uses — workflow signals,
-// out-of-band telemetry — so mappers reference symbolic constants
+// activity-types we fire for *non-event* uses; workflow signals,
+// out-of-band telemetry; so mappers reference symbolic constants
 // instead of bare strings.
 //
 // EVENT (ActivityStarted/Completed/SignalReceived) is shared across

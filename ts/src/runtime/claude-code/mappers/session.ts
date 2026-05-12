@@ -64,7 +64,7 @@ export async function handleStop(
  * Phantom-session short-circuit: if no prior on-disk record existed
  * before this hook (e.g. `claude update` fired SessionEnd without any
  * preceding SessionStart / tool hook), there's nothing to observe and
- * the parent process is already exiting — making HTTP calls just gets
+ * the parent process is already exiting; making HTTP calls just gets
  * us cancelled mid-flight ("Hook cancelled" in the user's terminal).
  * Skip cleanly.
  */

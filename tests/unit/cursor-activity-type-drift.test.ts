@@ -108,7 +108,7 @@ describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
   // refactor can't accidentally re-introduce backend round-trips
   // for events that don't gate (which created phantom approval
   // rows in the dashboard panel and stalled the hook subprocess
-  // in pollApproval for 25s — see commit history for details).
+  // in pollApproval for 25s; see commit history for details).
   test('afterAgentResponse emits no activity (observe-only)', async () => {
     const captured: CapturedActivity[] = [];
     await handleAfterAgentResponse(

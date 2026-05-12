@@ -1052,7 +1052,7 @@ export interface GovernedSessionConfig {
   attached?: boolean;
   /**
    * Fired the moment the backend returns a `require_approval` verdict
-   * with an `approval_id` — BEFORE pollApproval starts the long wait.
+   * with an `approval_id`; BEFORE pollApproval starts the long wait.
    * Lets harnesses (cursor-hooks, claude-hooks) surface inline approval
    * UI in their host IDE without first burning the full poll deadline.
    * Errors thrown here are swallowed; this hook is observability, not
@@ -1294,8 +1294,7 @@ export class BaseGovernedSession {
         if (startedVerdict.arm !== 'allow') {
           // Pre-stage block; never emit ActivityCompleted, but if the
           // gate said require_approval, poll for the approval decision.
-          // pollApproval keys on workflow_id + run_id + activity_id —
-          // approval_id is informational. Some backends omit it from
+           // pollApproval keys on workflow_id + run_id + activity_id;           // approval_id is informational. Some backends omit it from
           // /governance/evaluate responses (only return governance_event_id);
           // gating on approvalId there silently skips polling and the
           // user sees an instant "approval pending" message that never

@@ -5,7 +5,7 @@
 // Precedence:
 //   1. wire `status` if present ("approved" / "rejected" / "expired" /
 //      "pending"); the backend's explicit signal.
-//   2. otherwise: decided_at + verdict — Allow/Constrain on a decided
+//   2. otherwise: decided_at + verdict; Allow/Constrain on a decided
 //      row -> approved; Block/Halt -> rejected.
 //   3. otherwise: undecided + approval_expired_at past -> expired.
 //      Mock fixtures encode expiry exactly this way (verdict=2 +

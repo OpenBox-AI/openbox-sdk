@@ -373,7 +373,7 @@ model GovernedPayload {
    * gate attributes (`http.method`, `http.url`, `file.path`, `db.system`,
    * `gen_ai.system`, `shell.command`) and resolves the trigger the rule
    * was created against. Without spans, behavior rules silently never
-   * fire — the verdict falls through to default-allow with
+   * fire; the verdict falls through to default-allow with
    * `policy_id="00000000-0000-0000-0000-000000000000"`. See
    * `skill/references/span-reference.md` for span shapes by semantic type.
    */

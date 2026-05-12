@@ -27,7 +27,7 @@ import {
  * claim runs the gate; the loser waits for the winner's decision and
  * mirrors it. This stops Cursor from proceeding on a fast "allow"
  * from one event while the other is still showing the user a toast
- * — see cursor/dedup.ts for the rationale.
+ *; see cursor/dedup.ts for the rationale.
  *
  * FileDelete reroute (mirrors preToolUse's @activityVariant): when
  * the command starts with rm/unlink/rmdir/shred, classify the
@@ -52,7 +52,7 @@ export async function handleBeforeShellExecution(
   const claim = claimAction(key);
   if (!claim.won) {
     const decision = await awaitClaimDecision(claim, cfg.hitlMaxWait * 1000);
-    if (!decision) return undefined; // timeout — fail open
+    if (!decision) return undefined; // timeout; fail open
     if (decision.arm === 'allow' || decision.arm === 'constrain') return undefined;
     if (decision.arm === 'halt') markHalted(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason };

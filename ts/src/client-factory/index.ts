@@ -1,10 +1,10 @@
 // Cross-consumer client factory. The CLI, the VS Code / Cursor
 // extension, and the iOS app all need the same X-API-Key-authenticated
-// `OpenBoxClient` configured against the same env URL table — they
+// `OpenBoxClient` configured against the same env URL table; they
 // only differ in where the API key lives (file for CLI/extension,
 // SecureStore for mobile, env var for tests).
 //
-// Pass a `getApiKey` callback. Returning a Promise is fine — keychain
+// Pass a `getApiKey` callback. Returning a Promise is fine; keychain
 // reads are async on iOS. Throwing or returning empty is treated as
 // "no key configured"; the factory rewraps that into a uniform error
 // the consumer can show.
@@ -20,7 +20,7 @@ export interface ConsumerClientOptions {
   envName: EnvName;
   /**
    * Returns the X-API-Key for `envName`. May be sync or async. Return
-   * undefined / empty string to signal "no key configured" — the
+   * undefined / empty string to signal "no key configured"; the
    * factory throws a uniform error in that case.
    */
   getApiKey: () => Promise<string | undefined> | string | undefined;
@@ -41,7 +41,7 @@ export interface ConsumerClientOptions {
 
 export interface ConsumerClientContext {
   client: OpenBoxClient;
-  /** Resolved API base URL — handy for "Signed in to <apiBase>"
+  /** Resolved API base URL; handy for "Signed in to <apiBase>"
    *  affordances without re-resolving the env. */
   apiBase: string;
   /** The env this client was built against, echoed back so

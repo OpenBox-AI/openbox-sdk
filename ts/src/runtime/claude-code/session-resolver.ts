@@ -16,7 +16,7 @@ import type { ClaudeCodeEnvelope } from '../../core-client/generated/runtime/cla
 // invocations like `claude update` fire SessionEnd without any prior
 // hook; the parent process is exiting and the harness cancels our HTTP
 // calls mid-flight ("Hook cancelled"). When SessionEnd sees a phantom
-// session, it skips HTTP entirely — there's nothing to observe.
+// session, it skips HTTP entirely; there's nothing to observe.
 let resolveCreatedFreshSession = false;
 
 export async function resolveSession(

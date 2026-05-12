@@ -92,7 +92,7 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
     // Plain shell classifies as `internal` per behaviors.md (no
     // shell trigger). rm/unlink/rmdir/shred reroute to file_delete
-    // via the @activityVariant — covered separately below.
+    // via the @activityVariant; covered separately below.
     expect(span.semantic_type).toBe('internal');
     expect(span.attributes?.['shell.command']).toBe('echo hello world');
   });

@@ -189,7 +189,7 @@ function resolveApiKey(opts: CheckGovernanceOptions): string {
   }
   // Env / prefix mismatch: agent-keys are not env-tagged on disk, so
   // a production-issued key (`obx_live_*`) can sit in the cache while
-  // the caller is running against staging — the core server then
+  // the caller is running against staging; the core server then
   // returns a generic 401, which is hard to diagnose. Catch the
   // common mismatches up front with an actionable message.
   const env = resolveEnvName(opts.envName);

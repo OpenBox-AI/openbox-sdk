@@ -29,7 +29,7 @@ const TOKENS = resolve(homedir(), '.openbox', 'tokens');
 
 function hasTokenFor(env: EnvName): boolean {
   // Either auth path is fine: X-API-Key (the desktop / CLI / MCP / IDE
-  // default — mint via dashboard, save via `openbox auth set-api-key`)
+  // default; mint via dashboard, save via `openbox auth set-api-key`)
   // or ACCESS_TOKEN (mobile / SSO consumers' JWT path).
   if (!existsSync(TOKENS)) return false;
   const content = readFileSync(TOKENS, 'utf8');

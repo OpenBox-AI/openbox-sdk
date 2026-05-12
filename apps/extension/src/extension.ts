@@ -348,7 +348,7 @@ export async function activate(context: vscode.ExtensionContext) {
    *  already have the entry (from a hook subprocess's socket push);
    *  upsert merges fields without clobbering the resolver. Out-of-band
    *  resolutions (dashboard reviewer click) land here on the next
-   *  poll tick — store.resolve fires resolver if any, dismisses toast,
+   *  poll tick; store.resolve fires resolver if any, dismisses toast,
    *  refreshes panel. */
   function syncPollRows(rows: Approval[]) {
     const seen = new Set<string>();
@@ -388,7 +388,7 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     }
     // Anything pending in the store but not in the latest poll is
-    // missing from the dashboard's view — backend resolved/expired it.
+    // missing from the dashboard's view; backend resolved/expired it.
     // Mark expired so the toast clears. Don't drop socket-source
     // entries here; the live hook subprocess may still own them and
     // the dashboard polling lags by a tick.
@@ -667,7 +667,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // hook subprocesses, or poll-discovered out-of-band rows
         // from another agent / the dashboard). Both onNew callbacks
         // are no-ops so the batch summary "[<env>] N new approvals
-        // pending" — historically used alongside the toasts — no
+        // pending"; historically used alongside the toasts; no
         // longer fires on parallel tool-call batches.
         onNewApproval: () => undefined,
         onNewBatch: () => undefined,

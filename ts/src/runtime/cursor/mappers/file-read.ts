@@ -24,7 +24,7 @@ import {
 /**
  * beforeReadFile: govern an agent-initiated file read before Cursor
  * delivers the content. Coordinates with preToolUse(Read) via the
- * shared filesystem claim — whichever subprocess wins runs the gate;
+ * shared filesystem claim; whichever subprocess wins runs the gate;
  * the loser waits for and mirrors the winner's decision. See
  * cursor/dedup.ts for why we wait instead of skipping.
  */
@@ -38,7 +38,7 @@ export async function handleBeforeReadFile(
   if (isSkipped(filePath)) return undefined;
   // In-workspace reads are routine agent activity (source files,
   // package.json, configs). Skip evaluate so the user's `file_read`
-  // approval rule fires only for reads OUTSIDE the project — the
+  // approval rule fires only for reads OUTSIDE the project; the
   // actual security boundary the user cares about.
   if (isInsideAnyRoot(filePath, env.workspace_roots)) return undefined;
 
@@ -82,7 +82,7 @@ export async function handleBeforeReadFile(
  * + activity type so behavior rules written against agent file_reads
  * also catch tab-driven reads of sensitive paths.
  *
- * DESIGN QUESTION — the `isInsideAnyRoot` filter below was copied
+ * DESIGN QUESTION; the `isInsideAnyRoot` filter below was copied
  * verbatim from the agent file_read path. The threat model differs
  * for user-initiated tab reads: an in-workspace `.env` is a likely
  * exfil target that the user might be tricked into opening (paste an

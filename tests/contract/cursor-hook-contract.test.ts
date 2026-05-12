@@ -2,7 +2,7 @@
 //
 // What this catches that unit tests didn't:
 //   - The Cursor docs say `beforeSubmitPrompt` returns `{continue, user_message?}`
-//     not `{permission, ...}` — a verdictShape mismatch the SDK had been
+//     not `{permission, ...}`; a verdictShape mismatch the SDK had been
 //     emitting for months. This test asserts the exact stdout JSON shape
 //     for each cursor hook event.
 //   - `user_message` is snake_case per cursor.com/docs/hooks.md, NOT
@@ -294,7 +294,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
             makeCapturingSession(
               captured,
               'block',
-              'crosses high-trust threshold — review first',
+              'crosses high-trust threshold; review first',
             ) as never,
             cfg,
           ),

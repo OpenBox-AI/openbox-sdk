@@ -35,7 +35,7 @@ function fakeCore(plan: Array<{ action?: string; reason?: string }>) {
 describe('awaitExternalDecision fast path', () => {
   test('external decision races against poll interval and wakes early', async () => {
     // Plan: backend says require_approval on first poll, then allow.
-    // External signal fires after 50ms — orders of magnitude before
+    // External signal fires after 50ms; orders of magnitude before
     // the 500ms first tick.
     const core = fakeCore([
       { action: 'require_approval' },

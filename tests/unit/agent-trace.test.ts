@@ -1,4 +1,4 @@
-// Pin the cursor/agent-trace v0.1.0 wire shape — fields, hash
+// Pin the cursor/agent-trace v0.1.0 wire shape; fields, hash
 // determinism, JSONL round-trip, IO error tolerance.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';

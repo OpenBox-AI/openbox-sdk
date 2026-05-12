@@ -24,7 +24,7 @@ describe('Policies', () => {
     trackResource({ type: 'agent', id: agentId });
   });
 
-  // SKIPPED — two backend bugs hit this path:
+  // SKIPPED; two backend bugs hit this path:
   //   1. moto S3 hostname mis-resolves: HTTP 500 with
   //      `getaddrinfo ENOTFOUND openbox-dev.moto`. Backend uploads
   //      the rego code to the S3 mock; the in-network alias used

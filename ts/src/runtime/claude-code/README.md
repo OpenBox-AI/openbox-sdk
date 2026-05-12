@@ -3,19 +3,19 @@
 OpenBox integration with [Claude Code](https://claude.com/claude-code).
 Two surfaces via `import ... from 'openbox-sdk/runtime/claude-code'`:
 
-1. **Adapter primitive** — `createClaudeCodeAdapter`, re-exported from
+1. **Adapter primitive**; `createClaudeCodeAdapter`, re-exported from
    the spec-emitted `core-client/generated/runtime/claude-code.ts`.
    Driven by `@adapter("claude-code", ...)` in
    `specs/typespec/govern/adapters.tsp`. Use this when building a
    custom integration on top of OpenBox.
 
-2. **Platform integration** — `openbox claude-code {install,hook}`.
+2. **Platform integration**; `openbox claude-code {install,hook}`.
    `install.ts` writes `~/.claude/settings.json`; `hook-handler.ts`
    wires the spec-emitted adapter to per-event mappers in `mappers/`.
 
 ## Shared with cursor
 
-Everything cross-cutting lives at the SDK top level — `openbox-sdk/logging`,
+Everything cross-cutting lives at the SDK top level; `openbox-sdk/logging`,
 `/session`, `/install`, `/governance` (span builder + skip patterns +
 events + rules projection + hook-event labels), `/approvals`
 (socket client + server + resolve helper + source attribution),

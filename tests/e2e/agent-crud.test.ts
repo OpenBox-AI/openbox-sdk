@@ -82,7 +82,7 @@ describe('Agent CRUD Lifecycle', () => {
     expect(body.status).toBe(200);
   });
 
-  // SKIPPED — backend bug: soft-deleted agents are still readable.
+  // SKIPPED; backend bug: soft-deleted agents are still readable.
   //
   // Symptom: after `DELETE /agent/{id}` succeeds, `GET /agent/{id}`
   //   returns HTTP 200 with the deleted record rather than 403/404.

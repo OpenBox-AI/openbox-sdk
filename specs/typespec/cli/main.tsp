@@ -1407,7 +1407,7 @@ interface Policy {
    *  the currently-active set, and the per-agent policy metrics.
    *  Recipe over list + current + metrics. Per-policy evaluations
    *  (getPolicyEvaluations) stay separate because they require
-   *  a policyId — once you've picked one from `current`, run
+   *  a policyId; once you've picked one from `current`, run
    *  `policy evaluations <agentId> <policyId>` directly. */
   @cli_recipe(#[
     #{ call: "listPolicies",       args: #["agentId"], into: "policies", paginate: true },

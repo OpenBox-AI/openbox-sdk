@@ -6,7 +6,7 @@
 // by `openbox-sdk/env`'s `parseTokenStore` / `serializeTokenStore`.
 // This module is the file-IO + path-resolution layer on top.
 //
-// Mobile / browser consumers should NOT import this — they have no
+// Mobile / browser consumers should NOT import this; they have no
 // filesystem and use `openbox-sdk/client-factory` with a
 // platform-specific `getApiKey` callback instead.
 

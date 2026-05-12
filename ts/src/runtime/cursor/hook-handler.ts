@@ -75,7 +75,7 @@ export async function runCursorHook(): Promise<void> {
   // env via the extension (or `openbox config set --global`) sees
   // their hook fire against the matching env automatically. Without
   // this, the hook would use whatever was snapshotted into
-  // ~/.cursor-hooks/config.json at install time — so an env switch
+  // ~/.cursor-hooks/config.json at install time; so an env switch
   // wouldn't propagate to already-installed hooks.
   applyEnvSource();
 
@@ -197,7 +197,7 @@ export async function runCursorHook(): Promise<void> {
     onApprovalResolved: () => {
       // Tell the extension the hook is done (so it can drop the
       // resolver from the store entry). Closing the socket is the
-      // signal — server's 'close' handler does the cleanup.
+      // signal; server's 'close' handler does the cleanup.
       try {
         socketHandle?.close();
       } catch {

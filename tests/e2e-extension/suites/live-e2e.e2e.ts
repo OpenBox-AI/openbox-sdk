@@ -2,10 +2,10 @@
 // launch (one window flash on macOS) instead of N. Covers four
 // concern areas under nested describes:
 //
-//   1. Verdict matrix      — full BehaviorVerdict 0/1/2/3/4 round-trip
-//   2. Active gates        — preWriteGate, fileOpGate, tabObserver
-//   3. File-op gate        — onWillCreateFiles + onWillRenameFiles
-//   4. Views / boot        — boot snapshot, history view, refresh
+//   1. Verdict matrix     ; full BehaviorVerdict 0/1/2/3/4 round-trip
+//   2. Active gates       ; preWriteGate, fileOpGate, tabObserver
+//   3. File-op gate       ; onWillCreateFiles + onWillRenameFiles
+//   4. Views / boot       ; boot snapshot, history view, refresh
 //
 // All tests run against the real local backend through the real SDK.
 // UI / glue logic (mocked-vscode unit-testable) lives at
@@ -87,7 +87,7 @@ before(async () => {
 
 // ─── 1. Verdict matrix ──────────────────────────────────────────────
 
-describe('LIVE — full BehaviorVerdict enum matrix', () => {
+describe('LIVE; full BehaviorVerdict enum matrix', () => {
   // The bootstrap plants a rule against every SDK span type
   // (`file_read`, `file_write`, `llm`, `shell`, `http_*`, `db`,
   // `mcp`), so no span type lands as a clean verdict-0 allow.
@@ -124,7 +124,7 @@ describe('LIVE — full BehaviorVerdict enum matrix', () => {
 
 // ─── 2. Active gates (preWriteGate / fileOpGate / tabObserver) ─────
 
-describe('LIVE — active gates against planted rules', () => {
+describe('LIVE; active gates against planted rules', () => {
   it('governance.check returns block from extension host (planted file_write rule)', async () => {
     const result = await browser.executeWorkbench(async (vscode: any) => {
       return vscode.commands.executeCommand('openbox.__diag.checkGovernance', {
@@ -264,7 +264,7 @@ describe('LIVE — active gates against planted rules', () => {
 
 // ─── 3. File-op gate (create + rename) ──────────────────────────────
 
-describe('LIVE — file create + rename gates', () => {
+describe('LIVE; file create + rename gates', () => {
   it('PreFileOpGate: onWillCreateFiles fires when a new file lands', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'openbox-create-'));
     const target = join(dir, 'new-file.txt');
@@ -325,7 +325,7 @@ describe('LIVE — file create + rename gates', () => {
 
 // ─── 4. Views / boot snapshot ───────────────────────────────────────
 
-describe('LIVE — views and boot snapshot', () => {
+describe('LIVE; views and boot snapshot', () => {
   it('boot snapshot resolves orgId + agentId from the live local stack', async () => {
     let snap: {
       orgId?: string;
@@ -369,7 +369,7 @@ describe('LIVE — views and boot snapshot', () => {
 
 // ─── 5. Status bar paint against the real workbench ─────────────────
 
-describe('LIVE — status bar paint', () => {
+describe('LIVE; status bar paint', () => {
   it('status bar text carries the OpenBox tag', async () => {
     const sb = (await browser.executeWorkbench(async (vscode: any) => {
       return vscode.commands.executeCommand('openbox.__diag.statusBar');
@@ -392,10 +392,10 @@ describe('LIVE — status bar paint', () => {
 // Verdict 2 (require_approval) creates a real approval row server-
 // side. The polling layer picks it up; pending count goes up;
 // decide-via-diag flips it to history. This is the single most
-// complete end-to-end flow in the suite — covers SDK round-trip +
+// complete end-to-end flow in the suite; covers SDK round-trip +
 // polling + view counts + decide command + history materialization.
 
-describe('LIVE — approval lifecycle (verdict 2 → pending → decide → history)', () => {
+describe('LIVE; approval lifecycle (verdict 2 → pending → decide → history)', () => {
   let createdApprovalId: string | undefined;
   let baselinePending = 0;
 
@@ -437,7 +437,7 @@ describe('LIVE — approval lifecycle (verdict 2 → pending → decide → hist
     const target = (await browser.executeWorkbench(async (vscode: any) => {
       const ext = vscode.extensions.getExtension('openbox.openbox');
       const exports = ext?.exports;
-      // No public exports — read via diag instead. The decide diag
+      // No public exports; read via diag instead. The decide diag
       // already takes {id, agent_id}; pick the head of the pending
       // list via a follow-up refresh so we have an id to address.
       return null;
@@ -449,8 +449,7 @@ describe('LIVE — approval lifecycle (verdict 2 → pending → decide → hist
     // first row via a small inspection diag.
     let id = createdApprovalId;
     if (!id) {
-      // Inspect pending head via a one-shot inline executor —
-      // accesses the polling layer's approvals array indirectly
+       // Inspect pending head via a one-shot inline executor;       // accesses the polling layer's approvals array indirectly
       // via the same boot/refresh diag chain.
       const refreshed = (await browser.executeWorkbench(async (vscode: any) => {
         await vscode.commands.executeCommand('openbox.__diag.refresh');
@@ -496,9 +495,9 @@ describe('LIVE — approval lifecycle (verdict 2 → pending → decide → hist
 
 // ─── 7. Detail panel ────────────────────────────────────────────────
 
-describe('LIVE — detail panel', () => {
+describe('LIVE; detail panel', () => {
   it('openDetail with an unknown id resolves cleanly (not-found rendered inside)', async () => {
-    // The panel handles its own not-found state — surfacing a
+    // The panel handles its own not-found state; surfacing a
     // "row not in pending or history" message inside the webview
     // rather than throwing. The diag asserts the command resolves;
     // the rendered HTML is unit-tested.

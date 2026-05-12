@@ -369,13 +369,13 @@ export interface ClaudeCodeAdapterConfig {
    * Cap (ms) on how long the SDK polls a require_approval verdict
    * before giving up. The actual wait is min(this, server-side
    * approvalExpiresAt). Hook subprocesses have a finite lifetime
-   * imposed by the host IDE — set this slightly under that ceiling so
+   * imposed by the host IDE; set this slightly under that ceiling so
    * the poll resolves before the host kills the process. Default: SDK
    * default (60s).
    */
   approvalMaxWaitMs?: number;
   /**
-   * Fired the moment the backend returns require_approval — before
+   * Fired the moment the backend returns require_approval; before
    * the SDK starts polling. Receives the approval metadata plus the
    * stdin envelope (so harness code can correlate on conversation_id /
    * hook_event_name / prompt). Used by the hook handler to write a
@@ -621,7 +621,7 @@ type Shape =
  * (Cursor inline panel, Claude Code stdout) consistently:
  *   - shows it came from OpenBox (rules from the backend usually omit
  *     attribution, so a bare "Behavioral violation: ..." is ambiguous);
- *   - never contains em/en dashes — they are forbidden in user-visible
+ *   - never contains em/en dashes; they are forbidden in user-visible
  *     OpenBox copy. Replaced with ASCII " - ".
  *
  * Idempotent: skips the prefix when the reason already starts with the
@@ -722,7 +722,7 @@ function renderVerdictOutput(
       if (arm === 'require_approval') {
         const r = reason.replace(/^\[OpenBox\] /, '').trim();
         // The hook has already polled for the configured deadline
-        // (default 60s — Cursor's hook subprocess timeout; tunable up
+        // (default 60s; Cursor's hook subprocess timeout; tunable up
         // to ~1hr per hooks.json[event].timeout + HITL_MAX_WAIT).
         // Reaching this branch means no decision came through in time.
         // Cursor will block this tool attempt.
@@ -734,7 +734,7 @@ function renderVerdictOutput(
             '. Click Approve in the OpenBox notification, then ask the agent to retry.',
           // Direct LLM instruction. (a) Force the brand into the
           // chat text the LLM will write so the user sees who
-          // gated the action — Cursor's chat doesn't insert that
+          // gated the action; Cursor's chat doesn't insert that
           // for us on most events (only subagentStart has the
           // hardcoded "Subagent creation blocked by hook:" prefix).
           // (b) Hard-stop the LLM's tendency to promise auto-retry,
@@ -745,7 +745,7 @@ function renderVerdictOutput(
             "'OpenBox is gating this action. Approve it in the OpenBox notification, " +
             "then ask me to retry.' Then STOP. " +
             "Do NOT retry on your own. " +
-            "Do NOT speculate, describe, or invent what the blocked command WOULD have produced — " +
+            "Do NOT speculate, describe, or invent what the blocked command WOULD have produced; " +
             "you didn't run it, you don't know. " +
             "Do NOT show 'expected output' or 'if you run it locally'. " +
             "Just relay the gate message and wait for approval.",
@@ -765,15 +765,14 @@ function renderVerdictOutput(
     }
     case 'cursor-continue': {
       // Cursor's beforeSubmitPrompt verdict shape.
-      // Stdout is { continue: bool, user_message?: string } —
-      // distinct from cursor-permission (which uses 'permission').
+       // Stdout is { continue: bool, user_message?: string };       // distinct from cursor-permission (which uses 'permission').
       // Per cursor.com/docs/hooks.
       if (arm === 'allow' || arm === 'constrain') return { continue: true };
       if (arm === 'require_approval') {
         // Cursor's beforeSubmitPrompt API is fire-and-forget: stdout
         // is { continue: bool }, no inline-ask surface, no resume
         // hook. If pollApproval times out without a decision, the only
-        // signal we can give is "we dropped this one — approve and
+        // signal we can give is "we dropped this one; approve and
         // retype." Cursor cannot resume a submitted prompt after the
         // hook returns continue:false.
         const r = reason.replace(/^\[OpenBox\] /, '').trim();

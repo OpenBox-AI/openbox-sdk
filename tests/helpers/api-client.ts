@@ -107,7 +107,7 @@ export function getBackendClient(): HttpClient {
   if (!apiKey) {
     throw new Error(
       'No OPENBOX_BACKEND_API_KEY found. Set the X-API-Key for the active env, ' +
-        'e.g. `export OPENBOX_BACKEND_API_KEY=$(grep ^${OPENBOX_ENV:-local}.API_KEY ~/.openbox/tokens | cut -d= -f2)` — ' +
+        'e.g. `export OPENBOX_BACKEND_API_KEY=$(grep ^${OPENBOX_ENV:-local}.API_KEY ~/.openbox/tokens | cut -d= -f2)`; ' +
         "or let tests/setup-creds.ts populate it from your tokens file.",
     );
   }
@@ -182,7 +182,7 @@ export function getOrgId(): string {
   if (!id) {
     throw new Error(
       'OPENBOX_ORG_ID is not populated. tests/setup-creds.ts should have ' +
-        'fetched it from /auth/profile during setup — confirm OPENBOX_API_URL ' +
+        'fetched it from /auth/profile during setup; confirm OPENBOX_API_URL ' +
         'and OPENBOX_BACKEND_API_KEY were set before the suite started.',
     );
   }

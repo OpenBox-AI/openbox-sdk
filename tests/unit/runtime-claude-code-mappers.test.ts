@@ -91,7 +91,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     const { handleSessionEnd } = await import('../../ts/src/runtime/claude-code/mappers/session');
     const { resolveSession } = await import('../../ts/src/runtime/claude-code/session-resolver');
     const cfg = { skipTools: [], sessionDir: dir } as any;
-    // Two resolveSession calls — second sees the existing record, so
+    // Two resolveSession calls; second sees the existing record, so
     // the phantom flag clears and SessionEnd does the full HTTP path.
     await resolveSession({ session_id: 'REAL' } as any, cfg);
     await resolveSession({ session_id: 'REAL' } as any, cfg);
@@ -182,7 +182,7 @@ describe('cli/commands; versions + skill + core', () => {
     expect(install).toBeDefined();
     const targets = install!.commands.map((s) => s.name()).sort();
     // Bare `openbox install` is the selective meta-command (no
-    // subcommand) — the entries below are the per-target verbs only.
+    // subcommand); the entries below are the per-target verbs only.
     expect(targets).toEqual(
       ['approver', 'claude-code', 'cursor', 'extension', 'mcp', 'mobile', 'skill'].sort(),
     );

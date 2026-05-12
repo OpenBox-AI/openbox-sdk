@@ -2,9 +2,9 @@
 # OpenBox CLI wrapper. Installed at ~/.openbox/bin/openbox by
 # scripts/install. Resolves the dist-bundle path at every invocation
 # instead of via a static symlink, so renaming the source tree
-# doesn't silently break the CLI (and every downstream integration —
-# Cursor hooks.json, MCP server entries, claude-code hooks, etc. —
-# that invokes `openbox` from PATH).
+# doesn't silently break the CLI, or any downstream integration
+# (Cursor hooks.json, MCP server entries, claude-code hooks) that
+# invokes `openbox` from PATH.
 #
 # Resolution chain (first match wins):
 #   1. $OPENBOX_INSTALL_DIR     env override; per-invocation

@@ -1,4 +1,4 @@
-// Coverage for the ApprovalsTreeProvider — the data adapter that
+// Coverage for the ApprovalsTreeProvider; the data adapter that
 // shapes the Approval rows into VS Code TreeItem nodes for both
 // the pending view (flat list) and the history view (status-grouped).
 //

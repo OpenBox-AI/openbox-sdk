@@ -62,7 +62,7 @@ export async function handlePreToolUse(
 
   const payload = buildPreToolUsePayload(env, toolName, sideEffects);
 
-  // Build a span so behavior rules can match — see
+  // Build a span so behavior rules can match; see
   // governance/spans.ts. Without spans, every rule silently
   // no-ops (Activity type alone is not a behavior trigger; see
   // skill/references/span-reference.md).

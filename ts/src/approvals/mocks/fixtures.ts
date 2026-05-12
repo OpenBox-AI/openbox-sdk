@@ -144,7 +144,7 @@ export function agoMin(mins: number): string {
 // Local narrower shape used by the fixtures. The generated wire type
 // for `Approval` carries:
 //   * `input` as a string-keyed dictionary (`{ [key: string]: unknown }`)
-//     — but consumers see the wire array-of-payloads shape on every
+//    ; but consumers see the wire array-of-payloads shape on every
 //     real response (`[{ command, cwd }]`, `[{ prompt, model }]`).
 //   * a top-level `& { [key: string]: unknown }` index signature that
 //     widens every dot-access to `unknown`, so even `a.metadata` types

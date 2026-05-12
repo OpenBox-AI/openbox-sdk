@@ -42,7 +42,7 @@ afterAll(() => {
   if (HOME) rmSync(HOME, { recursive: true, force: true });
 });
 
-describe('openbox install cursor — full bundle into a throwaway HOME', () => {
+describe('openbox install cursor; full bundle into a throwaway HOME', () => {
   it('lays down hooks, MCP, slash commands, rules, agents, and the skill', () => {
     const r = runCLI(['install', 'cursor', '--no-harden']);
     expect(r.status, r.err).toBe(0);
@@ -118,13 +118,13 @@ describe('openbox install cursor — full bundle into a throwaway HOME', () => {
     const r = runCLI(['uninstall', 'cursor']);
     expect(r.status, r.err).toBe(0);
 
-    // hooks.json — file remains (might have other consumer keys), but
+    // hooks.json; file remains (might have other consumer keys), but
     // the OpenBox-managed hooks are gone. In our throwaway HOME the
     // result is `{}`.
     const hooks = JSON.parse(readFileSync(join(HOME, '.cursor', 'hooks.json'), 'utf-8'));
     expect(hooks).toEqual({});
 
-    // mcp.json — same: openbox key removed.
+    // mcp.json; same: openbox key removed.
     const mcp = JSON.parse(readFileSync(join(HOME, '.cursor', 'mcp.json'), 'utf-8'));
     expect(mcp.mcpServers?.openbox).toBeUndefined();
 

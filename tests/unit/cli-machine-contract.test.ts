@@ -6,7 +6,7 @@
 // Driven by isMachineMode(), which returns true when `--json` is on
 // the command line OR stdout is not a TTY. Tests force the flag via
 // argv override; vitest's stdout isn't a TTY anyway, so machineMode is
-// already true in test runs — but we set the flag explicitly so the
+// already true in test runs; but we set the flag explicitly so the
 // intent is self-documenting.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';

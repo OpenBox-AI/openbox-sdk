@@ -2,7 +2,7 @@
 //
 // Run: `npm run test:e2e-extension`
 //
-// LIVE end-to-end suite — the extension activates inside a real
+// LIVE end-to-end suite; the extension activates inside a real
 // VS Code / Cursor workbench and talks through the real SDK to the
 // real backend. UI/glue layer logic (status bar paint shapes,
 // MockStore fixtures, view contributions, fail-mode folding,
@@ -20,13 +20,13 @@
 //   OPENBOX_E2E_RUNTIME_KEY  ← override OR e2e-agent runtime key from same
 //
 // Knobs:
-//   OPENBOX_E2E_VSCODE_VERSION — VS Code version (default: stable)
-//   OPENBOX_E2E_VSCODE_BINARY  — path to a VS Code-fork binary
+//   OPENBOX_E2E_VSCODE_VERSION; VS Code version (default: stable)
+//   OPENBOX_E2E_VSCODE_BINARY ; path to a VS Code-fork binary
 //                                 (e.g. Cursor) to use instead of the
 //                                 downloaded one. Versions must stay
-//                                 close — chromedriver is bundled to
+//                                 close; chromedriver is bundled to
 //                                 the VS Code version we downloaded.
-//   OPENBOX_E2E_HEADLESS=1     — pass `--no-sandbox` for Linux + Xvfb
+//   OPENBOX_E2E_HEADLESS=1    ; pass `--no-sandbox` for Linux + Xvfb
 //                                 environments. macOS shows the
 //                                 workbench window; the in-test
 //                                 before-hook minimizes it after launch.

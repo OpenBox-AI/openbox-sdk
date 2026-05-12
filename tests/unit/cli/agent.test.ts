@@ -122,7 +122,7 @@ describe('agent commands', () => {
     registerAgentCommands(program);
     await program.parseAsync(['node', 'openbox', 'agent', 'get', 'bad']);
 
-    // reportAndExit routes through output.error() — the test's vi.mock
+    // reportAndExit routes through output.error(); the test's vi.mock
     // intercepts it. Assert the mock saw the message; the format prefix
     // (`error:` etc.) is exercised by tests/unit/cli-output.test.ts.
     expect(outputError).toHaveBeenCalledWith('Not found');

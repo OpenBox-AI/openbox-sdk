@@ -1,4 +1,4 @@
-// Coverage for PollingService — the layer that drives the approvals
+// Coverage for PollingService; the layer that drives the approvals
 // feed: cold-seeding, brand-new detection, load-more page suppression,
 // changed-event semantics. Used to be exercised only end-to-end in
 // the wdio mock-toast suite (which observed showWarningMessage fire);

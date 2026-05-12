@@ -334,7 +334,7 @@ gateCommands(program);
 applyUniformErrorHandling(program);
 
 // `openbox` (no args) defaults to printing help instead of silently
-// exiting. Mirrors `cargo` / `gh` — bare invocation is informational.
+// exiting. Mirrors `cargo` / `gh`; bare invocation is informational.
 if (process.argv.length === 2) {
   program.outputHelp();
   bailWith(EXIT.OK);

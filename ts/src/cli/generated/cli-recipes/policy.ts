@@ -5,7 +5,7 @@ import type { RecipeSpec } from '../../recipes.js';
 export const POLICY_RECIPES: RecipeSpec[] = [
   {
     "name": "overview",
-    "description": "Policy picture for an agent in ONE call: full version history,\nthe currently-active set, and the per-agent policy metrics.\nRecipe over list + current + metrics. Per-policy evaluations\n(getPolicyEvaluations) stay separate because they require\na policyId — once you've picked one from `current`, run\n`policy evaluations <agentId> <policyId>` directly.",
+    "description": "Policy picture for an agent in ONE call: full version history,\nthe currently-active set, and the per-agent policy metrics.\nRecipe over list + current + metrics. Per-policy evaluations\n(getPolicyEvaluations) stay separate because they require\na policyId; once you've picked one from `current`, run\n`policy evaluations <agentId> <policyId>` directly.",
     "args": [
       {
         "name": "agentId"

@@ -1,6 +1,6 @@
 // `openbox versions`: report the deployed commit or tag for each
 // service against the active env. One row per service; no env names
-// surfaced — the active env is whichever the rest of the CLI resolves
+// surfaced; the active env is whichever the rest of the CLI resolves
 // to via `resolveEnv()`. Hits the public `/version` endpoint on each
 // service URL; cells without `/version` print "(no /version)".
 

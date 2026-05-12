@@ -1,4 +1,4 @@
-// Live variant of cursor-hook.test.ts — same fixtures, but each
+// Live variant of cursor-hook.test.ts; same fixtures, but each
 // invocation runs against a real agent (not DRY_RUN) so the handler
 // actually calls core's evaluate endpoint and core writes real spans.
 // Asserts:
@@ -86,7 +86,7 @@ beforeAll(() => {
   if (!existsSync(LOG)) writeFileSync(LOG, '');
 });
 
-describe.runIf(SHOULD_RUN)('cursor hook handler — live verdict path', () => {
+describe.runIf(SHOULD_RUN)('cursor hook handler; live verdict path', () => {
   for (const event of Object.keys(ENVELOPES) as EventName[]) {
     it(`${event}: real verdict, log line written, exit 0`, () => {
       const before = logSize();

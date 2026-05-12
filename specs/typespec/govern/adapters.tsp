@@ -336,9 +336,9 @@ interface ClaudeCodeAdapter {
 // Verdict-shape contract per Cursor docs:
 //   * `before*` permission hooks (beforeReadFile / beforeShellExecution
 //     / beforeMCPExecution): stdout `{ permission: "allow"|"deny"|"ask",
-//     user_message?: string }`. Field names are **snake_case** —
+//     user_message?: string }`. Field names are **snake_case**;
 //     emitting `userMessage` silently no-ops the user-facing message.
-//   * `beforeSubmitPrompt`: distinct shape — stdout `{ continue: bool,
+//   * `beforeSubmitPrompt`: distinct shape; stdout `{ continue: bool,
 //     user_message?: string, agent_message?: string }`. Cursor does NOT
 //     accept `permission` here; emitting it causes the prompt to fall
 //     through ungoverned.
@@ -350,13 +350,13 @@ interface ClaudeCodeAdapter {
 //
 // Two distinct vocabularies are at play here:
 //
-//   1. `activity_type` — free-form indexing string the backend persists
+//   1. `activity_type`; free-form indexing string the backend persists
 //      and the dashboard renders. PascalCase canonical labels
 //      (`PromptSubmission`, `FileRead`, `ShellExecution`, ...) so the
 //      `@activityLabels` table can render them; this is what the
 //      `@activityType` decorator drives.
 //
-//   2. Span `semantic_type` + classifier gate attributes — the actual
+//   2. Span `semantic_type` + classifier gate attributes; the actual
 //      input to behavior-rule matching. Core's classifier reads each
 //      span (HTTP method/url, file.path/operation, db.system, gen_ai.system,
 //      shell.command) and resolves one of 19 trigger values (snake_case;
@@ -397,7 +397,7 @@ model CursorEnvelope {
   /**
    * The IDE's open workspace folders, sent on every hook envelope per
    * cursor.com/docs/hooks. Used by the runtime to decide "is this
-   * file action inside the project?" — reads inside any root skip
+   * file action inside the project?"; reads inside any root skip
    * governance evaluate (silent allow); reads outside trigger normal
    * behavior-rule matching (typically `file_read` → require_approval).
    */

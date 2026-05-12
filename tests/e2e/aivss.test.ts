@@ -27,7 +27,7 @@ describe('AIVSS Assessment', () => {
     expect(body.status).toBe(200);
   });
 
-  // SKIPPED — backend bug: NOT NULL violation on
+  // SKIPPED; backend bug: NOT NULL violation on
   //   agent_trust_scores_history.evaluated_by under X-API-Key auth.
   //
   // Symptom: HTTP 500 with

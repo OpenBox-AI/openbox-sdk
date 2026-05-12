@@ -367,8 +367,7 @@ describe('OpenBoxClient', () => {
   // Auto-refresh is gated by OpenBoxClient.REFRESH_ENABLED (currently
   // false; pending upstream /auth/refresh fixes). These tests verify
   // the correct enabled-path behavior, so they only run when the flag
-  // is on. Reading the static via `as any` because it's `private` —
-  // we explicitly want the test to track the production value. Do not
+   // is on. Reading the static via `as any` because it's `private`;   // we explicitly want the test to track the production value. Do not
   // rewrite them to assert the disabled path.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const refreshEnabled = (OpenBoxClient as any).REFRESH_ENABLED === true;

@@ -7,7 +7,7 @@
 //   - existsSync(~/.cursor) (cursor hooks installer)
 //   - existsSync(~/.claude) (claude-code installer)
 //   - `code` / `cursor` on PATH (extension installer)
-//   - existsSync(any MCP host config) (mcp — needs at least one host)
+//   - existsSync(any MCP host config) (mcp; needs at least one host)
 //   - skill is OPT-IN ONLY (never auto-suggested; reach via --only or
 //     the per-target subcommand)
 // Targets without a host are dropped from the plan entirely (not

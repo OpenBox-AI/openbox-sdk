@@ -5,7 +5,7 @@
 // is unit-testable without booting a workbench: same env tag rules,
 // same idle-gate annotation, same tooltip copy.
 //
-// Shape: $(openbox-logo) [info] — the icon identifies it as OpenBox,
+// Shape: $(openbox-logo) [info]; the icon identifies it as OpenBox,
 // info is just the relevant short action / state. No redundant
 // "OpenBox" word; if there's nothing to say, the bar is just the
 // icon.
@@ -60,7 +60,7 @@ export function buildIdleStatusBar(opts: IdleStatusBarInput): IdleStatusBarOutpu
 }
 
 /** Boot/error tag used for transient states (Set API Key, No Org, ...).
- *  Just the action text — the icon already identifies the bar as
+ *  Just the action text; the icon already identifies the bar as
  *  OpenBox. Debug builds append the env name as a suffix for
  *  development visibility. */
 export function envTagFor(state: string, env: EnvName, debugBuild: boolean): string {
