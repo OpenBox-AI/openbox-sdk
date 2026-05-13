@@ -3,6 +3,8 @@ mod settings;
 #[cfg(target_os = "macos")]
 mod history_window;
 #[cfg(target_os = "macos")]
+mod main_window;
+#[cfg(target_os = "macos")]
 mod native_tray;
 #[cfg(target_os = "macos")]
 mod settings_window;
@@ -270,19 +272,27 @@ pub fn run() {
                         if action_id == "quit" {
                             std::process::exit(0);
                         }
-                        if action_id == "show_history" {
-                            let state_w = state_for_tray.clone();
-                            let _ = handle_for_actions.run_on_main_thread(move || {
-                                history_window::show(state_w);
-                            });
-                            return;
-                        }
-                        if action_id == "show_settings" {
+                        // The tray menu's "Open OpenBox", "Show
+                        // History" and "Settings" items all route into
+                        // the unified main window, just with a
+                        // different initial tab selected. Keeping the
+                        // standalone windows around in code is
+                        // intentional — they're the detailed views
+                        // the main window's tabs link out to.
+                        if action_id == "open_window"
+                            || action_id == "show_history"
+                            || action_id == "show_settings"
+                        {
+                            let tab = match action_id {
+                                "show_history" => main_window::Tab::History,
+                                "show_settings" => main_window::Tab::Settings,
+                                _ => main_window::Tab::Pending,
+                            };
                             let state_w = state_for_tray.clone();
                             let wakeup_w = wakeup_tx_for_menu.clone();
                             let client_w = client_for_settings.clone();
                             let _ = handle_for_actions.run_on_main_thread(move || {
-                                settings_window::show(state_w, wakeup_w, client_w);
+                                main_window::show(state_w, wakeup_w, client_w, tab);
                             });
                             return;
                         }

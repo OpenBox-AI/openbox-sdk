@@ -105,6 +105,7 @@ impl NativeTray {
             menu.addItem(&NSMenuItem::separatorItem(mtm));
             Self::add_disabled_item_to(&menu, "No Pending Approvals", mtm);
             menu.addItem(&NSMenuItem::separatorItem(mtm));
+            Self::add_action_item_to(&menu, &target, "Open OpenBox...", "open_window", mtm);
             Self::add_action_item_to(&menu, &target, "Show History...", "show_history", mtm);
             Self::add_action_item_to(&menu, &target, "Settings...", "show_settings", mtm);
             menu.addItem(&NSMenuItem::separatorItem(mtm));
@@ -244,6 +245,7 @@ impl NativeTray {
         // the right place for the search field + filter chips a
         // history view needs.
         self.menu.addItem(&NSMenuItem::separatorItem(mtm));
+        Self::add_action_item_to(&self.menu, &self.target, "Open OpenBox...", "open_window", mtm);
         Self::add_action_item_to(&self.menu, &self.target, "Show History...", "show_history", mtm);
         Self::add_action_item_to(&self.menu, &self.target, "Settings...", "show_settings", mtm);
 
