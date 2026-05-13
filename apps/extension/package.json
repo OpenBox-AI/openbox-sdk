@@ -329,6 +329,11 @@
           "type": "boolean",
           "default": false,
           "description": "When true, all active gates fail closed (cancel the action) on network errors / timeouts contacting core. Default false (fail open) so a transient network blip doesn't block the user; flip on for high-trust environments where blocking on uncertainty is preferred."
+        },
+        "openbox.strictSourceFilter": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, hide approval rows whose source can't be resolved (no module or gen_ai.system on the row's first span). By default these unresolvable rows pass through so no real approval is hidden by accident; the backend strips spans from its pending-list endpoint, so most live rows fall into the unresolvable bucket. Enable for strict per-host isolation, accepting that some legitimate rows may be hidden until the backend persists metadata.source server-side."
         }
       }
     },

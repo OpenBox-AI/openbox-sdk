@@ -102,6 +102,10 @@ export class ViewSession implements vscode.Disposable {
     this.disposables.push(this.treeView, this.treeProvider);
 
     const status = cfg.supportsStatus ? this.filters.status : cfg.initialStatus;
+    const strictSourceFilter = vscode.workspace
+      .getConfiguration("openbox")
+      .get<boolean>("strictSourceFilter", false);
+
     this.feed = new ApprovalsPollingService(deps.client, deps.orgId, {
       status,
       intervalMs: cfg.pollMs,
@@ -110,9 +114,13 @@ export class ViewSession implements vscode.Disposable {
       // extension. The Cursor IDE should only surface approvals
       // originating from Cursor; approvals from other hosts belong
       // in the source-neutral desktop approver and mobile app.
-      // Approvals with no resolvable source pass through so a real
-      // row never vanishes silently.
+      // Approvals with no resolvable source pass through by default
+      // so a real row never vanishes silently; the user can flip
+      // `openbox.strictSourceFilter` on to also hide unattributable
+      // rows (the backend's pending-list endpoint strips spans, so
+      // most live rows fall into the unresolvable bucket).
       sourceFilter: "cursor",
+      strictSourceFilter,
     });
 
     this.feed.on("changed", (approvals: Approval[]) => {

@@ -203,6 +203,93 @@ describe('PollingService - error handling', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 
+  it('sourceFilter drops rows whose spans[0].module differs', async () => {
+    const cursorRow = {
+      ...row('cursor-1'),
+      spans: [{ module: 'cursor' }],
+    } as Approval;
+    const claudeRow = {
+      ...row('claude-1'),
+      spans: [{ module: 'claude-code' }],
+    } as Approval;
+    const ambiguous = row('amb-1');
+    const client = makeClient([[cursorRow, claudeRow, ambiguous]]);
+    const svc = new PollingService(client as unknown as never, 'org-1', {
+      intervalMs: 100,
+      sourceFilter: 'cursor',
+    });
+
+    const seen: Approval[] = [];
+    svc.on('changed', (a: Approval[]) => seen.push(...a));
+
+    svc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    const ids = seen.map((a) => a.id);
+    // cursor row passes; claude-code row dropped; ambiguous (no source)
+    // passes through under default (non-strict) filter.
+    expect(ids).toContain('cursor-1');
+    expect(ids).not.toContain('claude-1');
+    expect(ids).toContain('amb-1');
+
+    svc.stop();
+  });
+
+  it('strictSourceFilter also drops rows with unresolvable source', async () => {
+    const cursorRow = {
+      ...row('cursor-2'),
+      spans: [{ module: 'cursor' }],
+    } as Approval;
+    const claudeRow = {
+      ...row('claude-2'),
+      spans: [{ module: 'claude-code' }],
+    } as Approval;
+    const ambiguous = row('amb-2');
+    const client = makeClient([[cursorRow, claudeRow, ambiguous]]);
+    const svc = new PollingService(client as unknown as never, 'org-1', {
+      intervalMs: 100,
+      sourceFilter: 'cursor',
+      strictSourceFilter: true,
+    });
+
+    const seen: Approval[] = [];
+    svc.on('changed', (a: Approval[]) => seen.push(...a));
+
+    svc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    const ids = seen.map((a) => a.id);
+    // Strict: only the cursor-attributed row survives.
+    expect(ids).toEqual(['cursor-2']);
+
+    svc.stop();
+  });
+
+  it('strictSourceFilter honors metadata.source over spans[0].module', async () => {
+    // metadata.source is the preferred path in approvalSource();
+    // a row missing spans but carrying metadata.source must still
+    // be attributable.
+    const attributed = {
+      ...row('meta-cursor'),
+      metadata: { source: 'cursor' },
+    } as Approval;
+    const client = makeClient([[attributed]]);
+    const svc = new PollingService(client as unknown as never, 'org-1', {
+      intervalMs: 100,
+      sourceFilter: 'cursor',
+      strictSourceFilter: true,
+    });
+
+    const seen: Approval[] = [];
+    svc.on('changed', (a: Approval[]) => seen.push(...a));
+
+    svc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    expect(seen.map((a) => a.id)).toEqual(['meta-cursor']);
+    svc.stop();
+  });
+
   it('thrown error from getOrgApprovals emits "error" and increments errorCount', async () => {
     const client = {
       getOrgApprovals: vi.fn(async () => { throw new Error('network down'); }),

@@ -51,9 +51,17 @@ export interface PollingOptions {
   /** Host-source filter (for example `'cursor'`). When set, drops
    *  approvals whose `approvalSource()` resolves to a different
    *  known host. Rows with no resolvable source (missing `module`
-   *  and `gen_ai.system`) pass through so stale or third-party
-   *  rows do not silently vanish. */
+   *  and `gen_ai.system`) pass through by default so stale or
+   *  third-party rows do not silently vanish; set `strictSourceFilter`
+   *  to also drop those. */
   sourceFilter?: string;
+  /** When true, rows whose `approvalSource()` is undefined are
+   *  dropped instead of passing through. Backend's pending-list
+   *  endpoint strips spans for response size, which makes
+   *  `approvalSource()` return undefined for most live rows; use
+   *  strict mode when you trust the metadata-source path and want
+   *  per-host isolation regardless. */
+  strictSourceFilter?: boolean;
 }
 
 const DEFAULT_INTERVAL_MS = 5000;
@@ -70,6 +78,7 @@ export class ApprovalsPollingService extends EventEmitter {
   private status: ApprovalStatus | undefined;
   private filters: FilterState = { sort: 'newest', dateRange: 'all' };
   private sourceFilter: string | undefined;
+  private strictSourceFilter = false;
   private knownIds = new Set<string>();
   // Each poll re-fetches page 0 with `perPage = base * loadedPages`.
   // Network cost stays bounded (`perPage * maxPages` is 250 rows by
@@ -108,6 +117,7 @@ export class ApprovalsPollingService extends EventEmitter {
     this.status = options.status === undefined ? DEFAULT_STATUS : options.status;
     if (options.filters) this.filters = options.filters;
     this.sourceFilter = options.sourceFilter;
+    this.strictSourceFilter = options.strictSourceFilter ?? false;
   }
 
   get approvals(): Approval[] {
@@ -182,15 +192,20 @@ export class ApprovalsPollingService extends EventEmitter {
       });
       const allApprovals = (result.approvals?.data ?? []) as Approval[];
       // Source filter drops rows whose inferred source resolves to
-      // a different known host. Rows with no resolvable source
-      // (missing `module` and `gen_ai.system`) pass through so a
-      // real approval is never hidden by accident; one extra row in
-      // the list is preferable to a vanished one. The inference
-      // logic is in `approvals/source.ts`.
+      // a different known host. By default, rows with no resolvable
+      // source (missing `module` and `gen_ai.system`) pass through
+      // so a real approval is never hidden by accident; one extra
+      // row in the list is preferable to a vanished one. The
+      // backend's pending-list endpoint strips spans for response
+      // size, which makes `approvalSource()` return undefined for
+      // most live rows. Set `strictSourceFilter` to also drop
+      // unattributable rows when you want strict per-host isolation.
       const approvals = this.sourceFilter
         ? allApprovals.filter((a) => {
             const src = approvalSource(a);
-            return src === undefined || src === this.sourceFilter;
+            if (src === this.sourceFilter) return true;
+            if (src === undefined) return !this.strictSourceFilter;
+            return false;
           })
         : allApprovals;
       const newIds = new Set(approvals.map((a) => a.id));
