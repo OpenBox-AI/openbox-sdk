@@ -55,7 +55,7 @@ import { startApprovalToastView } from "./approvalToastView";
 import { startApprovalPollSource } from "./approvalPollSource";
 import { buildIdleStatusBar, envTagFor as envTagForPure } from "./statusBarText";
 import { pickApproval as pickApprovalPure } from "./pickApproval";
-import { writeGlobalEnv } from "./configStore";
+import { readGlobalEnv, writeGlobalEnv } from "./configStore";
 
 // Build-time flag, baked by esbuild via --define:process.env.OPENBOX_DEBUG_BUILD.
 // `npm run build` (production) sets it to "false"; `npm run build:dev` sets
@@ -106,8 +106,12 @@ let active: ActiveBoot | undefined;
 
 const ENV_NAMES = new Set(Object.keys(ENVIRONMENTS));
 function readEnv(): EnvName {
-  const v = vscode.workspace.getConfiguration("openbox").get<string>("environment", DEFAULT_ENV);
-  return ENV_NAMES.has(v) ? (v as EnvName) : DEFAULT_ENV;
+  // Source of truth is `~/.openbox/config`'s `OPENBOX_ENV=...` line,
+  // shared with CLI / MCP / hooks. The old `openbox.environment` VS
+  // Code setting was removed so end users don't see env names in the
+  // settings UI; debug builds and power users can still flip env
+  // through `openbox config set --global OPENBOX_ENV=...`.
+  return readGlobalEnv();
 }
 
 function readNotifyOnNew(): boolean {
@@ -781,24 +785,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("openbox.environment")) {
-        const next = readEnv();
-        // Sync the new env into ~/.openbox/config so CLI, MCP, slash
-        // commands, and any subprocess that reads the file picks it
-        // up too. Single source of truth: the config file.
-        try {
-          writeGlobalEnv(next);
-        } catch {
-          /* permissions / disk error - non-fatal; extension still
-             boots, but CLI surfaces may stay on the old env until
-             the user runs `openbox config set OPENBOX_ENV ...`. */
-        }
-        if (next !== env) {
-          void boot(next);
-        }
-        debugProvider?.refresh();
-        profileProvider.refresh();
-      }
+      // `openbox.environment` is no longer a public-facing VS Code
+      // setting. Env switching now lives in `~/.openbox/config` and
+      // is set via `openbox config set --global OPENBOX_ENV=...` (or
+      // via the debug-view's switcher, which writes to the same
+      // file). The extension picks up the new env on the next
+      // window reload.
       // Mock toggle reboots from scratch.
       if (e.affectsConfiguration("openbox.mockAuth")) {
         paintDebugContext();
@@ -1254,9 +1246,22 @@ export async function activate(context: vscode.ExtensionContext) {
           placeHolder: `Current: ${env}; pick the new environment`,
         });
         if (!choice) return;
-        await vscode.workspace
-          .getConfiguration("openbox")
-          .update("environment", choice.label, vscode.ConfigurationTarget.Global);
+        // Write straight to `~/.openbox/config`; no per-extension
+        // setting now. Reboots the active session so the new env is
+        // visible immediately instead of waiting for a window reload.
+        const next = choice.label as EnvName;
+        try {
+          writeGlobalEnv(next);
+        } catch (e) {
+          vscode.window.showErrorMessage(`Failed to write env: ${e}`);
+          return;
+        }
+        if (next !== env) {
+          env = next;
+          void boot(next);
+          debugProvider?.refresh();
+          profileProvider.refresh();
+        }
       }),
 
       vscode.commands.registerCommand("openbox.showDebugInfo", () => {

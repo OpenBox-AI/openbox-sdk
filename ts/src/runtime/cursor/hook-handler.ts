@@ -160,6 +160,12 @@ export async function runCursorHook(): Promise<void> {
     core,
     resolveSession: (env) => resolveSession(env, cfg),
     approvalMaxWaitMs,
+    // When APPROVAL_MODE=inline, the SDK skips its internal poll loop
+    // and the adapter renders permission:'ask' so Cursor's native
+    // permission dialog pops in the IDE on every require_approval.
+    // Remote approvers (mobile / desktop approver / extension) can
+    // still resolve the backend row but the hook does not wait.
+    inlineApproval: cfg.approvalMode === 'inline',
     onPendingApproval: async (info, env) => {
       if (OBSERVE_ONLY.has(String(env.hook_event_name ?? ''))) return;
 

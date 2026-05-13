@@ -50,6 +50,11 @@ export interface CursorConfig {
   hitlEnabled: boolean;
   hitlPollInterval: number;
   hitlMaxWait: number;
+  /** When 'inline', the hook returns permission:'ask' on
+   *  require_approval so Cursor's native permission dialog pops; the
+   *  local user is the approver. 'remote' (default) keeps the
+   *  existing poll-and-wait behavior. */
+  approvalMode: 'inline' | 'remote';
   taskQueue: string;
   sendStartEvent: boolean;
   sendActivityStartEvent: boolean;
@@ -97,6 +102,7 @@ export function loadConfig(): CursorConfig {
     hitlEnabled: get('HITL_ENABLED', 'true') !== 'false',
     hitlPollInterval: parseInt(get('HITL_POLL_INTERVAL', '5'), 10) || 5,
     hitlMaxWait: parseInt(get('HITL_MAX_WAIT', '300'), 10) || 300,
+    approvalMode: (get('APPROVAL_MODE', 'remote').toLowerCase() === 'inline' ? 'inline' : 'remote'),
     taskQueue: get('TASK_QUEUE', 'cursor-hooks'),
     sendStartEvent: get('SEND_START_EVENT', 'true') !== 'false',
     sendActivityStartEvent: get('SEND_ACTIVITY_START_EVENT', 'true') !== 'false',

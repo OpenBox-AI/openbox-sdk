@@ -44,7 +44,13 @@ unsafe extern "C" fn menu_action(_this: *const AnyObject, _sel: Sel, sender: *co
 pub struct NativeTray {
     /// The ONE menu: never replaced, only its items are swapped.
     menu: Retained<NSMenu>,
-    _status_item: Retained<AnyObject>,
+    status_item: Retained<AnyObject>,
+    /// True when the tray icon image loaded successfully. When true,
+    /// the button title is icon-only (empty) at 0 pending and shows
+    /// the pending count otherwise. When false, the icon is missing,
+    /// so a literal "OpenBox" label anchors the menu-bar slot to
+    /// non-zero width regardless of count.
+    image_attached: bool,
     target: Retained<AnyObject>,
     mtm: MainThreadMarker,
 }
@@ -76,15 +82,15 @@ impl NativeTray {
                 }
             }
 
-            // Always anchor a short title on the button so the menu-bar
-            // entry has guaranteed visible width even when macOS hides
-            // template images behind a notch overflow or when the icon
-            // PNG fails to decode at runtime. The tray was reported
-            // missing on a Mac with a populated menu bar; a literal
-            // string keeps the slot from collapsing to zero width.
+            // Initial title: empty when the icon loaded (icon-only
+            // until we get a pending count from the first poll). If
+            // the icon failed to decode we fall back to the "OpenBox"
+            // literal so the slot still has visible width — without
+            // it, the tray was reported missing on Macs where the
+            // template image overflowed the menu-bar notch.
             let button: Option<Retained<AnyObject>> = msg_send![&status_item, button];
             if let Some(button) = button {
-                let title = if image_attached { "OB" } else { "OpenBox" };
+                let title = if image_attached { "" } else { "OpenBox" };
                 let _: () = msg_send![&button, setTitle: &*NSString::from_str(title)];
                 let tip = NSString::from_str(tooltip);
                 let _: () = msg_send![&button, setToolTip: &*tip];
@@ -110,7 +116,8 @@ impl NativeTray {
 
             NativeTray {
                 menu,
-                _status_item: status_item,
+                status_item,
+                image_attached,
                 target,
                 mtm,
             }
@@ -119,22 +126,47 @@ impl NativeTray {
 
     /// Update menu contents in-place. The NSMenu object stays the same;
     /// if the menu is currently displayed, it updates live without closing.
+    ///
+    /// `header` is the top disabled menu item — typically the org id
+    /// and active env (`Org openbox.local · local`). The approver
+    /// authenticates with an org X-API-Key, not a user-bound
+    /// credential, so a "Signed in as <email>" line was misleading.
     pub fn update_menu(
         &self,
-        user_email: Option<&str>,
+        header: Option<&str>,
         approvals: &[ApprovalData],
         error: Option<&str>,
     ) {
         let mtm = self.mtm;
 
+        // Sync the button title with the pending count. Icon-only
+        // when 0 (icon already conveys "OpenBox"); shows the count
+        // alongside the icon when >0 so the menu bar has an at-a-
+        // glance signal. Width-anchor concern: when the icon is
+        // missing (image_attached==false), keep "OpenBox" as the
+        // literal label so the slot does not collapse.
+        unsafe {
+            let button: Option<Retained<AnyObject>> = msg_send![&self.status_item, button];
+            if let Some(button) = button {
+                let title = if !self.image_attached {
+                    "OpenBox".to_string()
+                } else if approvals.is_empty() {
+                    String::new()
+                } else {
+                    format!("{}", approvals.len())
+                };
+                let _: () = msg_send![&button, setTitle: &*NSString::from_str(&title)];
+            }
+        }
+
         // Remove all existing items
         unsafe { let _: () = msg_send![&self.menu, removeAllItems]; }
 
-        // User header
-        let user_text = user_email
-            .map(|e| format!("Signed in as {}", e))
-            .unwrap_or_else(|| "OpenBox Approver".into());
-        Self::add_disabled_item_to(&self.menu, &user_text, mtm);
+        // Header. Caller composes the line; this method just renders
+        // it. Falls back to the app name when no header is supplied
+        // (cold-start, before the first poll resolves the org id).
+        let header_text = header.unwrap_or("OpenBox Approver");
+        Self::add_disabled_item_to(&self.menu, header_text, mtm);
         self.menu.addItem(&NSMenuItem::separatorItem(mtm));
 
         // Content
@@ -223,15 +255,20 @@ impl NativeTray {
 
     pub fn set_badge(&self, count: usize) {
         unsafe {
-            let button: Option<Retained<AnyObject>> = msg_send![&self._status_item, button];
+            let button: Option<Retained<AnyObject>> = msg_send![&self.status_item, button];
             if let Some(button) = button {
-                // Keep the "OB" anchor that `new()` set so the menu-bar
-                // slot never collapses to zero width on macs with a busy
-                // notch. The badge is appended to it.
-                let text = if count > 0 {
-                    format!("OB {}", count)
+                // Icon-only at 0 pending (the icon already conveys
+                // "OpenBox"). Show the count beside the icon when
+                // >0 so the menu bar carries an at-a-glance signal.
+                // When the icon failed to load, anchor with "OpenBox"
+                // so the slot keeps non-zero width on macs that
+                // collapse icon-less menu-bar items.
+                let text = if !self.image_attached {
+                    if count > 0 { format!("OpenBox {}", count) } else { "OpenBox".to_string() }
+                } else if count > 0 {
+                    format!("{}", count)
                 } else {
-                    "OB".to_string()
+                    String::new()
                 };
                 let _: () = msg_send![&button, setTitle: &*NSString::from_str(&text)];
             }

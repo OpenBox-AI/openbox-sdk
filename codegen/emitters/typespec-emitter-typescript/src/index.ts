@@ -1787,6 +1787,16 @@ export interface ${configIface} {
    */
   approvalMaxWaitMs?: number;
   /**
+   * When true, the SDK skips the in-process poll loop on a
+   * require_approval verdict and renders \`permissionDecision: 'ask'\`
+   * (or the host equivalent), which makes the host's native
+   * permission dialog pop inline. The local user becomes the
+   * approver. Remote / mobile / desktop approvers can still
+   * resolve the backend row but the hook subprocess does not wait
+   * for them. Adapters wire this from the \`APPROVAL_MODE\` config.
+   */
+  inlineApproval?: boolean;
+  /**
    * Fired the moment the backend returns require_approval; before
    * the SDK starts polling. Receives the approval metadata plus the
    * stdin envelope (so harness code can correlate on conversation_id /
@@ -1858,6 +1868,7 @@ export function ${factoryName}(config: ${configIface}) {
         runId,
         approvalPollIntervalMs: 500,
         approvalMaxWaitMs: config.approvalMaxWaitMs,
+        inlineApproval: config.inlineApproval,
         onPendingApproval: config.onPendingApproval
           ? (info) => config.onPendingApproval!(info, env)
           : undefined,
@@ -2350,6 +2361,19 @@ export interface GovernedSessionConfig {
   /** Maximum total wait (ms) for an approval decision. Default: 60_000ms. */
   approvalMaxWaitMs?: number;
   /**
+   * When true, \`runActivity\` skips the in-process poll loop on a
+   * \`require_approval\` verdict and returns it straight to the
+   * caller. Hook adapters (claude-code, cursor) render that through
+   * their \`permission-decision\` verdict shape into
+   * \`permissionDecision: 'ask'\`, which pops the host's native
+   * permission dialog inline. The local user becomes the approver;
+   * remote / mobile / desktop approvers can still resolve the
+   * backend row but the SDK no longer waits for them. Adapters wire
+   * this from the \`APPROVAL_MODE\` config (\`inline\` -> true,
+   * \`remote\` or unset -> false). Default: false.
+   */
+  inlineApproval?: boolean;
+  /**
    * If true, register process-exit handlers (SIGINT/SIGTERM/uncaughtException
    * /unhandledRejection/beforeExit) that fire \`WorkflowFailed\` best-effort
    * before the process dies. Default: true. Set false for short-lived
@@ -2447,6 +2471,7 @@ export class BaseGovernedSession {
   private readonly approvalPollBackoffFactor: number;
   private readonly approvalPollJitter: number;
   private readonly approvalMaxWaitMs: number;
+  private readonly inlineApproval: boolean;
   private opened = false;
   private finalized = false;
   private readonly autoOpenSuppressed: boolean;
@@ -2467,6 +2492,7 @@ export class BaseGovernedSession {
     this.approvalPollBackoffFactor = config.approvalPollBackoffFactor ?? 1.5;
     this.approvalPollJitter = config.approvalPollJitter ?? 0.25;
     this.approvalMaxWaitMs = config.approvalMaxWaitMs ?? 60_000;
+    this.inlineApproval = config.inlineApproval === true;
     this.autoOpenSuppressed = config.attached === true;
     this.onPendingApproval = config.onPendingApproval;
     this.onApprovalResolved = config.onApprovalResolved;
@@ -2627,6 +2653,16 @@ export class BaseGovernedSession {
                 });
               } catch { /* observability hook; never blocks */ }
             }
+            // Inline-approval mode: skip the poll loop and return the
+            // require_approval verdict straight to the caller. The
+            // hook adapter renders permissionDecision:'ask' so the
+            // host's native dialog pops inline. The backend row stays
+            // pending until a remote approver resolves it or it
+            // expires; on the inline path the local user decides via
+            // the TUI.
+            if (this.inlineApproval) {
+              return startedVerdict;
+            }
             const polled = await this.pollApproval(activityId, activityType, startedVerdict);
             if (this.onApprovalResolved) {
               try {
@@ -2682,6 +2718,11 @@ export class BaseGovernedSession {
             reason: completedVerdict.reason,
           });
         } catch { /* observability */ }
+      }
+      if (this.inlineApproval) {
+        // Inline mode: skip poll, return the require_approval
+        // verdict unchanged so the renderer emits permissionDecision:'ask'.
+        return completedVerdict;
       }
       const polled = await this.pollApproval(activityId, activityType, completedVerdict);
       if (this.onApprovalResolved) {

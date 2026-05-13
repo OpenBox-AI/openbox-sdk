@@ -656,7 +656,7 @@ fn kick_refetch(status: HistoryStatus) {
     // keeps this reload loop independent of the polling cadence.
     let (org_id, env) = match with_ctx(|ctx| {
         let s = ctx.state.lock().unwrap();
-        (s.org_id.clone(), crate::env_choice_to_name(&s.settings.env))
+        (s.org_id.clone(), s.current_env)
     }) {
         Some(v) => v,
         None => return,
@@ -785,10 +785,7 @@ pub fn show(state: Arc<Mutex<AppState>>) {
     {
         let guard = cell.lock().unwrap();
         if let Some(ctx) = guard.as_ref() {
-            unsafe {
-                ctx.window
-                    .makeKeyAndOrderFront(Some(&*ctx.window as &AnyObject));
-            }
+            activate_and_focus(&ctx.window);
             // Fire a refetch on re-show; cached rows might be stale.
             let status = ctx.current_status.lock().unwrap().clone();
             drop(guard);
@@ -800,13 +797,23 @@ pub fn show(state: Arc<Mutex<AppState>>) {
     let initial_status = ctx.current_status.lock().unwrap().clone();
     {
         let mut guard = cell.lock().unwrap();
-        unsafe {
-            ctx.window
-                .makeKeyAndOrderFront(Some(&*ctx.window as &AnyObject));
-        }
+        activate_and_focus(&ctx.window);
         *guard = Some(ctx);
     }
     kick_refetch(initial_status);
+}
+
+/// Bring the app to the foreground and focus the given window. Same
+/// rationale as `settings_window::activate_and_focus` — accessory-
+/// policy apps don't grab focus on `makeKeyAndOrderFront` alone.
+fn activate_and_focus(window: &NSWindow) {
+    let mtm = unsafe { MainThreadMarker::new_unchecked() };
+    let app = objc2_app_kit::NSApplication::sharedApplication(mtm);
+    unsafe {
+        #[allow(deprecated)]
+        app.activateIgnoringOtherApps(true);
+        window.makeKeyAndOrderFront(Some(window as &AnyObject));
+    }
 }
 
 fn build(mtm: MainThreadMarker, state: Arc<Mutex<AppState>>) -> HistoryCtx {

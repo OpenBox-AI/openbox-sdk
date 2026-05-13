@@ -54,3 +54,25 @@ export function applyEnvSource(): EnvName {
   applyConfigToProcessEnv(env);
   return env;
 }
+
+/** True when the user has opted into env-internal UI surfaces.
+ *  Hides the env picker / active-env labels / --env help / debug
+ *  commands by default so end users never see staging or local env
+ *  names; switching is still available via `~/.openbox/config` for
+ *  power users. Mirrored on the Rust side by
+ *  `openbox_sdk::env::is_debug_mode`.
+ *
+ *  Sources (highest first):
+ *    1. `OPENBOX_DEBUG=1|true` env var
+ *    2. `~/.openbox/config` global `OPENBOX_DEBUG=true` line
+ *
+ *  Truthy values: `1`, `true`, `yes`, `on` (case-insensitive). */
+export function isDebugMode(): boolean {
+  const truthy = (v: string): boolean =>
+    ['1', 'true', 'yes', 'on'].includes(v.trim().toLowerCase());
+  if (process.env.OPENBOX_DEBUG && truthy(process.env.OPENBOX_DEBUG)) return true;
+  applyGlobalConfigToProcessEnv();
+  const fromCfg = process.env.OPENBOX_DEBUG;
+  if (fromCfg && truthy(fromCfg)) return true;
+  return false;
+}

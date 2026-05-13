@@ -95,6 +95,13 @@ export async function runClaudeHook(): Promise<void> {
     core,
     resolveSession: (env) => resolveSession(env, cfg),
     approvalMaxWaitMs,
+    // When APPROVAL_MODE=inline, the SDK skips its internal poll loop
+    // and the adapter renders permissionDecision:'ask' so Claude
+    // Code's native permission dialog pops in the TUI on every
+    // require_approval. Remote approvers (mobile / desktop approver
+    // / Cursor extension) can still resolve the backend row but the
+    // hook does not wait for them.
+    inlineApproval: cfg.approvalMode === 'inline',
     handlers: {
       preToolUse: logged('preToolUse', 'permission',
         async (env, s) => dryRun ? undefined : handlePreToolUse(env, s, cfg)),

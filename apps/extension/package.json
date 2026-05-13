@@ -275,16 +275,6 @@
     "configuration": {
       "title": "OpenBox",
       "properties": {
-        "openbox.environment": {
-          "type": "string",
-          "enum": [
-            "production",
-            "staging",
-            "local"
-          ],
-          "default": "production",
-          "description": "[Dev only] Which OpenBox environment the extension talks to. End users should leave this on 'production'. The Switch Environment command is only visible when the extension is running in development mode (Run Extension target). Each env has its own token namespace in ~/.openbox/tokens, so logging in via the CLI to staging won't clobber prod credentials."
-        },
         "openbox.mockAuth": {
           "type": "boolean",
           "default": false,

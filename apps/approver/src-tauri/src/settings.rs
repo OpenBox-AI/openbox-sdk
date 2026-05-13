@@ -46,7 +46,14 @@ impl EnvChoice {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Settings {
-    pub env: EnvChoice,
+    /// Deprecated. Kept in the struct for backward-compat with
+    /// existing approver-settings.json files; reads ignore it and
+    /// writes never persist it. The active env now lives in
+    /// `~/.openbox/config` as `OPENBOX_ENV=...`, the single source of
+    /// truth every OpenBox surface (CLI, MCP, cursor hook, claude-
+    /// code hook, approver) reads through `apply_env_source()`.
+    #[serde(default, skip_serializing)]
+    pub env: Option<EnvChoice>,
     pub notifications_enabled: bool,
     pub poll_interval_secs: u64,
 }
@@ -54,7 +61,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            env: EnvChoice::Production,
+            env: None,
             notifications_enabled: true,
             poll_interval_secs: 5,
         }

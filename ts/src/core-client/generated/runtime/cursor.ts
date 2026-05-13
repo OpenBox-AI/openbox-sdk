@@ -436,6 +436,16 @@ export interface CursorAdapterConfig {
    */
   approvalMaxWaitMs?: number;
   /**
+   * When true, the SDK skips the in-process poll loop on a
+   * require_approval verdict and renders `permissionDecision: 'ask'`
+   * (or the host equivalent), which makes the host's native
+   * permission dialog pop inline. The local user becomes the
+   * approver. Remote / mobile / desktop approvers can still
+   * resolve the backend row but the hook subprocess does not wait
+   * for them. Adapters wire this from the `APPROVAL_MODE` config.
+   */
+  inlineApproval?: boolean;
+  /**
    * Fired the moment the backend returns require_approval; before
    * the SDK starts polling. Receives the approval metadata plus the
    * stdin envelope (so harness code can correlate on conversation_id /
@@ -507,6 +517,7 @@ export function createCursorAdapter(config: CursorAdapterConfig) {
         runId,
         approvalPollIntervalMs: 500,
         approvalMaxWaitMs: config.approvalMaxWaitMs,
+        inlineApproval: config.inlineApproval,
         onPendingApproval: config.onPendingApproval
           ? (info) => config.onPendingApproval!(info, env)
           : undefined,

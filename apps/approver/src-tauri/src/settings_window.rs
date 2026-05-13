@@ -24,9 +24,13 @@ use objc2::rc::Retained;
 use objc2::runtime::{AnyClass, AnyObject, Bool, ClassBuilder, Sel};
 use objc2::{msg_send, sel};
 use objc2_app_kit::{
-    NSBackingStoreType, NSControlStateValueOff, NSControlStateValueOn, NSPopUpButton,
-    NSSegmentedControl, NSSegmentSwitchTracking, NSStackView, NSStackViewDistribution,
-    NSSwitch, NSTextField, NSUserInterfaceLayoutOrientation, NSView, NSWindow, NSWindowStyleMask,
+    NSApplication, NSBackingStoreType, NSBox, NSBoxType, NSControlStateValueOff,
+    NSControlStateValueOn, NSFont, NSGridView, NSGridCellPlacement, NSGridRowAlignment,
+    NSLayoutAttribute, NSPopUpButton, NSSegmentedControl, NSSegmentSwitchTracking,
+    NSStackView, NSStackViewDistribution, NSSwitch, NSTextField, NSTitlePosition,
+    NSUserInterfaceLayoutOrientation, NSView, NSVisualEffectBlendingMode,
+    NSVisualEffectMaterial, NSVisualEffectState, NSVisualEffectView, NSWindow,
+    NSWindowStyleMask, NSWindowTitleVisibility,
 };
 use objc2_foundation::{
     MainThreadMarker, NSArray, NSPoint, NSRect, NSSize, NSString,
@@ -36,6 +40,7 @@ use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use crate::api::ApiClient;
 use crate::settings::{self, EnvChoice, Settings};
 use crate::{display_api_url, env_choice_to_name, AppState};
+use openbox_sdk::env::EnvName;
 
 /// Cast any AppKit subclass pointer down to an `&NSView`. AppKit
 /// uses pure single inheritance from NSView, so the pointer
@@ -131,17 +136,11 @@ unsafe extern "C" fn env_changed(_this: *const AnyObject, _sel: Sel, _sender: *c
             1 => EnvChoice::Staging,
             _ => EnvChoice::Local,
         };
-        let prev_choice = {
-            let s = ctx.state.lock().unwrap();
-            s.settings.env.clone()
-        };
-        if prev_choice == new_choice {
-            // Same env re-selected; no work to do beyond the persist
-            // path, which is harmless to skip.
+        let new_env = env_choice_to_name(&new_choice);
+        let prev_env = ctx.state.lock().unwrap().current_env;
+        if prev_env == new_env {
             return;
         }
-
-        let new_env = env_choice_to_name(&new_choice);
 
         // Pre-validate the new env BEFORE persisting the choice. If
         // the user picks an env that has no recorded X-API-Key the
@@ -150,25 +149,34 @@ unsafe extern "C" fn env_changed(_this: *const AnyObject, _sel: Sel, _sender: *c
         // the previous env) keeps polling without a glitch.
         match ApiClient::for_env(new_env) {
             Ok(new_client) => {
-                // Persist the new env first; the polling thread
-                // reads `settings.env` for `for_env` resolution and
-                // we don't want a swap that re-bootstraps to read a
-                // stale env on the next iteration.
+                // Persist to ~/.openbox/config so the CLI / MCP /
+                // hooks / extension all converge on the new env on
+                // their next invocation. The approver no longer
+                // keeps a per-app env copy.
+                if let Err(e) = openbox_sdk::env::write_global_env(new_env) {
+                    eprintln!("write_global_env failed: {}", e);
+                }
+                // Reapply ~/.openbox/config into std::env so the
+                // current process sees the new env on any subsequent
+                // env::var() lookup (per-env URL overrides, etc.).
+                let _ = openbox_sdk::env::apply_env_source();
                 {
                     let mut s = ctx.state.lock().unwrap();
-                    s.settings.env = new_choice.clone();
+                    s.current_env = new_env;
                     // Reset the diff cache so the next post-swap
                     // poll doesn't fire spurious "brand new" notifs
                     // for IDs that simply belong to the new env.
                     s.known_ids.clear();
                     // Tell the polling thread to re-bootstrap on its
                     // next iteration: profile + agents-list run
-                    // against the new client to refresh org_id /
-                    // user_email.
+                    // against the new client to refresh org_id.
                     s.needs_bootstrap = true;
                     s.org_id = None;
                     s.user_email = None;
                 }
+                // Persist the non-env UI prefs (notifications,
+                // poll interval). Env intentionally omitted; it
+                // lives in ~/.openbox/config now.
                 let snap = ctx.state.lock().unwrap().settings.clone();
                 let _ = settings::save(&snap);
 
@@ -198,12 +206,12 @@ unsafe extern "C" fn env_changed(_this: *const AnyObject, _sel: Sel, _sender: *c
                 );
             }
             Err(e) => {
-                // Revert the popup selection; the persisted setting
-                // and the live client both stay on prev_choice.
-                let prev_idx = match prev_choice {
-                    EnvChoice::Production => 0,
-                    EnvChoice::Staging => 1,
-                    EnvChoice::Local => 2,
+                // Revert the popup selection; the persisted config
+                // and the live client both stay on prev_env.
+                let prev_idx = match prev_env {
+                    EnvName::Production => 0,
+                    EnvName::Staging => 1,
+                    EnvName::Local => 2,
                 };
                 unsafe {
                     ctx.env_popup.selectItemAtIndex(prev_idx);
@@ -213,7 +221,7 @@ unsafe extern "C" fn env_changed(_this: *const AnyObject, _sel: Sel, _sender: *c
                     &format!(
                         "{}\n\nReverted to {}.",
                         e,
-                        prev_choice.as_str()
+                        prev_env.as_str()
                     ),
                 );
             }
@@ -274,16 +282,18 @@ fn run_alert(title: &str, body: &str) {
 
 fn update_account_labels(ctx: &WindowCtx) {
     let s = ctx.state.lock().unwrap();
-    let env_name = env_choice_to_name(&s.settings.env);
-    let email = s.user_email.clone().unwrap_or_else(|| "<unknown>".into());
+    let env_name = s.current_env;
     let org = s.org_id.clone().unwrap_or_else(|| "<unknown>".into());
     drop(s);
 
     unsafe {
-        ctx.account_email.setStringValue(&NSString::from_str(&format!("Signed in as {email}")));
-        ctx.account_org.setStringValue(&NSString::from_str(&format!("Org: {org}")));
-        ctx.account_env.setStringValue(&NSString::from_str(&format!("Active env: {}", env_name.as_str())));
-        ctx.account_url.setStringValue(&NSString::from_str(&format!("API URL: {}", display_api_url(env_name))));
+        // The Account section is rendered as label-control rows
+        // ("Auth", "Org", ...) so the value field carries ONLY the
+        // value, not a duplicated "Label: value" string.
+        ctx.account_email.setStringValue(&NSString::from_str("org X-API-Key"));
+        ctx.account_org.setStringValue(&NSString::from_str(&org));
+        ctx.account_env.setStringValue(&NSString::from_str(env_name.as_str()));
+        ctx.account_url.setStringValue(&NSString::from_str(&display_api_url(env_name)));
     }
 }
 
@@ -305,10 +315,7 @@ pub fn show(
         let guard = cell.lock().unwrap();
         if let Some(ctx) = guard.as_ref() {
             update_account_labels(ctx);
-            unsafe {
-                ctx.window
-                    .makeKeyAndOrderFront(Some(&*ctx.window as &AnyObject));
-            }
+            activate_and_focus(&ctx.window);
             return;
         }
     }
@@ -317,11 +324,25 @@ pub fn show(
     {
         let mut guard = cell.lock().unwrap();
         update_account_labels(&ctx);
-        unsafe {
-            ctx.window
-                .makeKeyAndOrderFront(Some(&*ctx.window as &AnyObject));
-        }
+        activate_and_focus(&ctx.window);
         *guard = Some(ctx);
+    }
+}
+
+/// Bring the app to the foreground and focus the given window. The
+/// approver runs with `NSApplicationActivationPolicyAccessory` so
+/// `makeKeyAndOrderFront` alone shows the window but leaves the
+/// previously-active app holding keyboard focus; the window then
+/// looks unresponsive to clicks (every event routes to the other
+/// app's frontmost window). `activate(ignoringOtherApps:)` flips
+/// the active-app bit so the new window owns input.
+fn activate_and_focus(window: &NSWindow) {
+    let mtm = unsafe { MainThreadMarker::new_unchecked() };
+    let app = NSApplication::sharedApplication(mtm);
+    unsafe {
+        #[allow(deprecated)]
+        app.activateIgnoringOtherApps(true);
+        window.makeKeyAndOrderFront(Some(window as &AnyObject));
     }
 }
 
@@ -348,6 +369,11 @@ fn build_window(
         window.setTitle(&NSString::from_str("OpenBox Approver Settings"));
         window.setReleasedWhenClosed(false);
         window.center();
+        // Sit the toolbar / title-bar onto the content area so the
+        // visual-effect background extends edge-to-edge for a native
+        // macOS preferences feel.
+        window.setTitlebarAppearsTransparent(true);
+        window.setTitleVisibility(NSWindowTitleVisibility::Hidden);
     }
 
     // Build the runtime target that hosts our action selectors.
@@ -402,46 +428,145 @@ fn build_window(
     let account_env = readonly_text(mtm, "Active env: ...");
     let account_url = readonly_text(mtm, "API URL: ...");
 
-    // ---- Vertical stack ----
-    let stack = NSStackView::new(mtm);
+    // ---- Form layout: NSGridView per section, NSBox grouping,
+    //      NSVisualEffectView background for the native preferences
+    //      "liquid glass" look that macOS Tahoe uses on its own
+    //      settings panes.
+    let debug = openbox_sdk::env::is_debug_mode();
+
+    let outer = NSStackView::new(mtm);
     unsafe {
-        stack.setOrientation(NSUserInterfaceLayoutOrientation::Vertical);
-        stack.setAlignment(objc2_app_kit::NSLayoutAttribute::Leading);
-        stack.setSpacing(8.0);
-        stack.setDistribution(NSStackViewDistribution::Fill);
-        stack.setEdgeInsets(objc2_foundation::NSEdgeInsets {
-            top: 16.0,
-            left: 20.0,
-            bottom: 16.0,
-            right: 20.0,
+        outer.setOrientation(NSUserInterfaceLayoutOrientation::Vertical);
+        // Stretch each arranged subview to the stack's full width so
+        // all section boxes share the same left/right edge instead of
+        // each box sizing itself to its content (which produced the
+        // ragged look in the prior screenshot).
+        outer.setAlignment(NSLayoutAttribute::CenterX);
+        outer.setSpacing(18.0);
+        // FillEqually would force same-height boxes; Fill lets them
+        // size to content while the alignment above pins width.
+        outer.setDistribution(NSStackViewDistribution::Fill);
+        outer.setEdgeInsets(objc2_foundation::NSEdgeInsets {
+            top: 28.0,
+            left: 24.0,
+            bottom: 24.0,
+            right: 24.0,
         });
-
-        stack.addArrangedSubview(as_view(&*env_label));
-        stack.addArrangedSubview(as_view(&*env_popup));
-        let sp1 = spacer(mtm);
-        stack.addArrangedSubview(&sp1);
-        stack.addArrangedSubview(as_view(&*notif_label));
-        stack.addArrangedSubview(as_view(&*notif_row));
-        let sp2 = spacer(mtm);
-        stack.addArrangedSubview(&sp2);
-        stack.addArrangedSubview(as_view(&*poll_label));
-        stack.addArrangedSubview(as_view(&*poll_segments));
-        let sp3 = spacer(mtm);
-        stack.addArrangedSubview(&sp3);
-        stack.addArrangedSubview(as_view(&*account_label));
-        stack.addArrangedSubview(as_view(&*account_email));
-        stack.addArrangedSubview(as_view(&*account_org));
-        stack.addArrangedSubview(as_view(&*account_env));
-        stack.addArrangedSubview(as_view(&*account_url));
     }
 
+    // Bind every label up-front so the Retained<NSTextField> handles
+    // outlive the `&NSView` references the grid borrows. Without
+    // these bindings the temporaries drop at the end of the line and
+    // Rust rejects the row tuple.
+    let env_form_label = labeled_field(mtm, "Environment");
+    let notif_form_label = labeled_field(mtm, "Notify on new approvals");
+    let poll_form_label = labeled_field(mtm, "Refresh interval");
+    let auth_form_label = labeled_field(mtm, "Auth");
+    let org_form_label = labeled_field(mtm, "Org");
+    let active_env_form_label = labeled_field(mtm, "Active env");
+    let api_url_form_label = labeled_field(mtm, "API URL");
+
+    // Helper: add a box as a full-width arranged subview. Pinning
+    // leading and trailing to the outer stack keeps every section
+    // edge-aligned regardless of grid content width (the Account
+    // section's wider labels would otherwise push it out to the
+    // right).
+    let outer_view_for_pin: &NSView = as_view(&*outer);
+    let pin_full_width = |b: &NSBox| unsafe {
+        let v: &NSView = as_view(b);
+        v.setTranslatesAutoresizingMaskIntoConstraints(false);
+        outer.addArrangedSubview(v);
+        use objc2_app_kit::NSLayoutConstraint;
+        let leading = v
+            .leadingAnchor()
+            .constraintEqualToAnchor(&outer_view_for_pin.leadingAnchor());
+        let trailing = v
+            .trailingAnchor()
+            .constraintEqualToAnchor(&outer_view_for_pin.trailingAnchor());
+        let cs = NSArray::from_retained_slice(&[leading, trailing]);
+        NSLayoutConstraint::activateConstraints(&cs);
+    };
+
+    if debug {
+        let env_box = section_box(mtm, "Environment");
+        let env_grid = form_grid(mtm, &[
+            (as_view(&*env_form_label), as_view(&*env_popup)),
+        ]);
+        set_box_content(&env_box, as_view(&*env_grid));
+        pin_full_width(&env_box);
+    }
+
+    let notif_box = section_box(mtm, "Notifications");
+    let notif_grid = form_grid(mtm, &[
+        (as_view(&*notif_form_label), as_view(&*notif_switch)),
+    ]);
+    set_box_content(&notif_box, as_view(&*notif_grid));
+    pin_full_width(&notif_box);
+
+    let poll_box = section_box(mtm, "Polling");
+    let poll_grid = form_grid(mtm, &[
+        (as_view(&*poll_form_label), as_view(&*poll_segments)),
+    ]);
+    set_box_content(&poll_box, as_view(&*poll_grid));
+    pin_full_width(&poll_box);
+
+    let account_box = section_box(mtm, "Account");
+    let mut account_rows: Vec<(&NSView, &NSView)> = vec![
+        (as_view(&*auth_form_label), as_view(&*account_email)),
+        (as_view(&*org_form_label), as_view(&*account_org)),
+    ];
+    if debug {
+        account_rows.push((as_view(&*active_env_form_label), as_view(&*account_env)));
+        account_rows.push((as_view(&*api_url_form_label), as_view(&*account_url)));
+    }
+    let account_grid = form_grid(mtm, &account_rows);
+    set_box_content(&account_box, as_view(&*account_grid));
+    pin_full_width(&account_box);
+
+    // Wrap the form in a visual-effect view so the background picks up
+    // the macOS window-background material; on Tahoe this surfaces
+    // the translucent / liquid-glass look automatically.
+    let effect = unsafe {
+        let v = NSVisualEffectView::new(mtm);
+        v.setMaterial(NSVisualEffectMaterial::WindowBackground);
+        v.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
+        v.setState(NSVisualEffectState::FollowsWindowActiveState);
+        v
+    };
+    // Pin the outer form stack to the four edges of the visual-effect
+    // view via Auto Layout. The earlier approach (autoresizing mask +
+    // setFrame from a zero-sized parent) left the form floating in the
+    // bottom-half of the window.
     unsafe {
-        window.setContentView(Some(as_view(&*stack)));
+        let effect_view: &NSView = as_view(&*effect);
+        let outer_view: &NSView = as_view(&*outer);
+        outer_view.setTranslatesAutoresizingMaskIntoConstraints(false);
+        effect_view.addSubview(outer_view);
+
+        use objc2_app_kit::NSLayoutConstraint;
+        let top = outer_view.topAnchor().constraintEqualToAnchor(&effect_view.topAnchor());
+        let bottom = outer_view
+            .bottomAnchor()
+            .constraintEqualToAnchor(&effect_view.bottomAnchor());
+        let leading = outer_view
+            .leadingAnchor()
+            .constraintEqualToAnchor(&effect_view.leadingAnchor());
+        let trailing = outer_view
+            .trailingAnchor()
+            .constraintEqualToAnchor(&effect_view.trailingAnchor());
+        let constraints = NSArray::from_retained_slice(&[top, bottom, leading, trailing]);
+        NSLayoutConstraint::activateConstraints(&constraints);
+
+        window.setContentView(Some(effect_view));
     }
 
-    // Initialize control values from current settings.
-    let snap = state.lock().unwrap().settings.clone();
-    init_controls(&env_popup, &notif_switch, &poll_segments, &snap);
+    // Initialize control values from current settings + the runtime
+    // env (which lives on AppState, not in Settings).
+    let (snap, current_env) = {
+        let s = state.lock().unwrap();
+        (s.settings.clone(), s.current_env)
+    };
+    init_controls(&env_popup, &notif_switch, &poll_segments, &snap, current_env);
 
     hold_target(target);
 
@@ -465,11 +590,12 @@ fn init_controls(
     notif_switch: &NSSwitch,
     poll_segments: &NSSegmentedControl,
     s: &Settings,
+    current_env: EnvName,
 ) {
-    let env_idx = match s.env {
-        EnvChoice::Production => 0,
-        EnvChoice::Staging => 1,
-        EnvChoice::Local => 2,
+    let env_idx = match current_env {
+        EnvName::Production => 0,
+        EnvName::Staging => 1,
+        EnvName::Local => 2,
     };
     unsafe {
         env_popup.selectItemAtIndex(env_idx);
@@ -533,4 +659,62 @@ fn horizontal_row(mtm: MainThreadMarker, views: &[&NSView]) -> Retained<NSStackV
     }
     let _ = Bool::YES; // suppress unused-import for Bool when feature drift
     stack
+}
+
+/// Build a titled `NSBox` matching the look of a macOS preferences
+/// section. The box draws its own border + title; callers feed a
+/// content view via `set_box_content`. The border is the system
+/// `NSBoxType::Primary` style so the material picks up dark / light
+/// + Tahoe's translucent glass automatically.
+fn section_box(mtm: MainThreadMarker, title: &str) -> Retained<NSBox> {
+    let b = NSBox::new(mtm);
+    unsafe {
+        b.setTitle(&NSString::from_str(title));
+        b.setTitlePosition(NSTitlePosition::AtTop);
+        b.setBoxType(NSBoxType::Primary);
+        let title_font = NSFont::boldSystemFontOfSize(13.0);
+        b.setTitleFont(&title_font);
+    }
+    b
+}
+
+fn set_box_content(b: &NSBox, content: &NSView) {
+    unsafe {
+        b.setContentView(Some(content));
+        b.setContentViewMargins(NSSize::new(12.0, 12.0));
+    }
+}
+
+/// Two-column form layout. Left column is right-aligned labels (the
+/// classic macOS preferences "label : control" form), right column
+/// is the controls themselves. NSGridView handles row sizing + col
+/// alignment automatically without manual constraint math.
+fn form_grid(mtm: MainThreadMarker, rows: &[(&NSView, &NSView)]) -> Retained<NSGridView> {
+    let grid = NSGridView::new(mtm);
+    unsafe {
+        grid.setColumnSpacing(12.0);
+        grid.setRowSpacing(10.0);
+        grid.setRowAlignment(NSGridRowAlignment::FirstBaseline);
+        for (label, control) in rows {
+            let arr = NSArray::from_slice(&[*label, *control]);
+            grid.addRowWithViews(&arr);
+        }
+        // Right-align the label column.
+        let col = grid.columnAtIndex(0);
+        col.setXPlacement(NSGridCellPlacement::Trailing);
+    }
+    grid
+}
+
+/// Label styled to match the macOS preferences right-aligned column.
+/// Uses the system's standard control text color so dark / light /
+/// the Tahoe glass material all render legibly without manual color
+/// overrides.
+fn labeled_field(mtm: MainThreadMarker, text: &str) -> Retained<NSTextField> {
+    let label = NSTextField::labelWithString(&NSString::from_str(text), mtm);
+    unsafe {
+        label.setSelectable(false);
+        label.setAlignment(objc2_app_kit::NSTextAlignment::Right);
+    }
+    label
 }

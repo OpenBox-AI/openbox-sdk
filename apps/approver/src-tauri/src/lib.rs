@@ -15,7 +15,7 @@ mod settings_window;
 // title-case fallback for free-form custom-preset activity_types.
 use openbox_sdk::approvals::format::{format_label, time_ago, time_remaining};
 use openbox_sdk::approvals::approval_source;
-use openbox_sdk::env::{resolve_urls, EnvName};
+use openbox_sdk::env::{apply_env_source, resolve_urls, EnvName};
 use openbox_sdk::verdict::verdict_label;
 
 use std::collections::HashSet;
@@ -43,12 +43,23 @@ pub fn env_choice_to_name(c: &EnvChoice) -> EnvName {
 
 pub struct AppState {
     pub org_id: Option<String>,
+    /// Cached profile email if the backend's /auth/profile returned
+    /// one. Org X-API-Keys aren't user-bound so this is usually
+    /// absent; the tray header now renders the org id instead and
+    /// only falls back to email when org_id is missing.
     pub user_email: Option<String>,
     pub known_ids: HashSet<String>,
     pub pending_refresh: bool,
     pub pending_decide: Option<(String, String, String)>,
     pub consecutive_errors: u32,
     pub settings: Settings,
+    /// Active env. Initialized from `apply_env_source()` at startup
+    /// and mutated by the Settings window's env-switch handler. The
+    /// env lives here (transient, runtime) instead of in
+    /// `Settings` (which used to persist it to a separate
+    /// `approver-settings.json` — that was a duplicate source of
+    /// truth before `~/.openbox/config` became canonical).
+    pub current_env: EnvName,
     /// Flips to `true` when the Settings window swaps the API client
     /// to a new env. The polling thread checks this each iteration
     /// before fetching: when set, it re-runs bootstrap (profile +
@@ -65,6 +76,23 @@ pub struct AppState {
 /// arithmetic is the same as for every other SDK consumer and
 /// therefore lives in the SDK.
 pub use openbox_sdk::polling::diff_known_ids;
+
+/// Compose the tray menu's top disabled-item header. Renders the
+/// org id by default (env intentionally hidden so end users never
+/// see staging / local labels). When `is_debug_mode()` is on, the
+/// header appends `· <env>` so internal users can confirm which
+/// env the app is hitting.
+pub fn tray_header(org_id: Option<&str>, env: EnvName) -> String {
+    let base = match org_id {
+        Some(o) => format!("Org {}", o),
+        None => "OpenBox Approver".to_string(),
+    };
+    if openbox_sdk::env::is_debug_mode() {
+        format!("{} \u{00B7} {}", base, env.as_str())
+    } else {
+        base
+    }
+}
 
 /// Drain the queued decision off `AppState`. Mirrors the inline pop
 /// the polling loop runs every tick, but factored out so a test can
@@ -177,8 +205,16 @@ where
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Layer ~/.openbox/config into the process environment so the
+    // approver agrees with every other OpenBox surface on the active
+    // env, the per-env URLs, and the per-env API-key location. Without
+    // this, the approver defaults to production and ignores the user's
+    // `openbox config set --global OPENBOX_ENV=local`. Mirrors the JS
+    // `applyEnvSource()` call every CLI / MCP / hook entrypoint makes.
+    let initial_env = apply_env_source();
+
     tauri::Builder::default()
-        .setup(|app| {
+        .setup(move |app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
@@ -192,6 +228,7 @@ pub fn run() {
                 pending_decide: None,
                 consecutive_errors: 0,
                 settings: initial_settings.clone(),
+                current_env: initial_env,
                 needs_bootstrap: false,
             }));
 
@@ -210,7 +247,9 @@ pub fn run() {
                 // with a startup where no key is recorded yet (the
                 // user opens Settings, picks an env that has a key,
                 // and we plug it in without a relaunch).
-                let initial_env = env_choice_to_name(&initial_settings.env);
+                // `initial_env` was resolved at `apply_env_source()`
+                // call above from `~/.openbox/config`; settings.env is
+                // ignored (deprecated, kept for back-compat parse only).
                 let client_handle: Arc<Mutex<Option<api::ApiClient>>> =
                     match api::ApiClient::for_env(initial_env) {
                         Ok(c) => Arc::new(Mutex::new(Some(c))),
@@ -318,11 +357,11 @@ pub fn run() {
                                     s.org_id = org.clone();
                                     s.needs_bootstrap = false;
                                     s.known_ids.clear();
+                                    let header = tray_header(s.org_id.as_deref(), s.current_env);
                                     drop(s);
-                                    let email_for_tray = email.clone().unwrap_or_default();
                                     let tray_c = tray_poll.clone();
                                     let _ = handle.run_on_main_thread(move || {
-                                        tray_c.lock().unwrap().update_menu(Some(&email_for_tray), &[], None);
+                                        tray_c.lock().unwrap().update_menu(Some(&header), &[], None);
                                     });
                                 }
                                 Err(e) => {
@@ -347,13 +386,12 @@ pub fn run() {
                             }
                         }
 
-                        let (decide, org_id, user_email) = {
+                        let (decide, org_id) = {
                             let mut s = state_poll.lock().unwrap();
                             s.pending_refresh = false;
                             (
                                 take_pending_decision(&mut s.pending_decide),
                                 s.org_id.clone(),
-                                s.user_email.clone(),
                             )
                         };
 
@@ -364,7 +402,6 @@ pub fn run() {
                             let _ = wakeup_rx.recv_timeout(Duration::from_secs(interval_secs));
                             continue;
                         };
-                        let user_email = user_email.unwrap_or_default();
 
                         if let Some((agent_id, event_id, action)) = decide {
                             let res = {
@@ -451,12 +488,15 @@ pub fn run() {
                                     }
                                 }).collect();
 
-                                let email = user_email.clone();
+                                let header = {
+                                    let s = state_poll.lock().unwrap();
+                                    tray_header(s.org_id.as_deref(), s.current_env)
+                                };
                                 let count = data.len();
                                 let tray_c = tray_poll.clone();
                                 let _ = handle.run_on_main_thread(move || {
                                     let t = tray_c.lock().unwrap();
-                                    t.update_menu(Some(&email), &data, None);
+                                    t.update_menu(Some(&header), &data, None);
                                     t.set_badge(count);
                                 });
                                 // `new_ids` was already pushed into
@@ -473,11 +513,14 @@ pub fn run() {
                                 };
                                 eprintln!("Poll error ({}/3): {}", errs, e);
                                 if errs >= 3 {
-                                    let email = user_email.clone();
+                                    let header = {
+                                        let s = state_poll.lock().unwrap();
+                                        tray_header(s.org_id.as_deref(), s.current_env)
+                                    };
                                     let err_msg = e.clone();
                                     let tray_c = tray_poll.clone();
                                     let _ = handle.run_on_main_thread(move || {
-                                        tray_c.lock().unwrap().update_menu(Some(&email), &[], Some(&err_msg));
+                                        tray_c.lock().unwrap().update_menu(Some(&header), &[], Some(&err_msg));
                                     });
                                 }
                             }

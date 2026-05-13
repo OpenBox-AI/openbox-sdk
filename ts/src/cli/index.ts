@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import type { CommanderError } from 'commander';
 import { loadFeatures, loadPermissions } from './config.js';
 import { resolveEnv } from '../env/index.js';
-import { applyEnvSource } from './env-source.js';
+import { applyEnvSource, isDebugMode } from './env-source.js';
 import {
   COMMAND_FEATURES,
   COMMAND_PERMISSIONS,
@@ -200,9 +200,14 @@ program
   .name('openbox')
   .description('openbox-sdk')
   .version('1.0.0')
-  .option(
-    '--env <env>',
-    "Environment: production, staging, or local. Defaults to $OPENBOX_ENV, then production.",
+  .addOption(
+    // Functional but hidden from `openbox --help` unless OPENBOX_DEBUG=1
+    // or `~/.openbox/config`'s OPENBOX_DEBUG=true. End users never
+    // see staging / local env names in help; the flag still works on
+    // every invocation, and `openbox config set --global OPENBOX_ENV=...`
+    // remains the canonical knob.
+    new Option('--env <env>', 'Environment override (debug-only).')
+      .hideHelp(!isDebugMode()),
   )
   .option(
     '--experimental',
