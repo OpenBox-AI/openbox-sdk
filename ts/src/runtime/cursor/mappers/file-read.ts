@@ -20,6 +20,7 @@ import {
   awaitClaimDecision,
   publishClaimDecision,
 } from '../dedup.js';
+import { stampSource } from '../../../approvals/source.js';
 
 /**
  * beforeReadFile: govern an agent-initiated file read before Cursor
@@ -63,7 +64,7 @@ export async function handleBeforeReadFile(
     const verdict = await session.activity(
       EVENT.START,
       BEFORE_READ_FILE_ACTIVITY_TYPE,
-      { input: [payload], spans: [span] },
+      { input: [stampSource(payload, 'cursor')], spans: [span] },
     );
     publishClaimDecision(claim, { arm: verdict.arm, reason: verdict.reason ?? '' });
     if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
@@ -105,7 +106,7 @@ export async function handleBeforeTabFileRead(
   const verdict = await session.activity(
     EVENT.START,
     BEFORE_TAB_FILE_READ_ACTIVITY_TYPE,
-    { input: [payload], spans: [span] },
+    { input: [stampSource(payload, 'cursor')], spans: [span] },
   );
   if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
   return verdict;

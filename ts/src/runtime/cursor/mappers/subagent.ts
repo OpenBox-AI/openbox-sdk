@@ -10,6 +10,7 @@ import {
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
+import { stampSource } from '../../../approvals/source.js';
 
 /**
  * subagentStart: govern delegation to a subagent. This is the only
@@ -26,7 +27,7 @@ export async function handleSubagentStart(
   const verdict = await session.activity(
     EVENT.START,
     SUBAGENT_START_ACTIVITY_TYPE,
-    { input: [payload] },
+    { input: [stampSource(payload, 'cursor')] },
   );
   if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
   return verdict;

@@ -6,6 +6,7 @@ import {
 } from '../../../core-client/generated/runtime/claude-code.js';
 import type { ClaudeCodeConfig } from '../config.js';
 import { EVENT } from '../activity-types.js';
+import { stampSource } from '../../../approvals/source.js';
 
 /** Pinned per-subagent activity_type so START/STOP balance. Activity name
  *  carries identity that the spec-driven payload doesn't (the activity_type
@@ -23,7 +24,7 @@ export async function handleSubagentStart(
 ): Promise<undefined> {
   try {
     await session.activity(EVENT.START, subAgentActivityType(env), {
-      input: [buildSubagentStartPayload(env)],
+      input: [stampSource(buildSubagentStartPayload(env), 'claude-code')],
     });
   } catch {
     // best-effort observability
@@ -39,7 +40,7 @@ export async function handleSubagentStop(
 ): Promise<undefined> {
   try {
     await session.activity(EVENT.COMPLETE, subAgentActivityType(env), {
-      input: [buildSubagentStopPayload(env)],
+      input: [stampSource(buildSubagentStopPayload(env), 'claude-code')],
     });
   } catch {
     // best-effort observability

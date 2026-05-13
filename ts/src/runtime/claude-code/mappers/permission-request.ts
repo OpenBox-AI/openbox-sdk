@@ -11,6 +11,7 @@ import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { buildSpan, type SpanType } from '../../../governance/spans.js';
+import { stampSource } from '../../../approvals/source.js';
 
 function activityTypeForTool(toolName: string): string {
   const direct = PERMISSION_REQUEST_ROUTING[toolName];
@@ -62,7 +63,7 @@ export async function handlePermissionRequest(
       ]
     : undefined;
   const verdict = await session.activity(EVENT.START, activityType, {
-    input: [payload],
+    input: [stampSource(payload, 'claude-code')],
     spans,
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);

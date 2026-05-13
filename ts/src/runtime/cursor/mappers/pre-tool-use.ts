@@ -21,6 +21,7 @@ import {
   awaitClaimDecision,
   publishClaimDecision,
 } from '../dedup.js';
+import { stampSource } from '../../../approvals/source.js';
 
 /**
  * preToolUse: Cursor 3.x's primary agent-action hook. Activity routing,
@@ -106,7 +107,7 @@ export async function handlePreToolUse(
 
   try {
     const verdict = await session.activity(EVENT.START, activityType, {
-      input: [payload],
+      input: [stampSource(payload, 'cursor')],
       spans: [span],
     });
     if (claim?.won) {

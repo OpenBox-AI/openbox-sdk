@@ -12,6 +12,7 @@ import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { isSkipped } from '../../../governance/skip-patterns.js';
 import { buildSpan, type SpanType } from '../../../governance/spans.js';
+import { stampSource } from '../../../approvals/source.js';
 import { sideEffects } from '../side-effects.js';
 
 /** Activity-type lookup. Spec-driven for the standard tools; mcp__* tools
@@ -82,7 +83,7 @@ export async function handlePreToolUse(
     : undefined;
 
   const verdict = await session.activity(EVENT.START, activityType, {
-    input: [payload],
+    input: [stampSource(payload, 'claude-code')],
     spans,
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);

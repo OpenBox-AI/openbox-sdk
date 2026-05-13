@@ -18,6 +18,7 @@ import {
   publishClaimDecision,
   isFileDeleteCommand,
 } from '../dedup.js';
+import { stampSource } from '../../../approvals/source.js';
 
 /**
  * beforeShellExecution: govern shell command before Cursor runs it.
@@ -68,7 +69,7 @@ export async function handleBeforeShellExecution(
   if (isDelete) payload.event_category = 'file_delete';
   try {
     const verdict = await session.activity(EVENT.START, activityType, {
-      input: [payload],
+      input: [stampSource(payload, 'cursor')],
       spans: [span],
     });
     publishClaimDecision(claim, { arm: verdict.arm, reason: verdict.reason ?? '' });

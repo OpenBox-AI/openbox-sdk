@@ -115,6 +115,26 @@ describe('approvalSource() contract for claude-code spans', () => {
     expect(approvalSource({} as Approval)).toBeUndefined();
     expect(approvalSource({ spans: [] } as unknown as Approval)).toBeUndefined();
   });
+
+  it('reads input[0]._openbox_source as a fallback when spans are stripped', () => {
+    // The backend's pending-list endpoint strips spans for response
+    // size, leaving `input` as the only adapter-controlled field
+    // that survives. stampSource() writes the host into
+    // input[0]._openbox_source so source filters work on live rows
+    // without needing a metadata persistence change on the backend.
+    const approval = {
+      input: [{ tool_name: 'Read', _openbox_source: 'claude-code' }],
+    } as unknown as Approval;
+    expect(approvalSource(approval)).toBe('claude-code');
+  });
+
+  it('input-source loses to metadata.source when both are present', () => {
+    const approval = {
+      metadata: { source: 'mobile' },
+      input: [{ _openbox_source: 'claude-code' }],
+    } as unknown as Approval;
+    expect(approvalSource(approval)).toBe('mobile');
+  });
 });
 
 describe.runIf(SHOULD_RUN)('claude-code activity round-trip', () => {

@@ -15,6 +15,7 @@ import {
   markHalted,
 } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
+import { stampSource } from '../../../approvals/source.js';
 
 /**
  * SessionStart: opens the workflow envelope + records the session boundary.
@@ -30,7 +31,7 @@ export async function handleSessionStart(
 ): Promise<undefined> {
   await session.workflowStarted();
   await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
-    input: [buildSessionStartPayload(env)],
+    input: [stampSource(buildSessionStartPayload(env), 'claude-code')],
   });
   return undefined; // verdictShape is "none"; no stdout
 }
@@ -48,7 +49,7 @@ export async function handleStop(
   let verdict: WorkflowVerdict;
   try {
     verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
-      input: [buildStopPayload(env)],
+      input: [stampSource(buildStopPayload(env), 'claude-code')],
     });
   } catch {
     return undefined; // Stop must never block Claude on errors
@@ -79,7 +80,7 @@ export async function handleSessionEnd(
   }
   try {
     await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
-      input: [buildSessionEndPayload(env)],
+      input: [stampSource(buildSessionEndPayload(env), 'claude-code')],
     });
   } catch {
     // best-effort
