@@ -6,6 +6,7 @@ import {
   FeatureMap,
   serializeTokenStore,
   resolveEnv,
+  resolveConnection,
   resolveUrls,
   validateApiKeyFormat as generatedValidateApiKey,
 } from '../env/index.js';
@@ -67,12 +68,14 @@ function resolveTimeoutMs(): number | undefined {
 
 function getClient(env?: EnvName): OpenBoxClient {
   const resolved = env ?? resolveEnv();
-  const { apiUrl } = resolveUrls(resolved);
+  const { apiUrl } = resolveConnection({ envName: resolved });
   const apiKey = loadApiKey(resolved);
   if (!apiKey) {
     error('no X-API-Key configured', {
       help:
         'mint a key in the dashboard FE (Organization → API Keys), then:\n' +
+        '  openbox connect <stack-url> --api-key <key>\n' +
+        'or save a key for the active connection with:\n' +
         '  openbox auth set-api-key\n' +
         'or set OPENBOX_BACKEND_API_KEY=<key> in the environment',
     });

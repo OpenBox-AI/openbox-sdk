@@ -60,6 +60,7 @@ function planConfigDir(opts: ConfigOverrides): string {
     OPENBOX_CORE_URL: opts.coreUrl ?? 'http://127.0.0.1:1',
     OPENBOX_ENDPOINT: opts.coreUrl ?? 'http://127.0.0.1:1',
     GOVERNANCE_POLICY: opts.governancePolicy ?? 'fail_open',
+    GOVERNANCE_TIMEOUT: 1,
     HITL_ENABLED: false,
     DRY_RUN: opts.dryRun ?? false,
     VERBOSE: opts.verbose ?? false,
@@ -70,13 +71,22 @@ function planConfigDir(opts: ConfigOverrides): string {
   return root;
 }
 
-function callHook(envelope: Record<string, unknown>, configRoot: string): HookResult {
+function callHook(
+  envelope: Record<string, unknown>,
+  configRoot: string,
+  envOverrides: Record<string, string | undefined> = {},
+): HookResult {
+  const env = { ...process.env };
+  for (const [key, value] of Object.entries(envOverrides)) {
+    if (value === undefined) delete env[key];
+    else env[key] = value;
+  }
   const r = spawnSync(OPENBOX, ['claude-code', 'hook'], {
     cwd: configRoot,
     encoding: 'utf-8',
     timeout: 15_000,
     input: JSON.stringify(envelope),
-    env: { ...process.env },
+    env,
   });
   let parsed: unknown = undefined;
   const text = (r.stdout ?? '').trim();
@@ -279,6 +289,7 @@ describe('claude-code hook stdin/stdout', () => {
         tool_input: { file_path: '/etc/hostname' },
       },
       root,
+      { OPENBOX_CORE_URL: 'http://127.0.0.1:1', GOVERNANCE_TIMEOUT: '1' },
     );
     expect(r.status, `exit=${r.status} stderr=${r.stderr}`).toBe(0);
     // The hook must not surface a deny on a transport error under
@@ -310,6 +321,7 @@ describe('claude-code hook stdin/stdout', () => {
         tool_input: { file_path: '/etc/hostname' },
       },
       root,
+      { OPENBOX_API_KEY: '' },
     );
     // The hook exits 0 (no key path) without writing a decision
     // to stdout; claude treats absent stdout as default allow.

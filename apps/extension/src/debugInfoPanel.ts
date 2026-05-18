@@ -139,7 +139,6 @@ function render(webview: vscode.Webview, context: vscode.ExtensionContext, snap:
 
   const apiUrl = resolveExtensionUrls(snap.env).apiUrl || "(unset)";
   const dashboard = dashboardBase(snap.env) || "(unset)";
-  const mockAuth = vscode.workspace.getConfiguration("openbox").get<boolean>("mockAuth", false);
   const notifyOn = vscode.workspace.getConfiguration("openbox").get<boolean>("notifyOnNewApprovals", true);
   const extension = vscode.extensions.getExtension("OpenBox.openbox") || vscode.extensions.getExtension("openbox.openbox");
   const version = (extension?.packageJSON as any)?.version || "unknown";
@@ -182,7 +181,6 @@ function render(webview: vscode.Webview, context: vscode.ExtensionContext, snap:
   }
 
   rows.push(
-    { label: "Mock auth", value: mockAuth ? "on" : "off" },
     { label: "Notifications", value: notifyOn ? "on" : "off" },
     { label: "Pending count", value: String(snap.pendingCount) },
     { label: "History count", value: String(snap.historyCount) },

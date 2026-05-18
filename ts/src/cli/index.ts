@@ -11,6 +11,7 @@ import {
   missingPermissions,
 } from './permissions.js';
 import { registerAuthCommands } from './commands/auth.js';
+import { registerConnectCommand } from './commands/connect.js';
 import { registerConfigCommands } from './commands/config.js';
 import { registerAgentCommands } from './commands/agent.js';
 import { registerApiKeyCommands } from './commands/api-key.js';
@@ -246,8 +247,8 @@ program
         const missingF = missingFeatures(requiredFeatures, features);
         if (missingF.length > 0) {
           error(
-            `feature disabled for \`openbox ${commandPath}\` in env ${env}: ${missingF.join(', ')}`,
-            { help: `ask your admin to enable the feature on the ${env} org` },
+            `feature disabled for \`openbox ${commandPath}\`: ${missingF.join(', ')}`,
+            { help: `ask your admin to enable the feature for the active OpenBox connection` },
           );
           bailWith(EXIT.FEATURE_DISABLED);
         }
@@ -263,10 +264,10 @@ program
     if (missing.length === 0) return;
 
     error(
-      `missing permission for \`openbox ${commandPath}\` in env ${env}: ${missing.join(', ')}`,
+      `missing permission for \`openbox ${commandPath}\`: ${missing.join(', ')}`,
       {
         detail: `api-key has ${have.length} permission(s); server returns 403 if any required ones are missing`,
-        help: `ask your admin to grant the missing permission(s) on the ${env} Keycloak role`,
+        help: `ask your admin to grant the missing permission(s) for the active OpenBox connection`,
       },
     );
     bailWith(EXIT.AUTH);
@@ -283,6 +284,7 @@ function buildCommandKey(cmd: Command): string {
 }
 
 registerAuthCommands(program);
+registerConnectCommand(program);
 registerConfigCommands(program);
 registerAgentCommands(program);
 registerApiKeyCommands(program);
@@ -407,6 +409,6 @@ if (process.argv.length === 2) {
   }
 }
 
-program.parseAsync(process.argv).catch((err) => {
+await program.parseAsync(process.argv).catch((err) => {
   reportAndExit(err);
 });

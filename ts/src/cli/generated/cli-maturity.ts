@@ -62,6 +62,7 @@ export const COMMAND_MATURITY: Record<string, Maturity> = {
   "config list": "experimental",
   "config set": "experimental",
   "config unset": "experimental",
+  "connect": "stable",
   "doctor": "stable",
   "goal": "experimental",
   "goal drifts": "experimental",
@@ -150,6 +151,5 @@ export const COMMAND_MATURITY: Record<string, Maturity> = {
   "violation false-positive": "experimental",
   "violation list": "experimental"
 };
-
 
 

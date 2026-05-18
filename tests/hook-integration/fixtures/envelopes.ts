@@ -24,7 +24,13 @@ export type EventName =
   | 'afterMCPExecution'
   | 'postToolUse'
   | 'postToolUseFailure'
-  | 'stop';
+  | 'stop'
+  | 'beforeTabFileRead'
+  | 'afterTabFileEdit'
+  | 'sessionEnd'
+  | 'preCompact'
+  | 'subagentStart'
+  | 'subagentStop';
 
 const CONV = 'test-conv-1';
 const GEN = 'test-gen-1';
@@ -113,6 +119,43 @@ export const ENVELOPES: Record<EventName, Record<string, unknown>> = {
     hook_event_name: 'stop',
     conversation_id: CONV,
   },
+  beforeTabFileRead: {
+    hook_event_name: 'beforeTabFileRead',
+    conversation_id: CONV,
+    generation_id: GEN,
+    file_path: '/tmp/openbox-hook-tab-test.txt',
+  },
+  afterTabFileEdit: {
+    hook_event_name: 'afterTabFileEdit',
+    conversation_id: CONV,
+    generation_id: GEN,
+    file_path: '/tmp/openbox-hook-tab-test.txt',
+  },
+  sessionEnd: {
+    hook_event_name: 'sessionEnd',
+    conversation_id: CONV,
+  },
+  preCompact: {
+    hook_event_name: 'preCompact',
+    conversation_id: CONV,
+    trigger: 'manual',
+  },
+  subagentStart: {
+    hook_event_name: 'subagentStart',
+    conversation_id: CONV,
+    generation_id: GEN,
+    subagent_id: 'subagent-test-1',
+    subagent_type: 'agent',
+    subagent_model: 'cursor-test-model',
+  },
+  subagentStop: {
+    hook_event_name: 'subagentStop',
+    conversation_id: CONV,
+    generation_id: GEN,
+    subagent_id: 'subagent-test-1',
+    subagent_type: 'agent',
+    subagent_model: 'cursor-test-model',
+  },
 };
 
 /** Verdict-shape grouping per the spec. Used by the test to know
@@ -123,6 +166,8 @@ export const PERMISSION_EVENTS: ReadonlySet<EventName> = new Set([
   'beforeShellExecution',
   'beforeMCPExecution',
   'preToolUse',
+  'beforeTabFileRead',
+  'subagentStart',
 ]);
 
 export const OBSERVE_EVENTS: ReadonlySet<EventName> = new Set([
@@ -133,9 +178,13 @@ export const OBSERVE_EVENTS: ReadonlySet<EventName> = new Set([
   'afterMCPExecution',
   'postToolUse',
   'postToolUseFailure',
+  'afterTabFileEdit',
+  'preCompact',
+  'subagentStop',
 ]);
 
 export const NONE_EVENTS: ReadonlySet<EventName> = new Set([
   'sessionStart',
   'stop',
+  'sessionEnd',
 ]);

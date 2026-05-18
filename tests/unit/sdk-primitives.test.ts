@@ -4,7 +4,7 @@
 // than mocking it, so the file-mode contract from O.1 also stays
 // exercised.
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -167,5 +167,146 @@ describe('install/from-spec', () => {
     const flat = JSON.stringify(json.hooks);
     expect(flat).toContain('beforeShellExecution');
     expect(flat).toContain('openbox cursor hook');
+  });
+});
+
+describe('approvals/resolve', () => {
+  function approvalClient(overrides: Record<string, unknown> = {}) {
+    return {
+      getProfile: vi.fn(async () => ({ orgId: 'org-1' })),
+      getOrgApprovals: vi.fn(async () => ({
+        approvals: {
+          data: [
+            {
+              id: 'approval-row-id',
+              event_id: 'authoritative-event-id',
+              agent_id: 'agent-from-backend',
+            },
+          ],
+        },
+      })),
+      decideApproval: vi.fn(async () => undefined),
+      ...overrides,
+    } as any;
+  }
+
+  it('uses the backend event_id even when the caller already has an agent id', async () => {
+    const { decideApproval } = await import('../../ts/src/approvals/resolve');
+    const client = approvalClient();
+
+    const identity = await decideApproval(
+      client,
+      {
+        governanceEventId: 'approval-row-id',
+        agentId: 'agent-from-ui',
+      },
+      'approve',
+    );
+
+    expect(client.getOrgApprovals).toHaveBeenCalledWith('org-1', {
+      status: 'pending',
+      page: 0,
+      perPage: 100,
+    });
+    expect(client.decideApproval).toHaveBeenCalledWith(
+      'agent-from-ui',
+      'authoritative-event-id',
+      { action: 'approve' },
+    );
+    expect(identity).toEqual({
+      agentId: 'agent-from-ui',
+      eventId: 'authoritative-event-id',
+    });
+  });
+
+  it('resolves the agent id and event id from the backend pending row', async () => {
+    const { resolveApprovalIdentity } = await import('../../ts/src/approvals/resolve');
+    const client = approvalClient();
+
+    await expect(
+      resolveApprovalIdentity(client, { governanceEventId: 'approval-row-id' }),
+    ).resolves.toEqual({
+      agentId: 'agent-from-backend',
+      eventId: 'authoritative-event-id',
+    });
+  });
+
+  it('pages through pending approvals until it finds the matching row', async () => {
+    const { decideApproval } = await import('../../ts/src/approvals/resolve');
+    const firstPage = Array.from({ length: 100 }, (_, i) => ({
+      id: `other-${i}`,
+      event_id: `other-event-${i}`,
+      agent_id: 'agent-other',
+    }));
+    const client = approvalClient({
+      getOrgApprovals: vi
+        .fn()
+        .mockResolvedValueOnce({ approvals: { data: firstPage } })
+        .mockResolvedValueOnce({
+          approvals: {
+            data: [
+              {
+                id: 'approval-row-id-page-2',
+                event_id: 'authoritative-event-id-page-2',
+                agent_id: 'agent-from-backend',
+              },
+            ],
+          },
+        }),
+    });
+
+    const identity = await decideApproval(
+      client,
+      {
+        governanceEventId: 'approval-row-id-page-2',
+        agentId: 'agent-from-ui',
+      },
+      'approve',
+    );
+
+    expect(client.getOrgApprovals).toHaveBeenNthCalledWith(1, 'org-1', {
+      status: 'pending',
+      page: 0,
+      perPage: 100,
+    });
+    expect(client.getOrgApprovals).toHaveBeenNthCalledWith(2, 'org-1', {
+      status: 'pending',
+      page: 1,
+      perPage: 100,
+    });
+    expect(client.decideApproval).toHaveBeenCalledWith(
+      'agent-from-ui',
+      'authoritative-event-id-page-2',
+      { action: 'approve' },
+    );
+    expect(identity.eventId).toBe('authoritative-event-id-page-2');
+  });
+
+  it('falls back to the caller identity if the pending lookup is unavailable', async () => {
+    const { decideApproval } = await import('../../ts/src/approvals/resolve');
+    const client = approvalClient({
+      getOrgApprovals: vi.fn(async () => {
+        throw new Error('temporary list failure');
+      }),
+    });
+
+    const identity = await decideApproval(
+      client,
+      {
+        governanceEventId: 'socket-governance-event-id',
+        agentId: 'agent-from-ui',
+      },
+      'reject',
+    );
+
+    expect(client.decideApproval).toHaveBeenCalledWith(
+      'agent-from-ui',
+      'socket-governance-event-id',
+      { action: 'reject' },
+    );
+    expect(identity).toEqual({
+      agentId: 'agent-from-ui',
+      eventId: 'socket-governance-event-id',
+    });
   });
 });

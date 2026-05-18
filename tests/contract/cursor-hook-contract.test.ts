@@ -41,6 +41,7 @@ function adapterIO(cap: Captured, stdin: string) {
 }
 
 const cfg = { idleTimeoutMs: 60_000, sessionStorePath: '' } as never;
+type Arm = 'allow' | 'constrain' | 'block' | 'halt' | 'require_approval';
 
 interface ActivityCall {
   eventType: string;
@@ -50,7 +51,7 @@ interface ActivityCall {
 
 function makeCapturingSession(
   captured: ActivityCall[],
-  arm: 'allow' | 'block' | 'halt' | 'require_approval' = 'allow',
+  arm: Arm = 'allow',
   reason?: string,
 ) {
   return {
@@ -294,7 +295,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
             makeCapturingSession(
               captured,
               'block',
-              'crosses high-trust threshold; review first',
+              'crosses high-trust threshold—review first',
             ) as never,
             cfg,
           ),
@@ -315,4 +316,103 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     expect(out.user_message).not.toContain('–');
     expect(out.user_message).toBe('[OpenBox] crosses high-trust threshold - review first');
   });
+});
+
+const permissionEvents = [
+  'beforeReadFile',
+  'beforeShellExecution',
+  'beforeMCPExecution',
+  'preToolUse',
+  'beforeTabFileRead',
+  'subagentStart',
+] as const;
+
+function envelopeFor(event: string): Record<string, unknown> {
+  return {
+    hook_event_name: event,
+    conversation_id: 'contract-matrix',
+    generation_id: 'contract-matrix-gen',
+    prompt: 'review this',
+    command: 'echo contract',
+    cwd: '/tmp',
+    file_path: '/tmp/openbox-contract.txt',
+    tool_name: 'openbox.list_agents',
+    tool_input: {},
+    subagent_id: 'subagent-contract',
+    subagent_type: 'agent',
+    subagent_model: 'cursor-test-model',
+  };
+}
+
+async function runDirectVerdict(event: string, arm: Arm) {
+  const cap = capture();
+  const handler = async () => ({ arm, reason: 'matrix reason' });
+  await createCursorAdapter({
+    core: {} as never,
+    resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+    handlers: { [event]: handler } as never,
+    ...adapterIO(cap, JSON.stringify(envelopeFor(event))),
+  }).run();
+  return JSON.parse(cap.stdout[0]);
+}
+
+describe('cursor adapter verdict matrix', () => {
+  test.each(['allow', 'constrain'] as const)(
+    'beforeSubmitPrompt %s → continue:true',
+    async (arm) => {
+      const out = await runDirectVerdict('beforeSubmitPrompt', arm);
+      expect(out).toEqual({ continue: true });
+    },
+  );
+
+  test.each(['block', 'halt'] as const)(
+    'beforeSubmitPrompt %s → continue:false',
+    async (arm) => {
+      const out = await runDirectVerdict('beforeSubmitPrompt', arm);
+      expect(out.continue).toBe(false);
+      expect(out.user_message).toContain(arm === 'halt' ? 'HALT' : 'matrix reason');
+      expect(out).not.toHaveProperty('permission');
+    },
+  );
+
+  test('beforeSubmitPrompt require_approval → continue:false with resubmit guidance', async () => {
+    const out = await runDirectVerdict('beforeSubmitPrompt', 'require_approval');
+    expect(out.continue).toBe(false);
+    expect(out.user_message).toContain('approval needed');
+    expect(out.user_message).toContain('resubmit');
+    expect(out).not.toHaveProperty('permission');
+  });
+
+  test.each(permissionEvents)('%s allow/constrain → permission:allow', async (event) => {
+    for (const arm of ['allow', 'constrain'] as const) {
+      const out = await runDirectVerdict(event, arm);
+      expect(out).toEqual({ permission: 'allow' });
+    }
+  });
+
+  test.each(permissionEvents)('%s block → permission:deny + user_message', async (event) => {
+    const out = await runDirectVerdict(event, 'block');
+    expect(out.permission).toBe('deny');
+    expect(out.user_message).toBe('[OpenBox] matrix reason');
+    expect(out.userMessage).toBeUndefined();
+  });
+
+  test.each(permissionEvents)('%s halt → permission:deny + hard stop agent_message', async (event) => {
+    const out = await runDirectVerdict(event, 'halt');
+    expect(out.permission).toBe('deny');
+    expect(out.user_message).toContain('[OpenBox] HALT');
+    expect(out.agent_message).toContain('do not proceed');
+  });
+
+  test.each(permissionEvents)(
+    '%s require_approval → permission:deny + no-invention agent_message',
+    async (event) => {
+      const out = await runDirectVerdict(event, 'require_approval');
+      expect(out.permission).toBe('deny');
+      expect(out.permission).not.toBe('ask');
+      expect(out.user_message).toContain('approval pending');
+      expect(out.agent_message).toContain('Do NOT retry');
+      expect(out.agent_message).toContain("don't know");
+    },
+  );
 });

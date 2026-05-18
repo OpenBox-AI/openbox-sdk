@@ -107,6 +107,14 @@ describe('ApprovalsTreeProvider - flat (pending) list', () => {
     provider.update([pending('a')], true);
     expect(provider.getChildren()).toHaveLength(1);
   });
+
+  it('showLoadMore=false suppresses load-more rows even when the feed has more', () => {
+    provider = new ApprovalsTreeProvider({ showLoadMore: false });
+    provider.setLoadMoreCommand('openbox.approvals.loadMore');
+    provider.update([pending('a')], true);
+    expect(provider.getChildren()).toHaveLength(1);
+  });
+
 });
 
 describe('ApprovalsTreeProvider - history (groupByStatus)', () => {
@@ -145,6 +153,7 @@ describe('ApprovalsTreeProvider - history (groupByStatus)', () => {
     // Empty list + groupByStatus: still returns [] (no approvals at all).
     expect(provider.getChildren()).toEqual([]);
   });
+
 });
 
 describe('ApprovalsTreeProvider - getTreeItem shapes', () => {
@@ -159,6 +168,18 @@ describe('ApprovalsTreeProvider - getTreeItem shapes', () => {
     const item = provider.getTreeItem({ kind: 'approval', approval: a });
     expect(item.label).toBe('Test Agent');
     expect((item.command as { command: string })?.command).toBe('openbox.openDetail');
+  });
+
+  it('approval node uses the real action instead of a raw agent UUID while name hydration is pending', () => {
+    const a = pending('x', {
+      agent: undefined,
+      agent_id: '3a7928e2-a936-43c6-81ea-457fbe79be32',
+      activity_type: 'FileRead',
+      input: [{ file_path: '/tmp/openbox-cursor-demo-secret.env' }],
+    });
+    const item = provider.getTreeItem({ kind: 'approval', approval: a });
+    expect(item.label).toBe('/tmp/openbox-cursor-demo-secret.env');
+    expect((item as { description?: string }).description).toContain('/tmp/openbox-cursor-demo-secret.env');
   });
 
   it('approval pending: contextValue=approval; decided: contextValue=approval-decided', () => {

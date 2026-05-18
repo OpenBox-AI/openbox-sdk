@@ -18,7 +18,7 @@ interface PanelDeps {
   client: OpenBoxClient;
   orgId: string;
   env: string;
-  onDecided: (id: string) => void;
+  decideApproval: (approval: Approval, action: DecideAction) => Promise<boolean>;
 }
 
 const VIEW_TYPE = "openbox.approvalDetail";
@@ -179,13 +179,9 @@ export class ApprovalDetailPanel {
         if (choice !== "Reject") return;
       }
 
-      const agentId = this.approval.agent_id || "";
       try {
-        await this.deps.client.decideApproval(agentId, this.approval.id, { action });
-        vscode.window.showInformationMessage(
-          action === "approve" ? `Approved (${this.deps.env})` : `Rejected (${this.deps.env})`,
-        );
-        this.deps.onDecided(this.approval.id);
+        const ok = await this.deps.decideApproval(this.approval, action);
+        if (!ok) return;
         this.panel.dispose();
       } catch (err: any) {
         vscode.window.showErrorMessage(`${action === "approve" ? "Approve" : "Reject"} failed: ${err.message}`);

@@ -40,7 +40,7 @@ async function makeOkServer(): Promise<{ url: string; close: () => Promise<void>
   return { url: `http://127.0.0.1:${addr.port}`, close: () => new Promise<void>((r) => server.close(() => r())) };
 }
 
-async function runDoctor(): Promise<{ exitCode: number | undefined; lines: string[] }> {
+async function runDoctor(options: { stdoutIsTTY?: boolean } = {}): Promise<{ exitCode: number | undefined; lines: string[] }> {
   const { registerDoctorCommand } = await import('../../ts/src/cli/commands/doctor');
   const program = new Command();
   program.exitOverride();
@@ -49,6 +49,14 @@ async function runDoctor(): Promise<{ exitCode: number | undefined; lines: strin
   const lines: string[] = [];
   const origLog = console.log;
   const origErr = console.error;
+  const origIsTTY = process.stdout.isTTY;
+  if (options.stdoutIsTTY !== undefined) {
+    Object.defineProperty(process.stdout, 'isTTY', {
+      value: options.stdoutIsTTY,
+      configurable: true,
+      writable: true,
+    });
+  }
   console.log = (...a: any[]) => lines.push(a.join(' '));
   console.error = (...a: any[]) => lines.push(a.join(' '));
 
@@ -66,6 +74,11 @@ async function runDoctor(): Promise<{ exitCode: number | undefined; lines: strin
   } finally {
     console.log = origLog;
     console.error = origErr;
+    Object.defineProperty(process.stdout, 'isTTY', {
+      value: origIsTTY,
+      configurable: true,
+      writable: true,
+    });
     (process as any).exit = origExit;
   }
   return { exitCode, lines };
@@ -94,6 +107,29 @@ describe('doctor command', () => {
       // api-key + reachable backends path produces a rich `lines`
       // output. We just need the function to have run end-to-end.
       expect(r.lines.length).toBeGreaterThan(2);
+    } finally {
+      delete process.env.OPENBOX_API_URL;
+      delete process.env.OPENBOX_CORE_URL;
+      await ok.close();
+    }
+  });
+
+  it('emits machine-readable doctor output when stdout is captured', async () => {
+    const { resolveEnv } = await import('../../ts/src/env');
+    const env = resolveEnv();
+    const cfg = await import('../../ts/src/cli/config');
+    cfg.saveApiKey(env, FAKE_KEY);
+
+    const ok = await makeOkServer();
+    process.env.OPENBOX_API_URL = ok.url;
+    process.env.OPENBOX_CORE_URL = ok.url;
+    try {
+      const r = await runDoctor({ stdoutIsTTY: false });
+      expect(r.exitCode).toBeUndefined();
+      expect(r.lines).toHaveLength(1);
+      const payload = JSON.parse(r.lines[0]);
+      expect(payload.summary.fail).toBe(0);
+      expect(payload.checks.some((c: any) => c.name === 'backend /health' && c.status === 'pass')).toBe(true);
     } finally {
       delete process.env.OPENBOX_API_URL;
       delete process.env.OPENBOX_CORE_URL;

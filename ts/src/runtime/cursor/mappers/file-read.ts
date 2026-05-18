@@ -13,7 +13,7 @@ import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
 import { buildSpan } from '../../../governance/spans.js';
-import { isInsideAnyRoot, isSkipped } from '../../../governance/skip-patterns.js';
+import { isInsideAnyRoot, isSensitivePath, isSkipped } from '../../../governance/skip-patterns.js';
 import {
   buildActionKey,
   claimAction,
@@ -41,7 +41,7 @@ export async function handleBeforeReadFile(
   // package.json, configs). Skip evaluate so the user's `file_read`
   // approval rule fires only for reads OUTSIDE the project; the
   // actual security boundary the user cares about.
-  if (isInsideAnyRoot(filePath, env.workspace_roots)) return undefined;
+  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd)) return undefined;
 
   const key = buildActionKey({
     generation_id: env.generation_id,
@@ -83,13 +83,10 @@ export async function handleBeforeReadFile(
  * + activity type so behavior rules written against agent file_reads
  * also catch tab-driven reads of sensitive paths.
  *
- * DESIGN QUESTION; the `isInsideAnyRoot` filter below was copied
- * verbatim from the agent file_read path. The threat model differs
- * for user-initiated tab reads: an in-workspace `.env` is a likely
- * exfil target that the user might be tricked into opening (paste an
- * AI-suggested path into a deep-link). Suppressing it because the
- * file is in-workspace may be wrong. Re-evaluate when adding any
- * sensitive-path behavior rules.
+ * Routine in-workspace source reads are skipped, but sensitive
+ * in-workspace paths stay governed because tab-opening `.env`,
+ * token, credential, or key material is materially different from
+ * opening package/source files.
  */
 export async function handleBeforeTabFileRead(
   env: CursorEnvelope,
@@ -99,7 +96,9 @@ export async function handleBeforeTabFileRead(
   const filePath = env.file_path ?? '';
   if (!filePath) return undefined;
   if (isSkipped(filePath)) return undefined;
-  if (isInsideAnyRoot(filePath, env.workspace_roots)) return undefined;
+  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) && !isSensitivePath(filePath)) {
+    return undefined;
+  }
 
   const payload = buildBeforeTabFileReadPayload(env);
   const span = buildSpan('cursor', 'file_read', { file_path: filePath });

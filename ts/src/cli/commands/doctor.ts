@@ -2,9 +2,10 @@ import { Command } from 'commander';
 import { existsSync, readFileSync } from 'fs';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { getClient, getTokenPath, loadApiKey } from '../config.js';
-import { resolveEnv, resolveUrls } from '../../env/index.js';
+import { resolveConnection, resolveEnv } from '../../env/index.js';
 import { EXIT, bailWith } from '../exit-codes.js';
-import { row, summary } from '../output.js';
+import { row, summary, output } from '../output.js';
+import { isMachineMode } from '../non-interactive.js';
 
 type Check = {
   name: string;
@@ -18,7 +19,8 @@ export function registerDoctorCommand(program: Command) {
     .description('Diagnose CLI install: api-key store, backend/core reachability')
     .action(async () => {
       const env = resolveEnv();
-      const urls = resolveUrls(env);
+      const connection = resolveConnection({ envName: env });
+      const urls = { apiUrl: connection.apiUrl, coreUrl: connection.coreUrl };
       const checks: Check[] = [];
 
       const tokenPath = getTokenPath();
@@ -102,6 +104,20 @@ export function registerDoctorCommand(program: Command) {
         // already flagged above by the existsSync probe.
       }
 
+      const failed = checks.filter((c) => c.status === 'fail');
+      const warned = checks.filter((c) => c.status === 'warn');
+      const counts = {
+        pass: checks.length - failed.length - warned.length,
+        warn: warned.length,
+        fail: failed.length,
+      };
+
+      if (isMachineMode()) {
+        output({ checks, summary: counts });
+        if (failed.length > 0) bailWith(EXIT.GENERIC);
+        return;
+      }
+
       // Map `skip` to plain; doctor's "skip" is not a failure, just
       // info ("we didn't probe this"). The row() colorizer falls back
       // to plain rendering for unknown statuses.
@@ -110,13 +126,7 @@ export function registerDoctorCommand(program: Command) {
         row(c.name, status, c.detail);
       }
 
-      const failed = checks.filter((c) => c.status === 'fail');
-      const warned = checks.filter((c) => c.status === 'warn');
-      summary({
-        pass: checks.length - failed.length - warned.length,
-        warn: warned.length,
-        fail: failed.length,
-      });
+      summary(counts);
       if (failed.length > 0) bailWith(EXIT.GENERIC);
     });
 }

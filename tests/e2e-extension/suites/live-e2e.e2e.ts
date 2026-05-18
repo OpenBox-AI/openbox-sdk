@@ -31,6 +31,13 @@ interface VerdictResult {
   error?: string;
 }
 
+interface PendingApprovalDiag {
+  id: string;
+  agent_id?: string;
+  activity_type?: string;
+  input?: unknown;
+}
+
 async function activate(): Promise<void> {
   await browser.executeWorkbench(async (vscode: any) => {
     try {
@@ -52,6 +59,25 @@ async function check(spanType: string, activityInput: Record<string, unknown>): 
     spanType,
     activityInput,
   ) as Promise<VerdictResult>;
+}
+
+async function pendingApprovals(): Promise<PendingApprovalDiag[]> {
+  return browser.executeWorkbench(async (vscode: any) => {
+    await vscode.commands.executeCommand('openbox.__diag.refresh');
+    return vscode.commands.executeCommand('openbox.__diag.pendingApprovals');
+  }) as Promise<PendingApprovalDiag[]>;
+}
+
+async function rejectPendingMatching(match: (approval: PendingApprovalDiag) => boolean): Promise<void> {
+  const rows = await pendingApprovals();
+  for (const row of rows.filter(match)) {
+    await browser.executeWorkbench(
+      async (vscode: any, approval: PendingApprovalDiag) => {
+        return vscode.commands.executeCommand('openbox.__diag.decide', approval, 'reject');
+      },
+      row,
+    );
+  }
 }
 
 before(() => {
@@ -83,6 +109,17 @@ before(async () => {
     },
     { timeout: 15_000, timeoutMsg: 'governance.check never returned a verdict; gates may not be attached' },
   );
+});
+
+after(async () => {
+  await rejectPendingMatching((row) => {
+    const input = JSON.stringify(row.input ?? []);
+    return (
+      input.includes('"summarize this"') ||
+      input.includes('"/etc/hostname"') ||
+      input.includes('"lifecycle-test ')
+    );
+  });
 });
 
 // ─── 1. Verdict matrix ──────────────────────────────────────────────
@@ -318,6 +355,15 @@ describe('LIVE; file create + rename gates', () => {
 // ─── 4. Views / boot snapshot ───────────────────────────────────────
 
 describe('LIVE; views and boot snapshot', () => {
+  it('loaded extension build diagnostic returns installed OpenBox package identity', async () => {
+    const build = (await browser.executeWorkbench(async (vscode: any) => {
+      return vscode.commands.executeCommand('openbox.__diag.extensionBuild');
+    })) as { id?: string; version?: string; extensionPath?: string };
+    expect(build.id).toBe('openbox.openbox');
+    expect(build.version).toBe('0.1.0');
+    expect(build.extensionPath).toContain('openbox');
+  });
+
   it('boot snapshot resolves orgId + agentId from the live local stack', async () => {
     let snap: {
       orgId?: string;
@@ -389,6 +435,7 @@ describe('LIVE; status bar paint', () => {
 
 describe('LIVE; approval lifecycle (verdict 2 → pending → decide → history)', () => {
   let createdApprovalId: string | undefined;
+  let lifecyclePrompt = '';
   let baselinePending = 0;
 
   before(async () => {
@@ -398,7 +445,8 @@ describe('LIVE; approval lifecycle (verdict 2 → pending → decide → history
   });
 
   it('verdict 2 governance.check returns require_approval with an approval id', async () => {
-    const r = await check('llm', { prompt: `lifecycle-test ${Date.now()}` });
+    lifecyclePrompt = `lifecycle-test ${Date.now()}`;
+    const r = await check('llm', { prompt: lifecyclePrompt });
     expect(r.outcome).toBe('require_approval');
     // approvalId may land synchronously on the verdict envelope OR
     // on the next poll. Capture it if present; the next test waits
@@ -441,17 +489,12 @@ describe('LIVE; approval lifecycle (verdict 2 → pending → decide → history
     // first row via a small inspection diag.
     let id = createdApprovalId;
     if (!id) {
-       // Inspect pending head via a one-shot inline executor;       // accesses the polling layer's approvals array indirectly
-      // via the same boot/refresh diag chain.
-      const refreshed = (await browser.executeWorkbench(async (vscode: any) => {
-        await vscode.commands.executeCommand('openbox.__diag.refresh');
-        return vscode.commands.executeCommand('openbox.__diag.approvalsCount');
-      })) as number;
-      if (refreshed === 0) {
-        // Polling layer doesn't expose individual rows via diag;
-        // skip the decide assertion if we didn't capture an id.
+      const pending = await pendingApprovals();
+      const match = pending.find((row) => JSON.stringify(row.input ?? []).includes(lifecyclePrompt));
+      id = match?.id;
+      if (!id) {
         // The pending-grew assertion above proves the round-trip.
-        // Decide-via-diag is best-effort here.
+        // Decide-via-diag is best-effort if the row has already moved.
         return;
       }
     }

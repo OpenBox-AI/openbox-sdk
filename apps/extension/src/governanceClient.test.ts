@@ -4,7 +4,7 @@
 // produces yet another path. The mapping has to handle all of them
 // because the extension reaches the same outcome from any route.
 
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 // Mock vscode just enough that GovernanceClient instantiates AND we can
 // flip openbox.failClosed through a mutable map for the applyFailMode
@@ -19,10 +19,28 @@ vi.mock('vscode', () => ({
   },
 }));
 
+const mocks = vi.hoisted(() => ({
+  checkGovernance: vi.fn(),
+  globalEnv: 'local',
+}));
+vi.mock('openbox-sdk/governance', () => ({
+  checkGovernance: mocks.checkGovernance,
+}));
+
+vi.mock('./configStore', () => ({
+  readGlobalEnv: () => mocks.globalEnv,
+}));
+
 // Avoid pulling the network-shaped openbox-sdk/governance into the
 // unit suite; we just need verdictToOutcome's behavior, which lives
 // inside the module's `check()` result mapping.
 import { GovernanceClient } from './governanceClient';
+
+beforeEach(() => {
+  for (const key of Object.keys(configMap)) delete configMap[key];
+  mocks.globalEnv = 'local';
+  mocks.checkGovernance.mockReset();
+});
 
 describe('GovernanceClient - verdict mapping (string + numeric)', () => {
   function clientWithStubbedCheck(verdict: number | string | undefined) {
@@ -144,5 +162,27 @@ describe('GovernanceClient.applyFailMode - unknown outcome folding', () => {
     delete configMap['failClosed'];
     const r = client().applyFailMode({ outcome: 'unknown' });
     expect(r.reason).toMatch(/unknown error/);
+  });
+});
+
+describe('GovernanceClient - env source', () => {
+  it('uses ~/.openbox/config env instead of the removed openbox.environment setting', async () => {
+    configMap['environment'] = 'production';
+    configMap['agentId'] = 'agent-env';
+    mocks.globalEnv = 'local';
+    mocks.checkGovernance.mockResolvedValueOnce({ verdict: 'allow' });
+
+    const r = await new GovernanceClient().check({
+      spanType: 'shell',
+      activityInput: { command: 'pwd' },
+    });
+
+    expect(r.outcome).toBe('allow');
+    expect(mocks.checkGovernance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: 'agent-env',
+        envName: 'local',
+      }),
+    );
   });
 });

@@ -80,6 +80,13 @@ interface Auth {
 }
 
 @cli_command(
+  "connect",
+  "Connect this machine to an OpenBox stack URL and explicit service endpoints."
+)
+@cli_maturity("stable")
+interface Connect {}
+
+@cli_command(
   "config",
   "Persistent CLI config (URL overrides, default flags). Two scopes: per-env (default; keyed off the active --env) and global (--global, applies across all envs). Layered into process.env at startup; explicit shell exports always win. File: <data-root>/config (mode 0o600)."
 )

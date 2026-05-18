@@ -76,8 +76,8 @@ function enforceProtocol(env: string, url: string, name: string): string {
   // Node's URL keeps the [] brackets on IPv6 hostnames; match both shapes.
   if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]') return url;
   throw new Error(
-    `${name}=${url} uses http:// to a remote host in env '${env}'. ` +
-      `Plaintext is only allowed for env='local' or loopback hosts. Use https:// or set OPENBOX_ENV=local.`,
+    `${name}=${url} uses http:// to a remote host. ` +
+      `Plaintext is only allowed for localhost connections. Use https:// for remote OpenBox stack endpoints.`,
   );
 }
 

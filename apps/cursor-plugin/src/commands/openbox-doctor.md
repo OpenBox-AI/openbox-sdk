@@ -1,24 +1,23 @@
 ---
 name: openbox-doctor
-description: Run `openbox doctor` and report what it found. Stable command, no flags needed.
+description: Run the OpenBox Cursor doctor through MCP and report what it found.
 ---
 
 # OpenBox doctor
 
-Run the shell command exactly:
+Use the OpenBox MCP tool first:
 
 ```
-openbox doctor
+cursor_doctor
 ```
 
-The CLI reads its env from `~/.openbox/config` (the same file the
-editor extension syncs to), so `openbox doctor` automatically
-targets whichever backend the user is currently connected to. No
-need to specify `--env`.
+This verifies the installed Cursor/OpenBox surfaces and runtime
+readiness without asking Cursor chat to run a shell command. It reads
+the same `~/.openbox/config` env source as the extension and MCP server.
 
 ## Output rules
 
-Report what doctor itself printed. Do NOT extrapolate, do NOT
+Report what `cursor_doctor` returned. Do NOT extrapolate, do NOT
 suggest extra remediation that doctor didn't tell the user about.
 
 - Lead with the bottom-line counts: `Pass: <n>, Warn: <n>, Fail: <n>`.
@@ -39,7 +38,4 @@ suggest extra remediation that doctor didn't tell the user about.
 - Don't mention env names (production / staging / local) in your output.
 - Don't add helpful-sounding next steps that doctor didn't print.
 - Don't run doctor more than once.
-
-If `openbox` isn't on PATH, tell the user to install via
-`curl -fsSL https://raw.githubusercontent.com/OpenBox-AI/openbox-sdk/main/scripts/install | sh`
-and stop.
+- Do not fall back to shell unless the user explicitly asks you to.

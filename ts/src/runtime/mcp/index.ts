@@ -2,7 +2,7 @@
 // MCP-compatible LLM (Claude Desktop, Cursor, etc.) over stdio.
 //
 // Invoked as `openbox mcp serve` from the CLI subcommand. Configures
-// from OPENBOX_ENV / OPENBOX_API_URL / OPENBOX_CORE_URL / OPENBOX_API_KEY.
+// from OPENBOX_API_URL / OPENBOX_CORE_URL / OPENBOX_API_KEY.
 //
 // Every backend call goes through the spec-emitted OpenBoxClient
 // (ts/src/client/generated/wrapper-methods.ts) so URL strings are
@@ -18,65 +18,152 @@ import * as os from "os";
 import { OpenBoxClient } from "../../client/index.js";
 import { OpenBoxCoreClient } from "../../core-client/index.js";
 import { loadApiKey } from "../../file-tokens/index.js";
-import { resolveEnv, setMcpClientName } from "./config.js";
-import { DEFAULT_ENV, resolveEnv as resolveEnvName } from "../../env/index.js";
+import { setMcpClientName } from "./config.js";
+import { DEFAULT_ENV, resolveConnection, resolveEnv as resolveEnvName } from "../../env/index.js";
 import { recallAgentKey } from "../../file-tokens/agent-keys.js";
 import { registerRecipeTools } from "./recipe-tools.js";
-import { applyEnvSource } from "../../cli/env-source.js";
+import { listConfig } from "../../cli/config-store.js";
+import { stampSource } from "../../approvals/source.js";
+import { verifyCursorInstall } from "../cursor/install.js";
 
 export async function runMcpServer(): Promise<void> {
-  // Single-source env resolution. Same call every other surface
-  // makes (CLI, cursor hook, claude-code hook) so the MCP server,
-  // extension, hooks, and any CLI run from this user converge on
-  // the same active env without anyone exporting OPENBOX_ENV.
-  applyEnvSource();
-
-  // See ./config.ts for OPENBOX_ENV / OPENBOX_API_URL / OPENBOX_CORE_URL.
-  const ENV = resolveEnv();
-  const API_URL = ENV.apiUrl;
-  const CORE_URL = ENV.coreUrl;
-
-  const apiKey = process.env.OPENBOX_API_KEY ?? loadApiKey(ENV.name);
-  if (!apiKey) {
-    throw new Error(
-      `OpenBox MCP: no X-API-Key for env '${ENV.name}'. ` +
-        `Run \`openbox --env ${ENV.name} auth set-api-key\` or set OPENBOX_API_KEY.`,
-    );
-  }
-  const client = new OpenBoxClient({
-    apiUrl: API_URL,
-    env: ENV.name,
-    apiKey,
-    clientName: "runtime/mcp",
-  });
-
   const server = new McpServer({ name: "openbox", version: "0.1.0" });
+  let callerName: string | undefined;
+
+  function resolveRuntime() {
+    const globalCfg = listConfig("global");
+    const envName = resolveEnvName(globalCfg.OPENBOX_ENV ?? process.env.OPENBOX_ENV);
+    const envCfg = listConfig(envName);
+    const connection = resolveConnection({
+      envName,
+      apiUrl: envCfg.OPENBOX_API_URL ?? globalCfg.OPENBOX_API_URL ?? process.env.OPENBOX_API_URL,
+      coreUrl: envCfg.OPENBOX_CORE_URL ?? globalCfg.OPENBOX_CORE_URL ?? process.env.OPENBOX_CORE_URL,
+      platformUrl: envCfg.OPENBOX_PLATFORM_URL ?? globalCfg.OPENBOX_PLATFORM_URL ?? process.env.OPENBOX_PLATFORM_URL,
+    });
+    const apiUrl = connection.apiUrl;
+    const coreUrl = connection.coreUrl;
+
+    // MCP talks to the backend API, so it must use the org X-API-Key.
+    // OPENBOX_API_KEY is the agent runtime key used by hooks/core
+    // governance checks; Cursor often inherits it from ~/.openbox/config,
+    // and sending it to backend endpoints yields 401s in chat MCP calls.
+    const apiKey = loadApiKey(envName);
+    if (!apiKey) {
+      throw new Error(
+        `OpenBox MCP: no X-API-Key for the active OpenBox connection. ` +
+          `Run \`openbox connect <stack-url> --api-key <key>\` or set OPENBOX_BACKEND_API_KEY.`,
+      );
+    }
+    return {
+      envName,
+      coreUrl,
+      client: new OpenBoxClient({
+        apiUrl,
+        env: envName,
+        apiKey,
+        clientName: "runtime/mcp",
+      }),
+    };
+  }
+
+  function client(): OpenBoxClient {
+    return resolveRuntime().client;
+  }
+
+  function sourceLabel(): string {
+    return callerName?.toLowerCase().includes("cursor") ? "cursor-mcp" : "mcp";
+  }
+
+  function approvalRows(payload: unknown): unknown[] {
+    if (Array.isArray(payload)) return payload;
+    if (!payload || typeof payload !== "object") return [];
+    const root = payload as {
+      approvals?: { data?: unknown[] };
+      data?: unknown[];
+    };
+    return root.approvals?.data ?? root.data ?? [];
+  }
+
+  async function listPendingApprovals(orgId: string): Promise<unknown[]> {
+    const perPage = 100;
+    const maxPages = 10;
+    const out: unknown[] = [];
+    for (let page = 0; page < maxPages; page += 1) {
+      const data = await client().getOrgApprovals(orgId, {
+        status: "pending",
+        page,
+        perPage,
+      });
+      const rows = approvalRows(data);
+      out.push(...rows);
+      if (rows.length < perPage) break;
+    }
+    return out;
+  }
 
 server.tool("get_profile", "Get current user profile and permissions", {}, async () => {
-  const profile = await client.getProfile();
+  const profile = await client().getProfile();
   return { content: [{ type: "text", text: JSON.stringify(profile, null, 2) }] };
 });
 
+server.tool("cursor_status", "Return a compact OpenBox backend status for Cursor slash commands without using shell execution", {}, async () => {
+  try {
+    const health = await client().health();
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ status: "connected", health }, null, 2),
+      }],
+    };
+  } catch (err: any) {
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ status: "not_reachable", error: err?.message ?? String(err) }, null, 2),
+      }],
+      isError: true,
+    };
+  }
+});
+
+server.tool("cursor_doctor", "Verify installed Cursor/OpenBox surfaces and runtime readiness without requiring Cursor chat to run shell commands", {
+  surface_only: z.boolean().optional().describe("When true, skip runtime key/core validation and only inspect installed files."),
+  validate_core: z.boolean().optional().describe("When false, validate runtime config/key format without calling core."),
+}, async ({ surface_only, validate_core }) => {
+  const checks = surface_only
+    ? verifyCursorInstall({ scope: "global" })
+    : await verifyCursorInstall({
+        scope: "global",
+        includeRuntime: true,
+        validateRuntime: validate_core !== false,
+      });
+  const summary = checks.reduce(
+    (acc, check) => {
+      acc[check.status] += 1;
+      return acc;
+    },
+    { pass: 0, skip: 0, fail: 0 } as Record<"pass" | "skip" | "fail", number>,
+  );
+  return { content: [{ type: "text", text: JSON.stringify({ checks, summary }, null, 2) }] };
+});
+
 server.tool("list_agents", "List all agents in the organization", {}, async () => {
-  const agents = await client.listAgents({ page: 0, perPage: 50 });
+  const agents = await client().listAgents({ page: 0, perPage: 50 });
   return { content: [{ type: "text", text: JSON.stringify(agents, null, 2) }] };
 });
 
 server.tool("get_agent", "Get agent details including trust score and tier", {
   agent_id: z.string().describe("Agent ID"),
 }, async ({ agent_id }) => {
-  const agent = await client.getAgent(agent_id);
+  const agent = await client().getAgent(agent_id);
   return { content: [{ type: "text", text: JSON.stringify(agent, null, 2) }] };
 });
 
 server.tool("list_pending_approvals", "List pending approval requests across all agents", {}, async () => {
-  const profile = (await client.getProfile()) as { orgId?: string };
+  const profile = (await client().getProfile()) as { orgId?: string };
   const orgId = profile.orgId;
   if (!orgId) return { content: [{ type: "text", text: "No organization found" }] };
-  const data = (await client.getOrgApprovals(orgId, { status: "pending", page: 0, perPage: 50 })) as
-    | unknown[]
-    | { data?: unknown[] };
-  const approvals = Array.isArray(data) ? data : (data?.data ?? []);
+  const approvals = await listPendingApprovals(orgId);
   return { content: [{ type: "text", text: JSON.stringify(approvals, null, 2) }] };
 });
 
@@ -85,21 +172,21 @@ server.tool("decide_approval", "Approve or reject a pending approval", {
   approval_id: z.string().describe("Approval ID"),
   action: z.enum(["approve", "reject"]).describe("Decision"),
 }, async ({ agent_id, approval_id, action }) => {
-  await client.decideApproval(agent_id, approval_id, { action });
+  await client().decideApproval(agent_id, approval_id, { action });
   return { content: [{ type: "text", text: `${action}d` }] };
 });
 
 server.tool("list_guardrails", "List guardrails configured for an agent", {
   agent_id: z.string().describe("Agent ID"),
 }, async ({ agent_id }) => {
-  const data = await client.listGuardrails(agent_id, { page: 0, perPage: 50 });
+  const data = await client().listGuardrails(agent_id, { page: 0, perPage: 50 });
   return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
 });
 
 server.tool("list_policies", "List policies configured for an agent", {
   agent_id: z.string().describe("Agent ID"),
 }, async ({ agent_id }) => {
-  const data = await client.listPolicies(agent_id, { page: 0, perPage: 50 });
+  const data = await client().listPolicies(agent_id, { page: 0, perPage: 50 });
   return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
 });
 
@@ -111,7 +198,7 @@ server.tool("get_trust_score", "Get an agent's current trust score and tier", {
   // The granular endpoints (`/trust/events`, `/trust/histories`,
   // `/trust/recovery-status`) return event logs, not the current
   // snapshot. So we read the agent and surface the subset.
-  const agent = (await client.getAgent(agent_id)) as { agent_trust_score?: unknown };
+  const agent = (await client().getAgent(agent_id)) as { agent_trust_score?: unknown };
   const ts = agent.agent_trust_score ?? null;
   return { content: [{ type: "text", text: JSON.stringify(ts, null, 2) }] };
 });
@@ -260,10 +347,16 @@ const ACTIVITY_TYPE_MAP: Record<string, string> = {
   mcp: "MCPToolCall",
 };
 
-async function coreEvaluate(apiKey: string, spanType: string, activityInput: Record<string, unknown>) {
+async function coreEvaluate(
+  apiKey: string,
+  spanType: string,
+  activityInput: Record<string, unknown>,
+  coreUrl: string,
+  source: string,
+) {
   const span = buildSpan(spanType, activityInput);
   const payload = {
-    source: "mcp",
+    source,
     event_type: "ActivityStarted",
     workflow_id: crypto.randomUUID(),
     run_id: crypto.randomUUID(),
@@ -271,7 +364,7 @@ async function coreEvaluate(apiKey: string, spanType: string, activityInput: Rec
     task_queue: "mcp",
     activity_id: crypto.randomUUID(),
     activity_type: ACTIVITY_TYPE_MAP[spanType] || spanType,
-    activity_input: [activityInput],
+    activity_input: [stampSource(activityInput, source)],
     timestamp: new Date().toISOString(),
     hook_trigger: true,
     spans: [span],
@@ -286,13 +379,13 @@ async function coreEvaluate(apiKey: string, spanType: string, activityInput: Rec
   // loose record we've assembled here; the wire shape is the same and
   // core re-validates everything server-side.
   const client = new OpenBoxCoreClient({
-    apiUrl: CORE_URL,
+    apiUrl: coreUrl,
     apiKey,
   });
   return await client.evaluate(payload as unknown as Parameters<typeof client.evaluate>[0]);
 }
 
-async function resolveApiKey(agentId?: string): Promise<string> {
+async function resolveApiKey(agentId: string | undefined, envName: string): Promise<string> {
   let apiKey = process.env.OPENBOX_API_KEY;
   if (!apiKey && agentId) {
     // Try the per-agent runtime-key cache first. The CLI's `agent
@@ -327,7 +420,7 @@ async function resolveApiKey(agentId?: string): Promise<string> {
   // obx_live_*; any other env accepts only obx_test_*. The disk cache
   // isn't env-tagged, so a key from one env can leak into a session in
   // another and 401 with no useful diagnostic. Catch up front.
-  const env = resolveEnvName(process.env.OPENBOX_ENV);
+  const env = resolveEnvName(envName);
   const isLive = apiKey.startsWith("obx_live_");
   const isTest = apiKey.startsWith("obx_test_");
   if (env === DEFAULT_ENV && isTest) {
@@ -351,12 +444,19 @@ server.tool("check_governance", "Evaluate an action against governance rules. Th
   activity_input: z.any().describe("Action input payload. Examples: { prompt: '...' }, { file_path: '...' }, { command: '...' }."),
 }, async ({ agent_id, span_type, activity_input }) => {
   try {
-    const apiKey = await resolveApiKey(agent_id);
+    const runtime = resolveRuntime();
+    const apiKey = await resolveApiKey(agent_id, runtime.envName);
     const input = (typeof activity_input === "object" && activity_input) ? activity_input : { value: activity_input };
-    const result = await coreEvaluate(apiKey, span_type, input as Record<string, unknown>);
+    const result = await coreEvaluate(
+      apiKey,
+      span_type,
+      input as Record<string, unknown>,
+      runtime.coreUrl,
+      sourceLabel(),
+    );
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   } catch (err: any) {
-    return { content: [{ type: "text", text: `Error: ${err.message}` }] };
+    return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
   }
 });
 
@@ -397,7 +497,19 @@ for (const ref of SKILL_PATHS) {
   // CLI (parallel via Promise.all, paginate-walk, null-on-optional).
   registerRecipeTools(
     server,
-    client as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>,
+    new Proxy({} as Record<string, (...a: unknown[]) => Promise<unknown>>, {
+      get: (_target, prop) => {
+        if (typeof prop !== "string") return undefined;
+        return (...args: unknown[]) => {
+          const c = client() as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>;
+          const method = c[prop];
+          if (typeof method !== "function") {
+            throw new Error(`OpenBox MCP recipe tool: client method ${prop} is unavailable`);
+          }
+          return method.apply(c, args);
+        };
+      },
+    }),
   );
 
   const transport = new StdioServerTransport();
@@ -408,5 +520,6 @@ for (const ref of SKILL_PATHS) {
   // as "claude-code" or "cursor". Plug that into the X-Openbox-Client
   // header so backend telemetry can distinguish MCP traffic per LLM.
   // Connect resolves once initialize is done.
-  setMcpClientName(server.server.getClientVersion()?.name);
+  callerName = server.server.getClientVersion()?.name;
+  setMcpClientName(callerName);
 }

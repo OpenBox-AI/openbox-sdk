@@ -3,6 +3,8 @@ import {
   ENVIRONMENTS,
   resolveEnv,
   resolveUrls,
+  resolveConnection,
+  endpointsFromStackUrl,
   parseTokenStore,
   serializeTokenStore,
   resolveClientName,
@@ -95,6 +97,59 @@ describe('openbox-sdk/env environments', () => {
       expect(urls.apiUrl).toBe('https://custom.example.com');
       expect(urls.coreUrl).toBe(ENVIRONMENTS.staging.coreUrl);
       expect(urls.platformUrl).toBe(ENVIRONMENTS.staging.platformUrl);
+    });
+  });
+
+  describe('endpoint-first connection resolution', () => {
+    const orig = {
+      apiUrl: process.env.OPENBOX_API_URL,
+      coreUrl: process.env.OPENBOX_CORE_URL,
+      platformUrl: process.env.OPENBOX_PLATFORM_URL,
+      env: process.env.OPENBOX_ENV,
+    };
+    beforeEach(() => {
+      delete process.env.OPENBOX_API_URL;
+      delete process.env.OPENBOX_CORE_URL;
+      delete process.env.OPENBOX_PLATFORM_URL;
+      delete process.env.OPENBOX_ENV;
+    });
+    afterEach(() => {
+      for (const [k, v] of [
+        ['OPENBOX_API_URL', orig.apiUrl],
+        ['OPENBOX_CORE_URL', orig.coreUrl],
+        ['OPENBOX_PLATFORM_URL', orig.platformUrl],
+        ['OPENBOX_ENV', orig.env],
+      ] as const) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    });
+
+    it('derives explicit service endpoints from a base URL internally', () => {
+      expect(endpointsFromStackUrl('https://ipsum.lat')).toEqual({
+        apiUrl: 'https://api.ipsum.lat/ob',
+        coreUrl: 'https://core.ipsum.lat/ob',
+        authUrl: 'https://auth.ipsum.lat/ob',
+        platformUrl: 'https://ipsum.lat',
+      });
+    });
+
+    it('prefers direct endpoint overrides over stack fallback', () => {
+      process.env.OPENBOX_CORE_URL = 'https://core.custom.example/ob';
+      process.env.OPENBOX_API_URL = 'https://api.custom.example/ob';
+      const connection = resolveConnection();
+      expect(connection.source).toBe('explicit');
+      expect(connection.apiUrl).toBe('https://api.custom.example/ob');
+      expect(connection.coreUrl).toBe('https://core.custom.example/ob');
+    });
+
+    it('uses the primary internal profile for direct endpoints without exposing env selection', () => {
+      process.env.OPENBOX_ENV = 'staging';
+      process.env.OPENBOX_API_URL = 'https://api.ipsum.lat/ob';
+      process.env.OPENBOX_CORE_URL = 'https://core.ipsum.lat/ob';
+      const connection = resolveConnection();
+      expect(connection.envName).toBe('production');
+      expect(connection.source).toBe('explicit');
     });
   });
 });

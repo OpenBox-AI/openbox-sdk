@@ -13,6 +13,7 @@ import * as vscode from "vscode";
 export interface ApprovalState {
   governance_event_id: string;
   agent_id: string;
+  agent_name?: string;
   hook_event_name: string;
   /** "socket" if a hook subprocess pushed via IPC; "poll" if the
    *  dashboard polling loop saw it first (e.g. created via API). */
@@ -38,12 +39,15 @@ export class ApprovalStore implements vscode.Disposable {
   readonly onChange = this._onChange.event;
 
   get(geid: string): ApprovalState | undefined {
-    return this.map.get(geid);
+    const entry = this.map.get(geid);
+    return entry ? { ...entry } : undefined;
   }
 
   /** Snapshot of pending entries; views render off this. */
   pending(): ApprovalState[] {
-    return Array.from(this.map.values()).filter((s) => s.status === "pending");
+    return Array.from(this.map.values())
+      .filter((s) => s.status === "pending")
+      .map((s) => ({ ...s }));
   }
 
   /** Total count for status-bar pip. */
@@ -62,6 +66,7 @@ export class ApprovalStore implements vscode.Disposable {
       this.map.set(state.governance_event_id, {
         ...existing,
         ...state,
+        agent_name: state.agent_name ?? existing.agent_name,
         resolver: state.resolver ?? existing.resolver,
       });
     } else {
@@ -82,10 +87,11 @@ export class ApprovalStore implements vscode.Disposable {
   ): void {
     const entry = this.map.get(geid);
     if (!entry || entry.status !== "pending") return;
-    entry.status = status;
-    if (entry.resolver && (status === "approved" || status === "rejected")) {
+    const resolver = entry.resolver;
+    this.map.set(geid, { ...entry, status });
+    if (resolver && (status === "approved" || status === "rejected")) {
       try {
-        entry.resolver(status === "approved" ? "approve" : "reject");
+        resolver(status === "approved" ? "approve" : "reject");
       } catch {
         /* hook may have disconnected; ignore */
       }
@@ -118,7 +124,7 @@ export class ApprovalStore implements vscode.Disposable {
   detachResolver(geid: string): void {
     const entry = this.map.get(geid);
     if (!entry || !entry.resolver) return;
-    entry.resolver = undefined;
+    this.map.set(geid, { ...entry, resolver: undefined });
     this._onChange.fire();
   }
 
@@ -129,7 +135,7 @@ export class ApprovalStore implements vscode.Disposable {
     let changed = false;
     for (const [geid, s] of this.map) {
       if (s.status === "pending" && Date.parse(s.expires_at) < now) {
-        s.status = "expired";
+        this.map.set(geid, { ...s, status: "expired" });
         if (s.resolver) {
           try {
             s.resolver("reject");

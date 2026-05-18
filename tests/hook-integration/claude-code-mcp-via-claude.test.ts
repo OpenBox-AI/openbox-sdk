@@ -1,6 +1,6 @@
 // Claude actually loads `.mcp.json` and exposes the OpenBox MCP
-// tools. The protocol-level test in claude-code-mcp.test.ts pins
-// the server side; this file pins the client side: when claude
+// tools. The host-agnostic protocol test in mcp-protocol.test.ts pins
+// the server side; this file pins the Claude client side: when claude
 // is given `--mcp-config <openbox-mcp>`, does it list and call
 // `mcp__openbox__*` tools at all?
 //

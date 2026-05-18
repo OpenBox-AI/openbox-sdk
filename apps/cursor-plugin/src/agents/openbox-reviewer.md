@@ -17,20 +17,22 @@ configured - not a guessed-at policy.
      binding the change to (or ask which one if ambiguous)
 
 2. Pull the rules in scope.
-   - `openbox --experimental behavior list --agent-id <id> --json`
-   - `openbox --experimental guardrail list --agent-id <id> --json`
-   - `openbox --experimental policy list --agent-id <id> --json`
+   - `openbox --experimental behavior list <id> --json`
+   - `openbox --experimental guardrail list <id> --json`
+   - `openbox --experimental policy list <id> --json`
 
 3. For each risky action the change introduces (shell exec, file
    write outside the workspace root, network call, secret read),
    dry-run it:
    ```
+   OPENBOX_API_KEY="$(openbox --experimental --json api-key recall <id> | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).runtimeKey))')" \
    openbox --experimental core evaluate \
-     --agent-id <id> \
-     --activity-type <ShellExecution|FileWrite|...> \
-     --command "<the action>"
+     --type <shell|file_write|file_read|http|db|mcp|llm> \
+     [type-specific flags]
    ```
    Report the verdict and matching rule id.
+   Never print, quote, or summarize the runtime key in chat or in
+   the review output.
 
 4. Surface the AIVSS posture for the agent
    (`openbox --experimental agent get <id>` returns the AIVSS subscores). Flag any
@@ -47,5 +49,5 @@ configured - not a guessed-at policy.
   action so they can decide.
 - Do not suggest disabling gates, hooks, or the extension to "make
   the verdict go away."
-- Output: a 5-line summary - agent id (truncated), env, verdict
+- Output: a 5-line summary - agent id (truncated), binding, verdict
   per risky action, AIVSS delta (if any), recommended next step.

@@ -6,9 +6,7 @@
 //     went orphan when work moved to feat/cursor-runtime.
 //
 //   * Active governance gates - PreWriteGate, PreFileOpGate,
-//     TabObserver. Each independently consults the GovernanceClient,
-//     which reads `openbox.agentId` + the runtime key from
-//     ~/.openbox/agent-keys (or OPENBOX_API_KEY).
+//     TabObserver. Each independently consults the GovernanceClient.
 //
 //   * Hook activity log - tails ~/.openbox/log/cursor-hook.jsonl into
 //     a Cursor OutputChannel so the user sees every hook the
@@ -39,8 +37,6 @@ import { ViewSession } from "./viewSession";
 import type { Approval, Member, Team } from "./types";
 import { apiKeysUrl } from "./dashboardUrl";
 import { showDebugInfoPanel, type DebugSnapshot } from "./debugInfoPanel";
-import { MockClient } from "./mockClient";
-import { mockStore } from "./mockStore";
 import { DebugControlsProvider } from "./debugView";
 import { ProfileProvider } from "./profileView";
 import { OnboardProvider } from "./onboardView";
@@ -49,12 +45,12 @@ import { PreWriteGate, extractTargetUri } from "./preWriteGate";
 import { PreFileOpGate } from "./preFileOpGate";
 import { GovernanceClient } from "./governanceClient";
 import { HookLogTail } from "./hookLogChannel";
-import { ApprovalStore } from "./approvalStore";
+import { ApprovalStore, type ApprovalState } from "./approvalStore";
 import { ApprovalSocketServer } from "./approvalSocketServer";
 import { startApprovalToastView } from "./approvalToastView";
-import { startApprovalPollSource } from "./approvalPollSource";
 import { buildIdleStatusBar, envTagFor as envTagForPure } from "./statusBarText";
 import { pickApproval as pickApprovalPure } from "./pickApproval";
+import { resolveApproval, type ResolvedApprovalEvent } from "./resolveApproval";
 import { readGlobalEnv, writeGlobalEnv } from "./configStore";
 
 // Build-time flag, baked by esbuild via --define:process.env.OPENBOX_DEBUG_BUILD.
@@ -64,12 +60,12 @@ import { readGlobalEnv, writeGlobalEnv } from "./configStore";
 // branches below - so a prod .vsix can't be flipped into debug at runtime.
 const DEBUG_BUILD = process.env.OPENBOX_DEBUG_BUILD === "true";
 
-// Org API key shape; matches the CLI's auth.ts validator. Anything else
+// OpenBox key shape; matches the CLI's auth.ts validator. Anything else
 // is rejected before it touches the token store so we surface the
 // problem at paste time rather than after a failed first request.
 const API_KEY_PATTERN = /^obx_key_[0-9a-f]{48}$/;
 
-/** Backend's Halt verdict; approvals with this code block the save flow. */
+/** Halt verdict; approvals with this code block the save flow. */
 const VERDICT_HALT = 4;
 
 interface ActiveBoot {
@@ -114,16 +110,40 @@ function readEnv(): EnvName {
   return readGlobalEnv();
 }
 
+function connectionErrorMessage(err: unknown): string {
+  const msg = typeof err === "string" ? err : (err as any)?.message ?? String(err);
+  if (/401|unauthorized|invalid api key|missing authorization/i.test(msg)) {
+    return "OpenBox connection could not be verified. Check the OpenBox key for this workspace.";
+  }
+  if (/fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|getaddrinfo/i.test(msg)) {
+    return "Cannot reach OpenBox. Check your network connection; the extension will reconnect automatically.";
+  }
+  if (/No X-API-Key|No API key|not connected/i.test(msg)) {
+    return "OpenBox is not connected. Add the OpenBox key provided by your organization.";
+  }
+  return "OpenBox connection failed.";
+}
+
 function readNotifyOnNew(): boolean {
   return vscode.workspace.getConfiguration("openbox").get<boolean>("notifyOnNewApprovals", true);
 }
 
-function readMockAuth(): boolean {
-  // Mock auth is itself a debug-only feature in published builds. The
-  // user-facing setting still toggles, but in DEBUG_BUILD=false the
-  // surrounding code paths gate on this value, so flipping it on in
-  // a prod .vsix is a no-op.
-  return DEBUG_BUILD && vscode.workspace.getConfiguration("openbox").get<boolean>("mockAuth", false);
+function resolveApprovalSocketPath(): string | undefined {
+  const configured = process.env.OPENBOX_APPROVAL_SOCKET?.trim();
+  if (configured) return configured;
+  for (const folder of vscode.workspace.workspaceFolders ?? []) {
+    const configPath = path.join(folder.uri.fsPath, ".cursor-hooks", "config.json");
+    try {
+      const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
+      const socketPath = typeof parsed.OPENBOX_APPROVAL_SOCKET === "string"
+        ? parsed.OPENBOX_APPROVAL_SOCKET.trim()
+        : "";
+      if (socketPath) return socketPath;
+    } catch {
+      /* no workspace-scoped socket config */
+    }
+  }
+  return undefined;
 }
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -132,7 +152,6 @@ export async function activate(context: vscode.ExtensionContext) {
   // having to install a debug build.
   function paintDebugContext() {
     vscode.commands.executeCommand("setContext", "openbox.debug", DEBUG_BUILD);
-    vscode.commands.executeCommand("setContext", "openbox.mockAuth", readMockAuth());
     vscode.commands.executeCommand(
       "setContext",
       "openbox.devMode",
@@ -163,15 +182,34 @@ export async function activate(context: vscode.ExtensionContext) {
   // else) both upsert into one Map. Three view sinks (toast, panel,
   // status bar pulse) subscribe and re-render off store snapshots.
   const approvalStore = new ApprovalStore();
+  const agentNameCache = new Map<string, string | undefined>();
+  const historyDecisionOverlay = new Map<string, Approval>();
   context.subscriptions.push(approvalStore);
 
   // Socket server: hook subprocesses connect on require_approval and
   // push pending notifications. Decisions made via the toast push
   // back over the same connection so the hook's pollApproval race
   // resolves immediately (sub-millisecond round-trip).
-  const approvalSocket = new ApprovalSocketServer(approvalStore);
+  const approvalSocket = new ApprovalSocketServer(approvalStore, undefined, resolveApprovalSocketPath());
   approvalSocket.start();
   context.subscriptions.push(approvalSocket);
+
+  context.subscriptions.push(
+    approvalStore.onChange(() => {
+      const pendingStates = approvalStore.pending();
+      void hydratePendingAgentNames(pendingStates);
+      const overlay = pendingStates.map(approvalStateToApproval);
+      active?.pending.setOverlayApprovals?.(overlay);
+      const count = overlay.length;
+      // Socket-origin approvals can arrive before or between backend
+      // polling ticks. Drive the Pending view context directly from
+      // the store so the welcome/empty copy cannot stay visible while
+      // the status bar already says "1 Pending".
+      vscode.commands.executeCommand("setContext", "openbox.loading", false);
+      vscode.commands.executeCommand("setContext", "openbox.hasApprovals", count > 0);
+      paintIdle(env, count);
+    }),
+  );
 
   // Toast view subscribes to the store and renders one notification
   // per pending entry. Single notification path; dedup happens at
@@ -180,6 +218,11 @@ export async function activate(context: vscode.ExtensionContext) {
     startApprovalToastView({
       store: approvalStore,
       getClient: () => active?.client,
+      onResolved: async (event) => {
+        applyResolvedApprovalToViews(event);
+        await active?.pending.refresh();
+        await active?.history.refresh();
+      },
       statusBar,
     }),
   );
@@ -321,7 +364,6 @@ export async function activate(context: vscode.ExtensionContext) {
     const out = buildIdleStatusBar({
       env: envTag,
       count,
-      mockAuth: readMockAuth(),
       debugBuild: DEBUG_BUILD,
       preWriteGateActive: cfg.get<boolean>("preWriteGate.active", false),
       tabObserverEnabled: cfg.get<boolean>("tabObserver.enabled", false),
@@ -357,50 +399,83 @@ export async function activate(context: vscode.ExtensionContext) {
   function syncPollRows(rows: Approval[]) {
     const seen = new Set<string>();
     for (const r of rows) {
-      if (!r.id) continue;
-      seen.add(r.id);
+      const key = approvalStoreKey(r);
+      if (!key) continue;
+      seen.add(key);
+      if (r.agent_id && r.agent?.agent_name) {
+        agentNameCache.set(r.agent_id, r.agent.agent_name);
+      }
       const status = (r.status ?? "").toLowerCase();
       if (status === "pending" || (!r.decided_at && !status)) {
+        const existing = approvalStore.get(key) ?? approvalStore.get(r.id);
         approvalStore.upsert({
-          governance_event_id: r.id,
+          governance_event_id: key,
           agent_id: r.agent_id ?? "",
+          agent_name:
+            r.agent?.agent_name ??
+            existing?.agent_name ??
+            (r.agent_id ? agentNameCache.get(r.agent_id) : undefined),
           hook_event_name:
-            approvalStore.get(r.id)?.hook_event_name ??
+            existing?.hook_event_name ??
             (r.action_type || r.activity_type || "approval"),
-          source: approvalStore.get(r.id)?.source ?? "poll",
+          source: existing?.source ?? "poll",
           summary:
-            approvalStore.get(r.id)?.summary ??
+            existing?.summary ??
             pollRowSummary(r),
           reason: r.reason ?? "",
           expires_at:
             r.approval_expired_at ??
             new Date(Date.now() + 30 * 60_000).toISOString(),
           created_at:
-            approvalStore.get(r.id)?.created_at ?? Date.now(),
+            existing?.created_at ?? Date.now(),
           status: "pending",
-          resolver: approvalStore.get(r.id)?.resolver,
+          resolver: existing?.resolver,
         });
-      } else if (approvalStore.get(r.id)?.status === "pending") {
+      } else if (
+        approvalStore.get(key)?.status === "pending" ||
+        approvalStore.get(r.id)?.status === "pending"
+      ) {
         approvalStore.resolve(
-          r.id,
+          key,
           status === "approved"
             ? "approved"
             : status === "rejected"
               ? "rejected"
               : "expired",
         );
+        if (key !== r.id) {
+          approvalStore.resolve(
+            r.id,
+            status === "approved"
+              ? "approved"
+              : status === "rejected"
+                ? "rejected"
+                : "expired",
+          );
+        }
       }
     }
     // Anything pending in the store but not in the latest poll is
     // missing from the dashboard's view; backend resolved/expired it.
-    // Mark expired so the toast clears. Don't drop socket-source
-    // entries here; the live hook subprocess may still own them and
-    // the dashboard polling lags by a tick.
+    // Mark expired so the toast clears. Socket-source entries get a
+    // short grace window because they can arrive from a hook before the
+    // next backend pending poll has caught up.
+    const now = Date.now();
     for (const e of approvalStore.pending()) {
-      if (e.source === "poll" && !seen.has(e.governance_event_id)) {
+      const socketGraceElapsed =
+        e.source === "socket" && now - e.created_at > 5_000;
+      if (
+        (e.source === "poll" || socketGraceElapsed) &&
+        !seen.has(e.governance_event_id)
+      ) {
         approvalStore.resolve(e.governance_event_id, "expired");
       }
     }
+  }
+
+  function approvalStoreKey(r: Approval): string {
+    const eventId = (r as { event_id?: string }).event_id;
+    return eventId || r.id;
   }
 
   function pollRowSummary(r: Approval): string {
@@ -414,6 +489,116 @@ export async function activate(context: vscode.ExtensionContext) {
       (first?.prompt as string) ??
       r.activity_type ??
       ""
+    );
+  }
+
+  function approvalStateToApproval(state: ApprovalState): Approval {
+    return {
+      id: state.governance_event_id,
+      event_id: state.governance_event_id,
+      agent_id: state.agent_id,
+      status: state.status,
+      action_type: state.hook_event_name,
+      activity_type: state.hook_event_name,
+      verdict: 2,
+      reason: state.reason,
+      created_at: new Date(state.created_at).toISOString(),
+      approval_expired_at: state.expires_at,
+      agent: state.agent_name ? { agent_name: state.agent_name } : undefined,
+      input: [{
+        summary: state.summary,
+        source: state.source,
+      }],
+    };
+  }
+
+  function resolvedEventToApproval(event: ResolvedApprovalEvent): Approval {
+    const entry = event.entry;
+    return {
+      id: event.eventId,
+      event_id: event.eventId,
+      agent_id: event.agentId,
+      status: event.status,
+      action_type: entry?.hook_event_name ?? "approval",
+      activity_type: entry?.hook_event_name ?? "approval",
+      verdict: event.status === "rejected" ? VERDICT_HALT : 2,
+      reason: entry?.reason ?? "",
+      created_at: entry
+        ? new Date(entry.created_at).toISOString()
+        : new Date().toISOString(),
+      decided_at: new Date().toISOString(),
+      agent: entry?.agent_name ? { agent_name: entry.agent_name } : undefined,
+      input: [{
+        summary: entry?.summary ?? "",
+        source: entry?.source ?? "decision",
+      }],
+    };
+  }
+
+  function applyResolvedApprovalToViews(event: ResolvedApprovalEvent) {
+    historyDecisionOverlay.set(
+      event.eventId,
+      resolvedEventToApproval(event),
+    );
+    active?.history.setOverlayApprovals?.(
+      Array.from(historyDecisionOverlay.values()),
+    );
+    active?.pending.setOverlayApprovals?.(
+      approvalStore.pending().map(approvalStateToApproval),
+    );
+  }
+
+  async function decideApprovalAndRefresh(
+    approval: Pick<Approval, "id" | "agent_id">,
+    decision: "approve" | "reject",
+  ): Promise<boolean> {
+    const current = active;
+    if (!current) return false;
+    const ok = await resolveApproval(
+      approvalStore,
+      current.client,
+      approval.id,
+      approval.agent_id,
+      decision,
+      async (event) => {
+        applyResolvedApprovalToViews(event);
+      },
+    );
+    if (!ok) return false;
+    await Promise.all([
+      current.pending.refresh(),
+      current.history.refresh(),
+    ]);
+    return true;
+  }
+
+  async function hydratePendingAgentNames(states: ApprovalState[]) {
+    const client = active?.client;
+    if (!client) return;
+    const missing = states.filter(
+      (state) =>
+        state.agent_id &&
+        !state.agent_name &&
+        !agentNameCache.has(state.agent_id),
+    );
+    await Promise.all(
+      missing.map(async (state) => {
+        try {
+          const agent = (await client.getAgent(state.agent_id)) as
+            | { agent_name?: string }
+            | null;
+          const name =
+            typeof agent?.agent_name === "string" && agent.agent_name.trim()
+              ? agent.agent_name.trim()
+              : undefined;
+          agentNameCache.set(state.agent_id, name);
+          if (name) {
+            approvalStore.upsert({ ...state, agent_name: name });
+          }
+        } catch {
+          agentNameCache.set(state.agent_id, undefined);
+        }
+      }),
     );
   }
 
@@ -442,7 +627,35 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   }
 
+  // Self-rescheduled retry timer for the network-failure path inside
+  // boot(). The tooltip on the "Disconnected" status bar promises the
+  // extension reconnects on its own, so we owe the user an actual
+  // timer here instead of waiting for a manual reboot command. Backoff
+  // doubles on each failed attempt, capped at 30s, and resets the
+  // moment boot() makes it past getProfile.
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  let reconnectDelayMs = 2_000;
+  const RECONNECT_DELAY_MAX_MS = 30_000;
+  function cancelReconnect() {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = undefined;
+    }
+    reconnectDelayMs = 2_000;
+  }
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    const delay = reconnectDelayMs;
+    reconnectDelayMs = Math.min(reconnectDelayMs * 2, RECONNECT_DELAY_MAX_MS);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = undefined;
+      void boot(env);
+    }, delay);
+  }
+  context.subscriptions.push({ dispose: () => cancelReconnect() });
+
   async function boot(nextEnv: EnvName) {
+    cancelReconnect();
     // Wipe everything tied to the previous boot before we start the
     // next one. Prevents a stale detail panel from sitting on top of
     // a sign-out / env-switch and the Profile tree from showing a
@@ -457,17 +670,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
     env = nextEnv;
     statusBar.text = `$(openbox-logo) Connecting`;
-    statusBar.tooltip = DEBUG_BUILD ? `Connecting to ${env}…` : "Connecting…";
+    statusBar.tooltip = "Connecting to OpenBox…";
     vscode.commands.executeCommand("setContext", "openbox.hasApprovals", false);
     vscode.commands.executeCommand("setContext", "openbox.history.hasApprovals", false);
 
-    const mockAuth = readMockAuth();
-    if (!mockAuth && !hasApiKey(env)) {
+    if (!hasApiKey(env)) {
       vscode.commands.executeCommand("setContext", "openbox.needsKey", true);
-      statusBar.text = `$(openbox-logo) ${envTagFor("Set API Key")}`;
-      statusBar.tooltip = DEBUG_BUILD
-        ? `No API key set for ${env}. Click the OpenBox view and use "Set API Key".`
-        : `No API key set. Click the OpenBox view and use "Set API Key".`;
+      statusBar.text = `$(openbox-logo) ${envTagFor("Connect")}`;
+      statusBar.tooltip = "OpenBox is not connected. Add the OpenBox key provided by your organization.";
       statusBar.command = "openbox.setApiKey";
       return;
     }
@@ -475,21 +685,15 @@ export async function activate(context: vscode.ExtensionContext) {
     statusBar.command = "openbox.approvals.focus";
 
     let client: OpenBoxClient;
-    if (mockAuth) {
-      // MockClient duck-types the methods PollingService + others use;
-      // the cast keeps downstream typing consistent without polluting
-      // every call site with a union type.
-      client = new MockClient() as unknown as OpenBoxClient;
-    } else {
-      try {
-        const ctx = await createApiContext(env);
-        client = ctx.client;
-      } catch (err: any) {
-        statusBar.text = `$(openbox-logo) ${envTagFor("No Token")}`;
-        statusBar.tooltip = err.message;
-        vscode.window.showErrorMessage(`OpenBox: ${err.message}`);
-        return;
-      }
+    try {
+      const ctx = await createApiContext(env);
+      client = ctx.client;
+    } catch (err: any) {
+      const msg = connectionErrorMessage(err);
+      statusBar.text = `$(openbox-logo) ${envTagFor("Connect")}`;
+      statusBar.tooltip = msg;
+      vscode.window.showErrorMessage(`OpenBox: ${msg}`);
+      return;
     }
 
     let orgId: string | undefined;
@@ -501,6 +705,8 @@ export async function activate(context: vscode.ExtensionContext) {
     let keyId: string | undefined;
     let apiKeyPermissions: string[] | undefined;
     let isApiKeyAuth = false;
+    let activeKey: ActiveKeyInfo | undefined;
+    let activeKeyError: string | undefined;
     try {
       const profile: any = await client.getProfile();
       orgId = profile.orgId;
@@ -529,11 +735,12 @@ export async function activate(context: vscode.ExtensionContext) {
       }
 
       if (!orgId) {
-        statusBar.text = `$(openbox-logo) ${envTagFor("No Org")}`;
+        statusBar.text = `$(openbox-logo) ${envTagFor("Connection Issue")}`;
+        statusBar.tooltip = "OpenBox connected, but the account could not be verified.";
         return;
       }
-      const tag = mockAuth ? "mock" : env;
-      statusBar.tooltip = `Signed in as ${email || preferredUsername || userSub} (${tag})`;
+      const who = email || preferredUsername || userSub;
+      statusBar.tooltip = who ? `OpenBox connected as ${who}.` : "OpenBox connected.";
     } catch (err: any) {
       // Distinguish "can't reach the API" from "API rejected us"
       // (bad key / real error). The two signals belong on the bar
@@ -544,50 +751,45 @@ export async function activate(context: vscode.ExtensionContext) {
       const label = isNetwork ? "Disconnected" : "Error";
       statusBar.text = `$(openbox-logo) ${envTagFor(label)}`;
       statusBar.tooltip = isNetwork
-        ? `Cannot reach the OpenBox API. Check your network connection and the OPENBOX_API_URL setting; the extension will reconnect automatically.`
-        : msg;
+        ? connectionErrorMessage(msg)
+        : connectionErrorMessage(err);
+      if (isNetwork) scheduleReconnect();
       return;
     }
 
-    let activeKey: ActiveKeyInfo | undefined;
-    let activeKeyError: string | undefined;
-    if (!mockAuth) {
-      try {
-        const res: any = await client.listApiKeys({ perPage: 100 });
-        const keys: any[] = res?.data ?? [];
-        if (keys.length === 0) {
-          activeKeyError = "no keys returned";
-        } else {
-          const sorted = [...keys].sort((a, b) => {
-            const ta = a.last_used_at ? Date.parse(a.last_used_at) : 0;
-            const tb = b.last_used_at ? Date.parse(b.last_used_at) : 0;
-            return tb - ta;
-          });
-          const top = sorted[0];
-          activeKey = {
-            id: top.id,
-            name: top.name,
-            description: top.description,
-            permissions: top.permissions,
-            valid_from: top.valid_from,
-            expires_at: top.expires_at,
-            ip_whitelist: top.ip_whitelist,
-            is_active: top.is_active,
-            created_at: top.created_at,
-            last_used_at: top.last_used_at,
-          };
-        }
-      } catch (err: any) {
-        const status = typeof err?.status === "number" ? err.status : undefined;
-        activeKeyError =
-          status === 401
-            ? "JWT-only endpoint"
-            : status === 403
-              ? "needs read:api_key"
-              : err?.message ?? "error";
+    try {
+      const res: any = await client.listApiKeys({ perPage: 100 });
+      const keys: any[] = res?.data ?? [];
+      if (keys.length === 0) {
+        activeKeyError = "no keys returned";
+      } else {
+        const sorted = [...keys].sort((a, b) => {
+          const ta = a.last_used_at ? Date.parse(a.last_used_at) : 0;
+          const tb = b.last_used_at ? Date.parse(b.last_used_at) : 0;
+          return tb - ta;
+        });
+        const top = sorted[0];
+        activeKey = {
+          id: top.id,
+          name: top.name,
+          description: top.description,
+          permissions: top.permissions,
+          valid_from: top.valid_from,
+          expires_at: top.expires_at,
+          ip_whitelist: top.ip_whitelist,
+          is_active: top.is_active,
+          created_at: top.created_at,
+          last_used_at: top.last_used_at,
+        };
       }
-    } else {
-      activeKeyError = "mock auth";
+    } catch (err: any) {
+      const status = typeof err?.status === "number" ? err.status : undefined;
+      activeKeyError =
+        status === 401
+          ? "JWT-only endpoint"
+          : status === 403
+            ? "needs read:api_key"
+            : err?.message ?? "error";
     }
 
     let teams: Team[] = [];
@@ -723,6 +925,9 @@ export async function activate(context: vscode.ExtensionContext) {
       activeKey,
       activeKeyError,
     };
+    active.pending.setOverlayApprovals?.(
+      approvalStore.pending().map(approvalStateToApproval),
+    );
     profileProvider.refresh();
     debugProvider?.refresh();
   }
@@ -757,10 +962,7 @@ export async function activate(context: vscode.ExtensionContext) {
         client: active.client,
         orgId: active.orgId,
         env,
-        onDecided: () => {
-          active?.pending.refresh();
-          active?.history.refresh();
-        },
+        decideApproval: decideApprovalAndRefresh,
       });
     }),
     vscode.commands.registerCommand("openbox.copyDetail", (value: string) => {
@@ -791,13 +993,6 @@ export async function activate(context: vscode.ExtensionContext) {
       // via the debug-view's switcher, which writes to the same
       // file). The extension picks up the new env on the next
       // window reload.
-      // Mock toggle reboots from scratch.
-      if (e.affectsConfiguration("openbox.mockAuth")) {
-        paintDebugContext();
-        debugProvider?.refresh();
-        profileProvider.refresh();
-        if (DEBUG_BUILD) void boot(env);
-      }
       // Gate-toggle / agentId changes only repaint the idle status -
       // no polling restart needed.
       if (
@@ -914,6 +1109,7 @@ export async function activate(context: vscode.ExtensionContext) {
     registerScopedCommand("openbox.toggleSort", "pending", "toggleSort"),
     registerScopedCommand("openbox.clearFilters", "pending", "clearFilters"),
     registerScopedCommand("openbox.loadMore", "pending", "loadMore"),
+    registerScopedCommand("openbox.setPageSize", "pending", "setPageSize"),
     // History view title-bar + palette commands.
     registerScopedCommand("openbox.history.refresh", "history", "refresh"),
     registerScopedCommand("openbox.history.search", "history", "search"),
@@ -927,16 +1123,23 @@ export async function activate(context: vscode.ExtensionContext) {
     registerScopedCommand("openbox.history.setStatus", "history", "setStatus"),
     registerScopedCommand("openbox.history.setDateRange", "history", "setDateRange"),
     registerScopedCommand("openbox.history.loadMore", "history", "loadMore"),
+    registerScopedCommand("openbox.history.setPageSize", "history", "setPageSize"),
 
     vscode.commands.registerCommand("openbox.approve", async (node: any) => {
       const approval = pickApproval(node);
       if (!approval || !active) return;
-      try {
-        await active.client.decideApproval(approval.agent_id || "", approval.id, { action: "approve" });
-        vscode.window.showInformationMessage(`Approved (${env})`);
-        active.pending.refresh();
-      } catch (err: any) {
-        vscode.window.showErrorMessage(`Approve failed: ${err.message}`);
+      const ok = await resolveApproval(
+        approvalStore,
+        active.client,
+        approval.id,
+        approval.agent_id,
+        "approve",
+        async (event) => {
+          applyResolvedApprovalToViews(event);
+        },
+      );
+      if (ok) {
+        await Promise.all([active.pending.refresh(), active.history.refresh()]);
       }
     }),
 
@@ -949,12 +1152,18 @@ export async function activate(context: vscode.ExtensionContext) {
         "Reject",
       );
       if (choice !== "Reject") return;
-      try {
-        await active.client.decideApproval(approval.agent_id || "", approval.id, { action: "reject" });
-        vscode.window.showInformationMessage(`Rejected (${env})`);
-        active.pending.refresh();
-      } catch (err: any) {
-        vscode.window.showErrorMessage(`Reject failed: ${err.message}`);
+      const ok = await resolveApproval(
+        approvalStore,
+        active.client,
+        approval.id,
+        approval.agent_id,
+        "reject",
+        async (event) => {
+          applyResolvedApprovalToViews(event);
+        },
+      );
+      if (ok) {
+        await Promise.all([active.pending.refresh(), active.history.refresh()]);
       }
     }),
 
@@ -964,8 +1173,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand("openbox.setApiKey", async () => {
       const value = await vscode.window.showInputBox({
-        title: `OpenBox: Set API Key (${env})`,
-        prompt: describeKeySource(env),
+        title: "OpenBox: Connect",
+        prompt: "Paste the OpenBox key provided by your organization.",
         placeHolder: "obx_key_…",
         password: true,
         ignoreFocusOut: true,
@@ -979,7 +1188,7 @@ export async function activate(context: vscode.ExtensionContext) {
       if (!value) return;
       const trimmed = value.trim();
       if (!validateApiKey(trimmed)) {
-        vscode.window.showErrorMessage("Invalid API key shape (expected obx_key_<48 hex>).");
+        vscode.window.showErrorMessage("Invalid OpenBox key.");
         return;
       }
 
@@ -989,7 +1198,7 @@ export async function activate(context: vscode.ExtensionContext) {
       const ok = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: `OpenBox: validating ${env} API key…`,
+          title: "OpenBox: validating connection…",
           cancellable: false,
         },
         async () => {
@@ -1018,7 +1227,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
       if (!ok.ok) {
         const choice = await vscode.window.showErrorMessage(
-          `API key validation failed: ${ok.message}`,
+          `OpenBox connection failed: ${connectionErrorMessage(ok.message)}`,
           "Try Again",
         );
         if (choice === "Try Again") {
@@ -1028,16 +1237,14 @@ export async function activate(context: vscode.ExtensionContext) {
       }
       const who =
         ok.profile.email || ok.profile.preferred_username || ok.profile.sub || "unknown user";
-      vscode.window.showInformationMessage(
-        `API key saved. Signed in as ${who} (${ok.profile.orgId ?? "no org"}).`,
-      );
+      vscode.window.showInformationMessage(`OpenBox connected${who ? ` as ${who}` : ""}.`);
       void boot(env);
     }),
 
     vscode.commands.registerCommand("openbox.openDashboard", async () => {
       const url = apiKeysUrl(env);
       if (!url) {
-        vscode.window.showInformationMessage(`No dashboard URL configured for ${env}.`);
+        vscode.window.showInformationMessage("OpenBox dashboard is not configured.");
         return;
       }
       vscode.env.openExternal(vscode.Uri.parse(url));
@@ -1045,11 +1252,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand("openbox.clearCredentials", async () => {
       const choice = await vscode.window.showWarningMessage(
-        "Clear all OpenBox API keys?",
+        "Clear OpenBox connection?",
         {
           modal: true,
-          detail:
-            "This deletes ~/.openbox/tokens, removing keys for all environments. You'll need to set them again.",
+          detail: "This removes the saved OpenBox key from this machine.",
         },
         "Clear",
       );
@@ -1057,35 +1263,27 @@ export async function activate(context: vscode.ExtensionContext) {
       const p = resolveOsPath("tokens");
       try {
         if (fs.existsSync(p)) fs.unlinkSync(p);
-        vscode.window.showInformationMessage("Cleared OpenBox credentials.");
+        vscode.window.showInformationMessage("OpenBox connection cleared.");
         void boot(env);
       } catch (err: any) {
         vscode.window.showErrorMessage(`Failed to clear credentials: ${err.message}`);
       }
     }),
 
-    // Per-env sign-out. Mirrors mobile's signOut button; clears just
-    // the active env's slot in the token store, leaves other envs
-    // alone. Distinct from clearCredentials which wipes everything.
     vscode.commands.registerCommand("openbox.signOut", async () => {
       const choice = await vscode.window.showWarningMessage(
-        `Sign out of ${env}?`,
+        "Disconnect OpenBox?",
         {
           modal: true,
-          detail: `This removes the API key for ${env}. Other environments are unaffected.`,
+          detail: "This removes the saved OpenBox key from this machine.",
         },
-        "Sign Out",
+        "Disconnect",
       );
-      if (choice !== "Sign Out") return;
+      if (choice !== "Disconnect") return;
       try {
         clearApiKey(env);
-        const cfg = vscode.workspace.getConfiguration("openbox");
-        if (cfg.get<boolean>("mockAuth", false)) {
-          await cfg.update("mockAuth", false, vscode.ConfigurationTarget.Global);
-        } else {
-          void boot(env);
-        }
-        vscode.window.showInformationMessage(`Signed out of ${env}.`);
+        void boot(env);
+        vscode.window.showInformationMessage("OpenBox disconnected.");
       } catch (err: any) {
         vscode.window.showErrorMessage(`Sign out failed: ${err.message}`);
       }
@@ -1100,6 +1298,13 @@ export async function activate(context: vscode.ExtensionContext) {
         false,
       );
     }),
+
+    vscode.commands.registerCommand("openbox.__diag.extensionBuild", () => ({
+      id: context.extension.id,
+      version: String(context.extension.packageJSON?.version ?? ""),
+      extensionPath: context.extensionPath,
+      mode: context.extensionMode,
+    })),
 
     // Diagnostic: governance.check from the extension host with the
     // configured agent + env. Used by the live e2e suite.
@@ -1138,7 +1343,6 @@ export async function activate(context: vscode.ExtensionContext) {
         isApiKeyAuth: active.isApiKeyAuth,
         env,
         agentId: governance.agentId(),
-        mockAuth: readMockAuth(),
       };
     }),
 
@@ -1188,6 +1392,18 @@ export async function activate(context: vscode.ExtensionContext) {
       return active?.pending.count ?? 0;
     }),
 
+    // Diagnostic: compact pending rows for live e2e cleanup and
+    // targeted lifecycle assertions. Keep the payload narrow so tests
+    // never need to inspect full approval objects.
+    vscode.commands.registerCommand("openbox.__diag.pendingApprovals", () => {
+      return (active?.pending.approvals ?? []).map((a) => ({
+        id: a.id,
+        agent_id: a.agent_id,
+        activity_type: a.activity_type,
+        input: a.input,
+      }));
+    }),
+
     // Diagnostic: snapshot of the status bar's currently-painted
     // text + tooltip. Test infra reads this instead of trying to
     // grep the DOM through wdio (DOM selectors break across VS Code
@@ -1210,14 +1426,10 @@ export async function activate(context: vscode.ExtensionContext) {
         const id = approval?.id;
         const agentId = approval?.agent_id;
         if (!id || !active) return false;
-        try {
-          await active.client.decideApproval(agentId ?? "", id, { action });
-          await active.pending.refresh();
-          if (active.history) await active.history.refresh();
-          return true;
-        } catch {
-          return false;
-        }
+        return decideApprovalAndRefresh(
+          { id, agent_id: agentId ?? "" },
+          action,
+        );
       },
     ),
 
@@ -1243,7 +1455,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // without an extension edit.
         const choices = Object.keys(ENVIRONMENTS).map((label) => ({ label }));
         const choice = await vscode.window.showQuickPick(choices, {
-          placeHolder: `Current: ${env}; pick the new environment`,
+          placeHolder: "Pick the debug connection profile",
         });
         if (!choice) return;
         // Write straight to `~/.openbox/config`; no per-extension
@@ -1253,7 +1465,7 @@ export async function activate(context: vscode.ExtensionContext) {
         try {
           writeGlobalEnv(next);
         } catch (e) {
-          vscode.window.showErrorMessage(`Failed to write env: ${e}`);
+          vscode.window.showErrorMessage(`Failed to switch connection profile: ${e}`);
           return;
         }
         if (next !== env) {
@@ -1268,32 +1480,6 @@ export async function activate(context: vscode.ExtensionContext) {
         showDebugInfoPanel(context, buildDebugSnapshot);
       }),
 
-      vscode.commands.registerCommand("openbox.toggleMockAuth", async () => {
-        const cfg = vscode.workspace.getConfiguration("openbox");
-        const next = !cfg.get<boolean>("mockAuth", false);
-        await cfg.update("mockAuth", next, vscode.ConfigurationTarget.Global);
-        vscode.window.showInformationMessage(`Mock auth ${next ? "enabled" : "disabled"}.`);
-      }),
-
-      vscode.commands.registerCommand("openbox.seedMockData", () => {
-        mockStore().seed(3);
-        active?.pending.refresh();
-        active?.history.refresh();
-        const c = mockStore().counts();
-        vscode.window.showInformationMessage(
-          `Seeded 3 mock approvals. Now ${c.pending} pending, ${c.approved + c.rejected + c.expired} decided.`,
-        );
-      }),
-
-      vscode.commands.registerCommand("openbox.resetMockData", () => {
-        mockStore().reset();
-        active?.pending.refresh();
-        active?.history.refresh();
-        const c = mockStore().counts();
-        vscode.window.showInformationMessage(
-          `Mock data reset. ${c.pending} pending, ${c.approved} approved, ${c.rejected} rejected, ${c.expired} expired.`,
-        );
-      }),
     );
   }
 }

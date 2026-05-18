@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { EXIT, bailWith } from '../exit-codes.js';
-import { error, info, success, output } from '../output.js';
+import { error, info, row, success, summary, output } from '../output.js';
+import { isMachineMode } from '../non-interactive.js';
 
 function collectPair(value: string, prior: string[]): string[] {
   return [...prior, value];
@@ -116,6 +117,52 @@ export function registerCursorCommands(program: Command) {
         }
       },
     );
+
+  cursor
+    .command('doctor')
+    .description(
+      'Verify the installed Cursor surface and hook runtime readiness.',
+    )
+    .option('--scope <scope>', 'global | project', 'global')
+    .option('--cwd <dir>', 'Project root for --scope project')
+    .option('--surface-only', 'Check installed files only; skip runtime key/core validation', false)
+    .option('--no-core-validate', 'Check runtime config and key format without calling core')
+    .option('--json', 'Emit machine-readable JSON', false)
+    .action(async (opts: { scope?: string; cwd?: string; surfaceOnly?: boolean; coreValidate?: boolean; json?: boolean }) => {
+      const scope = (opts.scope ?? 'global').toLowerCase();
+      if (scope !== 'global' && scope !== 'project') {
+        error(`--scope: invalid value '${opts.scope}'; expected global or project`);
+        bailWith(EXIT.USAGE);
+      }
+      const { verifyCursorInstall } = await import('../../runtime/cursor/install.js');
+      const checks = await verifyCursorInstall(
+        opts.surfaceOnly
+          ? {
+              scope: scope as 'global' | 'project',
+              cwd: opts.cwd ?? process.cwd(),
+            }
+          : {
+              scope: scope as 'global' | 'project',
+              cwd: opts.cwd ?? process.cwd(),
+              includeRuntime: true,
+              validateRuntime: opts.coreValidate !== false,
+            },
+      );
+      const failed = checks.filter((c) => c.status === 'fail');
+      const skipped = checks.filter((c) => c.status === 'skip');
+      const counts = {
+        pass: checks.length - failed.length - skipped.length,
+        skip: skipped.length,
+        fail: failed.length,
+      };
+      if (opts.json || isMachineMode()) {
+        output({ checks, summary: counts });
+      } else {
+        for (const c of checks) row(c.name, c.status, c.detail ? `${c.detail}${c.path ? ` (${c.path})` : ''}` : c.path);
+        summary(counts);
+      }
+      if (failed.length > 0) bailWith(EXIT.GENERIC);
+    });
 
   cursor
     .command('harden')

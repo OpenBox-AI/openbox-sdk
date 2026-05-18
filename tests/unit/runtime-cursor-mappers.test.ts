@@ -191,6 +191,29 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     }
   });
 
+  it('beforeTabFileRead skips routine workspace files but gates sensitive workspace files', async () => {
+    const fileReadMod: any = await import('../../ts/src/runtime/cursor/mappers/file-read');
+    const cfg = { skipTools: [], sessionDir: dir } as any;
+
+    const routine = recordingSession();
+    const routineVerdict = await fileReadMod.handleBeforeTabFileRead(
+      { conversation_id: 'C', file_path: join(dir, 'src', 'index.ts'), workspace_roots: [dir] } as any,
+      routine,
+      cfg,
+    );
+    expect(routineVerdict).toBeUndefined();
+    expect(routine.calls).toHaveLength(0);
+
+    const sensitive = recordingSession({ arm: 'block', reason: 'secret read' });
+    const sensitiveVerdict = await fileReadMod.handleBeforeTabFileRead(
+      { conversation_id: 'C', file_path: join(dir, '.env'), workspace_roots: [dir] } as any,
+      sensitive,
+      cfg,
+    );
+    expect(sensitiveVerdict).toMatchObject({ arm: 'block' });
+    expect(sensitive.calls.some((c) => c.method === 'activity')).toBe(true);
+  });
+
   it('mcp + mcp-response handlers process MCP-shaped envelopes', async () => {
     const mcp: any = await import('../../ts/src/runtime/cursor/mappers/mcp');
     const mcpResp: any = await import('../../ts/src/runtime/cursor/mappers/mcp-response');
@@ -231,7 +254,8 @@ describe('runtime configs; env precedence + defaults', () => {
   it('cursor config respects every env override', async () => {
     const before = { ...process.env };
     process.env.OPENBOX_API_KEY = 'obx_live_envtest';
-    process.env.OPENBOX_ENDPOINT = 'http://localhost:9999';
+    process.env.OPENBOX_CORE_URL = 'http://localhost:9999';
+    process.env.OPENBOX_ENDPOINT = 'http://localhost:8888';
     process.env.GOVERNANCE_POLICY = 'fail_closed';
     process.env.VERBOSE = 'true';
     try {

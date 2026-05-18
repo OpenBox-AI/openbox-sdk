@@ -3,7 +3,7 @@
 //   - dismisses any open toast for an entry whose status flips to
 //     resolved/expired/dropped (via VS Code's notifications.clearAll
 //     since the per-toast dismiss API doesn't exist)
-//   - wires Approve/Deny buttons through resolveApproval()
+//   - wires Approve/Reject buttons through resolveApproval()
 //
 // This is the only notification path for pending approvals. The
 // ApprovalStore unifies socket-pushed (from hook subprocesses) and
@@ -14,11 +14,12 @@ import * as vscode from "vscode";
 import type { OpenBoxClient } from "openbox-sdk/client";
 import type { ApprovalStore } from "./approvalStore";
 import { sanitizeReason, eventLabel } from "./format";
-import { resolveApproval } from "./resolveApproval";
+import { resolveApproval, type ResolvedApprovalEvent } from "./resolveApproval";
 
 interface Deps {
   store: ApprovalStore;
   getClient: () => OpenBoxClient | undefined;
+  onResolved?: (event: ResolvedApprovalEvent) => void | Promise<void>;
   /** Status bar to pulse while pending entries exist. */
   statusBar?: vscode.StatusBarItem;
 }
@@ -78,7 +79,7 @@ async function renderOneToast(
     headline,
     { modal: false, detail },
     "Approve",
-    "Deny",
+    "Reject",
     "View",
   );
   shownFor.delete(entry.governance_event_id);
@@ -100,5 +101,6 @@ async function renderOneToast(
     entry.governance_event_id,
     entry.agent_id,
     choice === "Approve" ? "approve" : "reject",
+    deps.onResolved,
   );
 }

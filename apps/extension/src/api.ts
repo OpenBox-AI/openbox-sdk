@@ -1,12 +1,10 @@
 // Thin extension shim over the SDK's token + client surfaces. The SDK
-// owns env URL resolution (`openbox-sdk/env`), token I/O
-// (`openbox-sdk/file-tokens`), and `OpenBoxClient` construction
-// (`openbox-sdk/client-factory`); this file only adds the
-// extension-flavored "no key configured" error message and the
-// debug-friendly `apiKeyPrefix` helper.
+// owns URL resolution, token I/O, and `OpenBoxClient` construction;
+// this file only adds the extension-flavored "no key configured" error
+// message and the debug-friendly `apiKeyPrefix` helper.
 
 import type { OpenBoxClient } from "openbox-sdk/client";
-import { DEFAULT_ENV, type EnvName } from "openbox-sdk/env";
+import { type EnvName } from "openbox-sdk/env";
 import { validateApiKeyFormat } from "openbox-sdk/env";
 import {
   loadApiKey as loadFileApiKey,
@@ -16,6 +14,7 @@ import {
   readTokenStore,
 } from "openbox-sdk/file-tokens";
 import { createConsumerClient } from "openbox-sdk/client-factory";
+import { getConfig } from "openbox-sdk/cli/config-store";
 
 // Re-export the SDK helpers under the names the rest of the extension
 // already uses, so call sites don't have to know whether the work
@@ -41,8 +40,7 @@ export function validateApiKey(key: string): boolean {
 /** First N chars of the secret. The shape `obx_key_<48 hex>` makes the
  *  prefix non-sensitive - entropy is in the trailing hex. Used for
  *  debug display so the user has SOMETHING that uniquely identifies
- *  the key at a glance even when the backend's listApiKeys is
- *  unreachable. */
+ *  the key at a glance even when account metadata is unreachable. */
 export function apiKeyPrefix(env: EnvName, length = 16): string | undefined {
   const k = loadFileApiKey(env);
   if (!k) return undefined;
@@ -52,11 +50,8 @@ export function apiKeyPrefix(env: EnvName, length = 16): string | undefined {
 function loadApiKey(env: EnvName): string {
   const key = loadFileApiKey(env);
   if (!key) {
-    const flag = env === DEFAULT_ENV ? "" : `--env ${env} `;
     throw new Error(
-      `No X-API-Key configured. Either:\n` +
-        `  • Create one in the OpenBox dashboard and run \`openbox ${flag}auth set-api-key\`\n` +
-        `  • Or set \`openbox.mockAuth\` in settings to run the UI with fixtures (no backend).`,
+      "OpenBox is not connected. Add the OpenBox key provided by your organization.",
     );
   }
   return key;
@@ -76,6 +71,11 @@ export async function createApiContext(env: EnvName): Promise<{
 }> {
   const ctx = await createConsumerClient({
     envName: env,
+    apiUrl: getConfig("global", "OPENBOX_API_URL") ?? undefined,
+    coreUrl: getConfig("global", "OPENBOX_CORE_URL") ?? undefined,
+    authUrl: getConfig("global", "OPENBOX_AUTH_URL") ?? undefined,
+    platformUrl: getConfig("global", "OPENBOX_PLATFORM_URL") ?? undefined,
+    stackUrl: getConfig("global", "OPENBOX_STACK_URL") ?? undefined,
     getApiKey: () => loadApiKey(env),
     clientName: "apps/extension",
   });

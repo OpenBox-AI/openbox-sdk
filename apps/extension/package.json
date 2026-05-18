@@ -159,6 +159,11 @@
         "title": "Load More Approvals"
       },
       {
+        "command": "openbox.setPageSize",
+        "title": "OpenBox: Set Pending List Size",
+        "icon": "$(list-selection)"
+      },
+      {
         "command": "openbox.history.refresh",
         "title": "Refresh History",
         "icon": "$(refresh)"
@@ -214,8 +219,13 @@
         "title": "Load More History"
       },
       {
+        "command": "openbox.history.setPageSize",
+        "title": "OpenBox: Set History List Size",
+        "icon": "$(list-selection)"
+      },
+      {
         "command": "openbox.setApiKey",
-        "title": "OpenBox: Set API Key…",
+        "title": "OpenBox: Connect…",
         "icon": "$(key)"
       },
       {
@@ -225,11 +235,11 @@
       },
       {
         "command": "openbox.clearCredentials",
-        "title": "OpenBox: Clear All Credentials…"
+        "title": "OpenBox: Clear Connection…"
       },
       {
         "command": "openbox.signOut",
-        "title": "OpenBox: Sign Out",
+        "title": "OpenBox: Disconnect",
         "icon": "$(sign-out)"
       },
       {
@@ -243,7 +253,7 @@
       },
       {
         "command": "openbox.switchEnvironment",
-        "title": "OpenBox: Switch Environment (dev only)",
+        "title": "OpenBox: Switch Connection Profile (dev only)",
         "icon": "$(globe)",
         "enablement": "openbox.debug || openbox.devMode"
       },
@@ -252,34 +262,11 @@
         "title": "OpenBox: Show Debug Info",
         "icon": "$(info)",
         "enablement": "openbox.debug"
-      },
-      {
-        "command": "openbox.toggleMockAuth",
-        "title": "OpenBox: Toggle Mock Auth",
-        "icon": "$(beaker)",
-        "enablement": "openbox.debug"
-      },
-      {
-        "command": "openbox.seedMockData",
-        "title": "OpenBox: Seed Mock Data",
-        "icon": "$(add)",
-        "enablement": "openbox.debug"
-      },
-      {
-        "command": "openbox.resetMockData",
-        "title": "OpenBox: Reset Mock Data",
-        "icon": "$(debug-restart)",
-        "enablement": "openbox.debug"
       }
     ],
     "configuration": {
       "title": "OpenBox",
       "properties": {
-        "openbox.mockAuth": {
-          "type": "boolean",
-          "default": false,
-          "description": "Run the extension against a built-in fixture set (no API key, no backend). Useful for first-run demos, contributor onboarding, and exercising the UI without minting credentials. When true, the api-key load is skipped, the approvals panel is fed from local fixtures, and approve/reject decisions are kept in-memory only."
-        },
         "openbox.tabObserver.enabled": {
           "type": "boolean",
           "default": false,
@@ -298,7 +285,7 @@
         "openbox.agentId": {
           "type": "string",
           "default": "",
-          "description": "OpenBox agent ID to evaluate file writes / AI inserts / file ops against. When unset, all active gates (preWriteGate.active, tabObserver.active, fileOpGate.enabled) become no-ops; without an agent ID there is no policy context. The runtime key for this agent must be present in ~/.openbox/agent-keys (populated by `openbox api-key rotate <agentId>`) or as the OPENBOX_API_KEY environment variable visible to the extension host."
+          "description": "OpenBox agent ID used by workspace policy checks. Demo setup normally configures this automatically."
         },
         "openbox.preWriteGate.active": {
           "type": "boolean",
@@ -318,19 +305,19 @@
         "openbox.failClosed": {
           "type": "boolean",
           "default": false,
-          "description": "When true, all active gates fail closed (cancel the action) on network errors / timeouts contacting core. Default false (fail open) so a transient network blip doesn't block the user; flip on for high-trust environments where blocking on uncertainty is preferred."
+          "description": "When true, active policy checks cancel the action if OpenBox cannot be reached. Default false so transient network issues do not block the developer."
         },
         "openbox.strictSourceFilter": {
           "type": "boolean",
           "default": false,
-          "description": "When true, hide approval rows whose source can't be resolved (no module or gen_ai.system on the row's first span). By default these unresolvable rows pass through so no real approval is hidden by accident; the backend strips spans from its pending-list endpoint, so most live rows fall into the unresolvable bucket. Enable for strict per-host isolation, accepting that some legitimate rows may be hidden until the backend persists metadata.source server-side."
+          "description": "When true, hide approval rows whose source cannot be resolved to the current workspace. Leave off unless you are debugging workspace isolation."
         }
       }
     },
     "viewsWelcome": [
       {
         "view": "openbox.onboard",
-        "contents": "Welcome to OpenBox.\n\nPaste an org API key to start reviewing agent approvals. Create one in the dashboard under Organization → API Keys.\n\n[Set API Key](command:openbox.setApiKey)\n[Open Dashboard](command:openbox.openDashboard)"
+        "contents": "Welcome to OpenBox.\n\nPaste the OpenBox key provided by your organization to start reviewing approvals.\n\n[Connect](command:openbox.setApiKey)\n[Open Dashboard](command:openbox.openDashboard)"
       },
       {
         "view": "openbox.approvals",
@@ -374,18 +361,6 @@
           "when": "openbox.debug"
         },
         {
-          "command": "openbox.toggleMockAuth",
-          "when": "openbox.debug"
-        },
-        {
-          "command": "openbox.seedMockData",
-          "when": "openbox.debug"
-        },
-        {
-          "command": "openbox.resetMockData",
-          "when": "openbox.debug"
-        },
-        {
           "command": "openbox.openDetail",
           "when": "false"
         },
@@ -399,6 +374,14 @@
         },
         {
           "command": "openbox.history.loadMore",
+          "when": "false"
+        },
+        {
+          "command": "openbox.setPageSize",
+          "when": "false"
+        },
+        {
+          "command": "openbox.history.setPageSize",
           "when": "false"
         }
       ],
@@ -419,14 +402,19 @@
           "group": "navigation@3"
         },
         {
+          "command": "openbox.setPageSize",
+          "when": "view == openbox.approvals",
+          "group": "navigation@4"
+        },
+        {
           "command": "openbox.clearFilters",
           "when": "view == openbox.approvals && openbox.hasFilters",
-          "group": "navigation@4"
+          "group": "navigation@5"
         },
         {
           "command": "openbox.refresh",
           "when": "view == openbox.approvals",
-          "group": "navigation@5"
+          "group": "navigation@6"
         },
         {
           "command": "openbox.history.search",
@@ -437,6 +425,11 @@
           "command": "openbox.history.setDateRange",
           "when": "view == openbox.history",
           "group": "navigation@2"
+        },
+        {
+          "command": "openbox.history.setPageSize",
+          "when": "view == openbox.history",
+          "group": "navigation@3"
         },
         {
           "command": "openbox.history.filter",
@@ -479,24 +472,9 @@
           "group": "navigation@1"
         },
         {
-          "command": "openbox.toggleMockAuth",
-          "when": "view == openbox.debugControls",
-          "group": "navigation@2"
-        },
-        {
-          "command": "openbox.seedMockData",
-          "when": "view == openbox.debugControls",
-          "group": "navigation@3"
-        },
-        {
-          "command": "openbox.resetMockData",
-          "when": "view == openbox.debugControls",
-          "group": "navigation@4"
-        },
-        {
           "command": "openbox.showDebugInfo",
           "when": "view == openbox.debugControls",
-          "group": "navigation@5"
+          "group": "navigation@2"
         },
         {
           "command": "openbox.reboot",

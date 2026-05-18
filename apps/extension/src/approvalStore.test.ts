@@ -57,6 +57,24 @@ describe("ApprovalStore", () => {
     expect(store.pending()[0].resolver).toBe(r);
   });
 
+  test("upsert preserves hydrated agent name if not overridden", () => {
+    store.upsert(mkState({ agent_name: "Billing Assistant Preview" }));
+    store.upsert(mkState({ summary: "later" }));
+    expect(store.pending()[0].agent_name).toBe("Billing Assistant Preview");
+  });
+
+  test("get() and pending() return snapshots, not mutable store rows", () => {
+    store.upsert(mkState());
+    const viaGet = store.get("geid-1")!;
+    const viaPending = store.pending()[0];
+
+    viaGet.status = "approved";
+    viaPending.summary = "mutated outside";
+
+    expect(store.get("geid-1")?.status).toBe("pending");
+    expect(store.pending()[0].summary).toBe("/etc/passwd");
+  });
+
   test("resolve() fires resolver and emits change", () => {
     const r = vi.fn();
     const onChange = vi.fn();

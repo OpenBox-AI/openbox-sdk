@@ -36,7 +36,7 @@ export class ApprovalsTreeProvider implements vscode.TreeDataProvider<TreeNode> 
   private loadMoreCommand?: string;
   private countdownTimer: ReturnType<typeof setInterval> | undefined;
 
-  constructor(private opts: { groupByStatus?: boolean } = {}) {}
+  constructor(private opts: { groupByStatus?: boolean; showLoadMore?: boolean } = {}) {}
 
   setLoadMoreCommand(cmd: string) {
     this.loadMoreCommand = cmd;
@@ -78,9 +78,9 @@ export class ApprovalsTreeProvider implements vscode.TreeDataProvider<TreeNode> 
     if (node.kind === "field") return renderField(node.approval, node.field);
 
     const a = node.approval;
-    const agent = a.agent?.agent_name || a.agent_id || "Unknown Agent";
     const action = a.action_type || a.activity_type || "";
     const summary = summarizeInput(action, a.input);
+    const agent = approvalLabel(a, summary);
 
     // Collapsed by default so the list reads as a tight overview.
     // The chevron expands to show tier / reason / created / expiry as
@@ -124,12 +124,12 @@ export class ApprovalsTreeProvider implements vscode.TreeDataProvider<TreeNode> 
       // the user knows the buckets exist even on a quiet day.
       if (this.opts.groupByStatus) {
         const sections: TreeNode[] = SECTION_ORDER.map((status) => ({ kind: "section", status }));
-        if (this.hasMore && this.loadMoreCommand) sections.push({ kind: "load-more" });
+        if (this.shouldShowLoadMore()) sections.push({ kind: "load-more" });
         return sections;
       }
 
       const rows: TreeNode[] = this.approvals.map((a) => ({ kind: "approval" as const, approval: a }));
-      if (this.hasMore && this.loadMoreCommand) rows.push({ kind: "load-more" });
+      if (this.shouldShowLoadMore()) rows.push({ kind: "load-more" });
       return rows;
     }
     if (element.kind === "section") {
@@ -142,6 +142,18 @@ export class ApprovalsTreeProvider implements vscode.TreeDataProvider<TreeNode> 
   private approvalsForStatus(status: SectionStatus): Approval[] {
     return this.approvals.filter((a) => statusOf(a) === status);
   }
+
+  private shouldShowLoadMore(): boolean {
+    return this.hasMore && !!this.loadMoreCommand && this.opts.showLoadMore !== false;
+  }
+}
+
+function approvalLabel(a: Approval, summary: string | null): string {
+  if (a.agent?.agent_name) return a.agent.agent_name;
+  if (summary) return truncate(summary, 80);
+  const action = a.action_type || a.activity_type;
+  if (action) return formatLabel(action);
+  return "Approval";
 }
 
 // Bucket each approval into one of the three section kinds.
@@ -275,7 +287,7 @@ function buildTooltip(a: Approval, summary: string | null): vscode.MarkdownStrin
   md.isTrusted = false;
   md.supportThemeIcons = true;
 
-  const agent = a.agent?.agent_name || a.agent_id || "Unknown Agent";
+  const agent = approvalLabel(a, summary);
   const action = a.action_type || a.activity_type;
 
   md.appendMarkdown(`**${escapeMd(agent)}**\n\n`);

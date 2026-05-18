@@ -26,6 +26,39 @@ const channelLines: string[] = [];
 let configMap: Record<string, unknown> = {};
 let configListeners: ConfigListener[] = [];
 let onDidChangeTextDocumentListener: ChangeListener | undefined;
+let statusBarItems: Array<{ text: string; tooltip: string; command: string; show: ReturnType<typeof vi.fn>; dispose: ReturnType<typeof vi.fn> }> = [];
+let contextCalls: Array<[string, unknown]> = [];
+let infoMessages: string[] = [];
+let errorMessages: string[] = [];
+let apiHasKey = true;
+let apiKeyPrefixValue: string | undefined = 'obx_key_test1234…';
+let createApiContextImpl: () => Promise<{
+  client: {
+    getProfile: () => Promise<any>;
+    decideApproval: ReturnType<typeof vi.fn>;
+    listAgents: ReturnType<typeof vi.fn>;
+    listApiKeys: ReturnType<typeof vi.fn>;
+    listTeams: ReturnType<typeof vi.fn>;
+    listMembers: ReturnType<typeof vi.fn>;
+    getAgent: ReturnType<typeof vi.fn>;
+  };
+  apiBase: string;
+}> = async () => ({
+  client: {
+    getProfile: async () => ({
+      orgId: 'org_test',
+      email: 'tester@example.com',
+      sub: 'tester',
+    }),
+    decideApproval: vi.fn(async () => undefined),
+    listAgents: vi.fn(async () => ({ data: [] })),
+    listApiKeys: vi.fn(async () => ({ data: [] })),
+    listTeams: vi.fn(async () => ({ data: [] })),
+    listMembers: vi.fn(async () => ({ members: [] })),
+    getAgent: vi.fn(async () => ({})),
+  },
+  apiBase: 'https://api.test',
+});
 
 function makeUri(s: string) {
   return { toString: () => s, fsPath: s };
@@ -88,13 +121,17 @@ vi.mock('vscode', () => {
           ];
         },
       },
-      createStatusBarItem: () => ({
-        text: '',
-        tooltip: '',
-        command: '',
-        show: vi.fn(),
-        dispose: vi.fn(),
-      }),
+      createStatusBarItem: () => {
+        const item = {
+          text: '',
+          tooltip: '',
+          command: '',
+          show: vi.fn(),
+          dispose: vi.fn(),
+        };
+        statusBarItems.push(item);
+        return item;
+      },
       createTreeView: () => ({
         badge: undefined,
         dispose: vi.fn(),
@@ -105,12 +142,21 @@ vi.mock('vscode', () => {
         dispose: () => undefined,
       }),
       showWarningMessage: vi.fn(async () => undefined),
-      showErrorMessage: vi.fn(async () => undefined),
-      showInformationMessage: vi.fn(async () => undefined),
+      showErrorMessage: vi.fn(async (msg: string) => {
+        errorMessages.push(msg);
+        return undefined;
+      }),
+      showInformationMessage: vi.fn(async (msg: string) => {
+        infoMessages.push(msg);
+        return undefined;
+      }),
       showQuickPick: vi.fn(async () => undefined),
     },
     commands: {
-      executeCommand: vi.fn(async () => undefined),
+      executeCommand: vi.fn(async (id: string, ...args: unknown[]) => {
+        if (id === 'setContext') contextCalls.push([String(args[0]), args[1]]);
+        return undefined;
+      }),
       registerCommand: (id: string, handler: CmdHandler) => {
         registeredCommands.set(id, handler);
         return { dispose: () => registeredCommands.delete(id) };
@@ -194,26 +240,11 @@ vi.mock('./polling', () => ({
 
 vi.mock('./api', () => ({
   createApi: vi.fn(),
-  createApiContext: vi.fn(async () => ({
-    client: {
-      getProfile: async () => ({
-        orgId: 'org_test',
-        email: 'tester@example.com',
-        sub: 'tester',
-      }),
-      decideApproval: vi.fn(async () => undefined),
-      listAgents: vi.fn(async () => ({ data: [] })),
-      listApiKeys: vi.fn(async () => ({ data: [] })),
-      listTeams: vi.fn(async () => ({ data: [] })),
-      listMembers: vi.fn(async () => ({ members: [] })),
-      getAgent: vi.fn(async () => ({})),
-    },
-    apiBase: 'https://api.test',
-  })),
+  createApiContext: vi.fn(() => createApiContextImpl()),
   // Token store helpers - the recovered extension reads these on boot.
-  apiKeyPrefix: vi.fn(() => 'obx_key_test1234…'),
+  apiKeyPrefix: vi.fn(() => apiKeyPrefixValue),
   clearApiKey: vi.fn(),
-  hasApiKey: vi.fn(() => true),
+  hasApiKey: vi.fn(() => apiHasKey),
   readStore: vi.fn(() => ({ production: { apiKey: 'obx_key_test', updatedAt: '2026-05-06' } })),
   validateApiKey: vi.fn(() => true),
   writeApiKey: vi.fn(),
@@ -338,6 +369,28 @@ beforeEach(() => {
   configMap = {};
   configListeners = [];
   onDidChangeTextDocumentListener = undefined;
+  statusBarItems = [];
+  contextCalls = [];
+  infoMessages = [];
+  errorMessages = [];
+  apiHasKey = true;
+  apiKeyPrefixValue = 'obx_key_test1234…';
+  createApiContextImpl = async () => ({
+    client: {
+      getProfile: async () => ({
+        orgId: 'org_test',
+        email: 'tester@example.com',
+        sub: 'tester',
+      }),
+      decideApproval: vi.fn(async () => undefined),
+      listAgents: vi.fn(async () => ({ data: [] })),
+      listApiKeys: vi.fn(async () => ({ data: [] })),
+      listTeams: vi.fn(async () => ({ data: [] })),
+      listMembers: vi.fn(async () => ({ members: [] })),
+      getAgent: vi.fn(async () => ({})),
+    },
+    apiBase: 'https://api.test',
+  });
   lastFakePolling = undefined;
 });
 
@@ -458,6 +511,120 @@ describe('extension wiring: preWriteGate', () => {
 
     expect(recordSpy).toHaveBeenCalledTimes(1);
     recordSpy.mockRestore();
+  });
+});
+
+describe('extension boot/auth/error states', () => {
+  it('boots into Set API Key state when signed out for the active env', async () => {
+    apiHasKey = false;
+
+    await bootExtension();
+
+    const bar = statusBarItems.at(-1)!;
+    expect(bar.text).toContain('Connect');
+    expect(bar.command).toBe('openbox.setApiKey');
+    expect(contextCalls).toContainEqual(['openbox.needsKey', true]);
+    expect(lastFakePolling).toBeUndefined();
+  });
+
+  it('shows Connect and does not start sessions when client construction rejects', async () => {
+    createApiContextImpl = async () => {
+      throw new Error('No X-API-Key configured');
+    };
+
+    await bootExtension();
+
+    const bar = statusBarItems.at(-1)!;
+    expect(bar.text).toContain('Connect');
+    expect(bar.tooltip).toContain('OpenBox is not connected');
+    expect(errorMessages.at(-1)).toContain('OpenBox is not connected');
+    expect(lastFakePolling).toBeUndefined();
+  });
+
+  it('shows Disconnected and retries boot after transient network profile failure', async () => {
+    vi.useFakeTimers();
+    let attempts = 0;
+    createApiContextImpl = async () => ({
+      client: {
+        getProfile: async () => {
+          attempts += 1;
+          if (attempts === 1) throw new Error('ECONNREFUSED 127.0.0.1:3000');
+          return { orgId: 'org_test', email: 'tester@example.com', sub: 'tester' };
+        },
+        decideApproval: vi.fn(async () => undefined),
+        listAgents: vi.fn(async () => ({ data: [] })),
+        listApiKeys: vi.fn(async () => ({ data: [] })),
+        listTeams: vi.fn(async () => ({ data: [] })),
+        listMembers: vi.fn(async () => ({ members: [] })),
+        getAgent: vi.fn(async () => ({})),
+      },
+      apiBase: 'https://api.test',
+    });
+
+    try {
+      await bootExtension();
+      expect(statusBarItems.at(-1)!.text).toContain('Disconnected');
+      expect(statusBarItems.at(-1)!.tooltip).toContain('reconnect automatically');
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      await Promise.resolve();
+      expect(attempts).toBe(2);
+      expect(statusBarItems.at(-1)!.tooltip).toContain('OpenBox connected as tester@example.com');
+      expect(lastFakePolling).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not fake an active client on credential/auth profile failure', async () => {
+    vi.useFakeTimers();
+    let attempts = 0;
+    createApiContextImpl = async () => ({
+      client: {
+        getProfile: async () => {
+          attempts += 1;
+          throw new Error('401 unauthorized');
+        },
+        decideApproval: vi.fn(async () => undefined),
+        listAgents: vi.fn(async () => ({ data: [] })),
+        listApiKeys: vi.fn(async () => ({ data: [] })),
+        listTeams: vi.fn(async () => ({ data: [] })),
+        listMembers: vi.fn(async () => ({ members: [] })),
+        getAgent: vi.fn(async () => ({})),
+      },
+      apiBase: 'https://api.test',
+    });
+
+    try {
+      await bootExtension();
+      expect(statusBarItems.at(-1)!.text).toBe('$(openbox-logo) Error');
+      expect(String(statusBarItems.at(-1)!.tooltip)).toContain('OpenBox connection could not be verified');
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(attempts).toBe(1);
+      expect(lastFakePolling).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('falls back to first agent organization when profile has no orgId', async () => {
+    createApiContextImpl = async () => ({
+      client: {
+        getProfile: async () => ({ email: 'tester@example.com', sub: 'tester' }),
+        decideApproval: vi.fn(async () => undefined),
+        listAgents: vi.fn(async () => ({ data: [{ organization_id: 'org_from_agent' }] })),
+        listApiKeys: vi.fn(async () => ({ data: [] })),
+        listTeams: vi.fn(async () => ({ data: [] })),
+        listMembers: vi.fn(async () => ({ members: [] })),
+        getAgent: vi.fn(async () => ({})),
+      },
+      apiBase: 'https://api.test',
+    });
+
+    await bootExtension();
+    const boot = (await registeredCommands.get('openbox.__diag.boot')!()) as { orgId?: string } | null;
+    expect(boot?.orgId).toBe('org_from_agent');
+    expect(statusBarItems.at(-1)!.tooltip).toContain('OpenBox connected as tester@example.com');
   });
 });
 

@@ -5,21 +5,22 @@ description: List agents in the active workspace with their current trust score.
 
 # List agents
 
-`agent` subcommands are gated behind `--experimental`. Always
-include the flag in invocations.
+Use the OpenBox MCP tool first:
 
 ```
-openbox --experimental agent list --json
+list_agents
 ```
 
 Render the result as a short table: id (truncated to 8), name,
 status, trust score.
 
-If the user follows up with an id, run:
+If the user follows up with an id, use:
 
 ```
-openbox --experimental agent get <id>
+get_agent
 ```
 
-To narrow by team, pass `--team <teamId>`. Don't mention
-environment names in your output.
+Do not fall back to shell unless the user explicitly asks you to. If
+MCP is unavailable and the user asks for shell fallback, `agent`
+subcommands are gated behind `--experimental`, so include the flag.
+Don't mention environment names in your output.

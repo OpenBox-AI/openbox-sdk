@@ -29,7 +29,17 @@ import {
   type FilterController,
 } from "./filterCommands";
 import { ApprovalsPollingService } from "openbox-sdk/polling";
+import { statusOf } from "openbox-sdk/approvals";
 import type { Approval, Member, Team } from "./types";
+
+const DEFAULT_PAGE_SIZE = 50;
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 250, 500] as const;
+
+function setContext(key: string, value: unknown): void {
+  void vscode.commands
+    .executeCommand("setContext", key, value)
+    .then(undefined, () => undefined);
+}
 
 export interface SessionDeps {
   context: vscode.ExtensionContext;
@@ -74,7 +84,11 @@ export class ViewSession implements vscode.Disposable {
   private readonly treeProvider: ApprovalsTreeProvider;
   private readonly treeView: vscode.TreeView<unknown>;
   private filters: FilterState;
+  private pageSize: number;
   private feed: ApprovalsPollingService;
+  private overlayApprovals: Approval[] = [];
+  private overlaySet = false;
+  private displayVersion = 0;
   // Activity types seen across all polls in this session. Sticky on
   // purpose: filtering down to one tier shouldn't shrink the type
   // picker to that tier's types only. Mirrors mobile's
@@ -91,12 +105,16 @@ export class ViewSession implements vscode.Disposable {
     private readonly deps: SessionDeps,
   ) {
     this.filters = loadFilters(deps.context.globalState, cfg.scope, deps.env);
+    this.pageSize = loadPageSize(deps.context.globalState, cfg.scope, deps.env);
     if (cfg.supportsStatus && this.filters.status === undefined) {
       // History default is "all" (status undefined). Persist nothing
       // unusual; just mirror what the user previously chose.
     }
 
-    this.treeProvider = new ApprovalsTreeProvider({ groupByStatus: cfg.groupByStatus });
+    this.treeProvider = new ApprovalsTreeProvider({
+      groupByStatus: cfg.groupByStatus,
+      showLoadMore: !cfg.groupByStatus,
+    });
     this.treeProvider.setLoadMoreCommand(`${cfg.cmdNs}.loadMore`);
     this.treeView = vscode.window.createTreeView(cfg.viewId, { treeDataProvider: this.treeProvider });
     this.disposables.push(this.treeView, this.treeProvider);
@@ -109,6 +127,7 @@ export class ViewSession implements vscode.Disposable {
     this.feed = new ApprovalsPollingService(deps.client, deps.orgId, {
       status,
       intervalMs: cfg.pollMs,
+      perPage: this.pageSize,
       filters: this.filters,
       // Scope the approvals tree to the host that owns this
       // extension. The Cursor IDE should only surface approvals
@@ -143,14 +162,14 @@ export class ViewSession implements vscode.Disposable {
     // Initial loading=true so the welcome view shows "Loading…"
     // until the first poll lands. applyDisplay flips it false on the
     // first changed event regardless of whether the result is empty.
-    vscode.commands.executeCommand("setContext", `${cfg.ctxPrefix}.loading`, true);
+    setContext(`${cfg.ctxPrefix}.loading`, true);
 
     this.feed.start();
     this.paintBanner();
     this.disposables.push({
       dispose: () => {
         this.feed.stop();
-        vscode.commands.executeCommand("setContext", `${cfg.ctxPrefix}.loading`, false);
+        setContext(`${cfg.ctxPrefix}.loading`, false);
       },
     });
 
@@ -158,16 +177,30 @@ export class ViewSession implements vscode.Disposable {
     // the action methods (search, filter, refresh, loadMore, ...).
   }
 
-  refresh() { void this.feed.refresh(); }
+  async refresh(): Promise<void> {
+    await this.feed.refresh();
+    await this.applyDisplay(this.feed.approvals);
+  }
+
+  setOverlayApprovals(approvals: Approval[]) {
+    this.overlayApprovals = approvals;
+    this.overlaySet = true;
+    void this.applyDisplay(this.feed.approvals);
+  }
 
   /** Live snapshot of the polled approvals. Used by extension.ts's
    *  openDetail handler to look up an approval by id when other
    *  surfaces (preWriteGate's deny modal, slash-command callbacks)
    *  hand it a bare approvalId string. */
-  get approvals(): Approval[] { return this.feed.approvals; }
+  get approvals(): Approval[] {
+    if (this.cfg.scope === "pending" && this.overlaySet) {
+      return this.overlayApprovals;
+    }
+    return mergeApprovals(this.feed.approvals, this.overlayApprovals);
+  }
 
   // Telemetry surfaces for the debug panel.
-  get count(): number { return this.feed.approvals.length; }
+  get count(): number { return this.approvals.length; }
   get lastPollAt(): number | undefined { return this.feed.lastPollAt; }
   get lastErrorAt(): number | undefined { return this.feed.lastErrorAt; }
   get lastErrorMessage(): string | undefined { return this.feed.lastErrorMessage; }
@@ -183,18 +216,33 @@ export class ViewSession implements vscode.Disposable {
   }
 
   private async applyDisplay(approvals: Approval[]) {
+    const version = ++this.displayVersion;
+    const source =
+      this.cfg.scope === "pending" && this.overlaySet
+        ? this.overlayApprovals
+        : mergeApprovals(approvals, this.overlayApprovals);
     if (this.filters.ownerId) {
-      const ids = Array.from(new Set(approvals.map((a) => a.agent_id).filter(Boolean) as string[]));
+      const ids = Array.from(new Set(source.map((a) => a.agent_id).filter(Boolean) as string[]));
       await this.deps.resolveAgentOwners(ids);
+      if (version !== this.displayVersion) return;
     }
-    const display = applyClientFilters(approvals, this.filters, this.deps.agentOwnerLookup);
+    const filtered = applyClientFilters(
+      source,
+      this.filters,
+      this.deps.agentOwnerLookup,
+    );
+    const visibleBase = this.cfg.groupByStatus
+      ? filtered.filter((a) => ["approved", "rejected", "expired"].includes(statusOf(a)))
+      : filtered;
+    if (version !== this.displayVersion) return;
+    const display = visibleBase;
     this.treeProvider.update(display, this.feed.hasMore);
     const count = display.length;
     this.treeView.badge = count > 0 ? { value: count, tooltip: `${count} ${this.cfg.scope}` } : undefined;
-    vscode.commands.executeCommand("setContext", `${this.cfg.ctxPrefix}.hasApprovals`, count > 0);
+    setContext(`${this.cfg.ctxPrefix}.hasApprovals`, count > 0);
     if (this.firstLoadPending) {
       this.firstLoadPending = false;
-      vscode.commands.executeCommand("setContext", `${this.cfg.ctxPrefix}.loading`, false);
+      setContext(`${this.cfg.ctxPrefix}.loading`, false);
     }
     if (this.cfg.scope === "pending") this.deps.onPendingCount?.(count);
   }
@@ -211,7 +259,8 @@ export class ViewSession implements vscode.Disposable {
       },
     });
     this.treeView.message = summary;
-    vscode.commands.executeCommand("setContext", `${this.cfg.ctxPrefix}.hasFilters`, hasActiveFilters(this.filters));
+    this.treeView.description = `${this.pageSize} items`;
+    setContext(`${this.cfg.ctxPrefix}.hasFilters`, hasActiveFilters(this.filters));
   }
 
   private controller: FilterController = {
@@ -268,6 +317,7 @@ export class ViewSession implements vscode.Disposable {
   toggleSort() { void toggleSort(this.controller); }
   clearFilters() { void this.controller.clear(); }
   loadMore() { void this.feed.loadMore(); }
+  setPageSize() { void this.pickPageSize(); }
   setStatus() {
     if (!this.cfg.supportsStatus) return;
     void pickStatus(this.controller);
@@ -285,5 +335,62 @@ export class ViewSession implements vscode.Disposable {
       try { d?.dispose(); } catch { /* ignore */ }
     }
   }
+
+  private async pickPageSize(): Promise<void> {
+    const picked = await vscode.window.showQuickPick(
+      PAGE_SIZE_OPTIONS.map((value) => ({
+        label: `${value} items`,
+        description: value === this.pageSize ? "Current" : undefined,
+        value,
+      })),
+      {
+        placeHolder: "Approval list size",
+      },
+    );
+    if (!picked) return;
+    this.pageSize = picked.value;
+    await savePageSize(
+      this.deps.context.globalState,
+      this.cfg.scope,
+      this.deps.env,
+      picked.value,
+    );
+    this.feed.setPageSize(picked.value);
+    this.paintBanner();
+  }
 }
 
+function mergeApprovals(base: Approval[], overlay: Approval[]): Approval[] {
+  if (overlay.length === 0) return base;
+  const byId = new Map<string, Approval>();
+  for (const approval of base) byId.set(approval.id, approval);
+  for (const approval of overlay) {
+    byId.set(approval.id, { ...byId.get(approval.id), ...approval });
+  }
+  return Array.from(byId.values());
+}
+
+function pageSizeKey(scope: string, env: string): string {
+  return `openbox.${scope}.pageSize.${env}`;
+}
+
+function loadPageSize(state: vscode.Memento, scope: string, env: string): number {
+  const value = state.get<number>(pageSizeKey(scope, env), DEFAULT_PAGE_SIZE);
+  return normalizePageSize(value);
+}
+
+async function savePageSize(
+  state: vscode.Memento,
+  scope: string,
+  env: string,
+  value: number,
+): Promise<void> {
+  await state.update(pageSizeKey(scope, env), normalizePageSize(value));
+}
+
+function normalizePageSize(value: number): number {
+  if (PAGE_SIZE_OPTIONS.includes(value as (typeof PAGE_SIZE_OPTIONS)[number])) {
+    return value;
+  }
+  return DEFAULT_PAGE_SIZE;
+}

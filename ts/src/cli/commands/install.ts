@@ -228,7 +228,7 @@ function installExtension(opts: { code?: boolean; cursor?: boolean }): void {
   info(`Using extension package: ${vsix}`);
   for (const host of hosts) {
     action('Installing into', host);
-    execFileSync(host, ['--install-extension', vsix], { stdio: 'inherit' });
+    execFileSync(host, ['--install-extension', vsix, '--force'], { stdio: 'inherit' });
   }
   success('extension installed');
   info("Run `openbox auth set-api-key` if you haven't, so the extension can authenticate.");
@@ -874,7 +874,20 @@ export function registerInstallCommands(program: Command): void {
         // OpenBox skill, and the hardening profile are user-level
         // installs that do not change with `--scope project`. Skip
         // them unless installing globally.
-        if (scope !== 'global') return;
+        if (scope !== 'global') {
+          info('');
+          const { verifyCursorInstall } = await import('../../runtime/cursor/install.js');
+          const checks = verifyCursorInstall({ scope, cwd });
+          const failed = checks.filter((c) => c.status === 'fail');
+          for (const c of checks) row(c.name, c.status, c.detail);
+          if (failed.length > 0) {
+            error('Cursor install verification failed', {
+              help: 'run `openbox cursor doctor --scope project --json` for details',
+            });
+            bailWith(EXIT.GENERIC);
+          }
+          return;
+        }
         info('');
         installExtension({ cursor: true });
         info('');
@@ -904,6 +917,19 @@ export function registerInstallCommands(program: Command): void {
           } else {
             info('Skipped hardening profile (run `openbox cursor harden` later to apply).');
           }
+        }
+        info('');
+        const { verifyCursorInstall } = await import('../../runtime/cursor/install.js');
+        const checks = verifyCursorInstall({ scope, cwd });
+        const failed = checks.filter((c) => c.status === 'fail');
+        for (const c of checks) {
+          row(c.name, c.status, c.detail);
+        }
+        if (failed.length > 0) {
+          error('Cursor install verification failed', {
+            help: 'run `openbox cursor doctor --json` for details',
+          });
+          bailWith(EXIT.GENERIC);
         }
       },
     );

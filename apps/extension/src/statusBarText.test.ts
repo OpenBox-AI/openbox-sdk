@@ -3,8 +3,7 @@
 // The string shapes here are user-visible: every release of the
 // extension has to keep them stable so the user can scan the bar
 // at a glance and know the current state. These tests pin every
-// branch (env suffix variants, idle-gate annotation, count vs no
-// count, debug vs release, mock vs live).
+// branch (idle-gate annotation, count vs no count, debug vs release).
 
 import { describe, it, expect } from 'vitest';
 import { buildIdleStatusBar, envTagFor } from './statusBarText';
@@ -12,7 +11,6 @@ import { buildIdleStatusBar, envTagFor } from './statusBarText';
 const baseInput = {
   env: 'staging' as const,
   count: 0,
-  mockAuth: false,
   debugBuild: false,
   preWriteGateActive: false,
   tabObserverEnabled: false,
@@ -33,33 +31,21 @@ describe('buildIdleStatusBar - text shape', () => {
     expect(out.text).toBe('$(openbox-logo) 6 Pending');
   });
 
-  it('debug build, no count: icon + env name only', () => {
+  it('debug build, no count: still just the icon', () => {
     const out = buildIdleStatusBar({ ...baseInput, debugBuild: true });
-    expect(out.text).toBe('$(openbox-logo) staging');
+    expect(out.text).toBe('$(openbox-logo)');
   });
 
-  it('debug build with count: env appended after Pending', () => {
+  it('debug build with count: no connection profile suffix', () => {
     const out = buildIdleStatusBar({ ...baseInput, debugBuild: true, count: 3 });
-    expect(out.text).toBe('$(openbox-logo) 3 Pending · staging');
+    expect(out.text).toBe('$(openbox-logo) 3 Pending');
   });
 
-  it('mock auth: MOCK · env regardless of debug flag', () => {
-    const release = buildIdleStatusBar({ ...baseInput, mockAuth: true });
-    const debug = buildIdleStatusBar({ ...baseInput, mockAuth: true, debugBuild: true });
-    expect(release.text).toBe('$(openbox-logo) MOCK · staging');
-    expect(debug.text).toBe('$(openbox-logo) MOCK · staging');
-  });
-
-  it('mock auth + count: MOCK suffix between count and env', () => {
-    const out = buildIdleStatusBar({ ...baseInput, mockAuth: true, count: 6 });
-    expect(out.text).toBe('$(openbox-logo) 6 Pending · MOCK · staging');
-  });
-
-  it('different env values land verbatim (debug build)', () => {
+  it('different env values are not exposed in status text', () => {
     expect(buildIdleStatusBar({ ...baseInput, env: 'local', debugBuild: true }).text)
-      .toBe('$(openbox-logo) local');
+      .toBe('$(openbox-logo)');
     expect(buildIdleStatusBar({ ...baseInput, env: 'production', debugBuild: true }).text)
-      .toBe('$(openbox-logo) production');
+      .toBe('$(openbox-logo)');
   });
 });
 
@@ -104,14 +90,13 @@ describe('buildIdleStatusBar - idle-gate annotation', () => {
     expect(out.text).toMatch(/gates idle \(no agent\)$/);
   });
 
-  it('any gate active + count + mock auth: full composition', () => {
+  it('any gate active + count: full composition without env suffix', () => {
     const out = buildIdleStatusBar({
       ...baseInput,
       preWriteGateActive: true,
-      mockAuth: true,
       count: 6,
     });
-    expect(out.text).toBe('$(openbox-logo) 6 Pending · MOCK · staging · gates idle (no agent)');
+    expect(out.text).toBe('$(openbox-logo) 6 Pending · gates idle (no agent)');
   });
 });
 
@@ -121,8 +106,8 @@ describe('envTagFor - boot/error tag', () => {
     expect(envTagFor('No Token', 'production', false)).toBe('No Token');
   });
 
-  it('debug build: appends env suffix', () => {
-    expect(envTagFor('Set API Key', 'staging', true)).toBe('Set API Key · staging');
-    expect(envTagFor('Error', 'local', true)).toBe('Error · local');
+  it('debug build: still hides env suffix', () => {
+    expect(envTagFor('Set API Key', 'staging', true)).toBe('Set API Key');
+    expect(envTagFor('Error', 'local', true)).toBe('Error');
   });
 });

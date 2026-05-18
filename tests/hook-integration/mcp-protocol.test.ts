@@ -1,6 +1,6 @@
-// MCP server protocol coverage. Spawns `openbox mcp serve` and
-// drives the JSON-RPC handshake over stdio, exactly as Claude Code,
-// Claude Desktop, and Cursor do. Asserts:
+// Host-agnostic MCP server protocol coverage. Spawns `openbox mcp
+// serve` and drives the JSON-RPC handshake over stdio, exactly as
+// Claude Code, Claude Desktop, Cursor, and other MCP hosts do. Asserts:
 //
 //   - the server responds to `initialize` and `tools/list`;
 //   - the OpenBox tool surface is present (check_governance,
@@ -15,9 +15,9 @@
 // server stays alive between calls (one process per test), which
 // mirrors how the LLM host actually uses it.
 //
-// The check_governance round-trip case is skipped unless
-// OPENBOX_E2E_LIVE=1 since it requires a reachable backend; the
-// list / initialize cases run unconditionally.
+// Live round-trip cases run when OPENBOX_E2E_LIVE=1 or this machine has
+// the normal local e2e-agent cache. That keeps CI opt-in, but prevents
+// local Cursor/MCP work from silently skipping the most important path.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -25,8 +25,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-const OPENBOX = process.env.OPENBOX_CLI ?? 'openbox';
-const LIVE = process.env.OPENBOX_E2E_LIVE === '1';
+const OPENBOX = process.env.OPENBOX_CLI ?? 'node';
+const OPENBOX_ARGS = process.env.OPENBOX_CLI_ARGS
+  ? JSON.parse(process.env.OPENBOX_CLI_ARGS) as string[]
+  : [path.resolve(__dirname, '../../dist/cli/index.js')];
 const E2E_AGENT_NAME = 'e2e-agent';
 
 /** Locate the org X-API-Key (`obx_key_*`) the MCP server needs to
@@ -55,7 +57,7 @@ class McpClient {
   private pending = new Map<number | string, (r: JsonRpcResponse) => void>();
 
   constructor(env: Record<string, string>, args: string[] = []) {
-    this.proc = spawn(OPENBOX, [...args, 'mcp', 'serve'], {
+    this.proc = spawn(OPENBOX, [...OPENBOX_ARGS, ...args, 'mcp', 'serve'], {
       env: { ...process.env, ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
     }) as ChildProcessWithoutNullStreams;
@@ -126,8 +128,25 @@ function resolveAgentId(): string | undefined {
   }
 }
 
+function hasCachedRuntimeKey(agentId: string | undefined): boolean {
+  if (process.env.OPENBOX_E2E_RUNTIME_KEY || process.env.OPENBOX_API_KEY) return true;
+  if (!agentId) return false;
+  const keysFile = path.join(os.homedir(), '.openbox', 'agent-keys');
+  if (!existsSync(keysFile)) return false;
+  try {
+    const cache = JSON.parse(readFileSync(keysFile, 'utf-8')) as Record<
+      string,
+      { agentId: string; runtimeKey?: string }
+    >;
+    return Object.values(cache).some((r) => r.agentId === agentId && !!r.runtimeKey);
+  } catch {
+    return false;
+  }
+}
+
 const orgKey = resolveOrgApiKey();
 const SHOULD_RUN = !!orgKey;
+const LIVE = process.env.OPENBOX_E2E_LIVE === '1' || hasCachedRuntimeKey(resolveAgentId());
 
 describe.runIf(SHOULD_RUN)('openbox MCP server protocol', () => {
   let client: McpClient;
@@ -197,9 +216,9 @@ describe.runIf(SHOULD_RUN)('openbox MCP server protocol', () => {
       const r = await client.call('tools/call', {
         name: 'check_governance',
         arguments: {
-          agentId,
-          spanType: 'file_write',
-          activityInput: { file_path: '/tmp/mcp-blocked.txt', content: 'x' },
+          agent_id: agentId,
+          span_type: 'file_write',
+          activity_input: { file_path: '/tmp/mcp-blocked.txt', content: 'x' },
         },
       });
       expect(r.error, r.error?.message).toBeUndefined();

@@ -1,28 +1,44 @@
 ---
 name: openbox-pending
-description: List pending HITL approvals for an agent and offer to decide them inline. (uses experimental commands)
+description: List all pending HITL approvals by default, or one agent's pending approvals when an agent is specified. (uses experimental commands)
 ---
 
 # Pending approvals
 
-`approval` subcommands are gated behind `--experimental`. Always
-include the flag in invocations.
+Default behavior is organization-wide: show all pending approvals the
+current user can read. Only use the agent-specific command when the
+user explicitly provides an agent id/name or asks for one agent.
 
-Ask the user (one short sentence) which agent they want to inspect.
-They may have copied an agent id from the OpenBox sidebar's
-"Pending" view, or they can run `/openbox-list-agents` first.
+## All pending approvals
+
+Use the OpenBox MCP tool first:
+
+```
+list_pending_approvals
+```
+
+Print the rows in a compact table: event_id (truncated), action
+summary, agent, age.
+
+If there are no rows, say exactly: `No pending approvals.`
+
+Do not fall back to shell unless the user explicitly asks you to.
+
+## One agent
+
+If the user supplied an agent id/name or explicitly asks for a
+specific agent, the MCP tool still returns all pending rows. Filter
+the result in chat by that agent. If MCP is unavailable and the user
+explicitly asks for shell fallback, run:
 
 ```
 openbox --experimental approval pending <agentId> --json
 ```
 
-Print the rows in a compact table: event_id (truncated), action
-summary, age.
-
 If the user asks to decide a row, call:
 
 ```
-openbox --experimental approval decide <agentId> <eventId> --action <allow|deny|require_approval>
+openbox --experimental approval decide <agentId> <eventId> <approve|reject>
 ```
 
 Don't bulk-decide unless the user explicitly asks. Don't mention

@@ -21,7 +21,7 @@ export function registerAuthCommands(program: Command) {
 
   auth
     .command('set-api-key')
-    .description('Save an org-level X-API-Key for the active env (mint via dashboard FE)')
+    .description('Save an org-level X-API-Key for the active OpenBox connection')
     .option('-k, --key <key>', 'Pass the key directly instead of prompting')
     .action(async (opts: { key?: string }) => {
       try {
@@ -35,7 +35,7 @@ export function registerAuthCommands(program: Command) {
           const { createInterface } = await import('node:readline/promises');
           const rl = createInterface({ input: process.stdin, output: process.stderr });
           try {
-            key = (await rl.question(`Paste org API key for ${env} (obx_key_...): `)).trim();
+            key = (await rl.question('Paste org API key for the active OpenBox connection (obx_key_...): ')).trim();
           } finally {
             rl.close();
           }
@@ -60,7 +60,7 @@ export function registerAuthCommands(program: Command) {
 
   auth
     .command('clear-api-key')
-    .description('Remove the saved X-API-Key for the current env')
+    .description('Remove the saved X-API-Key for the active OpenBox connection')
     .action(() => {
       try {
         const env = resolveEnv();
@@ -87,7 +87,7 @@ export function registerAuthCommands(program: Command) {
 
   auth
     .command('profile')
-    .description('Fetch /auth/profile for the active env (orgId, sub, permissions)')
+    .description('Fetch /auth/profile for the active OpenBox connection (orgId, sub, permissions)')
     .action(async () => {
       try {
         const profile = await getClient().getProfile();

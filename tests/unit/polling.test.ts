@@ -113,6 +113,30 @@ describe('PollingService - seed gating', () => {
 
     svc.stop();
   });
+
+  it('same approval id re-emits changed when the decision state changes', async () => {
+    const client = makeClient([
+      [row('a')],
+      [{ ...row('a'), status: 'approved', verdict: 0, decided_at: new Date().toISOString() } as Approval],
+    ]);
+    const svc = new PollingService(client as unknown as never, 'org-1', {
+      intervalMs: 100,
+      status: undefined,
+    });
+    const changed: Approval[][] = [];
+    svc.on('changed', (p: Approval[]) => changed.push(p));
+
+    svc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    const countAfterFirstFetch = changed.length;
+
+    await svc.refresh();
+    await Promise.resolve();
+
+    expect(changed.length).toBe(countAfterFirstFetch + 1);
+    expect(changed.at(-1)?.[0]?.status).toBe('approved');
+    svc.stop();
+  });
 });
 
 describe('PollingService - load-more / brand-new suppression', () => {
@@ -152,11 +176,74 @@ describe('PollingService - load-more / brand-new suppression', () => {
     for (let i = 0; i < 10; i++) svc.loadMore();
     expect(svc.atPageLimit).toBe(true);
   });
+
+  it('setPageSize() changes the request size and resets load-more expansion', async () => {
+    const client = makeClient([
+      [row('a')],
+      [row('a'), row('b')],
+      [row('a'), row('b'), row('c')],
+    ]);
+    const svc = new PollingService(client as unknown as never, 'org-1', {
+      intervalMs: 100,
+    });
+
+    svc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(client.getOrgApprovals).toHaveBeenLastCalledWith(
+      'org-1',
+      expect.objectContaining({ perPage: 50 }),
+    );
+
+    svc.loadMore();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(client.getOrgApprovals).toHaveBeenLastCalledWith(
+      'org-1',
+      expect.objectContaining({ perPage: 100 }),
+    );
+
+    svc.setPageSize(250);
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(svc.pageSize).toBe(250);
+    expect(client.getOrgApprovals).toHaveBeenLastCalledWith(
+      'org-1',
+      expect.objectContaining({ perPage: 250 }),
+    );
+    svc.stop();
+  });
 });
 
 describe('PollingService - filter/status reset semantics', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
+
+  it('defaults omitted status to pending, but preserves explicit undefined for all-status history', async () => {
+    const defaultClient = makeClient([[row('a')]]);
+    const defaultSvc = new PollingService(defaultClient as unknown as never, 'org-1', {
+      intervalMs: 100,
+    });
+    defaultSvc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    expect(defaultClient.getOrgApprovals).toHaveBeenCalledWith(
+      'org-1',
+      expect.objectContaining({ status: 'pending' }),
+    );
+    defaultSvc.stop();
+
+    const allStatusClient = makeClient([[row('b')]]);
+    const allStatusSvc = new PollingService(allStatusClient as unknown as never, 'org-1', {
+      intervalMs: 100,
+      status: undefined,
+    });
+    allStatusSvc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    expect(allStatusClient.getOrgApprovals).toHaveBeenCalledWith(
+      'org-1',
+      expect.objectContaining({ status: undefined }),
+    );
+    allStatusSvc.stop();
+  });
 
   it('setStatus() clears seeded so the post-status-change rows are NOT toasted as new', async () => {
     const client = makeClient([
@@ -306,6 +393,48 @@ describe('PollingService - error handling', () => {
     expect(svc.errorCount).toBeGreaterThanOrEqual(1);
     expect(svc.lastErrorMessage).toMatch(/network down/);
 
+    svc.stop();
+  });
+
+  it('malformed success responses are treated as an empty approvals page', async () => {
+    const client = {
+      getOrgApprovals: vi.fn(async () => ({ unexpected: true })),
+    };
+    const svc = new PollingService(client as unknown as never, 'org-1', { intervalMs: 100 });
+    const changed: Approval[][] = [];
+    const errs: Error[] = [];
+    svc.on('changed', (p: Approval[]) => changed.push(p));
+    svc.on('error', (e: Error) => errs.push(e));
+
+    svc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    expect(errs).toHaveLength(0);
+    expect(svc.approvals).toEqual([]);
+    expect(changed.at(-1)).toEqual([]);
+    svc.stop();
+  });
+
+  it('failed refresh keeps the last good approvals visible', async () => {
+    let call = 0;
+    const client = {
+      getOrgApprovals: vi.fn(async () => {
+        call += 1;
+        if (call === 1) return { approvals: { data: [row('survivor')] } };
+        throw new Error('backend 500');
+      }),
+    };
+    const svc = new PollingService(client as unknown as never, 'org-1', { intervalMs: 100 });
+    const errs: Error[] = [];
+    svc.on('error', (e: Error) => errs.push(e));
+
+    svc.start();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(svc.approvals.map((a) => a.id)).toEqual(['survivor']);
+
+    await svc.refresh();
+    expect(errs.at(-1)?.message).toBe('backend 500');
+    expect(svc.approvals.map((a) => a.id)).toEqual(['survivor']);
     svc.stop();
   });
 });

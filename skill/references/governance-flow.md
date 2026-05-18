@@ -129,7 +129,7 @@ Canonical union, what `openbox --experimental verify` accepts as non-inventive:
 | Shell command | `ShellExecution` | runtime/claude-code, runtime/cursor |
 | Shell output | `ShellOutput` | runtime/cursor |
 | HTTP request | `HTTPRequest` | runtime/claude-code |
-| MCP tool call | `MCPToolCall` | runtime/claude-code, runtime/cursor |
+| MCP tool call | `MCPToolCall` | runtime/mcp, runtime/claude-code, runtime/cursor |
 | MCP tool response | `MCPToolResponse` | runtime/cursor |
 | Agent LLM response | `AgentResponse` | runtime/cursor |
 | Agent thinking or reasoning | `AgentThinking` | runtime/cursor |

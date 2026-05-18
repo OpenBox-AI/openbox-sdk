@@ -27,7 +27,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ENVELOPES, type EventName, OBSERVE_EVENTS, PERMISSION_EVENTS } from './fixtures/envelopes';
 
 const SHOULD_RUN =
@@ -46,6 +46,11 @@ function runHook(envelope: Record<string, unknown>) {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     OPENBOX_API_KEY: process.env.OPENBOX_E2E_RUNTIME_KEY!,
+    // Live e2e agents can legitimately return require_approval.
+    // Keep this suite a bounded smoke test: prove the hook emits the
+    // Cursor gate shape after a short poll timeout instead of letting
+    // the child process run until Vitest kills it.
+    HITL_MAX_WAIT: process.env.OPENBOX_E2E_HITL_MAX_WAIT ?? '1',
   };
   delete env.OPENBOX_API_URL;
   delete env.OPENBOX_CORE_URL;
@@ -56,8 +61,33 @@ function runHook(envelope: Record<string, unknown>) {
     input: JSON.stringify(envelope),
     env,
     encoding: 'utf-8',
-    timeout: 30_000,
+    timeout: 10_000,
   });
+}
+
+function cleanupPendingApprovals(): void {
+  if (!SHOULD_RUN) return;
+  const agentId = process.env.OPENBOX_E2E_AGENT_ID!;
+  const list = spawnSync('node', [CLI, '--experimental', 'approval', 'pending', agentId, '--json'], {
+    encoding: 'utf-8',
+    env: process.env,
+    timeout: 10_000,
+  });
+  if (list.status !== 0 || !list.stdout.trim()) return;
+  let rows: Array<{ id?: string }> = [];
+  try {
+    rows = JSON.parse(list.stdout);
+  } catch {
+    return;
+  }
+  for (const row of rows) {
+    if (!row.id) continue;
+    spawnSync('node', [CLI, '--experimental', 'approval', 'decide', agentId, row.id, 'reject', '--json'], {
+      encoding: 'utf-8',
+      env: process.env,
+      timeout: 10_000,
+    });
+  }
 }
 
 function logSize(): number {
@@ -84,6 +114,10 @@ beforeAll(() => {
   }
   mkdirSync(join(homedir(), '.openbox', 'log'), { recursive: true });
   if (!existsSync(LOG)) writeFileSync(LOG, '');
+});
+
+afterAll(() => {
+  cleanupPendingApprovals();
 });
 
 describe.runIf(SHOULD_RUN)('cursor hook handler; live verdict path', () => {
@@ -119,4 +153,3 @@ describe.runIf(SHOULD_RUN)('cursor hook handler; live verdict path', () => {
     });
   }
 });
-

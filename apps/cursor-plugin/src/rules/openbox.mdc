@@ -8,8 +8,9 @@ openbox-governance:
 - This workspace is governed by OpenBox. Every shell execution,
   file write, file delete, and MCP tool call passes through pre-
   action gates (`beforeShellExecution`, `beforeReadFile`,
-  `beforeMCPExecution`, `preToolUse`) and post-action observation
-  before completing.
+  `beforeMCPExecution`, `preToolUse`). Observe-only lifecycle hooks
+  are logged locally for diagnosis; they do not create backend
+  approval rows and should not be described as post-action gates.
 - Treat any action that would touch a credential, run a destructive
   shell command (`rm -rf`, `sudo`, `curl | sh`), or hit a customer-
   facing endpoint as one that may be vetoed or require human

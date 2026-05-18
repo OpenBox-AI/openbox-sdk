@@ -44,6 +44,36 @@ export interface ResolvedApprovalIdentity {
   eventId: string;
 }
 
+type ApprovalLookupRow = {
+  id?: string;
+  event_id?: string;
+  agent_id?: string;
+};
+
+const APPROVAL_LOOKUP_PAGE_SIZE = 100;
+const APPROVAL_LOOKUP_MAX_PAGES = 10;
+
+function extractApprovalRows(payload: unknown): ApprovalLookupRow[] {
+  if (!payload || typeof payload !== 'object') return [];
+  const root = payload as {
+    approvals?: { data?: ApprovalLookupRow[] };
+    data?: { approvals?: { data?: ApprovalLookupRow[] } };
+  };
+  return root.approvals?.data ?? root.data?.approvals?.data ?? [];
+}
+
+function findApprovalRow(
+  rows: ApprovalLookupRow[],
+  governanceEventId: string,
+  storeGeid: string | undefined,
+): ApprovalLookupRow | undefined {
+  return rows.find(
+    (r) =>
+      (r.id && (r.id === governanceEventId || r.id === storeGeid)) ||
+      (r.event_id && (r.event_id === governanceEventId || r.event_id === storeGeid)),
+  );
+}
+
 /**
  * Resolves an `{agentId, eventId}` pair from a partial hint by
  * consulting, in order: the caller's `agentId`, then the
@@ -63,31 +93,28 @@ export async function resolveApprovalIdentity(
   let aid: string | undefined = callerAid ?? storeAid;
   let realGeid: string = hint.governanceEventId;
 
-  // When the agent id is missing or a more authoritative event id
-  // might be available, consult the backend's pending list once.
-  if (!aid || !realGeid) {
+  // Always consult the backend's pending list when we have a lookup
+  // key. UI/socket surfaces can carry the approval row's primary `id`,
+  // but the decide endpoint wants the row's `event_id`. Skipping this
+  // lookup when `agentId` was already known makes the backend decision
+  // path and the local hook socket disagree.
+  if (realGeid) {
     try {
       const profile = (await client.getProfile()) as { orgId?: string };
       const orgId = profile?.orgId;
       if (orgId) {
-        const list = (await client.getOrgApprovals(orgId, {
-          status: 'pending',
-          perPage: 50,
-        })) as {
-          data?: {
-            approvals?: {
-              data?: Array<{ id?: string; event_id?: string; agent_id?: string }>;
-            };
-          };
-        };
-        const rows = list?.data?.approvals?.data ?? [];
         const storeGeid = hint.storeRow?.governance_event_id;
-        const match = rows.find(
-          (r) =>
-            (r.id && (r.id === hint.governanceEventId || r.id === storeGeid)) ||
-            (r.event_id &&
-              (r.event_id === hint.governanceEventId || r.event_id === storeGeid)),
-        );
+        let match: ApprovalLookupRow | undefined;
+        for (let page = 0; page < APPROVAL_LOOKUP_MAX_PAGES && !match; page += 1) {
+          const list = await client.getOrgApprovals(orgId, {
+            status: 'pending',
+            page,
+            perPage: APPROVAL_LOOKUP_PAGE_SIZE,
+          });
+          const rows = extractApprovalRows(list);
+          match = findApprovalRow(rows, hint.governanceEventId, storeGeid);
+          if (rows.length < APPROVAL_LOOKUP_PAGE_SIZE) break;
+        }
         if (match) {
           aid ??= match.agent_id;
           // The decide path takes the row's `event_id`, which
@@ -99,7 +126,7 @@ export async function resolveApprovalIdentity(
         }
       }
     } catch {
-      /* surfaced as a missing-agent-id error below */
+      /* keep the caller/store identity; missing agent id is surfaced below */
     }
   }
 

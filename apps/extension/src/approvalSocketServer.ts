@@ -19,6 +19,7 @@ export class ApprovalSocketServer implements vscode.Disposable {
   constructor(
     private readonly store: ApprovalStore,
     private readonly log?: vscode.OutputChannel,
+    socketPath?: string,
   ) {
     this.server = new SdkApprovalSocketServer(
       {
@@ -27,7 +28,7 @@ export class ApprovalSocketServer implements vscode.Disposable {
           for (const geid of conn.geids) this.store.detachResolver(geid);
         },
       },
-      { log: (line) => this.log?.appendLine(line) },
+      { socketPath, log: (line) => this.log?.appendLine(line) },
     );
   }
 

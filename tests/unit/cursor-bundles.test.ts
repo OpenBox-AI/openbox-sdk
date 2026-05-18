@@ -51,6 +51,25 @@ describe('installCursorCommands', () => {
     }
   });
 
+  it('slash commands route through MCP before shell fallback', () => {
+    const dst = path.join(tmp, 'commands');
+    installCursorCommands({ target: dst });
+    const status = fs.readFileSync(path.join(dst, 'openbox-status.md'), 'utf-8');
+    const doctor = fs.readFileSync(path.join(dst, 'openbox-doctor.md'), 'utf-8');
+    const pending = fs.readFileSync(path.join(dst, 'openbox-pending.md'), 'utf-8');
+    const agents = fs.readFileSync(path.join(dst, 'openbox-list-agents.md'), 'utf-8');
+    const check = fs.readFileSync(path.join(dst, 'openbox-check.md'), 'utf-8');
+
+    expect(status).toMatch(/cursor_status/);
+    expect(doctor).toMatch(/cursor_doctor/);
+    expect(pending).toMatch(/list_pending_approvals/);
+    expect(agents).toMatch(/list_agents/);
+    expect(check).toMatch(/check_governance/);
+    for (const body of [status, doctor, pending, agents, check]) {
+      expect(body).toMatch(/Do(?: not|n't) fall back[\s\S]*shell[\s\S]*explicitly asks/i);
+    }
+  });
+
   it('uninstall removes only the files it shipped', () => {
     const dst = path.join(tmp, 'commands');
     installCursorCommands({ target: dst });
@@ -109,6 +128,7 @@ describe('installCursorAgents', () => {
     // in cursor-agents/openbox-reviewer.md added the flag everywhere.
     expect(body).toMatch(/openbox --experimental behavior list/);
     expect(body).toMatch(/openbox --experimental core evaluate/);
+    expect(body).not.toMatch(/--agent-id/);
   });
 
   it('uninstall removes the agent but spares unrelated *.md', () => {

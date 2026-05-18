@@ -17,7 +17,8 @@
 // Resolution order at runtime (cli/index.ts preAction hook):
 //   1. process.env.<KEY>            ; explicit shell export wins.
 //   2. global config                ; applied BEFORE env resolution
-//                                       (so OPENBOX_ENV can default).
+//                                       (so endpoint URLs and the
+//                                       backcompat OPENBOX_ENV can default).
 //   3. per-env config               ; applied AFTER env resolution.
 //   4. spec defaults (env package)  ; built-in URLs, etc.
 
@@ -41,6 +42,10 @@ export const GLOBAL_ONLY_KEYS: ReadonlySet<string> = new Set([
   // Telemetry tag identifying the calling client (claude-code, cursor,
   // runtime/mcp/<x>). Doesn't vary per env.
   'OPENBOX_CLIENT_VARIANT',
+  // Public connection endpoints. These describe the two OpenBox
+  // services public consumers actually call.
+  'OPENBOX_API_URL',
+  'OPENBOX_CORE_URL',
   // Coarse experimental gate; you toggle it for a session, not per env.
   'OPENBOX_EXPERIMENTAL_LEVEL',
 ]);
@@ -74,7 +79,7 @@ function write(store: Store): void {
   const lines = [
     '# OpenBox CLI config; managed by `openbox config set/get/unset/list`.',
     '# Two scopes: lines without a prefix are global; lines like',
-    '# `staging.OPENBOX_API_URL=...` are per-env (production / staging / local).',
+    '# `<profile>.OPENBOX_API_URL=...` are legacy debug/profile overrides.',
   ];
   for (const k of Object.keys(store).sort()) lines.push(`${k}=${store[k]}`);
   writeFileSync(getPath(), lines.join('\n') + '\n', { mode: 0o600 });

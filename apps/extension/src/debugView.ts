@@ -37,7 +37,6 @@ type Row =
   | { kind: "keyActive" }
   | { kind: "keyCreated" }
   | { kind: "keyLastUsed" }
-  | { kind: "mockAuth" }
   | { kind: "notifications" }
   | { kind: "pending" }
   | { kind: "history" }
@@ -75,7 +74,6 @@ const KEY_META_ORDER: Row["kind"][] = [
 ];
 
 const TAIL_ORDER: Row["kind"][] = [
-  "mockAuth",
   "notifications",
   "pending",
   "history",
@@ -117,10 +115,9 @@ export class DebugControlsProvider implements vscode.TreeDataProvider<Row> {
   }
 
   getTreeItem(node: Row): vscode.TreeItem {
-    const cfg = vscode.workspace.getConfiguration("openbox");
     const snap = this.getSnapshot();
     const env: EnvName = snap.env;
-    const mock = cfg.get<boolean>("mockAuth", false);
+    const cfg = vscode.workspace.getConfiguration("openbox");
     const notif = cfg.get<boolean>("notifyOnNewApprovals", true);
     const apiUrl = resolveExtensionUrls(env).apiUrl || "(unset)";
     const dashboard = dashboardBase(env) || "(unset)";
@@ -172,7 +169,6 @@ export class DebugControlsProvider implements vscode.TreeDataProvider<Row> {
       case "keyActive": return row("Active", ak?.is_active == null ? "-" : ak.is_active ? "yes" : "no", ak?.is_active ? "pass-filled" : "circle-slash");
       case "keyCreated": return row("Key created", ak?.created_at ? timeAgo(Date.parse(ak.created_at)) : "-", "history");
       case "keyLastUsed": return row("Key last used", ak?.last_used_at ? timeAgo(Date.parse(ak.last_used_at)) : "-", "watch");
-      case "mockAuth": return row("Mock Auth", mock ? "on" : "off", mock ? "beaker" : "circle-outline");
       case "notifications": return row("Notifications", notif ? "on" : "off", notif ? "bell" : "bell-slash");
       case "pending": return row("Pending", String(snap.pendingCount), "inbox");
       case "history": return row("History", String(snap.historyCount), "history");

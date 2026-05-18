@@ -99,6 +99,7 @@ export class ApprovalsPollingService extends EventEmitter {
   private suppressNextBatch = false;
   private timer: ReturnType<typeof setInterval> | undefined;
   private _approvals: Approval[] = [];
+  private lastFingerprints = new Map<string, string>();
   private _hasMore = false;
   // Lightweight telemetry. Public so consumers can build a snapshot
   // without the instance reaching back into them.
@@ -114,7 +115,11 @@ export class ApprovalsPollingService extends EventEmitter {
     this.intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
     this.perPage = options.perPage ?? DEFAULT_PER_PAGE;
     this.maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
-    this.status = options.status === undefined ? DEFAULT_STATUS : options.status;
+    // Distinguish "key omitted" (use pending default) from "explicit
+    // undefined" (history pane's all-statuses sentinel). `??` /
+    // ternary-on-undefined collapses both into the default and was
+    // silently turning the history pane into a pending query.
+    this.status = 'status' in options ? options.status : DEFAULT_STATUS;
     if (options.filters) this.filters = options.filters;
     this.sourceFilter = options.sourceFilter;
     this.strictSourceFilter = options.strictSourceFilter ?? false;
@@ -128,6 +133,9 @@ export class ApprovalsPollingService extends EventEmitter {
   }
   get atPageLimit(): boolean {
     return this.loadedPages >= this.maxPages;
+  }
+  get pageSize(): number {
+    return this.perPage;
   }
 
   start(): void {
@@ -160,6 +168,16 @@ export class ApprovalsPollingService extends EventEmitter {
 
   setStatus(status: ApprovalStatus | undefined): void {
     this.status = status;
+    this.loadedPages = 1;
+    this.knownIds.clear();
+    this.seeded = false;
+    void this.poll();
+  }
+
+  setPageSize(perPage: number): void {
+    const normalized = Math.max(1, Math.floor(perPage));
+    if (this.perPage === normalized) return;
+    this.perPage = normalized;
     this.loadedPages = 1;
     this.knownIds.clear();
     this.seeded = false;
@@ -208,14 +226,19 @@ export class ApprovalsPollingService extends EventEmitter {
             return false;
           })
         : allApprovals;
-      const newIds = new Set(approvals.map((a) => a.id));
+      const newFingerprints = new Map(
+        approvals.map((a) => [a.id, approvalFingerprint(a)]),
+      );
 
       const brandNew = approvals.filter((a) => !this.knownIds.has(a.id));
       const changed =
-        this.knownIds.size !== newIds.size ||
-        [...newIds].some((id) => !this.knownIds.has(id));
+        this.lastFingerprints.size !== newFingerprints.size ||
+        [...newFingerprints].some(
+          ([id, fingerprint]) => this.lastFingerprints.get(id) !== fingerprint,
+        );
 
-      this.knownIds = newIds;
+      this.knownIds = new Set(newFingerprints.keys());
+      this.lastFingerprints = newFingerprints;
       this._approvals = approvals;
       // "Has more" = the page came back full. Off-by-one when total is
       // an exact multiple of perPage (last load-more click yields zero
@@ -243,4 +266,17 @@ export class ApprovalsPollingService extends EventEmitter {
       this.emit('error', err);
     }
   }
+}
+
+function approvalFingerprint(a: Approval): string {
+  return JSON.stringify({
+    id: a.id,
+    status: a.status,
+    verdict: a.verdict,
+    decided_at: a.decided_at,
+    approval_expired_at: a.approval_expired_at,
+    reason: a.reason,
+    action_type: a.action_type,
+    activity_type: a.activity_type,
+  });
 }

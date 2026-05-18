@@ -5,16 +5,14 @@ description: Live ping against the OpenBox backend. Different from `/openbox-doc
 
 # OpenBox status
 
-Run the shell command:
+Use the OpenBox MCP tool first:
 
 ```
-openbox health
+cursor_status
 ```
 
-This is a live HTTP ping against whichever OpenBox backend the
-CLI is currently configured to talk to. It returns either
-`"Success"` (the API is reachable) or an error message (network
-down, wrong URL, auth rejected, etc.).
+This is a live backend ping through the installed OpenBox MCP server,
+so it works even when shell execution is governed or blocked.
 
 ## Output
 
@@ -22,6 +20,9 @@ down, wrong URL, auth rejected, etc.).
 - On error: `OpenBox: not reachable - <error>` (one line, surface
   the message verbatim). Then suggest `/openbox-doctor` if the
   user wants the full install diagnostic.
+- If the OpenBox MCP server is unavailable, say `OpenBox: MCP unavailable`
+  and suggest `/openbox-doctor`. Do not fall back to shell unless the
+  user explicitly asks you to.
 
 ## How this differs from /openbox-doctor
 

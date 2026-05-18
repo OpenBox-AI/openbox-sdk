@@ -13,29 +13,32 @@ a shell command, a file write, a network call - and which agent
 to evaluate it against (they can copy an id from the OpenBox
 sidebar or run `/openbox-list-agents`).
 
-Then call:
+Then use the OpenBox MCP tool:
 
 ```
-OPENBOX_API_KEY=<runtime-key-for-that-agent> \
-  openbox --experimental core evaluate \
-    --type <shell|file_write|file_read|http|db|mcp|llm> \
-    [type-specific flags]
+check_governance
 ```
 
-Type-specific flags:
+Map user intent into these MCP arguments:
 
-- `--type shell --command "<cmd>"`
-- `--type file_write --file-path <path> --content "<text>"`
-- `--type file_read --file-path <path>`
-- `--type http --method <GET|POST|...> --url <url>`
-- `--type db --db-system <pg|mysql|...> --db-statement "<sql>"`
-- `--type mcp --tool-name <name> --server <name>`
-- `--type llm --prompt "<text>" --model <name>`
+- `agent_id`: the selected agent id.
+- `span_type`: one of `shell`, `file_write`, `file_read`, `http`,
+  `db`, `mcp`, `llm`.
+- `activity_input`: the action payload.
 
-The runtime key is in `~/.openbox/agent-keys/<agentId>` after
-`openbox api-key rotate <agentId>` (rotate IS stable - no flag
-needed). If the user hasn't rotated yet, point them at that
-command first.
+Payload examples:
+
+- `shell`: `{ "command": "pwd", "cwd": "/tmp" }`
+- `file_write`: `{ "file_path": "/tmp/x", "content": "text" }`
+- `file_read`: `{ "file_path": "/etc/hostname" }`
+- `http`: `{ "method": "POST", "url": "https://example.com" }`
+- `db`: `{ "system": "postgresql", "operation": "SELECT", "statement": "select 1" }`
+- `mcp`: `{ "tool_name": "list_agents", "server": "openbox" }`
+- `llm`: `{ "prompt": "summarize this", "model": "cursor" }`
+
+The MCP server resolves cached runtime keys internally. Never print a
+runtime key, paste it into chat, or include it in the final response.
+Do not fall back to shell unless the user explicitly asks you to.
 
 Report the verdict (`allow` / `require_approval` / `deny` /
 `block`) and the matched rule id. If `require_approval`, mention

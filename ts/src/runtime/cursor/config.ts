@@ -55,6 +55,7 @@ export interface CursorConfig {
    *  local user is the approver. 'remote' (default) keeps the
    *  existing poll-and-wait behavior. */
   approvalMode: 'inline' | 'remote';
+  approvalSocketPath: string | null;
   taskQueue: string;
   sendStartEvent: boolean;
   sendActivityStartEvent: boolean;
@@ -103,6 +104,7 @@ export function loadConfig(): CursorConfig {
     hitlPollInterval: parseInt(get('HITL_POLL_INTERVAL', '5'), 10) || 5,
     hitlMaxWait: parseInt(get('HITL_MAX_WAIT', '300'), 10) || 300,
     approvalMode: (get('APPROVAL_MODE', 'remote').toLowerCase() === 'inline' ? 'inline' : 'remote'),
+    approvalSocketPath: get('OPENBOX_APPROVAL_SOCKET') || null,
     taskQueue: get('TASK_QUEUE', 'cursor-hooks'),
     sendStartEvent: get('SEND_START_EVENT', 'true') !== 'false',
     sendActivityStartEvent: get('SEND_ACTIVITY_START_EVENT', 'true') !== 'false',

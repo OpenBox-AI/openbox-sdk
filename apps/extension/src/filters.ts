@@ -28,6 +28,13 @@ function key(scope: string, env: string): string {
 export function loadFilters(state: vscode.Memento, scope: string, env: string): FilterState {
   const stored = state.get<FilterState>(key(scope, env));
   if (!stored) return { ...EMPTY_FILTERS };
+  const status =
+    scope === "history" &&
+    (stored.status === "approved" ||
+      stored.status === "rejected" ||
+      stored.status === "expired")
+      ? stored.status
+      : undefined;
   return {
     sort: stored.sort === "oldest" ? "oldest" : "newest",
     search: stored.search || undefined,
@@ -35,7 +42,7 @@ export function loadFilters(state: vscode.Memento, scope: string, env: string): 
     activityType: stored.activityType || undefined,
     teamId: stored.teamId || undefined,
     ownerId: stored.ownerId || undefined,
-    status: stored.status || undefined,
+    status,
     dateRange: stored.dateRange || "all",
   };
 }

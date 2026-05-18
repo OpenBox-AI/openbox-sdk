@@ -114,6 +114,22 @@ describe('openbox install cursor; full bundle into a throwaway HOME', () => {
     expect(existsSync(join(HOME, '.cursor', 'skills', 'openbox', 'SKILL.md'))).toBe(true);
   });
 
+  it('cursor doctor verifies the full installed surface as JSON', () => {
+    const r = runCLI(['cursor', 'doctor', '--json', '--surface-only']);
+    expect(r.status, r.err).toBe(0);
+    const payload = JSON.parse(r.out);
+    expect(payload.summary).toEqual({ pass: 6, skip: 1, fail: 0 });
+    expect(payload.checks.map((c: any) => c.name)).toEqual([
+      'hooks',
+      'mcp',
+      'extension',
+      'slash-commands',
+      'rules',
+      'agents',
+      'skill',
+    ]);
+  });
+
   it('uninstall strips every OpenBox surface but leaves the host config files in place', () => {
     const r = runCLI(['uninstall', 'cursor']);
     expect(r.status, r.err).toBe(0);
@@ -133,5 +149,33 @@ describe('openbox install cursor; full bundle into a throwaway HOME', () => {
     expect(readdirSync(join(HOME, '.cursor', 'rules'))).toEqual([]);
     expect(readdirSync(join(HOME, '.cursor', 'agents'))).toEqual([]);
     expect(existsSync(join(HOME, '.cursor', 'skills', 'openbox'))).toBe(false);
+  });
+
+  it('project-scoped install verifies only project hooks and MCP, then uninstalls cleanly', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'openbox-cursor-project-'));
+    try {
+      const install = runCLI(['install', 'cursor', '--scope', 'project', '--cwd', workspace]);
+      expect(install.status, install.err).toBe(0);
+
+      const hooksPath = join(workspace, '.cursor', 'hooks.json');
+      const mcpPath = join(workspace, '.cursor', 'mcp.json');
+      expect(existsSync(hooksPath)).toBe(true);
+      expect(existsSync(mcpPath)).toBe(true);
+      const hooks = JSON.parse(readFileSync(hooksPath, 'utf-8'));
+      expect(Object.keys(hooks.hooks)).toHaveLength(20);
+
+      const doctor = runCLI(['cursor', 'doctor', '--scope', 'project', '--cwd', workspace, '--json', '--surface-only']);
+      expect(doctor.status, doctor.err).toBe(0);
+      const payload = JSON.parse(doctor.out);
+      expect(payload.summary).toEqual({ pass: 2, skip: 1, fail: 0 });
+      expect(payload.checks.map((c: any) => c.name)).toEqual(['hooks', 'mcp', 'user-surfaces']);
+
+      const uninstall = runCLI(['uninstall', 'cursor', '--scope', 'project', '--cwd', workspace]);
+      expect(uninstall.status, uninstall.err).toBe(0);
+      expect(JSON.parse(readFileSync(hooksPath, 'utf-8'))).toEqual({});
+      expect(JSON.parse(readFileSync(mcpPath, 'utf-8')).mcpServers?.openbox).toBeUndefined();
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
   });
 });

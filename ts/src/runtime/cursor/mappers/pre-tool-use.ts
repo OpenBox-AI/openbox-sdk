@@ -55,7 +55,7 @@ export async function handlePreToolUse(
   if (
     filePath &&
     (toolName === 'Read' || toolName === 'Write') &&
-    isInsideAnyRoot(filePath, env.workspace_roots)
+    isInsideAnyRoot(filePath, env.workspace_roots, env.cwd)
   ) {
     return undefined;
   }

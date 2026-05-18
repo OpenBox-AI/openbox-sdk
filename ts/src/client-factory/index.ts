@@ -13,11 +13,17 @@
 // that each lifted Apartment-style copies of the same boot logic.
 
 import { OpenBoxClient } from '../client/index.js';
-import { ENVIRONMENTS, type EnvName } from '../env/index.js';
+import { resolveConnection, type EnvName } from '../env/index.js';
 
 export interface ConsumerClientOptions {
   /** Which env to point at. */
   envName: EnvName;
+  /** Explicit endpoint overrides for endpoint-first/self-hosted consumers. */
+  apiUrl?: string;
+  coreUrl?: string;
+  authUrl?: string;
+  platformUrl?: string;
+  stackUrl?: string;
   /**
    * Returns the X-API-Key for `envName`. May be sync or async. Return
    * undefined / empty string to signal "no key configured"; the
@@ -60,12 +66,20 @@ const DEFAULT_CLIENT_NAME = 'openbox-sdk/client-factory';
 export async function createConsumerClient(
   opts: ConsumerClientOptions,
 ): Promise<ConsumerClientContext> {
-  const apiBase = ENVIRONMENTS[opts.envName].apiUrl;
+  const connection = resolveConnection({
+    envName: opts.envName,
+    apiUrl: opts.apiUrl,
+    coreUrl: opts.coreUrl,
+    authUrl: opts.authUrl,
+    platformUrl: opts.platformUrl,
+    stackUrl: opts.stackUrl,
+  });
+  const apiBase = connection.apiUrl;
   const apiKey = await opts.getApiKey();
   if (!apiKey) {
     throw new Error(
-      `OpenBox: no API key configured for env '${opts.envName}'. ` +
-        `Set one via your consumer's auth flow.`,
+      `OpenBox: no API key configured for the active connection. ` +
+        `Run openbox connect <stack-url> --api-key <key> or use your consumer's auth flow.`,
     );
   }
   const client = new OpenBoxClient({

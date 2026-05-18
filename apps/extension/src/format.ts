@@ -12,12 +12,25 @@ import { hookEventLabel } from "openbox-sdk/governance";
 
 const DASH_RE = /[—–]/g;
 const COLLAPSE_SPACES = / {2,}/g;
+const VISIBLE_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/\bbackend\s+api\b/gi, "OpenBox"],
+  [/\bbackend\b/gi, "OpenBox"],
+  [/\bruntime\s+key\b/gi, "OpenBox key"],
+  [/\borg\s+api\s+key\b/gi, "OpenBox key"],
+  [/\bx-api-key\b/gi, "OpenBox key"],
+  [/\blocal\s+env\b/gi, "workspace connection"],
+  [/\blocal\s+environment\b/gi, "workspace connection"],
+];
 
 /** Strips em and en dashes, collapses runs of spaces, and trims.
  *  Idempotent. */
 export function sanitizeReason(raw: string | undefined | null): string {
   if (!raw) return "";
-  return raw.replace(DASH_RE, " - ").replace(COLLAPSE_SPACES, " ").trim();
+  let clean = raw.replace(DASH_RE, " - ");
+  for (const [pattern, replacement] of VISIBLE_REPLACEMENTS) {
+    clean = clean.replace(pattern, replacement);
+  }
+  return clean.replace(COLLAPSE_SPACES, " ").trim();
 }
 
 /** Sanitizes the input and ensures the message starts with

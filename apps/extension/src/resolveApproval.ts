@@ -14,7 +14,16 @@ import {
   ApprovalIdentityNotFoundError,
 } from "openbox-sdk/approvals";
 import type { ApprovalStore } from "./approvalStore";
+import type { ApprovalState } from "./approvalStore";
 import { showAutoDismissError } from "./notifications";
+
+export interface ResolvedApprovalEvent {
+  governanceEventId: string;
+  agentId: string;
+  eventId: string;
+  status: "approved" | "rejected";
+  entry?: ApprovalState;
+}
 
 export async function resolveApproval(
   store: ApprovalStore,
@@ -22,6 +31,7 @@ export async function resolveApproval(
   geid: string,
   agentId: string | undefined,
   decision: "approve" | "reject",
+  onResolved?: (event: ResolvedApprovalEvent) => void | Promise<void>,
 ): Promise<boolean> {
   if (!client) {
     void showAutoDismissError(
@@ -30,6 +40,7 @@ export async function resolveApproval(
     return false;
   }
   const entry = store.get(geid);
+  const entrySnapshot = entry ? { ...entry } : undefined;
   try {
     const identity = await sdkDecideApproval(
       client,
@@ -45,7 +56,26 @@ export async function resolveApproval(
       },
       decision,
     );
-    store.resolve(geid, decision === "approve" ? "approved" : "rejected");
+    // The backend row is the source of truth. Only after the decide
+    // endpoint succeeds do we notify the local hook socket; the hook
+    // then wakes and confirms the authoritative verdict via Core.
+    const status = decision === "approve" ? "approved" : "rejected";
+    // Resolve the authoritative event id first. Some UI surfaces
+    // receive the backend approval row's primary `id`, while the live
+    // hook socket and decide endpoint key on `event_id` /
+    // governance_event_id. Try both aliases so every entry leaves
+    // Pending and any live hook resolver is notified.
+    store.resolve(identity.eventId, status);
+    if (identity.eventId !== geid) {
+      store.resolve(geid, status);
+    }
+    await onResolved?.({
+      governanceEventId: geid,
+      agentId: identity.agentId,
+      eventId: identity.eventId,
+      status,
+      entry: entrySnapshot,
+    });
     void vscode.window.showInformationMessage(
       decision === "approve" ? "[OpenBox] approved." : "[OpenBox] rejected.",
     );
