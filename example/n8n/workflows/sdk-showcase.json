@@ -38,7 +38,7 @@
         "public": true,
         "mode": "hostedChat",
         "options": {
-          "responseMode": "responseNodes",
+          "responseMode": "lastNode",
           "inputPlaceholder": "Paste a customer issue to triage",
           "title": "OpenBox Support Triage",
           "subtitle": "Governed LLM draft with routing and review metadata"
@@ -815,6 +815,21 @@
         -360
       ],
       "disabled": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const source = $('Build Final Log').item.json;\nconst text = source.channelPayloads?.chat?.text || source.output || source.text || 'Workflow completed. Check Slack and demo.triage_events for details.';\nreturn { json: { text, output: text, response: text } };"
+      },
+      "id": "return-chat-summary",
+      "name": "Return Chat Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7280,
+        520
+      ]
     }
   ],
   "pinData": {},
@@ -1193,10 +1208,27 @@
     },
     "Record HubSpot Result": {
       "main": [
-        []
+        [
+          {
+            "node": "Return Chat Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Record HubSpot Skipped": {
+      "main": [
+        [
+          {
+            "node": "Return Chat Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return Chat Summary": {
       "main": [
         []
       ]
