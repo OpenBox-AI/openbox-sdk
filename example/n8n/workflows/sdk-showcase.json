@@ -486,8 +486,8 @@
           },
           "conditions": [
             {
-              "id": "condition-ok",
-              "leftValue": "={{ !$json._openbox?.blocked && !$json.error }}",
+              "id": "condition-openbox-governed-and-not-blocked",
+              "leftValue": "={{ Boolean($json._openbox?.governed) && !$json._openbox?.blocked && !$json._openbox?.providerError && !$json.error }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -535,8 +535,8 @@
           },
           "conditions": [
             {
-              "id": "condition-openbox-not-blocked",
-              "leftValue": "={{ !$json._openbox?.blocked && !$json.error }}",
+              "id": "condition-openbox-governed-and-not-blocked",
+              "leftValue": "={{ Boolean($json._openbox?.governed) && !$json._openbox?.blocked && !$json._openbox?.providerError && !$json.error }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -569,8 +569,8 @@
           },
           "conditions": [
             {
-              "id": "condition-openbox-not-blocked",
-              "leftValue": "={{ !$json._openbox?.blocked && !$json.error }}",
+              "id": "condition-openbox-governed-and-not-blocked",
+              "leftValue": "={{ Boolean($json._openbox?.governed) && !$json._openbox?.blocked && !$json._openbox?.providerError && !$json.error }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -603,8 +603,8 @@
           },
           "conditions": [
             {
-              "id": "condition-openbox-not-blocked",
-              "leftValue": "={{ !$json._openbox?.blocked && !$json.error }}",
+              "id": "condition-openbox-governed-and-not-blocked",
+              "leftValue": "={{ Boolean($json._openbox?.governed) && !$json._openbox?.blocked && !$json._openbox?.providerError && !$json.error }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",

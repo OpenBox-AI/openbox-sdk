@@ -20,6 +20,15 @@ function loadOpenBoxSdk(): Promise<OpenBoxSdk> {
   return openboxSdkPromise;
 }
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: unknown }).message ?? 'Unknown provider error');
+  }
+  return 'Unknown provider error';
+}
+
 export class OpenboxLlm implements INodeType {
   description: INodeTypeDescription = {
     displayName: 'OpenBox: LLM',
@@ -242,6 +251,28 @@ export class OpenboxLlm implements INodeType {
       };
     };
 
+    const providerErrorResult = (
+      error: unknown,
+      session: { workflowId: string; runId: string },
+      pre?: WorkflowVerdict,
+    ) => {
+      const reason = errorMessage(error);
+      return {
+        text: `Request stopped by OpenBox at ${node.name}: LLM provider failed before a governed draft could be produced. ${reason}`,
+        meta: {
+          governed: true,
+          blocked: true,
+          providerError: true,
+          nodeName: node.name,
+          blockStage: 'provider-error',
+          blockReason: reason,
+          workflowId: session.workflowId,
+          runId: session.runId,
+          pre: pre ? { arm: pre.arm, riskScore: pre.riskScore, reason: pre.reason } : undefined,
+        },
+      };
+    };
+
     const result = await govern(
       { core, preset: presets.n8n, workflowType: 'N8nChatWorkflow', taskQueue: 'n8n' },
       async (session) => {
@@ -255,7 +286,12 @@ export class OpenboxLlm implements INodeType {
           | undefined;
         const promptToUse = redactedInput?.[0]?.chatInput ?? userMessage;
 
-        const text = await callLlm(promptToUse);
+        let text: string;
+        try {
+          text = await callLlm(promptToUse);
+        } catch (error) {
+          return providerErrorResult(error, session, pre);
+        }
 
         const post = await session.nodePostExecute({
           input: [{ chatInput: promptToUse }],
