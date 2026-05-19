@@ -178,8 +178,8 @@
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.4,
       "position": [
-        5600,
-        80
+        6160,
+        320
       ],
       "credentials": {
         "slackApi": {
@@ -220,8 +220,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        5320,
-        560
+        6720,
+        400
       ]
     },
     {
@@ -249,8 +249,8 @@
       "type": "n8n-nodes-base.hubspot",
       "typeVersion": 2.1,
       "position": [
-        5600,
-        560
+        7000,
+        320
       ],
       "credentials": {
         "hubspotAppToken": {
@@ -286,11 +286,12 @@
       "type": "@n8n/n8n-nodes-langchain.chat",
       "typeVersion": 1.3,
       "position": [
-        5600,
-        -160
+        6600,
+        -360
       ],
       "continueOnFail": true,
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "disabled": true
     },
     {
       "parameters": {
@@ -671,14 +672,14 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        5320,
-        80
+        5880,
+        400
       ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "={{ (() => { const base = $('Build Final Log').item.json.finalLog; const payload = { ...base, eventType: 'chat-output', eventStatus: $json.error ? 'failed' : 'queued-before-response', eventDetail: $json.error?.message ?? 'logged before Send Chat Response because n8n pauses webhook executions at the response node', loggedAfter: 'Record Chat Result', loggedAt: new Date().toISOString() }; return \"insert into demo.triage_events(ticket_id, route, severity, review, payload) values ('\" + String(base.ticketId).replace(/'/g, \"''\") + \"', '\" + String(base.route).replace(/'/g, \"''\") + \"', '\" + String(base.severity).replace(/'/g, \"''\") + \"', '\" + String(base.review).replace(/'/g, \"''\") + \"', '\" + JSON.stringify(payload).replace(/'/g, \"''\") + \"'::jsonb) returning event_id, created_at\"; })() }}",
+        "query": "={{ (() => { const base = $('Build Final Log').item.json.finalLog; const payload = { ...base, eventType: 'chat-output', eventStatus: $json.error ? 'failed' : 'recorded-no-chat-wait', eventDetail: $json.error?.message ?? 'chat response node disabled because n8n chat executions remain waiting at the response node; Slack and backend logs are the reliable outputs', loggedAfter: 'Record Chat Result', loggedAt: new Date().toISOString() }; return \"insert into demo.triage_events(ticket_id, route, severity, review, payload) values ('\" + String(base.ticketId).replace(/'/g, \"''\") + \"', '\" + String(base.route).replace(/'/g, \"''\") + \"', '\" + String(base.severity).replace(/'/g, \"''\") + \"', '\" + String(base.review).replace(/'/g, \"''\") + \"', '\" + JSON.stringify(payload).replace(/'/g, \"''\") + \"'::jsonb) returning event_id, created_at\"; })() }}",
         "options": {}
       },
       "id": "record-chat-result",
@@ -686,8 +687,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        5880,
-        -160
+        5600,
+        400
       ],
       "credentials": {
         "postgres": {
@@ -707,8 +708,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        5880,
-        80
+        6440,
+        320
       ],
       "credentials": {
         "postgres": {
@@ -728,8 +729,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        5600,
-        240
+        6160,
+        480
       ],
       "credentials": {
         "postgres": {
@@ -749,8 +750,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        5880,
-        560
+        7280,
+        320
       ],
       "credentials": {
         "postgres": {
@@ -770,8 +771,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        5600,
-        720
+        7000,
+        480
       ],
       "credentials": {
         "postgres": {
@@ -810,9 +811,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        5320,
-        -160
-      ]
+        6320,
+        -360
+      ],
+      "disabled": true
     }
   ],
   "pinData": {},
@@ -1130,13 +1132,7 @@
     },
     "Chat Response Needed?": {
       "main": [
-        [
-          {
-            "node": "Send Chat Response",
-            "type": "main",
-            "index": 0
-          }
-        ],
+        [],
         []
       ]
     },
@@ -1197,24 +1193,12 @@
     },
     "Record HubSpot Result": {
       "main": [
-        [
-          {
-            "node": "Chat Response Needed?",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Record HubSpot Skipped": {
       "main": [
-        [
-          {
-            "node": "Chat Response Needed?",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     }
   },
