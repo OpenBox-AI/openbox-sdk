@@ -100,8 +100,8 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-liquid/lfm-2.5-1.2b-instruct:free}
       OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
-      OPENBOX_API_URL: ${OPENBOX_API_URL:-}
-      OPENBOX_API_KEY: ${OPENBOX_API_KEY:-}
+      OPENBOX_API_URL: ${OPENBOX_API_URL:?set OPENBOX_API_URL in .env.ipsum}
+      OPENBOX_API_KEY: ${OPENBOX_API_KEY:?set OPENBOX_API_KEY in .env.ipsum}
       SLACK_CHANNEL_ID: ${SLACK_CHANNEL_ID:-}
       HUBSPOT_CRM_ENABLED: ${HUBSPOT_CRM_ENABLED:-false}
     volumes:

@@ -196,9 +196,11 @@ export class OpenboxLlm implements INodeType {
       return ((res as any).response ?? JSON.stringify(res)) as string;
     };
 
-    if (!apiKey) {
-      const text = await callLlm(userMessage);
-      return [[{ json: { ...input, output: text, text, _openbox: { governed: false } } }]];
+    if (!apiEndpoint || !apiKey) {
+      throw new NodeOperationError(
+        node,
+        'OPENBOX_API_URL and OPENBOX_API_KEY are required; refusing to call the LLM without OpenBox governance',
+      );
     }
 
     const { OpenBoxCoreClient, govern, presets } = await loadOpenBoxSdk();

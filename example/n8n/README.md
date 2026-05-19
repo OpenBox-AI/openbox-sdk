@@ -137,7 +137,7 @@ Required hosted env/secrets:
 - `OPENROUTER_API_KEY`
 - `OPENROUTER_MODEL`
 - `OPENROUTER_BASE_URL`
-- `OPENBOX_API_URL` and `OPENBOX_API_KEY` if OpenBox governance should be active
+- `OPENBOX_API_URL` and `OPENBOX_API_KEY` for required OpenBox governance
 - `POSTGRES_PASSWORD`
 - `N8N_ENCRYPTION_KEY`
 - `N8N_USER_MANAGEMENT_JWT_SECRET`
