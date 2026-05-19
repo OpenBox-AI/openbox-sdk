@@ -90,7 +90,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "={{ 'select customer_id, name, email, company, city, website, account_tier, risk_note from demo.customers where customer_id = ' + $json.ticket.customerId + ' limit 1' }}",
+        "query": "={{ (() => { const requestedId = Number($json.ticket?.customerId ?? 2); const safeId = Number.isFinite(requestedId) ? requestedId : 2; return `with requested(customer_id) as (values (${safeId})), matched as (select customer_id, name, email, company, city, website, account_tier, risk_note, 'postgres-demo.customers'::text as lookup_source from demo.customers where customer_id = (select customer_id from requested) limit 1) select * from matched union all select (select customer_id from requested), 'Demo Customer'::text, 'demo-customer@example.invalid'::text, 'Unmatched Demo Account'::text, 'Unknown'::text, ''::text, 'starter'::text, 'No matching demo CRM row; fallback context used so the workflow continues.'::text, 'postgres-demo.customers:fallback'::text where not exists (select 1 from matched)`; })() }}",
         "options": {}
       },
       "id": "lookup-customer",
@@ -113,7 +113,7 @@
       "parameters": {
         "mode": "runOnceForEachItem",
         "language": "javaScript",
-        "jsCode": "const ticketInput = $('Prepare Ticket Context').item.json;\nconst row = $json;\nif (!row.customer_id) {\n  throw new Error('Customer not found in demo.customers');\n}\n\nconst customerContext = {\n  id: row.customer_id,\n  name: row.name,\n  email: row.email,\n  company: row.company,\n  city: row.city,\n  website: row.website,\n  accountTier: row.account_tier,\n  riskNote: row.risk_note,\n  lookupSource: 'postgres-demo.customers'\n};\n\nconst contextTripwire = ticketInput.originalChatInput.toLowerCase().includes('contextblock') ? 'Demo context checkpoint tripwire: blockme' : '';\n\nconst governedPrompt = [\n  'Prepare an internal support triage packet for the following customer issue.',\n  '',\n  'Ticket ID: ' + ticketInput.ticket.id,\n  'Customer: ' + customerContext.name + ' (' + customerContext.company + ')',\n  'Account tier: ' + customerContext.accountTier,\n  'Customer lookup source: ' + customerContext.lookupSource,\n  'Customer city: ' + customerContext.city,\n  'Account risk note: ' + customerContext.riskNote,\n  'Original customer message: ' + ticketInput.originalChatInput,\n  'Initial severity: ' + ticketInput.ticket.severity,\n  'Suggested route: ' + ticketInput.ticket.route,\n  'Human review required: ' + (ticketInput.ticket.needsHumanReview ? 'yes' : 'no'),\n  contextTripwire,\n  '',\n  'Return concise sections: Summary, Customer Reply Draft, Internal Next Step, Risks.',\n  'Do not claim the account was changed, refunded, paid, cancelled, or verified unless the provided customer context says so.'\n].join('\\n');\n\nreturn {\n  json: {\n    ...ticketInput,\n    customer: customerContext,\n    chatInput: governedPrompt\n  }\n};"
+        "jsCode": "const ticketInput = $('Prepare Ticket Context').item.json;\nconst row = $json;\nconst customerContext = {\n  id: row.customer_id,\n  name: row.name,\n  email: row.email,\n  company: row.company,\n  city: row.city,\n  website: row.website,\n  accountTier: row.account_tier,\n  riskNote: row.risk_note,\n  lookupSource: row.lookup_source ?? 'postgres-demo.customers'\n};\n\nconst contextTripwire = ticketInput.originalChatInput.toLowerCase().includes('contextblock') ? 'Demo context checkpoint tripwire: blockme' : '';\n\nconst governedPrompt = [\n  'Prepare an internal support triage packet for the following customer issue.',\n  '',\n  'Ticket ID: ' + ticketInput.ticket.id,\n  'Customer: ' + customerContext.name + ' (' + customerContext.company + ')',\n  'Account tier: ' + customerContext.accountTier,\n  'Customer lookup source: ' + customerContext.lookupSource,\n  'Customer city: ' + customerContext.city,\n  'Account risk note: ' + customerContext.riskNote,\n  'Original customer message: ' + ticketInput.originalChatInput,\n  'Initial severity: ' + ticketInput.ticket.severity,\n  'Suggested route: ' + ticketInput.ticket.route,\n  'Human review required: ' + (ticketInput.ticket.needsHumanReview ? 'yes' : 'no'),\n  contextTripwire,\n  '',\n  'Return concise sections: Summary, Customer Reply Draft, Internal Next Step, Risks.',\n  'Do not claim the account was changed, refunded, paid, cancelled, or verified unless the provided customer context says so.'\n].join('\\n');\n\nreturn {\n  json: {\n    ...ticketInput,\n    customer: customerContext,\n    chatInput: governedPrompt\n  }\n};"
       },
       "id": "merge-customer-context",
       "name": "Merge Customer Context",
@@ -165,10 +165,10 @@
         "select": "channel",
         "channelId": {
           "mode": "id",
-          "value": "={{ $json.channelPayloads?.slack?.channelId || $env.SLACK_CHANNEL_ID || \"\" }}"
+          "value": "={{ $('Build Final Log').item.json.channelPayloads?.slack?.channelId || $env.SLACK_CHANNEL_ID || '' }}"
         },
         "messageType": "text",
-        "text": "={{ $json.channelPayloads?.slack?.text || $json.text || $json.output }}",
+        "text": "={{ $('Build Final Log').item.json.channelPayloads?.slack?.text || $('Build Final Log').item.json.finalLog?.packet?.safeReplyDraft || $('Build Final Log').item.json.text || $('Build Final Log').item.json.output }}",
         "otherOptions": {
           "mrkdwn": true
         }
@@ -202,7 +202,7 @@
           "conditions": [
             {
               "id": "condition-enabled",
-              "leftValue": "={{ $json.channelPayloads.hubspot.enabled }}",
+              "leftValue": "={{ Boolean($('Build Final Log').item.json.channelPayloads?.hubspot?.enabled) }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -229,7 +229,7 @@
         "authentication": "appToken",
         "resource": "contact",
         "operation": "upsert",
-        "email": "={{ $json.channelPayloads.hubspot.email }}",
+        "email": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.email }}",
         "additionalFields": {
           "firstName": "={{ $json.channelPayloads.hubspot.firstName }}",
           "lastName": "={{ $json.channelPayloads.hubspot.lastName }}",
@@ -279,7 +279,7 @@
     {
       "parameters": {
         "operation": "send",
-        "message": "={{ $json.text }}"
+        "message": "={{ $('Build Final Log').item.json.channelPayloads?.chat?.text || $('Build Final Log').item.json.finalLog?.packet?.safeReplyDraft || $('Build Final Log').item.json.text || $('Build Final Log').item.json.output }}"
       },
       "id": "send-chat-response",
       "name": "Send Chat Response",
@@ -653,7 +653,7 @@
           "conditions": [
             {
               "id": "slack-channel-present",
-              "leftValue": "={{ Boolean($json.channelPayloads?.slack?.channelId || $env.SLACK_CHANNEL_ID) }}",
+              "leftValue": "={{ Boolean($('Build Final Log').item.json.channelPayloads?.slack?.channelId || $env.SLACK_CHANNEL_ID) }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -678,7 +678,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "={{ (() => { const base = $('Build Final Log').item.json.finalLog; const payload = { ...base, eventType: 'chat-output', eventStatus: $json.error ? 'failed' : 'success', eventDetail: $json.error?.message ?? null, loggedAfter: 'Record Chat Result', loggedAt: new Date().toISOString() }; return \"insert into demo.triage_events(ticket_id, route, severity, review, payload) values ('\" + String(base.ticketId).replace(/'/g, \"''\") + \"', '\" + String(base.route).replace(/'/g, \"''\") + \"', '\" + String(base.severity).replace(/'/g, \"''\") + \"', '\" + String(base.review).replace(/'/g, \"''\") + \"', '\" + JSON.stringify(payload).replace(/'/g, \"''\") + \"'::jsonb) returning event_id, created_at\"; })() }}",
+        "query": "={{ (() => { const base = $('Build Final Log').item.json.finalLog; const payload = { ...base, eventType: 'chat-output', eventStatus: $json.error ? 'failed' : 'queued-before-response', eventDetail: $json.error?.message ?? 'logged before Send Chat Response because n8n pauses webhook executions at the response node', loggedAfter: 'Record Chat Result', loggedAt: new Date().toISOString() }; return \"insert into demo.triage_events(ticket_id, route, severity, review, payload) values ('\" + String(base.ticketId).replace(/'/g, \"''\") + \"', '\" + String(base.route).replace(/'/g, \"''\") + \"', '\" + String(base.severity).replace(/'/g, \"''\") + \"', '\" + String(base.review).replace(/'/g, \"''\") + \"', '\" + JSON.stringify(payload).replace(/'/g, \"''\") + \"'::jsonb) returning event_id, created_at\"; })() }}",
         "options": {}
       },
       "id": "record-chat-result",
@@ -792,7 +792,7 @@
           "conditions": [
             {
               "id": "not-slack-agent",
-              "leftValue": "={{ ($json.inputSource ?? $json.ticket?.source ?? 'n8n-chat') !== 'slack-agent' }}",
+              "leftValue": "={{ (($('Build Final Log').item.json.inputSource ?? $('Build Final Log').item.json.ticket?.source ?? 'n8n-chat') !== 'slack-agent') }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -1058,22 +1058,7 @@
       "main": [
         [
           {
-            "node": "Chat Response Needed?",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Slack Configured?",
-            "type": "main",
-            "index": 0
-          },
-          {
             "node": "Record Planned Path Log",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "HubSpot CRM Configured?",
             "type": "main",
             "index": 0
           }
@@ -1082,13 +1067,7 @@
     },
     "Send Chat Response": {
       "main": [
-        [
-          {
-            "node": "Record Chat Result",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Slack Configured?": {
@@ -1166,6 +1145,72 @@
         [
           {
             "node": "Draft Governance Passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Planned Path Log": {
+      "main": [
+        [
+          {
+            "node": "Record Chat Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Chat Result": {
+      "main": [
+        [
+          {
+            "node": "Slack Configured?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Slack Result": {
+      "main": [
+        [
+          {
+            "node": "HubSpot CRM Configured?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Slack Skipped": {
+      "main": [
+        [
+          {
+            "node": "HubSpot CRM Configured?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record HubSpot Result": {
+      "main": [
+        [
+          {
+            "node": "Chat Response Needed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record HubSpot Skipped": {
+      "main": [
+        [
+          {
+            "node": "Chat Response Needed?",
             "type": "main",
             "index": 0
           }
