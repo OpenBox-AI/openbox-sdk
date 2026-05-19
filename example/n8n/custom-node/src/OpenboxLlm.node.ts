@@ -42,10 +42,10 @@ export class OpenboxLlm implements INodeType {
           { name: 'Ollama', value: 'ollama' },
         ],
         default: '={{ $env["OPENROUTER_API_KEY"] ? "openrouter" : "ollama" }}',
-        description: 'OpenRouter is recommended for hosted demos; Ollama remains available for local-only demos',
+        description: 'Choose the runtime LLM provider. Hosted demos can use an OpenRouter-compatible provider; local demos can use Ollama.',
       },
       {
-        displayName: 'OpenRouter API Key',
+        displayName: 'Provider API Key',
         name: 'openRouterApiKey',
         type: 'string',
         typeOptions: { password: true },
@@ -57,7 +57,7 @@ export class OpenboxLlm implements INodeType {
         },
       },
       {
-        displayName: 'OpenRouter Base URL',
+        displayName: 'Provider Base URL',
         name: 'openRouterBaseUrl',
         type: 'string',
         default: '={{ $env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1" }}',
@@ -145,7 +145,7 @@ export class OpenboxLlm implements INodeType {
         if (!openRouterApiKey) {
           throw new NodeOperationError(
             node,
-            'OPENROUTER_API_KEY is required when LLM Provider is OpenRouter',
+            'A provider API key is required when LLM Provider uses the OpenRouter-compatible chat completions API',
           );
         }
 
@@ -182,7 +182,7 @@ export class OpenboxLlm implements INodeType {
         if (!text) {
           throw new NodeOperationError(
             node,
-            'OpenRouter returned no message content or reasoning text',
+            'LLM provider returned no message content or reasoning text',
           );
         }
         return text as string;
