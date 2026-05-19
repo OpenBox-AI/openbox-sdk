@@ -13,8 +13,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -760,
-        -520
+        -900,
+        -640
       ]
     },
     {
@@ -29,8 +29,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -760,
-        -20
+        -900,
+        -240
       ]
     },
     {
@@ -50,7 +50,7 @@
       "typeVersion": 1.1,
       "position": [
         0,
-        40
+        0
       ],
       "webhookId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
     },
@@ -66,8 +66,8 @@
       "type": "n8n-nodes-openbox-hook.openboxLlm",
       "typeVersion": 1,
       "position": [
-        560,
-        160
+        620,
+        100
       ],
       "continueOnFail": true,
       "alwaysOutputData": true
@@ -83,8 +83,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1120,
-        40
+        1220,
+        0
       ]
     },
     {
@@ -98,8 +98,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1400,
-        40
+        1520,
+        0
       ],
       "continueOnFail": false,
       "credentials": {
@@ -120,8 +120,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
-        40
+        1820,
+        0
       ]
     },
     {
@@ -136,8 +136,8 @@
       "type": "n8n-nodes-openbox-hook.openboxLlm",
       "typeVersion": 1,
       "position": [
-        2800,
-        40
+        3020,
+        0
       ],
       "continueOnFail": true,
       "alwaysOutputData": true
@@ -153,8 +153,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3640,
-        40
+        3920,
+        0
       ]
     },
     {
@@ -178,8 +178,8 @@
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.4,
       "position": [
-        6160,
-        320
+        6620,
+        40
       ],
       "credentials": {
         "slackApi": {
@@ -220,8 +220,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        6720,
-        400
+        7220,
+        140
       ]
     },
     {
@@ -249,8 +249,8 @@
       "type": "n8n-nodes-base.hubspot",
       "typeVersion": 2.1,
       "position": [
-        7000,
-        320
+        7520,
+        40
       ],
       "credentials": {
         "hubspotAppToken": {
@@ -272,26 +272,9 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4760,
-        40
+        5120,
+        0
       ]
-    },
-    {
-      "parameters": {
-        "operation": "send",
-        "message": "={{ $('Build Final Log').item.json.channelPayloads?.chat?.text || $('Build Final Log').item.json.finalLog?.packet?.safeReplyDraft || $('Build Final Log').item.json.text || $('Build Final Log').item.json.output }}"
-      },
-      "id": "send-chat-response",
-      "name": "Send Chat Response",
-      "type": "@n8n/n8n-nodes-langchain.chat",
-      "typeVersion": 1.3,
-      "position": [
-        6600,
-        -360
-      ],
-      "continueOnFail": true,
-      "alwaysOutputData": true,
-      "disabled": true
     },
     {
       "parameters": {
@@ -304,8 +287,8 @@
       "type": "n8n-nodes-openbox-hook.openboxLlm",
       "typeVersion": 1,
       "position": [
-        1960,
-        40
+        2120,
+        0
       ],
       "name": "OpenBox: Context Privacy Check",
       "continueOnFail": true,
@@ -321,8 +304,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2520,
-        40
+        2720,
+        0
       ],
       "name": "Record Context Check"
     },
@@ -336,8 +319,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3360,
-        40
+        3620,
+        0
       ],
       "name": "Record Draft Governance"
     },
@@ -352,8 +335,8 @@
       "type": "n8n-nodes-openbox-hook.openboxLlm",
       "typeVersion": 1,
       "position": [
-        3920,
-        40
+        4220,
+        0
       ],
       "name": "OpenBox: Channel Output Check",
       "continueOnFail": true,
@@ -369,8 +352,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4480,
-        40
+        4820,
+        0
       ],
       "name": "Record Channel Check"
     },
@@ -384,8 +367,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        5320,
-        400
+        5720,
+        140
       ],
       "credentials": {
         "postgres": {
@@ -414,7 +397,7 @@
       "typeVersion": 1,
       "position": [
         0,
-        300
+        220
       ],
       "credentials": {
         "slackApi": {
@@ -471,8 +454,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        280,
-        300
+        300,
+        220
       ],
       "name": "Normalize Slack Agent Input"
     },
@@ -505,8 +488,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        840,
-        160
+        920,
+        100
       ],
       "name": "Prompt Wall Passed?"
     },
@@ -520,8 +503,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4760,
-        320
+        5120,
+        280
       ],
       "name": "Package OpenBox Terminal Output"
     },
@@ -554,8 +537,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2240,
-        40
+        2420,
+        0
       ],
       "name": "Context Check Passed?"
     },
@@ -588,8 +571,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3080,
-        40
+        3320,
+        0
       ],
       "name": "Draft Governance Passed?"
     },
@@ -622,8 +605,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4200,
-        40
+        4520,
+        0
       ],
       "name": "Channel Check Passed?"
     },
@@ -638,8 +621,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5040,
-        180
+        5420,
+        140
       ]
     },
     {
@@ -672,8 +655,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        5880,
-        400
+        6320,
+        140
       ]
     },
     {
@@ -687,8 +670,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        5600,
-        400
+        6020,
+        140
       ],
       "credentials": {
         "postgres": {
@@ -708,8 +691,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        6440,
-        320
+        6920,
+        40
       ],
       "credentials": {
         "postgres": {
@@ -729,8 +712,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        6160,
-        480
+        6620,
+        240
       ],
       "credentials": {
         "postgres": {
@@ -750,8 +733,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        7280,
-        320
+        7820,
+        40
       ],
       "credentials": {
         "postgres": {
@@ -771,8 +754,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        7000,
-        480
+        7520,
+        240
       ],
       "credentials": {
         "postgres": {
@@ -780,41 +763,6 @@
           "name": "Demo Postgres"
         }
       }
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "not-slack-agent",
-              "leftValue": "={{ (($('Build Final Log').item.json.inputSource ?? $('Build Final Log').item.json.ticket?.source ?? 'n8n-chat') !== 'slack-agent') }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "chat-response-needed",
-      "name": "Chat Response Needed?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        6320,
-        -360
-      ],
-      "disabled": true
     },
     {
       "parameters": {
@@ -827,8 +775,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7280,
-        520
+        8120,
+        140
       ]
     }
   ],
@@ -1082,11 +1030,6 @@
         ]
       ]
     },
-    "Send Chat Response": {
-      "main": [
-        []
-      ]
-    },
     "Slack Configured?": {
       "main": [
         [
@@ -1143,12 +1086,6 @@
             "index": 0
           }
         ]
-      ]
-    },
-    "Chat Response Needed?": {
-      "main": [
-        [],
-        []
       ]
     },
     "OpenBox: Governed LLM Draft": {
