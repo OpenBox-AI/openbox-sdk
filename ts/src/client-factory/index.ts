@@ -78,7 +78,7 @@ export async function createConsumerClient(
   const apiKey = await opts.getApiKey();
   if (!apiKey) {
     throw new Error(
-      `OpenBox: no API key configured for the active connection. ` +
+      `OpenBox: no API key configured for ${opts.envName} active connection. ` +
         `Run openbox connect <stack-url> --api-key <key> or use your consumer's auth flow.`,
     );
   }

@@ -31,7 +31,9 @@ type Store = Record<string, string>;
 
 /** Keys that don't make sense to scope per-env; they CONTROL env
  *  selection or apply uniformly across every env (telemetry tag,
- *  user-data root override). Setting any of these via `config set`
+ *  user-data root override). Endpoint URLs are intentionally per-env
+ *  unless the caller explicitly writes them with global scope.
+ *  Setting any of these via `config set`
  *  auto-promotes to global scope regardless of --env. */
 export const GLOBAL_ONLY_KEYS: ReadonlySet<string> = new Set([
   // Selects the active env. Per-env scope would be circular.
@@ -42,10 +44,6 @@ export const GLOBAL_ONLY_KEYS: ReadonlySet<string> = new Set([
   // Telemetry tag identifying the calling client (claude-code, cursor,
   // runtime/mcp/<x>). Doesn't vary per env.
   'OPENBOX_CLIENT_VARIANT',
-  // Public connection endpoints. These describe the two OpenBox
-  // services public consumers actually call.
-  'OPENBOX_API_URL',
-  'OPENBOX_CORE_URL',
   // Coarse experimental gate; you toggle it for a session, not per env.
   'OPENBOX_EXPERIMENTAL_LEVEL',
 ]);

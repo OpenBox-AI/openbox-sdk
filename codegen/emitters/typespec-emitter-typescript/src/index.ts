@@ -10,7 +10,7 @@
 // alongside @typespec/openapi3; same compile pass, separate output
 // dirs.
 
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { Project, IndentationText, NewLineKind, QuoteKind } from 'ts-morph';
 import type {
   EmitContext,
@@ -105,6 +105,20 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   });
 
   await project.save();
+  trimTrailingBlankLines([
+    resolvePath(repoRoot, 'ts', 'src', 'cli', 'generated', 'cli-bindings.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'cli', 'generated', 'cli-maturity.ts'),
+  ]);
+}
+
+function trimTrailingBlankLines(filePaths: string[]): void {
+  for (const filePath of filePaths) {
+    const text = readFileSync(filePath, 'utf8');
+    const trimmed = text.replace(/\n{2,}$/u, '\n');
+    if (trimmed !== text) {
+      writeFileSync(filePath, trimmed);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

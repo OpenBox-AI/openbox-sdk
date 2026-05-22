@@ -151,5 +151,3 @@ export const COMMAND_MATURITY: Record<string, Maturity> = {
   "violation false-positive": "experimental",
   "violation list": "experimental"
 };
-
-

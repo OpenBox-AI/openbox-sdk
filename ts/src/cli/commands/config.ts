@@ -1,7 +1,7 @@
 // `openbox config`; persistent KV store for CLI defaults. Two scopes:
 // global (file lines `<KEY>=<value>`) and per-env (`<env>.<KEY>=<value>`).
 // `--global` selects global; otherwise the active --env (or
-// $OPENBOX_ENV) is the scope. Some keys are inherently global .
+// $OPENBOX_ENV) is the scope. Some keys are inherently global:
 // OPENBOX_ENV, OPENBOX_HOME, OPENBOX_CLIENT_VARIANT,
 // OPENBOX_EXPERIMENTAL_LEVEL; and auto-promote regardless of flags;
 // the response surfaces `scope_promoted: true` so the user knows.

@@ -44,6 +44,8 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   '../exit-codes.js': 'EXIT taxonomy + bailWith; exit-code contract.',
   '../../file-tokens/agent-keys.js':
     'recordAgentKey / recallAgentKey; local 0o600 cache for runtime API keys captured by agent create + api-key rotate (shared between cli and runtime/mcp).',
+  '../../file-tokens/index.js':
+    'saveApiKey; local 0o600 cache for org API keys captured by openbox connect.',
   '../config-store.js':
     'setConfig / getConfig / unsetConfig / listConfig / configStorePath / applyConfigToProcessEnv; persistent per-env CLI config, layered into process.env at startup.',
   '../colors.ts': 'useColor-aware ANSI helpers; color discipline.',

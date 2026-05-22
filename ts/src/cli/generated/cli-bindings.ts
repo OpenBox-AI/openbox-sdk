@@ -13,6 +13,8 @@ export interface Auth {
   profile(): void;
   permissions(): void;
 }
+export interface Connect {
+}
 export interface Config {
   set(key: string, value: string): void;
   get(key: string): void;
@@ -249,6 +251,12 @@ export const CLI_COMMAND_MANIFEST = [
         "flags": []
       }
     ]
+  },
+  {
+    "command": "connect",
+    "description": "Connect this machine to an OpenBox stack URL and explicit service endpoints.",
+    "interfaceName": "Connect",
+    "subcommands": []
   },
   {
     "command": "config",
@@ -2173,59 +2181,3 @@ export const CLI_COMMAND_MANIFEST = [
   }
 ] as const;
 export type CliCommandManifest = typeof CLI_COMMAND_MANIFEST;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
