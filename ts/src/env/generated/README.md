@@ -1,11 +1,11 @@
-# `ts/env/src/generated/`
+# `ts/src/env/generated/`
 
 **AUTO-GENERATED. Do not hand-edit any file in this directory.**
 
 | Source | Reproduces |
 |---|---|
 | `specs/typespec/env/main.tsp` | the `EnvName`, `EnvConfig`, and `EnvLoader` types, plus the `ENV_VAR_BINDINGS`, `validateApiKeyFormat`, `OS_PATH_FIELDS` constants |
-| `codegen/emitters/ts/src/index.ts` | the emit logic that walks the spec and writes this directory |
+| `codegen/emitters/typespec-emitter-typescript/src/index.ts` | the emit logic that walks the spec and writes this directory |
 
 Regenerate everything in this folder with:
 
@@ -15,7 +15,7 @@ npm run specs:compile
 
 ## How hand-written code in this package relates
 
-The files in `ts/env/src/*.ts` (excluding this `generated/` dir):
+The files in `ts/src/env/*.ts` (excluding this `generated/` dir):
 
 - **import** types from `./generated/env-bindings.js`
 - **never** redeclare those types; TypeScript fails compile if you do

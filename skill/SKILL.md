@@ -22,7 +22,6 @@ commands stay out of stable workflows by default.
 - `openbox doctor`
 - `openbox health`
 - `openbox versions`
-- `openbox api-key rotate / recall / revoke`
 
 **Always-resolvable subtrees (tagged `[experimental]` but execute
 without the flag because install scripts run on a fresh shell):**
@@ -37,8 +36,7 @@ without the flag because install scripts run on a fresh shell):**
   `core`, `goal`, `guardrail`, `member`, `observe`, `org`,
   `policy`, `session`, `sso`, `team`, `trust`, `verify`,
   `violation`, `webhook`
-- `api-key list / get / create / delete / update`
-  (the `rotate / recall / revoke` triplet is stable)
+- `api-key`
 
 When you write a CLI example in a code block, **always include
 `--experimental` for the verbs that need it**. Otherwise the user
@@ -48,10 +46,10 @@ When you write a CLI example in a code block, **always include
 # Stable - no flag
 openbox doctor
 openbox auth set-api-key
-openbox api-key rotate <agentId>
 
 # Experimental - flag required
 openbox --experimental agent list
+openbox --experimental api-key rotate <agentId>
 openbox --experimental approval pending <agentId>
 openbox --experimental core evaluate --type shell --command "ls"
 openbox --experimental behavior create <agent> --verdict 2 ...
@@ -291,10 +289,10 @@ ambiguous.
   obx_live_... or obx_test_...`.
 - Runtime keys auto-persist on `agent create` and `api-key rotate`
   to `~/.openbox/agent-keys` at mode `0o600`. Recover with
-  `openbox api-key recall <agentId>`, which is non-destructive and
+  `openbox --experimental api-key recall <agentId>`, which is non-destructive and
   does not rotate. If `recall` returns "no cached runtime key", the
   cache is empty from a fresh install or new shell; fall back to
-  `openbox api-key rotate`, which is destructive and invalidates the
+  `openbox --experimental api-key rotate`, which is destructive and invalidates the
   running key.
 - Persistent CLI config removes the `export OPENBOX_*=...`
   boilerplate. `openbox --experimental config set <KEY> <VALUE>` writes per-env, and
@@ -351,7 +349,7 @@ If the CLI accepts your input, the backend will. No silent drift.
    required. Capture the returned runtime key, formatted `obx_live_*`
    or `obx_test_*`. The `token` field in the same response is the
    internal attestation token, not the API key. If the create
-   response was lost, run `openbox api-key rotate <agent>` for a
+   response was lost, run `openbox --experimental api-key rotate <agent>` for a
    fresh key. The old key stops working immediately.
 2. Attach governance based on the path A or path B answers:
    - Guardrails for PII, content safety, or custom regex:
@@ -391,10 +389,10 @@ beyond a runtime key.
    history via `openbox --experimental approval history <agentId> --json`. Do not
    attach a fresh policy to a fresh agent unless you have confirmed
    the user has `create:agent_policy` or `create:agent_behavior_rule`.
-2. Recover the runtime key with `openbox api-key recall <agentId>`.
-   If empty, run `openbox api-key rotate <agentId> -y`. Rotation is
+2. Recover the runtime key with `openbox --experimental api-key recall <agentId>`.
+   If empty, run `openbox --experimental api-key rotate <agentId> -y`. Rotation is
    destructive; confirm first.
-3. `export OPENBOX_API_KEY=$(openbox api-key recall <agentId> --json | jq -r .runtimeKey)`.
+3. `export OPENBOX_API_KEY=$(openbox --experimental api-key recall <agentId> --json | jq -r .runtimeKey)`.
 4. Match the policy trigger by `activity_type`. Read prior approval
    history to see what `activity_type` rows the policy fires on.
    `references/rego-reference.md` lists the seven `--type` shorthands:
@@ -574,7 +572,7 @@ npm install -g openbox-sdk@github:OpenBox-AI/openbox-sdk
 openbox claude-code install   # writes ~/.claude/settings.json hooks
 openbox cursor install        # writes ~/.cursor/hooks.json
 openbox mcp serve             # MCP stdio server
-openbox skill install         # copies SKILL.md and references to ~/.claude/skills/openbox/
+openbox install skill         # copies SKILL.md and references to ~/.claude/skills/openbox/ and ~/.cursor/skills/openbox/
 
 # Confine the install to a single project instead of the user account:
 openbox claude-code install --scope project

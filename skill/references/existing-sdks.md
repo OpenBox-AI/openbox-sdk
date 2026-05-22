@@ -92,4 +92,4 @@ points it at the matching hook entry or runtime.
 | Claude Code | `openbox claude-code install` | `openbox claude-code hook`, per-event |
 | Cursor IDE | `openbox cursor install` | `openbox cursor hook`, per-event |
 | MCP-compatible host such as Claude Desktop | configure the host's `mcpServers` block | `openbox mcp serve`, long-running JSON-RPC |
-| Skills | `openbox skill install`, with `--cursor` for Cursor | n/a. Copies `SKILL.md` and references into `~/.claude/skills/openbox/` |
+| Skills | `openbox install skill` | n/a. Copies `SKILL.md` and references into `~/.claude/skills/openbox/` and `~/.cursor/skills/openbox/` |

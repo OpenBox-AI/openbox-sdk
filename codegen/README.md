@@ -3,8 +3,7 @@
 Spec-driven code-generation pipeline. TypeSpec sources at
 `specs/typespec/` are the contract. Emitters under
 `codegen/emitters/` turn them into language-native source under
-`ts/src/**/generated/`, `specs/generated/openapi3/`, and
-`specs/generated/json-schema/`.
+`ts/src/**/generated/` and `specs/generated/openapi3/`.
 
 ## What goes where
 

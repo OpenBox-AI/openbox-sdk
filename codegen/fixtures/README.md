@@ -21,7 +21,8 @@ Snapshots live in `codegen/snapshots/` for the emitter side. The
 runtime-behavior side is compared against the `expected*` fields in
 each fixture case.
 
-- TS: `vitest` test under `tests/conformance/`.
+- TS: `tests/contract/wire-conformance.test.ts` covers wire behavior;
+  `tests/unit/fixtures.test.ts` covers fixture shape and loading.
 - Rust: `cargo test --package openbox-sdk --test conformance`,
   planned.
 - Python and Go runners are planned alongside their respective

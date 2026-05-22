@@ -12,12 +12,11 @@ The skill ships inside `openbox-sdk`. Install the SDK once with
 `npm install -g openbox-sdk@github:OpenBox-AI/openbox-sdk`, then:
 
 ```bash
-openbox skill install            # writes to ~/.claude/skills/openbox/
-openbox skill install --cursor   # writes to ~/.cursor/skills/openbox/
+openbox install skill            # writes to ~/.claude/skills/openbox/ and ~/.cursor/skills/openbox/
 ```
 
-Re-run `openbox skill install` to update. The command overwrites the
-target directory with the content shipped in the installed
+Re-run `openbox install skill` to update. The command overwrites the
+target directories with the content shipped in the installed
 `openbox-sdk` version.
 
 To uninstall, run `rm -rf ~/.claude/skills/openbox`. For Cursor, the

@@ -15,12 +15,12 @@ Many subcommands are gated behind `--experimental`, also settable as
 `OPENBOX_EXPERIMENTAL_LEVEL=experimental`. They do not appear in the
 top-level `--help` until the flag is set.
 
-Stable: `auth`, `config`, `agent`, `api-key`, `guardrail`, `policy`,
-`behavior`, `session`, `trust`, `goal`, `approval`, `observe`,
-`violation`, `org`, `team`, `audit`, `health`, `doctor`, `versions`.
+Stable: `auth`, `connect`, `health`, `doctor`, `versions`.
 
-Experimental: `aivss`, `member`, `core`, `mcp`, `skill`, `claude-code`,
-`cursor`, `verify`, `webhook`, `sso`.
+Experimental: `config`, `agent`, `api-key`, `guardrail`, `policy`,
+`behavior`, `session`, `trust`, `aivss`, `goal`, `approval`,
+`observe`, `violation`, `org`, `team`, `member`, `audit`, `core`,
+`mcp`, `skill`, `claude-code`, `cursor`, `verify`, `webhook`, `sso`.
 
 ## Exit codes
 
@@ -44,8 +44,9 @@ an actionable `help:` hint.
 ## Table of contents
 
 - [auth](#auth): X-API-Key store
+- [config](#config): persistent CLI config
 - [agent](#agent): agent CRUD
-- [api-key](#api-key): runtime key rotation
+- [api-key](#api-key): org keys and runtime key rotation
 - [guardrail](#guardrail): guardrail management
 - [policy](#policy): OPA policy management
 - [behavior](#behavior): behavior rules
@@ -60,6 +61,8 @@ an actionable `help:` hint.
 - [team](#team): teams
 - [member](#member): members
 - [audit](#audit): audit logs
+- [webhook](#webhook): webhook management
+- [sso](#sso): SSO configuration
 - [health](#health): health check
 - [doctor](#doctor): local install diagnostic
 - [verify](#verify): static lint
@@ -99,6 +102,40 @@ is one line per env with the masked key prefix or `none`.
 
 ---
 
+## config
+
+### `openbox --experimental config set <key> <value>`
+Persist a config value. By default values are scoped to the active
+env; pass `--global` for global keys such as `OPENBOX_CLIENT_VARIANT`.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-g, --global` | `false` | Store globally across all envs |
+
+### `openbox --experimental config get <key>`
+Look up a persisted value. Exits 5 if the key is absent.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-g, --global` | `false` | Read from global scope |
+
+### `openbox --experimental config unset <key>`
+Remove a persisted value. No-op if unset.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-g, --global` | `false` | Operate on global scope |
+
+### `openbox --experimental config list`
+Print persisted values.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-g, --global` | `false` | List global-scope values only |
+| `--all` | `false` | List both env and global sections |
+
+---
+
 ## agent
 
 ### `openbox --experimental agent list`
@@ -123,7 +160,7 @@ is one line per env with the masked key prefix or `none`.
 | `--icon <icon>` | `robot` | Icon |
 | `--body <json>` | - | Full JSON body (overrides other options) |
 
-> **The response includes the runtime API key. Capture it now.** This is the only time the key is surfaced. `agent list` and `agent get` do not return it; the `token` field there is unrelated. To recover a lost key, run `openbox api-key rotate <agentId>`, which invalidates the previous one.
+> **The response includes the runtime API key. Capture it now.** This is the only time the key is surfaced. `agent list` and `agent get` do not return it; the `token` field there is unrelated. To recover a lost key, run `openbox --experimental api-key rotate <agentId>`, which invalidates the previous one.
 
 ### `openbox --experimental agent get <agentId>`
 Get agent details by ID.
@@ -141,6 +178,12 @@ Get agent details by ID.
 
 ### `openbox --experimental agent delete <agentId>`
 Delete an agent by ID.
+
+### `openbox --experimental agent describe <agentId>`
+
+Recipe: full governance state for an agent in one call. Returns agent
+metadata, every guardrail, current behavior rules, current policies,
+and the goal-alignment trend.
 
 ### `openbox --experimental agent audit <agentId>`
 
@@ -171,7 +214,35 @@ lint, completing the static, single, aggregate observability triad.
 
 ## api-key
 
-### `openbox api-key rotate <agentId>`
+### `openbox --experimental api-key list`
+List org-level API keys.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-p, --page <n>` | `0` | Page number |
+| `-l, --limit <n>` | `10` | Items per page |
+
+### `openbox --experimental api-key get <id>`
+Get an org-level API key by id.
+
+### `openbox --experimental api-key create`
+Create an org-level API key.
+
+| Option | Description |
+|--------|-------------|
+| `-d, --body <json>` | CreateApiKeyDto body |
+
+### `openbox --experimental api-key update <id>`
+Update an org-level API key.
+
+| Option | Description |
+|--------|-------------|
+| `-d, --body <json>` | UpdateApiKeyDto body |
+
+### `openbox --experimental api-key delete <id>`
+Delete an org-level API key.
+
+### `openbox --experimental api-key rotate <agentId>`
 
 Rotate the runtime API key for an agent. Returns a new `obx_live_*` or
 `obx_test_*` key.
@@ -181,8 +252,12 @@ and `agent list` do not return it. Rotating invalidates the previous
 key immediately, so any deployed client holding the old one breaks
 until updated.
 
-### `openbox api-key revoke <agentId>`
+### `openbox --experimental api-key revoke <agentId>`
 Revoke the runtime API key for an agent.
+
+### `openbox --experimental api-key recall <agentId>`
+Print the cached runtime key for an agent from the local agent-key
+store. The cache is populated by `agent create` and `api-key rotate`.
 
 ---
 
@@ -275,6 +350,10 @@ Reorder guardrail to the given position.
 | `--type <type>` | Guardrail type |
 | `--body <json>` | Full test payload |
 
+### `openbox --experimental guardrail overview <agentId>`
+Recipe: guardrail picture for an agent in one call. Returns every
+guardrail, per-agent metrics, and recent violation logs.
+
 ---
 
 ## policy
@@ -348,6 +427,10 @@ to `false` when missing, which silently deactivates the policy. Pass
 |--------|----------|-------------|
 | `--rego <code>` | Yes | Rego policy code |
 | `--input <json>` | Yes | Input JSON |
+
+### `openbox --experimental policy overview <agentId>`
+Recipe: policy picture for an agent in one call. Returns full version
+history, the active policy set, and per-agent policy metrics.
 
 ---
 
@@ -428,6 +511,10 @@ Restore a deleted behavior rule.
 |--------|---------|-------------|
 | `-p, --page <n>` | `0` | Page number |
 | `-l, --limit <n>` | `10` | Items per page |
+
+### `openbox --experimental behavior overview <agentId>`
+Recipe: behavior-rule picture for an agent in one call. Returns full
+rule history, the active rule set, metrics, and recent violations.
 
 ---
 
@@ -513,6 +600,10 @@ Same options as `trust events`.
 ### `openbox --experimental trust recovery <agentId>`
 Get trust recovery status. No options.
 
+### `openbox --experimental trust overview <agentId>`
+Recipe: trust state for an agent in one call. Returns histories,
+recent events, tier changes, and recovery status.
+
 ---
 
 ## aivss
@@ -538,6 +629,10 @@ Recalculate AIVSS score. No options.
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--body <json>` | Yes | AIVSS config JSON |
+
+### `openbox --experimental aivss describe <agentId>`
+Recipe: AIVSS picture for an agent in one call. Returns agent metadata
+with current AIVSS config plus assessment history.
 
 ---
 
@@ -569,6 +664,10 @@ update is always rejected.
 |--------|---------|-------------|
 | `-l, --limit <n>` | `10` | Number of drifts |
 
+### `openbox --experimental goal overview <agentId>`
+Recipe: goal-alignment picture for an agent in one call. Returns the
+trend plus recent drift events.
+
 ---
 
 ## approval
@@ -595,6 +694,10 @@ Same options as `approval pending`.
 
 ### `openbox --experimental approval decide <agentId> <eventId> <action>`
 Action must be `approve` or `reject`.
+
+### `openbox --experimental approval describe <agentId>`
+Recipe: approval state for an agent in one call. Returns metrics,
+pending approvals, and recent approval history.
 
 ---
 
@@ -629,6 +732,10 @@ Same options as `observe logs`.
 
 ### `openbox --experimental observe metrics`
 Get global agent metrics. No arguments or options.
+
+### `openbox --experimental observe overview <agentId>`
+Recipe: observability snapshot for an agent in one call. Returns
+observability data, issues, insights, drift logs, and activity logs.
 
 ---
 
@@ -702,6 +809,49 @@ Mark a violation as false positive.
 | `-p, --page <n>` | `0` | Page number |
 | `-l, --limit <n>` | `10` | Items per page |
 
+### `openbox --experimental org governance-feed <orgId>`
+Latest governance events for the dashboard activity feed.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-l, --limit <n>` | `20` | Number of events |
+
+### `openbox --experimental org trust-drift-lanes <orgId>`
+Per-agent 30-day trust-score trajectory.
+
+| Option | Description |
+|--------|-------------|
+| `-l, --limit <n>` | Number of agent lanes to return |
+
+### `openbox --experimental org governance-slo <orgId>`
+Allowed, blocked, and halted rates versus targets.
+
+| Option | Description |
+|--------|-------------|
+| `--window <window>` | Reporting window |
+
+### `openbox --experimental org violation-heatcal <orgId>`
+7x24 day-of-week by hour-of-day violation density matrix.
+
+| Option | Description |
+|--------|-------------|
+| `--window <window>` | Reporting window |
+
+### `openbox --experimental org register`
+Provision a new organization through the public, throttled endpoint.
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--body <json>` | Yes | Full JSON body |
+
+### `openbox --experimental org demo-status`
+Poll demo-agent setup status.
+
+### `openbox --experimental org overview <orgId>`
+Recipe: org-wide overview in one call. Returns org info, settings,
+dashboard counts, approval metrics, approval SLA, governance feed,
+tier trends, trust-drift lanes, governance SLO, and violation heatmap.
+
 ---
 
 ## team
@@ -753,6 +903,10 @@ provided.
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--user-ids <ids...>` | Yes | User IDs to remove |
+
+### `openbox --experimental team describe <orgId> <teamId>`
+Recipe: full team view in one call. Returns team metadata and member
+roster.
 
 ---
 
@@ -851,6 +1005,104 @@ provided.
 
 ### `openbox --experimental audit download <exportId>`
 ### `openbox --experimental audit delete-export <exportId>`
+
+### `openbox --experimental audit overview`
+Recipe: audit-log surface in one call. Returns recent log entries and
+recent export jobs.
+
+---
+
+## webhook
+
+### `openbox --experimental webhook list`
+List webhooks for the current org.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-p, --page <n>` | `0` | Page number |
+| `-l, --limit <n>` | `10` | Items per page |
+
+### `openbox --experimental webhook create`
+Create a webhook.
+
+| Option | Description |
+|--------|-------------|
+| `--body <json>` | Full JSON body |
+
+### `openbox --experimental webhook get <id>`
+Get a webhook by id.
+
+### `openbox --experimental webhook update <id>`
+Update a webhook.
+
+| Option | Description |
+|--------|-------------|
+| `--body <json>` | Full JSON body |
+
+### `openbox --experimental webhook delete <id>`
+Delete a webhook.
+
+### `openbox --experimental webhook test <id>`
+Send a test event to the webhook.
+
+### `openbox --experimental webhook regenerate-secret <id>`
+Rotate the signing secret. The new secret is displayed once.
+
+### `openbox --experimental webhook deliveries <id>`
+List recent delivery attempts.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-p, --page <n>` | `0` | Page number |
+| `-l, --limit <n>` | `10` | Items per page |
+
+### `openbox --experimental webhook describe <id>`
+Recipe: full webhook view in one call. Returns webhook metadata and
+recent delivery attempts.
+
+---
+
+## sso
+
+### `openbox --experimental sso status`
+Get SSO status: enabled, method, and enforcement state.
+
+### `openbox --experimental sso config`
+Get the active SSO configuration.
+
+### `openbox --experimental sso get-metadata`
+Get SAML SP metadata.
+
+### `openbox --experimental sso configure-oidc`
+Configure OIDC SSO.
+
+| Option | Description |
+|--------|-------------|
+| `--body <json>` | Full JSON body |
+
+### `openbox --experimental sso configure-saml`
+Configure SAML SSO.
+
+| Option | Description |
+|--------|-------------|
+| `--body <json>` | Full JSON body |
+
+### `openbox --experimental sso enforce`
+Toggle SSO enforcement.
+
+| Option | Description |
+|--------|-------------|
+| `--body <json>` | Full JSON body |
+
+### `openbox --experimental sso delete`
+Delete the current SSO configuration.
+
+### `openbox --experimental sso verify`
+Verify the current SSO configuration end-to-end.
+
+### `openbox --experimental sso overview`
+Recipe: full SSO surface in one call. Returns status, active config,
+and SP metadata.
 
 ---
 
@@ -985,6 +1237,10 @@ below apply only to the matching `--type` value.
 | `--run-id <id>` | Yes | Run ID |
 | `--activity-id <id>` | Yes | Activity ID |
 
+### `openbox --experimental core overview`
+Recipe: core diagnostic in one call. Runs the core health probe and
+runtime-key validation.
+
 ---
 
 ## Host integration commands
@@ -992,6 +1248,11 @@ below apply only to the matching `--type` value.
 Each LLM host has its own top-level subcommand: an install command
 plus a per-event hook entry. Supported hosts are Claude Code, Cursor,
 and MCP-compatible hosts.
+
+### `openbox claude-code hook`
+
+Per-event hook entrypoint invoked by Claude Code. Reads hook JSON from
+stdin and writes the host-specific verdict JSON to stdout.
 
 ### `openbox claude-code install [--scope] [--cwd] [--no-mcp]`
 
@@ -1010,6 +1271,16 @@ Scopes:
 
 `--no-mcp` skips the MCP server entry. The matching uninstall is
 `openbox claude-code uninstall` with the same flags.
+
+### `openbox claude-code uninstall [--scope] [--cwd] [--no-mcp]`
+
+Removes the Claude Code hook block and, unless `--no-mcp` is set, the
+matching MCP entry.
+
+### `openbox cursor hook`
+
+Per-event hook entrypoint invoked by Cursor. Reads hook JSON from
+stdin and writes the host-specific verdict JSON to stdout.
 
 ### `openbox cursor install [--scope] [--cwd] [--no-mcp] [--matcher pair]`
 
@@ -1030,6 +1301,37 @@ the matcher before invoking the hook command, cutting process
 spawns dramatically. The matching uninstall is
 `openbox cursor uninstall` with the same flags.
 
+### `openbox cursor uninstall [--scope] [--cwd] [--no-mcp]`
+
+Removes the Cursor hook block and, unless `--no-mcp` is set, the
+matching MCP entry.
+
+### `openbox cursor doctor`
+
+Verifies the installed Cursor surface and hook runtime readiness.
+
+### `openbox cursor harden`
+
+Applies the OpenBox enterprise profile to Cursor settings: privacy
+mode on, cloud features off, telemetry off. Idempotent.
+
+### `openbox cursor unharden`
+
+Removes the OpenBox enterprise profile from Cursor settings.
+
+### `openbox cursor sync-rules`
+
+Renders an agent's live guardrails and policies into `.cursor/rules/`
+so Cursor self-restricts before a hook fires. Reruns are idempotent
+and prune stale OpenBox rule files.
+
+| Option | Description |
+|--------|-------------|
+| `--agent <id>` | Agent ID to project rules from |
+| `--workspace <path>` | Workspace root |
+| `--dry-run` | Print what would be written |
+| `--no-prune` | Skip pruning stale OpenBox-managed rule files |
+
 ### `openbox mcp serve`
 
 Long-running stdio MCP server. Configure your MCP host to spawn this
@@ -1040,8 +1342,12 @@ command:
 { "mcpServers": { "openbox": { "command": "openbox", "args": ["mcp", "serve"] } } }
 ```
 
-### `openbox skill install [--cursor] [--target <dir>]`
+### `openbox install skill`
 
 Copies `SKILL.md` and `references/` from the installed `openbox-sdk`
-package into `~/.claude/skills/openbox/`. Pass `--cursor` to install
-into `~/.cursor/skills/openbox/` instead. Re-run to update.
+package into both `~/.claude/skills/openbox/` and
+`~/.cursor/skills/openbox/`. Re-run to update.
+
+### `openbox skill path`
+
+Prints the source path of the bundled skill content.

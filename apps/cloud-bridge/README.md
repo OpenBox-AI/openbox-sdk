@@ -11,12 +11,15 @@ guardrails, two surfaces.
 
 ## Status
 
-Skeleton. The HTTP listener, signature verification, and payload
-normalizer are real; the governance call is stubbed (returns `pass`)
-until the SDK exposes a shared `check.ts` entrypoint that the bridge
-and the MCP server's `check_governance` tool can both call.
+The HTTP listener, signature verification, payload normalizer, and
+governance call are implemented. When `OPENBOX_API_KEY` is a valid
+agent runtime key (`obx_live_*` or `obx_test_*`), the bridge calls
+`checkGovernance()` from `openbox-sdk/governance` and returns the
+normalized verdict.
 
-Wiring the real governance call is a follow-up; see `src/handler.ts`.
+If no valid agent runtime key is configured, the bridge intentionally
+falls back to pass-through mode and returns `pass`. This keeps local
+webhook plumbing usable, but it is not enforcement.
 
 ## Run it
 
@@ -35,7 +38,7 @@ Environment:
 | `OPENBOX_BRIDGE_HOST`            | Default `127.0.0.1`. Bind `0.0.0.0` if exposing publicly.            |
 | `OPENBOX_BRIDGE_SIGNING_SECRET`  | If set, requests must include `X-OpenBox-Signature: sha256=<hex>`    |
 | `OPENBOX_BRIDGE_TOKEN`           | If set (and signing secret isn't), require `Authorization: Bearer …` |
-| `OPENBOX_API_KEY`                | OpenBox key used for the eventual governance call                    |
+| `OPENBOX_API_KEY`                | Agent runtime key (`obx_live_*` / `obx_test_*`) used for governance  |
 | `OPENBOX_API_URL`                | Override the OpenBox API endpoint                                    |
 
 If neither signing secret nor shared token is set, the bridge accepts
@@ -64,7 +67,7 @@ Response:
 {
   "ok": true,
   "verdict": "pass",
-  "reason": "[stub] governed run run-42 for agent agt_abc123"
+  "reason": "governed run run-42 for agent agt_abc123"
 }
 ```
 

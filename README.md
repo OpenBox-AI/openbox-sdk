@@ -130,7 +130,10 @@ the X-API-Key from `~/.openbox/tokens` that the CLI writes, so the
 CLI install has to come first. Mobile is the only client that uses
 its own JWT login flow.
 
-## Public sub-paths
+## Primary public sub-paths
+
+These are the main consumer-facing imports. `package.json` remains the
+exhaustive source for every exported support surface.
 
 | Import | Purpose |
 |---|---|
