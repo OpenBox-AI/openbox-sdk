@@ -24,18 +24,13 @@ suggest extra remediation that doctor didn't tell the user about.
 - For each warn/fail row, print the check name + the `run: ...`
   remediation hint that doctor itself emitted on that line.
   If the row has no remediation hint, just say so - don't invent one.
-- **Strip every environment prefix** from check labels. If doctor
-  prints `local api-key missing`, just write `api-key missing`.
-  If doctor prints `staging core /health failed`, write
-  `core /health failed`. The environment is an internal detail
-  the user does not care about.
-- Do NOT say things like "set API keys for production and staging".
-  The user has one configured stack; whatever env doctor chose is
-  the one they're on. Don't recommend touching others.
+- Strip any deployment/profile prefix from check labels. The user
+  has one configured stack; report the failing URL/key/check without
+  inventing alternate targets.
 
 ## Do not do
 
-- Don't mention env names (production / staging / local) in your output.
+- Don't mention target aliases or environment names in your output.
 - Don't add helpful-sounding next steps that doctor didn't print.
 - Don't run doctor more than once.
 - Do not fall back to shell unless the user explicitly asks you to.
