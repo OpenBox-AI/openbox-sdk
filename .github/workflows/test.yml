@@ -1,16 +1,13 @@
 # Standard test gate.
-#
-# DISABLED. See codegen.yml for the rationale. Re-enable
-# by uncommenting the push/pull_request triggers below.
 
 name: Test
 
 on:
   workflow_dispatch:
-  # push:
-  #   branches: [main]
-  # pull_request:
-  #   branches: [main]
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   test:
@@ -25,10 +22,13 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      - run: npm ci
-      - run: npm run specs:libs
+      - run: NODE_OPTIONS=--max-old-space-size=4096 npm ci
+      - run: npm run specs:all
+      - run: npm run lint
       - run: npx tsc --noEmit
       - run: npm run test:unit
+      - run: npm run test:contract
+      - run: npm run test:hook-integration
 
   build:
     name: tsup bundle
@@ -39,5 +39,5 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: NODE_OPTIONS=--max-old-space-size=4096 npm ci
       - run: npm run build
