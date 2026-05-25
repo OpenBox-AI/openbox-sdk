@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { loadDotenv, loadJsonConfig } from '../../config/host-config.js';
 import { listConfig, configStorePath } from '../../cli/config-store.js';
-import { DEFAULT_ENV, resolveConnection, resolveEnv, validateApiKeyFormat, type EnvName } from '../../env/index.js';
+import { resolveConnection, validateApiKeyFormat } from '../../env/index.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 
 export interface InstallCursorOptions extends InstallOptions {
@@ -181,9 +181,7 @@ function buildHookRuntimeEnv(paths: ReturnType<typeof resolveInstallPaths>) {
     }
   };
 
-  fill(listConfig('global'));
-  const envName = resolveEnv(values.OPENBOX_ENV ?? process.env.OPENBOX_ENV);
-  fill(listConfig(envName));
+  fill(listConfig());
 
   const fileConfig = loadJsonConfig(path.join(paths.configDir, 'config.json'));
   const envFile = loadDotenv(path.join(paths.configDir, '.env'));
@@ -191,15 +189,13 @@ function buildHookRuntimeEnv(paths: ReturnType<typeof resolveInstallPaths>) {
     process.env[key] ?? values[key] ?? fileConfig[key] ?? envFile[key];
 
   const connection = resolveConnection({
-    envName,
     apiUrl: get('OPENBOX_API_URL'),
-    coreUrl: get('OPENBOX_CORE_URL') ?? get('OPENBOX_ENDPOINT'),
+    coreUrl: get('OPENBOX_CORE_URL'),
     platformUrl: get('OPENBOX_PLATFORM_URL'),
   });
   const coreUrl = connection.coreUrl;
   const apiKey = get('OPENBOX_API_KEY') ?? '';
   return {
-    envName,
     configDir: paths.configDir,
     configFile: path.join(paths.configDir, 'config.json'),
     envFile: path.join(paths.configDir, '.env'),
@@ -241,7 +237,6 @@ async function checkRuntimeReadiness(
     const core = new OpenBoxCoreClient({
       apiKey: runtime.apiKey,
       apiUrl: runtime.coreUrl,
-      env: runtime.envName as EnvName,
       timeoutMs: 5_000,
     });
     const validation = (await core.validateApiKey()) as { agent_id?: string } | undefined;

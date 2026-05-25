@@ -18,11 +18,11 @@ import * as os from "os";
 import { OpenBoxClient } from "../../client/index.js";
 import { OpenBoxCoreClient } from "../../core-client/index.js";
 import { loadApiKey } from "../../file-tokens/index.js";
+import { listConfig } from "../../cli/config-store.js";
 import { setMcpClientName } from "./config.js";
-import { DEFAULT_ENV, resolveConnection, resolveEnv as resolveEnvName } from "../../env/index.js";
+import { resolveConnection } from "../../env/index.js";
 import { recallAgentKey } from "../../file-tokens/agent-keys.js";
 import { registerRecipeTools } from "./recipe-tools.js";
-import { listConfig } from "../../cli/config-store.js";
 import { stampSource } from "../../approvals/source.js";
 import { verifyCursorInstall } from "../cursor/install.js";
 
@@ -31,14 +31,13 @@ export async function runMcpServer(): Promise<void> {
   let callerName: string | undefined;
 
   function resolveRuntime() {
-    const globalCfg = listConfig("global");
-    const envName = resolveEnvName(globalCfg.OPENBOX_ENV ?? process.env.OPENBOX_ENV);
-    const envCfg = listConfig(envName);
+    const config = listConfig();
     const connection = resolveConnection({
-      envName,
-      apiUrl: envCfg.OPENBOX_API_URL ?? globalCfg.OPENBOX_API_URL ?? process.env.OPENBOX_API_URL,
-      coreUrl: envCfg.OPENBOX_CORE_URL ?? globalCfg.OPENBOX_CORE_URL ?? process.env.OPENBOX_CORE_URL,
-      platformUrl: envCfg.OPENBOX_PLATFORM_URL ?? globalCfg.OPENBOX_PLATFORM_URL ?? process.env.OPENBOX_PLATFORM_URL,
+      apiUrl: config.OPENBOX_API_URL,
+      coreUrl: config.OPENBOX_CORE_URL,
+      platformUrl: config.OPENBOX_PLATFORM_URL,
+      authUrl: config.OPENBOX_AUTH_URL,
+      stackUrl: config.OPENBOX_STACK_URL,
     });
     const apiUrl = connection.apiUrl;
     const coreUrl = connection.coreUrl;
@@ -47,7 +46,7 @@ export async function runMcpServer(): Promise<void> {
     // OPENBOX_API_KEY is the agent runtime key used by hooks/core
     // governance checks; Cursor often inherits it from ~/.openbox/config,
     // and sending it to backend endpoints yields 401s in chat MCP calls.
-    const apiKey = loadApiKey(envName);
+    const apiKey = loadApiKey();
     if (!apiKey) {
       throw new Error(
         `OpenBox MCP: no X-API-Key for the active OpenBox connection. ` +
@@ -55,11 +54,9 @@ export async function runMcpServer(): Promise<void> {
       );
     }
     return {
-      envName,
       coreUrl,
       client: new OpenBoxClient({
         apiUrl,
-        env: envName,
         apiKey,
         clientName: "runtime/mcp",
       }),
@@ -385,7 +382,7 @@ async function coreEvaluate(
   return await client.evaluate(payload as unknown as Parameters<typeof client.evaluate>[0]);
 }
 
-async function resolveApiKey(agentId: string | undefined, envName: string): Promise<string> {
+async function resolveApiKey(agentId: string | undefined): Promise<string> {
   let apiKey = process.env.OPENBOX_API_KEY;
   if (!apiKey && agentId) {
     // Try the per-agent runtime-key cache first. The CLI's `agent
@@ -416,25 +413,6 @@ async function resolveApiKey(agentId: string | undefined, envName: string): Prom
         "key.",
     );
   }
-  // Env / prefix mismatch: build-pinned env (DEFAULT_ENV) accepts only
-  // obx_live_*; any other env accepts only obx_test_*. The disk cache
-  // isn't env-tagged, so a key from one env can leak into a session in
-  // another and 401 with no useful diagnostic. Catch up front.
-  const env = resolveEnvName(envName);
-  const isLive = apiKey.startsWith("obx_live_");
-  const isTest = apiKey.startsWith("obx_test_");
-  if (env === DEFAULT_ENV && isTest) {
-    throw new Error(
-      `Agent ${agentId ?? ""} has a non-live runtime key (obx_test_*) ` +
-        `but the active env expects an obx_live_* key. Rotate via openbox api-key rotate.`,
-    );
-  }
-  if (env !== DEFAULT_ENV && isLive) {
-    throw new Error(
-      `Agent ${agentId ?? ""} has an obx_live_* runtime key but the active ` +
-        `env expects an obx_test_* key. Rotate or remove the OPENBOX_ENV override.`,
-    );
-  }
   return apiKey;
 }
 
@@ -445,7 +423,7 @@ server.tool("check_governance", "Evaluate an action against governance rules. Th
 }, async ({ agent_id, span_type, activity_input }) => {
   try {
     const runtime = resolveRuntime();
-    const apiKey = await resolveApiKey(agent_id, runtime.envName);
+    const apiKey = await resolveApiKey(agent_id);
     const input = (typeof activity_input === "object" && activity_input) ? activity_input : { value: activity_input };
     const result = await coreEvaluate(
       apiKey,

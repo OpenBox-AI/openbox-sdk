@@ -654,9 +654,9 @@ fn kick_refetch(status: HistoryStatus) {
     // the SDK call off-main. The polling thread already holds an
     // ApiClient but it's owned over there; building a fresh one
     // keeps this reload loop independent of the polling cadence.
-    let (org_id, env) = match with_ctx(|ctx| {
+    let org_id = match with_ctx(|ctx| {
         let s = ctx.state.lock().unwrap();
-        (s.org_id.clone(), s.current_env)
+        s.org_id.clone()
     }) {
         Some(v) => v,
         None => return,
@@ -667,7 +667,7 @@ fn kick_refetch(status: HistoryStatus) {
     };
 
     thread::spawn(move || {
-        let client = match api::ApiClient::for_env(env) {
+        let client = match api::ApiClient::for_configured_target() {
             Ok(c) => c,
             Err(_) => return,
         };

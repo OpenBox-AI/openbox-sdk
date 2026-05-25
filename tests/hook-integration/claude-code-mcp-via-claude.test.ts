@@ -5,7 +5,7 @@
 // `mcp__openbox__*` tools at all?
 //
 // Strategy: drop a minimal `.mcp.json` next to the test workspace
-// that points at `openbox --env local mcp serve` with the org
+// that points at `openbox mcp serve` with the org
 // X-API-Key baked into the env block. Run `claude -p` asking it to
 // invoke `mcp__openbox__list_agents`. Assert the JSON envelope
 // reports the tool was called and returned a non-error result.
@@ -59,11 +59,10 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
           mcpServers: {
             openbox: {
               command: OPENBOX,
-              args: ['--env', 'local', 'mcp', 'serve'],
+              args: ['mcp', 'serve'],
               env: {
                 OPENBOX_API_KEY: orgKey!,
                 OPENBOX_BACKEND_API_KEY: orgKey!,
-                OPENBOX_ENV: 'local',
               },
             },
           },

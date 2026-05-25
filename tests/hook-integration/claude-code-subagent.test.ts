@@ -32,7 +32,6 @@ function planConfigDir(): string {
     JSON.stringify({
       OPENBOX_API_KEY: 'obx_test_0000000000000000000000000000000000000000000000',
       OPENBOX_CORE_URL: 'http://127.0.0.1:1',
-      OPENBOX_ENDPOINT: 'http://127.0.0.1:1',
       GOVERNANCE_POLICY: 'fail_open',
       HITL_ENABLED: false,
       DRY_RUN: true,

@@ -135,19 +135,17 @@ export function registerCursorCommands(program: Command) {
         bailWith(EXIT.USAGE);
       }
       const { verifyCursorInstall } = await import('../../runtime/cursor/install.js');
-      const checks = await verifyCursorInstall(
-        opts.surfaceOnly
-          ? {
-              scope: scope as 'global' | 'project',
-              cwd: opts.cwd ?? process.cwd(),
-            }
-          : {
-              scope: scope as 'global' | 'project',
-              cwd: opts.cwd ?? process.cwd(),
-              includeRuntime: true,
-              validateRuntime: opts.coreValidate !== false,
-            },
-      );
+      const base = {
+        scope: scope as 'global' | 'project',
+        cwd: opts.cwd ?? process.cwd(),
+      };
+      const checks = opts.surfaceOnly
+        ? verifyCursorInstall(base)
+        : await verifyCursorInstall({
+            ...base,
+            includeRuntime: true,
+            validateRuntime: opts.coreValidate !== false,
+          });
       const failed = checks.filter((c) => c.status === 'fail');
       const skipped = checks.filter((c) => c.status === 'skip');
       const counts = {

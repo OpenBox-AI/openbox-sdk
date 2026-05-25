@@ -1,7 +1,7 @@
 // Public surface of `openbox-sdk`; single import path for everything.
 //
-//   import { OpenBoxClient, OpenBoxCoreClient, ENVIRONMENTS, parseTokenStore,
-//            resolveClientName } from 'openbox-sdk';
+//   import { OpenBoxClient, OpenBoxCoreClient, resolveConnection,
+//            parseTokenStore, resolveClientName } from 'openbox-sdk';
 //
 // Sub-paths exist for tree-shaking / RN bundlers; see package.json
 // `exports` map. (`openbox-sdk/client`, `openbox-sdk/core-client`, etc.)

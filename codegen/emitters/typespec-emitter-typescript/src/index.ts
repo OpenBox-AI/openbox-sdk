@@ -108,6 +108,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   trimTrailingBlankLines([
     resolvePath(repoRoot, 'ts', 'src', 'cli', 'generated', 'cli-bindings.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'cli', 'generated', 'cli-maturity.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'env', 'generated', 'env-bindings.ts'),
   ]);
 }
 
@@ -588,14 +589,12 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
   const envNamespace = findNamespace(program, 'OpenboxEnv');
   if (!envNamespace) return;
 
-  const envName = envNamespace.enums.get('EnvName');
-  const envConfig = envNamespace.models.get('EnvConfig');
   const runtimeConfig = envNamespace.models.get('RuntimeConfig');
   const cliRuntimeConfig = envNamespace.models.get('CliRuntimeConfig');
   const credentials = envNamespace.models.get('Credentials');
   const tokenEntry = envNamespace.models.get('TokenEntry');
   const tokenStoreModel = envNamespace.models.get('TokenStore');
-  const envLoader = envNamespace.interfaces.get('EnvLoader');
+  const connectionLoader = envNamespace.interfaces.get('ConnectionLoader');
   const tokenCodec = envNamespace.interfaces.get('TokenCodec');
   const clientNameResolver = envNamespace.interfaces.get('ClientNameResolver');
   const osPathResolver = envNamespace.interfaces.get('OsPathResolver');
@@ -610,31 +609,7 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
     { overwrite: true },
   );
 
-  // ts-morph's import-attribute API double-quotes the attribute value, so
-  // skip it and write the import line as plain text.
-  out.insertText(
-    0,
-    BANNER +
-      '\n' +
-      `import environmentsJson from '../../../../specs/environments.json' with { type: 'json' };\n\n`,
-  );
-
-  // EnvName + EnvConfig; generated from spec, imported (not redeclared)
-  // by hand-written code in the same package.
-  if (envName) {
-    const members = [...envName.members.values()].map((m) => JSON.stringify(m.value ?? m.name));
-    out.addStatements([`export type EnvName = ${members.join(' | ')};`, '']);
-  }
-  if (envConfig) {
-    out.addStatements([emitInterface('EnvConfig', envConfig), '']);
-  }
-  out.addStatements([
-    `export const ENVIRONMENTS: Record<EnvName, EnvConfig> = environmentsJson as Record<
-  EnvName,
-  EnvConfig
->;`,
-    '',
-  ]);
+  out.insertText(0, BANNER + '\n\n');
 
 
   // Generate the env-var binding table from @env_var decorators across
@@ -692,6 +667,12 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
 
   // Persisted-tokens shape (TokenEntry + TokenStore); codec wire
   // format every language must agree on.
+  if (runtimeConfig) {
+    out.addStatements([emitInterface('RuntimeConfig', runtimeConfig), '']);
+  }
+  if (credentials) {
+    out.addStatements([emitInterface('Credentials', credentials), '']);
+  }
   if (tokenEntry) {
     out.addStatements([emitInterface('TokenEntry', tokenEntry), '']);
   }
@@ -713,7 +694,6 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
   // hand-picked above so adding a new option model in the spec
   // flows through without an emitter edit.
   const alreadyEmitted = new Set([
-    'EnvConfig',
     'RuntimeConfig',
     'Credentials',
     'TokenEntry',
@@ -727,11 +707,11 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
     out.addStatements([emitInterface(modelName, model), '']);
   }
 
-  // EnvLoader / TokenCodec / ClientNameResolver; runtime contracts
+  // ConnectionLoader / TokenCodec / ClientNameResolver; runtime contracts
   // that hand-written code must implement. Drift between spec and
   // impl fails `tsc --noEmit`.
-  if (envLoader) {
-    out.addStatements([emitInterfaceFromOps('EnvLoader', envLoader), '']);
+  if (connectionLoader) {
+    out.addStatements([emitInterfaceFromOps('ConnectionLoader', connectionLoader), '']);
   }
   if (tokenCodec) {
     out.addStatements([emitInterfaceFromOps('TokenCodec', tokenCodec), '']);

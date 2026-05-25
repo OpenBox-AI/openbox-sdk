@@ -307,7 +307,7 @@ describe('runtime configs; file-based config.json paths', () => {
       join(cfgDir, 'config.json'),
       JSON.stringify({
         OPENBOX_API_KEY: 'obx_test_filebased' + 'x'.repeat(40),
-        OPENBOX_ENDPOINT: 'http://from-file:9999',
+        OPENBOX_CORE_URL: 'http://localhost:9999',
         VERBOSE: true,
         DRY_RUN: true,
       }),

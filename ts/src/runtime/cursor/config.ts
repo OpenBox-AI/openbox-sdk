@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { DEFAULT_CORE_URL } from '../../env/index.js';
 import { loadJsonConfig, loadDotenv } from '../../config/host-config.js';
 
 // `os.homedir()` honors USERPROFILE on Windows where HOME is unset.
@@ -78,18 +77,13 @@ export function loadConfig(): CursorConfig {
   const skipRaw = get('SKIP_ACTIVITY_TYPES');
   const skipList = skipRaw ? skipRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
 
-  // OPENBOX_CORE_URL is the canonical name used everywhere else (CLI,
-  // MCP, env registry). OPENBOX_ENDPOINT is the legacy name we wrote
-  // into snapshotted ~/.cursor-hooks/config.json before unification;
-  // honor it as a fallback so existing installs keep working, but
-  // prefer the canonical key. After applyEnvSource() runs at the
-  // hook handler's top, process.env.OPENBOX_CORE_URL carries the
-  // active env's core URL automatically.
+  // OPENBOX_CORE_URL is the canonical runtime target. No environment
+  // fallback is baked in; installs must provide explicit service URLs.
   const coreUrl =
     process.env.OPENBOX_CORE_URL ??
     fileConfig.OPENBOX_CORE_URL ??
     envConfig.OPENBOX_CORE_URL ??
-    get('OPENBOX_ENDPOINT', DEFAULT_CORE_URL);
+    '';
   return {
     openboxApiKey: get('OPENBOX_API_KEY'),
     openboxEndpoint: coreUrl,

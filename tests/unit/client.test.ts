@@ -48,13 +48,13 @@ describe('OpenBoxClient', () => {
   // =========================================================================
 
   describe('construction', () => {
-    it('uses default apiUrl when not provided', async () => {
+    it('uses OPENBOX_API_URL when apiUrl is not provided', async () => {
       const client = createClient();
       fetchMock.mockResolvedValueOnce(mockResponse(200, { data: 'ok' }));
 
       await client.health();
 
-      expect(fetchMock).toHaveBeenCalledWith('https://api.openbox.ai/health', expect.anything());
+      expect(fetchMock).toHaveBeenCalledWith('http://localhost:18080/health', expect.anything());
     });
 
     it('uses custom apiUrl when provided', async () => {
@@ -249,7 +249,7 @@ describe('OpenBoxClient', () => {
     it('constructs correct URL paths', async () => {
       fetchMock.mockResolvedValueOnce(mockResponse(200, { data: {} }));
       await client.getAgent('abc-123');
-      expect(fetchMock.mock.calls[0][0]).toBe('https://api.openbox.ai/agent/abc-123');
+      expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:18080/agent/abc-123');
     });
   });
 

@@ -1,12 +1,12 @@
 //! Tauri-side adapter around `openbox_sdk::OpenBoxClient`. The
 //! approver runs on macOS only and is a CLI-companion app: it reads
-//! the `<env>.API_KEY=obx_key_<48hex>` line from the same
+//! the flat `API_KEY=obx_key_<48hex>` line from the same
 //! `~/.openbox/tokens` file the `openbox` CLI manages, builds the
 //! SDK client, and ferries every HTTP call through the spec-emitted
 //! typed wrapper methods.
 //!
 //! Authentication: org-level X-API-Key only. Without a CLI-recorded
-//! API key for the active env, `ApiClient::new()` returns an error
+//! API key for the configured URL target, `ApiClient::new()` returns an error
 //! pointing at `openbox auth set-api-key`.
 //!
 //! Re-exports the SDK's `Approval`, `ApprovalAgent`, `ApprovalMetadata`
@@ -14,7 +14,7 @@
 //! app can keep referring to `api::Approval` while the wire shape
 //! lives in the SDK.
 
-use openbox_sdk::env::{load_api_key, resolve_env, EnvName};
+use openbox_sdk::env::{load_api_key, resolve_connection};
 use openbox_sdk::{ApiError, OpenBoxClient};
 use tokio::runtime::Runtime;
 
@@ -23,72 +23,36 @@ pub use openbox_sdk::types::{Agent, Approval, UserProfile};
 pub struct ApiClient {
     sdk: OpenBoxClient,
     rt: Runtime,
-    #[allow(dead_code)]
-    env: EnvName,
 }
 
 impl ApiClient {
-    /// Build a client for an explicit env. Shares the path
-    /// `ApiClient::new()` always took (token-store lookup, optional
-    /// `OPENBOX_API_URL` override) but ignores `OPENBOX_ENV` so the
-    /// Settings window can flip envs without re-launching the
-    /// process. The env arg wins over the env var.
-    pub fn for_env(env: EnvName) -> Result<Self, String> {
-        Self::build(env)
+    pub fn for_configured_target() -> Result<Self, String> {
+        Self::build()
     }
 
-    /// Build the client against the env selected via `OPENBOX_ENV`
-    /// (production by default). Reads the X-API-Key from the on-disk
+    /// Build the client against explicit configured service URLs.
+    /// Reads the X-API-Key from the on-disk
     /// token store written by `openbox auth set-api-key`. Returns an
     /// actionable error if no key is recorded for that env.
     #[allow(dead_code)]
     pub fn new() -> Result<Self, String> {
-        let env = resolve_env();
-        Self::build(env)
+        Self::build()
     }
 
-    /// Read back the env this client was built against. Useful when
-    /// the Settings window's read-only "Active env" row needs to
-    /// reflect what the live polling thread is actually hitting.
-    #[allow(dead_code)]
-    pub fn env(&self) -> EnvName {
-        self.env
-    }
-
-    fn build(env: EnvName) -> Result<Self, String> {
-        let api_key = load_api_key(env).ok_or_else(|| {
-            let env_name = env.as_str();
-            let flag = if env == EnvName::Production {
-                String::new()
-            } else {
-                format!("--env {} ", env_name)
-            };
+    fn build() -> Result<Self, String> {
+        let connection = resolve_connection()?;
+        let api_key = load_api_key().ok_or_else(|| {
             format!(
-                "No X-API-Key for env '{}'. The approver reads the same \
+                "No X-API-Key for the configured OpenBox target. The approver reads the same \
                  token store the openbox CLI writes: install + log in via:\n  \
-                 brew install openbox-cli\n  openbox {}auth set-api-key",
-                env_name, flag
+                 brew install openbox-cli\n  openbox auth set-api-key"
             )
         })?;
 
-        // The SDK's static ENVIRONMENTS table ships with an empty
-        // `staging.apiUrl` (the staging deployment lives on internal
-        // infra and isn't bundled in the public spec). Mobile bridges
-        // the same gap with EXPO_PUBLIC_OPENBOX_API_URL at build time;
-        // the approver does the same at runtime via OPENBOX_API_URL.
-        // When set, it wins over the env's static URL, letting one
-        // signed bundle hit production OR an internal env without a
-        // rebuild. Empty value falls back to the spec URL.
-        let mut builder = OpenBoxClient::builder()
-            .for_env(env)
+        let builder = OpenBoxClient::builder()
+            .base_url(connection.api_url)
             .api_key(api_key)
             .client_name("apps/approver");
-        if let Ok(override_url) = std::env::var("OPENBOX_API_URL") {
-            let trimmed = override_url.trim();
-            if !trimmed.is_empty() {
-                builder = builder.base_url(trimmed.to_string());
-            }
-        }
         let sdk = builder.build();
 
         // Single-threaded runtime: the polling thread is sync and we
@@ -99,7 +63,7 @@ impl ApiClient {
             .build()
             .map_err(|e| format!("tokio runtime: {e}"))?;
 
-        Ok(ApiClient { sdk, rt, env })
+        Ok(ApiClient { sdk, rt })
     }
 
     pub fn get_profile(&self) -> Result<UserProfile, String> {

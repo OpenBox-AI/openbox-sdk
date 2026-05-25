@@ -53,7 +53,7 @@ ts/src/<package>/
 |---|---|
 | Generated files start with `// AUTO-GENERATED` | `npm run lint:generated-banners` |
 | Hand-written code never redeclares spec-defined types | TypeScript fails compile on duplicates |
-| Hand-written runtime functions match the spec's `interface` shape | TypeScript: annotate `EnvLoader['resolveEnv']` etc., and drift fails compile |
+| Hand-written runtime functions match the spec's `interface` shape | TypeScript: annotate `ConnectionLoader['resolveConnection']` etc., and drift fails compile |
 | GitHub diff collapses generated files | `.gitattributes` sets `linguist-generated=true` |
 | Every emitter run produces byte-identical output for unchanged inputs | `tests/unit/emitter-ts.test.ts` vitest snapshot |
 | Generated paths match what's committed | `check:generated-drift` plus CI |
@@ -83,7 +83,7 @@ No → hand-code.
 
 | Package | Spec source | What's generated | Hand-written rule |
 |---|---|---|---|
-| `ts/src/env` | `specs/typespec/env/main.tsp` | `EnvName`, `EnvConfig`, `Credentials`, `TokenEntry`, `TokenStore`, `EnvLoader`, `TokenCodec`, `ClientNameResolver`, `ENVIRONMENTS`, `ENV_VAR_BINDINGS`, `validateApiKeyFormat`, `OS_PATH_FIELDS`, `CLIENT_VARIANT_PATTERN` | `environments.ts`, `token-codec.ts`, and `client-name.ts` annotate every export with `EnvLoader['x']`, `TokenCodec['x']`, or `ClientNameResolver['x']`, so TypeScript catches signature drift at compile time |
+| `ts/src/env` | `specs/typespec/env/main.tsp` | `RuntimeConfig`, `Credentials`, `TokenEntry`, `TokenStore`, `ConnectionLoader`, `TokenCodec`, `ClientNameResolver`, `ENV_VAR_BINDINGS`, `validateApiKeyFormat`, `OS_PATH_FIELDS`, `CLIENT_VARIANT_PATTERN` | `connection.ts`, `token-codec.ts`, and `client-name.ts` annotate every export with `ConnectionLoader['x']`, `TokenCodec['x']`, or `ClientNameResolver['x']`, so TypeScript catches signature drift at compile time |
 | `ts/src/cli` | `specs/typespec/cli/main.tsp` | `CLI_COMMAND_MANIFEST` and `CliCommandManifest`, plus per-command flag and permission tables | `commands/<name>.ts` handlers walk the manifest for permissions and structure; the action body is hand-coded |
 | `ts/src/client` | `specs/typespec/backend/main.tsp` | Types via `openapi-typescript` to `ts/src/types/generated/backend.ts`; method coverage via `client/generated/endpoint-manifest.ts` | Every method MUST use `Backend.paths['/...']['<verb>']` row types from `openbox-sdk/types`. `tests/unit/endpoint-coverage.test.ts` walks the manifest and fails if any entry lacks a wrapper |
 | `ts/src/core-client` | `specs/typespec/core/main.tsp`, `specs/typespec/govern/main.tsp`, `specs/typespec/govern/adapters.tsp` | Wire types via `openapi-typescript` to `ts/src/types/generated/core.ts`; `CORE_ENDPOINT_MANIFEST`; full `govern.ts` with `BaseGovernedSession`, 22 preset Session classes, and the `govern()` helper; per-adapter runtime modules under `generated/runtime/` | Same wrapper rule as `client`. Verdict arms come from the `govern/main.tsp` `VerdictArm` enum. The `runtime/<platform>/index.ts` files re-export the spec-emitted adapter primitive plus platform-specific install scripts |

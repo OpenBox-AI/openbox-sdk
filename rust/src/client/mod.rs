@@ -1,8 +1,7 @@
 //! reqwest layer for the management API. `generated/wrapper_methods.rs`
 //! adds one async fn per HTTP operation on top of the `request_<verb>`
 //! helpers defined here. Construction goes through
-//! [`OpenBoxClient::new`] / [`OpenBoxClient::for_env`] /
-//! [`OpenBoxClient::builder`].
+//! [`OpenBoxClient::new`] / [`OpenBoxClient::builder`].
 
 pub mod generated;
 
@@ -11,7 +10,6 @@ pub use generated::*;
 
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::env::EnvName;
 use crate::transport::{Auth, Transport};
 
 /// Default `X-Openbox-Client` header. Consumers override via
@@ -31,15 +29,6 @@ impl OpenBoxClient {
             .base_url(base_url)
             .access_token(access_token)
             .build()
-    }
-
-    /// Build a client wired to one of the canonical environments
-    /// (production / staging / local) without reading from disk. The
-    /// access token is taken from the caller; combine with
-    /// [`crate::env::EnvName`] resolvers for token-store callers.
-    pub fn for_env(env: EnvName, access_token: impl Into<String>) -> Self {
-        let cfg = env.resolve();
-        Self::new(cfg.api_url, access_token)
     }
 
     pub fn builder() -> OpenBoxClientBuilder {
@@ -162,11 +151,6 @@ impl OpenBoxClientBuilder {
         self
     }
 
-    pub fn for_env(mut self, env: EnvName) -> Self {
-        self.base_url = Some(env.resolve().api_url.to_string());
-        self
-    }
-
     pub fn access_token(mut self, token: impl Into<String>) -> Self {
         self.access_token = Some(token.into());
         self
@@ -203,7 +187,7 @@ impl OpenBoxClientBuilder {
         };
         let base_url = self
             .base_url
-            .expect("OpenBoxClientBuilder: .base_url() (or .for_env()) is required before .build()");
+            .expect("OpenBoxClientBuilder: .base_url() is required before .build()");
         OpenBoxClient {
             transport: Transport {
                 http: self.http.unwrap_or_else(reqwest::Client::new),

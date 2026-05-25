@@ -7,7 +7,6 @@ from.
 |---|---|
 | `typespec/` | TypeSpec sources. `main.tsp` is the root; per-area modules sit under `backend/`, `core/`, `env/`, `cli/`, `govern/` |
 | `tspconfig.yaml` | Compiler config: output paths and emitter list. Lives inside `typespec/` |
-| `environments.json` | Per-env URL bundle for `production`, `staging`, and `local`. Every language's env package reads it |
 | `generated/` | TypeSpec emits OpenAPI3 and JSON Schema here. Untracked; reproduce with `npm run specs:compile` |
 
 ## Compile

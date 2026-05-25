@@ -1,16 +1,15 @@
 // Mirror of mobile's Profile → Debug card (the mobile app).
-// Same field set where it translates: account info, env + API URL,
+// Same field set where it translates: account info, target URLs,
 // auth state, build, runtime counters. Auto-ticks every 5s while
 // visible so "Last poll" doesn't go stale; the explicit Reload action
 // in the title bar forces an immediate re-render.
 //
-// Actions live in the view title bar (env switch, mock toggle, seed,
+// Actions live in the view title bar (mock toggle, seed,
 // reset, debug info, reload) - same pattern as Pending/History
 // search/filter/refresh - so the tree itself stays read-only.
 
 import * as vscode from "vscode";
 import * as os from "os";
-import type { EnvName } from "openbox-sdk/env";
 import { resolveExtensionUrls } from "./envUrls";
 import { dashboardBase } from "./dashboardUrl";
 import type { DebugSnapshot } from "./debugInfoPanel";
@@ -21,7 +20,6 @@ import type { DebugSnapshot } from "./debugInfoPanel";
 // key is supposed to be org-scoped. Kept out of the sidebar tree.
 type Row =
   | { kind: "orgId" }
-  | { kind: "env" }
   | { kind: "apiUrl" }
   | { kind: "dashboard" }
   | { kind: "apiKey" }
@@ -53,7 +51,6 @@ type Row =
 // rows.
 const BASE_ORDER: Row["kind"][] = [
   "orgId",
-  "env",
   "apiUrl",
   "dashboard",
   "apiKey",
@@ -116,11 +113,10 @@ export class DebugControlsProvider implements vscode.TreeDataProvider<Row> {
 
   getTreeItem(node: Row): vscode.TreeItem {
     const snap = this.getSnapshot();
-    const env: EnvName = snap.env;
     const cfg = vscode.workspace.getConfiguration("openbox");
     const notif = cfg.get<boolean>("notifyOnNewApprovals", true);
-    const apiUrl = resolveExtensionUrls(env).apiUrl || "(unset)";
-    const dashboard = dashboardBase(env) || "(unset)";
+    const apiUrl = resolveExtensionUrls().apiUrl || "(unset)";
+    const dashboard = dashboardBase() || "(unset)";
     const ext = vscode.extensions.getExtension("OpenBox.openbox") || vscode.extensions.getExtension("openbox.openbox");
     const version = (ext?.packageJSON as any)?.version || "unknown";
 
@@ -138,7 +134,6 @@ export class DebugControlsProvider implements vscode.TreeDataProvider<Row> {
 
     switch (node.kind) {
       case "orgId": return row("Org", snap.orgId || "-", "organization");
-      case "env": return row("Environment", env, "globe");
       case "apiUrl": return row("API URL", apiUrl, "cloud");
       case "dashboard": return row("Dashboard", dashboard, "link-external");
       case "apiKey": return row("API Key", snap.hasApiKey ? "set" : "unset", snap.hasApiKey ? "key" : "warning");

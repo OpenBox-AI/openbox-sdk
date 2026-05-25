@@ -37,9 +37,9 @@ For development (from this directory):
 
 ```bash
 npm install                            # only @tauri-apps/cli
-npm run dev                            # production env (default)
-OPENBOX_ENV=staging  npm run dev       # staging
-OPENBOX_ENV=local    npm run dev       # local dev stack
+OPENBOX_API_URL=https://api.example/ob \
+OPENBOX_CORE_URL=https://core.example/ob \
+npm run dev
 ```
 
 Bundle for distribution / `openbox install approver`:
@@ -53,12 +53,11 @@ npm run build
 
 X-API-Key only. JWT is the mobile-app path; desktop clients share the
 CLI's token store. On startup, `ApiClient::new()` reads
-`<env>.API_KEY=…` from `~/.openbox/tokens`; missing it prints the
+`API_KEY=…` from `~/.openbox/tokens`; missing it prints the
 `openbox auth set-api-key` hint and exits.
 
-`OPENBOX_ENV` (production / staging / local) selects which env's key
-to load. Tokens are env-namespaced so signing into staging never
-clobbers prod credentials. Unknown `OPENBOX_ENV` values hard-fail.
+Targets are selected only by explicit URLs: `OPENBOX_API_URL` and
+`OPENBOX_CORE_URL`, or equivalent keys in `~/.openbox/config`.
 
 ## Features
 

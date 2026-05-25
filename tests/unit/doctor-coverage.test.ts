@@ -94,10 +94,8 @@ describe('doctor command', () => {
   });
 
   it('reports pass when api-key + backend reachable', async () => {
-    const { resolveEnv } = await import('../../ts/src/env');
-    const env = resolveEnv();
     const cfg = await import('../../ts/src/cli/config');
-    cfg.saveApiKey(env, FAKE_KEY);
+    cfg.saveApiKey(FAKE_KEY);
 
     const ok = await makeOkServer();
     process.env.OPENBOX_API_URL = ok.url;
@@ -115,10 +113,8 @@ describe('doctor command', () => {
   });
 
   it('emits machine-readable doctor output when stdout is captured', async () => {
-    const { resolveEnv } = await import('../../ts/src/env');
-    const env = resolveEnv();
     const cfg = await import('../../ts/src/cli/config');
-    cfg.saveApiKey(env, FAKE_KEY);
+    cfg.saveApiKey(FAKE_KEY);
 
     const ok = await makeOkServer();
     process.env.OPENBOX_API_URL = ok.url;

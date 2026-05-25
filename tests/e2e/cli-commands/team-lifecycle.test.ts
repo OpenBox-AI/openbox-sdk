@@ -2,7 +2,7 @@
 // backend (whichever $OPENBOX_API_URL points at) and exercise the full
 // create → get → delete round-trip. Requires:
 //   - `npm run build` has been run so dist/index.js exists
-//   - .tokens file in ts/cli with a valid bearer for $OPENBOX_ENV
+//   - flat .tokens file with a valid backend API key
 //   - $OPENBOX_ORG_ID exported (the org to create teams under)
 //
 // Skips gracefully when prerequisites aren't in place so CI can run without

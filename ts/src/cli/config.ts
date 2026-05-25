@@ -2,12 +2,9 @@ import { writeFileSync } from 'fs';
 import { OpenBoxClient } from '../client/index.js';
 import { OpenBoxCoreClient } from '../core-client/index.js';
 import {
-  EnvName,
   FeatureMap,
   serializeTokenStore,
-  resolveEnv,
   resolveConnection,
-  resolveUrls,
   validateApiKeyFormat as generatedValidateApiKey,
 } from '../env/index.js';
 import { EXIT, bailWith } from './exit-codes.js';
@@ -25,30 +22,28 @@ import {
 
 export type { FeatureMap };
 
-function loadPermissions(env: EnvName): string[] {
+function loadPermissions(): string[] {
   const store = readTokenStore();
-  return store[env]?.permissions ?? [];
+  return store.permissions ?? [];
 }
 
-function loadFeatures(env: EnvName): FeatureMap {
+function loadFeatures(): FeatureMap {
   const store = readTokenStore();
-  return store[env]?.features ?? {};
+  return store.features ?? {};
 }
 
-function savePermissions(env: EnvName, permissions: string[]) {
+function savePermissions(permissions: string[]) {
   const path = getTokenPath();
   const store = readTokenStore();
-  if (!store[env]?.apiKey) return;
-  store[env] = { ...store[env], permissions };
-  writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
+  if (!store.apiKey) return;
+  writeFileSync(path, serializeTokenStore({ ...store, permissions }), { mode: 0o600 });
 }
 
-function saveFeatures(env: EnvName, features: FeatureMap) {
+function saveFeatures(features: FeatureMap) {
   const path = getTokenPath();
   const store = readTokenStore();
-  if (!store[env]?.apiKey) return;
-  store[env] = { ...store[env], features };
-  writeFileSync(path, serializeTokenStore(store), { mode: 0o600 });
+  if (!store.apiKey) return;
+  writeFileSync(path, serializeTokenStore({ ...store, features }), { mode: 0o600 });
 }
 
 // Honors OPENBOX_TIMEOUT_MS so users can stretch the per-request timeout
@@ -66,10 +61,9 @@ function resolveTimeoutMs(): number | undefined {
   return n;
 }
 
-function getClient(env?: EnvName): OpenBoxClient {
-  const resolved = env ?? resolveEnv();
-  const { apiUrl } = resolveConnection({ envName: resolved });
-  const apiKey = loadApiKey(resolved);
+function getClient(): OpenBoxClient {
+  const { apiUrl } = resolveConnection();
+  const apiKey = loadApiKey();
   if (!apiKey) {
     error('no X-API-Key configured', {
       help:
@@ -81,10 +75,9 @@ function getClient(env?: EnvName): OpenBoxClient {
     });
     bailWith(EXIT.AUTH);
   }
-  const cachedPerms = loadPermissions(resolved);
+  const cachedPerms = loadPermissions();
   return new OpenBoxClient({
     apiUrl,
-    env: resolved,
     apiKey,
     permissions: cachedPerms.length > 0 ? cachedPerms : undefined,
     timeoutMs: resolveTimeoutMs(),
@@ -115,8 +108,7 @@ function validateAgentRuntimeKeyFormat(key: string): void {
   bailWith(EXIT.AUTH);
 }
 
-function getCoreClient(env?: EnvName): OpenBoxCoreClient {
-  const resolved = env ?? resolveEnv();
+function getCoreClient(): OpenBoxCoreClient {
   const apiKey = process.env.OPENBOX_API_KEY || '';
   if (!apiKey) {
     error('no OPENBOX_API_KEY found', {
@@ -125,11 +117,10 @@ function getCoreClient(env?: EnvName): OpenBoxCoreClient {
     bailWith(EXIT.AUTH);
   }
   validateAgentRuntimeKeyFormat(apiKey);
-  const { coreUrl } = resolveUrls(resolved);
+  const { coreUrl } = resolveConnection();
   return new OpenBoxCoreClient({
     apiUrl: coreUrl,
     apiKey,
-    env: resolved,
     timeoutMs: resolveTimeoutMs(),
   });
 }

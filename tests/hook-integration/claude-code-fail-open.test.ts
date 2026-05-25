@@ -38,7 +38,6 @@ describe.runIf(SHOULD_RUN)('claude-code fail-open behavior', () => {
       timeoutMs: 60_000,
       env: {
         OPENBOX_CORE_URL: DEAD_CORE,
-        OPENBOX_ENDPOINT: DEAD_CORE,
         GOVERNANCE_POLICY: 'fail_open',
       },
     });

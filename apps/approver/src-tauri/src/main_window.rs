@@ -14,6 +14,11 @@
 //! sits on a slightly more opaque accent material like System
 //! Settings' / Mail's chrome.
 
+// AppKit binding safety shifts across objc2/macOS SDK versions. Keep
+// the Objective-C bridge calls grouped in unsafe blocks so the call
+// sites stay auditable on older SDKs that still require them.
+#![allow(unused_unsafe)]
+
 use objc2::rc::Retained;
 use objc2::runtime::{AnyClass, AnyObject, ClassBuilder, Sel};
 use objc2::{msg_send, sel};
@@ -100,7 +105,7 @@ pub fn show(
     {
         let guard = cell.lock().unwrap();
         if let Some(ctx) = guard.as_ref() {
-            unsafe { ctx.segments.setSelectedSegment(initial_tab.index()); }
+            ctx.segments.setSelectedSegment(initial_tab.index());
             switch_to(ctx, initial_tab);
             activate_and_focus(&ctx.window);
             return;
@@ -109,7 +114,7 @@ pub fn show(
     let ctx = build(mtm, state, wakeup, client);
     {
         let mut guard = cell.lock().unwrap();
-        unsafe { ctx.segments.setSelectedSegment(initial_tab.index()); }
+        ctx.segments.setSelectedSegment(initial_tab.index());
         switch_to(&ctx, initial_tab);
         activate_and_focus(&ctx.window);
         *guard = Some(ctx);

@@ -17,7 +17,7 @@ mod settings_window;
 // title-case fallback for free-form custom-preset activity_types.
 use openbox_sdk::approvals::format::{format_label, time_ago, time_remaining};
 use openbox_sdk::approvals::approval_source;
-use openbox_sdk::env::{apply_env_source, resolve_urls, EnvName};
+use openbox_sdk::env::{apply_env_source, resolve_connection};
 use openbox_sdk::verdict::verdict_label;
 
 use std::collections::HashSet;
@@ -29,19 +29,7 @@ use std::time::Duration;
 #[cfg(target_os = "macos")]
 use native_tray::{ApprovalData, NativeTray};
 
-use settings::{EnvChoice, Settings};
-
-/// Convert the persisted [`EnvChoice`] into the SDK's [`EnvName`].
-/// One enum per side because the persisted choice is allowed to evolve
-/// independently of the wire-level enum (e.g. a future "qa" bucket
-/// that resolves to staging URLs would only land here).
-pub fn env_choice_to_name(c: &EnvChoice) -> EnvName {
-    match c {
-        EnvChoice::Production => EnvName::Production,
-        EnvChoice::Staging => EnvName::Staging,
-        EnvChoice::Local => EnvName::Local,
-    }
-}
+use settings::Settings;
 
 pub struct AppState {
     pub org_id: Option<String>,
@@ -55,20 +43,9 @@ pub struct AppState {
     pub pending_decide: Option<(String, String, String)>,
     pub consecutive_errors: u32,
     pub settings: Settings,
-    /// Active env. Initialized from `apply_env_source()` at startup
-    /// and mutated by the Settings window's env-switch handler. The
-    /// env lives here (transient, runtime) instead of in
-    /// `Settings` (which used to persist it to a separate
-    /// `approver-settings.json` — that was a duplicate source of
-    /// truth before `~/.openbox/config` became canonical).
-    pub current_env: EnvName,
-    /// Flips to `true` when the Settings window swaps the API client
-    /// to a new env. The polling thread checks this each iteration
-    /// before fetching: when set, it re-runs bootstrap (profile +
-    /// fallback agents-list) against the new client and clears the
-    /// flag. `known_ids` is reset on the same hop so a stale ID set
-    /// from the old env doesn't leak into the new env's "brand new"
-    /// diff and spam notifications on the first post-switch tick.
+    /// Flips to `true` when Settings swaps the API client. The polling
+    /// thread checks this each iteration before fetching: when set, it
+    /// re-runs bootstrap and clears the flag.
     pub needs_bootstrap: bool,
 }
 
@@ -79,20 +56,11 @@ pub struct AppState {
 /// therefore lives in the SDK.
 pub use openbox_sdk::polling::diff_known_ids;
 
-/// Compose the tray menu's top disabled-item header. Renders the
-/// org id by default (env intentionally hidden so end users never
-/// see staging / local labels). When `is_debug_mode()` is on, the
-/// header appends `· <env>` so internal users can confirm which
-/// env the app is hitting.
-pub fn tray_header(org_id: Option<&str>, env: EnvName) -> String {
-    let base = match org_id {
+/// Compose the tray menu's top disabled-item header.
+pub fn tray_header(org_id: Option<&str>) -> String {
+    match org_id {
         Some(o) => format!("Org {}", o),
         None => "OpenBox Approver".to_string(),
-    };
-    if openbox_sdk::env::is_debug_mode() {
-        format!("{} \u{00B7} {}", base, env.as_str())
-    } else {
-        base
     }
 }
 
@@ -208,12 +176,10 @@ where
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Layer ~/.openbox/config into the process environment so the
-    // approver agrees with every other OpenBox surface on the active
-    // env, the per-env URLs, and the per-env API-key location. Without
-    // this, the approver defaults to production and ignores the user's
-    // `openbox config set --global OPENBOX_ENV=local`. Mirrors the JS
+    // approver agrees with every other OpenBox surface on configured
+    // URL/key values. Mirrors the JS
     // `applyEnvSource()` call every CLI / MCP / hook entrypoint makes.
-    let initial_env = apply_env_source();
+    apply_env_source();
 
     tauri::Builder::default()
         .setup(move |app| {
@@ -230,7 +196,6 @@ pub fn run() {
                 pending_decide: None,
                 consecutive_errors: 0,
                 settings: initial_settings.clone(),
-                current_env: initial_env,
                 needs_bootstrap: false,
             }));
 
@@ -249,11 +214,8 @@ pub fn run() {
                 // with a startup where no key is recorded yet (the
                 // user opens Settings, picks an env that has a key,
                 // and we plug it in without a relaunch).
-                // `initial_env` was resolved at `apply_env_source()`
-                // call above from `~/.openbox/config`; settings.env is
-                // ignored (deprecated, kept for back-compat parse only).
                 let client_handle: Arc<Mutex<Option<api::ApiClient>>> =
-                    match api::ApiClient::for_env(initial_env) {
+                    match api::ApiClient::for_configured_target() {
                         Ok(c) => Arc::new(Mutex::new(Some(c))),
                         Err(e) => {
                             eprintln!("Failed to initialize: {}", e);
@@ -367,7 +329,7 @@ pub fn run() {
                                     s.org_id = org.clone();
                                     s.needs_bootstrap = false;
                                     s.known_ids.clear();
-                                    let header = tray_header(s.org_id.as_deref(), s.current_env);
+                                    let header = tray_header(s.org_id.as_deref());
                                     drop(s);
                                     let tray_c = tray_poll.clone();
                                     let _ = handle.run_on_main_thread(move || {
@@ -500,7 +462,7 @@ pub fn run() {
 
                                 let header = {
                                     let s = state_poll.lock().unwrap();
-                                    tray_header(s.org_id.as_deref(), s.current_env)
+                                    tray_header(s.org_id.as_deref())
                                 };
                                 let count = data.len();
                                 let tray_c = tray_poll.clone();
@@ -525,7 +487,7 @@ pub fn run() {
                                 if errs >= 3 {
                                     let header = {
                                         let s = state_poll.lock().unwrap();
-                                        tray_header(s.org_id.as_deref(), s.current_env)
+                                        tray_header(s.org_id.as_deref())
                                     };
                                     let err_msg = e.clone();
                                     let tray_c = tray_poll.clone();
@@ -599,25 +561,11 @@ fn notify_new_approvals(approvals: &[&api::Approval]) {
         .show();
 }
 
-/// Resolve the API URL the Settings window's read-only "API URL" row
-/// renders. Honors `OPENBOX_API_URL` first (mirrors the runtime
-/// override `ApiClient::new` applies), then falls back to the SDK's
-/// per-env static URL bundle. An empty static URL (e.g. staging in
-/// the default ENVIRONMENTS table) returns "<unset>" so the user
-/// sees something concrete instead of an empty label.
-pub fn display_api_url(env: EnvName) -> String {
-    if let Ok(v) = std::env::var("OPENBOX_API_URL") {
-        let t = v.trim();
-        if !t.is_empty() {
-            return t.to_string();
-        }
-    }
-    let cfg = resolve_urls(env);
-    if cfg.api_url.is_empty() {
-        "<unset>".into()
-    } else {
-        cfg.api_url.to_string()
-    }
+/// Resolve the API URL the Settings window's read-only "API URL" row renders.
+pub fn display_api_url() -> String {
+    resolve_connection()
+        .map(|connection| connection.api_url)
+        .unwrap_or_else(|_| "<unset>".into())
 }
 
 #[cfg(test)]
@@ -686,13 +634,6 @@ mod tests {
         assert_eq!(s.normalized_poll_secs(), 15);
         s.poll_interval_secs = 60;
         assert_eq!(s.normalized_poll_secs(), 60);
-    }
-
-    #[test]
-    fn env_choice_to_name_round_trip() {
-        assert_eq!(env_choice_to_name(&EnvChoice::Production), EnvName::Production);
-        assert_eq!(env_choice_to_name(&EnvChoice::Staging), EnvName::Staging);
-        assert_eq!(env_choice_to_name(&EnvChoice::Local), EnvName::Local);
     }
 
     // ---- Test fixtures for the polling / decision pipeline ----

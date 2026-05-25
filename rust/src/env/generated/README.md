@@ -4,7 +4,7 @@
 
 | Source | Reproduces |
 |---|---|
-| `specs/typespec/env/main.tsp` | env_bindings.rs: every enum and model declared in the OpenboxEnv namespace, plus the ENVIRONMENTS URL registry from specs/environments.json |
+| `specs/typespec/env/main.tsp` | env_bindings.rs: every enum and model declared in the OpenboxEnv namespace |
 | `codegen/emitters/typespec-emitter-rust/src/index.ts` | the emit logic |
 
 Regenerate with `npm run specs:compile`.

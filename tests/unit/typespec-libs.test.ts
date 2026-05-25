@@ -87,7 +87,8 @@ describe('typespec-env', () => {
     expect(getEnvVar(program, prop(config, 'apiUrl'))?.name).toBe('OPENBOX_API_URL');
     expect(getEnvVar(program, prop(config, 'coreUrl'))?.name).toBe('OPENBOX_CORE_URL');
     expect(getEnvVar(program, prop(config, 'platformUrl'))?.name).toBe('OPENBOX_PLATFORM_URL');
-    expect(getEnvVar(program, prop(config, 'env'))).toBeUndefined();
+    expect(getEnvVar(program, prop(config, 'authUrl'))?.name).toBe('OPENBOX_AUTH_URL');
+    expect(getEnvVar(program, prop(config, 'stackUrl'))?.name).toBe('OPENBOX_STACK_URL');
   });
 
   test('@token_format attaches the regex literally', () => {
@@ -95,7 +96,6 @@ describe('typespec-env', () => {
     expect(getTokenFormat(program, prop(creds, 'apiKey'))).toBe(
       '^obx_(?:live|test)_[0-9a-f]{48}$',
     );
-    expect(getTokenFormat(program, prop(creds, 'env'))).toBeUndefined();
 
     const variant = findModel('ClientVariant');
     expect(getTokenFormat(program, prop(variant, 'value'))).toBe('^[A-Za-z0-9._+-]+$');

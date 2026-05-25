@@ -15,7 +15,7 @@
 
 import { OpenBoxCoreClient, type GovernanceVerdictResponse } from '../core-client/index.js';
 import { recallAgentKey } from '../file-tokens/agent-keys.js';
-import { ENVIRONMENTS, DEFAULT_CORE_URL, DEFAULT_ENV, resolveEnv, type EnvName } from '../env/index.js';
+import { resolveConnection } from '../env/index.js';
 
 export type SpanType = 'llm' | 'file_read' | 'file_write' | 'shell' | 'http' | 'db' | 'mcp';
 
@@ -29,9 +29,7 @@ export interface CheckGovernanceOptions {
   activityInput: Record<string, unknown>;
   /** Override the runtime API key. Skips env + cache lookup. */
   apiKey?: string;
-  /** Override the env (production / staging / local). Defaults to OPENBOX_ENV. */
-  envName?: EnvName;
-  /** Override the core base URL. Defaults to env's coreUrl. */
+  /** Override the core base URL. Defaults to OPENBOX_CORE_URL or OPENBOX_STACK_URL-derived core URL. */
   coreUrl?: string;
 }
 
@@ -159,10 +157,6 @@ function buildSpan(spanType: SpanType, input: Record<string, unknown>): Record<s
   }
 }
 
-function resolveEnvName(envName?: EnvName): EnvName {
-  return resolveEnv(envName);
-}
-
 function isRuntimeKey(k: string | undefined): k is string {
   return !!k && (k.startsWith('obx_live_') || k.startsWith('obx_test_'));
 }
@@ -187,40 +181,12 @@ function resolveApiKey(opts: CheckGovernanceOptions): string {
         '(OPENBOX_API_KEY=obx_key_* is the org X-API-Key and is ignored here.)',
     );
   }
-  // Env / prefix mismatch: agent-keys are not env-tagged on disk, so
-  // a production-issued key (`obx_live_*`) can sit in the cache while
-  // the caller is running against staging; the core server then
-  // returns a generic 401, which is hard to diagnose. Catch the
-  // common mismatches up front with an actionable message.
-  const env = resolveEnvName(opts.envName);
-  const isLive = key.startsWith('obx_live_');
-  const isTest = key.startsWith('obx_test_');
-  // Build-pinned env (DEFAULT_ENV) accepts only obx_live_*; any other
-  // env accepts only obx_test_*. The mismatch error is the common
-  // misconfig: cached agent key doesn't match the env the caller is
-  // running against.
-  if (env === DEFAULT_ENV && isTest) {
-    throw new Error(
-      `Agent ${opts.agentId ?? ''} has a non-live runtime key (obx_test_*) ` +
-        `but the active env expects an obx_live_* key. ` +
-        `Rotate via \`openbox api-key rotate <agentId>\` against the right env.`,
-    );
-  }
-  if (env !== DEFAULT_ENV && isLive) {
-    throw new Error(
-      `Agent ${opts.agentId ?? ''} has an obx_live_* runtime key but the active ` +
-        `env expects an obx_test_* key. Either run without --env override, or ` +
-        `rotate a non-live key via \`openbox --env ${env} api-key rotate <agentId>\`.`,
-    );
-  }
   return key;
 }
 
-function resolveCoreUrl(envName?: EnvName, coreUrlOverride?: string): string {
+function resolveCoreUrl(coreUrlOverride?: string): string {
   if (coreUrlOverride) return coreUrlOverride;
-  if (process.env.OPENBOX_CORE_URL) return process.env.OPENBOX_CORE_URL;
-  const env = resolveEnvName(envName);
-  return ENVIRONMENTS[env]?.coreUrl ?? DEFAULT_CORE_URL;
+  return resolveConnection().coreUrl;
 }
 
 /**
@@ -240,7 +206,7 @@ export async function checkGovernance(
   opts: CheckGovernanceOptions,
 ): Promise<GovernanceVerdictResponse> {
   const apiKey = resolveApiKey(opts);
-  const coreUrl = resolveCoreUrl(opts.envName, opts.coreUrl);
+  const coreUrl = resolveCoreUrl(opts.coreUrl);
   const span = buildSpan(opts.spanType, opts.activityInput);
   const payload = {
     source: 'sdk',

@@ -7,10 +7,9 @@
 // One @cli_command per top-level verb, with sub-commands mounted
 // either as nested interfaces or methods on the same interface.
 // The surface-area sketch is here; not every existing
-// command is wired yet. The vertical slice that proves the pipeline
-// is `auth` (login / logout / profile) because it exercises every
-// decorator: env-var-backed input, token-format validation, and an
-// OS path for the on-disk store.
+// command is wired yet. The vertical slice that proves the pipeline is
+// `auth` because it exercises every decorator: env-var-backed input,
+// token-format validation, and an OS path for the on-disk store.
 
 // Note: programming-model spec, not an HTTP API; see govern/main.tsp
 // for the rationale behind not using `@service` here.
@@ -22,16 +21,6 @@ using OpenBox.Cli;
 using OpenBox.Env;
 
 namespace OpenboxCli;
-
-// ---------------------------------------------------------------------------
-// Shared models
-// ---------------------------------------------------------------------------
-
-enum EnvFlag {
-  production: "production",
-  staging: "staging",
-  local: "local",
-}
 
 // ---------------------------------------------------------------------------
 // `openbox auth` command group; manages an org-level X-API-Key on disk.
@@ -88,31 +77,24 @@ interface Connect {}
 
 @cli_command(
   "config",
-  "Persistent CLI config (URL overrides, default flags). Two scopes: per-env (default; keyed off the active --env) and global (--global, applies across all envs). Layered into process.env at startup; explicit shell exports always win. File: <data-root>/config (mode 0o600)."
+  "Persistent CLI config (URL overrides, default flags). Single global scope layered into process.env at startup; explicit shell exports always win. File: <data-root>/config (mode 0o600)."
 )
 @cli_maturity("experimental")
 interface Config {
   /**
-   * Persist a config value. Defaults to per-env scope (keyed off
-   * the active --env / OPENBOX_ENV). Pass `--global` for keys that
-   * apply across every env. Some keys auto-promote to global because
-   * per-env scoping is incoherent for them: `OPENBOX_ENV` (selects
-   * the active env; circular), `OPENBOX_HOME` (the dir per-env files
-   * live in), `OPENBOX_CLIENT_VARIANT` (telemetry tag),
-   * `OPENBOX_EXPERIMENTAL_LEVEL`. Conventionally an OPENBOX_*
+   * Persist a global config value. Conventionally an OPENBOX_*
    * upper-snake var name (the same names process.env reads). The CLI
    * does not validate against a known set; power users can stage
-   * arbitrary keys without a release. Values are layered into
-   * process.env on every command run **only if the env var is
-   * currently unset**; explicit shell exports always win.
+   * arbitrary keys without a release. Values are layered into process.env
+   * on every command run **only if the env var is currently unset**;
+   * explicit shell exports always win.
    */
   @cli_local_only
   @cli_output_kind("custom")
   set(key: string, value: string): void;
 
   /** Look up a previously-persisted value. Resolves global-only
-   *  keys globally; everything else from the active --env scope.
-   *  Exits 5 (NOT_FOUND) if absent. */
+   *  config and exits 5 (NOT_FOUND) if absent. */
   @cli_local_only
   @cli_output_kind("custom")
   get(key: string): void;
@@ -122,8 +104,7 @@ interface Config {
   @cli_output_kind("custom")
   unset(key: string): void;
 
-  /** Print persisted values. Default: active env's per-env values.
-   *  `--global`: global-scope only. `--all`: both sections. */
+  /** Print persisted global values. */
   @cli_local_only
   @cli_output_kind("custom")
   list(): void;
@@ -154,8 +135,6 @@ model PersistedCredentials {
   @cli_validator("validateApiKeyFormat")
   apiKey: string;
 
-  /** Selected environment when the store was written. */
-  env: EnvFlag;
 }
 
 // ---------------------------------------------------------------------------

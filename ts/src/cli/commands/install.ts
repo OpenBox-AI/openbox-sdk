@@ -868,7 +868,11 @@ export function registerInstallCommands(program: Command): void {
         if (opts.mcp !== false) {
           info('');
           const { installMcp } = await import('../../runtime/mcp/install.js');
-          installMcp({ targets: ['cursor'], scope, cwd });
+          installMcp({
+            targets: ['cursor'],
+            scope: scope === 'local' ? 'project' : scope,
+            cwd,
+          });
         }
         // Per-extension, slash commands, rules, plugin agents, the
         // OpenBox skill, and the hardening profile are user-level
@@ -1119,7 +1123,11 @@ export function registerInstallCommands(program: Command): void {
         if (opts.mcp !== false) {
           info('');
           const { uninstallMcp } = await import('../../runtime/mcp/install.js');
-          uninstallMcp({ targets: ['cursor'], scope, cwd });
+          uninstallMcp({
+            targets: ['cursor'],
+            scope: scope === 'local' ? 'project' : scope,
+            cwd,
+          });
         }
         if (scope !== 'global') return;
         info('');

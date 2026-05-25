@@ -106,8 +106,8 @@ export function getBackendClient(): HttpClient {
   const apiKey = process.env.OPENBOX_BACKEND_API_KEY || '';
   if (!apiKey) {
     throw new Error(
-      'No OPENBOX_BACKEND_API_KEY found. Set the X-API-Key for the active env, ' +
-        'e.g. `export OPENBOX_BACKEND_API_KEY=$(grep ^${OPENBOX_ENV:-local}.API_KEY ~/.openbox/tokens | cut -d= -f2)`; ' +
+      'No OPENBOX_BACKEND_API_KEY found. Set the backend X-API-Key, ' +
+        'e.g. `export OPENBOX_BACKEND_API_KEY=$(grep ^API_KEY= ~/.openbox/tokens | cut -d= -f2)`; ' +
         "or let tests/setup-creds.ts populate it from your tokens file.",
     );
   }

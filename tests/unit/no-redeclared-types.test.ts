@@ -39,7 +39,7 @@ const pairs: Pair[] = [
   {
     packageName: 'ts/env',
     generatedPath: resolve(repoRoot, 'ts/src/env/generated/env-bindings.ts'),
-    handWrittenPath: resolve(repoRoot, 'ts/src/env/environments.ts'),
+    handWrittenPath: resolve(repoRoot, 'ts/src/env/connection.ts'),
     allowOverlap: new Set<string>([
       // re-exported under the same name to expose the spec type from the
       // package's public entry. Re-exports with `export type { X } from`

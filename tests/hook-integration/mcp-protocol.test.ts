@@ -146,20 +146,19 @@ function hasCachedRuntimeKey(agentId: string | undefined): boolean {
 
 const orgKey = resolveOrgApiKey();
 const SHOULD_RUN = !!orgKey;
-const LIVE = process.env.OPENBOX_E2E_LIVE === '1' || hasCachedRuntimeKey(resolveAgentId());
+const LIVE = process.env.OPENBOX_E2E_LIVE === '1' && hasCachedRuntimeKey(resolveAgentId());
 
 describe.runIf(SHOULD_RUN)('openbox MCP server protocol', () => {
   let client: McpClient;
 
   beforeAll(async () => {
-    // The MCP server needs an org X-API-Key plus a matching env to
-    // reach the backend. `--env local` points at the local stack;
-    // the org key comes from `~/.openbox/tokens`. Both are required
+    // The MCP server needs explicit URLs plus an org X-API-Key to
+    // reach the backend. The org key comes from `~/.openbox/tokens`. Both are required
     // or the server exits with a credentials error before
     // initialize completes.
     client = new McpClient(
       { OPENBOX_API_KEY: orgKey!, OPENBOX_BACKEND_API_KEY: orgKey! },
-      ['--env', 'local'],
+      [],
     );
     const init = await client.call('initialize', {
       protocolVersion: '2024-11-05',

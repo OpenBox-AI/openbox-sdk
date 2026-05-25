@@ -41,7 +41,7 @@ export type SocketResult =
   | { kind: 'closed' };
 
 interface ActiveConnection {
-  socket: net.Socket;
+  socket: unknown;
   /** Push a "pending" notification (idempotent if reconnecting). */
   notifyPending: (p: PendingNotification) => void;
   /** Wait for a decision matching the given governance_event_id, or

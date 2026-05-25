@@ -10,7 +10,6 @@ import {
   loadApiKey,
   getClient,
 } from '../config.js';
-import { resolveEnv } from '../../env/index.js';
 import { reportAndExit } from '../../validators/index.js';
 import { EXIT, bailWith } from '../exit-codes.js';
 import { isNonInteractive } from '../non-interactive.js';
@@ -25,7 +24,6 @@ export function registerAuthCommands(program: Command) {
     .option('-k, --key <key>', 'Pass the key directly instead of prompting')
     .action(async (opts: { key?: string }) => {
       try {
-        const env = resolveEnv();
         let key = opts.key?.trim();
         if (!key) {
           if (isNonInteractive()) {
@@ -51,7 +49,7 @@ export function registerAuthCommands(program: Command) {
           );
           bailWith(EXIT.AUTH);
         }
-        saveApiKey(env, key);
+        saveApiKey(key);
         success('X-API-Key saved.');
       } catch (err: any) {
         reportAndExit(err);
@@ -63,8 +61,7 @@ export function registerAuthCommands(program: Command) {
     .description('Remove the saved X-API-Key for the active OpenBox connection')
     .action(() => {
       try {
-        const env = resolveEnv();
-        const cleared = clearApiKey(env);
+        const cleared = clearApiKey();
         if (cleared) success('X-API-Key cleared.');
         else info('No X-API-Key was stored.');
       } catch (err: any) {
@@ -77,8 +74,7 @@ export function registerAuthCommands(program: Command) {
     .description('Print whether an X-API-Key is saved')
     .action(() => {
       try {
-        const env = resolveEnv();
-        const apiKey = loadApiKey(env);
+        const apiKey = loadApiKey();
         info(apiKey ? `api-key (${apiKey.slice(0, 12)}...)` : 'none');
       } catch (err: any) {
         reportAndExit(err);

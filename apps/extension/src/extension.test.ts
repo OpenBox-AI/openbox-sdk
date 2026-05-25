@@ -245,7 +245,7 @@ vi.mock('./api', () => ({
   apiKeyPrefix: vi.fn(() => apiKeyPrefixValue),
   clearApiKey: vi.fn(),
   hasApiKey: vi.fn(() => apiHasKey),
-  readStore: vi.fn(() => ({ production: { apiKey: 'obx_key_test', updatedAt: '2026-05-06' } })),
+  readStore: vi.fn(() => ({ apiKey: 'obx_key_test', updatedAt: '2026-05-06' })),
   validateApiKey: vi.fn(() => true),
   writeApiKey: vi.fn(),
 }));
@@ -515,7 +515,7 @@ describe('extension wiring: preWriteGate', () => {
 });
 
 describe('extension boot/auth/error states', () => {
-  it('boots into Set API Key state when signed out for the active env', async () => {
+  it('boots into Set API Key state when signed out', async () => {
     apiHasKey = false;
 
     await bootExtension();

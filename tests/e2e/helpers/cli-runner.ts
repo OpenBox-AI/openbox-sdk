@@ -19,7 +19,7 @@ export type CliResult = {
 
 /**
  * Run `openbox <args>` as a subprocess. Inherits the parent process env so
- * $OPENBOX_API_URL / $OPENBOX_ENV / .tokens discovery all work.
+ * $OPENBOX_API_URL / $OPENBOX_CORE_URL / .tokens discovery all work.
  *
  * Note: unit tests should NOT use this; they should import the action logic
  * directly. This helper is for e2e tests that need to verify the full

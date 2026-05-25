@@ -156,14 +156,15 @@
     "check:generated-drift": "npm run specs:compile && npm run generate:types && git diff --exit-code -- ts/src/**/generated specs/generated || (echo 'Generated files drift detected. Re-run npm run specs:all and commit the result.'; exit 1)",
     "lint": "eslint ts/src",
     "format": "prettier --write ts/src",
-    "test": "vitest run",
+    "test": "npm run test:unit && npm run test:contract && npm run test:hook-integration",
     "test:unit": "vitest run --project unit",
     "test:e2e": "vitest run --project e2e",
     "test:contract": "vitest run --project contract",
     "test:hook-integration": "vitest run --project hook-integration",
+    "test:live": "vitest run --project e2e",
     "test:e2e-extension": "npm --prefix apps/extension run build && npm --prefix tests/e2e-extension test",
     "test:e2e-extension:install": "npm --prefix tests/e2e-extension install",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage --project unit --project contract --project hook-integration",
     "test:watch": "vitest watch",
     "generate:types:backend": "openapi-typescript specs/generated/openapi3/OpenboxBackend.json -o ts/src/types/generated/backend.ts",
     "generate:types:core": "openapi-typescript specs/generated/openapi3/OpenboxCore.json    -o ts/src/types/generated/core.ts",
@@ -171,7 +172,8 @@
     "specs:compile": "tsp compile specs/typespec",
     "specs:all": "npm run build:codegen && npm run specs:compile && npm run generate:types",
     "specs:watch": "tsp compile specs/typespec --watch",
-    "lint:generated-banners": "node --experimental-strip-types scripts/check-generated-banners.ts"
+    "lint:generated-banners": "node --experimental-strip-types scripts/check-generated-banners.ts",
+    "audit:security": "node scripts/security-audit.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",

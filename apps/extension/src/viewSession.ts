@@ -45,7 +45,7 @@ export interface SessionDeps {
   context: vscode.ExtensionContext;
   client: OpenBoxClient;
   orgId: string;
-  env: string;
+  targetKey: string;
   userSub: string | undefined;
   teams: () => Team[];
   members: () => Member[];
@@ -55,8 +55,8 @@ export interface SessionDeps {
   onError: (where: string, err: Error) => void;
   // Pending uses this; history doesn't (decided rows shouldn't toast).
   notifyOnNew: boolean;
-  onNewApproval: (a: Approval, env: string) => void;
-  onNewBatch: (count: number, env: string) => void;
+  onNewApproval: (a: Approval, targetKey: string) => void;
+  onNewBatch: (count: number, targetKey: string) => void;
   /** Fires every time the feed reports a new approvals snapshot.
    *  PreWriteGate's halt-verdict tracking subscribes here so it can
    *  paint denies for any URI-open file whose approval is at verdict
@@ -104,8 +104,8 @@ export class ViewSession implements vscode.Disposable {
     private readonly cfg: SessionConfig,
     private readonly deps: SessionDeps,
   ) {
-    this.filters = loadFilters(deps.context.globalState, cfg.scope, deps.env);
-    this.pageSize = loadPageSize(deps.context.globalState, cfg.scope, deps.env);
+    this.filters = loadFilters(deps.context.globalState, cfg.scope, deps.targetKey);
+    this.pageSize = loadPageSize(deps.context.globalState, cfg.scope, deps.targetKey);
     if (cfg.supportsStatus && this.filters.status === undefined) {
       // History default is "all" (status undefined). Persist nothing
       // unusual; just mirror what the user previously chose.
@@ -209,9 +209,9 @@ export class ViewSession implements vscode.Disposable {
   private handleNewBatch(newOnes: Approval[]) {
     if (!this.deps.notifyOnNew) return;
     if (newOnes.length === 1) {
-      this.deps.onNewApproval(newOnes[0], this.deps.env);
+      this.deps.onNewApproval(newOnes[0], this.deps.targetKey);
     } else {
-      this.deps.onNewBatch(newOnes.length, this.deps.env);
+      this.deps.onNewBatch(newOnes.length, this.deps.targetKey);
     }
   }
 
@@ -270,7 +270,7 @@ export class ViewSession implements vscode.Disposable {
       for (const k of ["search", "tier", "activityType", "teamId", "ownerId"] as const) {
         if (this.filters[k] === "" || this.filters[k] == null) (this.filters as any)[k] = undefined;
       }
-      await saveFilters(this.deps.context.globalState, this.cfg.scope, this.deps.env, this.filters);
+      await saveFilters(this.deps.context.globalState, this.cfg.scope, this.deps.targetKey, this.filters);
       this.paintBanner();
       // Status changes go through the dedicated setter so ApprovalsPollingService
       // resets the seed gate; otherwise setFilters' reset is enough.
@@ -285,7 +285,7 @@ export class ViewSession implements vscode.Disposable {
       // surprise users who set "oldest" once and forgot.
       const preservedSort = this.filters.sort;
       this.filters = { ...EMPTY_FILTERS, sort: preservedSort };
-      await saveFilters(this.deps.context.globalState, this.cfg.scope, this.deps.env, this.filters);
+      await saveFilters(this.deps.context.globalState, this.cfg.scope, this.deps.targetKey, this.filters);
       this.paintBanner();
       if (this.cfg.supportsStatus) this.feed.setStatus(undefined);
       this.feed.setFilters(this.filters);
@@ -327,8 +327,6 @@ export class ViewSession implements vscode.Disposable {
     void pickDateRange(this.controller);
   }
 
-  // Used by extension.ts when the env switches; the session is torn
-  // down and a fresh one is built for the new env.
   dispose() {
     while (this.disposables.length) {
       const d = this.disposables.pop();
@@ -352,7 +350,7 @@ export class ViewSession implements vscode.Disposable {
     await savePageSize(
       this.deps.context.globalState,
       this.cfg.scope,
-      this.deps.env,
+      this.deps.targetKey,
       picked.value,
     );
     this.feed.setPageSize(picked.value);
@@ -370,22 +368,22 @@ function mergeApprovals(base: Approval[], overlay: Approval[]): Approval[] {
   return Array.from(byId.values());
 }
 
-function pageSizeKey(scope: string, env: string): string {
-  return `openbox.${scope}.pageSize.${env}`;
+function pageSizeKey(scope: string, targetKey: string): string {
+  return `openbox.${scope}.pageSize.${targetKey}`;
 }
 
-function loadPageSize(state: vscode.Memento, scope: string, env: string): number {
-  const value = state.get<number>(pageSizeKey(scope, env), DEFAULT_PAGE_SIZE);
+function loadPageSize(state: vscode.Memento, scope: string, targetKey: string): number {
+  const value = state.get<number>(pageSizeKey(scope, targetKey), DEFAULT_PAGE_SIZE);
   return normalizePageSize(value);
 }
 
 async function savePageSize(
   state: vscode.Memento,
   scope: string,
-  env: string,
+  targetKey: string,
   value: number,
 ): Promise<void> {
-  await state.update(pageSizeKey(scope, env), normalizePageSize(value));
+  await state.update(pageSizeKey(scope, targetKey), normalizePageSize(value));
 }
 
 function normalizePageSize(value: number): number {

@@ -69,7 +69,7 @@ function fetchPending(agentId: string): PendingRow[] {
   const r = spawnSync(
     OPENBOX,
     [
-      '--env', 'local', '--experimental', '--json',
+      '--experimental', '--json',
       'approval', 'pending', agentId,
       '--limit', '200',
     ],
@@ -101,7 +101,7 @@ function rowKey(row: PendingRow): string | null {
 function decide(agentId: string, eventId: string, action: 'approve' | 'reject'): boolean {
   const r = spawnSync(
     OPENBOX,
-    ['--env', 'local', '--experimental', 'approval', 'decide', agentId, eventId, action],
+    ['--experimental', 'approval', 'decide', agentId, eventId, action],
     {
       encoding: 'utf-8',
       timeout: 10_000,

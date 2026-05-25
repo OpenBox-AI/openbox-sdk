@@ -135,34 +135,33 @@ describe('platform / OS awareness contract', () => {
     }
   });
 
-  it('resolveUrls rejects http:// to remote hosts in non-local envs', async () => {
-    const { resolveUrls } = await import('../../ts/src/env');
+  it('resolveConnection rejects http:// to remote hosts', async () => {
+    const { resolveConnection } = await import('../../ts/src/env');
     const before = process.env.OPENBOX_API_URL;
+    const beforeCore = process.env.OPENBOX_CORE_URL;
 
-    // Remote http:// override on production/staging → reject (real attack
-    // vector: CI misconfig points OPENBOX_API_URL at an attacker host).
     process.env.OPENBOX_API_URL = 'http://attacker.example.com';
+    process.env.OPENBOX_CORE_URL = 'https://core.example/ob';
     try {
-      expect(() => resolveUrls('production')).toThrow(/http:\/\//);
-      expect(() => resolveUrls('staging')).toThrow(/http:\/\//);
+      expect(() => resolveConnection()).toThrow(/OPENBOX_API_URL must use https/);
     } finally {
       if (before !== undefined) process.env.OPENBOX_API_URL = before;
       else delete process.env.OPENBOX_API_URL;
+      if (beforeCore !== undefined) process.env.OPENBOX_CORE_URL = beforeCore;
+      else delete process.env.OPENBOX_CORE_URL;
     }
 
-    // Loopback http:// must be allowed regardless of env (covers e2e
-    // tests that point at local backend with OPENBOX_ENV=production).
+    // Loopback http:// must be allowed for local development.
     for (const host of ['localhost', '127.0.0.1', '[::1]']) {
       process.env.OPENBOX_API_URL = `http://${host}:3000`;
-      expect(() => resolveUrls('production'), `loopback ${host} must be allowed`).not.toThrow();
+      process.env.OPENBOX_CORE_URL = `http://${host}:8086`;
+      expect(() => resolveConnection(), `loopback ${host} must be allowed`).not.toThrow();
     }
-
-    // local env always accepts http://, even to remote hosts (dev workflow).
-    process.env.OPENBOX_API_URL = 'http://my-dev-backend.lan';
-    expect(() => resolveUrls('local')).not.toThrow();
 
     if (before !== undefined) process.env.OPENBOX_API_URL = before;
     else delete process.env.OPENBOX_API_URL;
+    if (beforeCore !== undefined) process.env.OPENBOX_CORE_URL = beforeCore;
+    else delete process.env.OPENBOX_CORE_URL;
   });
 
 });

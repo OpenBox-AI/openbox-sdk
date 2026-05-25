@@ -21,14 +21,9 @@ vi.mock('vscode', () => ({
 
 const mocks = vi.hoisted(() => ({
   checkGovernance: vi.fn(),
-  globalEnv: 'local',
 }));
 vi.mock('openbox-sdk/governance', () => ({
   checkGovernance: mocks.checkGovernance,
-}));
-
-vi.mock('./configStore', () => ({
-  readGlobalEnv: () => mocks.globalEnv,
 }));
 
 // Avoid pulling the network-shaped openbox-sdk/governance into the
@@ -38,7 +33,6 @@ import { GovernanceClient } from './governanceClient';
 
 beforeEach(() => {
   for (const key of Object.keys(configMap)) delete configMap[key];
-  mocks.globalEnv = 'local';
   mocks.checkGovernance.mockReset();
 });
 
@@ -165,11 +159,9 @@ describe('GovernanceClient.applyFailMode - unknown outcome folding', () => {
   });
 });
 
-describe('GovernanceClient - env source', () => {
-  it('uses ~/.openbox/config env instead of the removed openbox.environment setting', async () => {
-    configMap['environment'] = 'production';
-    configMap['agentId'] = 'agent-env';
-    mocks.globalEnv = 'local';
+describe('GovernanceClient - URL-first request shape', () => {
+  it('passes agent and activity without a target selector', async () => {
+    configMap['agentId'] = 'agent-url';
     mocks.checkGovernance.mockResolvedValueOnce({ verdict: 'allow' });
 
     const r = await new GovernanceClient().check({
@@ -180,9 +172,11 @@ describe('GovernanceClient - env source', () => {
     expect(r.outcome).toBe('allow');
     expect(mocks.checkGovernance).toHaveBeenCalledWith(
       expect.objectContaining({
-        agentId: 'agent-env',
-        envName: 'local',
+        agentId: 'agent-url',
+        spanType: 'shell',
+        activityInput: { command: 'pwd' },
       }),
     );
+    expect(mocks.checkGovernance.mock.calls[0][0]).not.toHaveProperty('envName');
   });
 });

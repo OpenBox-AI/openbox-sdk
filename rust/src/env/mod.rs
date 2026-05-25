@@ -1,16 +1,6 @@
-//! Hand-written platform glue for the env package. The
-//! spec-emitted bindings (every `EnvName` variant, `EnvConfigStatic`,
-//! `TokenEntry`, the `ENVIRONMENTS` URL table, …) live in `generated/`;
-//! this file adds the runtime helpers that mirror `ts/src/env/`:
-//!
-//! - [`EnvName`] parse / resolve helpers (`resolve_env`, `resolve_urls`)
-//! - [`token_codec`] for the on-disk token store (`parse_token_store`,
-//!   `serialize_token_store`)
-//! - [`os_paths`] for the per-OS data root (`openbox_data_root`,
-//!   `resolve_os_path`)
-//! - [`api_key_format`] for the `OPENBOX_API_KEY` validator
-//! - [`store`] for the read / write convenience that the CLI, the
-//!   approver, and the extension all share
+//! Hand-written platform glue for the env package. The spec-emitted
+//! bindings live in `generated/`; this module owns URL-first runtime
+//! helpers, token codec glue, OS paths, and API-key validators.
 
 pub mod generated;
 
@@ -36,223 +26,120 @@ pub use token_codec::{parse_token_store, serialize_token_store};
 
 use std::env;
 
-impl EnvName {
-    /// Stable lowercase string used as the env-namespace prefix in the
-    /// token store, in CLI flags, and in the `OPENBOX_ENV` env var.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            EnvName::Production => "production",
-            EnvName::Staging => "staging",
-            EnvName::Local => "local",
-        }
-    }
-
-    /// Look up the URL bundle for this env in the spec-emitted
-    /// `ENVIRONMENTS` table. The table is exhaustive over the enum by
-    /// construction: the emitter fails to generate when
-    /// `specs/environments.json` is missing an entry for any variant.
-    pub fn resolve(&self) -> EnvConfigStatic {
-        for (name, cfg) in ENVIRONMENTS {
-            if name == self {
-                return *cfg;
-            }
-        }
-        unreachable!("ENVIRONMENTS table is exhaustive over EnvName by emitter contract");
-    }
-
-    /// Parse an env name from `OPENBOX_ENV` or a CLI flag value. The
-    /// match is case-insensitive; unknown values produce an error
-    /// rather than silently routing to production.
-    pub fn parse(s: &str) -> Result<Self, ParseEnvError> {
-        match s.to_ascii_lowercase().as_str() {
-            "production" | "prod" => Ok(EnvName::Production),
-            "staging" | "stage" => Ok(EnvName::Staging),
-            "local" | "dev" => Ok(EnvName::Local),
-            other => Err(ParseEnvError(other.to_string())),
-        }
-    }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Connection {
+    pub api_url: String,
+    pub core_url: String,
+    pub platform_url: Option<String>,
+    pub auth_url: Option<String>,
+    pub stack_url: Option<String>,
 }
 
-/// Returned by [`EnvName::parse`] for inputs that don't match a known
-/// environment. Carries the offending value verbatim so CLI surfaces
-/// can echo it in the error message.
-#[derive(Debug, thiserror::Error)]
-#[error("unknown OPENBOX_ENV='{0}'. Use 'production', 'staging', or 'local'.")]
-pub struct ParseEnvError(pub String);
+pub fn resolve_connection() -> Result<Connection, String> {
+    apply_env_source();
+    let stack_url = env::var("OPENBOX_STACK_URL").ok().filter(|s| !s.is_empty());
+    let stack = stack_url.as_deref().map(endpoints_from_stack_url).transpose()?;
+    let api_url = env::var("OPENBOX_API_URL")
+        .ok()
+        .or_else(|| stack.as_ref().map(|s| s.api_url.clone()))
+        .ok_or_else(|| "OPENBOX_API_URL is required. Set explicit OpenBox service URLs.".to_string())?;
+    let core_url = env::var("OPENBOX_CORE_URL")
+        .ok()
+        .or_else(|| stack.as_ref().map(|s| s.core_url.clone()))
+        .ok_or_else(|| "OPENBOX_CORE_URL is required. Set explicit OpenBox service URLs.".to_string())?;
+    Ok(Connection {
+        api_url: normalize_service_url("OPENBOX_API_URL", &api_url)?,
+        core_url: normalize_service_url("OPENBOX_CORE_URL", &core_url)?,
+        platform_url: env::var("OPENBOX_PLATFORM_URL")
+            .ok()
+            .or_else(|| stack.as_ref().and_then(|s| s.platform_url.clone())),
+        auth_url: env::var("OPENBOX_AUTH_URL")
+            .ok()
+            .or_else(|| stack.as_ref().and_then(|s| s.auth_url.clone())),
+        stack_url,
+    })
+}
 
-/// Mirror of `resolveEnv()` in `ts/src/env/environments.ts`. Reads
-/// `OPENBOX_ENV` and falls back to production. CLI callers that accept
-/// `--env <name>` should call [`EnvName::parse`] directly so a bad
-/// flag surfaces as an error instead of silently picking production.
-pub fn resolve_env() -> EnvName {
-    match env::var("OPENBOX_ENV") {
-        Ok(s) => EnvName::parse(&s).unwrap_or(EnvName::Production),
-        Err(_) => EnvName::Production,
+fn endpoints_from_stack_url(raw: &str) -> Result<Connection, String> {
+    let stack_url = normalize_stack_url(raw)?;
+    let url = url::Url::parse(&stack_url).map_err(|e| e.to_string())?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| "OpenBox stack URL is missing a host".to_string())?;
+    let root_host = host
+        .strip_prefix("api.")
+        .or_else(|| host.strip_prefix("core."))
+        .or_else(|| host.strip_prefix("auth."))
+        .unwrap_or(host);
+    let origin = format!("{}://", url.scheme());
+    Ok(Connection {
+        api_url: format!("{origin}api.{root_host}/ob"),
+        core_url: format!("{origin}core.{root_host}/ob"),
+        auth_url: Some(format!("{origin}auth.{root_host}/ob")),
+        platform_url: Some(stack_url.clone()),
+        stack_url: Some(stack_url),
+    })
+}
+
+fn normalize_stack_url(raw: &str) -> Result<String, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("OpenBox stack URL cannot be empty.".to_string());
     }
+    let with_protocol = if trimmed.contains("://") {
+        trimmed.to_string()
+    } else {
+        format!("https://{trimmed}")
+    };
+    normalize_service_url("OPENBOX_STACK_URL", &with_protocol)
 }
 
-/// Mirror of `resolveUrls(env)` in `ts/src/env/environments.ts`.
-/// Returns the per-env URL bundle; identical to `env.resolve()` but
-/// kept under the TS-name so a side-by-side audit is straightforward.
-pub fn resolve_urls(env: EnvName) -> EnvConfigStatic {
-    env.resolve()
+fn normalize_service_url(name: &str, raw: &str) -> Result<String, String> {
+    let url = url::Url::parse(raw.trim()).map_err(|e| format!("{name} is not a valid URL: {e}"))?;
+    if url.scheme() != "https" && !is_loopback(url.host_str().unwrap_or_default()) {
+        return Err(format!("{name} must use https:// unless it points at localhost."));
+    }
+    let mut normalized = url;
+    normalized.set_query(None);
+    normalized.set_fragment(None);
+    let path = normalized.path().trim_end_matches('/').to_string();
+    normalized.set_path(&path);
+    Ok(normalized.to_string().trim_end_matches('/').to_string())
 }
 
-/// Rust mirror of `applyEnvSource()` in `ts/src/cli/env-source.ts`.
-///
-/// Layers `~/.openbox/config` into the process environment so every
-/// OpenBox surface — CLI, MCP, cursor / claude-code hooks, the Rust
-/// approver — converges on the same active env without the user
-/// having to remember to `export OPENBOX_ENV` in every shell. Reads
-/// global keys first, resolves the env, then layers per-env keys.
-///
-/// Precedence (highest first):
-///   1. Process env vars already set (explicit shell export wins).
-///   2. `~/.openbox/config` global keys (lines without a prefix).
-///   3. `~/.openbox/config` per-env keys (lines like
-///      `local.OPENBOX_API_URL=...`).
-///   4. Defaults baked into the spec-emitted `ENVIRONMENTS` table.
-///
-/// Returns the active env after layering. Idempotent: every set is
-/// gated on `env::var().is_err()` so a second call is a no-op when
-/// the first one's writes still stand. Best-effort: a missing file
-/// or a parse error returns the env resolved from whatever env vars
-/// are already set, never panics.
-pub fn apply_env_source() -> EnvName {
-    let pairs = read_config_pairs();
-    // Pass 1: global keys (no env-prefix). Layered before env
-    // resolution so a persisted `OPENBOX_ENV=local` takes effect.
-    for (key, value) in &pairs {
-        if !is_global_key(key) {
+fn is_loopback(host: &str) -> bool {
+    matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]")
+}
+
+pub fn apply_env_source() {
+    for (key, value) in read_config_pairs() {
+        if key.contains('.') || !key.starts_with("OPENBOX_") {
             continue;
         }
-        if env::var(key).is_err() {
-            // Safe because the keys we layer are all well-known
-            // OPENBOX_* config knobs; the file format pre-validates.
+        if env::var(&key).is_err() {
             unsafe { env::set_var(key, value) };
         }
     }
-    let env_name = resolve_env();
-    let prefix = format!("{}.", env_name.as_str());
-    // Pass 2: per-env keys. Strip the `<env>.` prefix before writing.
-    for (key, value) in &pairs {
-        if let Some(stripped) = key.strip_prefix(&prefix) {
-            if env::var(stripped).is_err() {
-                unsafe { env::set_var(stripped, value) };
-            }
-        }
-    }
-    env_name
 }
 
-/// Persist `OPENBOX_ENV=<env>` to the global section of
-/// `~/.openbox/config`. The CLI's `openbox config set --global` writes
-/// the same line; this helper is the Rust-side equivalent so the
-/// approver's Settings window can flip env globally instead of
-/// keeping its own per-app copy.
-///
-/// Edit semantics:
-/// - If the file is missing, it's created with a single leading
-///   `OPENBOX_ENV=<env>` line.
-/// - If a global `OPENBOX_ENV=...` line already exists, it's replaced
-///   in place. Any other global or per-env keys are preserved.
-/// - If no `OPENBOX_ENV` line exists, one is prepended above per-env
-///   keys (matching the order the CLI writes for fresh installs).
-///
-/// After this call, `apply_env_source()` will pick up the new value
-/// on the next invocation. In-process callers that already have an
-/// env resolved should rerun `apply_env_source()` themselves.
-pub fn write_global_env(env: EnvName) -> std::io::Result<()> {
-    let path = openbox_data_root().join("config");
-    let existing = std::fs::read_to_string(&path).unwrap_or_default();
-    let mut out_lines: Vec<String> = Vec::new();
-    let mut replaced = false;
-    for raw in existing.lines() {
-        let trimmed = raw.trim_start();
-        if trimmed.starts_with("OPENBOX_ENV=") && !trimmed.contains('.') {
-            out_lines.push(format!("OPENBOX_ENV={}", env.as_str()));
-            replaced = true;
-        } else {
-            out_lines.push(raw.to_string());
-        }
-    }
-    if !replaced {
-        // Insert at the top, after any leading comment block so the
-        // file reads in the same order as the CLI's fresh-install
-        // template.
-        let mut insert_at = 0;
-        for (i, line) in out_lines.iter().enumerate() {
-            let t = line.trim();
-            if t.starts_with('#') || t.is_empty() {
-                insert_at = i + 1;
-            } else {
-                break;
-            }
-        }
-        out_lines.insert(insert_at, format!("OPENBOX_ENV={}", env.as_str()));
-    }
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            std::fs::create_dir_all(parent)?;
-        }
-    }
-    let mut joined = out_lines.join("\n");
-    if !joined.ends_with('\n') {
-        joined.push('\n');
-    }
-    std::fs::write(&path, joined)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
-    }
-    Ok(())
-}
-
-/// Walk `~/.openbox/config`, returning each non-comment `KEY=value`
-/// pair in file order. Missing file or any IO error returns an empty
-/// vec; the caller treats it as "no overrides". Lines without `=` or
-/// empty / `#`-prefixed lines are skipped silently.
 fn read_config_pairs() -> Vec<(String, String)> {
     let path = openbox_data_root().join("config");
     let text = match std::fs::read_to_string(&path) {
         Ok(s) => s,
         Err(_) => return Vec::new(),
     };
-    let mut out = Vec::new();
-    for raw in text.lines() {
-        let line = raw.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        if let Some((k, v)) = line.split_once('=') {
-            out.push((k.trim().to_string(), v.trim().to_string()));
-        }
-    }
-    out
+    text.lines()
+        .filter_map(|raw| {
+            let line = raw.trim();
+            if line.is_empty() || line.starts_with('#') {
+                return None;
+            }
+            let (key, value) = line.split_once('=')?;
+            Some((key.trim().to_string(), value.trim().to_string()))
+        })
+        .collect()
 }
 
-/// Recognize keys that live at the global (no-prefix) layer of the
-/// config file. Per-env keys carry an `<env>.` prefix that this
-/// function rejects, so a stray `local.OPENBOX_ENV=...` never
-/// pollutes the global layer.
-fn is_global_key(key: &str) -> bool {
-    !key.contains('.') && key.starts_with("OPENBOX_")
-}
-
-/// Reveal env-internal UI surfaces (env picker, active-env labels,
-/// --env CLI flag in --help, etc.) when true. Returns false on every
-/// public-facing build by default so end users never see staging /
-/// local env names; the SDK keeps env switching available through
-/// `~/.openbox/config` for power users without surfacing the
-/// existence of multiple envs in the UI.
-///
-/// Sources (highest first):
-///   1. `OPENBOX_DEBUG=1|true` env var
-///   2. `~/.openbox/config` global `OPENBOX_DEBUG=true` line
-///
-/// Truthy values: `1`, `true`, `yes`, `on` (case-insensitive). Any
-/// other value, including empty / unset, is false.
 pub fn is_debug_mode() -> bool {
     fn truthy(s: &str) -> bool {
         matches!(s.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on")
@@ -262,10 +149,7 @@ pub fn is_debug_mode() -> bool {
             return true;
         }
     }
-    for (k, v) in read_config_pairs() {
-        if k == "OPENBOX_DEBUG" && truthy(v.trim()) {
-            return true;
-        }
-    }
-    false
+    read_config_pairs()
+        .into_iter()
+        .any(|(key, value)| key == "OPENBOX_DEBUG" && truthy(value.trim()))
 }

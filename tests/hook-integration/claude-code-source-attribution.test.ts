@@ -72,7 +72,7 @@ function fetchPending(agentId: string): PendingRow[] {
   const r = spawnSync(
     OPENBOX,
     [
-      '--env', 'local', '--experimental', '--json',
+      '--experimental', '--json',
       'approval', 'pending', agentId,
       '--limit', '200',
     ],

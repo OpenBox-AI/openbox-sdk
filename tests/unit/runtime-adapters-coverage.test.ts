@@ -48,14 +48,14 @@ function recordingSession(verdict: { arm?: string } = { arm: 'allow' }): any {
 describe('runtime/claude-code/config', () => {
   it('loadConfig pulls API key + endpoint from env', async () => {
     process.env.OPENBOX_API_KEY = 'obx_live_test_x';
-    process.env.OPENBOX_ENDPOINT = 'http://localhost:8086';
+    process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
     // Force re-import so config picks up our env state at module-load time.
     const mod = await import('../../ts/src/runtime/claude-code/config');
     const cfg = mod.loadConfig();
     expect(cfg.openboxApiKey).toBe('obx_live_test_x');
     expect(cfg.openboxEndpoint).toBe('http://localhost:8086');
     delete process.env.OPENBOX_API_KEY;
-    delete process.env.OPENBOX_ENDPOINT;
+    delete process.env.OPENBOX_CORE_URL;
   });
 
   it('loadConfig supplies sane defaults for unspecified fields', async () => {
@@ -194,11 +194,10 @@ describe('runtime/cursor/mappers/pre-tool-use', () => {
 });
 
 describe('runtime/mcp/config', () => {
-  it('resolveEnv + createApi exist and don\'t throw on construction', async () => {
+  it('createApi exists and does not throw on construction', async () => {
     process.env.OPENBOX_API_URL = 'http://localhost:3000';
     process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
     const mod = await import('../../ts/src/runtime/mcp/config');
-    expect(typeof mod.resolveEnv).toBe('function');
     expect(typeof mod.createApi).toBe('function');
     if ('setMcpClientName' in mod) {
       (mod as any).setMcpClientName('openbox-test');

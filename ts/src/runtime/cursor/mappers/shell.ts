@@ -56,7 +56,7 @@ export async function handleBeforeShellExecution(
     if (!decision) return undefined; // timeout; fail open
     if (decision.arm === 'allow' || decision.arm === 'constrain') return undefined;
     if (decision.arm === 'halt') markHalted(env.conversation_id, cfg);
-    return { arm: decision.arm, reason: decision.reason };
+    return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
   }
 
   const payload = buildBeforeShellExecutionPayload(env);

@@ -4,15 +4,15 @@
 // recovery path) and the MCP server's resolveApiKey (so MCP-driven
 // governance calls can find a runtime key without the caller re-
 // pasting it). Sits in file-tokens/ because it's the second of the
-// two file-backed credentials the SDK owns (the other being the
-// env-namespaced X-API-Key store).
+// two file-backed credentials the SDK owns (the other being the flat
+// X-API-Key store).
 //
 // File: <openbox-data-root>/agent-keys (per-OS, see env/os-paths.ts).
 // Mode: 0o600; drift-locked by tests/unit/platform-awareness.test.ts.
 //
 // Format: a thin JSON object mapping agentId → record. Plain JSON
 // (not the .env-style token store) because the caller is always the
-// CLI in the same env; there's no multi-env layering to support.
+// CLI; there's no target layering to support.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';

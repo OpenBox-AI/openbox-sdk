@@ -32,7 +32,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { DEFAULT_CORE_URL } from '../env/index.js';
 
 export type InstallScope = 'global' | 'project' | 'local';
 
@@ -183,7 +182,7 @@ function dropExampleConfig(configDir: string): void {
   if (fs.existsSync(file)) return;
   const example = {
     OPENBOX_API_KEY: 'obx_live_YOUR_API_KEY_HERE',
-    OPENBOX_ENDPOINT: DEFAULT_CORE_URL,
+    OPENBOX_CORE_URL: 'https://core.example/ob',
     GOVERNANCE_POLICY: 'fail_open',
     HITL_ENABLED: true,
     HITL_MAX_WAIT: 300,

@@ -1,5 +1,5 @@
 import { isTokenExpired } from '../types/index.js';
-import { DEFAULT_API_URL, resolveClientName, buildAuthHeader } from '../env/index.js';
+import { resolveClientName, buildAuthHeader } from '../env/index.js';
 import { TokenBucket } from './rate-limiter.js';
 import type {
   PaginationQuery,
@@ -44,11 +44,7 @@ import type {
   BackendClientConfig as SpecBackendClientConfig,
   RetryConfig,
   RateLimitConfig,
-  EnvName,
 } from '../env/index.js';
-import { resolveEnv } from '../env/index.js';
-
-export type { EnvName } from '../env/index.js';
 
 /**
  * Backend HTTP client configuration. Mirrors `BackendClientConfig` in
@@ -95,7 +91,6 @@ import { OpenBoxClientWrapperBase } from './generated/wrapper-methods.js';
 export class OpenBoxClient extends OpenBoxClientWrapperBase {
   private baseUrl: string;
   private config: ClientConfig;
-  protected readonly env: EnvName;
   protected readonly clientName: string;
   private refreshPromise: Promise<void> | null = null;
   private rateLimiter: TokenBucket | null = null;
@@ -162,10 +157,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     // the backend's 401 (which buildAuthHeader reports clearly when
     // both apiKey and accessToken are unset).
     this.config = { ...config };
-    this.baseUrl = this.config.apiUrl ?? DEFAULT_API_URL;
-    // Default the env from the spec-resolution path: explicit
-    // shell export → global config → spec's first-key fallback.
-    this.env = this.config.env ?? resolveEnv();
+    this.baseUrl = requireApiUrl(this.config.apiUrl ?? process.env.OPENBOX_API_URL);
     // Apply OPENBOX_CLIENT_VARIANT (if set) on top of the configured base name.
     // Lets a skill running inside Claude Code / Codex / Cursor identify itself
     // in backend telemetry without each app having to plumb the variant.
@@ -669,4 +661,13 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     }
     return response;
   }
+}
+
+function requireApiUrl(value: string | undefined): string {
+  if (!value) throw new Error('OPENBOX_API_URL is required. Set the backend API URL explicitly.');
+  const url = new URL(value);
+  url.hash = '';
+  url.search = '';
+  url.pathname = url.pathname.replace(/\/+$/, '');
+  return url.toString().replace(/\/$/, '');
 }

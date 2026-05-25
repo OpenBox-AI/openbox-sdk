@@ -16,8 +16,7 @@
 //   OPENBOX_E2E_AGENT_ID=<uuid>         ← agent the verdict targets
 //   OPENBOX_E2E_RUNTIME_KEY=obx_test_…  ← that agent's runtime key
 //
-// Plus the usual env (`OPENBOX_ENV`, `OPENBOX_API_URL`,
-// `OPENBOX_CORE_URL`) to point the handler at whichever backend the
+// Plus `OPENBOX_API_URL` / `OPENBOX_CORE_URL` to point the handler at whichever backend the
 // caller wants to drive. Tests skip cleanly when any of the three
 // are absent. How those values are produced (admin reset, keycloak
 // bootstrap, fresh agent create, …) is the caller's problem; this
@@ -39,10 +38,6 @@ const CLI = resolve(__dirname, '../../dist/cli/index.js');
 const LOG = join(homedir(), '.openbox', 'log', 'cursor-hook.jsonl');
 
 function runHook(envelope: Record<string, unknown>) {
-  // tests/setup.ts pins OPENBOX_API_URL/_CORE_URL to production
-  // defaults; strip them so the cursor hook handler picks up the
-  // env-table URL via OPENBOX_ENV. The hook reads OPENBOX_ENDPOINT
-  // (a different name); set it to local-core when OPENBOX_ENV=local.
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     OPENBOX_API_KEY: process.env.OPENBOX_E2E_RUNTIME_KEY!,
@@ -52,11 +47,6 @@ function runHook(envelope: Record<string, unknown>) {
     // the child process run until Vitest kills it.
     HITL_MAX_WAIT: process.env.OPENBOX_E2E_HITL_MAX_WAIT ?? '1',
   };
-  delete env.OPENBOX_API_URL;
-  delete env.OPENBOX_CORE_URL;
-  if ((process.env.OPENBOX_ENV ?? '') === 'local') {
-    env.OPENBOX_ENDPOINT = env.OPENBOX_ENDPOINT ?? 'http://localhost:8086';
-  }
   return spawnSync('node', [CLI, 'cursor', 'hook'], {
     input: JSON.stringify(envelope),
     env,

@@ -6,10 +6,9 @@
 // branch (idle-gate annotation, count vs no count, debug vs release).
 
 import { describe, it, expect } from 'vitest';
-import { buildIdleStatusBar, envTagFor } from './statusBarText';
+import { buildIdleStatusBar, statusTagFor } from './statusBarText';
 
 const baseInput = {
-  env: 'staging' as const,
   count: 0,
   debugBuild: false,
   preWriteGateActive: false,
@@ -22,7 +21,7 @@ const baseInput = {
 describe('buildIdleStatusBar - text shape', () => {
   it('release build, idle, nothing to say: just the icon', () => {
     const out = buildIdleStatusBar(baseInput);
-    expect(out.text).toBe('$(openbox-logo)');
+    expect(out.text).toBe('$(openbox-logo) OpenBox');
     expect(out.tooltip).toBeUndefined();
   });
 
@@ -33,20 +32,14 @@ describe('buildIdleStatusBar - text shape', () => {
 
   it('debug build, no count: still just the icon', () => {
     const out = buildIdleStatusBar({ ...baseInput, debugBuild: true });
-    expect(out.text).toBe('$(openbox-logo)');
+    expect(out.text).toBe('$(openbox-logo) OpenBox');
   });
 
-  it('debug build with count: no connection profile suffix', () => {
+  it('debug build with count: no target suffix', () => {
     const out = buildIdleStatusBar({ ...baseInput, debugBuild: true, count: 3 });
     expect(out.text).toBe('$(openbox-logo) 3 Pending');
   });
 
-  it('different env values are not exposed in status text', () => {
-    expect(buildIdleStatusBar({ ...baseInput, env: 'local', debugBuild: true }).text)
-      .toBe('$(openbox-logo)');
-    expect(buildIdleStatusBar({ ...baseInput, env: 'production', debugBuild: true }).text)
-      .toBe('$(openbox-logo)');
-  });
 });
 
 describe('buildIdleStatusBar - idle-gate annotation', () => {
@@ -63,7 +56,7 @@ describe('buildIdleStatusBar - idle-gate annotation', () => {
       preWriteGateActive: true,
       haveAgent: true,
     });
-    expect(out.text).toBe('$(openbox-logo)');
+    expect(out.text).toBe('$(openbox-logo) OpenBox');
     expect(out.tooltip).toBeUndefined();
   });
 
@@ -73,7 +66,7 @@ describe('buildIdleStatusBar - idle-gate annotation', () => {
       tabObserverEnabled: true,
       tabObserverActive: false,
     });
-    expect(out.text).toBe('$(openbox-logo)');
+    expect(out.text).toBe('$(openbox-logo) OpenBox');
   });
 
   it('tabObserver enabled AND active, no agent: idle annotation', () => {
@@ -90,7 +83,7 @@ describe('buildIdleStatusBar - idle-gate annotation', () => {
     expect(out.text).toMatch(/gates idle \(no agent\)$/);
   });
 
-  it('any gate active + count: full composition without env suffix', () => {
+  it('any gate active + count: full composition without target suffix', () => {
     const out = buildIdleStatusBar({
       ...baseInput,
       preWriteGateActive: true,
@@ -100,14 +93,14 @@ describe('buildIdleStatusBar - idle-gate annotation', () => {
   });
 });
 
-describe('envTagFor - boot/error tag', () => {
+describe('statusTagFor - boot/error tag', () => {
   it('release build: just the action text (icon already identifies us)', () => {
-    expect(envTagFor('Set API Key', 'staging', false)).toBe('Set API Key');
-    expect(envTagFor('No Token', 'production', false)).toBe('No Token');
+    expect(statusTagFor('Set API Key', false)).toBe('Set API Key');
+    expect(statusTagFor('No Token', false)).toBe('No Token');
   });
 
-  it('debug build: still hides env suffix', () => {
-    expect(envTagFor('Set API Key', 'staging', true)).toBe('Set API Key');
-    expect(envTagFor('Error', 'local', true)).toBe('Error');
+  it('debug build: still hides target suffix', () => {
+    expect(statusTagFor('Set API Key', true)).toBe('Set API Key');
+    expect(statusTagFor('Error', true)).toBe('Error');
   });
 });

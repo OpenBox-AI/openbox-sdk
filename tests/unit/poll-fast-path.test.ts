@@ -60,7 +60,7 @@ describe('awaitExternalDecision fast path', () => {
     });
 
     const t0 = Date.now();
-    const verdict = await session.activity('ActivityStarted', 'Test', {
+    const verdict = await session.activity('Test', 'pre', {
       input: [{ x: 1 }],
     });
     const elapsed = Date.now() - t0;
@@ -89,7 +89,7 @@ describe('awaitExternalDecision fast path', () => {
     });
 
     const t0 = Date.now();
-    const verdict = await session.activity('ActivityStarted', 'Test', {
+    const verdict = await session.activity('Test', 'pre', {
       input: [{ x: 1 }],
     });
     const elapsed = Date.now() - t0;

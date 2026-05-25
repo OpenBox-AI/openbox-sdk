@@ -24,3 +24,4 @@ thiserror = "1"
 # / `Approval.approval_expired_at`. Default features (clock + std) are
 # what the relative-time helpers need.
 chrono = "0.4"
+url = "2"

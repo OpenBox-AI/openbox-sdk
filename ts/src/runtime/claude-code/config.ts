@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { DEFAULT_CORE_URL } from '../../env/index.js';
 import { loadJsonConfig, loadDotenv } from '../../config/host-config.js';
 
 // `os.homedir()` honors USERPROFILE on Windows where HOME is unset.
@@ -83,14 +82,13 @@ export function loadConfig(): ClaudeCodeConfig {
   const skipActivityRaw = get('SKIP_ACTIVITY_TYPES');
   const skipActivityTypes = skipActivityRaw ? skipActivityRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
 
-  // Prefer canonical OPENBOX_CORE_URL (set by applyEnvSource() from
-  // ~/.openbox/config). Legacy OPENBOX_ENDPOINT honored as fallback
-  // for installs whose config.json predates unification.
+  // OPENBOX_CORE_URL is the canonical runtime target. No environment
+  // fallback is baked in; installs must provide explicit service URLs.
   const coreUrl =
     process.env.OPENBOX_CORE_URL ??
     fileConfig.OPENBOX_CORE_URL ??
     envConfig.OPENBOX_CORE_URL ??
-    get('OPENBOX_ENDPOINT', DEFAULT_CORE_URL);
+    '';
   return {
     openboxApiKey: get('OPENBOX_API_KEY'),
     openboxEndpoint: coreUrl,

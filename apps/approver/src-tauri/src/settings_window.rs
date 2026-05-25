@@ -38,9 +38,8 @@ use objc2_foundation::{
 use std::sync::{mpsc, Arc, Mutex, OnceLock};
 
 use crate::api::ApiClient;
-use crate::settings::{self, EnvChoice, Settings};
-use crate::{display_api_url, env_choice_to_name, AppState};
-use openbox_sdk::env::EnvName;
+use crate::settings::{self, Settings};
+use crate::{display_api_url, AppState};
 
 /// Cast any AppKit subclass pointer down to an `&NSView`. AppKit
 /// uses pure single inheritance from NSView, so the pointer
@@ -130,102 +129,13 @@ fn get_target_class() -> &'static AnyClass {
 
 unsafe extern "C" fn env_changed(_this: *const AnyObject, _sel: Sel, _sender: *const AnyObject) {
     with_ctx(|ctx| {
-        let idx = unsafe { ctx.env_popup.indexOfSelectedItem() };
-        let new_choice = match idx {
-            0 => EnvChoice::Production,
-            1 => EnvChoice::Staging,
-            _ => EnvChoice::Local,
-        };
-        let new_env = env_choice_to_name(&new_choice);
-        let prev_env = ctx.state.lock().unwrap().current_env;
-        if prev_env == new_env {
-            return;
+        unsafe {
+            ctx.env_popup.selectItemAtIndex(0);
         }
-
-        // Pre-validate the new env BEFORE persisting the choice. If
-        // the user picks an env that has no recorded X-API-Key the
-        // build returns Err with a CLI hint; surface that as an
-        // alert and revert the popup so the live client (still on
-        // the previous env) keeps polling without a glitch.
-        match ApiClient::for_env(new_env) {
-            Ok(new_client) => {
-                // Persist to ~/.openbox/config so the CLI / MCP /
-                // hooks / extension all converge on the new env on
-                // their next invocation. The approver no longer
-                // keeps a per-app env copy.
-                if let Err(e) = openbox_sdk::env::write_global_env(new_env) {
-                    eprintln!("write_global_env failed: {}", e);
-                }
-                // Reapply ~/.openbox/config into std::env so the
-                // current process sees the new env on any subsequent
-                // env::var() lookup (per-env URL overrides, etc.).
-                let _ = openbox_sdk::env::apply_env_source();
-                {
-                    let mut s = ctx.state.lock().unwrap();
-                    s.current_env = new_env;
-                    // Reset the diff cache so the next post-swap
-                    // poll doesn't fire spurious "brand new" notifs
-                    // for IDs that simply belong to the new env.
-                    s.known_ids.clear();
-                    // Tell the polling thread to re-bootstrap on its
-                    // next iteration: profile + agents-list run
-                    // against the new client to refresh org_id.
-                    s.needs_bootstrap = true;
-                    s.org_id = None;
-                    s.user_email = None;
-                }
-                // Persist the non-env UI prefs (notifications,
-                // poll interval). Env intentionally omitted; it
-                // lives in ~/.openbox/config now.
-                let snap = ctx.state.lock().unwrap().settings.clone();
-                let _ = settings::save(&snap);
-
-                // Atomic swap: drop the old client and install the
-                // new one in the same critical section. The polling
-                // loop locks this same Mutex per iteration, so the
-                // worst case is one in-flight HTTP call against the
-                // old client finishing before the swap takes.
-                {
-                    let mut slot = ctx.client.lock().unwrap();
-                    *slot = Some(new_client);
-                }
-
-                update_account_labels(ctx);
-
-                // Best-effort wakeup so the polling thread breaks
-                // out of its sleep and the bootstrap + first poll
-                // against the new env happens immediately.
-                let _ = ctx.wakeup.send(());
-
-                run_alert(
-                    "Environment switched",
-                    &format!(
-                        "Now polling against the {} environment. Tray will refresh in a moment.",
-                        new_env.as_str()
-                    ),
-                );
-            }
-            Err(e) => {
-                // Revert the popup selection; the persisted config
-                // and the live client both stay on prev_env.
-                let prev_idx = match prev_env {
-                    EnvName::Production => 0,
-                    EnvName::Staging => 1,
-                    EnvName::Local => 2,
-                };
-                unsafe {
-                    ctx.env_popup.selectItemAtIndex(prev_idx);
-                }
-                run_alert(
-                    "Cannot switch environment",
-                    &format!(
-                        "{}\n\nReverted to {}.",
-                        e,
-                        prev_env.as_str()
-                    ),
-                );
-            }
-        }
+        run_alert(
+            "Configure OpenBox URLs",
+            "OpenBox targets are selected with OPENBOX_API_URL and OPENBOX_CORE_URL.",
+        );
     });
 }
 
@@ -282,7 +192,6 @@ fn run_alert(title: &str, body: &str) {
 
 fn update_account_labels(ctx: &WindowCtx) {
     let s = ctx.state.lock().unwrap();
-    let env_name = s.current_env;
     let org = s.org_id.clone().unwrap_or_else(|| "<unknown>".into());
     drop(s);
 
@@ -292,8 +201,8 @@ fn update_account_labels(ctx: &WindowCtx) {
         // value, not a duplicated "Label: value" string.
         ctx.account_email.setStringValue(&NSString::from_str("org X-API-Key"));
         ctx.account_org.setStringValue(&NSString::from_str(&org));
-        ctx.account_env.setStringValue(&NSString::from_str(env_name.as_str()));
-        ctx.account_url.setStringValue(&NSString::from_str(&display_api_url(env_name)));
+        ctx.account_env.setStringValue(&NSString::from_str("Configured URLs"));
+        ctx.account_url.setStringValue(&NSString::from_str(&display_api_url()));
     }
 }
 
@@ -380,29 +289,20 @@ fn build_window(
     let target_class = get_target_class();
     let target: Retained<AnyObject> = unsafe { msg_send![target_class, new] };
 
-    // ---- Env section ----
-    let env_label = labeled(mtm, "Environment");
     let env_popup = NSPopUpButton::new(mtm);
     unsafe {
-        env_popup.addItemWithTitle(&NSString::from_str("Production"));
-        env_popup.addItemWithTitle(&NSString::from_str("Staging"));
-        env_popup.addItemWithTitle(&NSString::from_str("Local"));
+        env_popup.addItemWithTitle(&NSString::from_str("Configured URLs"));
         let _: () = msg_send![&env_popup, setTarget: &*target];
         let _: () = msg_send![&env_popup, setAction: sel!(envChanged:)];
     }
 
-    // ---- Notifications section ----
-    let notif_label = labeled(mtm, "Notifications");
     let notif_switch = NSSwitch::new(mtm);
-    let notif_caption = caption(mtm, "Notify on new approvals");
     unsafe {
         let _: () = msg_send![&notif_switch, setTarget: &*target];
         let _: () = msg_send![&notif_switch, setAction: sel!(notifChanged:)];
     }
-    let notif_row = horizontal_row(mtm, &[as_view(&*notif_caption), as_view(&*notif_switch)]);
 
     // ---- Poll-interval section ----
-    let poll_label = labeled(mtm, "Refresh interval");
     let labels = NSArray::from_retained_slice(&[
         NSString::from_str("5s"),
         NSString::from_str("15s"),
@@ -421,11 +321,9 @@ fn build_window(
     let poll_segments: Retained<NSSegmentedControl> =
         unsafe { Retained::cast_unchecked(poll_segments_any) };
 
-    // ---- Account section (read-only) ----
-    let account_label = labeled(mtm, "Account");
     let account_email = readonly_text(mtm, "Signed in as ...");
     let account_org = readonly_text(mtm, "Org: ...");
-    let account_env = readonly_text(mtm, "Active env: ...");
+    let account_env = readonly_text(mtm, "Configured URLs");
     let account_url = readonly_text(mtm, "API URL: ...");
 
     // ---- Form layout: NSGridView per section, NSBox grouping,
@@ -458,12 +356,12 @@ fn build_window(
     // outlive the `&NSView` references the grid borrows. Without
     // these bindings the temporaries drop at the end of the line and
     // Rust rejects the row tuple.
-    let env_form_label = labeled_field(mtm, "Environment");
+    let env_form_label = labeled_field(mtm, "Target");
     let notif_form_label = labeled_field(mtm, "Notify on new approvals");
     let poll_form_label = labeled_field(mtm, "Refresh interval");
     let auth_form_label = labeled_field(mtm, "Auth");
     let org_form_label = labeled_field(mtm, "Org");
-    let active_env_form_label = labeled_field(mtm, "Active env");
+    let active_env_form_label = labeled_field(mtm, "Target");
     let api_url_form_label = labeled_field(mtm, "API URL");
 
     // Helper: add a box as a full-width arranged subview. Pinning
@@ -560,13 +458,11 @@ fn build_window(
         window.setContentView(Some(effect_view));
     }
 
-    // Initialize control values from current settings + the runtime
-    // env (which lives on AppState, not in Settings).
-    let (snap, current_env) = {
+    let snap = {
         let s = state.lock().unwrap();
-        (s.settings.clone(), s.current_env)
+        s.settings.clone()
     };
-    init_controls(&env_popup, &notif_switch, &poll_segments, &snap, current_env);
+    init_controls(&env_popup, &notif_switch, &poll_segments, &snap);
 
     hold_target(target);
 
@@ -590,15 +486,9 @@ fn init_controls(
     notif_switch: &NSSwitch,
     poll_segments: &NSSegmentedControl,
     s: &Settings,
-    current_env: EnvName,
 ) {
-    let env_idx = match current_env {
-        EnvName::Production => 0,
-        EnvName::Staging => 1,
-        EnvName::Local => 2,
-    };
     unsafe {
-        env_popup.selectItemAtIndex(env_idx);
+        env_popup.selectItemAtIndex(0);
         notif_switch.setState(if s.notifications_enabled {
             NSControlStateValueOn
         } else {

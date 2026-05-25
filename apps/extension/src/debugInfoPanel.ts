@@ -1,17 +1,15 @@
 // Mirrors mobile's Profile → Debug card. Shows the same fields where
-// they translate (env, API URL, version, platform, mock-auth state,
+// they translate (target URLs, version, platform, mock-auth state,
 // notification-toast setting) plus extension-specific signals (last
 // poll time, error count). No live tick subscription; the user
 // triggers a refresh by re-running the command.
 
 import * as vscode from "vscode";
 import * as os from "os";
-import type { EnvName } from "openbox-sdk/env";
 import { resolveExtensionUrls } from "./envUrls";
 import { dashboardBase } from "./dashboardUrl";
 
 export interface DebugSnapshot {
-  env: EnvName;
   // /auth/profile fields (UserProfile schema): sub, email, name,
   // preferred_username, email_verified, orgId. Anything not on this
   // list isn't reachable for an X-API-Key call without a backend
@@ -137,8 +135,8 @@ function render(webview: vscode.Webview, context: vscode.ExtensionContext, snap:
     `script-src 'nonce-${n}'`,
   ].join("; ");
 
-  const apiUrl = resolveExtensionUrls(snap.env).apiUrl || "(unset)";
-  const dashboard = dashboardBase(snap.env) || "(unset)";
+  const apiUrl = resolveExtensionUrls().apiUrl || "(unset)";
+  const dashboard = dashboardBase() || "(unset)";
   const notifyOn = vscode.workspace.getConfiguration("openbox").get<boolean>("notifyOnNewApprovals", true);
   const extension = vscode.extensions.getExtension("OpenBox.openbox") || vscode.extensions.getExtension("openbox.openbox");
   const version = (extension?.packageJSON as any)?.version || "unknown";
@@ -151,7 +149,6 @@ function render(webview: vscode.Webview, context: vscode.ExtensionContext, snap:
   // doesn't populate it.
   const rows: { label: string; value: string }[] = [
     { label: "Org ID", value: snap.orgId || "-" },
-    { label: "Environment", value: snap.env },
     { label: "API URL", value: apiUrl },
     { label: "Dashboard", value: dashboard },
     { label: "API key", value: snap.hasApiKey ? "set" : "unset" },
