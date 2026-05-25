@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "dev": "node --import tsx --watch src/server.ts",
-    "test": "vitest run"
+    "test": "cd ../.. && vitest run --project unit apps/cloud-bridge/src"
   },
   "dependencies": {
     "openbox-sdk": "file:../.."
@@ -17,6 +17,6 @@
   "devDependencies": {
     "tsx": "^4.19.2",
     "typescript": "^5.5.4",
-    "vitest": "^1.6.0"
+    "vitest": "^4.1.5"
   }
 }

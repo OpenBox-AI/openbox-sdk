@@ -29,9 +29,15 @@ export interface HandleResult {
   body: { ok: boolean; verdict?: string; reason?: string; error?: string };
 }
 
+const RUNTIME_KEY_PATTERN = /^obx_(?:live|test)_[0-9a-f]{48}$/;
+
+function isUnsafeLocalDevEnabled(): boolean {
+  return process.env.OPENBOX_BRIDGE_UNSAFE_LOCAL_DEV === '1';
+}
+
 /** Verify the request: HMAC if a signing secret is set, else bearer
- *  token. Skipped entirely when neither is configured (local dev).
- *  Env vars are read at call time so tests can flip them per case. */
+ *  token. Unauthenticated mode is intentionally opt-in because this
+ *  process gates cloud-side agent output and may be bound publicly. */
 function verify(input: HandleInput): { ok: true } | { ok: false; reason: string } {
   const signingSecret = process.env.OPENBOX_BRIDGE_SIGNING_SECRET;
   const sharedToken = process.env.OPENBOX_BRIDGE_TOKEN;
@@ -49,9 +55,12 @@ function verify(input: HandleInput): { ok: true } | { ok: false; reason: string 
     }
     return { ok: true };
   }
-  // Neither configured; allow. The README warns about exposing the
-  // bridge to the public internet without one of these set.
-  return { ok: true };
+  if (isUnsafeLocalDevEnabled()) return { ok: true };
+  return {
+    ok: false,
+    reason:
+      'missing bridge authentication; set OPENBOX_BRIDGE_SIGNING_SECRET or OPENBOX_BRIDGE_TOKEN',
+  };
 }
 
 function parsePayload(input: HandleInput): BridgePayload | null {
@@ -83,16 +92,20 @@ export async function handleWebhook(input: HandleInput): Promise<HandleResult> {
     return { status: 400, body: { ok: false, error: 'missing agent_id or invalid JSON' } };
   }
 
-  // When no agent runtime key is configured, fall back to a
-  // pass-through stub. The bridge is sometimes deployed purely as
-  // a webhook proxy or audit splitter, where the governance
-  // decision happens elsewhere; in that mode the bridge should not
-  // fail closed simply because it has nothing to evaluate against.
   const hasRuntimeKey =
     typeof process.env.OPENBOX_API_KEY === 'string' &&
-    (process.env.OPENBOX_API_KEY.startsWith('obx_live_') ||
-      process.env.OPENBOX_API_KEY.startsWith('obx_test_'));
+    RUNTIME_KEY_PATTERN.test(process.env.OPENBOX_API_KEY);
   if (!hasRuntimeKey) {
+    if (!isUnsafeLocalDevEnabled()) {
+      return {
+        status: 503,
+        body: {
+          ok: false,
+          error:
+            'missing agent runtime key; set OPENBOX_API_KEY to obx_live_*/obx_test_*',
+        },
+      };
+    }
     return {
       status: 200,
       body: {

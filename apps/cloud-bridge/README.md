@@ -17,9 +17,9 @@ agent runtime key (`obx_live_*` or `obx_test_*`), the bridge calls
 `checkGovernance()` from `openbox-sdk/governance` and returns the
 normalized verdict.
 
-If no valid agent runtime key is configured, the bridge intentionally
-falls back to pass-through mode and returns `pass`. This keeps local
-webhook plumbing usable, but it is not enforcement.
+If no valid agent runtime key is configured, the bridge fails closed.
+Pass-through behavior is available only for explicit unsafe local
+development via `OPENBOX_BRIDGE_UNSAFE_LOCAL_DEV=1`.
 
 ## Run it
 
@@ -40,9 +40,11 @@ Environment:
 | `OPENBOX_BRIDGE_TOKEN`           | If set (and signing secret isn't), require `Authorization: Bearer …` |
 | `OPENBOX_API_KEY`                | Agent runtime key (`obx_live_*` / `obx_test_*`) used for governance  |
 | `OPENBOX_API_URL`                | Override the OpenBox API endpoint                                    |
+| `OPENBOX_BRIDGE_UNSAFE_LOCAL_DEV`| Set to `1` only for unauthenticated local pass-through testing       |
 
-If neither signing secret nor shared token is set, the bridge accepts
-any request; fine for `127.0.0.1` dev, never for a public bind.
+If neither signing secret nor shared token is set, the bridge rejects
+requests unless `OPENBOX_BRIDGE_UNSAFE_LOCAL_DEV=1` is set. Do not set
+that variable on a public bind.
 
 ## Endpoints
 
