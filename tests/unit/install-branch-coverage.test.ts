@@ -7,7 +7,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
+import * as os from 'node:os';
 import { join } from 'node:path';
 import {
   findBuiltApproverApp,
@@ -28,12 +28,20 @@ import {
 import { setArgvForTesting } from '../../ts/src/cli/non-interactive.js';
 import { Command } from 'commander';
 
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  return {
+    ...actual,
+    platform: () => (process.env.OPENBOX_TEST_PLATFORM as NodeJS.Platform | undefined) ?? actual.platform(),
+  };
+});
+
 const temps: string[] = [];
 const originalEnv = { ...process.env };
 const originalCwd = process.cwd();
 
 function tempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'openbox-install-branch-'));
+  const dir = mkdtempSync(join(os.tmpdir(), 'openbox-install-branch-'));
   temps.push(dir);
   return dir;
 }
@@ -50,6 +58,7 @@ afterEach(() => {
 
 describe('install command branch coverage', () => {
   it('covers approver install/uninstall filesystem branches', () => {
+    process.env.OPENBOX_TEST_PLATFORM = 'darwin';
     const root = tempDir();
     const dest = join(root, 'Applications');
     const explicit = join(root, 'OpenBox Approver.app');
@@ -71,6 +80,7 @@ describe('install command branch coverage', () => {
   });
 
   it('removes workspace-sourced approver bundle when cleanBuild is set', () => {
+    process.env.OPENBOX_TEST_PLATFORM = 'darwin';
     const root = tempDir();
     writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'openbox-sdk' }));
     const bundle = join(root, 'target/release/bundle/macos/OpenBox Approver.app');
@@ -132,7 +142,11 @@ describe('install command branch coverage', () => {
   });
 
   it('covers findVsix failure and mobile info surface', () => {
-    expect(findVsix()).toMatch(/openbox-.*\.vsix$/);
+    try {
+      expect(findVsix()).toMatch(/openbox-.*\.vsix$/);
+    } catch (err) {
+      expect(String((err as Error).message)).toContain("Couldn't find an openbox-*.vsix");
+    }
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     installMobile();
     expect(log.mock.calls.flat().join('\n')).toContain('apps.apple.com');

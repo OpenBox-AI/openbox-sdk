@@ -131,7 +131,7 @@ jobs:
       - name: Compile main spec
         run: |
           git fetch origin main
-          git checkout origin/main -- specs/typespec specs/backend.json specs/core.yaml codegen
+          git checkout origin/main -- specs/typespec codegen
           npm run specs:compile || true
 
       - name: Save base spec

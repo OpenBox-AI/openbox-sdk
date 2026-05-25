@@ -119,9 +119,11 @@ describe('approval filters', () => {
   it('derives date range bounds and applies client-only filters without mutating input', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-25T12:00:00Z'));
+    const localTodayStart = new Date('2026-05-25T12:00:00Z');
+    localTodayStart.setHours(0, 0, 0, 0);
 
     expect(dateRangeBounds('all')).toEqual({});
-    expect(dateRangeBounds('today').fromTime).toBe('2026-05-24T17:00:00.000Z');
+    expect(dateRangeBounds('today').fromTime).toBe(localTodayStart.toISOString());
     expect(dateRangeBounds('week').fromTime).toBe('2026-05-18T12:00:00.000Z');
     expect(dateRangeBounds('month').fromTime).toBe('2026-04-25T12:00:00.000Z');
 
