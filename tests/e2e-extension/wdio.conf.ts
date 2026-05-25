@@ -40,6 +40,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { ensureLiveVerdictMatrix } from './live-bootstrap.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
@@ -49,6 +50,16 @@ const DEFAULT_CORE_URL = 'http://localhost:8086';
 const RUNTIME_KEY_PREFIX = /^obx_(?:test|live)_/;
 const BACKEND_KEY_PREFIX = /^obx_key_/;
 
+function isLocalUrl(raw: string | undefined): boolean {
+  if (!raw) return false;
+  try {
+    const host = new URL(raw).hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
 // ─── credential auto-load ────────────────────────────────────────────
 //
 // Pull the e2e-agent's runtime key from ~/.openbox/agent-keys (the
@@ -57,8 +68,19 @@ const BACKEND_KEY_PREFIX = /^obx_key_/;
 // after `cd ~/workspace/openbox-local && npm run bootstrap`.
 
 const E2E_AGENT_NAME = 'e2e-agent';
+const explicitApiUrl = process.env.OPENBOX_API_URL;
+const explicitCoreUrl = process.env.OPENBOX_CORE_URL;
 
-if (!process.env.OPENBOX_E2E_AGENT_ID || !process.env.OPENBOX_E2E_RUNTIME_KEY) {
+process.env.OPENBOX_API_URL = process.env.OPENBOX_API_URL ?? DEFAULT_API_URL;
+process.env.OPENBOX_CORE_URL = process.env.OPENBOX_CORE_URL ?? DEFAULT_CORE_URL;
+
+const usingLocalTarget = isLocalUrl(process.env.OPENBOX_API_URL) && isLocalUrl(process.env.OPENBOX_CORE_URL);
+const allowLocalCredentialFallback =
+  usingLocalTarget ||
+  process.env.OPENBOX_ALLOW_LOCAL_TOKEN_FALLBACK === '1' ||
+  (!explicitApiUrl && !explicitCoreUrl);
+
+if (allowLocalCredentialFallback && (!process.env.OPENBOX_E2E_AGENT_ID || !process.env.OPENBOX_E2E_RUNTIME_KEY)) {
   const keysFile = resolve(homedir(), '.openbox', 'agent-keys');
   if (existsSync(keysFile)) {
     try {
@@ -77,16 +99,14 @@ if (!process.env.OPENBOX_E2E_AGENT_ID || !process.env.OPENBOX_E2E_RUNTIME_KEY) {
   }
 }
 
-process.env.OPENBOX_API_URL = process.env.OPENBOX_API_URL ?? DEFAULT_API_URL;
-process.env.OPENBOX_CORE_URL = process.env.OPENBOX_CORE_URL ?? DEFAULT_CORE_URL;
-
 if (!process.env.OPENBOX_E2E_RUNTIME_KEY && RUNTIME_KEY_PREFIX.test(process.env.OPENBOX_API_KEY ?? '')) {
   process.env.OPENBOX_E2E_RUNTIME_KEY = process.env.OPENBOX_API_KEY;
 }
 
 process.env.OPENBOX_API_KEY = process.env.OPENBOX_API_KEY ?? process.env.OPENBOX_E2E_RUNTIME_KEY;
+process.env.OPENBOX_E2E_EXPECT_ORG_ID = process.env.OPENBOX_E2E_EXPECT_ORG_ID ?? process.env.OPENBOX_ORG_ID;
 
-if (!process.env.OPENBOX_BACKEND_API_KEY) {
+if (allowLocalCredentialFallback && !process.env.OPENBOX_BACKEND_API_KEY) {
   for (const tokenFile of [
     resolve(ROOT, '.tokens'),
     resolve(homedir(), '.openbox', 'tokens'),
@@ -261,6 +281,8 @@ if (!process.env.OPENBOX_E2E_AGENT_ID || !process.env.OPENBOX_E2E_RUNTIME_KEY) {
   );
   process.exit(1);
 }
+
+await ensureLiveVerdictMatrix();
 
 const vscodeVersion = process.env.OPENBOX_E2E_VSCODE_VERSION ?? 'stable';
 const vscodeBinary = process.env.OPENBOX_E2E_VSCODE_BINARY;
