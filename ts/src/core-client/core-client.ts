@@ -1,6 +1,4 @@
 import { TokenBucket } from '../client/index.js';
-import { DEFAULT_CORE_URL, resolveEnv } from '../env/index.js';
-import type { EnvName as SpecEnvName } from '../env/index.js';
 
 // Every wire-shape type in this module comes from the spec at
 // specs/typespec/core/main.tsp via codegen/emitters/ts/. This file
@@ -58,10 +56,8 @@ export interface BehavioralResult {
 // Configuration
 // ---------------------------------------------------------------------------
 
-export type EnvName = SpecEnvName;
-
 export interface CoreClientConfig {
-  /** Base URL of the Core API. Defaults to the build-time-pinned DEFAULT_CORE_URL. */
+  /** Base URL of the Core API. Defaults to OPENBOX_CORE_URL. */
   apiUrl?: string;
   /** Agent API key (obx_live_* or obx_test_*) */
   apiKey: string;
@@ -76,9 +72,6 @@ export interface CoreClientConfig {
   retry?: { maxRetries?: number; initialDelayMs?: number; maxDelayMs?: number };
   /** Client-side rate limiting */
   rateLimit?: { requestsPerSecond: number; burst?: number };
-  /** Target environment. Defaults via resolveEnv (env var → global
-   *  config → first spec-emitted env). */
-  env?: EnvName;
 }
 
 // ---------------------------------------------------------------------------
@@ -104,13 +97,11 @@ export class CoreApiError extends Error {
 export class OpenBoxCoreClient {
   private baseUrl: string;
   private config: CoreClientConfig;
-  protected readonly env: EnvName;
   private rateLimiter: TokenBucket | null = null;
 
   constructor(config: CoreClientConfig) {
     this.config = { ...config };
-    this.baseUrl = this.config.apiUrl ?? DEFAULT_CORE_URL;
-    this.env = this.config.env ?? resolveEnv();
+    this.baseUrl = requireCoreUrl(this.config.apiUrl ?? process.env.OPENBOX_CORE_URL);
     if (config.rateLimit) {
       this.rateLimiter = new TokenBucket(
         config.rateLimit.requestsPerSecond,
@@ -282,4 +273,13 @@ export class OpenBoxCoreClient {
     const jitter = Math.random() * initialDelay * 0.5;
     return Math.min(exponential + jitter, maxDelay);
   }
+}
+
+function requireCoreUrl(value: string | undefined): string {
+  if (!value) throw new Error('OPENBOX_CORE_URL is required. Set the core API URL explicitly.');
+  const url = new URL(value);
+  url.hash = '';
+  url.search = '';
+  url.pathname = url.pathname.replace(/\/+$/, '');
+  return url.toString().replace(/\/$/, '');
 }

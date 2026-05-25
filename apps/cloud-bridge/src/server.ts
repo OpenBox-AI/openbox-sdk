@@ -19,6 +19,14 @@ import { handleWebhook } from './handler.js';
 const PORT = Number(process.env.OPENBOX_BRIDGE_PORT ?? 8787);
 const HOST = process.env.OPENBOX_BRIDGE_HOST ?? '127.0.0.1';
 
+function isLoopbackHost(host: string): boolean {
+  return host === '127.0.0.1' || host === 'localhost' || host === '::1';
+}
+
+if (process.env.OPENBOX_BRIDGE_UNSAFE_LOCAL_DEV === '1' && !isLoopbackHost(HOST)) {
+  throw new Error('OPENBOX_BRIDGE_UNSAFE_LOCAL_DEV is only allowed on loopback hosts');
+}
+
 async function readBody(req: http.IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);

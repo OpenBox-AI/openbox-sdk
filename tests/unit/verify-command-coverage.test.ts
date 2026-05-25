@@ -10,6 +10,8 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Command } from 'commander';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -131,5 +133,73 @@ describe('verify command; coverage via fixture suite', () => {
     } finally {
       if (existsSync(tmp)) rmSync(tmp, { recursive: true, force: true });
     }
+  });
+
+  it('human report covers clean, warn, info, and overflow branches', async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'openbox-verify-human-'));
+    const { registerVerifyCommand } = await import('../../ts/src/cli/commands/verify');
+    const program = new Command();
+    program.exitOverride();
+    registerVerifyCommand(program);
+    const output: string[] = [];
+    const origLog = console.log;
+    const origErr = console.error;
+    const origExit = process.exit;
+    console.log = (...args: unknown[]) => output.push(args.join(' '));
+    console.error = (...args: unknown[]) => output.push(args.join(' '));
+    (process as unknown as { exit: (code?: number) => never }).exit = ((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as never;
+    try {
+      writeFileSync(join(tmp, 'clean.ts'), 'export const ok = true;\n');
+      await program.parseAsync(['node', 'openbox', 'verify', join(tmp, 'clean.ts')]);
+
+      writeFileSync(
+        join(tmp, 'warn.ts'),
+        `
+        const verdict = 'require_approval';
+        fetch('/api/v1/governance/approval');
+        export { verdict };
+        `,
+      );
+      await expect(
+        program.parseAsync([
+          'node',
+          'openbox',
+          'verify',
+          join(tmp, 'warn.ts'),
+          '--fail-on',
+          'info',
+        ]),
+      ).rejects.toThrow('exit:1');
+
+      writeFileSync(
+        join(tmp, 'info.ts'),
+        `
+        const event = { event_type: 'WorkflowStarted', workflow_id: 'wf', activity_input: [{}] };
+        export { event };
+        `,
+      );
+      await program.parseAsync(['node', 'openbox', 'verify', join(tmp, 'info.ts')]);
+
+      const repeated = Array.from({ length: 12 }, (_, i) =>
+        `const e${i} = { event_type: 'WrongEvent', activity_input: [{}] };`,
+      ).join('\n');
+      writeFileSync(join(tmp, 'many.ts'), repeated);
+      await expect(
+        program.parseAsync(['node', 'openbox', 'verify', join(tmp, 'many.ts')]),
+      ).rejects.toThrow('exit:1');
+    } finally {
+      console.log = origLog;
+      console.error = origErr;
+      (process as unknown as { exit: typeof origExit }).exit = origExit;
+      rmSync(tmp, { recursive: true, force: true });
+    }
+
+    const text = output.join('\n');
+    expect(text).toContain('no drift patterns detected');
+    expect(text).toContain('[warn]');
+    expect(text).toContain('[info]');
+    expect(text).toContain('and 2 more');
   });
 });

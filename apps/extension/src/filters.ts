@@ -2,7 +2,7 @@
 // date-range bounds, summary formatting, and client-side application
 // all live in `openbox-sdk/approvals` (one source of truth across the
 // SDK and downstream consumers); the extension only owns the
-// per-env / per-scope storage namespacing because Memento isn't
+// per-target / per-scope storage namespacing because Memento isn't
 // available outside the editor host.
 
 import * as vscode from "vscode";
@@ -17,16 +17,16 @@ export {
 } from "openbox-sdk/approvals";
 export type { DateRangeKey, FilterState, SectionStatus } from "openbox-sdk/approvals";
 
-function key(scope: string, env: string): string {
-  // Per-env namespace so prod / staging / local don't collide; team
-  // and owner IDs in particular aren't portable across envs. Per-scope
+function key(scope: string, targetKey: string): string {
+  // Per-target namespace so team and owner IDs from different deployments
+  // don't collide. Per-scope
   // ('pending' / 'history') because the two views carry independent
   // filter sets in mobile, and the extension keeps that parity.
-  return `openbox.filters.${scope}.${env}`;
+  return `openbox.filters.${scope}.${targetKey}`;
 }
 
-export function loadFilters(state: vscode.Memento, scope: string, env: string): FilterState {
-  const stored = state.get<FilterState>(key(scope, env));
+export function loadFilters(state: vscode.Memento, scope: string, targetKey: string): FilterState {
+  const stored = state.get<FilterState>(key(scope, targetKey));
   if (!stored) return { ...EMPTY_FILTERS };
   const status =
     scope === "history" &&
@@ -50,8 +50,8 @@ export function loadFilters(state: vscode.Memento, scope: string, env: string): 
 export function saveFilters(
   state: vscode.Memento,
   scope: string,
-  env: string,
+  targetKey: string,
   filters: FilterState,
 ): Thenable<void> {
-  return state.update(key(scope, env), filters);
+  return state.update(key(scope, targetKey), filters);
 }

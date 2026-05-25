@@ -252,12 +252,6 @@
         "title": "OpenBox: Open Getting Started"
       },
       {
-        "command": "openbox.switchEnvironment",
-        "title": "OpenBox: Switch Connection Profile (dev only)",
-        "icon": "$(globe)",
-        "enablement": "openbox.debug || openbox.devMode"
-      },
-      {
         "command": "openbox.showDebugInfo",
         "title": "OpenBox: Show Debug Info",
         "icon": "$(info)",
@@ -352,10 +346,6 @@
     ],
     "menus": {
       "commandPalette": [
-        {
-          "command": "openbox.switchEnvironment",
-          "when": "openbox.debug || openbox.devMode"
-        },
         {
           "command": "openbox.showDebugInfo",
           "when": "openbox.debug"
@@ -467,11 +457,6 @@
           "group": "navigation@3"
         },
         {
-          "command": "openbox.switchEnvironment",
-          "when": "view == openbox.debugControls",
-          "group": "navigation@1"
-        },
-        {
           "command": "openbox.showDebugInfo",
           "when": "view == openbox.debugControls",
           "group": "navigation@2"
@@ -502,12 +487,12 @@
     "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --watch --define:process.env.OPENBOX_DEBUG_BUILD=\\\"true\\\"",
     "package": "npx @vscode/vsce package --no-dependencies",
     "package:dev": "npm run build:dev && npx @vscode/vsce package --no-dependencies",
-    "test": "vitest run"
+    "test": "cd ../.. && vitest run --project unit apps/extension/src"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
-    "esbuild": "^0.24.0",
+    "esbuild": "^0.28.0",
     "openbox-sdk": "file:../..",
     "typescript": "^5.0.0",
     "vitest": "^4.1.5"

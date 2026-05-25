@@ -29,12 +29,14 @@ export default defineConfig({
         'ts/src/**/types/**',
         'ts/src/cli/index.ts',
       ],
-      // Don't fail the run on coverage thresholds yet; N.10 introduces
-      // those after we have a real-baseline number to set them against.
-      // Always emit reports; even if some tests fail, the coverage
-      // summary still has signal (95% pass + 5% failures still tell
-      // us where the CLI is exercised vs. dead code).
+      // Enforce 80% coverage for shipped TS source.
       reportOnFailure: true,
+      thresholds: {
+        statements: 80,
+        branches: 80,
+        functions: 80,
+        lines: 80,
+      },
     },
     projects: [
       {

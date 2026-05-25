@@ -35,11 +35,11 @@ describe('OpenBoxCoreClient', () => {
   }
 
   describe('construction', () => {
-    it('uses default core URL', async () => {
+    it('uses OPENBOX_CORE_URL when apiUrl is not provided', async () => {
       const client = createClient();
       fetchMock.mockResolvedValueOnce(mockResponse(200, 'hello world', 'text/plain'));
       await client.health();
-      expect(fetchMock.mock.calls[0][0]).toBe('https://core.openbox.ai/');
+      expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:18081/');
     });
 
     it('uses custom URL', async () => {

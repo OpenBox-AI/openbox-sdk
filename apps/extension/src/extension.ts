@@ -21,7 +21,6 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import type { OpenBoxClient } from "openbox-sdk/client";
-import { ENVIRONMENTS, DEFAULT_ENV, type EnvName } from "openbox-sdk/env";
 import { resolveOsPath } from "openbox-sdk/os-paths";
 import {
   apiKeyPrefix,
@@ -48,10 +47,9 @@ import { HookLogTail } from "./hookLogChannel";
 import { ApprovalStore, type ApprovalState } from "./approvalStore";
 import { ApprovalSocketServer } from "./approvalSocketServer";
 import { startApprovalToastView } from "./approvalToastView";
-import { buildIdleStatusBar, envTagFor as envTagForPure } from "./statusBarText";
+import { buildIdleStatusBar, statusTagFor as statusTagForPure } from "./statusBarText";
 import { pickApproval as pickApprovalPure } from "./pickApproval";
 import { resolveApproval, type ResolvedApprovalEvent } from "./resolveApproval";
-import { readGlobalEnv, writeGlobalEnv } from "./configStore";
 
 // Build-time flag, baked by esbuild via --define:process.env.OPENBOX_DEBUG_BUILD.
 // `npm run build` (production) sets it to "false"; `npm run build:dev` sets
@@ -67,6 +65,11 @@ const API_KEY_PATTERN = /^obx_key_[0-9a-f]{48}$/;
 
 /** Halt verdict; approvals with this code block the save flow. */
 const VERDICT_HALT = 4;
+
+function injectedOrgId(): string | undefined {
+  const value = process.env.OPENBOX_ORG_ID?.trim();
+  return value || undefined;
+}
 
 interface ActiveBoot {
   pending: ViewSession;
@@ -99,16 +102,6 @@ interface ActiveKeyInfo {
 }
 
 let active: ActiveBoot | undefined;
-
-const ENV_NAMES = new Set(Object.keys(ENVIRONMENTS));
-function readEnv(): EnvName {
-  // Source of truth is `~/.openbox/config`'s `OPENBOX_ENV=...` line,
-  // shared with CLI / MCP / hooks. The old `openbox.environment` VS
-  // Code setting was removed so end users don't see env names in the
-  // settings UI; debug builds and power users can still flip env
-  // through `openbox config set --global OPENBOX_ENV=...`.
-  return readGlobalEnv();
-}
 
 function connectionErrorMessage(err: unknown): string {
   const msg = typeof err === "string" ? err : (err as any)?.message ?? String(err);
@@ -147,9 +140,8 @@ function resolveApprovalSocketPath(): string | undefined {
 }
 
 export async function activate(context: vscode.ExtensionContext) {
-  // openbox.debug drives the dev-only command gate (env selector,
-  // debug panel) so users can flip these on at runtime without
-  // having to install a debug build.
+  // openbox.debug drives the dev-only command gate (debug panel) so users can
+  // flip these on at runtime without having to install a debug build.
   function paintDebugContext() {
     vscode.commands.executeCommand("setContext", "openbox.debug", DEBUG_BUILD);
     vscode.commands.executeCommand(
@@ -207,7 +199,7 @@ export async function activate(context: vscode.ExtensionContext) {
       // the status bar already says "1 Pending".
       vscode.commands.executeCommand("setContext", "openbox.loading", false);
       vscode.commands.executeCommand("setContext", "openbox.hasApprovals", count > 0);
-      paintIdle(env, count);
+      paintIdle(count);
     }),
   );
 
@@ -292,7 +284,7 @@ export async function activate(context: vscode.ExtensionContext) {
     );
   }
 
-  // Governance client (workspace-config-driven; reads agent_id, env).
+  // Governance client (workspace-config-driven; reads agent_id and target URLs).
   // Shared across PreWriteGate, TabObserver, PreFileOpGate so they
   // resolve `openbox.agentId` consistently.
   const governance = new GovernanceClient();
@@ -346,23 +338,11 @@ export async function activate(context: vscode.ExtensionContext) {
   // clearDeny when the same approval transitions out of pending.
   const haltedApprovals = new Map<string, string>();
 
-  let env: EnvName = readEnv();
+  const targetKey = "default";
 
-  // Sync the resolved env to ~/.openbox/config on every activation
-  // so CLI / MCP / slash commands / any subprocess reading the file
-  // sees the same env the editor is currently bound to. Single
-  // source of truth: the config file. The vscode setting wins when
-  // explicitly set; whatever wins gets written here.
-  try {
-    writeGlobalEnv(env);
-  } catch {
-    /* permissions / disk error - non-fatal. */
-  }
-
-  function paintIdle(envTag: EnvName, count: number) {
+  function paintIdle(count: number) {
     const cfg = vscode.workspace.getConfiguration("openbox");
     const out = buildIdleStatusBar({
-      env: envTag,
       count,
       debugBuild: DEBUG_BUILD,
       preWriteGateActive: cfg.get<boolean>("preWriteGate.active", false),
@@ -375,8 +355,8 @@ export async function activate(context: vscode.ExtensionContext) {
     if (out.tooltip !== undefined) statusBar.tooltip = out.tooltip;
   }
 
-  function envTagFor(state: string): string {
-    return envTagForPure(state, env, DEBUG_BUILD);
+  function statusTagFor(state: string): string {
+    return statusTagForPure(state, DEBUG_BUILD);
   }
 
   /** True when `uri` is currently open in any editor tab. */
@@ -649,16 +629,16 @@ export async function activate(context: vscode.ExtensionContext) {
     reconnectDelayMs = Math.min(reconnectDelayMs * 2, RECONNECT_DELAY_MAX_MS);
     reconnectTimer = setTimeout(() => {
       reconnectTimer = undefined;
-      void boot(env);
+      void boot();
     }, delay);
   }
   context.subscriptions.push({ dispose: () => cancelReconnect() });
 
-  async function boot(nextEnv: EnvName) {
+  async function boot() {
     cancelReconnect();
     // Wipe everything tied to the previous boot before we start the
     // next one. Prevents a stale detail panel from sitting on top of
-    // a sign-out / env-switch and the Profile tree from showing a
+    // a sign-out / reconnect and the Profile tree from showing a
     // previous identity until the new poll lands.
     if (active) {
       active.pending.dispose();
@@ -668,15 +648,14 @@ export async function activate(context: vscode.ExtensionContext) {
     ApprovalDetailPanel.disposeCurrent();
     profileProvider.refresh();
 
-    env = nextEnv;
     statusBar.text = `$(openbox-logo) Connecting`;
     statusBar.tooltip = "Connecting to OpenBox…";
     vscode.commands.executeCommand("setContext", "openbox.hasApprovals", false);
     vscode.commands.executeCommand("setContext", "openbox.history.hasApprovals", false);
 
-    if (!hasApiKey(env)) {
+    if (!hasApiKey()) {
       vscode.commands.executeCommand("setContext", "openbox.needsKey", true);
-      statusBar.text = `$(openbox-logo) ${envTagFor("Connect")}`;
+      statusBar.text = `$(openbox-logo) ${statusTagFor("Connect")}`;
       statusBar.tooltip = "OpenBox is not connected. Add the OpenBox key provided by your organization.";
       statusBar.command = "openbox.setApiKey";
       return;
@@ -686,11 +665,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
     let client: OpenBoxClient;
     try {
-      const ctx = await createApiContext(env);
+      const ctx = await createApiContext();
       client = ctx.client;
     } catch (err: any) {
       const msg = connectionErrorMessage(err);
-      statusBar.text = `$(openbox-logo) ${envTagFor("Connect")}`;
+      statusBar.text = `$(openbox-logo) ${statusTagFor("Connect")}`;
       statusBar.tooltip = msg;
       vscode.window.showErrorMessage(`OpenBox: ${msg}`);
       return;
@@ -734,8 +713,10 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       }
 
+      orgId = orgId ?? injectedOrgId();
+
       if (!orgId) {
-        statusBar.text = `$(openbox-logo) ${envTagFor("Connection Issue")}`;
+        statusBar.text = `$(openbox-logo) ${statusTagFor("Connection Issue")}`;
         statusBar.tooltip = "OpenBox connected, but the account could not be verified.";
         return;
       }
@@ -746,15 +727,23 @@ export async function activate(context: vscode.ExtensionContext) {
       // (bad key / real error). The two signals belong on the bar
       // separately so the user knows whether to check their network
       // vs. their credentials.
-      const msg = err?.message ?? String(err);
-      const isNetwork = /fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|getaddrinfo/i.test(msg);
-      const label = isNetwork ? "Disconnected" : "Error";
-      statusBar.text = `$(openbox-logo) ${envTagFor(label)}`;
-      statusBar.tooltip = isNetwork
-        ? connectionErrorMessage(msg)
-        : connectionErrorMessage(err);
-      if (isNetwork) scheduleReconnect();
-      return;
+      const fallbackOrgId = injectedOrgId();
+      if (fallbackOrgId) {
+        orgId = fallbackOrgId;
+        isApiKeyAuth = true;
+        activeKeyError = err?.message ?? "profile unavailable";
+        statusBar.tooltip = "OpenBox connected to the configured URL target.";
+      } else {
+        const msg = err?.message ?? String(err);
+        const isNetwork = /fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|getaddrinfo/i.test(msg);
+        const label = isNetwork ? "Disconnected" : "Error";
+        statusBar.text = `$(openbox-logo) ${statusTagFor(label)}`;
+        statusBar.tooltip = isNetwork
+          ? connectionErrorMessage(msg)
+          : connectionErrorMessage(err);
+        if (isNetwork) scheduleReconnect();
+        return;
+      }
     }
 
     try {
@@ -833,7 +822,7 @@ export async function activate(context: vscode.ExtensionContext) {
       );
     };
 
-    paintIdle(env, 0);
+    paintIdle(0);
 
     const refreshActive = () => {
       active?.pending.refresh();
@@ -844,15 +833,15 @@ export async function activate(context: vscode.ExtensionContext) {
       context,
       client,
       orgId: orgId!,
-      env,
+      targetKey,
       userSub,
       teams: () => teams,
       members: () => members,
       agentOwnerLookup: (id: string) => agentOwnerCache.get(id),
       resolveAgentOwners,
-      onPendingCount: (count: number) => paintIdle(env, count),
+      onPendingCount: (count: number) => paintIdle(count),
       onError: (where: string, err: Error) =>
-        console.error(`OpenBox ${where} feed error (${env}):`, err.message),
+        console.error(`OpenBox ${where} feed error:`, err.message),
     };
 
     const pending = new ViewSession(
@@ -872,7 +861,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // per pending row regardless of source (socket from local
         // hook subprocesses, or poll-discovered out-of-band rows
         // from another agent / the dashboard). Both onNew callbacks
-        // are no-ops so the batch summary "[<env>] N new approvals
+        // are no-ops so the batch summary "N new approvals"
         // pending"; historically used alongside the toasts; no
         // longer fires on parallel tool-call batches.
         onNewApproval: () => undefined,
@@ -961,7 +950,6 @@ export async function activate(context: vscode.ExtensionContext) {
       ApprovalDetailPanel.show(approval, context, {
         client: active.client,
         orgId: active.orgId,
-        env,
         decideApproval: decideApprovalAndRefresh,
       });
     }),
@@ -974,7 +962,7 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
   );
 
-  await boot(env);
+  await boot();
   context.subscriptions.push({
     dispose: () => {
       if (active) {
@@ -987,12 +975,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      // `openbox.environment` is no longer a public-facing VS Code
-      // setting. Env switching now lives in `~/.openbox/config` and
-      // is set via `openbox config set --global OPENBOX_ENV=...` (or
-      // via the debug-view's switcher, which writes to the same
-      // file). The extension picks up the new env on the next
-      // window reload.
       // Gate-toggle / agentId changes only repaint the idle status -
       // no polling restart needed.
       if (
@@ -1001,7 +983,7 @@ export async function activate(context: vscode.ExtensionContext) {
         e.affectsConfiguration("openbox.tabObserver.active") ||
         e.affectsConfiguration("openbox.fileOpGate.enabled")
       ) {
-        paintIdle(env, active?.pending.count ?? 0);
+        paintIdle(active?.pending.count ?? 0);
       }
     }),
   );
@@ -1019,8 +1001,8 @@ export async function activate(context: vscode.ExtensionContext) {
       history: active?.history.approvals ?? [],
     });
 
-  function describeKeySource(envTag: EnvName): string {
-    const url = apiKeysUrl(envTag);
+  function describeKeySource(): string {
+    const url = apiKeysUrl();
     return url
       ? `Create a key in the dashboard: ${url}`
       : `Create a key in the dashboard under Organization → API Keys.`;
@@ -1042,17 +1024,16 @@ export async function activate(context: vscode.ExtensionContext) {
       (lastPendingErr || 0) > (lastHistoryErr || 0)
         ? active?.pending.lastErrorMessage
         : active?.history.lastErrorMessage;
-    const tokenEntry = readStore()[env];
+    const tokenEntry = readStore();
     return {
-      env,
       sub: active?.sub,
       email: active?.email,
       name: active?.name,
       preferredUsername: active?.preferredUsername,
       emailVerified: active?.emailVerified,
       orgId: active?.orgId,
-      hasApiKey: hasApiKey(env),
-      keyPrefix: apiKeyPrefix(env),
+      hasApiKey: hasApiKey(),
+      keyPrefix: apiKeyPrefix(),
       keyId: active?.keyId,
       apiKeyPermissions: active?.apiKeyPermissions,
       isApiKeyAuth: active?.isApiKeyAuth ?? false,
@@ -1205,8 +1186,8 @@ export async function activate(context: vscode.ExtensionContext) {
           try {
             // Stage the key on disk first so createApiContext picks
             // it up; rollback below if /auth/profile rejects.
-            writeApiKey(env, trimmed);
-            const ctx = await createApiContext(env);
+            writeApiKey(trimmed);
+            const ctx = await createApiContext();
             const profile: any = await ctx.client.getProfile();
             return {
               ok: true as const,
@@ -1216,7 +1197,7 @@ export async function activate(context: vscode.ExtensionContext) {
             // Rollback: drop the key we just staged so a bad paste
             // doesn't poison the next boot.
             try {
-              clearApiKey(env);
+              clearApiKey();
             } catch {
               /* silent */
             }
@@ -1238,11 +1219,11 @@ export async function activate(context: vscode.ExtensionContext) {
       const who =
         ok.profile.email || ok.profile.preferred_username || ok.profile.sub || "unknown user";
       vscode.window.showInformationMessage(`OpenBox connected${who ? ` as ${who}` : ""}.`);
-      void boot(env);
+      void boot();
     }),
 
     vscode.commands.registerCommand("openbox.openDashboard", async () => {
-      const url = apiKeysUrl(env);
+      const url = apiKeysUrl();
       if (!url) {
         vscode.window.showInformationMessage("OpenBox dashboard is not configured.");
         return;
@@ -1264,7 +1245,7 @@ export async function activate(context: vscode.ExtensionContext) {
       try {
         if (fs.existsSync(p)) fs.unlinkSync(p);
         vscode.window.showInformationMessage("OpenBox connection cleared.");
-        void boot(env);
+        void boot();
       } catch (err: any) {
         vscode.window.showErrorMessage(`Failed to clear credentials: ${err.message}`);
       }
@@ -1281,15 +1262,15 @@ export async function activate(context: vscode.ExtensionContext) {
       );
       if (choice !== "Disconnect") return;
       try {
-        clearApiKey(env);
-        void boot(env);
+        clearApiKey();
+        void boot();
         vscode.window.showInformationMessage("OpenBox disconnected.");
       } catch (err: any) {
         vscode.window.showErrorMessage(`Sign out failed: ${err.message}`);
       }
     }),
 
-    vscode.commands.registerCommand("openbox.reboot", () => void boot(env)),
+    vscode.commands.registerCommand("openbox.reboot", () => void boot()),
 
     vscode.commands.registerCommand("openbox.openWalkthrough", () => {
       vscode.commands.executeCommand(
@@ -1307,7 +1288,7 @@ export async function activate(context: vscode.ExtensionContext) {
     })),
 
     // Diagnostic: governance.check from the extension host with the
-    // configured agent + env. Used by the live e2e suite.
+    // configured agent + target URLs. Used by the live e2e suite.
     vscode.commands.registerCommand(
       "openbox.__diag.checkGovernance",
       async (input: {
@@ -1340,8 +1321,9 @@ export async function activate(context: vscode.ExtensionContext) {
         email: active.email,
         sub: active.sub,
         keyId: active.keyId,
+        activeKeyError: active.activeKeyError,
         isApiKeyAuth: active.isApiKeyAuth,
-        env,
+        mockAuth: vscode.workspace.getConfiguration("openbox").get<boolean>("mockAuth", false),
         agentId: governance.agentId(),
       };
     }),
@@ -1449,33 +1431,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
   if (DEBUG_BUILD) {
     context.subscriptions.push(
-      vscode.commands.registerCommand("openbox.switchEnvironment", async () => {
-        // Pick list derived from the spec-emitted ENVIRONMENTS table
-        // so a new env added in TypeSpec automatically appears here
-        // without an extension edit.
-        const choices = Object.keys(ENVIRONMENTS).map((label) => ({ label }));
-        const choice = await vscode.window.showQuickPick(choices, {
-          placeHolder: "Pick the debug connection profile",
-        });
-        if (!choice) return;
-        // Write straight to `~/.openbox/config`; no per-extension
-        // setting now. Reboots the active session so the new env is
-        // visible immediately instead of waiting for a window reload.
-        const next = choice.label as EnvName;
-        try {
-          writeGlobalEnv(next);
-        } catch (e) {
-          vscode.window.showErrorMessage(`Failed to switch connection profile: ${e}`);
-          return;
-        }
-        if (next !== env) {
-          env = next;
-          void boot(next);
-          debugProvider?.refresh();
-          profileProvider.refresh();
-        }
-      }),
-
       vscode.commands.registerCommand("openbox.showDebugInfo", () => {
         showDebugInfoPanel(context, buildDebugSnapshot);
       }),

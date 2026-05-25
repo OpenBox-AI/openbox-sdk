@@ -17,12 +17,11 @@ describe('auth commands', () => {
     vi.clearAllMocks();
   });
 
-  it('set-api-key with --key persists via saveApiKey using the resolved env', async () => {
-    const { resolveEnv } = await import('../../../ts/src/env/index');
+  it('set-api-key with --key persists via saveApiKey', async () => {
     const program = createTestProgram();
     registerAuthCommands(program);
     await program.parseAsync(['node', 'openbox', 'auth', 'set-api-key', '--key', VALID_KEY]);
-    expect(saveApiKey).toHaveBeenCalledWith(resolveEnv(), VALID_KEY);
+    expect(saveApiKey).toHaveBeenCalledWith(VALID_KEY);
   });
 
   it('set-api-key rejects badly-shaped keys without persisting', async () => {
@@ -38,12 +37,11 @@ describe('auth commands', () => {
     exitSpy.mockRestore();
   });
 
-  it('clear-api-key calls clearApiKey for the resolved env', async () => {
-    const { resolveEnv } = await import('../../../ts/src/env/index');
+  it('clear-api-key calls clearApiKey', async () => {
     const program = createTestProgram();
     registerAuthCommands(program);
     await program.parseAsync(['node', 'openbox', 'auth', 'clear-api-key']);
-    expect(clearApiKey).toHaveBeenCalledWith(resolveEnv());
+    expect(clearApiKey).toHaveBeenCalledWith();
   });
 
   it('status reads loadApiKey for the active env', async () => {

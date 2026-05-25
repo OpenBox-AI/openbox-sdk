@@ -117,7 +117,7 @@ interface ApproverInstallOpts {
   cleanBuild?: boolean;
 }
 
-function installApprover(opts: ApproverInstallOpts): void {
+export function installApprover(opts: ApproverInstallOpts): void {
   ensureMac('approver');
   const dest = opts.dest ?? APPLICATIONS_DIR;
   const located = findBuiltApproverApp();
@@ -150,7 +150,7 @@ function installApprover(opts: ApproverInstallOpts): void {
   info("Launch from Spotlight (\"OpenBox Approver\"). Run `openbox auth set-api-key` first if you haven't.");
 }
 
-function uninstallApprover(dest: string): void {
+export function uninstallApprover(dest: string): void {
   ensureMac('approver');
   const dst = path.join(dest, APPROVER_BUNDLE_NAME);
   if (!fs.existsSync(dst)) {
@@ -166,7 +166,7 @@ function uninstallApprover(dest: string): void {
 // Extension (VS Code / Cursor .vsix)
 // ---------------------------------------------------------------------------
 
-function findVsix(): string {
+export function findVsix(): string {
   const candidates = [
     path.resolve(__dirname, '../../../../apps/extension'),
     path.resolve(__dirname, '../../apps/extension'),
@@ -197,7 +197,7 @@ function whichSync(bin: string): string | null {
   }
 }
 
-function pickHosts(opts: { code?: boolean; cursor?: boolean }): string[] {
+export function pickHosts(opts: { code?: boolean; cursor?: boolean }): string[] {
   if (opts.code || opts.cursor) {
     const out: string[] = [];
     if (opts.code) out.push('code');
@@ -207,7 +207,7 @@ function pickHosts(opts: { code?: boolean; cursor?: boolean }): string[] {
   return ['code', 'cursor'].filter((h) => whichSync(h));
 }
 
-function installExtension(opts: { code?: boolean; cursor?: boolean }): void {
+export function installExtension(opts: { code?: boolean; cursor?: boolean }): void {
   // Test escape hatch: integration tests run the full install flow
   // against a throwaway HOME and don't want to touch the real
   // VS Code / Cursor extension store. Setting OPENBOX_SKIP_EXTENSION=1
@@ -234,7 +234,7 @@ function installExtension(opts: { code?: boolean; cursor?: boolean }): void {
   info("Run `openbox auth set-api-key` if you haven't, so the extension can authenticate.");
 }
 
-function uninstallExtension(opts: { code?: boolean; cursor?: boolean }): void {
+export function uninstallExtension(opts: { code?: boolean; cursor?: boolean }): void {
   if (process.env.OPENBOX_SKIP_EXTENSION === '1') {
     info('Skipping extension uninstall (OPENBOX_SKIP_EXTENSION=1).');
     return;
@@ -261,7 +261,7 @@ function uninstallExtension(opts: { code?: boolean; cursor?: boolean }): void {
 
 const MOBILE_APP_STORE_URL = 'https://apps.apple.com/app/openbox';
 
-function installMobile(): void {
+export function installMobile(): void {
   info(`iOS app: ${MOBILE_APP_STORE_URL}`);
   info('(Beta. App Store listing pending; the iOS app authenticates via its own login flow: no CLI install step.)');
 }
@@ -272,7 +272,7 @@ type HostScope = 'global' | 'project' | 'local';
  * Validates and normalizes the `--scope` flag. `local` is only
  * meaningful for Claude Code; cursor rejects it.
  */
-function parseHostScope(raw: string | undefined, host: 'cursor' | 'claude-code'): HostScope {
+export function parseHostScope(raw: string | undefined, host: 'cursor' | 'claude-code'): HostScope {
   const value = (raw ?? 'global').toLowerCase() as HostScope;
   if (value !== 'global' && value !== 'project' && value !== 'local') {
     error(`--scope: invalid value '${raw}'; expected global, project, or local`);
@@ -307,7 +307,7 @@ interface InstallOpts {
 
 type McpTarget = 'claude-desktop' | 'cursor' | 'claude-code';
 
-function pickMcpTargets(opts: InstallOpts): McpTarget[] | undefined {
+export function pickMcpTargets(opts: InstallOpts): McpTarget[] | undefined {
   const targets: McpTarget[] = [];
   if (opts.claudeDesktop) targets.push('claude-desktop');
   if (opts.cursor) targets.push('cursor');
@@ -868,7 +868,11 @@ export function registerInstallCommands(program: Command): void {
         if (opts.mcp !== false) {
           info('');
           const { installMcp } = await import('../../runtime/mcp/install.js');
-          installMcp({ targets: ['cursor'], scope, cwd });
+          installMcp({
+            targets: ['cursor'],
+            scope: scope === 'local' ? 'project' : scope,
+            cwd,
+          });
         }
         // Per-extension, slash commands, rules, plugin agents, the
         // OpenBox skill, and the hardening profile are user-level
@@ -1119,7 +1123,11 @@ export function registerInstallCommands(program: Command): void {
         if (opts.mcp !== false) {
           info('');
           const { uninstallMcp } = await import('../../runtime/mcp/install.js');
-          uninstallMcp({ targets: ['cursor'], scope, cwd });
+          uninstallMcp({
+            targets: ['cursor'],
+            scope: scope === 'local' ? 'project' : scope,
+            cwd,
+          });
         }
         if (scope !== 'global') return;
         info('');

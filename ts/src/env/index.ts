@@ -1,8 +1,4 @@
-export type { EnvName, EnvConfig } from './environments.js';
-export { ENVIRONMENTS, resolveEnv, resolveUrls } from './environments.js';
-export { DEFAULT_API_URL, DEFAULT_CORE_URL, DEFAULT_PLATFORM_URL, DEFAULT_ENV } from './environments.js';
 export {
-  DEFAULT_CONNECTION_ENV,
   endpointsFromStackUrl,
   normalizeStackUrl,
   resolveConnection,
@@ -38,6 +34,8 @@ export {
 } from './generated/env-bindings.js';
 
 export type {
+  RuntimeConfig,
+  Credentials,
   // Client-construction contracts; the "set token directly" entry
   // points. Both HTTP wrappers' constructors take these shapes.
   BackendClientConfig,

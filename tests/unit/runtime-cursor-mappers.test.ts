@@ -211,7 +211,7 @@ describe('runtime/cursor/mappers; drive every handler', () => {
       cfg,
     );
     expect(sensitiveVerdict).toMatchObject({ arm: 'block' });
-    expect(sensitive.calls.some((c) => c.method === 'activity')).toBe(true);
+    expect(sensitive.calls.some((c: { method: string }) => c.method === 'activity')).toBe(true);
   });
 
   it('mcp + mcp-response handlers process MCP-shaped envelopes', async () => {
@@ -235,7 +235,7 @@ describe('runtime configs; env precedence + defaults', () => {
   it('claude-code config respects every env override', async () => {
     const before = { ...process.env };
     process.env.OPENBOX_API_KEY = 'obx_live_envtest';
-    process.env.OPENBOX_ENDPOINT = 'http://localhost:9999';
+    process.env.OPENBOX_CORE_URL = 'http://localhost:9999';
     process.env.GOVERNANCE_POLICY = 'fail_closed';
     process.env.HITL_ENABLED = 'true';
     process.env.HITL_MAX_WAIT = '120';
@@ -255,7 +255,6 @@ describe('runtime configs; env precedence + defaults', () => {
     const before = { ...process.env };
     process.env.OPENBOX_API_KEY = 'obx_live_envtest';
     process.env.OPENBOX_CORE_URL = 'http://localhost:9999';
-    process.env.OPENBOX_ENDPOINT = 'http://localhost:8888';
     process.env.GOVERNANCE_POLICY = 'fail_closed';
     process.env.VERBOSE = 'true';
     try {

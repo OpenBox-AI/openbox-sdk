@@ -13,8 +13,6 @@ name: release branch
 #
 # Tags themselves stay on `main`; release branches are derivative.
 #
-# DISABLED on tag push until consumers test the new SDK and we're ready
-# to ship. Re-enable by uncommenting the `push: tags:` trigger below.
 # To run manually: GitHub Actions tab → release branch → Run workflow,
 # pick the tag name in the `tag` input.
 
@@ -25,9 +23,9 @@ on:
         description: 'Tag to publish a release branch for, such as v0.2.0-alpha.1'
         required: true
         type: string
-  # push:
-  #   tags:
-  #     - 'v*'
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -53,11 +51,58 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - run: npm ci --prefer-offline --no-audit --no-fund
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux deps for Tauri/Rust checks
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - run: NODE_OPTIONS=--max-old-space-size=4096 npm ci --prefer-offline --no-audit --no-fund
+
+      - run: npm --prefix example/n8n/custom-node ci
 
       - run: npm run build
 
-      - run: npm run test:unit
+      - run: npm run lint
+
+      - run: npx tsc --noEmit
+
+      - run: npm test
+
+      - run: npm run test:coverage
+
+      - run: npm run lint:generated-banners
+
+      - run: npm run check:generated-drift
+
+      - run: npm --prefix apps/extension run build
+
+      - run: npm --prefix apps/extension test
+
+      - run: npm --prefix apps/cloud-bridge run build
+
+      - run: npm --prefix apps/cloud-bridge test
+
+      - run: npm --prefix example/n8n/custom-node run build
+
+      - run: npm --prefix example/n8n/custom-node run smoke:load
+
+      - run: cargo check --workspace
+
+      - run: cargo test --workspace
+
+      - run: cargo install cargo-audit --locked
+
+      - run: npm audit
+
+      - run: npm --prefix example/n8n/custom-node audit
+
+      - run: cargo audit
 
       - name: Create release branch
         env:

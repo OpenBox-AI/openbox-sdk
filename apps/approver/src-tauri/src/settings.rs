@@ -1,6 +1,5 @@
 //! Persistent user settings for the approver tray. The shape is
-//! intentionally tiny: env selection (production / staging / local),
-//! a notifications toggle, and a poll-interval bucket. Lives in a
+//! intentionally tiny: a notifications toggle and a poll-interval bucket. Lives in a
 //! single JSON file alongside the CLI's `tokens` store so all
 //! per-user state ends up under one directory.
 //!
@@ -18,42 +17,7 @@ use openbox_sdk::env::openbox_data_root;
 const SETTINGS_FILE: &str = "approver-settings.json";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum EnvChoice {
-    Production,
-    Staging,
-    Local,
-}
-
-impl EnvChoice {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            EnvChoice::Production => "production",
-            EnvChoice::Staging => "staging",
-            EnvChoice::Local => "local",
-        }
-    }
-
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "production" => Some(EnvChoice::Production),
-            "staging" => Some(EnvChoice::Staging),
-            "local" => Some(EnvChoice::Local),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Settings {
-    /// Deprecated. Kept in the struct for backward-compat with
-    /// existing approver-settings.json files; reads ignore it and
-    /// writes never persist it. The active env now lives in
-    /// `~/.openbox/config` as `OPENBOX_ENV=...`, the single source of
-    /// truth every OpenBox surface (CLI, MCP, cursor hook, claude-
-    /// code hook, approver) reads through `apply_env_source()`.
-    #[serde(default, skip_serializing)]
-    pub env: Option<EnvChoice>,
     pub notifications_enabled: bool,
     pub poll_interval_secs: u64,
 }
@@ -61,7 +25,6 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            env: None,
             notifications_enabled: true,
             poll_interval_secs: 5,
         }
@@ -171,7 +134,6 @@ mod tests {
         with_temp_home(|_| {
             let s = load();
             assert_eq!(s, Settings::default());
-            assert_eq!(s.env, EnvChoice::Production);
             assert!(s.notifications_enabled);
             assert_eq!(s.poll_interval_secs, 5);
         });
@@ -200,13 +162,15 @@ mod tests {
     fn round_trip_custom() {
         with_temp_home(|_| {
             let s = Settings {
-                env: EnvChoice::Staging,
                 notifications_enabled: false,
                 poll_interval_secs: 60,
             };
             save(&s).unwrap();
             let s2 = load();
-            assert_eq!(s, s2);
+            assert_eq!(s2, Settings {
+                notifications_enabled: false,
+                poll_interval_secs: 60,
+            });
         });
     }
 
@@ -214,13 +178,15 @@ mod tests {
     fn round_trip_local_15() {
         with_temp_home(|_| {
             let s = Settings {
-                env: EnvChoice::Local,
                 notifications_enabled: true,
                 poll_interval_secs: 15,
             };
             save(&s).unwrap();
             let s2 = load();
-            assert_eq!(s, s2);
+            assert_eq!(s2, Settings {
+                notifications_enabled: true,
+                poll_interval_secs: 15,
+            });
         });
     }
 
@@ -239,11 +205,11 @@ mod tests {
 
     #[test]
     fn poll_interval_normalization() {
-        let s5 = Settings { env: EnvChoice::Production, notifications_enabled: true, poll_interval_secs: 5 };
-        let s15 = Settings { env: EnvChoice::Production, notifications_enabled: true, poll_interval_secs: 15 };
-        let s60 = Settings { env: EnvChoice::Production, notifications_enabled: true, poll_interval_secs: 60 };
-        let junk = Settings { env: EnvChoice::Production, notifications_enabled: true, poll_interval_secs: 7 };
-        let big = Settings { env: EnvChoice::Production, notifications_enabled: true, poll_interval_secs: 999 };
+        let s5 = Settings { notifications_enabled: true, poll_interval_secs: 5 };
+        let s15 = Settings { notifications_enabled: true, poll_interval_secs: 15 };
+        let s60 = Settings { notifications_enabled: true, poll_interval_secs: 60 };
+        let junk = Settings { notifications_enabled: true, poll_interval_secs: 7 };
+        let big = Settings { notifications_enabled: true, poll_interval_secs: 999 };
         assert_eq!(s5.normalized_poll_secs(), 5);
         assert_eq!(s15.normalized_poll_secs(), 15);
         assert_eq!(s60.normalized_poll_secs(), 60);
@@ -251,11 +217,4 @@ mod tests {
         assert_eq!(big.normalized_poll_secs(), 60);
     }
 
-    #[test]
-    fn env_choice_string_roundtrip() {
-        for v in [EnvChoice::Production, EnvChoice::Staging, EnvChoice::Local] {
-            assert_eq!(EnvChoice::from_str(v.as_str()), Some(v.clone()));
-        }
-        assert!(EnvChoice::from_str("nope").is_none());
-    }
 }

@@ -7,7 +7,8 @@
 //   3. File-op gate       ; onWillCreateFiles + onWillRenameFiles
 //   4. Views / boot       ; boot snapshot, history view, refresh
 //
-// All tests run against the real local backend through the real SDK.
+// All tests run against the real backend selected by OPENBOX_* env
+// values through the real SDK.
 // UI / glue logic (mocked-vscode unit-testable) lives at
 // `apps/extension/src/*.test.ts`. The split is hard: anything testable
 // without a workbench is a unit test; anything that needs a real
@@ -80,6 +81,17 @@ async function rejectPendingMatching(match: (approval: PendingApprovalDiag) => b
   }
 }
 
+async function cleanupCreatedAgent(): Promise<void> {
+  const agentId = process.env.OPENBOX_E2E_CREATED_AGENT_ID;
+  const apiUrl = process.env.OPENBOX_API_URL;
+  const apiKey = process.env.OPENBOX_BACKEND_API_KEY;
+  if (!agentId || !apiUrl || !apiKey) return;
+  await fetch(`${apiUrl}/agent/${agentId}`, {
+    method: 'DELETE',
+    headers: { 'X-API-Key': apiKey },
+  }).catch(() => undefined);
+}
+
 before(() => {
   // Pre-populate the gate-test fixture files. Lives outside any
   // describe so it runs once per spec file, not per describe block.
@@ -120,6 +132,7 @@ after(async () => {
       input.includes('"lifecycle-test ')
     );
   });
+  await cleanupCreatedAgent();
 });
 
 // ─── 1. Verdict matrix ──────────────────────────────────────────────
@@ -168,7 +181,6 @@ describe('LIVE; active gates against planted rules', () => {
     const cfg = await browser.executeWorkbench(async (vscode: any) => {
       const c = vscode.workspace.getConfiguration('openbox');
       return {
-        environment: c.get('environment'),
         mockAuth: c.get('mockAuth'),
         agentId: c.get('agentId'),
         preWriteGateActive: c.get('preWriteGate.active'),
@@ -176,7 +188,6 @@ describe('LIVE; active gates against planted rules', () => {
         fileOpGateEnabled: c.get('fileOpGate.enabled'),
       };
     });
-    expect(cfg.environment).toBe('local');
     expect(cfg.mockAuth).toBe(false);
     expect(cfg.agentId).toBeTruthy();
     expect(cfg.preWriteGateActive).toBe(true);
@@ -364,7 +375,7 @@ describe('LIVE; views and boot snapshot', () => {
     expect(build.extensionPath).toContain('openbox');
   });
 
-  it('boot snapshot resolves orgId + agentId from the live local stack', async () => {
+  it('boot snapshot resolves orgId + agentId from the selected live stack', async () => {
     let snap: {
       orgId?: string;
       env?: string;
@@ -382,8 +393,11 @@ describe('LIVE; views and boot snapshot', () => {
       { timeout: 15_000, timeoutMsg: 'boot snapshot never resolved orgId' },
     );
     expect(snap?.mockAuth).toBe(false);
-    expect(snap?.env).toBe('local');
-    expect(snap?.orgId).toBe('openbox.local');
+    if (process.env.OPENBOX_E2E_EXPECT_ORG_ID) {
+      expect(snap?.orgId).toBe(process.env.OPENBOX_E2E_EXPECT_ORG_ID);
+    } else {
+      expect(snap?.orgId).toBeTruthy();
+    }
     expect(snap?.agentId).toBe(process.env.OPENBOX_E2E_AGENT_ID);
     expect(snap?.isApiKeyAuth).toBe(true);
   });

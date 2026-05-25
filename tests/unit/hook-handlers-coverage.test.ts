@@ -100,9 +100,10 @@ describe('runtime/claude-code/hook-handler', () => {
 
   it('runs the dispatch loop end-to-end when API key is set + DRY_RUN=true', async () => {
     const beforeKey = process.env.OPENBOX_API_KEY;
+    const beforeCore = process.env.OPENBOX_CORE_URL;
     const beforeDry = process.env.DRY_RUN;
     process.env.OPENBOX_API_KEY = 'obx_live_test';
-    process.env.OPENBOX_ENDPOINT = 'http://localhost:8086';
+    process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
     process.env.DRY_RUN = 'true';
     try {
       const r = await runWithStdin(
@@ -124,6 +125,8 @@ describe('runtime/claude-code/hook-handler', () => {
     } finally {
       if (beforeKey !== undefined) process.env.OPENBOX_API_KEY = beforeKey;
       else delete process.env.OPENBOX_API_KEY;
+      if (beforeCore !== undefined) process.env.OPENBOX_CORE_URL = beforeCore;
+      else delete process.env.OPENBOX_CORE_URL;
       if (beforeDry !== undefined) process.env.DRY_RUN = beforeDry;
       else delete process.env.DRY_RUN;
     }
@@ -150,9 +153,10 @@ describe('runtime/cursor/hook-handler', () => {
 
   it('drives the dispatch loop with API key + DRY_RUN', async () => {
     const beforeKey = process.env.OPENBOX_API_KEY;
+    const beforeCore = process.env.OPENBOX_CORE_URL;
     const beforeDry = process.env.DRY_RUN;
     process.env.OPENBOX_API_KEY = 'obx_live_test';
-    process.env.OPENBOX_ENDPOINT = 'http://localhost:8086';
+    process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
     process.env.DRY_RUN = 'true';
     try {
       const r = await runWithStdin(
@@ -172,6 +176,8 @@ describe('runtime/cursor/hook-handler', () => {
     } finally {
       if (beforeKey !== undefined) process.env.OPENBOX_API_KEY = beforeKey;
       else delete process.env.OPENBOX_API_KEY;
+      if (beforeCore !== undefined) process.env.OPENBOX_CORE_URL = beforeCore;
+      else delete process.env.OPENBOX_CORE_URL;
       if (beforeDry !== undefined) process.env.DRY_RUN = beforeDry;
       else delete process.env.DRY_RUN;
     }

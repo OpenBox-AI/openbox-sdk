@@ -46,6 +46,7 @@ export async function handlePostToolUse(
   if (!activityType) return undefined;
 
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
+  const toolResponse = (env as { tool_response?: unknown }).tool_response;
   const payload = buildPostToolUsePayload(env, sideEffects);
   const spanType = spanTypeFor(toolName);
   const spans = spanType
@@ -55,7 +56,7 @@ export async function handlePostToolUse(
           command: toolInput.command as string | undefined,
           cwd: toolInput.cwd as string | undefined,
           tool_name: toolName,
-          tool_output: env.tool_response,
+          tool_output: toolResponse,
           url: (toolInput.url as string) || (toolInput.query as string) || undefined,
           method: 'GET',
         }),

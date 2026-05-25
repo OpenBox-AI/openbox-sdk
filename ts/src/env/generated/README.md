@@ -4,7 +4,7 @@
 
 | Source | Reproduces |
 |---|---|
-| `specs/typespec/env/main.tsp` | the `EnvName`, `EnvConfig`, and `EnvLoader` types, plus the `ENV_VAR_BINDINGS`, `validateApiKeyFormat`, `OS_PATH_FIELDS` constants |
+| `specs/typespec/env/main.tsp` | the `RuntimeConfig`, `Credentials`, and `ConnectionLoader` types, plus the `ENV_VAR_BINDINGS`, `validateApiKeyFormat`, `OS_PATH_FIELDS` constants |
 | `codegen/emitters/typespec-emitter-typescript/src/index.ts` | the emit logic that walks the spec and writes this directory |
 
 Regenerate everything in this folder with:
@@ -19,13 +19,13 @@ The files in `ts/src/env/*.ts` (excluding this `generated/` dir):
 
 - **import** types from `./generated/env-bindings.js`
 - **never** redeclare those types; TypeScript fails compile if you do
-- **must** annotate any function listed on `EnvLoader` with
-  `EnvLoader['<name>']` so a spec / impl signature drift is a `tsc`
+- **must** annotate any function listed on `ConnectionLoader` with
+  `ConnectionLoader['<name>']` so a spec / impl signature drift is a `tsc`
   error rather than a runtime surprise
 
 Hand-written files own:
 
-- runtime functions (`resolveEnv`, `resolveUrls`)
+- runtime functions (`resolveConnection`)
 - internal data-only modules (`token-codec.ts`, `client-name.ts`) that
   describe wire formats not part of the public env contract
 

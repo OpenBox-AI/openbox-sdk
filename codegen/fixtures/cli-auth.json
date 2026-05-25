@@ -11,14 +11,12 @@
         "--key",
         "obx_key_aabbccddeeff00112233445566778899aabbccddeeff0011"
       ],
-      "env": { "OPENBOX_ENV": "production" },
       "expectedExitCode": 0,
-      "expectedSideEffect": "tokenStore.production.apiKey set"
+      "expectedSideEffect": "tokenStore.apiKey set"
     },
     {
       "name": "set-api-key-rejects-malformed",
       "argv": ["auth", "set-api-key", "--key", "sk-not-an-openbox-key"],
-      "env": { "OPENBOX_ENV": "production" },
       "expectedExitCode": 3,
       "expectedStderrContains": "obx_key_<48 hex>"
     },
@@ -32,22 +30,21 @@
     {
       "name": "clear-api-key-removes-entry",
       "argv": ["auth", "clear-api-key"],
-      "env": { "OPENBOX_ENV": "production" },
       "tokenStore": {
-        "production": { "apiKey": "obx_key_aabbccddeeff00112233445566778899aabbccddeeff0011" }
+        "apiKey": "obx_key_aabbccddeeff00112233445566778899aabbccddeeff0011"
       },
       "expectedExitCode": 0,
-      "expectedSideEffect": "tokenStore.production removed"
+      "expectedSideEffect": "tokenStore.apiKey removed"
     },
     {
-      "name": "status-prints-per-env",
+      "name": "status-prints-flat-token-state",
       "argv": ["auth", "status"],
       "env": {},
       "tokenStore": {
-        "production": { "apiKey": "obx_key_aabbccddeeff00112233445566778899aabbccddeeff0011" }
+        "apiKey": "obx_key_aabbccddeeff00112233445566778899aabbccddeeff0011"
       },
       "expectedExitCode": 0,
-      "expectedStdoutContains": ["production", "staging", "local"]
+      "expectedStdoutContains": ["connected"]
     },
     {
       "name": "core-api-key-validator-rejects-malformed",

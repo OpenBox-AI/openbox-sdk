@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { existsSync, readFileSync } from 'fs';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { getClient, getTokenPath, loadApiKey } from '../config.js';
-import { resolveConnection, resolveEnv } from '../../env/index.js';
+import { resolveConnection } from '../../env/index.js';
 import { EXIT, bailWith } from '../exit-codes.js';
 import { row, summary, output } from '../output.js';
 import { isMachineMode } from '../non-interactive.js';
@@ -18,8 +18,7 @@ export function registerDoctorCommand(program: Command) {
     .command('doctor')
     .description('Diagnose CLI install: api-key store, backend/core reachability')
     .action(async () => {
-      const env = resolveEnv();
-      const connection = resolveConnection({ envName: env });
+      const connection = resolveConnection();
       const urls = { apiUrl: connection.apiUrl, coreUrl: connection.coreUrl };
       const checks: Check[] = [];
 
@@ -30,7 +29,7 @@ export function registerDoctorCommand(program: Command) {
         detail: existsSync(tokenPath) ? tokenPath : `(none; first run sets up via auth set-api-key)`,
       });
 
-      const apiKey = loadApiKey(env);
+      const apiKey = loadApiKey();
       const haveKey = !!apiKey;
       checks.push({
         name: 'api-key',
@@ -47,7 +46,7 @@ export function registerDoctorCommand(program: Command) {
       });
       if (haveKey) {
         try {
-          await getClient(env).health();
+          await getClient().health();
           checks.push({ name: 'backend /health', status: 'pass', detail: '200 OK' });
         } catch (err: any) {
           const msg = err.message || String(err);
@@ -66,7 +65,7 @@ export function registerDoctorCommand(program: Command) {
       checks.push({ name: 'core URL', status: 'skip', detail: urls.coreUrl });
       const coreApiKey = process.env.OPENBOX_API_KEY;
       try {
-        const core = new OpenBoxCoreClient({ apiUrl: urls.coreUrl, apiKey: coreApiKey ?? '', env });
+        const core = new OpenBoxCoreClient({ apiUrl: urls.coreUrl, apiKey: coreApiKey ?? '' });
         await core.health();
         checks.push({ name: 'core /health', status: 'pass', detail: '200 OK' });
       } catch (err: any) {
@@ -85,7 +84,7 @@ export function registerDoctorCommand(program: Command) {
         });
       } else {
         try {
-          const core = new OpenBoxCoreClient({ apiUrl: urls.coreUrl, apiKey: coreApiKey, env });
+          const core = new OpenBoxCoreClient({ apiUrl: urls.coreUrl, apiKey: coreApiKey });
           await core.validateApiKey();
           checks.push({ name: 'core API key', status: 'pass', detail: 'valid' });
         } catch (err: any) {

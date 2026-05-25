@@ -6,7 +6,7 @@
 // of the agent-keys cache; non-destructive alternative to rotate.
 import { Command } from 'commander';
 import { getClient } from '../config.js';
-import { output } from '../output.js';
+import { error, output } from '../output.js';
 import { parseJsonInput } from '../../validators/index.js';
 import { reportAndExit } from '../../validators/index.js';
 import { wireSubcommands } from '../wire-subcommands.js';
@@ -57,12 +57,12 @@ export function registerApiKeyCommands(program: Command) {
     .action((agentId: string) => {
       const rec = recallAgentKey(agentId);
       if (!rec) {
-        bailWith(
-          EXIT.NOT_FOUND,
-          `No cached runtime key for agent ${agentId}.\n` +
-            `  Cache file: ${agentKeysPath()}\n` +
-            `  Populate via: openbox agent create ... or openbox api-key rotate ${agentId}.`,
-        );
+        error(`No cached runtime key for agent ${agentId}.`, {
+          help:
+            `cache file: ${agentKeysPath()}\n` +
+            `populate via: openbox agent create ... or openbox api-key rotate ${agentId}`,
+        });
+        bailWith(EXIT.NOT_FOUND);
       }
       output({
         agentId: rec.agentId,

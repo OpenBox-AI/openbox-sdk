@@ -21,7 +21,7 @@
 use serde_json::{json, Value};
 
 use crate::core::OpenBoxCoreClient;
-use crate::env::{resolve_env, EnvName, ENVIRONMENTS};
+use crate::env::resolve_connection;
 use crate::error::ApiError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,10 +59,8 @@ pub struct CheckGovernanceOptions {
     pub activity_input: Value,
     /// Override the runtime API key. Skips the env and cache lookups.
     pub api_key: Option<String>,
-    /// Override the environment. Defaults to `OPENBOX_ENV`.
-    pub env_name: Option<EnvName>,
-    /// Override the core base URL. Defaults to the environment's
-    /// `core_url`.
+    /// Override the core base URL. Defaults to OPENBOX_CORE_URL or
+    /// OPENBOX_STACK_URL-derived core URL.
     pub core_url: Option<String>,
 }
 
@@ -243,19 +241,13 @@ fn resolve_api_key(opts: &CheckGovernanceOptions) -> Result<String, ApiError> {
     })
 }
 
-fn resolve_core_url(env_name: Option<EnvName>, core_override: Option<String>) -> String {
+fn resolve_core_url(core_override: Option<String>) -> Result<String, ApiError> {
     if let Some(u) = core_override {
-        return u;
+        return Ok(u);
     }
-    if let Ok(u) = std::env::var("OPENBOX_CORE_URL") {
-        return u;
-    }
-    let env = env_name.unwrap_or_else(resolve_env);
-    ENVIRONMENTS
-        .iter()
-        .find(|(n, _)| *n == env)
-        .map(|(_, cfg)| cfg.core_url.to_string())
-        .unwrap_or_else(|| String::from("http://localhost:8788"))
+    resolve_connection()
+        .map(|connection| connection.core_url)
+        .map_err(ApiError::Config)
 }
 
 /// Evaluates an action against an agent's governance rules.
@@ -267,7 +259,7 @@ fn resolve_core_url(env_name: Option<EnvName>, core_override: Option<String>) ->
 /// row server-side.
 pub async fn check_governance(opts: CheckGovernanceOptions) -> Result<Value, ApiError> {
     let api_key = resolve_api_key(&opts)?;
-    let core_url = resolve_core_url(opts.env_name, opts.core_url.clone());
+    let core_url = resolve_core_url(opts.core_url.clone())?;
     let span = build_span(opts.span_type, &opts.activity_input);
     let payload = json!({
         "source": "sdk",

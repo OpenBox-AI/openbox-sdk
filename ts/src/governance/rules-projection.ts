@@ -145,23 +145,24 @@ function renderPolicyBody(p: BackendPolicy): string {
 
 export interface FetchProjectionOpts {
   agentId: string;
-  envName?: string;
   tokensPath?: string;
 }
 
 export async function fetchRulesProjection(opts: FetchProjectionOpts): Promise<RulesProjection> {
-  const api = createApi({ envName: opts.envName, tokensPath: opts.tokensPath });
+  const api = createApi({ tokensPath: opts.tokensPath });
   const [guardrails, policies] = await Promise.all([
     api(`/agent/${opts.agentId}/guardrails?page=0&perPage=200`),
     api(`/agent/${opts.agentId}/policies?page=0&perPage=200`),
-  ]);
+  ]) as [unknown, unknown];
 
+  const guardrailEnvelope = guardrails as { data?: BackendGuardrail[] };
+  const policyEnvelope = policies as { data?: BackendPolicy[] };
   const grList: BackendGuardrail[] = Array.isArray(guardrails)
     ? guardrails
-    : guardrails?.data ?? [];
+    : guardrailEnvelope.data ?? [];
   const polList: BackendPolicy[] = Array.isArray(policies)
     ? policies
-    : policies?.data ?? [];
+    : policyEnvelope.data ?? [];
 
   const rules: ProjectedRule[] = [];
   for (const g of grList) {

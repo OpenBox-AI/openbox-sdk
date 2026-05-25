@@ -48,14 +48,14 @@ function recordingSession(verdict: { arm?: string } = { arm: 'allow' }): any {
 describe('runtime/claude-code/config', () => {
   it('loadConfig pulls API key + endpoint from env', async () => {
     process.env.OPENBOX_API_KEY = 'obx_live_test_x';
-    process.env.OPENBOX_ENDPOINT = 'http://localhost:8086';
+    process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
     // Force re-import so config picks up our env state at module-load time.
     const mod = await import('../../ts/src/runtime/claude-code/config');
     const cfg = mod.loadConfig();
     expect(cfg.openboxApiKey).toBe('obx_live_test_x');
     expect(cfg.openboxEndpoint).toBe('http://localhost:8086');
     delete process.env.OPENBOX_API_KEY;
-    delete process.env.OPENBOX_ENDPOINT;
+    delete process.env.OPENBOX_CORE_URL;
   });
 
   it('loadConfig supplies sane defaults for unspecified fields', async () => {
@@ -143,6 +143,68 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     await handlePostToolUse(env, session, cfg);
     expect(session.calls[0]?.method).toBe('activity');
   });
+
+  it('returns undefined for tools that have no post-tool route', async () => {
+    const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
+    const session = recordingSession();
+    const env: any = { tool_name: 'UnknownTool', tool_input: {}, tool_response: 'ok', session_id: 'S5b' };
+    const cfg: any = { skipTools: [], sessionDir: dir };
+    await expect(handlePostToolUse(env, session, cfg)).resolves.toBeUndefined();
+    expect(session.calls).toHaveLength(0);
+  });
+
+  it('covers post-tool route variants and halt marking', async () => {
+    const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
+    for (const [toolName, tool_input] of [
+      ['Write', { filePath: '/tmp/write.txt' }],
+      ['Edit', { path: '/tmp/edit.txt' }],
+      ['Delete', { file_path: '/tmp/delete.txt' }],
+      ['Bash', { command: 'echo ok', cwd: dir }],
+      ['WebFetch', { url: 'https://example.test' }],
+      ['WebSearch', { query: 'openbox' }],
+      ['mcp__demo__tool', { value: true }],
+    ] as const) {
+      const session = recordingSession({ arm: toolName === 'Bash' ? 'halt' : 'allow' });
+      const env: any = { tool_name: toolName, tool_input, tool_response: { ok: true }, session_id: `post-${toolName}` };
+      const cfg: any = { skipTools: [], sessionDir: dir };
+      const verdict = await handlePostToolUse(env, session, cfg);
+      expect(verdict?.arm).toBe(toolName === 'Bash' ? 'halt' : 'allow');
+      expect(session.calls[0]?.method).toBe('activity');
+    }
+  });
+});
+
+describe('runtime/claude-code/mappers/permission-request', () => {
+  it('skip-tool short-circuits permission requests', async () => {
+    const { handlePermissionRequest } = await import('../../ts/src/runtime/claude-code/mappers/permission-request');
+    const session = recordingSession();
+    const env: any = { tool_name: 'SkipMe', tool_input: {}, session_id: 'P1' };
+    const cfg: any = { skipTools: ['SkipMe'], sessionDir: dir };
+    await expect(handlePermissionRequest(env, session, cfg)).resolves.toBeUndefined();
+    expect(session.calls).toHaveLength(0);
+  });
+
+  it('covers permission request route variants and halt marking', async () => {
+    const { handlePermissionRequest } = await import('../../ts/src/runtime/claude-code/mappers/permission-request');
+    for (const [toolName, tool_input] of [
+      ['Read', { file_path: '/tmp/read.txt' }],
+      ['Write', { filePath: '/tmp/write.txt' }],
+      ['Edit', { path: '/tmp/edit.txt' }],
+      ['Delete', { file_path: '/tmp/delete.txt' }],
+      ['Bash', { command: 'pwd', cwd: dir }],
+      ['WebFetch', { url: 'https://example.test' }],
+      ['WebSearch', { query: 'openbox' }],
+      ['mcp__demo__tool', { value: true }],
+      ['UnknownTool', { value: true }],
+    ] as const) {
+      const session = recordingSession({ arm: toolName === 'Bash' ? 'halt' : 'allow' });
+      const env: any = { tool_name: toolName, tool_input, session_id: `perm-${toolName}` };
+      const cfg: any = { skipTools: [], sessionDir: dir };
+      const verdict = await handlePermissionRequest(env, session, cfg);
+      expect(verdict?.arm).toBe(toolName === 'Bash' ? 'halt' : 'allow');
+      expect(session.calls[0]?.method).toBe('activity');
+    }
+  });
 });
 
 describe('runtime/cursor/config', () => {
@@ -177,28 +239,70 @@ describe('runtime/cursor/side-effects', () => {
 });
 
 describe('runtime/cursor/mappers/pre-tool-use', () => {
+  it('short-circuits unknown tools, skipped paths, and in-workspace file touches', async () => {
+    const { handlePreToolUse } = await import('../../ts/src/runtime/cursor/mappers/pre-tool-use');
+    const cfg: any = { skipTools: [], sessionDir: dir, hitlMaxWait: 1 };
+    for (const env of [
+      { tool_name: 'UnknownTool', tool_input: {}, conversation_id: 'C0', generation_id: 'G0' },
+      { tool_name: 'Read', tool_input: { file_path: '/tmp/.git/config' }, conversation_id: 'C1', generation_id: 'G1' },
+      {
+        tool_name: 'Read',
+        tool_input: { file_path: join(dir, 'inside-read.txt') },
+        conversation_id: 'C2',
+        generation_id: 'G2',
+        workspace_roots: [dir],
+      },
+      {
+        tool_name: 'Write',
+        tool_input: { filePath: join(dir, 'inside-write.txt') },
+        conversation_id: 'C3',
+        generation_id: 'G3',
+        workspace_roots: [dir],
+      },
+    ]) {
+      const session = recordingSession();
+      await expect(handlePreToolUse(env as any, session, cfg)).resolves.toBeUndefined();
+      expect(session.calls).toHaveLength(0);
+    }
+  });
+
   it('drives the @activityVariant override path without throwing', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/cursor/mappers/pre-tool-use');
     const session = recordingSession();
     const env: any = {
-      tool_name: 'shell',
+      tool_name: 'Shell',
       tool_input: { command: 'rm -rf /tmp/foo' },
       conversation_id: 'C1',
+      generation_id: `G-${Date.now()}`,
     };
-    const cfg: any = { skipTools: [], sessionDir: dir };
+    const cfg: any = { skipTools: [], sessionDir: dir, hitlMaxWait: 1 };
     await handlePreToolUse(env, session, cfg);
-    // The cursor variant either fires once or short-circuits; drive
-    // the function for coverage; precise behavior covered by e2e.
-    expect(typeof session.calls.length).toBe('number');
+    expect(session.calls[0]?.method).toBe('activity');
+    expect(session.calls[0]?.args[1]).toBe('FileDelete');
+  });
+
+  it('routes write tools through activity and marks halt verdicts', async () => {
+    const { handlePreToolUse } = await import('../../ts/src/runtime/cursor/mappers/pre-tool-use');
+    const cfg: any = { skipTools: [], sessionDir: dir, hitlMaxWait: 1 };
+    const session = recordingSession({ arm: 'halt' });
+    const env: any = {
+      tool_name: 'Write',
+      tool_input: { file_path: '/tmp/outside-write.txt' },
+      conversation_id: `C-Write-${Date.now()}`,
+      generation_id: `G-Write-${Date.now()}`,
+      workspace_roots: [dir],
+    };
+    const verdict = await handlePreToolUse(env, session, cfg);
+    expect(verdict?.arm).toBe('halt');
+    expect(session.calls[0]?.method).toBe('activity');
   });
 });
 
 describe('runtime/mcp/config', () => {
-  it('resolveEnv + createApi exist and don\'t throw on construction', async () => {
+  it('createApi exists and does not throw on construction', async () => {
     process.env.OPENBOX_API_URL = 'http://localhost:3000';
     process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
     const mod = await import('../../ts/src/runtime/mcp/config');
-    expect(typeof mod.resolveEnv).toBe('function');
     expect(typeof mod.createApi).toBe('function');
     if ('setMcpClientName' in mod) {
       (mod as any).setMcpClientName('openbox-test');

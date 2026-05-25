@@ -334,8 +334,7 @@ describe('runtime/mcp/config; cwd token and deferred credential paths', () => {
     const beforeCwd = process.cwd();
     const beforeEnv = { ...process.env };
     process.chdir(cwd);
-    fs.writeFileSync(path.join(cwd, '.tokens'), 'production.API_KEY=obx_key_cwd\n', 'utf-8');
-    process.env.OPENBOX_ENV = 'production';
+    fs.writeFileSync(path.join(cwd, '.tokens'), 'API_KEY=obx_key_cwd\n', 'utf-8');
     try {
       const { readTokens } = await import('../../ts/src/runtime/mcp/config.ts');
       expect(readTokens().apiKey).toBe('obx_key_cwd');
@@ -347,8 +346,7 @@ describe('runtime/mcp/config; cwd token and deferred credential paths', () => {
 
   it('defers missing-token failures until the first API call and sends request bodies', async () => {
     const beforeEnv = { ...process.env };
-    process.env.OPENBOX_ENV = 'production';
-    process.env.OPENBOX_API_URL = 'http://api.test';
+    process.env.OPENBOX_API_URL = 'http://localhost:18080';
     const missing = path.join(cwd, 'missing-tokens');
     try {
       const { createApi, setMcpClientName } = await import('../../ts/src/runtime/mcp/config.ts');
@@ -356,7 +354,7 @@ describe('runtime/mcp/config; cwd token and deferred credential paths', () => {
       await expect(api('/x')).rejects.toThrow('No tokens at');
 
       const tokens = path.join(cwd, 'tokens');
-      fs.writeFileSync(tokens, 'production.API_KEY=obx_key_body\n', 'utf-8');
+      fs.writeFileSync(tokens, 'API_KEY=obx_key_body\n', 'utf-8');
       let seen: any;
       vi.stubGlobal('fetch', async (url: string, init: any) => {
         seen = { url, init };
@@ -364,7 +362,7 @@ describe('runtime/mcp/config; cwd token and deferred credential paths', () => {
       });
       setMcpClientName('cursor-chat');
       await createApi({ tokensPath: tokens })('/body', 'POST', { a: 1 });
-      expect(seen.url).toBe('http://api.test/body');
+      expect(seen.url).toBe('http://localhost:18080/body');
       expect(seen.init.method).toBe('POST');
       expect(seen.init.body).toBe(JSON.stringify({ a: 1 }));
       expect(seen.init.headers['X-Openbox-Client']).toBe('runtime/mcp/cursor-chat');

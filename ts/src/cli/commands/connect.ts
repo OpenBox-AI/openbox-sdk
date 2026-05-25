@@ -1,7 +1,6 @@
 import { Command } from 'commander';
 import { OpenBoxClient } from '../../client/index.js';
 import {
-  DEFAULT_CONNECTION_ENV,
   endpointsFromStackUrl,
   normalizeStackUrl,
   type StackEndpoints,
@@ -44,20 +43,18 @@ export function registerConnectCommand(program: Command) {
           apiUrl: opts.apiUrl,
           coreUrl: opts.coreUrl,
         });
-        setConfig('global', 'OPENBOX_API_URL', connection.apiUrl);
-        setConfig('global', 'OPENBOX_CORE_URL', connection.coreUrl);
-        unsetConfig('global', 'OPENBOX_ENV');
-        unsetConfig('global', 'OPENBOX_STACK_URL');
-        unsetConfig('global', 'OPENBOX_STACK_NAME');
+        setConfig('OPENBOX_API_URL', connection.apiUrl);
+        setConfig('OPENBOX_CORE_URL', connection.coreUrl);
+        unsetConfig('OPENBOX_STACK_URL');
+        unsetConfig('OPENBOX_STACK_NAME');
 
         let profile: unknown;
         if (opts.apiKey) {
           const key = opts.apiKey.trim();
-          saveApiKey(DEFAULT_CONNECTION_ENV, key);
+          saveApiKey(key);
           if (opts.validate !== false) {
             profile = await new OpenBoxClient({
               apiUrl: connection.apiUrl,
-              env: DEFAULT_CONNECTION_ENV,
               apiKey: key,
               clientName: 'cli/connect',
               timeoutMs: 10_000,

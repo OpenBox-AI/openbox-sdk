@@ -79,7 +79,7 @@ export async function handlePreToolUse(
     if (!decision) return undefined;
     if (decision.arm === 'allow' || decision.arm === 'constrain') return undefined;
     if (decision.arm === 'halt') markHalted(env.conversation_id, cfg);
-    return { arm: decision.arm, reason: decision.reason };
+    return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
   }
 
   const payload = buildPreToolUsePayload(env, toolName, sideEffects);

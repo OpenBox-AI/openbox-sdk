@@ -21,13 +21,18 @@ vi.mock('../../ts/src/logging/hook-log.js', () => ({
 vi.mock('../../ts/src/approvals/socket-client.js', () => ({
   connectApprovalSocket: vi.fn(async () => {
     socketConnects += 1;
+    if (process.env.OPENBOX_SOCKET_NULL === '1') return null;
     return {
       notifyPending: (payload: any) => socketEvents.push({ type: 'pending', payload }),
       awaitDecision: async (id: string) => {
         socketEvents.push({ type: 'await', id });
+        if (process.env.OPENBOX_SOCKET_TIMEOUT === '1') return { kind: 'timeout' };
         return { kind: 'decision', decision: { action: 'approve', reason: 'ok' } };
       },
-      close: () => socketEvents.push({ type: 'close' }),
+      close: () => {
+        socketEvents.push({ type: 'close' });
+        if (process.env.OPENBOX_SOCKET_CLOSE_THROW === '1') throw new Error('close failed');
+      },
     };
   }),
 }));
@@ -37,6 +42,7 @@ vi.mock('../../ts/src/core-client/index.js', () => ({
     constructor(public opts: any) {}
     async validateApiKey() {
       validateApiKeyCalls += 1;
+      if (process.env.OPENBOX_VALIDATE_FAIL === '1') throw new Error('invalid key');
       return { agent_id: 'agent-from-key' };
     }
   },
@@ -105,6 +111,11 @@ afterEach(() => {
   delete process.env.OPENBOX_API_KEY;
   delete process.env.DRY_RUN;
   delete process.env.APPROVAL_MODE;
+  delete process.env.OPENBOX_DISABLE_APPROVAL_SOCKET;
+  delete process.env.OPENBOX_SOCKET_NULL;
+  delete process.env.OPENBOX_SOCKET_TIMEOUT;
+  delete process.env.OPENBOX_SOCKET_CLOSE_THROW;
+  delete process.env.OPENBOX_VALIDATE_FAIL;
 });
 
 describe('runtime/cursor/hook-handler; adapter orchestration', () => {
@@ -190,12 +201,127 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
     const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
 
     await runCursorHook();
-    const out = await adapterOptions.handlers.beforeSubmitPrompt(
-      { conversation_id: 'c', prompt: 'hello' },
-      { activity: vi.fn(async () => ({ arm: 'block', reason: 'should not run' })) },
+    const base = {
+      conversation_id: 'c',
+      generation_id: 'g',
+      hook_event_name: 'beforeShellExecution',
+      prompt: 'hello',
+      command: 'pwd',
+      file_path: '/tmp/outside.txt',
+      cwd: '/tmp',
+      workspace_roots: ['/workspace/project'],
+      server_name: 'openbox',
+      tool_name: 'Shell',
+      tool_input: { command: 'pwd', cwd: '/tmp' },
+      response: { content: [{ type: 'text', text: 'ok' }] },
+      subagent_id: 'subagent-1',
+      subagent_name: 'reviewer',
+    };
+    const session = { activity: vi.fn(async () => ({ arm: 'block', reason: 'should not run' })) };
+
+    for (const handler of Object.values(adapterOptions.handlers) as any[]) {
+      await expect(handler(base, session)).resolves.toBeUndefined();
+    }
+    expect(session.activity).not.toHaveBeenCalled();
+  });
+
+  it('covers approval socket fallback branches and summary sources', async () => {
+    const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
+
+    await runCursorHook();
+    await adapterOptions.onPendingApproval(
+      { approvalId: 'tool-string', reason: 'review' },
+      { hook_event_name: 'beforeMCPExecution', tool_name: 'Tool', tool_input: 'raw' },
+    );
+    await adapterOptions.onPendingApproval(
+      { approvalId: 'tool-object' },
+      { hook_event_name: 'beforeMCPExecution', tool_name: 'Tool', tool_input: { a: 1 } },
+    );
+    await adapterOptions.onPendingApproval(
+      { approvalId: 'file-path' },
+      { hook_event_name: 'beforeReadFile', file_path: '/tmp/secret.txt' },
+    );
+    await adapterOptions.onPendingApproval(
+      { approvalId: 'prompt' },
+      { hook_event_name: 'beforeSubmitPrompt', prompt: 'think about it' },
+    );
+    await adapterOptions.onPendingApproval(
+      { approvalId: 'empty' },
+      { hook_event_name: 'beforeSubmitPrompt' },
     );
 
-    expect(out).toBeUndefined();
+    expect(socketEvents.filter((event) => event.type === 'pending').map((event) => event.payload.summary)).toEqual([
+      'Tool(raw)',
+      'Tool({"a":1})',
+      '/tmp/secret.txt',
+      'think about it',
+      '',
+    ]);
+
+    process.env.OPENBOX_SOCKET_TIMEOUT = '1';
+    await expect(
+      adapterOptions.awaitExternalDecision(
+        { approvalId: 'timeout' },
+        { hook_event_name: 'beforeShellExecution' },
+      ),
+    ).resolves.toBeUndefined();
+
+    process.env.OPENBOX_SOCKET_CLOSE_THROW = '1';
+    expect(() => adapterOptions.onApprovalResolved()).not.toThrow();
+  });
+
+  it('does not open approval sockets when disabled or unavailable', async () => {
+    const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
+
+    process.env.OPENBOX_DISABLE_APPROVAL_SOCKET = '1';
+    await runCursorHook();
+    await adapterOptions.onPendingApproval(
+      { approvalId: 'disabled' },
+      { hook_event_name: 'beforeShellExecution', command: 'pwd' },
+    );
+    await expect(
+      adapterOptions.awaitExternalDecision(
+        { approvalId: 'disabled' },
+        { hook_event_name: 'beforeShellExecution' },
+      ),
+    ).resolves.toBeUndefined();
+    expect(socketConnects).toBe(0);
+
+    delete process.env.OPENBOX_DISABLE_APPROVAL_SOCKET;
+    process.env.OPENBOX_SOCKET_NULL = '1';
+    await runCursorHook();
+    await adapterOptions.onPendingApproval(
+      { approvalId: 'null' },
+      { hook_event_name: 'beforeShellExecution', command: 'pwd' },
+    );
+    await expect(
+      adapterOptions.awaitExternalDecision(
+        { approvalId: 'null' },
+        { hook_event_name: 'beforeShellExecution' },
+      ),
+    ).resolves.toBeUndefined();
+    expect(socketConnects).toBe(1);
+  });
+
+  it('surfaces pending approvals without agent id when key validation fails', async () => {
+    process.env.OPENBOX_VALIDATE_FAIL = '1';
+    const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
+
+    await runCursorHook();
+    await adapterOptions.onPendingApproval(
+      { approvalId: 'validation-failure' },
+      { hook_event_name: 'beforeShellExecution', command: 'pwd' },
+    );
+
+    expect(validateApiKeyCalls).toBe(1);
+    expect(socketEvents).toContainEqual({
+      type: 'pending',
+      payload: expect.objectContaining({
+        governance_event_id: 'validation-failure',
+        agent_id: '',
+        summary: 'pwd',
+      }),
+    });
   });
 
   it('invokes every registered live handler and records thrown mapper errors', async () => {

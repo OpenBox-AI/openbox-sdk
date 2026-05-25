@@ -1,10 +1,12 @@
 import { vi } from 'vitest';
 import { Command } from 'commander';
 
+type MockMethodMap = Record<string, ReturnType<typeof vi.fn>>;
+
 /**
  * Creates a mock OpenBoxClient with vi.fn() stubs for all public methods.
  */
-export function createMockClient() {
+export function createMockClient(): MockMethodMap {
   return {
     // Auth
     getProfile: vi.fn().mockResolvedValue({}),
@@ -137,7 +139,7 @@ export function createMockClient() {
 /**
  * Creates a mock OpenBoxCoreClient with vi.fn() stubs.
  */
-export function createMockCoreClient() {
+export function createMockCoreClient(): MockMethodMap {
   return {
     health: vi.fn().mockResolvedValue('hello world'),
     validateApiKey: vi.fn().mockResolvedValue({ valid: true }),

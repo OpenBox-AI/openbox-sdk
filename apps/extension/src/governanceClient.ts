@@ -11,8 +11,6 @@
 
 import * as vscode from 'vscode';
 import { checkGovernance, type SpanType } from 'openbox-sdk/governance';
-import type { EnvName } from 'openbox-sdk/env';
-import { readGlobalEnv } from './configStore';
 
 export type GovernanceOutcome = 'allow' | 'require_approval' | 'deny' | 'unknown';
 
@@ -70,10 +68,6 @@ export class GovernanceClient {
     return id || undefined;
   }
 
-  envName(): EnvName {
-    return readGlobalEnv();
-  }
-
   async check(opts: CheckOpts): Promise<GovernanceResult> {
     const agentId = this.agentId();
     if (!agentId) return { outcome: 'allow' }; // no agent → no governance, treat as allow
@@ -87,7 +81,6 @@ export class GovernanceClient {
           agentId,
           spanType: opts.spanType,
           activityInput: opts.activityInput,
-          envName: this.envName(),
         }),
         new Promise<never>((_, rej) =>
           aborter.signal.addEventListener('abort', () => rej(new Error('governance deadline exceeded'))),
@@ -96,9 +89,14 @@ export class GovernanceClient {
       // GovernanceVerdictResponse: verdict can be number (spec) or
       // string (live core response). reason / approval_id sit at the
       // top level either way.
-      const r = result as { verdict?: number | string; reason?: string; approval_id?: string };
+      const r = result as {
+        verdict?: number | string;
+        action?: number | string;
+        reason?: string;
+        approval_id?: string;
+      };
       return {
-        outcome: verdictToOutcome(r.verdict),
+        outcome: verdictToOutcome(r.verdict ?? r.action),
         reason: r.reason,
         approvalId: r.approval_id,
       };

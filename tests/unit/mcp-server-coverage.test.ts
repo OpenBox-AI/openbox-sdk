@@ -104,8 +104,6 @@ async function withMcpEnv<T>(fn: () => Promise<T>): Promise<T> {
   const beforeRuntime = process.env.OPENBOX_API_KEY;
   const beforeBackend = process.env.OPENBOX_BACKEND_API_KEY;
   const beforeHome = process.env.OPENBOX_HOME;
-  const beforeEnv = process.env.OPENBOX_ENV;
-  process.env.OPENBOX_ENV = 'local';
   process.env.OPENBOX_API_URL = 'http://localhost:3000';
   process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
   process.env.OPENBOX_API_KEY = 'obx_test_x'.padEnd(57, 'x');
@@ -124,8 +122,6 @@ async function withMcpEnv<T>(fn: () => Promise<T>): Promise<T> {
     else delete process.env.OPENBOX_BACKEND_API_KEY;
     if (beforeHome !== undefined) process.env.OPENBOX_HOME = beforeHome;
     else delete process.env.OPENBOX_HOME;
-    if (beforeEnv !== undefined) process.env.OPENBOX_ENV = beforeEnv;
-    else delete process.env.OPENBOX_ENV;
   }
 }
 
@@ -350,8 +346,8 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
 
   it('refreshes MCP backend env config on each tool call without restarting', async () => {
     const beforeHome = process.env.OPENBOX_HOME;
-    const beforeEnv = process.env.OPENBOX_ENV;
     const beforeApi = process.env.OPENBOX_API_URL;
+    const beforeCore = process.env.OPENBOX_CORE_URL;
     const beforeBackend = process.env.OPENBOX_BACKEND_API_KEY;
     const home = mkdtempSync(join(tmpdir(), 'openbox-mcp-refresh-'));
     const urls: string[] = [];
@@ -359,16 +355,16 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       mkdirSync(home, { recursive: true });
       writeFileSync(
         join(home, 'config'),
-        `OPENBOX_ENV=local\nlocal.OPENBOX_API_URL=${apiUrl}\nlocal.OPENBOX_CORE_URL=http://core.local\n`,
+        `OPENBOX_API_URL=${apiUrl}\nOPENBOX_CORE_URL=http://localhost:18081\n`,
       );
-      writeFileSync(join(home, 'tokens'), 'local.API_KEY=obx_key_local\n');
+      writeFileSync(join(home, 'tokens'), 'API_KEY=obx_key_local\n');
     };
     try {
       process.env.OPENBOX_HOME = home;
-      delete process.env.OPENBOX_ENV;
       delete process.env.OPENBOX_API_URL;
+      delete process.env.OPENBOX_CORE_URL;
       process.env.OPENBOX_BACKEND_API_KEY = 'obx_key_local';
-      writeConfig('http://api-one.local');
+      writeConfig('http://localhost:18082');
       vi.stubGlobal('fetch', async (url: string) => {
         urls.push(String(url));
         return new Response(JSON.stringify({ status: 200, data: { data: [] } }), {
@@ -381,18 +377,18 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       await runMcpServer();
       const tool = captured.find((t) => t.name === 'list_agents')!;
       await tool.cb({});
-      writeConfig('http://api-two.local');
+      writeConfig('http://localhost:18083');
       await tool.cb({});
 
-      expect(urls[0]).toContain('http://api-one.local');
-      expect(urls[1]).toContain('http://api-two.local');
+      expect(urls[0]).toContain('http://localhost:18082');
+      expect(urls[1]).toContain('http://localhost:18083');
     } finally {
       if (beforeHome !== undefined) process.env.OPENBOX_HOME = beforeHome;
       else delete process.env.OPENBOX_HOME;
-      if (beforeEnv !== undefined) process.env.OPENBOX_ENV = beforeEnv;
-      else delete process.env.OPENBOX_ENV;
       if (beforeApi !== undefined) process.env.OPENBOX_API_URL = beforeApi;
       else delete process.env.OPENBOX_API_URL;
+      if (beforeCore !== undefined) process.env.OPENBOX_CORE_URL = beforeCore;
+      else delete process.env.OPENBOX_CORE_URL;
       if (beforeBackend !== undefined) process.env.OPENBOX_BACKEND_API_KEY = beforeBackend;
       else delete process.env.OPENBOX_BACKEND_API_KEY;
     }

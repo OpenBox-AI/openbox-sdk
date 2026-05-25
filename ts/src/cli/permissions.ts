@@ -1,8 +1,8 @@
 // Maps CLI command paths to the backend permissions required to execute them.
 // Mirrors the granular permission set the backend declares via
 // `@Permissions(...)` decorators on its controllers. Any command listed
-// here is pre-flight-checked against the cached per-env permission list:
-// if the current env's role lacks a required permission, the CLI errors
+// here is pre-flight-checked against the cached permission list:
+// if the current role lacks a required permission, the CLI errors
 // locally with a clear message instead of firing a request and getting 403.
 
 export type CommandKey = string;

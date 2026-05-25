@@ -1,43 +1,46 @@
 {
   "$schema": "../snapshots/env-resolution.schema.json",
   "name": "env-resolution",
-  "description": "loadRuntime() returns the same RuntimeConfig given a fixed env-var snapshot, in every language.",
+  "description": "resolveConnection() returns the same RuntimeConfig from explicit URLs, stack URL derivation, and credentials in every language.",
   "cases": [
     {
-      "name": "default-production",
-      "env": {},
-      "tokenStore": null,
-      "expected": {
-        "env": "production",
-        "apiUrl": "https://api.openbox.ai",
-        "coreUrl": "https://core.openbox.ai",
-        "platformUrl": "https://app.openbox.ai"
-      }
-    },
-    {
-      "name": "openbox-env-overrides-default",
-      "env": { "OPENBOX_ENV": "staging" },
-      "tokenStore": null,
-      "expected": {
-        "env": "staging",
-        "apiUrl": "https://api.staging.openbox.ai",
-        "coreUrl": "https://core.staging.openbox.ai",
-        "platformUrl": "https://app.staging.openbox.ai"
-      }
-    },
-    {
-      "name": "explicit-url-overrides-env",
+      "name": "explicit-urls",
       "env": {
-        "OPENBOX_ENV": "staging",
+        "OPENBOX_API_URL": "https://api.example.test/ob",
+        "OPENBOX_CORE_URL": "https://core.example.test/ob",
+        "OPENBOX_PLATFORM_URL": "https://platform.example.test"
+      },
+      "tokenStore": null,
+      "expected": {
+        "apiUrl": "https://api.example.test/ob",
+        "coreUrl": "https://core.example.test/ob",
+        "platformUrl": "https://platform.example.test"
+      }
+    },
+    {
+      "name": "stack-url-derives-service-urls",
+      "env": { "OPENBOX_STACK_URL": "https://ipsum.lat/ob" },
+      "tokenStore": null,
+      "expected": {
+        "apiUrl": "https://api.ipsum.lat/ob",
+        "coreUrl": "https://core.ipsum.lat/ob",
+        "platformUrl": "https://platform.ipsum.lat/ob",
+        "stackUrl": "https://ipsum.lat/ob"
+      }
+    },
+    {
+      "name": "explicit-urls-override-stack-derived-urls",
+      "env": {
+        "OPENBOX_STACK_URL": "https://ipsum.lat/ob",
         "OPENBOX_API_URL": "https://internal.example/api",
         "OPENBOX_CORE_URL": "https://internal.example/core"
       },
       "tokenStore": null,
       "expected": {
-        "env": "staging",
         "apiUrl": "https://internal.example/api",
         "coreUrl": "https://internal.example/core",
-        "platformUrl": "https://app.staging.openbox.ai"
+        "platformUrl": "https://platform.ipsum.lat/ob",
+        "stackUrl": "https://ipsum.lat/ob"
       }
     },
     {
@@ -55,10 +58,20 @@
       },
       "tokenStore": null,
       "expected": {
-        "env": "production",
-        "apiUrl": "https://api.openbox.ai",
-        "coreUrl": "https://core.openbox.ai",
-        "platformUrl": "https://app.openbox.ai",
+        "error": "OPENBOX_API_URL and OPENBOX_CORE_URL are required unless OPENBOX_STACK_URL is set"
+      }
+    },
+    {
+      "name": "token-format-accepts-live-with-explicit-urls",
+      "env": {
+        "OPENBOX_API_URL": "https://api.example.test/ob",
+        "OPENBOX_CORE_URL": "https://core.example.test/ob",
+        "OPENBOX_API_KEY": "obx_live_aabbccddeeff00112233445566778899aabbccddeeff0011"
+      },
+      "tokenStore": null,
+      "expected": {
+        "apiUrl": "https://api.example.test/ob",
+        "coreUrl": "https://core.example.test/ob",
         "apiKey": "obx_live_aabbccddeeff00112233445566778899aabbccddeeff0011"
       }
     },
@@ -69,7 +82,7 @@
       },
       "tokenStore": null,
       "expected": {
-        "env": "production",
+        "error": "OPENBOX_API_URL and OPENBOX_CORE_URL are required unless OPENBOX_STACK_URL is set",
         "apiKey": "obx_test_aabbccddeeff00112233445566778899aabbccddeeff0011"
       }
     }

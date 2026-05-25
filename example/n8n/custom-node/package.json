@@ -23,6 +23,9 @@
     "n8n-workflow": "^1.120.13",
     "typescript": "^5.9.3"
   },
+  "overrides": {
+    "form-data": "4.0.4"
+  },
   "n8n": {
     "n8nNodesApiVersion": 1,
     "nodes": [

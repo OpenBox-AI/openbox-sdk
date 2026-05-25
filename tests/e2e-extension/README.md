@@ -18,6 +18,26 @@ cd -
 npm run test:e2e-extension
 ```
 
+## Running against a non-local dev stack
+
+Inject URLs and credentials through your shell or secret manager. The
+harness respects the injected values and does not require a committed
+endpoint profile:
+
+```bash
+INFISICAL_PROJECT_ID="<project-id>" \
+infisical run --env=dev --projectId "$INFISICAL_PROJECT_ID" -- \
+  npm run test:e2e-extension
+```
+
+If `OPENBOX_E2E_AGENT_ID` and `OPENBOX_E2E_RUNTIME_KEY` are not
+present, the harness uses `OPENBOX_BACKEND_API_KEY` to create a
+disposable test agent and deletes it at the end of the run.
+
+`infisical run --env=dev` selects only the Infisical secret environment.
+The SDK target is URL-first: inject `OPENBOX_API_URL` and
+`OPENBOX_CORE_URL` for the stack under test.
+
 ## Pointing at Cursor instead of VS Code
 
 By default the harness downloads stable VS Code. To exercise Cursor's
@@ -44,22 +64,11 @@ provides the X display.
 
 ## Suites
 
-- `panel.e2e.ts`; extension activates, status bar paints with the
-  `MOCK · staging` tag, OpenBox view container is in the activity bar,
-  Pending Approvals lists the 6 mock-auth fixture rows.
-- `save-gate.e2e.ts`; Active PreWriteGate behaviors when
-  `openbox.agentId` is empty vs set. (See TODO inside; the harness
-  doesn't yet flip arbitrary settings reliably.)
+The harness runs `suites/live-e2e.e2e.ts` only. It boots with
+`openbox.mockAuth: false`, validates the selected runtime key against
+core, exercises live governance verdicts, and checks the active editor
+gates in a real workbench.
 
-Add new suites under `suites/` matching `*.e2e.ts`.
-
-## Why mock auth by default
-
-The wdio config sets `openbox.mockAuth: true` and
-`openbox.environment: staging` in the per-run user settings, so the
-extension boots without needing a real X-API-Key. The fixture-driven
-panel and the navigation-only tests don't need a backend at all. Tests
-that need real governance (active gates against a real agent) should
-flip mockAuth off in their suite preamble and set
-`OPENBOX_API_KEY` + `openbox.agentId` to a runtime key + agent ID
-they own.
+Add new suites under `suites/` matching `*.e2e.ts` only when they need a
+real workbench. Anything that can run against mocked `vscode` belongs in
+`apps/extension/src/*.test.ts`.

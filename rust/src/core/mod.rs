@@ -1,6 +1,6 @@
 //! reqwest layer for the core governance API. Mirrors `crate::client`
-//! against the core URL (`core_url` in the env table). Transport is
-//! shared via `crate::transport`.
+//! against an explicit core URL. Transport is shared via
+//! `crate::transport`.
 
 pub mod generated;
 
@@ -9,7 +9,6 @@ pub use generated::*;
 
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::env::EnvName;
 use crate::transport::{Auth, Transport};
 
 pub const DEFAULT_CLIENT_NAME: &str = "openbox-sdk-rust";
@@ -24,11 +23,6 @@ impl OpenBoxCoreClient {
             .base_url(base_url)
             .access_token(access_token)
             .build()
-    }
-
-    pub fn for_env(env: EnvName, access_token: impl Into<String>) -> Self {
-        let cfg = env.resolve();
-        Self::new(cfg.core_url, access_token)
     }
 
     pub fn builder() -> OpenBoxCoreClientBuilder {
@@ -137,11 +131,6 @@ impl OpenBoxCoreClientBuilder {
         self
     }
 
-    pub fn for_env(mut self, env: EnvName) -> Self {
-        self.base_url = Some(env.resolve().core_url.to_string());
-        self
-    }
-
     pub fn access_token(mut self, token: impl Into<String>) -> Self {
         self.access_token = Some(token.into());
         self
@@ -172,7 +161,7 @@ impl OpenBoxCoreClientBuilder {
         };
         let base_url = self
             .base_url
-            .expect("OpenBoxCoreClientBuilder: .base_url() (or .for_env()) is required before .build()");
+            .expect("OpenBoxCoreClientBuilder: .base_url() is required before .build()");
         OpenBoxCoreClient {
             transport: Transport {
                 http: self.http.unwrap_or_else(reqwest::Client::new),

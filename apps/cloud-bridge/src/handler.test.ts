@@ -18,10 +18,13 @@ vi.mock('openbox-sdk/governance', () => ({
 }));
 
 const ORIG_ENV = { ...process.env };
+const VALID_RUNTIME_KEY = `obx_test_${'a'.repeat(48)}`;
 
 beforeEach(() => {
   delete process.env.OPENBOX_BRIDGE_SIGNING_SECRET;
   delete process.env.OPENBOX_BRIDGE_TOKEN;
+  delete process.env.OPENBOX_BRIDGE_UNSAFE_LOCAL_DEV;
+  delete process.env.OPENBOX_API_KEY;
 });
 
 afterEach(() => {
@@ -35,8 +38,15 @@ async function loadHandler() {
 }
 
 describe('handleWebhook: verification', () => {
-  it('with no secret + no token, accepts any request', async () => {
+  it('with no secret + no token, rejects unless unsafe local dev is explicit', async () => {
     const { handleWebhook } = await loadHandler();
+    const rejected = await handleWebhook({
+      rawBody: JSON.stringify({ agent_id: 'agt' }),
+      headers: { 'content-type': 'application/json' },
+    });
+    expect(rejected.status).toBe(401);
+
+    process.env.OPENBOX_BRIDGE_UNSAFE_LOCAL_DEV = '1';
     const result = await handleWebhook({
       rawBody: JSON.stringify({ agent_id: 'agt' }),
       headers: { 'content-type': 'application/json' },
@@ -47,6 +57,7 @@ describe('handleWebhook: verification', () => {
 
   it('with bearer token, rejects missing/wrong header', async () => {
     process.env.OPENBOX_BRIDGE_TOKEN = 'sekret';
+    process.env.OPENBOX_API_KEY = VALID_RUNTIME_KEY;
     const { handleWebhook } = await loadHandler();
     const r1 = await handleWebhook({
       rawBody: JSON.stringify({ agent_id: 'agt' }),
@@ -67,6 +78,7 @@ describe('handleWebhook: verification', () => {
 
   it('with signing secret, validates HMAC and rejects mismatches', async () => {
     process.env.OPENBOX_BRIDGE_SIGNING_SECRET = 'secret-for-hmac';
+    process.env.OPENBOX_API_KEY = VALID_RUNTIME_KEY;
     const { handleWebhook } = await loadHandler();
     const body = JSON.stringify({ agent_id: 'agt', action: 'review' });
     const sig = crypto.createHmac('sha256', 'secret-for-hmac').update(body).digest('hex');
@@ -93,12 +105,14 @@ describe('handleWebhook: verification', () => {
 
 describe('handleWebhook: payload parsing', () => {
   it('rejects invalid JSON', async () => {
+    process.env.OPENBOX_BRIDGE_UNSAFE_LOCAL_DEV = '1';
     const { handleWebhook } = await loadHandler();
     const r = await handleWebhook({ rawBody: 'not json', headers: {} });
     expect(r.status).toBe(400);
   });
 
   it('rejects bodies missing agent_id', async () => {
+    process.env.OPENBOX_BRIDGE_UNSAFE_LOCAL_DEV = '1';
     const { handleWebhook } = await loadHandler();
     const r = await handleWebhook({
       rawBody: JSON.stringify({ action: 'review' }),
@@ -108,6 +122,7 @@ describe('handleWebhook: payload parsing', () => {
   });
 
   it('accepts agent id from X-OpenBox-Agent header', async () => {
+    process.env.OPENBOX_BRIDGE_UNSAFE_LOCAL_DEV = '1';
     const { handleWebhook } = await loadHandler();
     const r = await handleWebhook({
       rawBody: JSON.stringify({ action: 'review', source_run_id: 'run-1' }),
@@ -116,5 +131,16 @@ describe('handleWebhook: payload parsing', () => {
     expect(r.status).toBe(200);
     expect(r.body.reason).toContain('agt_via_header');
     expect(r.body.reason).toContain('run-1');
+  });
+
+  it('requires a runtime key outside unsafe local dev mode', async () => {
+    process.env.OPENBOX_BRIDGE_TOKEN = 'sekret';
+    const { handleWebhook } = await loadHandler();
+    const r = await handleWebhook({
+      rawBody: JSON.stringify({ agent_id: 'agt' }),
+      headers: { authorization: 'Bearer sekret' },
+    });
+    expect(r.status).toBe(503);
+    expect(r.body.ok).toBe(false);
   });
 });

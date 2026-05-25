@@ -55,38 +55,33 @@ openbox --experimental core evaluate --type shell --command "ls"
 openbox --experimental behavior create <agent> --verdict 2 ...
 ```
 
-## Active env: single source of truth
+## Active target URLs: single source of truth
 
-`~/.openbox/config` is the one place every OpenBox process reads the
-active env. Every surface running on this machine applies the same
-precedence chain at startup (or per-event for stateless hooks). That
+`~/.openbox/config` is the one place every OpenBox process can read
+explicit target URLs. Every surface running on this machine applies
+the same URL/key loading at startup (or per-event for stateless hooks). That
 includes CLI invocations, the MCP server Cursor launches, cursor
 hooks, claude-code hooks, the extension's pending-approvals view,
 and slash commands:
 
-1. `--env <flag>` (CLI surfaces only, per-invocation)
-2. `process.env.OPENBOX_ENV` (per-process, when explicitly exported)
-3. `~/.openbox/config`'s global `OPENBOX_ENV=...`
-4. build-pinned `DEFAULT_ENV`
+1. `process.env.OPENBOX_API_URL` / `OPENBOX_CORE_URL`
+2. `~/.openbox/config` global URL/key entries
+3. `OPENBOX_STACK_URL` derivation when individual service URLs are absent
 
-Same chain governs `OPENBOX_API_URL`, `OPENBOX_CORE_URL`, and
-`OPENBOX_API_KEY` (the runtime key hooks use). Per-env keys live
-under `<env>.<KEY>` lines in the file:
+The same model governs `OPENBOX_API_KEY` (runtime/core calls) and
+`OPENBOX_BACKEND_API_KEY` or `API_KEY` in `~/.openbox/tokens`
+(backend management calls). Token/config files are flat:
 
 ```
-OPENBOX_ENV=local
-local.OPENBOX_API_URL=http://localhost:3000
-local.OPENBOX_CORE_URL=http://localhost:8086
-local.OPENBOX_API_KEY=obx_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-production.OPENBOX_API_KEY=obx_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+OPENBOX_API_URL=http://localhost:3000
+OPENBOX_CORE_URL=http://localhost:8086
+OPENBOX_API_KEY=obx_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+OPENBOX_BACKEND_API_KEY=obx_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-Switching env: edit the file (or the extension's debug-view env
-switcher writes there for you, or `openbox --experimental config set
-OPENBOX_ENV staging --global`). The next CLI command, the next hook
-event, the next MCP tool call all see the new env. The MCP daemon
-itself reads env at startup; restart Cursor to flip a long-running
-MCP server (or the extension's switcher does this).
+Switching target: edit the URLs or run `openbox config set
+OPENBOX_API_URL ...` and `openbox config set OPENBOX_CORE_URL ...`.
+The next CLI command, hook event, or MCP tool call sees the new target.
 
 
 
@@ -295,12 +290,9 @@ ambiguous.
   `openbox --experimental api-key rotate`, which is destructive and invalidates the
   running key.
 - Persistent CLI config removes the `export OPENBOX_*=...`
-  boilerplate. `openbox --experimental config set <KEY> <VALUE>` writes per-env, and
-  `--global` writes to `~/.openbox/config` at mode `0o600`. Values
-  layer into `process.env` on every command. Explicit shell exports
-  still win. The keys auto-promoted to global scope are
-  `OPENBOX_ENV`, `OPENBOX_HOME`, `OPENBOX_CLIENT_VARIANT`, and
-  `OPENBOX_EXPERIMENTAL_LEVEL`.
+  boilerplate. `openbox config set <KEY> <VALUE>` writes to
+  `~/.openbox/config` at mode `0o600`. Values layer into
+  `process.env` on every command. Explicit shell exports still win.
 - Before any destructive CLI command, confirm the arguments in
   natural language and wait for a yes. The destructive commands are
   `agent create`, `agent delete`, `team delete`, `member remove`,
@@ -592,9 +584,9 @@ recently.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `OPENBOX_ENV` | `production` | Selects backend and core URLs from the SDK registry. Values: `production`, `staging`, `local` |
-| `OPENBOX_API_URL` | per env | Backend URL override |
-| `OPENBOX_CORE_URL` | per env | Core URL override |
+| `OPENBOX_API_URL` | unset | Backend management API URL |
+| `OPENBOX_CORE_URL` | unset | Core/runtime API URL |
+| `OPENBOX_STACK_URL` | unset | Optional base URL used to derive API/core/auth/platform URLs |
 | `OPENBOX_API_KEY` | unset | Agent runtime key for core calls |
 | `OPENBOX_BACKEND_API_KEY` | unset | Org X-API-Key for the backend management API used by the CLI |
 | `OPENBOX_ORG_ID` | unset | Organization ID |
@@ -609,7 +601,7 @@ backend telemetry can distinguish skill-driven traffic from human use:
 ```bash
 export OPENBOX_CLIENT_VARIANT=claude-code
 openbox auth status
-openbox --env staging agent list
+openbox agent list
 ```
 
 The CLI auto-appends `/<variant>` to its `X-Openbox-Client` header,

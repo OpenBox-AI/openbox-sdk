@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { Command, Option } from 'commander';
+import { readFileSync } from 'node:fs';
+import { Command } from 'commander';
 import type { CommanderError } from 'commander';
 import { loadFeatures, loadPermissions } from './config.js';
-import { resolveEnv } from '../env/index.js';
-import { applyEnvSource, isDebugMode } from './env-source.js';
+import { applyEnvSource } from './env-source.js';
 import {
   COMMAND_FEATURES,
   COMMAND_PERMISSIONS,
@@ -51,6 +51,20 @@ import { reportAndExit } from '../validators/index.js';
 
 const program = new Command();
 
+function packageVersion(): string {
+  for (const rel of ['../../package.json', '../../../package.json']) {
+    try {
+      const pkg = JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8')) as {
+        version?: unknown;
+      };
+      if (typeof pkg.version === 'string' && pkg.version.length > 0) return pkg.version;
+    } catch {
+      // Try the next layout: bundled dist first, source tree second.
+    }
+  }
+  return '0.0.0';
+}
+
 // ---------------------------------------------------------------------------
 // Commander error handling
 //
@@ -72,7 +86,7 @@ const program = new Command();
  *  Stops at the first token that doesn't match a registered subcommand
  *  so an unknown verb doesn't poison the path. */
 function deepestRegisteredPath(): string | null {
-  const VALUE_FLAGS = new Set(['--env', '--feature']);
+  const VALUE_FLAGS = new Set(['--feature']);
   const argv = process.argv.slice(2);
   // Strip global value-flags + value, and bail at the first flag.
   const positionals: string[] = [];
@@ -200,16 +214,7 @@ function applyUniformErrorHandling(cmd: Command): void {
 program
   .name('openbox')
   .description('openbox-sdk')
-  .version('1.0.0')
-  .addOption(
-    // Functional but hidden from `openbox --help` unless OPENBOX_DEBUG=1
-    // or `~/.openbox/config`'s OPENBOX_DEBUG=true. End users never
-    // see staging / local env names in help; the flag still works on
-    // every invocation, and `openbox config set --global OPENBOX_ENV=...`
-    // remains the canonical knob.
-    new Option('--env <env>', 'Environment override (debug-only).')
-      .hideHelp(!isDebugMode()),
-  )
+  .version(packageVersion())
   .option(
     '--experimental',
     "Reveal experimental subcommands. Equivalent to OPENBOX_EXPERIMENTAL_LEVEL=experimental. Coarse gate; controls whole subcommands.",
@@ -230,19 +235,13 @@ program
   .option('-q, --quiet', 'Suppress non-essential progress lines on stderr (errors still print)')
   .option('--json', 'Emit machine-readable JSON instead of human-rendered output')
   .hook('preAction', (thisCommand, actionCommand) => {
-    const flag = thisCommand.opts().env as string | undefined;
-    if (flag) process.env.OPENBOX_ENV = flag;
-
-    // Single-source env resolution. Same call every other surface
-    // makes (MCP, cursor hook, claude-code hook) so all OpenBox
-    // processes on this machine agree on the active env.
     const commandPath = buildCommandKey(actionCommand);
-    const env = applyEnvSource();
+    applyEnvSource();
 
     // 1. Feature-flag check, mirroring `@RequireFeature` on the backend.
     const requiredFeatures = COMMAND_FEATURES[commandPath];
     if (requiredFeatures && requiredFeatures.length > 0) {
-      const features = loadFeatures(env);
+      const features = loadFeatures();
       if (Object.keys(features).length > 0) {
         const missingF = missingFeatures(requiredFeatures, features);
         if (missingF.length > 0) {
@@ -258,7 +257,7 @@ program
     // 2. Permission check (granular Keycloak role permissions).
     const required = COMMAND_PERMISSIONS[commandPath];
     if (!required || required.length === 0) return;
-    const have = loadPermissions(env);
+    const have = loadPermissions();
     if (have.length === 0) return;
     const missing = missingPermissions(required, have);
     if (missing.length === 0) return;
@@ -356,12 +355,12 @@ if (process.argv.length === 2) {
 // Print a tighter, accurate error when we detect this case.
 {
   // Walk argv past the top-level flags (and their values) to find the
-  // first real verb. Top-level flags that take a value: --env, --feature.
+  // first real verb. Top-level flags that take a value: --feature.
   // Top-level boolean flags: --experimental, --yes, -y, --non-interactive,
   // --no-color, -q, --quiet, --json, -V, --version, -h, --help. Any
   // unknown -... flag is treated as boolean conservatively (we'd rather
   // miss the hint than fire it at the wrong token).
-  const VALUE_FLAGS = new Set(['--env', '--feature']);
+  const VALUE_FLAGS = new Set(['--feature']);
   const argv = process.argv.slice(2);
   let firstVerb: string | undefined;
   let positionalStart = -1;

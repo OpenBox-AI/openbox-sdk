@@ -78,7 +78,7 @@ function findNamespace(program: Program, name: string): Namespace | undefined {
 // Models / enums in interface declarations the runtime owns directly.
 // Skipping them here means the emitter does not duplicate the contract
 // the hand-written reqwest layer implements.
-const INTERFACE_NAMES = new Set(['EnvLoader', 'TokenCodec', 'ClientNameResolver', 'OsPathResolver']);
+const INTERFACE_NAMES = new Set(['ConnectionLoader', 'TokenCodec', 'ClientNameResolver', 'OsPathResolver']);
 
 // ---------------------------------------------------------------------------
 // env package
@@ -93,12 +93,11 @@ function emitEnvPackage(program: Program, repoRoot: string): void {
 
   const ctx: EmitNsContext = { program, file, emittedModels: collectEmittedModels(ns) };
   emitNamespaceTypes(ctx, ns);
-  emitEnvironmentsConst(ctx, ns, repoRoot);
 
   writeGeneratedFile(repoRoot, 'rust/src/env/generated', 'env_bindings.rs', file);
   writeGeneratedModRs(repoRoot, 'rust/src/env/generated', ['env_bindings']);
   writeGeneratedReadme(repoRoot, 'rust/src/env/generated', [
-    { source: 'specs/typespec/env/main.tsp', reproduces: 'env_bindings.rs: every enum and model declared in the OpenboxEnv namespace, plus the ENVIRONMENTS URL registry from specs/environments.json' },
+    { source: 'specs/typespec/env/main.tsp', reproduces: 'env_bindings.rs: every enum and model declared in the OpenboxEnv namespace' },
   ]);
 }
 
@@ -630,48 +629,6 @@ function renderScalar(s: Scalar): string {
       // alias can be hand-written if needed.
       return s.name ? pascal(s.name) : 'String';
   }
-}
-
-// ---------------------------------------------------------------------------
-// ENVIRONMENTS const
-// ---------------------------------------------------------------------------
-
-function emitEnvironmentsConst(ctx: EmitNsContext, ns: Namespace, repoRoot: string): void {
-  const envName = ns.enums.get('EnvName');
-  if (!envName) return;
-
-  const envFile = resolvePathFs(repoRoot, 'specs/environments.json');
-  const envs = JSON.parse(readFileSync(envFile, 'utf-8')) as Record<
-    string,
-    { apiUrl: string; coreUrl: string; platformUrl: string }
-  >;
-
-  ctx.file.push('/// Static-string twin of `EnvConfig`. The runtime owns `EnvConfig` with');
-  ctx.file.push('/// `String` fields for runtime URL overrides; this carries borrows into');
-  ctx.file.push("/// the embedded `ENVIRONMENTS` table.");
-  ctx.file.push('#[derive(Debug, Clone, Copy)]');
-  ctx.file.push('pub struct EnvConfigStatic {');
-  ctx.file.push("    pub api_url: &'static str,");
-  ctx.file.push("    pub core_url: &'static str,");
-  ctx.file.push("    pub platform_url: &'static str,");
-  ctx.file.push('}');
-  ctx.file.push('');
-  ctx.file.push('/// Canonical URL registry mirrored from `specs/environments.json`.');
-  ctx.file.push('pub const ENVIRONMENTS: &[(EnvName, EnvConfigStatic)] = &[');
-  for (const member of envName.members.values()) {
-    const wire = typeof member.value === 'string' ? member.value : member.name;
-    const cfg = envs[wire];
-    if (!cfg) throw new Error(`specs/environments.json missing entry for "${wire}"`);
-    ctx.file.push('    (');
-    ctx.file.push(`        EnvName::${pascal(member.name)},`);
-    ctx.file.push('        EnvConfigStatic {');
-    ctx.file.push(`            api_url: ${JSON.stringify(cfg.apiUrl)},`);
-    ctx.file.push(`            core_url: ${JSON.stringify(cfg.coreUrl)},`);
-    ctx.file.push(`            platform_url: ${JSON.stringify(cfg.platformUrl)},`);
-    ctx.file.push('        },');
-    ctx.file.push('    ),');
-  }
-  ctx.file.push('];');
 }
 
 // ---------------------------------------------------------------------------

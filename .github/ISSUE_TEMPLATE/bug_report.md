@@ -26,7 +26,7 @@ openbox ...
 - `openbox-sdk` version: <!-- `openbox versions` or `npm ls openbox-sdk` -->
 - Node version: <!-- `node -v` -->
 - OS: <!-- macOS 14.x / Ubuntu 24.04 / Windows 11 -->
-- `OPENBOX_ENV`: <!-- production / staging / local -->
+- `OPENBOX_API_URL` / `OPENBOX_CORE_URL`: <!-- redact host if needed -->
 
 ## Logs / output
 

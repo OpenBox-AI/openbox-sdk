@@ -19,48 +19,31 @@ using OpenBox.Env;
 
 namespace OpenboxEnv;
 
-/** The three deployment targets every language ships with. */
-enum EnvName {
-  production: "production",
-  staging: "staging",
-  local: "local",
-}
-
-/** Per-environment URL bundle. Sourced from specs/environments.json. */
-model EnvConfig {
-  /** Backend management API base URL. */
-  apiUrl: url;
-
-  /** Core governance API base URL. */
-  coreUrl: url;
-
-  /** Marketing / dashboard URL. */
-  platformUrl: url;
-}
-
 /**
- * Resolved runtime configuration: per-env URLs after applying any
- * environment-variable overrides. Every SDK exposes this as the
+ * Resolved runtime configuration: explicit service URLs and optional
+ * platform/auth endpoints. Every SDK exposes this as the
  * single thing CLI / client / core-client construction depends on.
  */
 model RuntimeConfig {
-  /** Selected environment name. */
-  env: EnvName;
-
-  /**
-   * Backend API base URL. Falls back to ENVIRONMENTS[env].apiUrl
-   * when the override is unset.
-   */
+  /** Backend API base URL. Required for backend-management calls. */
   @env_var("OPENBOX_API_URL")
   apiUrl: url;
 
-  /** Core API base URL. */
+  /** Core API base URL. Required for runtime/governance calls. */
   @env_var("OPENBOX_CORE_URL")
   coreUrl: url;
 
-  /** Platform / dashboard URL. */
+  /** Platform / dashboard URL. Optional UI affordance. */
   @env_var("OPENBOX_PLATFORM_URL")
-  platformUrl: url;
+  platformUrl?: url;
+
+  /** Auth / IdP URL. Optional UI/auth affordance. */
+  @env_var("OPENBOX_AUTH_URL")
+  authUrl?: url;
+
+  /** Stack URL used to derive endpoints when individual URLs are omitted. */
+  @env_var("OPENBOX_STACK_URL")
+  stackUrl?: url;
 }
 
 /**
@@ -88,14 +71,12 @@ model Credentials {
   @token_format("^obx_(?:live|test)_[0-9a-f]{48}$")
   apiKey: string;
 
-  /** Selected environment when the store was written. */
-  env: EnvName;
 }
 
 /**
  * Top-level "what should this binary do at startup" record. Emitters
- * generate a `loadRuntime()` function that reads OPENBOX_ENV, falls
- * back to the persisted Credentials.env, and returns this struct.
+ * generate a `loadRuntime()` function that reads explicit URLs and
+ * credentials. There is no target selector beyond explicit URLs.
  */
 model Runtime {
   config: RuntimeConfig;
@@ -132,13 +113,11 @@ model CliRuntimeConfig {
 }
 
 // ---------------------------------------------------------------------------
-// On-disk multi-env token store; wire format every language SDK
-// must parse identically. One ENV.FIELD=value line per entry; legacy
-// un-prefixed lines map to production. See ts/env/src/token-codec.ts
-// for the canonical TS implementation.
+// On-disk token store; wire format every language SDK must parse
+// identically. One FIELD=value line per entry. There is no env scope.
 // ---------------------------------------------------------------------------
 
-/** Per-environment entry inside the persisted token store. */
+/** Flat persisted token-store entry. */
 model TokenEntry {
   /** Backend JWT used for management-API auth. */
   accessToken?: string;
@@ -166,22 +145,21 @@ model TokenEntry {
   features?: Record<boolean>;
 }
 
-/**
- * On-disk token store keyed by environment. Missing entries are
- * absent rather than `null` so a freshly-installed CLI that's only
- * logged into production still serializes cleanly.
- */
+/** On-disk token store. */
 model TokenStore {
-  production?: TokenEntry;
-  staging?: TokenEntry;
-  local?: TokenEntry;
+  accessToken?: string;
+  refreshToken?: string;
+  apiKey?: string;
+  updatedAt?: string;
+  permissions?: string[];
+  features?: Record<boolean>;
 }
 
 /**
  * String <-> TokenStore codec. Implementations must round-trip:
  * `serializeTokenStore(parseTokenStore(s)) === s'` where `s'` is
- * the canonical (re-namespaced) form. Legacy flat-format input is
- * accepted but is always re-emitted in the namespaced form.
+ * the canonical flat form. Legacy scoped input is ignored and is never
+ * re-emitted.
  */
 interface TokenCodec {
   parseTokenStore(content: string): TokenStore;
@@ -220,8 +198,8 @@ model ClientVariant {
  * Per-OS data scopes. Each maps to a different subdirectory under
  * the user-data directory:
  *
- *   - `tokens`: persistent OAuth tokens + per-env API keys
- *   - `config`: declarative settings (default env, output format)
+ *   - `tokens`: persistent OAuth tokens + API keys
+ *   - `config`: declarative settings (URLs, output format)
  *   - `cache`: ephemeral state (decoded JWT claims, last-known
  *     feature flags) safe to delete
  *
@@ -273,29 +251,15 @@ interface ClientNameResolver {
 }
 
 // ---------------------------------------------------------------------------
-// EnvLoader; runtime contract for env resolution. Hand-written
+// ConnectionLoader; runtime contract for URL resolution. Hand-written
 // implementations under ts/env/src/*.ts (and the equivalents in
 // rust/, py/, go/) MUST satisfy the operations declared on this
-// interface. The TypeScript emitter lowers this to an exported
-// `interface EnvLoader`; the hand-written file annotates each
-// export with `EnvLoader['<name>']` so a signature drift between
-// spec and impl fails `tsc --noEmit`.
+// interface. There is no target selector beyond explicit URLs.
 // ---------------------------------------------------------------------------
 
-interface EnvLoader {
-  /**
-   * Resolves the active environment from the CLI flag, the
-   * `OPENBOX_ENV` env-var, or the production default; in that
-   * order. Lower-cases the input and rejects unknown values.
-   */
-  resolveEnv(cliFlag?: string): EnvName;
-
-  /**
-   * Returns the URL bundle for the given environment, applying any
-   * runtime overrides declared on `RuntimeConfig` (`OPENBOX_API_URL`,
-   * `OPENBOX_CORE_URL`, `OPENBOX_PLATFORM_URL`).
-   */
-  resolveUrls(env: EnvName): EnvConfig;
+interface ConnectionLoader {
+  /** Returns the URL bundle from explicit URLs or stack URL derivation. */
+  resolveConnection(): RuntimeConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -345,10 +309,7 @@ model TokenPair {
  * apiKey path when both are present.
  */
 model BackendClientConfig {
-  /**
-   * Base URL of the backend API. Defaults to the production value
-   * from the env bundle when unset.
-   */
+  /** Base URL of the backend API. */
   apiUrl?: url;
 
   /**
@@ -367,9 +328,6 @@ model BackendClientConfig {
    */
   @token_format("^obx_key_[0-9a-f]{48}$")
   apiKey?: string;
-
-  /** Selected environment. Branch on this when prod/staging diverge. */
-  env?: EnvName;
 
   /**
    * Telemetry identifier sent in `X-Openbox-Client`. Each consumer
@@ -411,7 +369,6 @@ model CoreClientConfig {
   @token_format("^obx_(?:live|test)_[0-9a-f]{48}$")
   apiKey: string;
 
-  env?: EnvName;
   timeoutMs?: int32;
   retry?: RetryConfig;
   rateLimit?: RateLimitConfig;

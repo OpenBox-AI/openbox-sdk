@@ -1,22 +1,19 @@
-import { ENV_VAR_BINDINGS, type EnvName } from './generated/env-bindings.js';
-import { DEFAULT_ENV, DEFAULT_PLATFORM_URL, resolveEnv, resolveUrls } from './environments.js';
+import { ENV_VAR_BINDINGS, type RuntimeConfig } from './generated/env-bindings.js';
 
 export interface StackEndpoints {
   apiUrl: string;
   coreUrl: string;
   authUrl?: string;
-  platformUrl: string;
+  platformUrl?: string;
 }
 
 export interface OpenBoxConnection extends StackEndpoints {
-  envName: EnvName;
   stackUrl?: string;
   displayName?: string;
-  source: 'explicit' | 'stack-url' | 'legacy-env';
+  source: 'explicit' | 'stack-url';
 }
 
 export interface ResolveConnectionOptions {
-  envName?: EnvName | string;
   stackUrl?: string;
   apiUrl?: string;
   coreUrl?: string;
@@ -54,53 +51,53 @@ export function endpointsFromStackUrl(raw: string): StackEndpoints {
   };
 }
 
-export function resolveConnection(opts: ResolveConnectionOptions = {}): OpenBoxConnection {
-  const envName = opts.envName ? resolveEnv(opts.envName) : DEFAULT_ENV;
-  const explicitApi = opts.apiUrl ?? process.env[ENV_VAR_BINDINGS.apiUrl.name];
-  const explicitCore = opts.coreUrl ?? process.env[ENV_VAR_BINDINGS.coreUrl.name];
-  const explicitPlatform = opts.platformUrl ?? process.env[ENV_VAR_BINDINGS.platformUrl.name];
-  const explicitAuth = opts.authUrl ?? process.env.OPENBOX_AUTH_URL;
-  if (explicitApi || explicitCore || explicitPlatform || explicitAuth) {
-    const stackUrl = opts.stackUrl ?? process.env.OPENBOX_STACK_URL;
-    const fallback: StackEndpoints = stackUrl
-      ? endpointsFromStackUrl(stackUrl)
-      : { ...resolveUrls(envName), authUrl: undefined };
-    return {
-      envName,
-      apiUrl: explicitApi ?? fallback.apiUrl,
-      coreUrl: explicitCore ?? fallback.coreUrl,
-      authUrl: explicitAuth ?? ('authUrl' in fallback ? fallback.authUrl : undefined),
-      platformUrl: explicitPlatform ?? fallback.platformUrl,
-      stackUrl,
-      displayName: opts.displayName ?? process.env.OPENBOX_STACK_NAME,
-      source: 'explicit',
-    };
-  }
+export const resolveConnection = (
+  opts: ResolveConnectionOptions = {},
+): OpenBoxConnection & RuntimeConfig => {
+  const stackUrl = opts.stackUrl ?? process.env[ENV_VAR_BINDINGS.stackUrl.name];
+  const stackEndpoints = stackUrl ? endpointsFromStackUrl(stackUrl) : undefined;
+  const apiUrl = requireUrl(
+    'OPENBOX_API_URL',
+    opts.apiUrl ?? process.env[ENV_VAR_BINDINGS.apiUrl.name] ?? stackEndpoints?.apiUrl,
+  );
+  const coreUrl = requireUrl(
+    'OPENBOX_CORE_URL',
+    opts.coreUrl ?? process.env[ENV_VAR_BINDINGS.coreUrl.name] ?? stackEndpoints?.coreUrl,
+  );
+  const platformUrl =
+    opts.platformUrl ?? process.env[ENV_VAR_BINDINGS.platformUrl.name] ?? stackEndpoints?.platformUrl;
+  const authUrl =
+    opts.authUrl ?? process.env[ENV_VAR_BINDINGS.authUrl.name] ?? stackEndpoints?.authUrl;
 
-  const stackUrl = opts.stackUrl ?? process.env.OPENBOX_STACK_URL;
-  if (stackUrl) {
-    const normalized = normalizeStackUrl(stackUrl);
-    return {
-      envName,
-      ...endpointsFromStackUrl(normalized),
-      stackUrl: normalized,
-      displayName: opts.displayName ?? process.env.OPENBOX_STACK_NAME ?? new URL(normalized).hostname,
-      source: 'stack-url',
-    };
-  }
-
-  const legacy = resolveUrls(envName);
   return {
-    envName,
-    apiUrl: legacy.apiUrl,
-    coreUrl: legacy.coreUrl,
-    platformUrl: legacy.platformUrl || DEFAULT_PLATFORM_URL,
-    source: 'legacy-env',
+    apiUrl,
+    coreUrl,
+    platformUrl,
+    authUrl,
+    stackUrl,
+    displayName: opts.displayName ?? process.env.OPENBOX_STACK_NAME,
+    source: stackUrl && !opts.apiUrl && !opts.coreUrl ? 'stack-url' : 'explicit',
   };
+};
+
+function requireUrl(name: 'OPENBOX_API_URL' | 'OPENBOX_CORE_URL', value: string | undefined): string {
+  if (!value) throw new Error(`${name} is required. Set explicit OpenBox service URLs.`);
+  return normalizeServiceUrl(name, value);
+}
+
+function normalizeServiceUrl(name: string, raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) throw new Error(`${name} cannot be empty.`);
+  const url = new URL(trimmed);
+  if (url.protocol !== 'https:' && !isLoopbackHost(url.hostname)) {
+    throw new Error(`${name} must use https:// unless it points at localhost.`);
+  }
+  url.hash = '';
+  url.search = '';
+  url.pathname = url.pathname.replace(/\/+$/, '');
+  return url.toString().replace(/\/$/, '');
 }
 
 function isLoopbackHost(host: string): boolean {
   return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
 }
-
-export const DEFAULT_CONNECTION_ENV: EnvName = DEFAULT_ENV;

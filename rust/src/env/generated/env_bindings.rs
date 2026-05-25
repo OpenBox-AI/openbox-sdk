@@ -5,20 +5,11 @@
 
 use serde::{Deserialize, Serialize};
 
-/// The three deployment targets every language ships with.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum EnvName {
-    Production,
-    Staging,
-    Local,
-}
-
 /// Per-OS data scopes. Each maps to a different subdirectory under
 /// the user-data directory:
 /// 
-/// - `tokens`: persistent OAuth tokens + per-env API keys
-/// - `config`: declarative settings (default env, output format)
+/// - `tokens`: persistent OAuth tokens + API keys
+/// - `config`: declarative settings (URLs, output format)
 /// - `cache`: ephemeral state (decoded JWT claims, last-known
 /// feature flags) safe to delete
 /// 
@@ -37,37 +28,29 @@ pub enum OsPathScope {
     AgentKeys,
 }
 
-/// Per-environment URL bundle. Sourced from specs/environments.json.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EnvConfig {
-    /// Backend management API base URL.
-    #[serde(rename = "apiUrl")]
-    pub api_url: String,
-    /// Core governance API base URL.
-    #[serde(rename = "coreUrl")]
-    pub core_url: String,
-    /// Marketing / dashboard URL.
-    #[serde(rename = "platformUrl")]
-    pub platform_url: String,
-}
-
-/// Resolved runtime configuration: per-env URLs after applying any
-/// environment-variable overrides. Every SDK exposes this as the
+/// Resolved runtime configuration: explicit service URLs and optional
+/// platform/auth endpoints. Every SDK exposes this as the
 /// single thing CLI / client / core-client construction depends on.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
-    /// Selected environment name.
-    pub env: EnvName,
-    /// Backend API base URL. Falls back to ENVIRONMENTS[env].apiUrl
-    /// when the override is unset.
+    /// Backend API base URL. Required for backend-management calls.
     #[serde(rename = "apiUrl")]
     pub api_url: String,
-    /// Core API base URL.
+    /// Core API base URL. Required for runtime/governance calls.
     #[serde(rename = "coreUrl")]
     pub core_url: String,
-    /// Platform / dashboard URL.
+    /// Platform / dashboard URL. Optional UI affordance.
     #[serde(rename = "platformUrl")]
-    pub platform_url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub platform_url: Option<String>,
+    /// Auth / IdP URL. Optional UI/auth affordance.
+    #[serde(rename = "authUrl")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_url: Option<String>,
+    /// Stack URL used to derive endpoints when individual URLs are omitted.
+    #[serde(rename = "stackUrl")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stack_url: Option<String>,
 }
 
 /// Persistent on-disk credentials. The shape is the same on every
@@ -86,13 +69,11 @@ pub struct Credentials {
     /// is wrong, not malformed.
     #[serde(rename = "apiKey")]
     pub api_key: String,
-    /// Selected environment when the store was written.
-    pub env: EnvName,
 }
 
 /// Top-level "what should this binary do at startup" record. Emitters
-/// generate a `loadRuntime()` function that reads OPENBOX_ENV, falls
-/// back to the persisted Credentials.env, and returns this struct.
+/// generate a `loadRuntime()` function that reads explicit URLs and
+/// credentials. There is no target selector beyond explicit URLs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Runtime {
     pub config: RuntimeConfig,
@@ -121,7 +102,7 @@ pub struct CliRuntimeConfig {
     pub features: String,
 }
 
-/// Per-environment entry inside the persisted token store.
+/// Flat persisted token-store entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenEntry {
     /// Backend JWT used for management-API auth.
@@ -152,17 +133,25 @@ pub struct TokenEntry {
     pub features: Option<std::collections::HashMap<String, bool>>,
 }
 
-/// On-disk token store keyed by environment. Missing entries are
-/// absent rather than `null` so a freshly-installed CLI that's only
-/// logged into production still serializes cleanly.
+/// On-disk token store.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenStore {
+    #[serde(rename = "accessToken")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub production: Option<TokenEntry>,
+    pub access_token: Option<String>,
+    #[serde(rename = "refreshToken")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub staging: Option<TokenEntry>,
+    pub refresh_token: Option<String>,
+    #[serde(rename = "apiKey")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub local: Option<TokenEntry>,
+    pub api_key: Option<String>,
+    #[serde(rename = "updatedAt")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub features: Option<std::collections::HashMap<String, bool>>,
 }
 
 /// Marker model carrying the canonical variant pattern via
@@ -226,8 +215,7 @@ pub struct TokenPair {
 /// apiKey path when both are present.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackendClientConfig {
-    /// Base URL of the backend API. Defaults to the production value
-    /// from the env bundle when unset.
+    /// Base URL of the backend API.
     #[serde(rename = "apiUrl")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_url: Option<String>,
@@ -246,9 +234,6 @@ pub struct BackendClientConfig {
     #[serde(rename = "apiKey")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
-    /// Selected environment. Branch on this when prod/staging diverge.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub env: Option<EnvName>,
     /// Telemetry identifier sent in `X-Openbox-Client`. Each consumer
     /// (CLI, mobile, MCP, ...) sets its own; the env library composes
     /// the final header value via `ClientNameResolver`.
@@ -289,8 +274,6 @@ pub struct CoreClientConfig {
     pub api_url: Option<String>,
     #[serde(rename = "apiKey")]
     pub api_key: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub env: Option<EnvName>,
     #[serde(rename = "timeoutMs")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout_ms: Option<i32>,
@@ -313,41 +296,3 @@ pub struct ApiError {
     /// Parsed response body, or `null` if the body wasn't JSON.
     pub body: serde_json::Value,
 }
-
-/// Static-string twin of `EnvConfig`. The runtime owns `EnvConfig` with
-/// `String` fields for runtime URL overrides; this carries borrows into
-/// the embedded `ENVIRONMENTS` table.
-#[derive(Debug, Clone, Copy)]
-pub struct EnvConfigStatic {
-    pub api_url: &'static str,
-    pub core_url: &'static str,
-    pub platform_url: &'static str,
-}
-
-/// Canonical URL registry mirrored from `specs/environments.json`.
-pub const ENVIRONMENTS: &[(EnvName, EnvConfigStatic)] = &[
-    (
-        EnvName::Production,
-        EnvConfigStatic {
-            api_url: "https://api.openbox.ai",
-            core_url: "https://core.openbox.ai",
-            platform_url: "https://platform.openbox.ai",
-        },
-    ),
-    (
-        EnvName::Staging,
-        EnvConfigStatic {
-            api_url: "",
-            core_url: "",
-            platform_url: "",
-        },
-    ),
-    (
-        EnvName::Local,
-        EnvConfigStatic {
-            api_url: "http://localhost:3000",
-            core_url: "http://localhost:8086",
-            platform_url: "http://localhost:3233",
-        },
-    ),
-];

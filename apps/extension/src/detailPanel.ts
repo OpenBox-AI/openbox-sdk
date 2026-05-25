@@ -17,7 +17,6 @@ type DecideAction = "approve" | "reject";
 interface PanelDeps {
   client: OpenBoxClient;
   orgId: string;
-  env: string;
   decideApproval: (approval: Approval, action: DecideAction) => Promise<boolean>;
 }
 
@@ -26,9 +25,8 @@ const VIEW_TYPE = "openbox.approvalDetail";
 export class ApprovalDetailPanel {
   private static current: ApprovalDetailPanel | undefined;
 
-  // Closes any open detail panel. Used on sign out / env switch /
-  // boot reset so the user doesn't get left looking at a stale
-  // approval after their auth state changed.
+  // Closes any open detail panel. Used on sign out / boot reset so the user
+  // doesn't get left looking at a stale approval after their auth state changed.
   static disposeCurrent() {
     if (ApprovalDetailPanel.current) {
       ApprovalDetailPanel.current.dispose();
@@ -190,7 +188,7 @@ export class ApprovalDetailPanel {
   }
 
   private render() {
-    this.panel.webview.html = renderHtml(this.panel.webview, this.approval, this.agent, this.ownerName, this.deps.env);
+    this.panel.webview.html = renderHtml(this.panel.webview, this.approval, this.agent, this.ownerName);
   }
 
   private dispose() {
@@ -260,7 +258,6 @@ function renderHtml(
   a: Approval,
   agent: Agent | null,
   ownerName: string | null,
-  env: string,
 ): string {
   const n = nonce();
   const action = a.action_type || a.activity_type;

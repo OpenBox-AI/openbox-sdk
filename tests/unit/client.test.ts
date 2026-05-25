@@ -48,13 +48,13 @@ describe('OpenBoxClient', () => {
   // =========================================================================
 
   describe('construction', () => {
-    it('uses default apiUrl when not provided', async () => {
+    it('uses OPENBOX_API_URL when apiUrl is not provided', async () => {
       const client = createClient();
       fetchMock.mockResolvedValueOnce(mockResponse(200, { data: 'ok' }));
 
       await client.health();
 
-      expect(fetchMock).toHaveBeenCalledWith('https://api.openbox.ai/health', expect.anything());
+      expect(fetchMock).toHaveBeenCalledWith('http://localhost:18080/health', expect.anything());
     });
 
     it('uses custom apiUrl when provided', async () => {
@@ -249,7 +249,7 @@ describe('OpenBoxClient', () => {
     it('constructs correct URL paths', async () => {
       fetchMock.mockResolvedValueOnce(mockResponse(200, { data: {} }));
       await client.getAgent('abc-123');
-      expect(fetchMock.mock.calls[0][0]).toBe('https://api.openbox.ai/agent/abc-123');
+      expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:18080/agent/abc-123');
     });
   });
 
@@ -461,6 +461,98 @@ describe('OpenBoxClient', () => {
       fetchMock.mockResolvedValueOnce(mockResponse(401, { message: 'Invalid refresh token' }));
 
       await expect(client.health()).rejects.toThrow(OpenBoxApiError);
+    });
+  });
+
+  describe('token refresh enabled-path branches', () => {
+    let originalRefreshEnabled: unknown;
+
+    beforeEach(() => {
+      originalRefreshEnabled = (OpenBoxClient as unknown as { REFRESH_ENABLED: unknown }).REFRESH_ENABLED;
+      (OpenBoxClient as unknown as { REFRESH_ENABLED: boolean }).REFRESH_ENABLED = true;
+    });
+
+    afterEach(() => {
+      (OpenBoxClient as unknown as { REFRESH_ENABLED: unknown }).REFRESH_ENABLED =
+        originalRefreshEnabled;
+    });
+
+    it('refreshes expired bearer tokens and preserves missing refresh rotation', async () => {
+      const onTokenRefresh = vi.fn();
+      const newToken = makeValidToken();
+      const client = createClient({
+        accessToken: makeExpiredToken(),
+        refreshToken: 'refresh-tok',
+        onTokenRefresh,
+      });
+
+      fetchMock
+        .mockResolvedValueOnce(mockResponse(200, { data: { access_token: newToken } }))
+        .mockResolvedValueOnce(mockResponse(200, { data: 'ok' }));
+
+      await expect(client.health()).resolves.toBe('ok');
+
+      expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:18080/auth/refresh');
+      expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe(`Bearer ${newToken}`);
+      expect(onTokenRefresh).toHaveBeenCalledWith({
+        accessToken: newToken,
+        refreshToken: 'refresh-tok',
+      });
+    });
+
+    it('deduplicates concurrent refresh and updates rotated refresh tokens', async () => {
+      const client = createClient({
+        accessToken: makeExpiredToken(),
+        refreshToken: 'refresh-tok',
+      });
+
+      fetchMock
+        .mockResolvedValueOnce(
+          mockResponse(200, {
+            accessToken: makeValidToken(),
+            refreshToken: 'new-refresh',
+          }),
+        )
+        .mockResolvedValueOnce(mockResponse(200, { data: 'profile' }))
+        .mockResolvedValueOnce(mockResponse(200, { data: 'health' }));
+
+      await Promise.all([client.getProfile(), client.health()]);
+
+      const refreshCalls = fetchMock.mock.calls.filter(([url]) =>
+        String(url).endsWith('/auth/refresh'),
+      );
+      expect(refreshCalls).toHaveLength(1);
+    });
+
+    it('fails before fetch when expired token has no refresh token', async () => {
+      const client = createClient({ accessToken: makeExpiredToken() });
+
+      await expect(client.health()).rejects.toThrow(
+        'Access token is expired and no refresh token was provided',
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('wraps malformed refresh responses and network refresh errors', async () => {
+      const malformed = createClient({
+        accessToken: makeExpiredToken(),
+        refreshToken: 'refresh-tok',
+      });
+      fetchMock.mockResolvedValueOnce(mockResponse(200, { data: {} }));
+      await expect(malformed.health()).rejects.toMatchObject({
+        name: 'OpenBoxApiError',
+        status: 500,
+      });
+
+      const network = createClient({
+        accessToken: makeExpiredToken(),
+        refreshToken: 'refresh-tok',
+      });
+      fetchMock.mockRejectedValueOnce(new TypeError('socket closed'));
+      await expect(network.health()).rejects.toMatchObject({
+        name: 'OpenBoxApiError',
+        status: 401,
+      });
     });
   });
 

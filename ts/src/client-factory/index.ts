@@ -1,6 +1,6 @@
 // Cross-consumer client factory. The CLI, the VS Code / Cursor
 // extension, and the iOS app all need the same X-API-Key-authenticated
-// `OpenBoxClient` configured against the same env URL table; they
+// `OpenBoxClient` configured against explicit OpenBox service URLs; they
 // only differ in where the API key lives (file for CLI/extension,
 // SecureStore for mobile, env var for tests).
 //
@@ -13,11 +13,9 @@
 // that each lifted Apartment-style copies of the same boot logic.
 
 import { OpenBoxClient } from '../client/index.js';
-import { resolveConnection, type EnvName } from '../env/index.js';
+import { resolveConnection } from '../env/index.js';
 
 export interface ConsumerClientOptions {
-  /** Which env to point at. */
-  envName: EnvName;
   /** Explicit endpoint overrides for endpoint-first/self-hosted consumers. */
   apiUrl?: string;
   coreUrl?: string;
@@ -25,7 +23,7 @@ export interface ConsumerClientOptions {
   platformUrl?: string;
   stackUrl?: string;
   /**
-   * Returns the X-API-Key for `envName`. May be sync or async. Return
+   * Returns the X-API-Key. May be sync or async. Return
    * undefined / empty string to signal "no key configured"; the
    * factory throws a uniform error in that case.
    */
@@ -50,15 +48,12 @@ export interface ConsumerClientContext {
   /** Resolved API base URL; handy for "Signed in to <apiBase>"
    *  affordances without re-resolving the env. */
   apiBase: string;
-  /** The env this client was built against, echoed back so
-   *  consumers don't need to thread the option through. */
-  envName: EnvName;
 }
 
 const DEFAULT_CLIENT_NAME = 'openbox-sdk/client-factory';
 
 /**
- * Build an `OpenBoxClient` for one consumer + env. Throws a uniform
+ * Build an `OpenBoxClient` for one consumer + explicit URL target. Throws a uniform
  * error when no API key is available so the caller can render the
  * same "set your API key" prompt regardless of which token source
  * they plugged in.
@@ -67,7 +62,6 @@ export async function createConsumerClient(
   opts: ConsumerClientOptions,
 ): Promise<ConsumerClientContext> {
   const connection = resolveConnection({
-    envName: opts.envName,
     apiUrl: opts.apiUrl,
     coreUrl: opts.coreUrl,
     authUrl: opts.authUrl,
@@ -78,16 +72,15 @@ export async function createConsumerClient(
   const apiKey = await opts.getApiKey();
   if (!apiKey) {
     throw new Error(
-      `OpenBox: no API key configured for ${opts.envName} active connection. ` +
+      `OpenBox: no API key configured for the active connection. ` +
         `Run openbox connect <stack-url> --api-key <key> or use your consumer's auth flow.`,
     );
   }
   const client = new OpenBoxClient({
     apiUrl: apiBase,
-    env: opts.envName,
     apiKey,
     clientName: opts.clientName ?? DEFAULT_CLIENT_NAME,
     ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}),
   });
-  return { client, apiBase, envName: opts.envName };
+  return { client, apiBase };
 }

@@ -245,7 +245,7 @@ vi.mock('./api', () => ({
   apiKeyPrefix: vi.fn(() => apiKeyPrefixValue),
   clearApiKey: vi.fn(),
   hasApiKey: vi.fn(() => apiHasKey),
-  readStore: vi.fn(() => ({ production: { apiKey: 'obx_key_test', updatedAt: '2026-05-06' } })),
+  readStore: vi.fn(() => ({ apiKey: 'obx_key_test', updatedAt: '2026-05-06' })),
   validateApiKey: vi.fn(() => true),
   writeApiKey: vi.fn(),
 }));
@@ -515,7 +515,7 @@ describe('extension wiring: preWriteGate', () => {
 });
 
 describe('extension boot/auth/error states', () => {
-  it('boots into Set API Key state when signed out for the active env', async () => {
+  it('boots into Set API Key state when signed out', async () => {
     apiHasKey = false;
 
     await bootExtension();
@@ -604,6 +604,44 @@ describe('extension boot/auth/error states', () => {
       expect(lastFakePolling).toBeUndefined();
     } finally {
       vi.useRealTimers();
+    }
+  });
+
+  it('uses injected URL-first org id when backend profile is unavailable', async () => {
+    const previousOrgId = process.env.OPENBOX_ORG_ID;
+    process.env.OPENBOX_ORG_ID = 'org_from_env';
+    createApiContextImpl = async () => ({
+      client: {
+        getProfile: async () => {
+          throw new Error('401 unauthorized');
+        },
+        decideApproval: vi.fn(async () => undefined),
+        listAgents: vi.fn(async () => ({ data: [] })),
+        listApiKeys: vi.fn(async () => ({ data: [] })),
+        listTeams: vi.fn(async () => ({ data: [] })),
+        listMembers: vi.fn(async () => ({ members: [] })),
+        getAgent: vi.fn(async () => ({})),
+      },
+      apiBase: 'https://api.test',
+    });
+
+    try {
+      await bootExtension();
+      const boot = (await registeredCommands.get('openbox.__diag.boot')!()) as {
+        orgId?: string;
+        isApiKeyAuth?: boolean;
+        activeKeyError?: string;
+      } | null;
+      expect(boot?.orgId).toBe('org_from_env');
+      expect(boot?.isApiKeyAuth).toBe(true);
+      expect(statusBarItems.at(-1)!.text).toContain('OpenBox');
+      expect(lastFakePolling).toBeDefined();
+    } finally {
+      if (previousOrgId === undefined) {
+        delete process.env.OPENBOX_ORG_ID;
+      } else {
+        process.env.OPENBOX_ORG_ID = previousOrgId;
+      }
     }
   });
 

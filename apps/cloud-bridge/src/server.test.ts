@@ -11,6 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_ENTRY = path.resolve(__dirname, '../src/server.ts');
 const PORT = 28787;
 const BASE = `http://127.0.0.1:${PORT}`;
+const TSX = path.resolve(__dirname, '../../../node_modules/.bin/tsx');
 
 let proc: ChildProcess | undefined;
 
@@ -31,12 +32,12 @@ async function waitForListening(timeoutMs = 5000): Promise<void> {
 beforeAll(async () => {
   // Use tsx (already a devDependency) to run the TS source directly.
   // Resolve from the worktree root's node_modules/.bin for portability.
-  const tsx = path.resolve(__dirname, '../../../node_modules/.bin/tsx');
-  proc = spawn(tsx, [SERVER_ENTRY], {
+  proc = spawn(TSX, [SERVER_ENTRY], {
     env: {
       ...process.env,
       OPENBOX_BRIDGE_PORT: String(PORT),
       OPENBOX_BRIDGE_HOST: '127.0.0.1',
+      OPENBOX_BRIDGE_UNSAFE_LOCAL_DEV: '1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -82,5 +83,28 @@ describe('cloud-bridge http (e2e)', () => {
   it('unknown route returns 404', async () => {
     const r = await fetch(`${BASE}/nope`);
     expect(r.status).toBe(404);
+  });
+
+  it('refuses unsafe local-dev mode on a non-loopback host', async () => {
+    const child = spawn(TSX, [SERVER_ENTRY], {
+      env: {
+        ...process.env,
+        OPENBOX_BRIDGE_PORT: '28788',
+        OPENBOX_BRIDGE_HOST: '0.0.0.0',
+        OPENBOX_BRIDGE_UNSAFE_LOCAL_DEV: '1',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    const stderr: Buffer[] = [];
+    child.stderr?.on('data', (chunk) => stderr.push(chunk as Buffer));
+    const code = await new Promise<number | null>((resolve) => {
+      child.once('exit', resolve);
+    });
+
+    expect(code).not.toBe(0);
+    expect(Buffer.concat(stderr).toString('utf-8')).toContain(
+      'OPENBOX_BRIDGE_UNSAFE_LOCAL_DEV is only allowed on loopback hosts',
+    );
   });
 });

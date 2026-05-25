@@ -6,11 +6,11 @@ const rootDir = resolve(__dirname, '..');
 // Load .env
 config({ path: resolve(rootDir, '.env') });
 
-// URLs are NOT defaulted here. Hardcoding production literals would
-// override OPENBOX_ENV-driven derivation; a developer running with
-// OPENBOX_ENV=local would silently hit api.openbox.ai. URL resolution
-// belongs to the env registry (ts/src/env/environments.ts → resolveUrls)
-// and is wired into projects that actually need it via tests/setup-creds.ts.
+// URL-first clients intentionally have no production defaults. Unit tests get
+// explicit loopback defaults so constructors can be exercised without touching
+// live services.
+process.env.OPENBOX_API_URL ??= 'http://localhost:18080';
+process.env.OPENBOX_CORE_URL ??= 'http://localhost:18081';
 
 // bypass the destructive-op confirmation gate for the test
 // run. Tests that EXERCISE the gate (cli-noninteractive.test.ts) clear

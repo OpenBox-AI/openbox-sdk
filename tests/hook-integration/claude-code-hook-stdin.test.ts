@@ -58,7 +58,6 @@ function planConfigDir(opts: ConfigOverrides): string {
     // shape, so we use a syntactically-correct test key.
     OPENBOX_API_KEY: 'obx_test_0000000000000000000000000000000000000000000000',
     OPENBOX_CORE_URL: opts.coreUrl ?? 'http://127.0.0.1:1',
-    OPENBOX_ENDPOINT: opts.coreUrl ?? 'http://127.0.0.1:1',
     GOVERNANCE_POLICY: opts.governancePolicy ?? 'fail_open',
     GOVERNANCE_TIMEOUT: 1,
     HITL_ENABLED: false,
@@ -308,7 +307,7 @@ describe('claude-code hook stdin/stdout', () => {
     writeFileSync(
       path.join(configDir, 'config.json'),
       JSON.stringify({
-        OPENBOX_ENDPOINT: 'http://127.0.0.1:1',
+        OPENBOX_CORE_URL: 'http://127.0.0.1:1',
         GOVERNANCE_POLICY: 'fail_open',
         HITL_ENABLED: false,
       }),

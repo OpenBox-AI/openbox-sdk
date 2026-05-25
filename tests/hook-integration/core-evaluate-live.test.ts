@@ -36,20 +36,13 @@ function evaluate(opts: {
 }): CoreVerdict {
   const rtKey = process.env.OPENBOX_E2E_RUNTIME_KEY;
   if (!rtKey) throw new Error('OPENBOX_E2E_RUNTIME_KEY missing in test process');
-  // tests/setup.ts pins OPENBOX_API_URL/_CORE_URL to production
-  // defaults if unset. Unsetting them here lets `--env <x>`'s
-  // resolveEnv() use the env's table instead of inheriting prod URLs.
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     OPENBOX_API_KEY: rtKey,
-    OPENBOX_ENV: process.env.OPENBOX_ENV ?? 'local',
   };
-  delete env.OPENBOX_API_URL;
-  delete env.OPENBOX_CORE_URL;
-  const cliEnv = process.env.OPENBOX_ENV ?? 'local';
   const result = spawnSync(
     'openbox',
-    ['--env', cliEnv, '--experimental', 'core', 'evaluate', '--type', opts.type, ...opts.args],
+    ['--experimental', 'core', 'evaluate', '--type', opts.type, ...opts.args],
     {
       encoding: 'utf-8',
       env,

@@ -140,7 +140,7 @@ exhaustive source for every exported support surface.
 | `openbox-sdk` | Root facade. Re-exports client, core-client, env, types |
 | `openbox-sdk/client` | `OpenBoxClient`, the backend management API |
 | `openbox-sdk/core-client` | `OpenBoxCoreClient`, `govern()`, presets, redaction helpers |
-| `openbox-sdk/env` | `ENVIRONMENTS`, token store, client-name resolver |
+| `openbox-sdk/env` | URL resolution, token store, client-name resolver |
 | `openbox-sdk/os-paths` | Node-only path resolver, kept off `/env` for React Native |
 | `openbox-sdk/types` | DTOs and the auto-generated `Backend` and `Core` namespaces |
 | `openbox-sdk/cli` | Programmatic CLI surface, also reachable as `bin: openbox` |

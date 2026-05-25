@@ -11,7 +11,7 @@
 
 | Secret | Used by | Notes |
 |---|---|---|
-| `OPENBOX_STAGING_API_URL` | `spec-drift.yml`, staging tier | Backend staging base URL. Kept out of `specs/environments.json`, which ships public |
+| `OPENBOX_STAGING_API_URL` | `spec-drift.yml`, staging tier | Backend staging base URL. Read by CI only; not shipped in SDK code |
 | `UPSTREAM_REPO_TOKEN` | `spec-drift.yml`, develop and main tiers | PAT with `repo:read` scope for `gh api` calls into the upstream service repositories. Read-only by intent. The workflow never pushes or comments on those repos |
 
 If any secret is unset, the matching tier emits a "skipped" report

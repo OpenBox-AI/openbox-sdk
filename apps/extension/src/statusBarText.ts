@@ -10,10 +10,7 @@
 // "OpenBox" word; if there's nothing to say, the bar is just the
 // icon.
 
-import type { EnvName } from "openbox-sdk/env";
-
 export interface IdleStatusBarInput {
-  env: EnvName;
   count: number;
   debugBuild: boolean;
   preWriteGateActive: boolean;
@@ -42,7 +39,7 @@ export function buildIdleStatusBar(opts: IdleStatusBarInput): IdleStatusBarOutpu
   const text =
     parts.length > 0
       ? `$(openbox-logo) ${parts.join(" · ")}`
-      : "$(openbox-logo)";
+      : "$(openbox-logo) OpenBox";
 
   const tooltip =
     anyActive && !opts.haveAgent
@@ -55,8 +52,7 @@ export function buildIdleStatusBar(opts: IdleStatusBarInput): IdleStatusBarOutpu
 /** Boot/error tag used for transient states (Connect, Error, ...).
  *  Just the action text; the icon already identifies the bar as
  *  OpenBox. */
-export function envTagFor(state: string, env: EnvName, debugBuild: boolean): string {
-  void env;
+export function statusTagFor(state: string, debugBuild: boolean): string {
   void debugBuild;
   return state;
 }
