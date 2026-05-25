@@ -66,6 +66,11 @@ const API_KEY_PATTERN = /^obx_key_[0-9a-f]{48}$/;
 /** Halt verdict; approvals with this code block the save flow. */
 const VERDICT_HALT = 4;
 
+function injectedOrgId(): string | undefined {
+  const value = process.env.OPENBOX_ORG_ID?.trim();
+  return value || undefined;
+}
+
 interface ActiveBoot {
   pending: ViewSession;
   history: ViewSession;
@@ -708,6 +713,8 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       }
 
+      orgId = orgId ?? injectedOrgId();
+
       if (!orgId) {
         statusBar.text = `$(openbox-logo) ${statusTagFor("Connection Issue")}`;
         statusBar.tooltip = "OpenBox connected, but the account could not be verified.";
@@ -720,15 +727,23 @@ export async function activate(context: vscode.ExtensionContext) {
       // (bad key / real error). The two signals belong on the bar
       // separately so the user knows whether to check their network
       // vs. their credentials.
-      const msg = err?.message ?? String(err);
-      const isNetwork = /fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|getaddrinfo/i.test(msg);
-      const label = isNetwork ? "Disconnected" : "Error";
-      statusBar.text = `$(openbox-logo) ${statusTagFor(label)}`;
-      statusBar.tooltip = isNetwork
-        ? connectionErrorMessage(msg)
-        : connectionErrorMessage(err);
-      if (isNetwork) scheduleReconnect();
-      return;
+      const fallbackOrgId = injectedOrgId();
+      if (fallbackOrgId) {
+        orgId = fallbackOrgId;
+        isApiKeyAuth = true;
+        activeKeyError = err?.message ?? "profile unavailable";
+        statusBar.tooltip = "OpenBox connected to the configured URL target.";
+      } else {
+        const msg = err?.message ?? String(err);
+        const isNetwork = /fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|getaddrinfo/i.test(msg);
+        const label = isNetwork ? "Disconnected" : "Error";
+        statusBar.text = `$(openbox-logo) ${statusTagFor(label)}`;
+        statusBar.tooltip = isNetwork
+          ? connectionErrorMessage(msg)
+          : connectionErrorMessage(err);
+        if (isNetwork) scheduleReconnect();
+        return;
+      }
     }
 
     try {
@@ -1306,6 +1321,7 @@ export async function activate(context: vscode.ExtensionContext) {
         email: active.email,
         sub: active.sub,
         keyId: active.keyId,
+        activeKeyError: active.activeKeyError,
         isApiKeyAuth: active.isApiKeyAuth,
         mockAuth: vscode.workspace.getConfiguration("openbox").get<boolean>("mockAuth", false),
         agentId: governance.agentId(),
