@@ -6,6 +6,11 @@ import {
   hasActiveFilters,
   summarizeFilters,
 } from '../../ts/src/approvals/filters.ts';
+import {
+  approvalSource,
+  SOURCE_INPUT_KEY,
+  stampSource,
+} from '../../ts/src/approvals/source.ts';
 import { formatLabel, verdictLabel } from '../../ts/src/approvals/format.ts';
 import { statusOf } from '../../ts/src/approvals/status.ts';
 import { summarizeInput } from '../../ts/src/approvals/summarize.ts';
@@ -131,6 +136,62 @@ describe('approval filters', () => {
     );
     expect(oldest.map((a) => a.id)).toEqual(['old']);
     expect(approvals.map((a) => a.id)).toEqual(['new', 'old']);
+  });
+
+  it('covers permissive filter and summary fallbacks', () => {
+    expect(summarizeFilters({ sort: 'newest', dateRange: 'all' })).toBeUndefined();
+    expect(
+      summarizeFilters(
+        {
+          teamId: 'team-missing',
+          ownerId: 'owner-missing',
+          sort: 'newest',
+          dateRange: 'today',
+        },
+        {},
+      ),
+    ).toBe('Filters: Team: team-missing · Owner: owner-missing · Today');
+    expect(dateRangeBounds(undefined)).toEqual({});
+
+    const approvals = [
+      { id: 'a', agent_id: undefined, created_at: 'bad' },
+      { id: 'b', agent_id: 'agent-b', action_type: 'ShellExecution', created_at: '' },
+      { id: 'c', agent_id: 'agent-c', activity_type: 'ShellExecution', created_at: '2026-05-25T01:00:00Z' },
+    ] as any[];
+
+    expect(
+      applyClientFilters(
+        approvals,
+        { ownerId: 'owner-b', sort: 'newest', dateRange: 'all' },
+        (agentId) => (agentId === 'agent-b' ? 'owner-b' : undefined),
+      ).map((a) => a.id),
+    ).toEqual(['b']);
+    expect(
+      applyClientFilters(
+        approvals,
+        { activityType: 'ShellExecution', sort: 'newest', dateRange: 'all' },
+        () => undefined,
+      ).map((a) => a.id),
+    ).toEqual(['b', 'c']);
+  });
+
+  it('reads approval source from each supported path without mutating payloads', () => {
+    expect(approvalSource({ metadata: { source: 'cursor' } } as any)).toBe('cursor');
+    expect(approvalSource({ input: [{ [SOURCE_INPUT_KEY]: 'claude-code' }] } as any)).toBe(
+      'claude-code',
+    );
+    expect(approvalSource({ spans: [{ module: 'mcp' }] } as any)).toBe('mcp');
+    expect(
+      approvalSource({
+        spans: [{ attributes: { 'gen_ai.system': 'openai' } }],
+      } as any),
+    ).toBe('openai');
+    expect(approvalSource({ metadata: { source: '' }, input: [], spans: [] } as any)).toBeUndefined();
+
+    const input = { command: 'ls' };
+    const stamped = stampSource(input, 'cursor');
+    expect(stamped).toEqual({ command: 'ls', [SOURCE_INPUT_KEY]: 'cursor' });
+    expect(input).toEqual({ command: 'ls' });
   });
 });
 

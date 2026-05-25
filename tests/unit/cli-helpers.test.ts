@@ -174,6 +174,83 @@ describe('public library entry points', () => {
     mod.setArgvForTesting(null);
   });
 
+  it('cli/non-interactive covers color, quiet, json, and consent branches', async () => {
+    const mod = await import('../../ts/src/cli/non-interactive');
+    const orig = {
+      ci: process.env.CI,
+      noColor: process.env.NO_COLOR,
+      openboxNoColor: process.env.OPENBOX_NO_COLOR,
+      quiet: process.env.OPENBOX_QUIET,
+      assume: process.env.OPENBOX_ASSUME_YES,
+      nonInteractive: process.env.OPENBOX_NONINTERACTIVE,
+      stdinTty: process.stdin.isTTY,
+      stdoutTty: process.stdout.isTTY,
+    };
+    try {
+      delete process.env.CI;
+      delete process.env.NO_COLOR;
+      delete process.env.OPENBOX_NO_COLOR;
+      delete process.env.OPENBOX_QUIET;
+      delete process.env.OPENBOX_ASSUME_YES;
+      delete process.env.OPENBOX_NONINTERACTIVE;
+      Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true });
+      Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+
+      mod.setArgvForTesting(['node', 'openbox', '--json']);
+      expect(mod.isJsonMode()).toBe(true);
+      expect(mod.isMachineMode()).toBe(true);
+
+      mod.setArgvForTesting(['node', 'openbox', '--quiet']);
+      expect(mod.isQuiet()).toBe(true);
+      mod.setArgvForTesting(['node', 'openbox', '-q']);
+      expect(mod.isQuiet()).toBe(true);
+      mod.setArgvForTesting(['node', 'openbox']);
+      process.env.OPENBOX_QUIET = '1';
+      expect(mod.isQuiet()).toBe(true);
+      process.env.OPENBOX_QUIET = '0';
+      expect(mod.isQuiet()).toBe(false);
+
+      expect(mod.useColor()).toBe(true);
+      process.env.NO_COLOR = '1';
+      expect(mod.useColor()).toBe(false);
+      delete process.env.NO_COLOR;
+      process.env.OPENBOX_NO_COLOR = '1';
+      expect(mod.useColor()).toBe(false);
+      process.env.OPENBOX_NO_COLOR = '0';
+      mod.setArgvForTesting(['node', 'openbox', '--no-color']);
+      expect(mod.useColor()).toBe(false);
+      mod.setArgvForTesting(['node', 'openbox']);
+      process.env.CI = 'true';
+      expect(mod.useColor()).toBe(false);
+      process.env.CI = 'false';
+      Object.defineProperty(process.stdout, 'isTTY', { value: false, configurable: true });
+      expect(mod.isMachineMode()).toBe(true);
+      expect(mod.useColor()).toBe(false);
+
+      process.env.OPENBOX_ASSUME_YES = '1';
+      await expect(mod.consent('Allow test mutation?')).resolves.toBe(true);
+      delete process.env.OPENBOX_ASSUME_YES;
+      process.env.OPENBOX_NONINTERACTIVE = '1';
+      await expect(mod.consent('Allow test mutation?')).resolves.toBe(false);
+    } finally {
+      if (orig.ci === undefined) delete process.env.CI;
+      else process.env.CI = orig.ci;
+      if (orig.noColor === undefined) delete process.env.NO_COLOR;
+      else process.env.NO_COLOR = orig.noColor;
+      if (orig.openboxNoColor === undefined) delete process.env.OPENBOX_NO_COLOR;
+      else process.env.OPENBOX_NO_COLOR = orig.openboxNoColor;
+      if (orig.quiet === undefined) delete process.env.OPENBOX_QUIET;
+      else process.env.OPENBOX_QUIET = orig.quiet;
+      if (orig.assume === undefined) delete process.env.OPENBOX_ASSUME_YES;
+      else process.env.OPENBOX_ASSUME_YES = orig.assume;
+      if (orig.nonInteractive === undefined) delete process.env.OPENBOX_NONINTERACTIVE;
+      else process.env.OPENBOX_NONINTERACTIVE = orig.nonInteractive;
+      Object.defineProperty(process.stdin, 'isTTY', { value: orig.stdinTty, configurable: true });
+      Object.defineProperty(process.stdout, 'isTTY', { value: orig.stdoutTty, configurable: true });
+      mod.setArgvForTesting(null);
+    }
+  });
+
   it('maturity public surface gates correctly across all three levels', async () => {
     const mod = await import('../../ts/src/maturity');
     // setMaturityLevel + currentMaturityLevel + isMaturityVisible

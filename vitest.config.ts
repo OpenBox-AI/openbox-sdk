@@ -30,13 +30,12 @@ export default defineConfig({
         'ts/src/cli/index.ts',
       ],
       // Enforce 80% on line/statement/function coverage for shipped
-      // TS source. Branch coverage is ratcheted separately because the
-      // CLI command tree has many commander/error branches that need a
-      // broader CLI-harness pass before an 80% branch gate is honest.
+      // TS source. Branch coverage is ratcheted upward as real branches
+      // get covered; keep the threshold below the measured local proof.
       reportOnFailure: true,
       thresholds: {
         statements: 80,
-        branches: 70,
+        branches: 75,
         functions: 80,
         lines: 80,
       },

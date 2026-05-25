@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { registerConfigCommands } from '../../ts/src/cli/commands/config.ts';
 import { registerConnectCommand } from '../../ts/src/cli/commands/connect.ts';
 import { registerCursorCommands } from '../../ts/src/cli/commands/cursor.ts';
+import { registerClaudeCodeCommands } from '../../ts/src/cli/commands/claude-code.ts';
 
 let home: string;
 let project: string;
@@ -140,5 +141,24 @@ describe('CLI command action coverage', () => {
     await run(cursor, ['cursor', 'harden', '--dry-run']);
     await run(cursor, ['cursor', 'unharden']);
     await run(cursor, ['cursor', 'uninstall', '--scope', 'project', '--cwd', project]);
+  });
+
+  it('claude-code command actions install and uninstall scoped surfaces', async () => {
+    const claude = programWith(registerClaudeCodeCommands);
+
+    await run(claude, ['claude-code', 'install', '--scope', 'project', '--cwd', project]);
+    await run(claude, ['claude-code', 'uninstall', '--scope', 'project', '--cwd', project]);
+    await run(claude, ['claude-code', 'install', '--scope', 'local', '--cwd', project, '--no-mcp']);
+    await run(claude, ['claude-code', 'uninstall', '--scope', 'local', '--cwd', project, '--no-mcp']);
+  });
+
+  it('integration command actions reject invalid scopes and matcher pairs', async () => {
+    const cursor = programWith(registerCursorCommands);
+    const claude = programWith(registerClaudeCodeCommands);
+
+    await expect(run(cursor, ['cursor', 'install', '--scope', 'workspace'])).rejects.toThrow();
+    await expect(run(cursor, ['cursor', 'install', '--matcher', 'missing-equals'])).rejects.toThrow();
+    await expect(run(claude, ['claude-code', 'install', '--scope', 'workspace'])).rejects.toThrow();
+    await expect(run(claude, ['claude-code', 'uninstall', '--scope', 'workspace'])).rejects.toThrow();
   });
 });

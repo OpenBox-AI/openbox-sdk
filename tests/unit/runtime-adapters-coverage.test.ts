@@ -143,6 +143,68 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     await handlePostToolUse(env, session, cfg);
     expect(session.calls[0]?.method).toBe('activity');
   });
+
+  it('returns undefined for tools that have no post-tool route', async () => {
+    const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
+    const session = recordingSession();
+    const env: any = { tool_name: 'UnknownTool', tool_input: {}, tool_response: 'ok', session_id: 'S5b' };
+    const cfg: any = { skipTools: [], sessionDir: dir };
+    await expect(handlePostToolUse(env, session, cfg)).resolves.toBeUndefined();
+    expect(session.calls).toHaveLength(0);
+  });
+
+  it('covers post-tool route variants and halt marking', async () => {
+    const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
+    for (const [toolName, tool_input] of [
+      ['Write', { filePath: '/tmp/write.txt' }],
+      ['Edit', { path: '/tmp/edit.txt' }],
+      ['Delete', { file_path: '/tmp/delete.txt' }],
+      ['Bash', { command: 'echo ok', cwd: dir }],
+      ['WebFetch', { url: 'https://example.test' }],
+      ['WebSearch', { query: 'openbox' }],
+      ['mcp__demo__tool', { value: true }],
+    ] as const) {
+      const session = recordingSession({ arm: toolName === 'Bash' ? 'halt' : 'allow' });
+      const env: any = { tool_name: toolName, tool_input, tool_response: { ok: true }, session_id: `post-${toolName}` };
+      const cfg: any = { skipTools: [], sessionDir: dir };
+      const verdict = await handlePostToolUse(env, session, cfg);
+      expect(verdict?.arm).toBe(toolName === 'Bash' ? 'halt' : 'allow');
+      expect(session.calls[0]?.method).toBe('activity');
+    }
+  });
+});
+
+describe('runtime/claude-code/mappers/permission-request', () => {
+  it('skip-tool short-circuits permission requests', async () => {
+    const { handlePermissionRequest } = await import('../../ts/src/runtime/claude-code/mappers/permission-request');
+    const session = recordingSession();
+    const env: any = { tool_name: 'SkipMe', tool_input: {}, session_id: 'P1' };
+    const cfg: any = { skipTools: ['SkipMe'], sessionDir: dir };
+    await expect(handlePermissionRequest(env, session, cfg)).resolves.toBeUndefined();
+    expect(session.calls).toHaveLength(0);
+  });
+
+  it('covers permission request route variants and halt marking', async () => {
+    const { handlePermissionRequest } = await import('../../ts/src/runtime/claude-code/mappers/permission-request');
+    for (const [toolName, tool_input] of [
+      ['Read', { file_path: '/tmp/read.txt' }],
+      ['Write', { filePath: '/tmp/write.txt' }],
+      ['Edit', { path: '/tmp/edit.txt' }],
+      ['Delete', { file_path: '/tmp/delete.txt' }],
+      ['Bash', { command: 'pwd', cwd: dir }],
+      ['WebFetch', { url: 'https://example.test' }],
+      ['WebSearch', { query: 'openbox' }],
+      ['mcp__demo__tool', { value: true }],
+      ['UnknownTool', { value: true }],
+    ] as const) {
+      const session = recordingSession({ arm: toolName === 'Bash' ? 'halt' : 'allow' });
+      const env: any = { tool_name: toolName, tool_input, session_id: `perm-${toolName}` };
+      const cfg: any = { skipTools: [], sessionDir: dir };
+      const verdict = await handlePermissionRequest(env, session, cfg);
+      expect(verdict?.arm).toBe(toolName === 'Bash' ? 'halt' : 'allow');
+      expect(session.calls[0]?.method).toBe('activity');
+    }
+  });
 });
 
 describe('runtime/cursor/config', () => {
