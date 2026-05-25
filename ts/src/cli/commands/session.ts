@@ -21,7 +21,7 @@ import {
 
 // Parse "30s" / "5m" / "2h" / "1d" / bare seconds into milliseconds.
 // Dangling cleanup must set this explicitly; no default, per user requirement.
-function parseDuration(spec: string): number {
+export function parseDuration(spec: string): number {
   const m = spec.match(/^(\d+)\s*(ms|s|m|h|d)?$/i);
   if (!m) throw new Error(`invalid duration: "${spec}" (use 30ms, 30s, 5m, 2h, 1d, or bare seconds)`);
   const n = parseInt(m[1], 10);
@@ -52,7 +52,7 @@ const CANONICAL_VERDICTS: ReadonlySet<string> = new Set(
   [...CANONICAL_VERDICT_ARMS].filter((v) => v !== 'constrain'),
 );
 
-function inspectEvents(events: EventLog[]): InspectFinding[] {
+export function inspectEvents(events: EventLog[]): InspectFinding[] {
   const findings: InspectFinding[] = [];
   const counts: Record<string, number> = {};
   const workflowIds = new Set<string>();

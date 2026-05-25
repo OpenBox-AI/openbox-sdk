@@ -29,13 +29,11 @@ export default defineConfig({
         'ts/src/**/types/**',
         'ts/src/cli/index.ts',
       ],
-      // Enforce 80% on line/statement/function coverage for shipped
-      // TS source. Branch coverage is ratcheted upward as real branches
-      // get covered; keep the threshold below the measured local proof.
+      // Enforce 80% coverage for shipped TS source.
       reportOnFailure: true,
       thresholds: {
         statements: 80,
-        branches: 75,
+        branches: 80,
         functions: 80,
         lines: 80,
       },

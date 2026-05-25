@@ -239,19 +239,62 @@ describe('runtime/cursor/side-effects', () => {
 });
 
 describe('runtime/cursor/mappers/pre-tool-use', () => {
+  it('short-circuits unknown tools, skipped paths, and in-workspace file touches', async () => {
+    const { handlePreToolUse } = await import('../../ts/src/runtime/cursor/mappers/pre-tool-use');
+    const cfg: any = { skipTools: [], sessionDir: dir, hitlMaxWait: 1 };
+    for (const env of [
+      { tool_name: 'UnknownTool', tool_input: {}, conversation_id: 'C0', generation_id: 'G0' },
+      { tool_name: 'Read', tool_input: { file_path: '/tmp/.git/config' }, conversation_id: 'C1', generation_id: 'G1' },
+      {
+        tool_name: 'Read',
+        tool_input: { file_path: join(dir, 'inside-read.txt') },
+        conversation_id: 'C2',
+        generation_id: 'G2',
+        workspace_roots: [dir],
+      },
+      {
+        tool_name: 'Write',
+        tool_input: { filePath: join(dir, 'inside-write.txt') },
+        conversation_id: 'C3',
+        generation_id: 'G3',
+        workspace_roots: [dir],
+      },
+    ]) {
+      const session = recordingSession();
+      await expect(handlePreToolUse(env as any, session, cfg)).resolves.toBeUndefined();
+      expect(session.calls).toHaveLength(0);
+    }
+  });
+
   it('drives the @activityVariant override path without throwing', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/cursor/mappers/pre-tool-use');
     const session = recordingSession();
     const env: any = {
-      tool_name: 'shell',
+      tool_name: 'Shell',
       tool_input: { command: 'rm -rf /tmp/foo' },
       conversation_id: 'C1',
+      generation_id: `G-${Date.now()}`,
     };
-    const cfg: any = { skipTools: [], sessionDir: dir };
+    const cfg: any = { skipTools: [], sessionDir: dir, hitlMaxWait: 1 };
     await handlePreToolUse(env, session, cfg);
-    // The cursor variant either fires once or short-circuits; drive
-    // the function for coverage; precise behavior covered by e2e.
-    expect(typeof session.calls.length).toBe('number');
+    expect(session.calls[0]?.method).toBe('activity');
+    expect(session.calls[0]?.args[1]).toBe('FileDelete');
+  });
+
+  it('routes write tools through activity and marks halt verdicts', async () => {
+    const { handlePreToolUse } = await import('../../ts/src/runtime/cursor/mappers/pre-tool-use');
+    const cfg: any = { skipTools: [], sessionDir: dir, hitlMaxWait: 1 };
+    const session = recordingSession({ arm: 'halt' });
+    const env: any = {
+      tool_name: 'Write',
+      tool_input: { file_path: '/tmp/outside-write.txt' },
+      conversation_id: `C-Write-${Date.now()}`,
+      generation_id: `G-Write-${Date.now()}`,
+      workspace_roots: [dir],
+    };
+    const verdict = await handlePreToolUse(env, session, cfg);
+    expect(verdict?.arm).toBe('halt');
+    expect(session.calls[0]?.method).toBe('activity');
   });
 });
 
