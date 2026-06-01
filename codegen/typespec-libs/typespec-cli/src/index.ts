@@ -1,0 +1,64 @@
+// TypeSpec compiler entry; see ../env/src/index.ts for the rationale
+// behind only exporting `$lib` and `$decorators`.
+
+import {
+  $cli_command,
+  $cli_flag,
+  $cli_validator,
+  $cli_maturity,
+  $feature_flag,
+  $cli_calls,
+  $cli_output_kind,
+  $cli_pagination,
+  $cli_body_key,
+  $cli_parse,
+  $cli_choice,
+  $cli_default,
+  $cli_variadic,
+  $cli_required,
+  $cli_output_pluck,
+  $cli_output_post,
+  $cli_json_merge,
+  $cli_at_least_one,
+  $cli_required_together,
+  $cli_local_only,
+  $cli_destructive,
+  $cli_preflight,
+  $cli_dto_defaults,
+  $cli_post_validate,
+  $cli_recipe,
+} from './decorators.js';
+export type { RecipeStep } from './decorators.js';
+export { getRecipe } from './decorators.js';
+
+export { $lib } from './lib.js';
+
+export const $decorators = {
+  'OpenBox.Cli': {
+    cli_command: $cli_command,
+    cli_flag: $cli_flag,
+    cli_validator: $cli_validator,
+    cli_maturity: $cli_maturity,
+    feature_flag: $feature_flag,
+    cli_calls: $cli_calls,
+    cli_output_kind: $cli_output_kind,
+    cli_pagination: $cli_pagination,
+    cli_body_key: $cli_body_key,
+    cli_parse: $cli_parse,
+    cli_choice: $cli_choice,
+    cli_default: $cli_default,
+    cli_variadic: $cli_variadic,
+    cli_required: $cli_required,
+    cli_output_pluck: $cli_output_pluck,
+    cli_output_post: $cli_output_post,
+    cli_json_merge: $cli_json_merge,
+    cli_at_least_one: $cli_at_least_one,
+    cli_required_together: $cli_required_together,
+    cli_local_only: $cli_local_only,
+    cli_destructive: $cli_destructive,
+    cli_preflight: $cli_preflight,
+    cli_dto_defaults: $cli_dto_defaults,
+    cli_post_validate: $cli_post_validate,
+    cli_recipe: $cli_recipe,
+  },
+};
