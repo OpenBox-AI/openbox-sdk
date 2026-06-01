@@ -1,0 +1,23 @@
+# Conformance fixtures
+
+Shared test inputs for SDK contract behavior. The TypeScript SDK uses
+these fixtures today; additional language tracks should add their own
+package-local runners when they are developed on separate branches.
+
+## Layout
+
+| File | Drives |
+|---|---|
+| `env-resolution.json` | `loadRuntime()` produces the same `RuntimeConfig` from a given env-var snapshot, regardless of language |
+| `cli-auth.json` | `openbox auth set-api-key`, `clear-api-key`, and `status` accept the same flags, fail on the same malformed inputs, and produce the same side-effects on the token store |
+| `govern-protocol.json` | A scripted sequence of `WorkflowStarted`, `ActivityStarted`, and `ActivityCompleted` events fires in the same order with the same canonical `activity_type` strings |
+
+## How a language wires up
+
+Each language's test runner reads the fixture, drives its emitted
+code through the scenario, and asserts the recorded outputs match.
+Snapshots live in `codegen/snapshots/` for the emitter side. The
+runtime-behavior side is compared against the `expected*` fields in
+each fixture case.
+
+- TS: `tests/unit/fixtures.test.ts` covers fixture shape and loading.

@@ -1,0 +1,90 @@
+{
+  "$schema": "../snapshots/env-resolution.schema.json",
+  "name": "env-resolution",
+  "description": "resolveConnection() returns the same RuntimeConfig from explicit URLs, stack URL derivation, and credentials in every language.",
+  "cases": [
+    {
+      "name": "explicit-urls",
+      "env": {
+        "OPENBOX_API_URL": "https://api.example.test/ob",
+        "OPENBOX_CORE_URL": "https://core.example.test/ob",
+        "OPENBOX_PLATFORM_URL": "https://platform.example.test"
+      },
+      "tokenStore": null,
+      "expected": {
+        "apiUrl": "https://api.example.test/ob",
+        "coreUrl": "https://core.example.test/ob",
+        "platformUrl": "https://platform.example.test"
+      }
+    },
+    {
+      "name": "stack-url-derives-service-urls",
+      "env": { "OPENBOX_STACK_URL": "https://ipsum.lat/ob" },
+      "tokenStore": null,
+      "expected": {
+        "apiUrl": "https://api.ipsum.lat/ob",
+        "coreUrl": "https://core.ipsum.lat/ob",
+        "platformUrl": "https://platform.ipsum.lat/ob",
+        "stackUrl": "https://ipsum.lat/ob"
+      }
+    },
+    {
+      "name": "explicit-urls-override-stack-derived-urls",
+      "env": {
+        "OPENBOX_STACK_URL": "https://ipsum.lat/ob",
+        "OPENBOX_API_URL": "https://internal.example/api",
+        "OPENBOX_CORE_URL": "https://internal.example/core"
+      },
+      "tokenStore": null,
+      "expected": {
+        "apiUrl": "https://internal.example/api",
+        "coreUrl": "https://internal.example/core",
+        "platformUrl": "https://platform.ipsum.lat/ob",
+        "stackUrl": "https://ipsum.lat/ob"
+      }
+    },
+    {
+      "name": "token-format-rejects-malformed",
+      "env": { "OPENBOX_API_KEY": "sk-not-an-openbox-key" },
+      "tokenStore": null,
+      "expected": {
+        "error": "OPENBOX_API_KEY must match obx_(live|test)_<48hex>"
+      }
+    },
+    {
+      "name": "token-format-accepts-live",
+      "env": {
+        "OPENBOX_API_KEY": "obx_live_aabbccddeeff00112233445566778899aabbccddeeff0011"
+      },
+      "tokenStore": null,
+      "expected": {
+        "error": "OPENBOX_API_URL and OPENBOX_CORE_URL are required unless OPENBOX_STACK_URL is set"
+      }
+    },
+    {
+      "name": "token-format-accepts-live-with-explicit-urls",
+      "env": {
+        "OPENBOX_API_URL": "https://api.example.test/ob",
+        "OPENBOX_CORE_URL": "https://core.example.test/ob",
+        "OPENBOX_API_KEY": "obx_live_aabbccddeeff00112233445566778899aabbccddeeff0011"
+      },
+      "tokenStore": null,
+      "expected": {
+        "apiUrl": "https://api.example.test/ob",
+        "coreUrl": "https://core.example.test/ob",
+        "apiKey": "obx_live_aabbccddeeff00112233445566778899aabbccddeeff0011"
+      }
+    },
+    {
+      "name": "token-format-accepts-test",
+      "env": {
+        "OPENBOX_API_KEY": "obx_test_aabbccddeeff00112233445566778899aabbccddeeff0011"
+      },
+      "tokenStore": null,
+      "expected": {
+        "error": "OPENBOX_API_URL and OPENBOX_CORE_URL are required unless OPENBOX_STACK_URL is set",
+        "apiKey": "obx_test_aabbccddeeff00112233445566778899aabbccddeeff0011"
+      }
+    }
+  ]
+}
