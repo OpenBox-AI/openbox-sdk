@@ -1,0 +1,222 @@
+{
+  "name": "openbox-sdk",
+  "version": "0.1.0",
+  "description": "OpenBox AI governance SDK for TypeScript. Generated from a TypeSpec source of truth in this monorepo; the same spec drives sibling per-language SDKs.",
+  "keywords": [
+    "openbox",
+    "governance",
+    "ai-agents",
+    "guardrails",
+    "policies",
+    "approvals",
+    "trust",
+    "claude-code",
+    "cursor",
+    "mcp"
+  ],
+  "license": "MIT",
+  "author": "OpenBox AI",
+  "homepage": "https://github.com/OpenBox-AI/openbox-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OpenBox-AI/openbox-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/OpenBox-AI/openbox-sdk/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "openbox": "./dist/cli/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
+    },
+    "./core-client": {
+      "types": "./dist/core-client/index.d.ts",
+      "import": "./dist/core-client/index.js"
+    },
+    "./env": {
+      "types": "./dist/env/index.d.ts",
+      "import": "./dist/env/index.js"
+    },
+    "./approvals": {
+      "types": "./dist/approvals/index.d.ts",
+      "import": "./dist/approvals/index.js"
+    },
+    "./client-factory": {
+      "types": "./dist/client-factory/index.d.ts",
+      "import": "./dist/client-factory/index.js"
+    },
+    "./file-tokens": {
+      "types": "./dist/file-tokens/index.d.ts",
+      "import": "./dist/file-tokens/index.js"
+    },
+    "./polling": {
+      "types": "./dist/polling/index.d.ts",
+      "import": "./dist/polling/index.js"
+    },
+    "./os-paths": {
+      "types": "./dist/env/os-paths.d.ts",
+      "import": "./dist/env/os-paths.js"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js"
+    },
+    "./validators": {
+      "types": "./dist/validators/index.d.ts",
+      "import": "./dist/validators/index.js"
+    },
+    "./test-utils": {
+      "types": "./dist/test-utils/index.d.ts",
+      "import": "./dist/test-utils/index.js"
+    },
+    "./maturity": {
+      "types": "./dist/maturity/index.d.ts",
+      "import": "./dist/maturity/index.js"
+    },
+    "./runtime/claude-code": {
+      "types": "./dist/runtime/claude-code/index.d.ts",
+      "import": "./dist/runtime/claude-code/index.js"
+    },
+    "./runtime/cursor": {
+      "types": "./dist/runtime/cursor/index.d.ts",
+      "import": "./dist/runtime/cursor/index.js"
+    },
+    "./runtime/mcp": {
+      "types": "./dist/runtime/mcp/index.d.ts",
+      "import": "./dist/runtime/mcp/index.js"
+    },
+    "./governance": {
+      "types": "./dist/governance/index.d.ts",
+      "import": "./dist/governance/index.js"
+    },
+    "./agent-trace": {
+      "types": "./dist/agent-trace/index.d.ts",
+      "import": "./dist/agent-trace/index.js"
+    },
+    "./logging": {
+      "types": "./dist/logging/index.d.ts",
+      "import": "./dist/logging/index.js"
+    },
+    "./session": {
+      "types": "./dist/session/index.d.ts",
+      "import": "./dist/session/index.js"
+    },
+    "./install": {
+      "types": "./dist/install/index.d.ts",
+      "import": "./dist/install/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js"
+    },
+    "./copilotkit": {
+      "types": "./dist/copilotkit/index.d.ts",
+      "import": "./dist/copilotkit/index.js"
+    },
+    "./copilotkit/react": {
+      "types": "./dist/copilotkit/react.d.ts",
+      "import": "./dist/copilotkit/react.js"
+    }
+  },
+  "files": [
+    "dist",
+    "skill"
+  ],
+  "workspaces": [
+    "codegen/typespec-libs/*",
+    "codegen/emitters/typespec-emitter-typescript",
+    "apps/*"
+  ],
+  "scripts": {
+    "build:codegen": "npm run build -w typespec-env -w typespec-cli -w typespec-workflow -w typespec-emitter-typescript",
+    "build:bundle": "tsup && node --experimental-strip-types scripts/sync-runtime-assets.ts",
+    "build": "npm run build:codegen && npm run specs:compile && npm run generate:types && npm run build:bundle",
+    "prepublishOnly": "npm run build",
+    "clean": "rm -rf dist dist-pack codegen/**/dist codegen/**/tsconfig.tsbuildinfo specs/generated apps/extension/dist apps/extension/openbox-*.vsix && npm run clean:generated",
+    "clean:generated": "find ts/src -path '*/generated/*.ts' -type f -delete && find ts/src -path '*/generated/*.d.ts' -type f -delete && rm -rf specs/generated",
+    "check:generated-drift": "node --experimental-strip-types scripts/check-generated-drift.ts",
+    "lint": "eslint ts/src",
+    "format": "prettier --write ts/src",
+    "test": "npm run test:unit && npm run test:contract && npm run test:hook-integration",
+    "test:unit": "vitest run --project unit",
+    "test:e2e": "vitest run --project e2e",
+    "test:e2e:required": "OPENBOX_E2E_REQUIRED=1 vitest run --project e2e",
+    "test:contract": "vitest run --project contract",
+    "test:hook-integration": "vitest run --project hook-integration",
+    "test:live": "vitest run --project e2e",
+    "test:e2e-extension": "npm --prefix apps/extension run build && npm --prefix tests/e2e-extension test",
+    "test:e2e-extension:install": "npm --prefix tests/e2e-extension install",
+    "test:coverage": "vitest run --coverage --project unit --project contract --project hook-integration",
+    "test:watch": "vitest watch",
+    "generate:types:backend": "openapi-typescript specs/generated/openapi3/OpenboxBackend.json -o ts/src/types/generated/backend.ts",
+    "generate:types:core": "openapi-typescript specs/generated/openapi3/OpenboxCore.json    -o ts/src/types/generated/core.ts",
+    "generate:types": "npm run generate:types:backend && npm run generate:types:core",
+    "specs:compile": "tsp compile specs/typespec",
+    "specs:all": "npm run build:codegen && npm run specs:compile && npm run generate:types",
+    "specs:watch": "tsp compile specs/typespec --watch",
+    "lint:generated-banners": "node --experimental-strip-types scripts/check-generated-banners.ts",
+    "audit:security": "node scripts/security-audit.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "commander": "^14.0.0",
+    "zod": "^3.23.0"
+  },
+  "peerDependencies": {
+    "@ag-ui/client": ">=0.0.53",
+    "@copilotkit/react-core": ">=1.56.0",
+    "@copilotkit/runtime": ">=1.56.0",
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "@ag-ui/client": {
+      "optional": true
+    },
+    "@copilotkit/runtime": {
+      "optional": true
+    },
+    "@copilotkit/react-core": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "@types/react": "^19.2.16",
+    "@typespec/compiler": "^1.11.0",
+    "@typespec/http": "^1.11.0",
+    "@typespec/json-schema": "^1.11.0",
+    "@typespec/openapi": "^1.11.0",
+    "@typespec/openapi3": "^1.11.0",
+    "@typespec/rest": "^0.81.0",
+    "@vitest/coverage-v8": "^4.1.5",
+    "dotenv": "^17.4.2",
+    "eslint": "^10.2.1",
+    "openapi-typescript": "^7.13.0",
+    "react": "^19.2.7",
+    "ts-morph": "^28.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.59.0",
+    "vitest": "^4.1.2"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1",
+    "tsx": "^4.22.4"
+  }
+}
