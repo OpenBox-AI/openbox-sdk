@@ -96,7 +96,7 @@ jobs:
           && matrix.service == 'backend'
           && matrix.tier == 'prod'
           && steps.diff.outputs.has_drift == 'true'
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@v5
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body-path: /tmp/spec-drift-${{ matrix.service }}-${{ matrix.tier }}.md
