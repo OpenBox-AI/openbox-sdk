@@ -1,0 +1,146 @@
+// Non-interactive context detection; the single source of truth used by
+// every place that would otherwise prompt, spin, or color.
+//
+// A "non-interactive" run is one where:
+//   - stdin is not a TTY (piped/redirected; no human to answer prompts)
+//   - or CI=1 / OPENBOX_NONINTERACTIVE=1 is set
+//   - or --yes / --non-interactive was passed on argv
+//
+// Design rule: prompts MUST consult this helper and bail with a clear
+// "missing required input" error instead of blocking on stdin. Spinners
+// and colors degrade silently; their absence is invisible to scripts.
+
+let argvOverride: string[] | null = null;
+
+export function setArgvForTesting(argv: string[] | null): void {
+  argvOverride = argv;
+}
+
+function argv(): string[] {
+  return argvOverride ?? process.argv;
+}
+
+export function isNonInteractive(): boolean {
+  if (process.env.OPENBOX_NONINTERACTIVE && process.env.OPENBOX_NONINTERACTIVE !== '0') {
+    return true;
+  }
+  if (process.env.CI && process.env.CI !== '0' && process.env.CI !== 'false') {
+    return true;
+  }
+  const a = argv();
+  if (a.includes('--yes') || a.includes('-y') || a.includes('--non-interactive')) {
+    return true;
+  }
+  if (process.stdin && process.stdin.isTTY === false) {
+    return true;
+  }
+  return false;
+}
+
+export function assumeYes(): boolean {
+  if (process.env.OPENBOX_ASSUME_YES && process.env.OPENBOX_ASSUME_YES !== '0') {
+    return true;
+  }
+  const a = argv();
+  return a.includes('--yes') || a.includes('-y');
+}
+
+export function useColor(): boolean {
+  if (process.env.NO_COLOR && process.env.NO_COLOR !== '') return false;
+  if (process.env.OPENBOX_NO_COLOR && process.env.OPENBOX_NO_COLOR !== '0') return false;
+  const a = argv();
+  if (a.includes('--no-color')) return false;
+  if (process.env.CI && process.env.CI !== '0' && process.env.CI !== 'false') return false;
+  return process.stdout.isTTY === true;
+}
+
+export function isQuiet(): boolean {
+  if (process.env.OPENBOX_QUIET && process.env.OPENBOX_QUIET !== '0') return true;
+  const a = argv();
+  return a.includes('--quiet') || a.includes('-q');
+}
+
+export function isJsonMode(): boolean {
+  const a = argv();
+  return a.includes('--json');
+}
+
+/**
+ * "Machine mode" = the caller is a tool / MCP / agent / pipe, not a
+ * human. True when `--json` is explicit OR stdout is not a TTY (piped,
+ * redirected, captured by Cursor's bash tool, etc.). Every output
+ * helper consults this to decide whether to emit human prose or to
+ * stay silent so stdout remains exactly one JSON document.
+ *
+ * Contract: in machine mode,
+ *   - stdout = exactly one JSON document (or empty for ack-only ops)
+ *   - stderr = empty on success; single-line `{"error":{...}}` on
+ *     failure
+ *   - exit code = source of truth (0 success, 2 usage, 3 auth, …)
+ *   - colors / progress / banners / `[recipe]` description tags are
+ *     all silenced
+ */
+export function isMachineMode(): boolean {
+  if (isJsonMode()) return true;
+  // Node sets `isTTY` to `true` only when stdout is genuinely a TTY;
+  // it's `undefined` for pipes, redirects, and child-process captures.
+  // Treat anything that isn't truthy as machine mode.
+  return !process.stdout.isTTY;
+}
+
+/**
+ * Runtime gate for destructive ops (`@cli_destructive` in spec, plus a
+ * handful of hand-coded sites). Refuses to run without `--yes` / `-y`
+ * (or OPENBOX_ASSUME_YES=1). Fails closed in every context; we never
+ * block on stdin, and an accidental destroy is hard to undo.
+ *
+ * Intentionally throws an Error rather than calling process.exit so the
+ * caller's reportAndExit/bailWith path stays the single funnel.
+ */
+export class DestructiveConfirmRequiredError extends Error {
+  constructor(public commandPath: string) {
+    super(
+      `\`openbox ${commandPath}\` is destructive; re-run with --yes (or set OPENBOX_ASSUME_YES=1).`,
+    );
+    this.name = 'DestructiveConfirmRequiredError';
+  }
+}
+
+export function requireYesForDestructive(commandPath: string): void {
+  if (assumeYes()) return;
+  throw new DestructiveConfirmRequiredError(commandPath);
+}
+
+/**
+ * Consent gate for install steps that mutate user-owned config beyond
+ * OpenBox's own scope (e.g., flipping privacy/cloud/telemetry knobs in
+ * the user's IDE settings).
+ *
+ *   --yes / OPENBOX_ASSUME_YES=1 → returns true (auto-consent; the user
+ *                                  opted in to "yes to everything")
+ *   non-interactive without --yes → returns false (silently skip; no
+ *                                   surprise mutation in scripts/CI)
+ *   interactive TTY → prompts `<question> [y/N]:` with default N
+ *
+ * Outcome is logged to stderr so scripts can grep for it.
+ */
+export async function consent(question: string): Promise<boolean> {
+  // Lazy import to avoid a circular dep through output → colors → here.
+  const { note } = await import('./output.js');
+  if (assumeYes()) {
+    note(`[consent] auto-yes (--yes): ${question}`);
+    return true;
+  }
+  if (isNonInteractive()) {
+    note(`[consent] non-interactive, skipping: ${question}`);
+    return false;
+  }
+  const { createInterface } = await import('node:readline/promises');
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    const ans = (await rl.question(`${question} [y/N]: `)).trim().toLowerCase();
+    return ans === 'y' || ans === 'yes';
+  } finally {
+    rl.close();
+  }
+}
