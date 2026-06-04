@@ -413,6 +413,15 @@ export function useOpenBoxCopilotKit(
     if (name === 'openbox_governed_approval_action' && toolResult.status === 'approval_required') {
       return null;
     }
+    const actionResult =
+      asNode(options.renderActionResult?.(props)) ??
+      (options.artifactRenderers
+        ? h(OpenBoxActionResult, {
+            ...options,
+            key: 'result',
+            result,
+          })
+        : null);
     return h(React.Fragment, null,
       asNode(options.renderGovernanceDecision?.(props)) ??
         h(OpenBoxGovernanceDecision, {
@@ -422,12 +431,7 @@ export function useOpenBoxCopilotKit(
           parameters,
           result,
         }),
-      asNode(options.renderActionResult?.(props)) ??
-        h(OpenBoxActionResult, {
-          ...options,
-          key: 'result',
-          result,
-        }),
+      actionResult,
     );
   };
   if (bindings?.useRenderTool) {
@@ -578,32 +582,7 @@ export function OpenBoxActionResult({
       theme: resolvedTheme,
     }));
   }
-  const title = artifactTitle(artifact, toolResult, scenarios);
-  const subtitle = textValue(artifact.channel ?? artifact.queueDate ?? artifact.queue ?? artifact.destination ?? toolResult.destination);
-  const badge = toolResult.status === 'constrained' || artifact.redacted ? 'constrained' : textValue(artifact.status) || 'complete';
-
-  return h(
-    'section',
-    { className: 'my-3 w-full max-w-xl overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-sm', style: rendererStyle(resolvedTheme) },
-    [
-      h('div', { key: 'head', className: 'p-4 pb-3' }, [
-        h('div', { key: 'row', className: 'flex items-start gap-3' }, [
-          h('div', { key: 'icon', className: 'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--secondary)] text-xs font-semibold text-[var(--muted-foreground)]' }, 'UI'),
-          h('div', { key: 'copy', className: 'min-w-0 flex-1' }, [
-            h('div', { key: 'title-row', className: 'flex flex-wrap items-center gap-2' }, [
-              h('h3', { key: 'title', className: 'text-base font-semibold leading-6 text-[var(--foreground)]' }, title),
-              badge ? h('span', { key: 'badge', className: 'shrink-0 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-xs text-sky-700' }, badge) : null,
-            ]),
-            subtitle ? h('p', { key: 'subtitle', className: 'mt-1 text-sm text-[var(--muted-foreground)]' }, subtitle) : null,
-            artifact.type === 'policy_draft'
-              ? h('p', { key: 'reason', className: 'mt-1 text-xs leading-4 text-[var(--muted-foreground)]' }, 'Customer-safe draft after final release check.')
-              : null,
-          ]),
-        ]),
-      ]),
-      h('div', { key: 'body', className: 'px-4 pb-4 pt-0' }, renderArtifactBody(artifact, toolResult)),
-    ],
-  );
+  return null;
 }
 
 export function OpenBoxApprovalReview({
