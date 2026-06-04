@@ -106,6 +106,8 @@ export {
   applyInputRedaction,
   applyOutputRedaction,
   deepUpdateObject,
+  hasGuardrailRedaction,
+  summarizeGuardrailRedaction,
 } from './redaction.js';
 
 // Spec-driven hook-protocol adapters live one folder out at

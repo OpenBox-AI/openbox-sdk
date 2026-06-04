@@ -44,6 +44,8 @@ export default defineConfig({
     'ts/src/session/index.ts',
     'ts/src/install/index.ts',
     'ts/src/config/index.ts',
+    'ts/src/copilotkit/index.ts',
+    'ts/src/copilotkit/react.ts',
   ],
   format: ['esm'],
   dts: { resolve: true, entry: undefined, compilerOptions: { rootDir: 'ts/src' } },
@@ -55,5 +57,5 @@ export default defineConfig({
   splitting: false,
   // playwright is an optional CLI dep for E2E `verify` runs; never inline
   // it (it pulls a chromium driver). Mark its sub-modules external too.
-  external: ['playwright', /^chromium-bidi/, /^playwright-core/],
+  external: ['react', 'playwright', /^chromium-bidi/, /^playwright-core/],
 });

@@ -3093,10 +3093,27 @@ function mapGuardrailsResult(
     fieldResults: ((raw.results ?? []) as Array<{ results?: Array<{ field?: string; status?: string; reason?: string }> }>)
       .flatMap((g) => (g.results ?? []).map((fr) => ({
         field: String(fr.field ?? ''),
-        status: (fr.status as 'allowed' | 'blocked' | 'redacted' | 'skipped') ?? 'skipped',
+        status: normalizeGuardrailFieldStatus(fr.status),
         reason: fr.reason,
       }))),
   };
+}
+
+function normalizeGuardrailFieldStatus(value: string | undefined): 'allowed' | 'blocked' | 'redacted' | 'skipped' {
+  switch (value) {
+    case 'allowed':
+    case 'allow':
+      return 'allowed';
+    case 'blocked':
+    case 'block':
+      return 'blocked';
+    case 'redacted':
+    case 'transformed':
+      return 'redacted';
+    case 'skipped':
+    default:
+      return 'skipped';
+  }
 }
 
 function normalizeArm(value: string): VerdictArm {

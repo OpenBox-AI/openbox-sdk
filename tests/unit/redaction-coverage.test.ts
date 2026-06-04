@@ -7,6 +7,8 @@ import {
   deepUpdateObject,
   applyInputRedaction,
   applyOutputRedaction,
+  hasGuardrailRedaction,
+  summarizeGuardrailRedaction,
 } from '../../ts/src/core-client/redaction';
 
 describe('deepUpdateObject', () => {
@@ -22,10 +24,10 @@ describe('deepUpdateObject', () => {
     expect(t).toEqual({ a: null });
   });
 
-  it('arrays replace outright', () => {
+  it('arrays merge by index to preserve safe siblings', () => {
     const t: any = { a: [1, 2, 3] };
     deepUpdateObject(t, { a: [9] });
-    expect(t).toEqual({ a: [9] });
+    expect(t).toEqual({ a: [9, 2, 3] });
   });
 
   it('throws when target is not a plain object', () => {
@@ -85,6 +87,8 @@ describe('applyInputRedaction', () => {
     } as any);
     expect(out.b.c).toBe(9);
     expect(out.a).toBe(1);
+    expect(orig).toEqual({ a: 1, b: { c: 2 } });
+    expect(out).not.toBe(orig);
   });
 
   it('replaces non-object original with the first redaction object', () => {
@@ -102,6 +106,9 @@ describe('applyInputRedaction', () => {
       redactedInput: [{ a: 9 }, { a: 8 }],
     } as any);
     expect(out).toEqual([{ a: 9 }, { a: 8 }]);
+    expect(orig).toEqual([{ a: 1 }, { a: 2 }]);
+    expect(out).not.toBe(orig);
+    expect(out[0]).not.toBe(orig[0]);
   });
 
   it('replaces array elements when types disagree', () => {
@@ -141,11 +148,84 @@ describe('applyOutputRedaction', () => {
       redactedInput: { b: { c: 9 } },
     } as any);
     expect(out).toEqual({ a: 1, b: { c: 9 } });
+    expect(orig).toEqual({ a: 1, b: { c: 2 } });
+    expect(out).not.toBe(orig);
   });
 
   it('replaces non-object original with the redaction value', () => {
     expect(
       applyOutputRedaction('original', { inputType: 'activity_output', redactedInput: 'redacted' } as any),
     ).toBe('redacted');
+  });
+});
+
+describe('guardrail redaction helpers', () => {
+  it('detects typed redacted field results with a redaction payload', () => {
+    expect(
+      hasGuardrailRedaction({
+        inputType: 'activity_output',
+        redactedInput: { artifact: { body: '[REDACTED]' } },
+        validationPassed: true,
+        reasons: [],
+        fieldResults: [{ field: 'output.artifact.body', status: 'redacted' }],
+      }),
+    ).toBe(true);
+  });
+
+  it('treats backend transformed field results as SDK redactions', () => {
+    expect(
+      hasGuardrailRedaction({
+        inputType: 'activity_output',
+        redactedInput: { artifact: { body: '[REDACTED]' } },
+        validationPassed: true,
+        reasons: [],
+        fieldResults: [{ field: 'output.artifact.body', status: 'transformed' }],
+      } as any),
+    ).toBe(true);
+  });
+
+  it('does not count redacted status without a payload as an applied redaction', () => {
+    expect(
+      hasGuardrailRedaction({
+        inputType: 'activity_output',
+        redactedInput: undefined,
+        validationPassed: true,
+        reasons: [],
+        fieldResults: [{ field: 'output.artifact.body', status: 'redacted' }],
+      }),
+    ).toBe(false);
+  });
+
+  it('summarizes redacted fields with bounded output', () => {
+    const summary = summarizeGuardrailRedaction({
+      inputType: 'activity_output',
+      redactedInput: {},
+      validationPassed: true,
+      reasons: [],
+      fieldResults: [
+        { field: 'output.a', status: 'redacted' },
+        { field: 'output.b', status: 'transformed' as any },
+        { field: 'output.c', status: 'redacted' },
+        { field: 'output.d', status: 'redacted' },
+        { field: 'output.e', status: 'redacted' },
+      ],
+    });
+
+    expect(summary).toBe('OpenBox redacted output.a, output.b, output.c, output.d and 1 more field.');
+  });
+
+  it('returns the fallback when there are no redacted field names', () => {
+    expect(
+      summarizeGuardrailRedaction(
+        {
+          inputType: 'activity_output',
+          redactedInput: {},
+          validationPassed: true,
+          reasons: [],
+          fieldResults: [],
+        },
+        'Redacted.',
+      ),
+    ).toBe('Redacted.');
   });
 });

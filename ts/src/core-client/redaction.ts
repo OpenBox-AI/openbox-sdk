@@ -12,8 +12,8 @@ type GuardrailsVerdict = NonNullable<WorkflowVerdict['guardrailsResult']>;
 
 /**
  * Recursively merge `source` fields into `target`. Plain objects are
- * deep-merged; arrays and primitives are replaced outright. Mutates
- * `target`.
+ * deep-merged; arrays of objects are merged by index so partial
+ * guardrail transforms do not drop sibling fields. Mutates `target`.
  */
 export function deepUpdateObject(target: unknown, source: Record<string, unknown>): void {
   if (!target || typeof target !== 'object' || Array.isArray(target)) {
@@ -26,6 +26,11 @@ export function deepUpdateObject(target: unknown, source: Record<string, unknown
       continue;
     }
     const existing = t[key];
+    const bothArrays = Array.isArray(value) && Array.isArray(existing);
+    if (bothArrays) {
+      mergeArray(existing, value);
+      continue;
+    }
     const bothObjects =
       typeof value === 'object' && !Array.isArray(value) &&
       typeof existing === 'object' && !Array.isArray(existing) && existing !== null;
@@ -33,6 +38,21 @@ export function deepUpdateObject(target: unknown, source: Record<string, unknown
       deepUpdateObject(existing, value as Record<string, unknown>);
     } else {
       t[key] = value;
+    }
+  }
+}
+
+function mergeArray(target: unknown[], source: unknown[]): void {
+  for (let i = 0; i < source.length; i++) {
+    const value = source[i];
+    const existing = target[i];
+    if (
+      typeof value === 'object' && !Array.isArray(value) && value !== null &&
+      typeof existing === 'object' && !Array.isArray(existing) && existing !== null
+    ) {
+      deepUpdateObject(existing, value as Record<string, unknown>);
+    } else {
+      target[i] = value;
     }
   }
 }
@@ -60,13 +80,14 @@ export function applyInputRedaction<T = unknown>(
 
   if (!Array.isArray(originalData)) {
     if (redacted[0] && typeof redacted[0] === 'object' && !Array.isArray(redacted[0])) {
-      deepUpdateObject(originalData, redacted[0] as Record<string, unknown>);
-      return originalData;
+      const out = cloneValue(originalData);
+      deepUpdateObject(out, redacted[0] as Record<string, unknown>);
+      return out;
     }
     return redacted[0] as T;
   }
 
-  const out = [...(originalData as unknown[])];
+  const out = cloneValue(originalData as unknown[]) as unknown[];
   for (let i = 0; i < redacted.length && i < out.length; i++) {
     const r = redacted[i];
     const o = out[i];
@@ -98,8 +119,43 @@ export function applyOutputRedaction<T = unknown>(
     typeof originalOutput === 'object' && !Array.isArray(originalOutput) && originalOutput !== null &&
     typeof redacted === 'object' && !Array.isArray(redacted)
   ) {
-    deepUpdateObject(originalOutput, redacted as Record<string, unknown>);
-    return originalOutput;
+    const out = cloneValue(originalOutput);
+    deepUpdateObject(out, redacted as Record<string, unknown>);
+    return out;
   }
   return redacted as T;
+}
+
+export function hasGuardrailRedaction(guardrails: GuardrailsVerdict | undefined): boolean {
+  return Boolean(
+    guardrails?.redactedInput !== null &&
+      guardrails?.redactedInput !== undefined &&
+      guardrails.fieldResults?.some((field) => isRedactedStatus(field.status)),
+  );
+}
+
+export function summarizeGuardrailRedaction(
+  guardrails: GuardrailsVerdict | undefined,
+  fallback = 'OpenBox redacted sensitive fields.',
+): string {
+  const fields = guardrails?.fieldResults
+    ?.filter((field) => isRedactedStatus(field.status))
+    .map((field) => field.field)
+    .filter(Boolean);
+  if (!fields?.length) return fallback;
+
+  return `OpenBox redacted ${fields.slice(0, 4).join(', ')}${
+    fields.length > 4 ? ` and ${fields.length - 4} more ${fields.length - 4 === 1 ? 'field' : 'fields'}` : ''
+  }.`;
+}
+
+function isRedactedStatus(status: unknown): boolean {
+  return status === 'redacted' || status === 'transformed';
+}
+
+function cloneValue<T>(value: T): T {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
 }
