@@ -186,7 +186,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "commander": "^14.0.0",
-    "zod": "^3.23.0"
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
     "@ag-ui/client": ">=0.0.53",
