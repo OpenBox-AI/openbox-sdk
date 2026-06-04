@@ -479,7 +479,10 @@ export function OpenBoxGovernanceDecision({
       : verdict === 'reviewing'
       ? 'OpenBox is evaluating this request before anything executes.'
       : textValue(toolResult.reason) || scenario.reason;
-  const riskScore = typeof toolResult.riskScore === 'number' ? toolResult.riskScore : undefined;
+  const riskScore =
+    typeof toolResult.riskScore === 'number' && toolResult.riskScore > 0
+      ? toolResult.riskScore
+      : undefined;
   const trustTier = textValue(toolResult.trustTier);
   const redactionSummary = textValue(toolResult.redactionSummary);
 
