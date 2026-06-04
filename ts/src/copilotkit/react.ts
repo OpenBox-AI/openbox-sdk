@@ -584,11 +584,11 @@ export function OpenBoxActionResult({
 
   return h(
     'section',
-    { className: 'my-3 w-full max-w-xl overflow-hidden rounded-lg border border-sky-500/25 bg-[var(--background)] shadow-sm', style: rendererStyle(resolvedTheme) },
+    { className: 'my-3 w-full max-w-xl overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-sm', style: rendererStyle(resolvedTheme) },
     [
       h('div', { key: 'head', className: 'p-4 pb-3' }, [
         h('div', { key: 'row', className: 'flex items-start gap-3' }, [
-          h('div', { key: 'icon', className: 'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-sky-500/12 text-xs font-semibold text-sky-700' }, resolvedTheme.logoSrc ? h('img', { src: resolvedTheme.logoSrc, alt: '', className: 'h-9 w-9' }) : 'OB'),
+          h('div', { key: 'icon', className: 'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--secondary)] text-xs font-semibold text-[var(--muted-foreground)]' }, 'UI'),
           h('div', { key: 'copy', className: 'min-w-0 flex-1' }, [
             h('div', { key: 'title-row', className: 'flex flex-wrap items-center gap-2' }, [
               h('h3', { key: 'title', className: 'text-base font-semibold leading-6 text-[var(--foreground)]' }, title),
@@ -596,7 +596,7 @@ export function OpenBoxActionResult({
             ]),
             subtitle ? h('p', { key: 'subtitle', className: 'mt-1 text-sm text-[var(--muted-foreground)]' }, subtitle) : null,
             artifact.type === 'policy_draft'
-              ? h('p', { key: 'reason', className: 'mt-1 text-xs leading-4 text-[var(--muted-foreground)]' }, 'OpenBox checked the source context and released a customer-safe output.')
+              ? h('p', { key: 'reason', className: 'mt-1 text-xs leading-4 text-[var(--muted-foreground)]' }, 'Customer-safe draft after final release check.')
               : null,
           ]),
         ]),
