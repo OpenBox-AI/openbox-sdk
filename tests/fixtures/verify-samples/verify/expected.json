@@ -1,0 +1,34 @@
+{
+  "bad-primary.ts": {
+    "must_fire": [
+      "activity_input-must-be-array",
+      "invented-verdict",
+      "stage-both-silent-noop",
+      "missing-x-openbox-client-header",
+      "invented-activity-type",
+      "raw-approval-response-verdict",
+      "missing-finally-workflow-complete",
+      "activity-started-without-completed"
+    ]
+  },
+  "bad-conformance.ts": {
+    "must_fire": [
+      "non-canonical-event-type",
+      "span-missing-gate-attribute",
+      "id-generated-per-event-not-reused",
+      "approval-poll-unbounded",
+      "require-approval-no-hitl-enabled"
+    ]
+  },
+  "bad-self-hosted.ts": {
+    "must_fire": ["missing-x-openbox-client-header"]
+  },
+  "bad-block-comments.ts": {
+    "must_fire": ["activity_input-must-be-array"],
+    "must_fire_at_line": { "activity_input-must-be-array": 20 }
+  },
+  "clean.ts": {
+    "must_fire": [],
+    "must_not_fire_any": true
+  }
+}
