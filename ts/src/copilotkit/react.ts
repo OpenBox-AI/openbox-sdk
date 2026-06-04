@@ -949,6 +949,29 @@ function renderArtifactBody(artifact: Record<string, unknown>, toolResult: Recor
     ];
   }
 
+  const accounts = Array.isArray(artifact.accounts) ? artifact.accounts.map(parseToolResult) : undefined;
+  if (accounts?.length) {
+    return [
+      renderMetaGrid(artifact, toolResult),
+      h('div', { key: 'accounts', className: 'grid gap-2' }, accounts.map((account, index) =>
+        h('div', { key: `${account.company ?? index}`, className: 'rounded-md border border-[var(--border)] bg-[var(--secondary)] px-3 py-2.5' }, [
+          h('div', { key: 'top', className: 'flex flex-wrap items-center justify-between gap-2' }, [
+            h('div', { key: 'company', className: 'font-medium text-[var(--foreground)]' }, textValue(account.company) || `Account ${index + 1}`),
+            textValue(account.priority)
+              ? h('span', { key: 'priority', className: 'shrink-0 rounded-full border border-[var(--obx-accent,#3B9AF5)]/25 bg-[var(--obx-accent,#3B9AF5)]/10 px-2 py-0.5 text-xs text-sky-700' }, textValue(account.priority))
+              : null,
+          ]),
+          textValue(account.owner)
+            ? h('div', { key: 'owner', className: 'mt-1 text-xs text-[var(--muted-foreground)]' }, `Owner: ${textValue(account.owner)}`)
+            : null,
+          textValue(account.nextStep)
+            ? h('div', { key: 'next', className: 'mt-2 text-sm leading-5 text-[var(--foreground)]' }, textValue(account.nextStep))
+            : null,
+        ]),
+      )),
+    ];
+  }
+
   const summary = textValue(artifact.summary ?? artifact.title ?? toolResult.message ?? toolResult.reason);
   return h('div', { className: 'whitespace-pre-line rounded-md border border-[var(--border)] bg-[var(--secondary)] px-3 py-3 text-sm leading-5 text-[var(--foreground)]' }, summary || JSON.stringify(artifact, null, 2));
 }
