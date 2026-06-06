@@ -1,0 +1,35 @@
+{
+  "name": "n8n-nodes-openbox-hook",
+  "version": "0.0.1",
+  "private": true,
+  "description": "OpenBox governance node for n8n (example)",
+  "license": "MIT",
+  "main": "dist/OpenboxLlm.node.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && cp assets/OB_logomark.png dist/OB_logomark.png",
+    "smoke:load": "node -e \"require('./dist/OpenboxLlm.node.js'); console.log('node-load-ok')\""
+  },
+  "dependencies": {
+    "openbox-sdk": "file:../../.."
+  },
+  "peerDependencies": {
+    "n8n-workflow": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.41",
+    "n8n-workflow": "^1.120.13",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "form-data": "4.0.4"
+  },
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "nodes": [
+      "dist/OpenboxLlm.node.js"
+    ]
+  }
+}
