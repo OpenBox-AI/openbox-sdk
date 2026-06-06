@@ -1,0 +1,503 @@
+{
+  "name": "openbox",
+  "displayName": "OpenBox",
+  "description": "OpenBox Extension",
+  "version": "0.1.0",
+  "publisher": "openbox",
+  "icon": "media/icon.png",
+  "license": "MIT",
+  "homepage": "https://openbox.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenBox-AI/openbox-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/OpenBox-AI/openbox-sdk/issues"
+  },
+  "keywords": [
+    "ai",
+    "ai-governance",
+    "guardrails",
+    "policy",
+    "opa",
+    "approvals",
+    "hitl",
+    "agent-trace",
+    "cursor",
+    "claude-code"
+  ],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:openbox.onboard",
+    "onView:openbox.approvals",
+    "onView:openbox.history",
+    "onView:openbox.profile",
+    "onView:openbox.debugControls",
+    "onCommand:openbox.setApiKey",
+    "onCommand:openbox.openDashboard",
+    "onCommand:openbox.openWalkthrough",
+    "onCommand:openbox.reboot"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "icons": {
+      "openbox-logo": {
+        "description": "OpenBox logo",
+        "default": {
+          "fontPath": "media/openbox-icons.woff2",
+          "fontCharacter": "\\F101"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "openbox",
+          "title": "OpenBox",
+          "icon": "$(openbox-logo)"
+        }
+      ]
+    },
+    "views": {
+      "openbox": [
+        {
+          "id": "openbox.onboard",
+          "name": "Welcome",
+          "when": "openbox.needsKey"
+        },
+        {
+          "id": "openbox.approvals",
+          "name": "Pending Approvals",
+          "when": "!openbox.needsKey"
+        },
+        {
+          "id": "openbox.history",
+          "name": "History",
+          "when": "!openbox.needsKey"
+        },
+        {
+          "id": "openbox.profile",
+          "name": "Profile",
+          "when": "!openbox.needsKey"
+        },
+        {
+          "id": "openbox.debugControls",
+          "name": "Debug",
+          "when": "openbox.debug"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "openbox.approve",
+        "title": "Approve",
+        "icon": "$(check)"
+      },
+      {
+        "command": "openbox.reject",
+        "title": "Reject",
+        "icon": "$(x)"
+      },
+      {
+        "command": "openbox.refresh",
+        "title": "Refresh Approvals",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "openbox.openDetail",
+        "title": "Open Approval Detail"
+      },
+      {
+        "command": "openbox.copyDetail",
+        "title": "Copy Approval Detail"
+      },
+      {
+        "command": "openbox.search",
+        "title": "OpenBox: Search Approvals",
+        "icon": "$(search)"
+      },
+      {
+        "command": "openbox.filter",
+        "title": "OpenBox: Filter Approvals",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "openbox.filterTier",
+        "title": "OpenBox: Filter by Tier"
+      },
+      {
+        "command": "openbox.filterType",
+        "title": "OpenBox: Filter by Activity Type"
+      },
+      {
+        "command": "openbox.filterTeam",
+        "title": "OpenBox: Filter by Team"
+      },
+      {
+        "command": "openbox.filterOwner",
+        "title": "OpenBox: Filter by Owner"
+      },
+      {
+        "command": "openbox.toggleSort",
+        "title": "OpenBox: Toggle Sort Order",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "openbox.clearFilters",
+        "title": "OpenBox: Clear Filters",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "openbox.loadMore",
+        "title": "Load More Approvals"
+      },
+      {
+        "command": "openbox.setPageSize",
+        "title": "OpenBox: Set Pending List Size",
+        "icon": "$(list-selection)"
+      },
+      {
+        "command": "openbox.history.refresh",
+        "title": "Refresh History",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "openbox.history.search",
+        "title": "OpenBox: Search History",
+        "icon": "$(search)"
+      },
+      {
+        "command": "openbox.history.filter",
+        "title": "OpenBox: Filter History",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "openbox.history.filterTier",
+        "title": "OpenBox: Filter History by Tier"
+      },
+      {
+        "command": "openbox.history.filterType",
+        "title": "OpenBox: Filter History by Activity Type"
+      },
+      {
+        "command": "openbox.history.filterTeam",
+        "title": "OpenBox: Filter History by Team"
+      },
+      {
+        "command": "openbox.history.filterOwner",
+        "title": "OpenBox: Filter History by Owner"
+      },
+      {
+        "command": "openbox.history.toggleSort",
+        "title": "OpenBox: Toggle History Sort Order",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "openbox.history.clearFilters",
+        "title": "OpenBox: Clear History Filters",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "openbox.history.setStatus",
+        "title": "OpenBox: Set History Status",
+        "icon": "$(history)"
+      },
+      {
+        "command": "openbox.history.setDateRange",
+        "title": "OpenBox: Set History Date Range",
+        "icon": "$(calendar)"
+      },
+      {
+        "command": "openbox.history.loadMore",
+        "title": "Load More History"
+      },
+      {
+        "command": "openbox.history.setPageSize",
+        "title": "OpenBox: Set History List Size",
+        "icon": "$(list-selection)"
+      },
+      {
+        "command": "openbox.setApiKey",
+        "title": "OpenBox: Connect…",
+        "icon": "$(key)"
+      },
+      {
+        "command": "openbox.openDashboard",
+        "title": "OpenBox: Open Dashboard",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "openbox.clearCredentials",
+        "title": "OpenBox: Clear Connection…"
+      },
+      {
+        "command": "openbox.signOut",
+        "title": "OpenBox: Disconnect",
+        "icon": "$(sign-out)"
+      },
+      {
+        "command": "openbox.reboot",
+        "title": "OpenBox: Reload",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "openbox.openWalkthrough",
+        "title": "OpenBox: Open Getting Started"
+      },
+      {
+        "command": "openbox.showDebugInfo",
+        "title": "OpenBox: Show Debug Info",
+        "icon": "$(info)",
+        "enablement": "openbox.debug"
+      }
+    ],
+    "configuration": {
+      "title": "OpenBox",
+      "properties": {
+        "openbox.tabObserver.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Observe non-keystroke buffer mutations (Tab autocomplete accept, Cmd-K, Composer multi-file edits) and log them to the 'OpenBox: Tab Observer' output channel. Cursor does not expose hooks for these surfaces, so the observer classifies changes heuristically (size + idle timing). Off by default; turn on to inspect what the observer would report before piping to OpenBox."
+        },
+        "openbox.tabObserver.outputLog": {
+          "type": "boolean",
+          "default": true,
+          "description": "When tabObserver.enabled is true, also write each classified change to the 'OpenBox: Tab Observer' output channel. Set false to suppress that visibility; the in-process classification still runs. Has no effect when tabObserver.enabled is false."
+        },
+        "openbox.tabObserver.emitAgentTrace": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true (and openbox.tabObserver.enabled is also true), every classified non-keystroke insert appends a TraceRecord to ~/.openbox/log/agent-trace.jsonl following the cursor/agent-trace v0.1.0 RFC. Records carry contributor type (human/ai), file path, line range, and SHA-256 content hash. Lets git tools / canvas / audit pipelines that ingest the open Agent Trace format pick up OpenBox's attribution data without bespoke wiring. Has no effect when tabObserver.enabled is false."
+        },
+        "openbox.agentId": {
+          "type": "string",
+          "default": "",
+          "description": "OpenBox agent ID used by workspace policy checks. Demo setup normally configures this automatically."
+        },
+        "openbox.preWriteGate.active": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, every save calls check_governance(file_write) for the configured agent. `allow` lets the save proceed; `require_approval` blocks the save with a modal until decided; `deny` cancels the save with a notification. Network deadline is 4s under VS Code's ~5s save timeout; on timeout or network failure the gate fails open unless openbox.failClosed is set. Requires openbox.agentId."
+        },
+        "openbox.tabObserver.active": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true (and openbox.tabObserver.enabled is also true), classified non-keystroke inserts are evaluated via check_governance(file_write). Denied inserts get reverted via WorkspaceEdit and a notification is shown. UX is jarring (the insert briefly appears, then disappears); use sparingly and prefer preWriteGate.active for at-save enforcement when possible. Requires openbox.agentId."
+        },
+        "openbox.fileOpGate.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, intercepts onWillCreateFiles / onWillDeleteFiles / onWillRenameFiles and evaluates each via check_governance. Catches Composer multi-file creates and AI-driven file ops that don't route through the agent's Write tool. Requires openbox.agentId."
+        },
+        "openbox.failClosed": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, active policy checks cancel the action if OpenBox cannot be reached. Default false so transient network issues do not block the developer."
+        },
+        "openbox.strictSourceFilter": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, hide approval rows whose source cannot be resolved to the current workspace. Leave off unless you are debugging workspace isolation."
+        }
+      }
+    },
+    "viewsWelcome": [
+      {
+        "view": "openbox.onboard",
+        "contents": "Welcome to OpenBox.\n\nPaste the OpenBox key provided by your organization to start reviewing approvals.\n\n[Connect](command:openbox.setApiKey)\n[Open Dashboard](command:openbox.openDashboard)"
+      },
+      {
+        "view": "openbox.approvals",
+        "contents": "Loading…",
+        "when": "!openbox.needsKey && openbox.loading"
+      },
+      {
+        "view": "openbox.approvals",
+        "contents": "No pending approvals\n\nYou're all caught up.\n[Refresh](command:openbox.refresh)",
+        "when": "!openbox.needsKey && !openbox.loading && !openbox.hasFilters"
+      },
+      {
+        "view": "openbox.approvals",
+        "contents": "No matches\n\nTry clearing your filters.\n\n[Clear filters](command:openbox.clearFilters)",
+        "when": "!openbox.needsKey && !openbox.loading && openbox.hasFilters"
+      },
+      {
+        "view": "openbox.history",
+        "contents": "Loading…",
+        "when": "!openbox.needsKey && openbox.history.loading"
+      },
+      {
+        "view": "openbox.history",
+        "contents": "Nothing here yet\n\nDecided approvals will show up here.",
+        "when": "!openbox.needsKey && !openbox.history.loading && !openbox.history.hasFilters"
+      },
+      {
+        "view": "openbox.history",
+        "contents": "No matches\n\nTry clearing your filters.\n\n[Clear filters](command:openbox.history.clearFilters)",
+        "when": "!openbox.needsKey && !openbox.history.loading && openbox.history.hasFilters"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "openbox.showDebugInfo",
+          "when": "openbox.debug"
+        },
+        {
+          "command": "openbox.openDetail",
+          "when": "false"
+        },
+        {
+          "command": "openbox.copyDetail",
+          "when": "false"
+        },
+        {
+          "command": "openbox.loadMore",
+          "when": "false"
+        },
+        {
+          "command": "openbox.history.loadMore",
+          "when": "false"
+        },
+        {
+          "command": "openbox.setPageSize",
+          "when": "false"
+        },
+        {
+          "command": "openbox.history.setPageSize",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "openbox.search",
+          "when": "view == openbox.approvals",
+          "group": "navigation@1"
+        },
+        {
+          "command": "openbox.filter",
+          "when": "view == openbox.approvals",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openbox.toggleSort",
+          "when": "view == openbox.approvals",
+          "group": "navigation@3"
+        },
+        {
+          "command": "openbox.setPageSize",
+          "when": "view == openbox.approvals",
+          "group": "navigation@4"
+        },
+        {
+          "command": "openbox.clearFilters",
+          "when": "view == openbox.approvals && openbox.hasFilters",
+          "group": "navigation@5"
+        },
+        {
+          "command": "openbox.refresh",
+          "when": "view == openbox.approvals",
+          "group": "navigation@6"
+        },
+        {
+          "command": "openbox.history.search",
+          "when": "view == openbox.history",
+          "group": "navigation@1"
+        },
+        {
+          "command": "openbox.history.setDateRange",
+          "when": "view == openbox.history",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openbox.history.setPageSize",
+          "when": "view == openbox.history",
+          "group": "navigation@3"
+        },
+        {
+          "command": "openbox.history.filter",
+          "when": "view == openbox.history",
+          "group": "navigation@4"
+        },
+        {
+          "command": "openbox.history.toggleSort",
+          "when": "view == openbox.history",
+          "group": "navigation@5"
+        },
+        {
+          "command": "openbox.history.clearFilters",
+          "when": "view == openbox.history && openbox.history.hasFilters",
+          "group": "navigation@6"
+        },
+        {
+          "command": "openbox.history.refresh",
+          "when": "view == openbox.history",
+          "group": "navigation@7"
+        },
+        {
+          "command": "openbox.openDashboard",
+          "when": "view == openbox.profile",
+          "group": "navigation@1"
+        },
+        {
+          "command": "openbox.setApiKey",
+          "when": "view == openbox.profile",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openbox.signOut",
+          "when": "view == openbox.profile",
+          "group": "navigation@3"
+        },
+        {
+          "command": "openbox.showDebugInfo",
+          "when": "view == openbox.debugControls",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openbox.reboot",
+          "when": "view == openbox.debugControls",
+          "group": "navigation@6"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "openbox.approve",
+          "when": "viewItem == approval",
+          "group": "inline"
+        },
+        {
+          "command": "openbox.reject",
+          "when": "viewItem == approval",
+          "group": "inline"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify --define:process.env.OPENBOX_DEBUG_BUILD=\\\"false\\\"",
+    "build:dev": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --define:process.env.OPENBOX_DEBUG_BUILD=\\\"true\\\"",
+    "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --watch --define:process.env.OPENBOX_DEBUG_BUILD=\\\"true\\\"",
+    "package": "npx @vscode/vsce package --no-dependencies",
+    "package:dev": "npm run build:dev && npx @vscode/vsce package --no-dependencies",
+    "test": "cd ../.. && vitest run --project unit apps/extension/src"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.28.0",
+    "openbox-sdk": "file:../..",
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.5"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.3"
+  }
+}
