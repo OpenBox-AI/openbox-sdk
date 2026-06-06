@@ -92,11 +92,9 @@ import {
   CANONICAL_VERDICT_ARMS,
 } from '../../core-client/generated/govern.js';
 
-// Production verdict set; same as CANONICAL_VERDICT_ARMS minus
-// `constrain`, which was removed from the production wire.
-const CANONICAL_VERDICTS: ReadonlySet<string> = new Set(
-  [...CANONICAL_VERDICT_ARMS].filter((v) => v !== 'constrain'),
-);
+// Production verdict set from the spec-generated runtime. Keep this in
+// sync with Core; `constrain` is a valid allowed-but-modified verdict.
+const CANONICAL_VERDICTS: ReadonlySet<string> = CANONICAL_VERDICT_ARMS;
 
 function pickArray<T = unknown>(resp: unknown): T[] {
   if (Array.isArray(resp)) return resp as T[];

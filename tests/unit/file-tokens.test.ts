@@ -42,6 +42,22 @@ describe('file-tokens', () => {
     expect(mod.loadApiKey()).toBe('obx_key_round_trip');
   });
 
+  it('saveApiKey clears stale metadata when the key changes', async () => {
+    const mod = await loadModule();
+    mod.saveApiKey('obx_key_first');
+    fs.writeFileSync(
+      mod.getTokenPath(),
+      'API_KEY=obx_key_first\nUPDATED_AT=2026-01-01T00:00:00Z\nPERMISSIONS=read:agent\nFEATURES=sso:true\n',
+    );
+
+    mod.saveApiKey('obx_key_second');
+
+    const content = fs.readFileSync(mod.getTokenPath(), 'utf-8');
+    expect(content).toContain('API_KEY=obx_key_second');
+    expect(content).not.toContain('PERMISSIONS=');
+    expect(content).not.toContain('FEATURES=');
+  });
+
   it('OPENBOX_BACKEND_API_KEY env var wins over the file', async () => {
     const mod = await loadModule();
     mod.saveApiKey('obx_key_from_file');

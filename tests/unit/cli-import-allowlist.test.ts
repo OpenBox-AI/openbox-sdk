@@ -55,6 +55,9 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   // Per-command sibling modules; agent-audit is a separate report
   // module imported by both agent.ts (the action) and tests.
   './agent-audit.js': 'separate cross-session audit report module.',
+  './install-approver.js': 'approver bundle discovery/install logic split out of the unified install command.',
+  './install-extension.js': 'VS Code/Cursor extension discovery/install logic split out of the unified install command.',
+  './install-plan.js': 'bare install/uninstall planning and runner split out of the Commander wiring module.',
   // Unified `openbox install skill` delegates to skill.ts's
   // installSkill(); install.ts is the only commander module that
   // imports a sibling command module.

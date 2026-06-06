@@ -695,6 +695,12 @@ Same options as `approval pending`.
 ### `openbox --experimental approval decide <agentId> <eventId> <action>`
 Action must be `approve` or `reject`.
 
+This is the backend management queue path. Runtime SDK integrations that
+own the workflow should prefer `OpenBoxCoreClient.decideApproval()`
+against `/api/v1/governance/approval/decide`, using either
+`governance_event_id` or the `workflow_id` + `run_id` + `activity_id`
+tuple.
+
 ### `openbox --experimental approval describe <agentId>`
 Recipe: approval state for an agent in one call. Returns metrics,
 pending approvals, and recent approval history.
@@ -1132,7 +1138,7 @@ conforms to the OpenBox design.
 | Rule | Severity | Catches |
 |---|---|---|
 | `activity_input-must-be-array` | error | `"activity_input": {` as an object instead of `[{}]`. The #1 cause of 422s |
-| `invented-verdict` | error | `"deny"`, `"ask"`, or `"constrain"` in verdict comparison contexts |
+| `invented-verdict` | error | `"deny"` or `"ask"` in verdict comparison contexts. `constrain` is valid and must use the transformed/redacted payload |
 | `stage-both-silent-noop` | error | `--stage both` or `processing_stage: "both"`. Silently ignored |
 | `missing-x-openbox-client-header` | error | Calls to `api.openbox.ai` with no `X-Openbox-Client` header |
 | `non-canonical-event-type` | error | `event_type` outside the six canonical values: `WorkflowStarted`, `SignalReceived`, `ActivityStarted`, `ActivityCompleted`, `WorkflowCompleted`, `WorkflowFailed` |

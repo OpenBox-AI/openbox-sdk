@@ -76,9 +76,9 @@ guesses: `shell_execution`, `shell`, `tool`, `http_request`,
 | `3` | BLOCK |
 | `4` | HALT |
 
-`CONSTRAIN` value `1` is a defined enum, but the live server does not
-emit it. Document it as selectable, but expect only `allow`,
-`require_approval`, `block`, or `halt` in practice.
+`CONSTRAIN` value `1` is a real allowed-but-modified verdict. When it
+fires, continue only with the transformed/redacted payload returned by
+Core; do not use the original payload.
 
 ## `time_window`
 

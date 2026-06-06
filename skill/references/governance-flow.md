@@ -206,26 +206,27 @@ openbox --experimental guardrail create $AGENT_ID -n "Toxicity filter" --type to
 
 ## Verdict handling
 
-There are exactly four production verdicts, lowercase on the wire:
-`allow`, `require_approval`, `block`, `halt`. When writing integration
-code or documentation, always enumerate these four explicitly.
-`constrain` is defined in the spec but the live server never emits
-it, so do not add a `case "constrain":` branch.
+There are exactly five production verdicts, lowercase on the wire:
+`allow`, `constrain`, `require_approval`, `block`, `halt`. When writing
+integration code or documentation, enumerate these five explicitly.
+`constrain` is an allowed but modified path: do not use the original
+payload after it fires; continue only with the transformed/redacted
+payload returned by OpenBox.
 
 Check `response.verdict` for SDK-normalized output, or
 `response.action` for the raw wire field returned by
 `/governance/evaluate` and `/governance/approval`:
 
-- `allow`: execute the action.
+- `allow`: execute the action unchanged.
+- `constrain`: execute only with the transformed/redacted payload.
 - `require_approval`: poll the approval endpoint (see below).
 - `block`: skip the action; return reason to caller.
 - `halt`: stop everything, end session immediately, fire
   `WorkflowFailed`.
 
-Four, not five. The skill checks integration write-ups for this
-specifically because the spec-vs-implementation gap is exactly the
-kind of drift that bites users who trust the OpenAPI spec over the
-live server.
+Five, not four. The skill checks integration write-ups for this because
+LLMs often invent `deny` or `ask`, which are not OpenBox verdicts, or
+drop `constrain`, which loses redaction/transform enforcement.
 
 ## Approval polling (HITL)
 
@@ -389,14 +390,14 @@ object returns 422 on a clean translation or 500 when the rejection
 bubbles through unmapped. The fix is identical: always wrap as
 `[{...}]`.
 
-### `CONSTRAIN` verdict is never emitted
+### `CONSTRAIN` is an allowed-but-modified verdict
 
-Spec: verdicts are `ALLOW | CONSTRAIN | REQUIRE_APPROVAL | BLOCK | HALT`.
-Live: `CONSTRAIN` is defined as a placeholder for future sandbox
-enforcement, but no code path returns it. The `Constraints []string`
-response field is never populated. Active verdicts on the wire:
-`allow`, `require_approval`, `block`, `halt`. Don't branch on
-`constrain`.
+Spec and live contract: verdicts are `ALLOW | CONSTRAIN |
+REQUIRE_APPROVAL | BLOCK | HALT`. `CONSTRAIN` means the action may
+continue only with the transformed/redacted data returned by Core, such
+as `guardrails_result.redacted_input` or SDK-normalized safe payloads.
+Do not pass the original prompt, tool input, tool output, or assistant
+output through after a constrained verdict.
 
 ### `task_queue` is not a closed enum
 
@@ -404,10 +405,12 @@ Spec: `enum: [langgraph, temporal, mastra]`. Live: plain string with
 no validation. Any value is accepted. New frameworks should invent
 their own identifier.
 
-### `drift_detection_action: 'constrain'` is not implemented
+### `drift_detection_action`
 
-Spec: `enum: [alert_only, constrain, terminate]`. Live: no code path
-handles `constrain`. Use `alert_only` or `terminate` only.
+Spec and runtime: `enum: [alert_only, constrain, terminate]`.
+When AGE reports goal drift, `alert_only` records the drift and returns
+`allow`, `constrain` returns a constrained verdict, and `terminate`
+returns a halt verdict.
 
 ### `trust_tier` is an integer, not a string
 

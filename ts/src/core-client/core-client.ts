@@ -26,6 +26,8 @@ export type {
   GovernanceVerdictResponse,
   ApprovalStatusRequest,
   ApprovalStatusResponse,
+  ApprovalDecisionRequest,
+  ApprovalDecisionResponse,
 } from './generated/core-types.js';
 
 import type {
@@ -33,6 +35,8 @@ import type {
   GovernanceVerdictResponse,
   ApprovalStatusRequest,
   ApprovalStatusResponse,
+  ApprovalDecisionRequest,
+  ApprovalDecisionResponse,
 } from './generated/core-types.js';
 
 // Behavioral evaluator output. Spec keeps `AGESpanResult.behavioral_result`
@@ -142,6 +146,13 @@ export class OpenBoxCoreClient {
     return this.request('POST', '/api/v1/governance/approval', {
       data: request,
     }) as Promise<ApprovalStatusResponse>;
+  }
+
+  async decideApproval(request: ApprovalDecisionRequest): Promise<ApprovalDecisionResponse> {
+    return this.request('POST', '/api/v1/governance/approval/decide', {
+      data: request,
+      retryable: false,
+    }) as Promise<ApprovalDecisionResponse>;
   }
 
   // =========================================================================

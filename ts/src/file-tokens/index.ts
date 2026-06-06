@@ -25,10 +25,15 @@ export function loadApiKey(): string | undefined {
 export function saveApiKey(apiKey: string): void {
   const path = getTokenPath();
   const store = readTokenStore();
+  const {
+    permissions: _permissions,
+    features: _features,
+    ...storeWithoutPrincipalMetadata
+  } = store;
   writeFileSync(
     path,
     serializeTokenStore({
-      ...store,
+      ...storeWithoutPrincipalMetadata,
       apiKey,
       updatedAt: new Date().toISOString(),
     }),

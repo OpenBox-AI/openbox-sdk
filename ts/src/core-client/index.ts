@@ -27,6 +27,8 @@ export type {
   GovernanceVerdictResponse,
   ApprovalStatusRequest,
   ApprovalStatusResponse,
+  ApprovalDecisionRequest,
+  ApprovalDecisionResponse,
   BehavioralResult,
 } from './core-client.js';
 

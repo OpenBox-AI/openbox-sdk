@@ -43,9 +43,9 @@ model CoreError {
  *
  * Wire format is the lowercase string. The Go server also accepts
  * the integer form (0..4) on input for backward compatibility,
- * but always emits the string. `constrain` is reserved for a
- * sandbox-enforcement future and is not currently emitted by the
- * live server.
+ * but always emits the string. `constrain` is a valid runtime verdict
+ * for transformed or redacted data and consumers must handle it as an
+ * allowed-but-modified path.
  *
  */
 enum Verdict {
@@ -345,7 +345,7 @@ model GovernanceVerdictResponse {
   /** Set on `require_approval`; opaque ID returned to surface in approver UI. */
   approval_id?: string;
 
-  /** Set on `constrain`; sandbox enforcement hints (future). */
+  /** Set on `constrain`; enforcement hints for transformed output. */
   constraints?: string[];
 
   /** Wall-clock deadline for the approval; SDK stops polling after
@@ -463,13 +463,32 @@ model AGESpanResult {
 
 /**
  * Lookup tuple for `/governance/approval`. The server only
- * validates non-empty strings; no auth, no bearer header.
+ * validates non-empty strings after authenticating the runtime agent.
  *
  */
 model ApprovalStatusRequest {
   workflow_id: string;
   run_id: string;
   activity_id: string;
+}
+
+model ApprovalDecisionRequest {
+  /**
+   * Governance event ID returned by `/governance/evaluate`. Prefer this
+   * when the approval UI already has the decision target.
+   */
+  @format("uuid") governance_event_id?: string;
+
+  /**
+   * Fallback lookup tuple for callers that only kept workflow/activity
+   * correlation fields. Required when `governance_event_id` is absent.
+   */
+  workflow_id?: string;
+  run_id?: string;
+  activity_id?: string;
+
+  /** Human decision to apply to the pending approval. */
+  decision: "approve" | "reject";
 }
 
 model ApprovalStatusResponse {
@@ -485,6 +504,24 @@ model ApprovalStatusResponse {
    *
    */
   approval_expiration_time?: utcDateTime;
+}
+
+model ApprovalDecisionResponse {
+  /** Governance event ID. */
+  @format("uuid") id: string;
+
+  action: LegacyAction;
+  reason?: string;
+
+  /**
+   * Absent when the request hasn't entered the approval flow yet
+   * or when no expiration was set on the policy.
+   *
+   */
+  approval_expiration_time?: utcDateTime;
+
+  decided_by: string;
+  decided_at: utcDateTime;
 }
 
 /** Returns the literal string `hello world`. Used by load balancers and uptime probes. */
@@ -544,9 +581,8 @@ op evaluateGovernance(...Parameters.SdkVersionHeader, @body body: GovernanceEven
  * `(workflow_id, run_id, activity_id)`; the tuple uniquely
  * identifies the activity attempt awaiting human decision.
  *
- * This endpoint does NOT require a bearer API key; the SDK
- * (and any third-party approver UI) needs to poll for status
- * without an agent token.
+ * This endpoint uses the same runtime agent authentication as
+ * `/governance/evaluate`, so agents can only poll approvals they own.
  *
  */
 @tag("Governance")
@@ -555,6 +591,19 @@ op evaluateGovernance(...Parameters.SdkVersionHeader, @body body: GovernanceEven
 @summary("Poll approval status")
 op pollApproval(@body body: ApprovalStatusRequest): ApprovalStatusResponse | (BadRequestResponse &
   CoreError) | (NotFoundResponse & CoreError);
+
+/**
+ * Records a human approval decision for a pending approval owned by
+ * the authenticated runtime agent. `approve` maps to `allow`;
+ * `reject` maps to `halt`.
+ *
+ */
+@tag("Governance")
+@route("/api/v1/governance/approval/decide")
+@post
+@summary("Decide an approval")
+op decideApproval(@body body: ApprovalDecisionRequest): ApprovalDecisionResponse | (BadRequestResponse &
+  CoreError) | (UnauthorizedResponse & CoreError) | (NotFoundResponse & CoreError);
 
 namespace Parameters {
   model SdkVersionHeader {

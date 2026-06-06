@@ -178,50 +178,24 @@ export interface ApprovalStatusRequest {
   run_id: string;
   activity_id: string;
 }
+export interface ApprovalDecisionRequest {
+  governance_event_id?: string;
+  workflow_id?: string;
+  run_id?: string;
+  activity_id?: string;
+  decision: "approve" | "reject";
+}
 export interface ApprovalStatusResponse {
   id: string;
   action: LegacyAction;
   reason?: string;
   approval_expiration_time?: string;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+export interface ApprovalDecisionResponse {
+  id: string;
+  action: LegacyAction;
+  reason?: string;
+  approval_expiration_time?: string;
+  decided_by: string;
+  decided_at: string;
+}

@@ -196,6 +196,7 @@ describe('agent-audit', () => {
                 activity_id: 'dup',
                 activity_type: 'CustomType',
                 activity_input: [],
+                verdict: 'constrain',
               },
               {
                 event_type: 'ActivityCompleted',

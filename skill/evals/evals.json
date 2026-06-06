@@ -10,27 +10,27 @@
         { "text": "uses an officially supported OpenBox SDK where one exists, and when none exists for the language or framework explicitly says so, e.g. 'no first-party Autogen SDK; building a custom Python client', citing `references/existing-sdks.md` or equivalent; does not silently invent an SDK import path" },
         { "text": "shows `openbox --experimental agent create` with the required `-t <teamId>` flag" },
         { "text": "retrieves teamId at runtime via `openbox auth profile` or `openbox --experimental team list <orgId>`; no hardcoded UUIDs" },
-        { "text": "lists exactly the four production verdicts (`allow`, `require_approval`, `block`, `halt`) and notes that `constrain` is defined in the spec but NOT emitted by the live server (see `references/governance-flow.md` § Spec vs Implementation Mismatches)" },
+        { "text": "lists exactly the five production verdicts (`allow`, `constrain`, `require_approval`, `block`, `halt`) and notes that `constrain` must continue only with the transformed/redacted payload returned by OpenBox" },
         { "text": "notes `activity_input` must be an ARRAY, not an object; even when wrapping a single payload" },
         { "text": "shows `--stage 0` (input) or `--stage 1` (output) for guardrail creation and warns that `--stage both` is silently ignored by the guardrails service" },
         { "text": "uses CLI `openbox --experimental core evaluate` for governance smoke-testing, not a custom HTTP script" },
-        { "text": "does NOT invent verdict values outside {`allow`, `require_approval`, `block`, `halt`}; rejects `deny`, `ask`, and similar hallucinated enum names" },
+        { "text": "does NOT invent verdict values outside {`allow`, `constrain`, `require_approval`, `block`, `halt`}; rejects `deny`, `ask`, and similar hallucinated enum names" },
         { "text": "emits `WorkflowCompleted`/`WorkflowFailed` and matching `ActivityCompleted` events from a `finally`/`except` block so governance closes on both success AND failure/exception paths; not only on the happy path" }
       ]
     },
     {
       "id": 2,
       "prompt": "I'm building with the Vercel AI SDK and want to add OpenBox governance before any tool calls execute. How do I intercept tool invocations, evaluate them through OpenBox, and handle the different verdicts?",
-      "expected_output": "Vercel AI SDK tool middleware pattern wrapping govern() from openbox-sdk. Handles all four production verdicts. CLI setup shown.",
+      "expected_output": "Vercel AI SDK tool middleware pattern wrapping govern() from openbox-sdk. Handles all five production verdicts. CLI setup shown.",
       "files": [],
       "assertions": [
         { "text": "uses the Vercel AI SDK's `tool()` API as the integration point, not a bespoke wrapper around it" },
         { "text": "imports from `openbox-sdk`, installed via `npm install openbox-sdk@github:OpenBox-AI/openbox-sdk` (the real install command; not a placeholder like `./openbox-client`)" },
-        { "text": "handles the four production verdicts (`allow`, `require_approval`, `block`, `halt`) with distinct flows, AND correctly notes `constrain` is not emitted by the live server" },
+        { "text": "handles the five production verdicts (`allow`, `constrain`, `require_approval`, `block`, `halt`) with distinct flows, including continuing only with transformed/redacted payloads on `constrain`" },
         { "text": "for REQUIRE_APPROVAL, shows polling via the SDK's HITL helpers or `openbox --experimental approval pending`/`decide` CLI; does not invent throw-and-resume patterns with no backing" },
         { "text": "includes CLI setup: agent create with `-t`, guardrails with `--stage 0` (input) or `--stage 1` (output), explicit warning that `--stage both` silently disables the guardrail" },
         { "text": "if the response references trust scoring, treats `final_trust_score` as an object with fields like `trust_score` / `trust_tier` (per the AGEResult schema); must not read it as a scalar. If the response ignores trust scoring entirely, note that in evidence (not automatic pass)" },
-        { "text": "does NOT invent verdict values outside the four production names" }
+        { "text": "does NOT invent verdict values outside the five production names" }
       ]
     },
     {

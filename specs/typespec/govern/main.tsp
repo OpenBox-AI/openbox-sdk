@@ -260,8 +260,8 @@ enum ActivityStage {
   post: "post",
 }
 
-/** Four arms emitted by the live core. `constrain` is in the spec for
- *  forward compatibility but never appears on the wire today. */
+/** Five arms emitted by the live core. `constrain` means the action is
+ *  allowed only with the transformed/redacted payload returned by Core. */
 enum VerdictArm {
   allow: "allow",
   constrain: "constrain",

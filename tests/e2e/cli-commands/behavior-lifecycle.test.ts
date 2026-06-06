@@ -39,11 +39,7 @@ describeOrSkip('behavior lifecycle (e2e, real backend)', () => {
     expect(res.stdout).toContain('llm_tool_call');
   });
 
-  // SKIP: pending upstream fix for X-API-Key behavior-rule create.
-  // The backend writes `created_by: user.email`, which is undefined
-  // under api-key auth and violates a NOT NULL column. Re-enable
-  // once the upstream patch lands.
-  it.skip('`behavior create` creates an http_get allow rule', () => {
+  it('`behavior create` creates an http_get allow rule', () => {
     const res = runCli([
       'behavior', 'create', agentId!,
       '-n', 'rate-limit-http',
@@ -60,31 +56,33 @@ describeOrSkip('behavior lifecycle (e2e, real backend)', () => {
     expect(ruleId).toBeTruthy();
   });
 
-  // Skipped; depends on `behavior create` ruleId. Same upstream bug.
-  it.skip('`behavior list` returns the new rule', () => {
+  it('`behavior list` returns the new rule', () => {
     const res = runCli(['behavior', 'list', agentId!, '--limit', '50']);
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain(ruleId!);
   });
 
-  // Skipped; depends on `behavior create` ruleId. Same upstream bug.
-  it.skip('`behavior current` includes the active rule', () => {
+  it('`behavior current` includes the active rule', () => {
     const res = runCli(['behavior', 'current', agentId!]);
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain(ruleId!);
   });
 
-  // Skipped; depends on `behavior create` ruleId. Same upstream bug.
-  it.skip('`behavior get` returns the rule detail', () => {
+  it('`behavior get` returns the rule detail', () => {
     const res = runCli(['behavior', 'get', agentId!, ruleId!]);
     expect(res.status, res.stderr).toBe(0);
     const body = JSON.parse(res.stdout);
     expect(body.id).toBe(ruleId);
   });
 
-  // Skipped; depends on `behavior create` ruleId. Same upstream bug.
-  it.skip('`behavior toggle --active false` toggles it off', () => {
+  it('`behavior toggle --active false` toggles it off', () => {
     const res = runCli(['behavior', 'toggle', agentId!, ruleId!, '--active', 'false']);
     expect(res.status, res.stderr).toBe(0);
+  });
+
+  it('`behavior delete` removes the rule', () => {
+    const res = runCli(['behavior', 'delete', agentId!, ruleId!]);
+    expect(res.status, res.stderr).toBe(0);
+    ruleId = undefined;
   });
 });

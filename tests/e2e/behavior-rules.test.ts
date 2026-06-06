@@ -3,8 +3,11 @@ import { getBackendClient, fullResponse, getTeamIds } from '../helpers/api-clien
 import { trackResource, cleanupAll } from '../helpers/cleanup';
 import { makeCreateAgentDto, makeCreateBehaviorRuleDto } from '../helpers/fixtures';
 
-describe('Behavior Rules', () => {
-  const client = getBackendClient();
+const CAN_RUN = !!process.env.OPENBOX_BACKEND_API_KEY && !!process.env.OPENBOX_ORG_ID;
+const describeOrSkip = CAN_RUN ? describe : describe.skip;
+
+describeOrSkip('Behavior Rules', () => {
+  let client: ReturnType<typeof getBackendClient>;
   let agentId: string;
   let ruleId: string;
   let ruleName: string;
@@ -12,6 +15,7 @@ describe('Behavior Rules', () => {
   let ruleDto: ReturnType<typeof makeCreateBehaviorRuleDto>;
 
   beforeAll(async () => {
+    client = getBackendClient();
     teamIds = await getTeamIds();
 
     const dto = makeCreateAgentDto(teamIds);
@@ -37,30 +41,7 @@ describe('Behavior Rules', () => {
     expect(types).toEqual(expect.arrayContaining(['http_get', 'database_select']));
   });
 
-  // SKIPPED; backend bug: NOT NULL violation on
-  //   agent_behavior_rules.created_by under X-API-Key auth.
-  //
-  // Symptom: HTTP 500 with
-  //   `null value in column "created_by" of relation
-  //    "agent_behavior_rules" violates not-null constraint`
-  //
-  // Root cause: backend handler populates created_by from
-  //   `req.user.id`. JWT auth fills it with the human user UUID;
-  //   X-API-Key auth populates `req.user.sub = "api-key:<id>"` and
-  //   leaves `req.user.id` undefined, so the INSERT runs with NULL.
-  //
-  // Fix direction (backend, not here): coalesce; when the
-  //   authenticated principal is X-API-Key, write a stable system
-  //   UUID (or the api-key's owner_id) to audit columns instead of
-  //   attempting `req.user.id`. Same fix unblocks
-  //   agent_trust_scores_history.evaluated_by (aivss.test.ts) and
-  //   the policy create path (policies.test.ts).
-  //
-  // The next 6 tests all chain through the create's ruleId, so
-  //   they skip together; behavior/{metrics,violations} read-paths
-  //   above stay active and exercise the same agent_id without
-  //   needing a created rule.
-  it.skip('creates behavior rule', async () => {
+  it('creates behavior rule', async () => {
     ruleDto = makeCreateBehaviorRuleDto();
     ruleName = ruleDto.rule_name;
 
@@ -79,7 +60,7 @@ describe('Behavior Rules', () => {
     trackResource({ type: 'behavior-rule', id: ruleId, agentId });
   });
 
-  it.skip('lists behavior rules', async () => {
+  it('lists behavior rules', async () => {
     const response = await client.get(`/agent/${agentId}/behavior-rule`);
     const body = fullResponse(response);
 
@@ -97,7 +78,7 @@ describe('Behavior Rules', () => {
     expect(body.status).toBe(200);
   });
 
-  it.skip('gets rule by ID', async () => {
+  it('gets rule by ID', async () => {
     const response = await client.get(`/agent/${agentId}/behavior-rule/${ruleId}`);
     const body = fullResponse(response);
 
@@ -105,7 +86,7 @@ describe('Behavior Rules', () => {
     expect(body.data.rule_name).toBe(ruleName);
   });
 
-  it.skip('updates rule', async () => {
+  it('updates rule', async () => {
     const updateDto = {
       ...ruleDto,
       change_log: 'E2E update test',
@@ -117,7 +98,7 @@ describe('Behavior Rules', () => {
     expect(body.status).toBe(200);
   });
 
-  it.skip('toggles rule status', async () => {
+  it('toggles rule status', async () => {
     const response = await client.put(`/agent/${agentId}/behavior-rule/${ruleId}/status`, {
       is_active: false,
     });
@@ -140,7 +121,7 @@ describe('Behavior Rules', () => {
     expect(body.status).toBe(200);
   });
 
-  it.skip('deletes rule', async () => {
+  it('deletes rule', async () => {
     const response = await client.delete(`/agent/${agentId}/behavior-rule/${ruleId}`);
     const body = fullResponse(response);
 

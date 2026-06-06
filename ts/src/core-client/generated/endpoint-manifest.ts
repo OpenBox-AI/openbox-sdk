@@ -31,6 +31,12 @@ export const CORE_ENDPOINT_MANIFEST = [
     "path": "/api/v1/governance/approval",
     "verb": "post",
     "pathPattern": "/api/v1/governance/approval"
+  },
+  {
+    "operationId": "decideApproval",
+    "path": "/api/v1/governance/approval/decide",
+    "verb": "post",
+    "pathPattern": "/api/v1/governance/approval/decide"
   }
 ] as const;
 export type CoreEndpointManifestEntry = (typeof CORE_ENDPOINT_MANIFEST)[number];

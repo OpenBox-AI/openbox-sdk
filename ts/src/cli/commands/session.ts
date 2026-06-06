@@ -45,12 +45,9 @@ type EventLog = {
 
 type InspectFinding = { level: 'ok' | 'info' | 'warn' | 'fail'; message: string };
 
-// Production verdict set. Same as CANONICAL_VERDICT_ARMS minus
-// `constrain` (removed from the production wire; any `constrain` on
-// the wire today is a stale SDK or hand-rolled client).
-const CANONICAL_VERDICTS: ReadonlySet<string> = new Set(
-  [...CANONICAL_VERDICT_ARMS].filter((v) => v !== 'constrain'),
-);
+// Production verdict set from the spec-generated runtime. `constrain`
+// is valid and means the caller must use OpenBox's transformed output.
+const CANONICAL_VERDICTS: ReadonlySet<string> = CANONICAL_VERDICT_ARMS;
 
 export function inspectEvents(events: EventLog[]): InspectFinding[] {
   const findings: InspectFinding[] = [];
@@ -123,7 +120,7 @@ export function inspectEvents(events: EventLog[]): InspectFinding[] {
     findings.push({ level: 'info', message: lines.join('\n  ') });
   }
 
-  if (badVerdicts.size > 0) findings.push({ level: 'fail', message: `non-canonical verdict(s): ${[...badVerdicts].join(', ')}; must be allow|require_approval|block|halt` });
+  if (badVerdicts.size > 0) findings.push({ level: 'fail', message: `non-canonical verdict(s): ${[...badVerdicts].join(', ')}; must be allow|constrain|require_approval|block|halt` });
   if (badActivityInput > 0) findings.push({ level: 'fail', message: `${badActivityInput} event(s) have activity_input that is not an array (must be an array per governance-flow.md)` });
 
   return findings;

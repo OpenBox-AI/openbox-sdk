@@ -1,0 +1,328 @@
+import type { OpenBoxCoreClient } from '../core-client/core-client.js';
+import type { WorkflowVerdict } from '../core-client/index.js';
+import { OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION } from './constants.js';
+
+export type OpenBoxCopilotVerdictStatus =
+  | 'executed'
+  | 'constrained'
+  | 'blocked'
+  | 'halted'
+  | 'session_halted'
+  | 'approval_required'
+  | 'rejected'
+  | 'approval_pending'
+  | 'error';
+
+export type OpenBoxCopilotSessionState =
+  | { status: 'active' }
+  | {
+      status: 'halted';
+      reason: string;
+      haltedAt: string;
+      workflowId?: string;
+      runId?: string;
+      activityId?: string;
+    };
+
+export interface OpenBoxCopilotActionInput {
+  action: string;
+  request: string;
+  destination?: string;
+  amountUsd?: number;
+  fields?: string[];
+  audience?: string;
+  sensitivity?: string;
+  [key: string]: unknown;
+}
+
+export interface OpenBoxCopilotResumeInput extends OpenBoxCopilotActionInput {
+  workflowId: string;
+  runId: string;
+  activityId: string;
+  approvalId?: string;
+  governanceEventId?: string;
+  approved?: boolean;
+}
+
+export interface OpenBoxCopilotActionResult<TArtifact = unknown> {
+  schemaVersion: typeof OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION;
+  status: OpenBoxCopilotVerdictStatus;
+  verdict: WorkflowVerdict['arm'];
+  executed: boolean;
+  action: string;
+  request: string;
+  destination: string | null;
+  amountUsd: number | null;
+  fields: string[] | null;
+  audience: string | null;
+  sensitivity: string | null;
+  reason: string;
+  message: string;
+  riskScore?: number;
+  trustTier?: string | number;
+  guardrailsResult?: WorkflowVerdict['guardrailsResult'];
+  redactionSummary?: string;
+  artifact?: TArtifact;
+  workflowId?: string;
+  runId?: string;
+  activityId?: string;
+  approvalId?: string;
+  governanceEventId?: string;
+  expiresAt?: string;
+  session?: OpenBoxCopilotSessionState;
+  [key: string]: unknown;
+}
+
+export interface OpenBoxCopilotKitConfig {
+  enabled?: boolean;
+  strict?: boolean;
+  governanceMode?: 'observe' | 'enforce';
+  failClosed?: boolean;
+  redactionMode?: 'transformed-only';
+  core?: OpenBoxCoreClient;
+  /** Core runtime URL. Defaults to OPENBOX_CORE_URL. */
+  coreUrl?: string;
+  /** Runtime agent key used for Core governance. Defaults to OPENBOX_API_KEY. */
+  apiKey?: string;
+  /**
+   * Optional platform/backend URL for read-only inventory checks and the
+   * legacy approval fallback. Runtime governance does not require it.
+   */
+  apiUrl?: string;
+  /**
+   * Optional platform/backend key for read-only inventory checks and the
+   * legacy approval fallback. Runtime governance does not require it.
+   */
+  backendApiKey?: string;
+  /** @deprecated Use backendApiKey or OPENBOX_BACKEND_API_KEY. */
+  platformApiKey?: string;
+  /**
+   * Optional platform agent ID for read-only inventory checks and the
+   * legacy approval fallback. Runtime governance does not require it.
+   */
+  agentId?: string;
+  clientName?: string;
+  workflowType?: string;
+  agentWorkflowType?: string;
+  taskQueue?: string;
+  selfGovernedToolNames?: Iterable<string>;
+}
+
+export interface OpenBoxCopilotRuntimeConfig {
+  runtime: Record<string, any>;
+  runner?: OpenBoxCopilotAgentRunnerLike;
+  adapter?: OpenBoxCopilotKitAdapter;
+  agents?: string[];
+  finalOutputMode?: 'buffer';
+  sessionKey?: (input: OpenBoxCopilotRunInputLike) => string;
+}
+
+export interface OpenBoxCopilotRuntime {
+  runtime: Record<string, any>;
+  runner: OpenBoxCopilotAgentRunnerLike;
+  hooks: {
+    onBeforeHandler(
+      ctx: OpenBoxCopilotRuntimeHookContext,
+    ): Promise<Request | void>;
+    onResponse(
+      ctx: OpenBoxCopilotRuntimeResponseHookContext,
+    ): Promise<Response | void>;
+    onError(
+      ctx: OpenBoxCopilotRuntimeErrorHookContext,
+    ): Promise<Response | void>;
+  };
+}
+
+export interface OpenBoxCopilotRuntimeHookContext {
+  request: Request;
+  path: string;
+  runtime: Record<string, any>;
+  route?: { method?: string; agentId?: string; [key: string]: unknown };
+}
+
+export interface OpenBoxCopilotRuntimeResponseHookContext extends OpenBoxCopilotRuntimeHookContext {
+  response: Response;
+}
+
+export interface OpenBoxCopilotRuntimeErrorHookContext extends OpenBoxCopilotRuntimeHookContext {
+  error: unknown;
+}
+
+export interface OpenBoxCopilotAgentRunnerLike {
+  run(request: OpenBoxCopilotRunnerRunRequest): OpenBoxCopilotObservableLike;
+  connect?(request: unknown): unknown;
+  isRunning?(request: unknown): Promise<boolean>;
+  stop?(request: unknown): Promise<boolean | undefined>;
+}
+
+export interface OpenBoxCopilotRunnerRunRequest {
+  threadId: string;
+  agent: unknown;
+  input: OpenBoxCopilotRunInputLike;
+  [key: string]: unknown;
+}
+
+export interface OpenBoxCopilotRunInputLike {
+  threadId: string;
+  runId?: string;
+  messages?: Array<Record<string, any>>;
+  state?: unknown;
+  [key: string]: unknown;
+}
+
+export interface OpenBoxCopilotObservableLike {
+  subscribe(
+    observerOrNext?: unknown,
+    error?: unknown,
+    complete?: unknown,
+  ): unknown;
+  [key: string]: unknown;
+}
+
+export interface OpenBoxCopilotLangChainMiddlewareDeps {
+  createMiddleware: (definition: any) => unknown;
+  AIMessage: new (message: any) => unknown;
+  routeLatestUserPrompt?: (
+    messages: unknown[],
+  ) => OpenBoxCopilotPromptRoute | undefined;
+}
+
+export interface OpenBoxCopilotPromptRoute {
+  toolName: string;
+  args: Record<string, unknown>;
+}
+
+export type OpenBoxCopilotGateKind =
+  | 'prompt'
+  | 'tool_input'
+  | 'tool_output'
+  | 'assistant_output';
+
+export interface OpenBoxSafePayload<T = unknown> {
+  safe: T;
+  verdict: WorkflowVerdict;
+  status: OpenBoxCopilotVerdictStatus;
+  changed: boolean;
+  rawBlocked: boolean;
+  reason: string;
+  message: string;
+  redactionSummary?: string;
+  workflowId: string;
+  runId: string;
+  activityId: string;
+  session?: OpenBoxCopilotSessionState;
+}
+
+export interface OpenBoxCopilotGateInput<T = unknown> {
+  payload: T;
+  sessionKey?: string;
+  workflowId?: string;
+  runId?: string;
+  activityId?: string;
+  activityType?: string;
+  reason?: string;
+  ensureWorkflowStarted?: boolean;
+}
+
+export interface GovernedCopilotToolDefinition<
+  TInput extends OpenBoxCopilotActionInput = OpenBoxCopilotActionInput,
+  TArtifact = unknown,
+> {
+  adapter: OpenBoxCopilotKitAdapter;
+  toolName: string;
+  description?: string;
+  normalizeInput?: (input: TInput) => TInput;
+  execute: (input: TInput) => Promise<TArtifact> | TArtifact;
+  isArtifactRedacted?: (artifact: TArtifact | undefined) => boolean;
+  markArtifactRedacted?: (artifact: TArtifact) => TArtifact;
+  sessionKey?: (config?: unknown) => string;
+}
+
+export interface OpenBoxApprovalDecisionRequest {
+  governanceEventId?: string;
+  workflowId?: string;
+  runId?: string;
+  activityId?: string;
+  decision: 'approve' | 'reject';
+}
+
+export interface OpenBoxApprovalDecisionResult {
+  ok: true;
+  decision: 'approve' | 'reject';
+  eventId?: string;
+}
+
+export class OpenBoxCopilotKitError extends Error {
+  readonly verdict?: WorkflowVerdict;
+
+  constructor(message: string, verdict?: WorkflowVerdict) {
+    super(message);
+    this.name = 'OpenBoxCopilotKitError';
+    this.verdict = verdict;
+  }
+}
+
+export interface OpenBoxCopilotKitAdapter {
+  isEnabled(): boolean;
+  getCoreClient(): OpenBoxCoreClient;
+  wrapAgent<TAgent>(agent: TAgent): TAgent;
+  createLangChainMiddleware(
+    deps: OpenBoxCopilotLangChainMiddlewareDeps,
+  ): unknown;
+  governPrompt<T = unknown>(
+    input: OpenBoxCopilotGateInput<T>,
+  ): Promise<OpenBoxSafePayload<T>>;
+  governToolInput<T = unknown>(
+    input: OpenBoxCopilotGateInput<T>,
+  ): Promise<OpenBoxSafePayload<T>>;
+  governToolOutput<T = unknown>(
+    input: OpenBoxCopilotGateInput<T>,
+  ): Promise<OpenBoxSafePayload<T>>;
+  governAssistantOutput<T = unknown>(
+    input: OpenBoxCopilotGateInput<T>,
+  ): Promise<OpenBoxSafePayload<T>>;
+  applyOpenBoxTransform<T = unknown>(original: T, verdict: WorkflowVerdict): T;
+  toOpenBoxCopilotResult<T = unknown>(
+    verdict: WorkflowVerdict,
+    safePayload: OpenBoxSafePayload<T>,
+  ): OpenBoxCopilotActionResult<T>;
+  haltSession(
+    sessionKey: string,
+    session: Extract<OpenBoxCopilotSessionState, { status: 'halted' }>,
+  ): void;
+  isSessionHalted(
+    sessionKey: string,
+  ): Extract<OpenBoxCopilotSessionState, { status: 'halted' }> | undefined;
+  governTool<TInput extends OpenBoxCopilotActionInput, TArtifact>(
+    definition: Omit<
+      GovernedCopilotToolDefinition<TInput, TArtifact>,
+      'adapter'
+    >,
+  ): GovernedCopilotTool<TInput, TArtifact>;
+  approvalRoute: {
+    decide(
+      request: OpenBoxApprovalDecisionRequest,
+    ): Promise<OpenBoxApprovalDecisionResult>;
+  };
+  rendering: {
+    governedToolNames: string[];
+    approvalToolName: string;
+    interactiveToolName: string;
+    isGovernedToolResult(value: unknown): boolean;
+    parseToolResult(value: unknown): Record<string, unknown>;
+  };
+}
+
+export interface GovernedCopilotTool<
+  TInput extends OpenBoxCopilotActionInput = OpenBoxCopilotActionInput,
+  TArtifact = unknown,
+> {
+  execute(
+    input: TInput,
+    config?: unknown,
+  ): Promise<OpenBoxCopilotActionResult<TArtifact>>;
+  resume(
+    input: TInput & OpenBoxCopilotResumeInput,
+    config?: unknown,
+  ): Promise<OpenBoxCopilotActionResult<TArtifact>>;
+}

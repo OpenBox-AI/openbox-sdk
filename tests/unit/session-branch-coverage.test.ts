@@ -38,7 +38,7 @@ describe('session command branch coverage', () => {
         activity_id: 'a1',
         activity_type: 'PromptSubmission',
         activity_input: [{ prompt: 'hi' }],
-        action: 'block',
+        action: 'constrain',
       },
       {
         event_type: 'WorkflowCompleted',

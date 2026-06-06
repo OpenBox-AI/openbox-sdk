@@ -61,11 +61,32 @@ export interface paths {
          *     `(workflow_id, run_id, activity_id)`; the tuple uniquely
          *     identifies the activity attempt awaiting human decision.
          *
-         *     This endpoint does NOT require a bearer API key; the SDK
-         *     (and any third-party approver UI) needs to poll for status
-         *     without an agent token.
+         *     This endpoint uses the same runtime agent authentication as
+         *     `/governance/evaluate`, so agents can only poll approvals they own.
          */
         post: operations["pollApproval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/governance/approval/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide an approval
+         * @description Records a human approval decision for a pending approval owned by
+         *     the authenticated runtime agent. `approve` maps to `allow`;
+         *     `reject` maps to `halt`.
+         */
+        post: operations["decideApproval"];
         delete?: never;
         options?: never;
         head?: never;
@@ -178,9 +199,47 @@ export interface components {
             environment: "live" | "test" | "unknown";
             message: string;
         };
+        ApprovalDecisionRequest: {
+            /**
+             * Format: uuid
+             * @description Governance event ID returned by `/governance/evaluate`. Prefer this
+             *     when the approval UI already has the decision target.
+             */
+            governance_event_id?: string;
+            /**
+             * @description Fallback lookup tuple for callers that only kept workflow/activity
+             *     correlation fields. Required when `governance_event_id` is absent.
+             */
+            workflow_id?: string;
+            run_id?: string;
+            activity_id?: string;
+            /**
+             * @description Human decision to apply to the pending approval.
+             * @enum {string}
+             */
+            decision: "approve" | "reject";
+        };
+        ApprovalDecisionResponse: {
+            /**
+             * Format: uuid
+             * @description Governance event ID.
+             */
+            id: string;
+            action: components["schemas"]["LegacyAction"];
+            reason?: string;
+            /**
+             * Format: date-time
+             * @description Absent when the request hasn't entered the approval flow yet
+             *     or when no expiration was set on the policy.
+             */
+            approval_expiration_time?: string;
+            decided_by: string;
+            /** Format: date-time */
+            decided_at: string;
+        };
         /**
          * @description Lookup tuple for `/governance/approval`. The server only
-         *     validates non-empty strings; no auth, no bearer header.
+         *     validates non-empty strings after authenticating the runtime agent.
          */
         ApprovalStatusRequest: {
             workflow_id: string;
@@ -339,7 +398,7 @@ export interface components {
             behavioral_violations?: string[];
             /** @description Set on `require_approval`; opaque ID returned to surface in approver UI. */
             approval_id?: string;
-            /** @description Set on `constrain`; sandbox enforcement hints (future). */
+            /** @description Set on `constrain`; enforcement hints for transformed output. */
             constraints?: string[];
             /**
              * Format: date-time
@@ -521,9 +580,9 @@ export interface components {
          *
          *     Wire format is the lowercase string. The Go server also accepts
          *     the integer form (0..4) on input for backward compatibility,
-         *     but always emits the string. `constrain` is reserved for a
-         *     sandbox-enforcement future and is not currently emitted by the
-         *     live server.
+         *     but always emits the string. `constrain` is a valid runtime verdict
+         *     for transformed or redacted data and consumers must handle it as an
+         *     allowed-but-modified path.
          * @enum {string}
          */
         Verdict: "allow" | "constrain" | "require_approval" | "block" | "halt";
@@ -612,6 +671,57 @@ export interface operations {
             };
             /** @description The server could not understand the request due to invalid syntax. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoreError"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoreError"];
+                };
+            };
+        };
+    };
+    decideApproval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApprovalDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalDecisionResponse"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoreError"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -99,6 +99,30 @@ describe('client/client.ts; 429 + auth-error paths', () => {
   });
 });
 
+describe('cli/index.ts; import side effects', () => {
+  it('can be imported without executing the CLI parser', async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const stderrWrite = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const exit = vi.spyOn(process, 'exit').mockImplementation(((code?: string | number | null) => {
+      throw new Error(`unexpected process.exit(${String(code)})`);
+    }) as never);
+
+    try {
+      const mod = await import('../../ts/src/cli/index');
+
+      expect(typeof mod.runOpenBoxCli).toBe('function');
+      expect(typeof mod.program).toBe('object');
+      expect(exit).not.toHaveBeenCalled();
+      expect(stdoutWrite).not.toHaveBeenCalled();
+      expect(stderrWrite).not.toHaveBeenCalled();
+    } finally {
+      stdoutWrite.mockRestore();
+      stderrWrite.mockRestore();
+      exit.mockRestore();
+    }
+  });
+});
+
 describe('validators; every uncovered branch', () => {
   it('validateActivitiesConfig accepts well-shaped activities', async () => {
     const mod: any = await import('../../ts/src/validators');

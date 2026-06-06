@@ -109,7 +109,7 @@ openbox install <target>                  # install one of the supported clients
 #   claude-code   Claude Code hook integration
 #   mcp           MCP server entry for Claude Desktop / Cursor / Claude Code
 #   skill         SKILL.md content for Claude Code / Cursor
-#   mobile        iOS App Store link (placeholder)
+#   mobile        iOS approver beta status
 openbox uninstall <target>                # mirror of install
 
 # Per-scope install. `cursor` and `claude-code` accept `--scope`
@@ -147,6 +147,8 @@ exhaustive source for every exported support surface.
 | `openbox-sdk/runtime/claude-code` | Claude Code hook adapter |
 | `openbox-sdk/runtime/cursor` | Cursor hook adapter |
 | `openbox-sdk/runtime/mcp` | MCP server runtime |
+| `openbox-sdk/copilotkit` | CopilotKit runtime adapter, governed tools, approval route |
+| `openbox-sdk/copilotkit/react` | CopilotKit React hooks and OpenBox renderers |
 
 ## License
 

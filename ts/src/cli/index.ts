@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import type { CommanderError } from 'commander';
 import { loadFeatures, loadPermissions } from './config.js';
@@ -49,15 +50,20 @@ import { EXIT, bailWith } from './exit-codes.js';
 import { error } from './output.js';
 import { reportAndExit } from '../validators/index.js';
 
-const program = new Command();
+export const program = new Command();
+let commandTreeConfigured = false;
+let activeArgv = process.argv;
 
 function packageVersion(): string {
   for (const rel of ['../../package.json', '../../../package.json']) {
     try {
-      const pkg = JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8')) as {
+      const pkg = JSON.parse(
+        readFileSync(new URL(rel, import.meta.url), 'utf8'),
+      ) as {
         version?: unknown;
       };
-      if (typeof pkg.version === 'string' && pkg.version.length > 0) return pkg.version;
+      if (typeof pkg.version === 'string' && pkg.version.length > 0)
+        return pkg.version;
     } catch {
       // Try the next layout: bundled dist first, source tree second.
     }
@@ -87,7 +93,7 @@ function packageVersion(): string {
  *  so an unknown verb doesn't poison the path. */
 function deepestRegisteredPath(): string | null {
   const VALUE_FLAGS = new Set(['--feature']);
-  const argv = process.argv.slice(2);
+  const argv = activeArgv.slice(2);
   // Strip global value-flags + value, and bail at the first flag.
   const positionals: string[] = [];
   for (let i = 0; i < argv.length; i++) {
@@ -122,9 +128,7 @@ function emitCommanderError(err: CommanderError): void {
       // "too many arguments for 'install'. Expected 0 arguments but got 1."
       // Most often the user thought a positional was a subcommand.
       const cmd = m.match(/for '([^']+)'/)?.[1];
-      const positionals = process.argv
-        .slice(2)
-        .filter((a) => !a.startsWith('-'));
+      const positionals = activeArgv.slice(2).filter((a) => !a.startsWith('-'));
       const extra = positionals[positionals.length - 1];
       if (cmd && extra && extra !== cmd) {
         error(`'${extra}' is not a subcommand of '${cmd}'`, {
@@ -217,7 +221,7 @@ program
   .version(packageVersion())
   .option(
     '--experimental',
-    "Reveal experimental subcommands. Equivalent to OPENBOX_EXPERIMENTAL_LEVEL=experimental. Coarse gate; controls whole subcommands.",
+    'Reveal experimental subcommands. Equivalent to OPENBOX_EXPERIMENTAL_LEVEL=experimental. Coarse gate; controls whole subcommands.',
   )
   .option(
     '--feature <name...>',
@@ -231,9 +235,18 @@ program
     '--non-interactive',
     'Hard-fail instead of prompting on missing input. Implied by CI=1 or OPENBOX_NONINTERACTIVE=1.',
   )
-  .option('--no-color', 'Disable ANSI color output. Implied by NO_COLOR=1, OPENBOX_NO_COLOR=1, or CI=1')
-  .option('-q, --quiet', 'Suppress non-essential progress lines on stderr (errors still print)')
-  .option('--json', 'Emit machine-readable JSON instead of human-rendered output')
+  .option(
+    '--no-color',
+    'Disable ANSI color output. Implied by NO_COLOR=1, OPENBOX_NO_COLOR=1, or CI=1',
+  )
+  .option(
+    '-q, --quiet',
+    'Suppress non-essential progress lines on stderr (errors still print)',
+  )
+  .option(
+    '--json',
+    'Emit machine-readable JSON instead of human-rendered output',
+  )
   .hook('preAction', (thisCommand, actionCommand) => {
     const commandPath = buildCommandKey(actionCommand);
     applyEnvSource();
@@ -247,7 +260,9 @@ program
         if (missingF.length > 0) {
           error(
             `feature disabled for \`openbox ${commandPath}\`: ${missingF.join(', ')}`,
-            { help: `ask your admin to enable the feature for the active OpenBox connection` },
+            {
+              help: `ask your admin to enable the feature for the active OpenBox connection`,
+            },
           );
           bailWith(EXIT.FEATURE_DISABLED);
         }
@@ -314,100 +329,127 @@ registerVersionsCommand(program);
 registerWebhookCommands(program);
 registerSsoCommands(program);
 
-// Pre-scan global flags BEFORE gating + parse; commander's --help is
-// printed during parseAsync, by which time the command tree has to
-// already reflect the user's --experimental / --feature opt-ins.
-{
-  const argv = process.argv;
+function isCliEntrypoint(): boolean {
+  const entrypoint = process.argv[1];
+  if (!entrypoint) return false;
+  const modulePath = fileURLToPath(import.meta.url);
+  try {
+    return realpathSync(modulePath) === realpathSync(entrypoint);
+  } catch {
+    return modulePath === entrypoint;
+  }
+}
+
+function configureCommandTree(argv: string[]): void {
+  if (commandTreeConfigured) return;
+
+  // Pre-scan global flags BEFORE gating + parse; commander's --help is
+  // printed during parseAsync, by which time the command tree has to
+  // already reflect the user's --experimental / --feature opt-ins.
   if (argv.includes('--experimental')) setMaturityOverride('experimental');
   const features: string[] = [];
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--feature' && i + 1 < argv.length) features.push(argv[i + 1]);
+    if (argv[i] === '--feature' && i + 1 < argv.length)
+      features.push(argv[i + 1]);
   }
   if (features.length) setExplicitFeatures(features);
+
+  // Walk the registered command tree and remove anything not visible at
+  // the current maturity level. Mark visible-but-non-stable commands
+  // with [experimental] / [beta] in their description so users can see
+  // the maturity at a glance without further filtering.
+  gateCommands(program);
+
+  // Apply uniform error handling across the (now-final) command tree.
+  // Must run AFTER gateCommands so subcommands removed by maturity
+  // gating don't get touched. exitOverride and configureOutput are
+  // per-command, not inherited; we walk the tree once.
+  applyUniformErrorHandling(program);
+  commandTreeConfigured = true;
 }
 
-// Walk the registered command tree and remove anything not visible at
-// the current maturity level. Mark visible-but-non-stable commands
-// with [experimental] / [beta] in their description so users can see
-// the maturity at a glance without further filtering.
-gateCommands(program);
+export async function runOpenBoxCli(
+  argv: string[] = process.argv,
+): Promise<void> {
+  activeArgv = argv;
+  configureCommandTree(argv);
 
-// Apply uniform error handling across the (now-final) command tree.
-// Must run AFTER gateCommands so subcommands removed by maturity
-// gating don't get touched. exitOverride and configureOutput are
-// per-command, not inherited; we walk the tree once.
-applyUniformErrorHandling(program);
-
-// `openbox` (no args) defaults to printing help instead of silently
-// exiting. Mirrors `cargo` / `gh`; bare invocation is informational.
-if (process.argv.length === 2) {
-  program.outputHelp();
-  bailWith(EXIT.OK);
-}
-
-// Pre-flight check: if the user typed a command that's gated behind
-// `--experimental` without passing the flag, commander would emit a
-// bare `error: unknown command '<verb>'`. That message is misleading -
-// the verb DOES exist, it's just hidden at the current maturity level.
-// LLMs (and humans) who see "unknown command 'agent'" tend to invent
-// explanations like "slim build" instead of trying --experimental.
-// Print a tighter, accurate error when we detect this case.
-{
-  // Walk argv past the top-level flags (and their values) to find the
-  // first real verb. Top-level flags that take a value: --feature.
-  // Top-level boolean flags: --experimental, --yes, -y, --non-interactive,
-  // --no-color, -q, --quiet, --json, -V, --version, -h, --help. Any
-  // unknown -... flag is treated as boolean conservatively (we'd rather
-  // miss the hint than fire it at the wrong token).
-  const VALUE_FLAGS = new Set(['--feature']);
-  const argv = process.argv.slice(2);
-  let firstVerb: string | undefined;
-  let positionalStart = -1;
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a.startsWith('-')) {
-      if (VALUE_FLAGS.has(a)) i++; // skip the value too
-      continue;
-    }
-    firstVerb = a;
-    positionalStart = i;
-    break;
+  // `openbox` (no args) defaults to printing help instead of silently
+  // exiting. Mirrors `cargo` / `gh`; bare invocation is informational.
+  if (argv.length === 2) {
+    program.outputHelp();
+    bailWith(EXIT.OK);
   }
-  if (firstVerb && !argv.includes('--experimental')) {
-    // Only fire the experimental-hint when the verb is EXPLICITLY
-    // listed in the spec's COMMAND_MATURITY table. Without this
-    // check, `maturityOf(unlisted)` defaults to 'experimental' and
-    // a genuine typo (`openbox bogus`) would get pointed at
-    // --experimental instead of "unknown command". The conservative
-    // gating-time default still applies elsewhere; this check is
-    // about user-facing diagnostic accuracy.
-    const fullPath = argv
-      .slice(positionalStart)
-      .filter((a) => !a.startsWith('-'))
-      .join(' ');
-    const explicitlyExperimental =
-      (COMMAND_MATURITY[firstVerb] === 'experimental' ||
-        COMMAND_MATURITY[fullPath] === 'experimental') &&
-      // Plus the conservative gating-default still classifies it as
-      // experimental so we don't fire on anything the spec hides.
-      maturityOf(firstVerb) === 'experimental';
-    // Fire only when the verb isn't currently registered (gated out)
-    // AND it's known-experimental in the spec. Otherwise commander's
-    // own `unknown command` is the right error.
-    const knownToCommander = program.commands.some((c) => c.name() === firstVerb);
-    if (explicitlyExperimental && !knownToCommander) {
-      error(`\`${firstVerb}\` is an experimental command`, {
-        help:
-          `re-run with --experimental:\n` +
-          `  openbox --experimental ${argv.join(' ')}\n` +
-          'or set OPENBOX_EXPERIMENTAL_LEVEL=experimental in your shell',
-      });
-      bailWith(EXIT.USAGE);
+
+  // Pre-flight check: if the user typed a command that's gated behind
+  // `--experimental` without passing the flag, commander would emit a
+  // bare `error: unknown command '<verb>'`. That message is misleading -
+  // the verb DOES exist, it's just hidden at the current maturity level.
+  // LLMs (and humans) who see "unknown command 'agent'" tend to invent
+  // explanations like "slim build" instead of trying --experimental.
+  // Print a tighter, accurate error when we detect this case.
+  {
+    // Walk argv past the top-level flags (and their values) to find the
+    // first real verb. Top-level flags that take a value: --feature.
+    // Top-level boolean flags: --experimental, --yes, -y, --non-interactive,
+    // --no-color, -q, --quiet, --json, -V, --version, -h, --help. Any
+    // unknown -... flag is treated as boolean conservatively (we'd rather
+    // miss the hint than fire it at the wrong token).
+    const VALUE_FLAGS = new Set(['--feature']);
+    const args = argv.slice(2);
+    let firstVerb: string | undefined;
+    let positionalStart = -1;
+    for (let i = 0; i < args.length; i++) {
+      const a = args[i];
+      if (a.startsWith('-')) {
+        if (VALUE_FLAGS.has(a)) i++; // skip the value too
+        continue;
+      }
+      firstVerb = a;
+      positionalStart = i;
+      break;
+    }
+    if (firstVerb && !args.includes('--experimental')) {
+      // Only fire the experimental-hint when the verb is EXPLICITLY
+      // listed in the spec's COMMAND_MATURITY table. Without this
+      // check, `maturityOf(unlisted)` defaults to 'experimental' and
+      // a genuine typo (`openbox bogus`) would get pointed at
+      // --experimental instead of "unknown command". The conservative
+      // gating-time default still applies elsewhere; this check is
+      // about user-facing diagnostic accuracy.
+      const fullPath = args
+        .slice(positionalStart)
+        .filter((a) => !a.startsWith('-'))
+        .join(' ');
+      const explicitlyExperimental =
+        (COMMAND_MATURITY[firstVerb] === 'experimental' ||
+          COMMAND_MATURITY[fullPath] === 'experimental') &&
+        // Plus the conservative gating-default still classifies it as
+        // experimental so we don't fire on anything the spec hides.
+        maturityOf(firstVerb) === 'experimental';
+      // Fire only when the verb isn't currently registered (gated out)
+      // AND it's known-experimental in the spec. Otherwise commander's
+      // own `unknown command` is the right error.
+      const knownToCommander = program.commands.some(
+        (c) => c.name() === firstVerb,
+      );
+      if (explicitlyExperimental && !knownToCommander) {
+        error(`\`${firstVerb}\` is an experimental command`, {
+          help:
+            `re-run with --experimental:\n` +
+            `  openbox --experimental ${args.join(' ')}\n` +
+            'or set OPENBOX_EXPERIMENTAL_LEVEL=experimental in your shell',
+        });
+        bailWith(EXIT.USAGE);
+      }
     }
   }
+
+  await program.parseAsync(argv).catch((err) => {
+    reportAndExit(err);
+  });
 }
 
-await program.parseAsync(process.argv).catch((err) => {
-  reportAndExit(err);
-});
+if (isCliEntrypoint()) {
+  await runOpenBoxCli();
+}

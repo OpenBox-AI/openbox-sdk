@@ -30,6 +30,8 @@ import { parseTokenStore } from '../ts/src/env/index';
 
 const DEFAULT_API_URL = 'http://localhost:3000';
 const DEFAULT_CORE_URL = 'http://localhost:8086';
+const UNIT_DEFAULT_API_URL = 'http://localhost:18080';
+const UNIT_DEFAULT_CORE_URL = 'http://localhost:18081';
 const E2E_AGENT_NAME = 'e2e-agent';
 const RUNTIME_KEY_PREFIX = /^obx_(test|live)_/;
 const BACKEND_KEY_PREFIX = /^obx_key_/;
@@ -41,8 +43,12 @@ interface AgentKeyRecord {
 }
 
 function populateUrls(): void {
-  if (!process.env.OPENBOX_API_URL) process.env.OPENBOX_API_URL = DEFAULT_API_URL;
-  if (!process.env.OPENBOX_CORE_URL) process.env.OPENBOX_CORE_URL = DEFAULT_CORE_URL;
+  if (!process.env.OPENBOX_API_URL || process.env.OPENBOX_API_URL === UNIT_DEFAULT_API_URL) {
+    process.env.OPENBOX_API_URL = DEFAULT_API_URL;
+  }
+  if (!process.env.OPENBOX_CORE_URL || process.env.OPENBOX_CORE_URL === UNIT_DEFAULT_CORE_URL) {
+    process.env.OPENBOX_CORE_URL = DEFAULT_CORE_URL;
+  }
 }
 
 function unlockExperimentalCli(): void {
@@ -72,11 +78,8 @@ function loadBackendKey(): void {
   if (!tokensPath) return;
 
   const store = parseTokenStore(readFileSync(tokensPath, 'utf-8'));
-  for (const entry of Object.values(store)) {
-    if (entry?.apiKey && BACKEND_KEY_PREFIX.test(entry.apiKey)) {
-      process.env.OPENBOX_BACKEND_API_KEY = entry.apiKey;
-      return;
-    }
+  if (store.apiKey && BACKEND_KEY_PREFIX.test(store.apiKey)) {
+    process.env.OPENBOX_BACKEND_API_KEY = store.apiKey;
   }
 }
 

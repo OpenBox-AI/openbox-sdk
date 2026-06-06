@@ -47,7 +47,7 @@ Public sub-paths:
 |---|---|
 | `openbox-sdk` | Root re-exports of the most common surfaces |
 | `openbox-sdk/client` | `OpenBoxClient`, the backend management API for agents, teams, guardrails, and the rest |
-| `openbox-sdk/core-client` | `OpenBoxCoreClient` for the core API: evaluate, approval polling. Also `govern()`, `govern.attach()`, typed preset Sessions, redaction helpers |
+| `openbox-sdk/core-client` | `OpenBoxCoreClient` for the core API: evaluate, approval polling, and approval decisions. Also `govern()`, `govern.attach()`, typed preset Sessions, redaction helpers |
 | `openbox-sdk/env` | `resolveConnection`, `parseTokenStore`, `resolveClientName`, URL/key bindings |
 | `openbox-sdk/os-paths` | Node-only path resolver. Kept off `/env` for React Native |
 | `openbox-sdk/types` | Hand-curated DTOs and the auto-generated `Backend` and `Core` namespaces |

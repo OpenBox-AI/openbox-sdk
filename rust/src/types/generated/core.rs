@@ -10,9 +10,9 @@ use serde::{Deserialize, Serialize};
 /// 
 /// Wire format is the lowercase string. The Go server also accepts
 /// the integer form (0..4) on input for backward compatibility,
-/// but always emits the string. `constrain` is reserved for a
-/// sandbox-enforcement future and is not currently emitted by the
-/// live server.
+/// but always emits the string. `constrain` is a valid runtime verdict
+/// for transformed or redacted data and consumers must handle it as an
+/// allowed-but-modified path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Verdict {
@@ -315,7 +315,7 @@ pub struct GovernanceVerdictResponse {
     /// Set on `require_approval`; opaque ID returned to surface in approver UI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approval_id: Option<String>,
-    /// Set on `constrain`; sandbox enforcement hints (future).
+    /// Set on `constrain`; enforcement hints for transformed output.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub constraints: Option<Vec<String>>,
     /// Wall-clock deadline for the approval; SDK stops polling after
@@ -432,12 +432,30 @@ pub struct AGEAlignmentResult {
 }
 
 /// Lookup tuple for `/governance/approval`. The server only
-/// validates non-empty strings; no auth, no bearer header.
+/// validates non-empty strings after authenticating the runtime agent.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApprovalStatusRequest {
     pub workflow_id: String,
     pub run_id: String,
     pub activity_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApprovalDecisionRequest {
+    /// Governance event ID returned by `/governance/evaluate`. Prefer this
+    /// when the approval UI already has the decision target.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub governance_event_id: Option<String>,
+    /// Fallback lookup tuple for callers that only kept workflow/activity
+    /// correlation fields. Required when `governance_event_id` is absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workflow_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity_id: Option<String>,
+    /// Human decision to apply to the pending approval.
+    pub decision: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -451,4 +469,19 @@ pub struct ApprovalStatusResponse {
     /// or when no expiration was set on the policy.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approval_expiration_time: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApprovalDecisionResponse {
+    /// Governance event ID.
+    pub id: String,
+    pub action: LegacyAction,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Absent when the request hasn't entered the approval flow yet
+    /// or when no expiration was set on the policy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval_expiration_time: Option<String>,
+    pub decided_by: String,
+    pub decided_at: String,
 }

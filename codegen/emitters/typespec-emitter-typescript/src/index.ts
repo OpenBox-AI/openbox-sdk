@@ -108,6 +108,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   trimTrailingBlankLines([
     resolvePath(repoRoot, 'ts', 'src', 'cli', 'generated', 'cli-bindings.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'cli', 'generated', 'cli-maturity.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'core-types.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'env', 'generated', 'env-bindings.ts'),
   ]);
 }

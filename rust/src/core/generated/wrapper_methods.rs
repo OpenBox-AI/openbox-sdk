@@ -42,10 +42,16 @@ impl OpenBoxCoreClient {
     /// `(workflow_id, run_id, activity_id)`; the tuple uniquely
     /// identifies the activity attempt awaiting human decision.
     /// 
-    /// This endpoint does NOT require a bearer API key; the SDK
-    /// (and any third-party approver UI) needs to poll for status
-    /// without an agent token.
+    /// This endpoint uses the same runtime agent authentication as
+    /// `/governance/evaluate`, so agents can only poll approvals they own.
     pub async fn poll_approval(&self, body: &ApprovalStatusRequest) -> Result<ApprovalStatusResponse, ApiError> {
         self.request_post("/api/v1/governance/approval", Some(body), None::<&serde_json::Value>).await
+    }
+
+    /// Records a human approval decision for a pending approval owned by
+    /// the authenticated runtime agent. `approve` maps to `allow`;
+    /// `reject` maps to `halt`.
+    pub async fn decide_approval(&self, body: &ApprovalDecisionRequest) -> Result<ApprovalDecisionResponse, ApiError> {
+        self.request_post("/api/v1/governance/approval/decide", Some(body), None::<&serde_json::Value>).await
     }
 }

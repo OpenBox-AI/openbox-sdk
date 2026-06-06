@@ -108,15 +108,15 @@ const rules: Rule[] = [
   {
     name: 'invented-verdict',
     severity: 'error',
-    message: 'Invented verdict string. The four production verdicts are `allow`, `require_approval`, `block`, `halt`. `deny`/`ask`/`constrain` are not emitted by the live server.',
-    fix: 'Use one of the four production verdicts. `constrain` is defined in the spec but never returned; remove it from switch statements.',
+    message: 'Invented verdict string. The production verdicts are `allow`, `constrain`, `require_approval`, `block`, `halt`. `deny` and `ask` are not OpenBox verdicts.',
+    fix: 'Use one of the five production verdicts. For `constrain`, continue only with the transformed/redacted payload returned by OpenBox.',
     appliesTo: () => true,
     detect: (_content, lines) => {
       // Only flag in verdict-comparison contexts. Tightened from the original
       // which matched ", " and "(" as triggers; too broad; caught normal English
       // usage of "deny"/"ask" in unrelated prose. Now requires the string to be
       // next to a comparison operator (===, ==, case) or inside a verdict field.
-      const re = /(verdict|decision|action)\s*[:=]\s*["'](deny|ask|constrain)["']|case\s+["'](deny|ask|constrain)["']|(===|==)\s*["'](deny|ask|constrain)["']/;
+      const re = /(verdict|decision|action)\s*[:=]\s*["'](deny|ask)["']|case\s+["'](deny|ask)["']|(===|==)\s*["'](deny|ask)["']/;
       return matchLines(lines, re);
     },
   },

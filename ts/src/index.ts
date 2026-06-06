@@ -44,4 +44,6 @@ export {
   type ActivityStage,
   type CanonicalEventType,
   type CanonicalVerdict,
+  type ApprovalDecisionRequest,
+  type ApprovalDecisionResponse,
 } from './core-client/index.js';

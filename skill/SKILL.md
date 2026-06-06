@@ -438,10 +438,11 @@ wrong, run `--help`.
 Agent (any framework) → Core API (core.openbox.ai) → governance pipeline → verdict
 ```
 
-**Four verdicts, lowercase in JSON:** `allow`, `require_approval`,
-`block`, `halt`. `constrain` is defined in the OpenAPI spec but the
-live server does not emit it. Do not branch on it. Core also returns a
-legacy `action` field mirroring `verdict`.
+**Five verdicts, lowercase in JSON:** `allow`, `constrain`,
+`require_approval`, `block`, `halt`. `constrain` is an allowed but
+modified path; integrations must continue only with the transformed or
+redacted payload returned by OpenBox. Core also returns a legacy
+`action` field mirroring `verdict`.
 
 | API | Host | Auth | Purpose |
 |-----|------|------|---------|
