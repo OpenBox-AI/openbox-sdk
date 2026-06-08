@@ -1,0 +1,111 @@
+{
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "command": "openbox cursor hook",
+        "timeout": 1800
+      }
+    ],
+    "beforeReadFile": [
+      {
+        "command": "openbox cursor hook",
+        "timeout": 1800
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "openbox cursor hook",
+        "timeout": 1800
+      }
+    ],
+    "beforeMCPExecution": [
+      {
+        "command": "openbox cursor hook",
+        "timeout": 1800
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "openbox cursor hook",
+        "timeout": 1800
+      }
+    ],
+    "afterAgentResponse": [
+      {
+        "command": "openbox cursor hook"
+      }
+    ],
+    "afterAgentThought": [
+      {
+        "command": "openbox cursor hook"
+      }
+    ],
+    "afterShellExecution": [
+      {
+        "command": "openbox cursor hook"
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "openbox cursor hook"
+      }
+    ],
+    "afterMCPExecution": [
+      {
+        "command": "openbox cursor hook"
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "openbox cursor hook"
+      }
+    ],
+    "postToolUseFailure": [
+      {
+        "command": "openbox cursor hook"
+      }
+    ],
+    "sessionStart": [
+      {
+        "command": "openbox cursor hook"
+      }
+    ],
+    "stop": [
+      {
+        "command": "openbox cursor hook"
+      }
+    ],
+    "beforeTabFileRead": [
+      {
+        "command": "openbox cursor hook",
+        "timeout": 1800
+      }
+    ],
+    "afterTabFileEdit": [
+      {
+        "command": "openbox cursor hook"
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "openbox cursor hook"
+      }
+    ],
+    "preCompact": [
+      {
+        "command": "openbox cursor hook"
+      }
+    ],
+    "subagentStart": [
+      {
+        "command": "openbox cursor hook",
+        "timeout": 1800
+      }
+    ],
+    "subagentStop": [
+      {
+        "command": "openbox cursor hook"
+      }
+    ]
+  }
+}
