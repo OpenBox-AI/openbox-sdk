@@ -1,0 +1,147 @@
+# Spec-driven codegen pipeline check.
+#
+# TypeSpec sources at specs/typespec/ are the source of truth. The
+# emitters under codegen/emitters/ produce generated artifacts under
+# ts/src/**/generated/ and specs/generated/. Drift between the
+# committed generated files and a fresh re-emit is a build break.
+
+name: Codegen Pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - "specs/**"
+      - "codegen/**"
+      - "ts/**"
+      - ".github/workflows/codegen.yml"
+
+jobs:
+  compile-and-snapshot:
+    name: TypeSpec compile + emitter snapshots
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The root `prepare` lifecycle runs `npm run build` (needed so
+      # github-URL consumers like the mobile app get a built dist/
+      # after `npm install`). On ubuntu-latest the default Node heap
+      # runs out partway through; bumping `--max-old-space-size` to
+      # 4 GiB keeps the build inside the runner's memory budget.
+      - run: npm ci
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Build TypeSpec libraries + TS emitter
+        run: npm run build:codegen
+
+      - name: Compile TypeSpec sources
+        run: npx tsp compile specs/typespec
+
+      - name: Regenerate hand-written types from emitted OpenAPI
+        run: npm run generate:types
+
+      - name: Assert no uncommitted codegen drift
+        run: |
+          # Anything generated/* is reproducible from the .tsp + .json
+          # sources, so a diff means someone forgot to run the pipeline.
+          if ! git diff --quiet --exit-code -- ts/ specs/generated/; then
+            echo "::error::Generated code is out of sync with sources."
+            echo ""
+            echo "Run \`npm run specs:all\` locally and commit the diff."
+            git diff --stat -- ts/ specs/generated/
+            exit 1
+          fi
+
+      - name: Lint generated/ banners
+        run: npm run lint:generated-banners
+
+      - name: Run unit tests (covers emitter snapshots)
+        run: npm run test:unit
+
+  spec-lint:
+    name: Lint emitted OpenAPI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The root `prepare` lifecycle runs `npm run build` (needed so
+      # github-URL consumers like the mobile app get a built dist/
+      # after `npm install`). On ubuntu-latest the default Node heap
+      # runs out partway through; bumping `--max-old-space-size` to
+      # 4 GiB keeps the build inside the runner's memory budget.
+      - run: npm ci
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+      - name: Compile specs
+        run: npm run specs:compile
+
+      - name: Spectral lint
+        # Spectral catches OpenAPI authoring smells like missing
+        # operationIds and untyped responses on top of TypeSpec's
+        # compile errors. The ruleset is pinned via local .spectral.yaml,
+        # which extends spectral:oas.
+        run: npx --yes @stoplight/spectral-cli lint specs/generated/openapi3/*.json
+
+  spec-diff:
+    name: Breaking-change detection
+    runs-on: ubuntu-latest
+    # Optic compares the head's emitted spec against main. The drift workflow will
+    # post the diff onto the PR; for now the job just runs and reports.
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The root `prepare` lifecycle runs `npm run build` (needed so
+      # github-URL consumers like the mobile app get a built dist/
+      # after `npm install`). On ubuntu-latest the default Node heap
+      # runs out partway through; bumping `--max-old-space-size` to
+      # 4 GiB keeps the build inside the runner's memory budget.
+      - run: npm ci
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+      - name: Compile head spec
+        run: npm run specs:compile
+
+      - name: Save head spec
+        run: |
+          mkdir -p /tmp/openbox-spec-head
+          cp specs/generated/openapi3/*.json /tmp/openbox-spec-head/
+
+      - name: Compile main spec
+        run: |
+          git fetch origin main
+          git checkout origin/main -- specs/typespec codegen
+          npm run specs:compile || true
+
+      - name: Save base spec
+        run: |
+          mkdir -p /tmp/openbox-spec-base
+          cp specs/generated/openapi3/*.json /tmp/openbox-spec-base/ 2>/dev/null || true
+
+      - name: Optic diff
+        run: |
+          npx --yes @useoptic/optic@latest diff \
+            /tmp/openbox-spec-head/OpenboxBackend.json \
+            --base /tmp/openbox-spec-base/OpenboxBackend.json \
+            --check || true
