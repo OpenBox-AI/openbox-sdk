@@ -91,6 +91,42 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(node).not.toBeNull();
   });
 
+  it('renders OpenBox assistant tool-call snapshots through the React custom message renderer', () => {
+    const renderer = createOpenBoxCustomMessageRenderer();
+    const Render = renderer.render as (props: Record<string, unknown>) => unknown;
+
+    const node = Render({
+      position: 'before',
+      message: {
+        role: 'assistant',
+        toolCalls: [
+          {
+            id: 'tool-call-1',
+            type: 'function',
+            function: { name: 'openbox_governed_action' },
+          },
+        ],
+      },
+      stateSnapshot: {
+        messages: [
+          {
+            type: 'tool',
+            tool_call_id: 'tool-call-1',
+            content: JSON.stringify({
+              schemaVersion: 'openbox.copilotkit.result.v1',
+              action: 'open_revenue_queue',
+              request: 'Open revenue queue',
+              status: 'executed',
+              verdict: 'allow',
+            }),
+          },
+        ],
+      },
+    });
+
+    expect(node).not.toBeNull();
+  });
+
   it('ignores non-OpenBox tool messages in the React custom message renderer', () => {
     const renderer = createOpenBoxCustomMessageRenderer();
     const Render = renderer.render as (props: Record<string, unknown>) => unknown;
