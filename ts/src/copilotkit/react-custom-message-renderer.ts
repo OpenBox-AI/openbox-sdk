@@ -8,7 +8,7 @@ import type { OpenBoxDefaultRenderOptions } from './react-types.js';
 
 export interface OpenBoxCustomMessageRenderer {
   agentId?: string;
-  render: React.ComponentType<Record<string, unknown>> | null;
+  render: React.ComponentType<any> | null;
 }
 
 export interface OpenBoxCustomMessageRendererOptions

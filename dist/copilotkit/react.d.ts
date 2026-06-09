@@ -88,7 +88,7 @@ declare function createOpenBoxApprovalClient(config?: {
 
 interface OpenBoxCustomMessageRenderer {
     agentId?: string;
-    render: React.ComponentType<Record<string, unknown>> | null;
+    render: React.ComponentType<any> | null;
 }
 interface OpenBoxCustomMessageRendererOptions extends OpenBoxDefaultRenderOptions {
     agentId?: string;
