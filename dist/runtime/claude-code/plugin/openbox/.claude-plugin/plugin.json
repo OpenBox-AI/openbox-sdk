@@ -1,0 +1,30 @@
+{
+  "name": "openbox",
+  "displayName": "OpenBox AI Governance",
+  "version": "0.1.0",
+  "description": "Active governance for Claude Code: prompt gates, tool gates, policy checks, guardrails, approvals, MCP tools, skills, and agent templates.",
+  "author": {
+    "name": "OpenBox AI",
+    "email": "team@openbox.ai"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/OpenBox-AI/openbox-sdk#readme",
+  "repository": "https://github.com/OpenBox-AI/openbox-sdk",
+  "keywords": [
+    "openbox",
+    "ai-governance",
+    "claude-code",
+    "guardrails",
+    "policy",
+    "opa",
+    "approvals",
+    "hitl",
+    "agent-trace",
+    "behavior-rules",
+    "skill",
+    "mcp",
+    "hooks",
+    "agents",
+    "commands"
+  ]
+}

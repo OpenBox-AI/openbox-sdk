@@ -1,0 +1,52 @@
+{
+  "skill_name": "openbox",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "We're running Microsoft Autogen agents in production and need to wire in OpenBox for compliance. Our agents do HTTP calls, database queries, and LLM completions. How do I instrument them to send governance events and handle the verdicts?",
+      "expected_output": "Walks through OpenBox setup via CLI, event-payload construction per activity type, verdict handling, and testing. Uses first-party SDK paths where they exist; and when none exists for the stack (as is the case for Autogen/Python), explicitly acknowledges the gap and documents a workaround client rather than silently inventing one.",
+      "files": [],
+      "assertions": [
+        { "text": "uses an officially supported OpenBox SDK where one exists, and when none exists for the language or framework explicitly says so, e.g. 'no first-party Autogen SDK; building a custom Python client', citing `references/existing-sdks.md` or equivalent; does not silently invent an SDK import path" },
+        { "text": "uses the dashboard or `openbox api backend AgentController_createAgent` with required team data" },
+        { "text": "retrieves org/team data at runtime through backend API operation IDs; no hardcoded UUIDs" },
+        { "text": "lists exactly the five production verdicts (`allow`, `constrain`, `require_approval`, `block`, `halt`) and notes that `constrain` must continue only with the transformed/redacted payload returned by OpenBox" },
+        { "text": "notes `activity_input` must be an ARRAY, not an object; even when wrapping a single payload" },
+        { "text": "explains input-stage versus output-stage guardrail configuration without recommending removed generated CRUD commands" },
+        { "text": "uses `openbox api core evaluateGovernance` or `openbox-sdk/core-client` for governance smoke-testing, not a custom HTTP script" },
+        { "text": "does NOT invent verdict values outside {`allow`, `constrain`, `require_approval`, `block`, `halt`}; rejects `deny`, `ask`, and similar hallucinated enum names" },
+        { "text": "emits `WorkflowCompleted`/`WorkflowFailed` and matching `ActivityCompleted` events from a `finally`/`except` block so governance closes on both success AND failure/exception paths; not only on the happy path" }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I'm building with the Vercel AI SDK and want to add OpenBox governance before any tool calls execute. How do I intercept tool invocations, evaluate them through OpenBox, and handle the different verdicts?",
+      "expected_output": "Vercel AI SDK tool middleware pattern wrapping govern() from openbox-sdk. Handles all five production verdicts. CLI setup shown.",
+      "files": [],
+      "assertions": [
+        { "text": "uses the Vercel AI SDK's `tool()` API as the integration point, not a bespoke wrapper around it" },
+        { "text": "imports from `openbox-sdk`, installed via `npm install openbox-sdk@github:OpenBox-AI/openbox-sdk` (the real install command; not a placeholder like `./openbox-client`)" },
+        { "text": "handles the five production verdicts (`allow`, `constrain`, `require_approval`, `block`, `halt`) with distinct flows, including continuing only with transformed/redacted payloads on `constrain`" },
+        { "text": "for REQUIRE_APPROVAL, shows SDK HITL helpers, Core approval polling, or generated backend approval decision operation IDs; does not invent throw-and-resume patterns with no backing" },
+        { "text": "includes setup through the dashboard or generated backend operation IDs and explains input-stage versus output-stage guardrails" },
+        { "text": "if the response references trust scoring, treats `final_trust_score` as an object with fields like `trust_score` / `trust_tier` (per the AGEResult schema); must not read it as a scalar. If the response ignores trust scoring entirely, note that in evidence (not automatic pass)" },
+        { "text": "does NOT invent verdict values outside the five production names" }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I have a Haystack pipeline with retrieval and generation components. I want to add OpenBox governance so every LLM call and tool use gets evaluated. How should I structure the integration?",
+      "expected_output": "Custom Haystack @component wrappers integrating the OpenBox governance lifecycle. Proper event types. CLI setup + testing. Acknowledges the lack of a first-party Haystack SDK.",
+      "files": [],
+      "assertions": [
+        { "text": "builds custom Haystack `@component` wrappers rather than modifying Haystack internals" },
+        { "text": "uses canonical past-tense `activity_type` values such as `PromptSubmission`, `LLMCompleted`, `ToolCompleted`, `FileRead`, `ShellExecution`, `MCPToolCall`; NOT invented names like `LLMCompletion` or `ToolInvocation`. Does NOT treat `ActivityCompleted` as an activity_type. It is an event_type; confusing the two is a category error called out in `references/governance-flow.md`" },
+        { "text": "emits both ActivityStarted (input stage) and ActivityCompleted (output stage); not only output; because output-stage guardrails (`--stage 1`) only fire on ActivityCompleted" },
+        { "text": "shows agent setup through dashboard or generated backend operation IDs and smoke-testing with `openbox api core evaluateGovernance`" },
+        { "text": "explicitly acknowledges no first-party Haystack SDK exists and documents the workaround client path rather than silently inventing one; ideally referencing `references/existing-sdks.md`" },
+        { "text": "does NOT invent verdict values outside {`allow`, `require_approval`, `block`, `halt`}" },
+        { "text": "if the integration goes through raw HTTP (not an SDK), approval polling reads `.action` from the `/governance/approval` response; the SDK normalizes to `.verdict` but the wire field is `action`. If using the SDK, the response is read via `.verdict`; whichever path, the code does NOT accidentally mix them" }
+      ]
+    }
+  ]
+}

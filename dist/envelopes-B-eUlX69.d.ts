@@ -1,0 +1,43 @@
+interface ClaudeCodeEnvelope {
+    hook_event_name: string;
+    session_id: string;
+    tool_name?: string;
+    tool_input?: unknown;
+    tool_output?: unknown;
+    tool_use_id?: string;
+    cwd?: string;
+    transcript_path?: string;
+    prompt?: string;
+    model?: string;
+    agent_id?: string;
+    agent_type?: string;
+    permission_mode?: string;
+    permission_suggestions?: unknown;
+}
+interface CursorEnvelope {
+    hook_event_name: string;
+    conversation_id: string;
+    generation_id?: string;
+    prompt?: string;
+    file_path?: string;
+    command?: string;
+    cwd?: string;
+    tool_name?: string;
+    tool_input?: unknown;
+    tool_output?: unknown;
+    thought?: string;
+    response?: string;
+    content?: string;
+    result_json?: string;
+    workspace_roots?: string[];
+    subagent_model?: string;
+    tool_call_id?: string;
+    subagent_id?: string;
+    subagent_type?: string;
+    task?: string;
+    parent_conversation_id?: string;
+    is_parallel_worker?: boolean;
+    git_branch?: string;
+}
+
+export type { ClaudeCodeEnvelope as C, CursorEnvelope as a };

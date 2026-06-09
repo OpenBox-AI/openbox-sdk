@@ -1,0 +1,30 @@
+{
+  "name": "openbox",
+  "description": "OpenBox governance plugin marketplace for Claude Code.",
+  "owner": {
+    "name": "OpenBox AI",
+    "email": "team@openbox.ai"
+  },
+  "plugins": [
+    {
+      "name": "openbox",
+      "source": "./",
+      "description": "Active governance for Claude Code through prompt/tool hooks, OpenBox Core verdicts, approvals, MCP tools, skills, and agent templates.",
+      "version": "0.1.0",
+      "author": {
+        "name": "OpenBox AI",
+        "email": "team@openbox.ai"
+      },
+      "homepage": "https://github.com/OpenBox-AI/openbox-sdk#readme",
+      "repository": "https://github.com/OpenBox-AI/openbox-sdk",
+      "license": "MIT",
+      "keywords": [
+        "openbox",
+        "claude-code",
+        "ai-governance",
+        "guardrails",
+        "approvals"
+      ]
+    }
+  ]
+}
