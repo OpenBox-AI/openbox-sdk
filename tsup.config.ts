@@ -1,8 +1,7 @@
 import { defineConfig } from 'tsup';
 
-// Bundle entries map to package.json's `exports` map. Keep the list
-// below in sync with public exports; tsup follows relative imports
-// natively, with no path mappings or workspace name magic.
+// Bundle entries map to package.json's `exports` map plus the
+// package bin entry. Keep this list intentionally small.
 
 export default defineConfig({
   entry: [
@@ -16,9 +15,7 @@ export default defineConfig({
     'ts/src/test-utils/index.ts',
     'ts/src/maturity/index.ts',
     'ts/src/cli/index.ts',
-    'ts/src/cli/config-store.ts',
     'ts/src/approvals/index.ts',
-    'ts/src/approvals/mocks/index.ts',
     'ts/src/client-factory/index.ts',
     'ts/src/file-tokens/index.ts',
     'ts/src/polling/index.ts',

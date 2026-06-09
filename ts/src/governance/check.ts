@@ -177,7 +177,7 @@ function resolveApiKey(opts: CheckGovernanceOptions): string {
     throw new Error(
       `No agent runtime key for ${opts.agentId ?? '(unset)'}. ` +
         'Pass apiKey, set OPENBOX_API_KEY to obx_live_*/obx_test_*, ' +
-        'or run `openbox api-key recall <agentId>` to surface a cached key. ' +
+        'or mint/recover a runtime key from the dashboard/backend API. ' +
         '(OPENBOX_API_KEY=obx_key_* is the org X-API-Key and is ignored here.)',
     );
   }

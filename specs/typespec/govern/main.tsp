@@ -330,10 +330,10 @@ model WorkflowVerdict {
 
   /**
    * Backend's `governance_event_id` echoed verbatim. Cross-reference
-   * key matching the persisted Approval row's `event_id` field, used
-   * by hook adapters to dedup against the dashboard's pending list
-   * when the evaluate response omits `approvalId` (current backend
-   * behavior).
+   * key used by hook adapters to find the persisted Approval row in
+   * the dashboard's pending list when the evaluate response omits
+   * `approvalId` (current backend behavior). Backend approval
+   * decisions use the Approval row primary `id`.
    */
   governanceEventId?: string;
 

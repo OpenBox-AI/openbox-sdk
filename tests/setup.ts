@@ -8,9 +8,15 @@ config({ path: resolve(rootDir, '.env') });
 
 // URL-first clients intentionally have no production defaults. Unit tests get
 // explicit loopback defaults so constructors can be exercised without touching
-// live services.
-process.env.OPENBOX_API_URL ??= 'http://localhost:18080';
-process.env.OPENBOX_CORE_URL ??= 'http://localhost:18081';
+// live services. E2E/contract setup restores explicit caller overrides.
+if (process.env.OPENBOX_API_URL) {
+  process.env.OPENBOX_API_URL_OVERRIDE = process.env.OPENBOX_API_URL;
+}
+if (process.env.OPENBOX_CORE_URL) {
+  process.env.OPENBOX_CORE_URL_OVERRIDE = process.env.OPENBOX_CORE_URL;
+}
+process.env.OPENBOX_API_URL = 'http://localhost:18080';
+process.env.OPENBOX_CORE_URL = 'http://localhost:18081';
 
 // bypass the destructive-op confirmation gate for the test
 // run. Tests that EXERCISE the gate (cli-noninteractive.test.ts) clear
@@ -25,7 +31,14 @@ if (!process.env.OPENBOX_ASSUME_YES) {
 // so leaving a real key in the env from the developer's shell would
 // silently bleed into unit tests that exercise loadApiKey. e2e and
 // contract projects opt in to credential loading via setup-creds.ts.
+if (process.env.OPENBOX_BACKEND_API_KEY) {
+  process.env.OPENBOX_BACKEND_API_KEY_OVERRIDE = process.env.OPENBOX_BACKEND_API_KEY;
+}
+if (process.env.OPENBOX_API_KEY) {
+  process.env.OPENBOX_API_KEY_OVERRIDE = process.env.OPENBOX_API_KEY;
+}
 delete process.env.OPENBOX_BACKEND_API_KEY;
+delete process.env.OPENBOX_API_KEY;
 delete process.env.ACCESS_TOKEN;
 delete process.env.REFRESH_TOKEN;
 

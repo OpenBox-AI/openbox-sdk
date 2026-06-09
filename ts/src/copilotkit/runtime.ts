@@ -13,6 +13,7 @@ import {
   type OpenBoxCopilotAgentRunnerLike,
   type OpenBoxCopilotKitAdapter,
   type OpenBoxCopilotObservableLike,
+  type OpenBoxCopilotRunnerRunRequest,
   type OpenBoxCopilotRunInputLike,
   type OpenBoxCopilotRuntime,
   type OpenBoxCopilotRuntimeConfig,
@@ -75,38 +76,60 @@ export function createOpenBoxGovernedRunner(
   const agentSet = config.agents ? new Set(config.agents) : undefined;
   const sessionKeyForInput =
     config.sessionKey ?? ((input) => input.threadId || 'default');
-  return {
-    run(request) {
-      const agentId =
-        typeof request.agentId === 'string' ? request.agentId : undefined;
-      if (agentSet && (!agentId || !agentSet.has(agentId))) {
-        return runner.run(request);
-      }
-      return createDeferredObservable(runner, async (subscriber) => {
-        const sessionKey = sessionKeyForInput(request.input);
-        const governedInput = isRuntimePromptGoverned(request.input)
-          ? request.input
-          : await governRunPrompt(
-              adapter,
-              request.input,
-              sessionKey,
-              subscriber,
-            );
-        if (!governedInput) return;
-        const source = runner.run({ ...request, input: governedInput });
-        pipeGovernedEvents(
-          source,
-          subscriber,
-          adapter,
-          sessionKey,
-          governedInput,
-        );
-      });
+  const governedRunner = Object.create(Object.getPrototypeOf(runner));
+  Object.defineProperties(governedRunner, {
+    run: {
+      value(request: OpenBoxCopilotRunnerRunRequest) {
+        const agentId =
+          typeof request.agentId === 'string' ? request.agentId : undefined;
+        if (agentSet && (!agentId || !agentSet.has(agentId))) {
+          return runner.run(request);
+        }
+        return createDeferredObservable(runner, async (subscriber) => {
+          const sessionKey = sessionKeyForInput(request.input);
+          const governedInput = isRuntimePromptGoverned(request.input)
+            ? request.input
+            : await governRunPrompt(
+                adapter,
+                request.input,
+                sessionKey,
+                subscriber,
+              );
+          if (!governedInput) return;
+          const source = runner.run({ ...request, input: governedInput });
+          pipeGovernedEvents(
+            source,
+            subscriber,
+            adapter,
+            sessionKey,
+            governedInput,
+          );
+        });
+      },
+      writable: true,
+      enumerable: true,
+      configurable: true,
     },
-    connect: runner.connect?.bind(runner),
-    isRunning: runner.isRunning?.bind(runner),
-    stop: runner.stop?.bind(runner),
-  };
+    connect: {
+      value: runner.connect?.bind(runner),
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    },
+    isRunning: {
+      value: runner.isRunning?.bind(runner),
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    },
+    stop: {
+      value: runner.stop?.bind(runner),
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    },
+  });
+  return governedRunner;
 }
 
 export function createOpenBoxRuntimeHooks(
@@ -131,7 +154,7 @@ export function createOpenBoxRuntimeHooks(
       if (!isRecord(body)) return;
       const input = body as OpenBoxCopilotRunInputLike;
       const sessionKey = input.threadId || 'default';
-      const ids = runtimeWorkflowIdsFromInput(input);
+      const ids = freshRuntimeWorkflowIdsFromInput(input);
       const promptGate = await adapter.governPrompt({
         payload: { messages: summarizeMessages(input.messages ?? []) },
         sessionKey,
@@ -231,7 +254,7 @@ async function governRunPrompt(
   const promptGate = await adapter.governPrompt({
     payload: { messages: summarizeMessages(input.messages ?? []) },
     sessionKey,
-    ...runtimeWorkflowIdsFromInput(input),
+    ...freshRuntimeWorkflowIdsFromInput(input),
     activityType: 'on_chat_model_start',
     ensureWorkflowStarted: true,
   });
@@ -563,6 +586,18 @@ function runtimeWorkflowIdsFromInput(input: OpenBoxCopilotRunInputLike): {
   };
 }
 
+function freshRuntimeWorkflowIdsFromInput(input: OpenBoxCopilotRunInputLike): {
+  workflowId: string;
+  runId: string;
+} {
+  const workflowId = randomUUID();
+  const runId =
+    typeof input.runId === 'string' && input.runId !== workflowId
+      ? input.runId
+      : randomUUID();
+  return { workflowId, runId };
+}
+
 function withOpenBoxRuntimeIds(
   input: OpenBoxCopilotRunInputLike,
   ids: { workflowId: string; runId: string },
@@ -615,24 +650,40 @@ function emitOpenBoxRunResult(
 
 function emitOpenBoxMessageEvents(
   subscriber: OpenBoxSubscriberLike,
-  input: OpenBoxCopilotRunInputLike,
+  _input: OpenBoxCopilotRunInputLike,
   result: OpenBoxCopilotActionResult,
   messageId = `openbox_message_${randomUUID()}`,
 ) {
+  const toolCallId = `openbox_runtime_gate_${randomUUID().replace(/-/g, '')}`;
   const content = JSON.stringify(result);
   subscriber.next?.({
-    type: 'TEXT_MESSAGE_START',
-    messageId,
-    role: 'assistant',
+    type: 'TOOL_CALL_START',
+    toolCallId,
+    toolCallName: 'openbox_governed_action',
   });
   subscriber.next?.({
-    type: 'TEXT_MESSAGE_CONTENT',
-    messageId,
-    delta: content,
+    type: 'TOOL_CALL_ARGS',
+    toolCallId,
+    delta: JSON.stringify({
+      action: result.action,
+      request: result.request,
+      destination: result.destination,
+      amountUsd: result.amountUsd,
+      fields: result.fields,
+      audience: result.audience,
+      sensitivity: result.sensitivity,
+    }),
   });
   subscriber.next?.({
-    type: 'TEXT_MESSAGE_END',
+    type: 'TOOL_CALL_END',
+    toolCallId,
+  });
+  subscriber.next?.({
+    type: 'TOOL_CALL_RESULT',
     messageId,
+    toolCallId,
+    content,
+    role: 'tool',
   });
 }
 

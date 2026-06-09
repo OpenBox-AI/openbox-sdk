@@ -5,13 +5,12 @@
 // contract) since both share the test-utility surface.
 //
 // Co-tenant scope (kept here because the setup is symmetrical):
-//   - cli/commands/skill install; exercises the path-resolver branch
-//   - cli/commands/core evaluate; exercises --type shorthand + @file
+//   - cli/commands/skill installSkill helper; exercises the path-resolver branch
 //   - cli/commands/doctor; JWT-expiry branch
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Command } from 'commander';
-import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
@@ -232,7 +231,7 @@ describe('validators/index.ts; every validator + every error branch', () => {
 });
 
 describe('cli/commands/skill; install action', () => {
-  it('skill install copies the bundled SKILL.md to ~/.claude/skills/openbox', async () => {
+  it('installSkill exposes the bundled skill path command', async () => {
     // Stub a fake skills source under the dir; skill.ts uses
     // `findSkillDir()` which walks looking for SKILL.md. The actual
     // path resolution is platform-dependent; we just exercise the
@@ -261,99 +260,6 @@ describe('cli/commands/skill; install action', () => {
     // skill path either prints a real path OR errors that the bundled
     // skill couldn't be located. Both cases must produce output.
     expect(out.length).toBeGreaterThan(0);
-  });
-});
-
-describe('cli/commands/core; evaluate path', () => {
-  it('--type llm builds a payload + dispatches to core', async () => {
-    const cfg = await import('../../ts/src/cli/config');
-    cfg.saveApiKey('obx_key_' + 'a'.repeat(48));
-    process.env.OPENBOX_API_KEY = 'obx_test_x'.padEnd(57, 'x');
-
-    // Capture-server mocks core /evaluate.
-    const server = createServer((req, res) => {
-      let body = '';
-      req.on('data', (c) => (body += c));
-      req.on('end', () => {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 200, data: { verdict: { arm: 'allow' } } }));
-        void body;
-      });
-    });
-    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
-    const addr = server.address() as AddressInfo;
-    process.env.OPENBOX_CORE_URL = `http://127.0.0.1:${addr.port}`;
-
-    const { registerCoreCommands } = await import('../../ts/src/cli/commands/core');
-    const program = new Command();
-    program.exitOverride();
-    registerCoreCommands(program);
-
-    const out: string[] = [];
-    const ol = console.log;
-    const oe = console.error;
-    console.log = (...a: any[]) => out.push(a.join(' '));
-    console.error = (...a: any[]) => out.push(a.join(' '));
-    const ovExit = process.exit;
-    (process as any).exit = ((_c?: number) => { throw new Error('exit'); }) as never;
-
-    try {
-      await program.parseAsync([
-        'node',
-        'openbox',
-        'core',
-        'evaluate',
-        '--type',
-        'llm',
-        '--prompt',
-        'hello',
-        '--model',
-        'gpt-4',
-        '--show-payload',
-      ]);
-    } catch {
-      /* exit / parseAsync */
-    } finally {
-      console.log = ol;
-      console.error = oe;
-      (process as any).exit = ovExit;
-      delete process.env.OPENBOX_API_KEY;
-      delete process.env.OPENBOX_CORE_URL;
-      await new Promise<void>((r) => server.close(() => r()));
-    }
-    expect(out.length).toBeGreaterThan(0);
-  });
-
-  it('core evaluate --type with @file resolves the file content', async () => {
-    process.env.OPENBOX_API_KEY = 'obx_test_x'.padEnd(57, 'x');
-    const f = join(dir, 'prompt.txt');
-    writeFileSync(f, 'inline-prompt');
-
-    const { registerCoreCommands } = await import('../../ts/src/cli/commands/core');
-    const program = new Command();
-    program.exitOverride();
-    registerCoreCommands(program);
-
-    const out: string[] = [];
-    const ol = console.log;
-    console.log = (...a: any[]) => out.push(a.join(' '));
-    const ovExit = process.exit;
-    (process as any).exit = ((_c?: number) => { throw new Error('exit'); }) as never;
-
-    try {
-      await program.parseAsync([
-        'node', 'openbox', 'core', 'evaluate',
-        '--type', 'llm',
-        '--prompt', '@' + f,
-        '--show-payload',
-      ]);
-    } catch { /* exit */ }
-    finally {
-      console.log = ol;
-      (process as any).exit = ovExit;
-      delete process.env.OPENBOX_API_KEY;
-    }
-    expect(out.some((l) => l.includes('inline-prompt'))).toBe(true);
   });
 });
 

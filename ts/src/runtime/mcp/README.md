@@ -38,8 +38,9 @@ the lifetime of the LLM session and exits when stdin closes.
 - `decide_approval`.
 - `check_governance`: evaluate a span via the core client.
 - Skill resources at `openbox://skill/<ref>` surface the SKILL.md
-  references when a skill copy is installed in either
-  `~/.cursor/skills/openbox/` or `~/.claude/skills/openbox/`.
+  references when a project-local plugin is installed in either
+  `<project>/.cursor/plugins/local/openbox/skills/openbox/` or
+  `<project>/.claude/skills/openbox/skills/openbox/`.
 
 ## Differences from the hook-protocol adapters
 

@@ -45,10 +45,6 @@ export abstract class OpenBoxCoreClientWrapperBase {
     return this.httpPost<ResponseOf<"/api/v1/governance/approval", "post">>(`/api/v1/governance/approval`, body);
   }
 
-  async decideApproval(body: RequestBodyOf<"/api/v1/governance/approval/decide", "post">): Promise<ResponseOf<"/api/v1/governance/approval/decide", "post">> {
-    return this.httpPost<ResponseOf<"/api/v1/governance/approval/decide", "post">>(`/api/v1/governance/approval/decide`, body);
-  }
-
 }
 
 

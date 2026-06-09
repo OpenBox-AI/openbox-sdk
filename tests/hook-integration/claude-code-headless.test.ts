@@ -16,7 +16,7 @@
 // Set up the workspace once with:
 //
 //   openbox claude-code install --scope project \
-//     --cwd ~/workspace/openbox-claude-test --no-mcp
+//     --cwd ~/workspace/openbox-claude-test
 //
 // then edit `<cwd>/.claude-hooks/config.json` to point at the
 // local stack with a runtime key.

@@ -1,4 +1,4 @@
-import { applyConfigToProcessEnv } from './config-store.js';
+import { applyConfigToProcessEnv } from '../config/index.js';
 
 export function applyEnvSource(): void {
   applyConfigToProcessEnv();

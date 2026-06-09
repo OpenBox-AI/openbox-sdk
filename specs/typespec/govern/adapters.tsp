@@ -52,12 +52,12 @@ model ClaudeCodeEnvelope {
  * event by `hook_event_name`. Binds to the `claude-code` preset.
  */
 @adapter("claude-code", "claude-code", "hook_event_name")
-@installTarget(#{
-  file: "~/.claude/settings.json",
+@hookTarget(#{
+  file: ".claude/settings.json",
   key: "hooks",
   style: "claude-array",
   command: "openbox claude-code hook",
-  configDir: "~/.claude-hooks",
+  configDir: ".claude-hooks",
 })
 interface ClaudeCodeAdapter {
   /**
@@ -429,12 +429,12 @@ model CursorEnvelope {
  * and return void. The verdictShape encodes which mapping the runtime uses.
  */
 @adapter("cursor", "cursor", "hook_event_name")
-@installTarget(#{
-  file: "~/.cursor/hooks.json",
+@hookTarget(#{
+  file: ".cursor/hooks.json",
   key: "hooks",
   style: "cursor-keyed",
   command: "openbox cursor hook",
-  configDir: "~/.cursor-hooks",
+  configDir: ".cursor-hooks",
 })
 interface CursorAdapter {
   @hookEvent("beforeSubmitPrompt")

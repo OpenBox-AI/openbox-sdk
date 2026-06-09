@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { getBackendClient, getCoreClient, fullResponse, getTeamIds } from '../helpers/api-client';
+import {
+  type AgentIdentityForSigning,
+  getBackendClient,
+  getCoreClient,
+  fullResponse,
+  getTeamIds,
+} from '../helpers/api-client';
 import { trackResource, cleanupAll } from '../helpers/cleanup';
 import { makeCreateAgentDto } from '../helpers/fixtures';
 
@@ -7,6 +13,7 @@ describe('Agent API Key Management', () => {
   const client = getBackendClient();
   let agentId: string;
   let apiKey: string;
+  let agentIdentity: AgentIdentityForSigning;
   let teamIds: string[];
 
   beforeAll(async () => {
@@ -20,12 +27,16 @@ describe('Agent API Key Management', () => {
 
     agentId = body.data.agent.id;
     apiKey = body.data.token;
+    agentIdentity = {
+      did: body.data.identity.did,
+      privateKey: body.data.identity.privateKey,
+    };
 
     trackResource({ type: 'agent', id: agentId });
   });
 
   it('validates initial API key with core', async () => {
-    const coreClient = getCoreClient(apiKey);
+    const coreClient = getCoreClient(apiKey, agentIdentity);
     const response = await coreClient.get('/api/v1/auth/validate');
 
     expect(response.status).toBe(200);
@@ -47,7 +58,7 @@ describe('Agent API Key Management', () => {
   });
 
   it('validates new API key', async () => {
-    const coreClient = getCoreClient(apiKey);
+    const coreClient = getCoreClient(apiKey, agentIdentity);
     const response = await coreClient.get('/api/v1/auth/validate');
 
     expect(response.status).toBe(200);

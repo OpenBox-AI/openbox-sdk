@@ -58,9 +58,9 @@ export function makeCreateAgentDto(teamIds: string[], overrides: Record<string, 
 export function makeCreateGuardrailDto(overrides: Record<string, any> = {}) {
   return {
     name: `test-guardrail-${ts()}`,
-    guardrail_type: 'pii_detection',
+    guardrail_type: '1',
     description: 'E2E test guardrail',
-    processing_stage: 'output',
+    processing_stage: '1',
     params: {},
     settings: {},
     trust_impact: 'medium' as const,

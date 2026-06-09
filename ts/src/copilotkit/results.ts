@@ -332,7 +332,7 @@ export function applyCompletedRedaction<
   const visibleRedaction =
     definition.isArtifactRedacted?.(redactedResult.artifact) ?? false;
   const finalResult =
-    visibleRedaction &&
+    coreRedacted &&
     redactedResult.artifact &&
     definition.markArtifactRedacted
       ? {
@@ -342,7 +342,7 @@ export function applyCompletedRedaction<
       : redactedResult;
   const summary = [
     existingSummary,
-    coreRedacted && visibleRedaction
+    coreRedacted
       ? summarizeGuardrailRedaction(
           verdict.guardrailsResult,
           'Output redacted by OpenBox guardrails.',
@@ -352,7 +352,7 @@ export function applyCompletedRedaction<
     .filter(Boolean)
     .join(' ');
 
-  if (verdict.arm === 'constrain' || visibleRedaction) {
+  if (verdict.arm === 'constrain' || coreRedacted || visibleRedaction) {
     return {
       ...finalResult,
       status: 'constrained',

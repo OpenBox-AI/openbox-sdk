@@ -1,19 +1,15 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { loadJsonConfig, loadDotenv } from '../../config/host-config.js';
-
-// `os.homedir()` honors USERPROFILE on Windows where HOME is unset.
-const GLOBAL_CONFIG_DIR = path.join(os.homedir(), '.cursor-hooks');
 
 /**
  * Resolve which `.cursor-hooks/` directory the hook subprocess
  * should read from. The lookup walks the current working directory
- * upward and prefers the closest one; this lets a project-scoped
- * install (`openbox cursor install --scope project --cwd <dir>`)
- * carry its own `config.json` without polluting the global one.
- * Falls back to `~/.cursor-hooks/` so existing user installs keep
- * working unchanged.
+ * upward and prefers the closest one, which lets advanced users keep
+ * project-local runtime config. If no project config is found, the
+ * hook reads `<startDir>/.cursor-hooks/` and therefore fails from
+ * missing project config instead of consulting user-level state.
+ * Cursor installation itself is plugin-only.
  *
  * Exported for tests; production callsite below passes
  * `process.cwd()`.
@@ -29,7 +25,7 @@ export function resolveConfigDir(startDir: string = process.cwd()): string {
     if (parent === cur) break;
     cur = parent;
   }
-  return GLOBAL_CONFIG_DIR;
+  return path.join(startDir, '.cursor-hooks');
 }
 
 const CONFIG_DIR = resolveConfigDir();

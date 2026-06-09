@@ -61,6 +61,9 @@ export interface OpenBoxRendererTheme {
 export interface OpenBoxApprovalClient {
   decide(request: {
     governanceEventId?: string;
+    workflowId?: string;
+    runId?: string;
+    activityId?: string;
     decision: 'approve' | 'reject';
   }): Promise<unknown>;
 }

@@ -1,22 +1,15 @@
-// Shared install / uninstall primitive used by every runtime
-// adapter. The per-adapter `install.ts` files load their generated
-// `INSTALL_SPEC` (file path, JSON key, per-event style, hook command)
-// and call `installAdapter` / `uninstallAdapter`; all the JSON-merge
-// work lives here, so adding a new adapter is a matter of declaring
-// `@installTarget` in the spec.
+// Shared install / uninstall primitive used by runtime adapters whose
+// host reads hook config files directly. Per-adapter install modules
+// load their generated `HOOK_SPEC` (file path, JSON key, per-event
+// style, hook command) and call `installAdapter` / `uninstallAdapter`;
+// all JSON-merge work lives here, so adding a new adapter is a matter
+// of declaring `@hookTarget` in the spec.
 //
-// Scope. Callers choose where the config lands:
-//
-//   - `global`  (default): the spec-emitted target, which writes to
-//     the host's user-level settings file under `~`.
-//   - `project`: writes to the host's project-level settings file
-//     under `<cwd>` so the hook block only applies inside that
-//     project. Cursor uses `<cwd>/.cursor/hooks.json`; Claude Code
-//     uses `<cwd>/.claude/settings.json` plus `<cwd>/.mcp.json` for
-//     MCP.
-//   - `local`: Claude Code only. Writes to
-//     `<cwd>/.claude/settings.local.json`, the personal override
-//     file Claude Code expects to be gitignored.
+// Scope. Host installs are project-only. The spec-emitted paths may
+// still contain historical user-level defaults, but this primitive
+// rewrites them to the current project so OpenBox never silently
+// installs Cursor or Claude Code runtime files under the user's home
+// directory.
 //
 // Scope rewriting happens entirely in this module; the spec-emitted
 // paths stay as-is.
@@ -24,18 +17,15 @@
 // The MCP server entry can be installed alongside the hooks via
 // `installMcpEntry`. The wire format differs per host:
 //
-//   - Cursor reads `mcpServers` from `~/.cursor/mcp.json` (global)
-//     or `<cwd>/.cursor/mcp.json` (project).
-//   - Claude Code reads `mcpServers` from `~/.claude.json` (global)
-//     or `<cwd>/.mcp.json` (project).
+//   - Cursor reads `mcpServers` from `<cwd>/.cursor/mcp.json`.
+//   - Claude Code reads `mcpServers` from `<cwd>/.mcp.json`.
 
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 
-export type InstallScope = 'global' | 'project' | 'local';
+export type InstallScope = 'project';
 
-export interface InstallSpec {
+export interface HookSpec {
   file: string;
   key: string;
   style: 'claude-array' | 'cursor-keyed';
@@ -62,10 +52,9 @@ export interface InstallSpec {
 }
 
 export interface InstallOptions {
-  /** Scope of the install. Defaults to `global`. */
+  /** Scope of the install. Defaults to `project`; no global host install is supported. */
   scope?: InstallScope;
-  /** Project root used when `scope` is `project` or `local`. Defaults
-   *  to `process.cwd()`. */
+  /** Project root used for the install. Defaults to `process.cwd()`. */
   cwd?: string;
 }
 
@@ -81,47 +70,28 @@ interface ResolvedPaths {
   mcpKey: 'mcpServers';
 }
 
-/** Expand a leading `~` to the user's home directory. */
-function expand(p: string): string {
-  return p.startsWith('~') ? path.join(os.homedir(), p.slice(1)) : p;
-}
-
 /** Compute concrete file paths for the given scope. Pure: a unit
  *  test can call this without touching disk. */
 export function resolveInstallPaths(
-  spec: InstallSpec,
+  spec: HookSpec,
   options: InstallOptions = {},
 ): ResolvedPaths {
-  const scope: InstallScope = options.scope ?? 'global';
+  const scope = options.scope ?? 'project';
   const cwd = options.cwd ?? process.cwd();
-
-  if (scope === 'global') {
-    return {
-      scope,
-      hooksFile: expand(spec.file),
-      configDir: expand(spec.configDir),
-      mcpFile:
-        spec.style === 'claude-array'
-          ? path.join(os.homedir(), '.claude.json')
-          : path.join(os.homedir(), '.cursor', 'mcp.json'),
-      mcpKey: 'mcpServers',
-    };
+  if (scope !== 'project') {
+    throw new Error(`scope \`${scope}\` is not supported; expected project`);
   }
 
   if (spec.style === 'claude-array') {
-    const fileName = scope === 'local' ? 'settings.local.json' : 'settings.json';
     return {
       scope,
-      hooksFile: path.join(cwd, '.claude', fileName),
+      hooksFile: path.join(cwd, '.claude', 'settings.json'),
       configDir: path.join(cwd, '.claude-hooks'),
       mcpFile: path.join(cwd, '.mcp.json'),
       mcpKey: 'mcpServers',
     };
   }
 
-  if (scope === 'local') {
-    throw new Error('scope `local` is not supported for cursor-keyed installs');
-  }
   return {
     scope,
     hooksFile: path.join(cwd, '.cursor', 'hooks.json'),
@@ -199,7 +169,7 @@ function dropExampleConfig(configDir: string): void {
   console.log('  -> Set OPENBOX_API_KEY and DRY_RUN=false to enable governance');
 }
 
-export function installAdapter(spec: InstallSpec, options: InstallOptions = {}): void {
+export function installAdapter(spec: HookSpec, options: InstallOptions = {}): void {
   const paths = resolveInstallPaths(spec, options);
   const settings = loadJson(paths.hooksFile);
 
@@ -254,7 +224,7 @@ export function installAdapter(spec: InstallSpec, options: InstallOptions = {}):
   dropExampleConfig(paths.configDir);
 }
 
-export function uninstallAdapter(spec: InstallSpec, options: InstallOptions = {}): void {
+export function uninstallAdapter(spec: HookSpec, options: InstallOptions = {}): void {
   const paths = resolveInstallPaths(spec, options);
   const settings = loadJson(paths.hooksFile);
   const hooksBlock = settings[spec.key];
@@ -303,7 +273,7 @@ export interface McpServerEntry {
  * Returns the resolved path so the CLI can surface it.
  */
 export function installMcpEntry(
-  spec: InstallSpec,
+  spec: HookSpec,
   serverName: string,
   serverEntry: McpServerEntry,
   options: InstallOptions = {},
@@ -324,7 +294,7 @@ export function installMcpEntry(
  * Drops the surrounding map when it ends up empty.
  */
 export function uninstallMcpEntry(
-  spec: InstallSpec,
+  spec: HookSpec,
   serverName: string,
   options: InstallOptions = {},
 ): string {

@@ -63,10 +63,10 @@ export const $lib = createTypeSpecLibrary({
         default: paramMessage`Invalid @payloadShape: ${'reason'}`,
       },
     },
-    'invalid-install-target': {
+    'invalid-hook-target': {
       severity: 'error',
       messages: {
-        default: paramMessage`Invalid @installTarget: ${'reason'}`,
+        default: paramMessage`Invalid @hookTarget: ${'reason'}`,
       },
     },
     'invalid-activity-labels': {
@@ -92,7 +92,7 @@ export const $lib = createTypeSpecLibrary({
     activityRouting: { description: 'tool-name → activity_type table attached to an adapter operation' },
     payloadShape: { description: 'declarative activity payload shape attached to an adapter operation' },
     noPayload: { description: 'flag: adapter op has no scannable activity payload (lifecycle/observe-only)' },
-    installTarget: { description: 'install file/key/style/command attached to an adapter interface' },
+    hookTarget: { description: 'hook file/key/style/command attached to an adapter interface' },
     installTimeout: { description: 'per-event install timeout (seconds) attached to an adapter operation' },
     activityVariants: { description: 'predicate-based activity-type reroute table attached to an adapter operation' },
     activityType: { description: 'fixed activity_type binding attached to an adapter operation (single value, mutually exclusive with activityRouting)' },

@@ -35,7 +35,7 @@ describe('maturity helpers', () => {
     setMaturityLevel(null);
     process.env.OPENBOX_EXPERIMENTAL_LEVEL = 'nonsense';
     expect(currentMaturityLevel()).toBe('stable');
-    expect(maturityOf('__missing__')).toBe('experimental');
+    expect(maturityOf('__missing__')).toBe('stable');
   });
 
   it('enables features from explicit calls, env vars, and maturity bridge', () => {

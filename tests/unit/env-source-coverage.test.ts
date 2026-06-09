@@ -19,7 +19,7 @@ describe('cli/env-source', () => {
     process.env.OPENBOX_HOME = home;
     delete process.env.OPENBOX_DEBUG;
     try {
-      const { setConfig } = await import('../../ts/src/cli/config-store.ts');
+      const { setConfig } = await import('../../ts/src/config/store.ts');
       const { applyEnvSource, isDebugMode } = await import('../../ts/src/cli/env-source.ts');
 
       setConfig('OPENBOX_DEBUG', 'yes');

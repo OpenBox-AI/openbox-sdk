@@ -1,8 +1,31 @@
+import {
+  generateKeyPairSync,
+  verify,
+} from 'node:crypto';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   OpenBoxCoreClient,
   CoreApiError,
+  signAgentIdentityRequest,
 } from '../../ts/src/core-client/core-client.js';
+
+const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
+
+function makeAgentIdentity() {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const privateKeyDer = privateKey.export({
+    format: 'der',
+    type: 'pkcs8',
+  }) as Buffer;
+  const privateKeyRaw = privateKeyDer.subarray(ED25519_PKCS8_PREFIX.length);
+  return {
+    identity: {
+      did: 'did:aip:00000000-0000-5000-8000-000000000000',
+      privateKey: privateKeyRaw.toString('base64'),
+    },
+    publicKey,
+  };
+}
 
 function mockResponse(
   status: number,
@@ -90,6 +113,62 @@ describe('OpenBoxCoreClient', () => {
         'Bearer obx_live_mykey',
       );
     });
+
+    it('attaches signed agent identity headers when configured', async () => {
+      const { identity } = makeAgentIdentity();
+      const client = createClient({ agentIdentity: identity });
+      fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
+
+      await client.validateApiKey();
+
+      const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+      expect(headers['X-OpenBox-Agent-DID']).toBe(identity.did);
+      expect(headers['X-OpenBox-Agent-Nonce']).toBeTruthy();
+      expect(headers['X-OpenBox-Agent-Timestamp']).toBeTruthy();
+      expect(headers['X-OpenBox-Body-SHA256']).toMatch(/^[a-f0-9]{64}$/);
+      expect(headers['X-OpenBox-Agent-Signature']).toBeTruthy();
+    });
+  });
+
+  describe('signAgentIdentityRequest', () => {
+    it('builds a Core-verifiable Ed25519 signature over the canonical request', () => {
+      const { identity, publicKey } = makeAgentIdentity();
+      const headers = signAgentIdentityRequest({
+        identity,
+        method: 'post',
+        path: '/api/v1/governance/evaluate',
+        body: '{"ok":true}',
+        timestamp: '2026-06-06T00:00:00.000Z',
+        nonce: 'nonce-1',
+      });
+      const canonical = [
+        'POST',
+        '/api/v1/governance/evaluate',
+        '2026-06-06T00:00:00.000Z',
+        'nonce-1',
+        headers['X-OpenBox-Body-SHA256'],
+      ].join('\n');
+
+      expect(headers['X-OpenBox-Agent-DID']).toBe(identity.did);
+      expect(
+        verify(
+          null,
+          Buffer.from(canonical),
+          publicKey,
+          Buffer.from(headers['X-OpenBox-Agent-Signature'], 'base64'),
+        ),
+      ).toBe(true);
+    });
+
+    it('rejects malformed raw private keys before making a request', () => {
+      expect(() =>
+        signAgentIdentityRequest({
+          identity: { did: 'did:aip:test', privateKey: Buffer.from('bad').toString('base64') },
+          method: 'GET',
+          path: '/',
+        }),
+      ).toThrow(/32-byte Ed25519 key/);
+    });
   });
 
   describe('evaluate', () => {
@@ -141,52 +220,11 @@ describe('OpenBoxCoreClient', () => {
     });
   });
 
-  describe('decideApproval', () => {
-    it('sends POST to governance/approval/decide', async () => {
+  describe('approval decisions', () => {
+    it('does not expose the unmerged Core approval decision endpoint', () => {
       const client = createClient();
-      const response = {
-        id: 'app-1',
-        action: 'allow',
-        decided_by: 'agent-runtime:agent-1',
-        decided_at: '2026-06-05T00:00:00Z',
-      };
-      fetchMock.mockResolvedValueOnce(mockResponse(200, response));
 
-      const result = await client.decideApproval({
-        governance_event_id: 'app-1',
-        decision: 'approve',
-      });
-
-      expect(fetchMock.mock.calls[0][0]).toContain(
-        '/api/v1/governance/approval/decide',
-      );
-      expect(fetchMock.mock.calls[0][1].method).toBe('POST');
-      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
-        governance_event_id: 'app-1',
-        decision: 'approve',
-      });
-      expect(result.action).toBe('allow');
-      expect(result.decided_by).toBe('agent-runtime:agent-1');
-    });
-
-    it('does not retry approval decisions', async () => {
-      const client = createClient({
-        retry: { maxRetries: 3, initialDelayMs: 1, maxDelayMs: 1 },
-      });
-      fetchMock.mockResolvedValueOnce(
-        mockResponse(500, { code: 500, message: 'temporary outage' }),
-      );
-
-      await expect(
-        client.decideApproval({
-          workflow_id: 'wf-1',
-          run_id: 'run-1',
-          activity_id: 'act-1',
-          decision: 'reject',
-        }),
-      ).rejects.toThrow(CoreApiError);
-
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect('decideApproval' in client).toBe(false);
     });
   });
 

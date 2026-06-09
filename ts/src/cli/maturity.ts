@@ -1,12 +1,10 @@
-// Commander integration over the public maturity gate. The pure
-// query functions (isMaturityVisible, currentMaturityLevel, etc) live
-// in `openbox-sdk/maturity` so non-CLI consumers (UI dashboards, IDE
-// plugins) can gate their own surfaces against the same spec-driven
-// COMMAND_MATURITY table.
+// Commander integration over the optional public maturity gate. The
+// lean CLI defaults active commands to stable; generated tables only
+// constrain commands that explicitly opt in.
 //
 // Path syntax: space-separated command path from the program root.
 //   'auth set-api-key' → `openbox auth set-api-key`
-//   'agent list'       → `openbox agent list`
+//   'api list'         → `openbox api list`
 
 import type { Command } from 'commander';
 import {
@@ -39,9 +37,15 @@ const ALWAYS_RESOLVABLE_ROOTS = new Set([
   'skill',
 ]);
 
+const HAND_CODED_MATURITY: Record<string, Maturity> = {
+  'cursor plugin export': 'stable',
+  'cursor plugin install': 'stable',
+  'cursor plugin uninstall': 'stable',
+};
+
 /**
  * Walk the program's full command tree. For each command:
- *  - look up its full path's maturity (default: experimental)
+ *  - look up its full path's maturity (default: stable)
  *  - if invisible at the current level, REMOVE it from the parent
  *    (UNLESS its top-level root is in ALWAYS_RESOLVABLE_ROOTS)
  *  - if visible but non-stable, prefix its description with [experimental]/[beta]
@@ -57,7 +61,8 @@ export function gateCommands(program: Command): void {
     for (const sub of snapshot) {
       const subPath = [...path, sub.name()];
       const key = subPath.join(' ');
-      const target: Maturity = COMMAND_MATURITY[key] ?? 'experimental';
+      const target: Maturity =
+        HAND_CODED_MATURITY[key] ?? COMMAND_MATURITY[key] ?? 'stable';
       const alwaysResolvable = ALWAYS_RESOLVABLE_ROOTS.has(subPath[0]);
 
       if (!alwaysResolvable && !isMaturityVisible(target, current)) {

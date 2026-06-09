@@ -45,8 +45,8 @@ export class ApprovalSocketServer implements vscode.Disposable {
     // `~/.openbox/run/openbox.sock` is shared, so a claude-code
     // hook subprocess can connect here; drop those rows before
     // they reach the store. Other hosts surface their approvals
-    // through the source-neutral desktop approver and mobile app,
-    // and through their own host-specific IDE extensions. A
+    // through the dashboard, mobile app, or their own host-specific
+    // IDE extensions. A
     // missing or empty `source` is treated as cursor for
     // compatibility with adapters that do not stamp the field.
     if (msg.source && msg.source !== "cursor") {

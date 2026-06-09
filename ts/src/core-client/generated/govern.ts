@@ -1042,9 +1042,10 @@ export interface GovernedSessionConfig {
    * their `permission-decision` verdict shape into
    * `permissionDecision: 'ask'`, which pops the host's native
    * permission dialog inline. The local user becomes the approver;
-   * remote / mobile / desktop approvers can still resolve the
-   * backend row but the SDK no longer waits for them. Adapters wire
-   * this from the `APPROVAL_MODE` config (`inline` -> true,
+   * external approval clients such as the dashboard, mobile app, or
+   * editor extension can still resolve the backend row, but the SDK
+   * no longer waits for them. Adapters wire this from the
+   * `APPROVAL_MODE` config (`inline` -> true,
    * `remote` or unset -> false). Default: false.
    */
   inlineApproval?: boolean;

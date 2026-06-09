@@ -22,8 +22,15 @@ import {
 
 export type { FeatureMap };
 
-function loadPermissions(): string[] {
+function loadPermissions(activeApiKey?: string): string[] {
   const store = readTokenStore();
+  if (
+    activeApiKey &&
+    store.apiKey !== activeApiKey &&
+    (process.env.OPENBOX_BACKEND_API_KEY || process.env.OPENBOX_API_KEY)
+  ) {
+    return [];
+  }
   return store.permissions ?? [];
 }
 
@@ -75,7 +82,7 @@ function getClient(): OpenBoxClient {
     });
     bailWith(EXIT.AUTH);
   }
-  const cachedPerms = loadPermissions();
+  const cachedPerms = loadPermissions(apiKey);
   return new OpenBoxClient({
     apiUrl,
     apiKey,
@@ -86,7 +93,7 @@ function getClient(): OpenBoxClient {
 
 // Core only accepts API keys that start with `obx_live_` (production) or
 // `obx_test_` (test/staging). The most common misuse is to grab the
-// `token` field from `agent list`/`agent get` and pass it as
+// `token` field from backend agent reads and pass it as
 // OPENBOX_API_KEY; that's an internal attestation token, not the
 // runtime key. Catching it here gives a clear hint pointing at the
 // right field, instead of letting core return a generic 500
@@ -99,8 +106,8 @@ function validateAgentRuntimeKeyFormat(key: string): void {
   if (result === true) return;
   const looksLikeAgentToken = /^[a-f0-9]{32,}$/i.test(key);
   const hint = looksLikeAgentToken
-    ? "this looks like the 'token' field from 'agent list'/'agent get'; that's NOT the runtime API key. the runtime API key is returned ONCE by 'agent create' or 'api-key rotate'. to recover: `openbox api-key rotate <agentId>` (invalidates the previous key)."
-    : "get a key from 'agent create' (returned once on create) or `openbox api-key rotate <agentId>`.";
+    ? 'this looks like an agent attestation token, not a runtime API key. Mint or recover a runtime key from the dashboard/backend API.'
+    : 'get a runtime key from the dashboard/backend API and set OPENBOX_API_KEY.';
   error(
     "invalid OPENBOX_API_KEY format: must start with 'obx_live_' or 'obx_test_'.",
     { hint },

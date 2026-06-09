@@ -3,7 +3,6 @@
 //   - client/client.ts; 429 + 401 envelope handling
 //   - validators; additional uncovered validator branches
 //   - verify; additional rule-firing on non-fixture paths
-//   - agent-audit; analyzeEvents failure-counting branches
 //   - runtime/mcp; module-shape sanity (full coverage in mcp-server-coverage)
 //   - cli/config; getCoreClient with bad / missing OPENBOX_API_KEY
 //   - runtime configs; file-based config.json precedence
@@ -223,36 +222,6 @@ describe('verify; additional rules + edge fixtures', () => {
   });
 });
 
-describe('agent-audit; additional finding branches', () => {
-  it('analyzeEvents tracks failed activity counts', async () => {
-    const { runAgentAudit } = await import('../../ts/src/cli/commands/agent-audit');
-    const tooOld = new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString();
-    const c: any = {
-      getAgent: async () => ({ agent_name: 'fa' }),
-      listSessions: async (_a: string, q: { page?: number }) => ({
-        data: q?.page === 0 ? [
-          { id: 's', status: 'COMPLETED', started_at: tooOld, completed_at: new Date().toISOString() },
-        ] : [],
-        total: 1,
-      }),
-      getSessionLogs: async (_a: string, _s: string, q: { page: number }) => ({
-        data: q.page === 0 ? [
-          { event_type: 'WorkflowStarted' },
-          { event_type: 'ActivityStarted', activity_id: 'a1', activity_type: 'PromptSubmission' },
-          { event_type: 'ActivityCompleted', activity_id: 'a1', activity_type: 'PromptSubmission', status: 'failed', verdict: 'block' },
-          { event_type: 'WorkflowFailed' },
-        ] : [],
-        total: 4,
-      }),
-      listGuardrails: async () => ({ data: [] }),
-      getCurrentPolicies: async () => [],
-      getCurrentBehaviorRules: async () => [],
-    };
-    const r = await runAgentAudit(c, 'a-fail');
-    expect(r.events.failedActivityCount).toBeGreaterThanOrEqual(1);
-  });
-});
-
 describe('runtime/mcp/index; additional helpers', () => {
   it('hex generates a hex string of requested length', async () => {
     // hex/buildSpan are not exported, but importing the module covers
@@ -323,7 +292,7 @@ describe('cli/config; getCoreClient + edge cases', () => {
 });
 
 describe('runtime configs; file-based config.json paths', () => {
-  it('claude-code config reads ~/.claude-hooks/config.json when present', async () => {
+  it('claude-code config reads project .claude-hooks/config.json when present', async () => {
     const fs = await import('node:fs');
     const cfgDir = join(dir, '.claude-hooks');
     fs.mkdirSync(cfgDir, { recursive: true });
@@ -336,12 +305,13 @@ describe('runtime configs; file-based config.json paths', () => {
         DRY_RUN: true,
       }),
     );
-    // Steer the adapter's config dir at our sandbox by overriding HOME
-    // / homedir (the adapter uses os.homedir()).
+    // Steer the adapter's config dir at our sandbox by loading it
+    // from the current project directory.
     const ovEnv = { ...process.env };
-    process.env.HOME = dir;
+    const ovCwd = process.cwd();
     delete process.env.OPENBOX_API_KEY;
     try {
+      process.chdir(dir);
       // Bust the require cache so loadConfig re-reads.
       vi.resetModules();
       const mod = await import('../../ts/src/runtime/claude-code/config');
@@ -351,6 +321,7 @@ describe('runtime configs; file-based config.json paths', () => {
       // through loadConfig.
       expect(typeof cfg.openboxApiKey === 'string').toBe(true);
     } finally {
+      process.chdir(ovCwd);
       process.env = ovEnv;
     }
   });

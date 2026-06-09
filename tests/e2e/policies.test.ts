@@ -3,14 +3,18 @@ import { getBackendClient, fullResponse, getTeamIds } from '../helpers/api-clien
 import { trackResource, cleanupAll } from '../helpers/cleanup';
 import { makeCreateAgentDto, makeCreatePolicyDto } from '../helpers/fixtures';
 
-describe('Policies', () => {
-  const client = getBackendClient();
+const CAN_RUN = !!process.env.OPENBOX_BACKEND_API_KEY && !!process.env.OPENBOX_ORG_ID;
+const describeOrSkip = CAN_RUN ? describe : describe.skip;
+
+describeOrSkip('Policies', () => {
+  let client: ReturnType<typeof getBackendClient>;
   let agentId: string;
   let policyId: string;
   let policyName: string;
   let teamIds: string[];
 
   beforeAll(async () => {
+    client = getBackendClient();
     teamIds = await getTeamIds();
 
     const dto = makeCreateAgentDto(teamIds);
@@ -24,23 +28,7 @@ describe('Policies', () => {
     trackResource({ type: 'agent', id: agentId });
   });
 
-  // SKIPPED; two backend bugs hit this path:
-  //   1. moto S3 hostname mis-resolves: HTTP 500 with
-  //      `getaddrinfo ENOTFOUND openbox-dev.moto`. Backend uploads
-  //      the rego code to the S3 mock; the in-network alias used
-  //      doesn't resolve from the test process. Fix: openbox-local
-  //      should set S3_ENDPOINT to http://moto:5000 internally and
-  //      expose http://localhost:4566 externally so external lookups
-  //      succeed too.
-  //   2. Once #1 is fixed, the same NOT NULL audit-column issue
-  //      gating the behavior-rule and aivss tests will surface here
-  //      (created_by populated from req.user.id under X-API-Key auth).
-  // Both fixes live in openbox-backend / openbox-local, not here.
-  // Tests below this one chain through policyId, so they skip too;
-  //   `gets current policies`, `evaluates rego`, and
-  //   `gets policy metrics` work without a created policy and stay
-  //   active.
-  it.skip('creates policy', async () => {
+  it('creates policy', async () => {
     const dto = makeCreatePolicyDto();
     policyName = dto.name;
 
@@ -58,7 +46,7 @@ describe('Policies', () => {
     trackResource({ type: 'policy', id: policyId, agentId });
   });
 
-  it.skip('lists policies', async () => {
+  it('lists policies', async () => {
     const response = await client.get(`/agent/${agentId}/policies`);
     const body = fullResponse(response);
 
@@ -76,7 +64,7 @@ describe('Policies', () => {
     expect(body.status).toBe(200);
   });
 
-  it.skip('gets policy by ID', async () => {
+  it('gets policy by ID', async () => {
     const response = await client.get(`/agent/${agentId}/policies/${policyId}`);
     const body = fullResponse(response);
 
@@ -84,7 +72,7 @@ describe('Policies', () => {
     expect(body.data.name).toBe(policyName);
   });
 
-  it.skip('updates policy active status', async () => {
+  it('updates policy active status', async () => {
     const response = await client.put(`/agent/${agentId}/policies/${policyId}`, {
       is_active: false,
     });

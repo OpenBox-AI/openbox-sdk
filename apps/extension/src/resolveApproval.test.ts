@@ -120,7 +120,7 @@ describe("resolveApproval", () => {
     const ok = await resolveApproval(store, c, "backend-row-id", "agent-1", "approve");
 
     expect(ok).toBe(true);
-    expect(c.decideApproval).toHaveBeenCalledWith("agent-1", "geid-1", {
+    expect(c.decideApproval).toHaveBeenCalledWith("agent-1", "backend-row-id", {
       action: "approve",
     });
     expect(resolver).toHaveBeenCalledWith("approve");

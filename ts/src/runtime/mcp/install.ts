@@ -1,16 +1,13 @@
-// Install / uninstall the OpenBox MCP entry. We write each host's
-// JSON config directly (no `claude mcp add` / `cursor mcp add` shell-
-// outs: those CLIs aren't a prerequisite for installing into the
-// hosts they ship with). GUI hosts inherit PATH from `launchctl`,
-// not the shell rc; if `openbox` lives in an nvm/shell-only path the
-// host will say "command not found": fix at the host PATH level.
+// Install / uninstall the OpenBox MCP entry for project-scoped host
+// integrations. We write project JSON config directly (no `claude mcp
+// add` / `cursor mcp add` shell-outs: those CLIs aren't a prerequisite
+// for installing into the hosts they ship with).
 
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 
-export type McpTarget = 'claude-desktop' | 'cursor' | 'claude-code';
-export type McpScope = 'global' | 'project';
+export type McpTarget = 'cursor' | 'claude-code';
+export type McpScope = 'project';
 
 const SERVER_NAME = 'openbox';
 
@@ -37,56 +34,20 @@ function projectConfigPath(target: McpTarget, cwd: string): string {
       return path.join(cwd, '.cursor', 'mcp.json');
     case 'claude-code':
       return path.join(cwd, '.mcp.json');
-    case 'claude-desktop':
-      // Claude Desktop reads only its global config path; project
-      // scope is not supported.
-      throw new Error('scope `project` is not supported for claude-desktop');
   }
-}
-
-/** Claude Desktop's config path varies per OS. */
-function claudeDesktopConfigPath(): string {
-  if (process.platform === 'darwin') {
-    return path.join(
-      os.homedir(),
-      'Library',
-      'Application Support',
-      'Claude',
-      'claude_desktop_config.json',
-    );
-  }
-  if (process.platform === 'win32') {
-    const appData = process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming');
-    return path.join(appData, 'Claude', 'claude_desktop_config.json');
-  }
-  // Linux: Anthropic doesn't ship an official Linux build, but the
-  // unofficial builds users run all read from the XDG config home.
-  const xdg = process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config');
-  return path.join(xdg, 'Claude', 'claude_desktop_config.json');
 }
 
 const HOSTS: McpHost[] = [
   {
-    target: 'claude-desktop',
-    label: 'Claude Desktop',
-    configFile: claudeDesktopConfigPath(),
-    postInstallNote: 'Restart Claude Desktop to pick up the new MCP server.',
-  },
-  {
     target: 'cursor',
     label: 'Cursor',
-    // ~/.cursor/mcp.json is the global config Cursor reads on launch.
-    // A project-local `.cursor/mcp.json` overrides it; the global file
-    // is the right default for `openbox install mcp`.
-    configFile: path.join(os.homedir(), '.cursor', 'mcp.json'),
+    configFile: '',
     postInstallNote: 'Restart Cursor (Cmd-Q then relaunch) to pick up the new MCP server.',
   },
   {
     target: 'claude-code',
     label: 'Claude Code',
-    // `~/.claude.json` is the user-scoped config current Claude Code
-    // builds read; older builds use `~/.claude/mcp.json`.
-    configFile: path.join(os.homedir(), '.claude.json'),
+    configFile: '',
     postInstallNote: 'Restart Claude Code to pick up the new MCP server.',
   },
 ];
@@ -114,17 +75,16 @@ function pickHosts(targets: McpTarget[] | undefined): McpHost[] {
 export interface McpInstallOpts {
   /** Pick specific hosts. Empty / undefined means every known host. */
   targets?: McpTarget[];
-  /** `global` writes to the user-level config; `project` writes to
-   *  the per-project config under `cwd`. Defaults to `global`.
-   *  Claude Desktop only supports `global`. */
+  /** Project-only scope. Defaults to `project`; user-level installs are not supported. */
   scope?: McpScope;
-  /** Project root for `scope: 'project'`. Defaults to
-   *  `process.cwd()`. */
+  /** Project root for the MCP config. Defaults to `process.cwd()`. */
   cwd?: string;
 }
 
 function resolveHost(host: McpHost, scope: McpScope, cwd: string): McpHost {
-  if (scope === 'global') return host;
+  if (scope !== 'project') {
+    throw new Error(`scope \`${scope}\` is not supported; expected project`);
+  }
   return { ...host, configFile: projectConfigPath(host.target, cwd) };
 }
 
@@ -137,7 +97,7 @@ export function installMcp(opts: McpInstallOpts = {}): void {
       `   "openbox: command not found")\n`,
   );
 
-  const scope = opts.scope ?? 'global';
+  const scope = opts.scope ?? 'project';
   const cwd = opts.cwd ?? process.cwd();
 
   for (const base of pickHosts(opts.targets)) {
@@ -159,7 +119,7 @@ export function installMcp(opts: McpInstallOpts = {}): void {
 }
 
 export function uninstallMcp(opts: McpInstallOpts = {}): void {
-  const scope = opts.scope ?? 'global';
+  const scope = opts.scope ?? 'project';
   const cwd = opts.cwd ?? process.cwd();
   for (const base of pickHosts(opts.targets)) {
     const host = resolveHost(base, scope, cwd);

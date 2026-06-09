@@ -14,7 +14,7 @@ const {
   listConfig,
   configStorePath,
   applyConfigToProcessEnv,
-} = await import('../../ts/src/cli/config-store.js');
+} = await import('../../ts/src/config/store.js');
 
 afterAll(() => {
   if (originalHome === undefined) delete process.env.OPENBOX_HOME;

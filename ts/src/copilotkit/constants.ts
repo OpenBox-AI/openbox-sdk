@@ -2,6 +2,7 @@ export const DEFAULT_WORKFLOW_TYPE = 'CopilotKitGovernedAction';
 export const DEFAULT_AGENT_WORKFLOW_TYPE = 'CopilotKitAgent';
 export const DEFAULT_TASK_QUEUE = 'copilotkit';
 export const OPENBOX_RUNTIME_KEY_PATTERN = /^obx_(live|test)_/;
+export const OPENBOX_BACKEND_API_KEY_PATTERN = /^obx_key_/;
 export const OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY =
   '__openboxRuntimePromptGoverned';
 export const MAX_RUNTIME_MESSAGES = 10;

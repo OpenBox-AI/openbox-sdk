@@ -189,27 +189,27 @@ extern dec payloadShape(target: Operation, shape: valueof Record<unknown>);
 extern dec noPayload(target: Operation);
 
 /**
- * Where the adapter's install command writes its hook-event block.
- * The emitter materializes an `INSTALL_SPEC` constant per adapter
- * carrying these fields; the hand-coded install.ts reads it and
- * delegates to the shared JSON-merge primitive in
- * `ts/src/install/from-spec.ts` (exposed under
- * `openbox-sdk/install`).
+ * Hook metadata for an adapter. The emitter materializes an
+ * `HOOK_SPEC` constant per adapter carrying these fields; runtime
+ * installers and plugin exporters consume it to render host-specific
+ * hook configuration. Cursor's public install path packages this
+ * metadata into its local plugin instead of writing host files
+ * directly.
  *
  * Shape:
  *   #{
- *     file: "~/.claude/settings.json",     // tilde-expanded at runtime
+ *     file: ".claude/settings.json",       // resolved under project cwd
  *     key: "hooks",                         // top-level key under settings
  *     style: "claude-array" | "cursor-keyed",
  *     command: "openbox claude-code hook",  // bin command for each event
- *     configDir: "~/.claude-hooks",         // example config drop dir
+ *     configDir: ".claude-hooks",          // project config drop dir
  *   }
  *
  * `style` controls the per-event JSON shape:
  *   claude-array: events[evt] = [{ matcher?, hooks: [{ type, command, timeout? }] }]
  *   cursor-keyed: events[evt] = { command }
  */
-extern dec installTarget(target: Interface, target_: valueof Record<unknown>);
+extern dec hookTarget(target: Interface, target_: valueof Record<unknown>);
 
 /**
  * Per-event timeout (seconds) for the `claude-array` install style.

@@ -178,7 +178,7 @@ function hintForStatus(status: number): string | null {
     case 403:
       return 'Denied by the backend. Either the resource ID doesn\'t belong to your org/team, or your role lacks the required permission. Check `openbox auth permissions` and `openbox auth profile`.';
     case 404:
-      return 'Resource not found. Check the ID (agent, team, org, etc.); `openbox agent list` / `openbox team list <orgId>`.';
+      return 'Resource not found. Check the ID (agent, team, org, etc.); list resources with the dashboard or `openbox api backend AgentController_getAgents`.';
     case 422:
       return 'Validation failed server-side. Inspect the detail field above for the exact field(s) the backend rejected.';
     case 500:
@@ -201,7 +201,7 @@ const UUID_RE = new RegExp(`^${UUID_PATTERN_BODY}$`, 'i');
 
 export function validateUuid(value: unknown, label: string): string {
   if (typeof value !== 'string' || !UUID_RE.test(value)) {
-    block('invalid-uuid', `${label} must be a valid UUID. Got: ${JSON.stringify(value)}`, `Resolve from \`openbox auth profile\` or \`openbox agent list\`.`);
+    block('invalid-uuid', `${label} must be a valid UUID. Got: ${JSON.stringify(value)}`, `Resolve from \`openbox auth profile\`, \`openbox api backend AgentController_getAgents\`, or the dashboard.`);
   }
   return value as string;
 }

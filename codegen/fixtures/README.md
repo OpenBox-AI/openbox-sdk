@@ -1,9 +1,8 @@
 # Conformance fixtures
 
-Cross-language test inputs. Every language SDK runs the same fixtures
-through its emitted code and asserts the same observable behavior.
-This is how we catch "TS works, Rust drifted" without running the
-same end-to-end scenario in each language separately.
+Shared test inputs for SDK contract behavior. The TypeScript SDK uses
+these fixtures today; additional language tracks should add their own
+package-local runners when they are developed on separate branches.
 
 ## Layout
 
@@ -21,9 +20,4 @@ Snapshots live in `codegen/snapshots/` for the emitter side. The
 runtime-behavior side is compared against the `expected*` fields in
 each fixture case.
 
-- TS: `tests/contract/wire-conformance.test.ts` covers wire behavior;
-  `tests/unit/fixtures.test.ts` covers fixture shape and loading.
-- Rust: `cargo test --package openbox-sdk --test conformance`,
-  planned.
-- Python and Go runners are planned alongside their respective
-  emitters.
+- TS: `tests/unit/fixtures.test.ts` covers fixture shape and loading.

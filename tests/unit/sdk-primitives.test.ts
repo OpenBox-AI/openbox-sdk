@@ -129,7 +129,7 @@ describe('logging/logger', () => {
 describe('install/from-spec', () => {
   it('installAdapter (claude-array) writes the configured key into the target file', async () => {
     const { installAdapter, uninstallAdapter } = await import('../../ts/src/install/from-spec');
-    const target = join(dir, 'settings.json');
+    const target = join(dir, '.claude', 'settings.json');
     const spec = {
       file: target,
       key: 'hooks',
@@ -138,13 +138,13 @@ describe('install/from-spec', () => {
       configDir: dir,
       events: [{ name: 'PreToolUse' }],
     };
-    installAdapter(spec);
+    installAdapter(spec, { cwd: dir });
     expect(existsSync(target)).toBe(true);
     const json = JSON.parse(readFileSync(target, 'utf-8'));
     expect(json.hooks).toBeDefined();
     expect(JSON.stringify(json.hooks)).toContain('openbox claude-code hook');
 
-    uninstallAdapter(spec);
+    uninstallAdapter(spec, { cwd: dir });
     const after = JSON.parse(readFileSync(target, 'utf-8'));
     const hooksAfter = after.hooks ?? {};
     expect(JSON.stringify(hooksAfter)).not.toContain('openbox claude-code hook');
@@ -152,7 +152,7 @@ describe('install/from-spec', () => {
 
   it('installAdapter (cursor-keyed) writes per-event entries', async () => {
     const { installAdapter } = await import('../../ts/src/install/from-spec');
-    const target = join(dir, 'hooks.json');
+    const target = join(dir, '.cursor', 'hooks.json');
     const spec = {
       file: target,
       key: 'hooks',
@@ -161,7 +161,7 @@ describe('install/from-spec', () => {
       configDir: dir,
       events: [{ name: 'beforeShellExecution' }, { name: 'afterFileEdit' }],
     };
-    installAdapter(spec);
+    installAdapter(spec, { cwd: dir });
     const json = JSON.parse(readFileSync(target, 'utf-8'));
     expect(json.hooks).toBeDefined();
     const flat = JSON.stringify(json.hooks);
@@ -190,7 +190,7 @@ describe('approvals/resolve', () => {
     } as any;
   }
 
-  it('uses the backend event_id even when the caller already has an agent id', async () => {
+  it('uses the backend approval row id even when the caller already has an agent id', async () => {
     const { decideApproval } = await import('../../ts/src/approvals/resolve');
     const client = approvalClient();
 
@@ -210,16 +210,17 @@ describe('approvals/resolve', () => {
     });
     expect(client.decideApproval).toHaveBeenCalledWith(
       'agent-from-ui',
-      'authoritative-event-id',
+      'approval-row-id',
       { action: 'approve' },
     );
     expect(identity).toEqual({
       agentId: 'agent-from-ui',
-      eventId: 'authoritative-event-id',
+      eventId: 'approval-row-id',
+      governanceEventId: 'authoritative-event-id',
     });
   });
 
-  it('resolves the agent id and event id from the backend pending row', async () => {
+  it('resolves the agent id and approval row id from the backend pending row', async () => {
     const { resolveApprovalIdentity } = await import('../../ts/src/approvals/resolve');
     const client = approvalClient();
 
@@ -227,7 +228,8 @@ describe('approvals/resolve', () => {
       resolveApprovalIdentity(client, { governanceEventId: 'approval-row-id' }),
     ).resolves.toEqual({
       agentId: 'agent-from-backend',
-      eventId: 'authoritative-event-id',
+      eventId: 'approval-row-id',
+      governanceEventId: 'authoritative-event-id',
     });
   });
 
@@ -276,10 +278,11 @@ describe('approvals/resolve', () => {
     });
     expect(client.decideApproval).toHaveBeenCalledWith(
       'agent-from-ui',
-      'authoritative-event-id-page-2',
+      'approval-row-id-page-2',
       { action: 'approve' },
     );
-    expect(identity.eventId).toBe('authoritative-event-id-page-2');
+    expect(identity.eventId).toBe('approval-row-id-page-2');
+    expect(identity.governanceEventId).toBe('authoritative-event-id-page-2');
   });
 
   it('falls back to the caller identity if the pending lookup is unavailable', async () => {

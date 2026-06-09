@@ -177,6 +177,23 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   }
 
   /**
+   * Dynamic operation request used by compact API-first tooling.
+   * Generated wrapper methods remain the preferred typed surface; this
+   * method exists for operationId-driven callers that already resolved
+   * a generated endpoint manifest entry.
+   */
+  async requestOperation(
+    method: string,
+    path: string,
+    options?: {
+      params?: Record<string, unknown>;
+      data?: unknown;
+    },
+  ): Promise<unknown> {
+    return this.request(method, path, options);
+  }
+
+  /**
    * Update the cached permission set. Call this after a token refresh
    * that returned new claims, or after `getProfile()` if the consumer
    * didn't pre-load permissions at construction time. Pass `undefined`

@@ -11,8 +11,8 @@
 // integration can wire either side without re-implementing the
 // wire format.
 //
-// Mocks live under `openbox-sdk/approvals/mocks` so a production
-// bundle can drop them entirely.
+// Test fixtures stay in source/tests and explicit test utilities; this
+// production sub-path does not export mocks.
 
 export { formatLabel, verdictLabel, UPPERCASE_WORDS } from './format.js';
 export { summarizeInput } from './summarize.js';

@@ -1,7 +1,7 @@
 // Unit-level test for the walk-up `.claude-hooks/` resolver in
 // `ts/src/runtime/claude-code/config.ts`. The resolver is what
 // makes a project-scoped install (config under <cwd>/.claude-hooks/)
-// take precedence over the global ~/.claude-hooks/ one. The
+// take precedence. The
 // resolver runs once at module load with `process.cwd()`; the
 // exported `resolveConfigDir(startDir)` lets us drive the same
 // logic from a synthetic directory tree without touching the
@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
-import { tmpdir, homedir } from 'node:os';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveConfigDir as resolveClaudeConfigDir } from '../../ts/src/runtime/claude-code/config.js';
 import { resolveConfigDir as resolveCursorConfigDir } from '../../ts/src/runtime/cursor/config.js';
@@ -34,10 +34,10 @@ describe('claude-code config dir resolution', () => {
     expect(resolveClaudeConfigDir(nestedSrc)).toBe(projectHooks);
   });
 
-  it('falls back to the global ~/.claude-hooks when no project config is found', () => {
+  it('falls back to the start directory when no project config is found', () => {
     const isolated = mkdtempSync(path.join(tmpdir(), 'obx-cfg-claude-fallback-'));
     const resolved = resolveClaudeConfigDir(isolated);
-    expect(resolved).toBe(path.join(homedir(), '.claude-hooks'));
+    expect(resolved).toBe(path.join(isolated, '.claude-hooks'));
   });
 
   it('prefers the deepest .claude-hooks when nested project dirs each ship one', () => {
@@ -75,9 +75,9 @@ describe('cursor config dir resolution', () => {
     expect(resolveCursorConfigDir(nestedSrc)).toBe(projectHooks);
   });
 
-  it('falls back to the global ~/.cursor-hooks when no project config is found', () => {
+  it('falls back to the start directory when no project config is found', () => {
     const isolated = mkdtempSync(path.join(tmpdir(), 'obx-cfg-cursor-fallback-'));
     const resolved = resolveCursorConfigDir(isolated);
-    expect(resolved).toBe(path.join(homedir(), '.cursor-hooks'));
+    expect(resolved).toBe(path.join(isolated, '.cursor-hooks'));
   });
 });

@@ -14,36 +14,16 @@ import {
 import { registerAuthCommands } from './commands/auth.js';
 import { registerConnectCommand } from './commands/connect.js';
 import { registerConfigCommands } from './commands/config.js';
-import { registerAgentCommands } from './commands/agent.js';
-import { registerApiKeyCommands } from './commands/api-key.js';
-import { registerGuardrailCommands } from './commands/guardrail.js';
-import { registerPolicyCommands } from './commands/policy.js';
-import { registerBehaviorCommands } from './commands/behavior.js';
-import { registerSessionCommands } from './commands/session.js';
-import { registerTrustCommands } from './commands/trust.js';
-import { registerAivssCommands } from './commands/aivss.js';
-import { registerGoalCommands } from './commands/goal.js';
-import { registerApprovalCommands } from './commands/approval.js';
-import { registerObservabilityCommands } from './commands/observability.js';
-import { registerViolationCommands } from './commands/violation.js';
-import { registerOrgCommands } from './commands/org.js';
-import { registerTeamCommands } from './commands/team.js';
-import { registerMemberCommands } from './commands/member.js';
-import { registerAuditCommands } from './commands/audit.js';
+import { registerApiCommands } from './commands/api.js';
 import { registerHealthCommands } from './commands/health.js';
-import { registerCoreCommands } from './commands/core.js';
 import { registerMcpCommands } from './commands/mcp.js';
-import { registerSkillCommands } from './commands/skill.js';
 import { registerClaudeCodeCommands } from './commands/claude-code.js';
 import { registerCursorCommands } from './commands/cursor.js';
 import { registerInstallCommands } from './commands/install.js';
 import { registerDoctorCommand } from './commands/doctor.js';
 import { registerVerifyCommand } from './commands/verify.js';
 import { registerVersionsCommand } from './commands/versions.js';
-import { registerWebhookCommands } from './commands/webhook.js';
-import { registerSsoCommands } from './commands/sso.js';
 import { gateCommands, setMaturityOverride } from './maturity.js';
-import { maturityOf } from '../maturity/index.js';
 import { COMMAND_MATURITY } from './generated/cli-maturity.js';
 import { setExplicitFeatures } from './features.js';
 import { EXIT, bailWith } from './exit-codes.js';
@@ -87,8 +67,8 @@ function packageVersion(): string {
 
 /** Walk the program tree against argv to find the deepest registered
  *  subcommand the user actually reached. Used by helpRef so that
- *  `openbox api-key rotate` (missing arg) points at
- *  `openbox api-key rotate --help`, not just `openbox api-key --help`.
+ *  `openbox api backend` (missing arg) points at
+ *  `openbox api backend --help`, not just `openbox api --help`.
  *  Stops at the first token that doesn't match a registered subcommand
  *  so an unknown verb doesn't poison the path. */
 function deepestRegisteredPath(): string | null {
@@ -300,34 +280,15 @@ function buildCommandKey(cmd: Command): string {
 registerAuthCommands(program);
 registerConnectCommand(program);
 registerConfigCommands(program);
-registerAgentCommands(program);
-registerApiKeyCommands(program);
-registerGuardrailCommands(program);
-registerPolicyCommands(program);
-registerBehaviorCommands(program);
-registerSessionCommands(program);
-registerTrustCommands(program);
-registerAivssCommands(program);
-registerGoalCommands(program);
-registerApprovalCommands(program);
-registerObservabilityCommands(program);
-registerViolationCommands(program);
-registerOrgCommands(program);
-registerTeamCommands(program);
-registerMemberCommands(program);
-registerAuditCommands(program);
+registerApiCommands(program);
 registerHealthCommands(program);
-registerCoreCommands(program);
 registerMcpCommands(program);
-registerSkillCommands(program);
 registerClaudeCodeCommands(program);
 registerCursorCommands(program);
 registerInstallCommands(program);
 registerDoctorCommand(program);
 registerVerifyCommand(program);
 registerVersionsCommand(program);
-registerWebhookCommands(program);
-registerSsoCommands(program);
 
 function isCliEntrypoint(): boolean {
   const entrypoint = process.argv[1];
@@ -346,6 +307,14 @@ function configureCommandTree(argv: string[]): void {
   // Pre-scan global flags BEFORE gating + parse; commander's --help is
   // printed during parseAsync, by which time the command tree has to
   // already reflect the user's --experimental / --feature opt-ins.
+  const envMaturity = process.env.OPENBOX_EXPERIMENTAL_LEVEL?.toLowerCase();
+  if (
+    envMaturity === 'experimental' ||
+    envMaturity === 'beta' ||
+    envMaturity === 'stable'
+  ) {
+    setMaturityOverride(envMaturity);
+  }
   if (argv.includes('--experimental')) setMaturityOverride('experimental');
   const features: string[] = [];
   for (let i = 0; i < argv.length; i++) {
@@ -379,70 +348,6 @@ export async function runOpenBoxCli(
   if (argv.length === 2) {
     program.outputHelp();
     bailWith(EXIT.OK);
-  }
-
-  // Pre-flight check: if the user typed a command that's gated behind
-  // `--experimental` without passing the flag, commander would emit a
-  // bare `error: unknown command '<verb>'`. That message is misleading -
-  // the verb DOES exist, it's just hidden at the current maturity level.
-  // LLMs (and humans) who see "unknown command 'agent'" tend to invent
-  // explanations like "slim build" instead of trying --experimental.
-  // Print a tighter, accurate error when we detect this case.
-  {
-    // Walk argv past the top-level flags (and their values) to find the
-    // first real verb. Top-level flags that take a value: --feature.
-    // Top-level boolean flags: --experimental, --yes, -y, --non-interactive,
-    // --no-color, -q, --quiet, --json, -V, --version, -h, --help. Any
-    // unknown -... flag is treated as boolean conservatively (we'd rather
-    // miss the hint than fire it at the wrong token).
-    const VALUE_FLAGS = new Set(['--feature']);
-    const args = argv.slice(2);
-    let firstVerb: string | undefined;
-    let positionalStart = -1;
-    for (let i = 0; i < args.length; i++) {
-      const a = args[i];
-      if (a.startsWith('-')) {
-        if (VALUE_FLAGS.has(a)) i++; // skip the value too
-        continue;
-      }
-      firstVerb = a;
-      positionalStart = i;
-      break;
-    }
-    if (firstVerb && !args.includes('--experimental')) {
-      // Only fire the experimental-hint when the verb is EXPLICITLY
-      // listed in the spec's COMMAND_MATURITY table. Without this
-      // check, `maturityOf(unlisted)` defaults to 'experimental' and
-      // a genuine typo (`openbox bogus`) would get pointed at
-      // --experimental instead of "unknown command". The conservative
-      // gating-time default still applies elsewhere; this check is
-      // about user-facing diagnostic accuracy.
-      const fullPath = args
-        .slice(positionalStart)
-        .filter((a) => !a.startsWith('-'))
-        .join(' ');
-      const explicitlyExperimental =
-        (COMMAND_MATURITY[firstVerb] === 'experimental' ||
-          COMMAND_MATURITY[fullPath] === 'experimental') &&
-        // Plus the conservative gating-default still classifies it as
-        // experimental so we don't fire on anything the spec hides.
-        maturityOf(firstVerb) === 'experimental';
-      // Fire only when the verb isn't currently registered (gated out)
-      // AND it's known-experimental in the spec. Otherwise commander's
-      // own `unknown command` is the right error.
-      const knownToCommander = program.commands.some(
-        (c) => c.name() === firstVerb,
-      );
-      if (explicitlyExperimental && !knownToCommander) {
-        error(`\`${firstVerb}\` is an experimental command`, {
-          help:
-            `re-run with --experimental:\n` +
-            `  openbox --experimental ${args.join(' ')}\n` +
-            'or set OPENBOX_EXPERIMENTAL_LEVEL=experimental in your shell',
-        });
-        bailWith(EXIT.USAGE);
-      }
-    }
   }
 
   await program.parseAsync(argv).catch((err) => {

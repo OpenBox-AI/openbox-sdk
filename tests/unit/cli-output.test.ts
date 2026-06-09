@@ -63,14 +63,14 @@ describe('output: severity prefixes', () => {
 
   it('error help with newlines hang-indents continuation under the value', () => {
     error('no targets', {
-      help: 'pass --only <target>\nvalid:   skill, mcp\nexample: openbox install mcp',
+      help: 'pick a subcommand\nvalid:   extension, cursor, claude-code\nexample: openbox install cursor',
     });
     expect(captureLog(errSpy)).toEqual([
       'error: no targets',
       '',
-      'help: pass --only <target>',
-      '      valid:   skill, mcp',
-      '      example: openbox install mcp',
+      'help: pick a subcommand',
+      '      valid:   extension, cursor, claude-code',
+      '      example: openbox install cursor',
     ]);
   });
 

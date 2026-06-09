@@ -1,95 +1,55 @@
-# OpenBox integration surfaces
+# OpenBox Integration Paths
 
-How to wire an LLM agent or developer tool into OpenBox governance.
-Pick the shortest path that matches the user's stack. Falling through
-to a custom integration is rarely the right answer.
+Pick the shortest supported path for the user's stack.
 
-## Decision tree
+## Cursor, Claude Code, MCP Hosts
 
-> *"What's the user actually trying to do?"*
+Use the CLI installer. Installs are project-local.
 
-1. **Claude Code, Cursor, or any MCP-compatible host.** Run
-   `openbox <host> install`. The CLI writes the right config block
-   into the host's settings file and wires governance through the
-   host's hook, slash, or MCP system. No SDK code to write.
+```sh
+openbox install cursor --cwd <project>
+openbox install claude-code --cwd <project>
+openbox mcp serve
+```
 
-2. **Known agent framework** such as LangChain, LangGraph, CrewAI,
-   Mastra, Cloudflare Agents, DeepAgents, or Temporal. If a
-   framework-specific OpenBox SDK exists, use it. The framework SDK
-   constructs the workflow envelope, fires the right activity types,
-   polls approvals, and applies redaction. Ask the user which package
-   they have access to; some live in a private registry.
+Cursor and Claude Code plugins provide host capabilities/config.
+The extension/UI surface owns approval panels, history, and pending
+decision display.
 
-3. **TypeScript or Node.js directly**, with no framework, a custom
-   server, or a custom agent loop. `npm install openbox-sdk` and use
-   `govern()` or `govern.attach()` from `openbox-sdk/core-client`.
-   Spec-driven, typed presets, the reference implementation that
-   other-language SDKs port from.
+## TypeScript SDK
 
-4. **Python, Go, or Rust** without a framework SDK. Use the
-   per-language OpenBox SDK if one is published. Same brand, same
-   protocol, generated from the same TypeSpec source of truth as the
-   TypeScript SDK.
+Use `openbox-sdk` as the API-first reference SDK.
 
-5. **None of the above.** Drop to raw
-   `POST /api/v1/governance/evaluate` calls. Read `governance-flow.md`
-   first. Fire the full envelope:
-   `WorkflowStarted → ActivityStarted → ActivityCompleted →
-   WorkflowCompleted`. Otherwise the agent audit lists the run as a
-   dangling session.
-
-## openbox-sdk on TypeScript
-
-The reference implementation. Framework-specific SDKs lower from it.
-Public sub-paths:
-
-| Sub-path | Use for |
+| Import | Purpose |
 |---|---|
-| `openbox-sdk` | Root re-exports of the most common surfaces |
-| `openbox-sdk/client` | `OpenBoxClient`, the backend management API for agents, teams, guardrails, and the rest |
-| `openbox-sdk/core-client` | `OpenBoxCoreClient` for the core API: evaluate, approval polling, and approval decisions. Also `govern()`, `govern.attach()`, typed preset Sessions, redaction helpers |
-| `openbox-sdk/env` | `resolveConnection`, `parseTokenStore`, `resolveClientName`, URL/key bindings |
-| `openbox-sdk/os-paths` | Node-only path resolver. Kept off `/env` for React Native |
-| `openbox-sdk/types` | Hand-curated DTOs and the auto-generated `Backend` and `Core` namespaces |
-| `openbox-sdk/runtime/claude-code` | Claude Code hook adapter |
-| `openbox-sdk/runtime/cursor` | Cursor hook adapter |
-| `openbox-sdk/runtime/mcp` | MCP server runtime, exposed as `runMcpServer()` |
+| `openbox-sdk/client` | Backend management client |
+| `openbox-sdk/core-client` | Core governance client and sessions |
+| `openbox-sdk/copilotkit` | CopilotKit runtime adapter |
+| `openbox-sdk/copilotkit/react` | CopilotKit React hooks/renderers |
+| `openbox-sdk/runtime/mcp` | MCP runtime |
+| `openbox-sdk/runtime/cursor` | Cursor runtime |
+| `openbox-sdk/runtime/claude-code` | Claude Code runtime |
 
-Two ways to drive a session:
+## Custom Agent Runtime
 
-```typescript
-// Single-process. govern() opens and closes the workflow envelope.
-import { govern, presets } from 'openbox-sdk/core-client';
-await govern({ core, preset: presets.claudeCode }, async (session) => {
-  await session.preToolUse({ input: [{ tool_name: 'Read', file_path: '/x' }] });
+Use Core sessions:
+
+```ts
+import { OpenBoxCoreClient, govern, presets } from 'openbox-sdk/core-client';
+
+const core = new OpenBoxCoreClient({
+  apiUrl: process.env.OPENBOX_CORE_URL,
+  apiKey: process.env.OPENBOX_API_KEY,
+});
+
+await govern({ core, preset: presets.custom }, async (session) => {
+  await session.activity('ActivityStarted', 'ToolCall', { input: { name: 'tool' } });
 });
 ```
 
-```typescript
-// Cross-process per-event hook binary. govern.attach(). The workflow
-// lifecycle is owned by the harness across many short-lived processes.
-const session = govern.attach({
-  core, preset: presets.claudeCode, workflowId, runId,
-});
-const verdict = await session.preToolUse({ input: [...] });
-// The caller decides when to fire workflowStarted and workflowCompleted.
-```
+## Other Language SDKs
 
-**Cross-preset escape:**
-`session.activity('ActivityStarted', 'FileRead', { input: [...] })`
-fires arbitrary activity_types beyond the bound preset's typed
-methods. Used by the runtime adapters for per-tool routing.
-
-## CLI subcommands for host integrations
-
-The `openbox` binary exposes one-shot install commands for each
-supported LLM host. The user runs `openbox <host> install` once. The
-SDK writes the right config block into the host's settings file and
-points it at the matching hook entry or runtime.
-
-| Host | Install | Hook entry or runtime |
-|---|---|---|
-| Claude Code | `openbox claude-code install` | `openbox claude-code hook`, per-event |
-| Cursor IDE | `openbox cursor install` | `openbox cursor hook`, per-event |
-| MCP-compatible host such as Claude Desktop | configure the host's `mcpServers` block | `openbox mcp serve`, long-running JSON-RPC |
-| Skills | `openbox install skill` | n/a. Copies `SKILL.md` and references into `~/.claude/skills/openbox/` and `~/.cursor/skills/openbox/` |
+Other language SDKs should live on their own branch/package track until
+their generator, build, tests, and docs are release-ready. Do not treat
+Rust/Python/Go source as part of the TypeScript SDK mainline unless the
+branch has been explicitly approved for merge.

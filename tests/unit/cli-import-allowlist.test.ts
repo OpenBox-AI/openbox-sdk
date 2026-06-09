@@ -33,38 +33,32 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   '../config.js': 'getClient / getCoreClient resolvers.',
   '../../client/index.js': 'OpenBoxClient (backend) for type imports.',
   '../../core-client/index.js': 'OpenBoxCoreClient (core) for type imports.',
+  '../../client/generated/endpoint-manifest.js':
+    'generated backend operation manifest for the compact api command.',
+  '../../core-client/generated/endpoint-manifest.js':
+    'generated core operation manifest for the compact api command.',
   // Hand-written CLI helpers.
   '../output.js': 'output / outputList renderers.',
   '../../validators/index.js': 'public openbox-sdk/validators surface; reportAndExit + named validators + parseJsonInput.',
-  '../wire-subcommands.js': 'spec-driven tier-1 subcommand interpreter.',
-  '../recipes.js': 'spec-driven tier-2 recipe interpreter (composite ops).',
   '../../test-utils/index.js': 'public openbox-sdk/test-utils surface; buildTestPayload, SPAN_TYPES.',
   '../features.js': 'isFeatureEnabled gate.',
   '../maturity.js': 'CLI maturity gate (gateCommands).',
   '../exit-codes.js': 'EXIT taxonomy + bailWith; exit-code contract.',
   '../../file-tokens/agent-keys.js':
-    'recordAgentKey / recallAgentKey; local 0o600 cache for runtime API keys captured by agent create + api-key rotate (shared between cli and runtime/mcp).',
+    'recordAgentKey / recallAgentKey; local 0o600 cache for runtime API keys shared between cli and runtime/mcp.',
   '../../file-tokens/index.js':
     'saveApiKey; local 0o600 cache for org API keys captured by openbox connect.',
-  '../config-store.js':
-    'setConfig / getConfig / unsetConfig / listConfig / configStorePath / applyConfigToProcessEnv; persistent per-env CLI config, layered into process.env at startup.',
+  '../../config/index.js':
+    'shared persistent config store for CLI commands and runtime adapters.',
   '../colors.ts': 'useColor-aware ANSI helpers; color discipline.',
   '../colors.js': 'useColor-aware ANSI helpers; color discipline.',
   '../non-interactive.js':
     'isNonInteractive / assumeYes / useColor / isQuiet; non-interactive contract.',
-  // Per-command sibling modules; agent-audit is a separate report
-  // module imported by both agent.ts (the action) and tests.
-  './agent-audit.js': 'separate cross-session audit report module.',
-  './install-approver.js': 'approver bundle discovery/install logic split out of the unified install command.',
-  './install-extension.js': 'VS Code/Cursor extension discovery/install logic split out of the unified install command.',
-  './install-plan.js': 'bare install/uninstall planning and runner split out of the Commander wiring module.',
-  // Unified `openbox install skill` delegates to skill.ts's
-  // installSkill(); install.ts is the only commander module that
-  // imports a sibling command module.
-  './skill.js': 'unified install command delegates to installSkill().',
-  // Generated cli-handlers/<cmd>.ts manifests.
-  '../generated/cli-handlers/': 'spec-driven SubcommandSpec[] manifests.',
-  '../generated/cli-recipes/': 'spec-driven RecipeSpec[] manifests (tier-2 composites).',
+  // Host installers delegate to skill.ts's installSkill(); install.ts
+  // is the only commander module that imports a sibling command module.
+  './skill.js': 'host installers delegate to installSkill().',
+  // Generated manifest imports are not allowed in live command modules;
+  // they remain contract artifacts for tests and codegen drift only.
   // Spec-driven canonical sets (CANONICAL_EVENT_TYPES,
   // CANONICAL_ACTIVITY_TYPES, CANONICAL_VERDICT_ARMS) used by session
   // inspect, agent audit, and verify for protocol-conformance checks.
@@ -76,21 +70,17 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   // mcp commands wire `install`, `uninstall`, `hook`, or `serve` actions
   // on top of their runtime adapter.
   '../../runtime/claude-code/install.js':
-    'claude-code install/uninstall delegates to runtime adapter.',
+    'low-level claude-code hook installer remains import-allowed for custom command coverage.',
+  '../../runtime/claude-code/index.js':
+    'claude-code plugin/install commands use the public claude-code runtime surface.',
   '../../runtime/claude-code/hook-handler.js':
     'claude-code hook command runs the runtime hook handler.',
   '../../runtime/cursor/install.js':
-    'cursor install/uninstall delegates to runtime adapter.',
+    'cursor doctor verifies the plugin and hook runtime surface.',
+  '../../runtime/cursor/index.js':
+    'cursor plugin/install commands use the public cursor runtime surface.',
   '../../runtime/cursor/hook-handler.js':
     'cursor hook command runs the runtime hook handler.',
-  '../../runtime/cursor/enterprise.js':
-    'cursor harden / unharden delegate to the enterprise-profile renderer.',
-  '../../runtime/cursor/rules.js':
-    'cursor sync-rules delegates to the .cursor/rules/*.mdc renderer.',
-  '../../runtime/cursor/commands.js':
-    'unified cursor install copies the bundled slash commands, rules, and plugin agents into ~/.cursor/{commands,rules,agents}.',
-  '../../governance/rules-projection.js':
-    'editor-agnostic guardrails+policies projection consumed by cursor sync-rules.',
   '../../runtime/mcp/index.js': 'mcp serve runs the MCP stdio server.',
   '../../runtime/mcp/install.js':
     'unified install command writes/removes the OpenBox MCP server entry across host configs.',

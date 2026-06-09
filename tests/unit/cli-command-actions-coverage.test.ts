@@ -95,7 +95,7 @@ describe('CLI command action coverage', () => {
     await run(config, ['config', 'list']);
     await run(config, ['config', 'unset', 'OPENBOX_API_URL']);
 
-    const { getConfig } = await import('../../ts/src/cli/config-store.ts');
+    const { getConfig } = await import('../../ts/src/config/store.ts');
     expect(getConfig('OPENBOX_API_URL')).toBeUndefined();
     expect(getConfig('OPENBOX_CORE_URL')).toBe('https://core.local.test');
   });
@@ -110,55 +110,66 @@ describe('CLI command action coverage', () => {
       'obx_key_' + 'b'.repeat(48),
     ]);
 
-    const { getConfig } = await import('../../ts/src/cli/config-store.ts');
+    const { getConfig } = await import('../../ts/src/config/store.ts');
     expect(getConfig('OPENBOX_API_URL')).toBe('https://api.dev.test/ob');
     expect(getConfig('OPENBOX_CORE_URL')).toBe('https://core.dev.test/ob');
   });
 
-  it('cursor command actions install, inspect, harden, and uninstall project-scoped surfaces', async () => {
+  it('cursor command actions export/install/inspect/uninstall the plugin surface', async () => {
     const cursor = programWith(registerCursorCommands);
+    const exported = join(project, 'exported-plugin');
+    const installed = join(project, 'installed-plugin');
 
     await run(cursor, [
       'cursor',
+      'plugin',
+      'export',
+      '--out',
+      exported,
+      '--matcher',
+      'beforeShellExecution=rm',
+    ]);
+    await run(cursor, [
+      'cursor',
       'install',
-      '--scope',
-      'project',
       '--cwd',
       project,
+      '--target',
+      installed,
       '--matcher',
       'beforeShellExecution=rm',
     ]);
     await run(cursor, [
       'cursor',
       'doctor',
-      '--scope',
-      'project',
       '--cwd',
       project,
+      '--plugin-target',
+      installed,
       '--surface-only',
       '--json',
     ]);
-    await run(cursor, ['cursor', 'harden', '--dry-run']);
-    await run(cursor, ['cursor', 'unharden']);
-    await run(cursor, ['cursor', 'uninstall', '--scope', 'project', '--cwd', project]);
+    await run(cursor, ['cursor', 'uninstall', '--cwd', project, '--target', installed]);
   });
 
   it('claude-code command actions install and uninstall scoped surfaces', async () => {
     const claude = programWith(registerClaudeCodeCommands);
+    const exported = join(project, 'exported-claude-plugin');
 
     await run(claude, ['claude-code', 'install', '--scope', 'project', '--cwd', project]);
     await run(claude, ['claude-code', 'uninstall', '--scope', 'project', '--cwd', project]);
-    await run(claude, ['claude-code', 'install', '--scope', 'local', '--cwd', project, '--no-mcp']);
-    await run(claude, ['claude-code', 'uninstall', '--scope', 'local', '--cwd', project, '--no-mcp']);
+    await run(claude, ['claude-code', 'plugin', 'export', '--out', exported]);
+    await run(claude, ['claude-code', 'plugin', 'install', '--scope', 'project', '--cwd', project, '--symlink', exported]);
+    await run(claude, ['claude-code', 'plugin', 'uninstall', '--scope', 'project', '--cwd', project]);
   });
 
   it('integration command actions reject invalid scopes and matcher pairs', async () => {
     const cursor = programWith(registerCursorCommands);
     const claude = programWith(registerClaudeCodeCommands);
 
-    await expect(run(cursor, ['cursor', 'install', '--scope', 'workspace'])).rejects.toThrow();
     await expect(run(cursor, ['cursor', 'install', '--matcher', 'missing-equals'])).rejects.toThrow();
     await expect(run(claude, ['claude-code', 'install', '--scope', 'workspace'])).rejects.toThrow();
     await expect(run(claude, ['claude-code', 'uninstall', '--scope', 'workspace'])).rejects.toThrow();
+    await expect(run(claude, ['claude-code', 'install', '--scope', 'global'])).rejects.toThrow();
   });
 });

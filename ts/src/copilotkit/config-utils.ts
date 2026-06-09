@@ -1,5 +1,11 @@
-import { OpenBoxCoreClient } from '../core-client/core-client.js';
-import { OPENBOX_RUNTIME_KEY_PATTERN } from './constants.js';
+import {
+  OpenBoxCoreClient,
+  type AgentIdentityConfig,
+} from '../core-client/core-client.js';
+import {
+  OPENBOX_BACKEND_API_KEY_PATTERN,
+  OPENBOX_RUNTIME_KEY_PATTERN,
+} from './constants.js';
 import {
   OpenBoxCopilotKitError,
   type OpenBoxCopilotKitConfig,
@@ -14,12 +20,7 @@ export function getRuntimeApiKey(
 export function getApprovalBackendApiKey(
   config: OpenBoxCopilotKitConfig,
 ): string | undefined {
-  return (
-    config.backendApiKey ??
-    config.platformApiKey ??
-    process.env.OPENBOX_BACKEND_API_KEY ??
-    process.env.OPENBOX_PLATFORM_API_KEY
-  );
+  return config.backendApiKey ?? process.env.OPENBOX_BACKEND_API_KEY;
 }
 
 export function createCoreClientResolver(config: OpenBoxCopilotKitConfig) {
@@ -35,6 +36,11 @@ export function createCoreClientResolver(config: OpenBoxCopilotKitConfig) {
         'OpenBox is enabled but the runtime API key is not configured.',
       );
     }
+    if (OPENBOX_BACKEND_API_KEY_PATTERN.test(apiKey)) {
+      throw new OpenBoxCopilotKitError(
+        'OpenBox CopilotKit runtime expected an agent runtime key in OPENBOX_API_KEY (obx_live_* or obx_test_*), but received an org/backend key (obx_key_*). Put org keys in OPENBOX_BACKEND_API_KEY.',
+      );
+    }
     if (!OPENBOX_RUNTIME_KEY_PATTERN.test(apiKey)) {
       throw new OpenBoxCopilotKitError(
         'OpenBox is enabled but the runtime API key must be an obx_live_* or obx_test_* key.',
@@ -45,28 +51,32 @@ export function createCoreClientResolver(config: OpenBoxCopilotKitConfig) {
         'OpenBox is enabled but the Core URL is not configured.',
       );
     }
-    const cacheKey = `${coreUrl}:${apiKey}`;
+    const agentIdentity = getAgentIdentity(config);
+    const cacheKey = `${coreUrl}:${apiKey}:${agentIdentity?.did ?? ''}:${config.coreTimeoutMs ?? ''}`;
     if (!coreClient || coreClientCacheKey !== cacheKey) {
-      coreClient = new OpenBoxCoreClient({ apiKey, apiUrl: coreUrl });
+      coreClient = new OpenBoxCoreClient({
+        apiKey,
+        apiUrl: coreUrl,
+        agentIdentity,
+        timeoutMs: config.coreTimeoutMs,
+      });
       coreClientCacheKey = cacheKey;
     }
     return coreClient;
   };
 }
 
-export function hasCoreRuntimeConfig(config: OpenBoxCopilotKitConfig): boolean {
-  return Boolean(
-    config.core ||
-    (getRuntimeApiKey(config) &&
-      (config.coreUrl ?? process.env.OPENBOX_CORE_URL)),
-  );
-}
-
-export function hasApprovalBackendConfig(
+export function getAgentIdentity(
   config: OpenBoxCopilotKitConfig,
-): boolean {
-  return Boolean(
-    (config.apiUrl ?? process.env.OPENBOX_API_URL) &&
-    getApprovalBackendApiKey(config),
-  );
+): AgentIdentityConfig | undefined {
+  if (config.agentIdentity) return config.agentIdentity;
+  const did = process.env.OPENBOX_AGENT_DID;
+  const privateKey = process.env.OPENBOX_AGENT_PRIVATE_KEY;
+  if (!did && !privateKey) return undefined;
+  if (!did || !privateKey) {
+    throw new OpenBoxCopilotKitError(
+      'OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY.',
+    );
+  }
+  return { did, privateKey };
 }

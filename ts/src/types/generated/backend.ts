@@ -1877,6 +1877,10 @@ export interface components {
             /** Format: int32 */
             pending_approvals: number;
         };
+        AgentIdentity: {
+            did: string;
+            privateKey: string;
+        };
         /**
          * @description Composite agent metrics on /agent/metrics. Three opaque sub-rollups
          *     (agent counts, guardrail violations, policy violations) - the
@@ -1979,8 +1983,8 @@ export interface components {
             /**
              * @description Activity input payload captured at queue time. Shape depends on
              *     the action type; Shell carries `[{ command, cwd }]`, LLM carries
-             *     `[{ prompt, model }]`. Mobile + approver UIs pretty-print this
-             *     in the detail sheet; CLI surfaces a one-line summary.
+             *     `[{ prompt, model }]`. Approval clients pretty-print this in the
+             *     detail sheet; CLI surfaces a one-line summary.
              */
             input?: {
                 [key: string]: unknown;
@@ -2166,11 +2170,14 @@ export interface components {
         /**
          * @description `POST /agent/create` returns the agent + the runtime API key. The
          *     key is returned ONCE at this moment; it's never recoverable from
-         *     `agent get` later. Consumers must persist it immediately.
+         *     `agent get` later. New signed agents also return the one-time DID
+         *     identity keypair needed to sign Core runtime requests. Consumers
+         *     must persist both immediately.
          */
         CreateAgentResponse: {
             agent: components["schemas"]["Agent"];
             token: string;
+            identity?: components["schemas"]["AgentIdentity"];
         };
         CreateAivssConfigDto: {
             /** @description Base Security parameters (25% weight) */

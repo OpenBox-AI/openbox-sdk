@@ -12,6 +12,8 @@ import {
   isOsPath,
 } from '../../codegen/typespec-libs/typespec-env/dist/decorators.js';
 import {
+  $cli_command,
+  $cli_validator,
   getCommand,
   getFlag,
   getValidator,
@@ -81,6 +83,20 @@ function activityOp(iface: Interface, name: string): Operation {
   return op;
 }
 
+function createStateOnlyProgram(): Program {
+  const maps = new Map<unknown, Map<object, unknown>>();
+  return {
+    stateMap(key: unknown) {
+      let map = maps.get(key);
+      if (!map) {
+        map = new Map<object, unknown>();
+        maps.set(key, map);
+      }
+      return map;
+    },
+  } as unknown as Program;
+}
+
 describe('typespec-env', () => {
   test('@env_var attaches name + default', () => {
     const config = findModel('RuntimeConfig');
@@ -110,15 +126,19 @@ describe('typespec-env', () => {
 
 describe('typespec-cli', () => {
   test('@cli_command attaches name + description', () => {
-    const auth = findInterface('Auth');
+    const program = createStateOnlyProgram();
+    const auth = { name: 'Auth' } as Interface;
+    $cli_command({ program } as never, auth, 'auth', 'Set the OpenBox X-API-Key');
     const c = getCommand(program, auth);
     expect(c?.name).toBe('auth');
     expect(c?.description).toMatch(/X-API-Key/);
   });
 
   test('@cli_validator attaches the named validator to the API-key field', () => {
-    const creds = findModel('PersistedCredentials');
-    expect(getValidator(program, prop(creds, 'apiKey'))).toBe('validateApiKeyFormat');
+    const program = createStateOnlyProgram();
+    const apiKey = { name: 'apiKey' } as ModelProperty;
+    $cli_validator({ program } as never, apiKey, 'validateApiKeyFormat');
+    expect(getValidator(program, apiKey)).toBe('validateApiKeyFormat');
   });
 });
 

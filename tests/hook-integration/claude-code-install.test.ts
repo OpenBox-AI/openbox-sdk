@@ -1,19 +1,9 @@
-// Install / uninstall / doctor coverage for the claude-code
-// integration. Runs `openbox claude-code install --scope project`
-// against a fresh temp directory and asserts the spec-driven
-// artifacts land where expected:
-//
-//   - <cwd>/.claude/settings.json with one hook entry per
-//     @hookEvent in adapters.tsp (PreToolUse, PostToolUse,
-//     UserPromptSubmit, PermissionRequest, PreCompact,
-//     SessionStart, SessionEnd, SubagentStart, SubagentStop,
-//     Stop, Notification)
-//   - <cwd>/.claude-hooks/config.json with sane defaults
-//   - the hook command set to `openbox claude-code hook`
-//
-// Uninstall removes the hook block while leaving unrelated
-// settings keys alone. Doctor reports the install as healthy
-// when run inside the project directory.
+// Install / uninstall coverage for the Claude Code plugin surface.
+// The stable CLI no longer writes Claude settings directly. It
+// installs a skills-dir plugin containing .claude-plugin metadata,
+// hooks, MCP config, slash commands, an agent template, and the
+// OpenBox skill. The hook runtime still reads .claude-hooks/config.json,
+// so plugin install also seeds that config template.
 
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -21,7 +11,11 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-const OPENBOX = process.env.OPENBOX_CLI ?? 'openbox';
+const DIST_CLI = path.resolve(import.meta.dirname, '../../dist/cli/index.js');
+const OPENBOX =
+  process.env.OPENBOX_CLI && existsSync(process.env.OPENBOX_CLI)
+    ? process.env.OPENBOX_CLI
+    : DIST_CLI;
 
 function runCli(args: string[], cwd: string): { status: number | null; stdout: string; stderr: string } {
   const r = spawnSync(OPENBOX, args, {
@@ -36,26 +30,39 @@ function runCli(args: string[], cwd: string): { status: number | null; stdout: s
   return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
-describe('claude-code install / uninstall / doctor', () => {
-  it('install --scope project writes the spec-driven hook block and config file', () => {
-    const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-install-'));
+function pluginDir(project: string): string {
+  return path.join(project, '.claude', 'skills', 'openbox');
+}
+
+function expectClaudePlugin(project: string): void {
+  const root = pluginDir(project);
+  expect(existsSync(path.join(root, '.claude-plugin', 'plugin.json'))).toBe(true);
+  expect(existsSync(path.join(root, '.claude-plugin', 'marketplace.json'))).toBe(true);
+  expect(existsSync(path.join(root, '.mcp.json'))).toBe(true);
+  expect(existsSync(path.join(root, 'skills', 'openbox', 'SKILL.md'))).toBe(true);
+  expect(existsSync(path.join(root, 'commands', 'openbox-status.md'))).toBe(true);
+  expect(existsSync(path.join(root, 'commands', 'openbox-doctor.md'))).toBe(true);
+  expect(existsSync(path.join(root, 'agents', 'openbox-reviewer.md'))).toBe(true);
+  expect(existsSync(path.join(project, '.claude-hooks', 'config.json'))).toBe(true);
+  expect(existsSync(path.join(project, '.claude', 'settings.json'))).toBe(false);
+}
+
+function readHooks(project: string): Record<string, Array<{ matcher?: string; hooks: Array<{ command: string; type: string; timeout?: number }> }>> {
+  return JSON.parse(readFileSync(path.join(pluginDir(project), 'hooks', 'hooks.json'), 'utf-8')).hooks;
+}
+
+describe('claude-code plugin install / uninstall', () => {
+  it('claude-code install --scope project writes a complete native plugin folder', () => {
+    const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-plugin-'));
 
     const r = runCli(
-      ['--experimental', 'claude-code', 'install', '--scope', 'project', '--cwd', project, '--no-mcp'],
+      ['--experimental', 'claude-code', 'install', '--scope', 'project', '--cwd', project],
       project,
     );
     expect(r.status, `install failed: ${r.stderr}`).toBe(0);
+    expectClaudePlugin(project);
 
-    const settingsPath = path.join(project, '.claude', 'settings.json');
-    expect(existsSync(settingsPath), 'settings.json not created').toBe(true);
-    const settings = JSON.parse(readFileSync(settingsPath, 'utf-8')) as {
-      hooks?: Record<string, Array<{ hooks: Array<{ command: string; type: string; timeout?: number }> }>>;
-    };
-    expect(settings.hooks).toBeDefined();
-
-    // The spec defines events under @hookEvent in adapters.tsp; the
-    // install must cover every one. Names match the keys claude code
-    // emits, which are PascalCase.
+    const hooks = readHooks(project);
     const expectedEvents = [
       'PreToolUse',
       'PostToolUse',
@@ -70,139 +77,80 @@ describe('claude-code install / uninstall / doctor', () => {
       'Notification',
     ];
     for (const event of expectedEvents) {
-      expect(
-        settings.hooks![event],
-        `settings.hooks.${event} not installed`,
-      ).toBeDefined();
-      const hookEntry = settings.hooks![event][0]?.hooks?.[0];
+      expect(hooks[event], `hooks.${event} not installed`).toBeDefined();
+      const hookEntry = hooks[event][0]?.hooks?.[0];
       expect(hookEntry?.command).toBe('openbox claude-code hook');
       expect(hookEntry?.type).toBe('command');
     }
 
-    // PreToolUse and the other permission-arm events need long
-    // timeouts so the hook can poll for an approval decision past
-    // the default 60s claude-code budget.
-    const permissionTimeoutEvents = ['PreToolUse', 'UserPromptSubmit', 'PermissionRequest'];
-    for (const event of permissionTimeoutEvents) {
-      const timeout = settings.hooks![event][0]?.hooks?.[0]?.timeout;
+    for (const event of ['PreToolUse', 'UserPromptSubmit', 'PermissionRequest']) {
+      const timeout = hooks[event][0]?.hooks?.[0]?.timeout;
       expect(timeout, `${event} timeout missing or too short`).toBeGreaterThanOrEqual(300);
     }
-
-    // The config file gets seeded with safe defaults the user can
-    // edit. We assert the file exists; contents are exercised by
-    // the config-scope tests.
-    const cfgPath = path.join(project, '.claude-hooks', 'config.json');
-    expect(existsSync(cfgPath), '.claude-hooks/config.json not created').toBe(true);
   });
 
-  it('uninstall --scope project removes the hook block without touching unrelated keys', () => {
-    const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-uninstall-'));
-    const settingsPath = path.join(project, '.claude', 'settings.json');
-
-    // Pre-seed an unrelated setting so we can verify it survives.
-    spawnSync('mkdir', ['-p', path.dirname(settingsPath)], { cwd: project });
-    writeFileSync(settingsPath, JSON.stringify({ unrelated: { keep: 'me' } }));
+  it('top-level install claude-code uses the same plugin path', () => {
+    const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-top-install-'));
 
     const install = runCli(
-      ['--experimental', 'claude-code', 'install', '--scope', 'project', '--cwd', project, '--no-mcp'],
+      ['--experimental', 'install', 'claude-code', '--scope', 'project', '--cwd', project],
+      project,
+    );
+    expect(install.status, `install failed: ${install.stderr}`).toBe(0);
+    expectClaudePlugin(project);
+
+    const uninstall = runCli(
+      ['--experimental', 'uninstall', 'claude-code', '--scope', 'project', '--cwd', project],
+      project,
+    );
+    expect(uninstall.status, `uninstall failed: ${uninstall.stderr}`).toBe(0);
+    expect(existsSync(pluginDir(project))).toBe(false);
+  });
+
+  it('uninstall removes only the plugin folder and leaves unrelated settings alone', () => {
+    const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-uninstall-'));
+    const settingsPath = path.join(project, '.claude', 'settings.json');
+    spawnSync('mkdir', ['-p', path.dirname(settingsPath)], { cwd: project });
+    writeFileSync(settingsPath, JSON.stringify({ unrelated: { keep: 'me' } }, null, 2));
+
+    const install = runCli(
+      ['--experimental', 'claude-code', 'install', '--scope', 'project', '--cwd', project],
       project,
     );
     expect(install.status).toBe(0);
 
     const uninstall = runCli(
-      ['--experimental', 'claude-code', 'uninstall', '--scope', 'project', '--cwd', project, '--no-mcp'],
+      ['--experimental', 'claude-code', 'uninstall', '--scope', 'project', '--cwd', project],
       project,
     );
     expect(uninstall.status, `uninstall failed: ${uninstall.stderr}`).toBe(0);
+    expect(existsSync(pluginDir(project))).toBe(false);
 
     const settings = JSON.parse(readFileSync(settingsPath, 'utf-8')) as {
-      hooks?: Record<string, unknown>;
       unrelated?: { keep?: string };
     };
-    // Either hooks is gone or it's there but no openbox commands remain.
-    const remaining = Object.entries(settings.hooks ?? {}).flatMap(([, arr]) =>
-      (arr as Array<{ hooks: Array<{ command: string }> }>).flatMap((m) => m.hooks),
-    );
-    const openboxLeftover = remaining.filter((h) => h.command?.includes('openbox claude-code'));
-    expect(openboxLeftover, 'uninstall left openbox hook entries behind').toEqual([]);
-
-    // The unrelated key must survive a hook uninstall; the
-    // installer touches `hooks` only.
     expect(settings.unrelated?.keep).toBe('me');
   });
 
-  it('install merges with a pre-existing user PreToolUse hook (both coexist)', () => {
-    const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-merge-'));
-    const settingsPath = path.join(project, '.claude', 'settings.json');
-    spawnSync('mkdir', ['-p', path.dirname(settingsPath)], { cwd: project });
-
-    // Pre-seed with the user's own PreToolUse hook in the exact
-    // claude-array shape so the install must merge rather than
-    // overwrite.
-    const userHook = {
-      matcher: 'Bash',
-      hooks: [{ type: 'command', command: 'echo user-pre-tool', timeout: 5 }],
-    };
-    writeFileSync(
-      settingsPath,
-      JSON.stringify({ hooks: { PreToolUse: [userHook] } }, null, 2),
-    );
+  it('install copies configured hook matchers into plugin hooks.json', () => {
+    const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-matcher-'));
 
     const r = runCli(
-      ['--experimental', 'claude-code', 'install', '--scope', 'project', '--cwd', project, '--no-mcp'],
+      [
+        '--experimental',
+        'claude-code',
+        'install',
+        '--scope',
+        'project',
+        '--cwd',
+        project,
+        '--matcher',
+        'PreToolUse=Bash|Write',
+      ],
       project,
     );
     expect(r.status, `install failed: ${r.stderr}`).toBe(0);
-
-    const settings = JSON.parse(readFileSync(settingsPath, 'utf-8')) as {
-      hooks: { PreToolUse: Array<{ matcher?: string; hooks: Array<{ command: string }> }> };
-    };
-    const preToolUse = settings.hooks.PreToolUse;
-    expect(preToolUse.length).toBeGreaterThanOrEqual(2);
-
-    const userKept = preToolUse.some(
-      (m) => m.matcher === 'Bash' && m.hooks.some((h) => h.command === 'echo user-pre-tool'),
-    );
-    const openboxAdded = preToolUse.some((m) =>
-      m.hooks.some((h) => h.command === 'openbox claude-code hook'),
-    );
-    expect(userKept, 'install clobbered the user PreToolUse hook').toBe(true);
-    expect(openboxAdded, 'install did not add the openbox PreToolUse hook').toBe(true);
-
-    // Uninstall must remove only the openbox entry; the user hook
-    // survives.
-    const uninstall = runCli(
-      ['--experimental', 'claude-code', 'uninstall', '--scope', 'project', '--cwd', project, '--no-mcp'],
-      project,
-    );
-    expect(uninstall.status, `uninstall failed: ${uninstall.stderr}`).toBe(0);
-
-    const after = JSON.parse(readFileSync(settingsPath, 'utf-8')) as {
-      hooks: { PreToolUse?: Array<{ matcher?: string; hooks: Array<{ command: string }> }> };
-    };
-    const remaining = after.hooks.PreToolUse ?? [];
-    expect(
-      remaining.some((m) => m.hooks.some((h) => h.command.includes('openbox'))),
-      'uninstall left openbox entry behind',
-    ).toBe(false);
-    expect(
-      remaining.some((m) => m.matcher === 'Bash' && m.hooks.some((h) => h.command === 'echo user-pre-tool')),
-      'uninstall removed the user hook (should have kept it)',
-    ).toBe(true);
-  });
-
-  it('install --no-mcp keeps the MCP server entry out of settings', () => {
-    const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-nomcp-'));
-    const r = runCli(
-      ['--experimental', 'claude-code', 'install', '--scope', 'project', '--cwd', project, '--no-mcp'],
-      project,
-    );
-    expect(r.status).toBe(0);
-    const settingsPath = path.join(project, '.claude', 'settings.json');
-    const settings = JSON.parse(readFileSync(settingsPath, 'utf-8')) as {
-      mcpServers?: Record<string, unknown>;
-    };
-    // With --no-mcp, the install must not write mcpServers.openbox.
-    expect(settings.mcpServers?.openbox).toBeUndefined();
+    const hooks = readHooks(project);
+    expect(hooks.PreToolUse[0].matcher).toBe('Bash|Write');
   });
 });

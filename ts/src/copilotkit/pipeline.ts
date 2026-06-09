@@ -4,7 +4,7 @@ import type {
   SpanData,
 } from '../core-client/core-client.js';
 import type { WorkflowVerdict } from '../core-client/index.js';
-import { errorMessage, sameJson } from './internal-utils.js';
+import { errorMessage, sameJson, swallow } from './internal-utils.js';
 import { applyOpenBoxTransform, isAllowed, safePayload } from './results.js';
 import type {
   OpenBoxCopilotGateInput,
@@ -15,8 +15,10 @@ import type {
 } from './types.js';
 import {
   activityEvent,
+  emitUserPromptSignal,
   ensureWorkflowStarted,
   evaluate,
+  finishStoppedWorkflow,
 } from './workflow-session.js';
 
 export async function governPipelineGate<T>(
@@ -85,12 +87,32 @@ export async function governPipelineGate<T>(
         input.taskQueue,
       );
     }
+    if (input.kind === 'prompt') {
+      await emitUserPromptSignal(
+        adapter,
+        { workflowId: ids.workflowId, runId: ids.runId },
+        input.workflowType,
+        input.taskQueue,
+        promptTextFromPayload(input.payload),
+      );
+    }
     const verdict = await evaluate(adapter, gateEvent(input, ids));
     const safe = isAllowed(verdict.arm)
       ? applyOpenBoxTransform(input.payload, verdict)
       : input.payload;
     const changed = !sameJson(safe, input.payload);
     const payload = safePayload(safe, input.payload, verdict, ids, changed);
+    if (payload.status === 'blocked' || payload.status === 'halted') {
+      await swallow(() =>
+        finishStoppedWorkflow(
+          adapter,
+          { workflowId: ids.workflowId, runId: ids.runId },
+          input.workflowType,
+          input.taskQueue,
+          verdict,
+        ),
+      );
+    }
     if (payload.status === 'halted') {
       input.haltedSessions.set(
         key,
@@ -117,6 +139,40 @@ export async function governPipelineGate<T>(
     };
     return safePayload(input.payload, input.payload, verdict, ids, false);
   }
+}
+
+function promptTextFromPayload(payload: unknown): string | undefined {
+  if (typeof payload === 'string') return payload;
+  if (!payload || typeof payload !== 'object') return undefined;
+  const record = payload as Record<string, unknown>;
+  if (typeof record.prompt === 'string') return record.prompt;
+  if (typeof record.request === 'string') return record.request;
+  if (Array.isArray(record.messages)) {
+    const latestUser = [...record.messages]
+      .reverse()
+      .find(
+        (message): message is Record<string, unknown> =>
+          Boolean(message) &&
+          typeof message === 'object' &&
+          ['user', 'human'].includes(
+            String((message as Record<string, unknown>).role ?? (message as Record<string, unknown>).type ?? ''),
+          ),
+      );
+    const latestContent = [...record.messages]
+      .reverse()
+      .find(
+        (message): message is Record<string, unknown> =>
+          Boolean(message) &&
+          typeof message === 'object' &&
+          typeof (message as Record<string, unknown>).content === 'string' &&
+          !['system', 'assistant', 'ai', 'tool'].includes(
+            String((message as Record<string, unknown>).role ?? (message as Record<string, unknown>).type ?? ''),
+          ),
+      );
+    const content = latestUser?.content ?? latestContent?.content;
+    if (typeof content === 'string') return content;
+  }
+  return undefined;
 }
 
 function gateEvent<T>(

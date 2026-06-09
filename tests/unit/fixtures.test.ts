@@ -38,8 +38,8 @@ describe('Test Fixtures', () => {
     it('generates valid guardrail DTO', () => {
       const dto = makeCreateGuardrailDto();
       expect(dto.name).toMatch(/^test-guardrail-/);
-      expect(dto.guardrail_type).toBe('pii_detection');
-      expect(dto.processing_stage).toBe('output');
+      expect(dto.guardrail_type).toBe('1');
+      expect(dto.processing_stage).toBe('1');
       expect(dto.trust_impact).toBeTruthy();
     });
   });

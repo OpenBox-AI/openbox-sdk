@@ -8,7 +8,7 @@ import {
   readTokenStore,
 } from "openbox-sdk/file-tokens";
 import { createConsumerClient } from "openbox-sdk/client-factory";
-import { getConfig } from "openbox-sdk/cli/config-store";
+import { getConfig } from "openbox-sdk/config";
 
 export const clearApiKey = clearFileApiKey;
 export const writeApiKey = saveFileApiKey;

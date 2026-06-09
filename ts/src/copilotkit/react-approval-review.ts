@@ -48,7 +48,13 @@ export function OpenBoxApprovalReview({
       const client =
         approvalClient ??
         createOpenBoxApprovalClient({ endpoint: approvalEndpoint });
-      await client.decide({ governanceEventId, decision: apiDecision });
+      await client.decide({
+        governanceEventId,
+        workflowId,
+        runId,
+        activityId,
+        decision: apiDecision,
+      });
     } catch {
       setError('Something went wrong. Try again later.');
       setIsSubmitting(false);

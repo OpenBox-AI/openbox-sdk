@@ -1,35 +1,28 @@
 # openbox-sdk
 
-Spec-driven, multi-language SDK monorepo for the [OpenBox AI governance
+Spec-driven TypeScript SDK for the [OpenBox AI governance
 platform](https://openbox.ai). TypeSpec at `specs/typespec/` is the
-single source of truth; per-language emitters under `codegen/emitters/`
-turn it into native source. TypeScript is the reference implementation
-shipped today. Rust is in flight as a wire client. Go and Python
-emitters are planned.
+single source of truth; the TypeScript emitter under `codegen/emitters/`
+turns it into generated SDK source. Other language SDKs belong on their
+own branches or package tracks until they have separate release gates.
 
 ## Layout
 
 ```
 specs/typespec/         source of truth (.tsp)
-codegen/                TypeSpec decorator libs and per-language emitters
+codegen/                TypeSpec decorator libs and TypeScript emitter
 ts/                     TypeScript SDK, CLI, runtime adapters
-rust/                   Rust crate
 skill/                  shared OpenBox skill content (Claude + Cursor)
 tests/                  Vitest unit, e2e, and hook-integration suites
 scripts/                build and install helpers
 apps/
-  approver/             macOS menu-bar Tauri app
-  cloud-bridge/         self-hosted webhook receiver
   extension/            VS Code / Cursor extension
-  cursor-plugin/        Cursor Marketplace bundle
 ```
 
-The TS surface publishes one npm package, `openbox-sdk`. The
-sub-paths under **Public sub-paths** cover every consumer-visible
-surface in that package. Other-language SDKs (`rust/`) live under
-their own top-level directory with their native build and read the
-same emitted spec. Client applications under `apps/` consume the
-SDK; the SDK never depends on them.
+The repo publishes one npm package, `openbox-sdk`. The sub-paths under
+**Public sub-paths** cover every consumer-visible surface in that
+package. Client applications under `apps/` consume the SDK; the SDK
+never depends on them.
 
 ## Install
 
@@ -102,33 +95,24 @@ are not auto-fired because the host process owns them.
 
 ```bash
 openbox auth set-api-key                  # paste an org X-API-Key from the dashboard
-openbox install <target>                  # install one of the supported clients:
-#   approver      macOS menu-bar Tauri app
-#   extension     VS Code / Cursor extension
-#   cursor        Cursor hook integration
-#   claude-code   Claude Code hook integration
-#   mcp           MCP server entry for Claude Desktop / Cursor / Claude Code
-#   skill         SKILL.md content for Claude Code / Cursor
-#   mobile        iOS approver beta status
-openbox uninstall <target>                # mirror of install
-
-# Per-scope install. `cursor` and `claude-code` accept `--scope`
-# (global / project / local) and `--cwd <dir>` so the hook block
-# and MCP entry can be confined to a single project.
-openbox install cursor --scope project --cwd ./my-app
-openbox install claude-code --scope local
+openbox install cursor                    # install project-local Cursor plugin
+openbox cursor plugin export --out ./openbox-plugin
+openbox install claude-code               # install project-local Claude Code plugin
+openbox claude-code plugin export --out ./openbox-claude-plugin
+openbox mcp serve                         # runtime entrypoint used by plugins/hosts
 
 openbox doctor                            # verify auth + reachability
-openbox --experimental agent list         # the API surface (experimental until validated)
+openbox api list backend                  # list generated Backend operation IDs
+openbox api backend AgentController_getAgents
+openbox api core validateApiKey
 ```
 
 Mint an X-API-Key in the dashboard under **Organization → API Keys**,
 paste it via `openbox auth set-api-key`, then `openbox install <target>`
-for whichever client you're wiring up. The desktop clients (approver,
-extension) and the integrations (cursor, claude-code, mcp) all read
-the X-API-Key from `~/.openbox/tokens` that the CLI writes, so the
-CLI install has to come first. Mobile is the only client that uses
-its own JWT login flow.
+for whichever client you're wiring up. The Cursor and Claude Code
+plugins own agent capabilities/config (`hooks`, MCP, skills, commands,
+rules, agents). The approval UI extension is packaged separately; the
+SDK CLI does not perform host-global extension installs.
 
 ## Primary public sub-paths
 
@@ -143,7 +127,6 @@ exhaustive source for every exported support surface.
 | `openbox-sdk/env` | URL resolution, token store, client-name resolver |
 | `openbox-sdk/os-paths` | Node-only path resolver, kept off `/env` for React Native |
 | `openbox-sdk/types` | DTOs and the auto-generated `Backend` and `Core` namespaces |
-| `openbox-sdk/cli` | Programmatic CLI surface, also reachable as `bin: openbox` |
 | `openbox-sdk/runtime/claude-code` | Claude Code hook adapter |
 | `openbox-sdk/runtime/cursor` | Cursor hook adapter |
 | `openbox-sdk/runtime/mcp` | MCP server runtime |

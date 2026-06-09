@@ -16,31 +16,6 @@ function readJson(file: string): any {
   return JSON.parse(fs.readFileSync(file, 'utf-8'));
 }
 
-function installUserCursorSurfaces(): void {
-  for (const file of [
-    'openbox-check.md',
-    'openbox-doctor.md',
-    'openbox-list-agents.md',
-    'openbox-pending.md',
-    'openbox-status.md',
-  ]) {
-    fs.mkdirSync(path.join(home, '.cursor', 'commands'), { recursive: true });
-    fs.writeFileSync(path.join(home, '.cursor', 'commands', file), '# test\n');
-  }
-  fs.mkdirSync(path.join(home, '.cursor', 'rules'), { recursive: true });
-  fs.writeFileSync(path.join(home, '.cursor', 'rules', 'openbox.mdc'), 'rules\n');
-  fs.mkdirSync(path.join(home, '.cursor', 'agents'), { recursive: true });
-  fs.writeFileSync(path.join(home, '.cursor', 'agents', 'openbox-reviewer.md'), 'agent\n');
-  fs.mkdirSync(path.join(home, '.cursor', 'skills', 'openbox'), { recursive: true });
-  fs.writeFileSync(path.join(home, '.cursor', 'skills', 'openbox', 'SKILL.md'), 'skill\n');
-  fs.mkdirSync(path.join(home, '.cursor', 'extensions', 'openbox.openbox-0.1.0'), { recursive: true });
-  writeJson(path.join(home, '.cursor', 'extensions', 'openbox.openbox-0.1.0', 'package.json'), {
-    name: 'openbox',
-    publisher: 'openbox',
-    version: '0.1.0',
-  });
-}
-
 beforeEach(() => {
   vi.resetModules();
   oldHome = process.env.HOME;
@@ -59,86 +34,80 @@ afterEach(() => {
 });
 
 describe('runtime/cursor/install; source-level verification', () => {
-  it('installs matcher-scoped hooks and reports missing MCP/user surfaces', async () => {
-    const { installCursor, verifyCursorInstall } = await import('../../ts/src/runtime/cursor/install.ts');
+  it('verifies the plugin-only Cursor surface and never writes direct Cursor hooks or MCP files', async () => {
+    process.env.OPENBOX_SKIP_EXTENSION = '1';
+    const { installCursorPlugin, verifyCursorInstall } = await import('../../ts/src/runtime/cursor/index.ts');
 
-    installCursor({ matchers: { beforeShellExecution: '\\b(rm|curl)\\b' } });
+    installCursorPlugin({ cwd, matchers: { beforeShellExecution: '\\b(rm|curl)\\b' } });
 
-    const hooks = readJson(path.join(home, '.cursor', 'hooks.json')).hooks;
+    const pluginDir = path.join(cwd, '.cursor', 'plugins', 'local', 'openbox');
+    const hooks = readJson(path.join(pluginDir, 'hooks', 'hooks.json')).hooks;
     expect(hooks.beforeShellExecution[0]).toMatchObject({
       command: 'openbox cursor hook',
       timeout: 1800,
       matcher: '\\b(rm|curl)\\b',
     });
+    expect(fs.existsSync(path.join(home, '.cursor', 'hooks.json'))).toBe(false);
+    expect(fs.existsSync(path.join(home, '.cursor', 'mcp.json'))).toBe(false);
+    expect(fs.existsSync(path.join(cwd, '.cursor-hooks', 'config.json'))).toBe(true);
 
-    const checks = verifyCursorInstall();
-    expect(checks.find((c) => c.name === 'hooks')?.status).toBe('pass');
-    expect(checks.find((c) => c.name === 'mcp')?.status).toBe('fail');
-    expect(checks.find((c) => c.name === 'slash-commands')?.detail).toContain('directory missing');
-  });
-
-  it('passes every global check when hooks, MCP, commands, rules, agents, and skill exist', async () => {
-    const { installCursor, verifyCursorInstall } = await import('../../ts/src/runtime/cursor/install.ts');
-
-    installCursor();
-    writeJson(path.join(home, '.cursor', 'mcp.json'), {
-      mcpServers: { openbox: { command: 'openbox', args: ['mcp', 'serve'] } },
-    });
-    installUserCursorSurfaces();
-
-    expect(verifyCursorInstall().map((c) => [c.name, c.status])).toEqual([
-      ['hooks', 'pass'],
-      ['mcp', 'pass'],
-      ['extension', 'pass'],
-      ['slash-commands', 'pass'],
-      ['rules', 'pass'],
-      ['agents', 'pass'],
-      ['skill', 'pass'],
+    expect(verifyCursorInstall({ cwd }).map((c) => [c.name, c.status])).toEqual([
+      ['plugin', 'pass'],
+      ['plugin-manifest', 'pass'],
+      ['plugin-marketplace', 'pass'],
+      ['plugin-skill', 'pass'],
+      ['plugin-commands', 'pass'],
+      ['plugin-rules', 'pass'],
+      ['plugin-agents', 'pass'],
+      ['plugin-hooks', 'pass'],
+      ['plugin-mcp', 'pass'],
     ]);
   });
 
   it('runtime readiness fails stale hook config states and passes valid format when core validation is disabled', async () => {
-    const { installCursor, verifyCursorInstall } = await import('../../ts/src/runtime/cursor/install.ts');
+    process.env.OPENBOX_SKIP_EXTENSION = '1';
+    const { installCursorPlugin, verifyCursorInstall } = await import('../../ts/src/runtime/cursor/index.ts');
 
-    installCursor();
-    writeJson(path.join(home, '.cursor-hooks', 'config.json'), {});
-    let checks = await verifyCursorInstall({ includeRuntime: true });
+    installCursorPlugin({ cwd });
+    writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {});
+    let checks = await verifyCursorInstall({ cwd, includeRuntime: true });
     expect(checks.find((c) => c.name === 'runtime')?.detail).toContain('missing OPENBOX_API_KEY');
 
-    writeJson(path.join(home, '.cursor-hooks', 'config.json'), {
+    writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {
       OPENBOX_API_KEY: 'obx_live_YOUR_API_KEY_HERE',
     });
-    checks = await verifyCursorInstall({ includeRuntime: true });
+    checks = await verifyCursorInstall({ cwd, includeRuntime: true });
     expect(checks.find((c) => c.name === 'runtime')?.detail).toContain('placeholder OPENBOX_API_KEY');
 
-    writeJson(path.join(home, '.cursor-hooks', 'config.json'), {
+    writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {
       OPENBOX_API_KEY: 'not-a-key',
     });
-    checks = await verifyCursorInstall({ includeRuntime: true });
+    checks = await verifyCursorInstall({ cwd, includeRuntime: true });
     expect(checks.find((c) => c.name === 'runtime')?.detail).toContain('invalid OPENBOX_API_KEY format');
 
-    writeJson(path.join(home, '.cursor-hooks', 'config.json'), {
+    writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {
       OPENBOX_API_KEY: `obx_test_${'a'.repeat(48)}`,
       DRY_RUN: true,
     });
-    checks = await verifyCursorInstall({ includeRuntime: true });
+    checks = await verifyCursorInstall({ cwd, includeRuntime: true });
     expect(checks.find((c) => c.name === 'runtime')?.detail).toContain('DRY_RUN=true');
 
-    writeJson(path.join(home, '.cursor-hooks', 'config.json'), {
+    writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {
       OPENBOX_API_KEY: `obx_test_${'a'.repeat(48)}`,
       OPENBOX_CORE_URL: 'http://127.0.0.1:8086',
     });
-    checks = await verifyCursorInstall({ includeRuntime: true });
+    checks = await verifyCursorInstall({ cwd, includeRuntime: true });
     const runtime = checks.find((c) => c.name === 'runtime')!;
     expect(runtime.status).toBe('pass');
     expect(runtime.detail).toContain('key=format-ok');
   });
 
   it('runtime readiness fails when core validation rejects the runtime key', async () => {
-    const { installCursor, verifyCursorInstall } = await import('../../ts/src/runtime/cursor/install.ts');
+    process.env.OPENBOX_SKIP_EXTENSION = '1';
+    const { installCursorPlugin, verifyCursorInstall } = await import('../../ts/src/runtime/cursor/index.ts');
 
-    installCursor();
-    writeJson(path.join(home, '.cursor-hooks', 'config.json'), {
+    installCursorPlugin({ cwd });
+    writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {
       OPENBOX_API_KEY: `obx_test_${'b'.repeat(48)}`,
       OPENBOX_CORE_URL: 'http://core-fail.local',
     });
@@ -149,63 +118,29 @@ describe('runtime/cursor/install; source-level verification', () => {
       }),
     );
 
-    const checks = await verifyCursorInstall({ includeRuntime: true, validateRuntime: true });
+    const checks = await verifyCursorInstall({ cwd, includeRuntime: true, validateRuntime: true });
     const runtime = checks.find((c) => c.name === 'runtime')!;
     expect(runtime.status).toBe('fail');
     expect(runtime.detail).toContain('core validation failed');
     expect(runtime.detail).toContain('401');
   });
-
-  it('reports hook command drift and timeout drift with concrete details', async () => {
-    const { installCursor, verifyCursorInstall } = await import('../../ts/src/runtime/cursor/install.ts');
-
-    installCursor();
-    const hooksFile = path.join(home, '.cursor', 'hooks.json');
-    const hooksJson = readJson(hooksFile);
-    hooksJson.hooks.beforeSubmitPrompt[0].command = 'openbox old hook';
-    hooksJson.hooks.beforeReadFile[0].timeout = 60;
-    writeJson(hooksFile, hooksJson);
-
-    const hooks = verifyCursorInstall().find((c) => c.name === 'hooks')!;
-    expect(hooks.status).toBe('fail');
-    expect(hooks.detail).toContain('beforeSubmitPrompt: command drift');
-    expect(hooks.detail).toContain('beforeReadFile: timeout 60 != 1800');
-  });
-
-  it('project-scoped verification skips user surfaces and uninstall removes hooks', async () => {
-    const { installCursor, uninstallCursor, verifyCursorInstall } = await import('../../ts/src/runtime/cursor/install.ts');
-
-    installCursor({ scope: 'project', cwd });
-    writeJson(path.join(cwd, '.cursor', 'mcp.json'), {
-      mcpServers: { openbox: { command: 'openbox', args: ['mcp', 'serve'] } },
-    });
-
-    const checks = verifyCursorInstall({ scope: 'project', cwd });
-    expect(checks.map((c) => [c.name, c.status])).toEqual([
-      ['hooks', 'pass'],
-      ['mcp', 'pass'],
-      ['user-surfaces', 'skip'],
-    ]);
-
-    uninstallCursor({ scope: 'project', cwd });
-    expect(readJson(path.join(cwd, '.cursor', 'hooks.json')).hooks).toBeUndefined();
-  });
 });
 
 describe('runtime/mcp/install; host and error states', () => {
-  it('installs and uninstalls the global Cursor MCP entry without touching other servers', async () => {
+  it('installs and uninstalls the project Cursor MCP entry without touching other servers', async () => {
     const { installMcp, uninstallMcp } = await import('../../ts/src/runtime/mcp/install.ts');
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    const file = path.join(home, '.cursor', 'mcp.json');
+    const file = path.join(cwd, '.cursor', 'mcp.json');
     writeJson(file, { mcpServers: { keep: { command: 'keep' } } });
 
-    installMcp({ targets: ['cursor'] });
+    installMcp({ targets: ['cursor'], cwd });
     expect(readJson(file).mcpServers).toMatchObject({
       keep: { command: 'keep' },
       openbox: { command: 'openbox', args: ['mcp', 'serve'] },
     });
+    expect(fs.existsSync(path.join(home, '.cursor', 'mcp.json'))).toBe(false);
 
-    uninstallMcp({ targets: ['cursor'] });
+    uninstallMcp({ targets: ['cursor'], cwd });
     expect(readJson(file).mcpServers).toEqual({ keep: { command: 'keep' } });
   });
 
@@ -216,15 +151,15 @@ describe('runtime/mcp/install; host and error states', () => {
       logs.push(String(line ?? ''));
     });
 
-    uninstallMcp({ targets: ['cursor'] });
-    writeJson(path.join(home, '.cursor', 'mcp.json'), { mcpServers: { other: { command: 'x' } } });
-    uninstallMcp({ targets: ['cursor'] });
+    uninstallMcp({ targets: ['cursor'], cwd });
+    writeJson(path.join(cwd, '.cursor', 'mcp.json'), { mcpServers: { other: { command: 'x' } } });
+    uninstallMcp({ targets: ['cursor'], cwd });
 
     expect(logs.some((line) => line.includes('not present'))).toBe(true);
     expect(logs.some((line) => line.includes('no openbox entry found'))).toBe(true);
   });
 
-  it('writes project-scoped Cursor MCP and rejects unsupported Claude Desktop project scope', async () => {
+  it('writes project-scoped Cursor MCP and rejects non-project scope', async () => {
     const { installMcp } = await import('../../ts/src/runtime/mcp/install.ts');
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
@@ -234,30 +169,30 @@ describe('runtime/mcp/install; host and error states', () => {
       args: ['mcp', 'serve'],
     });
 
-    expect(() =>
-      installMcp({ targets: ['claude-desktop'], scope: 'project', cwd }),
-    ).toThrow('scope `project` is not supported for claude-desktop');
+    expect(() => installMcp({ targets: ['cursor'], scope: 'global' as never, cwd })).toThrow(
+      'scope `global` is not supported; expected project',
+    );
   });
 
   it('refuses to overwrite malformed host JSON', async () => {
     const { installMcp } = await import('../../ts/src/runtime/mcp/install.ts');
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    const file = path.join(home, '.cursor', 'mcp.json');
+    const file = path.join(cwd, '.cursor', 'mcp.json');
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, '{not-json', 'utf-8');
 
-    expect(() => installMcp({ targets: ['cursor'] })).toThrow('Refusing to overwrite malformed JSON');
+    expect(() => installMcp({ targets: ['cursor'], cwd })).toThrow('Refusing to overwrite malformed JSON');
   });
 });
 
 describe('install/from-spec; MCP entry helpers', () => {
   it('installs, replaces, removes, and no-ops scoped MCP entries', async () => {
-    const { INSTALL_SPEC } = await import('../../ts/src/core-client/generated/runtime/cursor.js');
+    const { HOOK_SPEC } = await import('../../ts/src/core-client/generated/runtime/cursor.js');
     const { installMcpEntry, uninstallMcpEntry } = await import('../../ts/src/install/from-spec.ts');
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
     const first = installMcpEntry(
-      INSTALL_SPEC,
+      HOOK_SPEC,
       'openbox',
       { command: 'openbox', args: ['mcp', 'serve'] },
       { scope: 'project', cwd },
@@ -269,43 +204,43 @@ describe('install/from-spec; MCP entry helpers', () => {
     });
 
     installMcpEntry(
-      INSTALL_SPEC,
+      HOOK_SPEC,
       'openbox',
       { command: 'node', args: ['dist/cli/index.js', 'mcp', 'serve'] },
       { scope: 'project', cwd },
     );
     expect(readJson(first).mcpServers.openbox.command).toBe('node');
 
-    expect(uninstallMcpEntry(INSTALL_SPEC, 'missing', { scope: 'project', cwd })).toBe(first);
-    uninstallMcpEntry(INSTALL_SPEC, 'openbox', { scope: 'project', cwd });
+    expect(uninstallMcpEntry(HOOK_SPEC, 'missing', { scope: 'project', cwd })).toBe(first);
+    uninstallMcpEntry(HOOK_SPEC, 'openbox', { scope: 'project', cwd });
     expect(readJson(first).mcpServers).toBeUndefined();
   });
 
-  it('resolves local/project/global scope edges', async () => {
+  it('resolves project scope and rejects non-project scopes', async () => {
     const { resolveInstallPaths } = await import('../../ts/src/install/from-spec.ts');
     const claudeSpec = {
-      file: '~/.claude/settings.json',
+      file: '.claude/settings.json',
       key: 'hooks',
       style: 'claude-array' as const,
       command: 'openbox claude-code hook',
-      configDir: '~/.claude-hooks',
+      configDir: '.claude-hooks',
       events: [{ name: 'PreToolUse' }],
     };
     const cursorSpec = {
-      file: '~/.cursor/hooks.json',
+      file: '.cursor-plugin-test/hooks.json',
       key: 'hooks',
       style: 'cursor-keyed' as const,
       command: 'openbox cursor hook',
-      configDir: '~/.cursor-hooks',
+      configDir: '.cursor-hooks',
       events: [{ name: 'beforeSubmitPrompt' }],
     };
 
-    expect(resolveInstallPaths(claudeSpec, { scope: 'local', cwd }).hooksFile).toBe(
-      path.join(cwd, '.claude', 'settings.local.json'),
+    expect(resolveInstallPaths(claudeSpec, { cwd }).hooksFile).toBe(
+      path.join(cwd, '.claude', 'settings.json'),
     );
-    expect(resolveInstallPaths(cursorSpec).mcpFile).toBe(path.join(home, '.cursor', 'mcp.json'));
-    expect(() => resolveInstallPaths(cursorSpec, { scope: 'local', cwd })).toThrow(
-      'scope `local` is not supported for cursor-keyed installs',
+    expect(resolveInstallPaths(cursorSpec, { cwd }).mcpFile).toBe(path.join(cwd, '.cursor', 'mcp.json'));
+    expect(() => resolveInstallPaths(cursorSpec, { scope: 'global' as never, cwd })).toThrow(
+      'scope `global` is not supported; expected project',
     );
   });
 });

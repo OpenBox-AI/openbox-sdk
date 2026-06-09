@@ -61,9 +61,8 @@ extern dec cli_validator(target: ModelProperty, name: valueof string);
  * (gates the whole subtree) or a single operation (gates one
  * subcommand within an otherwise-stable parent).
  *
- * Default if unspecified: anything not labeled is treated as
- * `experimental` by the runtime; the conservative default flips
- * promotion into a deliberate spec edit, not a silent expansion.
+ * Default if unspecified: lean runtime commands are treated as
+ * `stable`; generated CRUD command trees are not emitted on main.
  */
 extern dec cli_maturity(
   target: Interface | Operation,
@@ -180,11 +179,10 @@ extern dec cli_required(target: ModelProperty);
 extern dec cli_output_pluck(target: Operation, path: valueof string);
 
 /**
- * Names a callback (registered via wire-subcommands.OUTPUT_POST_REGISTRY)
- * the runtime invokes after `output()` returns. The callback receives
- * the original response data (pre-pluck). Used for stderr banners,
- * e.g. the runtime-key highlight that fires after `agent create` and
- * `api-key rotate`.
+ * Names a post-output callback for generated command consumers. The
+ * callback receives the original response data (pre-pluck). Used by
+ * legacy/generated command runners that still need a side-effect after
+ * rendering.
  */
 extern dec cli_output_post(target: Operation, callbackName: valueof string);
 
@@ -194,7 +192,7 @@ extern dec cli_output_post(target: Operation, callbackName: valueof string);
  * subcommand; the runtime parses and merges per the chosen mode.
  *
  * Mode "fill" (default): --json is the body base, flag values fill
- *   missing keys (audit export, guardrail create pattern).
+ *   missing keys.
  * Mode "replace": --json fully replaces the flag-derived body when
  *   present (audit preview, team create pattern).
  *
@@ -266,25 +264,22 @@ extern dec cli_destructive(target: Operation);
  *             whole recipe (use for surfaces the user might lack
  *             read access to)
  *
- * Recipes live ALONGSIDE tier-1 ops; they don't carry `@cli_calls`.
- * The runtime registers them via `wireRecipes` instead of
- * `wireSubcommands`.
+ * Recipes live alongside tier-1 ops; they don't carry `@cli_calls`.
+ * The MCP runtime registers them as generated recipe tools.
  */
 extern dec cli_recipe(target: Operation, steps: valueof unknown);
 
 /**
- * Names a callback registered in PREFLIGHT_REGISTRY (in
- * wire-subcommands.ts) the runtime invokes BEFORE the main backend
- * call. Receives the merged body + the client resolver. Used for
- * `agent create`'s team-existence + name-collision pre-flight GETs
- * that would orphan the agent if skipped.
+ * Names a preflight callback for generated command consumers to invoke
+ * before the main backend call. Receives the merged body + the client
+ * resolver.
  */
 extern dec cli_preflight(target: Operation, callbackName: valueof string);
 
 /**
  * Declarative DTO defaults; JSON literal merged into the body for
  * keys the user didn't set. Order: --json (if jsonMerge) → flag
- * values → dto_defaults. Used for `agent create`'s hardcoded AIVSS
+ * values → dto_defaults. Used for DTO defaults
  * baseline so the user can omit it without the backend rejecting.
  */
 extern dec cli_dto_defaults(target: Operation, defaults: valueof Record<unknown>);

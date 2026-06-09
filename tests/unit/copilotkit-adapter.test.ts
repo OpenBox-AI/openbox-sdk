@@ -75,13 +75,11 @@ describe('CopilotKit OpenBox adapter', () => {
       OPENBOX_API_URL: process.env.OPENBOX_API_URL,
       OPENBOX_CORE_URL: process.env.OPENBOX_CORE_URL,
       OPENBOX_AGENT_ID: process.env.OPENBOX_AGENT_ID,
-      OPENBOX_PLATFORM_API_KEY: process.env.OPENBOX_PLATFORM_API_KEY,
     };
     process.env.OPENBOX_API_KEY = 'obx_test_runtime';
     process.env.OPENBOX_CORE_URL = 'http://127.0.0.1:8086';
     delete process.env.OPENBOX_API_URL;
     delete process.env.OPENBOX_AGENT_ID;
-    delete process.env.OPENBOX_PLATFORM_API_KEY;
 
     try {
       expect(() =>
@@ -92,7 +90,79 @@ describe('CopilotKit OpenBox adapter', () => {
     }
   });
 
-  it('approval route decides through Core without backend config', async () => {
+  it('rejects org/backend keys used as CopilotKit runtime keys', () => {
+    const previous = {
+      OPENBOX_API_KEY: process.env.OPENBOX_API_KEY,
+      OPENBOX_CORE_URL: process.env.OPENBOX_CORE_URL,
+    };
+    process.env.OPENBOX_API_KEY = `obx_key_${'a'.repeat(48)}`;
+    process.env.OPENBOX_CORE_URL = 'http://127.0.0.1:8086';
+
+    try {
+      expect(() => createOpenBoxCopilotKitAdapter().getCoreClient()).toThrow(
+        'OpenBox CopilotKit runtime expected an agent runtime key in OPENBOX_API_KEY',
+      );
+    } finally {
+      restoreEnv(previous);
+    }
+  });
+
+  it('passes signed agent identity from env into the runtime Core client', () => {
+    const previous = {
+      OPENBOX_API_KEY: process.env.OPENBOX_API_KEY,
+      OPENBOX_CORE_URL: process.env.OPENBOX_CORE_URL,
+      OPENBOX_AGENT_DID: process.env.OPENBOX_AGENT_DID,
+      OPENBOX_AGENT_PRIVATE_KEY: process.env.OPENBOX_AGENT_PRIVATE_KEY,
+    };
+    process.env.OPENBOX_API_KEY = 'obx_test_runtime';
+    process.env.OPENBOX_CORE_URL = 'http://127.0.0.1:8086';
+    process.env.OPENBOX_AGENT_DID = 'did:openbox:agent:test';
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'a'.repeat(44);
+
+    try {
+      const client = createOpenBoxCopilotKitAdapter().getCoreClient() as any;
+      expect(client.config.agentIdentity).toEqual({
+        did: 'did:openbox:agent:test',
+        privateKey: 'a'.repeat(44),
+      });
+    } finally {
+      restoreEnv(previous);
+    }
+  });
+
+  it('passes explicit Core timeout into the runtime Core client', () => {
+    const adapter = createOpenBoxCopilotKitAdapter({
+      apiKey: 'obx_test_runtime',
+      coreUrl: 'http://127.0.0.1:8086',
+      coreTimeoutMs: 90_000,
+    });
+
+    const client = adapter.getCoreClient() as any;
+    expect(client.config.timeoutMs).toBe(90_000);
+  });
+
+  it('rejects incomplete signed agent identity env config', () => {
+    const previous = {
+      OPENBOX_API_KEY: process.env.OPENBOX_API_KEY,
+      OPENBOX_CORE_URL: process.env.OPENBOX_CORE_URL,
+      OPENBOX_AGENT_DID: process.env.OPENBOX_AGENT_DID,
+      OPENBOX_AGENT_PRIVATE_KEY: process.env.OPENBOX_AGENT_PRIVATE_KEY,
+    };
+    process.env.OPENBOX_API_KEY = 'obx_test_runtime';
+    process.env.OPENBOX_CORE_URL = 'http://127.0.0.1:8086';
+    process.env.OPENBOX_AGENT_DID = 'did:openbox:agent:test';
+    delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
+
+    try {
+      expect(() => createOpenBoxCopilotKitAdapter().getCoreClient()).toThrow(
+        'OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY.',
+      );
+    } finally {
+      restoreEnv(previous);
+    }
+  });
+
+  it('approval route decides through the Backend approval API', async () => {
     const previous = {
       OPENBOX_API_URL: process.env.OPENBOX_API_URL,
       OPENBOX_BACKEND_API_KEY: process.env.OPENBOX_BACKEND_API_KEY,
@@ -101,19 +171,38 @@ describe('CopilotKit OpenBox adapter', () => {
     delete process.env.OPENBOX_API_URL;
     delete process.env.OPENBOX_BACKEND_API_KEY;
     delete process.env.OPENBOX_AGENT_ID;
-    const core = {
-      decideApproval: vi.fn(async () => ({
-        id: 'event-1',
-        action: 'allow',
-        decided_by: 'agent-runtime:agent-1',
-        decided_at: new Date().toISOString(),
-      })),
-    };
+    const originalFetch = globalThis.fetch;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: () => Promise.resolve({ data: {} }),
+        text: () => Promise.resolve(JSON.stringify({ data: {} })),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: () => Promise.resolve({ data: { id: 'event-1' } }),
+        text: () => Promise.resolve(JSON.stringify({ data: { id: 'event-1' } })),
+      } as Response);
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
     try {
-      const route = createOpenBoxApprovalRoute({ core: core as any });
+      const route = createOpenBoxApprovalRoute({
+        apiUrl: 'https://api.openbox.test',
+        backendApiKey: `obx_key_${'a'.repeat(48)}`,
+        agentId: 'agent-1',
+      });
       const result = await route.decide({
         governanceEventId: 'event-1',
+        workflowId: 'workflow-1',
+        runId: 'run-1',
+        activityId: 'activity-1',
         decision: 'approve',
       });
 
@@ -122,16 +211,97 @@ describe('CopilotKit OpenBox adapter', () => {
         decision: 'approve',
         eventId: 'event-1',
       });
-      expect(core.decideApproval).toHaveBeenCalledWith({
-        governance_event_id: 'event-1',
-        workflow_id: undefined,
-        run_id: undefined,
-        activity_id: undefined,
-        decision: 'approve',
-      });
+      expect(fetchMock.mock.calls[1][0]).toBe(
+        'https://api.openbox.test/agent/agent-1/approvals/event-1/decide?action=approve',
+      );
+      expect(fetchMock.mock.calls[1][1].method).toBe('PUT');
+    } finally {
+      globalThis.fetch = originalFetch;
+      restoreEnv(previous);
+    }
+  });
+
+  it('approval route requires backend config for decisions', async () => {
+    const previous = {
+      OPENBOX_API_URL: process.env.OPENBOX_API_URL,
+      OPENBOX_BACKEND_API_KEY: process.env.OPENBOX_BACKEND_API_KEY,
+      OPENBOX_AGENT_ID: process.env.OPENBOX_AGENT_ID,
+    };
+    delete process.env.OPENBOX_API_URL;
+    delete process.env.OPENBOX_BACKEND_API_KEY;
+    delete process.env.OPENBOX_AGENT_ID;
+
+    try {
+      const route = createOpenBoxApprovalRoute({});
+      await expect(
+        route.decide({
+          governanceEventId: 'event-1',
+          workflowId: 'workflow-1',
+          runId: 'run-1',
+          activityId: 'activity-1',
+          decision: 'approve',
+        }),
+      ).rejects.toThrow('OpenBox API URL is not configured.');
     } finally {
       restoreEnv(previous);
     }
+  });
+
+  it('treats Core output guardrail transforms as constrained without legacy placeholders', async () => {
+    const { tool } = createDemoTool((payload) => {
+      if (payload.event_type !== 'ActivityCompleted') {
+        return {
+          governance_event_id: 'event-start',
+          verdict: 'allow',
+          action: 'allow',
+          risk_score: 0,
+          fallback_used: false,
+        };
+      }
+      return {
+        governance_event_id: 'event-complete',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+        fallback_used: false,
+        guardrails_result: {
+          input_type: 'activity_output',
+          redacted_input: {
+            artifact: {
+              body: 'Email <EMAIL_ADDRESS> was removed.',
+            },
+          },
+          validation_passed: true,
+          reasons: [],
+          results: [
+            {
+              guardrail_type: 'pii',
+              results: [
+                {
+                  field: 'output.artifact.body',
+                  order: 0,
+                  status: 'redacted',
+                },
+              ],
+            },
+          ],
+        },
+      };
+    });
+
+    const result = await tool.execute({
+      action: 'demo_action',
+      request: 'Email avery@example.com was removed.',
+    });
+
+    expect(result.status).toBe('constrained');
+    expect(result.verdict).toBe('constrain');
+    expect(result.artifact).toEqual({
+      body: 'Email <EMAIL_ADDRESS> was removed.',
+    });
+    expect(result.redactionSummary).toBe(
+      'OpenBox redacted output.artifact.body.',
+    );
   });
 
   it('readiness treats backend inventory config as optional when Core runtime is configured', async () => {
@@ -149,7 +319,6 @@ describe('CopilotKit OpenBox adapter', () => {
         core: {
           evaluate: vi.fn(),
           pollApproval: vi.fn(),
-          decideApproval: vi.fn(),
         } as any,
       }).check();
 
@@ -157,7 +326,7 @@ describe('CopilotKit OpenBox adapter', () => {
       expect(result.core).toBe(true);
       expect(result.capabilities.promptGovernance).toBe(true);
       expect(result.capabilities.finalOutputGovernance).toBe(true);
-      expect(result.capabilities.approvals).toBe(true);
+      expect(result.capabilities.approvals).toBe(false);
       expect(result.guardrails).toBe(false);
       expect(result.policies).toBe(false);
       expect(result.behaviorRules).toBe(false);
@@ -187,10 +356,16 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(execute).toHaveBeenCalledTimes(1);
     expect(events.map((event) => event.event_type)).toEqual([
       'WorkflowStarted',
+      'SignalReceived',
       'ActivityStarted',
       'ActivityCompleted',
       'WorkflowCompleted',
     ]);
+    expect(events[1]).toMatchObject({
+      event_type: 'SignalReceived',
+      signal_name: 'user_prompt',
+      signal_args: 'Create a support ticket.',
+    });
   });
 
   it('fails closed and skips execution when OpenBox blocks activity start', async () => {
@@ -210,6 +385,7 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(execute).not.toHaveBeenCalled();
     expect(events.map((event) => event.event_type)).toEqual([
       'WorkflowStarted',
+      'SignalReceived',
       'ActivityStarted',
       'WorkflowFailed',
     ]);
@@ -278,8 +454,9 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(execute).not.toHaveBeenCalled();
     expect(events.map((event) => event.event_type)).toEqual([
       'WorkflowStarted',
+      'SignalReceived',
       'ActivityStarted',
-      'WorkflowCompleted',
+      'WorkflowFailed',
     ]);
   });
 
@@ -360,10 +537,15 @@ describe('CopilotKit OpenBox adapter', () => {
 
     expect(mock.events.map((event) => event.event_type)).toEqual([
       'WorkflowStarted',
+      'SignalReceived',
       'ActivityStarted',
     ]);
-    expect(mock.events[0].workflow_id).toBe(mock.events[1].workflow_id);
-    expect(mock.events[0].run_id).toBe(mock.events[1].run_id);
+    expect(mock.events[1]).toMatchObject({
+      signal_name: 'user_prompt',
+      signal_args: 'Open the revenue queue.',
+    });
+    expect(mock.events[0].workflow_id).toBe(mock.events[2].workflow_id);
+    expect(mock.events[0].run_id).toBe(mock.events[2].run_id);
     expect(mock.events[0].run_id).not.toBe(mock.events[0].workflow_id);
   });
 
@@ -413,12 +595,122 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(governedBody.state.__openboxRuntimePromptGoverned).toBe(true);
     expect(mock.events.map((event) => event.event_type)).toEqual([
       'WorkflowStarted',
+      'SignalReceived',
       'ActivityStarted',
     ]);
+    expect(mock.events[1]).toMatchObject({
+      signal_name: 'user_prompt',
+      signal_args: 'Open the revenue queue.',
+    });
     expect(mock.events[0].workflow_id).toBe(
       governedBody.state.openboxWorkflowId,
     );
     expect(mock.events[0].run_id).toBe(governedBody.state.openboxRunId);
+  });
+
+  it('runtime handler starts a fresh OpenBox workflow when CopilotKit state carries old IDs', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const hooks = createOpenBoxRuntimeHooks({
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+    const request = new Request(
+      'http://localhost/api/copilotkit/agent/run/default',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          threadId: 'thread-1',
+          runId: 'copilot-run-2',
+          messages: [
+            { id: 'user-2', role: 'user', content: 'Open the revenue queue.' },
+          ],
+          state: {
+            openboxWorkflowId: 'old-workflow',
+            openboxRunId: 'old-run',
+            openboxSession: {
+              status: 'active',
+              workflowId: 'old-workflow',
+              runId: 'old-run',
+            },
+          },
+        }),
+      },
+    );
+
+    const governedRequest = await hooks.onBeforeHandler({
+      request,
+      path: '/api/copilotkit/agent/run/default',
+      runtime: {},
+      route: { method: 'agent/run', agentId: 'default' },
+    });
+    const governedBody = await (governedRequest as Request).json();
+
+    expect(governedBody.state.openboxWorkflowId).not.toBe('old-workflow');
+    expect(governedBody.state.openboxRunId).toBe('copilot-run-2');
+    expect(mock.events[0].workflow_id).toBe(
+      governedBody.state.openboxWorkflowId,
+    );
+    expect(mock.events[0].workflow_id).not.toBe('old-workflow');
+    expect(mock.events[0].run_id).toBe('copilot-run-2');
+  });
+
+  it('runtime handler streams prompt blocks as governed tool results', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'block',
+      reason: 'prompt blocked',
+    }));
+    const hooks = createOpenBoxRuntimeHooks({
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+    const request = new Request(
+      'http://localhost/api/copilotkit/agent/run/default',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          threadId: 'thread-block',
+          runId: 'run-block',
+          messages: [
+            { id: 'user-1', role: 'user', content: 'Export customer emails.' },
+          ],
+          state: {},
+        }),
+      },
+    );
+
+    let response: Response | undefined;
+    try {
+      await hooks.onBeforeHandler({
+        request,
+        path: '/api/copilotkit/agent/run/default',
+        runtime: {},
+        route: { method: 'agent/run', agentId: 'default' },
+      });
+    } catch (error) {
+      response = error as Response;
+    }
+
+    expect(response).toBeInstanceOf(Response);
+    const events = parseSseEvents(await response!.text());
+    expect(events.map((event) => event.type)).toEqual([
+      'RUN_STARTED',
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+      'TOOL_CALL_RESULT',
+      'RUN_FINISHED',
+    ]);
+    expect(events.find((event) => event.type === 'TOOL_CALL_START')).toMatchObject({
+      toolCallName: 'openbox_governed_action',
+    });
+    expect(
+      JSON.parse(
+        String(events.find((event) => event.type === 'TOOL_CALL_RESULT')?.content),
+      ).status,
+    ).toBe('blocked');
   });
 
   it('continues when a runtime workflow start is already persisted', async () => {
@@ -450,6 +742,7 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(result.status).toBe('executed');
     expect(events.map((event) => event.event_type)).toEqual([
       'WorkflowStarted',
+      'SignalReceived',
       'ActivityStarted',
     ]);
   });
@@ -480,8 +773,31 @@ describe('CopilotKit OpenBox adapter', () => {
 
     expect(events.map((event) => event.event_type)).toEqual([
       'WorkflowStarted',
+      'SignalReceived',
       'ActivityStarted',
+      'SignalReceived',
       'ActivityStarted',
+    ]);
+  });
+
+  it('preserves the original CopilotKit runner prototype for local thread handlers', () => {
+    class LocalRunner {
+      run() {
+        return { subscribe() {} };
+      }
+
+      listThreads() {
+        return [{ id: 'thread-1' }];
+      }
+    }
+    const baseRunner = new LocalRunner();
+    const governedRunner = createOpenBoxGovernedRunner(baseRunner as any, {
+      adapter: createOpenBoxCopilotKitAdapter({ enabled: false }),
+    });
+
+    expect(governedRunner).toBeInstanceOf(LocalRunner);
+    expect((governedRunner as any).listThreads()).toEqual([
+      { id: 'thread-1' },
     ]);
   });
 
@@ -935,6 +1251,62 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(JSON.stringify(events)).not.toContain('alice@example.com');
   });
 
+  it('native runner redacts custom AG-UI final_output payloads without final flags', async () => {
+    const mock = createMockCore((payload) => ({
+      verdict: payload.activity_type === 'on_llm_end' ? 'constrain' : 'allow',
+      reason: 'named custom final output constrained',
+      guardrails_result:
+        payload.activity_type === 'on_llm_end'
+          ? {
+              input_type: 'activity_output',
+              redacted_input: {
+                card: {
+                  title: 'Renewal contact',
+                  contact: '[REDACTED_EMAIL]',
+                },
+              },
+              results: [
+                {
+                  results: [{ field: 'output.payload.card.contact', status: 'transformed' }],
+                },
+              ],
+            }
+          : undefined,
+    }));
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      {
+        type: 'CUSTOM_EVENT',
+        event: 'final_output',
+        payload: {
+          card: {
+            title: 'Renewal contact',
+            contact: 'alice@example.com',
+          },
+        },
+      },
+      { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    const events = await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+        },
+      }),
+    );
+
+    expect(JSON.stringify(events)).toContain('[REDACTED_EMAIL]');
+    expect(JSON.stringify(events)).not.toContain('alice@example.com');
+  });
+
   it('native runner blocks custom non-text final AG-UI payloads before emit', async () => {
     const mock = createMockCore((payload) => ({
       verdict: payload.activity_type === 'on_llm_end' ? 'block' : 'allow',
@@ -1009,6 +1381,19 @@ function createFakeRunner(events: Record<string, unknown>[]) {
     }),
   };
   return runner;
+}
+
+function parseSseEvents(body: string): Array<Record<string, any>> {
+  return body
+    .split('\n\n')
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk) => {
+      const data = chunk
+        .split('\n')
+        .find((line) => line.startsWith('data: '));
+      return data ? JSON.parse(data.slice('data: '.length)) : {};
+    });
 }
 
 function collectObservable(observable: {

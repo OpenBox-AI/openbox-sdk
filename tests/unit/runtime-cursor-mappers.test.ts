@@ -1,7 +1,7 @@
 // cursor runtime adapter; every per-event mapper plus a few mixed
 // concerns the cursor adapter shares with the rest of the runtime
 // (redaction helpers, validator extras, env precedence, install
-// command wrappers, wire-subcommands callback registries, public
+// command wrappers, public
 // maturity surface).
 //
 // Cursor mappers covered:
@@ -269,14 +269,13 @@ describe('runtime configs; env precedence + defaults', () => {
 });
 
 describe('install commands; claude-code / cursor / skill', () => {
-  it('claude-code install / uninstall delegate to runtime adapter', async () => {
+  it('claude-code install / uninstall register plugin-first commands', async () => {
     const { registerClaudeCodeCommands } = await import('../../ts/src/cli/commands/claude-code');
     const program = new Command();
     program.exitOverride();
     registerClaudeCodeCommands(program);
-    // Just exercise the registration path; the actual install writes
-    // to ~/.claude/settings.json which we don't trigger here. Coverage
-    // counts the loader path.
+    // Just exercise the registration path; filesystem install
+    // behavior is covered by the plugin install tests.
     expect(program.commands.find((c) => c.name() === 'claude-code')).toBeDefined();
   });
 
@@ -288,7 +287,7 @@ describe('install commands; claude-code / cursor / skill', () => {
     expect(program.commands.find((c) => c.name() === 'cursor')).toBeDefined();
   });
 
-  it('skill install registers + path subcommand returns a string', async () => {
+  it('skill command registers + path subcommand returns a string', async () => {
     const { registerSkillCommands } = await import('../../ts/src/cli/commands/skill');
     const program = new Command();
     program.exitOverride();
@@ -296,57 +295,6 @@ describe('install commands; claude-code / cursor / skill', () => {
     const skill = program.commands.find((c) => c.name() === 'skill');
     expect(skill).toBeDefined();
     expect(skill!.commands.map((s) => s.name())).toContain('path');
-  });
-});
-
-describe('cli/wire-subcommands; registry callbacks', () => {
-  it('every OUTPUT_POST_REGISTRY callback is defensive against synthetic data', async () => {
-    // The contract: post-output callbacks are best-effort stderr
-    // banners (runtime key highlights, webhook secret highlights,
-    // approval metrics). They run AFTER a successful command and
-    // MUST NOT throw; a throw would crash the user's session right
-    // when they'd see their freshly-issued token.
-    const { OUTPUT_POST_REGISTRY } = await import('../../ts/src/cli/wire-subcommands');
-    const orig = console.error;
-    console.error = () => {};
-    const synthInputs: unknown[] = [
-      { token: 'obx_live_' + 'a'.repeat(48), agent: { id: 'a-1' } },
-      { webhook_secret: 'whsec_test' },
-      { data: { token: 'obx_test_' + 'a'.repeat(48) } },
-      { metrics: { auto_approved: 1, manual: 2 } },
-      null,
-      undefined,
-      'unexpected-string',
-      42,
-      [],
-    ];
-    try {
-      for (const [name, fn] of Object.entries(OUTPUT_POST_REGISTRY)) {
-        for (const input of synthInputs) {
-          // Real assertion: no callback throws on ANY shape. If a new
-          // callback regresses and throws on null, this test breaks
-          // BEFORE production users see a crash mid-session.
-          expect(
-            () => (fn as any)(input),
-            `OUTPUT_POST_REGISTRY['${name}'] threw on ${JSON.stringify(input)}`,
-          ).not.toThrow();
-        }
-      }
-    } finally {
-      console.error = orig;
-    }
-  });
-
-  it('POST_VALIDATE_REGISTRY callbacks accept synthetic body', async () => {
-    const { POST_VALIDATE_REGISTRY } = await import('../../ts/src/cli/wire-subcommands');
-    for (const [_name, fn] of Object.entries(POST_VALIDATE_REGISTRY)) {
-      try {
-        (fn as any)({});
-        (fn as any)({ verdict: 0, approval_timeout: 30 });
-      } catch {
-        /* validation callbacks throw on bad input; acceptable */
-      }
-    }
   });
 });
 

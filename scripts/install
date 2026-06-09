@@ -483,7 +483,7 @@ if [ -z "${OPENBOX_NO_PATH:-}" ]; then
   fi
 fi
 
-printf '\n  %snext%s\n    %sopenbox auth set-api-key%s\n    %sopenbox install <approver|extension|cursor|claude-code|mcp|skill>%s\n\n' \
+printf '\n  %snext%s\n    %sopenbox auth set-api-key%s\n    %sopenbox install <extension|cursor|claude-code|mcp|skill>%s\n\n' \
   "$C_BOLD" "$C_RESET" \
   "$C_CYAN" "$C_RESET" \
   "$C_DIM"  "$C_RESET"

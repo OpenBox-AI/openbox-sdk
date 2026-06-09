@@ -1,15 +1,15 @@
 // Protocol helpers for resolving an approval row identity. Every
 // surface that decides an approval (toast, detail panel, status
-// bar, mobile sheet, `openbox approval decide` CLI) needs the same
-// pair of identifiers: the agent id and the approval row's event
-// id. This module centralizes the resolution so all surfaces hit
+// bar, mobile sheet, backend approval decision route) needs the same
+// pair of identifiers: the agent id and the approval row id. This
+// module centralizes the resolution so all surfaces hit
 // `PUT /agent/{id}/approvals/{eventId}/decide` with the correct
 // values.
 //
-// Identifier note: the path parameter `{eventId}` is the row's
-// `event_id` field, which equals the SDK's `governance_event_id`.
-// It is distinct from the row's primary-key `id`. When `event_id`
-// is absent (older backends) the code falls back to `id`.
+// Identifier note: the backend path parameter is named `{eventId}`,
+// but the current Backend service resolves it against the approval
+// row's primary-key `id`. `event_id` remains useful as a lookup key
+// when callers only have the Core governance event id.
 //
 // The module deliberately contains no UI: no toasts, no
 // notifications, no console output. Each consumer adds its own
@@ -38,10 +38,10 @@ export interface ApprovalIdentityHint {
 export interface ResolvedApprovalIdentity {
   /** Agent id to use in the `/decide` path. */
   agentId: string;
-  /** Event id to use in the `/decide` path. Differs from the input
-   *  `governanceEventId` when the backend's row carries a distinct
-   *  `event_id`. */
+  /** Approval row id to use in the `/decide` path. */
   eventId: string;
+  /** Core governance event id, when the backend approval row exposes it. */
+  governanceEventId?: string;
 }
 
 type ApprovalLookupRow = {
@@ -92,12 +92,12 @@ export async function resolveApprovalIdentity(
       : undefined;
   let aid: string | undefined = callerAid ?? storeAid;
   let realGeid: string = hint.governanceEventId;
+  let governanceEventId: string | undefined = hint.storeRow?.governance_event_id;
 
   // Always consult the backend's pending list when we have a lookup
-  // key. UI/socket surfaces can carry the approval row's primary `id`,
-  // but the decide endpoint wants the row's `event_id`. Skipping this
-  // lookup when `agentId` was already known makes the backend decision
-  // path and the local hook socket disagree.
+  // key. UI/socket surfaces can carry either the approval row's
+  // primary `id` or the Core governance `event_id`, while the Backend
+  // decide endpoint currently expects the row `id`.
   if (realGeid) {
     try {
       const profile = (await client.getProfile()) as { orgId?: string };
@@ -117,12 +117,8 @@ export async function resolveApprovalIdentity(
         }
         if (match) {
           aid ??= match.agent_id;
-          // The decide path takes the row's `event_id`, which
-          // equals the SDK's `governance_event_id`, not the row's
-          // primary-key `id` (the two are different UUIDs). Fall
-          // back to `id` when the backend does not surface
-          // `event_id`.
-          realGeid = match.event_id ?? match.id ?? realGeid;
+          governanceEventId = match.event_id ?? governanceEventId;
+          realGeid = match.id ?? match.event_id ?? realGeid;
         }
       }
     } catch {
@@ -136,7 +132,7 @@ export async function resolveApprovalIdentity(
       hint,
     );
   }
-  return { agentId: aid, eventId: realGeid };
+  return { agentId: aid, eventId: realGeid, governanceEventId };
 }
 
 /** Raised when no agent id can be resolved for a governance event id. */

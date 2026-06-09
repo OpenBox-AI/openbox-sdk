@@ -141,6 +141,8 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       expect(captured.map((t) => t.name)).toContain('get_profile');
       expect(captured.map((t) => t.name)).toContain('cursor_status');
       expect(captured.map((t) => t.name)).toContain('cursor_doctor');
+      expect(captured.map((t) => t.name)).toContain('openbox_status');
+      expect(captured.map((t) => t.name)).toContain('claude_code_doctor');
     } finally {
       if (before !== undefined) process.env.OPENBOX_API_URL = before;
       if (beforeRuntime !== undefined) process.env.OPENBOX_API_KEY = beforeRuntime;
@@ -160,12 +162,33 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
     });
   });
 
+  it('openbox_status gives plugin slash commands a generic non-shell backend ping path', async () => {
+    await withMcpEnv(async () => {
+      const { runMcpServer } = await import('../../ts/src/runtime/mcp');
+      await runMcpServer();
+      const tool = captured.find((t) => t.name === 'openbox_status')!;
+      const out = await tool.cb({});
+      expect(out.content[0].text).toContain('"status": "connected"');
+    });
+  });
+
   it('cursor_doctor gives slash commands a non-shell install diagnostic path', async () => {
     await withMcpEnv(async () => {
       const { runMcpServer } = await import('../../ts/src/runtime/mcp');
       await runMcpServer();
       const tool = captured.find((t) => t.name === 'cursor_doctor')!;
       const out = await tool.cb({ surface_only: true });
+      expect(out.content[0].text).toContain('"checks"');
+      expect(out.content[0].text).toContain('"summary"');
+    });
+  });
+
+  it('claude_code_doctor gives Claude Code slash commands a non-shell plugin diagnostic path', async () => {
+    await withMcpEnv(async () => {
+      const { runMcpServer } = await import('../../ts/src/runtime/mcp');
+      await runMcpServer();
+      const tool = captured.find((t) => t.name === 'claude_code_doctor')!;
+      const out = await tool.cb({ target: join(tmpdir(), 'openbox-missing-claude-plugin') });
       expect(out.content[0].text).toContain('"checks"');
       expect(out.content[0].text).toContain('"summary"');
     });

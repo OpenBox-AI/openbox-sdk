@@ -8,10 +8,10 @@
 //         background; the hook subprocess inside claude will block
 //         on the SDK's approval polling.
 //
-// Step 2: while claude blocks, poll `openbox approval pending` via
-//         the CLI until the new row shows up.
+// Step 2: while claude blocks, poll approvals through backend API/MCP
+//         until the new row shows up.
 //
-// Step 3: call `openbox approval decide <agentId> <eventId> approve`.
+// Step 3: decide the approval through the Backend approval API.
 //         The SDK polling loop inside claude picks up the resolved
 //         row, returns allow, and claude proceeds.
 //

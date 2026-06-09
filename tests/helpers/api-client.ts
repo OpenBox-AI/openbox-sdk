@@ -12,35 +12,51 @@ interface HttpClient {
   delete(path: string, data?: any): Promise<{ data: any; status: number }>;
 }
 
+export interface AgentIdentityForSigning {
+  did: string;
+  privateKey: string;
+}
+
 async function makeRequest(
   method: string,
   url: string,
   token: string,
+  agentIdentity?: AgentIdentityForSigning,
   data?: any,
 ): Promise<{ data: any; status: number }> {
+  const body = data ? JSON.stringify(data) : undefined;
+  const signedHeaders = agentIdentity
+    ? signAgentIdentityRequest({
+      identity: agentIdentity,
+      method,
+      path: new URL(url).pathname,
+      body,
+    })
+    : {};
   const opts: RequestInit = {
     method,
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
       'X-Openbox-Client': 'openbox-cli',
+      ...signedHeaders,
     },
     signal: AbortSignal.timeout(25000),
   };
-  if (data) opts.body = JSON.stringify(data);
+  if (body) opts.body = body;
 
   const response = await fetch(url, opts);
   const contentType = response.headers.get('content-type');
 
-  let body: any;
+  let responseBody: any;
   if (contentType?.includes('application/json')) {
-    body = await response.json();
+    responseBody = await response.json();
   } else {
-    body = await response.text();
+    responseBody = await response.text();
   }
 
   // Return in same shape tests expect: { data: body, status: response.status }
-  return { data: body, status: response.status };
+  return { data: responseBody, status: response.status };
 }
 
 // dogfood. The e2e suite drives every backend call through
@@ -55,6 +71,7 @@ async function makeRequest(
 // "throw on non-2xx" model into a never-throws envelope so existing
 // `expect(body.status).toBe(422)` style tests still work.
 import { OpenBoxClient, OpenBoxApiError } from '../../ts/src/client';
+import { signAgentIdentityRequest } from '../../ts/src/core-client/core-client.js';
 
 /**
  * Subclass that exposes OpenBoxClient's `protected` HTTP methods to the
@@ -138,25 +155,25 @@ export function getBackendClient(): HttpClient {
 }
 
 /** Core governance API client (core.openbox.ai) */
-export function getCoreClient(apiKey?: string): HttpClient {
+export function getCoreClient(apiKey?: string, agentIdentity?: AgentIdentityForSigning): HttpClient {
   const baseURL = process.env.OPENBOX_CORE_URL || 'https://core.openbox.ai';
   const key = apiKey || process.env.OPENBOX_API_KEY || '';
 
   return {
     async get(path: string) {
-      return makeRequest('GET', baseURL + path, key);
+      return makeRequest('GET', baseURL + path, key, agentIdentity);
     },
     async post(path: string, data?: any) {
-      return makeRequest('POST', baseURL + path, key, data);
+      return makeRequest('POST', baseURL + path, key, agentIdentity, data);
     },
     async put(path: string, data?: any) {
-      return makeRequest('PUT', baseURL + path, key, data);
+      return makeRequest('PUT', baseURL + path, key, agentIdentity, data);
     },
     async patch(path: string, data?: any) {
-      return makeRequest('PATCH', baseURL + path, key, data);
+      return makeRequest('PATCH', baseURL + path, key, agentIdentity, data);
     },
     async delete(path: string, data?: any) {
-      return makeRequest('DELETE', baseURL + path, key, data);
+      return makeRequest('DELETE', baseURL + path, key, agentIdentity, data);
     },
   };
 }

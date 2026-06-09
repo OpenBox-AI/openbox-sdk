@@ -1,10 +1,8 @@
 // Public sub-path: `import { ... } from 'openbox-sdk/maturity'`.
 //
-// Spec-driven gating logic; pure query functions that consume the
-// COMMAND_MATURITY / FEATURE_MATURITY tables emitted from
-// `specs/typespec/cli/main.tsp`. The CLI uses these to hide
-// experimental commands; UI/IDE/dashboard consumers can use the same
-// functions to gate their own surfaces against the same spec.
+// Optional maturity helpers. The lean CLI defaults active commands to
+// stable; generated tables are retained only for future explicitly
+// declared features.
 //
 // Two levels:
 //   * Maturity (whole-command); `isMaturityVisible(target)` + the
@@ -55,11 +53,10 @@ export function isMaturityVisible(target: Maturity, current = currentMaturityLev
   return LEVEL[target] <= LEVEL[current];
 }
 
-/** Look up a command path's declared maturity, such as 'agent list'.
- *  Unlisted paths default to 'experimental', the same conservative
- *  default the CLI uses. */
+/** Look up a command path's declared maturity. Unlisted paths default
+ *  to stable in the lean CLI. */
 export function maturityOf(path: string): Maturity {
-  return COMMAND_MATURITY[path] ?? 'experimental';
+  return COMMAND_MATURITY[path] ?? 'stable';
 }
 
 // ─── Feature flags ────────────────────────────────────────────────────

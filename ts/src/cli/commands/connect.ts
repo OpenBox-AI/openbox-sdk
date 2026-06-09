@@ -7,7 +7,7 @@ import {
 } from '../../env/index.js';
 import { saveApiKey } from '../../file-tokens/index.js';
 import { reportAndExit } from '../../validators/index.js';
-import { setConfig, unsetConfig } from '../config-store.js';
+import { setConfig, unsetConfig } from '../../config/index.js';
 import { isMachineMode } from '../non-interactive.js';
 import { output, success, warn } from '../output.js';
 

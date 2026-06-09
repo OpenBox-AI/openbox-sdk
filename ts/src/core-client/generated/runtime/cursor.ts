@@ -59,7 +59,7 @@ export const HOOK_EVENT_LABELS: Record<string, string> = {
   "subagentStop": "Subagent stop"
 };
 
-export interface InstallSpec {
+export interface HookSpec {
   file: string;
   key: string;
   style: 'claude-array' | 'cursor-keyed';
@@ -68,14 +68,14 @@ export interface InstallSpec {
   events: Array<{ name: string; timeout?: number }>;
 }
 
-/** Where this adapter's install command writes its hook block. The
- *  shared installer in install/from-spec.ts reads this spec. */
-export const INSTALL_SPEC: InstallSpec = {
-  "file": "~/.cursor/hooks.json",
+/** Hook metadata for this adapter. Host-specific installers and
+ *  plugin exporters consume it to render hook configuration. */
+export const HOOK_SPEC: HookSpec = {
+  "file": ".cursor/hooks.json",
   "key": "hooks",
   "style": "cursor-keyed",
   "command": "openbox cursor hook",
-  "configDir": "~/.cursor-hooks",
+  "configDir": ".cursor-hooks",
   "events": [
     {
       "name": "beforeSubmitPrompt",
@@ -440,9 +440,10 @@ export interface CursorAdapterConfig {
    * require_approval verdict and renders `permissionDecision: 'ask'`
    * (or the host equivalent), which makes the host's native
    * permission dialog pop inline. The local user becomes the
-   * approver. Remote / mobile / desktop approvers can still
-   * resolve the backend row but the hook subprocess does not wait
-   * for them. Adapters wire this from the `APPROVAL_MODE` config.
+   * approver. External approval clients such as the dashboard, mobile
+   * app, or editor extension can still resolve the backend row, but
+   * the hook subprocess does not wait for them. Adapters wire this
+   * from the `APPROVAL_MODE` config.
    */
   inlineApproval?: boolean;
   /**

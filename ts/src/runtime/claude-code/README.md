@@ -1,7 +1,8 @@
 # `runtime/claude-code/`: OpenBox SDK ↔ Claude Code
 
 OpenBox integration with [Claude Code](https://claude.com/claude-code).
-Two surfaces via `import ... from 'openbox-sdk/runtime/claude-code'`:
+Three surfaces are available via
+`import ... from 'openbox-sdk/runtime/claude-code'`:
 
 1. **Adapter primitive**; `createClaudeCodeAdapter`, re-exported from
    the spec-emitted `core-client/generated/runtime/claude-code.ts`.
@@ -9,9 +10,20 @@ Two surfaces via `import ... from 'openbox-sdk/runtime/claude-code'`:
    `specs/typespec/govern/adapters.tsp`. Use this when building a
    custom integration on top of OpenBox.
 
-2. **Platform integration**; `openbox claude-code {install,hook}`.
-   `install.ts` writes `~/.claude/settings.json`; `hook-handler.ts`
-   wires the spec-emitted adapter to per-event mappers in `mappers/`.
+2. **Hook runtime primitive**; `openbox claude-code hook`.
+   `hook-handler.ts` wires the spec-emitted adapter to per-event
+   mappers in `mappers/`. `install.ts` remains a low-level helper
+   for consumers that intentionally want to write Claude settings
+   directly, but the public CLI install path is plugin-first.
+
+3. **Claude Code plugin bundle**;
+   `openbox install claude-code` or
+   `openbox claude-code plugin {export,install,uninstall}`.
+   `plugin.ts` packages the OpenBox skill, Claude slash commands,
+   an OpenBox reviewer agent, `hooks/hooks.json`, `.mcp.json`, and
+   `.claude-plugin/plugin.json` into a marketplace-ready plugin
+   folder. Build asset sync emits the packaged plugin at
+   `dist/runtime/claude-code/plugin/openbox`.
 
 ## Shared with cursor
 

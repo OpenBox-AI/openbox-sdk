@@ -18,13 +18,13 @@ import * as os from "os";
 import { OpenBoxClient } from "../../client/index.js";
 import { OpenBoxCoreClient } from "../../core-client/index.js";
 import { loadApiKey } from "../../file-tokens/index.js";
-import { listConfig } from "../../cli/config-store.js";
+import { listConfig } from "../../config/index.js";
 import { setMcpClientName } from "./config.js";
 import { resolveConnection } from "../../env/index.js";
 import { recallAgentKey } from "../../file-tokens/agent-keys.js";
-import { registerRecipeTools } from "./recipe-tools.js";
 import { stampSource } from "../../approvals/source.js";
 import { verifyCursorInstall } from "../cursor/install.js";
+import { verifyClaudeCodePlugin } from "../claude-code/plugin.js";
 import { buildMcpGovernanceSpan, MCP_ACTIVITY_TYPE_MAP } from "./governance-span.js";
 
 export async function runMcpServer(): Promise<void> {
@@ -124,14 +124,42 @@ server.tool("cursor_status", "Return a compact OpenBox backend status for Cursor
   }
 });
 
+server.tool("openbox_status", "Return a compact OpenBox backend status for plugin slash commands without using shell execution", {}, async () => {
+  try {
+    const health = await client().health();
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ status: "connected", health }, null, 2),
+      }],
+    };
+  } catch (err: any) {
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ status: "not_reachable", error: err?.message ?? String(err) }, null, 2),
+      }],
+      isError: true,
+    };
+  }
+});
+
 server.tool("cursor_doctor", "Verify installed Cursor/OpenBox surfaces and runtime readiness without requiring Cursor chat to run shell commands", {
+  cwd: z.string().optional().describe("Project root for project-local install."),
+  plugin_target: z.string().optional().describe("Explicit project-local plugin folder to inspect."),
+  include_extension: z.boolean().optional().describe("Also check the user-level Cursor approval extension."),
   surface_only: z.boolean().optional().describe("When true, skip runtime key/core validation and only inspect installed files."),
   validate_core: z.boolean().optional().describe("When false, validate runtime config/key format without calling core."),
-}, async ({ surface_only, validate_core }) => {
+}, async ({ cwd, plugin_target, include_extension, surface_only, validate_core }) => {
+  const base = {
+    cwd,
+    pluginTarget: plugin_target,
+    includeExtension: include_extension,
+  };
   const checks = surface_only
-    ? verifyCursorInstall({ scope: "global" })
+    ? verifyCursorInstall(base)
     : await verifyCursorInstall({
-        scope: "global",
+        ...base,
         includeRuntime: true,
         validateRuntime: validate_core !== false,
       });
@@ -141,6 +169,21 @@ server.tool("cursor_doctor", "Verify installed Cursor/OpenBox surfaces and runti
       return acc;
     },
     { pass: 0, skip: 0, fail: 0 } as Record<"pass" | "skip" | "fail", number>,
+  );
+  return { content: [{ type: "text", text: JSON.stringify({ checks, summary }, null, 2) }] };
+});
+
+server.tool("claude_code_doctor", "Verify installed Claude Code/OpenBox plugin surfaces without requiring Claude Code chat to run shell commands", {
+  cwd: z.string().optional().describe("Project root for project-local install."),
+  target: z.string().optional().describe("Explicit plugin folder to inspect."),
+}, async ({ cwd, target }) => {
+  const checks = verifyClaudeCodePlugin({ cwd, target });
+  const summary = checks.reduce(
+    (acc, check) => {
+      acc[check.status] += 1;
+      return acc;
+    },
+    { pass: 0, fail: 0 } as Record<"pass" | "fail", number>,
   );
   return { content: [{ type: "text", text: JSON.stringify({ checks, summary }, null, 2) }] };
 });
@@ -243,7 +286,7 @@ async function resolveApiKey(agentId: string | undefined): Promise<string> {
   let apiKey = process.env.OPENBOX_API_KEY;
   if (!apiKey && agentId) {
     // Try the per-agent runtime-key cache first. The CLI's `agent
-    // create` and `api-key rotate` post-callbacks write here at
+    // Backend runtime-key creation/rotation flows write here at
     // mode 0o600; the canonical source of obx_live_*/obx_test_*
     // keys outside an in-process env var. Falling back to
     // GET /agent/{id} and using `agent.token` (the previous path)
@@ -256,10 +299,7 @@ async function resolveApiKey(agentId: string | undefined): Promise<string> {
   if (!apiKey) {
     throw new Error(
       `No API key found for agent ${agentId ?? "(unset)"}. ` +
-        "Set OPENBOX_API_KEY, or run `openbox api-key recall <agentId>` " +
-        "to surface a cached key. To mint a fresh key, run " +
-        "`openbox api-key rotate <agentId> -y`. Rotation is destructive " +
-        "and invalidates the previous key.",
+        'Set OPENBOX_API_KEY or mint/recover a runtime key from the dashboard/backend API.',
     );
   }
   if (!apiKey.startsWith("obx_live_") && !apiKey.startsWith("obx_test_")) {
@@ -309,8 +349,8 @@ const SKILL_PATHS = [
 
 function findSkillDir(): string | null {
   const candidates = [
-    path.join(os.homedir(), ".claude", "skills", "openbox"),
-    path.join(os.homedir(), ".cursor", "skills", "openbox"),
+    path.join(process.cwd(), ".claude", "skills", "openbox", "skills", "openbox"),
+    path.join(process.cwd(), ".cursor", "plugins", "local", "openbox", "skills", "openbox"),
   ];
   return candidates.find((p) => fs.existsSync(p)) || null;
 }
@@ -318,34 +358,13 @@ function findSkillDir(): string | null {
 for (const ref of SKILL_PATHS) {
   server.resource(ref.name, `openbox://skill/${ref.name}`, { description: ref.desc }, async () => {
     const skillDir = findSkillDir();
-    if (!skillDir) return { contents: [{ uri: `openbox://skill/${ref.name}`, text: "Skill not installed. Run: git clone https://github.com/OpenBox-AI/skill/.git ~/.cursor/skills/openbox", mimeType: "text/plain" }] };
+    if (!skillDir) return { contents: [{ uri: `openbox://skill/${ref.name}`, text: "Skill not installed. Run a project-local install: openbox install cursor or openbox install claude-code", mimeType: "text/plain" }] };
     const filePath = path.join(skillDir, ref.path);
     if (!fs.existsSync(filePath)) return { contents: [{ uri: `openbox://skill/${ref.name}`, text: `File not found: ${ref.path}`, mimeType: "text/plain" }] };
     const text = fs.readFileSync(filePath, "utf-8");
     return { contents: [{ uri: `openbox://skill/${ref.name}`, text, mimeType: "text/markdown" }] };
   });
 }
-
-  // Auto-register every spec @cli_recipe as an MCP tool. LLMs get
-  // `agent_describe`, `org_overview`, `trust_overview`, ... alongside
-  // the hand-coded tier-1 tools above. Same fanout semantics as the
-  // CLI (parallel via Promise.all, paginate-walk, null-on-optional).
-  registerRecipeTools(
-    server,
-    new Proxy({} as Record<string, (...a: unknown[]) => Promise<unknown>>, {
-      get: (_target, prop) => {
-        if (typeof prop !== "string") return undefined;
-        return (...args: unknown[]) => {
-          const c = client() as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>;
-          const method = c[prop];
-          if (typeof method !== "function") {
-            throw new Error(`OpenBox MCP recipe tool: client method ${prop} is unavailable`);
-          }
-          return method.apply(c, args);
-        };
-      },
-    }),
-  );
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

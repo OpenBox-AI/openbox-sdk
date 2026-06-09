@@ -91,8 +91,7 @@ describe('platform / OS awareness contract', () => {
   });
 
   it('agent-keys store writes carry mode: 0o600', () => {
-    // The store caches obx_live_*/obx_test_* runtime keys captured by
-    // `agent create` and `api-key rotate` post-callbacks. A regression
+    // The store caches obx_live_*/obx_test_* runtime keys. A regression
     // that drops the bit would leave runtime keys world-readable on
     // shared Unix boxes.
     const src = readFileSync(`${SRC_ROOT}/file-tokens/agent-keys.ts`, 'utf-8');
@@ -102,26 +101,28 @@ describe('platform / OS awareness contract', () => {
     expect(secured).toBe(total);
   });
 
-  it('config-store writes carry mode: 0o600', () => {
+  it('config store writes carry mode: 0o600', () => {
     // The CLI config store layers values into process.env on every
     // command (URL overrides, default flags). Some keys may carry
     // semi-sensitive values (org IDs, custom URLs, client variants),
     // so the file must not be world-readable.
-    const src = readFileSync(`${SRC_ROOT}/cli/config-store.ts`, 'utf-8');
+    const src = readFileSync(`${SRC_ROOT}/config/store.ts`, 'utf-8');
     const total = (src.match(/\bwriteFileSync\s*\(/g) ?? []).length;
     const secured = (src.match(/\bwriteFileSync\b[^;]*0o600/gs) ?? []).length;
     expect(total).toBeGreaterThanOrEqual(1);
     expect(secured).toBe(total);
   });
 
-  it('os.homedir() is used wherever a per-user dir is built', () => {
+  it('host runtime config resolvers do not read per-user hook dirs', () => {
     const claudeSrc = readFileSync(`${SRC_ROOT}/runtime/claude-code/config.ts`, 'utf-8');
-    expect(claudeSrc).toContain("from 'node:os'");
-    expect(claudeSrc).toContain('os.homedir()');
+    expect(claudeSrc).not.toContain("from 'node:os'");
+    expect(claudeSrc).not.toContain('os.homedir()');
+    expect(claudeSrc).toContain("path.join(startDir, '.claude-hooks')");
 
     const cursorSrc = readFileSync(`${SRC_ROOT}/runtime/cursor/config.ts`, 'utf-8');
-    expect(cursorSrc).toContain("from 'node:os'");
-    expect(cursorSrc).toContain('os.homedir()');
+    expect(cursorSrc).not.toContain("from 'node:os'");
+    expect(cursorSrc).not.toContain('os.homedir()');
+    expect(cursorSrc).toContain("path.join(startDir, '.cursor-hooks')");
   });
 
   it('hook adapters cap stdin at 10MB to prevent OOM on runaway pipes', () => {

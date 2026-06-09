@@ -1,8 +1,0 @@
-{
-  "identifier": "default",
-  "description": "Minimal capabilities",
-  "windows": [],
-  "permissions": [
-    "core:default"
-  ]
-}

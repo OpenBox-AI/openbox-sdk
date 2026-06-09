@@ -30,6 +30,12 @@ describe('Agent CRUD Lifecycle', () => {
     // Backend issues obx_live_* in prod and obx_test_* everywhere else.
     // Accept both; env-detection bug land if we hardcode one.
     expect(body.data.token).toMatch(/^obx_(?:live|test)_/);
+    expect(body.data.identity).toEqual(
+      expect.objectContaining({
+        did: expect.stringMatching(/^did:aip:/),
+        privateKey: expect.any(String),
+      }),
+    );
 
     agentId = body.data.agent.id;
     apiKey = body.data.token;
@@ -82,18 +88,7 @@ describe('Agent CRUD Lifecycle', () => {
     expect(body.status).toBe(200);
   });
 
-  // SKIPPED; backend bug: soft-deleted agents are still readable.
-  //
-  // Symptom: after `DELETE /agent/{id}` succeeds, `GET /agent/{id}`
-  //   returns HTTP 200 with the deleted record rather than 403/404.
-  //
-  // Root cause: agent deletion is a soft-delete (sets deleted_at);
-  //   the GET handler doesn't filter by `deleted_at IS NULL`.
-  //
-  // Fix direction (backend): GET handlers should return 404 for
-  //   soft-deleted resources unless an explicit includeDeleted=true
-  //   flag is passed. Mirrors the pattern already used for org GET.
-  it.skip('confirms deletion returns 403 or 404', async () => {
+  it('confirms deletion returns 403 or 404', async () => {
     const response = await client.get(`/agent/${agentId}`);
     const body = fullResponse(response);
 

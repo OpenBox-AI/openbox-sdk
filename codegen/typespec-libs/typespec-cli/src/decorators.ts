@@ -260,7 +260,7 @@ export function getOutputPluck(program: Program, target: Operation): string | un
 /** Names a callback (registered in the runtime's OUTPUT_POST_REGISTRY)
  *  to invoke after output. The callback receives the *original*
  *  response (pre-pluck); used for stderr banners like the runtime-key
- *  highlight after `agent create` / `api-key rotate`. */
+ *  highlight after runtime-key creation/rotation flows. */
 export function $cli_output_post(
   context: DecoratorContext,
   target: Operation,
@@ -582,7 +582,7 @@ export function getRecipe(
 
 // `unwrapTspValue` lives next to the decorators it serves. Inline
 // minimal copy here so the file doesn't need to reach into another
-// module. (Workflow lib has the same helper for @payloadShape / @installTarget.)
+// module. (Workflow lib has the same helper for @payloadShape / @hookTarget.)
 function unwrapTspValue(v: unknown): unknown {
   if (v instanceof Map) {
     const out: Record<string, unknown> = {};

@@ -140,10 +140,6 @@ export async function finishStoppedWorkflow(
   taskQueue: string,
   verdict: WorkflowVerdict,
 ) {
-  if (verdict.arm === 'halt') {
-    await completeWorkflow(adapter, ids, workflowType, taskQueue);
-    return;
-  }
   await failWorkflow(adapter, ids, workflowType, taskQueue, verdict.reason);
 }
 
@@ -176,6 +172,30 @@ export async function ensureWorkflowStarted(
     startedWorkflowRuns.delete(key);
     throw error;
   }
+}
+
+export async function emitUserPromptSignal(
+  adapter: OpenBoxCopilotKitAdapter,
+  ids: { workflowId: string; runId: string },
+  workflowType: string,
+  taskQueue: string,
+  prompt: string | undefined,
+) {
+  const signalArgs = prompt?.trim();
+  if (!signalArgs) return;
+
+  await evaluate(adapter, {
+    source: 'langgraph',
+    event_type: 'SignalReceived',
+    workflow_id: ids.workflowId,
+    run_id: ids.runId,
+    workflow_type: workflowType,
+    task_queue: taskQueue as GovernanceEventPayload['task_queue'],
+    timestamp: new Date().toISOString(),
+    signal_name: 'user_prompt',
+    signal_args: signalArgs,
+    spans: [userPromptSpan(signalArgs)],
+  });
 }
 
 export async function failWorkflow(
@@ -247,5 +267,23 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
       'tool.name': definition.toolName,
     },
     data: input,
+  } as SpanData;
+}
+
+function userPromptSpan(prompt: string): SpanData {
+  const now = Date.now();
+  return {
+    span_id: randomBytes(8).toString('hex'),
+    trace_id: randomBytes(16).toString('hex'),
+    name: 'user_prompt',
+    kind: 'internal',
+    start_time: now,
+    end_time: now,
+    duration_ns: 0,
+    stage: 'started',
+    attributes: {
+      'openbox.signal.name': 'user_prompt',
+    },
+    data: { prompt },
   } as SpanData;
 }

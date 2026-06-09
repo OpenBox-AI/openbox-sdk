@@ -2,8 +2,9 @@
 
 Spec-driven code-generation pipeline. TypeSpec sources at
 `specs/typespec/` are the contract. Emitters under
-`codegen/emitters/` turn them into language-native source under
-`ts/src/**/generated/` and `specs/generated/openapi3/`.
+`codegen/emitters/` turn them into generated TypeScript source under
+`ts/src/**/generated/` and generated API contracts under
+`specs/generated/openapi3/`.
 
 ## What goes where
 
@@ -13,7 +14,7 @@ Spec-driven code-generation pipeline. TypeSpec sources at
 | `typespec-libs/typespec-cli/` | Decorator library: `@cli_command`, `@cli_flag`, etc. Drives CLI binding emit |
 | `typespec-libs/typespec-env/` | Decorator library: `@env_var`, `@token_format`, `@os_path` |
 | `emitters/typespec-emitter-typescript/` | TypeSpec emitter using `ts-morph`. Walks the program, writes TS source |
-| `fixtures/` | Cross-language conformance test inputs in JSON. Every language SDK runs the same fixtures |
+| `fixtures/` | Conformance test inputs in JSON. Future language SDK branches should replay the same fixtures |
 | `method-permissions.json` | Mirrored `@Permissions` map from the live backend controllers, keyed by `operationId` to required perms |
 | `method-names.json` | OpenAPI `operationId` to CLI method name mapping. Used by the wrapper-method emitter |
 
@@ -71,7 +72,7 @@ The line is: spec the contract, hand-code the data extraction.
 | Spec it | Hand-code it |
 |---|---|
 | Wire schemas, HTTP method shapes | Per-tool payload extraction. Read needs file content, Bash needs cwd |
-| Govern protocol: event types, verdicts, presets, adapters | Side-effects: writing config files into `~/.claude/`, `~/.cursor/` |
+| Govern protocol: event types, verdicts, presets, adapters | Side-effects: writing host config files outside the generated SDK |
 | Adapter transport, verdict shapes, tool routing tables | Test fixtures, mock state |
 | Env var names, OS path semantics | UI and display formatting |
 | CLI command structure: args, flags, permissions | CLI command bodies, the action callbacks |
@@ -91,16 +92,13 @@ No → hand-code.
 
 ## Adding a new language target
 
-1. New emitter under `codegen/emitters/typespec-emitter-<lang>/`.
-   Same shape as `typespec-emitter-typescript/`: imports the
-   decorator getters from `typespec-env`, `typespec-cli`, and
-   `typespec-workflow`, walks the program, writes `<lang>` source
-   under `<lang>/src/generated/`.
-2. New top-level `<lang>/` directory with a language-native build:
-   Cargo for Rust, pyproject.toml for Python, go.mod for Go.
-3. Conformance fixtures under `codegen/fixtures/` already exist; the
-   language's test runner replays them.
+Add it on a branch or in a separate package track first. A language
+target should only come back to `main` when it has:
 
-The decorator libraries are language-agnostic and do not import
-TypeScript-specific types, so the cost of adding a language is
-bounded by the size of the emitter, not the spec.
+- an emitter under `codegen/emitters/typespec-emitter-<lang>/`,
+- a language-native build and test gate,
+- conformance coverage against `codegen/fixtures/`,
+- a release story independent from the TypeScript npm package.
+
+The decorator libraries are language-agnostic, so new targets can reuse
+the same TypeSpec metadata without changing the TypeScript SDK boundary.

@@ -1,3 +1,4 @@
+import { createHash, createPrivateKey, randomUUID, sign } from 'node:crypto';
 import { TokenBucket } from '../client/index.js';
 
 // Every wire-shape type in this module comes from the spec at
@@ -26,8 +27,6 @@ export type {
   GovernanceVerdictResponse,
   ApprovalStatusRequest,
   ApprovalStatusResponse,
-  ApprovalDecisionRequest,
-  ApprovalDecisionResponse,
 } from './generated/core-types.js';
 
 import type {
@@ -35,8 +34,6 @@ import type {
   GovernanceVerdictResponse,
   ApprovalStatusRequest,
   ApprovalStatusResponse,
-  ApprovalDecisionRequest,
-  ApprovalDecisionResponse,
 } from './generated/core-types.js';
 
 // Behavioral evaluator output. Spec keeps `AGESpanResult.behavioral_result`
@@ -65,6 +62,12 @@ export interface CoreClientConfig {
   apiUrl?: string;
   /** Agent API key (obx_live_* or obx_test_*) */
   apiKey: string;
+  /**
+   * Optional one-time agent identity returned by Backend `createAgent`
+   * / identity rotation. Core requires these signed DID headers when
+   * the agent has `signing_required=true`.
+   */
+  agentIdentity?: AgentIdentityConfig;
   /** Request timeout in milliseconds. Default: 35000.
    *  Sits slightly above core's 30s WorkflowExecutionTimeout so when a
    *  workflow hits the server-side deadline, the client waits long
@@ -76,6 +79,12 @@ export interface CoreClientConfig {
   retry?: { maxRetries?: number; initialDelayMs?: number; maxDelayMs?: number };
   /** Client-side rate limiting */
   rateLimit?: { requestsPerSecond: number; burst?: number };
+}
+
+export interface AgentIdentityConfig {
+  did: string;
+  /** Raw Ed25519 private key bytes, base64 encoded. */
+  privateKey: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -118,6 +127,24 @@ export class OpenBoxCoreClient {
   // Public API
   // =========================================================================
 
+  /**
+   * Dynamic operation request used by compact API-first tooling.
+   * Generated methods remain the preferred typed surface; this method
+   * exists for operationId-driven callers that already resolved a
+   * generated endpoint manifest entry.
+   */
+  async requestOperation(
+    method: string,
+    path: string,
+    options?: {
+      params?: Record<string, unknown>;
+      data?: unknown;
+    },
+  ): Promise<unknown> {
+    const renderedPath = appendQuery(path, options?.params);
+    return this.request(method, renderedPath, { data: options?.data });
+  }
+
   async health(): Promise<string> {
     return this.request('GET', '/') as Promise<string>;
   }
@@ -148,13 +175,6 @@ export class OpenBoxCoreClient {
     }) as Promise<ApprovalStatusResponse>;
   }
 
-  async decideApproval(request: ApprovalDecisionRequest): Promise<ApprovalDecisionResponse> {
-    return this.request('POST', '/api/v1/governance/approval/decide', {
-      data: request,
-      retryable: false,
-    }) as Promise<ApprovalDecisionResponse>;
-  }
-
   // =========================================================================
   // Private helpers
   // =========================================================================
@@ -177,6 +197,15 @@ export class OpenBoxCoreClient {
       Authorization: `Bearer ${this.config.apiKey}`,
     };
     const body = options?.data ? JSON.stringify(options.data) : undefined;
+    const signedHeaders = this.config.agentIdentity
+      ? signAgentIdentityRequest({
+        identity: this.config.agentIdentity,
+        method,
+        path: new URL(url).pathname,
+        body,
+      })
+      : {};
+    const headers = { ...baseHeaders, ...signedHeaders };
 
     // Per-call retry opt-out for non-idempotent endpoints. evaluate()
     // sets this false because each retry generates a fresh workflow on
@@ -186,8 +215,8 @@ export class OpenBoxCoreClient {
     // so the caller decides whether to retry with a fresh workflow_id.
     const retryable = options?.retryable ?? true;
     const response = retryable
-      ? await this.executeWithRetry({ url, method, headers: baseHeaders, body, timeoutMs })
-      : await this.executeOnce({ url, method, headers: baseHeaders, body, timeoutMs });
+      ? await this.executeWithRetry({ url, method, headers, body, timeoutMs })
+      : await this.executeOnce({ url, method, headers, body, timeoutMs });
 
     const contentType = response.headers.get('content-type');
     const isJson = contentType?.includes('application/json');
@@ -293,4 +322,65 @@ function requireCoreUrl(value: string | undefined): string {
   url.search = '';
   url.pathname = url.pathname.replace(/\/+$/, '');
   return url.toString().replace(/\/$/, '');
+}
+
+function appendQuery(path: string, params: Record<string, unknown> | undefined): string {
+  if (!params) return path;
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item !== undefined && item !== null) search.append(key, String(item));
+      }
+    } else {
+      search.append(key, String(value));
+    }
+  }
+  const query = search.toString();
+  if (!query) return path;
+  return `${path}${path.includes('?') ? '&' : '?'}${query}`;
+}
+
+const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
+
+export function signAgentIdentityRequest(input: {
+  identity: AgentIdentityConfig;
+  method: string;
+  path: string;
+  body?: string;
+  timestamp?: string;
+  nonce?: string;
+}): Record<string, string> {
+  const timestamp = input.timestamp ?? new Date().toISOString();
+  const nonce = input.nonce ?? randomUUID();
+  const bodySha256 = createHash('sha256').update(input.body ?? '').digest('hex');
+  const canonical = [
+    input.method.toUpperCase(),
+    input.path,
+    timestamp,
+    nonce,
+    bodySha256,
+  ].join('\n');
+  const privateKey = ed25519PrivateKeyFromRawBase64(input.identity.privateKey);
+  const signature = sign(null, Buffer.from(canonical), privateKey).toString('base64');
+  return {
+    'X-OpenBox-Agent-DID': input.identity.did,
+    'X-OpenBox-Agent-Timestamp': timestamp,
+    'X-OpenBox-Agent-Nonce': nonce,
+    'X-OpenBox-Body-SHA256': bodySha256,
+    'X-OpenBox-Agent-Signature': signature,
+  };
+}
+
+function ed25519PrivateKeyFromRawBase64(rawBase64: string) {
+  const raw = Buffer.from(rawBase64, 'base64');
+  if (raw.length !== 32) {
+    throw new Error('agent identity privateKey must be a base64-encoded 32-byte Ed25519 key');
+  }
+  return createPrivateKey({
+    key: Buffer.concat([ED25519_PKCS8_PREFIX, raw]),
+    format: 'der',
+    type: 'pkcs8',
+  });
 }

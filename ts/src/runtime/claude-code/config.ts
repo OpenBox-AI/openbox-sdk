@@ -1,21 +1,18 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { loadJsonConfig, loadDotenv } from '../../config/host-config.js';
-
-// `os.homedir()` honors USERPROFILE on Windows where HOME is unset.
-const GLOBAL_CONFIG_DIR = path.join(os.homedir(), '.claude-hooks');
 
 /**
  * Resolve which `.claude-hooks/` directory the hook subprocess
  * should read from. The lookup walks the current working directory
  * upward and prefers the closest one to the project root; this is
- * how a project-scoped install (written by
- * `openbox claude-code install --scope project --cwd <dir>`) gets
+ * how a project-scoped plugin install (written by
+ * `openbox install claude-code --scope project --cwd <dir>`) gets
  * picked up automatically when Claude Code spawns the hook with
- * its working directory inside `<dir>`. Falls back to the global
- * `~/.claude-hooks/` so any pre-existing user install keeps
- * working unchanged.
+ * its working directory inside `<dir>`. If no project config is
+ * found, the hook reads `<startDir>/.claude-hooks/` and therefore
+ * fails from missing project config instead of consulting user-level
+ * state.
  *
  * Exported so tests can drive the walk-up logic against synthetic
  * directory layouts without spawning the hook subprocess. The
@@ -32,7 +29,7 @@ export function resolveConfigDir(startDir: string = process.cwd()): string {
     if (parent === cur) break;
     cur = parent;
   }
-  return GLOBAL_CONFIG_DIR;
+  return path.join(startDir, '.claude-hooks');
 }
 
 const CONFIG_DIR = resolveConfigDir();

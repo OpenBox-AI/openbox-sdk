@@ -10,8 +10,8 @@
 // The hook honors a config-dir override through the walk-up
 // resolver: we plant a `.claude-hooks/config.json` in a temp
 // directory and spawn the subprocess with cwd inside that dir,
-// so each case has its own isolated config without touching the
-// user's global ~/.claude-hooks/.
+// so each case has its own isolated project config without touching
+// user-level hook config.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';

@@ -1,4 +1,7 @@
-import type { OpenBoxCoreClient } from '../core-client/core-client.js';
+import type {
+  AgentIdentityConfig,
+  OpenBoxCoreClient,
+} from '../core-client/core-client.js';
 import type { WorkflowVerdict } from '../core-client/index.js';
 import { OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION } from './constants.js';
 
@@ -84,21 +87,26 @@ export interface OpenBoxCopilotKitConfig {
   coreUrl?: string;
   /** Runtime agent key used for Core governance. Defaults to OPENBOX_API_KEY. */
   apiKey?: string;
+  /** Core request timeout in milliseconds. Defaults to the Core client default. */
+  coreTimeoutMs?: number;
   /**
-   * Optional platform/backend URL for read-only inventory checks and the
-   * legacy approval fallback. Runtime governance does not require it.
+   * Optional signed agent identity returned by Backend `createAgent`.
+   * Defaults to OPENBOX_AGENT_DID + OPENBOX_AGENT_PRIVATE_KEY.
+   */
+  agentIdentity?: AgentIdentityConfig;
+  /**
+   * Optional platform/backend URL for readiness checks and approval
+   * decisions. Runtime governance evaluation does not require it.
    */
   apiUrl?: string;
   /**
-   * Optional platform/backend key for read-only inventory checks and the
-   * legacy approval fallback. Runtime governance does not require it.
+   * Optional platform/backend key for readiness checks and approval
+   * decisions. Runtime governance evaluation does not require it.
    */
   backendApiKey?: string;
-  /** @deprecated Use backendApiKey or OPENBOX_BACKEND_API_KEY. */
-  platformApiKey?: string;
   /**
-   * Optional platform agent ID for read-only inventory checks and the
-   * legacy approval fallback. Runtime governance does not require it.
+   * Optional platform agent ID for readiness checks and approval
+   * decisions. Runtime governance evaluation does not require it.
    */
   agentId?: string;
   clientName?: string;

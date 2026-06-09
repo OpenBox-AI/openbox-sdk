@@ -8,27 +8,26 @@ keywords in `SKILL.md`.
 
 ## Install, update, uninstall
 
-The skill ships inside `openbox-sdk`. Install the SDK once with
-`npm install -g openbox-sdk@github:OpenBox-AI/openbox-sdk`, then:
+The skill ships inside the project-local Cursor and Claude Code plugin
+assets exported by `openbox-sdk`:
 
 ```bash
-openbox install skill            # writes to ~/.claude/skills/openbox/ and ~/.cursor/skills/openbox/
+openbox install claude-code      # writes <project>/.claude/skills/openbox/
+openbox install cursor           # writes <project>/.cursor/plugins/local/openbox/
 ```
 
-Re-run `openbox install skill` to update. The command overwrites the
-target directories with the content shipped in the installed
-`openbox-sdk` version.
+Re-run the project-local install command to update the bundled skill
+content from the installed `openbox-sdk` version.
 
-To uninstall, run `rm -rf ~/.claude/skills/openbox`. For Cursor, the
-path is `~/.cursor/skills/openbox`.
+To uninstall, run `openbox uninstall claude-code --cwd <project>` or
+`openbox uninstall cursor --cwd <project>`.
 
 ## Layout
 
 - `SKILL.md`: main entry. The agent loads this first.
-- `references/`: domain-specific deep dives, loaded on demand. Covers
-  governance flow, guardrails, behaviors, Rego policies, span
-  attributes, CLI commands, integration paths, backend conventions,
-  and the validation checklist.
+- `references/`: domain-specific deep dives, loaded on demand. The
+  current command and SDK references are intentionally compact and
+  API-first.
 - `evals/`: scoring fixtures used to grade the skill's output against
   canonical answers.
 

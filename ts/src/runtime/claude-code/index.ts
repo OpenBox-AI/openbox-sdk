@@ -27,6 +27,21 @@ export {
 // ─── Platform integration (called from the CLI) ─────────────────────
 export { runClaudeHook } from './hook-handler.js';
 export { installClaudeCode, uninstallClaudeCode } from './install.js';
+export {
+  claudeCodePluginTargetDir,
+  claudeCodeRuntimeConfigDir,
+  exportClaudeCodePlugin,
+  installClaudeCodePlugin,
+  uninstallClaudeCodePlugin,
+  verifyClaudeCodePlugin,
+  type ClaudeCodePluginCheck,
+  type ClaudeCodePluginCheckStatus,
+  type ClaudeCodePluginScope,
+  type ExportClaudeCodePluginOptions,
+  type InstallClaudeCodePluginOptions,
+  type UninstallClaudeCodePluginOptions,
+  type VerifyClaudeCodePluginOptions,
+} from './plugin.js';
 
 import { makeHookLog } from '../../logging/hook-log.js';
 /** Path of the JSONL log written by the claude-code hook subprocess.

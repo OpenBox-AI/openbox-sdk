@@ -1,7 +1,7 @@
 // Public sub-path: `openbox-sdk/install`.
 //
 // Generic installer that consumes a host's spec-emitted
-// `INSTALL_SPEC` (file path, JSON key, style, command, config
+// `HOOK_SPEC` (file path, JSON key, style, command, config
 // directory, and event list) and writes the appropriate
 // `hooks.json` or `settings.json` block.
 
@@ -11,7 +11,7 @@ export {
   installMcpEntry,
   uninstallMcpEntry,
   resolveInstallPaths,
-  type InstallSpec,
+  type HookSpec,
   type InstallOptions,
   type InstallScope,
   type McpServerEntry,

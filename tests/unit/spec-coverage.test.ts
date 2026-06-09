@@ -37,41 +37,6 @@ function hookEventBlocks(source: string): { name: string; block: string }[] {
   return out;
 }
 
-/** Pull every operation from the CLI spec; anything inside an
- *  interface body that ends with `(...): void`. Returns the decorator
- *  stack string per op so the caller can grep. */
-function cliOpBlocks(source: string): { name: string; block: string }[] {
-  const lines = source.split('\n');
-  const out: { name: string; block: string }[] = [];
-  let inInterface = false;
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i];
-    if (/^interface\s+\w+\s*\{/.test(l)) inInterface = true;
-    else if (l.trim() === '}') inInterface = false;
-    if (!inInterface) continue;
-
-    const m = l.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\(/);
-    if (!m) continue;
-    const opName = m[1];
-    // Walk back to top of decorator stack; stop at the previous blank
-    // line OR the line that opens the enclosing interface (`{` at line
-    // end with NO preceding `#` for TypeSpec record literals). Plain
-    // `{` from `interface Foo {` ends a line; record literals look
-    // like `impact: #{` which also ends with `{` and would falsely
-    // truncate the walk.
-    let start = i;
-    while (start > 0) {
-      const prev = lines[start - 1];
-      const trimmed = prev.trim();
-      if (trimmed === '') break;
-      if (trimmed.endsWith('{') && !trimmed.endsWith('#{') && !/[a-z_]+:\s*[#]?\{$/.test(trimmed)) break;
-      start--;
-    }
-    out.push({ name: opName, block: lines.slice(start, i + 1).join('\n') });
-  }
-  return out;
-}
-
 describe('adapters.tsp: every @hookEvent op declares its payload contract', () => {
   const blocks = hookEventBlocks(adaptersTsp);
 
@@ -92,36 +57,23 @@ describe('adapters.tsp: every @hookEvent op declares its payload contract', () =
   }
 });
 
-describe('adapters.tsp: every @adapter declares @installTarget', () => {
+describe('adapters.tsp: every @adapter declares @hookTarget', () => {
   // Find every `@adapter("...")` line, check the same decorator stack
-  // for @installTarget within ~15 lines (covers typical multi-line records).
+  // for @hookTarget within ~15 lines (covers typical multi-line records).
   const re = /@adapter\("([^"]+)"/g;
   for (const m of adaptersTsp.matchAll(re)) {
     const name = m[1];
     const idx = m.index ?? 0;
     const window = adaptersTsp.slice(Math.max(0, idx - 1000), idx + 1000);
-    test(`@adapter("${name}") has @installTarget`, () => {
-      expect(/@installTarget\(/.test(window), `@adapter("${name}") must carry @installTarget`).toBe(true);
+    test(`@adapter("${name}") has @hookTarget`, () => {
+      expect(/@hookTarget\(/.test(window), `@adapter("${name}") must carry @hookTarget`).toBe(true);
     });
   }
 });
 
-describe('cli/main.tsp: every interface op carries @cli_calls, @cli_recipe, or @cli_output_kind("custom")', () => {
-  const blocks = cliOpBlocks(cliTsp);
-
-  test('parser found at least one CLI op (sanity)', () => {
-    expect(blocks.length).toBeGreaterThan(50);
+describe('cli/main.tsp: lean CLI stays free of generated CRUD command trees', () => {
+  test('contains no command interfaces or generated admin decorators', () => {
+    expect(cliTsp).not.toMatch(/\binterface\s+\w+\s*\{/);
+    expect(cliTsp).not.toMatch(/@cli_calls\(|@cli_recipe\(/);
   });
-
-  for (const { name, block } of blocks) {
-    test(`op '${name}' is bound to a tier-1 call, a tier-2 recipe, or a custom action`, () => {
-      const hasCalls = /@cli_calls\(/.test(block);
-      const hasRecipe = /@cli_recipe\(/.test(block);
-      const customOutput = /@cli_output_kind\("custom"\)/.test(block);
-      expect(
-        hasCalls || hasRecipe || customOutput,
-        `op '${name}' must carry @cli_calls(...) (tier 1), @cli_recipe([...]) (tier 2), or @cli_output_kind("custom") (hand-coded)`,
-      ).toBe(true);
-    });
-  }
 });

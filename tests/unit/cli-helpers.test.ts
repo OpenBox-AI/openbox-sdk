@@ -5,8 +5,8 @@
 //   - Public library helpers (output, colors, exit-codes, non-interactive,
 //     maturity, features); call each export with a real argument and
 //     assert observable behavior, not just module shape.
-//   - Spec-driven command wrappers (sso, webhook, mcp, claude-code,
-//     cursor, skill); register against a fresh Commander and assert
+//   - Stable command wrappers (mcp, claude-code, cursor, skill,
+//     install); register against a fresh Commander and assert
 //     the expected verbs appear.
 //
 // Runtime adapter logic (mappers, hook handlers, side-effects) lives in
@@ -59,21 +59,28 @@ describe('thin exports', () => {
 });
 
 describe('command-group wrappers register subcommands', () => {
-  // Each spec-driven `register*Commands(program)` call walks the matching
-  // *_HANDLERS manifest and registers verbs on a Commander parent. The
-  // handlers themselves are exercised by the conformance suite. This
-  // batch just asserts the wrapper actually walks the manifest.
-  const cases: { name: string; mod: string; register: string; verbs: string[] }[] = [
-    { name: 'sso', mod: '../../ts/src/cli/commands/sso', register: 'registerSsoCommands', verbs: ['status', 'config'] },
-    { name: 'webhook', mod: '../../ts/src/cli/commands/webhook', register: 'registerWebhookCommands', verbs: ['list', 'create', 'delete'] },
+  // These wrappers back the supported compact CLI surface.
+  const cases: {
+    name: string;
+    mod: string;
+    register: string;
+    verbs: string[];
+    absent?: string[];
+  }[] = [
     { name: 'mcp', mod: '../../ts/src/cli/commands/mcp', register: 'registerMcpCommands', verbs: ['serve'] },
-    // claude-code, cursor, skill: install/uninstall verbs moved to the
-    // unified `openbox install <target>` parent (see install.ts). Each
-    // module retains only its non-install verbs.
-    { name: 'claude-code', mod: '../../ts/src/cli/commands/claude-code', register: 'registerClaudeCodeCommands', verbs: ['hook'] },
-    { name: 'cursor', mod: '../../ts/src/cli/commands/cursor', register: 'registerCursorCommands', verbs: ['hook'] },
+    // claude-code and cursor retain their runtime verbs. Both expose
+    // plugin export/install helpers; one-command setup lives at
+    // `openbox install <host>`.
+    { name: 'claude-code', mod: '../../ts/src/cli/commands/claude-code', register: 'registerClaudeCodeCommands', verbs: ['hook', 'plugin', 'install', 'uninstall'] },
+    {
+      name: 'cursor',
+      mod: '../../ts/src/cli/commands/cursor',
+      register: 'registerCursorCommands',
+      verbs: ['hook', 'plugin', 'install', 'uninstall', 'doctor'],
+      absent: ['harden', 'unharden', 'sync-rules'],
+    },
     { name: 'skill', mod: '../../ts/src/cli/commands/skill', register: 'registerSkillCommands', verbs: ['path'] },
-    { name: 'install', mod: '../../ts/src/cli/commands/install', register: 'registerInstallCommands', verbs: ['approver', 'extension', 'cursor', 'claude-code', 'skill', 'mobile'] },
+    { name: 'install', mod: '../../ts/src/cli/commands/install', register: 'registerInstallCommands', verbs: ['cursor', 'claude-code'] },
   ];
 
   for (const c of cases) {
@@ -88,6 +95,9 @@ describe('command-group wrappers register subcommands', () => {
       const subs = parent.commands.map((s) => s.name());
       for (const verb of c.verbs) {
         expect(subs, `${c.name} missing subcommand ${verb} (got: ${subs.join(',')})`).toContain(verb);
+      }
+      for (const verb of c.absent ?? []) {
+        expect(subs, `${c.name} unexpectedly exposed subcommand ${verb}`).not.toContain(verb);
       }
     });
   }
@@ -268,12 +278,9 @@ describe('public library entry points', () => {
     expect(mod.isMaturityVisible('beta', 'beta')).toBe(true);
     expect(mod.isMaturityVisible('experimental', 'beta')).toBe(false);
 
-    // maturityOf; `auth` is the canonical "always-stable" parent
-    // (any owner-tested CLI must keep auth stable since it's the
-    // entry point); `agent list` was demoted to experimental when the
-    // Agent interface lost its `@cli_maturity("stable")`.
+    // maturityOf; the lean CLI treats unlisted active commands as stable.
     expect(mod.maturityOf('auth')).toBe('stable');
-    expect(mod.maturityOf('does.not.exist')).toBe('experimental'); // default
+    expect(mod.maturityOf('does.not.exist')).toBe('stable'); // default
 
     // enableFeatures + isFeatureEnabled + listFeatures
     mod.enableFeatures(['some.feature']);

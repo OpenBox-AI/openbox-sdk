@@ -95,12 +95,7 @@ describe('OpenBoxClient E2E', () => {
       expect(result).toBeDefined();
     });
 
-    // SKIPPED; backend bug: soft-deleted agents are still readable
-    //   (see the matching skip in tests/e2e/agent-crud.test.ts).
-    //   getAgent on a deleted id returns 200 instead of throwing
-    //   404. Backend should filter soft-deleted rows from the GET
-    //   path so the typed client surfaces the not-found.
-    it.skip('confirms deletion throws error', async () => {
+    it('confirms deletion throws error', async () => {
       try {
         await client.getAgent(agentId);
         expect.fail('Should have thrown for deleted agent');
@@ -219,7 +214,9 @@ describe('OpenBoxClient E2E', () => {
     // restore this test to:
     //   await refreshClient.health();
     //   expect(onTokenRefresh).toHaveBeenCalled();
-    it.skip('refreshes token when access token is expired (disabled; REFRESH_ENABLED=false)', async () => {
+    it.runIf(process.env.OPENBOX_REFRESH_E2E === '1')(
+      'refreshes token when access token is expired when refresh is enabled',
+      async () => {
       const refreshToken = process.env.REFRESH_TOKEN;
       if (!refreshToken) return;
       const onTokenRefresh = vi.fn();
@@ -232,6 +229,7 @@ describe('OpenBoxClient E2E', () => {
       const result = await refreshClient.health();
       expect(result).toBeDefined();
       expect(onTokenRefresh).toHaveBeenCalled();
-    });
+      },
+    );
   });
 });

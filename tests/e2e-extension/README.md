@@ -49,9 +49,9 @@ OPENBOX_E2E_VSCODE_BINARY="/Applications/Cursor.app/Contents/MacOS/Cursor" \
 ```
 
 Cursor is a VS Code fork so the workbench page objects work; the
-hook-system surfaces (`~/.cursor/hooks.json`) only fire when Cursor's
-agent runs, which is out of scope for these UI tests; see
-`tests/hook-integration/` for that layer.
+OpenBox plugin hook surfaces only fire when Cursor's agent runs, which
+is out of scope for these UI tests; see `tests/hook-integration/` for
+that layer.
 
 ## Headless / CI
 

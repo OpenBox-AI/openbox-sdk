@@ -324,9 +324,9 @@ describe('install/from-spec; defensive paths', () => {
       configDir: dir,
       events: [{ name: 'PreToolUse' }],
     };
-    installAdapter(spec);
-    installAdapter(spec); // second install should be a no-op (no dup)
-    uninstallAdapter(spec);
-    uninstallAdapter(spec); // second uninstall should be a no-op
+    installAdapter(spec, { cwd: dir });
+    installAdapter(spec, { cwd: dir }); // second install should be a no-op (no dup)
+    uninstallAdapter(spec, { cwd: dir });
+    uninstallAdapter(spec, { cwd: dir }); // second uninstall should be a no-op
   });
 });

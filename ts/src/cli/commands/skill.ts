@@ -1,11 +1,10 @@
-/** `openbox skill path`: print the bundled skill source dir. Install
- *  lives at `openbox install skill`; `installSkill()` here is the
- *  function the unified command imports. */
+/** `openbox skill path`: print the bundled skill source dir.
+ *  `installSkill()` is an internal helper used by host installers and
+ *  the Cursor plugin exporter. */
 
 import { Command } from 'commander';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { info, success } from '../output.js';
 
@@ -40,9 +39,10 @@ function copyDir(src: string, dst: string): void {
 
 export interface SkillInstallOpts {
   /** Override the install destination. Defaults to the per-host
-   *  `~/.claude/skills/openbox` (or `~/.cursor/skills/openbox` when
-   *  `cursor` is true). */
+   *  project skill directory under `<cwd>`. */
   target?: string;
+  /** Project root for the default target. Defaults to `process.cwd()`. */
+  cwd?: string;
   /** Install into Cursor's skill dir instead of Claude Code's. */
   cursor?: boolean;
 }
@@ -53,9 +53,10 @@ export interface SkillInstallOpts {
  */
 export function installSkill(opts: SkillInstallOpts = {}): string {
   const src = findSkillSourceDir();
+  const cwd = opts.cwd ?? process.cwd();
   const dst = opts.target
     ? path.resolve(opts.target)
-    : path.join(os.homedir(), opts.cursor ? '.cursor' : '.claude', 'skills', 'openbox');
+    : path.join(cwd, opts.cursor ? '.cursor' : '.claude', 'skills', 'openbox');
   copyDir(src, dst);
   success(`skill installed → ${dst}`);
   return dst;

@@ -195,7 +195,7 @@ const rules: Rule[] = [
     name: 'hardcoded-uuid',
     severity: 'warn',
     message: 'UUID literal that looks like an agent/team/org ID. These are user-specific and must be resolved at runtime.',
-    fix: 'Derive from `openbox auth profile` (orgId, teamIds) or `openbox agent list`; pass via env var / config.',
+    fix: 'Derive from `openbox auth profile`, generated backend API calls, or the dashboard; pass via env var / config.',
     appliesTo: (path) => !/test|spec|\.md$|fixture|seed|examples?\//i.test(path),
     detect: (_content, origLines) => {
       // Strip comments so UUIDs inside commented-out code or TODO notes don't fire.
@@ -434,7 +434,7 @@ function printReport(findings: Finding[], totalFiles: number, rootLabel: string)
 
   if (findings.length === 0) {
     success('no drift patterns detected.');
-    info('  (This is a static scan. Use `openbox session inspect` to validate live protocol behavior.)');
+    info('  (This is a static scan. Use OpenBox dashboard/API session reads to validate live protocol behavior.)');
     summary({ pass: 1, fail: 0, warn: 0 });
     return { errors: 0, warns: 0, infos: 0 };
   }

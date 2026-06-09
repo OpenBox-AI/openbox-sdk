@@ -108,12 +108,20 @@ model Agent {
   ...Record<unknown>;
 }
 
+model AgentIdentity {
+  did: string;
+  privateKey: string;
+}
+
 /** `POST /agent/create` returns the agent + the runtime API key. The
  * key is returned ONCE at this moment; it's never recoverable from
- * `agent get` later. Consumers must persist it immediately. */
+ * `agent get` later. New signed agents also return the one-time DID
+ * identity keypair needed to sign Core runtime requests. Consumers
+ * must persist both immediately. */
 model CreateAgentResponse {
   agent: Agent;
   token: string;
+  identity?: AgentIdentity;
 }
 
 // ---------------------------------------------------------------------------
@@ -298,8 +306,8 @@ model Approval {
   metadata?: ApprovalMetadata;
   /** Activity input payload captured at queue time. Shape depends on
    *  the action type; Shell carries `[{ command, cwd }]`, LLM carries
-   *  `[{ prompt, model }]`. Mobile + approver UIs pretty-print this
-   *  in the detail sheet; CLI surfaces a one-line summary. */
+   *  `[{ prompt, model }]`. Approval clients pretty-print this in the
+   *  detail sheet; CLI surfaces a one-line summary. */
   input?: Record<unknown>;
   /** OpenTelemetry spans from the agent run that triggered the
    *  approval. Approvers use them to show the surrounding trace

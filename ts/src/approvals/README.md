@@ -15,12 +15,9 @@ helper; consumers drop their hand-rolled copies and import from here.
 | `time`     | `timeAgo`, `timeRemaining`                                   |
 | `filters`  | `FilterState`, `DateRangeKey`, `EMPTY_FILTERS`, `applyClientFilters`, `dateRangeBounds`, `hasActiveFilters`, `summarizeFilters` |
 
-Dev-only fixtures (mock profile / agents / approvals / helpers) ride on
-a separate sub-path:
-
-```ts
-import { mockProfile, getMockApprovals } from 'openbox-sdk/approvals/mocks';
-```
+Dev-only fixtures stay internal to repository tests and the explicit
+`openbox-sdk/test-utils` surface. The production approval helper
+sub-path does not export mocks.
 
 ## What's not shared
 

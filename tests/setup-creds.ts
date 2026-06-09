@@ -43,6 +43,14 @@ interface AgentKeyRecord {
 }
 
 function populateUrls(): void {
+  if (process.env.OPENBOX_API_URL_OVERRIDE) {
+    process.env.OPENBOX_API_URL = process.env.OPENBOX_API_URL_OVERRIDE;
+    delete process.env.OPENBOX_API_URL_OVERRIDE;
+  }
+  if (process.env.OPENBOX_CORE_URL_OVERRIDE) {
+    process.env.OPENBOX_CORE_URL = process.env.OPENBOX_CORE_URL_OVERRIDE;
+    delete process.env.OPENBOX_CORE_URL_OVERRIDE;
+  }
   if (!process.env.OPENBOX_API_URL || process.env.OPENBOX_API_URL === UNIT_DEFAULT_API_URL) {
     process.env.OPENBOX_API_URL = DEFAULT_API_URL;
   }
@@ -67,8 +75,17 @@ function loadBackendKey(): void {
   // If the env var is already set with the right shape, trust it
   // (CI override path). Wrong shape = stale shell export from
   // another context; overwrite rather than break the run.
-  const existing = process.env.OPENBOX_BACKEND_API_KEY;
-  if (existing && BACKEND_KEY_PREFIX.test(existing)) return;
+  const existing =
+    process.env.OPENBOX_BACKEND_API_KEY ||
+    process.env.OPENBOX_BACKEND_API_KEY_OVERRIDE;
+  if (existing && BACKEND_KEY_PREFIX.test(existing)) {
+    process.env.OPENBOX_BACKEND_API_KEY = existing;
+    delete process.env.OPENBOX_BACKEND_API_KEY_OVERRIDE;
+    return;
+  }
+  if (process.env.OPENBOX_BACKEND_API_KEY_OVERRIDE) {
+    delete process.env.OPENBOX_BACKEND_API_KEY_OVERRIDE;
+  }
 
   const candidates = [
     resolve(homedir(), '.openbox', 'tokens'),
@@ -87,8 +104,17 @@ function loadCoreRuntimeKey(): void {
   // Same shape-validation pattern: an OPENBOX_API_KEY that doesn't
   // start with obx_test_/obx_live_ is not a Core runtime key and
   // would 401. Overwrite from the agent-keys cache.
-  const existing = process.env.OPENBOX_API_KEY;
-  if (existing && RUNTIME_KEY_PREFIX.test(existing)) return;
+  const existing =
+    process.env.OPENBOX_API_KEY ||
+    process.env.OPENBOX_API_KEY_OVERRIDE;
+  if (existing && RUNTIME_KEY_PREFIX.test(existing)) {
+    process.env.OPENBOX_API_KEY = existing;
+    delete process.env.OPENBOX_API_KEY_OVERRIDE;
+    return;
+  }
+  if (process.env.OPENBOX_API_KEY_OVERRIDE) {
+    delete process.env.OPENBOX_API_KEY_OVERRIDE;
+  }
 
   const keysFile = resolve(homedir(), '.openbox', 'agent-keys');
   if (!existsSync(keysFile)) return;

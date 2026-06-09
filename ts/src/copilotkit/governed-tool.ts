@@ -25,6 +25,7 @@ import {
   completeWorkflow,
   createWorkflowIds,
   createWorkflowSession,
+  emitUserPromptSignal,
   evaluate,
   failWorkflow,
   finishStoppedWorkflow,
@@ -85,6 +86,13 @@ export function createGovernedCopilotTool<
         taskQueue,
       );
       await session.workflowStarted();
+      await emitUserPromptSignal(
+        definition.adapter,
+        ids,
+        workflowType,
+        taskQueue,
+        normalizedInput.request,
+      );
       const started = await evaluate(
         definition.adapter,
         activityEvent('ActivityStarted', ids, workflowType, taskQueue, {

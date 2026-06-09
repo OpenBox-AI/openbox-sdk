@@ -3,8 +3,8 @@
 // what's intended for consumers; adding a new preset to the spec
 // surfaces here as a one-line edit, not a silent leak.
 
-export { OpenBoxCoreClient, CoreApiError } from './core-client.js';
-export type { CoreClientConfig } from './core-client.js';
+export { OpenBoxCoreClient, CoreApiError, signAgentIdentityRequest } from './core-client.js';
+export type { AgentIdentityConfig, CoreClientConfig } from './core-client.js';
 export type {
   EventType,
   Verdict,
@@ -27,8 +27,6 @@ export type {
   GovernanceVerdictResponse,
   ApprovalStatusRequest,
   ApprovalStatusResponse,
-  ApprovalDecisionRequest,
-  ApprovalDecisionResponse,
   BehavioralResult,
 } from './core-client.js';
 

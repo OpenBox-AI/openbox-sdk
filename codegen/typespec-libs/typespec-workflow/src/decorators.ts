@@ -455,23 +455,23 @@ export function isNoPayload(program: Program, target: Operation): boolean {
   return program.stateMap(stateKeys.noPayload).get(target) === true;
 }
 
-// ─── Install target ───────────────────────────────────────────
-// Where the adapter writes its hook-event block on disk + how each
-// event's JSON entry is shaped.
+// ─── Hook target ──────────────────────────────────────────────
+// Host hook metadata: where the hook-event block lives for hosts that
+// read config directly, plus how each event's JSON entry is shaped.
 
-export type InstallStyle = 'claude-array' | 'cursor-keyed';
+export type HookStyle = 'claude-array' | 'cursor-keyed';
 
-export interface InstallTargetBinding {
+export interface HookTargetBinding {
   readonly file: string;
   readonly key: string;
-  readonly style: InstallStyle;
+  readonly style: HookStyle;
   readonly command: string;
   readonly configDir: string;
 }
 
-const INSTALL_STYLES: ReadonlySet<InstallStyle> = new Set(['claude-array', 'cursor-keyed']);
+const HOOK_STYLES: ReadonlySet<HookStyle> = new Set(['claude-array', 'cursor-keyed']);
 
-export function $installTarget(
+export function $hookTarget(
   context: DecoratorContext,
   target: Interface,
   raw: unknown,
@@ -484,34 +484,34 @@ export function $installTarget(
   const configDir = typeof obj.configDir === 'string' ? obj.configDir : '';
   if (!file || !key || !style || !command) {
     reportDiagnostic(context.program, {
-      code: 'invalid-install-target',
+      code: 'invalid-hook-target',
       format: { reason: 'file, key, style, and command are all required' },
       target,
     });
     return;
   }
-  if (!INSTALL_STYLES.has(style as InstallStyle)) {
+  if (!HOOK_STYLES.has(style as HookStyle)) {
     reportDiagnostic(context.program, {
-      code: 'invalid-install-target',
-      format: { reason: `style must be one of: ${[...INSTALL_STYLES].join(', ')}` },
+      code: 'invalid-hook-target',
+      format: { reason: `style must be one of: ${[...HOOK_STYLES].join(', ')}` },
       target,
     });
     return;
   }
-  context.program.stateMap(stateKeys.installTarget).set(target, {
+  context.program.stateMap(stateKeys.hookTarget).set(target, {
     file,
     key,
-    style: style as InstallStyle,
+    style: style as HookStyle,
     command,
     configDir,
-  } satisfies InstallTargetBinding);
+  } satisfies HookTargetBinding);
 }
 
-export function getInstallTarget(
+export function getHookTarget(
   program: Program,
   target: Interface,
-): InstallTargetBinding | undefined {
-  return program.stateMap(stateKeys.installTarget).get(target);
+): HookTargetBinding | undefined {
+  return program.stateMap(stateKeys.hookTarget).get(target);
 }
 
 export function $installTimeout(

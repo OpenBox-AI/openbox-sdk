@@ -132,7 +132,8 @@ export class ViewSession implements vscode.Disposable {
       // Scope the approvals tree to the host that owns this
       // extension. The Cursor IDE should only surface approvals
       // originating from Cursor; approvals from other hosts belong
-      // in the source-neutral desktop approver and mobile app.
+      // in the dashboard, mobile app, or their own host-specific
+      // IDE extensions.
       // Approvals with no resolvable source pass through by default
       // so a real row never vanishes silently; the user can flip
       // `openbox.strictSourceFilter` on to also hide unattributable

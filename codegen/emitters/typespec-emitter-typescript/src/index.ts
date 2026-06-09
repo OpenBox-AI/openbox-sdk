@@ -29,24 +29,7 @@ import {
   getFlag,
   getMaturity,
   getFeatureFlag,
-  getCallsBackend,
-  getOutputKind,
-  getOutputPluck,
-  getOutputPost,
-  getJsonMerge,
-  getAtLeastOne,
-  getRequiredTogether,
-  isLocalOnly,
-  isDestructive,
-  getPreflight,
-  getDtoDefaults,
-  getPostValidate,
-  getRecipe,
-  isPaginated,
-  getFlagExtra,
-  getValidator,
   type Maturity,
-  type RecipeStep,
 } from 'typespec-cli/decorators';
 import {
   getMapsTo,
@@ -59,7 +42,7 @@ import {
   getActivityType,
   getPayloadShape,
   isNoPayload,
-  getInstallTarget,
+  getHookTarget,
   getInstallTimeout,
   getActivityVariants,
   getActivityLabels,
@@ -68,7 +51,7 @@ import {
   type VerdictShape,
   type PayloadShapeBinding,
   type FieldSource,
-  type InstallTargetBinding,
+  type HookTargetBinding,
   type ActivityVariant,
 } from 'typespec-workflow/decorators';
 
@@ -772,12 +755,10 @@ function emitCliPackage(program: Program, project: Project, repoRoot: string): v
   const cliNamespace = findNamespace(program, 'OpenboxCli');
   if (!cliNamespace) return;
 
-  // Skip emit if no @cli_command interfaces present.
   const commands: { name: string; iface: Interface }[] = [];
   for (const [name, iface] of cliNamespace.interfaces) {
     if (getCommand(program, iface)) commands.push({ name, iface });
   }
-  if (commands.length === 0) return;
 
   const out = project.createSourceFile(
     resolvePath(repoRoot, 'ts', 'src', 'cli', 'generated', 'cli-bindings.ts'),
@@ -836,10 +817,9 @@ function emitCliPackage(program: Program, project: Project, repoRoot: string): v
 
   out.addStatements([
     '/**',
-    ' * Canonical CLI surface; every command-tree node declared in',
-    ' * specs/typespec/cli/. The hand-written commander registration in',
-    ' * ts/cli/src/main.ts walks this manifest so a spec edit (rename a',
-    ' * flag, add a subcommand) propagates without a code edit.',
+    ' * Lean CLI metadata surface. The current CLI is hand-authored',
+    ' * around installer/runtime/API commands; this manifest stays empty',
+    ' * unless a future command is intentionally declared in TypeSpec.',
     ' */',
     `export const CLI_COMMAND_MANIFEST = ${JSON.stringify(manifest, null, 2)} as const;`,
     '',
@@ -849,224 +829,7 @@ function emitCliPackage(program: Program, project: Project, repoRoot: string): v
 
   emitCliMaturityTable(program, cliNamespace, project, repoRoot);
   emitCliFeatureFlagTable(program, cliNamespace, project, repoRoot);
-  emitCliHandlerSpecs(program, cliNamespace, project, repoRoot);
-  emitCliRecipeSpecs(program, cliNamespace, project, repoRoot);
 }
-
-/** Per-command handler manifest. For each @cli_command
- *  whose ops carry @cli_calls, write
- *  ts/src/cli/generated/cli-handlers/<cmd>.ts:
- *    `export const <CMD>_HANDLERS: SubcommandSpec[] = [...]`
- *  Hand-coded register*Commands files call wireSubcommands(parent,
- *  HANDLERS, getClient); every detail (positional args, flags,
- *  validators, body-key map, output renderer) comes from the spec. */
-function emitCliHandlerSpecs(
-  program: Program,
-  cliNamespace: Namespace,
-  project: Project,
-  repoRoot: string,
-): void {
-  for (const [, iface] of cliNamespace.interfaces) {
-    const cmd = getCommand(program, iface);
-    if (!cmd) continue;
-
-    const subcommands: unknown[] = [];
-    for (const [opName, op] of iface.operations) {
-      const calls = getCallsBackend(program, op);
-      if (!calls) continue; // op is not yet H.3-migrated, is hand-coded, or is a @cli_recipe
-      const args: {
-        name: string;
-        bodyKey?: string;
-        choices?: ReadonlyArray<string>;
-        validator?: string;
-      }[] = [];
-      const flags: unknown[] = [];
-      for (const [pName, p] of op.parameters.properties) {
-        if (!p.optional) {
-          // Required param. Without `@cli_body_key` it's a positional CLI
-          // arg. With it, the value still comes in positionally on the
-          // command line, but the emitter routes it into the body when
-          // calling the backend method (hybrid call shape; handles wire
-          // signatures like `decideApproval(agentId, eventId, {action})`).
-          const fx = getFlagExtra(program, p);
-          const validator = getValidator(program, p);
-          args.push({
-            name: pName,
-            bodyKey: fx?.bodyKey,
-            choices: fx?.choices,
-            validator,
-          });
-          continue;
-        }
-        const fb = getFlag(program, p);
-        const fx = getFlagExtra(program, p);
-        const validator = getValidator(program, p);
-        // Detect no-arg boolean flags: TypeSpec scalar `boolean` parameters
-        // become Commander option without a `<value>` placeholder; the
-        // value is true if the flag is on the command line, undefined
-        // otherwise.
-        const isBoolean =
-          p.type?.kind === 'Scalar' &&
-          (p.type as { name?: string }).name === 'boolean';
-        flags.push({
-          name: pName,
-          long: kebabCaseLocal(pName),
-          short: fb?.short,
-          description: fb?.description ?? '',
-          env: fb?.env,
-          bodyKey: fx?.bodyKey,
-          parse: fx?.parse,
-          choices: fx?.choices,
-          default: fx?.defaultValue,
-          variadic: fx?.variadic,
-          required: fx?.required,
-          noArg: isBoolean,
-          validator,
-        });
-      }
-      const ok = getOutputKind(program, op);
-      const pluck = getOutputPluck(program, op);
-      const post = getOutputPost(program, op);
-      const jsonMerge = getJsonMerge(program, op);
-      const atLeastOne = getAtLeastOne(program, op);
-      const requiredTogether = getRequiredTogether(program, op);
-      const localOnly = isLocalOnly(program, op);
-      const destructive = isDestructive(program, op);
-      const preflight = getPreflight(program, op);
-      const dtoDefaults = getDtoDefaults(program, op);
-      const postValidate = getPostValidate(program, op);
-      subcommands.push({
-        name: kebabCaseLocal(opName),
-        description: getDoc(program, op) ?? '',
-        args,
-        flags,
-        backend: { method: calls.method, shape: calls.shape },
-        pagination: isPaginated(program, op),
-        jsonMerge,
-        atLeastOne,
-        requiredTogether,
-        localOnly,
-        destructive,
-        preflight,
-        dtoDefaults,
-        postValidate,
-        output: {
-          kind: ok?.kind ?? 'json',
-          label: ok?.label,
-          pluck,
-          post,
-        },
-      });
-    }
-    if (subcommands.length === 0) continue;
-
-    const file = project.createSourceFile(
-      resolvePath(
-        repoRoot,
-        'ts',
-        'src',
-        'cli',
-        'generated',
-        'cli-handlers',
-        `${cmd.name}.ts`,
-      ),
-      '',
-      { overwrite: true },
-    );
-    const constName = `${cmd.name.replace(/-/g, '_').toUpperCase()}_HANDLERS`;
-    file.insertText(0, BANNER + '\n\n');
-    file.addStatements([
-      `import type { SubcommandSpec } from '../../wire-subcommands.js';`,
-      '',
-      `/** Spec-driven subcommand list for \`openbox ${cmd.name}\`. */`,
-      `export const ${constName}: SubcommandSpec[] = ${JSON.stringify(subcommands, null, 2)};`,
-      '',
-    ]);
-  }
-}
-
-/** Per-command recipe manifest. For each @cli_command whose ops carry
- *  @cli_recipe, write
- *    ts/src/cli/generated/cli-recipes/<cmd>.ts:
- *      `export const <CMD>_RECIPES: RecipeSpec[] = [...]`
- *  Hand-coded `register*Commands` files call `wireRecipes(parent,
- *  RECIPES, getClient)` alongside `wireSubcommands` for tier-1 ops. */
-function emitCliRecipeSpecs(
-  program: Program,
-  cliNamespace: Namespace,
-  project: Project,
-  repoRoot: string,
-): void {
-  for (const [, iface] of cliNamespace.interfaces) {
-    const cmd = getCommand(program, iface);
-    if (!cmd) continue;
-
-    const recipes: unknown[] = [];
-    for (const [opName, op] of iface.operations) {
-      const steps = getRecipe(program, op);
-      if (!steps) continue;
-
-      // Recipe op signatures use the same TypeSpec parameter list as
-      // tier-1 ops; every required param becomes a positional CLI arg.
-      // Recipes don't expose flags in v1; flag-binding semantics across
-      // multiple steps is a future addition.
-      const args: { name: string }[] = [];
-      for (const [pName, p] of op.parameters.properties) {
-        if (p.optional) continue;
-        args.push({ name: pName });
-      }
-
-      // Validate every step's `args` reference is a real recipe param.
-      const argNames = new Set(args.map((a) => a.name));
-      for (const step of steps as RecipeStep[]) {
-        for (const argName of step.args) {
-          if (!argNames.has(argName)) {
-            throw new Error(
-              `@cli_recipe on ${cmd.name}.${opName}: step.${step.call} ` +
-                `references unknown arg '${argName}'`,
-            );
-          }
-        }
-      }
-
-      const ok = getOutputKind(program, op);
-      const outputKind = ok?.kind === 'kv' ? 'kv' : 'json';
-
-      recipes.push({
-        name: kebabCaseLocal(opName),
-        description: getDoc(program, op) ?? '',
-        args,
-        steps,
-        output: { kind: outputKind },
-      });
-    }
-    if (recipes.length === 0) continue;
-
-    const file = project.createSourceFile(
-      resolvePath(
-        repoRoot,
-        'ts',
-        'src',
-        'cli',
-        'generated',
-        'cli-recipes',
-        `${cmd.name}.ts`,
-      ),
-      '',
-      { overwrite: true },
-    );
-    const constName = `${cmd.name.replace(/-/g, '_').toUpperCase()}_RECIPES`;
-    file.insertText(0, BANNER + '\n\n');
-    file.addStatements([
-      `import type { RecipeSpec } from '../../recipes.js';`,
-      '',
-      `/** Spec-driven recipe (tier-2) list for \`openbox ${cmd.name}\`. */`,
-      `export const ${constName}: RecipeSpec[] = ${JSON.stringify(recipes, null, 2)};`,
-      '',
-    ]);
-  }
-}
-
 
 /** Emit `cli/generated/cli-maturity.ts`: COMMAND_MATURITY table from
  *  every @cli_maturity decoration in the spec. Hand-coded `maturity.ts`
@@ -1114,8 +877,8 @@ function emitCliMaturityTable(
     `export type Maturity = 'stable' | 'beta' | 'experimental';`,
     '',
     `/** Spec-driven CLI maturity table. Sourced from @cli_maturity in`,
-    ` *  specs/typespec/cli/main.tsp. Anything NOT in this table defaults`,
-    ` *  to 'experimental' at runtime. */`,
+    ` *  specs/typespec/cli/main.tsp. The lean CLI treats unlisted`,
+    ` *  active commands as stable. */`,
     `export const COMMAND_MATURITY: Record<string, Maturity> = ${JSON.stringify(ordered, null, 2)};`,
     '',
   ]);
@@ -1530,8 +1293,8 @@ interface AdapterEntry {
   methods: AdapterMethod[];
   /** Union of all sideEffect kinds invoked by any method's payload shape. */
   sideEffectKinds: string[];
-  /** Spec-driven install metadata; absent if no @installTarget. */
-  installTarget?: InstallTargetBinding;
+  /** Spec-driven hook metadata; absent if no @hookTarget. */
+  hookTarget?: HookTargetBinding;
 }
 
 function emitAdapters(program: Program, project: Project, repoRoot: string): void {
@@ -1596,7 +1359,7 @@ function emitAdapters(program: Program, project: Project, repoRoot: string): voi
       envelopeName: envelopeName ?? 'unknown',
       methods,
       sideEffectKinds: [...sideEffectKinds].sort(),
-      installTarget: getInstallTarget(program, iface),
+      hookTarget: getHookTarget(program, iface),
     });
   }
   if (adapters.length === 0) return;
@@ -1634,7 +1397,7 @@ function emitAdapters(program: Program, project: Project, repoRoot: string): voi
     { overwrite: true },
   );
   // Adapter modules share several symbol names by design (each preset has its
-  // own INSTALL_SPEC, PRE_TOOL_USE_ROUTING, build*Payload, etc). A flat
+  // own HOOK_SPEC, PRE_TOOL_USE_ROUTING, build*Payload, etc). A flat
   // `export *` from each would collide, so namespace each adapter under its
   // kebab-cased name. Consumers should import directly from the per-adapter
   // module (`./claude-code.js`, `./cursor.js`); the namespaces here are a
@@ -1721,8 +1484,8 @@ function emitAdapterModule(a: AdapterEntry): string {
     .join('\n\n');
   const sideEffectsBlock = emitSideEffectsInterface(sideEffectsIface, a.sideEffectKinds);
 
-  // Install spec; where the install command writes the hook block.
-  const installSpec = a.installTarget ? emitInstallSpec(a) : '';
+  // Hook metadata used by runtime installers and plugin exporters.
+  const hookSpec = a.hookTarget ? emitHookSpec(a) : '';
 
   // Per-event human display labels. UI surfaces (toast titles,
   // detail panels, mobile sheets) read this map so labels stay
@@ -1746,7 +1509,7 @@ import type { ${a.envelopeName} } from './envelopes.js';
 
 export type { ${a.envelopeName} };
 
-${routingExports ? routingExports + '\n\n' : ''}${activityTypeExports ? activityTypeExports + '\n\n' : ''}${hookLabelsExport ? hookLabelsExport + '\n\n' : ''}${installSpec ? installSpec + '\n\n' : ''}${hasAnyVariants ? VARIANT_RUNTIME_HELPERS + '\n\n' + variantExports + '\n\n' : ''}${sideEffectsBlock ? sideEffectsBlock + '\n\n' : ''}${payloadBuilders ? PAYLOAD_RUNTIME_HELPERS + '\n\n' + payloadBuilders + '\n\n' : ''}/**
+${routingExports ? routingExports + '\n\n' : ''}${activityTypeExports ? activityTypeExports + '\n\n' : ''}${hookLabelsExport ? hookLabelsExport + '\n\n' : ''}${hookSpec ? hookSpec + '\n\n' : ''}${hasAnyVariants ? VARIANT_RUNTIME_HELPERS + '\n\n' + variantExports + '\n\n' : ''}${sideEffectsBlock ? sideEffectsBlock + '\n\n' : ''}${payloadBuilders ? PAYLOAD_RUNTIME_HELPERS + '\n\n' + payloadBuilders + '\n\n' : ''}/**
  * Per-event handlers. Each handler receives the parsed stdin envelope
  * + an attached ${presetSessionTy} (workflowId/runId resolved by
  * \`config.resolveSession\`). Return a WorkflowVerdict; usually by calling
@@ -1786,9 +1549,10 @@ export interface ${configIface} {
    * require_approval verdict and renders \`permissionDecision: 'ask'\`
    * (or the host equivalent), which makes the host's native
    * permission dialog pop inline. The local user becomes the
-   * approver. Remote / mobile / desktop approvers can still
-   * resolve the backend row but the hook subprocess does not wait
-   * for them. Adapters wire this from the \`APPROVAL_MODE\` config.
+   * approver. External approval clients such as the dashboard, mobile
+   * app, or editor extension can still resolve the backend row, but
+   * the hook subprocess does not wait for them. Adapters wire this
+   * from the \`APPROVAL_MODE\` config.
    */
   inlineApproval?: boolean;
   /**
@@ -2022,10 +1786,10 @@ function compileFieldMap(fields: Record<string, FieldSource>): string {
   return `{\n${entries}\n    }`;
 }
 
-/** Emit the per-adapter INSTALL_SPEC constant. The hand-coded
- *  install.ts loads it and delegates to install/from-spec.ts. */
-function emitInstallSpec(a: AdapterEntry): string {
-  const it = a.installTarget!;
+/** Emit the per-adapter hook metadata. Runtime installers and plugin
+ *  exporters consume it to render host-specific hook configuration. */
+function emitHookSpec(a: AdapterEntry): string {
+  const it = a.hookTarget!;
   const events = a.methods.map((m) => ({
     name: m.eventName,
     timeout: m.installTimeout,
@@ -2038,7 +1802,7 @@ function emitInstallSpec(a: AdapterEntry): string {
     configDir: it.configDir,
     events,
   };
-  return `export interface InstallSpec {
+  return `export interface HookSpec {
   file: string;
   key: string;
   style: 'claude-array' | 'cursor-keyed';
@@ -2047,9 +1811,9 @@ function emitInstallSpec(a: AdapterEntry): string {
   events: Array<{ name: string; timeout?: number }>;
 }
 
-/** Where this adapter's install command writes its hook block. The
- *  shared installer in install/from-spec.ts reads this spec. */
-export const INSTALL_SPEC: InstallSpec = ${JSON.stringify(spec, null, 2)};`;
+/** Hook metadata for this adapter. Host-specific installers and
+ *  plugin exporters consume it to render hook configuration. */
+export const HOOK_SPEC: HookSpec = ${JSON.stringify(spec, null, 2)};`;
 }
 
 function emitPayloadBuilder(a: AdapterEntry, m: AdapterMethod): string {
@@ -2362,9 +2126,10 @@ export interface GovernedSessionConfig {
    * their \`permission-decision\` verdict shape into
    * \`permissionDecision: 'ask'\`, which pops the host's native
    * permission dialog inline. The local user becomes the approver;
-   * remote / mobile / desktop approvers can still resolve the
-   * backend row but the SDK no longer waits for them. Adapters wire
-   * this from the \`APPROVAL_MODE\` config (\`inline\` -> true,
+   * external approval clients such as the dashboard, mobile app, or
+   * editor extension can still resolve the backend row, but the SDK
+   * no longer waits for them. Adapters wire this from the
+   * \`APPROVAL_MODE\` config (\`inline\` -> true,
    * \`remote\` or unset -> false). Default: false.
    */
   inlineApproval?: boolean;

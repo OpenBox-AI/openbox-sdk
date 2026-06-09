@@ -6,7 +6,7 @@ import {
   unsetConfig,
   listConfig,
   configStorePath,
-} from '../config-store.js';
+} from '../../config/index.js';
 import { EXIT, bailWith } from '../exit-codes.js';
 import { reportAndExit } from '../../validators/index.js';
 

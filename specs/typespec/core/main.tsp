@@ -342,7 +342,7 @@ model GovernanceVerdictResponse {
   /** Behavior-rule names that triggered. */
   behavioral_violations?: string[];
 
-  /** Set on `require_approval`; opaque ID returned to surface in approver UI. */
+  /** Set on `require_approval`; opaque ID returned for approval clients. */
   approval_id?: string;
 
   /** Set on `constrain`; enforcement hints for transformed output. */
@@ -472,25 +472,6 @@ model ApprovalStatusRequest {
   activity_id: string;
 }
 
-model ApprovalDecisionRequest {
-  /**
-   * Governance event ID returned by `/governance/evaluate`. Prefer this
-   * when the approval UI already has the decision target.
-   */
-  @format("uuid") governance_event_id?: string;
-
-  /**
-   * Fallback lookup tuple for callers that only kept workflow/activity
-   * correlation fields. Required when `governance_event_id` is absent.
-   */
-  workflow_id?: string;
-  run_id?: string;
-  activity_id?: string;
-
-  /** Human decision to apply to the pending approval. */
-  decision: "approve" | "reject";
-}
-
 model ApprovalStatusResponse {
   /** Governance event ID. */
   @format("uuid") id: string;
@@ -502,26 +483,8 @@ model ApprovalStatusResponse {
    * Absent when the request hasn't entered the approval flow yet
    * or when no expiration was set on the policy.
    *
-   */
+  */
   approval_expiration_time?: utcDateTime;
-}
-
-model ApprovalDecisionResponse {
-  /** Governance event ID. */
-  @format("uuid") id: string;
-
-  action: LegacyAction;
-  reason?: string;
-
-  /**
-   * Absent when the request hasn't entered the approval flow yet
-   * or when no expiration was set on the policy.
-   *
-   */
-  approval_expiration_time?: utcDateTime;
-
-  decided_by: string;
-  decided_at: utcDateTime;
 }
 
 /** Returns the literal string `hello world`. Used by load balancers and uptime probes. */
@@ -591,19 +554,6 @@ op evaluateGovernance(...Parameters.SdkVersionHeader, @body body: GovernanceEven
 @summary("Poll approval status")
 op pollApproval(@body body: ApprovalStatusRequest): ApprovalStatusResponse | (BadRequestResponse &
   CoreError) | (NotFoundResponse & CoreError);
-
-/**
- * Records a human approval decision for a pending approval owned by
- * the authenticated runtime agent. `approve` maps to `allow`;
- * `reject` maps to `halt`.
- *
- */
-@tag("Governance")
-@route("/api/v1/governance/approval/decide")
-@post
-@summary("Decide an approval")
-op decideApproval(@body body: ApprovalDecisionRequest): ApprovalDecisionResponse | (BadRequestResponse &
-  CoreError) | (UnauthorizedResponse & CoreError) | (NotFoundResponse & CoreError);
 
 namespace Parameters {
   model SdkVersionHeader {

@@ -7,7 +7,7 @@
 //     the OpenBox SDK.
 //
 //  2. Platform integration; the OpenBox SDK's pre-built Cursor
-//     integration. Used by `openbox cursor {install,hook}`.
+//     integration. Used by `openbox cursor {plugin,hook}`.
 
 // ─── Adapter primitive (spec-emitted) ───────────────────────────────
 export {
@@ -19,7 +19,25 @@ export {
 
 // ─── Platform integration ───────────────────────────────────────────
 export { runCursorHook } from './hook-handler.js';
-export { installCursor, uninstallCursor } from './install.js';
+export {
+  verifyCursorInstall,
+  type CursorInstallCheck,
+  type CursorInstallCheckStatus,
+  type VerifyCursorInstallOptions,
+} from './install.js';
+export {
+  cursorPluginTargetDir,
+  exportCursorPlugin,
+  installCursorPlugin,
+  uninstallCursorPlugin,
+  verifyCursorPlugin,
+  type CursorPluginCheck,
+  type CursorPluginCheckStatus,
+  type ExportCursorPluginOptions,
+  type InstallCursorPluginOptions,
+  type UninstallCursorPluginOptions,
+  type VerifyCursorPluginOptions,
+} from './plugin.js';
 
 import { makeHookLog } from '../../logging/hook-log.js';
 /** Path of the JSONL log written by the cursor hook subprocess.

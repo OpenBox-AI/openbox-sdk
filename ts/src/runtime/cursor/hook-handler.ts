@@ -75,7 +75,7 @@ export async function runCursorHook(): Promise<void> {
   // env via the extension (or `openbox config set --global`) sees
   // their hook fire against the matching env automatically. Without
   // this, the hook would use whatever was snapshotted into
-  // ~/.cursor-hooks/config.json at install time; so an env switch
+  // project .cursor-hooks/config.json at install time; so an env switch
   // wouldn't propagate to already-installed hooks.
   applyEnvSource();
 
@@ -95,16 +95,14 @@ export async function runCursorHook(): Promise<void> {
     timeoutMs: cfg.governanceTimeout * 1000,
   });
 
-  // Cursor's hook subprocess timeout is `t.timeout ?? Kkc` (per-event
-  // config in ~/.cursor/hooks.json, default Kkc = 60 seconds, max
-  // ~3600s = 1hr per the validator's warning threshold). Whatever the
-  // user has configured for the event becomes the ceiling on how long
-  // we're willing to poll.
+  // Cursor's hook subprocess timeout is per-event config from the
+  // installed plugin hooks file. Whatever the user has configured for
+  // the event becomes the ceiling on how long we're willing to poll.
   //
-  // cfg.hitlMaxWait is the user-tunable knob (in ~/.cursor-hooks/config.json
+  // cfg.hitlMaxWait is the user-tunable knob (in project .cursor-hooks/config.json
   // HITL_MAX_WAIT, default 300s). We respect it up to 1 hour. The
-  // hooks.json `timeout` field MUST be set to at least the same value
-  // or Cursor will kill us before pollApproval finishes.
+  // The plugin hook `timeout` field MUST be set to at least the same
+  // value or Cursor will kill us before pollApproval finishes.
   const approvalMaxWaitMs = Math.min(
     Math.max(1, cfg.hitlMaxWait) * 1000,
     3600_000,
@@ -164,8 +162,9 @@ export async function runCursorHook(): Promise<void> {
     // When APPROVAL_MODE=inline, the SDK skips its internal poll loop
     // and the adapter renders permission:'ask' so Cursor's native
     // permission dialog pops in the IDE on every require_approval.
-    // Remote approvers (mobile / desktop approver / extension) can
-    // still resolve the backend row but the hook does not wait.
+    // External approval clients such as the dashboard, mobile app,
+    // or editor extension can still resolve the backend row, but the
+    // hook does not wait.
     inlineApproval: cfg.approvalMode === 'inline',
     onPendingApproval: async (info, env) => {
       if (OBSERVE_ONLY.has(String(env.hook_event_name ?? ''))) return;

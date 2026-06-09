@@ -54,10 +54,6 @@
       "types": "./dist/approvals/index.d.ts",
       "import": "./dist/approvals/index.js"
     },
-    "./approvals/mocks": {
-      "types": "./dist/approvals/mocks/index.d.ts",
-      "import": "./dist/approvals/mocks/index.js"
-    },
     "./client-factory": {
       "types": "./dist/client-factory/index.d.ts",
       "import": "./dist/client-factory/index.js"
@@ -89,14 +85,6 @@
     "./maturity": {
       "types": "./dist/maturity/index.d.ts",
       "import": "./dist/maturity/index.js"
-    },
-    "./cli": {
-      "types": "./dist/cli/index.d.ts",
-      "import": "./dist/cli/index.js"
-    },
-    "./cli/config-store": {
-      "types": "./dist/cli/config-store.d.ts",
-      "import": "./dist/cli/config-store.js"
     },
     "./runtime/claude-code": {
       "types": "./dist/runtime/claude-code/index.d.ts",
@@ -150,23 +138,23 @@
   "workspaces": [
     "codegen/typespec-libs/*",
     "codegen/emitters/typespec-emitter-typescript",
-    "codegen/emitters/typespec-emitter-rust",
     "apps/*"
   ],
   "scripts": {
-    "build:codegen": "npm run build -w typespec-env -w typespec-cli -w typespec-workflow -w typespec-emitter-typescript -w typespec-emitter-rust",
-    "build:bundle": "tsup",
+    "build:codegen": "npm run build -w typespec-env -w typespec-cli -w typespec-workflow -w typespec-emitter-typescript",
+    "build:bundle": "tsup && node --experimental-strip-types scripts/sync-runtime-assets.ts",
     "build": "npm run build:codegen && npm run specs:compile && npm run generate:types && npm run build:bundle",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build",
     "clean": "rm -rf dist dist-pack codegen/**/dist codegen/**/tsconfig.tsbuildinfo specs/generated apps/extension/dist apps/extension/openbox-*.vsix && npm run clean:generated",
     "clean:generated": "find ts/src -path '*/generated/*.ts' -type f -delete && find ts/src -path '*/generated/*.d.ts' -type f -delete && rm -rf specs/generated",
-    "check:generated-drift": "npm run specs:compile && npm run generate:types && git diff --exit-code -- ts/src/**/generated specs/generated || (echo 'Generated files drift detected. Re-run npm run specs:all and commit the result.'; exit 1)",
+    "check:generated-drift": "node --experimental-strip-types scripts/check-generated-drift.ts",
     "lint": "eslint ts/src",
     "format": "prettier --write ts/src",
     "test": "npm run test:unit && npm run test:contract && npm run test:hook-integration",
     "test:unit": "vitest run --project unit",
     "test:e2e": "vitest run --project e2e",
+    "test:e2e:required": "OPENBOX_E2E_REQUIRED=1 vitest run --project e2e",
     "test:contract": "vitest run --project contract",
     "test:hook-integration": "vitest run --project hook-integration",
     "test:live": "vitest run --project e2e",

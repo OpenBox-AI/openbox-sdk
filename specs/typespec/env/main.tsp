@@ -3,8 +3,8 @@
 //
 // The TS reference implementation today (ts/env/src/) is hand-written
 //; this file documents the contract it satisfies and is what the
-// per-language emitters will lower to ts/env/src/generated/,
-// rust/src/env/, etc. once codegen reaches them.
+// TypeScript emitter lowers to ts/src/env/generated/. Future language
+// emitters should satisfy the same contract on their own release tracks.
 //
 // Decorators imported from typespec-env attach metadata to
 // each property so the emitters know which env-var to read, what
@@ -215,8 +215,8 @@ enum OsPathScope {
   cache: "cache",
 
   /**
-   * Per-agent runtime-key cache. Populated by `agent create` and
-   * `api-key rotate` post-callbacks; read by `api-key recall`. The
+   * Per-agent runtime-key cache. Populated by backend/runtime-key
+   * flows and read by host runtimes. The
    * file is mode 0o600 (matches `tokens`); drift-locked by
    * tests/unit/platform-awareness.test.ts.
    */
@@ -252,9 +252,10 @@ interface ClientNameResolver {
 
 // ---------------------------------------------------------------------------
 // ConnectionLoader; runtime contract for URL resolution. Hand-written
-// implementations under ts/env/src/*.ts (and the equivalents in
-// rust/, py/, go/) MUST satisfy the operations declared on this
-// interface. There is no target selector beyond explicit URLs.
+// implementations under ts/src/env/*.ts MUST satisfy the operations
+// declared on this interface. Future language SDKs should implement the
+// same interface on their own release tracks. There is no target selector
+// beyond explicit URLs.
 // ---------------------------------------------------------------------------
 
 interface ConnectionLoader {

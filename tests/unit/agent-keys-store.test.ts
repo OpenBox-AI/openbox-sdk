@@ -1,7 +1,6 @@
-// Unit coverage for file-tokens/agent-keys.ts. The store
-// backs the `api-key recall` CLI command and is also read by the MCP
-// server's resolveApiKey path. Populated by the highlightRuntimeKey
-// post-callback (fires on agent create + rotate).
+// Unit coverage for file-tokens/agent-keys.ts. The store backs
+// runtime-key lookup and is also read by the MCP server's resolveApiKey
+// path.
 //
 // File-mode and path safety are pinned by tests/unit/platform-awareness
 // and tests/unit/os-paths; here we exercise behavior: round-trip

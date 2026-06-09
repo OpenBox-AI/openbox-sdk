@@ -1,6 +1,6 @@
 // VS Code wrapper for resolving an approval. All protocol logic
-// (agent and event id lookup, the decide call, and the
-// `event_id`-versus-`id` fallback) lives in
+// (agent and approval row id lookup, the decide call, and the
+// governance-event-id alias) lives in
 // `openbox-sdk/approvals`. This file is the UI layer: error and
 // success toasts plus the store sync.
 //
@@ -60,17 +60,19 @@ export async function resolveApproval(
     // endpoint succeeds do we notify the local hook socket; the hook
     // then wakes and confirms the authoritative verdict via Core.
     const status = decision === "approve" ? "approved" : "rejected";
-    // Resolve the authoritative event id first. Some UI surfaces
-    // receive the backend approval row's primary `id`, while the live
-    // hook socket and decide endpoint key on `event_id` /
-    // governance_event_id. Try both aliases so every entry leaves
-    // Pending and any live hook resolver is notified.
-    store.resolve(identity.eventId, status);
-    if (identity.eventId !== geid) {
-      store.resolve(geid, status);
+    // Resolve every known alias. The Backend decide endpoint uses the
+    // approval row id; the live hook socket is keyed by the Core
+    // governance event id.
+    const keys = new Set(
+      [identity.eventId, identity.governanceEventId, geid].filter(
+        (value): value is string => Boolean(value),
+      ),
+    );
+    for (const key of keys) {
+      store.resolve(key, status);
     }
     await onResolved?.({
-      governanceEventId: geid,
+      governanceEventId: identity.governanceEventId ?? geid,
       agentId: identity.agentId,
       eventId: identity.eventId,
       status,

@@ -161,9 +161,9 @@ describe('cli/commands; versions + skill + core', () => {
   });
 
   it('skill command registers its non-install subcommands', async () => {
-    // The `install` verb moved to the unified `openbox install skill`
-    // parent (see ts/src/cli/commands/install.ts); the `skill`
-    // top-level command keeps only its non-install verbs.
+    // Skill installation is now an internal helper used by host
+    // installers. The `skill` top-level command keeps only read-only
+    // inspection verbs.
     const { registerSkillCommands } = await import('../../ts/src/cli/commands/skill');
     const program = new Command();
     registerSkillCommands(program);
@@ -183,29 +183,14 @@ describe('cli/commands; versions + skill + core', () => {
     const targets = install!.commands.map((s) => s.name()).sort();
     // Bare `openbox install` is the selective meta-command (no
     // subcommand); the entries below are the per-target verbs only.
-    expect(targets).toEqual(
-      ['approver', 'claude-code', 'cursor', 'extension', 'mcp', 'mobile', 'skill'].sort(),
-    );
+    expect(targets).toEqual(['claude-code', 'cursor'].sort());
 
     const uninstall = program.commands.find((c) => c.name() === 'uninstall');
     expect(uninstall).toBeDefined();
     const utargets = uninstall!.commands.map((s) => s.name()).sort();
-    // No uninstall path for `mobile`; the iOS app is removed from the
-    // device, not via this CLI. `all` mirrors the install side.
-    expect(utargets).toEqual(
-      ['all', 'approver', 'claude-code', 'cursor', 'extension', 'mcp'].sort(),
-    );
+    expect(utargets).toEqual(['claude-code', 'cursor'].sort());
   });
 
-  it('core command registers + has evaluate + spec subs', async () => {
-    const { registerCoreCommands } = await import('../../ts/src/cli/commands/core');
-    const program = new Command();
-    registerCoreCommands(program);
-    const core = program.commands.find((c) => c.name() === 'core');
-    expect(core).toBeDefined();
-    const subs = core!.commands.map((s) => s.name());
-    expect(subs).toContain('evaluate');
-  });
 });
 
 describe('core-client/redaction', () => {
@@ -219,25 +204,6 @@ describe('core-client/redaction', () => {
       const out = fn('Authorization: Bearer obx_live_secretvalue');
       expect(typeof out).toBe('string');
       expect(out).not.toContain('obx_live_secretvalue');
-    }
-  });
-});
-
-describe('cli/wire-subcommands; additional branch coverage', () => {
-  it('OUTPUT_POST_REGISTRY + PREFLIGHT_REGISTRY + POST_VALIDATE_REGISTRY exist', async () => {
-    const mod = await import('../../ts/src/cli/wire-subcommands');
-    expect(typeof mod.OUTPUT_POST_REGISTRY).toBe('object');
-    expect(typeof mod.PREFLIGHT_REGISTRY).toBe('object');
-    expect(typeof mod.POST_VALIDATE_REGISTRY).toBe('object');
-    expect(Object.keys(mod.OUTPUT_POST_REGISTRY).length).toBeGreaterThan(0);
-  });
-
-  it('parsePagination handles --page / --limit / defaults', async () => {
-    const mod = await import('../../ts/src/validators/index');
-    const fn = (mod as any).parsePagination;
-    if (typeof fn === 'function') {
-      const out = fn({ page: '0', limit: '10' });
-      expect(out).toBeDefined();
     }
   });
 });
