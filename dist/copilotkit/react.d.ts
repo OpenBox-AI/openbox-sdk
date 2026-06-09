@@ -86,6 +86,17 @@ declare function createOpenBoxApprovalClient(config?: {
     fetcher?: typeof fetch;
 }): OpenBoxApprovalClient;
 
+interface OpenBoxCustomMessageRenderer {
+    agentId?: string;
+    render: React.ComponentType<Record<string, unknown>> | null;
+}
+interface OpenBoxCustomMessageRendererOptions extends OpenBoxDefaultRenderOptions {
+    agentId?: string;
+    renderGovernanceDecision?: (props: Record<string, unknown>) => unknown;
+    renderActionResult?: (props: Record<string, unknown>) => unknown;
+}
+declare function createOpenBoxCustomMessageRenderer(options?: OpenBoxCustomMessageRendererOptions): OpenBoxCustomMessageRenderer;
+
 declare function useOpenBoxCopilotKit(options?: UseOpenBoxCopilotKitOptions): UseOpenBoxCopilotKitResult;
 
 interface OpenBoxGovernanceDecisionProps extends OpenBoxDefaultRenderOptions {
@@ -144,4 +155,4 @@ declare function OpenBoxInteractiveReview({ status, respond, mode, title, reques
     style: React.CSSProperties;
 }, HTMLElement>;
 
-export { OpenBoxActionResult, type OpenBoxApprovalClient, OpenBoxApprovalReview, type OpenBoxArtifactRenderer, type OpenBoxChoiceOption, type OpenBoxCopilotKitReactBindings, type OpenBoxDefaultRenderOptions, OpenBoxGovernanceDecision, OpenBoxInteractiveReview, type OpenBoxManualTemplate, type OpenBoxRendererTheme, type OpenBoxScenarioDefinition, type OpenBoxToolStatus, type OpenBoxUiVerdict, type UseOpenBoxCopilotKitOptions, type UseOpenBoxCopilotKitResult, createOpenBoxApprovalClient, useOpenBoxCopilotKit };
+export { OpenBoxActionResult, type OpenBoxApprovalClient, OpenBoxApprovalReview, type OpenBoxArtifactRenderer, type OpenBoxChoiceOption, type OpenBoxCopilotKitReactBindings, type OpenBoxCustomMessageRenderer, type OpenBoxCustomMessageRendererOptions, type OpenBoxDefaultRenderOptions, OpenBoxGovernanceDecision, OpenBoxInteractiveReview, type OpenBoxManualTemplate, type OpenBoxRendererTheme, type OpenBoxScenarioDefinition, type OpenBoxToolStatus, type OpenBoxUiVerdict, type UseOpenBoxCopilotKitOptions, type UseOpenBoxCopilotKitResult, createOpenBoxApprovalClient, createOpenBoxCustomMessageRenderer, useOpenBoxCopilotKit };

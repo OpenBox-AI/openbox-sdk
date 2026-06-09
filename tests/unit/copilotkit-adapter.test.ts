@@ -8,6 +8,7 @@ import {
   createOpenBoxReadinessCheck,
   type OpenBoxCopilotActionInput,
 } from '../../ts/src/copilotkit/index';
+import { createOpenBoxCustomMessageRenderer } from '../../ts/src/copilotkit/react';
 import type { GovernanceEventPayload } from '../../ts/src/core-client/index';
 
 type DemoInput = OpenBoxCopilotActionInput & {
@@ -69,6 +70,42 @@ function restoreEnv(values: Record<string, string | undefined>) {
 }
 
 describe('CopilotKit OpenBox adapter', () => {
+  it('renders OpenBox snapshot tool messages through the React custom message renderer', () => {
+    const renderer = createOpenBoxCustomMessageRenderer();
+    const Render = renderer.render as (props: Record<string, unknown>) => unknown;
+
+    const node = Render({
+      position: 'after',
+      message: {
+        role: 'tool',
+        content: JSON.stringify({
+          schemaVersion: 'openbox.copilotkit.result.v1',
+          action: 'open_revenue_queue',
+          request: 'Open revenue queue',
+          status: 'executed',
+          verdict: 'allow',
+        }),
+      },
+    });
+
+    expect(node).not.toBeNull();
+  });
+
+  it('ignores non-OpenBox tool messages in the React custom message renderer', () => {
+    const renderer = createOpenBoxCustomMessageRenderer();
+    const Render = renderer.render as (props: Record<string, unknown>) => unknown;
+
+    expect(
+      Render({
+        position: 'after',
+        message: {
+          role: 'tool',
+          content: JSON.stringify({ ok: true }),
+        },
+      }),
+    ).toBeNull();
+  });
+
   it('runtime Core client only needs OPENBOX_CORE_URL and OPENBOX_API_KEY', () => {
     const previous = {
       OPENBOX_API_KEY: process.env.OPENBOX_API_KEY,
