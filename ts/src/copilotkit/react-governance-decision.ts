@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { defaultScenarios, verdictStyles } from './react-defaults.js';
 import { OpenBoxHeader } from './react-renderer-header.js';
 import type { OpenBoxGovernanceDecisionProps } from './react-renderer-types.js';
@@ -64,7 +64,10 @@ export function OpenBoxGovernanceDecision({
       : undefined;
   const trustTier = textValue(toolResult.trustTier);
   const redactionSummary = textValue(toolResult.redactionSummary);
-  const timings = normalizeTimings(toolResult.timings);
+  const liveReviewMs = useLiveReviewElapsed(isReviewing);
+  const timings =
+    normalizeTimings(toolResult.timings) ??
+    (isReviewing ? liveReviewTimings(liveReviewMs) : undefined);
 
   useEffect(() => {
     if (session.status !== 'halted') return;
@@ -450,11 +453,13 @@ function renderTimingSummary(
           h(
             'span',
             { key: 'value' },
-            `${formatMs(timings.totalMs)} total`,
+            isReviewing
+              ? `${formatMs(timings.totalMs)} elapsed`
+              : `${formatMs(timings.totalMs)} total`,
           ),
         ],
       ),
-      ...timings.steps.map((step) =>
+      ...(isReviewing ? [] : timings.steps).map((step) =>
         h(
           'p',
           {
@@ -475,6 +480,39 @@ function renderTimingSummary(
       ),
     ],
   );
+}
+
+function useLiveReviewElapsed(active: boolean): number {
+  const [startedAt] = useState(() => Date.now());
+  const [now, setNow] = useState(startedAt);
+
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const interval = window.setInterval(() => {
+      setNow(Date.now());
+    }, 250);
+    return () => window.clearInterval(interval);
+  }, [active]);
+
+  return active ? Math.max(0, now - startedAt) : 0;
+}
+
+function liveReviewTimings(elapsedMs: number): NormalizedTimings {
+  const totalMs = Math.max(0, elapsedMs);
+  return {
+    totalMs,
+    openBoxMs: totalMs,
+    workMs: 0,
+    steps: [
+      {
+        key: 'live-openbox-review',
+        label: 'OpenBox review',
+        kind: 'openbox',
+        ms: totalMs,
+      },
+    ],
+  };
 }
 
 type NormalizedTimingStep = {

@@ -40,4 +40,4 @@ interface CursorEnvelope {
     git_branch?: string;
 }
 
-export type { CursorEnvelope as C, ClaudeCodeEnvelope as a };
+export type { ClaudeCodeEnvelope as C, CursorEnvelope as a };
