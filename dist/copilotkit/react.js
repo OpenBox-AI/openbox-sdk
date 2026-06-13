@@ -947,7 +947,7 @@ function OpenBoxApprovalReview({
 var h3 = React4.createElement;
 
 // ts/src/copilotkit/react-governance-decision.ts
-import React5, { useEffect as useEffect3, useState as useState3 } from "react";
+import React5, { useEffect as useEffect3 } from "react";
 function OpenBoxGovernanceDecision({
   status,
   parameters,
@@ -979,8 +979,7 @@ function OpenBoxGovernanceDecision({
   const riskScore = typeof toolResult.riskScore === "number" && toolResult.riskScore > 0 ? toolResult.riskScore : void 0;
   const trustTier = textValue(toolResult.trustTier);
   const redactionSummary = textValue(toolResult.redactionSummary);
-  const liveReviewMs = useLiveReviewElapsed(isReviewing);
-  const timings = normalizeTimings(toolResult.timings) ?? (isReviewing ? liveReviewTimings(liveReviewMs) : void 0);
+  const timings = normalizeTimings(toolResult.timings) ?? normalizeTimings(parameters?.timings);
   useEffect3(() => {
     if (session.status !== "halted") return;
     onSessionHalted?.(session.haltedAt);
@@ -1315,35 +1314,6 @@ function renderTimingSummary(timings, isReviewing) {
     ]
   );
 }
-function useLiveReviewElapsed(active) {
-  const [startedAt] = useState3(() => Date.now());
-  const [now, setNow] = useState3(startedAt);
-  useEffect3(() => {
-    if (!active) return;
-    setNow(Date.now());
-    const interval = window.setInterval(() => {
-      setNow(Date.now());
-    }, 250);
-    return () => window.clearInterval(interval);
-  }, [active]);
-  return active ? Math.max(0, now - startedAt) : 0;
-}
-function liveReviewTimings(elapsedMs) {
-  const totalMs = Math.max(0, elapsedMs);
-  return {
-    totalMs,
-    openBoxMs: totalMs,
-    workMs: 0,
-    steps: [
-      {
-        key: "live-openbox-review",
-        label: "OpenBox review",
-        kind: "openbox",
-        ms: totalMs
-      }
-    ]
-  };
-}
 function normalizeTimings(value) {
   if (!value || typeof value !== "object") return void 0;
   const raw = value;
@@ -1405,7 +1375,7 @@ function formatMs(ms) {
 var h4 = React5.createElement;
 
 // ts/src/copilotkit/react-interactive-review.ts
-import React6, { useRef as useRef2, useState as useState4 } from "react";
+import React6, { useRef as useRef2, useState as useState3 } from "react";
 function OpenBoxInteractiveReview({
   status,
   respond,
@@ -1437,14 +1407,14 @@ function OpenBoxInteractiveReview({
   const initialTemplate = templates.find(
     (item) => item.id === template || item.sensitivity === sensitivity
   ) ?? templates[0];
-  const [selectedOptionId, setSelectedOptionId] = useState4(initialOption.id);
-  const [selectedTemplateId, setSelectedTemplateId] = useState4(
+  const [selectedOptionId, setSelectedOptionId] = useState3(initialOption.id);
+  const [selectedTemplateId, setSelectedTemplateId] = useState3(
     initialTemplate.id
   );
-  const [text, setText] = useState4(
+  const [text, setText] = useState3(
     manualInput?.trim() || initialTemplate.draft
   );
-  const [submitted, setSubmitted] = useState4(false);
+  const [submitted, setSubmitted] = useState3(false);
   const respondedRef = useRef2(false);
   const selectedOption = options.find((option) => option.id === selectedOptionId) ?? initialOption;
   const selectedTemplate = templates.find((item) => item.id === selectedTemplateId) ?? initialTemplate;
