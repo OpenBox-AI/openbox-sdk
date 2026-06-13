@@ -26,10 +26,10 @@
     "build": "tsc -p ."
   },
   "peerDependencies": {
-    "@typespec/compiler": "^1.11.0"
+    "@typespec/compiler": "^1.13.0"
   },
   "devDependencies": {
-    "@typespec/compiler": "^1.11.0",
+    "@typespec/compiler": "^1.13.0",
     "typescript": "^5.9.3"
   }
 }
