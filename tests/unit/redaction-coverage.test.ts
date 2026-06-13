@@ -111,6 +111,35 @@ describe('applyInputRedaction', () => {
     expect(out[0]).not.toBe(orig[0]);
   });
 
+  it('unwraps Core input envelopes before merging tool input redactions', () => {
+    const orig = [
+      {
+        name: 'openbox_governed_action',
+        args: {
+          action: 'demo',
+          request: 'account acct_9281 and avery@example.com',
+        },
+      },
+    ];
+    const out: any = applyInputRedaction(orig, {
+      inputType: 'activity_input',
+      redactedInput: {
+        input: [
+          {
+            args: {
+              request: 'account <ACCOUNT_ID> and <EMAIL_ADDRESS>',
+            },
+          },
+        ],
+      },
+    } as any);
+    expect(out[0].args).toEqual({
+      action: 'demo',
+      request: 'account <ACCOUNT_ID> and <EMAIL_ADDRESS>',
+    });
+    expect(out).not.toBe(orig);
+  });
+
   it('replaces array elements when types disagree', () => {
     const orig = ['plain'];
     const out: any = applyInputRedaction(orig, {
@@ -149,6 +178,27 @@ describe('applyOutputRedaction', () => {
     } as any);
     expect(out).toEqual({ a: 1, b: { c: 9 } });
     expect(orig).toEqual({ a: 1, b: { c: 2 } });
+    expect(out).not.toBe(orig);
+  });
+
+  it('unwraps Core output envelopes before merging result redactions', () => {
+    const orig = { artifact: { body: 'session_id raw', status: 'ready' } };
+    const out: any = applyOutputRedaction(orig, {
+      inputType: 'activity_output',
+      redactedInput: {
+        output: {
+          artifact: {
+            body: '<SESSION_ID> redacted',
+          },
+        },
+      },
+    } as any);
+    expect(out).toEqual({
+      artifact: {
+        body: '<SESSION_ID> redacted',
+        status: 'ready',
+      },
+    });
     expect(out).not.toBe(orig);
   });
 
@@ -212,6 +262,21 @@ describe('guardrail redaction helpers', () => {
     });
 
     expect(summary).toBe('OpenBox redacted output.a, output.b, output.c, output.d and 1 more field.');
+  });
+
+  it('dedupes repeated redacted fields in summaries', () => {
+    const summary = summarizeGuardrailRedaction({
+      inputType: 'activity_input',
+      redactedInput: [{ args: { request: '<EMAIL_ADDRESS>' } }],
+      validationPassed: true,
+      reasons: [],
+      fieldResults: [
+        { field: 'input.0.args.request', status: 'redacted' },
+        { field: 'input.0.args.request', status: 'transformed' as any },
+      ],
+    });
+
+    expect(summary).toBe('OpenBox redacted input.0.args.request.');
   });
 
   it('returns the fallback when there are no redacted field names', () => {

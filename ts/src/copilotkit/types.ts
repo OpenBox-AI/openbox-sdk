@@ -10,7 +10,6 @@ export type OpenBoxCopilotVerdictStatus =
   | 'constrained'
   | 'blocked'
   | 'halted'
-  | 'session_halted'
   | 'approval_required'
   | 'rejected'
   | 'approval_pending'
@@ -50,7 +49,12 @@ export interface OpenBoxCopilotResumeInput extends OpenBoxCopilotActionInput {
 export interface OpenBoxCopilotActionResult<TArtifact = unknown> {
   schemaVersion: typeof OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION;
   status: OpenBoxCopilotVerdictStatus;
-  verdict: WorkflowVerdict['arm'];
+  /**
+   * The OpenBox governance arm, or `'error'` when OpenBox could not be
+   * reached and the SDK failed closed. `'block'` strictly means a policy
+   * decision; availability failures must never claim it.
+   */
+  verdict: WorkflowVerdict['arm'] | 'error';
   executed: boolean;
   action: string;
   request: string;
@@ -73,6 +77,7 @@ export interface OpenBoxCopilotActionResult<TArtifact = unknown> {
   governanceEventId?: string;
   expiresAt?: string;
   session?: OpenBoxCopilotSessionState;
+  timings?: OpenBoxCopilotTimings;
   [key: string]: unknown;
 }
 
@@ -190,6 +195,22 @@ export interface OpenBoxCopilotObservableLike {
 export interface OpenBoxCopilotLangChainMiddlewareDeps {
   createMiddleware: (definition: any) => unknown;
   AIMessage: new (message: any) => unknown;
+  /**
+   * Optional LangChain middleware state schema (for example a zod object)
+   * declaring `openboxWorkflowId`, `openboxRunId`, and the runtime
+   * prompt-governed flag. Declaring them keeps the CopilotKit runtime's
+   * workflow IDs in LangGraph state so one user task maps to one OpenBox
+   * session.
+   */
+  stateSchema?: unknown;
+  /**
+   * Optional LangChain middleware context schema (for example a zod object)
+   * declaring `openboxWorkflowId`, `openboxRunId`, and
+   * `openboxPromptGoverned`. AG-UI forwards matching run-config keys into
+   * LangGraph run context, which carries the CopilotKit runtime's workflow
+   * IDs across the process boundary.
+   */
+  contextSchema?: unknown;
   routeLatestUserPrompt?: (
     messages: unknown[],
   ) => OpenBoxCopilotPromptRoute | undefined;
@@ -219,6 +240,38 @@ export interface OpenBoxSafePayload<T = unknown> {
   runId: string;
   activityId: string;
   session?: OpenBoxCopilotSessionState;
+  timings?: OpenBoxCopilotTimings;
+}
+
+export type OpenBoxCopilotTimingKind =
+  | 'openbox'
+  | 'workflow'
+  | 'tool'
+  | 'model'
+  | 'ui';
+
+export interface OpenBoxCopilotTimingStep {
+  key: string;
+  label: string;
+  ms: number;
+  kind: OpenBoxCopilotTimingKind;
+}
+
+export interface OpenBoxCopilotTimingEvent {
+  phase: 'started' | 'finished';
+  key: string;
+  label: string;
+  kind: OpenBoxCopilotTimingKind;
+  startedAt: string;
+  completedAt?: string;
+  ms?: number;
+}
+
+export interface OpenBoxCopilotTimings {
+  startedAt?: string;
+  completedAt?: string;
+  totalMs?: number;
+  steps: OpenBoxCopilotTimingStep[];
 }
 
 export interface OpenBoxCopilotGateInput<T = unknown> {
@@ -244,6 +297,10 @@ export interface GovernedCopilotToolDefinition<
   isArtifactRedacted?: (artifact: TArtifact | undefined) => boolean;
   markArtifactRedacted?: (artifact: TArtifact) => TArtifact;
   sessionKey?: (config?: unknown) => string;
+  onTimingEvent?: (
+    event: OpenBoxCopilotTimingEvent,
+    context: { input: TInput; runtimeConfig?: unknown },
+  ) => Promise<void> | void;
 }
 
 export interface OpenBoxApprovalDecisionRequest {

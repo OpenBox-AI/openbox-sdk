@@ -1,5 +1,5 @@
 // ts/src/copilotkit/runtime.ts
-import { randomUUID } from "crypto";
+import { randomUUID as randomUUID4 } from "crypto";
 
 // ts/src/copilotkit/constants.ts
 var DEFAULT_WORKFLOW_TYPE = "CopilotKitGovernedAction";
@@ -59,9 +59,9 @@ function withGovernedModelInput(request, safe, changed = true) {
 function mergeMessageContent(originalMessages, safeMessages) {
   if (!Array.isArray(originalMessages)) return originalMessages;
   const safeByIndex = /* @__PURE__ */ new Map();
-  safeMessages.forEach((message, fallbackIndex) => {
+  safeMessages.forEach((message, positionIndex) => {
     const safe = objectRecord(message);
-    const numericIndex = typeof safe.index === "number" ? safe.index : typeof safe.index === "string" && safe.index.trim() !== "" ? Number(safe.index) : fallbackIndex;
+    const numericIndex = typeof safe.index === "number" ? safe.index : typeof safe.index === "string" && safe.index.trim() !== "" ? Number(safe.index) : positionIndex;
     if (Number.isInteger(numericIndex)) {
       safeByIndex.set(numericIndex, safe);
     }
@@ -241,505 +241,11 @@ var OpenBoxCopilotKitError = class extends Error {
   }
 };
 
-// ts/src/copilotkit/runtime.ts
-function createOpenBoxCopilotRuntime(config, defaultAdapter) {
-  const adapter = config.adapter ?? defaultAdapter();
-  const baseRunner = config.runner ?? config.runtime.runner;
-  if (!baseRunner?.run) {
-    throw new OpenBoxCopilotKitError(
-      "CopilotKit runtime runner is required for OpenBox native runtime governance."
-    );
-  }
-  const governedRunner = createOpenBoxGovernedRunner(
-    baseRunner,
-    {
-      adapter,
-      agents: config.agents,
-      sessionKey: config.sessionKey
-    },
-    defaultAdapter
-  );
-  const runtime = Object.create(config.runtime);
-  Object.defineProperty(runtime, "runner", {
-    value: governedRunner,
-    enumerable: true,
-    configurable: true
-  });
-  return {
-    runtime,
-    runner: governedRunner,
-    hooks: createOpenBoxRuntimeHooks(
-      {
-        adapter,
-        agents: config.agents
-      },
-      defaultAdapter
-    )
-  };
-}
-function createOpenBoxGovernedRunner(runner, config = {}, defaultAdapter) {
-  const adapter = config.adapter ?? defaultAdapter();
-  const agentSet = config.agents ? new Set(config.agents) : void 0;
-  const sessionKeyForInput = config.sessionKey ?? ((input) => input.threadId || "default");
-  const governedRunner = Object.create(Object.getPrototypeOf(runner));
-  Object.defineProperties(governedRunner, {
-    run: {
-      value(request) {
-        const agentId = typeof request.agentId === "string" ? request.agentId : void 0;
-        if (agentSet && (!agentId || !agentSet.has(agentId))) {
-          return runner.run(request);
-        }
-        return createDeferredObservable(runner, async (subscriber) => {
-          const sessionKey = sessionKeyForInput(request.input);
-          const governedInput = isRuntimePromptGoverned(request.input) ? request.input : await governRunPrompt(
-            adapter,
-            request.input,
-            sessionKey,
-            subscriber
-          );
-          if (!governedInput) return;
-          const source = runner.run({ ...request, input: governedInput });
-          pipeGovernedEvents(
-            source,
-            subscriber,
-            adapter,
-            sessionKey,
-            governedInput
-          );
-        });
-      },
-      writable: true,
-      enumerable: true,
-      configurable: true
-    },
-    connect: {
-      value: runner.connect?.bind(runner),
-      writable: true,
-      enumerable: true,
-      configurable: true
-    },
-    isRunning: {
-      value: runner.isRunning?.bind(runner),
-      writable: true,
-      enumerable: true,
-      configurable: true
-    },
-    stop: {
-      value: runner.stop?.bind(runner),
-      writable: true,
-      enumerable: true,
-      configurable: true
-    }
-  });
-  return governedRunner;
-}
-function createOpenBoxRuntimeHooks(config = {}, defaultAdapter) {
-  const adapter = config.adapter ?? defaultAdapter();
-  const agentSet = config.agents ? new Set(config.agents) : void 0;
-  return {
-    async onBeforeHandler(ctx) {
-      if (ctx.route?.method !== "agent/run") return;
-      const agentId = typeof ctx.route.agentId === "string" ? ctx.route.agentId : void 0;
-      if (agentSet && (!agentId || !agentSet.has(agentId))) return;
-      if (!adapter.isEnabled()) return;
-      const body = await readJsonRequestBody(ctx.request);
-      if (!isRecord(body)) return;
-      const input = body;
-      const sessionKey = input.threadId || "default";
-      const ids = freshRuntimeWorkflowIdsFromInput(input);
-      const promptGate = await adapter.governPrompt({
-        payload: { messages: summarizeMessages(input.messages ?? []) },
-        sessionKey,
-        workflowId: ids.workflowId,
-        runId: ids.runId,
-        activityType: "on_chat_model_start",
-        ensureWorkflowStarted: true
-      });
-      if (shouldStopForGate(promptGate, "enforce")) {
-        throw openBoxSseResponse(
-          input,
-          adapter.toOpenBoxCopilotResult(promptGate.verdict, promptGate)
-        );
-      }
-      const governedInput = markRuntimePromptGoverned(
-        withOpenBoxRuntimeIds(
-          withGovernedRunInput(input, promptGate.safe, promptGate.changed),
-          ids
-        )
-      );
-      return jsonRequestWithBody(ctx.request, governedInput);
-    },
-    async onResponse(ctx) {
-      if (ctx.route?.method !== "agent/run") return;
-      return void 0;
-    },
-    async onError(ctx) {
-      if (ctx.error instanceof OpenBoxCopilotKitError) {
-        return new Response(JSON.stringify({ error: ctx.error.message }), {
-          status: 500,
-          headers: { "Content-Type": "application/json" }
-        });
-      }
-      return void 0;
-    }
-  };
-}
-async function readJsonRequestBody(request) {
-  try {
-    return await request.clone().json();
-  } catch {
-    return void 0;
-  }
-}
-function jsonRequestWithBody(request, body) {
-  return new Request(request.url, {
-    method: request.method,
-    headers: request.headers,
-    body: JSON.stringify(body),
-    redirect: request.redirect,
-    credentials: request.credentials,
-    cache: request.cache,
-    referrer: request.referrer,
-    referrerPolicy: request.referrerPolicy,
-    integrity: request.integrity,
-    keepalive: request.keepalive,
-    signal: request.signal
-  });
-}
-function createDeferredObservable(runner, start) {
-  return {
-    subscribe(observerOrNext, error, complete) {
-      const subscriber = normalizeSubscriber(observerOrNext, error, complete);
-      start(subscriber).catch((err) => subscriber.error?.(err));
-      return { unsubscribe() {
-      } };
-    }
-  };
-}
-async function governRunPrompt(adapter, input, sessionKey, subscriber) {
-  const promptGate = await adapter.governPrompt({
-    payload: { messages: summarizeMessages(input.messages ?? []) },
-    sessionKey,
-    ...freshRuntimeWorkflowIdsFromInput(input),
-    activityType: "on_chat_model_start",
-    ensureWorkflowStarted: true
-  });
-  if (shouldStopForGate(promptGate, "enforce")) {
-    emitOpenBoxRunResult(
-      subscriber,
-      input,
-      adapter.toOpenBoxCopilotResult(promptGate.verdict, promptGate)
-    );
-    return void 0;
-  }
-  return withOpenBoxRuntimeIds(
-    withGovernedRunInput(input, promptGate.safe, promptGate.changed),
-    { workflowId: promptGate.workflowId, runId: promptGate.runId }
-  );
-}
-function normalizeSubscriber(observerOrNext, error, complete) {
-  if (typeof observerOrNext === "function") {
-    return {
-      next: observerOrNext,
-      error: typeof error === "function" ? error : void 0,
-      complete: typeof complete === "function" ? complete : void 0
-    };
-  }
-  if (isRecord(observerOrNext)) {
-    return observerOrNext;
-  }
-  return {};
-}
-function pipeGovernedEvents(source, subscriber, adapter, sessionKey, input) {
-  const pending = [];
-  const assistantBuffers = /* @__PURE__ */ new Map();
-  const emit = (event) => subscriber.next?.(event);
-  const subscription = source.subscribe({
-    next(event) {
-      if (!isRecord(event)) {
-        emit(event);
-        return;
-      }
-      const agEvent = event;
-      const type = String(agEvent.type);
-      if (isAssistantTextStart(agEvent)) {
-        assistantBuffers.set(messageIdForEvent(agEvent), {
-          start: agEvent,
-          content: ""
-        });
-        return;
-      }
-      if (isAssistantTextContent(agEvent)) {
-        const messageId = messageIdForEvent(agEvent);
-        const buffer = assistantBuffers.get(messageId);
-        if (!buffer) {
-          emit(agEvent);
-          return;
-        }
-        buffer.content += String(agEvent.delta ?? agEvent.content ?? "");
-        return;
-      }
-      if (isAssistantTextEnd(agEvent)) {
-        const messageId = messageIdForEvent(agEvent);
-        const buffer = assistantBuffers.get(messageId);
-        if (!buffer) {
-          emit(agEvent);
-          return;
-        }
-        buffer.end = agEvent;
-        assistantBuffers.delete(messageId);
-        pending.push(
-          (async () => {
-            const gate = await adapter.governAssistantOutput({
-              payload: { content: buffer.content },
-              sessionKey,
-              ...runtimeWorkflowIdsFromInput(input),
-              activityType: "on_llm_end"
-            });
-            if (shouldStopForGate(gate, "enforce")) {
-              emitOpenBoxMessageEvents(
-                subscriber,
-                input,
-                adapter.toOpenBoxCopilotResult(gate.verdict, gate),
-                messageId
-              );
-              return;
-            }
-            const safeContent = contentFromSafePayload(
-              gate.safe,
-              buffer.content
-            );
-            emit(buffer.start);
-            emit({
-              ...contentEventFromStart(buffer.start, safeContent),
-              type: contentEventType(type)
-            });
-            emit(buffer.end);
-          })().catch((error) => subscriber.error?.(error))
-        );
-        return;
-      }
-      const finalPayload = finalPayloadLocationForEvent(agEvent);
-      if (finalPayload) {
-        pending.push(
-          (async () => {
-            const gate = await adapter.governAssistantOutput({
-              payload: finalPayload.payload,
-              sessionKey,
-              ...runtimeWorkflowIdsFromInput(input),
-              activityType: "on_llm_end"
-            });
-            if (shouldStopForGate(gate, "enforce")) {
-              emitOpenBoxMessageEvents(
-                subscriber,
-                input,
-                adapter.toOpenBoxCopilotResult(gate.verdict, gate)
-              );
-              return;
-            }
-            emit(eventWithSafeFinalPayload(agEvent, finalPayload, gate.safe));
-          })().catch((error) => subscriber.error?.(error))
-        );
-        return;
-      }
-      emit(agEvent);
-    },
-    error(error) {
-      subscriber.error?.(error);
-    },
-    complete() {
-      Promise.all(pending).then(
-        () => subscriber.complete?.(),
-        (error) => subscriber.error?.(error)
-      );
-    }
-  });
-  return subscription;
-}
-function isAssistantTextStart(event) {
-  const type = String(event.type);
-  return (type === "TEXT_MESSAGE_START" || type === "TextMessageStart") && String(event.role ?? "assistant") === "assistant";
-}
-function isAssistantTextContent(event) {
-  const type = String(event.type);
-  return type === "TEXT_MESSAGE_CONTENT" || type === "TEXT_MESSAGE_CHUNK" || type === "TextMessageContent" || type === "TextMessageChunk";
-}
-function isAssistantTextEnd(event) {
-  const type = String(event.type);
-  return type === "TEXT_MESSAGE_END" || type === "TextMessageEnd";
-}
-function finalPayloadLocationForEvent(event) {
-  if (!isFinalOutputEvent(event)) return void 0;
-  for (const field of ["output", "result", "data", "payload", "message"]) {
-    if (event[field] !== void 0 && event[field] !== null) {
-      return { field, payload: event[field] };
-    }
-  }
-  return void 0;
-}
-function isFinalOutputEvent(event) {
-  const type = String(event.type);
-  if (type === "RUN_FINISHED" || type === "RunFinished") {
-    return true;
-  }
-  if (type !== "CUSTOM" && type !== "CUSTOM_EVENT" && type !== "CustomEvent") {
-    return false;
-  }
-  if (event.final === true || event.isFinal === true) return true;
-  const name = String(event.name ?? event.event ?? "").toLowerCase();
-  return name.includes("assistant_final") || name.includes("final_output");
-}
-function eventWithSafeFinalPayload(event, location, safe) {
-  return {
-    ...event,
-    [location.field]: finalPayloadFromSafe(safe, location.payload)
-  };
-}
-function finalPayloadFromSafe(safe, original) {
-  if (typeof original === "string" && isRecord(safe) && typeof safe.content === "string") {
-    return safe.content;
-  }
-  return safe;
-}
-function messageIdForEvent(event) {
-  return String(event.messageId ?? event.id ?? "openbox-message");
-}
-function contentEventType(endType) {
-  return endType.startsWith("Text") ? "TextMessageContent" : "TEXT_MESSAGE_CONTENT";
-}
-function contentEventFromStart(start, content) {
-  return {
-    messageId: start?.messageId ?? start?.id ?? `openbox_message_${randomUUID()}`,
-    delta: content
-  };
-}
-function contentFromSafePayload(safe, fallback) {
-  if (typeof safe === "string") return safe;
-  if (isRecord(safe) && typeof safe.content === "string") return safe.content;
-  return fallback;
-}
-function withGovernedRunInput(input, safe, changed = true) {
-  if (!changed) return input;
-  if (isRecord(safe) && Array.isArray(safe.messages)) {
-    return {
-      ...input,
-      messages: mergeMessageContent(input.messages, safe.messages)
-    };
-  }
-  return input;
-}
-function isRuntimePromptGoverned(input) {
-  return isRecord(input.state) && input.state[OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY] === true;
-}
-function markRuntimePromptGoverned(input) {
-  const state = isRecord(input.state) ? input.state : {};
-  return {
-    ...input,
-    state: {
-      ...state,
-      [OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY]: true
-    }
-  };
-}
-function runtimeWorkflowIdsFromInput(input) {
-  const state = isRecord(input.state) ? input.state : {};
-  const openboxSession = isRecord(state.openboxSession) ? state.openboxSession : {};
-  const workflowId = typeof openboxSession.workflowId === "string" ? openboxSession.workflowId : typeof state.openboxWorkflowId === "string" ? state.openboxWorkflowId : randomUUID();
-  const candidateRunId = typeof openboxSession.runId === "string" ? openboxSession.runId : typeof state.openboxRunId === "string" ? state.openboxRunId : typeof input.runId === "string" ? input.runId : randomUUID();
-  return {
-    workflowId,
-    runId: candidateRunId === workflowId ? randomUUID() : candidateRunId
-  };
-}
-function freshRuntimeWorkflowIdsFromInput(input) {
-  const workflowId = randomUUID();
-  const runId = typeof input.runId === "string" && input.runId !== workflowId ? input.runId : randomUUID();
-  return { workflowId, runId };
-}
-function withOpenBoxRuntimeIds(input, ids) {
-  const state = isRecord(input.state) ? input.state : {};
-  const openboxSession = isRecord(state.openboxSession) ? state.openboxSession : {};
-  return {
-    ...input,
-    state: {
-      ...state,
-      openboxWorkflowId: ids.workflowId,
-      openboxRunId: ids.runId,
-      openboxSession: {
-        status: typeof openboxSession.status === "string" ? openboxSession.status : "active",
-        ...openboxSession,
-        workflowId: ids.workflowId,
-        runId: ids.runId
-      }
-    }
-  };
-}
-function emitOpenBoxRunResult(subscriber, input, result) {
-  const runId = input.runId ?? randomUUID();
-  subscriber.next?.({
-    type: "RUN_STARTED",
-    threadId: input.threadId,
-    runId,
-    input
-  });
-  emitOpenBoxMessageEvents(subscriber, input, result);
-  subscriber.next?.({
-    type: "RUN_FINISHED",
-    threadId: input.threadId,
-    runId
-  });
-  subscriber.complete?.();
-}
-function emitOpenBoxMessageEvents(subscriber, _input, result, messageId = `openbox_message_${randomUUID()}`) {
-  const toolCallId = `openbox_runtime_gate_${randomUUID().replace(/-/g, "")}`;
-  const content = JSON.stringify(result);
-  subscriber.next?.({
-    type: "TOOL_CALL_START",
-    toolCallId,
-    toolCallName: "openbox_governed_action"
-  });
-  subscriber.next?.({
-    type: "TOOL_CALL_ARGS",
-    toolCallId,
-    delta: JSON.stringify({
-      action: result.action,
-      request: result.request,
-      destination: result.destination,
-      amountUsd: result.amountUsd,
-      fields: result.fields,
-      audience: result.audience,
-      sensitivity: result.sensitivity
-    })
-  });
-  subscriber.next?.({
-    type: "TOOL_CALL_END",
-    toolCallId
-  });
-  subscriber.next?.({
-    type: "TOOL_CALL_RESULT",
-    messageId,
-    toolCallId,
-    content,
-    role: "tool"
-  });
-}
-function openBoxSseResponse(input, result) {
-  const events = [];
-  const subscriber = {
-    next: (event) => events.push(event)
-  };
-  emitOpenBoxRunResult(subscriber, input, result);
-  const body = events.map((event) => `data: ${JSON.stringify(event)}
-
-`).join("");
-  return new Response(body, {
-    status: 200,
-    headers: { "Content-Type": "text/event-stream" }
-  });
-}
+// ts/src/copilotkit/workflow-session.ts
+import { randomBytes, randomUUID as randomUUID3 } from "crypto";
 
 // ts/src/core-client/core-client.ts
-import { createHash, createPrivateKey, randomUUID as randomUUID2, sign } from "crypto";
+import { createHash, createPrivateKey, randomUUID, sign } from "crypto";
 
 // ts/src/types/auth.ts
 function decodeJwtExpiry(token) {
@@ -2656,7 +2162,7 @@ function appendQuery(path3, params) {
 var ED25519_PKCS8_PREFIX = Buffer.from("302e020100300506032b657004220420", "hex");
 function signAgentIdentityRequest(input) {
   const timestamp = input.timestamp ?? (/* @__PURE__ */ new Date()).toISOString();
-  const nonce = input.nonce ?? randomUUID2();
+  const nonce = input.nonce ?? randomUUID();
   const bodySha256 = createHash("sha256").update(input.body ?? "").digest("hex");
   const canonical = [
     input.method.toUpperCase(),
@@ -2687,70 +2193,9 @@ function ed25519PrivateKeyFromRawBase64(rawBase64) {
   });
 }
 
-// ts/src/copilotkit/config-utils.ts
-function getRuntimeApiKey(config) {
-  return config.apiKey ?? process.env.OPENBOX_API_KEY;
-}
-function getApprovalBackendApiKey(config) {
-  return config.backendApiKey ?? process.env.OPENBOX_BACKEND_API_KEY;
-}
-function createCoreClientResolver(config) {
-  let coreClient = config.core;
-  let coreClientCacheKey;
-  return () => {
-    if (config.core) return config.core;
-    const apiKey = getRuntimeApiKey(config);
-    const coreUrl = config.coreUrl ?? process.env.OPENBOX_CORE_URL;
-    if (!apiKey) {
-      throw new OpenBoxCopilotKitError(
-        "OpenBox is enabled but the runtime API key is not configured."
-      );
-    }
-    if (OPENBOX_BACKEND_API_KEY_PATTERN.test(apiKey)) {
-      throw new OpenBoxCopilotKitError(
-        "OpenBox CopilotKit runtime expected an agent runtime key in OPENBOX_API_KEY (obx_live_* or obx_test_*), but received an org/backend key (obx_key_*). Put org keys in OPENBOX_BACKEND_API_KEY."
-      );
-    }
-    if (!OPENBOX_RUNTIME_KEY_PATTERN.test(apiKey)) {
-      throw new OpenBoxCopilotKitError(
-        "OpenBox is enabled but the runtime API key must be an obx_live_* or obx_test_* key."
-      );
-    }
-    if (!coreUrl) {
-      throw new OpenBoxCopilotKitError(
-        "OpenBox is enabled but the Core URL is not configured."
-      );
-    }
-    const agentIdentity = getAgentIdentity(config);
-    const cacheKey = `${coreUrl}:${apiKey}:${agentIdentity?.did ?? ""}:${config.coreTimeoutMs ?? ""}`;
-    if (!coreClient || coreClientCacheKey !== cacheKey) {
-      coreClient = new OpenBoxCoreClient({
-        apiKey,
-        apiUrl: coreUrl,
-        agentIdentity,
-        timeoutMs: config.coreTimeoutMs
-      });
-      coreClientCacheKey = cacheKey;
-    }
-    return coreClient;
-  };
-}
-function getAgentIdentity(config) {
-  if (config.agentIdentity) return config.agentIdentity;
-  const did = process.env.OPENBOX_AGENT_DID;
-  const privateKey = process.env.OPENBOX_AGENT_PRIVATE_KEY;
-  if (!did && !privateKey) return void 0;
-  if (!did || !privateKey) {
-    throw new OpenBoxCopilotKitError(
-      "OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY."
-    );
-  }
-  return { did, privateKey };
-}
-
 // ts/src/core-client/generated/govern.ts
 var CANONICAL_ACTIVITY_LABELS = Object.freeze({ "AGENT_STEP": "Agent Step", "ActivityTaskCanceled": "Activity Task Canceled", "ActivityTaskCompleted": "Activity Task Completed", "ActivityTaskFailed": "Activity Task Failed", "ActivityTaskScheduled": "Activity Task Scheduled", "ActivityTaskStarted": "Activity Task Started", "ActivityTaskTimedOut": "Activity Task Timed Out", "AgentExecutionCompleted": "Agent Execution Completed", "AgentExecutionStarted": "Agent Execution Started", "AgentSpawn": "Agent Spawn", "CHUNKING": "Chunking", "CallToolsNode": "Call Tools Node", "ChildWorkflowExecutionCompleted": "Child Workflow Execution Completed", "ChildWorkflowExecutionInitiated": "Child Workflow Execution Initiated", "CrewKickoffCompleted": "Crew Kickoff Completed", "CrewKickoffStarted": "Crew Kickoff Started", "EMBEDDING": "Embedding", "EXCEPTION": "Exception", "End": "End", "FUNCTION_CALL": "Function Call", "FileDelete": "File Delete", "FileEdit": "File Edit", "FileRead": "File Read", "HTTPRequest": "HTTP Request", "HandoffMessage": "Handoff Message", "LLM": "LLM", "LLMCallCompleted": "LLM Call Completed", "LLMCallStarted": "LLM Call Started", "LLMCompleted": "LLM Completed", "MCPToolCall": "MCP Tool Call", "MarkerRecorded": "Marker Recorded", "MemoryQueryEvent": "Memory Query", "ModelRequestNode": "Model Request Node", "MultiModalMessage": "Multi-Modal Message", "Notification": "Notification", "OperationCompleted": "Operation Completed", "OperationStarted": "Operation Started", "PermissionRequest": "Permission Request", "PostToolUse": "Post-Tool Use", "PreCompact": "Pre-Compact", "PreSyncHookStarted": "Pre-Sync Hook Started", "PreSyncHookSucceeded": "Pre-Sync Hook Succeeded", "PreToolUse": "Pre-Tool Use", "PromptSubmission": "Prompt Submission", "QUERY": "Query", "RERANKING": "Reranking", "RETRIEVE": "Retrieve", "ResourceUpdated": "Resource Updated", "SUB_QUESTION": "Sub-Question", "SYNTHESIZE": "Synthesize", "ShellExecution": "Shell Execution", "Stop": "Stop", "StopMessage": "Stop Message", "SubagentStart": "Subagent Start", "SubagentStop": "Subagent Stop", "SyncStatusChanged": "Sync Status Changed", "TaskCompleted": "Task Completed", "TaskStart": "Task Start", "TaskStarted": "Task Started", "TextMessage": "Text Message", "TimerFired": "Timer Fired", "TimerStarted": "Timer Started", "ToolCallExecutionEvent": "Tool Call Execution", "ToolCallRequestEvent": "Tool Call Request", "ToolCompleted": "Tool Completed", "ToolStarted": "Tool Started", "ToolUsageError": "Tool Usage Error", "ToolUsageFinished": "Tool Usage Finished", "ToolUsageStarted": "Tool Usage Started", "UserInputRequestedEvent": "User Input Requested", "UserPromptNode": "User Prompt Node", "UserPromptSubmit": "User Prompt Submit", "WorkflowExecutionSignaled": "Workflow Execution Signaled", "afterAgentResponse": "After Agent Response", "afterAgentThought": "After Agent Thought", "afterFileEdit": "After File Edit", "afterMCPExecution": "After MCP Execution", "afterShellExecution": "After Shell Execution", "agentStop": "Agent Stop", "auto_function_invocation_post": "Auto Function Invocation Post", "auto_function_invocation_pre": "Auto Function Invocation Pre", "beforeMCPExecution": "Before MCP Execution", "beforeReadFile": "Before Read File", "beforeShellExecution": "Before Shell Execution", "beforeSubmitPrompt": "Before Submit Prompt", "checkpoint": "Checkpoint", "custom_event": "Custom Event", "error": "Error", "error-trigger": "Error Trigger", "errorOccurred": "Error Occurred", "function_invocation_post": "Function Invocation Post", "function_invocation_pre": "Function Invocation Pre", "incident.acknowledged": "Incident Acknowledged", "incident.annotated": "Incident Annotated", "incident.delegated": "Incident Delegated", "incident.escalated": "Incident Escalated", "incident.priority_updated": "Incident Priority Updated", "incident.reassigned": "Incident Reassigned", "incident.reopened": "Incident Reopened", "incident.resolved": "Incident Resolved", "incident.triggered": "Incident Triggered", "incident.unacknowledged": "Incident Unacknowledged", "interrupt": "Interrupt", "node-post-execute": "Node Post-Execute", "node-pre-execute": "Node Pre-Execute", "node_end": "Node End", "node_start": "Node Start", "onAbort": "Abort", "onError": "Error", "onFinish": "Finish", "onStepFinish": "Step Finish", "on_agent_action": "Agent Action", "on_agent_finish": "Agent Finish", "on_chain_end": "Chain End", "on_chain_start": "Chain Start", "on_chat_model_start": "Chat Model Start", "on_execute_callback": "Execute Callback", "on_failure_callback": "Failure Callback", "on_llm_end": "LLM End", "on_llm_error": "LLM Error", "on_llm_start": "LLM Start", "on_retriever_end": "Retriever End", "on_retriever_start": "Retriever Start", "on_retry_callback": "Retry Callback", "on_skipped_callback": "Skipped Callback", "on_success_callback": "Success Callback", "on_tool_end": "Tool End", "on_tool_error": "Tool Error", "on_tool_start": "Tool Start", "output_validator": "Output Validator", "payment_order.approved": "Payment Order Approved", "payment_order.begin_processing": "Payment Order Begin Processing", "payment_order.failed": "Payment Order Failed", "payment_order.reconciled": "Payment Order Reconciled", "payment_reference.created": "Payment Reference Created", "postToolUse": "Post-Tool Use", "preToolUse": "Pre-Tool Use", "prompt_render_post": "Prompt Render Post", "prompt_render_pre": "Prompt Render Pre", "sla_miss_callback": "SLA Miss Callback", "subagentStop": "Subagent Stop", "task_end": "Task End", "task_start": "Task Start", "tool-call": "Tool Call", "tool-result": "Tool Result", "tool_retry": "Tool Retry", "userPromptSubmitted": "User Prompt Submitted", "workflow-step-finish": "Workflow Step Finish", "workflow-step-progress": "Workflow Step Progress", "workflow-step-start": "Workflow Step Start" });
-function randomUUID3() {
+function randomUUID2() {
   if (typeof globalThis.crypto?.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
   }
@@ -2787,8 +2232,8 @@ var BaseGovernedSession = class {
   awaitExternalDecision;
   constructor(config) {
     this.core = config.core;
-    this.workflowId = config.workflowId ?? randomUUID3();
-    this.runId = config.runId ?? randomUUID3();
+    this.workflowId = config.workflowId ?? randomUUID2();
+    this.runId = config.runId ?? randomUUID2();
     this.workflowType = config.workflowType ?? "governed_agent";
     this.taskQueue = config.taskQueue ?? "generic";
     this.approvalPollIntervalMs = config.approvalPollIntervalMs ?? 500;
@@ -2885,6 +2330,42 @@ var BaseGovernedSession = class {
     return this.runActivity(eventType, activityType, payload);
   }
   /**
+   * Split-stage activity for callers that must run business logic between
+   * the input gate and the output gate (e.g. governed tools that gate the
+   * produced artifact). Emits ActivityStarted and returns the gate verdict
+   * plus a `complete()` bound to the same activity id, so the pair cannot
+   * drift apart. Stopped starts (block/halt) and pending approvals are
+   * canonically left unpaired; the caller resolves them via the workflow
+   * terminal or approval resume (ActivityCompleted with this activity id).
+   */
+  async openActivity(activityType, payload) {
+    if (this.finalized) throw new SessionAlreadyTerminatedError();
+    if (!this.opened && !this.autoOpenSuppressed) await this.begin();
+    const activityId = payload.activityId ?? randomUUID2();
+    this.inFlight.add(activityId);
+    try {
+      const verdict = await this.emit({
+        event_type: "ActivityStarted",
+        activity_id: activityId,
+        activity_type: activityType,
+        activity_input: payload.input,
+        spans: payload.spans
+      });
+      verdict.activityId = activityId;
+      return {
+        activityId,
+        verdict,
+        complete: (completionPayload, completionActivityType) => this.runActivity(
+          "ActivityCompleted",
+          completionActivityType ?? activityType,
+          { ...completionPayload, activityId }
+        )
+      };
+    } finally {
+      this.inFlight.delete(activityId);
+    }
+  }
+  /**
    * Run one activity through the canonical envelope. Preset classes
    * call this with their fixed (eventType, activityType) tuple; the
    * `custom` preset takes them from the user.
@@ -2898,17 +2379,21 @@ var BaseGovernedSession = class {
   async runActivity(eventType, activityType, payload) {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
     if (!this.opened && !this.autoOpenSuppressed) await this.begin();
-    const activityId = randomUUID3();
+    const activityId = payload.activityId ?? randomUUID2();
     this.inFlight.add(activityId);
     try {
       if (eventType === "SignalReceived") {
-        return this.emit({
+        const signalVerdict = await this.emit({
           event_type: "SignalReceived",
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
+          signal_name: payload.signalName,
+          signal_args: payload.signalArgs,
           spans: payload.spans
         });
+        signalVerdict.activityId = activityId;
+        return signalVerdict;
       }
       if (eventType === "ActivityStarted") {
         const startedVerdict = await this.emit({
@@ -2918,6 +2403,14 @@ var BaseGovernedSession = class {
           activity_input: payload.input,
           spans: payload.spans
         });
+        startedVerdict.activityId = activityId;
+        if (startedVerdict.arm === "constrain") {
+          try {
+            await this.emitCompleted(activityId, activityType, payload);
+          } catch {
+          }
+          return startedVerdict;
+        }
         if (startedVerdict.arm !== "allow") {
           if (startedVerdict.arm === "require_approval") {
             const approvalId = startedVerdict.approvalId ?? activityId;
@@ -2938,6 +2431,7 @@ var BaseGovernedSession = class {
               return startedVerdict;
             }
             const polled = await this.pollApproval(activityId, activityType, startedVerdict);
+            polled.activityId = activityId;
             if (this.onApprovalResolved) {
               try {
                 await this.onApprovalResolved({
@@ -2969,6 +2463,7 @@ var BaseGovernedSession = class {
       activity_output: payload.output,
       spans: payload.spans
     });
+    completedVerdict.activityId = activityId;
     if (completedVerdict.arm === "require_approval") {
       const approvalId = completedVerdict.approvalId ?? activityId;
       if (this.onPendingApproval) {
@@ -2988,6 +2483,7 @@ var BaseGovernedSession = class {
         return completedVerdict;
       }
       const polled = await this.pollApproval(activityId, activityType, completedVerdict);
+      polled.activityId = activityId;
       if (this.onApprovalResolved) {
         try {
           await this.onApprovalResolved({ approvalId, activityId, activityType, arm: polled.arm });
@@ -3819,7 +3315,7 @@ function mergeArray(target, source) {
 }
 function applyInputRedaction(originalData, guardrails) {
   if (!guardrails || guardrails.inputType !== "activity_input") return originalData;
-  let redacted = guardrails.redactedInput;
+  let redacted = unwrapActivityInputRedaction(guardrails.redactedInput);
   if (redacted && typeof redacted === "object" && !Array.isArray(redacted)) {
     redacted = [redacted];
   }
@@ -3849,7 +3345,7 @@ function applyInputRedaction(originalData, guardrails) {
 }
 function applyOutputRedaction(originalOutput, guardrails) {
   if (!guardrails || guardrails.inputType !== "activity_output") return originalOutput;
-  const redacted = guardrails.redactedInput;
+  const redacted = unwrapActivityOutputRedaction(guardrails.redactedInput, originalOutput);
   if (redacted === null || redacted === void 0) return originalOutput;
   if (typeof originalOutput === "object" && !Array.isArray(originalOutput) && originalOutput !== null && typeof redacted === "object" && !Array.isArray(redacted)) {
     const out = cloneValue2(originalOutput);
@@ -3858,6 +3354,23 @@ function applyOutputRedaction(originalOutput, guardrails) {
   }
   return redacted;
 }
+function unwrapActivityInputRedaction(redactedInput) {
+  if (!isPlainObject(redactedInput)) return redactedInput;
+  if (Array.isArray(redactedInput.input)) return redactedInput.input;
+  if (Array.isArray(redactedInput.activity_input)) return redactedInput.activity_input;
+  if (Array.isArray(redactedInput.activityInput)) return redactedInput.activityInput;
+  return redactedInput;
+}
+function unwrapActivityOutputRedaction(redactedInput, originalOutput) {
+  if (!isPlainObject(redactedInput) || hasOwnKey(originalOutput, "output")) {
+    return redactedInput;
+  }
+  const redacted = redactedInput;
+  if (Object.prototype.hasOwnProperty.call(redacted, "output")) return redacted.output;
+  if (Object.prototype.hasOwnProperty.call(redacted, "activity_output")) return redacted.activity_output;
+  if (Object.prototype.hasOwnProperty.call(redacted, "activityOutput")) return redacted.activityOutput;
+  return redactedInput;
+}
 function hasGuardrailRedaction(guardrails) {
   return Boolean(
     guardrails?.redactedInput !== null && guardrails?.redactedInput !== void 0 && guardrails.fieldResults?.some((field) => isRedactedStatus(field.status))
@@ -3865,11 +3378,18 @@ function hasGuardrailRedaction(guardrails) {
 }
 function summarizeGuardrailRedaction(guardrails, fallback = "OpenBox redacted sensitive fields.") {
   const fields = guardrails?.fieldResults?.filter((field) => isRedactedStatus(field.status)).map((field) => field.field).filter(Boolean);
-  if (!fields?.length) return fallback;
-  return `OpenBox redacted ${fields.slice(0, 4).join(", ")}${fields.length > 4 ? ` and ${fields.length - 4} more ${fields.length - 4 === 1 ? "field" : "fields"}` : ""}.`;
+  const uniqueFields = Array.from(new Set(fields));
+  if (!uniqueFields.length) return fallback;
+  return `OpenBox redacted ${uniqueFields.slice(0, 4).join(", ")}${uniqueFields.length > 4 ? ` and ${uniqueFields.length - 4} more ${uniqueFields.length - 4 === 1 ? "field" : "fields"}` : ""}.`;
 }
 function isRedactedStatus(status) {
   return status === "redacted" || status === "transformed";
+}
+function isPlainObject(value) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+function hasOwnKey(value, key) {
+  return isPlainObject(value) && Object.prototype.hasOwnProperty.call(value, key);
 }
 function cloneValue2(value) {
   if (typeof structuredClone === "function") {
@@ -3878,137 +3398,7 @@ function cloneValue2(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-// ts/src/approvals/socket-client.ts
-import * as net from "net";
-import * as path from "path";
-import * as os from "os";
-var APPROVAL_SOCKET_PATH = path.join(
-  os.homedir(),
-  ".openbox",
-  "run",
-  "openbox.sock"
-);
-
-// ts/src/approvals/socket-server.ts
-import * as net2 from "net";
-import * as fs from "fs";
-import * as path2 from "path";
-import * as os2 from "os";
-var RUN_DIR = path2.join(os2.homedir(), ".openbox", "run");
-var SOCKET_PATH = path2.join(RUN_DIR, "openbox.sock");
-
-// ts/src/approvals/resolve.ts
-var APPROVAL_LOOKUP_PAGE_SIZE = 100;
-var APPROVAL_LOOKUP_MAX_PAGES = 10;
-function extractApprovalRows(payload) {
-  if (!payload || typeof payload !== "object") return [];
-  const root = payload;
-  return root.approvals?.data ?? root.data?.approvals?.data ?? [];
-}
-function findApprovalRow(rows, governanceEventId, storeGeid) {
-  return rows.find(
-    (r) => r.id && (r.id === governanceEventId || r.id === storeGeid) || r.event_id && (r.event_id === governanceEventId || r.event_id === storeGeid)
-  );
-}
-async function resolveApprovalIdentity(client, hint) {
-  const callerAid = hint.agentId && hint.agentId.length > 0 ? hint.agentId : void 0;
-  const storeAid = hint.storeRow?.agent_id && hint.storeRow.agent_id.length > 0 ? hint.storeRow.agent_id : void 0;
-  let aid = callerAid ?? storeAid;
-  let realGeid = hint.governanceEventId;
-  let governanceEventId = hint.storeRow?.governance_event_id;
-  if (realGeid) {
-    try {
-      const profile = await client.getProfile();
-      const orgId = profile?.orgId;
-      if (orgId) {
-        const storeGeid = hint.storeRow?.governance_event_id;
-        let match;
-        for (let page = 0; page < APPROVAL_LOOKUP_MAX_PAGES && !match; page += 1) {
-          const list = await client.getOrgApprovals(orgId, {
-            status: "pending",
-            page,
-            perPage: APPROVAL_LOOKUP_PAGE_SIZE
-          });
-          const rows = extractApprovalRows(list);
-          match = findApprovalRow(rows, hint.governanceEventId, storeGeid);
-          if (rows.length < APPROVAL_LOOKUP_PAGE_SIZE) break;
-        }
-        if (match) {
-          aid ??= match.agent_id;
-          governanceEventId = match.event_id ?? governanceEventId;
-          realGeid = match.id ?? match.event_id ?? realGeid;
-        }
-      }
-    } catch {
-    }
-  }
-  if (!aid) {
-    throw new ApprovalIdentityNotFoundError(
-      "this approval row is no longer in the pending list; it may have already been resolved",
-      hint
-    );
-  }
-  return { agentId: aid, eventId: realGeid, governanceEventId };
-}
-var ApprovalIdentityNotFoundError = class extends Error {
-  constructor(message, hint) {
-    super(message);
-    this.hint = hint;
-    this.name = "ApprovalIdentityNotFoundError";
-  }
-  hint;
-};
-async function decideApproval(client, hint, decision) {
-  const identity = await resolveApprovalIdentity(client, hint);
-  await client.decideApproval(identity.agentId, identity.eventId, {
-    action: decision
-  });
-  return identity;
-}
-
-// ts/src/copilotkit/approval-route.ts
-function createOpenBoxApprovalRoute(config = {}) {
-  return {
-    async decide(request) {
-      if (!request.governanceEventId && (!request.workflowId || !request.runId || !request.activityId)) {
-        throw new Error(
-          "OpenBox approval decision requires governanceEventId or workflowId, runId, and activityId."
-        );
-      }
-      return decideViaBackend(config, request);
-    }
-  };
-}
-async function decideViaBackend(config, request) {
-  const apiUrl = config.apiUrl ?? process.env.OPENBOX_API_URL;
-  const apiKey = getApprovalBackendApiKey(config);
-  const agentId = config.agentId ?? process.env.OPENBOX_AGENT_ID;
-  if (!apiUrl) throw new Error("OpenBox API URL is not configured.");
-  if (!apiKey) throw new Error("OpenBox backend API key is not configured.");
-  if (!request.governanceEventId) {
-    throw new Error(
-      "OpenBox backend approval decision requires governanceEventId."
-    );
-  }
-  const client = new OpenBoxClient({
-    apiUrl: apiUrl.replace(/\/+$/, ""),
-    apiKey,
-    clientName: config.clientName ?? "openbox-copilotkit"
-  });
-  const resolved = await decideApproval(
-    client,
-    { governanceEventId: request.governanceEventId, agentId },
-    request.decision
-  );
-  return {
-    ok: true,
-    decision: request.decision,
-    eventId: resolved.eventId
-  };
-}
-
 // ts/src/copilotkit/results.ts
-import { randomUUID as randomUUID4 } from "crypto";
 function applyOpenBoxTransform(original, verdict) {
   if (!hasGuardrailRedaction(verdict.guardrailsResult)) return original;
   const inputType = verdict.guardrailsResult?.inputType;
@@ -4018,7 +3408,8 @@ function applyOpenBoxTransform(original, verdict) {
   return applyInputRedaction(cloneValue(original), verdict.guardrailsResult);
 }
 function safePayload(safe, original, verdict, ids, changed) {
-  const status = statusForVerdict(verdict);
+  const redactionSummary = hasGuardrailRedaction(verdict.guardrailsResult) ? summarizeGuardrailRedaction(verdict.guardrailsResult) : void 0;
+  const status = isGovernanceAvailabilityFailure(verdict.reason) ? "error" : verdict.arm === "allow" && (redactionSummary || changed) ? "constrained" : statusForVerdict(verdict);
   const haltedAt = (/* @__PURE__ */ new Date()).toISOString();
   const session = status === "halted" ? {
     status: "halted",
@@ -4034,7 +3425,7 @@ function safePayload(safe, original, verdict, ids, changed) {
     rawBlocked: !isAllowed(verdict.arm),
     reason: verdict.reason || defaultReasonForVerdict(verdict.arm),
     message: verdict.reason || defaultReasonForVerdict(verdict.arm),
-    redactionSummary: hasGuardrailRedaction(verdict.guardrailsResult) ? summarizeGuardrailRedaction(verdict.guardrailsResult) : void 0,
+    redactionSummary,
     workflowId: ids.workflowId,
     runId: ids.runId,
     activityId: ids.activityId,
@@ -4045,7 +3436,9 @@ function safePayloadToCopilotResult(verdict, safePayload2) {
   return {
     schemaVersion: OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION,
     status: safePayload2.status,
-    verdict: verdict.arm,
+    // Availability failures are not governance arms; never report them as
+    // a policy block.
+    verdict: safePayload2.status === "error" ? "error" : verdict.arm,
     executed: false,
     action: "copilotkit_runtime_gate",
     request: "CopilotKit runtime governance gate",
@@ -4061,6 +3454,7 @@ function safePayloadToCopilotResult(verdict, safePayload2) {
     runId: safePayload2.runId,
     activityId: safePayload2.activityId,
     session: safePayload2.session,
+    timings: safePayload2.timings,
     ...verdictMetadata(verdict, safePayload2.redactionSummary)
   };
 }
@@ -4114,6 +3508,18 @@ function approvalRequiredResult(input, ids, verdict) {
   };
 }
 function stoppedResult(input, ids, verdict, executed = false) {
+  if (isGovernanceAvailabilityFailure(verdict.reason)) {
+    return {
+      ...baseResult(input, ids),
+      status: "error",
+      verdict: "error",
+      executed,
+      reason: verdict.reason || "OpenBox governance evaluation was unavailable.",
+      message: "OpenBox could not evaluate this action, so it was not executed (failed closed). This is an availability failure, not a policy decision.",
+      session: { status: "active" },
+      ...verdictMetadata(verdict)
+    };
+  }
   const status = verdict.arm === "halt" ? "halted" : "blocked";
   const haltedAt = (/* @__PURE__ */ new Date()).toISOString();
   return {
@@ -4132,21 +3538,6 @@ function stoppedResult(input, ids, verdict, executed = false) {
     ...verdictMetadata(verdict)
   };
 }
-function sessionHaltedResult(input, session) {
-  return {
-    ...baseResult(input, {
-      workflowId: session.workflowId ?? randomUUID4(),
-      runId: session.runId ?? randomUUID4(),
-      activityId: session.activityId ?? randomUUID4()
-    }),
-    status: "session_halted",
-    verdict: "halt",
-    executed: false,
-    reason: session.reason,
-    message: session.reason,
-    session
-  };
-}
 function rejectedResult(input, ids, verdict) {
   return {
     ...baseResult(input, ids),
@@ -4157,6 +3548,12 @@ function rejectedResult(input, ids, verdict) {
     message: verdict.reason || "OpenBox approval was rejected.",
     ...verdictMetadata(verdict)
   };
+}
+function isGovernanceAvailabilityFailure(reason) {
+  if (typeof reason !== "string") return false;
+  return /\b(?:opa|policy|guardrail|governance)\b[\s\S]*\bunavailable\b|\bunavailable\b[\s\S]*\b(?:opa|policy|guardrail|governance)\b/i.test(
+    reason
+  );
 }
 function executedResult(input, ids, artifact, reason, verdict, redactionSummary) {
   return {
@@ -4180,7 +3577,16 @@ function resultForAllowedVerdict(input, ids, verdict, artifact, reason, redactio
     verdict,
     redactionSummary
   );
-  if (verdict.arm !== "constrain") return result;
+  if (verdict.arm !== "constrain") {
+    if (redactionSummary) {
+      return {
+        ...result,
+        status: "constrained",
+        verdict: "constrain"
+      };
+    }
+    return result;
+  }
   return {
     ...result,
     status: "constrained",
@@ -4190,13 +3596,17 @@ function resultForAllowedVerdict(input, ids, verdict, artifact, reason, redactio
   };
 }
 function errorResult(input, ids, error) {
+  const message = errorMessage(error);
+  const governanceUnavailable = /request failed|fetch failed|timeout|econnreset|etimedout|und_err|operation was aborted/i.test(
+    message
+  );
   return {
     ...baseResult(input, ids),
     status: "error",
-    verdict: "block",
+    verdict: "error",
     executed: false,
-    reason: errorMessage(error),
-    message: "OpenBox governance failed closed before executing this action.",
+    reason: message,
+    message: governanceUnavailable ? "OpenBox could not evaluate this action, so it was not executed (failed closed). This is an availability failure, not a policy decision." : "The governed action failed before a business result was produced. No business result was released.",
     session: { status: "active" }
   };
 }
@@ -4329,48 +3739,54 @@ function defaultReasonForVerdict(arm) {
 }
 
 // ts/src/copilotkit/workflow-session.ts
-import { randomBytes, randomUUID as randomUUID5 } from "crypto";
 var startedWorkflowRuns = /* @__PURE__ */ new Set();
+var TERMINAL_EVENT_TIMEOUT_MS = 5e3;
+var activeWorkflows = /* @__PURE__ */ new WeakMap();
+var LAST_WORKFLOW_KEY = "__openbox_last_workflow__";
+function registerActiveWorkflow(adapter, sessionKey, entry) {
+  let map = activeWorkflows.get(adapter);
+  if (!map) {
+    map = /* @__PURE__ */ new Map();
+    activeWorkflows.set(adapter, map);
+  }
+  map.set(sessionKey, entry);
+  map.set(LAST_WORKFLOW_KEY, entry);
+}
+function activeWorkflowFor(adapter, sessionKey) {
+  const map = activeWorkflows.get(adapter);
+  return map?.get(sessionKey) ?? map?.get(LAST_WORKFLOW_KEY);
+}
+function clearActiveWorkflow(adapter, sessionKey, workflowId) {
+  const map = activeWorkflows.get(adapter);
+  if (!map) return;
+  const entry = map.get(sessionKey);
+  if (!workflowId || entry?.workflowId === workflowId) map.delete(sessionKey);
+  const last = map.get(LAST_WORKFLOW_KEY);
+  if (last && (!workflowId || last.workflowId === workflowId)) {
+    map.delete(LAST_WORKFLOW_KEY);
+  }
+}
+function clearAllActiveWorkflows(adapter) {
+  activeWorkflows.get(adapter)?.clear();
+}
 function createWorkflowIds() {
   return {
-    workflowId: randomUUID5(),
-    runId: randomUUID5(),
-    activityId: randomUUID5()
+    workflowId: randomUUID3(),
+    runId: randomUUID3(),
+    activityId: randomUUID3()
   };
 }
-function createWorkflowSession(adapter, ids, workflowType, taskQueue) {
+function createWorkflowSession(adapter, ids, workflowType, taskQueue, options = {}) {
   return new presets.langchain({
     core: adapter.getCoreClient(),
     workflowId: ids.workflowId,
     runId: ids.runId,
     workflowType,
     taskQueue,
-    registerExitHandlers: false
+    registerExitHandlers: false,
+    attached: options.attached,
+    inlineApproval: options.inlineApproval
   });
-}
-function agentSessionForState(adapter, state, workflowType, taskQueue) {
-  return createWorkflowSession(
-    adapter,
-    {
-      workflowId: typeof state?.openboxWorkflowId === "string" ? state.openboxWorkflowId : randomUUID5(),
-      runId: typeof state?.openboxRunId === "string" ? state.openboxRunId : randomUUID5()
-    },
-    workflowType,
-    taskQueue
-  );
-}
-async function evaluate(adapter, payload) {
-  const response = await adapter.getCoreClient().evaluate(payload);
-  return {
-    arm: normalizeArm2(response.verdict || response.action),
-    approvalId: response.approval_id,
-    governanceEventId: response.governance_event_id,
-    approvalExpiresAt: response.approval_expiration_time,
-    reason: response.reason,
-    riskScore: response.risk_score ?? 0,
-    trustTier: response.trust_tier,
-    guardrailsResult: mapGuardrailsResult2(response.guardrails_result)
-  };
 }
 async function pollApproval(adapter, ids) {
   const deadline = Date.now() + 1e4;
@@ -4400,12 +3816,14 @@ async function pollApproval(adapter, ids) {
   };
 }
 async function completeWorkflow(adapter, ids, workflowType, taskQueue) {
-  await createWorkflowSession(
-    adapter,
-    ids,
-    workflowType,
-    taskQueue
-  ).workflowCompleted();
+  await bestEffortTerminalEvent(
+    () => createWorkflowSession(
+      adapter,
+      ids,
+      workflowType,
+      taskQueue
+    ).workflowCompleted()
+  );
 }
 async function finishStoppedWorkflow(adapter, ids, workflowType, taskQueue, verdict) {
   await failWorkflow(adapter, ids, workflowType, taskQueue, verdict.reason);
@@ -4435,39 +3853,34 @@ async function ensureWorkflowStarted(adapter, ids, workflowType, taskQueue) {
 async function emitUserPromptSignal(adapter, ids, workflowType, taskQueue, prompt) {
   const signalArgs = prompt?.trim();
   if (!signalArgs) return;
-  await evaluate(adapter, {
-    source: "langgraph",
-    event_type: "SignalReceived",
-    workflow_id: ids.workflowId,
-    run_id: ids.runId,
-    workflow_type: workflowType,
-    task_queue: taskQueue,
-    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    signal_name: "user_prompt",
-    signal_args: signalArgs,
+  await createWorkflowSession(adapter, ids, workflowType, taskQueue, {
+    attached: true
+  }).activity("SignalReceived", "user_prompt", {
+    signalName: "user_prompt",
+    signalArgs,
     spans: [userPromptSpan(signalArgs)]
   });
 }
 async function failWorkflow(adapter, ids, workflowType, taskQueue, reason) {
-  await swallow(
-    () => createWorkflowSession(adapter, ids, workflowType, taskQueue).workflowFailed(
-      typeof reason === "string" ? new Error(reason) : reason
-    )
+  await bestEffortTerminalEvent(
+    () => createWorkflowSession(
+      adapter,
+      ids,
+      workflowType,
+      taskQueue
+    ).workflowFailed(typeof reason === "string" ? new Error(reason) : reason)
   );
 }
-function activityEvent(eventType, ids, workflowType, taskQueue, extra) {
-  return {
-    source: "langgraph",
-    event_type: eventType,
-    workflow_id: ids.workflowId,
-    run_id: ids.runId,
-    workflow_type: workflowType,
-    task_queue: taskQueue,
-    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    activity_id: ids.activityId,
-    activity_type: eventType === "ActivityStarted" ? "on_tool_start" : "on_tool_end",
-    ...extra
-  };
+async function bestEffortTerminalEvent(fn) {
+  const terminalEvent = fn().catch(() => void 0);
+  await swallow(
+    () => Promise.race([
+      terminalEvent,
+      new Promise(
+        (resolve) => setTimeout(resolve, TERMINAL_EVENT_TIMEOUT_MS)
+      )
+    ])
+  );
 }
 function toolInput(definition, input) {
   return {
@@ -4514,7 +3927,823 @@ function userPromptSpan(prompt) {
   };
 }
 
+// ts/src/copilotkit/runtime.ts
+function createOpenBoxCopilotRuntime(config, defaultAdapter) {
+  const adapter = config.adapter ?? defaultAdapter();
+  const baseRunner = config.runner ?? config.runtime.runner;
+  if (!baseRunner?.run) {
+    throw new OpenBoxCopilotKitError(
+      "CopilotKit runtime runner is required for OpenBox native runtime governance."
+    );
+  }
+  const governedRunner = createOpenBoxGovernedRunner(
+    baseRunner,
+    {
+      adapter,
+      agents: config.agents,
+      sessionKey: config.sessionKey
+    },
+    defaultAdapter
+  );
+  const runtime = Object.create(config.runtime);
+  Object.defineProperty(runtime, "runner", {
+    value: governedRunner,
+    enumerable: true,
+    configurable: true
+  });
+  return {
+    runtime,
+    runner: governedRunner,
+    hooks: createOpenBoxRuntimeHooks(
+      {
+        adapter,
+        agents: config.agents
+      },
+      defaultAdapter
+    )
+  };
+}
+function createOpenBoxGovernedRunner(runner, config = {}, defaultAdapter) {
+  const adapter = config.adapter ?? defaultAdapter();
+  const agentSet = config.agents ? new Set(config.agents) : void 0;
+  const sessionKeyForInput = config.sessionKey ?? ((input) => input.threadId || "default");
+  const governedRunner = Object.create(Object.getPrototypeOf(runner));
+  Object.defineProperties(governedRunner, {
+    run: {
+      value(request) {
+        const agentRecord = objectRecord(request.agent);
+        const agentId = typeof request.agentId === "string" ? request.agentId : typeof agentRecord.agentId === "string" ? agentRecord.agentId : typeof agentRecord.name === "string" ? agentRecord.name : typeof agentRecord.id === "string" ? agentRecord.id : void 0;
+        if (agentSet && agentId && !agentSet.has(agentId)) {
+          return runner.run(request);
+        }
+        return createDeferredObservable(runner, async (subscriber) => {
+          const sessionKey = sessionKeyForInput(request.input);
+          const governedInput = isRuntimePromptGoverned(request.input) ? request.input : await governRunPrompt(
+            adapter,
+            request.input,
+            sessionKey,
+            subscriber
+          );
+          if (!governedInput) return;
+          const source = runner.run({ ...request, input: governedInput });
+          pipeGovernedEvents(
+            source,
+            subscriber,
+            adapter,
+            sessionKey,
+            governedInput,
+            runtimeWorkflowConfig(adapter)
+          );
+        });
+      },
+      writable: true,
+      enumerable: true,
+      configurable: true
+    },
+    connect: {
+      value: runner.connect?.bind(runner),
+      writable: true,
+      enumerable: true,
+      configurable: true
+    },
+    isRunning: {
+      value: runner.isRunning?.bind(runner),
+      writable: true,
+      enumerable: true,
+      configurable: true
+    },
+    stop: {
+      value: runner.stop?.bind(runner),
+      writable: true,
+      enumerable: true,
+      configurable: true
+    }
+  });
+  return governedRunner;
+}
+function createOpenBoxRuntimeHooks(config = {}, defaultAdapter) {
+  const adapter = config.adapter ?? defaultAdapter();
+  const agentSet = config.agents ? new Set(config.agents) : void 0;
+  return {
+    async onBeforeHandler(ctx) {
+      if (ctx.route?.method !== "agent/run") return;
+      const agentId = typeof ctx.route.agentId === "string" ? ctx.route.agentId : void 0;
+      if (agentSet && (!agentId || !agentSet.has(agentId))) return;
+      if (!adapter.isEnabled()) return;
+      const body = await readJsonRequestBody(ctx.request);
+      if (!isRecord(body)) return;
+      const input = body;
+      const sessionKey = input.threadId || "default";
+      const ids = freshRuntimeWorkflowIdsFromInput(input);
+      const promptGate = await adapter.governPrompt({
+        payload: { messages: summarizeMessages(input.messages ?? []) },
+        sessionKey,
+        workflowId: ids.workflowId,
+        runId: ids.runId,
+        activityType: "on_chat_model_start",
+        ensureWorkflowStarted: true
+      });
+      if (shouldStopForGate(promptGate, "enforce")) {
+        throw openBoxSseResponse(
+          input,
+          adapter.toOpenBoxCopilotResult(promptGate.verdict, promptGate)
+        );
+      }
+      const governedInput = markRuntimePromptGoverned(
+        withOpenBoxRuntimeIds(
+          withGovernedRunInput(input, promptGate.safe, promptGate.changed),
+          ids
+        )
+      );
+      return jsonRequestWithBody(ctx.request, governedInput);
+    },
+    async onResponse(ctx) {
+      if (ctx.route?.method !== "agent/run") return;
+      return void 0;
+    },
+    async onError(ctx) {
+      if (ctx.error instanceof OpenBoxCopilotKitError) {
+        return new Response(JSON.stringify({ error: ctx.error.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return void 0;
+    }
+  };
+}
+async function readJsonRequestBody(request) {
+  try {
+    return await request.clone().json();
+  } catch {
+    return void 0;
+  }
+}
+function jsonRequestWithBody(request, body) {
+  return new Request(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: JSON.stringify(body),
+    redirect: request.redirect,
+    credentials: request.credentials,
+    cache: request.cache,
+    referrer: request.referrer,
+    referrerPolicy: request.referrerPolicy,
+    integrity: request.integrity,
+    keepalive: request.keepalive,
+    signal: request.signal
+  });
+}
+function createDeferredObservable(runner, start) {
+  return {
+    subscribe(observerOrNext, error, complete) {
+      const subscriber = normalizeSubscriber(observerOrNext, error, complete);
+      start(subscriber).catch((err) => subscriber.error?.(err));
+      return { unsubscribe() {
+      } };
+    }
+  };
+}
+async function governRunPrompt(adapter, input, sessionKey, subscriber) {
+  const promptGate = await adapter.governPrompt({
+    payload: { messages: summarizeMessages(input.messages ?? []) },
+    sessionKey,
+    ...freshRuntimeWorkflowIdsFromInput(input),
+    activityType: "on_chat_model_start",
+    ensureWorkflowStarted: true
+  });
+  if (shouldStopForGate(promptGate, "enforce")) {
+    emitOpenBoxRunResult(
+      subscriber,
+      input,
+      adapter.toOpenBoxCopilotResult(promptGate.verdict, promptGate)
+    );
+    return void 0;
+  }
+  return withOpenBoxRuntimeIds(
+    withGovernedRunInput(input, promptGate.safe, promptGate.changed),
+    { workflowId: promptGate.workflowId, runId: promptGate.runId }
+  );
+}
+function normalizeSubscriber(observerOrNext, error, complete) {
+  if (typeof observerOrNext === "function") {
+    return {
+      next: observerOrNext,
+      error: typeof error === "function" ? error : void 0,
+      complete: typeof complete === "function" ? complete : void 0
+    };
+  }
+  if (isRecord(observerOrNext)) {
+    return observerOrNext;
+  }
+  return {};
+}
+function pipeGovernedEvents(source, subscriber, adapter, sessionKey, input, workflowConfig) {
+  const pending = [];
+  const ids = runtimeWorkflowIdsFromInput(input);
+  let terminalized = false;
+  let pendingError;
+  const markCompleted = async () => {
+    if (terminalized) return;
+    terminalized = true;
+    await completeWorkflow(
+      adapter,
+      ids,
+      workflowConfig.workflowType,
+      workflowConfig.taskQueue
+    );
+  };
+  const markFailed = async (error) => {
+    if (terminalized) return;
+    terminalized = true;
+    await failWorkflow(
+      adapter,
+      ids,
+      workflowConfig.workflowType,
+      workflowConfig.taskQueue,
+      error
+    );
+  };
+  const queuePending = (promise) => {
+    pending.push(
+      promise.catch(async (error) => {
+        pendingError = error;
+        await markFailed(error);
+        subscriber.error?.(error);
+      })
+    );
+  };
+  const scheduleTerminal = (kind, error) => {
+    const snapshot = [...pending];
+    pending.push(
+      Promise.allSettled(snapshot).then(async () => {
+        if (kind === "failed") {
+          await markFailed(error);
+          return;
+        }
+        if (!pendingError) await markCompleted();
+      })
+    );
+  };
+  const assistantBuffers = /* @__PURE__ */ new Map();
+  const emit = (event) => subscriber.next?.(event);
+  const subscription = source.subscribe({
+    next(event) {
+      if (!isRecord(event)) {
+        emit(event);
+        return;
+      }
+      const agEvent = event;
+      const type = String(agEvent.type);
+      if (isAssistantTextStart(agEvent)) {
+        assistantBuffers.set(messageIdForEvent(agEvent), {
+          start: agEvent,
+          content: ""
+        });
+        return;
+      }
+      if (isAssistantTextContent(agEvent)) {
+        const messageId = messageIdForEvent(agEvent);
+        const buffer = assistantBuffers.get(messageId);
+        if (!buffer) {
+          emit(agEvent);
+          return;
+        }
+        buffer.content += String(agEvent.delta ?? agEvent.content ?? "");
+        return;
+      }
+      if (isToolResultEvent(agEvent) && governedResultEndsWorkflow(agEvent)) {
+        terminalized = true;
+        emit(agEvent);
+        return;
+      }
+      if (isAssistantTextEnd(agEvent)) {
+        const messageId = messageIdForEvent(agEvent);
+        const buffer = assistantBuffers.get(messageId);
+        if (!buffer) {
+          emit(agEvent);
+          return;
+        }
+        buffer.end = agEvent;
+        assistantBuffers.delete(messageId);
+        queuePending(
+          (async () => {
+            const gate = await adapter.governAssistantOutput({
+              payload: { content: buffer.content },
+              sessionKey,
+              ...ids,
+              activityType: "on_llm_end"
+            });
+            if (shouldStopForGate(gate, "enforce")) {
+              terminalized = true;
+              emitOpenBoxMessageEvents(
+                subscriber,
+                input,
+                adapter.toOpenBoxCopilotResult(gate.verdict, gate),
+                messageId
+              );
+              return;
+            }
+            const safeContent = contentFromSafePayload(
+              gate.safe,
+              buffer.content
+            );
+            emit(buffer.start);
+            emit({
+              ...contentEventFromStart(buffer.start, safeContent),
+              type: contentEventType(type)
+            });
+            emit(buffer.end);
+          })()
+        );
+        return;
+      }
+      const finalPayload = finalPayloadLocationForEvent(agEvent);
+      if (finalPayload) {
+        queuePending(
+          (async () => {
+            const gate = await adapter.governAssistantOutput({
+              payload: finalPayload.payload,
+              sessionKey,
+              ...ids,
+              activityType: "on_llm_end"
+            });
+            if (shouldStopForGate(gate, "enforce")) {
+              terminalized = true;
+              emitOpenBoxMessageEvents(
+                subscriber,
+                input,
+                adapter.toOpenBoxCopilotResult(gate.verdict, gate)
+              );
+              return;
+            }
+            emit(eventWithSafeFinalPayload(agEvent, finalPayload, gate.safe));
+          })()
+        );
+        if (isRunFinishedEvent(agEvent)) scheduleTerminal("completed");
+        return;
+      }
+      if (isRunFinishedEvent(agEvent)) {
+        emit(agEvent);
+        scheduleTerminal("completed");
+        return;
+      }
+      if (isRunErrorEvent(agEvent)) {
+        emit(agEvent);
+        scheduleTerminal(
+          "failed",
+          new Error(
+            typeof agEvent.message === "string" ? agEvent.message : "CopilotKit run error"
+          )
+        );
+        return;
+      }
+      emit(agEvent);
+    },
+    error(error) {
+      Promise.allSettled(pending).then(() => markFailed(error)).then(
+        () => subscriber.error?.(error),
+        () => subscriber.error?.(error)
+      );
+    },
+    complete() {
+      Promise.all(pending).then(
+        () => {
+          if (pendingError) return;
+          return markCompleted().then(() => subscriber.complete?.());
+        },
+        (error) => subscriber.error?.(error)
+      );
+    }
+  });
+  return subscription;
+}
+function runtimeWorkflowConfig(adapter) {
+  const config = adapter.__openboxCopilotRuntimeConfig;
+  return {
+    workflowType: typeof config?.workflowType === "string" ? config.workflowType : DEFAULT_AGENT_WORKFLOW_TYPE,
+    taskQueue: typeof config?.taskQueue === "string" ? config.taskQueue : DEFAULT_TASK_QUEUE
+  };
+}
+function isAssistantTextStart(event) {
+  const type = String(event.type);
+  return (type === "TEXT_MESSAGE_START" || type === "TextMessageStart") && String(event.role ?? "assistant") === "assistant";
+}
+function isAssistantTextContent(event) {
+  const type = String(event.type);
+  return type === "TEXT_MESSAGE_CONTENT" || type === "TEXT_MESSAGE_CHUNK" || type === "TextMessageContent" || type === "TextMessageChunk";
+}
+function isAssistantTextEnd(event) {
+  const type = String(event.type);
+  return type === "TEXT_MESSAGE_END" || type === "TextMessageEnd";
+}
+function isRunFinishedEvent(event) {
+  const type = String(event.type);
+  return type === "RUN_FINISHED" || type === "RunFinished";
+}
+function isRunErrorEvent(event) {
+  const type = String(event.type);
+  return type === "RUN_ERROR" || type === "RunError";
+}
+function isToolResultEvent(event) {
+  const type = String(event.type);
+  return type === "TOOL_CALL_RESULT" || type === "ToolCallResult";
+}
+var WORKFLOW_ENDING_RESULT_STATUSES = /* @__PURE__ */ new Set([
+  "blocked",
+  "halted",
+  "rejected",
+  "error",
+  "approval_required",
+  "approval_pending"
+]);
+function governedResultEndsWorkflow(event) {
+  const content = event.content;
+  if (typeof content !== "string") return false;
+  try {
+    const parsed = JSON.parse(content);
+    return isRecord(parsed) && parsed.schemaVersion === OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION && WORKFLOW_ENDING_RESULT_STATUSES.has(String(parsed.status));
+  } catch {
+    return false;
+  }
+}
+function finalPayloadLocationForEvent(event) {
+  if (!isFinalOutputEvent(event)) return void 0;
+  for (const field of ["output", "result", "data", "payload", "message"]) {
+    if (event[field] !== void 0 && event[field] !== null) {
+      return { field, payload: event[field] };
+    }
+  }
+  return void 0;
+}
+function isFinalOutputEvent(event) {
+  const type = String(event.type);
+  if (type === "RUN_FINISHED" || type === "RunFinished") {
+    return true;
+  }
+  if (type !== "CUSTOM" && type !== "CUSTOM_EVENT" && type !== "CustomEvent") {
+    return false;
+  }
+  if (event.final === true || event.isFinal === true) return true;
+  const name = String(event.name ?? event.event ?? "").toLowerCase();
+  return name.includes("assistant_final") || name.includes("final_output");
+}
+function eventWithSafeFinalPayload(event, location, safe) {
+  return {
+    ...event,
+    [location.field]: finalPayloadFromSafe(safe, location.payload)
+  };
+}
+function finalPayloadFromSafe(safe, original) {
+  if (typeof original === "string" && isRecord(safe) && typeof safe.content === "string") {
+    return safe.content;
+  }
+  return safe;
+}
+function messageIdForEvent(event) {
+  return String(event.messageId ?? event.id ?? "openbox-message");
+}
+function contentEventType(endType) {
+  return endType.startsWith("Text") ? "TextMessageContent" : "TEXT_MESSAGE_CONTENT";
+}
+function contentEventFromStart(start, content) {
+  return {
+    messageId: start?.messageId ?? start?.id ?? `openbox_message_${randomUUID4()}`,
+    delta: content
+  };
+}
+function contentFromSafePayload(safe, defaultContent) {
+  if (typeof safe === "string") return safe;
+  if (isRecord(safe) && typeof safe.content === "string") return safe.content;
+  return defaultContent;
+}
+function withGovernedRunInput(input, safe, changed = true) {
+  if (!changed) return input;
+  if (isRecord(safe) && Array.isArray(safe.messages)) {
+    return {
+      ...input,
+      messages: mergeMessageContent(input.messages, safe.messages)
+    };
+  }
+  return input;
+}
+function isRuntimePromptGoverned(input) {
+  return isRecord(input.state) && input.state[OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY] === true;
+}
+function markRuntimePromptGoverned(input) {
+  const state = isRecord(input.state) ? input.state : {};
+  return {
+    ...input,
+    state: {
+      ...state,
+      [OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY]: true
+    }
+  };
+}
+function runtimeWorkflowIdsFromInput(input) {
+  const state = isRecord(input.state) ? input.state : {};
+  const openboxSession = isRecord(state.openboxSession) ? state.openboxSession : {};
+  const workflowId = typeof openboxSession.workflowId === "string" ? openboxSession.workflowId : typeof state.openboxWorkflowId === "string" ? state.openboxWorkflowId : randomUUID4();
+  const candidateRunId = typeof openboxSession.runId === "string" ? openboxSession.runId : typeof state.openboxRunId === "string" ? state.openboxRunId : typeof input.runId === "string" ? input.runId : randomUUID4();
+  return {
+    workflowId,
+    runId: candidateRunId === workflowId ? randomUUID4() : candidateRunId
+  };
+}
+function freshRuntimeWorkflowIdsFromInput(input) {
+  const workflowId = randomUUID4();
+  const runId = typeof input.runId === "string" && input.runId !== workflowId ? input.runId : randomUUID4();
+  return { workflowId, runId };
+}
+function withOpenBoxRuntimeIds(input, ids) {
+  const state = isRecord(input.state) ? input.state : {};
+  const openboxSession = isRecord(state.openboxSession) ? state.openboxSession : {};
+  const forwardedProps = objectRecord(input.forwardedProps);
+  const forwardedConfig = objectRecord(forwardedProps.config);
+  const forwardedConfigurable = objectRecord(forwardedConfig.configurable);
+  return {
+    ...input,
+    forwardedProps: {
+      ...forwardedProps,
+      config: {
+        ...forwardedConfig,
+        configurable: {
+          ...forwardedConfigurable,
+          openboxWorkflowId: ids.workflowId,
+          openboxRunId: ids.runId,
+          openboxPromptGoverned: true
+        }
+      }
+    },
+    state: {
+      ...state,
+      openboxWorkflowId: ids.workflowId,
+      openboxRunId: ids.runId,
+      openboxSession: {
+        status: typeof openboxSession.status === "string" ? openboxSession.status : "active",
+        ...openboxSession,
+        workflowId: ids.workflowId,
+        runId: ids.runId
+      }
+    }
+  };
+}
+function emitOpenBoxRunResult(subscriber, input, result) {
+  const runId = input.runId ?? randomUUID4();
+  subscriber.next?.({
+    type: "RUN_STARTED",
+    threadId: input.threadId,
+    runId,
+    input
+  });
+  emitOpenBoxMessageEvents(subscriber, input, result);
+  subscriber.next?.({
+    type: "RUN_FINISHED",
+    threadId: input.threadId,
+    runId
+  });
+  subscriber.complete?.();
+}
+function emitOpenBoxMessageEvents(subscriber, _input, result, messageId = `openbox_message_${randomUUID4()}`) {
+  const toolCallId = `openbox_runtime_gate_${randomUUID4().replace(/-/g, "")}`;
+  const content = JSON.stringify(result);
+  subscriber.next?.({
+    type: "TOOL_CALL_START",
+    toolCallId,
+    toolCallName: "openbox_governed_action"
+  });
+  subscriber.next?.({
+    type: "TOOL_CALL_ARGS",
+    toolCallId,
+    delta: JSON.stringify({
+      action: result.action,
+      request: result.request,
+      destination: result.destination,
+      amountUsd: result.amountUsd,
+      fields: result.fields,
+      audience: result.audience,
+      sensitivity: result.sensitivity
+    })
+  });
+  subscriber.next?.({
+    type: "TOOL_CALL_END",
+    toolCallId
+  });
+  subscriber.next?.({
+    type: "TOOL_CALL_RESULT",
+    messageId,
+    toolCallId,
+    content,
+    role: "tool"
+  });
+}
+function openBoxSseResponse(input, result) {
+  const events = [];
+  const subscriber = {
+    next: (event) => events.push(event)
+  };
+  emitOpenBoxRunResult(subscriber, input, result);
+  const body = events.map((event) => `data: ${JSON.stringify(event)}
+
+`).join("");
+  return new Response(body, {
+    status: 200,
+    headers: { "Content-Type": "text/event-stream" }
+  });
+}
+
+// ts/src/copilotkit/config-utils.ts
+function getRuntimeApiKey(config) {
+  return config.apiKey ?? process.env.OPENBOX_API_KEY;
+}
+function getApprovalBackendApiKey(config) {
+  return config.backendApiKey ?? process.env.OPENBOX_BACKEND_API_KEY;
+}
+function createCoreClientResolver(config) {
+  let coreClient = config.core;
+  let coreClientCacheKey;
+  return () => {
+    if (config.core) return config.core;
+    const apiKey = getRuntimeApiKey(config);
+    const coreUrl = config.coreUrl ?? process.env.OPENBOX_CORE_URL;
+    if (!apiKey) {
+      throw new OpenBoxCopilotKitError(
+        "OpenBox is enabled but the runtime API key is not configured."
+      );
+    }
+    if (OPENBOX_BACKEND_API_KEY_PATTERN.test(apiKey)) {
+      throw new OpenBoxCopilotKitError(
+        "OpenBox CopilotKit runtime expected an agent runtime key in OPENBOX_API_KEY (obx_live_* or obx_test_*), but received an org/backend key (obx_key_*). Put org keys in OPENBOX_BACKEND_API_KEY."
+      );
+    }
+    if (!OPENBOX_RUNTIME_KEY_PATTERN.test(apiKey)) {
+      throw new OpenBoxCopilotKitError(
+        "OpenBox is enabled but the runtime API key must be an obx_live_* or obx_test_* key."
+      );
+    }
+    if (!coreUrl) {
+      throw new OpenBoxCopilotKitError(
+        "OpenBox is enabled but the Core URL is not configured."
+      );
+    }
+    const agentIdentity = getAgentIdentity(config);
+    const cacheKey = `${coreUrl}:${apiKey}:${agentIdentity?.did ?? ""}:${config.coreTimeoutMs ?? ""}`;
+    if (!coreClient || coreClientCacheKey !== cacheKey) {
+      coreClient = new OpenBoxCoreClient({
+        apiKey,
+        apiUrl: coreUrl,
+        agentIdentity,
+        timeoutMs: config.coreTimeoutMs
+      });
+      coreClientCacheKey = cacheKey;
+    }
+    return coreClient;
+  };
+}
+function getAgentIdentity(config) {
+  if (config.agentIdentity) return config.agentIdentity;
+  const did = process.env.OPENBOX_AGENT_DID;
+  const privateKey = process.env.OPENBOX_AGENT_PRIVATE_KEY;
+  if (!did && !privateKey) return void 0;
+  if (!did || !privateKey) {
+    throw new OpenBoxCopilotKitError(
+      "OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY."
+    );
+  }
+  return { did, privateKey };
+}
+
+// ts/src/approvals/socket-client.ts
+import * as net from "net";
+import * as path from "path";
+import * as os from "os";
+var APPROVAL_SOCKET_PATH = path.join(
+  os.homedir(),
+  ".openbox",
+  "run",
+  "openbox.sock"
+);
+
+// ts/src/approvals/socket-server.ts
+import * as net2 from "net";
+import * as fs from "fs";
+import * as path2 from "path";
+import * as os2 from "os";
+var RUN_DIR = path2.join(os2.homedir(), ".openbox", "run");
+var SOCKET_PATH = path2.join(RUN_DIR, "openbox.sock");
+
+// ts/src/approvals/resolve.ts
+var APPROVAL_LOOKUP_PAGE_SIZE = 100;
+var APPROVAL_LOOKUP_MAX_PAGES = 10;
+function extractApprovalRows(payload) {
+  if (!payload || typeof payload !== "object") return [];
+  const root = payload;
+  return root.approvals?.data ?? root.data?.approvals?.data ?? [];
+}
+function findApprovalRow(rows, governanceEventId, storeGeid) {
+  return rows.find(
+    (r) => r.id && (r.id === governanceEventId || r.id === storeGeid) || r.event_id && (r.event_id === governanceEventId || r.event_id === storeGeid)
+  );
+}
+async function resolveApprovalIdentity(client, hint) {
+  const callerAid = hint.agentId && hint.agentId.length > 0 ? hint.agentId : void 0;
+  const storeAid = hint.storeRow?.agent_id && hint.storeRow.agent_id.length > 0 ? hint.storeRow.agent_id : void 0;
+  let aid = callerAid ?? storeAid;
+  let realGeid = hint.governanceEventId;
+  let governanceEventId = hint.storeRow?.governance_event_id;
+  if (realGeid) {
+    try {
+      const profile = await client.getProfile();
+      const orgId = profile?.orgId;
+      if (orgId) {
+        const storeGeid = hint.storeRow?.governance_event_id;
+        let match;
+        for (let page = 0; page < APPROVAL_LOOKUP_MAX_PAGES && !match; page += 1) {
+          const list = await client.getOrgApprovals(orgId, {
+            status: "pending",
+            page,
+            perPage: APPROVAL_LOOKUP_PAGE_SIZE
+          });
+          const rows = extractApprovalRows(list);
+          match = findApprovalRow(rows, hint.governanceEventId, storeGeid);
+          if (rows.length < APPROVAL_LOOKUP_PAGE_SIZE) break;
+        }
+        if (match) {
+          aid ??= match.agent_id;
+          governanceEventId = match.event_id ?? governanceEventId;
+          realGeid = match.id ?? match.event_id ?? realGeid;
+        }
+      }
+    } catch {
+    }
+  }
+  if (!aid) {
+    throw new ApprovalIdentityNotFoundError(
+      "this approval row is no longer in the pending list; it may have already been resolved",
+      hint
+    );
+  }
+  return { agentId: aid, eventId: realGeid, governanceEventId };
+}
+var ApprovalIdentityNotFoundError = class extends Error {
+  constructor(message, hint) {
+    super(message);
+    this.hint = hint;
+    this.name = "ApprovalIdentityNotFoundError";
+  }
+  hint;
+};
+async function decideApproval(client, hint, decision) {
+  const identity = await resolveApprovalIdentity(client, hint);
+  await client.decideApproval(identity.agentId, identity.eventId, {
+    action: decision
+  });
+  return identity;
+}
+
+// ts/src/copilotkit/approval-route.ts
+function createOpenBoxApprovalRoute(config = {}) {
+  return {
+    async decide(request) {
+      if (!request.governanceEventId && (!request.workflowId || !request.runId || !request.activityId)) {
+        throw new Error(
+          "OpenBox approval decision requires governanceEventId or workflowId, runId, and activityId."
+        );
+      }
+      return decideViaBackend(config, request);
+    }
+  };
+}
+async function decideViaBackend(config, request) {
+  const apiUrl = config.apiUrl ?? process.env.OPENBOX_API_URL;
+  const apiKey = getApprovalBackendApiKey(config);
+  const agentId = config.agentId ?? process.env.OPENBOX_AGENT_ID;
+  if (!apiUrl) throw new Error("OpenBox API URL is not configured.");
+  if (!apiKey) throw new Error("OpenBox backend API key is not configured.");
+  if (!request.governanceEventId) {
+    throw new Error(
+      "OpenBox backend approval decision requires governanceEventId."
+    );
+  }
+  const client = new OpenBoxClient({
+    apiUrl: apiUrl.replace(/\/+$/, ""),
+    apiKey,
+    clientName: config.clientName ?? "openbox-copilotkit"
+  });
+  const resolved = await decideApproval(
+    client,
+    { governanceEventId: request.governanceEventId, agentId },
+    request.decision
+  );
+  return {
+    ok: true,
+    decision: request.decision,
+    eventId: resolved.eventId
+  };
+}
+
 // ts/src/copilotkit/governed-tool.ts
+import { randomUUID as randomUUID5 } from "crypto";
 function createGovernedCopilotTool(definition) {
   const haltedSessions = /* @__PURE__ */ new Map();
   const workflowType = DEFAULT_WORKFLOW_TYPE;
@@ -4523,21 +4752,41 @@ function createGovernedCopilotTool(definition) {
   const sessionKey = (config) => definition.sessionKey ? definition.sessionKey(config) : sessionKeyFromConfig(config);
   async function execute(input, runtimeConfig) {
     const normalizedInput = normalize(input);
+    const timings = createTimingCollector(
+      (event) => definition.onTimingEvent?.(event, { input: normalizedInput, runtimeConfig })
+    );
     const key = sessionKey(runtimeConfig);
     const haltedSession = haltedSessions.get(key);
     if (haltedSession)
-      return sessionHaltedResult(
+      return evaluateHaltedWorkflow(
         normalizedInput,
-        haltedSession
+        key,
+        haltedSession,
+        runtimeConfig
       );
-    const ids = createWorkflowIds();
+    const shared = sharedWorkflowFromConfig(runtimeConfig) ?? activeWorkflowFor(definition.adapter, key);
+    if (process.env.OPENBOX_COPILOTKIT_DEBUG === "true") {
+      console.error(
+        `[openbox:governed-tool] key=${key} shared=${JSON.stringify(shared ?? null)} action=${String(normalizedInput.action ?? "")}`
+      );
+    }
+    const ids = shared ? { ...createWorkflowIds(), workflowId: shared.workflowId, runId: shared.runId } : createWorkflowIds();
+    const ridesSharedWorkflow = Boolean(shared);
     if (!definition.adapter.isEnabled()) {
-      const artifact = await definition.execute(normalizedInput);
-      return executedResult(
-        normalizedInput,
-        ids,
-        artifact,
-        "OpenBox disabled for local development."
+      const artifact = await timings.measure(
+        "tool_execution",
+        "Business action",
+        "tool",
+        () => definition.execute(normalizedInput)
+      );
+      return withTimings(
+        executedResult(
+          normalizedInput,
+          ids,
+          artifact,
+          "OpenBox disabled for local development."
+        ),
+        timings.finish()
       );
     }
     try {
@@ -4545,49 +4794,81 @@ function createGovernedCopilotTool(definition) {
         definition.adapter,
         ids,
         workflowType,
-        taskQueue
-      );
-      await session.workflowStarted();
-      await emitUserPromptSignal(
-        definition.adapter,
-        ids,
-        workflowType,
         taskQueue,
-        normalizedInput.request
+        { attached: true }
       );
-      const started = await evaluate(
-        definition.adapter,
-        activityEvent("ActivityStarted", ids, workflowType, taskQueue, {
-          activity_input: [toolInput(definition, normalizedInput)],
+      if (!ridesSharedWorkflow) {
+        await timings.measure(
+          "workflow_start",
+          "Start governance workflow",
+          "openbox",
+          async () => {
+            await session.workflowStarted();
+            await emitUserPromptSignal(
+              definition.adapter,
+              ids,
+              workflowType,
+              taskQueue,
+              normalizedInput.request
+            );
+          }
+        );
+      }
+      const openedActivity = await timings.measure(
+        "tool_input_gate",
+        "Input policy check",
+        "openbox",
+        () => session.openActivity("on_tool_start", {
+          activityId: ids.activityId,
+          input: [toolInput(definition, normalizedInput)],
           spans: [toolSpan(definition, normalizedInput, "started")]
         })
       );
+      const started = openedActivity.verdict;
       if (started.arm === "require_approval") {
-        return approvalRequiredResult(
-          normalizedInput,
-          ids,
-          started
+        return withTimings(
+          approvalRequiredResult(
+            normalizedInput,
+            ids,
+            started
+          ),
+          timings.finish()
         );
       }
       if (!isAllowed(started.arm)) {
-        await finishStoppedWorkflow(
-          definition.adapter,
-          ids,
-          workflowType,
-          taskQueue,
-          started
+        await timings.measure(
+          "workflow_stop",
+          "Stop governance workflow",
+          "openbox",
+          () => finishStoppedWorkflow(
+            definition.adapter,
+            ids,
+            workflowType,
+            taskQueue,
+            started
+          )
         );
+        if (ridesSharedWorkflow)
+          clearActiveWorkflow(definition.adapter, key, ids.workflowId);
         const result2 = stoppedResult(normalizedInput, ids, started);
         if (result2.status === "halted")
           haltedSessions.set(key, result2.session);
-        return result2;
+        return withTimings(
+          result2,
+          timings.finish()
+        );
       }
       const startedRedaction = applyStartedRedaction(
         definition,
         normalizedInput,
         started
       );
-      const artifact = await definition.execute(startedRedaction.input);
+      const artifact = await timings.measure(
+        "tool_execution",
+        "Business action",
+        "tool",
+        () => definition.execute(startedRedaction.input)
+      );
       const provisional = resultForAllowedVerdict(
         startedRedaction.input,
         ids,
@@ -4596,22 +4877,34 @@ function createGovernedCopilotTool(definition) {
         "OpenBox allowed this action.",
         startedRedaction.summary
       );
-      const completed = await evaluate(
-        definition.adapter,
-        activityEvent("ActivityCompleted", ids, workflowType, taskQueue, {
-          activity_input: [toolInput(definition, startedRedaction.input)],
-          activity_output: provisional,
-          spans: [toolSpan(definition, startedRedaction.input, "completed")]
-        })
+      const completed = await timings.measure(
+        "tool_output_gate",
+        "Output policy check",
+        "openbox",
+        () => openedActivity.complete(
+          {
+            input: [toolInput(definition, startedRedaction.input)],
+            output: toolOutputForGovernance(provisional),
+            spans: [toolSpan(definition, startedRedaction.input, "completed")]
+          },
+          "on_tool_end"
+        )
       );
       if (!isAllowed(completed.arm)) {
-        await finishStoppedWorkflow(
-          definition.adapter,
-          ids,
-          workflowType,
-          taskQueue,
-          completed
+        await timings.measure(
+          "workflow_stop",
+          "Stop governance workflow",
+          "openbox",
+          () => finishStoppedWorkflow(
+            definition.adapter,
+            ids,
+            workflowType,
+            taskQueue,
+            completed
+          )
         );
+        if (ridesSharedWorkflow)
+          clearActiveWorkflow(definition.adapter, key, ids.workflowId);
         const stopped = stoppedResult(
           startedRedaction.input,
           ids,
@@ -4620,7 +4913,10 @@ function createGovernedCopilotTool(definition) {
         );
         if (stopped.status === "halted")
           haltedSessions.set(key, stopped.session);
-        return stopped;
+        return withTimings(
+          stopped,
+          timings.finish()
+        );
       }
       const result = applyCompletedRedaction(
         definition,
@@ -4628,31 +4924,53 @@ function createGovernedCopilotTool(definition) {
         completed,
         startedRedaction.summary
       );
-      await session.workflowCompleted();
-      return result;
+      if (!ridesSharedWorkflow) {
+        await timings.measure(
+          "workflow_complete",
+          "Complete governance workflow",
+          "openbox",
+          () => session.workflowCompleted()
+        );
+      }
+      return withTimings(result, timings.finish());
     } catch (error) {
-      await failWorkflow(
-        definition.adapter,
-        ids,
-        workflowType,
-        taskQueue,
-        error
+      await timings.measure(
+        "workflow_fail",
+        "Record governance failure",
+        "openbox",
+        () => failWorkflow(
+          definition.adapter,
+          ids,
+          workflowType,
+          taskQueue,
+          error
+        )
       );
-      return errorResult(
-        normalizedInput,
-        ids,
-        error
+      if (ridesSharedWorkflow)
+        clearActiveWorkflow(definition.adapter, key, ids.workflowId);
+      return withTimings(
+        errorResult(
+          normalizedInput,
+          ids,
+          error
+        ),
+        timings.finish()
       );
     }
   }
   async function resume(input, runtimeConfig) {
     const normalizedInput = normalize(input);
+    const timings = createTimingCollector(
+      (event) => definition.onTimingEvent?.(event, { input: normalizedInput, runtimeConfig })
+    );
     const key = sessionKey(runtimeConfig);
     const haltedSession = haltedSessions.get(key);
     if (haltedSession)
-      return sessionHaltedResult(
+      return evaluateHaltedWorkflow(
         normalizedInput,
-        haltedSession
+        key,
+        haltedSession,
+        runtimeConfig
       );
     const ids = {
       workflowId: normalizedInput.workflowId,
@@ -4660,36 +4978,65 @@ function createGovernedCopilotTool(definition) {
       activityId: normalizedInput.activityId
     };
     if (!definition.adapter.isEnabled()) {
-      const artifact = await definition.execute(normalizedInput);
-      return executedResult(
-        normalizedInput,
-        ids,
-        artifact,
-        "OpenBox disabled for local development."
+      const artifact = await timings.measure(
+        "tool_execution",
+        "Business action",
+        "tool",
+        () => definition.execute(normalizedInput)
+      );
+      return withTimings(
+        executedResult(
+          normalizedInput,
+          ids,
+          artifact,
+          "OpenBox disabled for local development."
+        ),
+        timings.finish()
       );
     }
     try {
-      const polled = await pollApproval(definition.adapter, ids);
+      const polled = await timings.measure(
+        "approval_poll",
+        "Approval decision check",
+        "openbox",
+        () => pollApproval(definition.adapter, ids)
+      );
       if (!isAllowed(polled.arm)) {
-        await finishStoppedWorkflow(
-          definition.adapter,
-          ids,
-          workflowType,
-          taskQueue,
-          polled
+        await timings.measure(
+          "workflow_stop",
+          "Stop governance workflow",
+          "openbox",
+          () => finishStoppedWorkflow(
+            definition.adapter,
+            ids,
+            workflowType,
+            taskQueue,
+            polled
+          )
         );
         if (normalizedInput.approved === false)
-          return rejectedResult(
-            normalizedInput,
-            ids,
-            polled
+          return withTimings(
+            rejectedResult(
+              normalizedInput,
+              ids,
+              polled
+            ),
+            timings.finish()
           );
         const stopped = stoppedResult(normalizedInput, ids, polled);
         if (stopped.status === "halted")
           haltedSessions.set(key, stopped.session);
-        return stopped;
+        return withTimings(
+          stopped,
+          timings.finish()
+        );
       }
-      const artifact = await definition.execute(normalizedInput);
+      const artifact = await timings.measure(
+        "tool_execution",
+        "Business action",
+        "tool",
+        () => definition.execute(normalizedInput)
+      );
       const result = resultForAllowedVerdict(
         normalizedInput,
         ids,
@@ -4697,21 +5044,36 @@ function createGovernedCopilotTool(definition) {
         artifact,
         "OpenBox approval was granted."
       );
-      const completed = await evaluate(
-        definition.adapter,
-        activityEvent("ActivityCompleted", ids, workflowType, taskQueue, {
-          activity_input: [toolInput(definition, normalizedInput)],
-          activity_output: result,
-          spans: [toolSpan(definition, normalizedInput, "completed")]
-        })
-      );
-      if (!isAllowed(completed.arm)) {
-        await finishStoppedWorkflow(
+      const completed = await timings.measure(
+        "tool_output_gate",
+        "Output policy check",
+        "openbox",
+        () => createWorkflowSession(
           definition.adapter,
           ids,
           workflowType,
           taskQueue,
-          completed
+          { attached: true, inlineApproval: true }
+        ).activity("ActivityCompleted", "on_tool_end", {
+          activityId: ids.activityId,
+          input: [approvalResumeToolInput(definition, normalizedInput)],
+          output: toolOutputForGovernance(result),
+          spans: [approvalResumeSpan(definition, normalizedInput)]
+        })
+      );
+      const alreadyApprovedAgain = completed.arm === "require_approval" && normalizedInput.approved === true;
+      if (!isAllowed(completed.arm) && !alreadyApprovedAgain) {
+        await timings.measure(
+          "workflow_stop",
+          "Stop governance workflow",
+          "openbox",
+          () => finishStoppedWorkflow(
+            definition.adapter,
+            ids,
+            workflowType,
+            taskQueue,
+            completed
+          )
         );
         const stopped = stoppedResult(
           normalizedInput,
@@ -4721,26 +5083,235 @@ function createGovernedCopilotTool(definition) {
         );
         if (stopped.status === "halted")
           haltedSessions.set(key, stopped.session);
-        return stopped;
+        return withTimings(
+          stopped,
+          timings.finish()
+        );
       }
-      await completeWorkflow(definition.adapter, ids, workflowType, taskQueue);
-      return applyCompletedRedaction(definition, result, completed);
-    } catch (error) {
-      await failWorkflow(
-        definition.adapter,
-        ids,
-        workflowType,
-        taskQueue,
-        error
+      await timings.measure(
+        "workflow_complete",
+        "Complete governance workflow",
+        "openbox",
+        () => completeWorkflow(definition.adapter, ids, workflowType, taskQueue)
       );
-      return errorResult(
-        normalizedInput,
-        ids,
-        error
+      return withTimings(
+        applyCompletedRedaction(definition, result, completed),
+        timings.finish()
+      );
+    } catch (error) {
+      await timings.measure(
+        "workflow_fail",
+        "Record governance failure",
+        "openbox",
+        () => failWorkflow(
+          definition.adapter,
+          ids,
+          workflowType,
+          taskQueue,
+          error
+        )
+      );
+      return withTimings(
+        errorResult(
+          normalizedInput,
+          ids,
+          error
+        ),
+        timings.finish()
+      );
+    }
+  }
+  async function evaluateHaltedWorkflow(input, key, haltedSession, runtimeConfig) {
+    const timings = createTimingCollector(
+      (event) => definition.onTimingEvent?.(event, { input, runtimeConfig })
+    );
+    const generatedIds = createWorkflowIds();
+    const ids = {
+      workflowId: haltedSession.workflowId ?? generatedIds.workflowId,
+      runId: haltedSession.runId ?? generatedIds.runId,
+      activityId: generatedIds.activityId
+    };
+    if (!definition.adapter.isEnabled()) {
+      return withTimings(
+        stoppedResult(input, ids, {
+          arm: "halt",
+          reason: haltedSession.reason,
+          riskScore: 0
+        }),
+        timings.finish()
+      );
+    }
+    try {
+      const { verdict } = await timings.measure(
+        "halted_session_gate",
+        "Halted session check",
+        "openbox",
+        () => createWorkflowSession(
+          definition.adapter,
+          { workflowId: ids.workflowId, runId: ids.runId },
+          workflowType,
+          taskQueue,
+          { attached: true, inlineApproval: true }
+        ).openActivity("on_tool_start", {
+          activityId: ids.activityId,
+          input: [toolInput(definition, input)],
+          spans: [toolSpan(definition, input, "started")]
+        })
+      );
+      if (isAllowed(verdict.arm)) {
+        return withTimings(
+          errorResult(
+            input,
+            ids,
+            new Error(
+              "OpenBox allowed an action on a previously halted CopilotKit workflow."
+            )
+          ),
+          timings.finish()
+        );
+      }
+      await timings.measure(
+        "workflow_stop",
+        "Stop governance workflow",
+        "openbox",
+        () => finishStoppedWorkflow(
+          definition.adapter,
+          ids,
+          workflowType,
+          taskQueue,
+          verdict
+        )
+      );
+      const stopped = stoppedResult(input, ids, verdict);
+      if (stopped.status === "halted")
+        haltedSessions.set(key, stopped.session);
+      return withTimings(
+        stopped,
+        timings.finish()
+      );
+    } catch (error) {
+      return withTimings(
+        errorResult(
+          input,
+          ids,
+          error
+        ),
+        timings.finish()
       );
     }
   }
   return { execute, resume };
+}
+function toolOutputForGovernance(result) {
+  return { artifact: result.artifact };
+}
+function approvalResumeToolInput(definition, input) {
+  return {
+    id: void 0,
+    name: definition.toolName,
+    args: approvalResumeMetadata(input),
+    description: definition.description
+  };
+}
+function approvalResumeSpan(definition, input) {
+  const now = Date.now();
+  return {
+    span_id: `approval-${randomUUID5().replaceAll("-", "").slice(0, 8)}`,
+    trace_id: randomUUID5().replaceAll("-", ""),
+    name: `${definition.toolName}.approval_resume`,
+    kind: "internal",
+    start_time: now,
+    end_time: now,
+    duration_ns: 0,
+    stage: "completed",
+    attributes: {
+      "openbox.tool.name": definition.toolName,
+      "openbox.approval.resume": true,
+      "tool.name": definition.toolName
+    },
+    data: approvalResumeMetadata(input)
+  };
+}
+function approvalResumeMetadata(input) {
+  return {
+    approved: input.approved === true,
+    approvalId: input.approvalId,
+    governanceEventId: input.governanceEventId,
+    workflowId: input.workflowId,
+    runId: input.runId,
+    activityId: input.activityId
+  };
+}
+function createTimingCollector(onTimingEvent) {
+  const startedAtMs = Date.now();
+  const startedAt = new Date(startedAtMs).toISOString();
+  const steps = [];
+  const emit = async (event) => {
+    if (!onTimingEvent) return;
+    try {
+      await onTimingEvent(event);
+    } catch (error) {
+      console.warn(
+        `[openbox:copilotkit] timing event observer failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  };
+  return {
+    async measure(key, label, kind, operation) {
+      const stepStartedAt = Date.now();
+      const stepStartedAtIso = new Date(stepStartedAt).toISOString();
+      await emit({
+        phase: "started",
+        key,
+        label,
+        kind,
+        startedAt: stepStartedAtIso
+      });
+      try {
+        return await operation();
+      } finally {
+        const completedAtMs = Date.now();
+        const ms = Math.max(0, completedAtMs - stepStartedAt);
+        steps.push({
+          key,
+          label,
+          kind,
+          ms
+        });
+        await emit({
+          phase: "finished",
+          key,
+          label,
+          kind,
+          startedAt: stepStartedAtIso,
+          completedAt: new Date(completedAtMs).toISOString(),
+          ms
+        });
+      }
+    },
+    finish() {
+      const completedAtMs = Date.now();
+      return {
+        startedAt,
+        completedAt: new Date(completedAtMs).toISOString(),
+        totalMs: Math.max(0, completedAtMs - startedAtMs),
+        steps: [...steps]
+      };
+    }
+  };
+}
+function withTimings(result, timings) {
+  return { ...result, timings };
+}
+function sharedWorkflowFromConfig(runtimeConfig) {
+  if (!runtimeConfig || typeof runtimeConfig !== "object") return void 0;
+  const configurable = runtimeConfig.configurable;
+  if (!configurable || typeof configurable !== "object") return void 0;
+  const workflowId = configurable.openboxWorkflowId;
+  const runId = configurable.openboxRunId;
+  if (typeof workflowId !== "string" || typeof runId !== "string")
+    return void 0;
+  return { workflowId, runId, owned: false };
 }
 
 // ts/src/copilotkit/langchain-middleware.ts
@@ -4755,52 +5326,113 @@ function createOpenBoxLangChainMiddleware({
   governanceMode,
   failClosed
 }) {
+  const workflowKey = (...candidates) => {
+    for (const candidate of candidates) {
+      const key = sessionKeyFromConfig(candidate);
+      if (key !== "default") return key;
+    }
+    return "default";
+  };
+  const workflowIdsFor = (key, state) => {
+    const registered = activeWorkflowFor(adapter, key);
+    return {
+      workflowId: workflowIdFromState(state) ?? registered?.workflowId,
+      runId: runIdFromState(state) ?? registered?.runId
+    };
+  };
+  const debugState = (hook, state) => {
+    if (process.env.OPENBOX_COPILOTKIT_DEBUG !== "true") return;
+    const record = isRecord(state) ? state : {};
+    console.error(
+      `[openbox:${hook}] stateKeys=${JSON.stringify(Object.keys(record))} openboxSession=${JSON.stringify(record.openboxSession ?? null)} workflowId=${String(record.openboxWorkflowId ?? "")}`
+    );
+  };
+  const contextIds = (runtimeLike) => {
+    const record = objectRecord(runtimeLike);
+    const context = objectRecord(record.context);
+    const configurable = objectRecord(record.configurable);
+    const pick = (key) => typeof context[key] === "string" ? context[key] : typeof configurable[key] === "string" ? configurable[key] : void 0;
+    return {
+      workflowId: pick("openboxWorkflowId"),
+      runId: pick("openboxRunId"),
+      promptGoverned: context.openboxPromptGoverned === true || configurable.openboxPromptGoverned === true
+    };
+  };
+  const ensureTaskWorkflow = async (key, state, runtimeLike) => {
+    const fromContext = contextIds(runtimeLike);
+    if (process.env.OPENBOX_COPILOTKIT_DEBUG === "true") {
+      console.error(
+        `[openbox:ensure] key=${key} fromContext=${JSON.stringify(fromContext)} stateWorkflowId=${String(workflowIdFromState(state) ?? "")}`
+      );
+    }
+    if (fromContext.workflowId && fromContext.runId) {
+      const adopted = {
+        workflowId: fromContext.workflowId,
+        runId: fromContext.runId,
+        owned: false
+      };
+      registerActiveWorkflow(adapter, key, adopted);
+      return adopted;
+    }
+    const existing = activeWorkflowFor(adapter, key);
+    if (existing) return existing;
+    const runtimeWorkflowId = workflowIdFromState(state);
+    const runtimeRunId = runIdFromState(state);
+    if (runtimeWorkflowId && runtimeRunId) {
+      const adopted = {
+        workflowId: runtimeWorkflowId,
+        runId: runtimeRunId,
+        owned: false
+      };
+      registerActiveWorkflow(adapter, key, adopted);
+      return adopted;
+    }
+    const owned = {
+      workflowId: randomUUID6(),
+      runId: randomUUID6(),
+      owned: true
+    };
+    registerActiveWorkflow(adapter, key, owned);
+    const session = createWorkflowSession(
+      adapter,
+      { workflowId: owned.workflowId, runId: owned.runId },
+      workflowType,
+      taskQueue
+    );
+    await swallow(() => session.workflowStarted());
+    await swallow(
+      () => session.onChainStart({
+        input: [{ runtime: "copilotkit", framework: "langchain" }]
+      })
+    );
+    return owned;
+  };
   return deps.createMiddleware({
     name: "openbox_copilotkit",
-    stateSchema: void 0,
-    beforeAgent: async () => {
-      if (!adapter.isEnabled()) return;
-      const ids = {
-        openboxWorkflowId: randomUUID6(),
-        openboxRunId: randomUUID6()
-      };
-      const session = createWorkflowSession(
-        adapter,
-        { workflowId: ids.openboxWorkflowId, runId: ids.openboxRunId },
-        workflowType,
-        taskQueue
-      );
-      await swallow(() => session.workflowStarted());
-      await swallow(
-        () => session.onChainStart({
-          input: [{ runtime: "copilotkit", framework: "langchain" }]
-        })
-      );
-      return {
-        ...ids,
-        openboxSession: {
-          status: "active",
-          workflowId: ids.openboxWorkflowId,
-          runId: ids.openboxRunId
-        }
-      };
-    },
+    stateSchema: deps.stateSchema,
+    contextSchema: deps.contextSchema,
     wrapModelCall: async (request, handler) => {
       if (!adapter.isEnabled()) return handler(request);
-      const session = agentSessionForState(
-        adapter,
+      debugState("wrapModelCall", request.state);
+      const key = sessionKeyFromConfig(request);
+      const gateIds = await ensureTaskWorkflow(
+        key,
         request.state,
+        request.runtime
+      );
+      const session = createWorkflowSession(
+        adapter,
+        { workflowId: gateIds.workflowId, runId: gateIds.runId },
         workflowType,
         taskQueue
       );
-      const key = sessionKeyFromConfig(request);
-      const runtimePromptGoverned = isRecord(request.state) && request.state[OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY] === true;
+      const runtimePromptGoverned = isRecord(request.state) && request.state[OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY] === true || contextIds(request.runtime).promptGoverned;
       if (!runtimePromptGoverned) {
         const promptGate = await adapter.governPrompt({
           payload: modelInput(request),
           sessionKey: key,
-          workflowId: workflowIdFromState(request.state),
-          runId: runIdFromState(request.state),
+          workflowId: gateIds.workflowId,
+          runId: gateIds.runId,
           activityType: "on_chat_model_start"
         });
         if (shouldStopForGate(promptGate, governanceMode)) {
@@ -4835,8 +5467,8 @@ function createOpenBoxLangChainMiddleware({
         const responseGate = await adapter.governAssistantOutput({
           payload: toPlain(response),
           sessionKey: key,
-          workflowId: workflowIdFromState(request.state),
-          runId: runIdFromState(request.state),
+          workflowId: gateIds.workflowId,
+          runId: gateIds.runId,
           activityType: "on_llm_end"
         });
         if (shouldStopForGate(responseGate, governanceMode)) {
@@ -4863,18 +5495,23 @@ function createOpenBoxLangChainMiddleware({
       if (!adapter.isEnabled()) return handler(request);
       if (selfGovernedToolNames.has(String(request.toolCall?.name)))
         return handler(request);
-      const session = agentSessionForState(
-        adapter,
+      const key = sessionKeyFromConfig(request);
+      const gateIds = await ensureTaskWorkflow(
+        key,
         request.state,
+        request.runtime
+      );
+      const session = createWorkflowSession(
+        adapter,
+        { workflowId: gateIds.workflowId, runId: gateIds.runId },
         workflowType,
         taskQueue
       );
-      const key = sessionKeyFromConfig(request);
       const inputGate = await adapter.governToolInput({
         payload: toolCallInput(request),
         sessionKey: key,
-        workflowId: workflowIdFromState(request.state),
-        runId: runIdFromState(request.state),
+        workflowId: gateIds.workflowId,
+        runId: gateIds.runId,
         activityType: "on_tool_start"
       });
       if (shouldStopForGate(inputGate, governanceMode)) {
@@ -4888,8 +5525,8 @@ function createOpenBoxLangChainMiddleware({
         const outputGate = await adapter.governToolOutput({
           payload: toPlain(response),
           sessionKey: key,
-          workflowId: workflowIdFromState(request.state),
-          runId: runIdFromState(request.state),
+          workflowId: gateIds.workflowId,
+          runId: gateIds.runId,
           activityType: "on_tool_end"
         });
         if (shouldStopForGate(outputGate, governanceMode)) {
@@ -4908,21 +5545,18 @@ function createOpenBoxLangChainMiddleware({
         throw error;
       }
     },
-    afterAgent: async (state) => {
+    afterAgent: async (state, runtime) => {
       if (!adapter.isEnabled()) return;
-      const workflowId = workflowIdFromState(state);
-      const runId = runIdFromState(state);
+      const key = workflowKey(runtime?.config, runtime, state);
+      const fromContext = contextIds(runtime);
+      const ids = workflowIdsFor(key, state);
+      const workflowId = fromContext.workflowId ?? ids.workflowId;
+      const runId = fromContext.runId ?? ids.runId;
+      const active = activeWorkflowFor(adapter, key);
+      const runtimeOwned = active !== void 0 && active.workflowId === workflowId && active.owned === false || fromContext.promptGoverned || isRecord(state) && state[OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY] === true;
+      clearAllActiveWorkflows(adapter);
       if (!workflowId || !runId) return;
-      if (isRecord(state) && state[OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY] === true) {
-        const session2 = createWorkflowSession(
-          adapter,
-          { workflowId, runId },
-          workflowType,
-          taskQueue
-        );
-        await swallow(() => session2.workflowCompleted());
-        return;
-      }
+      if (runtimeOwned) return;
       const session = createWorkflowSession(
         adapter,
         { workflowId, runId },
@@ -4958,34 +5592,44 @@ function createOpenBoxLangChainMiddleware({
 
 // ts/src/copilotkit/pipeline.ts
 import { randomBytes as randomBytes2, randomUUID as randomUUID7 } from "crypto";
+function gateSession(adapter, ids, workflowType, taskQueue) {
+  return createWorkflowSession(adapter, ids, workflowType, taskQueue, {
+    attached: true,
+    inlineApproval: true
+  });
+}
+async function evaluateGate(adapter, input, ids) {
+  const completed = input.kind === "tool_output" || input.kind === "assistant_output";
+  const activityType = input.activityType ?? activityTypeForGate(input.kind);
+  const session = gateSession(
+    adapter,
+    { workflowId: ids.workflowId, runId: ids.runId },
+    input.workflowType,
+    input.taskQueue
+  );
+  return session.activity(
+    completed ? "ActivityCompleted" : "ActivityStarted",
+    activityType,
+    completed ? {
+      activityId: ids.activityId,
+      output: input.payload,
+      spans: [pipelineSpan(input.kind, activityType, input.payload)]
+    } : {
+      activityId: ids.activityId,
+      input: [input.payload],
+      spans: [pipelineSpan(input.kind, activityType, input.payload)]
+    }
+  );
+}
 async function governPipelineGate(adapter, input) {
-  const ids = {
-    workflowId: input.workflowId ?? randomUUID7(),
-    runId: input.runId ?? randomUUID7(),
-    activityId: input.activityId ?? randomUUID7()
-  };
   const key = input.sessionKey ?? "default";
   const halted = input.haltedSessions.get(key);
-  if (halted) {
-    const verdict = {
-      arm: "halt",
-      reason: halted.reason,
-      riskScore: 0
-    };
-    return {
-      safe: input.payload,
-      verdict,
-      status: "session_halted",
-      changed: false,
-      rawBlocked: true,
-      reason: halted.reason,
-      message: halted.reason,
-      workflowId: ids.workflowId,
-      runId: ids.runId,
-      activityId: ids.activityId,
-      session: halted
-    };
-  }
+  const ids = {
+    workflowId: halted?.workflowId ?? input.workflowId ?? randomUUID7(),
+    runId: halted?.runId ?? input.runId ?? randomUUID7(),
+    activityId: input.activityId ?? randomUUID7()
+  };
+  if (halted) return governHaltedPipelineGate(adapter, input, ids, key, halted);
   if (!adapter.isEnabled()) {
     const verdict = {
       arm: "allow",
@@ -4994,6 +5638,7 @@ async function governPipelineGate(adapter, input) {
     };
     return safePayload(input.payload, input.payload, verdict, ids, false);
   }
+  let workflowKnown = Boolean(input.workflowId && input.runId);
   try {
     const needsWorkflowStart = input.ensureWorkflowStarted || !input.workflowId || !input.runId || input.workflowId === input.runId;
     if (needsWorkflowStart) {
@@ -5004,6 +5649,7 @@ async function governPipelineGate(adapter, input) {
         input.taskQueue
       );
     }
+    workflowKnown = true;
     if (input.kind === "prompt") {
       await emitUserPromptSignal(
         adapter,
@@ -5013,7 +5659,7 @@ async function governPipelineGate(adapter, input) {
         promptTextFromPayload(input.payload)
       );
     }
-    const verdict = await evaluate(adapter, gateEvent(input, ids));
+    const verdict = await evaluateGate(adapter, input, ids);
     const safe = isAllowed(verdict.arm) ? applyOpenBoxTransform(input.payload, verdict) : input.payload;
     const changed = !sameJson(safe, input.payload);
     const payload = safePayload(safe, input.payload, verdict, ids, changed);
@@ -5044,12 +5690,107 @@ async function governPipelineGate(adapter, input) {
       };
       return safePayload(input.payload, input.payload, verdict2, ids, false);
     }
+    if (workflowKnown) {
+      await swallow(
+        () => failWorkflow(
+          adapter,
+          { workflowId: ids.workflowId, runId: ids.runId },
+          input.workflowType,
+          input.taskQueue,
+          error
+        )
+      );
+    }
     const verdict = {
       arm: "block",
-      reason: errorMessage(error),
+      reason: `OpenBox could not be reached; the action was not executed (failed closed). ${errorMessage(error)}`,
+      riskScore: 0
+    };
+    return { ...safePayload(input.payload, input.payload, verdict, ids, false), status: "error" };
+  }
+}
+async function governHaltedPipelineGate(adapter, input, ids, key, halted) {
+  if (!adapter.isEnabled()) {
+    const verdict = {
+      arm: "halt",
+      reason: halted.reason,
       riskScore: 0
     };
     return safePayload(input.payload, input.payload, verdict, ids, false);
+  }
+  let workflowKnown = Boolean(input.workflowId && input.runId);
+  try {
+    if (input.kind === "prompt") {
+      workflowKnown = true;
+      await emitUserPromptSignal(
+        adapter,
+        { workflowId: ids.workflowId, runId: ids.runId },
+        input.workflowType,
+        input.taskQueue,
+        promptTextFromPayload(input.payload)
+      );
+    }
+    const verdict = await evaluateGate(adapter, input, ids);
+    if (isAllowed(verdict.arm)) {
+      const failClosedVerdict = {
+        ...verdict,
+        arm: "block",
+        reason: "OpenBox allowed a gate on a previously halted CopilotKit workflow.",
+        riskScore: verdict.riskScore ?? 0
+      };
+      return safePayload(
+        input.payload,
+        input.payload,
+        failClosedVerdict,
+        ids,
+        false
+      );
+    }
+    const payload = safePayload(input.payload, input.payload, verdict, ids, false);
+    if (payload.status === "blocked" || payload.status === "halted") {
+      await swallow(
+        () => finishStoppedWorkflow(
+          adapter,
+          { workflowId: ids.workflowId, runId: ids.runId },
+          input.workflowType,
+          input.taskQueue,
+          verdict
+        )
+      );
+    }
+    if (payload.status === "halted") {
+      input.haltedSessions.set(
+        key,
+        payload.session
+      );
+    }
+    return payload;
+  } catch (error) {
+    if (!input.failClosed || input.governanceMode === "observe") {
+      const verdict2 = {
+        arm: "allow",
+        reason: errorMessage(error),
+        riskScore: 0
+      };
+      return safePayload(input.payload, input.payload, verdict2, ids, false);
+    }
+    if (workflowKnown) {
+      await swallow(
+        () => failWorkflow(
+          adapter,
+          { workflowId: ids.workflowId, runId: ids.runId },
+          input.workflowType,
+          input.taskQueue,
+          error
+        )
+      );
+    }
+    const verdict = {
+      arm: "block",
+      reason: `OpenBox could not be reached; the action was not executed (failed closed). ${errorMessage(error)}`,
+      riskScore: 0
+    };
+    return { ...safePayload(input.payload, input.payload, verdict, ids, false), status: "error" };
   }
 }
 function promptTextFromPayload(payload) {
@@ -5073,25 +5814,6 @@ function promptTextFromPayload(payload) {
     if (typeof content === "string") return content;
   }
   return void 0;
-}
-function gateEvent(input, ids) {
-  const completed = input.kind === "tool_output" || input.kind === "assistant_output";
-  const activityType = input.activityType ?? activityTypeForGate(input.kind);
-  return activityEvent(
-    completed ? "ActivityCompleted" : "ActivityStarted",
-    ids,
-    input.workflowType,
-    input.taskQueue,
-    completed ? {
-      activity_type: activityType,
-      activity_output: input.payload,
-      spans: [pipelineSpan(input.kind, activityType, input.payload)]
-    } : {
-      activity_type: activityType,
-      activity_input: [input.payload],
-      spans: [pipelineSpan(input.kind, activityType, input.payload)]
-    }
-  );
 }
 function activityTypeForGate(kind) {
   switch (kind) {
@@ -5131,6 +5853,8 @@ function createOpenBoxCopilotKitAdapter(config = {}) {
   const governanceMode = config.governanceMode ?? "enforce";
   const failClosed = config.failClosed ?? true;
   const redactionMode = config.redactionMode ?? "transformed-only";
+  const workflowType = config.agentWorkflowType ?? DEFAULT_AGENT_WORKFLOW_TYPE;
+  const taskQueue = config.taskQueue ?? DEFAULT_TASK_QUEUE;
   const haltedSessions = /* @__PURE__ */ new Map();
   const selfGovernedToolNames = /* @__PURE__ */ new Set([
     "openbox_governed_action",
@@ -5145,8 +5869,8 @@ function createOpenBoxCopilotKitAdapter(config = {}) {
     createLangChainMiddleware: (deps) => createOpenBoxLangChainMiddleware({
       adapter,
       deps,
-      workflowType: config.agentWorkflowType ?? DEFAULT_AGENT_WORKFLOW_TYPE,
-      taskQueue: config.taskQueue ?? DEFAULT_TASK_QUEUE,
+      workflowType,
+      taskQueue,
       selfGovernedToolNames,
       strict,
       governanceMode,
@@ -5154,8 +5878,8 @@ function createOpenBoxCopilotKitAdapter(config = {}) {
     }),
     governPrompt: (input) => governPipelineGate(adapter, {
       kind: "prompt",
-      workflowType: config.agentWorkflowType ?? DEFAULT_AGENT_WORKFLOW_TYPE,
-      taskQueue: config.taskQueue ?? DEFAULT_TASK_QUEUE,
+      workflowType,
+      taskQueue,
       haltedSessions,
       strict,
       governanceMode,
@@ -5165,8 +5889,8 @@ function createOpenBoxCopilotKitAdapter(config = {}) {
     }),
     governToolInput: (input) => governPipelineGate(adapter, {
       kind: "tool_input",
-      workflowType: config.agentWorkflowType ?? DEFAULT_AGENT_WORKFLOW_TYPE,
-      taskQueue: config.taskQueue ?? DEFAULT_TASK_QUEUE,
+      workflowType,
+      taskQueue,
       haltedSessions,
       strict,
       governanceMode,
@@ -5176,8 +5900,8 @@ function createOpenBoxCopilotKitAdapter(config = {}) {
     }),
     governToolOutput: (input) => governPipelineGate(adapter, {
       kind: "tool_output",
-      workflowType: config.agentWorkflowType ?? DEFAULT_AGENT_WORKFLOW_TYPE,
-      taskQueue: config.taskQueue ?? DEFAULT_TASK_QUEUE,
+      workflowType,
+      taskQueue,
       haltedSessions,
       strict,
       governanceMode,
@@ -5187,8 +5911,8 @@ function createOpenBoxCopilotKitAdapter(config = {}) {
     }),
     governAssistantOutput: (input) => governPipelineGate(adapter, {
       kind: "assistant_output",
-      workflowType: config.agentWorkflowType ?? DEFAULT_AGENT_WORKFLOW_TYPE,
-      taskQueue: config.taskQueue ?? DEFAULT_TASK_QUEUE,
+      workflowType,
+      taskQueue,
       haltedSessions,
       strict,
       governanceMode,
@@ -5222,6 +5946,11 @@ function createOpenBoxCopilotKitAdapter(config = {}) {
       parseToolResult
     }
   };
+  Object.defineProperty(adapter, "__openboxCopilotRuntimeConfig", {
+    value: { workflowType, taskQueue },
+    enumerable: false,
+    configurable: false
+  });
   return adapter;
 }
 

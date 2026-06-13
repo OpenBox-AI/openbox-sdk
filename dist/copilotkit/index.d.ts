@@ -1,9 +1,9 @@
-import { W as WorkflowVerdict, O as OpenBoxCoreClient, i as AgentIdentityConfig } from '../govern-5Bhxsuwl.js';
+import { W as WorkflowVerdict, O as OpenBoxCoreClient, i as AgentIdentityConfig } from '../govern-CX11GBkl.js';
 import '../core-types-Dxgkbox0.js';
 
 declare const OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION: "openbox.copilotkit.result.v1";
 
-type OpenBoxCopilotVerdictStatus = 'executed' | 'constrained' | 'blocked' | 'halted' | 'session_halted' | 'approval_required' | 'rejected' | 'approval_pending' | 'error';
+type OpenBoxCopilotVerdictStatus = 'executed' | 'constrained' | 'blocked' | 'halted' | 'approval_required' | 'rejected' | 'approval_pending' | 'error';
 type OpenBoxCopilotSessionState = {
     status: 'active';
 } | {
@@ -35,7 +35,12 @@ interface OpenBoxCopilotResumeInput extends OpenBoxCopilotActionInput {
 interface OpenBoxCopilotActionResult<TArtifact = unknown> {
     schemaVersion: typeof OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION;
     status: OpenBoxCopilotVerdictStatus;
-    verdict: WorkflowVerdict['arm'];
+    /**
+     * The OpenBox governance arm, or `'error'` when OpenBox could not be
+     * reached and the SDK failed closed. `'block'` strictly means a policy
+     * decision; availability failures must never claim it.
+     */
+    verdict: WorkflowVerdict['arm'] | 'error';
     executed: boolean;
     action: string;
     request: string;
@@ -58,6 +63,7 @@ interface OpenBoxCopilotActionResult<TArtifact = unknown> {
     governanceEventId?: string;
     expiresAt?: string;
     session?: OpenBoxCopilotSessionState;
+    timings?: OpenBoxCopilotTimings;
     [key: string]: unknown;
 }
 interface OpenBoxCopilotKitConfig {
@@ -158,6 +164,22 @@ interface OpenBoxCopilotObservableLike {
 interface OpenBoxCopilotLangChainMiddlewareDeps {
     createMiddleware: (definition: any) => unknown;
     AIMessage: new (message: any) => unknown;
+    /**
+     * Optional LangChain middleware state schema (for example a zod object)
+     * declaring `openboxWorkflowId`, `openboxRunId`, and the runtime
+     * prompt-governed flag. Declaring them keeps the CopilotKit runtime's
+     * workflow IDs in LangGraph state so one user task maps to one OpenBox
+     * session.
+     */
+    stateSchema?: unknown;
+    /**
+     * Optional LangChain middleware context schema (for example a zod object)
+     * declaring `openboxWorkflowId`, `openboxRunId`, and
+     * `openboxPromptGoverned`. AG-UI forwards matching run-config keys into
+     * LangGraph run context, which carries the CopilotKit runtime's workflow
+     * IDs across the process boundary.
+     */
+    contextSchema?: unknown;
     routeLatestUserPrompt?: (messages: unknown[]) => OpenBoxCopilotPromptRoute | undefined;
 }
 interface OpenBoxCopilotPromptRoute {
@@ -178,6 +200,29 @@ interface OpenBoxSafePayload<T = unknown> {
     runId: string;
     activityId: string;
     session?: OpenBoxCopilotSessionState;
+    timings?: OpenBoxCopilotTimings;
+}
+type OpenBoxCopilotTimingKind = 'openbox' | 'workflow' | 'tool' | 'model' | 'ui';
+interface OpenBoxCopilotTimingStep {
+    key: string;
+    label: string;
+    ms: number;
+    kind: OpenBoxCopilotTimingKind;
+}
+interface OpenBoxCopilotTimingEvent {
+    phase: 'started' | 'finished';
+    key: string;
+    label: string;
+    kind: OpenBoxCopilotTimingKind;
+    startedAt: string;
+    completedAt?: string;
+    ms?: number;
+}
+interface OpenBoxCopilotTimings {
+    startedAt?: string;
+    completedAt?: string;
+    totalMs?: number;
+    steps: OpenBoxCopilotTimingStep[];
 }
 interface OpenBoxCopilotGateInput<T = unknown> {
     payload: T;
@@ -198,6 +243,10 @@ interface GovernedCopilotToolDefinition<TInput extends OpenBoxCopilotActionInput
     isArtifactRedacted?: (artifact: TArtifact | undefined) => boolean;
     markArtifactRedacted?: (artifact: TArtifact) => TArtifact;
     sessionKey?: (config?: unknown) => string;
+    onTimingEvent?: (event: OpenBoxCopilotTimingEvent, context: {
+        input: TInput;
+        runtimeConfig?: unknown;
+    }) => Promise<void> | void;
 }
 interface OpenBoxApprovalDecisionRequest {
     governanceEventId?: string;
@@ -303,4 +352,4 @@ declare function createOpenBoxRuntimeHooks(config?: {
     onError(ctx: OpenBoxCopilotRuntimeErrorHookContext): Promise<Response | void>;
 };
 
-export { type GovernedCopilotTool, type GovernedCopilotToolDefinition, OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION, type OpenBoxApprovalDecisionRequest, type OpenBoxApprovalDecisionResult, type OpenBoxCopilotActionInput, type OpenBoxCopilotActionResult, type OpenBoxCopilotAgentRunnerLike, type OpenBoxCopilotGateInput, type OpenBoxCopilotGateKind, type OpenBoxCopilotKitAdapter, type OpenBoxCopilotKitConfig, OpenBoxCopilotKitError, type OpenBoxCopilotLangChainMiddlewareDeps, type OpenBoxCopilotObservableLike, type OpenBoxCopilotPromptRoute, type OpenBoxCopilotResumeInput, type OpenBoxCopilotRunInputLike, type OpenBoxCopilotRunnerRunRequest, type OpenBoxCopilotRuntime, type OpenBoxCopilotRuntimeConfig, type OpenBoxCopilotRuntimeErrorHookContext, type OpenBoxCopilotRuntimeHookContext, type OpenBoxCopilotRuntimeResponseHookContext, type OpenBoxCopilotSessionState, type OpenBoxCopilotVerdictStatus, type OpenBoxSafePayload, createGovernedCopilotTool, createOpenBoxApprovalRoute, createOpenBoxCopilotKitAdapter, createOpenBoxCopilotRuntime, createOpenBoxGovernedRunner, createOpenBoxReadinessCheck, createOpenBoxRuntimeHooks, parseToolResult };
+export { type GovernedCopilotTool, type GovernedCopilotToolDefinition, OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION, type OpenBoxApprovalDecisionRequest, type OpenBoxApprovalDecisionResult, type OpenBoxCopilotActionInput, type OpenBoxCopilotActionResult, type OpenBoxCopilotAgentRunnerLike, type OpenBoxCopilotGateInput, type OpenBoxCopilotGateKind, type OpenBoxCopilotKitAdapter, type OpenBoxCopilotKitConfig, OpenBoxCopilotKitError, type OpenBoxCopilotLangChainMiddlewareDeps, type OpenBoxCopilotObservableLike, type OpenBoxCopilotPromptRoute, type OpenBoxCopilotResumeInput, type OpenBoxCopilotRunInputLike, type OpenBoxCopilotRunnerRunRequest, type OpenBoxCopilotRuntime, type OpenBoxCopilotRuntimeConfig, type OpenBoxCopilotRuntimeErrorHookContext, type OpenBoxCopilotRuntimeHookContext, type OpenBoxCopilotRuntimeResponseHookContext, type OpenBoxCopilotSessionState, type OpenBoxCopilotTimingEvent, type OpenBoxCopilotTimingKind, type OpenBoxCopilotTimingStep, type OpenBoxCopilotTimings, type OpenBoxCopilotVerdictStatus, type OpenBoxSafePayload, createGovernedCopilotTool, createOpenBoxApprovalRoute, createOpenBoxCopilotKitAdapter, createOpenBoxCopilotRuntime, createOpenBoxGovernedRunner, createOpenBoxReadinessCheck, createOpenBoxRuntimeHooks, parseToolResult };

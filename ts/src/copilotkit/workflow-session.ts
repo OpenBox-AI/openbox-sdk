@@ -1,8 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import {
-  type GovernanceEventPayload,
-  type SpanData,
-} from '../core-client/core-client.js';
+import { type SpanData } from '../core-client/core-client.js';
 import {
   presets,
   type BaseGovernedSession,
@@ -17,6 +14,62 @@ import type {
 } from './types.js';
 
 const startedWorkflowRuns = new Set<string>();
+const TERMINAL_EVENT_TIMEOUT_MS = 5_000;
+
+// One user task should map to one OpenBox session. The runtime gate (or the
+// middleware, when no runtime gate exists) opens the workflow and registers
+// it here so the LangChain middleware and governed tools running in the same
+// process can attach their activities to it instead of opening their own.
+export interface ActiveWorkflowEntry {
+  workflowId: string;
+  runId: string;
+  /** True when this process opened the workflow and owns its terminal event. */
+  owned: boolean;
+}
+
+const activeWorkflows = new WeakMap<object, Map<string, ActiveWorkflowEntry>>();
+const LAST_WORKFLOW_KEY = '__openbox_last_workflow__';
+
+export function registerActiveWorkflow(
+  adapter: OpenBoxCopilotKitAdapter,
+  sessionKey: string,
+  entry: ActiveWorkflowEntry,
+) {
+  let map = activeWorkflows.get(adapter);
+  if (!map) {
+    map = new Map();
+    activeWorkflows.set(adapter, map);
+  }
+  map.set(sessionKey, entry);
+  map.set(LAST_WORKFLOW_KEY, entry);
+}
+
+export function activeWorkflowFor(
+  adapter: OpenBoxCopilotKitAdapter,
+  sessionKey: string,
+): ActiveWorkflowEntry | undefined {
+  const map = activeWorkflows.get(adapter);
+  return map?.get(sessionKey) ?? map?.get(LAST_WORKFLOW_KEY);
+}
+
+export function clearActiveWorkflow(
+  adapter: OpenBoxCopilotKitAdapter,
+  sessionKey: string,
+  workflowId?: string,
+) {
+  const map = activeWorkflows.get(adapter);
+  if (!map) return;
+  const entry = map.get(sessionKey);
+  if (!workflowId || entry?.workflowId === workflowId) map.delete(sessionKey);
+  const last = map.get(LAST_WORKFLOW_KEY);
+  if (last && (!workflowId || last.workflowId === workflowId)) {
+    map.delete(LAST_WORKFLOW_KEY);
+  }
+}
+
+export function clearAllActiveWorkflows(adapter: OpenBoxCopilotKitAdapter) {
+  activeWorkflows.get(adapter)?.clear();
+}
 
 export function createWorkflowIds() {
   return {
@@ -31,6 +84,7 @@ export function createWorkflowSession(
   ids: { workflowId: string; runId: string },
   workflowType: string,
   taskQueue: string,
+  options: { attached?: boolean; inlineApproval?: boolean } = {},
 ): BaseGovernedSession {
   return new presets.langchain({
     core: adapter.getCoreClient(),
@@ -39,47 +93,9 @@ export function createWorkflowSession(
     workflowType,
     taskQueue,
     registerExitHandlers: false,
+    attached: options.attached,
+    inlineApproval: options.inlineApproval,
   });
-}
-
-export function agentSessionForState(
-  adapter: OpenBoxCopilotKitAdapter,
-  state: Record<string, unknown> | undefined,
-  workflowType: string,
-  taskQueue: string,
-): BaseGovernedSession {
-  return createWorkflowSession(
-    adapter,
-    {
-      workflowId:
-        typeof state?.openboxWorkflowId === 'string'
-          ? state.openboxWorkflowId
-          : randomUUID(),
-      runId:
-        typeof state?.openboxRunId === 'string'
-          ? state.openboxRunId
-          : randomUUID(),
-    },
-    workflowType,
-    taskQueue,
-  );
-}
-
-export async function evaluate(
-  adapter: OpenBoxCopilotKitAdapter,
-  payload: GovernanceEventPayload,
-): Promise<WorkflowVerdict> {
-  const response = await adapter.getCoreClient().evaluate(payload);
-  return {
-    arm: normalizeArm(response.verdict || response.action),
-    approvalId: response.approval_id,
-    governanceEventId: response.governance_event_id,
-    approvalExpiresAt: response.approval_expiration_time,
-    reason: response.reason,
-    riskScore: response.risk_score ?? 0,
-    trustTier: response.trust_tier,
-    guardrailsResult: mapGuardrailsResult(response.guardrails_result),
-  };
 }
 
 export async function pollApproval(
@@ -125,12 +141,14 @@ export async function completeWorkflow(
   workflowType: string,
   taskQueue: string,
 ) {
-  await createWorkflowSession(
-    adapter,
-    ids,
-    workflowType,
-    taskQueue,
-  ).workflowCompleted();
+  await bestEffortTerminalEvent(() =>
+    createWorkflowSession(
+      adapter,
+      ids,
+      workflowType,
+      taskQueue,
+    ).workflowCompleted(),
+  );
 }
 
 export async function finishStoppedWorkflow(
@@ -184,16 +202,11 @@ export async function emitUserPromptSignal(
   const signalArgs = prompt?.trim();
   if (!signalArgs) return;
 
-  await evaluate(adapter, {
-    source: 'langgraph',
-    event_type: 'SignalReceived',
-    workflow_id: ids.workflowId,
-    run_id: ids.runId,
-    workflow_type: workflowType,
-    task_queue: taskQueue as GovernanceEventPayload['task_queue'],
-    timestamp: new Date().toISOString(),
-    signal_name: 'user_prompt',
-    signal_args: signalArgs,
+  await createWorkflowSession(adapter, ids, workflowType, taskQueue, {
+    attached: true,
+  }).activity('SignalReceived', 'user_prompt', {
+    signalName: 'user_prompt',
+    signalArgs,
     spans: [userPromptSpan(signalArgs)],
   });
 }
@@ -205,33 +218,26 @@ export async function failWorkflow(
   taskQueue: string,
   reason: unknown,
 ) {
-  await swallow(() =>
-    createWorkflowSession(adapter, ids, workflowType, taskQueue).workflowFailed(
-      typeof reason === 'string' ? new Error(reason) : reason,
-    ),
+  await bestEffortTerminalEvent(() =>
+    createWorkflowSession(
+      adapter,
+      ids,
+      workflowType,
+      taskQueue,
+    ).workflowFailed(typeof reason === 'string' ? new Error(reason) : reason),
   );
 }
 
-export function activityEvent(
-  eventType: 'ActivityStarted' | 'ActivityCompleted',
-  ids: { workflowId: string; runId: string; activityId: string },
-  workflowType: string,
-  taskQueue: string,
-  extra: Partial<GovernanceEventPayload>,
-): GovernanceEventPayload {
-  return {
-    source: 'langgraph',
-    event_type: eventType,
-    workflow_id: ids.workflowId,
-    run_id: ids.runId,
-    workflow_type: workflowType,
-    task_queue: taskQueue as GovernanceEventPayload['task_queue'],
-    timestamp: new Date().toISOString(),
-    activity_id: ids.activityId,
-    activity_type:
-      eventType === 'ActivityStarted' ? 'on_tool_start' : 'on_tool_end',
-    ...extra,
-  };
+async function bestEffortTerminalEvent(fn: () => Promise<unknown>) {
+  const terminalEvent = fn().catch(() => undefined);
+  await swallow(() =>
+    Promise.race([
+      terminalEvent,
+      new Promise<void>((resolve) =>
+        setTimeout(resolve, TERMINAL_EVENT_TIMEOUT_MS),
+      ),
+    ]),
+  );
 }
 
 export function toolInput<TInput extends OpenBoxCopilotActionInput, TArtifact>(

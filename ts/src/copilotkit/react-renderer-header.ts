@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 export function OpenBoxHeader({
   title,
@@ -15,18 +15,29 @@ export function OpenBoxHeader({
   busy?: boolean;
   logoSrc?: string;
 }) {
-  return h('div', { className: 'flex items-start gap-3' }, [
+  const [logoFailed, setLogoFailed] = useState(false);
+  useEffect(() => {
+    setLogoFailed(false);
+  }, [logoSrc]);
+  const showLogo = Boolean(logoSrc && !logoFailed);
+
+  return h('div', { className: 'obx-renderer-header' }, [
     h(
       'div',
       {
         key: 'mark',
-        className:
-          'relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white text-xs font-semibold text-[#1F7FD8] ring-1 ring-[var(--obx-accent,#3B9AF5)]/20',
+        className: showLogo
+          ? 'obx-renderer-mark obx-renderer-mark--image'
+          : 'obx-renderer-mark obx-renderer-mark--fallback',
       },
-      busy
-        ? '...'
-        : logoSrc
-          ? h('img', { src: logoSrc, alt: '', className: 'h-8 w-8' })
+      showLogo
+        ? h('img', {
+            src: logoSrc,
+            alt: '',
+            onError: () => setLogoFailed(true),
+          })
+        : busy
+          ? '...'
           : 'OB',
     ),
     h('div', { key: 'copy', className: 'min-w-0 flex-1' }, [
@@ -34,15 +45,14 @@ export function OpenBoxHeader({
         'div',
         {
           key: 'brand-row',
-          className: 'flex flex-wrap items-center justify-between gap-2',
+          className: 'obx-renderer-brand-row',
         },
         [
           h(
             'div',
             {
               key: 'brand',
-              className:
-                'text-[11px] font-semibold text-[var(--obx-accent,#3B9AF5)]',
+              className: 'obx-renderer-brand',
             },
             'OpenBox',
           ),
@@ -50,7 +60,7 @@ export function OpenBoxHeader({
             'span',
             {
               key: 'badge',
-              className: `shrink-0 rounded-full border px-2 py-0.5 text-xs ${badgeClassName}`,
+              className: `obx-renderer-badge ${badgeClassName}`,
             },
             badge,
           ),
@@ -60,8 +70,7 @@ export function OpenBoxHeader({
         'h3',
         {
           key: 'title',
-          className:
-            'mt-1 text-sm font-semibold leading-5 text-[var(--foreground)]',
+          className: 'obx-renderer-title',
         },
         title,
       ),
@@ -69,7 +78,7 @@ export function OpenBoxHeader({
         'p',
         {
           key: 'reason',
-          className: 'mt-1 text-sm leading-5 text-[var(--muted-foreground)]',
+          className: 'obx-renderer-reason',
         },
         reason,
       ),

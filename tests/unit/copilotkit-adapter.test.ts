@@ -8,7 +8,10 @@ import {
   createOpenBoxReadinessCheck,
   type OpenBoxCopilotActionInput,
 } from '../../ts/src/copilotkit/index';
-import { createOpenBoxCustomMessageRenderer } from '../../ts/src/copilotkit/react';
+import {
+  createOpenBoxCustomMessageRenderer,
+  useOpenBoxCopilotKit,
+} from '../../ts/src/copilotkit/react';
 import type { GovernanceEventPayload } from '../../ts/src/core-client/index';
 
 type DemoInput = OpenBoxCopilotActionInput & {
@@ -70,6 +73,25 @@ function restoreEnv(values: Record<string, string | undefined>) {
 }
 
 describe('CopilotKit OpenBox adapter', () => {
+  it('does not register governed backend tools as same-named frontend render tools', () => {
+    const useHumanInTheLoop = vi.fn();
+    const useDefaultRenderTool = vi.fn();
+    const useRenderTool = vi.fn();
+
+    const result = useOpenBoxCopilotKit({
+      bindings: {
+        useHumanInTheLoop,
+        useDefaultRenderTool,
+        useRenderTool,
+      },
+    });
+
+    expect(result.governedToolNames).toContain('openbox_governed_action');
+    expect(useHumanInTheLoop).toHaveBeenCalledTimes(2);
+    expect(useDefaultRenderTool).toHaveBeenCalledTimes(1);
+    expect(useRenderTool).not.toHaveBeenCalled();
+  });
+
   it('renders OpenBox snapshot tool messages through the React custom message renderer', () => {
     const renderer = createOpenBoxCustomMessageRenderer();
     const Render = renderer.render as (props: Record<string, unknown>) => unknown;
@@ -89,6 +111,96 @@ describe('CopilotKit OpenBox adapter', () => {
     });
 
     expect(node).not.toBeNull();
+  });
+
+  it('finds LangGraph ai/tool message pairs through the React custom message renderer', () => {
+    const renderer = createOpenBoxCustomMessageRenderer();
+    const Render = renderer.render as (props: Record<string, unknown>) => unknown;
+    const toolCallId = 'call_openbox_1';
+
+    const node = Render({
+      position: 'after',
+      message: {
+        type: 'ai',
+        additional_kwargs: {
+          tool_calls: [
+            {
+              id: toolCallId,
+              type: 'function',
+              function: { name: 'openbox_governed_action', arguments: '{}' },
+            },
+          ],
+        },
+      },
+      stateSnapshot: {
+        messages: [
+          {
+            type: 'tool',
+            tool_call_id: toolCallId,
+            content: JSON.stringify({
+              schemaVersion: 'openbox.copilotkit.result.v1',
+              action: 'view_governance_report',
+              request: 'Create a governed report.',
+              status: 'constrained',
+              verdict: 'constrain',
+            }),
+          },
+        ],
+      },
+    });
+
+    expect(node).not.toBeNull();
+  });
+
+  it('maps fail-closed errors to Governance Unavailable, never to a Blocked verdict', async () => {
+    const { verdictFromResult } = await import(
+      '../../ts/src/copilotkit/react-governance-decision'
+    );
+    const { verdictStyles } = await import(
+      '../../ts/src/copilotkit/react-defaults'
+    );
+    const scenario = {
+      action: 'open_revenue_queue',
+      title: 'Operations Queue',
+      reason: 'reason',
+      capability: 'Runtime policy',
+      verdict: 'allow' as const,
+    };
+
+    const errorVerdict = verdictFromResult(
+      { status: 'error', verdict: 'block', reason: 'Request failed: 500' },
+      scenario,
+    );
+    expect(errorVerdict).toBe('error');
+    expect(verdictStyles.error.label).toBe('Governance Unavailable');
+    // A real policy block still maps to the Blocked verdict.
+    expect(
+      verdictFromResult({ status: 'blocked', verdict: 'block' }, scenario),
+    ).toBe('block');
+  });
+
+  it('maps Core policy availability failures to SDK error results, not business halts', async () => {
+    const { execute, tool } = createDemoTool((payload) => {
+      if (payload.event_type === 'ActivityStarted') {
+        return {
+          verdict: 'halt',
+          reason: 'OPA unavailable - fail-closed security policy applied',
+        };
+      }
+      return { verdict: 'allow', reason: 'allowed' };
+    });
+
+    const result = await tool.execute({
+      action: 'demo_action',
+      request: 'Try a governed action while policy evaluation is unavailable.',
+    });
+
+    expect(result.status).toBe('error');
+    expect(result.verdict).toBe('error');
+    expect(result.executed).toBe(false);
+    expect(result.message).toContain('availability failure');
+    expect(result.session?.status).toBe('active');
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it('renders OpenBox assistant tool-call snapshots through the React custom message renderer', () => {
@@ -441,6 +553,80 @@ describe('CopilotKit OpenBox adapter', () => {
     });
   });
 
+  it('does not reopen approval after an approved resume completes the tool', async () => {
+    const events: GovernanceEventPayload[] = [];
+    const core = {
+      evaluate: vi.fn(async (payload: GovernanceEventPayload) => {
+        events.push(payload);
+        const rawCompletionInput = JSON.stringify(payload.activity_input ?? {});
+        if (
+          payload.event_type === 'ActivityCompleted' &&
+          rawCompletionInput.includes('7500')
+        ) {
+          return {
+            verdict: 'require_approval',
+            action: 'require_approval',
+            reason: 'approval already satisfied for this activity',
+            governance_event_id: 'event-complete',
+            approval_id: 'approval-duplicate',
+          };
+        }
+        return { verdict: 'allow', action: 'allow', reason: 'allowed' };
+      }),
+      pollApproval: vi.fn(async () => ({
+        action: 'allow',
+        reason: 'approval granted',
+      })),
+    };
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: core as any,
+      workflowType: 'CopilotKitTestWorkflow',
+      taskQueue: 'langgraph',
+    });
+    const execute = vi.fn(
+      async (input: DemoInput): Promise<DemoArtifact> => ({
+        body: input.request,
+      }),
+    );
+    const tool = createGovernedCopilotTool<DemoInput, DemoArtifact>({
+      adapter,
+      toolName: 'openbox_governed_action',
+      description: 'Test governed action.',
+      execute,
+    });
+
+    const result = await tool.resume({
+      action: 'demo_action',
+      request: 'Issue a service credit after approval for $7,500.',
+      amountUsd: 7500,
+      destination: 'approved customer account',
+      workflowId: 'workflow-approval',
+      runId: 'run-approval',
+      activityId: 'activity-approval',
+      approved: true,
+      approvalId: 'approval-row',
+      governanceEventId: 'event-start',
+    });
+
+    expect(core.pollApproval).toHaveBeenCalledWith({
+      workflow_id: 'workflow-approval',
+      run_id: 'run-approval',
+      activity_id: 'activity-approval',
+    });
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe('executed');
+    expect(result.executed).toBe(true);
+    expect(result.verdict).toBe('allow');
+    expect(result.reason).toBe('OpenBox approval was granted.');
+    expect(JSON.stringify(events[0].activity_input)).not.toContain('7500');
+    expect(JSON.stringify(events[0].spans)).not.toContain('7500');
+    expect(JSON.stringify(events[0].activity_output)).toContain('7,500');
+    expect(events.map((event) => event.event_type)).toEqual([
+      'ActivityCompleted',
+      'WorkflowCompleted',
+    ]);
+  });
+
   it('fails closed and skips execution when OpenBox blocks activity start', async () => {
     const { events, execute, tool } = createDemoTool((payload) => ({
       verdict: payload.event_type === 'ActivityStarted' ? 'block' : 'allow',
@@ -499,7 +685,7 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(result.redactionSummary).toContain('output.artifact.body');
   });
 
-  it('remembers a halt verdict for the runtime session', async () => {
+  it('rechecks OpenBox after a halt verdict for the runtime session', async () => {
     const { events, execute, tool } = createDemoTool((payload) => ({
       verdict: payload.event_type === 'ActivityStarted' ? 'halt' : 'allow',
       reason: 'production action halted',
@@ -522,12 +708,14 @@ describe('CopilotKit OpenBox adapter', () => {
     );
 
     expect(first.status).toBe('halted');
-    expect(second.status).toBe('session_halted');
+    expect(second.status).toBe('halted');
     expect(second.reason).toBe('production action halted');
     expect(execute).not.toHaveBeenCalled();
     expect(events.map((event) => event.event_type)).toEqual([
       'WorkflowStarted',
       'SignalReceived',
+      'ActivityStarted',
+      'WorkflowFailed',
       'ActivityStarted',
       'WorkflowFailed',
     ]);
@@ -612,14 +800,49 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityCompleted',
     ]);
     expect(mock.events[1]).toMatchObject({
       signal_name: 'user_prompt',
       signal_args: 'Open the revenue queue.',
     });
+    // The allowed input gate is paired under one activity id.
+    expect(mock.events[3].activity_id).toBe(mock.events[2].activity_id);
     expect(mock.events[0].workflow_id).toBe(mock.events[2].workflow_id);
     expect(mock.events[0].run_id).toBe(mock.events[2].run_id);
     expect(mock.events[0].run_id).not.toBe(mock.events[0].workflow_id);
+  });
+
+  it('marks standalone runtime gate workflows failed when Core errors after start', async () => {
+    const mock = createMockCore((payload) => {
+      if (payload.event_type === 'ActivityStarted') {
+        throw new Error('Request failed: 503 Service Unavailable');
+      }
+      return {
+        verdict: 'allow',
+        reason: 'allowed',
+      };
+    });
+    const adapter = createOpenBoxCopilotKitAdapter({ core: mock.core as any });
+
+    const result = await adapter.governPrompt({
+      payload: {
+        messages: [{ role: 'user', content: 'Check a database update.' }],
+      },
+      sessionKey: 'core-error-after-start',
+      activityType: 'on_chat_model_start',
+    });
+
+    expect(result.status).toBe('error');
+    expect(result.verdict.reason).toContain('503 Service Unavailable');
+    expect(mock.events.map((event) => event.event_type)).toEqual([
+      'WorkflowStarted',
+      'SignalReceived',
+      'ActivityStarted',
+      'WorkflowFailed',
+    ]);
+    expect(mock.events[3].workflow_id).toBe(mock.events[0].workflow_id);
+    expect(mock.events[3].run_id).toBe(mock.events[0].run_id);
   });
 
   it('runtime handler stores distinct OpenBox workflow IDs on governed input state', async () => {
@@ -670,6 +893,7 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityCompleted',
     ]);
     expect(mock.events[1]).toMatchObject({
       signal_name: 'user_prompt',
@@ -817,6 +1041,7 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityCompleted',
     ]);
   });
 
@@ -848,8 +1073,10 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityCompleted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityCompleted',
     ]);
   });
 
@@ -1044,9 +1271,13 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(result.content).toBe('[REDACTED_EMAIL]');
   });
 
-  it('halts later gates in the same session after a halt verdict', async () => {
+  it('rechecks OpenBox for later gates in the same session after a halt verdict', async () => {
     const mock = createMockCore((payload) => ({
-      verdict: payload.activity_type === 'UserPromptSubmit' ? 'halt' : 'allow',
+      verdict:
+        payload.activity_type === 'UserPromptSubmit' ||
+        payload.activity_type === 'on_tool_start'
+          ? 'halt'
+          : 'allow',
       reason: 'session halted',
     }));
     const adapter = createOpenBoxCopilotKitAdapter({ core: mock.core as any });
@@ -1060,7 +1291,12 @@ describe('CopilotKit OpenBox adapter', () => {
     });
 
     expect(first.status).toBe('halted');
-    expect(second.status).toBe('session_halted');
+    expect(second.status).toBe('halted');
+    expect(
+      mock.events
+        .filter((event) => event.event_type === 'ActivityStarted')
+        .map((event) => event.activity_type),
+    ).toEqual(['UserPromptSubmit', 'on_tool_start']);
   });
 
   it('pauses on approval-required prompt verdict without calling the model', async () => {
@@ -1119,6 +1355,84 @@ describe('CopilotKit OpenBox adapter', () => {
 
     expect(baseRunner.run).not.toHaveBeenCalled();
     expect(JSON.stringify(events)).toContain('runtime prompt blocked');
+  });
+
+  it('native runner completes the OpenBox workflow when the CopilotKit stream completes', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({
+        core: mock.core as any,
+        agentWorkflowType: 'CopilotKitRuntime',
+        taskQueue: 'copilotkit-runtime',
+      }),
+    });
+
+    await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+        },
+      }),
+    );
+
+    expect(mock.events.map((event) => event.event_type)).toEqual([
+      'WorkflowStarted',
+      'SignalReceived',
+      'ActivityStarted',
+      'ActivityCompleted',
+      'WorkflowCompleted',
+    ]);
+    expect(mock.events.at(-1)).toMatchObject({
+      workflow_type: 'CopilotKitRuntime',
+      task_queue: 'copilotkit-runtime',
+    });
+  });
+
+  it('native runner fails the OpenBox workflow when the CopilotKit stream errors', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const baseRunner = createFailingRunner(
+      [{ type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' }],
+      new Error('stream failed'),
+    );
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    await expect(
+      collectObservable(
+        runner.run({
+          threadId: 'thread-1',
+          agent: {},
+          input: {
+            threadId: 'thread-1',
+            runId: 'run-1',
+            messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+          },
+        }),
+      ),
+    ).rejects.toThrow('stream failed');
+
+    expect(mock.events.map((event) => event.event_type)).toEqual([
+      'WorkflowStarted',
+      'SignalReceived',
+      'ActivityStarted',
+      'ActivityCompleted',
+      'WorkflowFailed',
+    ]);
   });
 
   it('native runner redacts prompt input before the CopilotKit runner executes', async () => {
@@ -1269,6 +1583,12 @@ describe('CopilotKit OpenBox adapter', () => {
 
     expect(JSON.stringify(events)).toContain('final output blocked');
     expect(JSON.stringify(events)).not.toContain('alice@example.com');
+    expect(mock.events.map((event) => event.event_type)).toContain(
+      'WorkflowFailed',
+    );
+    expect(mock.events.map((event) => event.event_type)).not.toContain(
+      'WorkflowCompleted',
+    );
   });
 
   it('native runner redacts custom non-text final AG-UI payloads before emit', async () => {
@@ -1416,6 +1736,278 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(JSON.stringify(events)).toContain('custom final output blocked');
     expect(JSON.stringify(events)).not.toContain('alice@example.com');
   });
+
+  it('native runner completes the workflow on RUN_FINISHED even without observer.complete()', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const baseRunner = createFakeRunner(
+      [
+        { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+        { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+      ],
+      { complete: false },
+    );
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    runner.run({
+      threadId: 'thread-1',
+      agent: {},
+      input: {
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+      },
+    }).subscribe({});
+    await waitFor(() =>
+      mock.events.some((event) => event.event_type === 'WorkflowCompleted'),
+    );
+
+    const types = mock.events.map((event) => event.event_type);
+    expect(types).toContain('WorkflowStarted');
+    expect(types).toContain('WorkflowCompleted');
+    expect(types).not.toContain('WorkflowFailed');
+  });
+
+  it('native runner fails the workflow on RUN_ERROR even without observer.error()', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const baseRunner = createFakeRunner(
+      [
+        { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+        { type: 'RUN_ERROR', message: 'agent thread creation failed' },
+      ],
+      { complete: false },
+    );
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    runner.run({
+      threadId: 'thread-1',
+      agent: {},
+      input: {
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+      },
+    }).subscribe({});
+    await waitFor(() =>
+      mock.events.some((event) => event.event_type === 'WorkflowFailed'),
+    );
+
+    const types = mock.events.map((event) => event.event_type);
+    expect(types).toContain('WorkflowFailed');
+    expect(types).not.toContain('WorkflowCompleted');
+  });
+
+  it('governs runs without an agentId even when an agents filter is configured', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const baseRunner = createFakeRunner(
+      [
+        { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+        { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+      ],
+      { complete: false },
+    );
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+      agents: ['default'],
+    });
+
+    // CopilotKit's SSE handler shape: { threadId, agent, input }, no agentId.
+    runner.run({
+      threadId: 'thread-1',
+      agent: {},
+      input: {
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+      },
+    }).subscribe({});
+    await waitFor(() =>
+      mock.events.some((event) => event.event_type === 'WorkflowCompleted'),
+    );
+
+    expect(mock.events.map((event) => event.event_type)).toContain(
+      'WorkflowStarted',
+    );
+  });
+
+  it('bypasses governance only for explicitly mismatched agent ids', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+      agents: ['default'],
+    });
+
+    await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agentId: 'other-agent',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+        },
+      }),
+    );
+
+    expect(mock.events).toHaveLength(0);
+    expect(baseRunner.run).toHaveBeenCalledTimes(1);
+  });
+
+  it('middleware opens one owned workflow lazily and closes it when state drops the IDs', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const middleware = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+
+    const runtime = { config: { configurable: { thread_id: 'thread-drop' } } };
+    await middleware.wrapModelCall(
+      {
+        messages: [{ type: 'human', content: 'Open queue.' }],
+        configurable: { thread_id: 'thread-drop' },
+        state: {},
+      },
+      async () => ({ content: 'done' }),
+    );
+    await middleware.afterAgent(
+      { messages: [], configurable: { thread_id: 'thread-drop' } },
+      runtime,
+    );
+
+    const workflowIds = new Set(mock.events.map((event) => event.workflow_id));
+    expect(workflowIds.size).toBe(1);
+    const types = mock.events.map((event) => event.event_type);
+    expect(types[0]).toBe('WorkflowStarted');
+    expect(types[types.length - 1]).toBe('WorkflowCompleted');
+    expect(
+      mock.events.filter((event) => event.event_type === 'WorkflowStarted'),
+    ).toHaveLength(1);
+  });
+
+  it('middleware adopts the runtime workflow from state and leaves its terminal event to the runtime', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const middleware = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+
+    const state = {
+      messages: [],
+      openboxWorkflowId: 'runtime-workflow',
+      openboxRunId: 'runtime-run',
+      __openboxRuntimePromptGoverned: true,
+    };
+    const runtime = { config: { configurable: { thread_id: 'thread-adopt' } } };
+    await middleware.wrapToolCall(
+      {
+        toolCall: { name: 'crm_lookup', args: {} },
+        configurable: { thread_id: 'thread-adopt' },
+        state,
+      },
+      async () => ({ ok: true }),
+    );
+    await middleware.afterAgent(
+      { ...state, configurable: { thread_id: 'thread-adopt' } },
+      runtime,
+    );
+
+    const types = mock.events.map((event) => event.event_type);
+    expect(types).not.toContain('WorkflowStarted');
+    expect(types).not.toContain('WorkflowCompleted');
+    expect(
+      new Set(mock.events.map((event) => event.workflow_id)),
+    ).toEqual(new Set(['runtime-workflow']));
+  });
+
+  it('governed tool rides the active task workflow without opening or closing it', async () => {
+    const { registerActiveWorkflow, clearActiveWorkflow } = await import(
+      '../../ts/src/copilotkit/workflow-session'
+    );
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+      workflowType: 'CopilotKitTestWorkflow',
+      taskQueue: 'langgraph',
+    });
+    const tool = createGovernedCopilotTool<DemoInput, DemoArtifact>({
+      adapter,
+      toolName: 'openbox_governed_action',
+      description: 'Test governed action.',
+      execute: async (input) => ({ body: input.request }),
+    });
+    registerActiveWorkflow(adapter, 'default', {
+      workflowId: 'task-workflow',
+      runId: 'task-run',
+      owned: false,
+    });
+    try {
+      const result = await tool.execute({
+        action: 'demo_action',
+        request: 'Open the queue.',
+      });
+
+      expect(result.status).toBe('executed');
+      expect(result.workflowId).toBe('task-workflow');
+      const types = mock.events.map((event) => event.event_type);
+      expect(types).not.toContain('WorkflowStarted');
+      expect(types).not.toContain('WorkflowCompleted');
+      expect(types).toContain('ActivityStarted');
+      expect(types).toContain('ActivityCompleted');
+      expect(
+        new Set(mock.events.map((event) => event.workflow_id)),
+      ).toEqual(new Set(['task-workflow']));
+    } finally {
+      clearActiveWorkflow(adapter, 'default');
+    }
+  });
+
+  it('native runner skips WorkflowCompleted when a governed result already ended the workflow', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const baseRunner = createFakeRunner(
+      [
+        { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+        {
+          type: 'TOOL_CALL_RESULT',
+          messageId: 'tool-1',
+          toolCallId: 'call-1',
+          role: 'tool',
+          content: JSON.stringify({
+            schemaVersion: 'openbox.copilotkit.result.v1',
+            status: 'halted',
+            verdict: 'halt',
+            action: 'disable_production_payments',
+          }),
+        },
+        { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+      ],
+      { complete: false },
+    );
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    runner.run({
+      threadId: 'thread-1',
+      agent: {},
+      input: {
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messages: [{ id: 'user-1', role: 'user', content: 'Halt this.' }],
+      },
+    }).subscribe({});
+    // Give the scheduled terminal a chance to (incorrectly) fire.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const types = mock.events.map((event) => event.event_type);
+    expect(types).not.toContain('WorkflowCompleted');
+    expect(types).not.toContain('WorkflowFailed');
+  });
 });
 
 function createMiddlewareDeps() {
@@ -1433,7 +2025,10 @@ function createMiddlewareDeps() {
   };
 }
 
-function createFakeRunner(events: Record<string, unknown>[]) {
+function createFakeRunner(
+  events: Record<string, unknown>[],
+  options: { complete?: boolean } = {},
+) {
   const runner = {
     lastInput: undefined as any,
     run: vi.fn((request: any) => {
@@ -1446,7 +2041,39 @@ function createFakeRunner(events: Record<string, unknown>[]) {
               : observerOrNext;
           queueMicrotask(() => {
             for (const event of events) observer?.next?.(event);
-            observer?.complete?.();
+            if (options.complete !== false) observer?.complete?.();
+          });
+          return { unsubscribe() {} };
+        },
+      };
+    }),
+  };
+  return runner;
+}
+
+async function waitFor(check: () => boolean, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (check()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  if (!check()) throw new Error('waitFor timed out');
+}
+
+function createFailingRunner(events: Record<string, unknown>[], error: Error) {
+  const runner = {
+    lastInput: undefined as any,
+    run: vi.fn((request: any) => {
+      runner.lastInput = request.input;
+      return {
+        subscribe(observerOrNext?: any, onError?: any) {
+          const observer =
+            typeof observerOrNext === 'function'
+              ? { next: observerOrNext, error: onError }
+              : observerOrNext;
+          queueMicrotask(() => {
+            for (const event of events) observer?.next?.(event);
+            observer?.error?.(error);
           });
           return { unsubscribe() {} };
         },

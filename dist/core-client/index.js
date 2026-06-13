@@ -1304,6 +1304,42 @@ var BaseGovernedSession = class {
     return this.runActivity(eventType, activityType, payload);
   }
   /**
+   * Split-stage activity for callers that must run business logic between
+   * the input gate and the output gate (e.g. governed tools that gate the
+   * produced artifact). Emits ActivityStarted and returns the gate verdict
+   * plus a `complete()` bound to the same activity id, so the pair cannot
+   * drift apart. Stopped starts (block/halt) and pending approvals are
+   * canonically left unpaired; the caller resolves them via the workflow
+   * terminal or approval resume (ActivityCompleted with this activity id).
+   */
+  async openActivity(activityType, payload) {
+    if (this.finalized) throw new SessionAlreadyTerminatedError();
+    if (!this.opened && !this.autoOpenSuppressed) await this.begin();
+    const activityId = payload.activityId ?? randomUUID2();
+    this.inFlight.add(activityId);
+    try {
+      const verdict = await this.emit({
+        event_type: "ActivityStarted",
+        activity_id: activityId,
+        activity_type: activityType,
+        activity_input: payload.input,
+        spans: payload.spans
+      });
+      verdict.activityId = activityId;
+      return {
+        activityId,
+        verdict,
+        complete: (completionPayload, completionActivityType) => this.runActivity(
+          "ActivityCompleted",
+          completionActivityType ?? activityType,
+          { ...completionPayload, activityId }
+        )
+      };
+    } finally {
+      this.inFlight.delete(activityId);
+    }
+  }
+  /**
    * Run one activity through the canonical envelope. Preset classes
    * call this with their fixed (eventType, activityType) tuple; the
    * `custom` preset takes them from the user.
@@ -1317,17 +1353,21 @@ var BaseGovernedSession = class {
   async runActivity(eventType, activityType, payload) {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
     if (!this.opened && !this.autoOpenSuppressed) await this.begin();
-    const activityId = randomUUID2();
+    const activityId = payload.activityId ?? randomUUID2();
     this.inFlight.add(activityId);
     try {
       if (eventType === "SignalReceived") {
-        return this.emit({
+        const signalVerdict = await this.emit({
           event_type: "SignalReceived",
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
+          signal_name: payload.signalName,
+          signal_args: payload.signalArgs,
           spans: payload.spans
         });
+        signalVerdict.activityId = activityId;
+        return signalVerdict;
       }
       if (eventType === "ActivityStarted") {
         const startedVerdict = await this.emit({
@@ -1337,6 +1377,14 @@ var BaseGovernedSession = class {
           activity_input: payload.input,
           spans: payload.spans
         });
+        startedVerdict.activityId = activityId;
+        if (startedVerdict.arm === "constrain") {
+          try {
+            await this.emitCompleted(activityId, activityType, payload);
+          } catch {
+          }
+          return startedVerdict;
+        }
         if (startedVerdict.arm !== "allow") {
           if (startedVerdict.arm === "require_approval") {
             const approvalId = startedVerdict.approvalId ?? activityId;
@@ -1357,6 +1405,7 @@ var BaseGovernedSession = class {
               return startedVerdict;
             }
             const polled = await this.pollApproval(activityId, activityType, startedVerdict);
+            polled.activityId = activityId;
             if (this.onApprovalResolved) {
               try {
                 await this.onApprovalResolved({
@@ -1388,6 +1437,7 @@ var BaseGovernedSession = class {
       activity_output: payload.output,
       spans: payload.spans
     });
+    completedVerdict.activityId = activityId;
     if (completedVerdict.arm === "require_approval") {
       const approvalId = completedVerdict.approvalId ?? activityId;
       if (this.onPendingApproval) {
@@ -1407,6 +1457,7 @@ var BaseGovernedSession = class {
         return completedVerdict;
       }
       const polled = await this.pollApproval(activityId, activityType, completedVerdict);
+      polled.activityId = activityId;
       if (this.onApprovalResolved) {
         try {
           await this.onApprovalResolved({ approvalId, activityId, activityType, arm: polled.arm });
@@ -2238,7 +2289,7 @@ function mergeArray(target, source) {
 }
 function applyInputRedaction(originalData, guardrails) {
   if (!guardrails || guardrails.inputType !== "activity_input") return originalData;
-  let redacted = guardrails.redactedInput;
+  let redacted = unwrapActivityInputRedaction(guardrails.redactedInput);
   if (redacted && typeof redacted === "object" && !Array.isArray(redacted)) {
     redacted = [redacted];
   }
@@ -2268,7 +2319,7 @@ function applyInputRedaction(originalData, guardrails) {
 }
 function applyOutputRedaction(originalOutput, guardrails) {
   if (!guardrails || guardrails.inputType !== "activity_output") return originalOutput;
-  const redacted = guardrails.redactedInput;
+  const redacted = unwrapActivityOutputRedaction(guardrails.redactedInput, originalOutput);
   if (redacted === null || redacted === void 0) return originalOutput;
   if (typeof originalOutput === "object" && !Array.isArray(originalOutput) && originalOutput !== null && typeof redacted === "object" && !Array.isArray(redacted)) {
     const out = cloneValue(originalOutput);
@@ -2277,6 +2328,23 @@ function applyOutputRedaction(originalOutput, guardrails) {
   }
   return redacted;
 }
+function unwrapActivityInputRedaction(redactedInput) {
+  if (!isPlainObject(redactedInput)) return redactedInput;
+  if (Array.isArray(redactedInput.input)) return redactedInput.input;
+  if (Array.isArray(redactedInput.activity_input)) return redactedInput.activity_input;
+  if (Array.isArray(redactedInput.activityInput)) return redactedInput.activityInput;
+  return redactedInput;
+}
+function unwrapActivityOutputRedaction(redactedInput, originalOutput) {
+  if (!isPlainObject(redactedInput) || hasOwnKey(originalOutput, "output")) {
+    return redactedInput;
+  }
+  const redacted = redactedInput;
+  if (Object.prototype.hasOwnProperty.call(redacted, "output")) return redacted.output;
+  if (Object.prototype.hasOwnProperty.call(redacted, "activity_output")) return redacted.activity_output;
+  if (Object.prototype.hasOwnProperty.call(redacted, "activityOutput")) return redacted.activityOutput;
+  return redactedInput;
+}
 function hasGuardrailRedaction(guardrails) {
   return Boolean(
     guardrails?.redactedInput !== null && guardrails?.redactedInput !== void 0 && guardrails.fieldResults?.some((field) => isRedactedStatus(field.status))
@@ -2284,11 +2352,18 @@ function hasGuardrailRedaction(guardrails) {
 }
 function summarizeGuardrailRedaction(guardrails, fallback = "OpenBox redacted sensitive fields.") {
   const fields = guardrails?.fieldResults?.filter((field) => isRedactedStatus(field.status)).map((field) => field.field).filter(Boolean);
-  if (!fields?.length) return fallback;
-  return `OpenBox redacted ${fields.slice(0, 4).join(", ")}${fields.length > 4 ? ` and ${fields.length - 4} more ${fields.length - 4 === 1 ? "field" : "fields"}` : ""}.`;
+  const uniqueFields = Array.from(new Set(fields));
+  if (!uniqueFields.length) return fallback;
+  return `OpenBox redacted ${uniqueFields.slice(0, 4).join(", ")}${uniqueFields.length > 4 ? ` and ${uniqueFields.length - 4} more ${uniqueFields.length - 4 === 1 ? "field" : "fields"}` : ""}.`;
 }
 function isRedactedStatus(status) {
   return status === "redacted" || status === "transformed";
+}
+function isPlainObject(value) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+function hasOwnKey(value, key) {
+  return isPlainObject(value) && Object.prototype.hasOwnProperty.call(value, key);
 }
 function cloneValue(value) {
   if (typeof structuredClone === "function") {

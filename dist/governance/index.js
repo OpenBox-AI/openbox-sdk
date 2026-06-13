@@ -750,16 +750,51 @@ function buildSpan2(host, type, input) {
         result: input.tool_output ?? null
       };
     case "http":
+      const method = (input.method ?? "GET").toUpperCase();
+      const url = input.url ?? "";
       return {
         ...b,
-        name: "http.request",
-        hook_type: "function_call",
-        semantic_type: `http_${(input.method ?? "get").toLowerCase()}`,
+        name: `${method} ${url}`,
+        hook_type: "http_request",
+        semantic_type: `http_${method.toLowerCase()}`,
         attributes: {
-          "http.method": input.method ?? "GET",
-          "http.url": input.url ?? ""
+          "http.method": method,
+          "http.url": url
         },
+        http_method: method,
+        http_url: url,
+        request_body: null,
+        response_body: null,
+        request_headers: null,
+        response_headers: null,
+        http_status_code: null,
         function: "HTTPCall",
+        module: host,
+        args: input,
+        result: null
+      };
+    case "db":
+      const dbSystem = input.db_system ?? "postgresql";
+      const dbOperation = (input.db_operation ?? "SELECT").toUpperCase();
+      const dbStatement = input.db_statement ?? `${dbOperation} statement`;
+      return {
+        ...b,
+        name: `${dbOperation} ${dbStatement.split(" ").slice(0, 3).join(" ")}`,
+        hook_type: "db_query",
+        semantic_type: `database_${dbOperation.toLowerCase()}`,
+        attributes: {
+          "db.system": dbSystem,
+          "db.operation": dbOperation,
+          "db.statement": dbStatement
+        },
+        db_system: dbSystem,
+        db_name: null,
+        db_operation: dbOperation,
+        db_statement: dbStatement,
+        server_address: null,
+        server_port: null,
+        rowcount: null,
+        function: "DatabaseQuery",
         module: host,
         args: input,
         result: null

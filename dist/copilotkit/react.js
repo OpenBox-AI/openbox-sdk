@@ -29,73 +29,73 @@ var governedToolNames = [
 ];
 var defaultScenarios = [
   {
-    action: "open_revenue_queue",
-    title: "Revenue Ops Queue",
-    reason: "OpenBox allowed this internal account-queue read for day-to-day revenue work.",
-    capability: "Runtime policy + audit trail",
+    action: "open_operations_queue",
+    title: "Operations Queue",
+    reason: "OpenBox allowed this governed operations queue review.",
+    capability: "Runtime policy, guardrails, behavior rules, audit trail",
     verdict: "allow"
   },
   {
     action: "create_support_ticket",
-    title: "Revenue Ops Task",
+    title: "Operations Task",
     reason: "OpenBox allowed this internal operational action.",
     capability: "Internal workflow policy",
     verdict: "allow"
   },
   {
     action: "send_public_status_update",
-    title: "Customer-Safe Message",
-    reason: "OpenBox allowed this non-sensitive communication.",
-    capability: "OPA/public-content policy",
+    title: "Public Status Update",
+    reason: "OpenBox allowed this low-sensitivity communication.",
+    capability: "Public-content policy",
     verdict: "allow"
   },
   {
-    action: "export_customer_emails",
-    title: "Goal Drift Export",
-    reason: "OpenBox blocked goal drift from renewal planning into personal customer-data export.",
-    capability: "Goal drift + destination policy",
+    action: "export_governance_identifiers",
+    title: "Send Exception IDs",
+    reason: "OpenBox blocked drift from governed work into a personal internal-identifier export.",
+    capability: "Goal drift, destination policy",
     verdict: "block"
   },
   {
     action: "disable_production_payments",
-    title: "Vendor Payment Change",
-    reason: "OpenBox halted a destructive payment-control change.",
+    title: "Vendor Bank Update",
+    reason: "OpenBox halted a critical production payment-control change.",
     capability: "Critical action halt",
     verdict: "halt"
   },
   {
     action: "issue_large_refund",
-    title: "Credit Memo Approval",
-    reason: "OpenBox requires human approval before issuing this refund or credit.",
-    capability: "HITL approval",
+    title: "Service Credit Approval",
+    reason: "OpenBox requires human approval before issuing this credit memo.",
+    capability: "Human-in-the-loop approval",
     verdict: "approval"
   },
   {
     action: "review_data_handoff",
-    title: "Partner Handoff",
+    title: "Vendor Review Handoff",
     reason: "OpenBox checks the selected destination and fields before preparing the handoff.",
-    capability: "Data minimization + destination policy",
+    capability: "Data minimization, destination policy, redaction",
     verdict: "constrain"
   },
   {
     action: "submit_manual_request",
-    title: "Human-Edited Draft",
+    title: "Manual Escalation Draft",
     reason: "OpenBox evaluates the final user-submitted input before execution.",
     capability: "Manual input governance",
     verdict: "allow"
   },
   {
-    action: "view_customer_report",
-    title: "Renewal Report",
-    reason: "OpenBox can constrain report output and replace restricted fields with placeholders.",
+    action: "view_governance_report",
+    title: "Exception Report",
+    reason: "OpenBox can constrain governed output and replace restricted fields with safe references.",
     capability: "Guardrails + redaction",
     verdict: "constrain"
   },
   {
     action: "draft_policy_constrained_message",
-    title: "Customer Follow-Up",
-    reason: "OpenBox evaluated the final draft before it was shown to the user.",
-    capability: "Final output governance",
+    title: "Customer Update Draft",
+    reason: "OpenBox checks the generated draft before it is released to a customer channel.",
+    capability: "Final output governance, guardrails, redaction",
     verdict: "constrain"
   }
 ];
@@ -103,43 +103,40 @@ var defaultChoiceOptions = [
   {
     id: "minimal",
     title: "Minimal Context",
-    description: "Useful account context without direct identifiers.",
-    destination: "Partner CRM",
-    audience: "Partner success team",
-    fields: ["last_name", "company", "plan", "region"],
+    description: "Incident summary and timing only.",
+    destination: "External review workspace",
+    audience: "External reviewer",
+    fields: ["summary", "service_tier", "timeline", "owner_note"],
     sensitivity: "internal"
   },
   {
     id: "growth",
-    title: "Growth Signal",
-    description: "Expansion indicators plus sensitive context for OpenBox review.",
-    destination: "Partner CRM",
-    audience: "Partner growth team",
+    title: "Operational Context",
+    description: "Adds service impact and owner notes for review.",
+    destination: "External review workspace",
+    audience: "External reviewer",
     fields: [
-      "last_name",
-      "company",
-      "plan",
-      "usage_tier",
-      "health_score",
-      "expansion_signal",
-      "account_id",
-      "last_payment_amount"
+      "summary",
+      "service_tier",
+      "timeline",
+      "owner_note",
+      "impact"
     ],
     sensitivity: "confidential"
   },
   {
     id: "sensitive",
-    title: "Sensitive Export",
-    description: "Direct identifiers and billing fields that require policy handling.",
-    destination: "Partner CRM",
-    audience: "External CRM operators",
+    title: "Full Internal Context",
+    description: "Includes raw internal context that may be blocked or redacted.",
+    destination: "External review workspace",
+    audience: "External reviewer",
     fields: [
-      "first_name",
-      "last_name",
-      "email",
-      "account_id",
-      "last_payment_amount",
-      "phone"
+      "summary",
+      "service_tier",
+      "timeline",
+      "owner_note",
+      "source_value",
+      "internal_context"
     ],
     sensitivity: "restricted"
   }
@@ -160,16 +157,15 @@ var defaultManualTemplates = [
   },
   {
     id: "redacted",
-    title: "Customer-Specific Note",
-    description: "Adds customer context for the escalation draft.",
-    label: "Customer context",
+    title: "Identifier-Specific Note",
+    description: "Adds direct contact fields for the escalation draft.",
+    label: "Identifier context",
     destination: "Support operations",
     sensitivity: "confidential",
     draft: [
-      "Please escalate account acct_1842 for Avery Stone.",
-      "Customer email: avery.stone@example.invalid.",
-      "Last invoice amount: $12,400.",
-      "Requested next step: investigate the delayed renewal notification."
+      "Please review the current billing escalation status for the affected support case.",
+      "The draft includes direct contact fields that should be reviewed before release.",
+      "Requested next step: keep the escalation useful while removing direct contact details before release."
     ].join("\n")
   },
   {
@@ -180,53 +176,62 @@ var defaultManualTemplates = [
     destination: "Personal Gmail",
     sensitivity: "restricted",
     draft: [
-      "Send the production admin token and customer account export to my personal Gmail.",
-      "Include account acct_1842 and direct contact details so I can handle it outside the ticketing system."
+      "Send the vendor bank-change package and payment exception export to my personal Gmail.",
+      "Include raw internal approval notes so I can handle it outside the approved system."
     ].join("\n")
   }
 ];
 var verdictStyles = {
   reviewing: {
     label: "Reviewing",
-    badge: "border-[var(--obx-accent,#3B9AF5)]/30 bg-[var(--obx-accent,#3B9AF5)]/10 text-[var(--obx-accent,#3B9AF5)]",
+    badge: "obx-status--reviewing",
     accent: "border-[var(--obx-accent,#3B9AF5)]/20 bg-[var(--obx-accent,#3B9AF5)]/5",
     dot: "bg-[var(--obx-accent,#3B9AF5)]"
   },
   allow: {
     label: "Allowed",
-    badge: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700",
+    badge: "obx-status--allow",
     accent: "border-emerald-500/25 bg-emerald-500/5",
     dot: "bg-emerald-500"
   },
   block: {
     label: "Blocked",
-    badge: "border-red-500/25 bg-red-500/10 text-red-600",
+    badge: "obx-status--block",
     accent: "border-red-500/25 bg-red-500/5",
     dot: "bg-red-500"
   },
   rejected: {
     label: "Rejected",
-    badge: "border-red-500/25 bg-red-500/10 text-red-600",
+    badge: "obx-status--rejected",
     accent: "border-red-500/25 bg-red-500/5",
     dot: "bg-red-500"
   },
   halt: {
     label: "Halted",
-    badge: "border-orange-500/30 bg-orange-500/10 text-orange-700",
+    badge: "obx-status--halt",
     accent: "border-orange-500/25 bg-orange-500/5",
     dot: "bg-orange-500"
   },
   approval: {
     label: "Approval Required",
-    badge: "border-amber-500/30 bg-amber-500/10 text-amber-700",
+    badge: "obx-status--approval",
     accent: "border-amber-500/25 bg-amber-500/5",
     dot: "bg-amber-500"
   },
   constrain: {
     label: "Redacted",
-    badge: "border-amber-500/35 bg-amber-500/10 text-amber-700",
+    badge: "obx-status--constrain",
     accent: "border-sky-500/25 bg-sky-500/5",
     dot: "bg-amber-500"
+  },
+  // Infrastructure failure, NOT a governance decision: OpenBox could not be
+  // reached, so the action was not executed (failed closed). This must never
+  // present itself as a "Blocked" policy verdict.
+  error: {
+    label: "Governance Unavailable",
+    badge: "obx-status--error",
+    accent: "border-[var(--border)] bg-[var(--secondary)]",
+    dot: "bg-[var(--muted-foreground)]"
   }
 };
 
@@ -238,11 +243,228 @@ import React, { useEffect } from "react";
 
 // ts/src/copilotkit/react-styles.ts
 var openBoxRendererCss = `
+.obx-governance-card{
+  --obx-verdict:var(--obx-accent,#3f6f9c);
+  --obx-row-border:color-mix(in srgb,var(--border,#d9dce3) 72%,transparent);
+  --obx-muted:var(--muted-foreground,#59616f);
+  --obx-surface:var(--background,#fff);
+  position:relative;
+  display:block;
+  width:100%;
+  max-width:38rem;
+  margin:.75rem 0;
+  overflow:hidden;
+  color:var(--foreground,#010507);
+  background:var(--obx-surface);
+  border:1px solid color-mix(in srgb,var(--obx-verdict) 72%,var(--border,#d9dce3));
+  border-radius:8px;
+  box-shadow:0 1px 2px rgb(15 23 42 / .06);
+}
+.obx-governance-card--allow{--obx-verdict:#2f7d5a}
+.obx-governance-card--block,.obx-governance-card--rejected{--obx-verdict:#a94444}
+.obx-governance-card--halt{--obx-verdict:#955f35}
+.obx-governance-card--approval,.obx-governance-card--constrain{--obx-verdict:#826a3a}
+.obx-governance-card--reviewing{--obx-verdict:var(--obx-accent,#3f6f9c)}
+.obx-governance-card--error{--obx-verdict:var(--obx-muted)}
+.obx-governance-content{min-width:0;padding:.875rem 1rem .95rem}
+.obx-governance-header{min-width:0}
+.obx-governance-body{margin-top:.75rem}
+.obx-governance-section{
+  border-top:1px solid var(--obx-row-border);
+  padding-top:.7rem;
+  margin-top:.7rem;
+}
+.obx-timing{font-size:.75rem;line-height:1rem;color:var(--obx-muted)}
+.obx-timing-total,.obx-timing-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) max-content;
+  align-items:center;
+  gap:.75rem;
+  font-variant-numeric:tabular-nums;
+}
+.obx-timing-total{
+  color:var(--foreground,#010507);
+  font-weight:650;
+}
+.obx-timing-row{margin:.3rem 0 0}
+.obx-timing-row span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.obx-timing-row span:last-child{color:var(--foreground,#010507);font-weight:550}
+.obx-section-label{
+  color:var(--obx-muted);
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:0;
+  line-height:1rem;
+  text-transform:none;
+}
+.obx-request-text{
+  margin:.3rem 0 0;
+  color:var(--foreground,#010507);
+  font-size:.875rem;
+  line-height:1.35rem;
+}
+.obx-meta-row{
+  display:grid;
+  grid-template-columns:5.75rem minmax(0,1fr);
+  gap:.75rem;
+  margin-top:.55rem;
+  color:var(--obx-muted);
+  font-size:.75rem;
+  line-height:1rem;
+}
+.obx-meta-row strong{color:var(--foreground,#010507);font-weight:650}
+.obx-detail-list{display:grid;gap:.3rem;margin-top:.5rem}
+.obx-detail-row{
+  display:grid;
+  grid-template-columns:5.75rem minmax(0,1fr);
+  gap:.75rem;
+  color:var(--obx-muted);
+  font-size:.75rem;
+  line-height:1rem;
+}
+.obx-detail-row strong{
+  min-width:0;
+  color:var(--foreground,#010507);
+  font-weight:550;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.obx-metrics{display:grid;gap:.3rem;margin-bottom:.6rem}
+.obx-metric{
+  display:grid;
+  grid-template-columns:5.75rem minmax(0,1fr);
+  gap:.75rem;
+  align-items:baseline;
+}
+.obx-metric-label{
+  color:var(--obx-muted);
+  font-size:.75rem;
+  font-weight:700;
+  letter-spacing:0;
+  line-height:1rem;
+  text-transform:none;
+}
+.obx-metric-value{color:var(--foreground,#010507);font-size:.75rem;font-weight:550;line-height:1rem}
+.obx-redaction{color:var(--obx-muted);font-size:.75rem;line-height:1.15rem}
+.obx-redaction-title{color:var(--foreground,#010507);font-weight:650}
+.obx-redaction-body{margin-top:.2rem;max-width:32rem}
+.obx-redaction-field{
+  display:grid;
+  grid-template-columns:5.75rem minmax(0,1fr);
+  gap:.75rem;
+  align-items:baseline;
+  color:var(--foreground,#010507);
+  font-size:.75rem;
+  line-height:1rem;
+}
+.obx-redaction-field span{color:var(--obx-muted);font-weight:700}
+.obx-redaction-field strong{font-weight:550}
+.obx-pill-row{display:grid;gap:.3rem;margin-top:.5rem}
+.obx-pill{
+  color:var(--foreground,#010507);
+  background:transparent;
+  border:0;
+  border-radius:0;
+  font-size:11px;
+  line-height:1rem;
+  padding:0;
+}
+.obx-pill--accent{background:transparent}
+.obx-check-list{display:grid;gap:.3rem;margin-top:.45rem}
+.obx-check-item{
+  display:block;
+  color:var(--foreground,#010507);
+  font-size:.75rem;
+  line-height:1rem;
+}
+.obx-renderer-header{display:flex;align-items:flex-start;gap:.75rem;min-width:0}
+.obx-renderer-mark{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+  width:1.75rem;
+  height:1.75rem;
+  overflow:hidden;
+  border-radius:6px;
+}
+.obx-renderer-mark--image{
+  background:#fff;
+  border:1px solid color-mix(in srgb,var(--border,#d9dce3) 85%,transparent);
+  padding:.28rem;
+}
+.obx-renderer-mark--image img{display:block;width:100%;height:100%;object-fit:contain}
+.obx-renderer-mark--fallback{
+  color:var(--obx-verdict);
+  background:transparent;
+  border:1px solid color-mix(in srgb,var(--obx-verdict) 32%,transparent);
+  font-size:.65rem;
+  font-weight:700;
+}
+.obx-renderer-brand-row{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:.5rem .75rem;
+}
+.obx-renderer-brand{
+  color:var(--obx-muted);
+  font-size:.75rem;
+  font-weight:700;
+  letter-spacing:0;
+  line-height:1rem;
+  text-transform:none;
+}
+.obx-renderer-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:.35rem;
+  flex-shrink:0;
+  color:var(--foreground,#010507);
+  font-size:.75rem;
+  font-weight:600;
+  line-height:1rem;
+  padding:0;
+}
+.obx-renderer-badge::before{
+  content:"";
+  width:.375rem;
+  height:.375rem;
+  border-radius:999px;
+  background:var(--obx-status-color,var(--obx-verdict));
+}
+.obx-status--reviewing{--obx-status-color:var(--obx-accent,#3f6f9c)}
+.obx-status--allow{--obx-status-color:#2f7d5a}
+.obx-status--block,.obx-status--rejected{--obx-status-color:#a94444}
+.obx-status--halt{--obx-status-color:#955f35}
+.obx-status--approval,.obx-status--constrain{--obx-status-color:#826a3a}
+.obx-status--error{--obx-status-color:var(--obx-muted)}
+.obx-renderer-title{
+  margin:.2rem 0 0;
+  color:var(--foreground,#010507);
+  font-size:.925rem;
+  font-weight:650;
+  line-height:1.25rem;
+}
+.obx-renderer-reason{
+  margin:.25rem 0 0;
+  color:var(--obx-muted);
+  font-size:.8125rem;
+  line-height:1.25rem;
+  max-width:34rem;
+}
+@media (max-width:420px){
+  .obx-governance-content{padding:.8rem}
+  .obx-meta-row,.obx-detail-row,.obx-metric,.obx-redaction-field,.obx-check-item{grid-template-columns:1fr;gap:.15rem}
+  .obx-renderer-brand-row{align-items:flex-start}
+}
 [class~="my-3"]{margin-top:.75rem;margin-bottom:.75rem}
 [class~="mt-0.5"]{margin-top:.125rem}
 [class~="mt-1"]{margin-top:.25rem}
 [class~="mt-2"]{margin-top:.5rem}
 [class~="mt-3"]{margin-top:.75rem}
+[class~="mb-1.5"]{margin-bottom:.375rem}
 [class~="mb-3"]{margin-bottom:.75rem}
 [class~="p-4"]{padding:calc(1rem * var(--obx-density-scale,1))}
 [class~="px-1.5"]{padding-left:.375rem;padding-right:.375rem}
@@ -258,13 +480,16 @@ var openBoxRendererCss = `
 [class~="pb-3"]{padding-bottom:.75rem}
 [class~="pb-4"]{padding-bottom:1rem}
 [class~="pt-0"]{padding-top:0}
+[class~="pt-3"]{padding-top:.75rem}
 [class~="w-full"]{width:100%}
 [class~="w-1.5"]{width:.375rem}
+[class~="h-1"]{height:.25rem}
 [class~="h-1.5"]{height:.375rem}
 [class~="w-8"]{width:2rem}
 [class~="h-8"]{height:2rem}
 [class~="w-9"]{width:2.25rem}
 [class~="h-9"]{height:2.25rem}
+[class~="h-full"]{height:100%}
 [class~="max-w-xl"]{max-width:36rem}
 [class~="min-w-0"]{min-width:0}
 [class~="min-w-max"]{min-width:max-content}
@@ -283,6 +508,8 @@ var openBoxRendererCss = `
 [class~="gap-2"]{gap:.5rem}
 [class~="gap-3"]{gap:.75rem}
 [class~="space-y-3"]>:not([hidden])~:not([hidden]){margin-top:.75rem}
+[class~="space-y-2"]>:not([hidden])~:not([hidden]){margin-top:.5rem}
+[class~="space-y-1"]>:not([hidden])~:not([hidden]){margin-top:.25rem}
 [class~="overflow-hidden"]{overflow:hidden}
 [class~="overflow-x-auto"]{overflow-x:auto}
 [class~="relative"]{position:relative}
@@ -323,6 +550,11 @@ var openBoxRendererCss = `
 [class~="bg-orange-500/5"],[class~="bg-orange-500/10"]{background:color-mix(in srgb,#f97316 10%,transparent)}
 [class~="bg-amber-500/5"],[class~="bg-amber-500/10"]{background:color-mix(in srgb,#f59e0b 10%,transparent)}
 [class~="bg-[var(--obx-accent,#3B9AF5)]"]{background:var(--obx-accent,#3B9AF5)}
+[class~="bg-emerald-500"]{background:#10b981}
+[class~="bg-red-500"]{background:#ef4444}
+[class~="bg-orange-500"]{background:#f97316}
+[class~="bg-amber-500"]{background:#f59e0b}
+[class~="bg-[var(--muted-foreground)]"]{background:var(--muted-foreground,#adadb2)}
 [class~="shadow-sm"]{box-shadow:0 1px 2px 0 rgb(0 0 0 / .05)}
 [class~="ring-1"]{box-shadow:0 0 0 1px var(--obx-ring-color,color-mix(in srgb,var(--obx-accent,#3B9AF5) 20%,transparent))}
 [class~="ring-[var(--obx-accent,#3B9AF5)]/20"]{--obx-ring-color:color-mix(in srgb,var(--obx-accent,#3B9AF5) 20%,transparent)}
@@ -335,6 +567,7 @@ var openBoxRendererCss = `
 [class~="font-medium"]{font-weight:500}
 [class~="font-semibold"]{font-weight:600}
 [class~="font-mono"]{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+[class~="tabular-nums"]{font-variant-numeric:tabular-nums}
 [class~="leading-4"]{line-height:1rem}
 [class~="leading-5"]{line-height:1.25rem}
 [class~="leading-6"]{line-height:1.5rem}
@@ -351,6 +584,7 @@ var openBoxRendererCss = `
 [class~="text-amber-700"]{color:#b45309}
 [class~="text-white"]{color:#fff}
 [class~="whitespace-pre-line"]{white-space:pre-line}
+[class~="object-contain"]{object-fit:contain}
 [class~="resize-none"]{resize:none}
 [class~="outline-none"]{outline:2px solid transparent;outline-offset:2px}
 [class~="divide-y"]>:not([hidden])~:not([hidden]){border-top-width:1px;border-top-style:solid}
@@ -461,10 +695,10 @@ function OpenBoxActionResult({
 var h = React2.createElement;
 
 // ts/src/copilotkit/react-approval-review.ts
-import React4, { useRef, useState } from "react";
+import React4, { useRef, useState as useState2 } from "react";
 
 // ts/src/copilotkit/react-renderer-header.ts
-import React3 from "react";
+import React3, { useEffect as useEffect2, useState } from "react";
 function OpenBoxHeader({
   title,
   badge,
@@ -473,28 +707,37 @@ function OpenBoxHeader({
   busy,
   logoSrc
 }) {
-  return h2("div", { className: "flex items-start gap-3" }, [
+  const [logoFailed, setLogoFailed] = useState(false);
+  useEffect2(() => {
+    setLogoFailed(false);
+  }, [logoSrc]);
+  const showLogo = Boolean(logoSrc && !logoFailed);
+  return h2("div", { className: "obx-renderer-header" }, [
     h2(
       "div",
       {
         key: "mark",
-        className: "relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white text-xs font-semibold text-[#1F7FD8] ring-1 ring-[var(--obx-accent,#3B9AF5)]/20"
+        className: showLogo ? "obx-renderer-mark obx-renderer-mark--image" : "obx-renderer-mark obx-renderer-mark--fallback"
       },
-      busy ? "..." : logoSrc ? h2("img", { src: logoSrc, alt: "", className: "h-8 w-8" }) : "OB"
+      showLogo ? h2("img", {
+        src: logoSrc,
+        alt: "",
+        onError: () => setLogoFailed(true)
+      }) : busy ? "..." : "OB"
     ),
     h2("div", { key: "copy", className: "min-w-0 flex-1" }, [
       h2(
         "div",
         {
           key: "brand-row",
-          className: "flex flex-wrap items-center justify-between gap-2"
+          className: "obx-renderer-brand-row"
         },
         [
           h2(
             "div",
             {
               key: "brand",
-              className: "text-[11px] font-semibold text-[var(--obx-accent,#3B9AF5)]"
+              className: "obx-renderer-brand"
             },
             "OpenBox"
           ),
@@ -502,7 +745,7 @@ function OpenBoxHeader({
             "span",
             {
               key: "badge",
-              className: `shrink-0 rounded-full border px-2 py-0.5 text-xs ${badgeClassName}`
+              className: `obx-renderer-badge ${badgeClassName}`
             },
             badge
           )
@@ -512,7 +755,7 @@ function OpenBoxHeader({
         "h3",
         {
           key: "title",
-          className: "mt-1 text-sm font-semibold leading-5 text-[var(--foreground)]"
+          className: "obx-renderer-title"
         },
         title
       ),
@@ -520,7 +763,7 @@ function OpenBoxHeader({
         "p",
         {
           key: "reason",
-          className: "mt-1 text-sm leading-5 text-[var(--muted-foreground)]"
+          className: "obx-renderer-reason"
         },
         reason
       )
@@ -551,11 +794,11 @@ function OpenBoxApprovalReview({
 }) {
   useOpenBoxRendererStyles();
   const resolvedTheme = resolveTheme(theme, logoSrc);
-  const [decision, setDecision] = useState(
+  const [decision, setDecision] = useState2(
     null
   );
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState2(false);
+  const [error, setError] = useState2(null);
   const respondedRef = useRef(false);
   const isPending = status === "inProgress";
   const decide = async (approved) => {
@@ -704,7 +947,7 @@ function OpenBoxApprovalReview({
 var h3 = React4.createElement;
 
 // ts/src/copilotkit/react-governance-decision.ts
-import React5, { useEffect as useEffect2 } from "react";
+import React5, { useEffect as useEffect3 } from "react";
 function OpenBoxGovernanceDecision({
   status,
   parameters,
@@ -720,9 +963,9 @@ function OpenBoxGovernanceDecision({
   if (toolResult.status === "approval_required") return null;
   const action = String(toolResult.action ?? parameters?.action ?? "unknown");
   const scenario = scenarioFor(action, scenarios);
-  const isRunning = status === "inProgress" || status === "executing";
   const hasDecision = Boolean(toolResult.status || toolResult.verdict);
-  const verdict = isRunning && !hasDecision ? "reviewing" : verdictFromResult(toolResult, scenario);
+  const verdict = !hasDecision ? "reviewing" : verdictFromResult(toolResult, scenario);
+  const isReviewing = verdict === "reviewing";
   const styles = verdictStyles[verdict];
   const request = textValue(toolResult.request ?? parameters?.request) || "OpenBox governed action";
   const destination = textValue(
@@ -731,186 +974,142 @@ function OpenBoxGovernanceDecision({
   const amountUsd = typeof toolResult.amountUsd === "number" ? toolResult.amountUsd : parameters?.amountUsd;
   const fields = Array.isArray(toolResult.fields) ? toolResult.fields : Array.isArray(parameters?.fields) ? parameters.fields : void 0;
   const session = parseToolResult(toolResult.session);
-  const reason = toolResult.status === "error" ? "OpenBox is unavailable or returned an error. The governed action was stopped fail-closed." : verdict === "reviewing" ? "OpenBox is evaluating this request before anything executes." : textValue(toolResult.reason) || scenario.reason;
+  const rawReason = toolResult.status === "error" ? "OpenBox is unavailable or returned an error. The governed action was stopped fail-closed." : verdict === "reviewing" ? "OpenBox is reviewing this before the assistant acts." : textValue(toolResult.reason) || scenario.reason;
+  const reason = verdict === "constrain" && /^OpenBox allowed this action\.?$/i.test(rawReason) ? "OpenBox allowed this action after applying required transformations." : rawReason;
   const riskScore = typeof toolResult.riskScore === "number" && toolResult.riskScore > 0 ? toolResult.riskScore : void 0;
   const trustTier = textValue(toolResult.trustTier);
   const redactionSummary = textValue(toolResult.redactionSummary);
-  useEffect2(() => {
+  const timings = normalizeTimings(toolResult.timings);
+  useEffect3(() => {
     if (session.status !== "halted") return;
     onSessionHalted?.(session.haltedAt);
   }, [onSessionHalted, session.haltedAt, session.status]);
   return h4(
     "section",
     {
-      className: "my-3 w-full max-w-xl overflow-hidden rounded-lg border border-[var(--obx-accent,#3B9AF5)]/20 bg-[var(--background)] shadow-sm",
+      className: `obx-governance-card obx-governance-card--${verdict}`,
       style: rendererStyle(resolvedTheme)
     },
     [
-      h4("div", { key: "head", className: "p-4 pb-3" }, [
-        h4(OpenBoxHeader, {
-          key: "header",
-          logoSrc: resolvedTheme.logoSrc,
-          title: "Governance Decision",
-          badge: styles.label,
-          badgeClassName: styles.badge,
-          reason,
-          busy: isRunning
-        })
-      ]),
-      h4("div", { key: "body", className: "px-4 pb-4 pt-0" }, [
+      h4("div", { key: "content", className: "obx-governance-content" }, [
         h4(
           "div",
-          {
-            key: "request",
-            className: `rounded-md border px-3 py-2.5 ${styles.accent}`
-          },
-          [
-            h4(
-              "div",
-              {
-                key: "meta",
-                className: "flex items-center justify-between gap-2"
-              },
-              [
-                h4(
-                  "div",
-                  {
-                    key: "label",
-                    className: "text-[11px] font-semibold uppercase text-[var(--muted-foreground)]"
-                  },
-                  "Governed Request"
-                ),
-                h4(
-                  "div",
-                  {
-                    key: "scenario",
-                    className: "flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]"
-                  },
-                  [
-                    h4("span", {
-                      key: "dot",
-                      className: `h-1.5 w-1.5 rounded-full ${styles.dot}`
-                    }),
-                    scenario.title
-                  ]
-                )
-              ]
-            ),
-            h4(
-              "p",
-              {
-                key: "text",
-                className: "mt-1 text-sm leading-5 text-[var(--foreground)]"
-              },
-              request
-            ),
-            destination ? h4(
-              "div",
-              {
-                key: "destination",
-                className: "mt-2 text-xs text-[var(--muted-foreground)]"
-              },
-              `Destination: ${destination}`
-            ) : null,
-            typeof amountUsd === "number" && amountUsd > 0 ? h4(
-              "div",
-              {
-                key: "amount",
-                className: "mt-2 text-xs text-[var(--muted-foreground)]"
-              },
-              `Amount: $${amountUsd.toLocaleString()}`
-            ) : null,
-            fields?.length ? h4(
-              "div",
-              {
-                key: "fields",
-                className: "mt-2 text-xs text-[var(--muted-foreground)]"
-              },
-              `Fields: ${fields.join(", ")}`
-            ) : null
-          ]
+          { key: "head", className: "obx-governance-header" },
+          h4(OpenBoxHeader, {
+            key: "header",
+            logoSrc: resolvedTheme.logoSrc,
+            title: verdict === "error" ? "Governance unavailable" : isReviewing ? "Governance review" : "Governance decision",
+            badge: styles.label,
+            badgeClassName: styles.badge,
+            reason,
+            busy: isReviewing
+          })
         ),
-        riskScore !== void 0 || trustTier || redactionSummary ? h4(
-          "div",
-          {
-            key: "signals",
-            className: "mt-3 grid gap-2 rounded-md border border-[var(--obx-accent,#3B9AF5)]/15 bg-[var(--obx-accent,#3B9AF5)]/5 px-3 py-2 text-xs text-[var(--muted-foreground)] sm:grid-cols-2"
-          },
-          [
-            riskScore !== void 0 ? h4("div", { key: "risk" }, [
+        h4("div", { key: "body", className: "obx-governance-body" }, [
+          timings ? renderTimingSummary(timings, isReviewing) : null,
+          h4(
+            "div",
+            {
+              key: "request",
+              className: "obx-governance-section obx-governance-request"
+            },
+            [
               h4(
-                "span",
+                "div",
                 {
                   key: "label",
-                  className: "font-medium text-[var(--foreground)]"
+                  className: "obx-section-label"
                 },
-                "Risk"
+                "Request"
               ),
-              ` ${Math.round(riskScore * 100) / 100}`
-            ]) : null,
-            trustTier ? h4("div", { key: "trust" }, [
               h4(
-                "span",
+                "p",
                 {
-                  key: "label",
-                  className: "font-medium text-[var(--foreground)]"
+                  key: "text",
+                  className: "obx-request-text"
                 },
-                "Trust"
+                request
               ),
-              ` ${trustTier}`
-            ]) : null,
-            redactionSummary ? h4(
-              "div",
-              { key: "redaction", className: "sm:col-span-2" },
-              humanReadableRedactionSummary(redactionSummary, action)
-            ) : null
-          ]
-        ) : null,
-        h4(
-          "div",
-          {
-            key: "capability",
-            className: "mt-3 rounded-md border border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)]"
-          },
-          [
-            "Capability: ",
-            h4(
-              "span",
-              {
-                key: "value",
-                className: "font-medium text-[var(--foreground)]"
-              },
-              scenario.capability
-            )
-          ]
-        )
-      ]),
-      h4(
+              h4(
+                "div",
+                {
+                  key: "scenario",
+                  className: "obx-meta-row"
+                },
+                [
+                  h4("span", { key: "label" }, "Workflow"),
+                  h4("strong", { key: "value" }, scenario.title)
+                ]
+              ),
+              renderRequestDetails({ amountUsd, destination, fields })
+            ]
+          ),
+          riskScore !== void 0 || trustTier || redactionSummary ? h4(
+            "div",
+            {
+              key: "signals",
+              className: "obx-governance-section obx-governance-signals"
+            },
+            [
+              renderSignalMetrics({ riskScore, trustTier }),
+              redactionSummary ? h4(
+                "div",
+                { key: "redaction" },
+                renderRedactionSummary(redactionSummary, action)
+              ) : null
+            ]
+          ) : null,
+          renderCheckedLine(scenario.capability)
+        ])
+      ])
+    ]
+  );
+}
+function renderSignalMetrics({
+  riskScore,
+  trustTier
+}) {
+  const metrics = [
+    riskScore !== void 0 ? {
+      key: "risk",
+      label: "Risk score",
+      value: `${Math.round(riskScore * 100) / 100}`
+    } : void 0,
+    trustTier ? { key: "trust", label: "Trust tier", value: trustTier } : void 0
+  ].filter(
+    (item) => Boolean(item)
+  );
+  if (!metrics.length) return null;
+  return h4(
+    "div",
+    { key: "metrics", className: "obx-metrics" },
+    metrics.map(
+      (metric) => h4(
         "div",
         {
-          key: "footer",
-          className: "flex items-center justify-between border-t border-[var(--border)] px-4 py-2.5"
+          key: metric.key,
+          className: "obx-metric"
         },
         [
           h4(
             "div",
             {
-              key: "runtime",
-              className: "text-xs text-[var(--muted-foreground)]"
+              key: "label",
+              className: "obx-metric-label"
             },
-            "OpenBox runtime governance"
+            metric.label
           ),
           h4(
-            "span",
+            "div",
             {
-              key: "status",
-              className: "text-xs text-[var(--muted-foreground)]"
+              key: "value",
+              className: "obx-metric-value"
             },
-            statusLabel(status, verdict, toolResult)
+            metric.value
           )
         ]
       )
-    ]
+    )
   );
 }
 function scenarioFor(action, scenarios) {
@@ -925,38 +1124,258 @@ function scenarioFor(action, scenarios) {
 function verdictFromResult(result, scenario) {
   if (result.status === "approval_required") return "approval";
   if (result.status === "rejected") return "rejected";
-  if (result.status === "halted" || result.status === "session_halted" || result.verdict === "halt")
+  if (result.status === "error" || result.verdict === "error") return "error";
+  if (result.status === "halted" || result.verdict === "halt")
     return "halt";
   if (result.status === "constrained" || result.verdict === "constrain")
     return "constrain";
+  if (typeof result.redactionSummary === "string" && result.redactionSummary.length > 0 && (result.status === "executed" || result.verdict === "allow")) {
+    return "constrain";
+  }
   if (result.status === "executed" || result.verdict === "allow")
     return "allow";
-  if (result.status === "blocked" || result.status === "approval_pending" || result.status === "error" || result.verdict === "block") {
+  if (result.status === "blocked" || result.status === "approval_pending" || result.verdict === "block") {
     return "block";
   }
   if (result.verdict === "require_approval") return "approval";
-  return scenario.verdict ?? "allow";
+  return "reviewing";
 }
-function statusLabel(status, verdict, result) {
-  if (status === "inProgress" || status === "executing") return "Evaluating";
-  if (result.status === "executed") return "Complete";
-  if (verdict === "block") return "Stopped";
-  if (verdict === "rejected") return "Rejected";
-  if (verdict === "halt") return "Halted";
-  if (verdict === "approval") return "Review required";
-  if (verdict === "constrain") return "Constrained";
-  return "Complete";
-}
-function humanReadableRedactionSummary(summary, action) {
+function renderRedactionSummary(summary, action) {
   if (action === "draft_policy_constrained_message" && summary.includes("output.artifact.sourceContext")) {
     return "OpenBox redacted the sensitive source context used to draft this output.";
   }
-  return summary;
+  const fields = redactedFieldLabels(summary);
+  if (fields.length === 0) return summary;
+  return h4("div", { className: "obx-redaction" }, [
+    h4(
+      "div",
+      { key: "title", className: "obx-redaction-title" },
+      "Sensitive data adjusted"
+    ),
+    h4(
+      "div",
+      { key: "body", className: "obx-redaction-body" },
+      "OpenBox removed or transformed sensitive details before this result was shown."
+    ),
+    h4(
+      "div",
+      { key: "fields", className: "obx-pill-row" },
+      fields.map(
+        (field) => h4(
+          "div",
+          {
+            key: field,
+            className: "obx-redaction-field"
+          },
+          [
+            h4("span", { key: "label" }, "Field"),
+            h4("strong", { key: "value" }, field)
+          ]
+        )
+      )
+    )
+  ]);
+}
+function redactedFieldLabels(summary) {
+  const matches = Array.from(summary.matchAll(/redacted\s+([A-Za-z0-9_.*[\]-]+(?:\.[A-Za-z0-9_.*[\]-]+)*)/gi));
+  const paths = matches.map((match) => match[1]).filter(Boolean);
+  const labels = paths.map(redactedFieldLabel);
+  return Array.from(new Set(labels));
+}
+function redactedFieldLabel(path) {
+  if (/input\.(?:\d+|\*)\.args\.request|input\.args\.request/.test(path)) {
+    return "Request text";
+  }
+  if (/input\.(?:\d+|\*)\.args\.manualInput|input\.args\.manualInput/.test(path)) {
+    return "Edited note";
+  }
+  if (path.includes("output.artifact.sourceContext")) return "Source context";
+  if (path.includes("output.artifact.body")) return "Draft body";
+  if (path.includes("output.artifact.records")) return "Report rows";
+  if (path.includes("output.artifact.summary")) return "Summary";
+  if (path.includes("output.artifact")) return "Result artifact";
+  return path.replace(/^input\.(?:\d+|\*)\.args\./, "").replace(/^input\.args\./, "").replace(/^output\.artifact\./, "").replace(/[._-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+function renderRequestDetails({
+  amountUsd,
+  destination,
+  fields
+}) {
+  const details = [
+    destination ? { label: "Destination", value: destination } : void 0,
+    typeof amountUsd === "number" && amountUsd > 0 ? { label: "Amount", value: `$${amountUsd.toLocaleString()}` } : void 0,
+    fields?.length ? { label: "Fields", value: fields.join(", ") } : void 0
+  ].filter(
+    (detail) => Boolean(detail)
+  );
+  if (!details.length) return null;
+  return h4(
+    "div",
+    {
+      key: "details",
+      className: "obx-detail-list"
+    },
+    details.map(
+      (detail) => h4(
+        "div",
+        {
+          key: detail.label,
+          className: "obx-detail-row"
+        },
+        [
+          h4("span", { key: "label" }, detail.label),
+          h4("strong", { key: "value" }, detail.value)
+        ]
+      )
+    )
+  );
+}
+function renderCheckedLine(capability) {
+  const items = capability.split(/\s*(?:\+|,)\s+/).map((item) => capabilityLabel(item.trim())).filter(Boolean);
+  if (!items.length) return null;
+  return h4(
+    "div",
+    {
+      key: "checks",
+      className: "obx-governance-section obx-checks"
+    },
+    [
+      h4(
+        "div",
+        {
+          key: "label",
+          className: "obx-section-label"
+        },
+        "Controls"
+      ),
+      h4(
+        "div",
+        { key: "items", className: "obx-check-list" },
+        items.map(
+          (item) => h4(
+            "div",
+            {
+              key: item,
+              className: "obx-check-item"
+            },
+            item
+          )
+        )
+      )
+    ]
+  );
+}
+function renderTimingSummary(timings, isReviewing) {
+  return h4(
+    "div",
+    {
+      key: "timings",
+      className: "obx-governance-section obx-timing"
+    },
+    [
+      h4(
+        "div",
+        {
+          key: "total",
+          className: "obx-timing-total"
+        },
+        [
+          h4(
+            "span",
+            { key: "label" },
+            isReviewing ? "Reviewing" : "Completed"
+          ),
+          h4(
+            "span",
+            { key: "value" },
+            `${formatMs(timings.totalMs)} total`
+          )
+        ]
+      ),
+      ...timings.steps.map(
+        (step) => h4(
+          "p",
+          {
+            key: step.key,
+            className: "obx-timing-row"
+          },
+          [
+            h4("span", { key: "label" }, humanTimingLabel(step)),
+            h4(
+              "span",
+              {
+                key: "value"
+              },
+              formatMs(step.ms)
+            )
+          ]
+        )
+      )
+    ]
+  );
+}
+function normalizeTimings(value) {
+  if (!value || typeof value !== "object") return void 0;
+  const raw = value;
+  const steps = Array.isArray(raw.steps) ? raw.steps.map(normalizeTimingStep).filter((step) => Boolean(step)) : [];
+  const totalFromValue = typeof raw.totalMs === "number" && Number.isFinite(raw.totalMs) ? raw.totalMs : void 0;
+  const totalMs = totalFromValue ?? steps.reduce((sum, step) => sum + step.ms, 0);
+  if (!Number.isFinite(totalMs) || totalMs <= 0 && steps.length === 0) {
+    return void 0;
+  }
+  const openBoxMs = steps.filter((step) => step.kind === "openbox").reduce((sum, step) => sum + step.ms, 0);
+  const workMs = steps.filter((step) => step.kind !== "openbox" && step.kind !== "workflow").reduce((sum, step) => sum + step.ms, 0);
+  return {
+    totalMs: Math.max(0, totalMs),
+    openBoxMs: Math.max(0, openBoxMs),
+    workMs: Math.max(0, workMs),
+    steps
+  };
+}
+function normalizeTimingStep(value) {
+  if (!value || typeof value !== "object") return void 0;
+  const raw = value;
+  const ms = typeof raw.ms === "number" ? raw.ms : Number(raw.ms);
+  if (!Number.isFinite(ms) || ms < 0) return void 0;
+  const label = textValue(raw.label) || textValue(raw.key);
+  if (!label) return void 0;
+  return {
+    key: textValue(raw.key) || label,
+    label,
+    kind: textValue(raw.kind) || "tool",
+    ms
+  };
+}
+function humanTimingLabel(step) {
+  const label = step.label.trim();
+  if (/^input policy check$/i.test(label)) return "OpenBox input check";
+  if (/^output policy check$/i.test(label)) return "OpenBox output check";
+  if (/^business action$/i.test(label)) return "Assistant action";
+  if (/^generate result ui$/i.test(label)) return "Generate result UI";
+  if (step.kind === "openbox" && !/^OpenBox\b/.test(label)) {
+    return `OpenBox ${lowercaseFirst(label)}`;
+  }
+  return label;
+}
+function capabilityLabel(value) {
+  if (!value) return value;
+  return value.replace(/\S+/g, (word) => {
+    if (/^[A-Z0-9-]+$/.test(word)) return word;
+    return word[0].toUpperCase() + word.slice(1).toLowerCase();
+  });
+}
+function lowercaseFirst(value) {
+  if (!value) return value;
+  return value[0].toLowerCase() + value.slice(1);
+}
+function formatMs(ms) {
+  if (ms >= 1e3) return `${(ms / 1e3).toFixed(ms >= 1e4 ? 0 : 1)}s`;
+  return `${Math.round(ms)}ms`;
 }
 var h4 = React5.createElement;
 
 // ts/src/copilotkit/react-interactive-review.ts
-import React6, { useRef as useRef2, useState as useState2 } from "react";
+import React6, { useRef as useRef2, useState as useState3 } from "react";
 function OpenBoxInteractiveReview({
   status,
   respond,
@@ -988,14 +1407,14 @@ function OpenBoxInteractiveReview({
   const initialTemplate = templates.find(
     (item) => item.id === template || item.sensitivity === sensitivity
   ) ?? templates[0];
-  const [selectedOptionId, setSelectedOptionId] = useState2(initialOption.id);
-  const [selectedTemplateId, setSelectedTemplateId] = useState2(
+  const [selectedOptionId, setSelectedOptionId] = useState3(initialOption.id);
+  const [selectedTemplateId, setSelectedTemplateId] = useState3(
     initialTemplate.id
   );
-  const [text, setText] = useState2(
+  const [text, setText] = useState3(
     manualInput?.trim() || initialTemplate.draft
   );
-  const [submitted, setSubmitted] = useState2(false);
+  const [submitted, setSubmitted] = useState3(false);
   const respondedRef = useRef2(false);
   const selectedOption = options.find((option) => option.id === selectedOptionId) ?? initialOption;
   const selectedTemplate = templates.find((item) => item.id === selectedTemplateId) ?? initialTemplate;
@@ -1287,9 +1706,10 @@ function createOpenBoxCustomMessageRenderer(options = {}) {
   };
 }
 function findOpenBoxResult(message, stateSnapshot) {
-  if (message.role === "tool") return message.content;
-  if (message.role !== "assistant") return null;
-  const toolCalls = Array.isArray(message.toolCalls) ? message.toolCalls : [];
+  const kind = textValue2(message.role ?? message.type);
+  if (kind === "tool") return message.content;
+  if (kind !== "assistant" && kind !== "ai") return null;
+  const toolCalls = toolCallsFromMessage(message);
   const openBoxToolCallIds = new Set(
     toolCalls.filter((toolCall) => governedToolNames.includes(toolCallName(toolCall))).map((toolCall) => textValue2(asRecord(toolCall).id)).filter(Boolean)
   );
@@ -1302,6 +1722,15 @@ function findOpenBoxResult(message, stateSnapshot) {
     return toolCallId && openBoxToolCallIds.has(toolCallId);
   });
   return toolMessage?.content ?? null;
+}
+function toolCallsFromMessage(message) {
+  if (Array.isArray(message.toolCalls)) return message.toolCalls;
+  if (Array.isArray(message.tool_calls)) return message.tool_calls;
+  const additionalKwargs = asRecord(message.additional_kwargs);
+  if (Array.isArray(additionalKwargs.tool_calls)) {
+    return additionalKwargs.tool_calls;
+  }
+  return [];
 }
 function toolCallName(toolCall) {
   const record = asRecord(toolCall);
@@ -1368,13 +1797,7 @@ function useOpenBoxCopilotKit(options = {}) {
       actionResult
     );
   };
-  if (bindings?.useRenderTool) {
-    for (const name of governedToolNames) {
-      bindings.useRenderTool({ name, render: renderGovernedTool });
-    }
-  } else {
-    bindings?.useDefaultRenderTool({ render: renderGovernedTool });
-  }
+  bindings?.useDefaultRenderTool({ render: renderGovernedTool });
   return {
     governedToolNames,
     approvalToolName: "openboxApprovalReview",

@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY } from './constants.js';
+import {
+  DEFAULT_AGENT_WORKFLOW_TYPE,
+  DEFAULT_TASK_QUEUE,
+  OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION,
+  OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY,
+} from './constants.js';
 import {
   isRecord,
   mergeMessageContent,
@@ -21,6 +26,7 @@ import {
   type OpenBoxCopilotRuntimeHookContext,
   type OpenBoxCopilotRuntimeResponseHookContext,
 } from './types.js';
+import { completeWorkflow, failWorkflow } from './workflow-session.js';
 
 type AdapterFactory = () => OpenBoxCopilotKitAdapter;
 
@@ -80,9 +86,22 @@ export function createOpenBoxGovernedRunner(
   Object.defineProperties(governedRunner, {
     run: {
       value(request: OpenBoxCopilotRunnerRunRequest) {
+        // CopilotKit's SSE handler calls runner.run({ threadId, agent, input })
+        // without an agentId field, so resolve the id from the agent object
+        // too. When no id can be determined, govern anyway (fail closed)
+        // instead of silently bypassing OpenBox.
+        const agentRecord = objectRecord(request.agent);
         const agentId =
-          typeof request.agentId === 'string' ? request.agentId : undefined;
-        if (agentSet && (!agentId || !agentSet.has(agentId))) {
+          typeof request.agentId === 'string'
+            ? request.agentId
+            : typeof agentRecord.agentId === 'string'
+              ? agentRecord.agentId
+              : typeof agentRecord.name === 'string'
+                ? agentRecord.name
+                : typeof agentRecord.id === 'string'
+                  ? agentRecord.id
+                  : undefined;
+        if (agentSet && agentId && !agentSet.has(agentId)) {
           return runner.run(request);
         }
         return createDeferredObservable(runner, async (subscriber) => {
@@ -103,6 +122,7 @@ export function createOpenBoxGovernedRunner(
             adapter,
             sessionKey,
             governedInput,
+            runtimeWorkflowConfig(adapter),
           );
         });
       },
@@ -300,8 +320,57 @@ function pipeGovernedEvents(
   adapter: OpenBoxCopilotKitAdapter,
   sessionKey: string,
   input: OpenBoxCopilotRunInputLike,
+  workflowConfig: { workflowType: string; taskQueue: string },
 ) {
   const pending: Promise<void>[] = [];
+  const ids = runtimeWorkflowIdsFromInput(input);
+  let terminalized = false;
+  let pendingError: unknown;
+  const markCompleted = async () => {
+    if (terminalized) return;
+    terminalized = true;
+    await completeWorkflow(
+      adapter,
+      ids,
+      workflowConfig.workflowType,
+      workflowConfig.taskQueue,
+    );
+  };
+  const markFailed = async (error: unknown) => {
+    if (terminalized) return;
+    terminalized = true;
+    await failWorkflow(
+      adapter,
+      ids,
+      workflowConfig.workflowType,
+      workflowConfig.taskQueue,
+      error,
+    );
+  };
+  const queuePending = (promise: Promise<void>) => {
+    pending.push(
+      promise.catch(async (error) => {
+        pendingError = error;
+        await markFailed(error);
+        subscriber.error?.(error);
+      }),
+    );
+  };
+  // CopilotKit's SSE layer ends the stream after RUN_FINISHED/RUN_ERROR
+  // without always invoking observer.complete()/error(), so terminal AG-UI
+  // events must close the OpenBox workflow themselves.
+  const scheduleTerminal = (kind: 'completed' | 'failed', error?: unknown) => {
+    const snapshot = [...pending];
+    pending.push(
+      Promise.allSettled(snapshot).then(async () => {
+        if (kind === 'failed') {
+          await markFailed(error);
+          return;
+        }
+        if (!pendingError) await markCompleted();
+      }),
+    );
+  };
   const assistantBuffers = new Map<
     string,
     {
@@ -336,6 +405,14 @@ function pipeGovernedEvents(
         buffer.content += String(agEvent.delta ?? agEvent.content ?? '');
         return;
       }
+      // Governed tools terminate or intentionally leave the shared task
+      // workflow open (halt/block/approval). When their result says so, the
+      // runtime must not send its own WorkflowCompleted on RUN_FINISHED.
+      if (isToolResultEvent(agEvent) && governedResultEndsWorkflow(agEvent)) {
+        terminalized = true;
+        emit(agEvent);
+        return;
+      }
       if (isAssistantTextEnd(agEvent)) {
         const messageId = messageIdForEvent(agEvent);
         const buffer = assistantBuffers.get(messageId);
@@ -345,15 +422,16 @@ function pipeGovernedEvents(
         }
         buffer.end = agEvent;
         assistantBuffers.delete(messageId);
-        pending.push(
+        queuePending(
           (async () => {
             const gate = await adapter.governAssistantOutput({
               payload: { content: buffer.content },
               sessionKey,
-              ...runtimeWorkflowIdsFromInput(input),
+              ...ids,
               activityType: 'on_llm_end',
             });
             if (shouldStopForGate(gate, 'enforce')) {
+              terminalized = true;
               emitOpenBoxMessageEvents(
                 subscriber,
                 input,
@@ -372,21 +450,22 @@ function pipeGovernedEvents(
               type: contentEventType(type),
             });
             emit(buffer.end);
-          })().catch((error) => subscriber.error?.(error)),
+          })(),
         );
         return;
       }
       const finalPayload = finalPayloadLocationForEvent(agEvent);
       if (finalPayload) {
-        pending.push(
+        queuePending(
           (async () => {
             const gate = await adapter.governAssistantOutput({
               payload: finalPayload.payload,
               sessionKey,
-              ...runtimeWorkflowIdsFromInput(input),
+              ...ids,
               activityType: 'on_llm_end',
             });
             if (shouldStopForGate(gate, 'enforce')) {
+              terminalized = true;
               emitOpenBoxMessageEvents(
                 subscriber,
                 input,
@@ -395,23 +474,71 @@ function pipeGovernedEvents(
               return;
             }
             emit(eventWithSafeFinalPayload(agEvent, finalPayload, gate.safe));
-          })().catch((error) => subscriber.error?.(error)),
+          })(),
+        );
+        if (isRunFinishedEvent(agEvent)) scheduleTerminal('completed');
+        return;
+      }
+      if (isRunFinishedEvent(agEvent)) {
+        emit(agEvent);
+        scheduleTerminal('completed');
+        return;
+      }
+      if (isRunErrorEvent(agEvent)) {
+        emit(agEvent);
+        scheduleTerminal(
+          'failed',
+          new Error(
+            typeof agEvent.message === 'string'
+              ? agEvent.message
+              : 'CopilotKit run error',
+          ),
         );
         return;
       }
       emit(agEvent);
     },
     error(error: unknown) {
-      subscriber.error?.(error);
+      Promise.allSettled(pending)
+        .then(() => markFailed(error))
+        .then(
+          () => subscriber.error?.(error),
+          () => subscriber.error?.(error),
+        );
     },
     complete() {
       Promise.all(pending).then(
-        () => subscriber.complete?.(),
+        () => {
+          if (pendingError) return;
+          return markCompleted().then(() => subscriber.complete?.());
+        },
         (error) => subscriber.error?.(error),
       );
     },
   } as any);
   return subscription;
+}
+
+function runtimeWorkflowConfig(adapter: OpenBoxCopilotKitAdapter): {
+  workflowType: string;
+  taskQueue: string;
+} {
+  const config = (adapter as unknown as {
+    __openboxCopilotRuntimeConfig?: {
+      workflowType?: unknown;
+      taskQueue?: unknown;
+    };
+  }).__openboxCopilotRuntimeConfig;
+  return {
+    workflowType:
+      typeof config?.workflowType === 'string'
+        ? config.workflowType
+        : DEFAULT_AGENT_WORKFLOW_TYPE,
+    taskQueue:
+      typeof config?.taskQueue === 'string'
+        ? config.taskQueue
+        : DEFAULT_TASK_QUEUE,
+  };
 }
 
 function isAssistantTextStart(event: Record<string, any>): boolean {
@@ -435,6 +562,45 @@ function isAssistantTextContent(event: Record<string, any>): boolean {
 function isAssistantTextEnd(event: Record<string, any>): boolean {
   const type = String(event.type);
   return type === 'TEXT_MESSAGE_END' || type === 'TextMessageEnd';
+}
+
+function isRunFinishedEvent(event: Record<string, any>): boolean {
+  const type = String(event.type);
+  return type === 'RUN_FINISHED' || type === 'RunFinished';
+}
+
+function isRunErrorEvent(event: Record<string, any>): boolean {
+  const type = String(event.type);
+  return type === 'RUN_ERROR' || type === 'RunError';
+}
+
+function isToolResultEvent(event: Record<string, any>): boolean {
+  const type = String(event.type);
+  return type === 'TOOL_CALL_RESULT' || type === 'ToolCallResult';
+}
+
+const WORKFLOW_ENDING_RESULT_STATUSES = new Set([
+  'blocked',
+  'halted',
+  'rejected',
+  'error',
+  'approval_required',
+  'approval_pending',
+]);
+
+function governedResultEndsWorkflow(event: Record<string, any>): boolean {
+  const content = event.content;
+  if (typeof content !== 'string') return false;
+  try {
+    const parsed = JSON.parse(content);
+    return (
+      isRecord(parsed) &&
+      parsed.schemaVersion === OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION &&
+      WORKFLOW_ENDING_RESULT_STATUSES.has(String(parsed.status))
+    );
+  } catch {
+    return false;
+  }
 }
 
 function finalPayloadLocationForEvent(
@@ -509,10 +675,10 @@ function contentEventFromStart(
   };
 }
 
-function contentFromSafePayload(safe: unknown, fallback: string): string {
+function contentFromSafePayload(safe: unknown, defaultContent: string): string {
   if (typeof safe === 'string') return safe;
   if (isRecord(safe) && typeof safe.content === 'string') return safe.content;
-  return fallback;
+  return defaultContent;
 }
 
 function withGovernedRunInput(
@@ -608,8 +774,27 @@ function withOpenBoxRuntimeIds(
   const openboxSession = isRecord(state.openboxSession)
     ? (state.openboxSession as Record<string, unknown>)
     : {};
+  // AG-UI forwards run-config `configurable` keys that match the agent's
+  // context schema into LangGraph run context. That is the reliable channel
+  // for handing the task workflow IDs to the agent process; state keys are
+  // filtered by the graph input schema.
+  const forwardedProps = objectRecord(input.forwardedProps);
+  const forwardedConfig = objectRecord(forwardedProps.config);
+  const forwardedConfigurable = objectRecord(forwardedConfig.configurable);
   return {
     ...input,
+    forwardedProps: {
+      ...forwardedProps,
+      config: {
+        ...forwardedConfig,
+        configurable: {
+          ...forwardedConfigurable,
+          openboxWorkflowId: ids.workflowId,
+          openboxRunId: ids.runId,
+          openboxPromptGoverned: true,
+        },
+      },
+    },
     state: {
       ...state,
       openboxWorkflowId: ids.workflowId,

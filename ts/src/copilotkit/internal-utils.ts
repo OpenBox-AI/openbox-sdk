@@ -81,14 +81,14 @@ export function mergeMessageContent(
 ): unknown {
   if (!Array.isArray(originalMessages)) return originalMessages;
   const safeByIndex = new Map<number, Record<string, any>>();
-  safeMessages.forEach((message, fallbackIndex) => {
+  safeMessages.forEach((message, positionIndex) => {
     const safe = objectRecord(message);
     const numericIndex =
       typeof safe.index === 'number'
         ? safe.index
         : typeof safe.index === 'string' && safe.index.trim() !== ''
           ? Number(safe.index)
-          : fallbackIndex;
+          : positionIndex;
     if (Number.isInteger(numericIndex)) {
       safeByIndex.set(numericIndex, safe);
     }

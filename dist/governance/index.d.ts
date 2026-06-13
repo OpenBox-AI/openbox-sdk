@@ -29,7 +29,7 @@ interface CheckGovernanceOptions {
  */
 declare function checkGovernance(opts: CheckGovernanceOptions): Promise<GovernanceVerdictResponse>;
 
-type SpanType = 'llm' | 'file_read' | 'file_write' | 'file_delete' | 'shell' | 'mcp' | 'http';
+type SpanType = 'llm' | 'file_read' | 'file_write' | 'file_delete' | 'shell' | 'mcp' | 'http' | 'db';
 interface SpanInput {
     prompt?: string;
     response?: string;
@@ -41,6 +41,9 @@ interface SpanInput {
     tool_output?: unknown;
     url?: string;
     method?: string;
+    db_system?: string;
+    db_operation?: string;
+    db_statement?: string;
 }
 /**
  * Build a single span for the given event. The `semantic_type` and

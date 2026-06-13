@@ -87,13 +87,7 @@ export function useOpenBoxCopilotKit(
       actionResult,
     );
   };
-  if (bindings?.useRenderTool) {
-    for (const name of governedToolNames) {
-      bindings.useRenderTool({ name, render: renderGovernedTool });
-    }
-  } else {
-    bindings?.useDefaultRenderTool({ render: renderGovernedTool });
-  }
+  bindings?.useDefaultRenderTool({ render: renderGovernedTool });
 
   return {
     governedToolNames,

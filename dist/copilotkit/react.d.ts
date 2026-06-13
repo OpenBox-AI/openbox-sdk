@@ -6,7 +6,7 @@ interface OpenBoxCopilotKitReactBindings {
     useRenderTool?: (definition: Record<string, unknown>) => void;
 }
 type OpenBoxToolStatus = 'inProgress' | 'executing' | 'complete' | string;
-type OpenBoxUiVerdict = 'reviewing' | 'allow' | 'block' | 'halt' | 'approval' | 'rejected' | 'constrain';
+type OpenBoxUiVerdict = 'reviewing' | 'allow' | 'block' | 'halt' | 'approval' | 'rejected' | 'constrain' | 'error';
 interface OpenBoxScenarioDefinition {
     action: string;
     title: string;

@@ -36,7 +36,16 @@ export function safePayload<T>(
   ids: { workflowId: string; runId: string; activityId: string },
   changed: boolean,
 ): OpenBoxSafePayload<T> {
-  const status = statusForVerdict(verdict);
+  const redactionSummary = hasGuardrailRedaction(verdict.guardrailsResult)
+    ? summarizeGuardrailRedaction(verdict.guardrailsResult)
+    : undefined;
+  // Allowed-with-transform is constrained by definition: the payload the
+  // caller may use is not the original one.
+  const status = isGovernanceAvailabilityFailure(verdict.reason)
+    ? 'error'
+    : verdict.arm === 'allow' && (redactionSummary || changed)
+      ? 'constrained'
+      : statusForVerdict(verdict);
   const haltedAt = new Date().toISOString();
   const session =
     status === 'halted'
@@ -55,9 +64,7 @@ export function safePayload<T>(
     rawBlocked: !isAllowed(verdict.arm),
     reason: verdict.reason || defaultReasonForVerdict(verdict.arm),
     message: verdict.reason || defaultReasonForVerdict(verdict.arm),
-    redactionSummary: hasGuardrailRedaction(verdict.guardrailsResult)
-      ? summarizeGuardrailRedaction(verdict.guardrailsResult)
-      : undefined,
+    redactionSummary,
     workflowId: ids.workflowId,
     runId: ids.runId,
     activityId: ids.activityId,
@@ -72,7 +79,9 @@ export function safePayloadToCopilotResult<T>(
   return {
     schemaVersion: OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION,
     status: safePayload.status,
-    verdict: verdict.arm,
+    // Availability failures are not governance arms; never report them as
+    // a policy block.
+    verdict: safePayload.status === 'error' ? 'error' : verdict.arm,
     executed: false,
     action: 'copilotkit_runtime_gate',
     request: 'CopilotKit runtime governance gate',
@@ -88,6 +97,7 @@ export function safePayloadToCopilotResult<T>(
     runId: safePayload.runId,
     activityId: safePayload.activityId,
     session: safePayload.session,
+    timings: safePayload.timings,
     ...verdictMetadata(verdict, safePayload.redactionSummary),
   };
 }
@@ -161,6 +171,19 @@ export function stoppedResult<TInput extends OpenBoxCopilotActionInput>(
   verdict: WorkflowVerdict,
   executed = false,
 ): OpenBoxCopilotActionResult {
+  if (isGovernanceAvailabilityFailure(verdict.reason)) {
+    return {
+      ...baseResult(input, ids),
+      status: 'error',
+      verdict: 'error',
+      executed,
+      reason: verdict.reason || 'OpenBox governance evaluation was unavailable.',
+      message:
+        'OpenBox could not evaluate this action, so it was not executed (failed closed). This is an availability failure, not a policy decision.',
+      session: { status: 'active' },
+      ...verdictMetadata(verdict),
+    };
+  }
   const status = verdict.arm === 'halt' ? 'halted' : 'blocked';
   const haltedAt = new Date().toISOString();
   return {
@@ -183,25 +206,6 @@ export function stoppedResult<TInput extends OpenBoxCopilotActionInput>(
   };
 }
 
-export function sessionHaltedResult<TInput extends OpenBoxCopilotActionInput>(
-  input: TInput,
-  session: Extract<OpenBoxCopilotSessionState, { status: 'halted' }>,
-): OpenBoxCopilotActionResult {
-  return {
-    ...baseResult(input, {
-      workflowId: session.workflowId ?? randomUUID(),
-      runId: session.runId ?? randomUUID(),
-      activityId: session.activityId ?? randomUUID(),
-    }),
-    status: 'session_halted',
-    verdict: 'halt',
-    executed: false,
-    reason: session.reason,
-    message: session.reason,
-    session,
-  };
-}
-
 export function rejectedResult<TInput extends OpenBoxCopilotActionInput>(
   input: TInput,
   ids: { workflowId: string; runId: string; activityId: string },
@@ -216,6 +220,13 @@ export function rejectedResult<TInput extends OpenBoxCopilotActionInput>(
     message: verdict.reason || 'OpenBox approval was rejected.',
     ...verdictMetadata(verdict),
   };
+}
+
+function isGovernanceAvailabilityFailure(reason: unknown): boolean {
+  if (typeof reason !== 'string') return false;
+  return /\b(?:opa|policy|guardrail|governance)\b[\s\S]*\bunavailable\b|\bunavailable\b[\s\S]*\b(?:opa|policy|guardrail|governance)\b/i.test(
+    reason,
+  );
 }
 
 export function executedResult<
@@ -261,7 +272,18 @@ export function resultForAllowedVerdict<
     verdict,
     redactionSummary,
   );
-  if (verdict.arm !== 'constrain') return result;
+  if (verdict.arm !== 'constrain') {
+    // Input-stage transforms under an allow arm are still redaction; the
+    // result must not present itself as a plain allow.
+    if (redactionSummary) {
+      return {
+        ...result,
+        status: 'constrained',
+        verdict: 'constrain',
+      };
+    }
+    return result;
+  }
   return {
     ...result,
     status: 'constrained',
@@ -276,13 +298,20 @@ export function errorResult<TInput extends OpenBoxCopilotActionInput>(
   ids: { workflowId: string; runId: string; activityId: string },
   error: unknown,
 ): OpenBoxCopilotActionResult {
+  const message = errorMessage(error);
+  const governanceUnavailable =
+    /request failed|fetch failed|timeout|econnreset|etimedout|und_err|operation was aborted/i.test(
+      message,
+    );
   return {
     ...baseResult(input, ids),
     status: 'error',
-    verdict: 'block',
+    verdict: 'error',
     executed: false,
-    reason: errorMessage(error),
-    message: 'OpenBox governance failed closed before executing this action.',
+    reason: message,
+    message: governanceUnavailable
+      ? 'OpenBox could not evaluate this action, so it was not executed (failed closed). This is an availability failure, not a policy decision.'
+      : 'The governed action failed before a business result was produced. No business result was released.',
     session: { status: 'active' },
   };
 }

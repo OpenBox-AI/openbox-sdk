@@ -69,7 +69,7 @@ export function applyInputRedaction<T = unknown>(
 ): T {
   if (!guardrails || guardrails.inputType !== 'activity_input') return originalData;
 
-  let redacted = guardrails.redactedInput as unknown;
+  let redacted = unwrapActivityInputRedaction(guardrails.redactedInput);
   if (redacted && typeof redacted === 'object' && !Array.isArray(redacted)) {
     redacted = [redacted];
   }
@@ -113,7 +113,7 @@ export function applyOutputRedaction<T = unknown>(
   guardrails: GuardrailsVerdict | undefined,
 ): T {
   if (!guardrails || guardrails.inputType !== 'activity_output') return originalOutput;
-  const redacted = guardrails.redactedInput;
+  const redacted = unwrapActivityOutputRedaction(guardrails.redactedInput, originalOutput);
   if (redacted === null || redacted === undefined) return originalOutput;
   if (
     typeof originalOutput === 'object' && !Array.isArray(originalOutput) && originalOutput !== null &&
@@ -124,6 +124,25 @@ export function applyOutputRedaction<T = unknown>(
     return out;
   }
   return redacted as T;
+}
+
+function unwrapActivityInputRedaction(redactedInput: unknown): unknown {
+  if (!isPlainObject(redactedInput)) return redactedInput;
+  if (Array.isArray(redactedInput.input)) return redactedInput.input;
+  if (Array.isArray(redactedInput.activity_input)) return redactedInput.activity_input;
+  if (Array.isArray(redactedInput.activityInput)) return redactedInput.activityInput;
+  return redactedInput;
+}
+
+function unwrapActivityOutputRedaction(redactedInput: unknown, originalOutput: unknown): unknown {
+  if (!isPlainObject(redactedInput) || hasOwnKey(originalOutput, 'output')) {
+    return redactedInput;
+  }
+  const redacted = redactedInput as Record<string, unknown>;
+  if (Object.prototype.hasOwnProperty.call(redacted, 'output')) return redacted.output;
+  if (Object.prototype.hasOwnProperty.call(redacted, 'activity_output')) return redacted.activity_output;
+  if (Object.prototype.hasOwnProperty.call(redacted, 'activityOutput')) return redacted.activityOutput;
+  return redactedInput;
 }
 
 export function hasGuardrailRedaction(guardrails: GuardrailsVerdict | undefined): boolean {
@@ -142,15 +161,24 @@ export function summarizeGuardrailRedaction(
     ?.filter((field) => isRedactedStatus(field.status))
     .map((field) => field.field)
     .filter(Boolean);
-  if (!fields?.length) return fallback;
+  const uniqueFields = Array.from(new Set(fields));
+  if (!uniqueFields.length) return fallback;
 
-  return `OpenBox redacted ${fields.slice(0, 4).join(', ')}${
-    fields.length > 4 ? ` and ${fields.length - 4} more ${fields.length - 4 === 1 ? 'field' : 'fields'}` : ''
+  return `OpenBox redacted ${uniqueFields.slice(0, 4).join(', ')}${
+    uniqueFields.length > 4 ? ` and ${uniqueFields.length - 4} more ${uniqueFields.length - 4 === 1 ? 'field' : 'fields'}` : ''
   }.`;
 }
 
 function isRedactedStatus(status: unknown): boolean {
   return status === 'redacted' || status === 'transformed';
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function hasOwnKey(value: unknown, key: string): value is Record<string, unknown> {
+  return isPlainObject(value) && Object.prototype.hasOwnProperty.call(value, key);
 }
 
 function cloneValue<T>(value: T): T {

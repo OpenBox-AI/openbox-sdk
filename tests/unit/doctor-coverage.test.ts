@@ -3,7 +3,7 @@
 // branch by setting up a sandboxed token store + a capture-server
 // backend that can return /health/version 200 or fail on demand.
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 import { Command } from 'commander';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -14,6 +14,15 @@ import { AddressInfo } from 'node:net';
 let dir: string;
 let originalHome: string | undefined;
 let originalCwd: string;
+let doctorModule: Awaited<ReturnType<typeof importDoctorCommand>>;
+
+function importDoctorCommand() {
+  return import('../../ts/src/cli/commands/doctor');
+}
+
+beforeAll(async () => {
+  doctorModule = await importDoctorCommand();
+});
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'openbox-doctor-cov-'));
@@ -41,10 +50,9 @@ async function makeOkServer(): Promise<{ url: string; close: () => Promise<void>
 }
 
 async function runDoctor(options: { stdoutIsTTY?: boolean } = {}): Promise<{ exitCode: number | undefined; lines: string[] }> {
-  const { registerDoctorCommand } = await import('../../ts/src/cli/commands/doctor');
   const program = new Command();
   program.exitOverride();
-  registerDoctorCommand(program);
+  doctorModule.registerDoctorCommand(program);
 
   const lines: string[] = [];
   const origLog = console.log;

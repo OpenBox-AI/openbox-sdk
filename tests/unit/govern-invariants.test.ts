@@ -465,6 +465,50 @@ describe('BaseGovernedSession.activity (cross-preset escape)', () => {
     const stray = mock.events.find((e) => e.event_type === 'ActivityCompleted' && e.activity_type === 'goal');
     expect(stray).toBeUndefined();
   });
+
+  test('openActivity defers the pair until complete() and keeps one activity id', async () => {
+    const mock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(mock), preset: presets.langchain },
+      async (session) => {
+        const opened = await session.openActivity('on_tool_start', {
+          activityId: 'tool-activity-1',
+          input: [{ tool: 'crm_lookup' }],
+        });
+        expect(opened.activityId).toBe('tool-activity-1');
+        expect(opened.verdict.arm).toBe('allow');
+        // Business logic runs here; no completion has been emitted yet.
+        expect(
+          mock.events.filter((e) => e.event_type === 'ActivityCompleted'),
+        ).toHaveLength(0);
+        await opened.complete({ output: { rows: 3 } }, 'on_tool_end');
+      },
+    );
+    const started = mock.events.find((e) => e.event_type === 'ActivityStarted');
+    const completed = mock.events.find(
+      (e) => e.event_type === 'ActivityCompleted' && e.activity_type === 'on_tool_end',
+    );
+    expect(started?.activity_id).toBe('tool-activity-1');
+    expect(completed?.activity_id).toBe('tool-activity-1');
+  });
+
+  test('openActivity leaves a blocked start canonically unpaired', async () => {
+    const mock = createMockCore('block');
+    await govern(
+      { ...baseConfig(mock), preset: presets.langchain },
+      async (session) => {
+        const opened = await session.openActivity('on_tool_start', {
+          input: [{ tool: 'crm_lookup' }],
+        });
+        expect(opened.verdict.arm).toBe('block');
+      },
+    ).catch(() => undefined);
+    expect(
+      mock.events.filter(
+        (e) => e.event_type === 'ActivityCompleted' && e.activity_type === 'on_tool_start',
+      ),
+    ).toHaveLength(0);
+  });
 });
 
 describe('CustomSession (free-form activity)', () => {

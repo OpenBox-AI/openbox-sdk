@@ -26,6 +26,8 @@ export function createOpenBoxCopilotKitAdapter(
   const governanceMode = config.governanceMode ?? 'enforce';
   const failClosed = config.failClosed ?? true;
   const redactionMode = config.redactionMode ?? 'transformed-only';
+  const workflowType = config.agentWorkflowType ?? DEFAULT_AGENT_WORKFLOW_TYPE;
+  const taskQueue = config.taskQueue ?? DEFAULT_TASK_QUEUE;
   const haltedSessions = new Map<
     string,
     Extract<OpenBoxCopilotSessionState, { status: 'halted' }>
@@ -47,8 +49,8 @@ export function createOpenBoxCopilotKitAdapter(
       createOpenBoxLangChainMiddleware({
         adapter,
         deps,
-        workflowType: config.agentWorkflowType ?? DEFAULT_AGENT_WORKFLOW_TYPE,
-        taskQueue: config.taskQueue ?? DEFAULT_TASK_QUEUE,
+        workflowType,
+        taskQueue,
         selfGovernedToolNames,
         strict,
         governanceMode,
@@ -57,8 +59,8 @@ export function createOpenBoxCopilotKitAdapter(
     governPrompt: (input) =>
       governPipelineGate(adapter, {
         kind: 'prompt',
-        workflowType: config.agentWorkflowType ?? DEFAULT_AGENT_WORKFLOW_TYPE,
-        taskQueue: config.taskQueue ?? DEFAULT_TASK_QUEUE,
+        workflowType,
+        taskQueue,
         haltedSessions,
         strict,
         governanceMode,
@@ -69,8 +71,8 @@ export function createOpenBoxCopilotKitAdapter(
     governToolInput: (input) =>
       governPipelineGate(adapter, {
         kind: 'tool_input',
-        workflowType: config.agentWorkflowType ?? DEFAULT_AGENT_WORKFLOW_TYPE,
-        taskQueue: config.taskQueue ?? DEFAULT_TASK_QUEUE,
+        workflowType,
+        taskQueue,
         haltedSessions,
         strict,
         governanceMode,
@@ -81,8 +83,8 @@ export function createOpenBoxCopilotKitAdapter(
     governToolOutput: (input) =>
       governPipelineGate(adapter, {
         kind: 'tool_output',
-        workflowType: config.agentWorkflowType ?? DEFAULT_AGENT_WORKFLOW_TYPE,
-        taskQueue: config.taskQueue ?? DEFAULT_TASK_QUEUE,
+        workflowType,
+        taskQueue,
         haltedSessions,
         strict,
         governanceMode,
@@ -93,8 +95,8 @@ export function createOpenBoxCopilotKitAdapter(
     governAssistantOutput: (input) =>
       governPipelineGate(adapter, {
         kind: 'assistant_output',
-        workflowType: config.agentWorkflowType ?? DEFAULT_AGENT_WORKFLOW_TYPE,
-        taskQueue: config.taskQueue ?? DEFAULT_TASK_QUEUE,
+        workflowType,
+        taskQueue,
         haltedSessions,
         strict,
         governanceMode,
@@ -134,6 +136,12 @@ export function createOpenBoxCopilotKitAdapter(
       parseToolResult,
     },
   };
+
+  Object.defineProperty(adapter, '__openboxCopilotRuntimeConfig', {
+    value: { workflowType, taskQueue },
+    enumerable: false,
+    configurable: false,
+  });
 
   return adapter;
 }

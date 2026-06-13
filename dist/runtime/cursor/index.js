@@ -135,6 +135,42 @@ var BaseGovernedSession = class {
     return this.runActivity(eventType, activityType, payload);
   }
   /**
+   * Split-stage activity for callers that must run business logic between
+   * the input gate and the output gate (e.g. governed tools that gate the
+   * produced artifact). Emits ActivityStarted and returns the gate verdict
+   * plus a `complete()` bound to the same activity id, so the pair cannot
+   * drift apart. Stopped starts (block/halt) and pending approvals are
+   * canonically left unpaired; the caller resolves them via the workflow
+   * terminal or approval resume (ActivityCompleted with this activity id).
+   */
+  async openActivity(activityType, payload) {
+    if (this.finalized) throw new SessionAlreadyTerminatedError();
+    if (!this.opened && !this.autoOpenSuppressed) await this.begin();
+    const activityId = payload.activityId ?? randomUUID();
+    this.inFlight.add(activityId);
+    try {
+      const verdict = await this.emit({
+        event_type: "ActivityStarted",
+        activity_id: activityId,
+        activity_type: activityType,
+        activity_input: payload.input,
+        spans: payload.spans
+      });
+      verdict.activityId = activityId;
+      return {
+        activityId,
+        verdict,
+        complete: (completionPayload, completionActivityType) => this.runActivity(
+          "ActivityCompleted",
+          completionActivityType ?? activityType,
+          { ...completionPayload, activityId }
+        )
+      };
+    } finally {
+      this.inFlight.delete(activityId);
+    }
+  }
+  /**
    * Run one activity through the canonical envelope. Preset classes
    * call this with their fixed (eventType, activityType) tuple; the
    * `custom` preset takes them from the user.
@@ -148,17 +184,21 @@ var BaseGovernedSession = class {
   async runActivity(eventType, activityType, payload) {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
     if (!this.opened && !this.autoOpenSuppressed) await this.begin();
-    const activityId = randomUUID();
+    const activityId = payload.activityId ?? randomUUID();
     this.inFlight.add(activityId);
     try {
       if (eventType === "SignalReceived") {
-        return this.emit({
+        const signalVerdict = await this.emit({
           event_type: "SignalReceived",
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
+          signal_name: payload.signalName,
+          signal_args: payload.signalArgs,
           spans: payload.spans
         });
+        signalVerdict.activityId = activityId;
+        return signalVerdict;
       }
       if (eventType === "ActivityStarted") {
         const startedVerdict = await this.emit({
@@ -168,6 +208,14 @@ var BaseGovernedSession = class {
           activity_input: payload.input,
           spans: payload.spans
         });
+        startedVerdict.activityId = activityId;
+        if (startedVerdict.arm === "constrain") {
+          try {
+            await this.emitCompleted(activityId, activityType, payload);
+          } catch {
+          }
+          return startedVerdict;
+        }
         if (startedVerdict.arm !== "allow") {
           if (startedVerdict.arm === "require_approval") {
             const approvalId = startedVerdict.approvalId ?? activityId;
@@ -188,6 +236,7 @@ var BaseGovernedSession = class {
               return startedVerdict;
             }
             const polled = await this.pollApproval(activityId, activityType, startedVerdict);
+            polled.activityId = activityId;
             if (this.onApprovalResolved) {
               try {
                 await this.onApprovalResolved({
@@ -219,6 +268,7 @@ var BaseGovernedSession = class {
       activity_output: payload.output,
       spans: payload.spans
     });
+    completedVerdict.activityId = activityId;
     if (completedVerdict.arm === "require_approval") {
       const approvalId = completedVerdict.approvalId ?? activityId;
       if (this.onPendingApproval) {
@@ -238,6 +288,7 @@ var BaseGovernedSession = class {
         return completedVerdict;
       }
       const polled = await this.pollApproval(activityId, activityType, completedVerdict);
+      polled.activityId = activityId;
       if (this.onApprovalResolved) {
         try {
           await this.onApprovalResolved({ approvalId, activityId, activityType, arm: polled.arm });
@@ -2533,16 +2584,51 @@ function buildSpan(host, type, input) {
         result: input.tool_output ?? null
       };
     case "http":
+      const method = (input.method ?? "GET").toUpperCase();
+      const url = input.url ?? "";
       return {
         ...b,
-        name: "http.request",
-        hook_type: "function_call",
-        semantic_type: `http_${(input.method ?? "get").toLowerCase()}`,
+        name: `${method} ${url}`,
+        hook_type: "http_request",
+        semantic_type: `http_${method.toLowerCase()}`,
         attributes: {
-          "http.method": input.method ?? "GET",
-          "http.url": input.url ?? ""
+          "http.method": method,
+          "http.url": url
         },
+        http_method: method,
+        http_url: url,
+        request_body: null,
+        response_body: null,
+        request_headers: null,
+        response_headers: null,
+        http_status_code: null,
         function: "HTTPCall",
+        module: host,
+        args: input,
+        result: null
+      };
+    case "db":
+      const dbSystem = input.db_system ?? "postgresql";
+      const dbOperation = (input.db_operation ?? "SELECT").toUpperCase();
+      const dbStatement = input.db_statement ?? `${dbOperation} statement`;
+      return {
+        ...b,
+        name: `${dbOperation} ${dbStatement.split(" ").slice(0, 3).join(" ")}`,
+        hook_type: "db_query",
+        semantic_type: `database_${dbOperation.toLowerCase()}`,
+        attributes: {
+          "db.system": dbSystem,
+          "db.operation": dbOperation,
+          "db.statement": dbStatement
+        },
+        db_system: dbSystem,
+        db_name: null,
+        db_operation: dbOperation,
+        db_statement: dbStatement,
+        server_address: null,
+        server_port: null,
+        rowcount: null,
+        function: "DatabaseQuery",
         module: host,
         args: input,
         result: null

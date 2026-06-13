@@ -74,10 +74,11 @@ function findOpenBoxResult(
   message: Record<string, any>,
   stateSnapshot: unknown,
 ): unknown {
-  if (message.role === 'tool') return message.content;
-  if (message.role !== 'assistant') return null;
+  const kind = textValue(message.role ?? message.type);
+  if (kind === 'tool') return message.content;
+  if (kind !== 'assistant' && kind !== 'ai') return null;
 
-  const toolCalls = Array.isArray(message.toolCalls) ? message.toolCalls : [];
+  const toolCalls = toolCallsFromMessage(message);
   const openBoxToolCallIds = new Set(
     toolCalls
       .filter((toolCall) => governedToolNames.includes(toolCallName(toolCall)))
@@ -96,6 +97,16 @@ function findOpenBoxResult(
     return toolCallId && openBoxToolCallIds.has(toolCallId);
   });
   return toolMessage?.content ?? null;
+}
+
+function toolCallsFromMessage(message: Record<string, any>): unknown[] {
+  if (Array.isArray(message.toolCalls)) return message.toolCalls;
+  if (Array.isArray(message.tool_calls)) return message.tool_calls;
+  const additionalKwargs = asRecord(message.additional_kwargs);
+  if (Array.isArray(additionalKwargs.tool_calls)) {
+    return additionalKwargs.tool_calls;
+  }
+  return [];
 }
 
 function toolCallName(toolCall: unknown): string {

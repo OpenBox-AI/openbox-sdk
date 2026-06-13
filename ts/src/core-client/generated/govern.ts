@@ -29,10 +29,14 @@ export interface WorkflowVerdict {
   riskScore: number;
   trustTier?: number;
   guardrailsResult?: GuardrailsVerdict;
+  activityId?: string;
 }
 export interface GovernedPayload {
   input?: unknown[];
   output?: unknown;
+  activityId?: string;
+  signalName?: string;
+  signalArgs?: unknown;
   spans?: unknown[];
 }
 export type CanonicalVerdict = WorkflowVerdict;
@@ -1268,6 +1272,54 @@ export class BaseGovernedSession {
   }
 
   /**
+   * Split-stage activity for callers that must run business logic between
+   * the input gate and the output gate (e.g. governed tools that gate the
+   * produced artifact). Emits ActivityStarted and returns the gate verdict
+   * plus a `complete()` bound to the same activity id, so the pair cannot
+   * drift apart. Stopped starts (block/halt) and pending approvals are
+   * canonically left unpaired; the caller resolves them via the workflow
+   * terminal or approval resume (ActivityCompleted with this activity id).
+   */
+  async openActivity(
+    activityType: string,
+    payload: GovernedPayload,
+  ): Promise<{
+    activityId: string;
+    verdict: WorkflowVerdict;
+    complete(
+      payload: GovernedPayload,
+      completionActivityType?: string,
+    ): Promise<WorkflowVerdict>;
+  }> {
+    if (this.finalized) throw new SessionAlreadyTerminatedError();
+    if (!this.opened && !this.autoOpenSuppressed) await this.begin();
+    const activityId = payload.activityId ?? randomUUID();
+    this.inFlight.add(activityId);
+    try {
+      const verdict = await this.emit({
+        event_type: 'ActivityStarted',
+        activity_id: activityId,
+        activity_type: activityType,
+        activity_input: payload.input,
+        spans: payload.spans as unknown as GovernanceEventPayload['spans'],
+      });
+      verdict.activityId = activityId;
+      return {
+        activityId,
+        verdict,
+        complete: (completionPayload, completionActivityType) =>
+          this.runActivity(
+            'ActivityCompleted',
+            completionActivityType ?? activityType,
+            { ...completionPayload, activityId },
+          ),
+      };
+    } finally {
+      this.inFlight.delete(activityId);
+    }
+  }
+
+  /**
    * Run one activity through the canonical envelope. Preset classes
    * call this with their fixed (eventType, activityType) tuple; the
    * `custom` preset takes them from the user.
@@ -1285,18 +1337,22 @@ export class BaseGovernedSession {
   ): Promise<WorkflowVerdict> {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
     if (!this.opened && !this.autoOpenSuppressed) await this.begin();
-    const activityId = randomUUID();
+    const activityId = payload.activityId ?? randomUUID();
     this.inFlight.add(activityId);
 
     try {
       if (eventType === 'SignalReceived') {
-        return this.emit({
+        const signalVerdict = await this.emit({
           event_type: 'SignalReceived',
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
+          signal_name: payload.signalName,
+          signal_args: payload.signalArgs,
           spans: payload.spans as unknown as GovernanceEventPayload['spans'],
         });
+        signalVerdict.activityId = activityId;
+        return signalVerdict;
       }
 
       if (eventType === 'ActivityStarted') {
@@ -1307,6 +1363,17 @@ export class BaseGovernedSession {
           activity_input: payload.input,
           spans: payload.spans as unknown as GovernanceEventPayload['spans'],
         });
+        startedVerdict.activityId = activityId;
+        if (startedVerdict.arm === 'constrain') {
+          // Spec: `constrain` means the action proceeds with the
+          // transformed payload, so the start is paired like an allow.
+          // The started verdict (carrying the guardrails transform) is
+          // returned; the paired completion is lifecycle bookkeeping.
+          try {
+            await this.emitCompleted(activityId, activityType, payload);
+          } catch { /* pairing must not mask the constrain verdict */ }
+          return startedVerdict;
+        }
         if (startedVerdict.arm !== 'allow') {
           // Pre-stage block; never emit ActivityCompleted, but if the
           // gate said require_approval, poll for the approval decision.
@@ -1340,6 +1407,7 @@ export class BaseGovernedSession {
               return startedVerdict;
             }
             const polled = await this.pollApproval(activityId, activityType, startedVerdict);
+            polled.activityId = activityId;
             if (this.onApprovalResolved) {
               try {
                 await this.onApprovalResolved({
@@ -1379,6 +1447,7 @@ export class BaseGovernedSession {
       activity_output: payload.output,
       spans: payload.spans as unknown as GovernanceEventPayload['spans'],
     });
+    completedVerdict.activityId = activityId;
     if (completedVerdict.arm === 'require_approval') {
       // See comment in runActivity: poll on activity_id even if the
       // backend omitted approval_id in the evaluate response.
@@ -1401,6 +1470,7 @@ export class BaseGovernedSession {
         return completedVerdict;
       }
       const polled = await this.pollApproval(activityId, activityType, completedVerdict);
+      polled.activityId = activityId;
       if (this.onApprovalResolved) {
         try {
           await this.onApprovalResolved({ approvalId, activityId, activityType, arm: polled.arm });
@@ -1414,7 +1484,7 @@ export class BaseGovernedSession {
   private async emit(
     event: Pick<
       GovernanceEventPayload,
-      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'spans'
+      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'spans' | 'signal_name' | 'signal_args'
     >,
   ): Promise<WorkflowVerdict> {
     const payload = {

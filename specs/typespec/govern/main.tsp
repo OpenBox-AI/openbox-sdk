@@ -357,6 +357,13 @@ model WorkflowVerdict {
    * without parsing the raw wire response.
    */
   guardrailsResult?: GuardrailsVerdict;
+
+  /**
+   * The activity id this verdict was evaluated under. Callers that need
+   * cross-request correlation (for example HITL approval resume, which
+   * polls on workflow_id + run_id + activity_id) read it from here.
+   */
+  activityId?: string;
 }
 
 /** Free-form input/output payload. Server stringifies; SDKs pass through. */
@@ -366,6 +373,22 @@ model GovernedPayload {
 
   /** Activity output (response side); only set on completion events. */
   output?: unknown;
+
+  /**
+   * Caller-supplied activity id. When absent the SDK mints one. Supply it
+   * when the same logical activity must be referenced across requests,
+   * for example HITL approval resume.
+   */
+  activityId?: string;
+
+  /** Signal name for `SignalReceived` events (for example `user_prompt`). */
+  signalName?: string;
+
+  /**
+   * Signal arguments for `SignalReceived` events. Backends surface the
+   * `user_prompt` signal's args as the session intent.
+   */
+  signalArgs?: unknown;
 
   /**
    * Spans describing the underlying operation. REQUIRED for behavior-rule

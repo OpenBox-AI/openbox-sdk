@@ -1,4 +1,4 @@
-import { O as OpenBoxCoreClient, r as ClaudeCodeSession, W as WorkflowVerdict } from '../../govern-5Bhxsuwl.js';
+import { O as OpenBoxCoreClient, r as ClaudeCodeSession, W as WorkflowVerdict } from '../../govern-CX11GBkl.js';
 import { C as ClaudeCodeEnvelope } from '../../envelopes-B-eUlX69.js';
 import { InstallOptions } from '../../install/index.js';
 import '../../core-types-Dxgkbox0.js';

@@ -43,6 +43,10 @@ export type {
   OpenBoxCopilotRuntimeHookContext,
   OpenBoxCopilotRuntimeResponseHookContext,
   OpenBoxCopilotSessionState,
+  OpenBoxCopilotTimingEvent,
+  OpenBoxCopilotTimingKind,
+  OpenBoxCopilotTimingStep,
+  OpenBoxCopilotTimings,
   OpenBoxCopilotVerdictStatus,
   OpenBoxSafePayload,
 } from './types.js';
