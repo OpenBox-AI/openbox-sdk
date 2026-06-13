@@ -459,7 +459,7 @@ function renderTimingSummary(
           ),
         ],
       ),
-      ...(isReviewing ? [] : timings.steps).map((step) =>
+      ...timings.steps.map((step) =>
         h(
           'p',
           {
