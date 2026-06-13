@@ -490,7 +490,7 @@
     "test": "cd ../.. && vitest run --project unit apps/extension/src"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^25.9.3",
     "@types/vscode": "^1.85.0",
     "esbuild": "^0.28.0",
     "openbox-sdk": "file:../..",
