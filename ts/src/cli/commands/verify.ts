@@ -198,7 +198,7 @@ const rules: Rule[] = [
     fix: 'Derive from `openbox auth profile`, generated backend API calls, or the dashboard; pass via env var / config.',
     appliesTo: (path) => !/test|spec|\.md$|fixture|seed|examples?\//i.test(path),
     detect: (_content, origLines) => {
-      // Strip comments so UUIDs inside commented-out code or TODO notes don't fire.
+      // Strip comments so UUIDs inside ignored source text do not fire.
       const strippedLines = stripComments(origLines.join('\n')).split('\n');
       const out: Array<{ line: number; snippet: string }> = [];
       const uuidRe = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;

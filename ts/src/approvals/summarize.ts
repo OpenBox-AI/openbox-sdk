@@ -1,5 +1,5 @@
 // Pull a single-string summary out of an approval's `input` payload.
-// Mirrors the activity-type catalogue used everywhere else in the SDK;
+// Mirrors the activity-type mapping used everywhere else in the SDK;
 // keep both branches identical or two consumers will diverge for the
 // same approval.
 
