@@ -41,6 +41,5 @@ export interface OpenBoxInteractiveReviewProps extends OpenBoxDefaultRenderOptio
   audience?: string;
   manualInput?: string;
   sensitivity?: string;
-  handoffTemplate?: string;
-  template?: string;
+  choiceId?: string;
 }

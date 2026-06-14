@@ -24,15 +24,6 @@ interface OpenBoxChoiceOption {
     sensitivity?: string;
     previewRows?: Array<Record<string, unknown>>;
 }
-interface OpenBoxManualTemplate {
-    id: string;
-    title: string;
-    description: string;
-    label?: string;
-    destination: string;
-    sensitivity?: string;
-    draft: string;
-}
 interface OpenBoxRendererTheme {
     logoSrc?: string;
     accentColor?: string;
@@ -62,7 +53,6 @@ interface OpenBoxDefaultRenderOptions {
     onSessionHalted?: (haltedAt?: unknown) => void;
     scenarios?: OpenBoxScenarioDefinition[];
     choiceOptions?: OpenBoxChoiceOption[];
-    manualTemplates?: OpenBoxManualTemplate[];
     artifactRenderers?: Record<string, OpenBoxArtifactRenderer>;
 }
 interface UseOpenBoxCopilotKitOptions extends OpenBoxDefaultRenderOptions {
@@ -134,8 +124,7 @@ interface OpenBoxInteractiveReviewProps extends OpenBoxDefaultRenderOptions {
     audience?: string;
     manualInput?: string;
     sensitivity?: string;
-    handoffTemplate?: string;
-    template?: string;
+    choiceId?: string;
 }
 
 declare function OpenBoxActionResult({ result, logoSrc, theme, artifactRenderers, }: OpenBoxActionResultProps): React.FunctionComponentElement<React.FragmentProps> | null;
@@ -150,9 +139,9 @@ declare function OpenBoxGovernanceDecision({ status, parameters, result, logoSrc
     style: React.CSSProperties;
 }, HTMLElement> | null;
 
-declare function OpenBoxInteractiveReview({ status, respond, mode, title, request, action, destination, fields, manualInput, sensitivity, handoffTemplate, template, choiceOptions, manualTemplates, logoSrc, theme, }: OpenBoxInteractiveReviewProps): React.DetailedReactHTMLElement<{
+declare function OpenBoxInteractiveReview({ status, respond, mode, title, request, action, destination, fields, manualInput, sensitivity, choiceId, choiceOptions, logoSrc, theme, }: OpenBoxInteractiveReviewProps): React.DetailedReactHTMLElement<{
     className: string;
     style: React.CSSProperties;
 }, HTMLElement>;
 
-export { OpenBoxActionResult, type OpenBoxApprovalClient, OpenBoxApprovalReview, type OpenBoxArtifactRenderer, type OpenBoxChoiceOption, type OpenBoxCopilotKitReactBindings, type OpenBoxCustomMessageRenderer, type OpenBoxCustomMessageRendererOptions, type OpenBoxDefaultRenderOptions, OpenBoxGovernanceDecision, OpenBoxInteractiveReview, type OpenBoxManualTemplate, type OpenBoxRendererTheme, type OpenBoxScenarioDefinition, type OpenBoxToolStatus, type OpenBoxUiVerdict, type UseOpenBoxCopilotKitOptions, type UseOpenBoxCopilotKitResult, createOpenBoxApprovalClient, createOpenBoxCustomMessageRenderer, useOpenBoxCopilotKit };
+export { OpenBoxActionResult, type OpenBoxApprovalClient, OpenBoxApprovalReview, type OpenBoxArtifactRenderer, type OpenBoxChoiceOption, type OpenBoxCopilotKitReactBindings, type OpenBoxCustomMessageRenderer, type OpenBoxCustomMessageRendererOptions, type OpenBoxDefaultRenderOptions, OpenBoxGovernanceDecision, OpenBoxInteractiveReview, type OpenBoxRendererTheme, type OpenBoxScenarioDefinition, type OpenBoxToolStatus, type OpenBoxUiVerdict, type UseOpenBoxCopilotKitOptions, type UseOpenBoxCopilotKitResult, createOpenBoxApprovalClient, createOpenBoxCustomMessageRenderer, useOpenBoxCopilotKit };

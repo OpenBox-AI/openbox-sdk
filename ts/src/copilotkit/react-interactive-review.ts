@@ -23,10 +23,8 @@ export function OpenBoxInteractiveReview({
   fields,
   manualInput,
   sensitivity,
-  handoffTemplate,
-  template,
+  choiceId,
   choiceOptions,
-  manualTemplates,
   logoSrc,
   theme,
 }: OpenBoxInteractiveReviewProps) {
@@ -34,7 +32,6 @@ export function OpenBoxInteractiveReview({
   const resolvedTheme = resolveTheme(theme, logoSrc);
   const safeMode = mode === 'manual' ? 'manual' : 'choice';
   const options = choiceOptions?.length ? choiceOptions : defaultChoiceOptions;
-  const templates = manualTemplates?.length ? manualTemplates : [];
   const safeRequest =
     request?.trim() ||
     (safeMode === 'choice'
@@ -47,28 +44,17 @@ export function OpenBoxInteractiveReview({
     title ||
     (safeMode === 'choice' ? 'OpenBox Input Review' : 'OpenBox Manual Review');
   const initialOption =
-    options.find((option) => option.id === handoffTemplate) ??
+    options.find((option) => option.id === choiceId) ??
     options.find((option) =>
       fields?.every((field) => option.fields.includes(field)),
     ) ??
     options[0];
-  const initialTemplate =
-    templates.find(
-      (item) => item.id === template || item.sensitivity === sensitivity,
-    ) ?? templates[0];
   const [selectedOptionId, setSelectedOptionId] = useState(initialOption.id);
-  const [selectedTemplateId, setSelectedTemplateId] = useState(
-    initialTemplate?.id ?? '',
-  );
-  const [text, setText] = useState(
-    manualInput?.trim() || initialTemplate?.draft || '',
-  );
+  const [text, setText] = useState(manualInput?.trim() || '');
   const [submitted, setSubmitted] = useState(false);
   const respondedRef = useRef(false);
   const selectedOption =
     options.find((option) => option.id === selectedOptionId) ?? initialOption;
-  const selectedTemplate =
-    templates.find((item) => item.id === selectedTemplateId) ?? initialTemplate;
 
   const submit = () => {
     if (!respond || submitted || respondedRef.current) return;
@@ -81,7 +67,7 @@ export function OpenBoxInteractiveReview({
             fields: selectedOption.fields,
             audience: selectedOption.audience,
             sensitivity: selectedOption.sensitivity,
-            handoffTemplate: selectedOption.id,
+            choiceId: selectedOption.id,
             nextTool: 'openbox_governed_action',
             mustCallOpenBoxGovernedAction: true,
             submittedAt: new Date().toISOString(),
@@ -89,10 +75,9 @@ export function OpenBoxInteractiveReview({
         : {
             action: safeAction,
             request: safeRequest,
-            destination: selectedTemplate?.destination ?? destination,
+            destination,
             manualInput: text,
-            sensitivity: selectedTemplate?.sensitivity ?? sensitivity,
-            ...(selectedTemplate?.id ? { template: selectedTemplate.id } : {}),
+            sensitivity,
             nextTool: 'openbox_governed_action',
             mustCallOpenBoxGovernedAction: true,
             submittedAt: new Date().toISOString(),
@@ -255,67 +240,6 @@ export function OpenBoxInteractiveReview({
               ),
             )
           : h('div', { key: 'manual', className: 'grid gap-3' }, [
-              templates.length > 0
-                ? h(
-                    'div',
-                    { key: 'templates', className: 'grid gap-2' },
-                    templates.map((item) =>
-                      h(
-                        'button',
-                        {
-                          key: item.id,
-                          type: 'button',
-                          className:
-                            item.id === selectedTemplateId
-                              ? 'w-full rounded-md border border-[var(--obx-accent,#3B9AF5)]/45 bg-[var(--obx-accent,#3B9AF5)]/8 px-3 py-3 text-left'
-                              : 'w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-3 text-left hover:border-[var(--obx-accent,#3B9AF5)]/30',
-                          onClick: () => {
-                            setSelectedTemplateId(item.id);
-                            setText(item.draft);
-                          },
-                        },
-                        [
-                          h(
-                            'div',
-                            {
-                              key: 'row',
-                              className: 'flex items-center justify-between gap-2',
-                            },
-                            [
-                              h(
-                                'div',
-                                {
-                                  key: 'title',
-                                  className:
-                                    'text-sm font-medium text-[var(--foreground)]',
-                                },
-                                item.title,
-                              ),
-                              h(
-                                'span',
-                                {
-                                  key: 'badge',
-                                  className:
-                                    'shrink-0 rounded-full border border-[var(--obx-accent,#3B9AF5)]/25 px-2 py-0.5 text-[10px] text-[#1F7FD8]',
-                                },
-                                item.label || item.sensitivity || 'option',
-                              ),
-                            ],
-                          ),
-                          h(
-                            'p',
-                            {
-                              key: 'desc',
-                              className:
-                                'mt-1 text-xs leading-5 text-[var(--muted-foreground)]',
-                            },
-                            item.description,
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : null,
               h('textarea', {
                 key: 'textarea',
                 className:

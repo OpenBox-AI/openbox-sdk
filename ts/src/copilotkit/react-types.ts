@@ -41,16 +41,6 @@ export interface OpenBoxChoiceOption {
   previewRows?: Array<Record<string, unknown>>;
 }
 
-export interface OpenBoxManualTemplate {
-  id: string;
-  title: string;
-  description: string;
-  label?: string;
-  destination: string;
-  sensitivity?: string;
-  draft: string;
-}
-
 export interface OpenBoxRendererTheme {
   logoSrc?: string;
   accentColor?: string;
@@ -83,7 +73,6 @@ export interface OpenBoxDefaultRenderOptions {
   onSessionHalted?: (haltedAt?: unknown) => void;
   scenarios?: OpenBoxScenarioDefinition[];
   choiceOptions?: OpenBoxChoiceOption[];
-  manualTemplates?: OpenBoxManualTemplate[];
   artifactRenderers?: Record<string, OpenBoxArtifactRenderer>;
 }
 

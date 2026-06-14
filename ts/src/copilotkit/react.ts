@@ -17,7 +17,6 @@ export type {
   OpenBoxChoiceOption,
   OpenBoxCopilotKitReactBindings,
   OpenBoxDefaultRenderOptions,
-  OpenBoxManualTemplate,
   OpenBoxRendererTheme,
   OpenBoxScenarioDefinition,
   OpenBoxToolStatus,
