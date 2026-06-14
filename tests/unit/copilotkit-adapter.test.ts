@@ -1545,6 +1545,52 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(JSON.stringify(events)).not.toContain('alice@example.com');
   });
 
+  it('native runner keeps RUN_FINISHED after late final assistant text', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+      {
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'assistant-1',
+        role: 'assistant',
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'assistant-1',
+        delta: 'Reviewed.',
+      },
+      { type: 'TEXT_MESSAGE_END', messageId: 'assistant-1' },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    const events = await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+        },
+      }),
+    );
+    const types = events.map((event: any) => event.type);
+
+    expect(types).toEqual([
+      'RUN_STARTED',
+      'TEXT_MESSAGE_START',
+      'TEXT_MESSAGE_CONTENT',
+      'TEXT_MESSAGE_END',
+      'RUN_FINISHED',
+    ]);
+  });
+
   it('native runner blocks unsafe final assistant text before emit', async () => {
     const mock = createMockCore((payload) => ({
       verdict: payload.activity_type === 'on_llm_end' ? 'block' : 'allow',

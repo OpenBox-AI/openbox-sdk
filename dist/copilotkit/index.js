@@ -4143,6 +4143,8 @@ function pipeGovernedEvents(source, subscriber, adapter, sessionKey, input, work
   const ids = runtimeWorkflowIdsFromInput(input);
   let terminalized = false;
   let pendingError;
+  let queuedTerminalEvent;
+  let terminalFlushScheduled = false;
   const markCompleted = async () => {
     if (terminalized) return;
     terminalized = true;
@@ -4174,20 +4176,40 @@ function pipeGovernedEvents(source, subscriber, adapter, sessionKey, input, work
     );
   };
   const queueTerminalEvent = (event, kind, error) => {
-    const snapshot = [...pending];
-    pending.push(
-      Promise.allSettled(snapshot).then(async () => {
-        if (kind === "failed") {
-          emit(event);
-          await markFailed(error);
-          return;
-        }
-        if (!pendingError) {
-          emit(event);
-          await markCompleted();
-        }
-      })
-    );
+    queuedTerminalEvent = { event, kind, error };
+    if (terminalFlushScheduled) return;
+    terminalFlushScheduled = true;
+    setTimeout(() => {
+      terminalFlushScheduled = false;
+      void flushQueuedTerminalEvent().catch(async (flushError) => {
+        pendingError = flushError;
+        await markFailed(flushError);
+        subscriber.error?.(flushError);
+      });
+    }, 0);
+  };
+  const waitForPendingGates = async () => {
+    let settled = 0;
+    while (settled < pending.length) {
+      const snapshot = pending.slice(settled);
+      settled = pending.length;
+      await Promise.allSettled(snapshot);
+    }
+  };
+  const flushQueuedTerminalEvent = async () => {
+    if (!queuedTerminalEvent) return;
+    const terminal = queuedTerminalEvent;
+    queuedTerminalEvent = void 0;
+    await waitForPendingGates();
+    if (terminal.kind === "failed") {
+      emit(terminal.event);
+      await markFailed(terminal.error);
+      return;
+    }
+    if (!pendingError) {
+      emit(terminal.event);
+      await markCompleted();
+    }
   };
   const assistantBuffers = /* @__PURE__ */ new Map();
   const emit = (event) => subscriber.next?.(event);
@@ -4289,13 +4311,23 @@ function pipeGovernedEvents(source, subscriber, adapter, sessionKey, input, work
                 adapter.toOpenBoxCopilotResult(gate.verdict, gate)
               );
               if (isRunFinishedEvent(agEvent)) {
-                emit(runFinishedWithoutFinalPayload(agEvent, finalPayload));
-                await markCompleted();
+                queueTerminalEvent(
+                  runFinishedWithoutFinalPayload(agEvent, finalPayload),
+                  "completed"
+                );
               }
               return;
             }
-            emit(eventWithSafeFinalPayload(agEvent, finalPayload, gate.safe));
-            if (isRunFinishedEvent(agEvent)) await markCompleted();
+            const safeEvent = eventWithSafeFinalPayload(
+              agEvent,
+              finalPayload,
+              gate.safe
+            );
+            if (isRunFinishedEvent(agEvent)) {
+              queueTerminalEvent(safeEvent, "completed");
+              return;
+            }
+            emit(safeEvent);
           })()
         );
         return;
@@ -4323,10 +4355,13 @@ function pipeGovernedEvents(source, subscriber, adapter, sessionKey, input, work
       );
     },
     complete() {
-      Promise.all(pending).then(
-        () => {
+      waitForPendingGates().then(
+        async () => {
           if (pendingError) return;
-          return markCompleted().then(() => subscriber.complete?.());
+          await flushQueuedTerminalEvent();
+          if (pendingError) return;
+          await markCompleted();
+          subscriber.complete?.();
         },
         (error) => subscriber.error?.(error)
       );
