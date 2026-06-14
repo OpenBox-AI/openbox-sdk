@@ -356,18 +356,26 @@ function pipeGovernedEvents(
       }),
     );
   };
-  // CopilotKit's SSE layer ends the stream after RUN_FINISHED/RUN_ERROR
-  // without always invoking observer.complete()/error(), so terminal AG-UI
-  // events must close the OpenBox workflow themselves.
-  const scheduleTerminal = (kind: 'completed' | 'failed', error?: unknown) => {
+  // CopilotKit's SSE layer ends the stream after RUN_FINISHED/RUN_ERROR.
+  // Delay terminal run events until queued OpenBox output gates have emitted
+  // their transformed messages; otherwise the client drops post-finish events.
+  const queueTerminalEvent = (
+    event: Record<string, any>,
+    kind: 'completed' | 'failed',
+    error?: unknown,
+  ) => {
     const snapshot = [...pending];
     pending.push(
       Promise.allSettled(snapshot).then(async () => {
         if (kind === 'failed') {
+          emit(event);
           await markFailed(error);
           return;
         }
-        if (!pendingError) await markCompleted();
+        if (!pendingError) {
+          emit(event);
+          await markCompleted();
+        }
       }),
     );
   };
@@ -471,22 +479,25 @@ function pipeGovernedEvents(
                 input,
                 adapter.toOpenBoxCopilotResult(gate.verdict, gate),
               );
+              if (isRunFinishedEvent(agEvent)) {
+                emit(runFinishedWithoutFinalPayload(agEvent, finalPayload));
+                await markCompleted();
+              }
               return;
             }
             emit(eventWithSafeFinalPayload(agEvent, finalPayload, gate.safe));
+            if (isRunFinishedEvent(agEvent)) await markCompleted();
           })(),
         );
-        if (isRunFinishedEvent(agEvent)) scheduleTerminal('completed');
         return;
       }
       if (isRunFinishedEvent(agEvent)) {
-        emit(agEvent);
-        scheduleTerminal('completed');
+        queueTerminalEvent(agEvent, 'completed');
         return;
       }
       if (isRunErrorEvent(agEvent)) {
-        emit(agEvent);
-        scheduleTerminal(
+        queueTerminalEvent(
+          agEvent,
           'failed',
           new Error(
             typeof agEvent.message === 'string'
@@ -641,6 +652,15 @@ function eventWithSafeFinalPayload(
     ...event,
     [location.field]: finalPayloadFromSafe(safe, location.payload),
   };
+}
+
+function runFinishedWithoutFinalPayload(
+  event: Record<string, any>,
+  location: FinalPayloadLocation,
+): Record<string, any> {
+  const safeEvent = { ...event };
+  delete safeEvent[location.field];
+  return safeEvent;
 }
 
 function finalPayloadFromSafe(safe: unknown, original: unknown): unknown {

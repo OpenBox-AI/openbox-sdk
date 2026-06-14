@@ -4173,15 +4173,19 @@ function pipeGovernedEvents(source, subscriber, adapter, sessionKey, input, work
       })
     );
   };
-  const scheduleTerminal = (kind, error) => {
+  const queueTerminalEvent = (event, kind, error) => {
     const snapshot = [...pending];
     pending.push(
       Promise.allSettled(snapshot).then(async () => {
         if (kind === "failed") {
+          emit(event);
           await markFailed(error);
           return;
         }
-        if (!pendingError) await markCompleted();
+        if (!pendingError) {
+          emit(event);
+          await markCompleted();
+        }
       })
     );
   };
@@ -4275,22 +4279,25 @@ function pipeGovernedEvents(source, subscriber, adapter, sessionKey, input, work
                 input,
                 adapter.toOpenBoxCopilotResult(gate.verdict, gate)
               );
+              if (isRunFinishedEvent(agEvent)) {
+                emit(runFinishedWithoutFinalPayload(agEvent, finalPayload));
+                await markCompleted();
+              }
               return;
             }
             emit(eventWithSafeFinalPayload(agEvent, finalPayload, gate.safe));
+            if (isRunFinishedEvent(agEvent)) await markCompleted();
           })()
         );
-        if (isRunFinishedEvent(agEvent)) scheduleTerminal("completed");
         return;
       }
       if (isRunFinishedEvent(agEvent)) {
-        emit(agEvent);
-        scheduleTerminal("completed");
+        queueTerminalEvent(agEvent, "completed");
         return;
       }
       if (isRunErrorEvent(agEvent)) {
-        emit(agEvent);
-        scheduleTerminal(
+        queueTerminalEvent(
+          agEvent,
           "failed",
           new Error(
             typeof agEvent.message === "string" ? agEvent.message : "CopilotKit run error"
@@ -4393,6 +4400,11 @@ function eventWithSafeFinalPayload(event, location, safe) {
     ...event,
     [location.field]: finalPayloadFromSafe(safe, location.payload)
   };
+}
+function runFinishedWithoutFinalPayload(event, location) {
+  const safeEvent = { ...event };
+  delete safeEvent[location.field];
+  return safeEvent;
 }
 function finalPayloadFromSafe(safe, original) {
   if (typeof original === "string" && isRecord(safe) && typeof safe.content === "string") {
