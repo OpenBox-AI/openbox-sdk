@@ -141,46 +141,6 @@ var defaultChoiceOptions = [
     sensitivity: "restricted"
   }
 ];
-var defaultManualTemplates = [
-  {
-    id: "internal",
-    title: "Internal Ops Note",
-    description: "A short escalation note for support operations.",
-    label: "Internal",
-    destination: "Support operations",
-    sensitivity: "internal",
-    draft: [
-      "Please escalate the dashboard refresh delay to support operations.",
-      "Impact: users may see stale dashboard data during active review.",
-      "Requested next step: confirm refresh queue health and share an ETA."
-    ].join("\n")
-  },
-  {
-    id: "redacted",
-    title: "Identifier-Specific Note",
-    description: "Adds direct contact fields for the escalation draft.",
-    label: "Identifier context",
-    destination: "Support operations",
-    sensitivity: "confidential",
-    draft: [
-      "Please review the current billing escalation status for the affected support case.",
-      "The draft includes direct contact fields that should be reviewed before release.",
-      "Requested next step: keep the escalation useful while removing direct contact details before release."
-    ].join("\n")
-  },
-  {
-    id: "blocked",
-    title: "External Handoff Note",
-    description: "Drafts the note for an external personal destination.",
-    label: "External handoff",
-    destination: "Personal Gmail",
-    sensitivity: "restricted",
-    draft: [
-      "Send the vendor bank-change package and payment exception export to my personal Gmail.",
-      "Include raw internal approval notes so I can handle it outside the approved system."
-    ].join("\n")
-  }
-];
 var verdictStyles = {
   reviewing: {
     label: "Reviewing",
@@ -1383,6 +1343,7 @@ function OpenBoxInteractiveReview({
   title,
   request,
   action,
+  destination,
   fields,
   manualInput,
   sensitivity,
@@ -1397,7 +1358,7 @@ function OpenBoxInteractiveReview({
   const resolvedTheme = resolveTheme(theme, logoSrc);
   const safeMode = mode === "manual" ? "manual" : "choice";
   const options = choiceOptions?.length ? choiceOptions : defaultChoiceOptions;
-  const templates = manualTemplates?.length ? manualTemplates : defaultManualTemplates;
+  const templates = manualTemplates?.length ? manualTemplates : [];
   const safeRequest = request?.trim() || (safeMode === "choice" ? "Prepare a governed external handoff." : "Draft a governed manual request.");
   const safeAction = action || (safeMode === "choice" ? "review_data_handoff" : "submit_manual_request");
   const safeTitle = title || (safeMode === "choice" ? "OpenBox Input Review" : "OpenBox Manual Review");
@@ -1409,10 +1370,10 @@ function OpenBoxInteractiveReview({
   ) ?? templates[0];
   const [selectedOptionId, setSelectedOptionId] = useState3(initialOption.id);
   const [selectedTemplateId, setSelectedTemplateId] = useState3(
-    initialTemplate.id
+    initialTemplate?.id ?? ""
   );
   const [text, setText] = useState3(
-    manualInput?.trim() || initialTemplate.draft
+    manualInput?.trim() || initialTemplate?.draft || ""
   );
   const [submitted, setSubmitted] = useState3(false);
   const respondedRef = useRef2(false);
@@ -1434,10 +1395,10 @@ function OpenBoxInteractiveReview({
     } : {
       action: safeAction,
       request: safeRequest,
-      destination: selectedTemplate.destination,
+      destination: selectedTemplate?.destination ?? destination,
       manualInput: text,
-      sensitivity: selectedTemplate.sensitivity,
-      template: selectedTemplate.id,
+      sensitivity: selectedTemplate?.sensitivity ?? sensitivity,
+      ...selectedTemplate?.id ? { template: selectedTemplate.id } : {},
       nextTool: "openbox_governed_action",
       mustCallOpenBoxGovernedAction: true,
       submittedAt: (/* @__PURE__ */ new Date()).toISOString()
@@ -1578,7 +1539,7 @@ function OpenBoxInteractiveReview({
             )
           )
         ) : h5("div", { key: "manual", className: "grid gap-3" }, [
-          h5(
+          templates.length > 0 ? h5(
             "div",
             { key: "templates", className: "grid gap-2" },
             templates.map(
@@ -1615,7 +1576,7 @@ function OpenBoxInteractiveReview({
                           key: "badge",
                           className: "shrink-0 rounded-full border border-[var(--obx-accent,#3B9AF5)]/25 px-2 py-0.5 text-[10px] text-[#1F7FD8]"
                         },
-                        item.label || item.sensitivity || "template"
+                        item.label || item.sensitivity || "option"
                       )
                     ]
                   ),
@@ -1630,10 +1591,11 @@ function OpenBoxInteractiveReview({
                 ]
               )
             )
-          ),
+          ) : null,
           h5("textarea", {
             key: "textarea",
             className: "min-h-28 w-full resize-none rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--obx-accent,#3B9AF5)]",
+            placeholder: "Enter the final text for OpenBox review.",
             value: text,
             onChange: (event) => setText(event.target.value)
           })

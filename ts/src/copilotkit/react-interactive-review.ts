@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
   defaultChoiceOptions,
-  defaultManualTemplates,
   verdictStyles,
 } from './react-defaults.js';
 import { OpenBoxHeader } from './react-renderer-header.js';
@@ -20,6 +19,7 @@ export function OpenBoxInteractiveReview({
   title,
   request,
   action,
+  destination,
   fields,
   manualInput,
   sensitivity,
@@ -34,9 +34,7 @@ export function OpenBoxInteractiveReview({
   const resolvedTheme = resolveTheme(theme, logoSrc);
   const safeMode = mode === 'manual' ? 'manual' : 'choice';
   const options = choiceOptions?.length ? choiceOptions : defaultChoiceOptions;
-  const templates = manualTemplates?.length
-    ? manualTemplates
-    : defaultManualTemplates;
+  const templates = manualTemplates?.length ? manualTemplates : [];
   const safeRequest =
     request?.trim() ||
     (safeMode === 'choice'
@@ -60,10 +58,10 @@ export function OpenBoxInteractiveReview({
     ) ?? templates[0];
   const [selectedOptionId, setSelectedOptionId] = useState(initialOption.id);
   const [selectedTemplateId, setSelectedTemplateId] = useState(
-    initialTemplate.id,
+    initialTemplate?.id ?? '',
   );
   const [text, setText] = useState(
-    manualInput?.trim() || initialTemplate.draft,
+    manualInput?.trim() || initialTemplate?.draft || '',
   );
   const [submitted, setSubmitted] = useState(false);
   const respondedRef = useRef(false);
@@ -91,10 +89,10 @@ export function OpenBoxInteractiveReview({
         : {
             action: safeAction,
             request: safeRequest,
-            destination: selectedTemplate.destination,
+            destination: selectedTemplate?.destination ?? destination,
             manualInput: text,
-            sensitivity: selectedTemplate.sensitivity,
-            template: selectedTemplate.id,
+            sensitivity: selectedTemplate?.sensitivity ?? sensitivity,
+            ...(selectedTemplate?.id ? { template: selectedTemplate.id } : {}),
             nextTool: 'openbox_governed_action',
             mustCallOpenBoxGovernedAction: true,
             submittedAt: new Date().toISOString(),
@@ -257,69 +255,72 @@ export function OpenBoxInteractiveReview({
               ),
             )
           : h('div', { key: 'manual', className: 'grid gap-3' }, [
-              h(
-                'div',
-                { key: 'templates', className: 'grid gap-2' },
-                templates.map((item) =>
-                  h(
-                    'button',
-                    {
-                      key: item.id,
-                      type: 'button',
-                      className:
-                        item.id === selectedTemplateId
-                          ? 'w-full rounded-md border border-[var(--obx-accent,#3B9AF5)]/45 bg-[var(--obx-accent,#3B9AF5)]/8 px-3 py-3 text-left'
-                          : 'w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-3 text-left hover:border-[var(--obx-accent,#3B9AF5)]/30',
-                      onClick: () => {
-                        setSelectedTemplateId(item.id);
-                        setText(item.draft);
-                      },
-                    },
-                    [
+              templates.length > 0
+                ? h(
+                    'div',
+                    { key: 'templates', className: 'grid gap-2' },
+                    templates.map((item) =>
                       h(
-                        'div',
+                        'button',
                         {
-                          key: 'row',
-                          className: 'flex items-center justify-between gap-2',
+                          key: item.id,
+                          type: 'button',
+                          className:
+                            item.id === selectedTemplateId
+                              ? 'w-full rounded-md border border-[var(--obx-accent,#3B9AF5)]/45 bg-[var(--obx-accent,#3B9AF5)]/8 px-3 py-3 text-left'
+                              : 'w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-3 text-left hover:border-[var(--obx-accent,#3B9AF5)]/30',
+                          onClick: () => {
+                            setSelectedTemplateId(item.id);
+                            setText(item.draft);
+                          },
                         },
                         [
                           h(
                             'div',
                             {
-                              key: 'title',
-                              className:
-                                'text-sm font-medium text-[var(--foreground)]',
+                              key: 'row',
+                              className: 'flex items-center justify-between gap-2',
                             },
-                            item.title,
+                            [
+                              h(
+                                'div',
+                                {
+                                  key: 'title',
+                                  className:
+                                    'text-sm font-medium text-[var(--foreground)]',
+                                },
+                                item.title,
+                              ),
+                              h(
+                                'span',
+                                {
+                                  key: 'badge',
+                                  className:
+                                    'shrink-0 rounded-full border border-[var(--obx-accent,#3B9AF5)]/25 px-2 py-0.5 text-[10px] text-[#1F7FD8]',
+                                },
+                                item.label || item.sensitivity || 'option',
+                              ),
+                            ],
                           ),
                           h(
-                            'span',
+                            'p',
                             {
-                              key: 'badge',
+                              key: 'desc',
                               className:
-                                'shrink-0 rounded-full border border-[var(--obx-accent,#3B9AF5)]/25 px-2 py-0.5 text-[10px] text-[#1F7FD8]',
+                                'mt-1 text-xs leading-5 text-[var(--muted-foreground)]',
                             },
-                            item.label || item.sensitivity || 'template',
+                            item.description,
                           ),
                         ],
                       ),
-                      h(
-                        'p',
-                        {
-                          key: 'desc',
-                          className:
-                            'mt-1 text-xs leading-5 text-[var(--muted-foreground)]',
-                        },
-                        item.description,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+                    ),
+                  )
+                : null,
               h('textarea', {
                 key: 'textarea',
                 className:
                   'min-h-28 w-full resize-none rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--obx-accent,#3B9AF5)]',
+                placeholder: 'Enter the final text for OpenBox review.',
                 value: text,
                 onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) =>
                   setText(event.target.value),

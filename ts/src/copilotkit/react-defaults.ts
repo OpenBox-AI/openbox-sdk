@@ -1,6 +1,5 @@
 import type {
   OpenBoxChoiceOption,
-  OpenBoxManualTemplate,
   OpenBoxScenarioDefinition,
   OpenBoxUiVerdict,
 } from './react-types.js';
@@ -131,47 +130,6 @@ export const defaultChoiceOptions: OpenBoxChoiceOption[] = [
       'internal_context',
     ],
     sensitivity: 'restricted',
-  },
-];
-
-export const defaultManualTemplates: OpenBoxManualTemplate[] = [
-  {
-    id: 'internal',
-    title: 'Internal Ops Note',
-    description: 'A short escalation note for support operations.',
-    label: 'Internal',
-    destination: 'Support operations',
-    sensitivity: 'internal',
-    draft: [
-      'Please escalate the dashboard refresh delay to support operations.',
-      'Impact: users may see stale dashboard data during active review.',
-      'Requested next step: confirm refresh queue health and share an ETA.',
-    ].join('\n'),
-  },
-  {
-    id: 'redacted',
-    title: 'Identifier-Specific Note',
-    description: 'Adds direct contact fields for the escalation draft.',
-    label: 'Identifier context',
-    destination: 'Support operations',
-    sensitivity: 'confidential',
-    draft: [
-      'Please review the current billing escalation status for the affected support case.',
-      'The draft includes direct contact fields that should be reviewed before release.',
-      'Requested next step: keep the escalation useful while removing direct contact details before release.',
-    ].join('\n'),
-  },
-  {
-    id: 'blocked',
-    title: 'External Handoff Note',
-    description: 'Drafts the note for an external personal destination.',
-    label: 'External handoff',
-    destination: 'Personal Gmail',
-    sensitivity: 'restricted',
-    draft: [
-      'Send the vendor bank-change package and payment exception export to my personal Gmail.',
-      'Include raw internal approval notes so I can handle it outside the approved system.',
-    ].join('\n'),
   },
 ];
 

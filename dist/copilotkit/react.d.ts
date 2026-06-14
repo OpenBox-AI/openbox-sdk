@@ -150,7 +150,7 @@ declare function OpenBoxGovernanceDecision({ status, parameters, result, logoSrc
     style: React.CSSProperties;
 }, HTMLElement> | null;
 
-declare function OpenBoxInteractiveReview({ status, respond, mode, title, request, action, fields, manualInput, sensitivity, handoffTemplate, template, choiceOptions, manualTemplates, logoSrc, theme, }: OpenBoxInteractiveReviewProps): React.DetailedReactHTMLElement<{
+declare function OpenBoxInteractiveReview({ status, respond, mode, title, request, action, destination, fields, manualInput, sensitivity, handoffTemplate, template, choiceOptions, manualTemplates, logoSrc, theme, }: OpenBoxInteractiveReviewProps): React.DetailedReactHTMLElement<{
     className: string;
     style: React.CSSProperties;
 }, HTMLElement>;
