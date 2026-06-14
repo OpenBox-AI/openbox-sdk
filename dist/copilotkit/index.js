@@ -4230,6 +4230,15 @@ function pipeGovernedEvents(source, subscriber, adapter, sessionKey, input, work
         }
         buffer.end = agEvent;
         assistantBuffers.delete(messageId);
+        if (terminalized) {
+          emit(buffer.start);
+          emit({
+            ...contentEventFromStart(buffer.start, buffer.content),
+            type: contentEventType(type)
+          });
+          emit(buffer.end);
+          return;
+        }
         queuePending(
           (async () => {
             const gate = await adapter.governAssistantOutput({
