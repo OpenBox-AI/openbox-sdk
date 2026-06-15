@@ -1,5 +1,5 @@
-import { O as OpenBoxCoreClient, r as ClaudeCodeSession, W as WorkflowVerdict } from '../../govern-CX11GBkl.js';
-import { C as ClaudeCodeEnvelope } from '../../envelopes-B-eUlX69.js';
+import { O as OpenBoxCoreClient, r as ClaudeCodeSession, W as WorkflowVerdict } from '../../govern-CgRTREi0.js';
+import { a as ClaudeCodeEnvelope } from '../../envelopes-DnviQ3yd.js';
 import { InstallOptions } from '../../install/index.js';
 import '../../core-types-Dxgkbox0.js';
 
@@ -14,15 +14,33 @@ import '../../core-types-Dxgkbox0.js';
 interface ClaudeCodeAdapterHandlers {
     preToolUse?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
     postToolUse?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    postToolUseFailure?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    postToolBatch?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
     userPromptSubmit?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    userPromptExpansion?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
     permissionRequest?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    permissionDenied?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    setup?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    instructionsLoaded?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
     preCompact?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    postCompact?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
     sessionStart?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
     sessionEnd?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
     subagentStart?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
     subagentStop?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    taskCreated?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    taskCompleted?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
     stop?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    stopFailure?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    teammateIdle?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
     notification?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    messageDisplay?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    configChange?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    cwdChanged?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    fileChanged?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    worktreeRemove?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    elicitation?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+    elicitationResult?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
 }
 interface ClaudeCodeAdapterConfig {
     /** Authenticated core client (agent-scoped API key). */
@@ -59,6 +77,7 @@ interface ClaudeCodeAdapterConfig {
      * from the `APPROVAL_MODE` config.
      */
     inlineApproval?: boolean;
+    deferApproval?: boolean;
     /**
      * Fired the moment the backend returns require_approval; before
      * the SDK starts polling. Receives the approval metadata plus the
@@ -128,6 +147,8 @@ interface ExportClaudeCodePluginOptions {
     force?: boolean;
     /** Optional per-event hook matchers copied into hooks/hooks.json. */
     matchers?: Record<string, string>;
+    /** Include opt-in invasive hooks such as WorktreeCreate. Defaults to false. */
+    includeOptInHooks?: boolean;
 }
 interface InstallClaudeCodePluginOptions {
     /** Project-only install scope. Defaults to project. */
@@ -140,6 +161,8 @@ interface InstallClaudeCodePluginOptions {
     symlink?: string;
     /** Optional per-event hook matchers copied into hooks/hooks.json. */
     matchers?: Record<string, string>;
+    /** Include opt-in invasive hooks such as WorktreeCreate. Defaults to false. */
+    includeOptInHooks?: boolean;
     /** Skip creating the hook runtime config template. Defaults to false. */
     skipRuntimeConfig?: boolean;
 }
@@ -160,8 +183,33 @@ declare function installClaudeCodePlugin(options?: InstallClaudeCodePluginOption
 declare function uninstallClaudeCodePlugin(options?: UninstallClaudeCodePluginOptions): void;
 declare function verifyClaudeCodePlugin(options?: VerifyClaudeCodePluginOptions): ClaudeCodePluginCheck[];
 
+type ClaudeCodeGovernanceStatus = 'implement_now' | 'observe_only' | 'diagnose_only' | 'explicit_out_of_scope';
+interface ClaudeCodeHookMatrixEntry {
+    event: string;
+    status: ClaudeCodeGovernanceStatus;
+    defaultInstall: boolean;
+    decisionSurface: string;
+    notes: string;
+}
+interface ClaudeCodeSurfaceMatrixEntry {
+    surface: string;
+    status: ClaudeCodeGovernanceStatus;
+    notes: string;
+}
+declare const CLAUDE_CODE_GOVERNANCE_AUDIT: {
+    readonly capturedAt: "2026-06-15";
+    readonly installedClaudeCodeVersion: "2.1.177 (Claude Code)";
+    readonly officialDocs: readonly ["https://code.claude.com/docs/en/hooks", "https://code.claude.com/docs/en/plugins-reference", "https://code.claude.com/docs/en/plugins", "https://code.claude.com/docs/en/mcp", "https://code.claude.com/docs/en/skills", "https://code.claude.com/docs/en/settings", "https://code.claude.com/docs/en/tools-reference", "https://code.claude.com/docs/en/channels", "https://code.claude.com/docs/en/changelog"];
+    readonly auditedSdkSurfaces: readonly ["openbox-sdk/runtime/claude-code", "openbox-sdk/runtime/mcp", "openbox-sdk/runtime/cursor", "openbox-sdk/copilotkit", "openbox-sdk/copilotkit/react", "apps/extension", "skill", "example/n8n"];
+};
+declare const CLAUDE_CODE_HOOK_MATRIX: readonly ClaudeCodeHookMatrixEntry[];
+declare const CLAUDE_CODE_SURFACE_MATRIX: readonly ClaudeCodeSurfaceMatrixEntry[];
+declare function defaultClaudeCodeHookEvents(): string[];
+declare function optInClaudeCodeHookEvents(): string[];
+declare function claudeCodeGovernanceSummary(): Record<string, unknown>;
+
 /** Path of the JSONL log written by the claude-code hook subprocess.
  *  Mirrors cursor's HOOK_LOG_PATH so the extension can tail both. */
 declare const HOOK_LOG_PATH: string;
 
-export { type ClaudeCodeAdapterConfig, type ClaudeCodeAdapterHandlers, ClaudeCodeEnvelope, type ClaudeCodePluginCheck, type ClaudeCodePluginCheckStatus, type ClaudeCodePluginScope, type ExportClaudeCodePluginOptions, HOOK_LOG_PATH, type InstallClaudeCodePluginOptions, type UninstallClaudeCodePluginOptions, type VerifyClaudeCodePluginOptions, claudeCodePluginTargetDir, claudeCodeRuntimeConfigDir, createClaudeCodeAdapter, exportClaudeCodePlugin, installClaudeCode, installClaudeCodePlugin, runClaudeHook, uninstallClaudeCode, uninstallClaudeCodePlugin, verifyClaudeCodePlugin };
+export { CLAUDE_CODE_GOVERNANCE_AUDIT, CLAUDE_CODE_HOOK_MATRIX, CLAUDE_CODE_SURFACE_MATRIX, type ClaudeCodeAdapterConfig, type ClaudeCodeAdapterHandlers, ClaudeCodeEnvelope, type ClaudeCodeGovernanceStatus, type ClaudeCodeHookMatrixEntry, type ClaudeCodePluginCheck, type ClaudeCodePluginCheckStatus, type ClaudeCodePluginScope, type ClaudeCodeSurfaceMatrixEntry, type ExportClaudeCodePluginOptions, HOOK_LOG_PATH, type InstallClaudeCodePluginOptions, type UninstallClaudeCodePluginOptions, type VerifyClaudeCodePluginOptions, claudeCodeGovernanceSummary, claudeCodePluginTargetDir, claudeCodeRuntimeConfigDir, createClaudeCodeAdapter, defaultClaudeCodeHookEvents, exportClaudeCodePlugin, installClaudeCode, installClaudeCodePlugin, optInClaudeCodeHookEvents, runClaudeHook, uninstallClaudeCode, uninstallClaudeCodePlugin, verifyClaudeCodePlugin };

@@ -23,7 +23,13 @@ export {
   type CheckGovernanceOptions,
   type SpanType,
 } from './check.js';
-export { buildSpan, type SpanInput } from './spans.js';
+export {
+  buildLLMCompletionResponseBody,
+  buildLLMCompletionSpan,
+  buildSpan,
+  type LLMCompletionSpanInput,
+  type SpanInput,
+} from './spans.js';
 export { EVENT } from './events.js';
 export {
   SKIP_PATTERNS,

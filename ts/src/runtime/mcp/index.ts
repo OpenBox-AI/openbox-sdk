@@ -26,12 +26,13 @@ import { stampSource } from "../../approvals/source.js";
 import { verifyCursorInstall } from "../cursor/install.js";
 import { verifyClaudeCodePlugin } from "../claude-code/plugin.js";
 import { buildMcpGovernanceSpan, MCP_ACTIVITY_TYPE_MAP } from "./governance-span.js";
+import { claudeCodeGovernanceSummary } from "../claude-code/governance-matrix.js";
 
 export async function runMcpServer(): Promise<void> {
   const server = new McpServer({ name: "openbox", version: "0.1.0" });
   let callerName: string | undefined;
 
-  function resolveRuntime() {
+  function runtimeState() {
     const config = listConfig();
     const connection = resolveConnection({
       apiUrl: config.OPENBOX_API_URL,
@@ -42,23 +43,59 @@ export async function runMcpServer(): Promise<void> {
     });
     const apiUrl = connection.apiUrl;
     const coreUrl = connection.coreUrl;
+    const backendApiKey = loadApiKey();
+    const runtimeApiKey = process.env.OPENBOX_API_KEY ?? config.OPENBOX_API_KEY ?? "";
+    return {
+      apiUrl,
+      coreUrl,
+      backendApiKey,
+      runtimeApiKey,
+      governancePolicy: process.env.GOVERNANCE_POLICY ?? config.GOVERNANCE_POLICY ?? "fail_open",
+      approvalMode: process.env.APPROVAL_MODE ?? config.APPROVAL_MODE ?? "remote",
+    };
+  }
+
+  function runtimeDiagnostics() {
+    const runtime = runtimeState();
+    return {
+      apiUrl: runtime.apiUrl,
+      coreUrl: runtime.coreUrl,
+      mcpReady: Boolean(runtime.backendApiKey),
+      runtimeEnv: {
+        backendApiKeyPresent: Boolean(runtime.backendApiKey),
+        runtimeApiKeyPresent: Boolean(runtime.runtimeApiKey),
+        coreUrlPresent: Boolean(runtime.coreUrl),
+      },
+      failMode: runtime.governancePolicy,
+      approvalMode: runtime.approvalMode,
+      unsupportedOrOptInSurfaces: {
+        worktreeCreate: "opt_in",
+        monitors: "opt_in_unsandboxed",
+        lsp: "out_of_scope_no_language_server",
+        managedSettings: "enterprise_diagnose_only",
+        channels: "diagnose_only_research_preview",
+      },
+    };
+  }
+
+  function resolveRuntime() {
+    const runtime = runtimeState();
 
     // MCP talks to the backend API, so it must use the org X-API-Key.
     // OPENBOX_API_KEY is the agent runtime key used by hooks/core
     // governance checks; Cursor often inherits it from ~/.openbox/config,
     // and sending it to backend endpoints yields 401s in chat MCP calls.
-    const apiKey = loadApiKey();
-    if (!apiKey) {
+    if (!runtime.backendApiKey) {
       throw new Error(
         `OpenBox MCP: no X-API-Key for the active OpenBox connection. ` +
           `Run \`openbox connect <stack-url> --api-key <key>\` or set OPENBOX_BACKEND_API_KEY.`,
       );
     }
     return {
-      coreUrl,
+      coreUrl: runtime.coreUrl,
       client: new OpenBoxClient({
-        apiUrl,
-        apiKey,
+        apiUrl: runtime.apiUrl,
+        apiKey: runtime.backendApiKey,
         clientName: "runtime/mcp",
       }),
     };
@@ -125,19 +162,31 @@ server.tool("cursor_status", "Return a compact OpenBox backend status for Cursor
 });
 
 server.tool("openbox_status", "Return a compact OpenBox backend status for plugin slash commands without using shell execution", {}, async () => {
+  const diagnostics = runtimeDiagnostics();
   try {
     const health = await client().health();
     return {
       content: [{
         type: "text",
-        text: JSON.stringify({ status: "connected", health }, null, 2),
+        text: JSON.stringify({
+          status: "connected",
+          health,
+          coreUrl: diagnostics.coreUrl,
+          mcpReadiness: diagnostics,
+          claudeCodeGovernance: claudeCodeGovernanceSummary(),
+        }, null, 2),
       }],
     };
   } catch (err: any) {
     return {
       content: [{
         type: "text",
-        text: JSON.stringify({ status: "not_reachable", error: err?.message ?? String(err) }, null, 2),
+        text: JSON.stringify({
+          status: "not_reachable",
+          error: err?.message ?? String(err),
+          mcpReadiness: diagnostics,
+          claudeCodeGovernance: claudeCodeGovernanceSummary(),
+        }, null, 2),
       }],
       isError: true,
     };
@@ -185,7 +234,12 @@ server.tool("claude_code_doctor", "Verify installed Claude Code/OpenBox plugin s
     },
     { pass: 0, fail: 0 } as Record<"pass" | "fail", number>,
   );
-  return { content: [{ type: "text", text: JSON.stringify({ checks, summary }, null, 2) }] };
+  return { content: [{ type: "text", text: JSON.stringify({
+    checks,
+    summary,
+    mcpReadiness: runtimeDiagnostics(),
+    claudeCodeGovernance: claudeCodeGovernanceSummary(),
+  }, null, 2) }] };
 });
 
 server.tool("list_agents", "List all agents in the organization", {}, async () => {
@@ -344,6 +398,7 @@ const SKILL_PATHS = [
   { name: "rego-reference", path: "references/rego-reference.md", desc: "Rego policy syntax, input fields, example policies, policy lifecycle gotchas" },
   { name: "span-reference", path: "references/span-reference.md", desc: "Span types, gate attributes, semantic type detection" },
   { name: "commands", path: "references/commands.md", desc: "Full CLI command reference" },
+  { name: "claude-code-governance", path: "references/claude-code-governance.md", desc: "Claude Code hook/plugin/MCP governance surface audit and coverage matrix" },
   { name: "existing-sdks", path: "references/existing-sdks.md", desc: "Available SDKs and installation" },
 ];
 

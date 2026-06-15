@@ -1,11 +1,15 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { type SpanData } from '../core-client/core-client.js';
+import {
+  type GovernanceEventPayload,
+  type GovernanceVerdictResponse,
+  type SpanData,
+} from '../core-client/core-client.js';
 import {
   presets,
   type BaseGovernedSession,
   type WorkflowVerdict,
 } from '../core-client/index.js';
-import { errorMessage, swallow } from './internal-utils.js';
+import { errorMessage } from './internal-utils.js';
 import { mapGuardrailsResult, normalizeArm } from './results.js';
 import type {
   GovernedCopilotToolDefinition,
@@ -140,8 +144,8 @@ export async function completeWorkflow(
   ids: { workflowId: string; runId: string },
   workflowType: string,
   taskQueue: string,
-) {
-  await bestEffortTerminalEvent(() =>
+): Promise<WorkflowVerdict | undefined> {
+  return bestEffortTerminalEvent(() =>
     createWorkflowSession(
       adapter,
       ids,
@@ -211,14 +215,58 @@ export async function emitUserPromptSignal(
   });
 }
 
+export async function emitActivityHookSpanUpdate(
+  adapter: OpenBoxCopilotKitAdapter,
+  ids: { workflowId: string; runId: string; activityId: string },
+  workflowType: string,
+  taskQueue: string,
+  activityType: string,
+  output: unknown,
+  spans: SpanData[],
+): Promise<WorkflowVerdict> {
+  const started = await adapter.getCoreClient().evaluate({
+    source: 'workflow-telemetry',
+    event_type: 'ActivityStarted',
+    workflow_id: ids.workflowId,
+    run_id: ids.runId,
+    workflow_type: workflowType,
+    task_queue: taskQueue as GovernanceEventPayload['task_queue'],
+    timestamp: new Date().toISOString(),
+    activity_id: ids.activityId,
+    activity_type: activityType,
+    hook_trigger: true,
+    span_count: 0,
+  });
+  const startedVerdict = mapCoreVerdict(started);
+  if (startedVerdict.arm !== 'allow') return startedVerdict;
+
+  const response = await adapter.getCoreClient().evaluate({
+    source: 'workflow-telemetry',
+    event_type: 'ActivityCompleted',
+    workflow_id: ids.workflowId,
+    run_id: ids.runId,
+    workflow_type: workflowType,
+    task_queue: taskQueue as GovernanceEventPayload['task_queue'],
+    timestamp: new Date().toISOString(),
+    activity_id: ids.activityId,
+    activity_type: activityType,
+    status: 'completed',
+    activity_output: output,
+    hook_trigger: true,
+    spans,
+    span_count: spans.length,
+  });
+  return mapCoreVerdict(response);
+}
+
 export async function failWorkflow(
   adapter: OpenBoxCopilotKitAdapter,
   ids: { workflowId: string; runId: string },
   workflowType: string,
   taskQueue: string,
   reason: unknown,
-) {
-  await bestEffortTerminalEvent(() =>
+): Promise<WorkflowVerdict | undefined> {
+  return bestEffortTerminalEvent(() =>
     createWorkflowSession(
       adapter,
       ids,
@@ -228,16 +276,36 @@ export async function failWorkflow(
   );
 }
 
-async function bestEffortTerminalEvent(fn: () => Promise<unknown>) {
+function mapCoreVerdict(
+  response: GovernanceVerdictResponse,
+): WorkflowVerdict & { ageResult?: GovernanceVerdictResponse['age_result'] } {
+  return {
+    arm: normalizeArm(response.verdict ?? response.action ?? 'allow'),
+    approvalId: response.approval_id,
+    governanceEventId: response.governance_event_id,
+    approvalExpiresAt: response.approval_expiration_time,
+    reason: response.reason,
+    riskScore: response.risk_score ?? 0,
+    trustTier: response.trust_tier ?? undefined,
+    guardrailsResult: mapGuardrailsResult(response.guardrails_result),
+    ageResult: response.age_result,
+  };
+}
+
+async function bestEffortTerminalEvent(
+  fn: () => Promise<WorkflowVerdict | undefined>,
+): Promise<WorkflowVerdict | undefined> {
   const terminalEvent = fn().catch(() => undefined);
-  await swallow(() =>
-    Promise.race([
+  try {
+    return await Promise.race<WorkflowVerdict | undefined>([
       terminalEvent,
-      new Promise<void>((resolve) =>
-        setTimeout(resolve, TERMINAL_EVENT_TIMEOUT_MS),
+      new Promise<undefined>((resolve) =>
+        setTimeout(() => resolve(undefined), TERMINAL_EVENT_TIMEOUT_MS),
       ),
-    ]),
-  );
+    ]);
+  } catch {
+    return undefined;
+  }
 }
 
 export function toolInput<TInput extends OpenBoxCopilotActionInput, TArtifact>(
@@ -264,14 +332,19 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
     trace_id: randomBytes(16).toString('hex'),
     name: definition.toolName,
     kind: 'tool',
+    span_type: 'function',
     start_time: now,
     end_time: now,
     duration_ns: 0,
     stage,
+    semantic_type: 'llm_tool_call',
     attributes: {
+      'openbox.semantic_type': 'llm_tool_call',
+      'openbox.span_type': 'function',
       'openbox.tool.name': definition.toolName,
       'openbox.action': input.action,
       'tool.name': definition.toolName,
+      tool_name: definition.toolName,
     },
     data: input,
   } as SpanData;

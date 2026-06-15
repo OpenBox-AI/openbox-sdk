@@ -2,7 +2,11 @@ import type {
   AgentIdentityConfig,
   OpenBoxCoreClient,
 } from '../core-client/core-client.js';
-import type { SpanData, WorkflowVerdict } from '../core-client/index.js';
+import type {
+  AGEResult,
+  SpanData,
+  WorkflowVerdict,
+} from '../core-client/index.js';
 import { OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION } from './constants.js';
 
 export type OpenBoxCopilotVerdictStatus =
@@ -68,6 +72,7 @@ export interface OpenBoxCopilotActionResult<TArtifact = unknown> {
   riskScore?: number;
   trustTier?: string | number;
   guardrailsResult?: WorkflowVerdict['guardrailsResult'];
+  ageResult?: AGEResult;
   redactionSummary?: string;
   artifact?: TArtifact;
   workflowId?: string;

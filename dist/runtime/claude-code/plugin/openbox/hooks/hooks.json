@@ -21,7 +21,38 @@
         ]
       }
     ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
+    "PostToolBatch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook",
+            "timeout": 86400
+          }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
       {
         "hooks": [
           {
@@ -43,7 +74,47 @@
         ]
       }
     ],
+    "PermissionDenied": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
+    "Setup": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
+    "InstructionsLoaded": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
     "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
       {
         "hooks": [
           {
@@ -93,6 +164,26 @@
         ]
       }
     ],
+    "TaskCreated": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -103,7 +194,98 @@
         ]
       }
     ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
     "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
+    "MessageDisplay": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
+    "ConfigChange": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
+    "CwdChanged": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
+    "FileChanged": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook"
+          }
+        ]
+      }
+    ],
+    "Elicitation": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openbox claude-code hook",
+            "timeout": 86400
+          }
+        ]
+      }
+    ],
+    "ElicitationResult": [
       {
         "hooks": [
           {

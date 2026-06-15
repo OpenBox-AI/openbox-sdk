@@ -44,6 +44,7 @@ import {
   isNoPayload,
   getHookTarget,
   getInstallTimeout,
+  getInstallDefault,
   getActivityVariants,
   getActivityLabels,
   getHookEventLabel,
@@ -1049,6 +1050,15 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
   );
   out.insertText(0, BANNER + '\n\n');
 
+  // Mark the verdict model so downstream code can branch off it.
+  let verdictModelName = 'WorkflowVerdict';
+  for (const [modelName, model] of ns.models) {
+    if (isVerdict(program, model)) {
+      verdictModelName = modelName;
+      break;
+    }
+  }
+
   // Tier 1; emit every enum + model in the namespace (CanonicalEventType,
   // ActivityStage, VerdictArm, WorkflowVerdict, GovernedPayload). These
   // are the locked envelope plus the public verdict + payload shapes.
@@ -1060,14 +1070,16 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
   }
   for (const [modelName, model] of ns.models) {
     if (modelName === 'Array' || modelName === 'Record') continue;
-    out.addStatements([emitInterface(modelName, model), '']);
+    out.addStatements([
+      emitInterface(modelName, model, {
+        terminalVerdict: modelName === verdictModelName,
+      }),
+      '',
+    ]);
   }
 
-  // Mark the verdict model so downstream code can branch off it.
-  let verdictModelName = 'WorkflowVerdict';
   for (const [modelName, model] of ns.models) {
     if (isVerdict(program, model)) {
-      verdictModelName = modelName;
       out.addStatements([`export type CanonicalVerdict = ${modelName};`, '']);
       break;
     }
@@ -1271,6 +1283,8 @@ interface AdapterMethod {
   noPayload?: boolean;
   /** Per-event install timeout (claude-array style only). */
   installTimeout?: number;
+  /** Whether host/plugin installers include the event by default. */
+  installDefault?: boolean;
   /** Predicate-based activity-type reroutes from @activityVariant. */
   variants?: ActivityVariant[];
   /** Human-readable display label from @hookEventLabel. */
@@ -1327,6 +1341,7 @@ function emitAdapters(program: Program, project: Project, repoRoot: string): voi
       const ps = getPayloadShape(program, op);
       const np = isNoPayload(program, op);
       const it = getInstallTimeout(program, op);
+      const id = getInstallDefault(program, op);
       const av = getActivityVariants(program, op);
       const hl = getHookEventLabel(program, op);
       methods.push({
@@ -1338,6 +1353,7 @@ function emitAdapters(program: Program, project: Project, repoRoot: string): voi
         payload: ps,
         noPayload: np,
         installTimeout: it,
+        installDefault: id,
         variants: av,
         eventLabel: hl,
       });
@@ -1553,6 +1569,7 @@ export interface ${configIface} {
    * from the \`APPROVAL_MODE\` config.
    */
   inlineApproval?: boolean;
+  deferApproval?: boolean;
   /**
    * Fired the moment the backend returns require_approval; before
    * the SDK starts polling. Receives the approval metadata plus the
@@ -1596,11 +1613,11 @@ export function ${factoryName}(config: ${configIface}) {
   const exit = config.exit ?? ((code: number) => process.exit(code));
 
   function writeFallback(shape: string, _v: WorkflowVerdict | undefined | void, env: ${a.envelopeName}): void {
-    const json = renderVerdictOutput(shape as Shape, undefined, env);
+    const json = renderVerdictOutput(shape as Shape, undefined, env, config.deferApproval === true);
     if (json !== undefined) write(JSON.stringify(json));
   }
   function writeVerdict(shape: string, v: WorkflowVerdict | undefined | void, env: ${a.envelopeName}): void {
-    const json = renderVerdictOutput(shape as Shape, v ?? undefined, env);
+    const json = renderVerdictOutput(shape as Shape, v ?? undefined, env, config.deferApproval === true);
     if (json !== undefined) write(JSON.stringify(json));
   }
 
@@ -1791,6 +1808,7 @@ function emitHookSpec(a: AdapterEntry): string {
   const events = a.methods.map((m) => ({
     name: m.eventName,
     timeout: m.installTimeout,
+    installDefault: m.installDefault,
   }));
   const spec = {
     file: it.file,
@@ -1806,7 +1824,7 @@ function emitHookSpec(a: AdapterEntry): string {
   style: 'claude-array' | 'cursor-keyed';
   command: string;
   configDir: string;
-  events: Array<{ name: string; timeout?: number }>;
+  events: Array<{ name: string; timeout?: number; installDefault?: boolean }>;
 }
 
 /** Hook metadata for this adapter. Host-specific installers and
@@ -1823,13 +1841,14 @@ function emitPayloadBuilder(a: AdapterEntry, m: AdapterMethod): string {
   const sideEffectsParam = ps.sideEffectKinds.size > 0
     ? `, sideEffects: ${sideEffectsTy} = {}`
     : '';
-  const sideEffectsUse = ps.sideEffectKinds.size > 0 ? '' : '/* no side effects */';
+  const sideEffectsPrelude =
+    ps.sideEffectKinds.size > 0 ? '' : '  /* no side effects */\n';
 
   const defaultBody = hasDefault ? compileFieldMap(ps.defaultFields) : `{}`;
 
   if (!hasByTool) {
     return `export function ${fnName}(env: ${a.envelopeName}${sideEffectsParam}): Record<string, unknown> {
-  ${sideEffectsUse}
+${sideEffectsPrelude}
   return ${defaultBody};
 }`;
   }
@@ -1839,7 +1858,7 @@ function emitPayloadBuilder(a: AdapterEntry, m: AdapterMethod): string {
     .join('\n');
 
   return `export function ${fnName}(env: ${a.envelopeName}, toolName: string${sideEffectsParam}): Record<string, unknown> {
-  ${sideEffectsUse}
+${sideEffectsPrelude}
   switch (toolName) {
 ${cases}
     default:
@@ -1857,6 +1876,10 @@ type Shape =
   | 'permission-decision'
   | 'decision-block'
   | 'permission-request'
+  | 'permission-denied-retry'
+  | 'elicitation-response'
+  | 'continue-block'
+  | 'additional-context'
   | 'cursor-permission'
   | 'cursor-observe'
   | 'cursor-continue'
@@ -1886,6 +1909,7 @@ function renderVerdictOutput(
   shape: Shape,
   v: WorkflowVerdict | undefined,
   env: { hook_event_name?: string },
+  deferApproval = false,
 ): unknown {
   const arm = v?.arm ?? 'allow';
   const reason = brand(v?.reason ?? '');
@@ -1904,7 +1928,7 @@ function renderVerdictOutput(
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            permissionDecision: 'ask',
+            permissionDecision: deferApproval ? 'defer' : 'ask',
             permissionDecisionReason: reason || '[OpenBox] approval required',
           },
         };
@@ -1944,6 +1968,50 @@ function renderVerdictOutput(
             behavior: 'deny',
             message: reason || '[OpenBox] blocked by policy',
           },
+        },
+      };
+    }
+    case 'permission-denied-retry': {
+      const eventName = env.hook_event_name ?? 'PermissionDenied';
+      if (arm === 'allow' || arm === 'constrain') {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            retry: true,
+          },
+        };
+      }
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          retry: false,
+        },
+      };
+    }
+    case 'elicitation-response': {
+      const eventName = env.hook_event_name ?? 'Elicitation';
+      if (arm === 'allow' || arm === 'constrain') return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          action: arm === 'halt' ? 'cancel' : 'decline',
+          content: {},
+        },
+      };
+    }
+    case 'continue-block': {
+      if (arm === 'allow' || arm === 'constrain') return {};
+      return {
+        continue: false,
+        stopReason: reason || '[OpenBox] blocked by policy',
+      };
+    }
+    case 'additional-context': {
+      if (arm === 'allow' || arm === 'constrain') return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: env.hook_event_name ?? 'PostToolUseFailure',
+          additionalContext: reason || '[OpenBox] blocked by policy',
         },
       };
     }
@@ -2291,14 +2359,17 @@ export class BaseGovernedSession {
    *
    * Backward-compat alias: \`complete()\`.
    */
-  async workflowCompleted(): Promise<void> {
-    if (this.finalized) return;
+  async workflowCompleted(): Promise<${verdictModelName} | undefined> {
+    if (this.finalized) return undefined;
     this.finalized = true;
-    await this.emit({ event_type: 'WorkflowCompleted', status: 'completed' });
-    this.cleanupExitHandlers();
+    try {
+      return await this.emit({ event_type: 'WorkflowCompleted', status: 'completed' });
+    } finally {
+      this.cleanupExitHandlers();
+    }
   }
   /** @deprecated use \`workflowCompleted()\`; same behavior. */
-  async complete(): Promise<void> {
+  async complete(): Promise<${verdictModelName} | undefined> {
     return this.workflowCompleted();
   }
 
@@ -2310,18 +2381,21 @@ export class BaseGovernedSession {
    *
    * Backward-compat alias: \`fail()\`.
    */
-  async workflowFailed(error?: unknown): Promise<void> {
-    if (this.finalized) return;
+  async workflowFailed(error?: unknown): Promise<${verdictModelName} | undefined> {
+    if (this.finalized) return undefined;
     this.finalized = true;
-    await this.emit({
-      event_type: 'WorkflowFailed',
-      status: 'failed',
-      error: errorInfoFrom(error),
-    });
-    this.cleanupExitHandlers();
+    try {
+      return await this.emit({
+        event_type: 'WorkflowFailed',
+        status: 'failed',
+        error: errorInfoFrom(error),
+      });
+    } finally {
+      this.cleanupExitHandlers();
+    }
   }
   /** @deprecated use \`workflowFailed()\`; same behavior. */
-  async fail(error?: unknown): Promise<void> {
+  async fail(error?: unknown): Promise<${verdictModelName} | undefined> {
     return this.workflowFailed(error);
   }
 
@@ -2516,6 +2590,7 @@ export class BaseGovernedSession {
       event_type: 'ActivityCompleted',
       activity_id: activityId,
       activity_type: activityType,
+      status: activityCompletionStatus(activityType),
       activity_input: payload.input,
       activity_output: payload.output,
       spans: payload.spans as unknown as GovernanceEventPayload['spans'],
@@ -2714,6 +2789,12 @@ export class BaseGovernedSession {
     this.exitHandlerCleanup.length = 0;
   }
 }
+
+function activityCompletionStatus(activityType: string): 'completed' | 'failed' {
+  return /(error|fail|failed|failure|timeout|timedout|cancel|abort)/i.test(activityType)
+    ? 'failed'
+    : 'completed';
+}
 `;
 }
 
@@ -2899,6 +2980,7 @@ function emitVerdictHelpers(verdictModelName: string): string {
     riskScore: response.risk_score ?? 0,
     trustTier: response.trust_tier ?? undefined,
     guardrailsResult: mapGuardrailsResult(response.guardrails_result),
+    ageResult: response.age_result,
   };
 }
 
@@ -3016,11 +3098,18 @@ function emitNamespaceTypes(
   }
 }
 
-function emitInterface(name: string, model: Model): string {
+function emitInterface(
+  name: string,
+  model: Model,
+  options: { terminalVerdict?: boolean } = {},
+): string {
   const lines: string[] = [`export interface ${name} {`];
   for (const [propName, prop] of model.properties) {
     const optional = prop.optional ? '?' : '';
     lines.push(`  ${quoteIdent(propName)}${optional}: ${tspTypeToTs(prop.type)};`);
+  }
+  if (options.terminalVerdict) {
+    lines.push(`  ageResult?: GovernanceVerdictResponse['age_result'];`);
   }
   lines.push('}');
   return lines.join('\n');

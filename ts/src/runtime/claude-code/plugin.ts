@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   cpSync,
   existsSync,
   lstatSync,
@@ -13,6 +14,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOOK_SPEC } from '../../core-client/generated/runtime/claude-code.js';
+import {
+  CLAUDE_CODE_GOVERNANCE_AUDIT,
+  CLAUDE_CODE_HOOK_MATRIX,
+  CLAUDE_CODE_SURFACE_MATRIX,
+  defaultClaudeCodeHookEvents,
+  optInClaudeCodeHookEvents,
+} from './governance-matrix.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,6 +32,12 @@ const EXPECTED_COMMAND_FILES = [
   'openbox-status.md',
 ] as const;
 const EXPECTED_AGENT_FILES = ['openbox-reviewer.md'] as const;
+const EXPECTED_DIAGNOSTIC_FILES = [
+  'component-inventory.json',
+  'claude-code-governance.json',
+  'monitors.opt-in.json',
+] as const;
+const EXPECTED_BIN_FILES = ['openbox-plugin-doctor'] as const;
 
 export type ClaudeCodePluginScope = 'project';
 export type ClaudeCodePluginCheckStatus = 'pass' | 'fail';
@@ -42,6 +56,8 @@ export interface ExportClaudeCodePluginOptions {
   force?: boolean;
   /** Optional per-event hook matchers copied into hooks/hooks.json. */
   matchers?: Record<string, string>;
+  /** Include opt-in invasive hooks such as WorktreeCreate. Defaults to false. */
+  includeOptInHooks?: boolean;
 }
 
 export interface InstallClaudeCodePluginOptions {
@@ -55,6 +71,8 @@ export interface InstallClaudeCodePluginOptions {
   symlink?: string;
   /** Optional per-event hook matchers copied into hooks/hooks.json. */
   matchers?: Record<string, string>;
+  /** Include opt-in invasive hooks such as WorktreeCreate. Defaults to false. */
+  includeOptInHooks?: boolean;
   /** Skip creating the hook runtime config template. Defaults to false. */
   skipRuntimeConfig?: boolean;
 }
@@ -176,9 +194,18 @@ export function claudeCodeRuntimeConfigDir(
   return path.join(cwd, '.claude-hooks');
 }
 
-function claudeHooksJson(matchers?: Record<string, string>): Record<string, unknown> {
+function hookEvents(includeOptInHooks = false): typeof HOOK_SPEC.events {
+  const defaultEvents = new Set(defaultClaudeCodeHookEvents());
+  return HOOK_SPEC.events.filter((event) => {
+    if (event.installDefault === false) return includeOptInHooks;
+    if (!defaultEvents.has(event.name)) return includeOptInHooks;
+    return true;
+  });
+}
+
+function claudeHooksJson(matchers?: Record<string, string>, includeOptInHooks = false): Record<string, unknown> {
   const hooks: Record<string, Array<Record<string, unknown>>> = {};
-  for (const event of HOOK_SPEC.events) {
+  for (const event of hookEvents(includeOptInHooks)) {
     const hook: Record<string, unknown> = {
       type: 'command',
       command: HOOK_SPEC.command,
@@ -203,6 +230,106 @@ function mcpJson(): Record<string, unknown> {
       },
     },
   };
+}
+
+function componentInventory(version: string): Record<string, unknown> {
+  const defaultEvents = hookEvents(false).map((event) => event.name);
+  return {
+    name: 'openbox',
+    version,
+    capturedAt: CLAUDE_CODE_GOVERNANCE_AUDIT.capturedAt,
+    installedClaudeCodeVersion: CLAUDE_CODE_GOVERNANCE_AUDIT.installedClaudeCodeVersion,
+    components: {
+      skill: {
+        status: 'installed',
+        path: 'skills/openbox/SKILL.md',
+      },
+      commands: {
+        status: 'installed',
+        path: 'commands/',
+        files: [...EXPECTED_COMMAND_FILES],
+      },
+      agent: {
+        status: 'installed',
+        path: 'agents/openbox-reviewer.md',
+      },
+      hooks: {
+        status: 'installed',
+        path: 'hooks/hooks.json',
+        defaultEvents,
+        optInEvents: optInClaudeCodeHookEvents(),
+      },
+      mcp: {
+        status: 'installed',
+        path: '.mcp.json',
+        command: 'openbox mcp serve',
+      },
+      diagnostics: {
+        status: 'installed',
+        path: 'diagnostics/',
+        files: [...EXPECTED_DIAGNOSTIC_FILES],
+      },
+      bin: {
+        status: 'installed',
+        path: 'bin/openbox-plugin-doctor',
+        command: 'openbox claude-code doctor',
+      },
+      monitors: {
+        status: 'opt_in_metadata',
+        activeByDefault: false,
+        path: 'diagnostics/monitors.opt-in.json',
+        notes: 'Copy to monitors/monitors.json only after accepting unsandboxed monitor execution.',
+      },
+      lsp: {
+        status: 'not_included',
+        notes: 'No OpenBox language-server use case was found in the Claude Code governance audit.',
+      },
+    },
+    surfaces: CLAUDE_CODE_SURFACE_MATRIX,
+  };
+}
+
+function governanceDiagnostic(version: string): Record<string, unknown> {
+  return {
+    version,
+    audit: CLAUDE_CODE_GOVERNANCE_AUDIT,
+    hooks: CLAUDE_CODE_HOOK_MATRIX,
+    defaultHookEvents: defaultClaudeCodeHookEvents(),
+    optInHookEvents: optInClaudeCodeHookEvents(),
+    generatedHookSpecEvents: HOOK_SPEC.events.map((event) => event.name),
+    surfaces: CLAUDE_CODE_SURFACE_MATRIX,
+  };
+}
+
+function optInMonitorMetadata(): Array<Record<string, unknown>> {
+  return [
+    {
+      name: 'openbox-status',
+      command: 'openbox status --json',
+      description: 'OpenBox runtime status and approval readiness notifications.',
+      when: 'on-skill-invoke:openbox',
+      activeByDefault: false,
+    },
+  ];
+}
+
+function writePluginDoctorShim(file: string): void {
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(
+    file,
+    [
+      '#!/usr/bin/env sh',
+      'set -eu',
+      'if command -v openbox >/dev/null 2>&1; then',
+      '  exec openbox claude-code doctor "$@"',
+      'fi',
+      'echo "openbox executable was not found on PATH" >&2',
+      'exit 127',
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+  chmodSync(file, 0o755);
 }
 
 function pluginManifest(version: string): Record<string, unknown> {
@@ -290,8 +417,12 @@ export function exportClaudeCodePlugin(options: ExportClaudeCodePluginOptions): 
   copyDir(findSkillDir(), path.join(out, 'skills', 'openbox'));
   copyDir(findTemplateDir('commands'), path.join(out, 'commands'));
   copyDir(findTemplateDir('agents'), path.join(out, 'agents'));
-  writeJson(path.join(out, 'hooks', 'hooks.json'), claudeHooksJson(options.matchers));
+  writeJson(path.join(out, 'hooks', 'hooks.json'), claudeHooksJson(options.matchers, options.includeOptInHooks));
   writeJson(path.join(out, '.mcp.json'), mcpJson());
+  writeJson(path.join(out, 'diagnostics', 'component-inventory.json'), componentInventory(version));
+  writeJson(path.join(out, 'diagnostics', 'claude-code-governance.json'), governanceDiagnostic(version));
+  writeJson(path.join(out, 'diagnostics', 'monitors.opt-in.json'), optInMonitorMetadata());
+  writePluginDoctorShim(path.join(out, 'bin', 'openbox-plugin-doctor'));
 
   return out;
 }
@@ -315,6 +446,7 @@ export function installClaudeCodePlugin(options: InstallClaudeCodePluginOptions 
   const out = exportClaudeCodePlugin({
     out: target,
     matchers: options.matchers,
+    includeOptInHooks: options.includeOptInHooks,
   });
   if (!options.skipRuntimeConfig) {
     writeRuntimeConfigTemplate(claudeCodeRuntimeConfigDir(cwd));
@@ -358,7 +490,7 @@ function checkHooks(file: string): ClaudeCodePluginCheck {
   if (!hooks || typeof hooks !== 'object') {
     problems.push('hooks block missing');
   } else {
-    for (const event of HOOK_SPEC.events) {
+    for (const event of hookEvents(false)) {
       const value = hooks[event.name];
       if (!Array.isArray(value) || value.length === 0) {
         problems.push(`${event.name}: missing array entry`);
@@ -378,12 +510,22 @@ function checkHooks(file: string): ClaudeCodePluginCheck {
         problems.push(`${event.name}: timeout ${String(hook?.timeout)} != ${event.timeout}`);
       }
     }
+    for (const entry of CLAUDE_CODE_HOOK_MATRIX.filter((item) => item.defaultInstall && item.status !== 'explicit_out_of_scope')) {
+      if (!hooks[entry.event]) {
+        problems.push(`${entry.event}: missing from default governance matrix`);
+      }
+    }
+    for (const entry of CLAUDE_CODE_HOOK_MATRIX.filter((item) => !item.defaultInstall)) {
+      if (hooks[entry.event]) {
+        problems.push(`${entry.event}: opt-in event installed by default`);
+      }
+    }
   }
   return {
     name: 'plugin-hooks',
     status: problems.length === 0 ? 'pass' : 'fail',
     path: file,
-    detail: problems.length === 0 ? `${HOOK_SPEC.events.length} event(s)` : problems.join('; '),
+    detail: problems.length === 0 ? `${hookEvents(false).length} default event(s)` : problems.join('; '),
   };
 }
 
@@ -430,5 +572,7 @@ export function verifyClaudeCodePlugin(
   checks.push(checkDirFiles('plugin-agents', path.join(target, 'agents'), EXPECTED_AGENT_FILES));
   checks.push(checkHooks(path.join(target, 'hooks', 'hooks.json')));
   checks.push(checkMcp(path.join(target, '.mcp.json')));
+  checks.push(checkDirFiles('plugin-diagnostics', path.join(target, 'diagnostics'), EXPECTED_DIAGNOSTIC_FILES));
+  checks.push(checkDirFiles('plugin-bin', path.join(target, 'bin'), EXPECTED_BIN_FILES));
   return checks;
 }

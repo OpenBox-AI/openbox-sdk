@@ -5,7 +5,7 @@ import {
   hasGuardrailRedaction,
   summarizeGuardrailRedaction,
 } from '../core-client/redaction.js';
-import type { WorkflowVerdict } from '../core-client/index.js';
+import type { AGEResult, WorkflowVerdict } from '../core-client/index.js';
 import { OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION } from './constants.js';
 import { cloneValue, errorMessage } from './internal-utils.js';
 import type {
@@ -16,6 +16,8 @@ import type {
   OpenBoxCopilotVerdictStatus,
   OpenBoxSafePayload,
 } from './types.js';
+
+type WorkflowVerdictWithAge = WorkflowVerdict & { ageResult?: AGEResult };
 
 export function applyOpenBoxTransform<T>(
   original: T,
@@ -407,6 +409,7 @@ export function verdictMetadata(
     riskScore: verdict?.riskScore,
     trustTier: verdict?.trustTier,
     guardrailsResult: verdict?.guardrailsResult,
+    ageResult: ageResultFromVerdict(verdict),
     redactionSummary,
   };
 }
@@ -420,8 +423,15 @@ export function mergedVerdictMetadata(
     riskScore: verdict.riskScore ?? result.riskScore,
     trustTier: verdict.trustTier ?? result.trustTier,
     guardrailsResult: verdict.guardrailsResult ?? result.guardrailsResult,
+    ageResult: ageResultFromVerdict(verdict) ?? result.ageResult,
     redactionSummary: redactionSummary || result.redactionSummary,
   };
+}
+
+function ageResultFromVerdict(
+  verdict?: WorkflowVerdict,
+): AGEResult | undefined {
+  return (verdict as WorkflowVerdictWithAge | undefined)?.ageResult;
 }
 
 export function mapGuardrailsResult(

@@ -782,9 +782,22 @@ describe('CopilotKit OpenBox adapter', () => {
   });
 
   it('emits Core-extractable assistant output spans for goal alignment', async () => {
-    const mock = createMockCore(() => ({
+    const mock = createMockCore((payload) => ({
       verdict: 'allow',
       reason: 'allowed',
+      age_result: payload.hook_trigger
+        ? {
+            allowed: true,
+            verdict: 'allow',
+            fallback_used: false,
+            goal_alignment_checked: true,
+            goal_drifted: false,
+            span_results: [],
+            total_spans: 1,
+            violations_count: 0,
+            response_time_ms: 12,
+          }
+        : undefined,
     }));
     const middleware = createOpenBoxCopilotKitAdapter({
       core: mock.core as any,
@@ -795,18 +808,53 @@ describe('CopilotKit OpenBox adapter', () => {
         messages: [{ type: 'human', content: 'Review the queue.' }],
         state: { openboxWorkflowId: 'wf', openboxRunId: 'run' },
       },
-      async () => ({ content: 'The queue has two governed requests ready.' }),
+      async () => ({
+        content: 'The queue has two governed requests ready.',
+        response_metadata: {
+          model_name: 'gpt-4o-mini',
+          tokenUsage: {
+            promptTokens: 42,
+            completionTokens: 16,
+            totalTokens: 58,
+          },
+        },
+      }),
     );
 
     const completed = mock.events.find(
       (event) =>
         event.event_type === 'ActivityCompleted' &&
-        event.activity_type === 'on_llm_end',
+        event.activity_type === 'on_llm_end' &&
+        !event.hook_trigger,
     );
-    const span = completed?.spans?.[0] as Record<string, any> | undefined;
+    expect(completed?.span_count).toBe(0);
+    expect(completed?.spans).toEqual([]);
+
+    const hookCompleted = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'on_llm_end' &&
+        event.hook_trigger,
+    );
+    const hookStarted = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'on_llm_end' &&
+        event.hook_trigger,
+    );
+    expect(hookStarted?.activity_id).toBe(completed?.activity_id);
+    expect(hookCompleted?.activity_id).toBe(completed?.activity_id);
+    expect(hookCompleted?.status).toBe('completed');
+    expect(hookCompleted?.span_count).toBe(1);
+    const span = hookCompleted?.spans?.[0] as Record<string, any> | undefined;
     expect(span).toMatchObject({
       stage: 'completed',
       semantic_type: 'llm_completion',
+      attributes: {
+        'gen_ai.system': 'copilotkit',
+        'http.method': 'POST',
+        'http.url': 'https://api.openai.com/v1/chat/completions',
+      },
     });
     expect(JSON.parse(String(span?.response_body))).toEqual({
       choices: [
@@ -816,7 +864,83 @@ describe('CopilotKit OpenBox adapter', () => {
           },
         },
       ],
+      model: 'gpt-4o-mini',
+      usage: {
+        prompt_tokens: 42,
+        input_tokens: 42,
+        completion_tokens: 16,
+        output_tokens: 16,
+        total_tokens: 58,
+      },
     });
+  });
+
+  it('passes Core AGE metadata through assistant output governance results', async () => {
+    const ageResult = {
+      allowed: true,
+      verdict: 'allow',
+      fallback_used: false,
+      goal_alignment_checked: true,
+      goal_drifted: false,
+      span_results: [],
+      total_spans: 1,
+      violations_count: 0,
+      response_time_ms: 9,
+    };
+    const mock = createMockCore((payload) => ({
+      verdict: 'allow',
+      reason: 'allowed',
+      age_result: payload.hook_trigger ? ageResult : undefined,
+    }));
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+      workflowType: 'CopilotKitTestWorkflow',
+      taskQueue: 'langgraph',
+    });
+
+    const result = await adapter.governAssistantOutput({
+      payload: { content: 'The update stays aligned with the customer task.' },
+      workflowId: 'wf',
+      runId: 'run',
+      activityId: 'activity-1',
+    });
+    const copilotResult = adapter.toOpenBoxCopilotResult(
+      result.verdict,
+      result,
+    );
+
+    expect((result.verdict as Record<string, unknown>).ageResult).toEqual(
+      ageResult,
+    );
+    expect(copilotResult.ageResult).toEqual(ageResult);
+  });
+
+  it('merges terminal AGE metadata into standalone governed tool results', async () => {
+    const ageResult = {
+      allowed: true,
+      verdict: 'allow',
+      fallback_used: false,
+      goal_alignment_checked: true,
+      goal_drifted: false,
+      span_results: [],
+      total_spans: 1,
+      violations_count: 0,
+      response_time_ms: 11,
+    };
+    const { tool } = createDemoTool((payload) => ({
+      verdict: 'allow',
+      reason: 'allowed',
+      age_result:
+        payload.event_type === 'WorkflowCompleted' ? ageResult : undefined,
+    }));
+
+    const result = await tool.execute({
+      action: 'demo_action',
+      request: 'Review the customer escalation.',
+    });
+
+    expect(result.status).toBe('executed');
+    expect(result.ageResult).toEqual(ageResult);
   });
 
   it('lets governed tools attach consumer span profiles', async () => {
@@ -886,6 +1010,33 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(mock.events[0].workflow_id).toBe(mock.events[2].workflow_id);
     expect(mock.events[0].run_id).toBe(mock.events[2].run_id);
     expect(mock.events[0].run_id).not.toBe(mock.events[0].workflow_id);
+  });
+
+  it('emits the goal-alignment prompt signal for content-shaped prompts', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const adapter = createOpenBoxCopilotKitAdapter({ core: mock.core as any });
+
+    await adapter.governPrompt({
+      payload: { content: 'Draft a renewal follow-up for the customer.' },
+      sessionKey: 'content-prompt',
+      activityType: 'on_chat_model_start',
+    });
+
+    expect(mock.events.map((event) => event.event_type)).toEqual([
+      'WorkflowStarted',
+      'SignalReceived',
+      'ActivityStarted',
+      'ActivityCompleted',
+    ]);
+    expect(mock.events[1]).toMatchObject({
+      event_type: 'SignalReceived',
+      activity_type: 'user_prompt',
+      signal_name: 'user_prompt',
+      signal_args: 'Draft a renewal follow-up for the customer.',
+    });
   });
 
   it('marks standalone runtime gate workflows failed when Core errors after start', async () => {

@@ -214,6 +214,10 @@ export type VerdictShape =
   | 'permission-decision' // PreToolUse: { hookSpecificOutput: { permissionDecision } }
   | 'decision-block' // PostToolUse / UserPromptSubmit: { decision?: 'block', reason? }
   | 'permission-request' // PermissionRequest: { hookSpecificOutput: { decision: { behavior } } }
+  | 'permission-denied-retry' // PermissionDenied: { hookSpecificOutput: { retry } }
+  | 'elicitation-response' // Elicitation/ElicitationResult: { hookSpecificOutput: { action, content? } }
+  | 'continue-block' // Task/teammate lifecycle: { continue: false, stopReason? }
+  | 'additional-context' // Failure/observe hooks that can feed context back
   | 'cursor-permission' // cursor-hooks beforeXxx: { permission: 'allow'|'deny'|'ask', user_message? }
   | 'cursor-observe' // cursor-hooks afterXxx: telemetry-only, no verdict gate
   | 'cursor-continue' // cursor-hooks beforeSubmitPrompt: { continue: bool, user_message? }
@@ -223,6 +227,10 @@ const VERDICT_SHAPES: ReadonlySet<VerdictShape> = new Set([
   'permission-decision',
   'decision-block',
   'permission-request',
+  'permission-denied-retry',
+  'elicitation-response',
+  'continue-block',
+  'additional-context',
   'cursor-permission',
   'cursor-observe',
   'cursor-continue',
@@ -521,6 +529,18 @@ export function $installTimeout(
 
 export function getInstallTimeout(program: Program, target: Operation): number | undefined {
   return program.stateMap(stateKeys.installTimeout).get(target);
+}
+
+export function $installDefault(
+  context: DecoratorContext,
+  target: Operation,
+  enabled: boolean,
+): void {
+  context.program.stateMap(stateKeys.installDefault).set(target, enabled);
+}
+
+export function getInstallDefault(program: Program, target: Operation): boolean | undefined {
+  return program.stateMap(stateKeys.installDefault).get(target);
 }
 
 // ─── Activity variants ────────────────────────────────────────

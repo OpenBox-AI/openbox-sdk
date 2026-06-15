@@ -1,5 +1,5 @@
 // ts/src/core-client/generated/govern.ts
-var CANONICAL_ACTIVITY_LABELS = Object.freeze({ "AGENT_STEP": "Agent Step", "ActivityTaskCanceled": "Activity Task Canceled", "ActivityTaskCompleted": "Activity Task Completed", "ActivityTaskFailed": "Activity Task Failed", "ActivityTaskScheduled": "Activity Task Scheduled", "ActivityTaskStarted": "Activity Task Started", "ActivityTaskTimedOut": "Activity Task Timed Out", "AgentExecutionCompleted": "Agent Execution Completed", "AgentExecutionStarted": "Agent Execution Started", "AgentSpawn": "Agent Spawn", "CHUNKING": "Chunking", "CallToolsNode": "Call Tools Node", "ChildWorkflowExecutionCompleted": "Child Workflow Execution Completed", "ChildWorkflowExecutionInitiated": "Child Workflow Execution Initiated", "CrewKickoffCompleted": "Crew Kickoff Completed", "CrewKickoffStarted": "Crew Kickoff Started", "EMBEDDING": "Embedding", "EXCEPTION": "Exception", "End": "End", "FUNCTION_CALL": "Function Call", "FileDelete": "File Delete", "FileEdit": "File Edit", "FileRead": "File Read", "HTTPRequest": "HTTP Request", "HandoffMessage": "Handoff Message", "LLM": "LLM", "LLMCallCompleted": "LLM Call Completed", "LLMCallStarted": "LLM Call Started", "LLMCompleted": "LLM Completed", "MCPToolCall": "MCP Tool Call", "MarkerRecorded": "Marker Recorded", "MemoryQueryEvent": "Memory Query", "ModelRequestNode": "Model Request Node", "MultiModalMessage": "Multi-Modal Message", "Notification": "Notification", "OperationCompleted": "Operation Completed", "OperationStarted": "Operation Started", "PermissionRequest": "Permission Request", "PostToolUse": "Post-Tool Use", "PreCompact": "Pre-Compact", "PreSyncHookStarted": "Pre-Sync Hook Started", "PreSyncHookSucceeded": "Pre-Sync Hook Succeeded", "PreToolUse": "Pre-Tool Use", "PromptSubmission": "Prompt Submission", "QUERY": "Query", "RERANKING": "Reranking", "RETRIEVE": "Retrieve", "ResourceUpdated": "Resource Updated", "SUB_QUESTION": "Sub-Question", "SYNTHESIZE": "Synthesize", "ShellExecution": "Shell Execution", "Stop": "Stop", "StopMessage": "Stop Message", "SubagentStart": "Subagent Start", "SubagentStop": "Subagent Stop", "SyncStatusChanged": "Sync Status Changed", "TaskCompleted": "Task Completed", "TaskStart": "Task Start", "TaskStarted": "Task Started", "TextMessage": "Text Message", "TimerFired": "Timer Fired", "TimerStarted": "Timer Started", "ToolCallExecutionEvent": "Tool Call Execution", "ToolCallRequestEvent": "Tool Call Request", "ToolCompleted": "Tool Completed", "ToolStarted": "Tool Started", "ToolUsageError": "Tool Usage Error", "ToolUsageFinished": "Tool Usage Finished", "ToolUsageStarted": "Tool Usage Started", "UserInputRequestedEvent": "User Input Requested", "UserPromptNode": "User Prompt Node", "UserPromptSubmit": "User Prompt Submit", "WorkflowExecutionSignaled": "Workflow Execution Signaled", "afterAgentResponse": "After Agent Response", "afterAgentThought": "After Agent Thought", "afterFileEdit": "After File Edit", "afterMCPExecution": "After MCP Execution", "afterShellExecution": "After Shell Execution", "agentStop": "Agent Stop", "auto_function_invocation_post": "Auto Function Invocation Post", "auto_function_invocation_pre": "Auto Function Invocation Pre", "beforeMCPExecution": "Before MCP Execution", "beforeReadFile": "Before Read File", "beforeShellExecution": "Before Shell Execution", "beforeSubmitPrompt": "Before Submit Prompt", "checkpoint": "Checkpoint", "custom_event": "Custom Event", "error": "Error", "error-trigger": "Error Trigger", "errorOccurred": "Error Occurred", "function_invocation_post": "Function Invocation Post", "function_invocation_pre": "Function Invocation Pre", "incident.acknowledged": "Incident Acknowledged", "incident.annotated": "Incident Annotated", "incident.delegated": "Incident Delegated", "incident.escalated": "Incident Escalated", "incident.priority_updated": "Incident Priority Updated", "incident.reassigned": "Incident Reassigned", "incident.reopened": "Incident Reopened", "incident.resolved": "Incident Resolved", "incident.triggered": "Incident Triggered", "incident.unacknowledged": "Incident Unacknowledged", "interrupt": "Interrupt", "node-post-execute": "Node Post-Execute", "node-pre-execute": "Node Pre-Execute", "node_end": "Node End", "node_start": "Node Start", "onAbort": "Abort", "onError": "Error", "onFinish": "Finish", "onStepFinish": "Step Finish", "on_agent_action": "Agent Action", "on_agent_finish": "Agent Finish", "on_chain_end": "Chain End", "on_chain_start": "Chain Start", "on_chat_model_start": "Chat Model Start", "on_execute_callback": "Execute Callback", "on_failure_callback": "Failure Callback", "on_llm_end": "LLM End", "on_llm_error": "LLM Error", "on_llm_start": "LLM Start", "on_retriever_end": "Retriever End", "on_retriever_start": "Retriever Start", "on_retry_callback": "Retry Callback", "on_skipped_callback": "Skipped Callback", "on_success_callback": "Success Callback", "on_tool_end": "Tool End", "on_tool_error": "Tool Error", "on_tool_start": "Tool Start", "output_validator": "Output Validator", "payment_order.approved": "Payment Order Approved", "payment_order.begin_processing": "Payment Order Begin Processing", "payment_order.failed": "Payment Order Failed", "payment_order.reconciled": "Payment Order Reconciled", "payment_reference.created": "Payment Reference Created", "postToolUse": "Post-Tool Use", "preToolUse": "Pre-Tool Use", "prompt_render_post": "Prompt Render Post", "prompt_render_pre": "Prompt Render Pre", "sla_miss_callback": "SLA Miss Callback", "subagentStop": "Subagent Stop", "task_end": "Task End", "task_start": "Task Start", "tool-call": "Tool Call", "tool-result": "Tool Result", "tool_retry": "Tool Retry", "userPromptSubmitted": "User Prompt Submitted", "workflow-step-finish": "Workflow Step Finish", "workflow-step-progress": "Workflow Step Progress", "workflow-step-start": "Workflow Step Start" });
+var CANONICAL_ACTIVITY_LABELS = Object.freeze({ "AGENT_STEP": "Agent Step", "ActivityTaskCanceled": "Activity Task Canceled", "ActivityTaskCompleted": "Activity Task Completed", "ActivityTaskFailed": "Activity Task Failed", "ActivityTaskScheduled": "Activity Task Scheduled", "ActivityTaskStarted": "Activity Task Started", "ActivityTaskTimedOut": "Activity Task Timed Out", "AgentAction": "Agent Action", "AgentExecutionCompleted": "Agent Execution Completed", "AgentExecutionStarted": "Agent Execution Started", "AgentSpawn": "Agent Spawn", "CHUNKING": "Chunking", "CallToolsNode": "Call Tools Node", "ChildWorkflowExecutionCompleted": "Child Workflow Execution Completed", "ChildWorkflowExecutionInitiated": "Child Workflow Execution Initiated", "CrewKickoffCompleted": "Crew Kickoff Completed", "CrewKickoffStarted": "Crew Kickoff Started", "EMBEDDING": "Embedding", "EXCEPTION": "Exception", "End": "End", "FUNCTION_CALL": "Function Call", "FileDelete": "File Delete", "FileEdit": "File Edit", "FileRead": "File Read", "HTTPRequest": "HTTP Request", "HandoffMessage": "Handoff Message", "LLM": "LLM", "LLMCallCompleted": "LLM Call Completed", "LLMCallStarted": "LLM Call Started", "LLMCompleted": "LLM Completed", "MCPToolCall": "MCP Tool Call", "MarkerRecorded": "Marker Recorded", "MemoryQueryEvent": "Memory Query", "ModelRequestNode": "Model Request Node", "MultiModalMessage": "Multi-Modal Message", "Notification": "Notification", "OperationCompleted": "Operation Completed", "OperationStarted": "Operation Started", "PermissionRequest": "Permission Request", "PostToolUse": "Post-Tool Use", "PreCompact": "Pre-Compact", "PreSyncHookStarted": "Pre-Sync Hook Started", "PreSyncHookSucceeded": "Pre-Sync Hook Succeeded", "PreToolUse": "Pre-Tool Use", "PromptSubmission": "Prompt Submission", "QUERY": "Query", "RERANKING": "Reranking", "RETRIEVE": "Retrieve", "ResourceUpdated": "Resource Updated", "SUB_QUESTION": "Sub-Question", "SYNTHESIZE": "Synthesize", "ShellExecution": "Shell Execution", "Stop": "Stop", "StopMessage": "Stop Message", "SubagentStart": "Subagent Start", "SubagentStop": "Subagent Stop", "SyncStatusChanged": "Sync Status Changed", "TaskCompleted": "Task Completed", "TaskStart": "Task Start", "TaskStarted": "Task Started", "TextMessage": "Text Message", "TimerFired": "Timer Fired", "TimerStarted": "Timer Started", "ToolCallExecutionEvent": "Tool Call Execution", "ToolCallRequestEvent": "Tool Call Request", "ToolCompleted": "Tool Completed", "ToolStarted": "Tool Started", "ToolUsageError": "Tool Usage Error", "ToolUsageFinished": "Tool Usage Finished", "ToolUsageStarted": "Tool Usage Started", "UserInputRequestedEvent": "User Input Requested", "UserPromptNode": "User Prompt Node", "UserPromptSubmit": "User Prompt Submit", "WorkflowExecutionSignaled": "Workflow Execution Signaled", "afterAgentResponse": "After Agent Response", "afterAgentThought": "After Agent Thought", "afterFileEdit": "After File Edit", "afterMCPExecution": "After MCP Execution", "afterShellExecution": "After Shell Execution", "agentStop": "Agent Stop", "auto_function_invocation_post": "Auto Function Invocation Post", "auto_function_invocation_pre": "Auto Function Invocation Pre", "beforeMCPExecution": "Before MCP Execution", "beforeReadFile": "Before Read File", "beforeShellExecution": "Before Shell Execution", "beforeSubmitPrompt": "Before Submit Prompt", "checkpoint": "Checkpoint", "custom_event": "Custom Event", "error": "Error", "error-trigger": "Error Trigger", "errorOccurred": "Error Occurred", "function_invocation_post": "Function Invocation Post", "function_invocation_pre": "Function Invocation Pre", "incident.acknowledged": "Incident Acknowledged", "incident.annotated": "Incident Annotated", "incident.delegated": "Incident Delegated", "incident.escalated": "Incident Escalated", "incident.priority_updated": "Incident Priority Updated", "incident.reassigned": "Incident Reassigned", "incident.reopened": "Incident Reopened", "incident.resolved": "Incident Resolved", "incident.triggered": "Incident Triggered", "incident.unacknowledged": "Incident Unacknowledged", "interrupt": "Interrupt", "node-post-execute": "Node Post-Execute", "node-pre-execute": "Node Pre-Execute", "node_end": "Node End", "node_start": "Node Start", "onAbort": "Abort", "onError": "Error", "onFinish": "Finish", "onStepFinish": "Step Finish", "on_agent_action": "Agent Action", "on_agent_finish": "Agent Finish", "on_chain_end": "Chain End", "on_chain_start": "Chain Start", "on_chat_model_start": "Chat Model Start", "on_execute_callback": "Execute Callback", "on_failure_callback": "Failure Callback", "on_llm_end": "LLM End", "on_llm_error": "LLM Error", "on_llm_start": "LLM Start", "on_retriever_end": "Retriever End", "on_retriever_start": "Retriever Start", "on_retry_callback": "Retry Callback", "on_skipped_callback": "Skipped Callback", "on_success_callback": "Success Callback", "on_tool_end": "Tool End", "on_tool_error": "Tool Error", "on_tool_start": "Tool Start", "output_validator": "Output Validator", "payment_order.approved": "Payment Order Approved", "payment_order.begin_processing": "Payment Order Begin Processing", "payment_order.failed": "Payment Order Failed", "payment_order.reconciled": "Payment Order Reconciled", "payment_reference.created": "Payment Reference Created", "postToolUse": "Post-Tool Use", "preToolUse": "Pre-Tool Use", "prompt_render_post": "Prompt Render Post", "prompt_render_pre": "Prompt Render Pre", "sla_miss_callback": "SLA Miss Callback", "subagentStop": "Subagent Stop", "task_end": "Task End", "task_start": "Task Start", "tool-call": "Tool Call", "tool-result": "Tool Result", "tool_retry": "Tool Retry", "userPromptSubmitted": "User Prompt Submitted", "workflow-step-finish": "Workflow Step Finish", "workflow-step-progress": "Workflow Step Progress", "workflow-step-start": "Workflow Step Start" });
 function randomUUID() {
   if (typeof globalThis.crypto?.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
@@ -89,10 +89,13 @@ var BaseGovernedSession = class {
    * Backward-compat alias: `complete()`.
    */
   async workflowCompleted() {
-    if (this.finalized) return;
+    if (this.finalized) return void 0;
     this.finalized = true;
-    await this.emit({ event_type: "WorkflowCompleted", status: "completed" });
-    this.cleanupExitHandlers();
+    try {
+      return await this.emit({ event_type: "WorkflowCompleted", status: "completed" });
+    } finally {
+      this.cleanupExitHandlers();
+    }
   }
   /** @deprecated use `workflowCompleted()`; same behavior. */
   async complete() {
@@ -107,14 +110,17 @@ var BaseGovernedSession = class {
    * Backward-compat alias: `fail()`.
    */
   async workflowFailed(error) {
-    if (this.finalized) return;
+    if (this.finalized) return void 0;
     this.finalized = true;
-    await this.emit({
-      event_type: "WorkflowFailed",
-      status: "failed",
-      error: errorInfoFrom(error)
-    });
-    this.cleanupExitHandlers();
+    try {
+      return await this.emit({
+        event_type: "WorkflowFailed",
+        status: "failed",
+        error: errorInfoFrom(error)
+      });
+    } finally {
+      this.cleanupExitHandlers();
+    }
   }
   /** @deprecated use `workflowFailed()`; same behavior. */
   async fail(error) {
@@ -264,6 +270,7 @@ var BaseGovernedSession = class {
       event_type: "ActivityCompleted",
       activity_id: activityId,
       activity_type: activityType,
+      status: activityCompletionStatus(activityType),
       activity_input: payload.input,
       activity_output: payload.output,
       spans: payload.spans
@@ -416,6 +423,9 @@ var BaseGovernedSession = class {
     this.exitHandlerCleanup.length = 0;
   }
 };
+function activityCompletionStatus(activityType) {
+  return /(error|fail|failed|failure|timeout|timedout|cancel|abort)/i.test(activityType) ? "failed" : "completed";
+}
 var AirflowSession = class extends BaseGovernedSession {
   async onExecuteCallback(payload) {
     return this.runActivity("ActivityStarted", "on_execute_callback", payload);
@@ -1009,7 +1019,8 @@ function mapVerdict(response) {
     reason: response.reason,
     riskScore: response.risk_score ?? 0,
     trustTier: response.trust_tier ?? void 0,
-    guardrailsResult: mapGuardrailsResult(response.guardrails_result)
+    guardrailsResult: mapGuardrailsResult(response.guardrails_result),
+    ageResult: response.age_result
   };
 }
 function mapGuardrailsResult(raw) {
@@ -1286,11 +1297,11 @@ function createCursorAdapter(config) {
   const write = config.writeStdout ?? ((data) => process.stdout.write(data));
   const exit = config.exit ?? ((code) => process.exit(code));
   function writeFallback(shape, _v, env) {
-    const json = renderVerdictOutput(shape, void 0, env);
+    const json = renderVerdictOutput(shape, void 0, env, config.deferApproval === true);
     if (json !== void 0) write(JSON.stringify(json));
   }
   function writeVerdict(shape, v, env) {
-    const json = renderVerdictOutput(shape, v ?? void 0, env);
+    const json = renderVerdictOutput(shape, v ?? void 0, env, config.deferApproval === true);
     if (json !== void 0) write(JSON.stringify(json));
   }
   return {
@@ -1534,7 +1545,7 @@ function brand(raw) {
   if (!sanitized) return "";
   return sanitized.startsWith("[OpenBox]") ? sanitized : "[OpenBox] " + sanitized;
 }
-function renderVerdictOutput(shape, v, env) {
+function renderVerdictOutput(shape, v, env, deferApproval = false) {
   const arm = v?.arm ?? "allow";
   const reason = brand(v?.reason ?? "");
   switch (shape) {
@@ -1552,7 +1563,7 @@ function renderVerdictOutput(shape, v, env) {
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            permissionDecision: "ask",
+            permissionDecision: deferApproval ? "defer" : "ask",
             permissionDecisionReason: reason || "[OpenBox] approval required"
           }
         };
@@ -1591,6 +1602,50 @@ function renderVerdictOutput(shape, v, env) {
             behavior: "deny",
             message: reason || "[OpenBox] blocked by policy"
           }
+        }
+      };
+    }
+    case "permission-denied-retry": {
+      const eventName = env.hook_event_name ?? "PermissionDenied";
+      if (arm === "allow" || arm === "constrain") {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            retry: true
+          }
+        };
+      }
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          retry: false
+        }
+      };
+    }
+    case "elicitation-response": {
+      const eventName = env.hook_event_name ?? "Elicitation";
+      if (arm === "allow" || arm === "constrain") return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          action: arm === "halt" ? "cancel" : "decline",
+          content: {}
+        }
+      };
+    }
+    case "continue-block": {
+      if (arm === "allow" || arm === "constrain") return {};
+      return {
+        continue: false,
+        stopReason: reason || "[OpenBox] blocked by policy"
+      };
+    }
+    case "additional-context": {
+      if (arm === "allow" || arm === "constrain") return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: env.hook_event_name ?? "PostToolUseFailure",
+          additionalContext: reason || "[OpenBox] blocked by policy"
         }
       };
     }
@@ -1778,6 +1833,9 @@ var TokenBucket = class {
   }
 };
 
+// ts/src/version.ts
+var OPENBOX_SDK_VERSION = "0.1.0";
+
 // ts/src/core-client/core-client.ts
 var CoreApiError = class extends Error {
   status;
@@ -1845,7 +1903,8 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
     const timeoutMs = this.config.timeoutMs ?? 35e3;
     const baseHeaders = {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${this.config.apiKey}`
+      Authorization: `Bearer ${this.config.apiKey}`,
+      "X-OpenBox-SDK-Version": OPENBOX_SDK_VERSION
     };
     const body = options?.data ? JSON.stringify(options.data) : void 0;
     const signedHeaders = this.config.agentIdentity ? signAgentIdentityRequest({
@@ -2476,6 +2535,7 @@ function base() {
     trace_id: hex(32),
     parent_span_id: null,
     kind: "CLIENT",
+    span_type: "function",
     stage: "started",
     start_time: Date.now() * 1e6,
     end_time: null,
@@ -2492,12 +2552,15 @@ function buildSpan(host, type, input) {
       return {
         ...b,
         name: "llm.chat.completion",
+        span_type: "function",
         hook_type: "function_call",
         semantic_type: "llm_completion",
         attributes: {
           "gen_ai.system": host,
           "http.method": "POST",
-          "http.url": "https://api.openai.com/v1/chat/completions"
+          "http.url": "https://api.openai.com/v1/chat/completions",
+          "openbox.semantic_type": "llm_completion",
+          "openbox.span_type": "function"
         },
         function: "LLMCall",
         module: host,
@@ -2509,11 +2572,14 @@ function buildSpan(host, type, input) {
         ...b,
         name: "file.read",
         kind: "INTERNAL",
+        span_type: "file_io",
         hook_type: "file_operation",
         semantic_type: "file_read",
         attributes: {
           "file.path": input.file_path ?? "",
-          "file.operation": "read"
+          "file.operation": "read",
+          "openbox.semantic_type": "file_read",
+          "openbox.span_type": "file_io"
         },
         module: host,
         file_path: input.file_path ?? "",
@@ -2525,11 +2591,14 @@ function buildSpan(host, type, input) {
         ...b,
         name: "file.write",
         kind: "INTERNAL",
+        span_type: "file_io",
         hook_type: "file_operation",
         semantic_type: "file_write",
         attributes: {
           "file.path": input.file_path ?? "",
-          "file.operation": "write"
+          "file.operation": "write",
+          "openbox.semantic_type": "file_write",
+          "openbox.span_type": "file_io"
         },
         module: host,
         file_path: input.file_path ?? "",
@@ -2541,11 +2610,14 @@ function buildSpan(host, type, input) {
         ...b,
         name: "file.delete",
         kind: "INTERNAL",
+        span_type: "file_io",
         hook_type: "file_operation",
         semantic_type: "file_delete",
         attributes: {
           "file.path": input.file_path ?? "",
-          "file.operation": "delete"
+          "file.operation": "delete",
+          "openbox.semantic_type": "file_delete",
+          "openbox.span_type": "file_io"
         },
         module: host,
         file_path: input.file_path ?? "",
@@ -2556,11 +2628,14 @@ function buildSpan(host, type, input) {
         ...b,
         name: "ShellExecution",
         kind: "INTERNAL",
+        span_type: "function",
         hook_type: "function_call",
         semantic_type: "internal",
         attributes: {
           "shell.command": input.command ?? "",
-          "shell.cwd": input.cwd ?? ""
+          "shell.cwd": input.cwd ?? "",
+          "openbox.semantic_type": "internal",
+          "openbox.span_type": "function"
         },
         function: "ShellExecution",
         module: host,
@@ -2571,12 +2646,18 @@ function buildSpan(host, type, input) {
       return {
         ...b,
         name: `tool.${input.tool_name ?? "call"}`,
+        span_type: "mcp_tool_call",
         hook_type: "function_call",
         semantic_type: "llm_tool_call",
         attributes: {
           "gen_ai.system": "mcp",
           "http.method": "POST",
-          "http.url": "https://api.openai.com/v1/chat/completions"
+          "http.url": "https://api.openai.com/v1/chat/completions",
+          "openbox.semantic_type": "llm_tool_call",
+          "openbox.span_type": "mcp_tool_call",
+          "openbox.tool.name": input.tool_name ?? "call",
+          "tool.name": input.tool_name ?? "call",
+          tool_name: input.tool_name ?? "call"
         },
         function: `mcp.${input.tool_name ?? "call"}`,
         module: host,
@@ -2589,11 +2670,14 @@ function buildSpan(host, type, input) {
       return {
         ...b,
         name: `${method} ${url}`,
+        span_type: "http",
         hook_type: "http_request",
         semantic_type: `http_${method.toLowerCase()}`,
         attributes: {
           "http.method": method,
-          "http.url": url
+          "http.url": url,
+          "openbox.semantic_type": `http_${method.toLowerCase()}`,
+          "openbox.span_type": "http"
         },
         http_method: method,
         http_url: url,
@@ -2614,12 +2698,15 @@ function buildSpan(host, type, input) {
       return {
         ...b,
         name: `${dbOperation} ${dbStatement.split(" ").slice(0, 3).join(" ")}`,
+        span_type: "database",
         hook_type: "db_query",
         semantic_type: `database_${dbOperation.toLowerCase()}`,
         attributes: {
           "db.system": dbSystem,
           "db.operation": dbOperation,
-          "db.statement": dbStatement
+          "db.statement": dbStatement,
+          "openbox.semantic_type": `database_${dbOperation.toLowerCase()}`,
+          "openbox.span_type": "database"
         },
         db_system: dbSystem,
         db_name: null,

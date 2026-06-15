@@ -5,6 +5,8 @@ import type {
 import type { ClaudeCodeEnvelope } from '../../../core-client/generated/runtime/claude-code.js';
 import {
   POST_TOOL_USE_ROUTING,
+  buildPostToolBatchPayload,
+  buildPostToolUseFailurePayload,
   buildPostToolUsePayload,
 } from '../../../core-client/generated/runtime/claude-code.js';
 import type { ClaudeCodeConfig } from '../config.js';
@@ -14,18 +16,18 @@ import { buildSpan, type SpanType } from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import { sideEffects } from '../side-effects.js';
 
-function activityTypeFor(toolName: string): string | null {
+function activityTypeFor(toolName: string): string {
   const direct = POST_TOOL_USE_ROUTING[toolName];
   if (direct) return direct;
   if (toolName.startsWith('mcp__')) return ACTIVITY_TYPES.MCP_CALL;
-  return null;
+  return ACTIVITY_TYPES.AGENT_ACTION;
 }
 
 function spanTypeFor(toolName: string): SpanType | null {
-  if (toolName === 'Read') return 'file_read';
-  if (toolName === 'Write' || toolName === 'Edit') return 'file_write';
+  if (toolName === 'Read' || toolName === 'NotebookRead' || toolName === 'Glob' || toolName === 'Grep') return 'file_read';
+  if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') return 'file_write';
   if (toolName === 'Delete') return 'file_delete';
-  if (toolName === 'Bash') return 'shell';
+  if (toolName === 'Bash' || toolName === 'PowerShell') return 'shell';
   if (toolName === 'WebFetch' || toolName === 'WebSearch') return 'http';
   if (toolName.startsWith('mcp__')) return 'mcp';
   return null;
@@ -43,7 +45,7 @@ export async function handlePostToolUse(
 ): Promise<WorkflowVerdict | undefined> {
   const toolName = env.tool_name ?? '';
   const activityType = activityTypeFor(toolName);
-  if (!activityType) return undefined;
+  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return undefined;
 
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
   const toolResponse = (env as { tool_response?: unknown }).tool_response;
@@ -52,7 +54,7 @@ export async function handlePostToolUse(
   const spans = spanType
     ? [
         buildSpan('claude-code', spanType, {
-          file_path: (toolInput.file_path ?? toolInput.filePath ?? toolInput.path) as string | undefined,
+          file_path: (toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path) as string | undefined,
           command: toolInput.command as string | undefined,
           cwd: toolInput.cwd as string | undefined,
           tool_name: toolName,
@@ -65,6 +67,35 @@ export async function handlePostToolUse(
   const verdict = await session.activity(EVENT.COMPLETE, activityType, {
     input: [stampSource(payload, 'claude-code')],
     spans,
+  });
+  if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
+  return verdict;
+}
+
+export async function handlePostToolUseFailure(
+  env: ClaudeCodeEnvelope,
+  session: ClaudeCodeSession,
+  cfg: ClaudeCodeConfig,
+): Promise<WorkflowVerdict | undefined> {
+  const toolName = env.tool_name ?? '';
+  const activityType = activityTypeFor(toolName);
+  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return undefined;
+  const payload = buildPostToolUseFailurePayload(env);
+  const verdict = await session.activity(EVENT.COMPLETE, activityType, {
+    input: [stampSource(payload, 'claude-code')],
+  });
+  if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
+  return verdict;
+}
+
+export async function handlePostToolBatch(
+  env: ClaudeCodeEnvelope,
+  session: ClaudeCodeSession,
+  cfg: ClaudeCodeConfig,
+): Promise<WorkflowVerdict | undefined> {
+  const payload = buildPostToolBatchPayload(env, sideEffects);
+  const verdict = await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.AGENT_ACTION, {
+    input: [stampSource(payload, 'claude-code')],
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;

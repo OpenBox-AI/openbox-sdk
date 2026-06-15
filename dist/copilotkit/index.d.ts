@@ -1,5 +1,5 @@
-import { W as WorkflowVerdict, O as OpenBoxCoreClient, i as AgentIdentityConfig } from '../govern-CX11GBkl.js';
-import { S as SpanData } from '../core-types-Dxgkbox0.js';
+import { W as WorkflowVerdict, O as OpenBoxCoreClient, i as AgentIdentityConfig } from '../govern-CgRTREi0.js';
+import { c as AGEResult, S as SpanData } from '../core-types-Dxgkbox0.js';
 
 declare const OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION: "openbox.copilotkit.result.v1";
 
@@ -54,6 +54,7 @@ interface OpenBoxCopilotActionResult<TArtifact = unknown> {
     riskScore?: number;
     trustTier?: string | number;
     guardrailsResult?: WorkflowVerdict['guardrailsResult'];
+    ageResult?: AGEResult;
     redactionSummary?: string;
     artifact?: TArtifact;
     workflowId?: string;

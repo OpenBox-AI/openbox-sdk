@@ -3,7 +3,10 @@ import type {
   WorkflowVerdict,
 } from '../../../core-client/index.js';
 import type { ClaudeCodeEnvelope } from '../../../core-client/generated/runtime/claude-code.js';
-import { buildUserPromptSubmitPayload } from '../../../core-client/generated/runtime/claude-code.js';
+import {
+  buildUserPromptExpansionPayload,
+  buildUserPromptSubmitPayload,
+} from '../../../core-client/generated/runtime/claude-code.js';
 import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
@@ -30,6 +33,23 @@ export async function handleUserPromptSubmit(
   }).catch(() => undefined);
 
   const payload = buildUserPromptSubmitPayload(env);
+  const span = buildSpan('claude-code', 'llm', { prompt });
+  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, {
+    input: [stampSource(payload, 'claude-code')],
+    spans: [span],
+  });
+  if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
+  return verdict;
+}
+
+export async function handleUserPromptExpansion(
+  env: ClaudeCodeEnvelope,
+  session: ClaudeCodeSession,
+  cfg: ClaudeCodeConfig,
+): Promise<WorkflowVerdict | undefined> {
+  const prompt = (env.expanded_prompt ?? env.prompt ?? '').trim();
+  if (!prompt) return undefined;
+  const payload = buildUserPromptExpansionPayload(env);
   const span = buildSpan('claude-code', 'llm', { prompt });
   const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, {
     input: [stampSource(payload, 'claude-code')],

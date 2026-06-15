@@ -8,6 +8,7 @@ import {
   errorResult,
   executedResult,
   isAllowed,
+  mergedVerdictMetadata,
   rejectedResult,
   resultForAllowedVerdict,
   stoppedResult,
@@ -251,19 +252,25 @@ export function createGovernedCopilotTool<
         );
       }
 
-      const result = applyCompletedRedaction(
+      let result = applyCompletedRedaction(
         definition,
         provisional,
         completed,
         startedRedaction.summary,
       );
       if (!ridesSharedWorkflow) {
-        await timings.measure(
+        const terminal = await timings.measure(
           'workflow_complete',
           'Complete governance workflow',
           'openbox',
           () => session.workflowCompleted(),
         );
+        if (terminal) {
+          result = {
+            ...result,
+            ...mergedVerdictMetadata(result, terminal),
+          };
+        }
       }
       return withTimings(result, timings.finish());
     } catch (error) {
@@ -439,14 +446,24 @@ export function createGovernedCopilotTool<
         );
       }
 
-      await timings.measure(
+      const terminal = await timings.measure(
         'workflow_complete',
         'Complete governance workflow',
         'openbox',
         () => completeWorkflow(definition.adapter, ids, workflowType, taskQueue),
       );
+      const completedResult = applyCompletedRedaction(
+        definition,
+        result,
+        completed,
+      );
       return withTimings(
-        applyCompletedRedaction(definition, result, completed),
+        terminal
+          ? {
+              ...completedResult,
+              ...mergedVerdictMetadata(completedResult, terminal),
+            }
+          : completedResult,
         timings.finish(),
       );
     } catch (error) {

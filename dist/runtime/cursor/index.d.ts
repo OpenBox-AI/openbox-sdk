@@ -1,5 +1,5 @@
-import { O as OpenBoxCoreClient, w as CursorSession, W as WorkflowVerdict } from '../../govern-CX11GBkl.js';
-import { a as CursorEnvelope } from '../../envelopes-B-eUlX69.js';
+import { O as OpenBoxCoreClient, w as CursorSession, W as WorkflowVerdict } from '../../govern-CgRTREi0.js';
+import { C as CursorEnvelope } from '../../envelopes-DnviQ3yd.js';
 import '../../core-types-Dxgkbox0.js';
 
 /**
@@ -67,6 +67,7 @@ interface CursorAdapterConfig {
      * from the `APPROVAL_MODE` config.
      */
     inlineApproval?: boolean;
+    deferApproval?: boolean;
     /**
      * Fired the moment the backend returns require_approval; before
      * the SDK starts polling. Receives the approval metadata plus the

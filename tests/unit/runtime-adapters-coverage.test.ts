@@ -144,13 +144,14 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     expect(session.calls[0]?.method).toBe('activity');
   });
 
-  it('returns undefined for tools that have no post-tool route', async () => {
+  it('routes unknown post-tool events through the generic agent action fallback', async () => {
     const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
     const session = recordingSession();
     const env: any = { tool_name: 'UnknownTool', tool_input: {}, tool_response: 'ok', session_id: 'S5b' };
     const cfg: any = { skipTools: [], sessionDir: dir };
-    await expect(handlePostToolUse(env, session, cfg)).resolves.toBeUndefined();
-    expect(session.calls).toHaveLength(0);
+    await expect(handlePostToolUse(env, session, cfg)).resolves.toMatchObject({ arm: 'allow' });
+    expect(session.calls).toHaveLength(1);
+    expect(session.calls[0]?.args[1]).toBe('AgentAction');
   });
 
   it('covers post-tool route variants and halt marking', async () => {

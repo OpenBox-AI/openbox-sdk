@@ -42,6 +42,17 @@ export {
   type UninstallClaudeCodePluginOptions,
   type VerifyClaudeCodePluginOptions,
 } from './plugin.js';
+export {
+  CLAUDE_CODE_GOVERNANCE_AUDIT,
+  CLAUDE_CODE_HOOK_MATRIX,
+  CLAUDE_CODE_SURFACE_MATRIX,
+  claudeCodeGovernanceSummary,
+  defaultClaudeCodeHookEvents,
+  optInClaudeCodeHookEvents,
+  type ClaudeCodeGovernanceStatus,
+  type ClaudeCodeHookMatrixEntry,
+  type ClaudeCodeSurfaceMatrixEntry,
+} from './governance-matrix.js';
 
 import { makeHookLog } from '../../logging/hook-log.js';
 /** Path of the JSONL log written by the claude-code hook subprocess.

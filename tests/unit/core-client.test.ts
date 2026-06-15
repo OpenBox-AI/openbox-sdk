@@ -114,6 +114,15 @@ describe('OpenBoxCoreClient', () => {
       );
     });
 
+    it('sets the SDK version header', async () => {
+      const client = createClient({ apiKey: 'obx_live_mykey' });
+      fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
+      await client.validateApiKey();
+      expect(
+        fetchMock.mock.calls[0][1].headers['X-OpenBox-SDK-Version'],
+      ).toMatch(/^\d+\.\d+\.\d+/);
+    });
+
     it('attaches signed agent identity headers when configured', async () => {
       const { identity } = makeAgentIdentity();
       const client = createClient({ agentIdentity: identity });

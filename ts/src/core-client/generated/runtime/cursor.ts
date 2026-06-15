@@ -65,7 +65,7 @@ export interface HookSpec {
   style: 'claude-array' | 'cursor-keyed';
   command: string;
   configDir: string;
-  events: Array<{ name: string; timeout?: number }>;
+  events: Array<{ name: string; timeout?: number; installDefault?: boolean }>;
 }
 
 /** Hook metadata for this adapter. Host-specific installers and
@@ -213,6 +213,7 @@ function getPath(env: unknown, path: string): unknown {
 
 export function buildBeforeSubmitPromptPayload(env: CursorEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "prompt": getPath(env, "prompt"),
       "generation_id": getPath(env, "generation_id"),
@@ -222,6 +223,7 @@ export function buildBeforeSubmitPromptPayload(env: CursorEnvelope): Record<stri
 
 export function buildBeforeReadFilePayload(env: CursorEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "file_path": getPath(env, "file_path"),
       "content": getPath(env, "content"),
@@ -232,6 +234,7 @@ export function buildBeforeReadFilePayload(env: CursorEnvelope): Record<string, 
 
 export function buildBeforeShellExecutionPayload(env: CursorEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "command": getPath(env, "command"),
       "cwd": getPath(env, "cwd"),
@@ -241,7 +244,7 @@ export function buildBeforeShellExecutionPayload(env: CursorEnvelope): Record<st
 }
 
 export function buildBeforeMCPExecutionPayload(env: CursorEnvelope, sideEffects: CursorSideEffects = {}): Record<string, unknown> {
-  
+
   return {
       "tool_name": getPath(env, "tool_name"),
       "tool_input": (sideEffects.stringify?.(getPath(env, "tool_input")) ?? ''),
@@ -251,7 +254,7 @@ export function buildBeforeMCPExecutionPayload(env: CursorEnvelope, sideEffects:
 }
 
 export function buildPreToolUsePayload(env: CursorEnvelope, toolName: string, sideEffects: CursorSideEffects = {}): Record<string, unknown> {
-  
+
   switch (toolName) {
     case "Read":
       return {
@@ -278,6 +281,7 @@ export function buildPreToolUsePayload(env: CursorEnvelope, toolName: string, si
 
 export function buildAfterAgentResponsePayload(env: CursorEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "response": getPath(env, "response"),
       "generation_id": getPath(env, "generation_id"),
@@ -287,6 +291,7 @@ export function buildAfterAgentResponsePayload(env: CursorEnvelope): Record<stri
 
 export function buildAfterAgentThoughtPayload(env: CursorEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "thought": getPath(env, "thought"),
       "generation_id": getPath(env, "generation_id"),
@@ -296,6 +301,7 @@ export function buildAfterAgentThoughtPayload(env: CursorEnvelope): Record<strin
 
 export function buildAfterShellExecutionPayload(env: CursorEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "command": getPath(env, "command"),
       "generation_id": getPath(env, "generation_id"),
@@ -305,6 +311,7 @@ export function buildAfterShellExecutionPayload(env: CursorEnvelope): Record<str
 
 export function buildAfterFileEditPayload(env: CursorEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "file_path": getPath(env, "file_path"),
       "generation_id": getPath(env, "generation_id"),
@@ -313,7 +320,7 @@ export function buildAfterFileEditPayload(env: CursorEnvelope): Record<string, u
 }
 
 export function buildAfterMCPExecutionPayload(env: CursorEnvelope, sideEffects: CursorSideEffects = {}): Record<string, unknown> {
-  
+
   return {
       "tool_name": getPath(env, "tool_name"),
       "tool_output": (sideEffects.extractMcpText?.(getPath(env, "result_json")) ?? ''),
@@ -324,6 +331,7 @@ export function buildAfterMCPExecutionPayload(env: CursorEnvelope, sideEffects: 
 
 export function buildSessionStartPayload(env: CursorEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "status": "started",
       "event_category": "workflow_start",
@@ -332,6 +340,7 @@ export function buildSessionStartPayload(env: CursorEnvelope): Record<string, un
 
 export function buildStopPayload(env: CursorEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "status": "completed",
       "event_category": "workflow_complete",
@@ -340,6 +349,7 @@ export function buildStopPayload(env: CursorEnvelope): Record<string, unknown> {
 
 export function buildBeforeTabFileReadPayload(env: CursorEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "file_path": getPath(env, "file_path"),
       "content": getPath(env, "content"),
@@ -350,6 +360,7 @@ export function buildBeforeTabFileReadPayload(env: CursorEnvelope): Record<strin
 
 export function buildAfterTabFileEditPayload(env: CursorEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "file_path": getPath(env, "file_path"),
       "generation_id": getPath(env, "generation_id"),
@@ -359,6 +370,7 @@ export function buildAfterTabFileEditPayload(env: CursorEnvelope): Record<string
 
 export function buildSessionEndPayload(env: CursorEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "status": "completed",
       "event_category": "workflow_complete",
@@ -367,6 +379,7 @@ export function buildSessionEndPayload(env: CursorEnvelope): Record<string, unkn
 
 export function buildSubagentStartPayload(env: CursorEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "subagent_id": getPath(env, "subagent_id"),
       "subagent_type": getPath(env, "subagent_type"),
@@ -446,6 +459,7 @@ export interface CursorAdapterConfig {
    * from the `APPROVAL_MODE` config.
    */
   inlineApproval?: boolean;
+  deferApproval?: boolean;
   /**
    * Fired the moment the backend returns require_approval; before
    * the SDK starts polling. Receives the approval metadata plus the
@@ -489,11 +503,11 @@ export function createCursorAdapter(config: CursorAdapterConfig) {
   const exit = config.exit ?? ((code: number) => process.exit(code));
 
   function writeFallback(shape: string, _v: WorkflowVerdict | undefined | void, env: CursorEnvelope): void {
-    const json = renderVerdictOutput(shape as Shape, undefined, env);
+    const json = renderVerdictOutput(shape as Shape, undefined, env, config.deferApproval === true);
     if (json !== undefined) write(JSON.stringify(json));
   }
   function writeVerdict(shape: string, v: WorkflowVerdict | undefined | void, env: CursorEnvelope): void {
-    const json = renderVerdictOutput(shape as Shape, v ?? undefined, env);
+    const json = renderVerdictOutput(shape as Shape, v ?? undefined, env, config.deferApproval === true);
     if (json !== undefined) write(JSON.stringify(json));
   }
 
@@ -765,6 +779,10 @@ type Shape =
   | 'permission-decision'
   | 'decision-block'
   | 'permission-request'
+  | 'permission-denied-retry'
+  | 'elicitation-response'
+  | 'continue-block'
+  | 'additional-context'
   | 'cursor-permission'
   | 'cursor-observe'
   | 'cursor-continue'
@@ -794,6 +812,7 @@ function renderVerdictOutput(
   shape: Shape,
   v: WorkflowVerdict | undefined,
   env: { hook_event_name?: string },
+  deferApproval = false,
 ): unknown {
   const arm = v?.arm ?? 'allow';
   const reason = brand(v?.reason ?? '');
@@ -812,7 +831,7 @@ function renderVerdictOutput(
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            permissionDecision: 'ask',
+            permissionDecision: deferApproval ? 'defer' : 'ask',
             permissionDecisionReason: reason || '[OpenBox] approval required',
           },
         };
@@ -852,6 +871,50 @@ function renderVerdictOutput(
             behavior: 'deny',
             message: reason || '[OpenBox] blocked by policy',
           },
+        },
+      };
+    }
+    case 'permission-denied-retry': {
+      const eventName = env.hook_event_name ?? 'PermissionDenied';
+      if (arm === 'allow' || arm === 'constrain') {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            retry: true,
+          },
+        };
+      }
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          retry: false,
+        },
+      };
+    }
+    case 'elicitation-response': {
+      const eventName = env.hook_event_name ?? 'Elicitation';
+      if (arm === 'allow' || arm === 'constrain') return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          action: arm === 'halt' ? 'cancel' : 'decline',
+          content: {},
+        },
+      };
+    }
+    case 'continue-block': {
+      if (arm === 'allow' || arm === 'constrain') return {};
+      return {
+        continue: false,
+        stopReason: reason || '[OpenBox] blocked by policy',
+      };
+    }
+    case 'additional-context': {
+      if (arm === 'allow' || arm === 'constrain') return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: env.hook_event_name ?? 'PostToolUseFailure',
+          additionalContext: reason || '[OpenBox] blocked by policy',
         },
       };
     }

@@ -22,5 +22,11 @@ export const ACTIVITY_TYPES = {
   HTTP_REQUEST: 'HTTPRequest',
   MCP_CALL: 'MCPToolCall',
   AGENT_SPAWN: 'AgentSpawn',
+  AGENT_ACTION: 'AgentAction',
   SESSION: 'ClaudeCodeSession',
+  CONFIG_CHANGE: 'ClaudeCodeConfigChange',
+  WORKSPACE_CHANGE: 'ClaudeCodeWorkspaceChange',
+  MCP_ELICITATION: 'MCPElicitation',
+  TASK: 'ClaudeCodeTask',
+  MESSAGE: 'ClaudeCodeMessage',
 } as const;

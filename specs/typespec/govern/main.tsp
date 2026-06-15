@@ -60,6 +60,7 @@ using OpenBox.Workflow;
   HTTPRequest: "HTTP Request",
   MCPToolCall: "MCP Tool Call",
   AgentSpawn: "Agent Spawn",
+  AgentAction: "Agent Action",
 
   // --- Coding agents -----------------------------------------------------
   PreToolUse: "Pre-Tool Use",

@@ -1852,6 +1852,11 @@ function requireApiUrl(value) {
 
 // ts/src/core-client/core-client.ts
 import { createHash, createPrivateKey, randomUUID, sign } from "crypto";
+
+// ts/src/version.ts
+var OPENBOX_SDK_VERSION = "0.1.0";
+
+// ts/src/core-client/core-client.ts
 var CoreApiError = class extends Error {
   status;
   body;
@@ -1918,7 +1923,8 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
     const timeoutMs = this.config.timeoutMs ?? 35e3;
     const baseHeaders = {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${this.config.apiKey}`
+      Authorization: `Bearer ${this.config.apiKey}`,
+      "X-OpenBox-SDK-Version": OPENBOX_SDK_VERSION
     };
     const body = options?.data ? JSON.stringify(options.data) : void 0;
     const signedHeaders = this.config.agentIdentity ? signAgentIdentityRequest({
@@ -2070,7 +2076,7 @@ function ed25519PrivateKeyFromRawBase64(rawBase64) {
 }
 
 // ts/src/core-client/generated/govern.ts
-var CANONICAL_ACTIVITY_LABELS = Object.freeze({ "AGENT_STEP": "Agent Step", "ActivityTaskCanceled": "Activity Task Canceled", "ActivityTaskCompleted": "Activity Task Completed", "ActivityTaskFailed": "Activity Task Failed", "ActivityTaskScheduled": "Activity Task Scheduled", "ActivityTaskStarted": "Activity Task Started", "ActivityTaskTimedOut": "Activity Task Timed Out", "AgentExecutionCompleted": "Agent Execution Completed", "AgentExecutionStarted": "Agent Execution Started", "AgentSpawn": "Agent Spawn", "CHUNKING": "Chunking", "CallToolsNode": "Call Tools Node", "ChildWorkflowExecutionCompleted": "Child Workflow Execution Completed", "ChildWorkflowExecutionInitiated": "Child Workflow Execution Initiated", "CrewKickoffCompleted": "Crew Kickoff Completed", "CrewKickoffStarted": "Crew Kickoff Started", "EMBEDDING": "Embedding", "EXCEPTION": "Exception", "End": "End", "FUNCTION_CALL": "Function Call", "FileDelete": "File Delete", "FileEdit": "File Edit", "FileRead": "File Read", "HTTPRequest": "HTTP Request", "HandoffMessage": "Handoff Message", "LLM": "LLM", "LLMCallCompleted": "LLM Call Completed", "LLMCallStarted": "LLM Call Started", "LLMCompleted": "LLM Completed", "MCPToolCall": "MCP Tool Call", "MarkerRecorded": "Marker Recorded", "MemoryQueryEvent": "Memory Query", "ModelRequestNode": "Model Request Node", "MultiModalMessage": "Multi-Modal Message", "Notification": "Notification", "OperationCompleted": "Operation Completed", "OperationStarted": "Operation Started", "PermissionRequest": "Permission Request", "PostToolUse": "Post-Tool Use", "PreCompact": "Pre-Compact", "PreSyncHookStarted": "Pre-Sync Hook Started", "PreSyncHookSucceeded": "Pre-Sync Hook Succeeded", "PreToolUse": "Pre-Tool Use", "PromptSubmission": "Prompt Submission", "QUERY": "Query", "RERANKING": "Reranking", "RETRIEVE": "Retrieve", "ResourceUpdated": "Resource Updated", "SUB_QUESTION": "Sub-Question", "SYNTHESIZE": "Synthesize", "ShellExecution": "Shell Execution", "Stop": "Stop", "StopMessage": "Stop Message", "SubagentStart": "Subagent Start", "SubagentStop": "Subagent Stop", "SyncStatusChanged": "Sync Status Changed", "TaskCompleted": "Task Completed", "TaskStart": "Task Start", "TaskStarted": "Task Started", "TextMessage": "Text Message", "TimerFired": "Timer Fired", "TimerStarted": "Timer Started", "ToolCallExecutionEvent": "Tool Call Execution", "ToolCallRequestEvent": "Tool Call Request", "ToolCompleted": "Tool Completed", "ToolStarted": "Tool Started", "ToolUsageError": "Tool Usage Error", "ToolUsageFinished": "Tool Usage Finished", "ToolUsageStarted": "Tool Usage Started", "UserInputRequestedEvent": "User Input Requested", "UserPromptNode": "User Prompt Node", "UserPromptSubmit": "User Prompt Submit", "WorkflowExecutionSignaled": "Workflow Execution Signaled", "afterAgentResponse": "After Agent Response", "afterAgentThought": "After Agent Thought", "afterFileEdit": "After File Edit", "afterMCPExecution": "After MCP Execution", "afterShellExecution": "After Shell Execution", "agentStop": "Agent Stop", "auto_function_invocation_post": "Auto Function Invocation Post", "auto_function_invocation_pre": "Auto Function Invocation Pre", "beforeMCPExecution": "Before MCP Execution", "beforeReadFile": "Before Read File", "beforeShellExecution": "Before Shell Execution", "beforeSubmitPrompt": "Before Submit Prompt", "checkpoint": "Checkpoint", "custom_event": "Custom Event", "error": "Error", "error-trigger": "Error Trigger", "errorOccurred": "Error Occurred", "function_invocation_post": "Function Invocation Post", "function_invocation_pre": "Function Invocation Pre", "incident.acknowledged": "Incident Acknowledged", "incident.annotated": "Incident Annotated", "incident.delegated": "Incident Delegated", "incident.escalated": "Incident Escalated", "incident.priority_updated": "Incident Priority Updated", "incident.reassigned": "Incident Reassigned", "incident.reopened": "Incident Reopened", "incident.resolved": "Incident Resolved", "incident.triggered": "Incident Triggered", "incident.unacknowledged": "Incident Unacknowledged", "interrupt": "Interrupt", "node-post-execute": "Node Post-Execute", "node-pre-execute": "Node Pre-Execute", "node_end": "Node End", "node_start": "Node Start", "onAbort": "Abort", "onError": "Error", "onFinish": "Finish", "onStepFinish": "Step Finish", "on_agent_action": "Agent Action", "on_agent_finish": "Agent Finish", "on_chain_end": "Chain End", "on_chain_start": "Chain Start", "on_chat_model_start": "Chat Model Start", "on_execute_callback": "Execute Callback", "on_failure_callback": "Failure Callback", "on_llm_end": "LLM End", "on_llm_error": "LLM Error", "on_llm_start": "LLM Start", "on_retriever_end": "Retriever End", "on_retriever_start": "Retriever Start", "on_retry_callback": "Retry Callback", "on_skipped_callback": "Skipped Callback", "on_success_callback": "Success Callback", "on_tool_end": "Tool End", "on_tool_error": "Tool Error", "on_tool_start": "Tool Start", "output_validator": "Output Validator", "payment_order.approved": "Payment Order Approved", "payment_order.begin_processing": "Payment Order Begin Processing", "payment_order.failed": "Payment Order Failed", "payment_order.reconciled": "Payment Order Reconciled", "payment_reference.created": "Payment Reference Created", "postToolUse": "Post-Tool Use", "preToolUse": "Pre-Tool Use", "prompt_render_post": "Prompt Render Post", "prompt_render_pre": "Prompt Render Pre", "sla_miss_callback": "SLA Miss Callback", "subagentStop": "Subagent Stop", "task_end": "Task End", "task_start": "Task Start", "tool-call": "Tool Call", "tool-result": "Tool Result", "tool_retry": "Tool Retry", "userPromptSubmitted": "User Prompt Submitted", "workflow-step-finish": "Workflow Step Finish", "workflow-step-progress": "Workflow Step Progress", "workflow-step-start": "Workflow Step Start" });
+var CANONICAL_ACTIVITY_LABELS = Object.freeze({ "AGENT_STEP": "Agent Step", "ActivityTaskCanceled": "Activity Task Canceled", "ActivityTaskCompleted": "Activity Task Completed", "ActivityTaskFailed": "Activity Task Failed", "ActivityTaskScheduled": "Activity Task Scheduled", "ActivityTaskStarted": "Activity Task Started", "ActivityTaskTimedOut": "Activity Task Timed Out", "AgentAction": "Agent Action", "AgentExecutionCompleted": "Agent Execution Completed", "AgentExecutionStarted": "Agent Execution Started", "AgentSpawn": "Agent Spawn", "CHUNKING": "Chunking", "CallToolsNode": "Call Tools Node", "ChildWorkflowExecutionCompleted": "Child Workflow Execution Completed", "ChildWorkflowExecutionInitiated": "Child Workflow Execution Initiated", "CrewKickoffCompleted": "Crew Kickoff Completed", "CrewKickoffStarted": "Crew Kickoff Started", "EMBEDDING": "Embedding", "EXCEPTION": "Exception", "End": "End", "FUNCTION_CALL": "Function Call", "FileDelete": "File Delete", "FileEdit": "File Edit", "FileRead": "File Read", "HTTPRequest": "HTTP Request", "HandoffMessage": "Handoff Message", "LLM": "LLM", "LLMCallCompleted": "LLM Call Completed", "LLMCallStarted": "LLM Call Started", "LLMCompleted": "LLM Completed", "MCPToolCall": "MCP Tool Call", "MarkerRecorded": "Marker Recorded", "MemoryQueryEvent": "Memory Query", "ModelRequestNode": "Model Request Node", "MultiModalMessage": "Multi-Modal Message", "Notification": "Notification", "OperationCompleted": "Operation Completed", "OperationStarted": "Operation Started", "PermissionRequest": "Permission Request", "PostToolUse": "Post-Tool Use", "PreCompact": "Pre-Compact", "PreSyncHookStarted": "Pre-Sync Hook Started", "PreSyncHookSucceeded": "Pre-Sync Hook Succeeded", "PreToolUse": "Pre-Tool Use", "PromptSubmission": "Prompt Submission", "QUERY": "Query", "RERANKING": "Reranking", "RETRIEVE": "Retrieve", "ResourceUpdated": "Resource Updated", "SUB_QUESTION": "Sub-Question", "SYNTHESIZE": "Synthesize", "ShellExecution": "Shell Execution", "Stop": "Stop", "StopMessage": "Stop Message", "SubagentStart": "Subagent Start", "SubagentStop": "Subagent Stop", "SyncStatusChanged": "Sync Status Changed", "TaskCompleted": "Task Completed", "TaskStart": "Task Start", "TaskStarted": "Task Started", "TextMessage": "Text Message", "TimerFired": "Timer Fired", "TimerStarted": "Timer Started", "ToolCallExecutionEvent": "Tool Call Execution", "ToolCallRequestEvent": "Tool Call Request", "ToolCompleted": "Tool Completed", "ToolStarted": "Tool Started", "ToolUsageError": "Tool Usage Error", "ToolUsageFinished": "Tool Usage Finished", "ToolUsageStarted": "Tool Usage Started", "UserInputRequestedEvent": "User Input Requested", "UserPromptNode": "User Prompt Node", "UserPromptSubmit": "User Prompt Submit", "WorkflowExecutionSignaled": "Workflow Execution Signaled", "afterAgentResponse": "After Agent Response", "afterAgentThought": "After Agent Thought", "afterFileEdit": "After File Edit", "afterMCPExecution": "After MCP Execution", "afterShellExecution": "After Shell Execution", "agentStop": "Agent Stop", "auto_function_invocation_post": "Auto Function Invocation Post", "auto_function_invocation_pre": "Auto Function Invocation Pre", "beforeMCPExecution": "Before MCP Execution", "beforeReadFile": "Before Read File", "beforeShellExecution": "Before Shell Execution", "beforeSubmitPrompt": "Before Submit Prompt", "checkpoint": "Checkpoint", "custom_event": "Custom Event", "error": "Error", "error-trigger": "Error Trigger", "errorOccurred": "Error Occurred", "function_invocation_post": "Function Invocation Post", "function_invocation_pre": "Function Invocation Pre", "incident.acknowledged": "Incident Acknowledged", "incident.annotated": "Incident Annotated", "incident.delegated": "Incident Delegated", "incident.escalated": "Incident Escalated", "incident.priority_updated": "Incident Priority Updated", "incident.reassigned": "Incident Reassigned", "incident.reopened": "Incident Reopened", "incident.resolved": "Incident Resolved", "incident.triggered": "Incident Triggered", "incident.unacknowledged": "Incident Unacknowledged", "interrupt": "Interrupt", "node-post-execute": "Node Post-Execute", "node-pre-execute": "Node Pre-Execute", "node_end": "Node End", "node_start": "Node Start", "onAbort": "Abort", "onError": "Error", "onFinish": "Finish", "onStepFinish": "Step Finish", "on_agent_action": "Agent Action", "on_agent_finish": "Agent Finish", "on_chain_end": "Chain End", "on_chain_start": "Chain Start", "on_chat_model_start": "Chat Model Start", "on_execute_callback": "Execute Callback", "on_failure_callback": "Failure Callback", "on_llm_end": "LLM End", "on_llm_error": "LLM Error", "on_llm_start": "LLM Start", "on_retriever_end": "Retriever End", "on_retriever_start": "Retriever Start", "on_retry_callback": "Retry Callback", "on_skipped_callback": "Skipped Callback", "on_success_callback": "Success Callback", "on_tool_end": "Tool End", "on_tool_error": "Tool Error", "on_tool_start": "Tool Start", "output_validator": "Output Validator", "payment_order.approved": "Payment Order Approved", "payment_order.begin_processing": "Payment Order Begin Processing", "payment_order.failed": "Payment Order Failed", "payment_order.reconciled": "Payment Order Reconciled", "payment_reference.created": "Payment Reference Created", "postToolUse": "Post-Tool Use", "preToolUse": "Pre-Tool Use", "prompt_render_post": "Prompt Render Post", "prompt_render_pre": "Prompt Render Pre", "sla_miss_callback": "SLA Miss Callback", "subagentStop": "Subagent Stop", "task_end": "Task End", "task_start": "Task Start", "tool-call": "Tool Call", "tool-result": "Tool Result", "tool_retry": "Tool Retry", "userPromptSubmitted": "User Prompt Submitted", "workflow-step-finish": "Workflow Step Finish", "workflow-step-progress": "Workflow Step Progress", "workflow-step-start": "Workflow Step Start" });
 async function govern(config, body) {
   const { preset: Ctor, ...sessionConfig } = config;
   const session = new Ctor(sessionConfig);
@@ -2605,6 +2611,7 @@ function verifyCursorInstall(opts = {}) {
 
 // ts/src/runtime/claude-code/plugin.ts
 import {
+  chmodSync,
   cpSync as cpSync2,
   existsSync as existsSync6,
   lstatSync as lstatSync2,
@@ -2635,7 +2642,17 @@ var HOOK_SPEC2 = {
       "name": "PostToolUse"
     },
     {
+      "name": "PostToolUseFailure"
+    },
+    {
+      "name": "PostToolBatch"
+    },
+    {
       "name": "UserPromptSubmit",
+      "timeout": 86400
+    },
+    {
+      "name": "UserPromptExpansion",
       "timeout": 86400
     },
     {
@@ -2643,7 +2660,19 @@ var HOOK_SPEC2 = {
       "timeout": 86400
     },
     {
+      "name": "PermissionDenied"
+    },
+    {
+      "name": "Setup"
+    },
+    {
+      "name": "InstructionsLoaded"
+    },
+    {
       "name": "PreCompact"
+    },
+    {
+      "name": "PostCompact"
     },
     {
       "name": "SessionStart"
@@ -2658,13 +2687,143 @@ var HOOK_SPEC2 = {
       "name": "SubagentStop"
     },
     {
+      "name": "TaskCreated"
+    },
+    {
+      "name": "TaskCompleted"
+    },
+    {
       "name": "Stop"
     },
     {
+      "name": "StopFailure"
+    },
+    {
+      "name": "TeammateIdle"
+    },
+    {
       "name": "Notification"
+    },
+    {
+      "name": "MessageDisplay"
+    },
+    {
+      "name": "ConfigChange"
+    },
+    {
+      "name": "CwdChanged"
+    },
+    {
+      "name": "FileChanged"
+    },
+    {
+      "name": "WorktreeRemove"
+    },
+    {
+      "name": "Elicitation",
+      "timeout": 86400
+    },
+    {
+      "name": "ElicitationResult"
     }
   ]
 };
+
+// ts/src/runtime/claude-code/governance-matrix.ts
+var CLAUDE_CODE_GOVERNANCE_AUDIT = {
+  capturedAt: "2026-06-15",
+  installedClaudeCodeVersion: "2.1.177 (Claude Code)",
+  officialDocs: [
+    "https://code.claude.com/docs/en/hooks",
+    "https://code.claude.com/docs/en/plugins-reference",
+    "https://code.claude.com/docs/en/plugins",
+    "https://code.claude.com/docs/en/mcp",
+    "https://code.claude.com/docs/en/skills",
+    "https://code.claude.com/docs/en/settings",
+    "https://code.claude.com/docs/en/tools-reference",
+    "https://code.claude.com/docs/en/channels",
+    "https://code.claude.com/docs/en/changelog"
+  ],
+  auditedSdkSurfaces: [
+    "openbox-sdk/runtime/claude-code",
+    "openbox-sdk/runtime/mcp",
+    "openbox-sdk/runtime/cursor",
+    "openbox-sdk/copilotkit",
+    "openbox-sdk/copilotkit/react",
+    "apps/extension",
+    "skill",
+    "example/n8n"
+  ]
+};
+var CLAUDE_CODE_HOOK_MATRIX = [
+  { event: "Setup", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "CI/init preparation signal." },
+  { event: "SessionStart", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Starts OpenBox workflow/session lifecycle." },
+  { event: "InstructionsLoaded", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Audits loaded instruction sources." },
+  { event: "UserPromptSubmit", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Prompt input gate." },
+  { event: "UserPromptExpansion", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Slash-command expansion gate." },
+  { event: "MessageDisplay", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Display-only streaming text surface." },
+  { event: "PreToolUse", status: "implement_now", defaultInstall: true, decisionSurface: "permission-decision", notes: "Primary pre-action tool gate." },
+  { event: "PermissionRequest", status: "implement_now", defaultInstall: true, decisionSurface: "permission-request", notes: "Native Claude permission prompt gate." },
+  { event: "PermissionDenied", status: "implement_now", defaultInstall: true, decisionSurface: "permission-denied-retry", notes: "Can request retry after auto-mode denial." },
+  { event: "PostToolUse", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Tool output governance." },
+  { event: "PostToolUseFailure", status: "implement_now", defaultInstall: true, decisionSurface: "additional-context", notes: "Feeds policy context after failed tool calls." },
+  { event: "PostToolBatch", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Parallel tool batch gate before next model call." },
+  { event: "SubagentStart", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Subagent lifecycle start telemetry." },
+  { event: "SubagentStop", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Subagent completion gate." },
+  { event: "TaskCreated", status: "implement_now", defaultInstall: true, decisionSurface: "continue-block", notes: "Agent-team task creation criteria." },
+  { event: "TaskCompleted", status: "implement_now", defaultInstall: true, decisionSurface: "continue-block", notes: "Agent-team task completion criteria." },
+  { event: "Stop", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Final assistant-output/session-stop gate." },
+  { event: "StopFailure", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "API/session failure telemetry." },
+  { event: "TeammateIdle", status: "implement_now", defaultInstall: true, decisionSurface: "continue-block", notes: "Agent-team idle/completion enforcement." },
+  { event: "Notification", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Notification telemetry." },
+  { event: "ConfigChange", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Blocks non-managed config changes from applying." },
+  { event: "CwdChanged", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Working-directory telemetry." },
+  { event: "FileChanged", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Watched-file telemetry; cannot block the file change." },
+  { event: "WorktreeCreate", status: "explicit_out_of_scope", defaultInstall: false, decisionSurface: "worktree-path", notes: "Invasive hook replaces Claude Code git worktree creation and must create/return a real path." },
+  { event: "WorktreeRemove", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Worktree removal telemetry." },
+  { event: "PreCompact", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Blocks unsafe compaction requests before context rewrite." },
+  { event: "PostCompact", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Compaction summary telemetry." },
+  { event: "SessionEnd", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Closes OpenBox workflow/session lifecycle." },
+  { event: "Elicitation", status: "implement_now", defaultInstall: true, decisionSurface: "elicitation-response", notes: "MCP user-input request governance." },
+  { event: "ElicitationResult", status: "implement_now", defaultInstall: true, decisionSurface: "elicitation-response", notes: "MCP elicitation response governance." }
+];
+var CLAUDE_CODE_SURFACE_MATRIX = [
+  { surface: "hooks", status: "implement_now", notes: "Generated from TypeSpec and installed by the Claude Code plugin." },
+  { surface: "skills", status: "implement_now", notes: "OpenBox skill ships under plugin skills/openbox." },
+  { surface: "commands", status: "implement_now", notes: "Compatibility command markdown files remain for Claude slash entrypoints." },
+  { surface: "agents", status: "implement_now", notes: "OpenBox reviewer agent ships in the plugin." },
+  { surface: "MCP", status: "implement_now", notes: "OpenBox MCP server exposes status, doctor, approvals, agents, rules, policies, and governance checks." },
+  { surface: "plugin settings", status: "diagnose_only", notes: "Only agent/subagentStatusLine are currently supported by Claude Code plugin settings." },
+  { surface: "monitors", status: "diagnose_only", notes: "Documented as opt-in because monitors run unsandboxed and project-scope plugins do not load them." },
+  { surface: "LSP", status: "explicit_out_of_scope", notes: "No OpenBox language server exists; official LSP plugins should be installed separately." },
+  { surface: "bin", status: "diagnose_only", notes: "OpenBox relies on the installed openbox binary; doctor reports command resolution." },
+  { surface: "managed settings", status: "diagnose_only", notes: "Enterprise policy belongs to managed Claude Code deployment, not SDK mutation." },
+  { surface: "channels", status: "diagnose_only", notes: "Research preview MCP push channel surface; standard MCP remains the connector path." },
+  { surface: "built-in tool permissions", status: "implement_now", notes: "PreToolUse/PermissionRequest routing covers current built-in tool names and dynamic mcp__ tools." }
+];
+function defaultClaudeCodeHookEvents() {
+  return CLAUDE_CODE_HOOK_MATRIX.filter((entry) => entry.defaultInstall && entry.status !== "diagnose_only" && entry.status !== "explicit_out_of_scope").map((entry) => entry.event);
+}
+function optInClaudeCodeHookEvents() {
+  return CLAUDE_CODE_HOOK_MATRIX.filter((entry) => !entry.defaultInstall).map((entry) => entry.event);
+}
+function claudeCodeGovernanceSummary() {
+  const byStatus = CLAUDE_CODE_HOOK_MATRIX.reduce(
+    (acc, entry) => {
+      acc[entry.status] += 1;
+      return acc;
+    },
+    { implement_now: 0, observe_only: 0, diagnose_only: 0, explicit_out_of_scope: 0 }
+  );
+  return {
+    audit: CLAUDE_CODE_GOVERNANCE_AUDIT,
+    hookCount: CLAUDE_CODE_HOOK_MATRIX.length,
+    defaultHookCount: defaultClaudeCodeHookEvents().length,
+    optInHooks: optInClaudeCodeHookEvents(),
+    byStatus,
+    surfaces: CLAUDE_CODE_SURFACE_MATRIX
+  };
+}
 
 // ts/src/runtime/claude-code/plugin.ts
 var __dirname2 = path3.dirname(fileURLToPath2(import.meta.url));
@@ -2676,6 +2835,12 @@ var EXPECTED_COMMAND_FILES2 = [
   "openbox-status.md"
 ];
 var EXPECTED_AGENT_FILES2 = ["openbox-reviewer.md"];
+var EXPECTED_DIAGNOSTIC_FILES = [
+  "component-inventory.json",
+  "claude-code-governance.json",
+  "monitors.opt-in.json"
+];
+var EXPECTED_BIN_FILES = ["openbox-plugin-doctor"];
 function claudeCodePluginTargetDir(cwd = process.cwd()) {
   return path3.join(cwd, ".claude", "skills", "openbox");
 }
@@ -2693,6 +2858,14 @@ function safeOutDir2(out) {
     throw new Error(`Refusing to overwrite unsafe Claude Code plugin path: ${resolved}`);
   }
   return resolved;
+}
+function hookEvents(includeOptInHooks = false) {
+  const defaultEvents = new Set(defaultClaudeCodeHookEvents());
+  return HOOK_SPEC2.events.filter((event) => {
+    if (event.installDefault === false) return includeOptInHooks;
+    if (!defaultEvents.has(event.name)) return includeOptInHooks;
+    return true;
+  });
 }
 function checkFile2(name, file) {
   return {
@@ -2722,7 +2895,7 @@ function checkHooks2(file) {
   if (!hooks || typeof hooks !== "object") {
     problems.push("hooks block missing");
   } else {
-    for (const event of HOOK_SPEC2.events) {
+    for (const event of hookEvents(false)) {
       const value = hooks[event.name];
       if (!Array.isArray(value) || value.length === 0) {
         problems.push(`${event.name}: missing array entry`);
@@ -2740,12 +2913,22 @@ function checkHooks2(file) {
         problems.push(`${event.name}: timeout ${String(hook?.timeout)} != ${event.timeout}`);
       }
     }
+    for (const entry of CLAUDE_CODE_HOOK_MATRIX.filter((item) => item.defaultInstall && item.status !== "explicit_out_of_scope")) {
+      if (!hooks[entry.event]) {
+        problems.push(`${entry.event}: missing from default governance matrix`);
+      }
+    }
+    for (const entry of CLAUDE_CODE_HOOK_MATRIX.filter((item) => !item.defaultInstall)) {
+      if (hooks[entry.event]) {
+        problems.push(`${entry.event}: opt-in event installed by default`);
+      }
+    }
   }
   return {
     name: "plugin-hooks",
     status: problems.length === 0 ? "pass" : "fail",
     path: file,
-    detail: problems.length === 0 ? `${HOOK_SPEC2.events.length} event(s)` : problems.join("; ")
+    detail: problems.length === 0 ? `${hookEvents(false).length} default event(s)` : problems.join("; ")
   };
 }
 function checkMcp2(file) {
@@ -2782,6 +2965,8 @@ function verifyClaudeCodePlugin(options = {}) {
   checks.push(checkDirFiles2("plugin-agents", path3.join(target, "agents"), EXPECTED_AGENT_FILES2));
   checks.push(checkHooks2(path3.join(target, "hooks", "hooks.json")));
   checks.push(checkMcp2(path3.join(target, ".mcp.json")));
+  checks.push(checkDirFiles2("plugin-diagnostics", path3.join(target, "diagnostics"), EXPECTED_DIAGNOSTIC_FILES));
+  checks.push(checkDirFiles2("plugin-bin", path3.join(target, "bin"), EXPECTED_BIN_FILES));
   return checks;
 }
 
@@ -2795,6 +2980,7 @@ function buildMcpGovernanceSpan(spanType, input) {
     trace_id: hex(32),
     parent_span_id: null,
     kind: "CLIENT",
+    span_type: "function",
     stage: "started",
     start_time: Date.now() * 1e6,
     end_time: null,
@@ -2809,11 +2995,14 @@ function buildMcpGovernanceSpan(spanType, input) {
         ...base,
         name: "llm.chat.completion",
         hook_type: "function_call",
+        span_type: "function",
         semantic_type: "llm_completion",
         attributes: {
           "gen_ai.system": "openai",
           "http.method": "POST",
-          "http.url": "https://api.openai.com/v1/chat/completions"
+          "http.url": "https://api.openai.com/v1/chat/completions",
+          "openbox.semantic_type": "llm_completion",
+          "openbox.span_type": "function"
         },
         function: "LLMCall",
         module: "activity",
@@ -2826,8 +3015,14 @@ function buildMcpGovernanceSpan(spanType, input) {
         name: "file.read",
         kind: "INTERNAL",
         hook_type: "file_operation",
+        span_type: "file_io",
         semantic_type: "file_read",
-        attributes: { "file.path": input.file_path || "", "file.operation": "read" },
+        attributes: {
+          "file.path": input.file_path || "",
+          "file.operation": "read",
+          "openbox.semantic_type": "file_read",
+          "openbox.span_type": "file_io"
+        },
         file_path: input.file_path || "",
         file_mode: "r",
         file_operation: "read"
@@ -2838,8 +3033,14 @@ function buildMcpGovernanceSpan(spanType, input) {
         name: "file.write",
         kind: "INTERNAL",
         hook_type: "file_operation",
+        span_type: "file_io",
         semantic_type: "file_write",
-        attributes: { "file.path": input.file_path || "", "file.operation": "write" },
+        attributes: {
+          "file.path": input.file_path || "",
+          "file.operation": "write",
+          "openbox.semantic_type": "file_write",
+          "openbox.span_type": "file_io"
+        },
         file_path: input.file_path || "",
         file_mode: "w",
         file_operation: "write"
@@ -2850,8 +3051,14 @@ function buildMcpGovernanceSpan(spanType, input) {
         name: "ShellExecution",
         kind: "INTERNAL",
         hook_type: "function_call",
+        span_type: "function",
         semantic_type: "internal",
-        attributes: { "shell.command": input.command || "", "shell.cwd": input.cwd || "" },
+        attributes: {
+          "shell.command": input.command || "",
+          "shell.cwd": input.cwd || "",
+          "openbox.semantic_type": "internal",
+          "openbox.span_type": "function"
+        },
         function: "ShellExecution",
         module: "activity",
         args: input,
@@ -2864,7 +3071,14 @@ function buildMcpGovernanceSpan(spanType, input) {
         ...base,
         name: `${method} ${url}`,
         hook_type: "http_request",
-        attributes: { "http.method": method, "http.url": url },
+        span_type: "http",
+        semantic_type: `http_${method.toLowerCase()}`,
+        attributes: {
+          "http.method": method,
+          "http.url": url,
+          "openbox.semantic_type": `http_${method.toLowerCase()}`,
+          "openbox.span_type": "http"
+        },
         http_method: method,
         http_url: url,
         request_body: null,
@@ -2877,7 +3091,14 @@ function buildMcpGovernanceSpan(spanType, input) {
         ...base,
         name: `${dbOp}`,
         hook_type: "db_query",
-        attributes: { "db.system": input.system || "postgresql", "db.operation": dbOp },
+        span_type: "database",
+        semantic_type: `database_${dbOp.toLowerCase()}`,
+        attributes: {
+          "db.system": input.system || "postgresql",
+          "db.operation": dbOp,
+          "openbox.semantic_type": `database_${dbOp.toLowerCase()}`,
+          "openbox.span_type": "database"
+        },
         db_system: input.system || "postgresql",
         db_operation: dbOp,
         db_statement: input.statement || ""
@@ -2888,11 +3109,17 @@ function buildMcpGovernanceSpan(spanType, input) {
         ...base,
         name: `tool.${input.tool_name || "call"}`,
         hook_type: "function_call",
+        span_type: "mcp_tool_call",
         semantic_type: "llm_tool_call",
         attributes: {
           "gen_ai.system": "mcp",
           "http.method": "POST",
-          "http.url": "https://api.openai.com/v1/chat/completions"
+          "http.url": "https://api.openai.com/v1/chat/completions",
+          "openbox.semantic_type": "llm_tool_call",
+          "openbox.span_type": "mcp_tool_call",
+          "openbox.tool.name": input.tool_name || "call",
+          "tool.name": input.tool_name || "call",
+          tool_name: input.tool_name || "call"
         },
         function: `mcp.${input.tool_name || "call"}`,
         module: "activity",
@@ -2905,6 +3132,7 @@ function buildMcpGovernanceSpan(spanType, input) {
         name: "unknown",
         kind: "INTERNAL",
         hook_type: "function_call",
+        span_type: "function",
         attributes: {},
         function: "unknown",
         module: "activity",
@@ -2927,7 +3155,7 @@ var MCP_ACTIVITY_TYPE_MAP = {
 async function runMcpServer() {
   const server = new McpServer({ name: "openbox", version: "0.1.0" });
   let callerName;
-  function resolveRuntime() {
+  function runtimeState() {
     const config = listConfig();
     const connection = resolveConnection({
       apiUrl: config.OPENBOX_API_URL,
@@ -2938,17 +3166,51 @@ async function runMcpServer() {
     });
     const apiUrl = connection.apiUrl;
     const coreUrl = connection.coreUrl;
-    const apiKey = loadApiKey();
-    if (!apiKey) {
+    const backendApiKey = loadApiKey();
+    const runtimeApiKey = process.env.OPENBOX_API_KEY ?? config.OPENBOX_API_KEY ?? "";
+    return {
+      apiUrl,
+      coreUrl,
+      backendApiKey,
+      runtimeApiKey,
+      governancePolicy: process.env.GOVERNANCE_POLICY ?? config.GOVERNANCE_POLICY ?? "fail_open",
+      approvalMode: process.env.APPROVAL_MODE ?? config.APPROVAL_MODE ?? "remote"
+    };
+  }
+  function runtimeDiagnostics() {
+    const runtime = runtimeState();
+    return {
+      apiUrl: runtime.apiUrl,
+      coreUrl: runtime.coreUrl,
+      mcpReady: Boolean(runtime.backendApiKey),
+      runtimeEnv: {
+        backendApiKeyPresent: Boolean(runtime.backendApiKey),
+        runtimeApiKeyPresent: Boolean(runtime.runtimeApiKey),
+        coreUrlPresent: Boolean(runtime.coreUrl)
+      },
+      failMode: runtime.governancePolicy,
+      approvalMode: runtime.approvalMode,
+      unsupportedOrOptInSurfaces: {
+        worktreeCreate: "opt_in",
+        monitors: "opt_in_unsandboxed",
+        lsp: "out_of_scope_no_language_server",
+        managedSettings: "enterprise_diagnose_only",
+        channels: "diagnose_only_research_preview"
+      }
+    };
+  }
+  function resolveRuntime() {
+    const runtime = runtimeState();
+    if (!runtime.backendApiKey) {
       throw new Error(
         `OpenBox MCP: no X-API-Key for the active OpenBox connection. Run \`openbox connect <stack-url> --api-key <key>\` or set OPENBOX_BACKEND_API_KEY.`
       );
     }
     return {
-      coreUrl,
+      coreUrl: runtime.coreUrl,
       client: new OpenBoxClient({
-        apiUrl,
-        apiKey,
+        apiUrl: runtime.apiUrl,
+        apiKey: runtime.backendApiKey,
         clientName: "runtime/mcp"
       })
     };
@@ -3005,19 +3267,31 @@ async function runMcpServer() {
     }
   });
   server.tool("openbox_status", "Return a compact OpenBox backend status for plugin slash commands without using shell execution", {}, async () => {
+    const diagnostics = runtimeDiagnostics();
     try {
       const health = await client().health();
       return {
         content: [{
           type: "text",
-          text: JSON.stringify({ status: "connected", health }, null, 2)
+          text: JSON.stringify({
+            status: "connected",
+            health,
+            coreUrl: diagnostics.coreUrl,
+            mcpReadiness: diagnostics,
+            claudeCodeGovernance: claudeCodeGovernanceSummary()
+          }, null, 2)
         }]
       };
     } catch (err) {
       return {
         content: [{
           type: "text",
-          text: JSON.stringify({ status: "not_reachable", error: err?.message ?? String(err) }, null, 2)
+          text: JSON.stringify({
+            status: "not_reachable",
+            error: err?.message ?? String(err),
+            mcpReadiness: diagnostics,
+            claudeCodeGovernance: claudeCodeGovernanceSummary()
+          }, null, 2)
         }],
         isError: true
       };
@@ -3061,7 +3335,12 @@ async function runMcpServer() {
       },
       { pass: 0, fail: 0 }
     );
-    return { content: [{ type: "text", text: JSON.stringify({ checks, summary }, null, 2) }] };
+    return { content: [{ type: "text", text: JSON.stringify({
+      checks,
+      summary,
+      mcpReadiness: runtimeDiagnostics(),
+      claudeCodeGovernance: claudeCodeGovernanceSummary()
+    }, null, 2) }] };
   });
   server.tool("list_agents", "List all agents in the organization", {}, async () => {
     const agents = await client().listAgents({ page: 0, perPage: 50 });
@@ -3177,6 +3456,7 @@ async function runMcpServer() {
     { name: "rego-reference", path: "references/rego-reference.md", desc: "Rego policy syntax, input fields, example policies, policy lifecycle gotchas" },
     { name: "span-reference", path: "references/span-reference.md", desc: "Span types, gate attributes, semantic type detection" },
     { name: "commands", path: "references/commands.md", desc: "Full CLI command reference" },
+    { name: "claude-code-governance", path: "references/claude-code-governance.md", desc: "Claude Code hook/plugin/MCP governance surface audit and coverage matrix" },
     { name: "existing-sdks", path: "references/existing-sdks.md", desc: "Available SDKs and installation" }
   ];
   function findSkillDir() {

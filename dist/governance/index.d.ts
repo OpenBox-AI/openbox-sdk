@@ -1,4 +1,4 @@
-import { h as GovernanceVerdictResponse } from '../core-types-Dxgkbox0.js';
+import { h as GovernanceVerdictResponse, S as SpanData } from '../core-types-Dxgkbox0.js';
 
 type SpanType$1 = 'llm' | 'file_read' | 'file_write' | 'shell' | 'http' | 'db' | 'mcp';
 interface CheckGovernanceOptions {
@@ -44,6 +44,36 @@ interface SpanInput {
     db_operation?: string;
     db_statement?: string;
 }
+interface LLMCompletionSpanInput {
+    content: string;
+    span?: Partial<SpanData>;
+    name?: string;
+    kind?: string;
+    system?: string;
+    model?: string;
+    usage?: LLMTokenUsage;
+    requestBody?: unknown;
+    responseBody?: unknown;
+    providerUrl?: string;
+    startTime?: number;
+    endTime?: number;
+    durationNs?: number;
+    attributes?: Record<string, unknown>;
+    data?: unknown;
+}
+interface LLMTokenUsage {
+    promptTokens?: number;
+    completionTokens?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+}
+declare function buildLLMCompletionResponseBody(content: string, metadata?: {
+    model?: string;
+    usage?: LLMTokenUsage;
+    responseBody?: unknown;
+}): string;
+declare function buildLLMCompletionSpan(input: LLMCompletionSpanInput): SpanData;
 /**
  * Build a single span for the given event. The `semantic_type` and
  * gate attributes drive the classifier's behavior-trigger decision
@@ -112,4 +142,4 @@ declare const HOOK_EVENT_LABELS: Record<string, string>;
  */
 declare function hookEventLabel(hookEvent: string | undefined | null): string;
 
-export { type CheckGovernanceOptions, EVENT, type FetchProjectionOpts, HOOK_EVENT_LABELS, type ProjectedRule, type RuleSeverity, type RuleTrigger, type RulesProjection, SKIP_PATTERNS, type SpanInput, type SpanType$1 as SpanType, buildSpan, checkGovernance, fetchRulesProjection, hookEventLabel, isInsideAnyRoot, isSkipped };
+export { type CheckGovernanceOptions, EVENT, type FetchProjectionOpts, HOOK_EVENT_LABELS, type LLMCompletionSpanInput, type ProjectedRule, type RuleSeverity, type RuleTrigger, type RulesProjection, SKIP_PATTERNS, type SpanInput, type SpanType$1 as SpanType, buildLLMCompletionResponseBody, buildLLMCompletionSpan, buildSpan, checkGovernance, fetchRulesProjection, hookEventLabel, isInsideAnyRoot, isSkipped };

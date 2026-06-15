@@ -116,7 +116,7 @@ describe('governance/check', () => {
       ['file_read', { file_path: '/tmp/r' }, 'FileRead', 'file.read'],
       ['http', { method: 'get', url: 'https://example.test' }, 'HTTPRequest', 'GET https://example.test'],
       ['db', { operation: 'insert', statement: 'insert 1' }, 'DatabaseQuery', 'INSERT'],
-      ['mcp', { tool: 'read' }, 'MCPToolCall', 'MCPToolCall'],
+      ['mcp', { tool: 'read' }, 'MCPToolCall', 'tool.read'],
     ] as const;
 
     for (const [spanType, activityInput, activityType, spanName] of cases) {
@@ -129,6 +129,16 @@ describe('governance/check', () => {
       const payload = state.payloads.at(-1);
       expect(payload.activity_type).toBe(activityType);
       expect(payload.spans[0].name).toBe(spanName);
+      if (spanType === 'mcp') {
+        expect(payload.spans[0]).toMatchObject({
+          semantic_type: 'llm_tool_call',
+          span_type: 'mcp_tool_call',
+          attributes: {
+            'openbox.tool.name': 'read',
+            'tool.name': 'read',
+          },
+        });
+      }
       expect(payload.spans[0].trace_id).toHaveLength(32);
       expect(payload.spans[0].span_id).toHaveLength(16);
     }

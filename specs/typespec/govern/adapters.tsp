@@ -45,6 +45,45 @@ model ClaudeCodeEnvelope {
   agent_type?: string;
   permission_mode?: string;
   permission_suggestions?: unknown;
+  trigger?: string;
+  source?: string;
+  file_path?: string;
+  event?: string;
+  old_cwd?: string;
+  new_cwd?: string;
+  name?: string;
+  command_name?: string;
+  command_args?: string;
+  expanded_prompt?: string;
+  message?: string;
+  display_content?: string;
+  displayContent?: string;
+  tool_response?: unknown;
+  tool_calls?: unknown;
+  error?: string;
+  reason?: string;
+  action?: string;
+  content?: unknown;
+  mcp_server_name?: string;
+  mode?: string;
+  url?: string;
+  elicitation_id?: string;
+  requested_schema?: unknown;
+  response?: unknown;
+  task_id?: string;
+  task_subject?: string;
+  task_description?: string;
+  teammate_name?: string;
+  team_name?: string;
+  teammate_id?: string;
+  team_id?: string;
+  last_assistant_message?: string;
+  background_tasks?: unknown;
+  session_crons?: unknown;
+  custom_instructions?: string;
+  compact_summary?: string;
+  compact?: unknown;
+  instructions?: string;
 }
 
 /**
@@ -77,10 +116,25 @@ interface ClaudeCodeAdapter {
     Write: "FileEdit",
     Edit: "FileEdit",
     Delete: "FileDelete",
+    MultiEdit: "FileEdit",
+    NotebookEdit: "FileEdit",
+    NotebookRead: "FileRead",
+    Glob: "FileRead",
+    Grep: "FileRead",
     Bash: "ShellExecution",
+    PowerShell: "ShellExecution",
     WebFetch: "HTTPRequest",
     WebSearch: "HTTPRequest",
     Agent: "AgentSpawn",
+    Skill: "AgentAction",
+    TodoWrite: "AgentAction",
+    AskUserQuestion: "AgentAction",
+    EnterPlanMode: "AgentAction",
+    ExitPlanMode: "AgentAction",
+    EnterWorktree: "AgentAction",
+    CronCreate: "AgentAction",
+    CronDelete: "AgentAction",
+    CronList: "AgentAction",
   })
   @payloadShape(#{
     default: #{
@@ -112,7 +166,41 @@ interface ClaudeCodeAdapter {
         content: #{ from: "tool_input.content", fallback: "tool_input.new_string" },
         event_category: #{ literal: "file_write" },
       },
+      MultiEdit: #{
+        text: #{ from: "tool_input.edits", fallback: "tool_input.content" },
+        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.filePath" },
+        content: #{ from: "tool_input.edits", fallback: "tool_input.content" },
+        event_category: #{ literal: "file_write" },
+      },
+      NotebookEdit: #{
+        text: #{ from: "tool_input.new_source", fallback: "tool_input.content" },
+        file_path: #{ from: "tool_input.notebook_path", fallback: "tool_input.file_path" },
+        content: #{ from: "tool_input.new_source", fallback: "tool_input.content" },
+        event_category: #{ literal: "file_write" },
+      },
+      NotebookRead: #{
+        text: #{ sideEffect: "readFile", from: "tool_input.notebook_path" },
+        file_path: #{ from: "tool_input.notebook_path", fallback: "tool_input.file_path" },
+        content: #{ sideEffect: "readFile", from: "tool_input.notebook_path" },
+        event_category: #{ literal: "file_read" },
+      },
+      Glob: #{
+        text: #{ from: "tool_input.pattern" },
+        file_path: #{ from: "tool_input.path", fallback: "cwd" },
+        event_category: #{ literal: "file_read" },
+      },
+      Grep: #{
+        text: #{ from: "tool_input.pattern" },
+        file_path: #{ from: "tool_input.path", fallback: "cwd" },
+        event_category: #{ literal: "file_read" },
+      },
       Bash: #{
+        text: #{ from: "tool_input.command" },
+        command: #{ from: "tool_input.command" },
+        cwd: #{ from: "tool_input.cwd", fallback: "cwd" },
+        event_category: #{ literal: "agent_action" },
+      },
+      PowerShell: #{
         text: #{ from: "tool_input.command" },
         command: #{ from: "tool_input.command" },
         cwd: #{ from: "tool_input.cwd", fallback: "cwd" },
@@ -133,6 +221,19 @@ interface ClaudeCodeAdapter {
         prompt: #{ from: "tool_input.prompt" },
         event_category: #{ literal: "agent_action" },
       },
+      AskUserQuestion: #{
+        text: #{ from: "tool_input.question", fallback: "tool_input.message" },
+        event_category: #{ literal: "agent_action" },
+      },
+      ExitPlanMode: #{
+        text: #{ from: "tool_input.plan" },
+        event_category: #{ literal: "agent_action" },
+      },
+      Skill: #{
+        tool_name: #{ from: "tool_name" },
+        tool_input: #{ from: "tool_input" },
+        event_category: #{ literal: "agent_action" },
+      },
     },
   })
   preToolUse(input: ClaudeCodeEnvelope): unknown;
@@ -145,10 +246,25 @@ interface ClaudeCodeAdapter {
     Write: "FileEdit",
     Edit: "FileEdit",
     Delete: "FileDelete",
+    MultiEdit: "FileEdit",
+    NotebookEdit: "FileEdit",
+    NotebookRead: "FileRead",
+    Glob: "FileRead",
+    Grep: "FileRead",
     Bash: "ShellExecution",
+    PowerShell: "ShellExecution",
     WebFetch: "HTTPRequest",
     WebSearch: "HTTPRequest",
     Agent: "AgentSpawn",
+    Skill: "AgentAction",
+    TodoWrite: "AgentAction",
+    AskUserQuestion: "AgentAction",
+    EnterPlanMode: "AgentAction",
+    ExitPlanMode: "AgentAction",
+    EnterWorktree: "AgentAction",
+    CronCreate: "AgentAction",
+    CronDelete: "AgentAction",
+    CronList: "AgentAction",
   })
   @payloadShape(#{
     default: #{
@@ -158,6 +274,31 @@ interface ClaudeCodeAdapter {
     },
   })
   postToolUse(input: ClaudeCodeEnvelope): unknown;
+
+  @hookEvent("PostToolUseFailure")
+  @hookEventLabel("Tool failure")
+  @verdictShape("additional-context")
+  @payloadShape(#{
+    default: #{
+      tool_name: #{ from: "tool_name" },
+      tool_input: #{ from: "tool_input" },
+      error: #{ from: "error", fallback: "reason" },
+      event_category: #{ literal: "agent_observation" },
+    },
+  })
+  postToolUseFailure(input: ClaudeCodeEnvelope): unknown;
+
+  @hookEvent("PostToolBatch")
+  @hookEventLabel("Tool batch")
+  @verdictShape("decision-block")
+  @payloadShape(#{
+    default: #{
+      tool_calls: #{ from: "tool_calls" },
+      output: #{ sideEffect: "stringifyTruncate", from: "tool_calls" },
+      event_category: #{ literal: "agent_observation" },
+    },
+  })
+  postToolBatch(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("UserPromptSubmit")
   @hookEventLabel("Prompt submission")
@@ -173,6 +314,21 @@ interface ClaudeCodeAdapter {
   })
   userPromptSubmit(input: ClaudeCodeEnvelope): unknown;
 
+  @hookEvent("UserPromptExpansion")
+  @hookEventLabel("Prompt expansion")
+  @verdictShape("decision-block")
+  @installTimeout(86400)
+  @payloadShape(#{
+    default: #{
+      text: #{ from: "expanded_prompt", fallback: "prompt" },
+      prompt: #{ from: "expanded_prompt", fallback: "prompt" },
+      command_name: #{ from: "command_name" },
+      command_args: #{ from: "command_args" },
+      event_category: #{ literal: "llm_prompt" },
+    },
+  })
+  userPromptExpansion(input: ClaudeCodeEnvelope): unknown;
+
   @hookEvent("PermissionRequest")
   @hookEventLabel("Permission request")
   @verdictShape("permission-request")
@@ -182,10 +338,25 @@ interface ClaudeCodeAdapter {
     Write: "FileEdit",
     Edit: "FileEdit",
     Delete: "FileDelete",
+    MultiEdit: "FileEdit",
+    NotebookEdit: "FileEdit",
+    NotebookRead: "FileRead",
+    Glob: "FileRead",
+    Grep: "FileRead",
     Bash: "ShellExecution",
+    PowerShell: "ShellExecution",
     WebFetch: "HTTPRequest",
     WebSearch: "HTTPRequest",
     Agent: "AgentSpawn",
+    Skill: "AgentAction",
+    TodoWrite: "AgentAction",
+    AskUserQuestion: "AgentAction",
+    EnterPlanMode: "AgentAction",
+    ExitPlanMode: "AgentAction",
+    EnterWorktree: "AgentAction",
+    CronCreate: "AgentAction",
+    CronDelete: "AgentAction",
+    CronList: "AgentAction",
   })
   @payloadShape(#{
     default: #{
@@ -253,11 +424,64 @@ interface ClaudeCodeAdapter {
   })
   permissionRequest(input: ClaudeCodeEnvelope): unknown;
 
+  @hookEvent("PermissionDenied")
+  @hookEventLabel("Permission denied")
+  @verdictShape("permission-denied-retry")
+  @payloadShape(#{
+    default: #{
+      tool_name: #{ from: "tool_name" },
+      tool_input: #{ from: "tool_input" },
+      reason: #{ from: "reason" },
+      event_category: #{ literal: "agent_action" },
+    },
+  })
+  permissionDenied(input: ClaudeCodeEnvelope): unknown;
+
+  @hookEvent("Setup")
+  @hookEventLabel("Setup")
+  @verdictShape("none")
+  @payloadShape(#{
+    default: #{
+      trigger: #{ from: "trigger" },
+      event_category: #{ literal: "workflow_start" },
+    },
+  })
+  setup(input: ClaudeCodeEnvelope): unknown;
+
+  @hookEvent("InstructionsLoaded")
+  @hookEventLabel("Instructions loaded")
+  @verdictShape("none")
+  @payloadShape(#{
+    default: #{
+      source: #{ from: "source" },
+      instructions: #{ from: "instructions" },
+      event_category: #{ literal: "agent_observation" },
+    },
+  })
+  instructionsLoaded(input: ClaudeCodeEnvelope): unknown;
+
   @hookEvent("PreCompact")
   @hookEventLabel("Pre-compact")
-  @verdictShape("none")
-  @noPayload
+  @verdictShape("decision-block")
+  @payloadShape(#{
+    default: #{
+      trigger: #{ from: "trigger" },
+      custom_instructions: #{ from: "custom_instructions" },
+      event_category: #{ literal: "workflow_compact" },
+    },
+  })
   preCompact(input: ClaudeCodeEnvelope): unknown;
+
+  @hookEvent("PostCompact")
+  @hookEventLabel("Post-compact")
+  @verdictShape("none")
+  @payloadShape(#{
+    default: #{
+      compact_summary: #{ from: "compact_summary" },
+      event_category: #{ literal: "workflow_compact" },
+    },
+  })
+  postCompact(input: ClaudeCodeEnvelope): unknown;
 
   @hookEvent("SessionStart")
   @hookEventLabel("Session start")
@@ -296,7 +520,7 @@ interface ClaudeCodeAdapter {
 
   @hookEvent("SubagentStop")
   @hookEventLabel("Subagent stop")
-  @verdictShape("none")
+  @verdictShape("decision-block")
   @payloadShape(#{
     default: #{
       agent_id: #{ from: "agent_id" },
@@ -307,22 +531,173 @@ interface ClaudeCodeAdapter {
   })
   subagentStop(input: ClaudeCodeEnvelope): unknown;
 
+  @hookEvent("TaskCreated")
+  @hookEventLabel("Task created")
+  @verdictShape("continue-block")
+  @payloadShape(#{
+    default: #{
+      task_id: #{ from: "task_id" },
+      task_subject: #{ from: "task_subject" },
+      task_description: #{ from: "task_description" },
+      teammate_name: #{ from: "teammate_name" },
+      team_name: #{ from: "team_name" },
+      event_category: #{ literal: "agent_action" },
+    },
+  })
+  taskCreated(input: ClaudeCodeEnvelope): unknown;
+
+  @hookEvent("TaskCompleted")
+  @hookEventLabel("Task completed")
+  @verdictShape("continue-block")
+  @payloadShape(#{
+    default: #{
+      task_id: #{ from: "task_id" },
+      task_subject: #{ from: "task_subject" },
+      task_description: #{ from: "task_description" },
+      teammate_name: #{ from: "teammate_name" },
+      team_name: #{ from: "team_name" },
+      event_category: #{ literal: "agent_observation" },
+    },
+  })
+  taskCompleted(input: ClaudeCodeEnvelope): unknown;
+
   @hookEvent("Stop")
   @hookEventLabel("Stop")
-  @verdictShape("none")
+  @verdictShape("decision-block")
   @payloadShape(#{
     default: #{
       cwd: #{ from: "cwd" },
+      last_assistant_message: #{ from: "last_assistant_message" },
+      background_tasks: #{ from: "background_tasks" },
+      session_crons: #{ from: "session_crons" },
       event_category: #{ literal: "workflow_stop_request" },
     },
   })
   stop(input: ClaudeCodeEnvelope): unknown;
 
+  @hookEvent("StopFailure")
+  @hookEventLabel("Stop failure")
+  @verdictShape("none")
+  @payloadShape(#{
+    default: #{
+      error: #{ from: "error", fallback: "reason" },
+      event_category: #{ literal: "workflow_failed" },
+    },
+  })
+  stopFailure(input: ClaudeCodeEnvelope): unknown;
+
+  @hookEvent("TeammateIdle")
+  @hookEventLabel("Teammate idle")
+  @verdictShape("continue-block")
+  @payloadShape(#{
+    default: #{
+      teammate_name: #{ from: "teammate_name" },
+      team_name: #{ from: "team_name" },
+      event_category: #{ literal: "agent_observation" },
+    },
+  })
+  teammateIdle(input: ClaudeCodeEnvelope): unknown;
+
   @hookEvent("Notification")
   @hookEventLabel("Notification")
   @verdictShape("none")
-  @noPayload
+  @payloadShape(#{
+    default: #{
+      message: #{ from: "message" },
+      event_category: #{ literal: "agent_observation" },
+    },
+  })
   notification(input: ClaudeCodeEnvelope): unknown;
+
+  @hookEvent("MessageDisplay")
+  @hookEventLabel("Message display")
+  @verdictShape("none")
+  @payloadShape(#{
+    default: #{
+      message: #{ from: "message", fallback: "display_content" },
+      display_content: #{ from: "display_content", fallback: "displayContent" },
+      event_category: #{ literal: "llm_output" },
+    },
+  })
+  messageDisplay(input: ClaudeCodeEnvelope): unknown;
+
+  @hookEvent("ConfigChange")
+  @hookEventLabel("Config change")
+  @verdictShape("decision-block")
+  @payloadShape(#{
+    default: #{
+      source: #{ from: "source" },
+      file_path: #{ from: "file_path" },
+      event_category: #{ literal: "configuration_change" },
+    },
+  })
+  configChange(input: ClaudeCodeEnvelope): unknown;
+
+  @hookEvent("CwdChanged")
+  @hookEventLabel("CWD changed")
+  @verdictShape("none")
+  @payloadShape(#{
+    default: #{
+      old_cwd: #{ from: "old_cwd" },
+      new_cwd: #{ from: "new_cwd" },
+      event_category: #{ literal: "workspace_change" },
+    },
+  })
+  cwdChanged(input: ClaudeCodeEnvelope): unknown;
+
+  @hookEvent("FileChanged")
+  @hookEventLabel("File changed")
+  @verdictShape("none")
+  @payloadShape(#{
+    default: #{
+      file_path: #{ from: "file_path" },
+      event: #{ from: "event" },
+      event_category: #{ literal: "file_change" },
+    },
+  })
+  fileChanged(input: ClaudeCodeEnvelope): unknown;
+
+  @hookEvent("WorktreeRemove")
+  @hookEventLabel("Worktree remove")
+  @verdictShape("none")
+  @payloadShape(#{
+    default: #{
+      name: #{ from: "name" },
+      cwd: #{ from: "cwd" },
+      event_category: #{ literal: "workspace_change" },
+    },
+  })
+  worktreeRemove(input: ClaudeCodeEnvelope): unknown;
+
+  @hookEvent("Elicitation")
+  @hookEventLabel("MCP elicitation")
+  @verdictShape("elicitation-response")
+  @installTimeout(86400)
+  @payloadShape(#{
+    default: #{
+      mcp_server_name: #{ from: "mcp_server_name" },
+      message: #{ from: "message" },
+      mode: #{ from: "mode" },
+      url: #{ from: "url" },
+      requested_schema: #{ from: "requested_schema" },
+      event_category: #{ literal: "mcp_elicitation" },
+    },
+  })
+  elicitation(input: ClaudeCodeEnvelope): unknown;
+
+  @hookEvent("ElicitationResult")
+  @hookEventLabel("MCP elicitation result")
+  @verdictShape("elicitation-response")
+  @payloadShape(#{
+    default: #{
+      mcp_server_name: #{ from: "mcp_server_name" },
+      action: #{ from: "action" },
+      content: #{ from: "content" },
+      mode: #{ from: "mode" },
+      event_category: #{ literal: "mcp_elicitation_result" },
+    },
+  })
+  elicitationResult(input: ClaudeCodeEnvelope): unknown;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import { createHash, createPrivateKey, randomUUID, sign } from 'node:crypto';
 import { TokenBucket } from '../client/index.js';
+import { OPENBOX_SDK_VERSION } from '../version.js';
 
 // Every wire-shape type in this module comes from the spec at
 // specs/typespec/core/main.tsp via codegen/emitters/ts/. This file
@@ -195,6 +196,7 @@ export class OpenBoxCoreClient {
     const baseHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${this.config.apiKey}`,
+      'X-OpenBox-SDK-Version': OPENBOX_SDK_VERSION,
     };
     const body = options?.data ? JSON.stringify(options.data) : undefined;
     const signedHeaders = this.config.agentIdentity

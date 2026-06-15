@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync } from 'node:fs';
@@ -65,6 +65,7 @@ function runTrackedSourceScan() {
   try {
     for (const file of listed.stdout.split('\0').filter(Boolean)) {
       if (trackedScanExcludes.has(file)) continue;
+      if (!existsSync(file)) continue;
       const target = join(tmp, file);
       mkdirSync(dirname(target), { recursive: true });
       cpSync(file, target);
