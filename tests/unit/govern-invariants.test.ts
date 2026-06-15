@@ -314,7 +314,7 @@ describe('approval polling bounds', () => {
     const firstGap = gaps[0];
     const middleGap = gaps[Math.floor(gaps.length / 2)];
     expect(middleGap).toBeGreaterThan(firstGap);
-    // No gap exceeds the configured cap (+ event-loop slop).
+    // No gap exceeds the configured cap by more than normal scheduler variance.
     for (const g of gaps) expect(g).toBeLessThanOrEqual(250);
   });
 
@@ -362,7 +362,7 @@ describe('approval polling bounds', () => {
     expect(pollTimes.length).toBeGreaterThanOrEqual(5);
     const gaps = pollTimes.slice(1).map((t, i) => t - pollTimes[i]);
     // With ±50% jitter on a 50ms base, gaps should span at least a 25ms range
-    // across 5+ samples (allowing event-loop slop). A fixed-interval poll
+    // across 5+ samples, allowing normal scheduler variance. A fixed-interval poll
     // would show gaps clustered tightly within a few ms of 50.
     const min = Math.min(...gaps);
     const max = Math.max(...gaps);
@@ -416,7 +416,7 @@ describe('approval polling bounds', () => {
 
     expect(pollAt.length).toBe(1);
     const firstPollDelay = pollAt[0] - start;
-    // Initial 30ms wait, plus event-loop slop.
+    // Initial 30ms wait, plus normal scheduler variance.
     expect(firstPollDelay).toBeLessThan(150);
   });
 });
