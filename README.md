@@ -10,7 +10,7 @@ fallback behavior belongs in the package.
 ## Install
 
 ```bash
-npm install github:OpenBox-AI/openbox-sdk
+npm install openbox-sdk
 ```
 
 ## Runtime Governance
