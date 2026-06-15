@@ -382,6 +382,15 @@ model GovernedPayload {
    */
   activityId?: string;
 
+  /** Activity start time in epoch milliseconds. */
+  startTime?: numeric;
+
+  /** Activity end time in epoch milliseconds. */
+  endTime?: numeric;
+
+  /** Activity duration in milliseconds. Defaults to `endTime - startTime`. */
+  durationMs?: numeric;
+
   /** Signal name for `SignalReceived` events (for example `user_prompt`). */
   signalName?: string;
 

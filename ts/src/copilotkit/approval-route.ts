@@ -16,12 +16,9 @@ export function createOpenBoxApprovalRoute(
     async decide(
       request: OpenBoxApprovalDecisionRequest,
     ): Promise<OpenBoxApprovalDecisionResult> {
-      if (
-        !request.governanceEventId &&
-        (!request.workflowId || !request.runId || !request.activityId)
-      ) {
+      if (!request.governanceEventId) {
         throw new Error(
-          'OpenBox approval decision requires governanceEventId or workflowId, runId, and activityId.',
+          'OpenBox approval decision requires governanceEventId.',
         );
       }
       return decideViaBackend(config, request);

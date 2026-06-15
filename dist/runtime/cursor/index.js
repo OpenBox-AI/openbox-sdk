@@ -31,6 +31,7 @@ var BaseGovernedSession = class {
   finalized = false;
   autoOpenSuppressed;
   inFlight = /* @__PURE__ */ new Set();
+  activityStartsMs = /* @__PURE__ */ new Map();
   exitHandlerCleanup = [];
   onPendingApproval;
   onApprovalResolved;
@@ -153,16 +154,22 @@ var BaseGovernedSession = class {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
     if (!this.opened && !this.autoOpenSuppressed) await this.begin();
     const activityId = payload.activityId ?? randomUUID();
+    const startTime = payload.startTime ?? Date.now();
+    this.activityStartsMs.set(activityId, startTime);
     this.inFlight.add(activityId);
     try {
-      const verdict = await this.emit({
+      const verdict = await this.emitWithSpanHook({
         event_type: "ActivityStarted",
         activity_id: activityId,
         activity_type: activityType,
         activity_input: payload.input,
+        start_time: startTime,
         spans: payload.spans
       });
       verdict.activityId = activityId;
+      if (verdict.arm !== "allow" && verdict.arm !== "constrain") {
+        this.activityStartsMs.delete(activityId);
+      }
       return {
         activityId,
         verdict,
@@ -191,6 +198,7 @@ var BaseGovernedSession = class {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
     if (!this.opened && !this.autoOpenSuppressed) await this.begin();
     const activityId = payload.activityId ?? randomUUID();
+    const startTime = payload.startTime ?? Date.now();
     this.inFlight.add(activityId);
     try {
       if (eventType === "SignalReceived") {
@@ -207,11 +215,13 @@ var BaseGovernedSession = class {
         return signalVerdict;
       }
       if (eventType === "ActivityStarted") {
-        const startedVerdict = await this.emit({
+        this.activityStartsMs.set(activityId, startTime);
+        const startedVerdict = await this.emitWithSpanHook({
           event_type: "ActivityStarted",
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
+          start_time: startTime,
           spans: payload.spans
         });
         startedVerdict.activityId = activityId;
@@ -223,6 +233,7 @@ var BaseGovernedSession = class {
           return startedVerdict;
         }
         if (startedVerdict.arm !== "allow") {
+          this.activityStartsMs.delete(activityId);
           if (startedVerdict.arm === "require_approval") {
             const approvalId = startedVerdict.approvalId ?? activityId;
             if (this.onPendingApproval) {
@@ -266,15 +277,22 @@ var BaseGovernedSession = class {
     }
   }
   async emitCompleted(activityId, activityType, payload) {
-    const completedVerdict = await this.emit({
+    const startTime = payload.startTime ?? this.activityStartsMs.get(activityId);
+    const endTime = payload.endTime ?? Date.now();
+    const durationMs = payload.durationMs ?? (typeof startTime === "number" ? Math.max(0, endTime - startTime) : void 0);
+    const completedVerdict = await this.emitWithSpanHook({
       event_type: "ActivityCompleted",
       activity_id: activityId,
       activity_type: activityType,
       status: activityCompletionStatus(activityType),
       activity_input: payload.input,
       activity_output: payload.output,
+      start_time: startTime,
+      end_time: endTime,
+      duration_ms: durationMs,
       spans: payload.spans
     });
+    this.activityStartsMs.delete(activityId);
     completedVerdict.activityId = activityId;
     if (completedVerdict.arm === "require_approval") {
       const approvalId = completedVerdict.approvalId ?? activityId;
@@ -305,6 +323,19 @@ var BaseGovernedSession = class {
       return polled;
     }
     return completedVerdict;
+  }
+  async emitWithSpanHook(event) {
+    const hasActivitySpans = (event.event_type === "ActivityStarted" || event.event_type === "ActivityCompleted") && Array.isArray(event.spans) && event.spans.some(isPersistableHookSpan);
+    if (!hasActivitySpans) return this.emit(event);
+    const baseVerdict = await this.emit({ ...event, spans: void 0 });
+    if (baseVerdict.arm !== "allow" && baseVerdict.arm !== "constrain") {
+      return baseVerdict;
+    }
+    const hookVerdict = await this.emit({
+      ...event,
+      hook_trigger: true
+    });
+    return stricterVerdict(baseVerdict, hookVerdict);
   }
   async emit(event) {
     const payload = {
@@ -425,6 +456,33 @@ var BaseGovernedSession = class {
 };
 function activityCompletionStatus(activityType) {
   return /(error|fail|failed|failure|timeout|timedout|cancel|abort)/i.test(activityType) ? "failed" : "completed";
+}
+function toolActivityTypeFromPayload(payload) {
+  const direct = namedToolFromRecord(payload);
+  if (direct) return direct;
+  for (const item of payload.input ?? []) {
+    const name = namedToolFromRecord(item);
+    if (name) return name;
+  }
+  return "ToolCall";
+}
+function namedToolFromRecord(value) {
+  if (!value || typeof value !== "object") return void 0;
+  const record = value;
+  const direct = firstNonEmptyString(
+    record.toolName,
+    record.tool_name,
+    record.tool,
+    record.name
+  );
+  if (direct) return direct;
+  return namedToolFromRecord(record.toolCall) ?? namedToolFromRecord(record.tool_call) ?? namedToolFromRecord(record.call) ?? namedToolFromRecord(record.args);
+}
+function firstNonEmptyString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return void 0;
 }
 var AirflowSession = class extends BaseGovernedSession {
   async onExecuteCallback(payload) {
@@ -699,10 +757,10 @@ var LangchainSession = class extends BaseGovernedSession {
     return this.runActivity("ActivityStarted", "on_chat_model_start", payload);
   }
   async onToolStart(payload) {
-    return this.runActivity("ActivityStarted", "on_tool_start", payload);
+    return this.runActivity("ActivityStarted", toolActivityTypeFromPayload(payload), payload);
   }
   async onToolEnd(payload) {
-    return this.runActivity("ActivityCompleted", "on_tool_end", payload);
+    return this.runActivity("ActivityCompleted", toolActivityTypeFromPayload(payload), payload);
   }
   async onToolError(payload) {
     return this.runActivity("ActivityCompleted", "on_tool_error", payload);
@@ -1075,6 +1133,33 @@ function normalizeArm(value) {
     default:
       return "allow";
   }
+}
+function verdictRank(arm) {
+  switch (arm) {
+    case "halt":
+      return 4;
+    case "block":
+      return 3;
+    case "require_approval":
+      return 2;
+    case "constrain":
+      return 1;
+    case "allow":
+    default:
+      return 0;
+  }
+}
+function stricterVerdict(base2, hook) {
+  return verdictRank(hook.arm) >= verdictRank(base2.arm) ? hook : base2;
+}
+function isPersistableHookSpan(span) {
+  if (!span || typeof span !== "object") return false;
+  const record = span;
+  if (typeof record.semantic_type === "string" && record.semantic_type !== "") {
+    return true;
+  }
+  const attributes = record.attributes && typeof record.attributes === "object" ? record.attributes : {};
+  return typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
 }
 function errorInfoFrom(value) {
   if (value == null) return void 0;
@@ -1881,8 +1966,9 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
     return this.request("GET", "/api/v1/auth/validate");
   }
   async evaluate(payload) {
+    const versionedPayload = payload.sdk_version && payload.sdk_version !== "" ? payload : { ...payload, sdk_version: OPENBOX_SDK_VERSION };
     return this.request("POST", "/api/v1/governance/evaluate", {
-      data: payload,
+      data: versionedPayload,
       retryable: false
     });
   }

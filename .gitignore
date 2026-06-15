@@ -1,5 +1,9 @@
 node_modules
 dist
+!dist/
+!dist/govern-*.d.ts
+apps/*/dist
+codegen/**/dist
 dist-pack
 *.tsbuildinfo
 # vitest coverage report; regenerated on every `npm run test:coverage`.

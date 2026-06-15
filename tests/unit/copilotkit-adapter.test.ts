@@ -548,6 +548,7 @@ describe('CopilotKit OpenBox adapter', () => {
       'ActivityCompleted',
       'WorkflowCompleted',
     ]);
+    expect(events.filter((event) => event.hook_trigger)).toHaveLength(0);
     expect(events[1]).toMatchObject({
       event_type: 'SignalReceived',
       signal_name: 'user_prompt',
@@ -621,12 +622,15 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(result.verdict).toBe('allow');
     expect(result.reason).toBe('OpenBox approval was granted.');
     expect(JSON.stringify(events[0].activity_input)).not.toContain('7500');
-    expect(JSON.stringify(events[0].spans)).not.toContain('7500');
+    expect(JSON.stringify(events[0].spans ?? [])).not.toContain('7500');
     expect(JSON.stringify(events[0].activity_output)).toContain('7,500');
     expect(events.map((event) => event.event_type)).toEqual([
       'ActivityCompleted',
+      'ActivityCompleted',
       'WorkflowCompleted',
     ]);
+    expect(events[1].hook_trigger).toBe(true);
+    expect(JSON.stringify(events[1].spans ?? [])).not.toContain('7500');
   });
 
   it('fails closed and skips execution when OpenBox blocks activity start', async () => {
@@ -851,7 +855,8 @@ describe('CopilotKit OpenBox adapter', () => {
     );
 
     const started = mock.events.find(
-      (event) => event.event_type === 'ActivityStarted',
+      (event) =>
+        event.event_type === 'ActivityStarted' && !event.hook_trigger,
     );
     expect(JSON.stringify(started).length).toBeLessThan(64_000);
     expect(handler).toHaveBeenCalledTimes(1);
@@ -911,18 +916,12 @@ describe('CopilotKit OpenBox adapter', () => {
     const hookCompleted = mock.events.find(
       (event) =>
         event.event_type === 'ActivityCompleted' &&
-        event.activity_type === 'on_llm_end' &&
+        event.activity_type === undefined &&
         event.hook_trigger,
     );
-    const hookStarted = mock.events.find(
-      (event) =>
-        event.event_type === 'ActivityStarted' &&
-        event.activity_type === 'on_llm_end' &&
-        event.hook_trigger,
-    );
-    expect(hookStarted?.activity_id).toBe(completed?.activity_id);
     expect(hookCompleted?.activity_id).toBe(completed?.activity_id);
     expect(hookCompleted?.status).toBe('completed');
+    expect(hookCompleted?.activity_type).toBeUndefined();
     expect(hookCompleted?.span_count).toBe(1);
     const span = hookCompleted?.spans?.[0] as Record<string, any> | undefined;
     expect(span).toMatchObject({
@@ -987,7 +986,7 @@ describe('CopilotKit OpenBox adapter', () => {
       result,
     );
 
-    expect((result.verdict as Record<string, unknown>).ageResult).toEqual(
+    expect((result.verdict as unknown as Record<string, unknown>).ageResult).toEqual(
       ageResult,
     );
     expect(copilotResult.ageResult).toEqual(ageResult);
@@ -1040,15 +1039,22 @@ describe('CopilotKit OpenBox adapter', () => {
       }),
     });
 
+    const before = Date.now();
     await tool.execute({
       action: 'demo_action',
       request: 'Review the queue.',
     });
+    const after = Date.now();
 
     const started = mock.events.find(
-      (event) => event.event_type === 'ActivityStarted',
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.hook_trigger &&
+        Array.isArray(event.spans) &&
+        event.spans.length > 0,
     );
-    expect(started?.spans?.[0]).toMatchObject({
+    const span = started?.spans?.[0] as Record<string, any> | undefined;
+    expect(span).toMatchObject({
       name: 'business.queue.review',
       kind: 'client',
       attributes: expect.objectContaining({
@@ -1056,6 +1062,9 @@ describe('CopilotKit OpenBox adapter', () => {
         'openbox.operation': 'review_queue',
       }),
     });
+    const startedAtMs = Number(span?.start_time) / 1_000_000;
+    expect(startedAtMs).toBeGreaterThanOrEqual(before - 1000);
+    expect(startedAtMs).toBeLessThanOrEqual(after + 1000);
   });
 
   it('opens a workflow before standalone runtime gates when state IDs are missing', async () => {
@@ -1543,7 +1552,7 @@ describe('CopilotKit OpenBox adapter', () => {
 
   it('blocks a tool input before non-OpenBox tool execution', async () => {
     const mock = createMockCore((payload) => ({
-      verdict: payload.activity_type === 'on_tool_start' ? 'block' : 'allow',
+      verdict: payload.activity_type === 'send_email' ? 'block' : 'allow',
       reason: 'tool input blocked',
     }));
     const middleware = createOpenBoxCopilotKitAdapter({
@@ -1565,10 +1574,10 @@ describe('CopilotKit OpenBox adapter', () => {
 
   it('applies generic nested tool output redaction before returning the result', async () => {
     const mock = createMockCore((payload) => ({
-      verdict: payload.activity_type === 'on_tool_end' ? 'constrain' : 'allow',
+      verdict: payload.activity_type === 'crm_lookup' ? 'constrain' : 'allow',
       reason: 'tool output constrained',
       guardrails_result:
-        payload.activity_type === 'on_tool_end'
+        payload.activity_type === 'crm_lookup'
           ? {
               input_type: 'activity_output',
               redacted_input: {
@@ -1672,7 +1681,7 @@ describe('CopilotKit OpenBox adapter', () => {
     const mock = createMockCore((payload) => ({
       verdict:
         payload.activity_type === 'UserPromptSubmit' ||
-        payload.activity_type === 'on_tool_start'
+        payload.activity_type === 'safe_tool'
           ? 'halt'
           : 'allow',
       reason: 'session halted',
@@ -1693,7 +1702,7 @@ describe('CopilotKit OpenBox adapter', () => {
       mock.events
         .filter((event) => event.event_type === 'ActivityStarted')
         .map((event) => event.activity_type),
-    ).toEqual(['UserPromptSubmit', 'on_tool_start']);
+    ).toEqual(['UserPromptSubmit', 'safe_tool']);
   });
 
   it('pauses on approval-required prompt verdict without calling the model', async () => {

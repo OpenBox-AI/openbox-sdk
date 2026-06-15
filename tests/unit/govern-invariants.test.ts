@@ -477,6 +477,7 @@ describe('BaseGovernedSession.activity (cross-preset escape)', () => {
       async (session) => {
         const opened = await session.openActivity('on_tool_start', {
           activityId: 'tool-activity-1',
+          startTime: 1_000,
           input: [{ tool: 'crm_lookup' }],
         });
         expect(opened.activityId).toBe('tool-activity-1');
@@ -485,7 +486,7 @@ describe('BaseGovernedSession.activity (cross-preset escape)', () => {
         expect(
           mock.events.filter((e) => e.event_type === 'ActivityCompleted'),
         ).toHaveLength(0);
-        await opened.complete({ output: { rows: 3 } }, 'on_tool_end');
+        await opened.complete({ output: { rows: 3 }, endTime: 1_250 }, 'on_tool_end');
       },
     );
     const started = mock.events.find((e) => e.event_type === 'ActivityStarted');
@@ -493,8 +494,12 @@ describe('BaseGovernedSession.activity (cross-preset escape)', () => {
       (e) => e.event_type === 'ActivityCompleted' && e.activity_type === 'on_tool_end',
     );
     expect(started?.activity_id).toBe('tool-activity-1');
+    expect(started?.start_time).toBe(1_000);
     expect(completed?.activity_id).toBe('tool-activity-1');
     expect(completed?.status).toBe('completed');
+    expect(completed?.start_time).toBe(1_000);
+    expect(completed?.end_time).toBe(1_250);
+    expect(completed?.duration_ms).toBe(250);
   });
 
   test('openActivity leaves a blocked start canonically unpaired', async () => {

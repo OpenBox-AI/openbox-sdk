@@ -1901,8 +1901,9 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
     return this.request("GET", "/api/v1/auth/validate");
   }
   async evaluate(payload) {
+    const versionedPayload = payload.sdk_version && payload.sdk_version !== "" ? payload : { ...payload, sdk_version: OPENBOX_SDK_VERSION };
     return this.request("POST", "/api/v1/governance/evaluate", {
-      data: payload,
+      data: versionedPayload,
       retryable: false
     });
   }

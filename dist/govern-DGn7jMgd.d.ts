@@ -127,6 +127,9 @@ interface GovernedPayload {
     input?: unknown[];
     output?: unknown;
     activityId?: string;
+    startTime?: number;
+    endTime?: number;
+    durationMs?: number;
     signalName?: string;
     signalArgs?: unknown;
     spans?: unknown[];
@@ -1005,6 +1008,7 @@ declare class BaseGovernedSession {
     private finalized;
     private readonly autoOpenSuppressed;
     private readonly inFlight;
+    private readonly activityStartsMs;
     private readonly exitHandlerCleanup;
     protected readonly onPendingApproval?: GovernedSessionConfig['onPendingApproval'];
     protected readonly onApprovalResolved?: GovernedSessionConfig['onApprovalResolved'];
@@ -1086,6 +1090,7 @@ declare class BaseGovernedSession {
      */
     protected runActivity(eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived', activityType: string, payload: GovernedPayload): Promise<WorkflowVerdict>;
     private emitCompleted;
+    private emitWithSpanHook;
     private emit;
     private pollApproval;
     /**

@@ -164,8 +164,12 @@ export class OpenBoxCoreClient {
     // burning extra workflow slots. Single shot; surface the 500
     // immediately so the caller can decide whether to retry with
     // full context, such as a fresh workflow_id.
+    const versionedPayload =
+      payload.sdk_version && payload.sdk_version !== ''
+        ? payload
+        : { ...payload, sdk_version: OPENBOX_SDK_VERSION };
     return this.request('POST', '/api/v1/governance/evaluate', {
-      data: payload,
+      data: versionedPayload,
       retryable: false,
     }) as Promise<GovernanceVerdictResponse>;
   }

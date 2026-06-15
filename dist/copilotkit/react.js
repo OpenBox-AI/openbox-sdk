@@ -767,12 +767,12 @@ function OpenBoxApprovalReview({
     setIsSubmitting(true);
     const apiDecision = approved ? "approve" : "reject";
     try {
+      if (!governanceEventId) {
+        throw new Error("OpenBox approval decision requires governanceEventId.");
+      }
       const client = approvalClient ?? createOpenBoxApprovalClient({ endpoint: approvalEndpoint });
       await client.decide({
         governanceEventId,
-        workflowId,
-        runId,
-        activityId,
         decision: apiDecision
       });
     } catch {

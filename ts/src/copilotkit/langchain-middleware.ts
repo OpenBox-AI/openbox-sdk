@@ -272,7 +272,7 @@ export function createOpenBoxLangChainMiddleware({
         sessionKey: key,
         workflowId: gateIds.workflowId,
         runId: gateIds.runId,
-        activityType: 'on_tool_start',
+        activityType: toolActivityTypeFromRequest(request),
       });
       if (shouldStopForGate(inputGate, governanceMode)) {
         return JSON.stringify(
@@ -287,7 +287,7 @@ export function createOpenBoxLangChainMiddleware({
           sessionKey: key,
           workflowId: gateIds.workflowId,
           runId: gateIds.runId,
-          activityType: 'on_tool_end',
+          activityType: toolActivityTypeFromRequest(request),
         });
         if (shouldStopForGate(outputGate, governanceMode)) {
           return JSON.stringify(
@@ -359,6 +359,11 @@ export function createOpenBoxLangChainMiddleware({
       await swallow(() => session.workflowCompleted());
     },
   });
+}
+
+function toolActivityTypeFromRequest(request: any): string {
+  const name = request?.toolCall?.name;
+  return typeof name === 'string' && name.trim() ? name.trim() : 'ToolCall';
 }
 
 const OPENBOX_RESULT_STATUSES = new Set([

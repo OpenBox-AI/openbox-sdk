@@ -33,10 +33,7 @@ interface OpenBoxRendererTheme {
 }
 interface OpenBoxApprovalClient {
     decide(request: {
-        governanceEventId?: string;
-        workflowId?: string;
-        runId?: string;
-        activityId?: string;
+        governanceEventId: string;
         decision: 'approve' | 'reject';
     }): Promise<unknown>;
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_TASK_QUEUE, DEFAULT_WORKFLOW_TYPE } from './constants.js';
-import { sessionKeyFromConfig } from './internal-utils.js';
+import { nowUnixNano, sessionKeyFromConfig } from './internal-utils.js';
 import {
   applyCompletedRedaction,
   applyStartedRedaction,
@@ -145,10 +145,12 @@ export function createGovernedCopilotTool<
         'Input policy check',
         'openbox',
         () =>
-          session.openActivity('on_tool_start', {
+          session.openActivity(definition.toolName, {
             activityId: ids.activityId,
             input: [toolInput(definition, normalizedInput)],
-            spans: [toolSpan(definition, normalizedInput, 'started')],
+            ...(definition.spanProfile
+              ? { spans: [toolSpan(definition, normalizedInput, 'started')] }
+              : {}),
           }),
       );
       const started = openedActivity.verdict;
@@ -216,9 +218,15 @@ export function createGovernedCopilotTool<
             {
               input: [toolInput(definition, startedRedaction.input)],
               output: toolOutputForGovernance(provisional),
-              spans: [toolSpan(definition, startedRedaction.input, 'completed')],
+              ...(definition.spanProfile
+                ? {
+                    spans: [
+                      toolSpan(definition, startedRedaction.input, 'completed'),
+                    ],
+                  }
+                : {}),
             },
-            'on_tool_end',
+            definition.toolName,
           ),
       );
 
@@ -407,7 +415,7 @@ export function createGovernedCopilotTool<
             workflowType,
             taskQueue,
             { attached: true, inlineApproval: true },
-          ).activity('ActivityCompleted', 'on_tool_end', {
+          ).activity('ActivityCompleted', definition.toolName, {
             activityId: ids.activityId,
             input: [approvalResumeToolInput(definition, normalizedInput)],
             output: toolOutputForGovernance(result),
@@ -532,10 +540,12 @@ export function createGovernedCopilotTool<
             workflowType,
             taskQueue,
             { attached: true, inlineApproval: true },
-          ).openActivity('on_tool_start', {
+          ).openActivity(definition.toolName, {
             activityId: ids.activityId,
             input: [toolInput(definition, input)],
-            spans: [toolSpan(definition, input, 'started')],
+            ...(definition.spanProfile
+              ? { spans: [toolSpan(definition, input, 'started')] }
+              : {}),
           }),
       );
       if (isAllowed(verdict.arm)) {
@@ -611,7 +621,7 @@ function approvalResumeSpan<
   definition: Pick<GovernedCopilotToolDefinition<any, any>, 'toolName'>,
   input: TInput,
 ) {
-  const now = Date.now();
+  const now = nowUnixNano();
   return {
     span_id: `approval-${randomUUID().replaceAll('-', '').slice(0, 8)}`,
     trace_id: randomUUID().replaceAll('-', ''),

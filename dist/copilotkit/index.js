@@ -18,6 +18,9 @@ var MAX_RUNTIME_OBJECT_KEYS = 12;
 var OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION = "openbox.copilotkit.result.v1";
 
 // ts/src/copilotkit/internal-utils.ts
+function nowUnixNano() {
+  return Date.now() * 1e6;
+}
 function shouldStopForGate(gate, governanceMode) {
   return governanceMode === "enforce" && gate.rawBlocked;
 }
@@ -2023,8 +2026,9 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
     return this.request("GET", "/api/v1/auth/validate");
   }
   async evaluate(payload) {
+    const versionedPayload = payload.sdk_version && payload.sdk_version !== "" ? payload : { ...payload, sdk_version: OPENBOX_SDK_VERSION };
     return this.request("POST", "/api/v1/governance/evaluate", {
-      data: payload,
+      data: versionedPayload,
       retryable: false
     });
   }
@@ -2230,6 +2234,7 @@ var BaseGovernedSession = class {
   finalized = false;
   autoOpenSuppressed;
   inFlight = /* @__PURE__ */ new Set();
+  activityStartsMs = /* @__PURE__ */ new Map();
   exitHandlerCleanup = [];
   onPendingApproval;
   onApprovalResolved;
@@ -2352,16 +2357,22 @@ var BaseGovernedSession = class {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
     if (!this.opened && !this.autoOpenSuppressed) await this.begin();
     const activityId = payload.activityId ?? randomUUID2();
+    const startTime = payload.startTime ?? Date.now();
+    this.activityStartsMs.set(activityId, startTime);
     this.inFlight.add(activityId);
     try {
-      const verdict = await this.emit({
+      const verdict = await this.emitWithSpanHook({
         event_type: "ActivityStarted",
         activity_id: activityId,
         activity_type: activityType,
         activity_input: payload.input,
+        start_time: startTime,
         spans: payload.spans
       });
       verdict.activityId = activityId;
+      if (verdict.arm !== "allow" && verdict.arm !== "constrain") {
+        this.activityStartsMs.delete(activityId);
+      }
       return {
         activityId,
         verdict,
@@ -2390,6 +2401,7 @@ var BaseGovernedSession = class {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
     if (!this.opened && !this.autoOpenSuppressed) await this.begin();
     const activityId = payload.activityId ?? randomUUID2();
+    const startTime = payload.startTime ?? Date.now();
     this.inFlight.add(activityId);
     try {
       if (eventType === "SignalReceived") {
@@ -2406,11 +2418,13 @@ var BaseGovernedSession = class {
         return signalVerdict;
       }
       if (eventType === "ActivityStarted") {
-        const startedVerdict = await this.emit({
+        this.activityStartsMs.set(activityId, startTime);
+        const startedVerdict = await this.emitWithSpanHook({
           event_type: "ActivityStarted",
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
+          start_time: startTime,
           spans: payload.spans
         });
         startedVerdict.activityId = activityId;
@@ -2422,6 +2436,7 @@ var BaseGovernedSession = class {
           return startedVerdict;
         }
         if (startedVerdict.arm !== "allow") {
+          this.activityStartsMs.delete(activityId);
           if (startedVerdict.arm === "require_approval") {
             const approvalId = startedVerdict.approvalId ?? activityId;
             if (this.onPendingApproval) {
@@ -2465,15 +2480,22 @@ var BaseGovernedSession = class {
     }
   }
   async emitCompleted(activityId, activityType, payload) {
-    const completedVerdict = await this.emit({
+    const startTime = payload.startTime ?? this.activityStartsMs.get(activityId);
+    const endTime = payload.endTime ?? Date.now();
+    const durationMs = payload.durationMs ?? (typeof startTime === "number" ? Math.max(0, endTime - startTime) : void 0);
+    const completedVerdict = await this.emitWithSpanHook({
       event_type: "ActivityCompleted",
       activity_id: activityId,
       activity_type: activityType,
       status: activityCompletionStatus(activityType),
       activity_input: payload.input,
       activity_output: payload.output,
+      start_time: startTime,
+      end_time: endTime,
+      duration_ms: durationMs,
       spans: payload.spans
     });
+    this.activityStartsMs.delete(activityId);
     completedVerdict.activityId = activityId;
     if (completedVerdict.arm === "require_approval") {
       const approvalId = completedVerdict.approvalId ?? activityId;
@@ -2504,6 +2526,19 @@ var BaseGovernedSession = class {
       return polled;
     }
     return completedVerdict;
+  }
+  async emitWithSpanHook(event) {
+    const hasActivitySpans = (event.event_type === "ActivityStarted" || event.event_type === "ActivityCompleted") && Array.isArray(event.spans) && event.spans.some(isPersistableHookSpan);
+    if (!hasActivitySpans) return this.emit(event);
+    const baseVerdict = await this.emit({ ...event, spans: void 0 });
+    if (baseVerdict.arm !== "allow" && baseVerdict.arm !== "constrain") {
+      return baseVerdict;
+    }
+    const hookVerdict = await this.emit({
+      ...event,
+      hook_trigger: true
+    });
+    return stricterVerdict(baseVerdict, hookVerdict);
   }
   async emit(event) {
     const payload = {
@@ -2624,6 +2659,33 @@ var BaseGovernedSession = class {
 };
 function activityCompletionStatus(activityType) {
   return /(error|fail|failed|failure|timeout|timedout|cancel|abort)/i.test(activityType) ? "failed" : "completed";
+}
+function toolActivityTypeFromPayload(payload) {
+  const direct = namedToolFromRecord(payload);
+  if (direct) return direct;
+  for (const item of payload.input ?? []) {
+    const name = namedToolFromRecord(item);
+    if (name) return name;
+  }
+  return "ToolCall";
+}
+function namedToolFromRecord(value) {
+  if (!value || typeof value !== "object") return void 0;
+  const record = value;
+  const direct = firstNonEmptyString(
+    record.toolName,
+    record.tool_name,
+    record.tool,
+    record.name
+  );
+  if (direct) return direct;
+  return namedToolFromRecord(record.toolCall) ?? namedToolFromRecord(record.tool_call) ?? namedToolFromRecord(record.call) ?? namedToolFromRecord(record.args);
+}
+function firstNonEmptyString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return void 0;
 }
 var AirflowSession = class extends BaseGovernedSession {
   async onExecuteCallback(payload) {
@@ -2898,10 +2960,10 @@ var LangchainSession = class extends BaseGovernedSession {
     return this.runActivity("ActivityStarted", "on_chat_model_start", payload);
   }
   async onToolStart(payload) {
-    return this.runActivity("ActivityStarted", "on_tool_start", payload);
+    return this.runActivity("ActivityStarted", toolActivityTypeFromPayload(payload), payload);
   }
   async onToolEnd(payload) {
-    return this.runActivity("ActivityCompleted", "on_tool_end", payload);
+    return this.runActivity("ActivityCompleted", toolActivityTypeFromPayload(payload), payload);
   }
   async onToolError(payload) {
     return this.runActivity("ActivityCompleted", "on_tool_error", payload);
@@ -3274,6 +3336,33 @@ function normalizeArm(value) {
     default:
       return "allow";
   }
+}
+function verdictRank(arm) {
+  switch (arm) {
+    case "halt":
+      return 4;
+    case "block":
+      return 3;
+    case "require_approval":
+      return 2;
+    case "constrain":
+      return 1;
+    case "allow":
+    default:
+      return 0;
+  }
+}
+function stricterVerdict(base, hook) {
+  return verdictRank(hook.arm) >= verdictRank(base.arm) ? hook : base;
+}
+function isPersistableHookSpan(span) {
+  if (!span || typeof span !== "object") return false;
+  const record = span;
+  if (typeof record.semantic_type === "string" && record.semantic_type !== "") {
+    return true;
+  }
+  const attributes = record.attributes && typeof record.attributes === "object" ? record.attributes : {};
+  return typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
 }
 function errorInfoFrom(value) {
   if (value == null) return void 0;
@@ -3882,21 +3971,6 @@ async function emitUserPromptSignal(adapter, ids, workflowType, taskQueue, promp
   });
 }
 async function emitActivityHookSpanUpdate(adapter, ids, workflowType, taskQueue, activityType, output, spans) {
-  const started = await adapter.getCoreClient().evaluate({
-    source: "workflow-telemetry",
-    event_type: "ActivityStarted",
-    workflow_id: ids.workflowId,
-    run_id: ids.runId,
-    workflow_type: workflowType,
-    task_queue: taskQueue,
-    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    activity_id: ids.activityId,
-    activity_type: activityType,
-    hook_trigger: true,
-    span_count: 0
-  });
-  const startedVerdict = mapCoreVerdict(started);
-  if (startedVerdict.arm !== "allow") return startedVerdict;
   const response = await adapter.getCoreClient().evaluate({
     source: "workflow-telemetry",
     event_type: "ActivityCompleted",
@@ -3906,7 +3980,7 @@ async function emitActivityHookSpanUpdate(adapter, ids, workflowType, taskQueue,
     task_queue: taskQueue,
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
     activity_id: ids.activityId,
-    activity_type: activityType,
+    ...activityType ? { activity_type: activityType } : {},
     status: "completed",
     activity_output: output,
     hook_trigger: true,
@@ -3960,7 +4034,7 @@ function toolInput(definition, input) {
   };
 }
 function toolSpan(definition, input, stage) {
-  const now = Date.now();
+  const now = nowUnixNano();
   const profile = definition.spanProfile?.(input, stage);
   const base = {
     span_id: randomBytes(8).toString("hex"),
@@ -3995,7 +4069,7 @@ function toolSpan(definition, input, stage) {
   };
 }
 function userPromptSpan(prompt) {
-  const now = Date.now();
+  const now = nowUnixNano();
   return {
     span_id: randomBytes(8).toString("hex"),
     trace_id: randomBytes(16).toString("hex"),
@@ -4846,9 +4920,9 @@ async function decideApproval(client, hint, decision) {
 function createOpenBoxApprovalRoute(config = {}) {
   return {
     async decide(request) {
-      if (!request.governanceEventId && (!request.workflowId || !request.runId || !request.activityId)) {
+      if (!request.governanceEventId) {
         throw new Error(
-          "OpenBox approval decision requires governanceEventId or workflowId, runId, and activityId."
+          "OpenBox approval decision requires governanceEventId."
         );
       }
       return decideViaBackend(config, request);
@@ -4960,10 +5034,10 @@ function createGovernedCopilotTool(definition) {
         "tool_input_gate",
         "Input policy check",
         "openbox",
-        () => session.openActivity("on_tool_start", {
+        () => session.openActivity(definition.toolName, {
           activityId: ids.activityId,
           input: [toolInput(definition, normalizedInput)],
-          spans: [toolSpan(definition, normalizedInput, "started")]
+          ...definition.spanProfile ? { spans: [toolSpan(definition, normalizedInput, "started")] } : {}
         })
       );
       const started = openedActivity.verdict;
@@ -5027,9 +5101,13 @@ function createGovernedCopilotTool(definition) {
           {
             input: [toolInput(definition, startedRedaction.input)],
             output: toolOutputForGovernance(provisional),
-            spans: [toolSpan(definition, startedRedaction.input, "completed")]
+            ...definition.spanProfile ? {
+              spans: [
+                toolSpan(definition, startedRedaction.input, "completed")
+              ]
+            } : {}
           },
-          "on_tool_end"
+          definition.toolName
         )
       );
       if (!isAllowed(completed.arm)) {
@@ -5202,7 +5280,7 @@ function createGovernedCopilotTool(definition) {
           workflowType,
           taskQueue,
           { attached: true, inlineApproval: true }
-        ).activity("ActivityCompleted", "on_tool_end", {
+        ).activity("ActivityCompleted", definition.toolName, {
           activityId: ids.activityId,
           input: [approvalResumeToolInput(definition, normalizedInput)],
           output: toolOutputForGovernance(result),
@@ -5308,10 +5386,10 @@ function createGovernedCopilotTool(definition) {
           workflowType,
           taskQueue,
           { attached: true, inlineApproval: true }
-        ).openActivity("on_tool_start", {
+        ).openActivity(definition.toolName, {
           activityId: ids.activityId,
           input: [toolInput(definition, input)],
-          spans: [toolSpan(definition, input, "started")]
+          ...definition.spanProfile ? { spans: [toolSpan(definition, input, "started")] } : {}
         })
       );
       if (isAllowed(verdict.arm)) {
@@ -5370,7 +5448,7 @@ function approvalResumeToolInput(definition, input) {
   };
 }
 function approvalResumeSpan(definition, input) {
-  const now = Date.now();
+  const now = nowUnixNano();
   return {
     span_id: `approval-${randomUUID5().replaceAll("-", "").slice(0, 8)}`,
     trace_id: randomUUID5().replaceAll("-", ""),
@@ -5671,7 +5749,7 @@ function createOpenBoxLangChainMiddleware({
         sessionKey: key,
         workflowId: gateIds.workflowId,
         runId: gateIds.runId,
-        activityType: "on_tool_start"
+        activityType: toolActivityTypeFromRequest(request)
       });
       if (shouldStopForGate(inputGate, governanceMode)) {
         return JSON.stringify(
@@ -5686,7 +5764,7 @@ function createOpenBoxLangChainMiddleware({
           sessionKey: key,
           workflowId: gateIds.workflowId,
           runId: gateIds.runId,
-          activityType: "on_tool_end"
+          activityType: toolActivityTypeFromRequest(request)
         });
         if (shouldStopForGate(outputGate, governanceMode)) {
           return JSON.stringify(
@@ -5747,6 +5825,10 @@ function createOpenBoxLangChainMiddleware({
       await swallow(() => session.workflowCompleted());
     }
   });
+}
+function toolActivityTypeFromRequest(request) {
+  const name = request?.toolCall?.name;
+  return typeof name === "string" && name.trim() ? name.trim() : "ToolCall";
 }
 var OPENBOX_RESULT_STATUSES = /* @__PURE__ */ new Set([
   "executed",
@@ -5937,25 +6019,24 @@ function gateSession(adapter, ids, workflowType, taskQueue) {
 }
 async function evaluateGate(adapter, input, ids) {
   const completed = input.kind === "tool_output" || input.kind === "assistant_output";
-  const activityType = input.activityType ?? activityTypeForGate(input.kind);
+  const activityType = input.activityType ?? activityTypeForGate(input.kind, input.payload);
   const session = gateSession(
     adapter,
     { workflowId: ids.workflowId, runId: ids.runId },
     input.workflowType,
     input.taskQueue
   );
-  const spans = pipelineSpansForGate(input.kind, activityType, input.payload);
   return session.activity(
     completed ? "ActivityCompleted" : "ActivityStarted",
     activityType,
     completed ? {
       activityId: ids.activityId,
       output: input.payload,
-      spans
+      spans: []
     } : {
       activityId: ids.activityId,
       input: [input.payload],
-      spans
+      spans: []
     }
   );
 }
@@ -6168,14 +6249,14 @@ function promptTextFromPayload(payload) {
   }
   return void 0;
 }
-function activityTypeForGate(kind) {
+function activityTypeForGate(kind, payload) {
   switch (kind) {
     case "prompt":
       return "UserPromptSubmit";
     case "tool_input":
-      return "on_tool_start";
+      return toolNameFromPayload(payload) ?? "ToolCall";
     case "tool_output":
-      return "on_tool_end";
+      return toolNameFromPayload(payload) ?? "ToolCall";
     case "assistant_output":
       return "on_llm_end";
   }
@@ -6189,7 +6270,7 @@ async function evaluateAssistantOutputHook(adapter, input, ids, verdict, safePay
     ids,
     input.workflowType,
     input.taskQueue,
-    input.activityType ?? activityTypeForGate(input.kind),
+    void 0,
     safePayload2,
     [
       buildLLMCompletionSpan({
@@ -6315,35 +6396,21 @@ function verdictSeverity(arm) {
       return 0;
   }
 }
-function pipelineSpansForGate(kind, activityType, payload) {
-  if (kind === "assistant_output") return [];
-  return [pipelineSpan(kind, activityType, payload)];
-}
 function pipelineSpan(kind, activityType, payload) {
   const now = Date.now();
-  const toolName = toolNameFromPayload(payload) ?? activityType;
-  const toolSpan2 = kind === "tool_input" || kind === "tool_output";
   const span = {
     span_id: randomBytes2(8).toString("hex"),
     trace_id: randomBytes2(16).toString("hex"),
-    name: toolSpan2 ? toolName : activityType,
-    kind: toolSpan2 ? "tool" : "internal",
+    name: activityType,
+    kind: "internal",
     span_type: "function",
     start_time: now,
     end_time: now,
     duration_ns: 0,
     stage: kind === "prompt" || kind === "tool_input" ? "started" : "completed",
-    ...toolSpan2 ? { semantic_type: "llm_tool_call" } : {},
     attributes: {
       "openbox.copilotkit.gate": kind,
-      "openbox.activity_type": activityType,
-      ...toolSpan2 ? {
-        "openbox.semantic_type": "llm_tool_call",
-        "openbox.span_type": "function",
-        "openbox.tool.name": toolName,
-        "tool.name": toolName,
-        tool_name: toolName
-      } : {}
+      "openbox.activity_type": activityType
     },
     data: payload
   };

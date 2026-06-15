@@ -5,7 +5,11 @@ import {
   buildLLMCompletionSpan,
   type LLMTokenUsage,
 } from '../governance/spans.js';
-import { errorMessage, sameJson, swallow } from './internal-utils.js';
+import {
+  errorMessage,
+  sameJson,
+  swallow,
+} from './internal-utils.js';
 import { applyOpenBoxTransform, isAllowed, safePayload } from './results.js';
 import type {
   OpenBoxCopilotGateInput,
@@ -51,14 +55,14 @@ async function evaluateGate<T>(
 ): Promise<WorkflowVerdict> {
   const completed =
     input.kind === 'tool_output' || input.kind === 'assistant_output';
-  const activityType = input.activityType ?? activityTypeForGate(input.kind);
+  const activityType =
+    input.activityType ?? activityTypeForGate(input.kind, input.payload);
   const session = gateSession(
     adapter,
     { workflowId: ids.workflowId, runId: ids.runId },
     input.workflowType,
     input.taskQueue,
   );
-  const spans = pipelineSpansForGate(input.kind, activityType, input.payload);
   return session.activity(
     completed ? 'ActivityCompleted' : 'ActivityStarted',
     activityType,
@@ -66,12 +70,12 @@ async function evaluateGate<T>(
       ? {
           activityId: ids.activityId,
           output: input.payload,
-          spans,
+          spans: [],
         }
       : {
           activityId: ids.activityId,
           input: [input.payload],
-          spans,
+          spans: [],
         },
   );
 }
@@ -354,14 +358,17 @@ function promptTextFromPayload(payload: unknown): string | undefined {
   return undefined;
 }
 
-function activityTypeForGate(kind: OpenBoxCopilotGateKind): string {
+function activityTypeForGate(
+  kind: OpenBoxCopilotGateKind,
+  payload?: unknown,
+): string {
   switch (kind) {
     case 'prompt':
       return 'UserPromptSubmit';
     case 'tool_input':
-      return 'on_tool_start';
+      return toolNameFromPayload(payload) ?? 'ToolCall';
     case 'tool_output':
-      return 'on_tool_end';
+      return toolNameFromPayload(payload) ?? 'ToolCall';
     case 'assistant_output':
       return 'on_llm_end';
   }
@@ -386,7 +393,7 @@ async function evaluateAssistantOutputHook<T>(
     ids,
     input.workflowType,
     input.taskQueue,
-    input.activityType ?? activityTypeForGate(input.kind),
+    undefined,
     safePayload,
     [
       buildLLMCompletionSpan({
@@ -553,46 +560,25 @@ function verdictSeverity(arm: WorkflowVerdict['arm']): number {
   }
 }
 
-function pipelineSpansForGate(
-  kind: OpenBoxCopilotGateKind,
-  activityType: string,
-  payload: unknown,
-): SpanData[] {
-  if (kind === 'assistant_output') return [];
-  return [pipelineSpan(kind, activityType, payload)];
-}
-
 function pipelineSpan(
   kind: OpenBoxCopilotGateKind,
   activityType: string,
   payload: unknown,
 ): SpanData {
   const now = Date.now();
-  const toolName = toolNameFromPayload(payload) ?? activityType;
-  const toolSpan = kind === 'tool_input' || kind === 'tool_output';
   const span = {
     span_id: randomBytes(8).toString('hex'),
     trace_id: randomBytes(16).toString('hex'),
-    name: toolSpan ? toolName : activityType,
-    kind: toolSpan ? 'tool' : 'internal',
+    name: activityType,
+    kind: 'internal',
     span_type: 'function',
     start_time: now,
     end_time: now,
     duration_ns: 0,
     stage: kind === 'prompt' || kind === 'tool_input' ? 'started' : 'completed',
-    ...(toolSpan ? { semantic_type: 'llm_tool_call' } : {}),
     attributes: {
       'openbox.copilotkit.gate': kind,
       'openbox.activity_type': activityType,
-      ...(toolSpan
-        ? {
-            'openbox.semantic_type': 'llm_tool_call',
-            'openbox.span_type': 'function',
-            'openbox.tool.name': toolName,
-            'tool.name': toolName,
-            tool_name: toolName,
-          }
-        : {}),
     },
     data: payload,
   } as SpanData;

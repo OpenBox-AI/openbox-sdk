@@ -9,7 +9,7 @@ import {
   type BaseGovernedSession,
   type WorkflowVerdict,
 } from '../core-client/index.js';
-import { errorMessage } from './internal-utils.js';
+import { errorMessage, nowUnixNano } from './internal-utils.js';
 import { mapGuardrailsResult, normalizeArm } from './results.js';
 import type {
   GovernedCopilotToolDefinition,
@@ -220,26 +220,10 @@ export async function emitActivityHookSpanUpdate(
   ids: { workflowId: string; runId: string; activityId: string },
   workflowType: string,
   taskQueue: string,
-  activityType: string,
+  activityType: string | undefined,
   output: unknown,
   spans: SpanData[],
 ): Promise<WorkflowVerdict> {
-  const started = await adapter.getCoreClient().evaluate({
-    source: 'workflow-telemetry',
-    event_type: 'ActivityStarted',
-    workflow_id: ids.workflowId,
-    run_id: ids.runId,
-    workflow_type: workflowType,
-    task_queue: taskQueue as GovernanceEventPayload['task_queue'],
-    timestamp: new Date().toISOString(),
-    activity_id: ids.activityId,
-    activity_type: activityType,
-    hook_trigger: true,
-    span_count: 0,
-  });
-  const startedVerdict = mapCoreVerdict(started);
-  if (startedVerdict.arm !== 'allow') return startedVerdict;
-
   const response = await adapter.getCoreClient().evaluate({
     source: 'workflow-telemetry',
     event_type: 'ActivityCompleted',
@@ -249,7 +233,7 @@ export async function emitActivityHookSpanUpdate(
     task_queue: taskQueue as GovernanceEventPayload['task_queue'],
     timestamp: new Date().toISOString(),
     activity_id: ids.activityId,
-    activity_type: activityType,
+    ...(activityType ? { activity_type: activityType } : {}),
     status: 'completed',
     activity_output: output,
     hook_trigger: true,
@@ -325,7 +309,7 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
   input: TInput,
   stage: 'started' | 'completed',
 ): SpanData {
-  const now = Date.now();
+  const now = nowUnixNano();
   const profile = definition.spanProfile?.(input, stage);
   const base = {
     span_id: randomBytes(8).toString('hex'),
@@ -361,7 +345,7 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
 }
 
 function userPromptSpan(prompt: string): SpanData {
-  const now = Date.now();
+  const now = nowUnixNano();
   return {
     span_id: randomBytes(8).toString('hex'),
     trace_id: randomBytes(16).toString('hex'),
