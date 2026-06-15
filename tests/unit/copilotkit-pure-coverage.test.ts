@@ -17,6 +17,7 @@ import {
   textValue,
 } from '../../ts/src/copilotkit/react-utils.ts';
 import { verdictFromResult } from '../../ts/src/copilotkit/react-governance-decision.ts';
+import { createOpenBoxCustomMessageRenderer } from '../../ts/src/copilotkit/react-custom-message-renderer.ts';
 
 function withEnv<T>(
   values: Record<string, string | undefined>,
@@ -215,5 +216,94 @@ describe('CopilotKit pure utility coverage', () => {
       'approval',
     );
     expect(verdictFromResult({}, scenario)).toBe('reviewing');
+  });
+
+  it('finds OpenBox custom message results across renderer edge shapes', () => {
+    const result = JSON.stringify({
+      schemaVersion: 'openbox.copilotkit.result.v1',
+      status: 'executed',
+      verdict: 'allow',
+      action: 'demo_action',
+      artifact: { type: 'demo' },
+    });
+    const customDecision = React.createElement('div', { id: 'decision' });
+    const customResult = React.createElement('div', { id: 'result' });
+    const renderer = createOpenBoxCustomMessageRenderer({
+      agentId: 'agent-1',
+      renderGovernanceDecision: () => customDecision,
+      renderActionResult: () => customResult,
+    });
+    const render = renderer.render as (props: Record<string, unknown>) => unknown;
+
+    expect(renderer.agentId).toBe('agent-1');
+    expect(render({ position: 'middle', message: {} })).toBeNull();
+    expect(
+      render({
+        position: 'after',
+        message: { role: 'tool', content: '{"schemaVersion":"other"}' },
+      }),
+    ).toBeNull();
+    const direct = render({
+      position: 'after',
+      message: { role: 'tool', name: 'tool-name', content: result },
+    }) as React.ReactElement;
+    expect(direct.type).toBe(React.Fragment);
+    expect((direct.props as any).children).toEqual([customDecision, customResult]);
+
+    const defaultRenderer = createOpenBoxCustomMessageRenderer({
+      artifactRenderers: {
+        demo: () => React.createElement('span', null, 'artifact'),
+      },
+    });
+    const defaultRender = defaultRenderer.render as (
+      props: Record<string, unknown>,
+    ) => unknown;
+    const fromAdditionalKwargs = defaultRender({
+      position: 'before',
+      message: {
+        type: 'ai',
+        additional_kwargs: {
+          tool_calls: [
+            {
+              id: 'call-1',
+              function: { name: 'openbox_governed_action' },
+            },
+          ],
+        },
+      },
+      stateSnapshot: {
+        messages: [
+          {
+            role: 'tool',
+            tool_call_id: 'call-1',
+            content: result,
+          },
+        ],
+      },
+    }) as React.ReactElement;
+    expect(fromAdditionalKwargs.type).toBe(React.Fragment);
+
+    expect(
+      defaultRender({
+        position: 'after',
+        message: {
+          role: 'assistant',
+          toolCalls: [{ id: 'call-2', name: 'not_openbox' }],
+        },
+        stateSnapshot: { messages: [] },
+      }),
+    ).toBeNull();
+    expect(
+      defaultRender({
+        position: 'after',
+        message: {
+          role: 'assistant',
+          tool_calls: [{ id: 'call-3', name: 'openbox_governed_action' }],
+        },
+        stateSnapshot: {
+          messages: [{ role: 'tool', toolCallId: 'other', content: result }],
+        },
+      }),
+    ).toBeNull();
   });
 });

@@ -5,31 +5,46 @@
 // catches it without needing the per-language emitters to be in place.
 
 import { compile, NodeHost, resolvePath } from '@typespec/compiler';
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { describe, expect, test, beforeAll } from 'vitest';
-import {
-  getEnvVar,
-  getTokenFormat,
-  isOsPath,
-} from '../../codegen/typespec-libs/typespec-env/dist/decorators.js';
-import {
-  $cli_command,
-  $cli_validator,
-  getCommand,
-  getFlag,
-  getValidator,
-} from '../../codegen/typespec-libs/typespec-cli/dist/decorators.js';
-import {
-  getMapsTo,
-  getPreset,
-  getVerdictModel,
-} from '../../codegen/typespec-libs/typespec-workflow/dist/decorators.js';
 
 import type { Program, Model, Interface, Operation, ModelProperty } from '@typespec/compiler';
 
 let program: Program;
+let getEnvVar: typeof import('../../codegen/typespec-libs/typespec-env/src/decorators.ts').getEnvVar;
+let getTokenFormat: typeof import('../../codegen/typespec-libs/typespec-env/src/decorators.ts').getTokenFormat;
+let isOsPath: typeof import('../../codegen/typespec-libs/typespec-env/src/decorators.ts').isOsPath;
+let $cli_command: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').$cli_command;
+let $cli_validator: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').$cli_validator;
+let getCommand: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').getCommand;
+let getFlag: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').getFlag;
+let getValidator: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').getValidator;
+let getMapsTo: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getMapsTo;
+let getPreset: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getPreset;
+let getVerdictModel: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getVerdictModel;
 
 beforeAll(async () => {
   const root = resolvePath(import.meta.dirname, '..', '..');
+  ensureTypeSpecLibsBuilt(root);
+  const envDecorators = await import(
+    '../../codegen/typespec-libs/typespec-env/dist/decorators.js'
+  );
+  const cliDecorators = await import(
+    '../../codegen/typespec-libs/typespec-cli/dist/decorators.js'
+  );
+  const workflowDecorators = await import(
+    '../../codegen/typespec-libs/typespec-workflow/dist/decorators.js'
+  );
+  ({ getEnvVar, getTokenFormat, isOsPath } = envDecorators);
+  ({
+    $cli_command,
+    $cli_validator,
+    getCommand,
+    getFlag,
+    getValidator,
+  } = cliDecorators);
+  ({ getMapsTo, getPreset, getVerdictModel } = workflowDecorators);
   const main = resolvePath(root, 'specs', 'typespec', 'main.tsp');
   program = await compile(NodeHost, main, {
     noEmit: true,
@@ -44,7 +59,36 @@ beforeAll(async () => {
       .join('\n');
     throw new Error(`TypeSpec compile produced errors:\n${summary}`);
   }
-}, 30_000);
+}, 60_000);
+
+function ensureTypeSpecLibsBuilt(root: string): void {
+  const libs = ['typespec-env', 'typespec-cli', 'typespec-workflow'];
+  const tsc = resolvePath(root, 'node_modules', 'typescript', 'bin', 'tsc');
+  if (!existsSync(tsc)) {
+    throw new Error(`TypeScript compiler not found at ${tsc}`);
+  }
+  for (const lib of libs) {
+    const libRoot = resolvePath(root, 'codegen', 'typespec-libs', lib);
+    const distIndex = resolvePath(libRoot, 'dist', 'index.js');
+    if (existsSync(distIndex)) continue;
+    try {
+      execFileSync(process.execPath, [tsc, '-p', libRoot], {
+        cwd: root,
+        stdio: 'pipe',
+      });
+    } catch (error) {
+      const stderr = Buffer.isBuffer((error as { stderr?: unknown }).stderr)
+        ? ((error as { stderr: Buffer }).stderr).toString('utf-8')
+        : '';
+      const stdout = Buffer.isBuffer((error as { stdout?: unknown }).stdout)
+        ? ((error as { stdout: Buffer }).stdout).toString('utf-8')
+        : '';
+      throw new Error(
+        `Failed to build local TypeSpec library ${lib} before compile:\n${stdout}${stderr}`,
+      );
+    }
+  }
+}
 
 function findModel(name: string): Model {
   for (const ns of walkNamespaces(program)) {

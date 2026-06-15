@@ -367,7 +367,7 @@ describe('copilotkit helper coverage', () => {
           guardrailsResult: { inputType: 'activity_input' },
           redactionSummary: 'existing',
         } as any,
-        verdict({ arm: 'allow' }),
+        { arm: 'allow' } as WorkflowVerdict,
       ),
     ).toMatchObject({
       riskScore: 0.4,
