@@ -410,48 +410,82 @@ jobs:
       - release-quality
       - release-security
       - release-sonarqube
-    permissions:
-      contents: read
-      id-token: write
 
     steps:
-      - name: Resolve tag
-        id: tag
-        run: |
-          TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          echo "value=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.tag.outputs.value }}
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify version matches tag
-        env:
-          TAG_VERSION: ${{ steps.tag.outputs.version }}
+      - name: Read package metadata
+        id: package
+        shell: bash
         run: |
-          pkg_version="$(node -p "require('./package.json').version")"
-          if [ "${TAG_VERSION}" != "${pkg_version}" ]; then
-            echo "Error: Tag version (${TAG_VERSION}) does not match package version (${pkg_version})"
+          set -euo pipefail
+          echo "name=$(node -p "require('./package.json').name")" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+          
+      - name: Verify tag matches package version
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${TAG_NAME#v}"
+          PACKAGE_VERSION="${{ steps.package.outputs.version }}"
+
+          if [ "${TAG_VERSION}" != "${PACKAGE_VERSION}" ]; then
+            echo "Tag version (${TAG_NAME}) does not match package.json version (${PACKAGE_VERSION})"
             exit 1
           fi
 
-      - name: Publish to npm with trusted publishing
-        run: npm publish --access public --provenance
+      - name: Read published npm version
+        id: npm
+        shell: bash
+        run: |
+          set -euo pipefail
+          published_version="$(npm view "${{ steps.package.outputs.name }}" version 2>/dev/null || true)"
+          echo "published_version=${published_version}" >> "$GITHUB_OUTPUT"
+
+      - name: Check GitHub release
+        id: github_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip if version already published
+        if: steps.package.outputs.version == steps.npm.outputs.published_version
+        run: echo "Version ${{ steps.package.outputs.version }} is already published. Skipping release."
+
+      - name: Publish to npm
+        if: steps.package.outputs.version != steps.npm.outputs.published_version
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub release
         if: steps.github_release.outputs.exists != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.value }}
-          name: ${{ steps.tag.outputs.value }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           generate_release_notes: true
+          target_commitish: ${{ github.sha }}
