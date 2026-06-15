@@ -86,6 +86,10 @@ jobs:
       - run: npm ci
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Build TypeSpec libraries + TS emitter
+        run: npm run build:codegen
+
       - name: Compile specs
         run: npm run specs:compile
 
@@ -120,6 +124,10 @@ jobs:
       - run: npm ci
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Build TypeSpec libraries + TS emitter
+        run: npm run build:codegen
+
       - name: Compile head spec
         run: npm run specs:compile
 
@@ -132,6 +140,7 @@ jobs:
         run: |
           git fetch origin main
           git checkout origin/main -- specs/typespec codegen
+          npm run build:codegen
           npm run specs:compile || true
 
       - name: Save base spec
