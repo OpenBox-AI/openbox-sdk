@@ -2,7 +2,7 @@ name: PR Governance
 
 on:
   pull_request:
-    branches: [main, feat/workflow]
+    branches: [main]
     types:
       - opened
       - reopened
@@ -10,7 +10,7 @@ on:
       - edited
       - ready_for_review
   push:
-    branches: [main, feat/workflow]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
