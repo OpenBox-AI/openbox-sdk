@@ -2,8 +2,7 @@ import { h as GovernanceVerdictResponse } from '../core-types-Dxgkbox0.js';
 
 type SpanType$1 = 'llm' | 'file_read' | 'file_write' | 'shell' | 'http' | 'db' | 'mcp';
 interface CheckGovernanceOptions {
-    /** Agent ID; used to resolve the runtime key from the agent-keys
-     *  cache when `apiKey` and OPENBOX_API_KEY are both absent. */
+    /** Agent ID for resolving a cached runtime key. */
     agentId?: string;
     /** Span/activity type. Drives `ACTIVITY_TYPE_MAP` and `buildSpan`. */
     spanType: SpanType$1;

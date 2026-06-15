@@ -117,17 +117,7 @@ declare const GUARDRAIL_TYPE_ALIASES: Record<string, string>;
 declare function validateGuardrailType(value: unknown): string;
 declare function validateStage(value: unknown): '0' | '1';
 declare function validateGuardrailParams(typeId: string, params: unknown): void;
-/**
- * Canonical `activity_type` strings. Union of what first-party SDKs emit
- * (runtime/claude-code + runtime/cursor activity_type tables) plus the
- * SDK-default `DefaultActivity` and the aspirational names the skill
- * recommends for hand-rolled integrations. Non-canonical names still work
- * server-side (activity_type is free-string) but won't match guardrails
- * configured against this canonical set.
- *
- * Note: `ActivityCompleted` is an event_type, not an activity_type .
- * deliberately excluded here even though the skill used to include it.
- */
+/** Canonical activity_type strings emitted or recommended by the SDK. */
 declare const CANONICAL_ACTIVITY_TYPES: readonly ["PromptSubmission", "LLMCompleted", "ToolCompleted", "FileRead", "FileEdit", "FileDelete", "ShellExecution", "HTTPRequest", "MCPToolCall", "MCPToolResponse", "AgentResponse", "AgentThinking", "ShellOutput", "AgentSpawn", "ClaudeCodeSession", "CursorSession", "DefaultActivity"];
 declare function validateActivitiesConfig(activities: unknown, stage: '0' | '1'): void;
 /** Every permission string the backend's `Permission` enum accepts;
