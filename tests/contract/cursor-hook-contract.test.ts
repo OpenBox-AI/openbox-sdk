@@ -1,17 +1,5 @@
-// End-to-end contract test for the Cursor hook adapter.
-//
-// What this catches that unit tests didn't:
-//   - The Cursor docs say `beforeSubmitPrompt` returns `{continue, user_message?}`
-//     not `{permission, ...}`; a verdictShape mismatch the SDK had been
-//     emitting for months. This test asserts the exact stdout JSON shape
-//     for each cursor hook event.
-//   - `user_message` is snake_case per cursor.com/docs/hooks.md, NOT
-//     `userMessage`. We had been emitting camelCase.
-//   - Shell-tool envelopes must reach the backend with
-//     `activity_type: "ShellExecution"` (canonical), not `agent_action`.
-//
-// How: drive `createCursorAdapter` end-to-end with a stdin envelope
-// → real mappers → capturing-mock session → captured stdout JSON.
+// Cursor hook adapter contract test: stdin envelope, real mapper, recorded
+// session, and exact stdout verdict shape.
 
 import { describe, expect, test } from 'vitest';
 import { createCursorAdapter } from '../../ts/src/core-client/generated/runtime/cursor.js';

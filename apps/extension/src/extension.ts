@@ -1,20 +1,5 @@
-// OpenBox extension entry. Wires:
-//
-//   * Approvals UI surface - pending + history view sessions, detail
-//     panel, onboard view, profile view, debug controls (dev builds).
-//     Recovered from feat/approvals-shared-helpers; the rich surface
-//     went orphan when work moved to feat/cursor-runtime.
-//
-//   * Active governance gates - PreWriteGate, PreFileOpGate,
-//     TabObserver. Each independently consults the GovernanceClient.
-//
-//   * Hook activity log - tails ~/.openbox/log/cursor-hook.jsonl into
-//     a Cursor OutputChannel so the user sees every hook the
-//     `openbox cursor hook` subprocess fires.
-//
-//   * Halt-verdict ↔ save coordination - when the approvals feed
-//     reports a pending row at verdict 4 whose target URI is open,
-//     PreWriteGate's recordDeny lights up so the next save reverts.
+// OpenBox extension entry. Registers approval views, active governance gates,
+// hook log output, and halt-verdict save coordination.
 
 import * as vscode from "vscode";
 import * as fs from "fs";
@@ -240,27 +225,9 @@ export async function activate(context: vscode.ExtensionContext) {
   });
   context.subscriptions.push(profileTreeView);
 
-  // Cursor 3.x sidebar2 cold-launch race: when the user has the
-  // OpenBox container saved as the active sidebar at startup,
-  // sidebar2's render effect runs *before* the
-  // viewsExtensionHandler workbench contribution registers our
-  // composite. It calls `compositeRegistry.getComposite("workbench.view.extension.openbox")`,
-  // gets undefined, logs `no composite descriptor found for ...`,
-  // and bails. The render effect is reactive on
-  // `activeViewContainerID` but NOT on `compositeRegistry`
-  // updates - so our composite gets registered moments later
-  // but sidebar2 never re-runs, leaving the panel empty until
-  // the user toggles to another container and back (which
-  // changes `activeViewContainerID` and forces a re-run).
-  //
-  // Workaround: watch the profile TreeView's visibility for 1
-  // second. If it never fires `onDidChangeVisibility(true)` we
-  // hit the race; force a toggle to the explorer container and
-  // back to trigger sidebar2's reactive re-run. By that time
-  // our composite IS registered, so it renders correctly. The
-  // toggle is a no-op for users on a different container - the
-  // .visible check still fails for them, but they never had the
-  // bug, and the brief flash to/from explorer is invisible.
+  // Cursor 3.x may restore sidebar2 before this extension's view container is
+  // registered. If the OpenBox profile view never becomes visible, briefly
+  // toggle containers so sidebar2 re-resolves the registered composite.
   let visibilitySettled = false;
   const visibilitySub = profileTreeView.onDidChangeVisibility(() => {
     visibilitySettled = true;
@@ -1334,8 +1301,7 @@ export async function activate(context: vscode.ExtensionContext) {
       return ctxKeys === true;
     }),
 
-    // Diagnostic: refresh + return new pending count. Used to assert
-    // a decide round-trip moves a row out of pending.
+    // Diagnostic: refresh pending approvals and return the new count.
     vscode.commands.registerCommand("openbox.__diag.refresh", async () => {
       if (!active) return 0;
       await active.pending.refresh();
@@ -1415,10 +1381,7 @@ export async function activate(context: vscode.ExtensionContext) {
       },
     ),
 
-    // Diagnostic: open the detail panel programmatically. Returns
-    // {ok: true} when the WebviewPanel materialised cleanly. Tests
-    // assert the openDetail command resolves; the rendered HTML is
-    // unit-tested with a mocked WebviewPanel API.
+    // Diagnostic: open the detail panel programmatically.
     vscode.commands.registerCommand("openbox.__diag.openDetail", async (id: string) => {
       try {
         await vscode.commands.executeCommand("openbox.openDetail", id);

@@ -1,9 +1,4 @@
-// Paths that should never be governed: IDE / agent metadata that
-// gets read on every turn, where evaluation is pure noise.
-// Sensitive files (.env, ssh keys, aws creds) used to live in this
-// list to avoid PII halts, but doing so silently bypassed
-// governance on the very files most worth gating. They are removed
-// now; rely on rules and workspace-root scoping instead.
+// Host metadata paths skipped by runtime governance.
 export const SKIP_PATTERNS: readonly RegExp[] = [
   /\.cursor\//,
   /\.claude\//,

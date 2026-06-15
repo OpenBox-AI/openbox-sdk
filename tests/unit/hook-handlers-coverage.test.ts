@@ -1,17 +1,5 @@
-// Coverage for ts/src/runtime/{claude-code,cursor}/hook-handler.ts.
-//
-// The hook handlers are: read stdin → dispatch via the spec-driven
-// adapter → write stdout → exit 0 (fail-open). They're invoked by the
-// real claude-code / cursor binaries with a JSON payload on stdin.
-//
-// To exercise them in-process we:
-//   1. Replace process.stdin with a Readable that yields synthetic
-//      hook event JSON, then ends.
-//   2. Replace process.stdout with a writable sink we can inspect.
-//   3. Shim process.exit so the runtime's "fail-open exit 0" doesn't
-//      kill the test runner.
-//   4. Stub the OpenBoxCoreClient HTTP layer (a fake fetch) so adapter
-//      calls return canned verdicts without a live core service.
+// In-process coverage for hook handlers that normally run as stdin/stdout
+// subprocesses under Claude Code or Cursor.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Readable, Writable } from 'node:stream';

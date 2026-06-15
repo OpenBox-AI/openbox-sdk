@@ -232,10 +232,7 @@ describe('validators/index.ts; every validator + every error branch', () => {
 
 describe('cli/commands/skill; install action', () => {
   it('installSkill exposes the bundled skill path command', async () => {
-    // Stub a fake skills source under the dir; skill.ts uses
-    // `findSkillDir()` which walks looking for SKILL.md. The actual
-    // path resolution is platform-dependent; we just exercise the
-    // registration + path subcommand.
+    // Provide a minimal skills source for the registration + path command.
     const { registerSkillCommands } = await import('../../ts/src/cli/commands/skill');
     const program = new Command();
     program.exitOverride();

@@ -1,18 +1,5 @@
-// Consolidated LIVE end-to-end suite. One spec file = one workbench
-// launch (one window flash on macOS) instead of N. Covers four
-// concern areas under nested describes:
-//
-//   1. Verdict matrix     ; full BehaviorVerdict 0/1/2/3/4 round-trip
-//   2. Active gates       ; preWriteGate, fileOpGate, tabObserver
-//   3. File-op gate       ; onWillCreateFiles + onWillRenameFiles
-//   4. Views / boot       ; boot snapshot, history view, refresh
-//
-// All tests run against the real backend selected by OPENBOX_* env
-// values through the real SDK.
-// UI / glue logic (mocked-vscode unit-testable) lives at
-// `apps/extension/src/*.test.ts`. The split is hard: anything testable
-// without a workbench is a unit test; anything that needs a real
-// workbench + real backend lives here.
+// Live extension suite against a real workbench, real backend, and real SDK.
+// Unit-testable view logic stays under apps/extension/src/*.test.ts.
 
 import { expect } from '@wdio/globals';
 import { mkdtempSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';

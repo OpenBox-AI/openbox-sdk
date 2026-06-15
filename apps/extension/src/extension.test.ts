@@ -214,11 +214,7 @@ class FakePolling {
 
 let lastFakePolling: FakePolling | undefined;
 
-// Local polling module (ViewSession constructs PollingService from
-// `./polling`). Drives the recovered ViewSession-based extension; the
-// halt-verdict pipeline now flows polling → ViewSession → onApprovalsRefreshed
-// → syncHaltedApprovals → preWrite.recordDeny. The fake's emit() entry
-// point still drives the chain end-to-end.
+// Local polling module for the halt-verdict pipeline.
 vi.mock('./polling', () => ({
   PollingService: class {
     public approvals: unknown[] = [];

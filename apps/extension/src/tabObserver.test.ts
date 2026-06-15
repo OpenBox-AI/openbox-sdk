@@ -1,6 +1,4 @@
-// Unit test for the Tab/Composer observer. The vscode module is mocked
-// at the test level; we don't need a real editor host, just enough
-// of the API surface for the observer to register and fire.
+// Unit test for the Tab/Composer observer registration and event path.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 type ChangeListener = (event: {

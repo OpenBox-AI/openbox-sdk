@@ -106,10 +106,7 @@ describe('GovernanceClient - verdict mapping (string + numeric)', () => {
 });
 
 describe('GovernanceClient.applyFailMode - unknown outcome folding', () => {
-  // Replaces what mock-failmode.e2e.ts used to assert through a real
-  // workbench: the openbox.failClosed setting flips an `unknown`
-  // outcome to either `allow` (default; safe fallback for slow networks)
-  // or `deny` (paranoid mode for compliance).
+  // openbox.failClosed folds an unknown outcome to allow or deny.
 
   function client() {
     return new GovernanceClient();

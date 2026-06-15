@@ -1,27 +1,6 @@
-// Per-action dedup + decision-handoff for hook subprocesses that run
-// concurrently.
-//
-// Cursor fires multiple hook events for one logical tool invocation
-// (preToolUse + beforeShellExecution + ..., each in its own
-// subprocess). Without coordination, each fires its own
-// session.activity → backend creates one approval row per event →
-// the user sees N toasts for one action.
-//
-// Cursor's gating contract proceeds the moment any installed hook
-// returns allow. The naive "loser just returns allow" dedup loses
-// consent when the loser arrives before the winner has its
-// verdict; the action runs before the user clicks. So the lock
-// file is also the loser's mailbox: the winner writes its
-// eventual decision to the file when session.activity returns,
-// and the loser polls until
-// the decision is present (or hook timeout) before responding to
-// Cursor. Both subprocesses block until consent is real, regardless
-// of which event Cursor uses to gate.
-//
-// Why a file, not a socket: hook subprocesses are short-lived and
-// don't know about each other. A filesystem lock at a stable path
-// derived from the envelope is the cheapest cross-process primitive
-// available; no daemon required.
+// Per-action dedup and decision handoff for concurrent Cursor hook subprocesses.
+// A stable filesystem claim lets one subprocess evaluate governance while the
+// others wait for and mirror the same decision.
 //
 // TTL: 1 hour. Stale lock files older than TTL are considered
 // abandoned (winner crashed without publishing). Best-effort cleanup

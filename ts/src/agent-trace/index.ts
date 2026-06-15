@@ -96,7 +96,7 @@ export interface BuildRecordArgs {
   /** 1-indexed line range covered by the contribution. */
   startLine: number;
   endLine: number;
-  /** The inserted/edited text. Used to compute `content_hash`. */
+  /** Inserted or edited text for computing `content_hash`. */
   content: string;
   /** Contribution origin: 'ai', 'human', 'mixed', 'unknown'. */
   contributorType: ContributorType;

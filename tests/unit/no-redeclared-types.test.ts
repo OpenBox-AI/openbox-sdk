@@ -1,12 +1,4 @@
-// Regression guard: hand-written wrapper modules must NOT redeclare
-// types that already live in `<package>/src/generated/`. The previous
-// rounds eliminated 19 duplicates from `ts/src/core-client/core-client.ts`
-// (each was a copy of a `Verdict` / `SpanData` / `GovernanceEventPayload`
-// shape from the spec). This test fails if any of them creep back.
-//
-// Mechanism: parse the generated file's exported names, then scan the
-// hand-written file's `export interface NAME` / `export type NAME`
-// declarations. Any overlap is a regression.
+// Handwritten wrappers must not redeclare types exported by generated modules.
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';

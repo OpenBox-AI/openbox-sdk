@@ -95,17 +95,9 @@ export async function handleSessionEnd(
   return undefined;
 }
 
-// KNOWN GAP; afterFileEdit (and its tab/MCP siblings) do not fire
-// `ActivityCompleted` to the backend. preToolUse(Write) emits
-// `ActivityStarted FileEdit`; the matching Completed event for an
-// audit trail / dashboard metrics is missing. Adding it here is
-// tempting but re-introduces the phantom-approval bug (the backend's
-// behavior rule engine re-evaluates on Completed and creates a new
-// require_approval row if the rule matches). The clean fix is a
-// backend-side "Completed is a finalize, never a gate" signal, which
-// is out of scope for the SDK. Documented here so a future change
-// doesn't bring back the round-trip without also handling the rule
-// engine.
+// Observe-only file events do not emit ActivityCompleted. Completed currently
+// re-enters behavior-rule evaluation, so emitting it here would create a second
+// approval row instead of closing the original activity.
 
 // Observe-only siblings for the tab-driven file ops and pre-compact /
 // subagent-stop signals. Same reasoning as the other after* mappers:

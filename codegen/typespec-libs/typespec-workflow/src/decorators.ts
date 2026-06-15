@@ -130,7 +130,7 @@ export interface AdapterBinding {
   readonly name: string;
   /** @preset name this adapter binds to, such as `claude-code` or `cursor`. */
   readonly preset: string;
-  /** Stdin JSON field used to discriminate operations. */
+  /** Stdin JSON discriminator field. */
   readonly discriminator: string;
 }
 
@@ -338,10 +338,7 @@ export function getActivityType(
 }
 
 // ─── Payload shape ────────────────────────────────────────────
-// Declarative per-operation payload construction. The mappers used to
-// hand-shape activity payloads with per-tool switch statements; this
-// pushes the shaping into the spec so all language emitters get the
-// same extraction logic for free.
+// Declarative per-operation payload construction shared by all emitters.
 
 /** A single output-field source. Discriminated by the keys present. */
 export type FieldSource =

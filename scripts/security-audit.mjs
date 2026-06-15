@@ -13,7 +13,7 @@ const steps = [
 ];
 
 const trackedScanExcludes = new Set([
-  // Synthetic fixtures intentionally contain fake obx_* examples for parser tests.
+  // Parser fixtures intentionally contain non-secret obx_* examples.
   'codegen/fixtures/cli-auth.json',
   'codegen/fixtures/env-resolution.json',
   'tests/e2e/core-client.test.ts',

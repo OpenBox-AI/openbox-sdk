@@ -41,7 +41,7 @@ model RuntimeConfig {
   @env_var("OPENBOX_AUTH_URL")
   authUrl?: url;
 
-  /** Stack URL used to derive endpoints when individual URLs are omitted. */
+  /** Stack URL for deriving endpoints when individual URLs are omitted. */
   @env_var("OPENBOX_STACK_URL")
   stackUrl?: url;
 }

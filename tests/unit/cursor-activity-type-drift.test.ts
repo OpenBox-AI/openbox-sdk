@@ -1,13 +1,5 @@
-// Drift guard: every spec-declared `@activityType("…")` on a cursor
-// hook event must be the exact string the runtime mapper passes to
-// `session.activity()`. The hand-coded `activity-types.ts` enum used to
-// be the only source of these values, which silently drifted from the
-// canonical spec vocabulary (e.g., `agent_action` vs `ShellExecution`)
-// and broke bootstrap rules that key off activity_type. The codegen
-// emits one `<EVENT>_ACTIVITY_TYPE` constant per `@activityType`-decorated
-// op; the runtime imports that constant. This test exercises each
-// mapper with a capturing mock session and asserts it called
-// `activity(eventCategory, <SpecConstant>, …)`.
+// Drift guard: cursor mappers must emit the activity_type declared in TypeSpec
+// for each hook event.
 
 import { describe, expect, test } from 'vitest';
 import {

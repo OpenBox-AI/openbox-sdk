@@ -1000,10 +1000,8 @@ function pascal(s: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Namespace-types emit; drops every enum/model/scalar declared on a
-// service namespace into a single TS file. Used to give per-package
-// wrappers (ts/core-client, ts/client govern) a single import path
-// for their wire types instead of redeclaring each one inline.
+// Namespace-types emit; writes every enum/model/scalar declared on a
+// service namespace into a single TS file for per-package wrappers.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -1284,7 +1282,7 @@ interface AdapterEntry {
   name: string;
   /** Bound preset name (`claude-code`, `cursor`). */
   preset: string;
-  /** Stdin JSON field used to discriminate operations. */
+  /** Stdin JSON discriminator field. */
   discriminator: string;
   /** Generated factory class name (`ClaudeHooks` → `createClaudeHooksAdapter`). */
   pascal: string;
@@ -2200,12 +2198,7 @@ export interface GovernedSessionConfig {
   }) => Promise<'approve' | 'reject' | undefined>;
 }
 
-/**
- * Thrown when a session method is called after the session has been
- * terminated (workflowCompleted/Failed already fired). Tries to call
- * activity()/preset methods after this point would silently emit
- * orphan events without the SDK invariant; we throw instead.
- */
+/** Thrown when a session method is called after workflow termination. */
 export class SessionAlreadyTerminatedError extends Error {
   constructor() {
     super('[govern] session already terminated; create a new govern() scope to continue.');

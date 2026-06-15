@@ -397,9 +397,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
       if (newRefresh) this.config.refreshToken = newRefresh;
 
       if (this.config.onTokenRefresh) {
-        // Pass the live refresh token (may be undefined if rotation is off and
-        // we've never had one). Coercing to '' used to round-trip through
-        // saveTokens as undefined and clobber the stored RT.
+        // Preserve the refresh token when rotation does not return a new one.
         this.config.onTokenRefresh({
           accessToken: this.config.accessToken,
           refreshToken: this.config.refreshToken,

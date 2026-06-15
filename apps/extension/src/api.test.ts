@@ -59,8 +59,7 @@ vi.mock("fs", async () => {
   };
 });
 
-// vi.mock calls are hoisted above this import so the api adapter's `os`/`fs`
-// references resolve to the mocked versions at module init.
+// Hoisted vi.mock calls make the api adapter load the test os/fs modules.
 import { createApi } from "./api";
 
 describe("createApi", () => {

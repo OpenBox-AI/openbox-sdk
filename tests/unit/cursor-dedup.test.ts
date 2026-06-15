@@ -1,21 +1,5 @@
-// Cursor fires `preToolUse` AND a specialized `before*` event for one
-// logical tool invocation. Without coordination, both mappers fire
-// session.activity → two backend approval rows → two toasts → orphan
-// rows when the extension auto-dismisses one toast.
-//
-// The dedup helper (ts/src/runtime/cursor/dedup.ts) serializes via
-// an atomic filesystem claim. This test pins that contract end-to-end:
-//
-//   1. Two simulated mappers run for the same logical action.
-//   2. Only one wins the claim and fires session.activity.
-//   3. The other returns undefined (Cursor: proceed).
-//
-// Also covers: the subagent-first-call case where only the specialized
-// event fires (preToolUse missed); the specialized handler still gates.
-//
-// And: the FileDelete reroute living in beforeShellExecution now, so
-// a subagent's first `rm` still classifies correctly when preToolUse
-// doesn't fire.
+// Cursor dedup contract: one logical action can emit multiple hook events, but
+// only one mapper may evaluate governance while sibling hooks mirror the result.
 
 import { describe, expect, test, beforeEach } from 'vitest';
 import * as fs from 'node:fs';

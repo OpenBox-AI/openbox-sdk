@@ -1,13 +1,4 @@
-// Behavioral lockdown for ts/src/env/os-paths.ts; implements the
-// OsPathResolver contract from specs/typespec/env/main.tsp. Pin the
-// output for each platform so a regression in the hand-written
-// resolver fails CI loudly.
-//
-// Tests run on whatever the CI runner platform is, so we mock
-// `process.platform` and the relevant env vars to assert all three
-// platforms from a single test file. That gives reproducibility:
-// any reimplementation (TS now, Rust later) gets the same per-OS
-// shape or the test fails.
+// OsPathResolver contract tests for platform-specific config paths.
 
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 

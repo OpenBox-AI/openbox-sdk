@@ -1,18 +1,5 @@
-// Response shapes for the OpenboxBackend API.
-//
-// Why this file exists: the backend NestJS controllers don't carry
-// `@ApiOkResponse({ type: ... })` annotations on most endpoints, so the
-// auto-generated `backend.json` emits `responses: { 200: { description:
-// "" } }` for every route; zero schema information. Until that gap is
-// closed upstream (a separate backend proposal: tag every controller
-// method with `@ApiOkResponse`), the SDK side declares the response
-// shapes here so they ride through the same codegen pipeline as
-// request DTOs.
-//
-// When the upstream proposal lands, the matching models below get
-// dropped and consumers transparently start using the auto-generated
-// schemas instead. The `Schema<'X'>` aliases in `ts/types/src/
-// responses.ts` won't change.
+// Backend response shapes authored for SDK code generation until upstream
+// OpenAPI responses expose concrete schemas.
 
 import "@typespec/http";
 import "@typespec/openapi";

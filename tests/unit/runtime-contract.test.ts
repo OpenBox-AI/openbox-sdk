@@ -1,29 +1,6 @@
-// Behavioral lock-down for the platform-specific runtime in
-// ts/src/client/client.ts and ts/src/core-client/core-client.ts.
-//
-// What's hand-written vs spec-driven (audit):
-//   ✅ types / DTOs / response models; from spec
-//   ✅ wire methods (verb + path + body shape); from spec via wrapper-methods.ts
-//   ✅ method coverage / drift detection; endpoint-coverage.test.ts
-//   ⚠️ the `request()` method itself: fetch + retry + rate-limit + CSRF +
-//     auth-header injection. This file pins down its observable behavior
-//     so any reimplementation (TS or other language) must produce the
-//     same wire output for the same inputs. That's what "deterministic +
-//     reproducible" means for a hand-written runtime: anyone matching
-//     these assertions ends up with a behaviorally-equivalent client.
-//
-// The fixtures below are tiny on purpose. They cover the load-bearing
-// behaviors:
-//   - Authorization header is `Bearer <accessToken>` for every call
-//   - X-Openbox-Client header carries the resolved clientName
-//   - Path is appended to baseUrl unmodified
-//   - Body is JSON-serialized for non-GET, omitted for GET
-//   - Query params are URL-encoded onto the path
-//   - Successful response unwraps the `{ status, data }` envelope
-//   - Non-2xx throws OpenBoxApiError carrying status + body
-//
-// Adding a new wire-format guarantee = add an assertion here. Removing
-// one = ratchets the contract loosened, requires explicit review.
+// Runtime wire-contract tests for handwritten transport behavior:
+// auth headers, client headers, URL assembly, body encoding, envelope unwrap,
+// and OpenBoxApiError shape.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { OpenBoxClient, OpenBoxApiError } from '../../ts/src/client/client.js';

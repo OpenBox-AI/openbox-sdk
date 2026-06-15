@@ -75,8 +75,7 @@ extern dec maps_to(
  * @param name Lowercase-hyphen identifier; `claude-hooks`, `cursor-hooks`.
  *   Becomes the runtime module suffix.
  * @param preset @preset name this adapter binds to (`claude-code`, `cursor`).
- * @param discriminator Stdin JSON field used to route. Almost always
- *   `hook_event_name`.
+ * @param discriminator Stdin JSON route field. Almost always `hook_event_name`.
  */
 extern dec adapter(
   target: Interface,
@@ -149,13 +148,11 @@ extern dec activityType(target: Operation, name: valueof string);
 extern dec activityRouting(target: Operation, table: valueof Record<string>);
 
 /**
- * Declarative payload shape for an adapter operation. Replaces the
- * per-tool switch statement that used to live in every mapper.
+ * Declarative payload shape for an adapter operation.
  *
  * The emitter generates a `build<Op>Payload(env, toolName?, sideEffects?)`
- * function alongside the routing constants. Mappers call it instead of
- * hand-shaping the activity payload; guaranteeing the same field
- * extraction logic across adapters and across languages.
+ * function alongside the routing constants so adapters share the same
+ * field extraction logic across languages.
  *
  * Shape of `shape`:
  *   #{
