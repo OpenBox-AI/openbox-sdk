@@ -13,7 +13,8 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
+  id-token: write
 
 concurrency:
   group: publish-npm-${{ github.event.inputs.tag || github.ref_name }}
@@ -431,11 +432,8 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Download npm package artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: release-npm-package
-          path: dist-pack
+      - name: Install dependencies
+        run: npm ci
 
       - name: Verify version matches tag
         env:
@@ -446,15 +444,14 @@ jobs:
             echo "Error: Tag version (${TAG_VERSION}) does not match package version (${pkg_version})"
             exit 1
           fi
-          echo "Version verified: ${pkg_version}"
 
       - name: Publish to npm with trusted publishing
-        shell: bash
-        run: |
-          set -euo pipefail
-          package_file="$(find dist-pack -maxdepth 1 -name '*.tgz' -print -quit)"
-          if [[ -z "${package_file}" ]]; then
-            echo "No npm package tarball found in dist-pack"
-            exit 1
-          fi
-          npm publish "./${package_file}" --access public --provenance
+        run: npm publish --access public --provenance
+
+      - name: Create GitHub release
+        if: steps.github_release.outputs.exists != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.value }}
+          name: ${{ steps.tag.outputs.value }}
+          generate_release_notes: true
