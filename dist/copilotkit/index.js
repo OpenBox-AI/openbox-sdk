@@ -5570,6 +5570,9 @@ function createOpenBoxLangChainMiddleware({
     wrapModelCall: async (request, handler) => {
       if (!adapter.isEnabled()) return handler(request);
       debugState("wrapModelCall", request.state);
+      if (hasTerminalOpenBoxToolResult(request.messages)) {
+        return new deps.AIMessage({ content: "" });
+      }
       const key = sessionKeyFromConfig(request);
       const gateIds = await ensureTaskWorkflow(
         key,
@@ -5744,6 +5747,59 @@ function createOpenBoxLangChainMiddleware({
       await swallow(() => session.workflowCompleted());
     }
   });
+}
+var TERMINAL_OPENBOX_RESULT_STATUSES = /* @__PURE__ */ new Set([
+  "blocked",
+  "halted",
+  "session_halted",
+  "rejected",
+  "error",
+  "approval_required",
+  "approval_pending"
+]);
+function hasTerminalOpenBoxToolResult(messages) {
+  if (!Array.isArray(messages)) return false;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = objectRecord(messages[index]);
+    if (isHumanMessage(message)) return false;
+    if (isTerminalOpenBoxResult(messageContent(message))) return true;
+  }
+  return false;
+}
+function isHumanMessage(message) {
+  const role = String(message.role ?? message.type ?? "").toLowerCase();
+  return role === "human" || role === "user";
+}
+function messageContent(message) {
+  if ("content" in message) return message.content;
+  const kwargs = objectRecord(message.kwargs);
+  if ("content" in kwargs) return kwargs.content;
+  return void 0;
+}
+function isTerminalOpenBoxResult(content) {
+  const parsed = parseContent(content);
+  if (!isRecord(parsed)) return false;
+  if (parsed.schemaVersion !== OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION)
+    return false;
+  return TERMINAL_OPENBOX_RESULT_STATUSES.has(String(parsed.status)) || parsed.verdict === "halt" || parsed.verdict === "block" || parsed.verdict === "error";
+}
+function parseContent(content) {
+  if (isRecord(content)) return content;
+  if (typeof content === "string") {
+    try {
+      return JSON.parse(content);
+    } catch {
+      return void 0;
+    }
+  }
+  if (Array.isArray(content)) {
+    for (const part of content) {
+      const record = objectRecord(part);
+      const parsed = parseContent(record.text ?? record.content);
+      if (parsed !== void 0) return parsed;
+    }
+  }
+  return void 0;
 }
 
 // ts/src/copilotkit/pipeline.ts

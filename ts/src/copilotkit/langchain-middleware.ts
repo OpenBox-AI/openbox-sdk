@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY } from './constants.js';
+import {
+  OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION,
+  OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY,
+} from './constants.js';
 import {
   errorOutput,
   isRecord,
@@ -162,6 +165,9 @@ export function createOpenBoxLangChainMiddleware({
     ) => {
       if (!adapter.isEnabled()) return handler(request);
       debugState('wrapModelCall', request.state);
+      if (hasTerminalOpenBoxToolResult(request.messages)) {
+        return new deps.AIMessage({ content: '' });
+      }
       const key = sessionKeyFromConfig(request);
       const gateIds = await ensureTaskWorkflow(
         key,
@@ -353,4 +359,68 @@ export function createOpenBoxLangChainMiddleware({
       await swallow(() => session.workflowCompleted());
     },
   });
+}
+
+const TERMINAL_OPENBOX_RESULT_STATUSES = new Set([
+  'blocked',
+  'halted',
+  'session_halted',
+  'rejected',
+  'error',
+  'approval_required',
+  'approval_pending',
+]);
+
+function hasTerminalOpenBoxToolResult(messages: unknown): boolean {
+  if (!Array.isArray(messages)) return false;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = objectRecord(messages[index]);
+    if (isHumanMessage(message)) return false;
+    if (isTerminalOpenBoxResult(messageContent(message))) return true;
+  }
+  return false;
+}
+
+function isHumanMessage(message: Record<string, unknown>): boolean {
+  const role = String(message.role ?? message.type ?? '').toLowerCase();
+  return role === 'human' || role === 'user';
+}
+
+function messageContent(message: Record<string, unknown>): unknown {
+  if ('content' in message) return message.content;
+  const kwargs = objectRecord(message.kwargs);
+  if ('content' in kwargs) return kwargs.content;
+  return undefined;
+}
+
+function isTerminalOpenBoxResult(content: unknown): boolean {
+  const parsed = parseContent(content);
+  if (!isRecord(parsed)) return false;
+  if (parsed.schemaVersion !== OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION)
+    return false;
+  return (
+    TERMINAL_OPENBOX_RESULT_STATUSES.has(String(parsed.status)) ||
+    parsed.verdict === 'halt' ||
+    parsed.verdict === 'block' ||
+    parsed.verdict === 'error'
+  );
+}
+
+function parseContent(content: unknown): unknown {
+  if (isRecord(content)) return content;
+  if (typeof content === 'string') {
+    try {
+      return JSON.parse(content);
+    } catch {
+      return undefined;
+    }
+  }
+  if (Array.isArray(content)) {
+    for (const part of content) {
+      const record = objectRecord(part);
+      const parsed = parseContent(record.text ?? record.content);
+      if (parsed !== undefined) return parsed;
+    }
+  }
+  return undefined;
 }
