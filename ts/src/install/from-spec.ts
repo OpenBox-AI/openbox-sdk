@@ -34,6 +34,8 @@ export interface HookSpec {
   events: Array<{
     name: string;
     timeout?: number;
+    /** False for invasive/special hooks that require an explicit opt-in. */
+    installDefault?: boolean;
     /**
      * Cursor-only: regex string scoping when this hook fires.
      * Cursor skips invoking the hook command entirely if the
@@ -179,7 +181,7 @@ export function installAdapter(spec: HookSpec, options: InstallOptions = {}): vo
       hooksBlock = {};
       settings[spec.key] = hooksBlock;
     }
-    for (const evt of spec.events) {
+    for (const evt of spec.events.filter((event) => event.installDefault !== false)) {
       if (!hooksBlock[evt.name]) hooksBlock[evt.name] = [];
       hooksBlock[evt.name] = hooksBlock[evt.name].filter((r) => !ruleIsOpenBox(r, spec.command));
       const inner: ClaudeInnerHook = { type: 'command', command: spec.command };
@@ -207,7 +209,7 @@ export function installAdapter(spec: HookSpec, options: InstallOptions = {}): vo
       hooksBlock = {};
       settings[spec.key] = hooksBlock;
     }
-    for (const evt of spec.events) {
+    for (const evt of spec.events.filter((event) => event.installDefault !== false)) {
       const entry: CursorEntry = { command: spec.command };
       if (evt.timeout) entry.timeout = evt.timeout;
       if (evt.matcher) entry.matcher = evt.matcher;
@@ -219,7 +221,7 @@ export function installAdapter(spec: HookSpec, options: InstallOptions = {}): vo
   // eslint-disable-next-line no-console
   console.log(`Installed OpenBox hooks (${paths.scope}) into ${paths.hooksFile}`);
   // eslint-disable-next-line no-console
-  console.log(`Hook events: ${spec.events.map((e) => e.name).join(', ')}`);
+  console.log(`Hook events: ${spec.events.filter((event) => event.installDefault !== false).map((e) => e.name).join(', ')}`);
 
   dropExampleConfig(paths.configDir);
 }

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let adapterOptions: any;
+let stdinIteratorSpy: any;
 
 vi.mock('../../ts/src/cli/env-source.js', () => ({
   applyEnvSource: vi.fn(),
@@ -51,6 +52,7 @@ vi.mock('../../ts/src/runtime/claude-code/config.js', () => ({
     sendStartEvent: true,
     maxBodySize: null,
     skipTools: [],
+    skipActivityTypes: [],
     testDriftResponse: null,
   })),
 }));
@@ -76,6 +78,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  stdinIteratorSpy?.mockRestore?.();
+  stdinIteratorSpy = undefined;
   delete process.env.OPENBOX_API_KEY;
   delete process.env.DRY_RUN;
   delete process.env.APPROVAL_MODE;
@@ -98,9 +102,19 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
     subagent_name: 'reviewer',
   };
 
+  const mockHookStdin = (env: Record<string, unknown> = baseEnv) => {
+    stdinIteratorSpy?.mockRestore?.();
+    stdinIteratorSpy = vi
+      .spyOn(process.stdin as any, Symbol.asyncIterator as any)
+      .mockImplementation((async function* () {
+        yield Buffer.from(JSON.stringify(env));
+      }) as any);
+  };
+
   it('registers handlers and clamps approval wait bounds', async () => {
     process.env.HITL_MAX_WAIT = '9999';
     process.env.APPROVAL_MODE = 'inline';
+    mockHookStdin();
     const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
 
     await runClaudeHook();
@@ -111,18 +125,38 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
     expect(Object.keys(adapterOptions.handlers)).toEqual(expect.arrayContaining([
       'preToolUse',
       'postToolUse',
+      'postToolUseFailure',
+      'postToolBatch',
       'userPromptSubmit',
+      'userPromptExpansion',
       'permissionRequest',
+      'permissionDenied',
+      'setup',
+      'instructionsLoaded',
+      'messageDisplay',
       'sessionStart',
       'sessionEnd',
+      'preCompact',
+      'postCompact',
       'stop',
+      'stopFailure',
       'subagentStart',
       'subagentStop',
+      'taskCreated',
+      'taskCompleted',
+      'teammateIdle',
+      'configChange',
+      'cwdChanged',
+      'fileChanged',
+      'worktreeRemove',
+      'elicitation',
+      'elicitationResult',
     ]));
   });
 
   it('dry-run handlers pass through without calling governance mappers', async () => {
     process.env.DRY_RUN = 'true';
+    mockHookStdin();
     const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
 
     await runClaudeHook();
@@ -135,6 +169,7 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
   });
 
   it('invokes live handlers and records thrown mapper errors', async () => {
+    mockHookStdin();
     const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
 
     await runClaudeHook();
@@ -154,11 +189,12 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
         throw new Error('mapper failed');
       }),
     };
-    await expect(adapterOptions.handlers.preToolUse(baseEnv, failingSession)).rejects.toThrow('mapper failed');
+    await expect(adapterOptions.handlers.preToolUse(baseEnv, failingSession)).resolves.toBeUndefined();
   });
 
   it('exits fail-open when no API key is configured', async () => {
     delete process.env.OPENBOX_API_KEY;
+    mockHookStdin();
     const exit = vi.spyOn(process, 'exit').mockImplementation((() => {
       throw new Error('exit');
     }) as never);

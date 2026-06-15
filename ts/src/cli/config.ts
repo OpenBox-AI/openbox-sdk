@@ -11,7 +11,7 @@ import { EXIT, bailWith } from './exit-codes.js';
 import { error } from './output.js';
 // File-backed X-API-Key store; canonical for every Node consumer
 // (CLI, extension). Mobile uses its own keychain-backed source via
-// `openbox-sdk/client-factory`'s `getApiKey` callback.
+// `@openbox-ai/openbox-sdk/client-factory`'s `getApiKey` callback.
 import {
   getTokenPath,
   readTokenStore,

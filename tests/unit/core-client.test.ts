@@ -114,6 +114,15 @@ describe('OpenBoxCoreClient', () => {
       );
     });
 
+    it('sets the SDK version header', async () => {
+      const client = createClient({ apiKey: 'obx_live_mykey' });
+      fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
+      await client.validateApiKey();
+      expect(
+        fetchMock.mock.calls[0][1].headers['X-OpenBox-SDK-Version'],
+      ).toMatch(/^\d+\.\d+\.\d+/);
+    });
+
     it('attaches signed agent identity headers when configured', async () => {
       const { identity } = makeAgentIdentity();
       const client = createClient({ agentIdentity: identity });
@@ -196,8 +205,31 @@ describe('OpenBoxCoreClient', () => {
       expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
         event_type: 'ActivityStarted',
         workflow_id: 'wf-1',
+        sdk_version: expect.stringMatching(/^\d+\.\d+\.\d+/),
       });
       expect(result.verdict).toBe('ALLOW');
+    });
+
+    it('preserves an explicit SDK version payload value', async () => {
+      const client = createClient();
+      fetchMock.mockResolvedValueOnce(
+        mockResponse(200, { verdict: 'ALLOW', action: 'allow' }),
+      );
+
+      await client.evaluate({
+        event_type: 'WorkflowStarted',
+        workflow_id: 'wf-1',
+        run_id: 'run-1',
+        workflow_type: 'unit-test',
+        task_queue: 'generic',
+        source: 'workflow-telemetry',
+        timestamp: new Date().toISOString(),
+        sdk_version: '9.8.7',
+      });
+
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+        sdk_version: '9.8.7',
+      });
     });
   });
 

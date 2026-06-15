@@ -13,7 +13,7 @@ export { parseTokenStore, serializeTokenStore } from './token-codec.js';
 export { resolveClientName } from './client-name.js';
 export { buildAuthHeader } from './auth-header.js';
 
-// Per-OS data-path resolver lives at the `openbox-sdk/os-paths` sub-path
+// Per-OS data-path resolver lives at the `@openbox-ai/openbox-sdk/os-paths` sub-path
 // instead of the default entry. The implementation imports Node's `os`
 // and `path` modules which React Native's Metro bundler can't resolve;
 // keeping it off the default entry means RN/browser consumers don't pull

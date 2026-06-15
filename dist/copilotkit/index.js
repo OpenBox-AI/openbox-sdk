@@ -18,6 +18,9 @@ var MAX_RUNTIME_OBJECT_KEYS = 12;
 var OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION = "openbox.copilotkit.result.v1";
 
 // ts/src/copilotkit/internal-utils.ts
+function nowUnixNano() {
+  return Date.now() * 1e6;
+}
 function shouldStopForGate(gate, governanceMode) {
   return governanceMode === "enforce" && gate.rawBlocked;
 }
@@ -1975,6 +1978,9 @@ function requireApiUrl(value) {
   return url.toString().replace(/\/$/, "");
 }
 
+// ts/src/version.ts
+var OPENBOX_SDK_VERSION = "0.1.0";
+
 // ts/src/core-client/core-client.ts
 var CoreApiError = class extends Error {
   status;
@@ -2020,8 +2026,9 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
     return this.request("GET", "/api/v1/auth/validate");
   }
   async evaluate(payload) {
+    const versionedPayload = payload.sdk_version && payload.sdk_version !== "" ? payload : { ...payload, sdk_version: OPENBOX_SDK_VERSION };
     return this.request("POST", "/api/v1/governance/evaluate", {
-      data: payload,
+      data: versionedPayload,
       retryable: false
     });
   }
@@ -2042,7 +2049,8 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
     const timeoutMs = this.config.timeoutMs ?? 35e3;
     const baseHeaders = {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${this.config.apiKey}`
+      Authorization: `Bearer ${this.config.apiKey}`,
+      "X-OpenBox-SDK-Version": OPENBOX_SDK_VERSION
     };
     const body = options?.data ? JSON.stringify(options.data) : void 0;
     const signedHeaders = this.config.agentIdentity ? signAgentIdentityRequest({
@@ -2194,7 +2202,7 @@ function ed25519PrivateKeyFromRawBase64(rawBase64) {
 }
 
 // ts/src/core-client/generated/govern.ts
-var CANONICAL_ACTIVITY_LABELS = Object.freeze({ "AGENT_STEP": "Agent Step", "ActivityTaskCanceled": "Activity Task Canceled", "ActivityTaskCompleted": "Activity Task Completed", "ActivityTaskFailed": "Activity Task Failed", "ActivityTaskScheduled": "Activity Task Scheduled", "ActivityTaskStarted": "Activity Task Started", "ActivityTaskTimedOut": "Activity Task Timed Out", "AgentExecutionCompleted": "Agent Execution Completed", "AgentExecutionStarted": "Agent Execution Started", "AgentSpawn": "Agent Spawn", "CHUNKING": "Chunking", "CallToolsNode": "Call Tools Node", "ChildWorkflowExecutionCompleted": "Child Workflow Execution Completed", "ChildWorkflowExecutionInitiated": "Child Workflow Execution Initiated", "CrewKickoffCompleted": "Crew Kickoff Completed", "CrewKickoffStarted": "Crew Kickoff Started", "EMBEDDING": "Embedding", "EXCEPTION": "Exception", "End": "End", "FUNCTION_CALL": "Function Call", "FileDelete": "File Delete", "FileEdit": "File Edit", "FileRead": "File Read", "HTTPRequest": "HTTP Request", "HandoffMessage": "Handoff Message", "LLM": "LLM", "LLMCallCompleted": "LLM Call Completed", "LLMCallStarted": "LLM Call Started", "LLMCompleted": "LLM Completed", "MCPToolCall": "MCP Tool Call", "MarkerRecorded": "Marker Recorded", "MemoryQueryEvent": "Memory Query", "ModelRequestNode": "Model Request Node", "MultiModalMessage": "Multi-Modal Message", "Notification": "Notification", "OperationCompleted": "Operation Completed", "OperationStarted": "Operation Started", "PermissionRequest": "Permission Request", "PostToolUse": "Post-Tool Use", "PreCompact": "Pre-Compact", "PreSyncHookStarted": "Pre-Sync Hook Started", "PreSyncHookSucceeded": "Pre-Sync Hook Succeeded", "PreToolUse": "Pre-Tool Use", "PromptSubmission": "Prompt Submission", "QUERY": "Query", "RERANKING": "Reranking", "RETRIEVE": "Retrieve", "ResourceUpdated": "Resource Updated", "SUB_QUESTION": "Sub-Question", "SYNTHESIZE": "Synthesize", "ShellExecution": "Shell Execution", "Stop": "Stop", "StopMessage": "Stop Message", "SubagentStart": "Subagent Start", "SubagentStop": "Subagent Stop", "SyncStatusChanged": "Sync Status Changed", "TaskCompleted": "Task Completed", "TaskStart": "Task Start", "TaskStarted": "Task Started", "TextMessage": "Text Message", "TimerFired": "Timer Fired", "TimerStarted": "Timer Started", "ToolCallExecutionEvent": "Tool Call Execution", "ToolCallRequestEvent": "Tool Call Request", "ToolCompleted": "Tool Completed", "ToolStarted": "Tool Started", "ToolUsageError": "Tool Usage Error", "ToolUsageFinished": "Tool Usage Finished", "ToolUsageStarted": "Tool Usage Started", "UserInputRequestedEvent": "User Input Requested", "UserPromptNode": "User Prompt Node", "UserPromptSubmit": "User Prompt Submit", "WorkflowExecutionSignaled": "Workflow Execution Signaled", "afterAgentResponse": "After Agent Response", "afterAgentThought": "After Agent Thought", "afterFileEdit": "After File Edit", "afterMCPExecution": "After MCP Execution", "afterShellExecution": "After Shell Execution", "agentStop": "Agent Stop", "auto_function_invocation_post": "Auto Function Invocation Post", "auto_function_invocation_pre": "Auto Function Invocation Pre", "beforeMCPExecution": "Before MCP Execution", "beforeReadFile": "Before Read File", "beforeShellExecution": "Before Shell Execution", "beforeSubmitPrompt": "Before Submit Prompt", "checkpoint": "Checkpoint", "custom_event": "Custom Event", "error": "Error", "error-trigger": "Error Trigger", "errorOccurred": "Error Occurred", "function_invocation_post": "Function Invocation Post", "function_invocation_pre": "Function Invocation Pre", "incident.acknowledged": "Incident Acknowledged", "incident.annotated": "Incident Annotated", "incident.delegated": "Incident Delegated", "incident.escalated": "Incident Escalated", "incident.priority_updated": "Incident Priority Updated", "incident.reassigned": "Incident Reassigned", "incident.reopened": "Incident Reopened", "incident.resolved": "Incident Resolved", "incident.triggered": "Incident Triggered", "incident.unacknowledged": "Incident Unacknowledged", "interrupt": "Interrupt", "node-post-execute": "Node Post-Execute", "node-pre-execute": "Node Pre-Execute", "node_end": "Node End", "node_start": "Node Start", "onAbort": "Abort", "onError": "Error", "onFinish": "Finish", "onStepFinish": "Step Finish", "on_agent_action": "Agent Action", "on_agent_finish": "Agent Finish", "on_chain_end": "Chain End", "on_chain_start": "Chain Start", "on_chat_model_start": "Chat Model Start", "on_execute_callback": "Execute Callback", "on_failure_callback": "Failure Callback", "on_llm_end": "LLM End", "on_llm_error": "LLM Error", "on_llm_start": "LLM Start", "on_retriever_end": "Retriever End", "on_retriever_start": "Retriever Start", "on_retry_callback": "Retry Callback", "on_skipped_callback": "Skipped Callback", "on_success_callback": "Success Callback", "on_tool_end": "Tool End", "on_tool_error": "Tool Error", "on_tool_start": "Tool Start", "output_validator": "Output Validator", "payment_order.approved": "Payment Order Approved", "payment_order.begin_processing": "Payment Order Begin Processing", "payment_order.failed": "Payment Order Failed", "payment_order.reconciled": "Payment Order Reconciled", "payment_reference.created": "Payment Reference Created", "postToolUse": "Post-Tool Use", "preToolUse": "Pre-Tool Use", "prompt_render_post": "Prompt Render Post", "prompt_render_pre": "Prompt Render Pre", "sla_miss_callback": "SLA Miss Callback", "subagentStop": "Subagent Stop", "task_end": "Task End", "task_start": "Task Start", "tool-call": "Tool Call", "tool-result": "Tool Result", "tool_retry": "Tool Retry", "userPromptSubmitted": "User Prompt Submitted", "workflow-step-finish": "Workflow Step Finish", "workflow-step-progress": "Workflow Step Progress", "workflow-step-start": "Workflow Step Start" });
+var CANONICAL_ACTIVITY_LABELS = Object.freeze({ "AGENT_STEP": "Agent Step", "ActivityTaskCanceled": "Activity Task Canceled", "ActivityTaskCompleted": "Activity Task Completed", "ActivityTaskFailed": "Activity Task Failed", "ActivityTaskScheduled": "Activity Task Scheduled", "ActivityTaskStarted": "Activity Task Started", "ActivityTaskTimedOut": "Activity Task Timed Out", "AgentAction": "Agent Action", "AgentExecutionCompleted": "Agent Execution Completed", "AgentExecutionStarted": "Agent Execution Started", "AgentSpawn": "Agent Spawn", "CHUNKING": "Chunking", "CallToolsNode": "Call Tools Node", "ChildWorkflowExecutionCompleted": "Child Workflow Execution Completed", "ChildWorkflowExecutionInitiated": "Child Workflow Execution Initiated", "CrewKickoffCompleted": "Crew Kickoff Completed", "CrewKickoffStarted": "Crew Kickoff Started", "EMBEDDING": "Embedding", "EXCEPTION": "Exception", "End": "End", "FUNCTION_CALL": "Function Call", "FileDelete": "File Delete", "FileEdit": "File Edit", "FileRead": "File Read", "HTTPRequest": "HTTP Request", "HandoffMessage": "Handoff Message", "LLM": "LLM", "LLMCallCompleted": "LLM Call Completed", "LLMCallStarted": "LLM Call Started", "LLMCompleted": "LLM Completed", "MCPToolCall": "MCP Tool Call", "MarkerRecorded": "Marker Recorded", "MemoryQueryEvent": "Memory Query", "ModelRequestNode": "Model Request Node", "MultiModalMessage": "Multi-Modal Message", "Notification": "Notification", "OperationCompleted": "Operation Completed", "OperationStarted": "Operation Started", "PermissionRequest": "Permission Request", "PostToolUse": "Post-Tool Use", "PreCompact": "Pre-Compact", "PreSyncHookStarted": "Pre-Sync Hook Started", "PreSyncHookSucceeded": "Pre-Sync Hook Succeeded", "PreToolUse": "Pre-Tool Use", "PromptSubmission": "Prompt Submission", "QUERY": "Query", "RERANKING": "Reranking", "RETRIEVE": "Retrieve", "ResourceUpdated": "Resource Updated", "SUB_QUESTION": "Sub-Question", "SYNTHESIZE": "Synthesize", "ShellExecution": "Shell Execution", "Stop": "Stop", "StopMessage": "Stop Message", "SubagentStart": "Subagent Start", "SubagentStop": "Subagent Stop", "SyncStatusChanged": "Sync Status Changed", "TaskCompleted": "Task Completed", "TaskStart": "Task Start", "TaskStarted": "Task Started", "TextMessage": "Text Message", "TimerFired": "Timer Fired", "TimerStarted": "Timer Started", "ToolCallExecutionEvent": "Tool Call Execution", "ToolCallRequestEvent": "Tool Call Request", "ToolCompleted": "Tool Completed", "ToolStarted": "Tool Started", "ToolUsageError": "Tool Usage Error", "ToolUsageFinished": "Tool Usage Finished", "ToolUsageStarted": "Tool Usage Started", "UserInputRequestedEvent": "User Input Requested", "UserPromptNode": "User Prompt Node", "UserPromptSubmit": "User Prompt Submit", "WorkflowExecutionSignaled": "Workflow Execution Signaled", "afterAgentResponse": "After Agent Response", "afterAgentThought": "After Agent Thought", "afterFileEdit": "After File Edit", "afterMCPExecution": "After MCP Execution", "afterShellExecution": "After Shell Execution", "agentStop": "Agent Stop", "auto_function_invocation_post": "Auto Function Invocation Post", "auto_function_invocation_pre": "Auto Function Invocation Pre", "beforeMCPExecution": "Before MCP Execution", "beforeReadFile": "Before Read File", "beforeShellExecution": "Before Shell Execution", "beforeSubmitPrompt": "Before Submit Prompt", "checkpoint": "Checkpoint", "custom_event": "Custom Event", "error": "Error", "error-trigger": "Error Trigger", "errorOccurred": "Error Occurred", "function_invocation_post": "Function Invocation Post", "function_invocation_pre": "Function Invocation Pre", "incident.acknowledged": "Incident Acknowledged", "incident.annotated": "Incident Annotated", "incident.delegated": "Incident Delegated", "incident.escalated": "Incident Escalated", "incident.priority_updated": "Incident Priority Updated", "incident.reassigned": "Incident Reassigned", "incident.reopened": "Incident Reopened", "incident.resolved": "Incident Resolved", "incident.triggered": "Incident Triggered", "incident.unacknowledged": "Incident Unacknowledged", "interrupt": "Interrupt", "node-post-execute": "Node Post-Execute", "node-pre-execute": "Node Pre-Execute", "node_end": "Node End", "node_start": "Node Start", "onAbort": "Abort", "onError": "Error", "onFinish": "Finish", "onStepFinish": "Step Finish", "on_agent_action": "Agent Action", "on_agent_finish": "Agent Finish", "on_chain_end": "Chain End", "on_chain_start": "Chain Start", "on_chat_model_start": "Chat Model Start", "on_execute_callback": "Execute Callback", "on_failure_callback": "Failure Callback", "on_llm_end": "LLM End", "on_llm_error": "LLM Error", "on_llm_start": "LLM Start", "on_retriever_end": "Retriever End", "on_retriever_start": "Retriever Start", "on_retry_callback": "Retry Callback", "on_skipped_callback": "Skipped Callback", "on_success_callback": "Success Callback", "on_tool_end": "Tool End", "on_tool_error": "Tool Error", "on_tool_start": "Tool Start", "output_validator": "Output Validator", "payment_order.approved": "Payment Order Approved", "payment_order.begin_processing": "Payment Order Begin Processing", "payment_order.failed": "Payment Order Failed", "payment_order.reconciled": "Payment Order Reconciled", "payment_reference.created": "Payment Reference Created", "postToolUse": "Post-Tool Use", "preToolUse": "Pre-Tool Use", "prompt_render_post": "Prompt Render Post", "prompt_render_pre": "Prompt Render Pre", "sla_miss_callback": "SLA Miss Callback", "subagentStop": "Subagent Stop", "task_end": "Task End", "task_start": "Task Start", "tool-call": "Tool Call", "tool-result": "Tool Result", "tool_retry": "Tool Retry", "userPromptSubmitted": "User Prompt Submitted", "workflow-step-finish": "Workflow Step Finish", "workflow-step-progress": "Workflow Step Progress", "workflow-step-start": "Workflow Step Start" });
 function randomUUID2() {
   if (typeof globalThis.crypto?.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
@@ -2226,6 +2234,7 @@ var BaseGovernedSession = class {
   finalized = false;
   autoOpenSuppressed;
   inFlight = /* @__PURE__ */ new Set();
+  activityStartsMs = /* @__PURE__ */ new Map();
   exitHandlerCleanup = [];
   onPendingApproval;
   onApprovalResolved;
@@ -2284,10 +2293,13 @@ var BaseGovernedSession = class {
    * Backward-compat alias: `complete()`.
    */
   async workflowCompleted() {
-    if (this.finalized) return;
+    if (this.finalized) return void 0;
     this.finalized = true;
-    await this.emit({ event_type: "WorkflowCompleted", status: "completed" });
-    this.cleanupExitHandlers();
+    try {
+      return await this.emit({ event_type: "WorkflowCompleted", status: "completed" });
+    } finally {
+      this.cleanupExitHandlers();
+    }
   }
   /** @deprecated use `workflowCompleted()`; same behavior. */
   async complete() {
@@ -2302,14 +2314,17 @@ var BaseGovernedSession = class {
    * Backward-compat alias: `fail()`.
    */
   async workflowFailed(error) {
-    if (this.finalized) return;
+    if (this.finalized) return void 0;
     this.finalized = true;
-    await this.emit({
-      event_type: "WorkflowFailed",
-      status: "failed",
-      error: errorInfoFrom(error)
-    });
-    this.cleanupExitHandlers();
+    try {
+      return await this.emit({
+        event_type: "WorkflowFailed",
+        status: "failed",
+        error: errorInfoFrom(error)
+      });
+    } finally {
+      this.cleanupExitHandlers();
+    }
   }
   /** @deprecated use `workflowFailed()`; same behavior. */
   async fail(error) {
@@ -2342,16 +2357,22 @@ var BaseGovernedSession = class {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
     if (!this.opened && !this.autoOpenSuppressed) await this.begin();
     const activityId = payload.activityId ?? randomUUID2();
+    const startTime = payload.startTime ?? Date.now();
+    this.activityStartsMs.set(activityId, startTime);
     this.inFlight.add(activityId);
     try {
-      const verdict = await this.emit({
+      const verdict = await this.emitWithSpanHook({
         event_type: "ActivityStarted",
         activity_id: activityId,
         activity_type: activityType,
         activity_input: payload.input,
+        start_time: startTime,
         spans: payload.spans
       });
       verdict.activityId = activityId;
+      if (verdict.arm !== "allow" && verdict.arm !== "constrain") {
+        this.activityStartsMs.delete(activityId);
+      }
       return {
         activityId,
         verdict,
@@ -2380,6 +2401,7 @@ var BaseGovernedSession = class {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
     if (!this.opened && !this.autoOpenSuppressed) await this.begin();
     const activityId = payload.activityId ?? randomUUID2();
+    const startTime = payload.startTime ?? Date.now();
     this.inFlight.add(activityId);
     try {
       if (eventType === "SignalReceived") {
@@ -2396,11 +2418,13 @@ var BaseGovernedSession = class {
         return signalVerdict;
       }
       if (eventType === "ActivityStarted") {
-        const startedVerdict = await this.emit({
+        this.activityStartsMs.set(activityId, startTime);
+        const startedVerdict = await this.emitWithSpanHook({
           event_type: "ActivityStarted",
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
+          start_time: startTime,
           spans: payload.spans
         });
         startedVerdict.activityId = activityId;
@@ -2412,6 +2436,7 @@ var BaseGovernedSession = class {
           return startedVerdict;
         }
         if (startedVerdict.arm !== "allow") {
+          this.activityStartsMs.delete(activityId);
           if (startedVerdict.arm === "require_approval") {
             const approvalId = startedVerdict.approvalId ?? activityId;
             if (this.onPendingApproval) {
@@ -2455,14 +2480,22 @@ var BaseGovernedSession = class {
     }
   }
   async emitCompleted(activityId, activityType, payload) {
-    const completedVerdict = await this.emit({
+    const startTime = payload.startTime ?? this.activityStartsMs.get(activityId);
+    const endTime = payload.endTime ?? Date.now();
+    const durationMs = payload.durationMs ?? (typeof startTime === "number" ? Math.max(0, endTime - startTime) : void 0);
+    const completedVerdict = await this.emitWithSpanHook({
       event_type: "ActivityCompleted",
       activity_id: activityId,
       activity_type: activityType,
+      status: activityCompletionStatus(activityType),
       activity_input: payload.input,
       activity_output: payload.output,
+      start_time: startTime,
+      end_time: endTime,
+      duration_ms: durationMs,
       spans: payload.spans
     });
+    this.activityStartsMs.delete(activityId);
     completedVerdict.activityId = activityId;
     if (completedVerdict.arm === "require_approval") {
       const approvalId = completedVerdict.approvalId ?? activityId;
@@ -2493,6 +2526,19 @@ var BaseGovernedSession = class {
       return polled;
     }
     return completedVerdict;
+  }
+  async emitWithSpanHook(event) {
+    const hasActivitySpans = (event.event_type === "ActivityStarted" || event.event_type === "ActivityCompleted") && Array.isArray(event.spans) && event.spans.some(isPersistableHookSpan);
+    if (!hasActivitySpans) return this.emit(event);
+    const baseVerdict = await this.emit({ ...event, spans: void 0 });
+    if (baseVerdict.arm !== "allow" && baseVerdict.arm !== "constrain") {
+      return baseVerdict;
+    }
+    const hookVerdict = await this.emit({
+      ...event,
+      hook_trigger: true
+    });
+    return stricterVerdict(baseVerdict, hookVerdict);
   }
   async emit(event) {
     const payload = {
@@ -2611,6 +2657,36 @@ var BaseGovernedSession = class {
     this.exitHandlerCleanup.length = 0;
   }
 };
+function activityCompletionStatus(activityType) {
+  return /(error|fail|failed|failure|timeout|timedout|cancel|abort)/i.test(activityType) ? "failed" : "completed";
+}
+function toolActivityTypeFromPayload(payload) {
+  const direct = namedToolFromRecord(payload);
+  if (direct) return direct;
+  for (const item of payload.input ?? []) {
+    const name = namedToolFromRecord(item);
+    if (name) return name;
+  }
+  return "ToolCall";
+}
+function namedToolFromRecord(value) {
+  if (!value || typeof value !== "object") return void 0;
+  const record = value;
+  const direct = firstNonEmptyString(
+    record.toolName,
+    record.tool_name,
+    record.tool,
+    record.name
+  );
+  if (direct) return direct;
+  return namedToolFromRecord(record.toolCall) ?? namedToolFromRecord(record.tool_call) ?? namedToolFromRecord(record.call) ?? namedToolFromRecord(record.args);
+}
+function firstNonEmptyString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return void 0;
+}
 var AirflowSession = class extends BaseGovernedSession {
   async onExecuteCallback(payload) {
     return this.runActivity("ActivityStarted", "on_execute_callback", payload);
@@ -2884,10 +2960,10 @@ var LangchainSession = class extends BaseGovernedSession {
     return this.runActivity("ActivityStarted", "on_chat_model_start", payload);
   }
   async onToolStart(payload) {
-    return this.runActivity("ActivityStarted", "on_tool_start", payload);
+    return this.runActivity("ActivityStarted", toolActivityTypeFromPayload(payload), payload);
   }
   async onToolEnd(payload) {
-    return this.runActivity("ActivityCompleted", "on_tool_end", payload);
+    return this.runActivity("ActivityCompleted", toolActivityTypeFromPayload(payload), payload);
   }
   async onToolError(payload) {
     return this.runActivity("ActivityCompleted", "on_tool_error", payload);
@@ -3204,7 +3280,8 @@ function mapVerdict(response) {
     reason: response.reason,
     riskScore: response.risk_score ?? 0,
     trustTier: response.trust_tier ?? void 0,
-    guardrailsResult: mapGuardrailsResult(response.guardrails_result)
+    guardrailsResult: mapGuardrailsResult(response.guardrails_result),
+    ageResult: response.age_result
   };
 }
 function mapGuardrailsResult(raw) {
@@ -3259,6 +3336,33 @@ function normalizeArm(value) {
     default:
       return "allow";
   }
+}
+function verdictRank(arm) {
+  switch (arm) {
+    case "halt":
+      return 4;
+    case "block":
+      return 3;
+    case "require_approval":
+      return 2;
+    case "constrain":
+      return 1;
+    case "allow":
+    default:
+      return 0;
+  }
+}
+function stricterVerdict(base, hook) {
+  return verdictRank(hook.arm) >= verdictRank(base.arm) ? hook : base;
+}
+function isPersistableHookSpan(span) {
+  if (!span || typeof span !== "object") return false;
+  const record = span;
+  if (typeof record.semantic_type === "string" && record.semantic_type !== "") {
+    return true;
+  }
+  const attributes = record.attributes && typeof record.attributes === "object" ? record.attributes : {};
+  return typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
 }
 function errorInfoFrom(value) {
   if (value == null) return void 0;
@@ -3663,6 +3767,7 @@ function verdictMetadata(verdict, redactionSummary) {
     riskScore: verdict?.riskScore,
     trustTier: verdict?.trustTier,
     guardrailsResult: verdict?.guardrailsResult,
+    ageResult: ageResultFromVerdict(verdict),
     redactionSummary
   };
 }
@@ -3671,8 +3776,12 @@ function mergedVerdictMetadata(result, verdict, redactionSummary) {
     riskScore: verdict.riskScore ?? result.riskScore,
     trustTier: verdict.trustTier ?? result.trustTier,
     guardrailsResult: verdict.guardrailsResult ?? result.guardrailsResult,
+    ageResult: ageResultFromVerdict(verdict) ?? result.ageResult,
     redactionSummary: redactionSummary || result.redactionSummary
   };
+}
+function ageResultFromVerdict(verdict) {
+  return verdict?.ageResult;
 }
 function mapGuardrailsResult2(value) {
   if (!value || typeof value !== "object") return void 0;
@@ -3816,7 +3925,7 @@ async function pollApproval(adapter, ids) {
   };
 }
 async function completeWorkflow(adapter, ids, workflowType, taskQueue) {
-  await bestEffortTerminalEvent(
+  return bestEffortTerminalEvent(
     () => createWorkflowSession(
       adapter,
       ids,
@@ -3861,8 +3970,27 @@ async function emitUserPromptSignal(adapter, ids, workflowType, taskQueue, promp
     spans: [userPromptSpan(signalArgs)]
   });
 }
+async function emitActivityHookSpanUpdate(adapter, ids, workflowType, taskQueue, activityType, output, spans) {
+  const response = await adapter.getCoreClient().evaluate({
+    source: "workflow-telemetry",
+    event_type: "ActivityCompleted",
+    workflow_id: ids.workflowId,
+    run_id: ids.runId,
+    workflow_type: workflowType,
+    task_queue: taskQueue,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    activity_id: ids.activityId,
+    ...activityType ? { activity_type: activityType } : {},
+    status: "completed",
+    activity_output: output,
+    hook_trigger: true,
+    spans,
+    span_count: spans.length
+  });
+  return mapCoreVerdict(response);
+}
 async function failWorkflow(adapter, ids, workflowType, taskQueue, reason) {
-  await bestEffortTerminalEvent(
+  return bestEffortTerminalEvent(
     () => createWorkflowSession(
       adapter,
       ids,
@@ -3871,16 +3999,31 @@ async function failWorkflow(adapter, ids, workflowType, taskQueue, reason) {
     ).workflowFailed(typeof reason === "string" ? new Error(reason) : reason)
   );
 }
+function mapCoreVerdict(response) {
+  return {
+    arm: normalizeArm2(response.verdict ?? response.action ?? "allow"),
+    approvalId: response.approval_id,
+    governanceEventId: response.governance_event_id,
+    approvalExpiresAt: response.approval_expiration_time,
+    reason: response.reason,
+    riskScore: response.risk_score ?? 0,
+    trustTier: response.trust_tier ?? void 0,
+    guardrailsResult: mapGuardrailsResult2(response.guardrails_result),
+    ageResult: response.age_result
+  };
+}
 async function bestEffortTerminalEvent(fn) {
   const terminalEvent = fn().catch(() => void 0);
-  await swallow(
-    () => Promise.race([
+  try {
+    return await Promise.race([
       terminalEvent,
       new Promise(
-        (resolve) => setTimeout(resolve, TERMINAL_EVENT_TIMEOUT_MS)
+        (resolve) => setTimeout(() => resolve(void 0), TERMINAL_EVENT_TIMEOUT_MS)
       )
-    ])
-  );
+    ]);
+  } catch {
+    return void 0;
+  }
 }
 function toolInput(definition, input) {
   return {
@@ -3891,26 +4034,42 @@ function toolInput(definition, input) {
   };
 }
 function toolSpan(definition, input, stage) {
-  const now = Date.now();
-  return {
+  const now = nowUnixNano();
+  const profile = definition.spanProfile?.(input, stage);
+  const base = {
     span_id: randomBytes(8).toString("hex"),
     trace_id: randomBytes(16).toString("hex"),
     name: definition.toolName,
     kind: "tool",
+    span_type: "function",
     start_time: now,
     end_time: now,
     duration_ns: 0,
     stage,
+    semantic_type: "llm_tool_call",
     attributes: {
+      "openbox.semantic_type": "llm_tool_call",
+      "openbox.span_type": "function",
       "openbox.tool.name": definition.toolName,
       "openbox.action": input.action,
-      "tool.name": definition.toolName
+      "tool.name": definition.toolName,
+      tool_name: definition.toolName
     },
     data: input
   };
+  if (!profile) return base;
+  return {
+    ...base,
+    ...profile,
+    attributes: {
+      ...base.attributes,
+      ...profile.attributes ?? {}
+    },
+    data: profile.data ?? base.data
+  };
 }
 function userPromptSpan(prompt) {
-  const now = Date.now();
+  const now = nowUnixNano();
   return {
     span_id: randomBytes(8).toString("hex"),
     trace_id: randomBytes(16).toString("hex"),
@@ -4761,9 +4920,9 @@ async function decideApproval(client, hint, decision) {
 function createOpenBoxApprovalRoute(config = {}) {
   return {
     async decide(request) {
-      if (!request.governanceEventId && (!request.workflowId || !request.runId || !request.activityId)) {
+      if (!request.governanceEventId) {
         throw new Error(
-          "OpenBox approval decision requires governanceEventId or workflowId, runId, and activityId."
+          "OpenBox approval decision requires governanceEventId."
         );
       }
       return decideViaBackend(config, request);
@@ -4875,10 +5034,10 @@ function createGovernedCopilotTool(definition) {
         "tool_input_gate",
         "Input policy check",
         "openbox",
-        () => session.openActivity("on_tool_start", {
+        () => session.openActivity(definition.toolName, {
           activityId: ids.activityId,
           input: [toolInput(definition, normalizedInput)],
-          spans: [toolSpan(definition, normalizedInput, "started")]
+          ...definition.spanProfile ? { spans: [toolSpan(definition, normalizedInput, "started")] } : {}
         })
       );
       const started = openedActivity.verdict;
@@ -4942,9 +5101,13 @@ function createGovernedCopilotTool(definition) {
           {
             input: [toolInput(definition, startedRedaction.input)],
             output: toolOutputForGovernance(provisional),
-            spans: [toolSpan(definition, startedRedaction.input, "completed")]
+            ...definition.spanProfile ? {
+              spans: [
+                toolSpan(definition, startedRedaction.input, "completed")
+              ]
+            } : {}
           },
-          "on_tool_end"
+          definition.toolName
         )
       );
       if (!isAllowed(completed.arm)) {
@@ -4975,19 +5138,25 @@ function createGovernedCopilotTool(definition) {
           timings.finish()
         );
       }
-      const result = applyCompletedRedaction(
+      let result = applyCompletedRedaction(
         definition,
         provisional,
         completed,
         startedRedaction.summary
       );
       if (!ridesSharedWorkflow) {
-        await timings.measure(
+        const terminal = await timings.measure(
           "workflow_complete",
           "Complete governance workflow",
           "openbox",
           () => session.workflowCompleted()
         );
+        if (terminal) {
+          result = {
+            ...result,
+            ...mergedVerdictMetadata(result, terminal)
+          };
+        }
       }
       return withTimings(result, timings.finish());
     } catch (error) {
@@ -5111,7 +5280,7 @@ function createGovernedCopilotTool(definition) {
           workflowType,
           taskQueue,
           { attached: true, inlineApproval: true }
-        ).activity("ActivityCompleted", "on_tool_end", {
+        ).activity("ActivityCompleted", definition.toolName, {
           activityId: ids.activityId,
           input: [approvalResumeToolInput(definition, normalizedInput)],
           output: toolOutputForGovernance(result),
@@ -5145,14 +5314,22 @@ function createGovernedCopilotTool(definition) {
           timings.finish()
         );
       }
-      await timings.measure(
+      const terminal = await timings.measure(
         "workflow_complete",
         "Complete governance workflow",
         "openbox",
         () => completeWorkflow(definition.adapter, ids, workflowType, taskQueue)
       );
+      const completedResult = applyCompletedRedaction(
+        definition,
+        result,
+        completed
+      );
       return withTimings(
-        applyCompletedRedaction(definition, result, completed),
+        terminal ? {
+          ...completedResult,
+          ...mergedVerdictMetadata(completedResult, terminal)
+        } : completedResult,
         timings.finish()
       );
     } catch (error) {
@@ -5209,10 +5386,10 @@ function createGovernedCopilotTool(definition) {
           workflowType,
           taskQueue,
           { attached: true, inlineApproval: true }
-        ).openActivity("on_tool_start", {
+        ).openActivity(definition.toolName, {
           activityId: ids.activityId,
           input: [toolInput(definition, input)],
-          spans: [toolSpan(definition, input, "started")]
+          ...definition.spanProfile ? { spans: [toolSpan(definition, input, "started")] } : {}
         })
       );
       if (isAllowed(verdict.arm)) {
@@ -5271,7 +5448,7 @@ function approvalResumeToolInput(definition, input) {
   };
 }
 function approvalResumeSpan(definition, input) {
-  const now = Date.now();
+  const now = nowUnixNano();
   return {
     span_id: `approval-${randomUUID5().replaceAll("-", "").slice(0, 8)}`,
     trace_id: randomUUID5().replaceAll("-", ""),
@@ -5471,6 +5648,9 @@ function createOpenBoxLangChainMiddleware({
     wrapModelCall: async (request, handler) => {
       if (!adapter.isEnabled()) return handler(request);
       debugState("wrapModelCall", request.state);
+      if (hasOpenBoxToolResult(request.messages)) {
+        return new deps.AIMessage({ content: "" });
+      }
       const key = sessionKeyFromConfig(request);
       const gateIds = await ensureTaskWorkflow(
         key,
@@ -5569,7 +5749,7 @@ function createOpenBoxLangChainMiddleware({
         sessionKey: key,
         workflowId: gateIds.workflowId,
         runId: gateIds.runId,
-        activityType: "on_tool_start"
+        activityType: toolActivityTypeFromRequest(request)
       });
       if (shouldStopForGate(inputGate, governanceMode)) {
         return JSON.stringify(
@@ -5584,7 +5764,7 @@ function createOpenBoxLangChainMiddleware({
           sessionKey: key,
           workflowId: gateIds.workflowId,
           runId: gateIds.runId,
-          activityType: "on_tool_end"
+          activityType: toolActivityTypeFromRequest(request)
         });
         if (shouldStopForGate(outputGate, governanceMode)) {
           return JSON.stringify(
@@ -5646,9 +5826,191 @@ function createOpenBoxLangChainMiddleware({
     }
   });
 }
+function toolActivityTypeFromRequest(request) {
+  const name = request?.toolCall?.name;
+  return typeof name === "string" && name.trim() ? name.trim() : "ToolCall";
+}
+var OPENBOX_RESULT_STATUSES = /* @__PURE__ */ new Set([
+  "executed",
+  "constrained",
+  "allowed",
+  "blocked",
+  "halted",
+  "session_halted",
+  "rejected",
+  "error",
+  "approval_required",
+  "approval_pending"
+]);
+function hasOpenBoxToolResult(messages) {
+  if (!Array.isArray(messages)) return false;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = objectRecord(messages[index]);
+    if (isHumanMessage(message)) return false;
+    if (isOpenBoxResult(messageContent(message))) return true;
+  }
+  return false;
+}
+function isHumanMessage(message) {
+  const role = String(message.role ?? message.type ?? "").toLowerCase();
+  return role === "human" || role === "user";
+}
+function messageContent(message) {
+  if ("content" in message) return message.content;
+  const kwargs = objectRecord(message.kwargs);
+  if ("content" in kwargs) return kwargs.content;
+  return void 0;
+}
+function isOpenBoxResult(content) {
+  const parsed = parseContent(content);
+  if (!isRecord(parsed)) return false;
+  if (parsed.schemaVersion !== OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION)
+    return false;
+  return OPENBOX_RESULT_STATUSES.has(String(parsed.status)) || parsed.verdict === "halt" || parsed.verdict === "block" || parsed.verdict === "error";
+}
+function parseContent(content) {
+  if (isRecord(content)) return content;
+  if (typeof content === "string") {
+    try {
+      return JSON.parse(content);
+    } catch {
+      return void 0;
+    }
+  }
+  if (Array.isArray(content)) {
+    for (const part of content) {
+      const record = objectRecord(part);
+      const parsed = parseContent(record.text ?? record.content);
+      if (parsed !== void 0) return parsed;
+    }
+  }
+  return void 0;
+}
 
 // ts/src/copilotkit/pipeline.ts
 import { randomBytes as randomBytes2, randomUUID as randomUUID7 } from "crypto";
+
+// ts/src/governance/spans.ts
+function hex(len) {
+  return Array.from(
+    { length: len },
+    () => Math.floor(Math.random() * 16).toString(16)
+  ).join("");
+}
+function objectRecord2(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function parseJsonRecord(value) {
+  if (typeof value === "string") {
+    try {
+      return objectRecord2(JSON.parse(value));
+    } catch {
+      return {};
+    }
+  }
+  return objectRecord2(value);
+}
+function stringifyBody(value) {
+  if (value === void 0) return void 0;
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+function toPositiveInteger(value) {
+  const numberValue = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : void 0;
+  if (numberValue === void 0 || !Number.isFinite(numberValue) || numberValue <= 0)
+    return void 0;
+  return Math.trunc(numberValue);
+}
+function normalizeUsage(usage) {
+  if (!usage) return void 0;
+  const promptTokens = toPositiveInteger(
+    usage.promptTokens ?? usage.inputTokens
+  );
+  const completionTokens = toPositiveInteger(
+    usage.completionTokens ?? usage.outputTokens
+  );
+  const totalTokens = toPositiveInteger(usage.totalTokens);
+  const normalized = {};
+  if (promptTokens !== void 0) {
+    normalized.prompt_tokens = promptTokens;
+    normalized.input_tokens = promptTokens;
+  }
+  if (completionTokens !== void 0) {
+    normalized.completion_tokens = completionTokens;
+    normalized.output_tokens = completionTokens;
+  }
+  if (totalTokens !== void 0) normalized.total_tokens = totalTokens;
+  return Object.keys(normalized).length > 0 ? normalized : void 0;
+}
+function buildLLMCompletionResponseBody(content, metadata = {}) {
+  const body = parseJsonRecord(metadata.responseBody);
+  if (!Array.isArray(body.choices)) {
+    body.choices = [
+      {
+        message: { content }
+      }
+    ];
+  }
+  if (metadata.model && typeof body.model !== "string") {
+    body.model = metadata.model;
+  }
+  const usage = normalizeUsage(metadata.usage);
+  if (usage && Object.keys(objectRecord2(body.usage)).length === 0) {
+    body.usage = usage;
+  }
+  return JSON.stringify(body);
+}
+function buildLLMCompletionSpan(input) {
+  const now = Date.now();
+  const source = input.span ?? {};
+  const usage = normalizeUsage(input.usage);
+  const inputTokens = toPositiveInteger(
+    usage?.input_tokens ?? usage?.prompt_tokens
+  );
+  const outputTokens = toPositiveInteger(
+    usage?.output_tokens ?? usage?.completion_tokens
+  );
+  const httpUrl = input.providerUrl ?? source.http_url ?? (typeof source.attributes?.["http.url"] === "string" ? source.attributes["http.url"] : "https://api.openai.com/v1/chat/completions");
+  return {
+    ...source,
+    span_id: source.span_id ?? hex(16),
+    trace_id: source.trace_id ?? hex(32),
+    name: input.name ?? source.name ?? "llm.chat.completion",
+    kind: input.kind ?? source.kind ?? "CLIENT",
+    start_time: input.startTime ?? source.start_time ?? now,
+    end_time: input.endTime ?? source.end_time ?? now,
+    duration_ns: input.durationNs ?? source.duration_ns ?? 0,
+    span_type: "function",
+    stage: "completed",
+    semantic_type: "llm_completion",
+    attributes: {
+      "gen_ai.system": input.system ?? "openbox-sdk",
+      ...input.model ? { "gen_ai.request.model": input.model } : {},
+      ...input.model ? { "gen_ai.response.model": input.model } : {},
+      ...inputTokens !== void 0 ? { "gen_ai.usage.input_tokens": inputTokens } : {},
+      ...outputTokens !== void 0 ? { "gen_ai.usage.output_tokens": outputTokens } : {},
+      "http.method": "POST",
+      "http.url": httpUrl,
+      "openbox.semantic_type": "llm_completion",
+      "openbox.span_type": "function",
+      ...source.attributes ?? {},
+      ...input.attributes ?? {}
+    },
+    ...input.model ? { model: input.model } : {},
+    ...inputTokens !== void 0 ? { input_tokens: inputTokens } : {},
+    ...outputTokens !== void 0 ? { output_tokens: outputTokens } : {},
+    http_method: source.http_method ?? "POST",
+    http_url: httpUrl,
+    request_body: stringifyBody(input.requestBody) ?? source.request_body ?? void 0,
+    data: input.data ?? source.data,
+    response_body: buildLLMCompletionResponseBody(input.content, {
+      model: input.model,
+      usage: input.usage,
+      responseBody: input.responseBody ?? source.response_body
+    })
+  };
+}
+
+// ts/src/copilotkit/pipeline.ts
 function gateSession(adapter, ids, workflowType, taskQueue) {
   return createWorkflowSession(adapter, ids, workflowType, taskQueue, {
     attached: true,
@@ -5657,7 +6019,7 @@ function gateSession(adapter, ids, workflowType, taskQueue) {
 }
 async function evaluateGate(adapter, input, ids) {
   const completed = input.kind === "tool_output" || input.kind === "assistant_output";
-  const activityType = input.activityType ?? activityTypeForGate(input.kind);
+  const activityType = input.activityType ?? activityTypeForGate(input.kind, input.payload);
   const session = gateSession(
     adapter,
     { workflowId: ids.workflowId, runId: ids.runId },
@@ -5670,11 +6032,11 @@ async function evaluateGate(adapter, input, ids) {
     completed ? {
       activityId: ids.activityId,
       output: input.payload,
-      spans: [pipelineSpan(input.kind, activityType, input.payload)]
+      spans: []
     } : {
       activityId: ids.activityId,
       input: [input.payload],
-      spans: [pipelineSpan(input.kind, activityType, input.payload)]
+      spans: []
     }
   );
 }
@@ -5717,9 +6079,23 @@ async function governPipelineGate(adapter, input) {
       );
     }
     const verdict = await evaluateGate(adapter, input, ids);
-    const safe = isAllowed(verdict.arm) ? applyOpenBoxTransform(input.payload, verdict) : input.payload;
+    const transformed = isAllowed(verdict.arm) ? applyOpenBoxTransform(input.payload, verdict) : input.payload;
+    const effectiveVerdict = isAllowed(verdict.arm) ? await evaluateAssistantOutputHook(
+      adapter,
+      input,
+      ids,
+      verdict,
+      transformed
+    ) : verdict;
+    const safe = isAllowed(effectiveVerdict.arm) ? applyOpenBoxTransform(transformed, effectiveVerdict) : transformed;
     const changed = !sameJson(safe, input.payload);
-    const payload = safePayload(safe, input.payload, verdict, ids, changed);
+    const payload = safePayload(
+      safe,
+      input.payload,
+      effectiveVerdict,
+      ids,
+      changed
+    );
     if (payload.status === "blocked" || payload.status === "halted") {
       await swallow(
         () => finishStoppedWorkflow(
@@ -5856,6 +6232,7 @@ function promptTextFromPayload(payload) {
   const record = payload;
   if (typeof record.prompt === "string") return record.prompt;
   if (typeof record.request === "string") return record.request;
+  if (typeof record.content === "string") return record.content;
   if (Array.isArray(record.messages)) {
     const latestUser = [...record.messages].reverse().find(
       (message) => Boolean(message) && typeof message === "object" && ["user", "human"].includes(
@@ -5872,25 +6249,161 @@ function promptTextFromPayload(payload) {
   }
   return void 0;
 }
-function activityTypeForGate(kind) {
+function activityTypeForGate(kind, payload) {
   switch (kind) {
     case "prompt":
       return "UserPromptSubmit";
     case "tool_input":
-      return "on_tool_start";
+      return toolNameFromPayload(payload) ?? "ToolCall";
     case "tool_output":
-      return "on_tool_end";
+      return toolNameFromPayload(payload) ?? "ToolCall";
     case "assistant_output":
       return "on_llm_end";
   }
 }
+async function evaluateAssistantOutputHook(adapter, input, ids, verdict, safePayload2) {
+  if (input.kind !== "assistant_output") return verdict;
+  const content = assistantContentFromPayload(safePayload2);
+  if (!content) return verdict;
+  const hookVerdict = await emitActivityHookSpanUpdate(
+    adapter,
+    ids,
+    input.workflowType,
+    input.taskQueue,
+    void 0,
+    safePayload2,
+    [
+      buildLLMCompletionSpan({
+        content,
+        span: pipelineSpan(input.kind, "llm.chat.completion", safePayload2),
+        name: "openbox.copilotkit.assistant_output",
+        kind: "llm",
+        system: "copilotkit",
+        attributes: { "gen_ai.system": "copilotkit" },
+        ...llmCompletionMetadataFromPayload(safePayload2)
+      })
+    ]
+  );
+  return mergeGateVerdicts(verdict, hookVerdict);
+}
+function llmCompletionMetadataFromPayload(payload) {
+  const record = recordFrom(payload);
+  const metadata = firstRecord(
+    record.response_metadata,
+    record.responseMetadata,
+    record.lc_kwargs && recordFrom(record.lc_kwargs).response_metadata,
+    record.lc_kwargs && recordFrom(record.lc_kwargs).responseMetadata
+  );
+  const usageMetadata = firstRecord(
+    record.usage_metadata,
+    record.usageMetadata,
+    record.usage,
+    metadata.usage,
+    metadata.tokenUsage,
+    metadata.token_usage
+  );
+  const model = firstString(
+    record.model,
+    record.model_name,
+    record.modelName,
+    metadata.model,
+    metadata.model_name,
+    metadata.modelName
+  ) ?? void 0;
+  return {
+    model,
+    usage: usageFrom(usageMetadata),
+    requestBody: record.request_body ?? record.requestBody ?? metadata.request_body,
+    responseBody: record.response_body ?? record.responseBody ?? metadata.response_body,
+    providerUrl: providerUrlFor(
+      firstString(
+        metadata.ls_provider,
+        metadata.provider,
+        record.provider,
+        record.model_provider
+      ),
+      model
+    )
+  };
+}
+function providerUrlFor(provider, model) {
+  const normalized = provider?.toLowerCase();
+  if (normalized?.includes("anthropic")) return "https://api.anthropic.com/v1/messages";
+  if (normalized?.includes("google") || normalized?.includes("gemini"))
+    return "https://generativelanguage.googleapis.com/v1beta/models";
+  if (normalized?.includes("openai")) return "https://api.openai.com/v1/chat/completions";
+  if (model?.startsWith("gemini")) return "https://generativelanguage.googleapis.com/v1beta/models";
+  return void 0;
+}
+function usageFrom(record) {
+  const usage = {
+    promptTokens: numberFrom(record.prompt_tokens ?? record.promptTokens),
+    completionTokens: numberFrom(
+      record.completion_tokens ?? record.completionTokens
+    ),
+    inputTokens: numberFrom(record.input_tokens ?? record.inputTokens),
+    outputTokens: numberFrom(record.output_tokens ?? record.outputTokens),
+    totalTokens: numberFrom(record.total_tokens ?? record.totalTokens)
+  };
+  return Object.values(usage).some((value) => value !== void 0) ? usage : void 0;
+}
+function numberFrom(value) {
+  const numeric = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : void 0;
+  if (!Number.isFinite(numeric) || numeric === void 0) return void 0;
+  return Math.trunc(numeric);
+}
+function recordFrom(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function firstRecord(...values) {
+  for (const value of values) {
+    const record = recordFrom(value);
+    if (Object.keys(record).length > 0) return record;
+  }
+  return {};
+}
+function firstString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return void 0;
+}
+function mergeGateVerdicts(first, second) {
+  const winner = verdictSeverity(second.arm) > verdictSeverity(first.arm) ? second : first;
+  const merged = {
+    ...winner,
+    governanceEventId: winner.governanceEventId ?? first.governanceEventId ?? second.governanceEventId,
+    riskScore: Math.max(first.riskScore ?? 0, second.riskScore ?? 0),
+    trustTier: second.trustTier ?? first.trustTier ?? winner.trustTier,
+    guardrailsResult: winner.guardrailsResult ?? first.guardrailsResult ?? second.guardrailsResult
+  };
+  const firstAge = first.ageResult;
+  const secondAge = second.ageResult;
+  if (secondAge ?? firstAge) merged.ageResult = secondAge ?? firstAge;
+  return merged;
+}
+function verdictSeverity(arm) {
+  switch (arm) {
+    case "halt":
+      return 4;
+    case "block":
+      return 3;
+    case "require_approval":
+      return 2;
+    case "constrain":
+      return 1;
+    case "allow":
+      return 0;
+  }
+}
 function pipelineSpan(kind, activityType, payload) {
   const now = Date.now();
-  return {
+  const span = {
     span_id: randomBytes2(8).toString("hex"),
     trace_id: randomBytes2(16).toString("hex"),
     name: activityType,
     kind: "internal",
+    span_type: "function",
     start_time: now,
     end_time: now,
     duration_ns: 0,
@@ -5901,6 +6414,54 @@ function pipelineSpan(kind, activityType, payload) {
     },
     data: payload
   };
+  if (kind !== "assistant_output") return span;
+  const assistantContent = assistantContentFromPayload(payload);
+  if (!assistantContent) return span;
+  return {
+    ...span,
+    name: "openbox.copilotkit.assistant_output",
+    semantic_type: "llm_completion",
+    response_body: JSON.stringify({
+      choices: [{ message: { content: assistantContent } }]
+    })
+  };
+}
+function toolNameFromPayload(payload) {
+  const record = recordFrom(payload);
+  return firstString(
+    record.toolName,
+    record.tool_name,
+    record.name,
+    record.action,
+    record.actionName
+  );
+}
+function assistantContentFromPayload(payload) {
+  if (typeof payload === "string") return payload;
+  if (!payload || typeof payload !== "object") return void 0;
+  const record = payload;
+  for (const key of ["content", "text", "summary", "body"]) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  const message = record.message;
+  if (message && typeof message === "object") {
+    const content = message.content;
+    if (typeof content === "string" && content.trim()) return content;
+  }
+  if (Array.isArray(record.messages)) {
+    const latestAssistant = [...record.messages].reverse().find(
+      (message2) => Boolean(message2) && typeof message2 === "object" && ["assistant", "ai"].includes(
+        String(
+          message2.role ?? message2.type ?? ""
+        )
+      ) && typeof message2.content === "string"
+    );
+    if (typeof latestAssistant?.content === "string" && latestAssistant.content.trim()) {
+      return latestAssistant.content;
+    }
+  }
+  return void 0;
 }
 
 // ts/src/copilotkit/adapter.ts

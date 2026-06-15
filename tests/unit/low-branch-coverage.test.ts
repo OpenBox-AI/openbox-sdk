@@ -92,7 +92,7 @@ describe('low-branch utility coverage', () => {
           ok: true,
           json: async () => ({ ok: false, error: 'no approval' }),
         })) as any,
-      }).decide({ decision: 'reject' }),
+      }).decide({ decision: 'reject', governanceEventId: 'event-reject-1' }),
     ).rejects.toThrow('no approval');
     await expect(
       createOpenBoxApprovalClient({
@@ -102,7 +102,7 @@ describe('low-branch utility coverage', () => {
             throw new Error('not json');
           },
         })) as any,
-      }).decide({ decision: 'reject' }),
+      }).decide({ decision: 'reject', governanceEventId: 'event-reject-2' }),
     ).rejects.toThrow('OpenBox approval decision failed.');
   });
 

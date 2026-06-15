@@ -20,7 +20,7 @@ Adding a route to the spec without a matching wrapper method now fails CI on the
 
 ## Authoring rules
 
-1. Every method on `OpenBoxClient` MUST be typed with the `Backend.paths['/...']['<verb>']` row from `openbox-sdk/types`. No freehand request/response shapes.
+1. Every method on `OpenBoxClient` MUST be typed with the `Backend.paths['/...']['<verb>']` row from `@openbox-ai/openbox-sdk/types`. No freehand request/response shapes.
 2. Don't add a method whose path/verb isn't in the OpenAPI spec. Either the spec is wrong (fix it upstream) or the method doesn't belong here.
-3. Don't redeclare a request DTO; import it from `openbox-sdk/types`.
+3. Don't redeclare a request DTO; import it from `@openbox-ai/openbox-sdk/types`.
 4. The allowlist in `tests/unit/endpoint-coverage.test.ts` is empty: every endpoint declared in the spec must have a wrapper. The Keycloak browser redirect URL is a navigation, not an HTTP call, and isn't in the manifest at all. If you genuinely need to skip an endpoint, add it to the allowlist with a one-line reason and prepare to defend it in review.

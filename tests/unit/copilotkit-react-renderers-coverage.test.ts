@@ -293,6 +293,7 @@ describe('CopilotKit React renderer coverage', () => {
       respond: vi.fn(),
       approvalClient: failingClient,
       request: '',
+      governanceEventId: 'event-fail',
     });
     findElement(
       failing,

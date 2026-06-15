@@ -1,5 +1,5 @@
 // ts/src/core-client/generated/govern.ts
-var CANONICAL_ACTIVITY_LABELS = Object.freeze({ "AGENT_STEP": "Agent Step", "ActivityTaskCanceled": "Activity Task Canceled", "ActivityTaskCompleted": "Activity Task Completed", "ActivityTaskFailed": "Activity Task Failed", "ActivityTaskScheduled": "Activity Task Scheduled", "ActivityTaskStarted": "Activity Task Started", "ActivityTaskTimedOut": "Activity Task Timed Out", "AgentExecutionCompleted": "Agent Execution Completed", "AgentExecutionStarted": "Agent Execution Started", "AgentSpawn": "Agent Spawn", "CHUNKING": "Chunking", "CallToolsNode": "Call Tools Node", "ChildWorkflowExecutionCompleted": "Child Workflow Execution Completed", "ChildWorkflowExecutionInitiated": "Child Workflow Execution Initiated", "CrewKickoffCompleted": "Crew Kickoff Completed", "CrewKickoffStarted": "Crew Kickoff Started", "EMBEDDING": "Embedding", "EXCEPTION": "Exception", "End": "End", "FUNCTION_CALL": "Function Call", "FileDelete": "File Delete", "FileEdit": "File Edit", "FileRead": "File Read", "HTTPRequest": "HTTP Request", "HandoffMessage": "Handoff Message", "LLM": "LLM", "LLMCallCompleted": "LLM Call Completed", "LLMCallStarted": "LLM Call Started", "LLMCompleted": "LLM Completed", "MCPToolCall": "MCP Tool Call", "MarkerRecorded": "Marker Recorded", "MemoryQueryEvent": "Memory Query", "ModelRequestNode": "Model Request Node", "MultiModalMessage": "Multi-Modal Message", "Notification": "Notification", "OperationCompleted": "Operation Completed", "OperationStarted": "Operation Started", "PermissionRequest": "Permission Request", "PostToolUse": "Post-Tool Use", "PreCompact": "Pre-Compact", "PreSyncHookStarted": "Pre-Sync Hook Started", "PreSyncHookSucceeded": "Pre-Sync Hook Succeeded", "PreToolUse": "Pre-Tool Use", "PromptSubmission": "Prompt Submission", "QUERY": "Query", "RERANKING": "Reranking", "RETRIEVE": "Retrieve", "ResourceUpdated": "Resource Updated", "SUB_QUESTION": "Sub-Question", "SYNTHESIZE": "Synthesize", "ShellExecution": "Shell Execution", "Stop": "Stop", "StopMessage": "Stop Message", "SubagentStart": "Subagent Start", "SubagentStop": "Subagent Stop", "SyncStatusChanged": "Sync Status Changed", "TaskCompleted": "Task Completed", "TaskStart": "Task Start", "TaskStarted": "Task Started", "TextMessage": "Text Message", "TimerFired": "Timer Fired", "TimerStarted": "Timer Started", "ToolCallExecutionEvent": "Tool Call Execution", "ToolCallRequestEvent": "Tool Call Request", "ToolCompleted": "Tool Completed", "ToolStarted": "Tool Started", "ToolUsageError": "Tool Usage Error", "ToolUsageFinished": "Tool Usage Finished", "ToolUsageStarted": "Tool Usage Started", "UserInputRequestedEvent": "User Input Requested", "UserPromptNode": "User Prompt Node", "UserPromptSubmit": "User Prompt Submit", "WorkflowExecutionSignaled": "Workflow Execution Signaled", "afterAgentResponse": "After Agent Response", "afterAgentThought": "After Agent Thought", "afterFileEdit": "After File Edit", "afterMCPExecution": "After MCP Execution", "afterShellExecution": "After Shell Execution", "agentStop": "Agent Stop", "auto_function_invocation_post": "Auto Function Invocation Post", "auto_function_invocation_pre": "Auto Function Invocation Pre", "beforeMCPExecution": "Before MCP Execution", "beforeReadFile": "Before Read File", "beforeShellExecution": "Before Shell Execution", "beforeSubmitPrompt": "Before Submit Prompt", "checkpoint": "Checkpoint", "custom_event": "Custom Event", "error": "Error", "error-trigger": "Error Trigger", "errorOccurred": "Error Occurred", "function_invocation_post": "Function Invocation Post", "function_invocation_pre": "Function Invocation Pre", "incident.acknowledged": "Incident Acknowledged", "incident.annotated": "Incident Annotated", "incident.delegated": "Incident Delegated", "incident.escalated": "Incident Escalated", "incident.priority_updated": "Incident Priority Updated", "incident.reassigned": "Incident Reassigned", "incident.reopened": "Incident Reopened", "incident.resolved": "Incident Resolved", "incident.triggered": "Incident Triggered", "incident.unacknowledged": "Incident Unacknowledged", "interrupt": "Interrupt", "node-post-execute": "Node Post-Execute", "node-pre-execute": "Node Pre-Execute", "node_end": "Node End", "node_start": "Node Start", "onAbort": "Abort", "onError": "Error", "onFinish": "Finish", "onStepFinish": "Step Finish", "on_agent_action": "Agent Action", "on_agent_finish": "Agent Finish", "on_chain_end": "Chain End", "on_chain_start": "Chain Start", "on_chat_model_start": "Chat Model Start", "on_execute_callback": "Execute Callback", "on_failure_callback": "Failure Callback", "on_llm_end": "LLM End", "on_llm_error": "LLM Error", "on_llm_start": "LLM Start", "on_retriever_end": "Retriever End", "on_retriever_start": "Retriever Start", "on_retry_callback": "Retry Callback", "on_skipped_callback": "Skipped Callback", "on_success_callback": "Success Callback", "on_tool_end": "Tool End", "on_tool_error": "Tool Error", "on_tool_start": "Tool Start", "output_validator": "Output Validator", "payment_order.approved": "Payment Order Approved", "payment_order.begin_processing": "Payment Order Begin Processing", "payment_order.failed": "Payment Order Failed", "payment_order.reconciled": "Payment Order Reconciled", "payment_reference.created": "Payment Reference Created", "postToolUse": "Post-Tool Use", "preToolUse": "Pre-Tool Use", "prompt_render_post": "Prompt Render Post", "prompt_render_pre": "Prompt Render Pre", "sla_miss_callback": "SLA Miss Callback", "subagentStop": "Subagent Stop", "task_end": "Task End", "task_start": "Task Start", "tool-call": "Tool Call", "tool-result": "Tool Result", "tool_retry": "Tool Retry", "userPromptSubmitted": "User Prompt Submitted", "workflow-step-finish": "Workflow Step Finish", "workflow-step-progress": "Workflow Step Progress", "workflow-step-start": "Workflow Step Start" });
+var CANONICAL_ACTIVITY_LABELS = Object.freeze({ "AGENT_STEP": "Agent Step", "ActivityTaskCanceled": "Activity Task Canceled", "ActivityTaskCompleted": "Activity Task Completed", "ActivityTaskFailed": "Activity Task Failed", "ActivityTaskScheduled": "Activity Task Scheduled", "ActivityTaskStarted": "Activity Task Started", "ActivityTaskTimedOut": "Activity Task Timed Out", "AgentAction": "Agent Action", "AgentExecutionCompleted": "Agent Execution Completed", "AgentExecutionStarted": "Agent Execution Started", "AgentSpawn": "Agent Spawn", "CHUNKING": "Chunking", "CallToolsNode": "Call Tools Node", "ChildWorkflowExecutionCompleted": "Child Workflow Execution Completed", "ChildWorkflowExecutionInitiated": "Child Workflow Execution Initiated", "CrewKickoffCompleted": "Crew Kickoff Completed", "CrewKickoffStarted": "Crew Kickoff Started", "EMBEDDING": "Embedding", "EXCEPTION": "Exception", "End": "End", "FUNCTION_CALL": "Function Call", "FileDelete": "File Delete", "FileEdit": "File Edit", "FileRead": "File Read", "HTTPRequest": "HTTP Request", "HandoffMessage": "Handoff Message", "LLM": "LLM", "LLMCallCompleted": "LLM Call Completed", "LLMCallStarted": "LLM Call Started", "LLMCompleted": "LLM Completed", "MCPToolCall": "MCP Tool Call", "MarkerRecorded": "Marker Recorded", "MemoryQueryEvent": "Memory Query", "ModelRequestNode": "Model Request Node", "MultiModalMessage": "Multi-Modal Message", "Notification": "Notification", "OperationCompleted": "Operation Completed", "OperationStarted": "Operation Started", "PermissionRequest": "Permission Request", "PostToolUse": "Post-Tool Use", "PreCompact": "Pre-Compact", "PreSyncHookStarted": "Pre-Sync Hook Started", "PreSyncHookSucceeded": "Pre-Sync Hook Succeeded", "PreToolUse": "Pre-Tool Use", "PromptSubmission": "Prompt Submission", "QUERY": "Query", "RERANKING": "Reranking", "RETRIEVE": "Retrieve", "ResourceUpdated": "Resource Updated", "SUB_QUESTION": "Sub-Question", "SYNTHESIZE": "Synthesize", "ShellExecution": "Shell Execution", "Stop": "Stop", "StopMessage": "Stop Message", "SubagentStart": "Subagent Start", "SubagentStop": "Subagent Stop", "SyncStatusChanged": "Sync Status Changed", "TaskCompleted": "Task Completed", "TaskStart": "Task Start", "TaskStarted": "Task Started", "TextMessage": "Text Message", "TimerFired": "Timer Fired", "TimerStarted": "Timer Started", "ToolCallExecutionEvent": "Tool Call Execution", "ToolCallRequestEvent": "Tool Call Request", "ToolCompleted": "Tool Completed", "ToolStarted": "Tool Started", "ToolUsageError": "Tool Usage Error", "ToolUsageFinished": "Tool Usage Finished", "ToolUsageStarted": "Tool Usage Started", "UserInputRequestedEvent": "User Input Requested", "UserPromptNode": "User Prompt Node", "UserPromptSubmit": "User Prompt Submit", "WorkflowExecutionSignaled": "Workflow Execution Signaled", "afterAgentResponse": "After Agent Response", "afterAgentThought": "After Agent Thought", "afterFileEdit": "After File Edit", "afterMCPExecution": "After MCP Execution", "afterShellExecution": "After Shell Execution", "agentStop": "Agent Stop", "auto_function_invocation_post": "Auto Function Invocation Post", "auto_function_invocation_pre": "Auto Function Invocation Pre", "beforeMCPExecution": "Before MCP Execution", "beforeReadFile": "Before Read File", "beforeShellExecution": "Before Shell Execution", "beforeSubmitPrompt": "Before Submit Prompt", "checkpoint": "Checkpoint", "custom_event": "Custom Event", "error": "Error", "error-trigger": "Error Trigger", "errorOccurred": "Error Occurred", "function_invocation_post": "Function Invocation Post", "function_invocation_pre": "Function Invocation Pre", "incident.acknowledged": "Incident Acknowledged", "incident.annotated": "Incident Annotated", "incident.delegated": "Incident Delegated", "incident.escalated": "Incident Escalated", "incident.priority_updated": "Incident Priority Updated", "incident.reassigned": "Incident Reassigned", "incident.reopened": "Incident Reopened", "incident.resolved": "Incident Resolved", "incident.triggered": "Incident Triggered", "incident.unacknowledged": "Incident Unacknowledged", "interrupt": "Interrupt", "node-post-execute": "Node Post-Execute", "node-pre-execute": "Node Pre-Execute", "node_end": "Node End", "node_start": "Node Start", "onAbort": "Abort", "onError": "Error", "onFinish": "Finish", "onStepFinish": "Step Finish", "on_agent_action": "Agent Action", "on_agent_finish": "Agent Finish", "on_chain_end": "Chain End", "on_chain_start": "Chain Start", "on_chat_model_start": "Chat Model Start", "on_execute_callback": "Execute Callback", "on_failure_callback": "Failure Callback", "on_llm_end": "LLM End", "on_llm_error": "LLM Error", "on_llm_start": "LLM Start", "on_retriever_end": "Retriever End", "on_retriever_start": "Retriever Start", "on_retry_callback": "Retry Callback", "on_skipped_callback": "Skipped Callback", "on_success_callback": "Success Callback", "on_tool_end": "Tool End", "on_tool_error": "Tool Error", "on_tool_start": "Tool Start", "output_validator": "Output Validator", "payment_order.approved": "Payment Order Approved", "payment_order.begin_processing": "Payment Order Begin Processing", "payment_order.failed": "Payment Order Failed", "payment_order.reconciled": "Payment Order Reconciled", "payment_reference.created": "Payment Reference Created", "postToolUse": "Post-Tool Use", "preToolUse": "Pre-Tool Use", "prompt_render_post": "Prompt Render Post", "prompt_render_pre": "Prompt Render Pre", "sla_miss_callback": "SLA Miss Callback", "subagentStop": "Subagent Stop", "task_end": "Task End", "task_start": "Task Start", "tool-call": "Tool Call", "tool-result": "Tool Result", "tool_retry": "Tool Retry", "userPromptSubmitted": "User Prompt Submitted", "workflow-step-finish": "Workflow Step Finish", "workflow-step-progress": "Workflow Step Progress", "workflow-step-start": "Workflow Step Start" });
 function randomUUID() {
   if (typeof globalThis.crypto?.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
@@ -31,6 +31,7 @@ var BaseGovernedSession = class {
   finalized = false;
   autoOpenSuppressed;
   inFlight = /* @__PURE__ */ new Set();
+  activityStartsMs = /* @__PURE__ */ new Map();
   exitHandlerCleanup = [];
   onPendingApproval;
   onApprovalResolved;
@@ -89,10 +90,13 @@ var BaseGovernedSession = class {
    * Backward-compat alias: `complete()`.
    */
   async workflowCompleted() {
-    if (this.finalized) return;
+    if (this.finalized) return void 0;
     this.finalized = true;
-    await this.emit({ event_type: "WorkflowCompleted", status: "completed" });
-    this.cleanupExitHandlers();
+    try {
+      return await this.emit({ event_type: "WorkflowCompleted", status: "completed" });
+    } finally {
+      this.cleanupExitHandlers();
+    }
   }
   /** @deprecated use `workflowCompleted()`; same behavior. */
   async complete() {
@@ -107,14 +111,17 @@ var BaseGovernedSession = class {
    * Backward-compat alias: `fail()`.
    */
   async workflowFailed(error) {
-    if (this.finalized) return;
+    if (this.finalized) return void 0;
     this.finalized = true;
-    await this.emit({
-      event_type: "WorkflowFailed",
-      status: "failed",
-      error: errorInfoFrom(error)
-    });
-    this.cleanupExitHandlers();
+    try {
+      return await this.emit({
+        event_type: "WorkflowFailed",
+        status: "failed",
+        error: errorInfoFrom(error)
+      });
+    } finally {
+      this.cleanupExitHandlers();
+    }
   }
   /** @deprecated use `workflowFailed()`; same behavior. */
   async fail(error) {
@@ -147,16 +154,22 @@ var BaseGovernedSession = class {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
     if (!this.opened && !this.autoOpenSuppressed) await this.begin();
     const activityId = payload.activityId ?? randomUUID();
+    const startTime = payload.startTime ?? Date.now();
+    this.activityStartsMs.set(activityId, startTime);
     this.inFlight.add(activityId);
     try {
-      const verdict = await this.emit({
+      const verdict = await this.emitWithSpanHook({
         event_type: "ActivityStarted",
         activity_id: activityId,
         activity_type: activityType,
         activity_input: payload.input,
+        start_time: startTime,
         spans: payload.spans
       });
       verdict.activityId = activityId;
+      if (verdict.arm !== "allow" && verdict.arm !== "constrain") {
+        this.activityStartsMs.delete(activityId);
+      }
       return {
         activityId,
         verdict,
@@ -185,6 +198,7 @@ var BaseGovernedSession = class {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
     if (!this.opened && !this.autoOpenSuppressed) await this.begin();
     const activityId = payload.activityId ?? randomUUID();
+    const startTime = payload.startTime ?? Date.now();
     this.inFlight.add(activityId);
     try {
       if (eventType === "SignalReceived") {
@@ -201,11 +215,13 @@ var BaseGovernedSession = class {
         return signalVerdict;
       }
       if (eventType === "ActivityStarted") {
-        const startedVerdict = await this.emit({
+        this.activityStartsMs.set(activityId, startTime);
+        const startedVerdict = await this.emitWithSpanHook({
           event_type: "ActivityStarted",
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
+          start_time: startTime,
           spans: payload.spans
         });
         startedVerdict.activityId = activityId;
@@ -217,6 +233,7 @@ var BaseGovernedSession = class {
           return startedVerdict;
         }
         if (startedVerdict.arm !== "allow") {
+          this.activityStartsMs.delete(activityId);
           if (startedVerdict.arm === "require_approval") {
             const approvalId = startedVerdict.approvalId ?? activityId;
             if (this.onPendingApproval) {
@@ -260,14 +277,22 @@ var BaseGovernedSession = class {
     }
   }
   async emitCompleted(activityId, activityType, payload) {
-    const completedVerdict = await this.emit({
+    const startTime = payload.startTime ?? this.activityStartsMs.get(activityId);
+    const endTime = payload.endTime ?? Date.now();
+    const durationMs = payload.durationMs ?? (typeof startTime === "number" ? Math.max(0, endTime - startTime) : void 0);
+    const completedVerdict = await this.emitWithSpanHook({
       event_type: "ActivityCompleted",
       activity_id: activityId,
       activity_type: activityType,
+      status: activityCompletionStatus(activityType),
       activity_input: payload.input,
       activity_output: payload.output,
+      start_time: startTime,
+      end_time: endTime,
+      duration_ms: durationMs,
       spans: payload.spans
     });
+    this.activityStartsMs.delete(activityId);
     completedVerdict.activityId = activityId;
     if (completedVerdict.arm === "require_approval") {
       const approvalId = completedVerdict.approvalId ?? activityId;
@@ -298,6 +323,19 @@ var BaseGovernedSession = class {
       return polled;
     }
     return completedVerdict;
+  }
+  async emitWithSpanHook(event) {
+    const hasActivitySpans = (event.event_type === "ActivityStarted" || event.event_type === "ActivityCompleted") && Array.isArray(event.spans) && event.spans.some(isPersistableHookSpan);
+    if (!hasActivitySpans) return this.emit(event);
+    const baseVerdict = await this.emit({ ...event, spans: void 0 });
+    if (baseVerdict.arm !== "allow" && baseVerdict.arm !== "constrain") {
+      return baseVerdict;
+    }
+    const hookVerdict = await this.emit({
+      ...event,
+      hook_trigger: true
+    });
+    return stricterVerdict(baseVerdict, hookVerdict);
   }
   async emit(event) {
     const payload = {
@@ -416,6 +454,36 @@ var BaseGovernedSession = class {
     this.exitHandlerCleanup.length = 0;
   }
 };
+function activityCompletionStatus(activityType) {
+  return /(error|fail|failed|failure|timeout|timedout|cancel|abort)/i.test(activityType) ? "failed" : "completed";
+}
+function toolActivityTypeFromPayload(payload) {
+  const direct = namedToolFromRecord(payload);
+  if (direct) return direct;
+  for (const item of payload.input ?? []) {
+    const name = namedToolFromRecord(item);
+    if (name) return name;
+  }
+  return "ToolCall";
+}
+function namedToolFromRecord(value) {
+  if (!value || typeof value !== "object") return void 0;
+  const record = value;
+  const direct = firstNonEmptyString(
+    record.toolName,
+    record.tool_name,
+    record.tool,
+    record.name
+  );
+  if (direct) return direct;
+  return namedToolFromRecord(record.toolCall) ?? namedToolFromRecord(record.tool_call) ?? namedToolFromRecord(record.call) ?? namedToolFromRecord(record.args);
+}
+function firstNonEmptyString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return void 0;
+}
 var AirflowSession = class extends BaseGovernedSession {
   async onExecuteCallback(payload) {
     return this.runActivity("ActivityStarted", "on_execute_callback", payload);
@@ -689,10 +757,10 @@ var LangchainSession = class extends BaseGovernedSession {
     return this.runActivity("ActivityStarted", "on_chat_model_start", payload);
   }
   async onToolStart(payload) {
-    return this.runActivity("ActivityStarted", "on_tool_start", payload);
+    return this.runActivity("ActivityStarted", toolActivityTypeFromPayload(payload), payload);
   }
   async onToolEnd(payload) {
-    return this.runActivity("ActivityCompleted", "on_tool_end", payload);
+    return this.runActivity("ActivityCompleted", toolActivityTypeFromPayload(payload), payload);
   }
   async onToolError(payload) {
     return this.runActivity("ActivityCompleted", "on_tool_error", payload);
@@ -1009,7 +1077,8 @@ function mapVerdict(response) {
     reason: response.reason,
     riskScore: response.risk_score ?? 0,
     trustTier: response.trust_tier ?? void 0,
-    guardrailsResult: mapGuardrailsResult(response.guardrails_result)
+    guardrailsResult: mapGuardrailsResult(response.guardrails_result),
+    ageResult: response.age_result
   };
 }
 function mapGuardrailsResult(raw) {
@@ -1064,6 +1133,33 @@ function normalizeArm(value) {
     default:
       return "allow";
   }
+}
+function verdictRank(arm) {
+  switch (arm) {
+    case "halt":
+      return 4;
+    case "block":
+      return 3;
+    case "require_approval":
+      return 2;
+    case "constrain":
+      return 1;
+    case "allow":
+    default:
+      return 0;
+  }
+}
+function stricterVerdict(base2, hook) {
+  return verdictRank(hook.arm) >= verdictRank(base2.arm) ? hook : base2;
+}
+function isPersistableHookSpan(span) {
+  if (!span || typeof span !== "object") return false;
+  const record = span;
+  if (typeof record.semantic_type === "string" && record.semantic_type !== "") {
+    return true;
+  }
+  const attributes = record.attributes && typeof record.attributes === "object" ? record.attributes : {};
+  return typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
 }
 function errorInfoFrom(value) {
   if (value == null) return void 0;
@@ -1286,11 +1382,11 @@ function createCursorAdapter(config) {
   const write = config.writeStdout ?? ((data) => process.stdout.write(data));
   const exit = config.exit ?? ((code) => process.exit(code));
   function writeFallback(shape, _v, env) {
-    const json = renderVerdictOutput(shape, void 0, env);
+    const json = renderVerdictOutput(shape, void 0, env, config.deferApproval === true);
     if (json !== void 0) write(JSON.stringify(json));
   }
   function writeVerdict(shape, v, env) {
-    const json = renderVerdictOutput(shape, v ?? void 0, env);
+    const json = renderVerdictOutput(shape, v ?? void 0, env, config.deferApproval === true);
     if (json !== void 0) write(JSON.stringify(json));
   }
   return {
@@ -1534,7 +1630,7 @@ function brand(raw) {
   if (!sanitized) return "";
   return sanitized.startsWith("[OpenBox]") ? sanitized : "[OpenBox] " + sanitized;
 }
-function renderVerdictOutput(shape, v, env) {
+function renderVerdictOutput(shape, v, env, deferApproval = false) {
   const arm = v?.arm ?? "allow";
   const reason = brand(v?.reason ?? "");
   switch (shape) {
@@ -1552,7 +1648,7 @@ function renderVerdictOutput(shape, v, env) {
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            permissionDecision: "ask",
+            permissionDecision: deferApproval ? "defer" : "ask",
             permissionDecisionReason: reason || "[OpenBox] approval required"
           }
         };
@@ -1591,6 +1687,50 @@ function renderVerdictOutput(shape, v, env) {
             behavior: "deny",
             message: reason || "[OpenBox] blocked by policy"
           }
+        }
+      };
+    }
+    case "permission-denied-retry": {
+      const eventName = env.hook_event_name ?? "PermissionDenied";
+      if (arm === "allow" || arm === "constrain") {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            retry: true
+          }
+        };
+      }
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          retry: false
+        }
+      };
+    }
+    case "elicitation-response": {
+      const eventName = env.hook_event_name ?? "Elicitation";
+      if (arm === "allow" || arm === "constrain") return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          action: arm === "halt" ? "cancel" : "decline",
+          content: {}
+        }
+      };
+    }
+    case "continue-block": {
+      if (arm === "allow" || arm === "constrain") return {};
+      return {
+        continue: false,
+        stopReason: reason || "[OpenBox] blocked by policy"
+      };
+    }
+    case "additional-context": {
+      if (arm === "allow" || arm === "constrain") return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: env.hook_event_name ?? "PostToolUseFailure",
+          additionalContext: reason || "[OpenBox] blocked by policy"
         }
       };
     }
@@ -1778,6 +1918,9 @@ var TokenBucket = class {
   }
 };
 
+// ts/src/version.ts
+var OPENBOX_SDK_VERSION = "0.1.0";
+
 // ts/src/core-client/core-client.ts
 var CoreApiError = class extends Error {
   status;
@@ -1823,8 +1966,9 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
     return this.request("GET", "/api/v1/auth/validate");
   }
   async evaluate(payload) {
+    const versionedPayload = payload.sdk_version && payload.sdk_version !== "" ? payload : { ...payload, sdk_version: OPENBOX_SDK_VERSION };
     return this.request("POST", "/api/v1/governance/evaluate", {
-      data: payload,
+      data: versionedPayload,
       retryable: false
     });
   }
@@ -1845,7 +1989,8 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
     const timeoutMs = this.config.timeoutMs ?? 35e3;
     const baseHeaders = {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${this.config.apiKey}`
+      Authorization: `Bearer ${this.config.apiKey}`,
+      "X-OpenBox-SDK-Version": OPENBOX_SDK_VERSION
     };
     const body = options?.data ? JSON.stringify(options.data) : void 0;
     const signedHeaders = this.config.agentIdentity ? signAgentIdentityRequest({
@@ -2476,6 +2621,7 @@ function base() {
     trace_id: hex(32),
     parent_span_id: null,
     kind: "CLIENT",
+    span_type: "function",
     stage: "started",
     start_time: Date.now() * 1e6,
     end_time: null,
@@ -2492,12 +2638,15 @@ function buildSpan(host, type, input) {
       return {
         ...b,
         name: "llm.chat.completion",
+        span_type: "function",
         hook_type: "function_call",
         semantic_type: "llm_completion",
         attributes: {
           "gen_ai.system": host,
           "http.method": "POST",
-          "http.url": "https://api.openai.com/v1/chat/completions"
+          "http.url": "https://api.openai.com/v1/chat/completions",
+          "openbox.semantic_type": "llm_completion",
+          "openbox.span_type": "function"
         },
         function: "LLMCall",
         module: host,
@@ -2509,11 +2658,14 @@ function buildSpan(host, type, input) {
         ...b,
         name: "file.read",
         kind: "INTERNAL",
+        span_type: "file_io",
         hook_type: "file_operation",
         semantic_type: "file_read",
         attributes: {
           "file.path": input.file_path ?? "",
-          "file.operation": "read"
+          "file.operation": "read",
+          "openbox.semantic_type": "file_read",
+          "openbox.span_type": "file_io"
         },
         module: host,
         file_path: input.file_path ?? "",
@@ -2525,11 +2677,14 @@ function buildSpan(host, type, input) {
         ...b,
         name: "file.write",
         kind: "INTERNAL",
+        span_type: "file_io",
         hook_type: "file_operation",
         semantic_type: "file_write",
         attributes: {
           "file.path": input.file_path ?? "",
-          "file.operation": "write"
+          "file.operation": "write",
+          "openbox.semantic_type": "file_write",
+          "openbox.span_type": "file_io"
         },
         module: host,
         file_path: input.file_path ?? "",
@@ -2541,11 +2696,14 @@ function buildSpan(host, type, input) {
         ...b,
         name: "file.delete",
         kind: "INTERNAL",
+        span_type: "file_io",
         hook_type: "file_operation",
         semantic_type: "file_delete",
         attributes: {
           "file.path": input.file_path ?? "",
-          "file.operation": "delete"
+          "file.operation": "delete",
+          "openbox.semantic_type": "file_delete",
+          "openbox.span_type": "file_io"
         },
         module: host,
         file_path: input.file_path ?? "",
@@ -2556,11 +2714,14 @@ function buildSpan(host, type, input) {
         ...b,
         name: "ShellExecution",
         kind: "INTERNAL",
+        span_type: "function",
         hook_type: "function_call",
         semantic_type: "internal",
         attributes: {
           "shell.command": input.command ?? "",
-          "shell.cwd": input.cwd ?? ""
+          "shell.cwd": input.cwd ?? "",
+          "openbox.semantic_type": "internal",
+          "openbox.span_type": "function"
         },
         function: "ShellExecution",
         module: host,
@@ -2571,12 +2732,18 @@ function buildSpan(host, type, input) {
       return {
         ...b,
         name: `tool.${input.tool_name ?? "call"}`,
+        span_type: "mcp_tool_call",
         hook_type: "function_call",
         semantic_type: "llm_tool_call",
         attributes: {
           "gen_ai.system": "mcp",
           "http.method": "POST",
-          "http.url": "https://api.openai.com/v1/chat/completions"
+          "http.url": "https://api.openai.com/v1/chat/completions",
+          "openbox.semantic_type": "llm_tool_call",
+          "openbox.span_type": "mcp_tool_call",
+          "openbox.tool.name": input.tool_name ?? "call",
+          "tool.name": input.tool_name ?? "call",
+          tool_name: input.tool_name ?? "call"
         },
         function: `mcp.${input.tool_name ?? "call"}`,
         module: host,
@@ -2589,11 +2756,14 @@ function buildSpan(host, type, input) {
       return {
         ...b,
         name: `${method} ${url}`,
+        span_type: "http",
         hook_type: "http_request",
         semantic_type: `http_${method.toLowerCase()}`,
         attributes: {
           "http.method": method,
-          "http.url": url
+          "http.url": url,
+          "openbox.semantic_type": `http_${method.toLowerCase()}`,
+          "openbox.span_type": "http"
         },
         http_method: method,
         http_url: url,
@@ -2614,12 +2784,15 @@ function buildSpan(host, type, input) {
       return {
         ...b,
         name: `${dbOperation} ${dbStatement.split(" ").slice(0, 3).join(" ")}`,
+        span_type: "database",
         hook_type: "db_query",
         semantic_type: `database_${dbOperation.toLowerCase()}`,
         attributes: {
           "db.system": dbSystem,
           "db.operation": dbOperation,
-          "db.statement": dbStatement
+          "db.statement": dbStatement,
+          "openbox.semantic_type": `database_${dbOperation.toLowerCase()}`,
+          "openbox.span_type": "database"
         },
         db_system: dbSystem,
         db_name: null,

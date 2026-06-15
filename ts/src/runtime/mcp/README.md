@@ -7,7 +7,7 @@ Claude Desktop, Cursor, or Claude Code.
 ## Public surface
 
 ```ts
-import { runMcpServer } from 'openbox-sdk/runtime/mcp';
+import { runMcpServer } from '@openbox-ai/openbox-sdk/runtime/mcp';
 await runMcpServer();
 ```
 
@@ -26,7 +26,7 @@ the lifetime of the LLM session and exits when stdin closes.
 | File | Role |
 |---|---|
 | `index.ts` | `runMcpServer()` starts the StdioServerTransport, registers tools and resources, then blocks on connection |
-| `config.ts` | Env, token, and API factory. Uses `openbox-sdk/env` for environments and the token store |
+| `config.ts` | Env, token, and API factory. Uses `@openbox-ai/openbox-sdk/env` for environments and the token store |
 
 ## Tools exposed
 

@@ -6,9 +6,9 @@
 // here because the live backend doesn't yet annotate the org-approvals
 // endpoint shape and we don't want a divergent SDK type just to cover
 // one extension-only call site.
-export type { Approval, UserProfile, Agent, Member, Team } from "openbox-sdk/types";
+export type { Approval, UserProfile, Agent, Member, Team } from "@openbox-ai/openbox-sdk/types";
 
-import type { Approval } from "openbox-sdk/types";
+import type { Approval } from "@openbox-ai/openbox-sdk/types";
 
 export interface OrgApprovalsData {
   approvals: {

@@ -548,6 +548,7 @@ describe('CopilotKit OpenBox adapter', () => {
       'ActivityCompleted',
       'WorkflowCompleted',
     ]);
+    expect(events.filter((event) => event.hook_trigger)).toHaveLength(0);
     expect(events[1]).toMatchObject({
       event_type: 'SignalReceived',
       signal_name: 'user_prompt',
@@ -621,12 +622,15 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(result.verdict).toBe('allow');
     expect(result.reason).toBe('OpenBox approval was granted.');
     expect(JSON.stringify(events[0].activity_input)).not.toContain('7500');
-    expect(JSON.stringify(events[0].spans)).not.toContain('7500');
+    expect(JSON.stringify(events[0].spans ?? [])).not.toContain('7500');
     expect(JSON.stringify(events[0].activity_output)).toContain('7,500');
     expect(events.map((event) => event.event_type)).toEqual([
       'ActivityCompleted',
+      'ActivityCompleted',
       'WorkflowCompleted',
     ]);
+    expect(events[1].hook_trigger).toBe(true);
+    expect(JSON.stringify(events[1].spans ?? [])).not.toContain('7500');
   });
 
   it('fails closed and skips execution when OpenBox blocks activity start', async () => {
@@ -746,6 +750,82 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(JSON.parse(result.content).status).toBe('blocked');
   });
 
+  it('suppresses model continuation after a terminal OpenBox tool result', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const middleware = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+    const handler = vi.fn(async () => ({ content: 'should not run' }));
+
+    const result = await middleware.wrapModelCall(
+      {
+        messages: [
+          { type: 'human', content: 'Review the operations queue.' },
+          {
+            type: 'ai',
+            tool_calls: [{ name: 'openbox_governed_action', args: {} }],
+          },
+          {
+            type: 'tool',
+            content: JSON.stringify({
+              schemaVersion: 'openbox.copilotkit.result.v1',
+              status: 'halted',
+              verdict: 'halt',
+              executed: false,
+              reason: 'Session is no longer active',
+            }),
+          },
+        ],
+      },
+      handler,
+    );
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(result.content).toBe('');
+    expect(mock.events).toEqual([]);
+  });
+
+  it('suppresses model continuation after a successful OpenBox tool result', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const middleware = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+    const handler = vi.fn(async () => ({ content: 'duplicate summary' }));
+
+    const result = await middleware.wrapModelCall(
+      {
+        messages: [
+          { type: 'human', content: 'Review the operations queue.' },
+          {
+            type: 'ai',
+            tool_calls: [{ name: 'openbox_governed_action', args: {} }],
+          },
+          {
+            type: 'tool',
+            content: JSON.stringify({
+              schemaVersion: 'openbox.copilotkit.result.v1',
+              status: 'executed',
+              verdict: 'allow',
+              executed: true,
+              artifact: { summary: 'Queue reviewed.' },
+            }),
+          },
+        ],
+      },
+      handler,
+    );
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(result.content).toBe('');
+    expect(mock.events).toEqual([]);
+  });
+
   it('keeps CopilotKit runtime gate payload compact without truncating allowed model input', async () => {
     const hugeSchema = 'A2UI component schema '.repeat(80_000);
     const userText = 'Show a customer account report for renewal planning.';
@@ -775,12 +855,216 @@ describe('CopilotKit OpenBox adapter', () => {
     );
 
     const started = mock.events.find(
-      (event) => event.event_type === 'ActivityStarted',
+      (event) =>
+        event.event_type === 'ActivityStarted' && !event.hook_trigger,
     );
     expect(JSON.stringify(started).length).toBeLessThan(64_000);
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler.mock.calls[0][0].messages[0].content).toBe(hugeSchema);
     expect(handler.mock.calls[0][0].messages[1].content).toBe(userText);
+  });
+
+  it('emits Core-extractable assistant output spans for goal alignment', async () => {
+    const mock = createMockCore((payload) => ({
+      verdict: 'allow',
+      reason: 'allowed',
+      age_result: payload.hook_trigger
+        ? {
+            allowed: true,
+            verdict: 'allow',
+            fallback_used: false,
+            goal_alignment_checked: true,
+            goal_drifted: false,
+            span_results: [],
+            total_spans: 1,
+            violations_count: 0,
+            response_time_ms: 12,
+          }
+        : undefined,
+    }));
+    const middleware = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+
+    await middleware.wrapModelCall(
+      {
+        messages: [{ type: 'human', content: 'Review the queue.' }],
+        state: { openboxWorkflowId: 'wf', openboxRunId: 'run' },
+      },
+      async () => ({
+        content: 'The queue has two governed requests ready.',
+        response_metadata: {
+          model_name: 'gpt-4o-mini',
+          tokenUsage: {
+            promptTokens: 42,
+            completionTokens: 16,
+            totalTokens: 58,
+          },
+        },
+      }),
+    );
+
+    const completed = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'on_llm_end' &&
+        !event.hook_trigger,
+    );
+    expect(completed?.span_count).toBe(0);
+    expect(completed?.spans).toEqual([]);
+
+    const hookCompleted = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === undefined &&
+        event.hook_trigger,
+    );
+    expect(hookCompleted?.activity_id).toBe(completed?.activity_id);
+    expect(hookCompleted?.status).toBe('completed');
+    expect(hookCompleted?.activity_type).toBeUndefined();
+    expect(hookCompleted?.span_count).toBe(1);
+    const span = hookCompleted?.spans?.[0] as Record<string, any> | undefined;
+    expect(span).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'llm_completion',
+      attributes: {
+        'gen_ai.system': 'copilotkit',
+        'http.method': 'POST',
+        'http.url': 'https://api.openai.com/v1/chat/completions',
+      },
+    });
+    expect(JSON.parse(String(span?.response_body))).toEqual({
+      choices: [
+        {
+          message: {
+            content: 'The queue has two governed requests ready.',
+          },
+        },
+      ],
+      model: 'gpt-4o-mini',
+      usage: {
+        prompt_tokens: 42,
+        input_tokens: 42,
+        completion_tokens: 16,
+        output_tokens: 16,
+        total_tokens: 58,
+      },
+    });
+  });
+
+  it('passes Core AGE metadata through assistant output governance results', async () => {
+    const ageResult = {
+      allowed: true,
+      verdict: 'allow',
+      fallback_used: false,
+      goal_alignment_checked: true,
+      goal_drifted: false,
+      span_results: [],
+      total_spans: 1,
+      violations_count: 0,
+      response_time_ms: 9,
+    };
+    const mock = createMockCore((payload) => ({
+      verdict: 'allow',
+      reason: 'allowed',
+      age_result: payload.hook_trigger ? ageResult : undefined,
+    }));
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+      workflowType: 'CopilotKitTestWorkflow',
+      taskQueue: 'langgraph',
+    });
+
+    const result = await adapter.governAssistantOutput({
+      payload: { content: 'The update stays aligned with the customer task.' },
+      workflowId: 'wf',
+      runId: 'run',
+      activityId: 'activity-1',
+    });
+    const copilotResult = adapter.toOpenBoxCopilotResult(
+      result.verdict,
+      result,
+    );
+
+    expect((result.verdict as unknown as Record<string, unknown>).ageResult).toEqual(
+      ageResult,
+    );
+    expect(copilotResult.ageResult).toEqual(ageResult);
+  });
+
+  it('merges terminal AGE metadata into standalone governed tool results', async () => {
+    const ageResult = {
+      allowed: true,
+      verdict: 'allow',
+      fallback_used: false,
+      goal_alignment_checked: true,
+      goal_drifted: false,
+      span_results: [],
+      total_spans: 1,
+      violations_count: 0,
+      response_time_ms: 11,
+    };
+    const { tool } = createDemoTool((payload) => ({
+      verdict: 'allow',
+      reason: 'allowed',
+      age_result:
+        payload.event_type === 'WorkflowCompleted' ? ageResult : undefined,
+    }));
+
+    const result = await tool.execute({
+      action: 'demo_action',
+      request: 'Review the customer escalation.',
+    });
+
+    expect(result.status).toBe('executed');
+    expect(result.ageResult).toEqual(ageResult);
+  });
+
+  it('lets governed tools attach consumer span profiles', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const adapter = createOpenBoxCopilotKitAdapter({ core: mock.core as any });
+    const tool = createGovernedCopilotTool<DemoInput, DemoArtifact>({
+      adapter,
+      toolName: 'openbox_governed_action',
+      execute: async (input) => ({ body: input.request }),
+      spanProfile: () => ({
+        name: 'business.queue.review',
+        kind: 'client',
+        attributes: {
+          'openbox.operation': 'review_queue',
+        },
+      }),
+    });
+
+    const before = Date.now();
+    await tool.execute({
+      action: 'demo_action',
+      request: 'Review the queue.',
+    });
+    const after = Date.now();
+
+    const started = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.hook_trigger &&
+        Array.isArray(event.spans) &&
+        event.spans.length > 0,
+    );
+    const span = started?.spans?.[0] as Record<string, any> | undefined;
+    expect(span).toMatchObject({
+      name: 'business.queue.review',
+      kind: 'client',
+      attributes: expect.objectContaining({
+        'openbox.action': 'demo_action',
+        'openbox.operation': 'review_queue',
+      }),
+    });
+    const startedAtMs = Number(span?.start_time) / 1_000_000;
+    expect(startedAtMs).toBeGreaterThanOrEqual(before - 1000);
+    expect(startedAtMs).toBeLessThanOrEqual(after + 1000);
   });
 
   it('opens a workflow before standalone runtime gates when state IDs are missing', async () => {
@@ -813,6 +1097,33 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(mock.events[0].workflow_id).toBe(mock.events[2].workflow_id);
     expect(mock.events[0].run_id).toBe(mock.events[2].run_id);
     expect(mock.events[0].run_id).not.toBe(mock.events[0].workflow_id);
+  });
+
+  it('emits the goal-alignment prompt signal for content-shaped prompts', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const adapter = createOpenBoxCopilotKitAdapter({ core: mock.core as any });
+
+    await adapter.governPrompt({
+      payload: { content: 'Draft a renewal follow-up for the customer.' },
+      sessionKey: 'content-prompt',
+      activityType: 'on_chat_model_start',
+    });
+
+    expect(mock.events.map((event) => event.event_type)).toEqual([
+      'WorkflowStarted',
+      'SignalReceived',
+      'ActivityStarted',
+      'ActivityCompleted',
+    ]);
+    expect(mock.events[1]).toMatchObject({
+      event_type: 'SignalReceived',
+      activity_type: 'user_prompt',
+      signal_name: 'user_prompt',
+      signal_args: 'Draft a renewal follow-up for the customer.',
+    });
   });
 
   it('marks standalone runtime gate workflows failed when Core errors after start', async () => {
@@ -1241,7 +1552,7 @@ describe('CopilotKit OpenBox adapter', () => {
 
   it('blocks a tool input before non-OpenBox tool execution', async () => {
     const mock = createMockCore((payload) => ({
-      verdict: payload.activity_type === 'on_tool_start' ? 'block' : 'allow',
+      verdict: payload.activity_type === 'send_email' ? 'block' : 'allow',
       reason: 'tool input blocked',
     }));
     const middleware = createOpenBoxCopilotKitAdapter({
@@ -1263,10 +1574,10 @@ describe('CopilotKit OpenBox adapter', () => {
 
   it('applies generic nested tool output redaction before returning the result', async () => {
     const mock = createMockCore((payload) => ({
-      verdict: payload.activity_type === 'on_tool_end' ? 'constrain' : 'allow',
+      verdict: payload.activity_type === 'crm_lookup' ? 'constrain' : 'allow',
       reason: 'tool output constrained',
       guardrails_result:
-        payload.activity_type === 'on_tool_end'
+        payload.activity_type === 'crm_lookup'
           ? {
               input_type: 'activity_output',
               redacted_input: {
@@ -1370,7 +1681,7 @@ describe('CopilotKit OpenBox adapter', () => {
     const mock = createMockCore((payload) => ({
       verdict:
         payload.activity_type === 'UserPromptSubmit' ||
-        payload.activity_type === 'on_tool_start'
+        payload.activity_type === 'safe_tool'
           ? 'halt'
           : 'allow',
       reason: 'session halted',
@@ -1391,7 +1702,7 @@ describe('CopilotKit OpenBox adapter', () => {
       mock.events
         .filter((event) => event.event_type === 'ActivityStarted')
         .map((event) => event.activity_type),
-    ).toEqual(['UserPromptSubmit', 'on_tool_start']);
+    ).toEqual(['UserPromptSubmit', 'safe_tool']);
   });
 
   it('pauses on approval-required prompt verdict without calling the model', async () => {

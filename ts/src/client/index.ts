@@ -7,6 +7,6 @@ export {
 } from './generated/wrapper-methods.js';
 
 // `RetryConfig` and `RateLimitConfig` are spec-driven; import them from
-// `openbox-sdk/env`. They're not re-exported here because the SDK's root
-// index.ts gets them via `openbox-sdk/env` already, and double-exporting
-// them from `openbox-sdk/client` would cause a `export *` collision.
+// `@openbox-ai/openbox-sdk/env`. They're not re-exported here because the SDK's root
+// index.ts gets them via `@openbox-ai/openbox-sdk/env` already, and double-exporting
+// them from `@openbox-ai/openbox-sdk/client` would cause a `export *` collision.

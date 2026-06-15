@@ -1,5 +1,6 @@
 import { createHash, createPrivateKey, randomUUID, sign } from 'node:crypto';
 import { TokenBucket } from '../client/index.js';
+import { OPENBOX_SDK_VERSION } from '../version.js';
 
 // Every wire-shape type in this module comes from the spec at
 // specs/typespec/core/main.tsp via codegen/emitters/ts/. This file
@@ -163,8 +164,12 @@ export class OpenBoxCoreClient {
     // burning extra workflow slots. Single shot; surface the 500
     // immediately so the caller can decide whether to retry with
     // full context, such as a fresh workflow_id.
+    const versionedPayload =
+      payload.sdk_version && payload.sdk_version !== ''
+        ? payload
+        : { ...payload, sdk_version: OPENBOX_SDK_VERSION };
     return this.request('POST', '/api/v1/governance/evaluate', {
-      data: payload,
+      data: versionedPayload,
       retryable: false,
     }) as Promise<GovernanceVerdictResponse>;
   }
@@ -195,6 +200,7 @@ export class OpenBoxCoreClient {
     const baseHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${this.config.apiKey}`,
+      'X-OpenBox-SDK-Version': OPENBOX_SDK_VERSION,
     };
     const body = options?.data ? JSON.stringify(options.data) : undefined;
     const signedHeaders = this.config.agentIdentity

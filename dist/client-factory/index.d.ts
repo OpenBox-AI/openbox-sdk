@@ -18,7 +18,7 @@ interface ConsumerClientOptions {
     /**
      * Value sent in the `X-Openbox-Client` header so the backend can
      * attribute traffic to a specific consumer (e.g. "apps/extension",
-     * "apps/mobile"). Defaults to "openbox-sdk/client-factory" so an
+     * "apps/mobile"). Defaults to "@openbox-ai/openbox-sdk/client-factory" so an
      * unattributed call still shows up clearly in audit logs.
      */
     clientName?: string;

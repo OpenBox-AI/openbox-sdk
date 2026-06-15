@@ -1,7 +1,15 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import type { SpanData } from '../core-client/core-client.js';
+import type { AGEResult, SpanData } from '../core-client/core-client.js';
 import type { WorkflowVerdict } from '../core-client/index.js';
-import { errorMessage, sameJson, swallow } from './internal-utils.js';
+import {
+  buildLLMCompletionSpan,
+  type LLMTokenUsage,
+} from '../governance/spans.js';
+import {
+  errorMessage,
+  sameJson,
+  swallow,
+} from './internal-utils.js';
 import { applyOpenBoxTransform, isAllowed, safePayload } from './results.js';
 import type {
   OpenBoxCopilotGateInput,
@@ -12,11 +20,14 @@ import type {
 } from './types.js';
 import {
   createWorkflowSession,
+  emitActivityHookSpanUpdate,
   emitUserPromptSignal,
   ensureWorkflowStarted,
   failWorkflow,
   finishStoppedWorkflow,
 } from './workflow-session.js';
+
+type WorkflowVerdictWithAge = WorkflowVerdict & { ageResult?: AGEResult };
 
 // All gate emission goes through the spec-generated session runtime
 // (core-client/generated/govern.ts), which owns the canonical envelope:
@@ -44,7 +55,8 @@ async function evaluateGate<T>(
 ): Promise<WorkflowVerdict> {
   const completed =
     input.kind === 'tool_output' || input.kind === 'assistant_output';
-  const activityType = input.activityType ?? activityTypeForGate(input.kind);
+  const activityType =
+    input.activityType ?? activityTypeForGate(input.kind, input.payload);
   const session = gateSession(
     adapter,
     { workflowId: ids.workflowId, runId: ids.runId },
@@ -58,12 +70,12 @@ async function evaluateGate<T>(
       ? {
           activityId: ids.activityId,
           output: input.payload,
-          spans: [pipelineSpan(input.kind, activityType, input.payload)],
+          spans: [],
         }
       : {
           activityId: ids.activityId,
           input: [input.payload],
-          spans: [pipelineSpan(input.kind, activityType, input.payload)],
+          spans: [],
         },
   );
 }
@@ -127,11 +139,29 @@ export async function governPipelineGate<T>(
       );
     }
     const verdict = await evaluateGate(adapter, input, ids);
-    const safe = isAllowed(verdict.arm)
+    const transformed = isAllowed(verdict.arm)
       ? applyOpenBoxTransform(input.payload, verdict)
       : input.payload;
+    const effectiveVerdict = isAllowed(verdict.arm)
+      ? await evaluateAssistantOutputHook(
+          adapter,
+          input,
+          ids,
+          verdict,
+          transformed,
+        )
+      : verdict;
+    const safe = isAllowed(effectiveVerdict.arm)
+      ? applyOpenBoxTransform(transformed, effectiveVerdict)
+      : transformed;
     const changed = !sameJson(safe, input.payload);
-    const payload = safePayload(safe, input.payload, verdict, ids, changed);
+    const payload = safePayload(
+      safe,
+      input.payload,
+      effectiveVerdict,
+      ids,
+      changed,
+    );
     if (payload.status === 'blocked' || payload.status === 'halted') {
       await swallow(() =>
         finishStoppedWorkflow(
@@ -299,6 +329,7 @@ function promptTextFromPayload(payload: unknown): string | undefined {
   const record = payload as Record<string, unknown>;
   if (typeof record.prompt === 'string') return record.prompt;
   if (typeof record.request === 'string') return record.request;
+  if (typeof record.content === 'string') return record.content;
   if (Array.isArray(record.messages)) {
     const latestUser = [...record.messages]
       .reverse()
@@ -327,16 +358,205 @@ function promptTextFromPayload(payload: unknown): string | undefined {
   return undefined;
 }
 
-function activityTypeForGate(kind: OpenBoxCopilotGateKind): string {
+function activityTypeForGate(
+  kind: OpenBoxCopilotGateKind,
+  payload?: unknown,
+): string {
   switch (kind) {
     case 'prompt':
       return 'UserPromptSubmit';
     case 'tool_input':
-      return 'on_tool_start';
+      return toolNameFromPayload(payload) ?? 'ToolCall';
     case 'tool_output':
-      return 'on_tool_end';
+      return toolNameFromPayload(payload) ?? 'ToolCall';
     case 'assistant_output':
       return 'on_llm_end';
+  }
+}
+
+async function evaluateAssistantOutputHook<T>(
+  adapter: OpenBoxCopilotKitAdapter,
+  input: OpenBoxCopilotGateInput<T> & {
+    kind: OpenBoxCopilotGateKind;
+    workflowType: string;
+    taskQueue: string;
+  },
+  ids: { workflowId: string; runId: string; activityId: string },
+  verdict: WorkflowVerdict,
+  safePayload: T,
+): Promise<WorkflowVerdict> {
+  if (input.kind !== 'assistant_output') return verdict;
+  const content = assistantContentFromPayload(safePayload);
+  if (!content) return verdict;
+  const hookVerdict = await emitActivityHookSpanUpdate(
+    adapter,
+    ids,
+    input.workflowType,
+    input.taskQueue,
+    undefined,
+    safePayload,
+    [
+      buildLLMCompletionSpan({
+        content,
+        span: pipelineSpan(input.kind, 'llm.chat.completion', safePayload),
+        name: 'openbox.copilotkit.assistant_output',
+        kind: 'llm',
+        system: 'copilotkit',
+        attributes: { 'gen_ai.system': 'copilotkit' },
+        ...llmCompletionMetadataFromPayload(safePayload),
+      }),
+    ],
+  );
+  return mergeGateVerdicts(verdict, hookVerdict);
+}
+
+function llmCompletionMetadataFromPayload(payload: unknown): {
+  model?: string;
+  usage?: LLMTokenUsage;
+  requestBody?: unknown;
+  responseBody?: unknown;
+  providerUrl?: string;
+} {
+  const record = recordFrom(payload);
+  const metadata = firstRecord(
+    record.response_metadata,
+    record.responseMetadata,
+    record.lc_kwargs && recordFrom(record.lc_kwargs).response_metadata,
+    record.lc_kwargs && recordFrom(record.lc_kwargs).responseMetadata,
+  );
+  const usageMetadata = firstRecord(
+    record.usage_metadata,
+    record.usageMetadata,
+    record.usage,
+    metadata.usage,
+    metadata.tokenUsage,
+    metadata.token_usage,
+  );
+  const model =
+    firstString(
+      record.model,
+      record.model_name,
+      record.modelName,
+      metadata.model,
+      metadata.model_name,
+      metadata.modelName,
+    ) ?? undefined;
+  return {
+    model,
+    usage: usageFrom(usageMetadata),
+    requestBody:
+      record.request_body ?? record.requestBody ?? metadata.request_body,
+    responseBody:
+      record.response_body ?? record.responseBody ?? metadata.response_body,
+    providerUrl: providerUrlFor(
+      firstString(
+        metadata.ls_provider,
+        metadata.provider,
+        record.provider,
+        record.model_provider,
+      ),
+      model,
+    ),
+  };
+}
+
+function providerUrlFor(
+  provider: string | undefined,
+  model: string | undefined,
+): string | undefined {
+  const normalized = provider?.toLowerCase();
+  if (normalized?.includes('anthropic')) return 'https://api.anthropic.com/v1/messages';
+  if (normalized?.includes('google') || normalized?.includes('gemini'))
+    return 'https://generativelanguage.googleapis.com/v1beta/models';
+  if (normalized?.includes('openai')) return 'https://api.openai.com/v1/chat/completions';
+  if (model?.startsWith('gemini')) return 'https://generativelanguage.googleapis.com/v1beta/models';
+  return undefined;
+}
+
+function usageFrom(record: Record<string, unknown>): LLMTokenUsage | undefined {
+  const usage = {
+    promptTokens: numberFrom(record.prompt_tokens ?? record.promptTokens),
+    completionTokens: numberFrom(
+      record.completion_tokens ?? record.completionTokens,
+    ),
+    inputTokens: numberFrom(record.input_tokens ?? record.inputTokens),
+    outputTokens: numberFrom(record.output_tokens ?? record.outputTokens),
+    totalTokens: numberFrom(record.total_tokens ?? record.totalTokens),
+  };
+  return Object.values(usage).some((value) => value !== undefined)
+    ? usage
+    : undefined;
+}
+
+function numberFrom(value: unknown): number | undefined {
+  const numeric =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+        ? Number(value)
+        : undefined;
+  if (!Number.isFinite(numeric) || numeric === undefined) return undefined;
+  return Math.trunc(numeric);
+}
+
+function recordFrom(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function firstRecord(...values: unknown[]): Record<string, unknown> {
+  for (const value of values) {
+    const record = recordFrom(value);
+    if (Object.keys(record).length > 0) return record;
+  }
+  return {};
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return undefined;
+}
+
+function mergeGateVerdicts(
+  first: WorkflowVerdict,
+  second: WorkflowVerdict,
+): WorkflowVerdict {
+  const winner =
+    verdictSeverity(second.arm) > verdictSeverity(first.arm) ? second : first;
+  const merged = {
+    ...winner,
+    governanceEventId:
+      winner.governanceEventId ??
+      first.governanceEventId ??
+      second.governanceEventId,
+    riskScore: Math.max(first.riskScore ?? 0, second.riskScore ?? 0),
+    trustTier: second.trustTier ?? first.trustTier ?? winner.trustTier,
+    guardrailsResult:
+      winner.guardrailsResult ??
+      first.guardrailsResult ??
+      second.guardrailsResult,
+  } as WorkflowVerdict & Record<string, unknown>;
+  const firstAge = (first as WorkflowVerdictWithAge).ageResult;
+  const secondAge = (second as WorkflowVerdictWithAge).ageResult;
+  if (secondAge ?? firstAge) merged.ageResult = secondAge ?? firstAge;
+  return merged;
+}
+
+function verdictSeverity(arm: WorkflowVerdict['arm']): number {
+  switch (arm) {
+    case 'halt':
+      return 4;
+    case 'block':
+      return 3;
+    case 'require_approval':
+      return 2;
+    case 'constrain':
+      return 1;
+    case 'allow':
+      return 0;
   }
 }
 
@@ -346,11 +566,12 @@ function pipelineSpan(
   payload: unknown,
 ): SpanData {
   const now = Date.now();
-  return {
+  const span = {
     span_id: randomBytes(8).toString('hex'),
     trace_id: randomBytes(16).toString('hex'),
     name: activityType,
     kind: 'internal',
+    span_type: 'function',
     start_time: now,
     end_time: now,
     duration_ns: 0,
@@ -361,4 +582,66 @@ function pipelineSpan(
     },
     data: payload,
   } as SpanData;
+  if (kind !== 'assistant_output') return span;
+
+  const assistantContent = assistantContentFromPayload(payload);
+  if (!assistantContent) return span;
+  return {
+    ...span,
+    name: 'openbox.copilotkit.assistant_output',
+    semantic_type: 'llm_completion',
+    response_body: JSON.stringify({
+      choices: [{ message: { content: assistantContent } }],
+    }),
+  } as SpanData;
+}
+
+function toolNameFromPayload(payload: unknown): string | undefined {
+  const record = recordFrom(payload);
+  return firstString(
+    record.toolName,
+    record.tool_name,
+    record.name,
+    record.action,
+    record.actionName,
+  );
+}
+
+function assistantContentFromPayload(payload: unknown): string | undefined {
+  if (typeof payload === 'string') return payload;
+  if (!payload || typeof payload !== 'object') return undefined;
+  const record = payload as Record<string, unknown>;
+  for (const key of ['content', 'text', 'summary', 'body']) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  const message = record.message;
+  if (message && typeof message === 'object') {
+    const content = (message as Record<string, unknown>).content;
+    if (typeof content === 'string' && content.trim()) return content;
+  }
+  if (Array.isArray(record.messages)) {
+    const latestAssistant = [...record.messages]
+      .reverse()
+      .find(
+        (message): message is Record<string, unknown> =>
+          Boolean(message) &&
+          typeof message === 'object' &&
+          ['assistant', 'ai'].includes(
+            String(
+              (message as Record<string, unknown>).role ??
+                (message as Record<string, unknown>).type ??
+                '',
+            ),
+          ) &&
+          typeof (message as Record<string, unknown>).content === 'string',
+      );
+    if (
+      typeof latestAssistant?.content === 'string' &&
+      latestAssistant.content.trim()
+    ) {
+      return latestAssistant.content;
+    }
+  }
+  return undefined;
 }

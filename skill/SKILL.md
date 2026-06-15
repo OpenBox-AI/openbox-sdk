@@ -124,5 +124,6 @@ The SDK must fail closed on governed paths. If Core is unavailable, do not silen
 - `references/commands.md`: current CLI/API command shape.
 - `references/existing-sdks.md`: integration path by host/framework.
 - `references/governance-flow.md`: workflow/session/event lifecycle.
+- `references/claude-code-governance.md`: current Claude Code hook/plugin/MCP surface audit.
 - `references/guardrails.md`, `references/policies-rego.md`, `references/behaviors.md`: policy concepts and examples.
 - `references/validation-checklist.md`: release/integration checks.

@@ -50,10 +50,12 @@ export interface ClaudeCodeConfig {
   hitlMaxWait: number;
   /** When 'inline', the hook returns `permissionDecision:'ask'` on
    *  require_approval so Claude Code's native permission dialog pops
-   *  in the TUI; the local user is the approver. When 'remote' (or
+   *  in the TUI; the local user is the approver. When 'defer', supported
+   *  Claude Code permission decisions are deferred in non-interactive
+   *  sessions. When 'remote' (or
    *  unset, the default), the hook polls the backend up to
    *  `hitlMaxWait` for an external approver's decision. */
-  approvalMode: 'inline' | 'remote';
+  approvalMode: 'inline' | 'remote' | 'defer';
   taskQueue: string;
   sendStartEvent: boolean;
   sendActivityStartEvent: boolean;
@@ -98,7 +100,7 @@ export function loadConfig(): ClaudeCodeConfig {
     hitlEnabled: get('HITL_ENABLED', 'true') !== 'false',
     hitlPollInterval: parseInt(get('HITL_POLL_INTERVAL', '5'), 10) || 5,
     hitlMaxWait: parseInt(get('HITL_MAX_WAIT', '300'), 10) || 300,
-    approvalMode: (get('APPROVAL_MODE', 'remote').toLowerCase() === 'inline' ? 'inline' : 'remote'),
+    approvalMode: parseApprovalMode(get('APPROVAL_MODE', 'remote')),
     taskQueue: get('TASK_QUEUE', 'claude-code'),
     sendStartEvent: get('SEND_START_EVENT', 'true') !== 'false',
     sendActivityStartEvent: get('SEND_ACTIVITY_START_EVENT', 'true') !== 'false',
@@ -117,4 +119,10 @@ export function getConfigDir(): string {
 
 export function getConfigFilePath(): string {
   return CONFIG_FILE;
+}
+
+function parseApprovalMode(value: string): ClaudeCodeConfig['approvalMode'] {
+  const mode = value.toLowerCase();
+  if (mode === 'inline' || mode === 'defer') return mode;
+  return 'remote';
 }

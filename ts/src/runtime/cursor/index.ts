@@ -1,4 +1,4 @@
-// Public sub-path: `import { ... } from 'openbox-sdk/runtime/cursor'`
+// Public sub-path: `import { ... } from '@openbox-ai/openbox-sdk/runtime/cursor'`
 //
 // Mirrors runtime/claude-code/index.ts. Two surfaces:
 //

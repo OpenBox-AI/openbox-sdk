@@ -1,4 +1,4 @@
-// Public sub-path: `openbox-sdk/session`.
+// Public sub-path: `@openbox-ai/openbox-sdk/session`.
 //
 // Disk-backed mapping from a session key to a `workflowId` and
 // `runId`. Used by every runtime adapter to keep its session record

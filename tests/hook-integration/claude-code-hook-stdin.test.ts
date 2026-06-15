@@ -18,6 +18,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
 import path from 'node:path';
+import { HOOK_SPEC } from '../../ts/src/core-client/generated/runtime/claude-code.js';
 
 const OPENBOX = process.env.OPENBOX_CLI ?? 'openbox';
 
@@ -39,6 +40,8 @@ interface ConfigOverrides {
   coreUrl?: string;
   /** Verbose log toggle. */
   verbose?: boolean;
+  /** Omit OPENBOX_API_KEY to exercise fail-open / fail-closed runtime readiness paths. */
+  omitApiKey?: boolean;
 }
 
 interface HookResult {
@@ -53,10 +56,6 @@ function planConfigDir(opts: ConfigOverrides): string {
   const configDir = path.join(root, '.claude-hooks');
   mkdirSync(configDir, { recursive: true });
   const cfg: Record<string, unknown> = {
-    // No real key: with the dryRun path we never hit the backend.
-    // For the fail-open path the API key still has to validate
-    // shape, so we use a syntactically-correct test key.
-    OPENBOX_API_KEY: 'obx_test_0000000000000000000000000000000000000000000000',
     OPENBOX_CORE_URL: opts.coreUrl ?? 'http://127.0.0.1:1',
     GOVERNANCE_POLICY: opts.governancePolicy ?? 'fail_open',
     GOVERNANCE_TIMEOUT: 1,
@@ -64,6 +63,12 @@ function planConfigDir(opts: ConfigOverrides): string {
     DRY_RUN: opts.dryRun ?? false,
     VERBOSE: opts.verbose ?? false,
   };
+  if (!opts.omitApiKey) {
+    // No real key: with the dryRun path we never hit the backend.
+    // For the fail-open path the API key still has to validate
+    // shape, so we use a syntactically-correct test key.
+    cfg.OPENBOX_API_KEY = 'obx_test_0000000000000000000000000000000000000000000000';
+  }
   if (opts.skipTools) cfg.SKIP_TOOLS = opts.skipTools.join(',');
   if (opts.skipActivityTypes) cfg.SKIP_ACTIVITY_TYPES = opts.skipActivityTypes.join(',');
   writeFileSync(path.join(configDir, 'config.json'), JSON.stringify(cfg, null, 2));
@@ -181,28 +186,26 @@ describe('claude-code hook stdin/stdout', () => {
   });
 
   it('every spec-defined hook event dispatches cleanly under dryRun', () => {
-    // Covers the long tail beyond preToolUse / postToolUse:
-    // PreCompact and Notification have handlers in the adapter
-    // but no other test fires them. SessionStart / SessionEnd /
-    // Stop / SubagentStart / SubagentStop are observe-only events
-    // that should never surface a verdict; the hook must still
-    // dispatch them and write a log record.
+    // Covers the full generated HOOK_SPEC inventory. WorktreeCreate
+    // is intentionally absent from HOOK_SPEC because it is opt-in and
+    // replaces Claude Code's default worktree creation behavior.
     const root = planConfigDir({ dryRun: true });
-    for (const event of [
-      'SessionStart',
-      'SessionEnd',
-      'Stop',
-      'SubagentStart',
-      'SubagentStop',
-      'Notification',
-      'PreCompact',
-    ]) {
+    for (const { name: event } of HOOK_SPEC.events) {
       const r = callHook(
         {
           hook_event_name: event,
           session_id: `s-${event}`,
           agent_id: 'test-agent',
           agent_type: 'task',
+          tool_name: 'Read',
+          tool_input: { file_path: '/etc/hostname' },
+          prompt: 'test prompt',
+          expanded_prompt: 'expanded prompt',
+          message: 'message',
+          task_id: 'task-1',
+          task_subject: 'subject',
+          teammate_name: 'teammate',
+          mcp_server_name: 'openbox',
         },
         root,
       );
@@ -300,18 +303,26 @@ describe('claude-code hook stdin/stdout', () => {
     }
   });
 
-  it('missing OPENBOX_API_KEY short-circuits with no stdout (pass-through)', () => {
-    const root = mkdtempSync(path.join(tmpdir(), 'obx-cc-stdin-nokey-'));
-    const configDir = path.join(root, '.claude-hooks');
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      path.join(configDir, 'config.json'),
-      JSON.stringify({
-        OPENBOX_CORE_URL: 'http://127.0.0.1:1',
-        GOVERNANCE_POLICY: 'fail_open',
-        HITL_ENABLED: false,
-      }),
+  it('fail-closed with unreachable core denies decision-capable PreToolUse', () => {
+    const root = planConfigDir({ coreUrl: 'http://127.0.0.1:1', governancePolicy: 'fail_closed' });
+    const r = callHook(
+      {
+        hook_event_name: 'PreToolUse',
+        session_id: 's-fc-core',
+        tool_name: 'Read',
+        tool_input: { file_path: '/etc/hostname' },
+      },
+      root,
+      { OPENBOX_CORE_URL: 'http://127.0.0.1:1', GOVERNANCE_TIMEOUT: '1' },
     );
+    expect(r.status, `exit=${r.status} stderr=${r.stderr}`).toBe(0);
+    const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string } };
+    expect(out.hookSpecificOutput?.permissionDecision).toBe('deny');
+    expect(out.hookSpecificOutput?.permissionDecisionReason).toContain('[OpenBox]');
+  });
+
+  it('missing OPENBOX_API_KEY short-circuits with no stdout (pass-through)', () => {
+    const root = planConfigDir({ omitApiKey: true, governancePolicy: 'fail_open' });
     const r = callHook(
       {
         hook_event_name: 'PreToolUse',
@@ -326,6 +337,65 @@ describe('claude-code hook stdin/stdout', () => {
     // to stdout; claude treats absent stdout as default allow.
     expect(r.status).toBe(0);
     expect(r.stdout.trim()).toBe('');
+  });
+
+  it('missing OPENBOX_API_KEY fail-closed writes each decision-capable deny/block shape', () => {
+    const root = planConfigDir({ omitApiKey: true, governancePolicy: 'fail_closed' });
+    const cases: Array<{
+      event: string;
+      envelope?: Record<string, unknown>;
+      assert: (parsed: any) => void;
+    }> = [
+      {
+        event: 'PreToolUse',
+        assert: (out) => expect(out.hookSpecificOutput.permissionDecision).toBe('deny'),
+      },
+      {
+        event: 'PermissionRequest',
+        assert: (out) => expect(out.hookSpecificOutput.decision.behavior).toBe('deny'),
+      },
+      {
+        event: 'PermissionDenied',
+        assert: (out) => expect(out.hookSpecificOutput.retry).toBe(false),
+      },
+      {
+        event: 'PostToolUse',
+        assert: (out) => expect(out.decision).toBe('block'),
+      },
+      {
+        event: 'PostToolUseFailure',
+        assert: (out) => expect(out.hookSpecificOutput.additionalContext).toContain('[OpenBox]'),
+      },
+      {
+        event: 'TaskCreated',
+        assert: (out) => expect(out.continue).toBe(false),
+      },
+      {
+        event: 'Elicitation',
+        assert: (out) => expect(out.hookSpecificOutput.action).toBe('decline'),
+      },
+      {
+        event: 'ConfigChange',
+        assert: (out) => expect(out.decision).toBe('block'),
+      },
+    ];
+
+    for (const c of cases) {
+      const r = callHook(
+        {
+          hook_event_name: c.event,
+          session_id: `s-fc-${c.event}`,
+          tool_name: 'Read',
+          tool_input: { file_path: '/etc/hostname' },
+          ...c.envelope,
+        },
+        root,
+        { OPENBOX_API_KEY: '' },
+      );
+      expect(r.status, `${c.event} failed: ${r.stderr}`).toBe(0);
+      expect(r.parsed, `${c.event} produced no JSON`).toBeDefined();
+      c.assert(r.parsed);
+    }
   });
 
   it('JSONL hook log captures one record per event', () => {

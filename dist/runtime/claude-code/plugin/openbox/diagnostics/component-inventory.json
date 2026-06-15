@@ -1,0 +1,156 @@
+{
+  "name": "openbox",
+  "version": "0.1.0",
+  "capturedAt": "2026-06-15",
+  "installedClaudeCodeVersion": "2.1.177 (Claude Code)",
+  "components": {
+    "skill": {
+      "status": "installed",
+      "path": "skills/openbox/SKILL.md"
+    },
+    "commands": {
+      "status": "installed",
+      "path": "commands/",
+      "files": [
+        "openbox-check.md",
+        "openbox-doctor.md",
+        "openbox-list-agents.md",
+        "openbox-pending.md",
+        "openbox-status.md"
+      ]
+    },
+    "agent": {
+      "status": "installed",
+      "path": "agents/openbox-reviewer.md"
+    },
+    "hooks": {
+      "status": "installed",
+      "path": "hooks/hooks.json",
+      "defaultEvents": [
+        "PreToolUse",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "PostToolBatch",
+        "UserPromptSubmit",
+        "UserPromptExpansion",
+        "PermissionRequest",
+        "PermissionDenied",
+        "Setup",
+        "InstructionsLoaded",
+        "PreCompact",
+        "PostCompact",
+        "SessionStart",
+        "SessionEnd",
+        "SubagentStart",
+        "SubagentStop",
+        "TaskCreated",
+        "TaskCompleted",
+        "Stop",
+        "StopFailure",
+        "TeammateIdle",
+        "Notification",
+        "MessageDisplay",
+        "ConfigChange",
+        "CwdChanged",
+        "FileChanged",
+        "WorktreeRemove",
+        "Elicitation",
+        "ElicitationResult"
+      ],
+      "optInEvents": [
+        "WorktreeCreate"
+      ]
+    },
+    "mcp": {
+      "status": "installed",
+      "path": ".mcp.json",
+      "command": "openbox mcp serve"
+    },
+    "diagnostics": {
+      "status": "installed",
+      "path": "diagnostics/",
+      "files": [
+        "component-inventory.json",
+        "claude-code-governance.json",
+        "monitors.opt-in.json"
+      ]
+    },
+    "bin": {
+      "status": "installed",
+      "path": "bin/openbox-plugin-doctor",
+      "command": "openbox claude-code doctor"
+    },
+    "monitors": {
+      "status": "opt_in_metadata",
+      "activeByDefault": false,
+      "path": "diagnostics/monitors.opt-in.json",
+      "notes": "Copy to monitors/monitors.json only after accepting unsandboxed monitor execution."
+    },
+    "lsp": {
+      "status": "not_included",
+      "notes": "No OpenBox language-server use case was found in the Claude Code governance audit."
+    }
+  },
+  "surfaces": [
+    {
+      "surface": "hooks",
+      "status": "implement_now",
+      "notes": "Generated from TypeSpec and installed by the Claude Code plugin."
+    },
+    {
+      "surface": "skills",
+      "status": "implement_now",
+      "notes": "OpenBox skill ships under plugin skills/openbox."
+    },
+    {
+      "surface": "commands",
+      "status": "implement_now",
+      "notes": "Compatibility command markdown files remain for Claude slash entrypoints."
+    },
+    {
+      "surface": "agents",
+      "status": "implement_now",
+      "notes": "OpenBox reviewer agent ships in the plugin."
+    },
+    {
+      "surface": "MCP",
+      "status": "implement_now",
+      "notes": "OpenBox MCP server exposes status, doctor, approvals, agents, rules, policies, and governance checks."
+    },
+    {
+      "surface": "plugin settings",
+      "status": "diagnose_only",
+      "notes": "Only agent/subagentStatusLine are currently supported by Claude Code plugin settings."
+    },
+    {
+      "surface": "monitors",
+      "status": "diagnose_only",
+      "notes": "Documented as opt-in because monitors run unsandboxed and project-scope plugins do not load them."
+    },
+    {
+      "surface": "LSP",
+      "status": "explicit_out_of_scope",
+      "notes": "No OpenBox language server exists; official LSP plugins should be installed separately."
+    },
+    {
+      "surface": "bin",
+      "status": "diagnose_only",
+      "notes": "OpenBox relies on the installed openbox binary; doctor reports command resolution."
+    },
+    {
+      "surface": "managed settings",
+      "status": "diagnose_only",
+      "notes": "Enterprise policy belongs to managed Claude Code deployment, not SDK mutation."
+    },
+    {
+      "surface": "channels",
+      "status": "diagnose_only",
+      "notes": "Research preview MCP push channel surface; standard MCP remains the connector path."
+    },
+    {
+      "surface": "built-in tool permissions",
+      "status": "implement_now",
+      "notes": "PreToolUse/PermissionRequest routing covers current built-in tool names and dynamic mcp__ tools."
+    }
+  ]
+}

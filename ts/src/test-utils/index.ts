@@ -1,4 +1,4 @@
-// Public sub-path: `import { ... } from 'openbox-sdk/test-utils'`.
+// Public sub-path: `import { ... } from '@openbox-ai/openbox-sdk/test-utils'`.
 //
 // Tooling helpers useful for testing governance integrations end-to-end
 // without standing up a full agent run. Currently exports the

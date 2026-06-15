@@ -7,9 +7,9 @@
 // light / dark / high-contrast all just work.
 
 import * as vscode from "vscode";
-import type { OpenBoxClient } from "openbox-sdk/client";
+import type { OpenBoxClient } from "@openbox-ai/openbox-sdk/client";
 import type { Approval, Agent, Member } from "./types";
-import { formatLabel, summarizeInput, timeAgo, timeRemaining } from "openbox-sdk/approvals";
+import { formatLabel, summarizeInput, timeAgo, timeRemaining } from "@openbox-ai/openbox-sdk/approvals";
 import { sanitizeReason } from "./format";
 
 type DecideAction = "approve" | "reject";

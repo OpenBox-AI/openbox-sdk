@@ -60,6 +60,7 @@ using OpenBox.Workflow;
   HTTPRequest: "HTTP Request",
   MCPToolCall: "MCP Tool Call",
   AgentSpawn: "Agent Spawn",
+  AgentAction: "Agent Action",
 
   // --- Coding agents -----------------------------------------------------
   PreToolUse: "Pre-Tool Use",
@@ -380,6 +381,15 @@ model GovernedPayload {
    * for example HITL approval resume.
    */
   activityId?: string;
+
+  /** Activity start time in epoch milliseconds. */
+  startTime?: numeric;
+
+  /** Activity end time in epoch milliseconds. */
+  endTime?: numeric;
+
+  /** Activity duration in milliseconds. Defaults to `endTime - startTime`. */
+  durationMs?: numeric;
 
   /** Signal name for `SignalReceived` events (for example `user_prompt`). */
   signalName?: string;

@@ -1,11 +1,11 @@
 // VS Code `OutputChannel` wrapper that surfaces hook activity in
 // real time. All tail, parse, and rotation logic lives in
-// `openbox-sdk/logging`; this file only formats each line and
+// `@openbox-ai/openbox-sdk/logging`; this file only formats each line and
 // pipes it into the channel.
 
 import * as vscode from 'vscode';
-import { HOOK_LOG_PATH as LOG_PATH } from 'openbox-sdk/runtime/cursor';
-import { tailHookLog, type HookLogLine, type TailHandle } from 'openbox-sdk/logging';
+import { HOOK_LOG_PATH as LOG_PATH } from '@openbox-ai/openbox-sdk/runtime/cursor';
+import { tailHookLog, type HookLogLine, type TailHandle } from '@openbox-ai/openbox-sdk/logging';
 
 function format(line: HookLogLine, raw: string): string {
   if (!line.event) return raw;

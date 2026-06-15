@@ -100,7 +100,9 @@ extern dec hookEvent(target: Operation, eventName: valueof string);
  * JSON.
  *
  * @param shape One of `permission-decision`, `decision-block`,
- *   `permission-request`, `cursor-permission`, `cursor-observe`, `none`.
+ *   `permission-request`, `permission-denied-retry`,
+ *   `elicitation-response`, `continue-block`, `additional-context`,
+ *   `cursor-permission`, `cursor-observe`, `cursor-continue`, `none`.
  */
 extern dec verdictShape(
   target: Operation,
@@ -108,6 +110,10 @@ extern dec verdictShape(
     | "permission-decision"
     | "decision-block"
     | "permission-request"
+    | "permission-denied-retry"
+    | "elicitation-response"
+    | "continue-block"
+    | "additional-context"
     | "cursor-permission"
     | "cursor-observe"
     | "cursor-continue"

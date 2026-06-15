@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import {
   claudeCodeRuntimeConfigDir,
   exportClaudeCodePlugin,
@@ -35,6 +36,10 @@ describe('Claude Code plugin asset', () => {
     expect(fs.existsSync(path.join(out, '.claude-plugin', 'plugin.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, '.claude-plugin', 'marketplace.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'skills', 'openbox', 'SKILL.md'))).toBe(true);
+    expect(fs.existsSync(path.join(out, 'diagnostics', 'component-inventory.json'))).toBe(true);
+    expect(fs.existsSync(path.join(out, 'diagnostics', 'claude-code-governance.json'))).toBe(true);
+    expect(fs.existsSync(path.join(out, 'diagnostics', 'monitors.opt-in.json'))).toBe(true);
+    expect(fs.existsSync(path.join(out, 'bin', 'openbox-plugin-doctor'))).toBe(true);
     expect(fs.readdirSync(path.join(out, 'commands')).sort()).toEqual([
       'openbox-check.md',
       'openbox-doctor.md',
@@ -67,8 +72,31 @@ describe('Claude Code plugin asset', () => {
     const mcp = JSON.parse(fs.readFileSync(path.join(out, '.mcp.json'), 'utf-8'));
     expect(mcp.mcpServers.openbox).toEqual({ command: 'openbox', args: ['mcp', 'serve'] });
 
+    const inventory = JSON.parse(
+      fs.readFileSync(path.join(out, 'diagnostics', 'component-inventory.json'), 'utf-8'),
+    );
+    expect(inventory.components.skill.path).toBe('skills/openbox/SKILL.md');
+    expect(inventory.components.hooks.defaultEvents).toContain('PreToolUse');
+    expect(inventory.components.hooks.defaultEvents).toContain('Elicitation');
+    expect(inventory.components.hooks.optInEvents).toContain('WorktreeCreate');
+    expect(inventory.components.monitors.activeByDefault).toBe(false);
+    expect(inventory.components.lsp.status).toBe('not_included');
+
     const checks = verifyClaudeCodePlugin({ target: out });
     expect(checks.every((check) => check.status === 'pass')).toBe(true);
+
+    const validation = spawnSync('claude', ['plugin', 'validate', out], {
+      encoding: 'utf-8',
+      timeout: 15_000,
+    });
+    const validatorUnavailable =
+      validation.error ||
+      /unknown command|invalid command|not found|no such command/i.test(
+        `${validation.stderr}\n${validation.stdout}`,
+      );
+    if (!validatorUnavailable) {
+      expect(validation.status, validation.stderr || validation.stdout).toBe(0);
+    }
   });
 
   it('installs by symlink and uninstalls the local plugin target', () => {

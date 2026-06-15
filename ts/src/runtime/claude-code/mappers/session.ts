@@ -4,9 +4,13 @@ import type {
 } from '../../../core-client/index.js';
 import type { ClaudeCodeEnvelope } from '../../../core-client/generated/runtime/claude-code.js';
 import {
+  buildPostCompactPayload,
+  buildPreCompactPayload,
   buildSessionStartPayload,
   buildSessionEndPayload,
+  buildSetupPayload,
   buildStopPayload,
+  buildStopFailurePayload,
 } from '../../../core-client/generated/runtime/claude-code.js';
 import type { ClaudeCodeConfig } from '../config.js';
 import {
@@ -52,10 +56,74 @@ export async function handleStop(
       input: [stampSource(buildStopPayload(env), 'claude-code')],
     });
   } catch {
-    return undefined; // Stop must never block Claude on errors
+    if (cfg.governancePolicy === 'fail_closed') {
+      return {
+        arm: 'block',
+        reason: 'OpenBox Core was unavailable while governing Claude Code stop',
+        riskScore: 1,
+      };
+    }
+    return undefined;
   }
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;
+}
+
+export async function handleSetup(
+  env: ClaudeCodeEnvelope,
+  session: ClaudeCodeSession,
+  _cfg: ClaudeCodeConfig,
+): Promise<undefined> {
+  try {
+    await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
+      input: [stampSource(buildSetupPayload(env), 'claude-code')],
+    });
+  } catch {
+    // best-effort
+  }
+  return undefined;
+}
+
+export async function handlePreCompact(
+  env: ClaudeCodeEnvelope,
+  session: ClaudeCodeSession,
+  cfg: ClaudeCodeConfig,
+): Promise<WorkflowVerdict | undefined> {
+  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
+    input: [stampSource(buildPreCompactPayload(env), 'claude-code')],
+  });
+  if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
+  return verdict;
+}
+
+export async function handlePostCompact(
+  env: ClaudeCodeEnvelope,
+  session: ClaudeCodeSession,
+  _cfg: ClaudeCodeConfig,
+): Promise<undefined> {
+  try {
+    await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
+      input: [stampSource(buildPostCompactPayload(env), 'claude-code')],
+    });
+  } catch {
+    // best-effort
+  }
+  return undefined;
+}
+
+export async function handleStopFailure(
+  env: ClaudeCodeEnvelope,
+  session: ClaudeCodeSession,
+  _cfg: ClaudeCodeConfig,
+): Promise<undefined> {
+  try {
+    await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
+      input: [stampSource(buildStopFailurePayload(env), 'claude-code')],
+    });
+  } catch {
+    // best-effort
+  }
+  return undefined;
 }
 
 /**

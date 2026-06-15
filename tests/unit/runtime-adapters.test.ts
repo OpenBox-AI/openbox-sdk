@@ -126,6 +126,21 @@ describe('createClaudeCodeAdapter', () => {
     expect(out.hookSpecificOutput.permissionDecision).toBe('ask');
   });
 
+  test('permission-decision require_approval + deferApproval → permissionDecision:"defer"', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      deferApproval: true,
+      handlers: {
+        preToolUse: async () => verdict('require_approval', 'queue reviewer'),
+      },
+      ...adapterIO(cap, JSON.stringify(baseEnv)),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.hookSpecificOutput.permissionDecision).toBe('defer');
+  });
+
   test('decision-block (PostToolUse) allow → empty object', async () => {
     const cap = capture();
     await createClaudeCodeAdapter({
@@ -176,6 +191,116 @@ describe('createClaudeCodeAdapter', () => {
     const out = JSON.parse(cap.stdout[0]);
     expect(out.hookSpecificOutput.hookEventName).toBe('PermissionRequest');
     expect(out.hookSpecificOutput.decision.behavior).toBe('allow');
+  });
+
+  test('permission-denied-retry allow → retry:true', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        permissionDenied: async () => verdict('allow'),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({ ...baseEnv, hook_event_name: 'PermissionDenied' }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.hookSpecificOutput.hookEventName).toBe('PermissionDenied');
+    expect(out.hookSpecificOutput.retry).toBe(true);
+  });
+
+  test('permission-denied-retry block → retry:false', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        permissionDenied: async () => verdict('block', 'do not retry'),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({ ...baseEnv, hook_event_name: 'PermissionDenied' }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.hookSpecificOutput.retry).toBe(false);
+  });
+
+  test('additional-context block → hookSpecificOutput.additionalContext', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        postToolUseFailure: async () => verdict('block', 'retry with a safer command'),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({ ...baseEnv, hook_event_name: 'PostToolUseFailure' }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.hookSpecificOutput.hookEventName).toBe('PostToolUseFailure');
+    expect(out.hookSpecificOutput.additionalContext).toBe(
+      '[OpenBox] retry with a safer command',
+    );
+  });
+
+  test('continue-block block → continue:false + stopReason', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        taskCreated: async () => verdict('block', 'task is out of scope'),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({ ...baseEnv, hook_event_name: 'TaskCreated' }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.continue).toBe(false);
+    expect(out.stopReason).toBe('[OpenBox] task is out of scope');
+  });
+
+  test('elicitation-response block → decline', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        elicitation: async () => verdict('block', 'do not collect this input'),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({ ...baseEnv, hook_event_name: 'Elicitation' }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.hookSpecificOutput.hookEventName).toBe('Elicitation');
+    expect(out.hookSpecificOutput.action).toBe('decline');
+    expect(out.hookSpecificOutput.content).toEqual({});
+  });
+
+  test('elicitation-response halt → cancel', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        elicitationResult: async () => verdict('halt', 'stop elicitation'),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({ ...baseEnv, hook_event_name: 'ElicitationResult' }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.hookSpecificOutput.hookEventName).toBe('ElicitationResult');
+    expect(out.hookSpecificOutput.action).toBe('cancel');
   });
 
   test('none-shape (SessionStart) → no stdout, exit 0', async () => {

@@ -6,7 +6,7 @@ import {
   timeAgo,
   timeRemaining,
   statusOf,
-} from "openbox-sdk/approvals";
+} from "@openbox-ai/openbox-sdk/approvals";
 import { sanitizeReason } from "./format";
 
 // Tree nodes. Each approval is a collapsible parent with child rows
@@ -168,7 +168,7 @@ function approvalLabel(a: Approval, summary: string | null): string {
 //      consumer to derive the bucket. Without this branch every
 //      expired-by-timeout row falls through to "pending" and
 //      vanishes from the History view.
-// statusOf is the canonical SDK helper from openbox-sdk/approvals.
+// statusOf is the canonical SDK helper from @openbox-ai/openbox-sdk/approvals.
 // The extension hands it the same row shape the mobile app does, so
 // the bucket assignment stays consistent across surfaces.
 

@@ -39,8 +39,8 @@ const ALLOWED_PREFIXES: Record<string, string> = {
     'generated core operation manifest for the compact api command.',
   // Hand-written CLI helpers.
   '../output.js': 'output / outputList renderers.',
-  '../../validators/index.js': 'public openbox-sdk/validators surface; reportAndExit + named validators + parseJsonInput.',
-  '../../test-utils/index.js': 'public openbox-sdk/test-utils surface; buildTestPayload, SPAN_TYPES.',
+  '../../validators/index.js': 'public @openbox-ai/openbox-sdk/validators surface; reportAndExit + named validators + parseJsonInput.',
+  '../../test-utils/index.js': 'public @openbox-ai/openbox-sdk/test-utils surface; buildTestPayload, SPAN_TYPES.',
   '../features.js': 'isFeatureEnabled gate.',
   '../maturity.js': 'CLI maturity gate (gateCommands).',
   '../exit-codes.js': 'EXIT taxonomy + bailWith; exit-code contract.',

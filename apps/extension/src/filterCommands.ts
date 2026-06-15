@@ -9,7 +9,7 @@
 // live in viewSession.ts; this file just owns the picker contents.
 
 import * as vscode from "vscode";
-import type { OpenBoxClient } from "openbox-sdk/client";
+import type { OpenBoxClient } from "@openbox-ai/openbox-sdk/client";
 import type { Member, Team } from "./types";
 import type { DateRangeKey, FilterState } from "./filters";
 

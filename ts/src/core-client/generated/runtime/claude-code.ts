@@ -11,10 +11,25 @@ export const PRE_TOOL_USE_ROUTING: Record<string, string> = {
   "Write": "FileEdit",
   "Edit": "FileEdit",
   "Delete": "FileDelete",
+  "MultiEdit": "FileEdit",
+  "NotebookEdit": "FileEdit",
+  "NotebookRead": "FileRead",
+  "Glob": "FileRead",
+  "Grep": "FileRead",
   "Bash": "ShellExecution",
+  "PowerShell": "ShellExecution",
   "WebFetch": "HTTPRequest",
   "WebSearch": "HTTPRequest",
-  "Agent": "AgentSpawn"
+  "Agent": "AgentSpawn",
+  "Skill": "AgentAction",
+  "TodoWrite": "AgentAction",
+  "AskUserQuestion": "AgentAction",
+  "EnterPlanMode": "AgentAction",
+  "ExitPlanMode": "AgentAction",
+  "EnterWorktree": "AgentAction",
+  "CronCreate": "AgentAction",
+  "CronDelete": "AgentAction",
+  "CronList": "AgentAction"
 };
 
 export const POST_TOOL_USE_ROUTING: Record<string, string> = {
@@ -22,10 +37,25 @@ export const POST_TOOL_USE_ROUTING: Record<string, string> = {
   "Write": "FileEdit",
   "Edit": "FileEdit",
   "Delete": "FileDelete",
+  "MultiEdit": "FileEdit",
+  "NotebookEdit": "FileEdit",
+  "NotebookRead": "FileRead",
+  "Glob": "FileRead",
+  "Grep": "FileRead",
   "Bash": "ShellExecution",
+  "PowerShell": "ShellExecution",
   "WebFetch": "HTTPRequest",
   "WebSearch": "HTTPRequest",
-  "Agent": "AgentSpawn"
+  "Agent": "AgentSpawn",
+  "Skill": "AgentAction",
+  "TodoWrite": "AgentAction",
+  "AskUserQuestion": "AgentAction",
+  "EnterPlanMode": "AgentAction",
+  "ExitPlanMode": "AgentAction",
+  "EnterWorktree": "AgentAction",
+  "CronCreate": "AgentAction",
+  "CronDelete": "AgentAction",
+  "CronList": "AgentAction"
 };
 
 export const PERMISSION_REQUEST_ROUTING: Record<string, string> = {
@@ -33,24 +63,57 @@ export const PERMISSION_REQUEST_ROUTING: Record<string, string> = {
   "Write": "FileEdit",
   "Edit": "FileEdit",
   "Delete": "FileDelete",
+  "MultiEdit": "FileEdit",
+  "NotebookEdit": "FileEdit",
+  "NotebookRead": "FileRead",
+  "Glob": "FileRead",
+  "Grep": "FileRead",
   "Bash": "ShellExecution",
+  "PowerShell": "ShellExecution",
   "WebFetch": "HTTPRequest",
   "WebSearch": "HTTPRequest",
-  "Agent": "AgentSpawn"
+  "Agent": "AgentSpawn",
+  "Skill": "AgentAction",
+  "TodoWrite": "AgentAction",
+  "AskUserQuestion": "AgentAction",
+  "EnterPlanMode": "AgentAction",
+  "ExitPlanMode": "AgentAction",
+  "EnterWorktree": "AgentAction",
+  "CronCreate": "AgentAction",
+  "CronDelete": "AgentAction",
+  "CronList": "AgentAction"
 };
 
 export const HOOK_EVENT_LABELS: Record<string, string> = {
   "PreToolUse": "Tool call",
   "PostToolUse": "Tool completion",
+  "PostToolUseFailure": "Tool failure",
+  "PostToolBatch": "Tool batch",
   "UserPromptSubmit": "Prompt submission",
+  "UserPromptExpansion": "Prompt expansion",
   "PermissionRequest": "Permission request",
+  "PermissionDenied": "Permission denied",
+  "Setup": "Setup",
+  "InstructionsLoaded": "Instructions loaded",
   "PreCompact": "Pre-compact",
+  "PostCompact": "Post-compact",
   "SessionStart": "Session start",
   "SessionEnd": "Session end",
   "SubagentStart": "Subagent spawn",
   "SubagentStop": "Subagent stop",
+  "TaskCreated": "Task created",
+  "TaskCompleted": "Task completed",
   "Stop": "Stop",
-  "Notification": "Notification"
+  "StopFailure": "Stop failure",
+  "TeammateIdle": "Teammate idle",
+  "Notification": "Notification",
+  "MessageDisplay": "Message display",
+  "ConfigChange": "Config change",
+  "CwdChanged": "CWD changed",
+  "FileChanged": "File changed",
+  "WorktreeRemove": "Worktree remove",
+  "Elicitation": "MCP elicitation",
+  "ElicitationResult": "MCP elicitation result"
 };
 
 export interface HookSpec {
@@ -59,7 +122,7 @@ export interface HookSpec {
   style: 'claude-array' | 'cursor-keyed';
   command: string;
   configDir: string;
-  events: Array<{ name: string; timeout?: number }>;
+  events: Array<{ name: string; timeout?: number; installDefault?: boolean }>;
 }
 
 /** Hook metadata for this adapter. Host-specific installers and
@@ -79,7 +142,17 @@ export const HOOK_SPEC: HookSpec = {
       "name": "PostToolUse"
     },
     {
+      "name": "PostToolUseFailure"
+    },
+    {
+      "name": "PostToolBatch"
+    },
+    {
       "name": "UserPromptSubmit",
+      "timeout": 86400
+    },
+    {
+      "name": "UserPromptExpansion",
       "timeout": 86400
     },
     {
@@ -87,7 +160,19 @@ export const HOOK_SPEC: HookSpec = {
       "timeout": 86400
     },
     {
+      "name": "PermissionDenied"
+    },
+    {
+      "name": "Setup"
+    },
+    {
+      "name": "InstructionsLoaded"
+    },
+    {
       "name": "PreCompact"
+    },
+    {
+      "name": "PostCompact"
     },
     {
       "name": "SessionStart"
@@ -102,10 +187,44 @@ export const HOOK_SPEC: HookSpec = {
       "name": "SubagentStop"
     },
     {
+      "name": "TaskCreated"
+    },
+    {
+      "name": "TaskCompleted"
+    },
+    {
       "name": "Stop"
     },
     {
+      "name": "StopFailure"
+    },
+    {
+      "name": "TeammateIdle"
+    },
+    {
       "name": "Notification"
+    },
+    {
+      "name": "MessageDisplay"
+    },
+    {
+      "name": "ConfigChange"
+    },
+    {
+      "name": "CwdChanged"
+    },
+    {
+      "name": "FileChanged"
+    },
+    {
+      "name": "WorktreeRemove"
+    },
+    {
+      "name": "Elicitation",
+      "timeout": 86400
+    },
+    {
+      "name": "ElicitationResult"
     }
   ]
 };
@@ -128,7 +247,7 @@ function getPath(env: unknown, path: string): unknown {
 }
 
 export function buildPreToolUsePayload(env: ClaudeCodeEnvelope, toolName: string, sideEffects: ClaudeCodeSideEffects = {}): Record<string, unknown> {
-  
+
   switch (toolName) {
     case "Read":
       return {
@@ -157,7 +276,47 @@ export function buildPreToolUsePayload(env: ClaudeCodeEnvelope, toolName: string
       "content": (getPath(env, "tool_input.content") ?? getPath(env, "tool_input.new_string")),
       "event_category": "file_write",
     };
+    case "MultiEdit":
+      return {
+      "text": (getPath(env, "tool_input.edits") ?? getPath(env, "tool_input.content")),
+      "file_path": (getPath(env, "tool_input.file_path") ?? getPath(env, "tool_input.filePath")),
+      "content": (getPath(env, "tool_input.edits") ?? getPath(env, "tool_input.content")),
+      "event_category": "file_write",
+    };
+    case "NotebookEdit":
+      return {
+      "text": (getPath(env, "tool_input.new_source") ?? getPath(env, "tool_input.content")),
+      "file_path": (getPath(env, "tool_input.notebook_path") ?? getPath(env, "tool_input.file_path")),
+      "content": (getPath(env, "tool_input.new_source") ?? getPath(env, "tool_input.content")),
+      "event_category": "file_write",
+    };
+    case "NotebookRead":
+      return {
+      "text": (sideEffects.readFile?.(getPath(env, "tool_input.notebook_path")) ?? ''),
+      "file_path": (getPath(env, "tool_input.notebook_path") ?? getPath(env, "tool_input.file_path")),
+      "content": (sideEffects.readFile?.(getPath(env, "tool_input.notebook_path")) ?? ''),
+      "event_category": "file_read",
+    };
+    case "Glob":
+      return {
+      "text": getPath(env, "tool_input.pattern"),
+      "file_path": (getPath(env, "tool_input.path") ?? getPath(env, "cwd")),
+      "event_category": "file_read",
+    };
+    case "Grep":
+      return {
+      "text": getPath(env, "tool_input.pattern"),
+      "file_path": (getPath(env, "tool_input.path") ?? getPath(env, "cwd")),
+      "event_category": "file_read",
+    };
     case "Bash":
+      return {
+      "text": getPath(env, "tool_input.command"),
+      "command": getPath(env, "tool_input.command"),
+      "cwd": (getPath(env, "tool_input.cwd") ?? getPath(env, "cwd")),
+      "event_category": "agent_action",
+    };
+    case "PowerShell":
       return {
       "text": getPath(env, "tool_input.command"),
       "command": getPath(env, "tool_input.command"),
@@ -182,6 +341,22 @@ export function buildPreToolUsePayload(env: ClaudeCodeEnvelope, toolName: string
       "prompt": getPath(env, "tool_input.prompt"),
       "event_category": "agent_action",
     };
+    case "AskUserQuestion":
+      return {
+      "text": (getPath(env, "tool_input.question") ?? getPath(env, "tool_input.message")),
+      "event_category": "agent_action",
+    };
+    case "ExitPlanMode":
+      return {
+      "text": getPath(env, "tool_input.plan"),
+      "event_category": "agent_action",
+    };
+    case "Skill":
+      return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "event_category": "agent_action",
+    };
     default:
       return {
       "tool_name": getPath(env, "tool_name"),
@@ -192,7 +367,7 @@ export function buildPreToolUsePayload(env: ClaudeCodeEnvelope, toolName: string
 }
 
 export function buildPostToolUsePayload(env: ClaudeCodeEnvelope, sideEffects: ClaudeCodeSideEffects = {}): Record<string, unknown> {
-  
+
   return {
       "tool_name": getPath(env, "tool_name"),
       "output": (sideEffects.stringifyTruncate?.(getPath(env, "tool_output")) ?? ''),
@@ -200,8 +375,29 @@ export function buildPostToolUsePayload(env: ClaudeCodeEnvelope, sideEffects: Cl
     };
 }
 
+export function buildPostToolUseFailurePayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "error": (getPath(env, "error") ?? getPath(env, "reason")),
+      "event_category": "agent_observation",
+    };
+}
+
+export function buildPostToolBatchPayload(env: ClaudeCodeEnvelope, sideEffects: ClaudeCodeSideEffects = {}): Record<string, unknown> {
+
+  return {
+      "tool_calls": getPath(env, "tool_calls"),
+      "output": (sideEffects.stringifyTruncate?.(getPath(env, "tool_calls")) ?? ''),
+      "event_category": "agent_observation",
+    };
+}
+
 export function buildUserPromptSubmitPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "text": getPath(env, "prompt"),
       "prompt": getPath(env, "prompt"),
@@ -210,8 +406,21 @@ export function buildUserPromptSubmitPayload(env: ClaudeCodeEnvelope): Record<st
     };
 }
 
+export function buildUserPromptExpansionPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "text": (getPath(env, "expanded_prompt") ?? getPath(env, "prompt")),
+      "prompt": (getPath(env, "expanded_prompt") ?? getPath(env, "prompt")),
+      "command_name": getPath(env, "command_name"),
+      "command_args": getPath(env, "command_args"),
+      "event_category": "llm_prompt",
+    };
+}
+
 export function buildPermissionRequestPayload(env: ClaudeCodeEnvelope, toolName: string): Record<string, unknown> {
   /* no side effects */
+
   switch (toolName) {
     case "Read":
       return {
@@ -285,8 +494,58 @@ export function buildPermissionRequestPayload(env: ClaudeCodeEnvelope, toolName:
   }
 }
 
+export function buildPermissionDeniedPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "reason": getPath(env, "reason"),
+      "event_category": "agent_action",
+    };
+}
+
+export function buildSetupPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "trigger": getPath(env, "trigger"),
+      "event_category": "workflow_start",
+    };
+}
+
+export function buildInstructionsLoadedPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "source": getPath(env, "source"),
+      "instructions": getPath(env, "instructions"),
+      "event_category": "agent_observation",
+    };
+}
+
+export function buildPreCompactPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "trigger": getPath(env, "trigger"),
+      "custom_instructions": getPath(env, "custom_instructions"),
+      "event_category": "workflow_compact",
+    };
+}
+
+export function buildPostCompactPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "compact_summary": getPath(env, "compact_summary"),
+      "event_category": "workflow_compact",
+    };
+}
+
 export function buildSessionStartPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "status": "started",
       "cwd": getPath(env, "cwd"),
@@ -296,6 +555,7 @@ export function buildSessionStartPayload(env: ClaudeCodeEnvelope): Record<string
 
 export function buildSessionEndPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "status": "completed",
       "event_category": "workflow_complete",
@@ -304,6 +564,7 @@ export function buildSessionEndPayload(env: ClaudeCodeEnvelope): Record<string, 
 
 export function buildSubagentStartPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "agent_id": getPath(env, "agent_id"),
       "agent_type": getPath(env, "agent_type"),
@@ -313,6 +574,7 @@ export function buildSubagentStartPayload(env: ClaudeCodeEnvelope): Record<strin
 
 export function buildSubagentStopPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "agent_id": getPath(env, "agent_id"),
       "agent_type": getPath(env, "agent_type"),
@@ -321,11 +583,144 @@ export function buildSubagentStopPayload(env: ClaudeCodeEnvelope): Record<string
     };
 }
 
+export function buildTaskCreatedPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "task_id": getPath(env, "task_id"),
+      "task_subject": getPath(env, "task_subject"),
+      "task_description": getPath(env, "task_description"),
+      "teammate_name": getPath(env, "teammate_name"),
+      "team_name": getPath(env, "team_name"),
+      "event_category": "agent_action",
+    };
+}
+
+export function buildTaskCompletedPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "task_id": getPath(env, "task_id"),
+      "task_subject": getPath(env, "task_subject"),
+      "task_description": getPath(env, "task_description"),
+      "teammate_name": getPath(env, "teammate_name"),
+      "team_name": getPath(env, "team_name"),
+      "event_category": "agent_observation",
+    };
+}
+
 export function buildStopPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
   /* no side effects */
+
   return {
       "cwd": getPath(env, "cwd"),
+      "last_assistant_message": getPath(env, "last_assistant_message"),
+      "background_tasks": getPath(env, "background_tasks"),
+      "session_crons": getPath(env, "session_crons"),
       "event_category": "workflow_stop_request",
+    };
+}
+
+export function buildStopFailurePayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "error": (getPath(env, "error") ?? getPath(env, "reason")),
+      "event_category": "workflow_failed",
+    };
+}
+
+export function buildTeammateIdlePayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "teammate_name": getPath(env, "teammate_name"),
+      "team_name": getPath(env, "team_name"),
+      "event_category": "agent_observation",
+    };
+}
+
+export function buildNotificationPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "message": getPath(env, "message"),
+      "event_category": "agent_observation",
+    };
+}
+
+export function buildMessageDisplayPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "message": (getPath(env, "message") ?? getPath(env, "display_content")),
+      "display_content": (getPath(env, "display_content") ?? getPath(env, "displayContent")),
+      "event_category": "llm_output",
+    };
+}
+
+export function buildConfigChangePayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "source": getPath(env, "source"),
+      "file_path": getPath(env, "file_path"),
+      "event_category": "configuration_change",
+    };
+}
+
+export function buildCwdChangedPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "old_cwd": getPath(env, "old_cwd"),
+      "new_cwd": getPath(env, "new_cwd"),
+      "event_category": "workspace_change",
+    };
+}
+
+export function buildFileChangedPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "file_path": getPath(env, "file_path"),
+      "event": getPath(env, "event"),
+      "event_category": "file_change",
+    };
+}
+
+export function buildWorktreeRemovePayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "name": getPath(env, "name"),
+      "cwd": getPath(env, "cwd"),
+      "event_category": "workspace_change",
+    };
+}
+
+export function buildElicitationPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "mcp_server_name": getPath(env, "mcp_server_name"),
+      "message": getPath(env, "message"),
+      "mode": getPath(env, "mode"),
+      "url": getPath(env, "url"),
+      "requested_schema": getPath(env, "requested_schema"),
+      "event_category": "mcp_elicitation",
+    };
+}
+
+export function buildElicitationResultPayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "mcp_server_name": getPath(env, "mcp_server_name"),
+      "action": getPath(env, "action"),
+      "content": getPath(env, "content"),
+      "mode": getPath(env, "mode"),
+      "event_category": "mcp_elicitation_result",
     };
 }
 
@@ -340,15 +735,33 @@ export function buildStopPayload(env: ClaudeCodeEnvelope): Record<string, unknow
 export interface ClaudeCodeAdapterHandlers {
   preToolUse?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   postToolUse?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  postToolUseFailure?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  postToolBatch?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   userPromptSubmit?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  userPromptExpansion?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   permissionRequest?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  permissionDenied?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  setup?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  instructionsLoaded?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   preCompact?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  postCompact?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   sessionStart?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   sessionEnd?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   subagentStart?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   subagentStop?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  taskCreated?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  taskCompleted?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   stop?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  stopFailure?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  teammateIdle?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   notification?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  messageDisplay?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  configChange?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  cwdChanged?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  fileChanged?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  worktreeRemove?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  elicitation?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  elicitationResult?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
 }
 
 export interface ClaudeCodeAdapterConfig {
@@ -385,6 +798,7 @@ export interface ClaudeCodeAdapterConfig {
    * from the `APPROVAL_MODE` config.
    */
   inlineApproval?: boolean;
+  deferApproval?: boolean;
   /**
    * Fired the moment the backend returns require_approval; before
    * the SDK starts polling. Receives the approval metadata plus the
@@ -428,11 +842,11 @@ export function createClaudeCodeAdapter(config: ClaudeCodeAdapterConfig) {
   const exit = config.exit ?? ((code: number) => process.exit(code));
 
   function writeFallback(shape: string, _v: WorkflowVerdict | undefined | void, env: ClaudeCodeEnvelope): void {
-    const json = renderVerdictOutput(shape as Shape, undefined, env);
+    const json = renderVerdictOutput(shape as Shape, undefined, env, config.deferApproval === true);
     if (json !== undefined) write(JSON.stringify(json));
   }
   function writeVerdict(shape: string, v: WorkflowVerdict | undefined | void, env: ClaudeCodeEnvelope): void {
-    const json = renderVerdictOutput(shape as Shape, v ?? undefined, env);
+    const json = renderVerdictOutput(shape as Shape, v ?? undefined, env, config.deferApproval === true);
     if (json !== undefined) write(JSON.stringify(json));
   }
 
@@ -506,12 +920,39 @@ async function dispatch(
       writeVerdict("decision-block", verdict, env);
       return;
     }
+    case "PostToolUseFailure": {
+      if (!handlers.postToolUseFailure) {
+        writeFallback("additional-context", undefined, env);
+        return;
+      }
+      const verdict = await handlers.postToolUseFailure(env, session);
+      writeVerdict("additional-context", verdict, env);
+      return;
+    }
+    case "PostToolBatch": {
+      if (!handlers.postToolBatch) {
+        writeFallback("decision-block", undefined, env);
+        return;
+      }
+      const verdict = await handlers.postToolBatch(env, session);
+      writeVerdict("decision-block", verdict, env);
+      return;
+    }
     case "UserPromptSubmit": {
       if (!handlers.userPromptSubmit) {
         writeFallback("decision-block", undefined, env);
         return;
       }
       const verdict = await handlers.userPromptSubmit(env, session);
+      writeVerdict("decision-block", verdict, env);
+      return;
+    }
+    case "UserPromptExpansion": {
+      if (!handlers.userPromptExpansion) {
+        writeFallback("decision-block", undefined, env);
+        return;
+      }
+      const verdict = await handlers.userPromptExpansion(env, session);
       writeVerdict("decision-block", verdict, env);
       return;
     }
@@ -524,12 +965,48 @@ async function dispatch(
       writeVerdict("permission-request", verdict, env);
       return;
     }
-    case "PreCompact": {
-      if (!handlers.preCompact) {
+    case "PermissionDenied": {
+      if (!handlers.permissionDenied) {
+        writeFallback("permission-denied-retry", undefined, env);
+        return;
+      }
+      const verdict = await handlers.permissionDenied(env, session);
+      writeVerdict("permission-denied-retry", verdict, env);
+      return;
+    }
+    case "Setup": {
+      if (!handlers.setup) {
         writeFallback("none", undefined, env);
         return;
       }
+      const verdict = await handlers.setup(env, session);
+      writeVerdict("none", verdict, env);
+      return;
+    }
+    case "InstructionsLoaded": {
+      if (!handlers.instructionsLoaded) {
+        writeFallback("none", undefined, env);
+        return;
+      }
+      const verdict = await handlers.instructionsLoaded(env, session);
+      writeVerdict("none", verdict, env);
+      return;
+    }
+    case "PreCompact": {
+      if (!handlers.preCompact) {
+        writeFallback("decision-block", undefined, env);
+        return;
+      }
       const verdict = await handlers.preCompact(env, session);
+      writeVerdict("decision-block", verdict, env);
+      return;
+    }
+    case "PostCompact": {
+      if (!handlers.postCompact) {
+        writeFallback("none", undefined, env);
+        return;
+      }
+      const verdict = await handlers.postCompact(env, session);
       writeVerdict("none", verdict, env);
       return;
     }
@@ -562,20 +1039,56 @@ async function dispatch(
     }
     case "SubagentStop": {
       if (!handlers.subagentStop) {
-        writeFallback("none", undefined, env);
+        writeFallback("decision-block", undefined, env);
         return;
       }
       const verdict = await handlers.subagentStop(env, session);
-      writeVerdict("none", verdict, env);
+      writeVerdict("decision-block", verdict, env);
+      return;
+    }
+    case "TaskCreated": {
+      if (!handlers.taskCreated) {
+        writeFallback("continue-block", undefined, env);
+        return;
+      }
+      const verdict = await handlers.taskCreated(env, session);
+      writeVerdict("continue-block", verdict, env);
+      return;
+    }
+    case "TaskCompleted": {
+      if (!handlers.taskCompleted) {
+        writeFallback("continue-block", undefined, env);
+        return;
+      }
+      const verdict = await handlers.taskCompleted(env, session);
+      writeVerdict("continue-block", verdict, env);
       return;
     }
     case "Stop": {
       if (!handlers.stop) {
-        writeFallback("none", undefined, env);
+        writeFallback("decision-block", undefined, env);
         return;
       }
       const verdict = await handlers.stop(env, session);
+      writeVerdict("decision-block", verdict, env);
+      return;
+    }
+    case "StopFailure": {
+      if (!handlers.stopFailure) {
+        writeFallback("none", undefined, env);
+        return;
+      }
+      const verdict = await handlers.stopFailure(env, session);
       writeVerdict("none", verdict, env);
+      return;
+    }
+    case "TeammateIdle": {
+      if (!handlers.teammateIdle) {
+        writeFallback("continue-block", undefined, env);
+        return;
+      }
+      const verdict = await handlers.teammateIdle(env, session);
+      writeVerdict("continue-block", verdict, env);
       return;
     }
     case "Notification": {
@@ -585,6 +1098,69 @@ async function dispatch(
       }
       const verdict = await handlers.notification(env, session);
       writeVerdict("none", verdict, env);
+      return;
+    }
+    case "MessageDisplay": {
+      if (!handlers.messageDisplay) {
+        writeFallback("none", undefined, env);
+        return;
+      }
+      const verdict = await handlers.messageDisplay(env, session);
+      writeVerdict("none", verdict, env);
+      return;
+    }
+    case "ConfigChange": {
+      if (!handlers.configChange) {
+        writeFallback("decision-block", undefined, env);
+        return;
+      }
+      const verdict = await handlers.configChange(env, session);
+      writeVerdict("decision-block", verdict, env);
+      return;
+    }
+    case "CwdChanged": {
+      if (!handlers.cwdChanged) {
+        writeFallback("none", undefined, env);
+        return;
+      }
+      const verdict = await handlers.cwdChanged(env, session);
+      writeVerdict("none", verdict, env);
+      return;
+    }
+    case "FileChanged": {
+      if (!handlers.fileChanged) {
+        writeFallback("none", undefined, env);
+        return;
+      }
+      const verdict = await handlers.fileChanged(env, session);
+      writeVerdict("none", verdict, env);
+      return;
+    }
+    case "WorktreeRemove": {
+      if (!handlers.worktreeRemove) {
+        writeFallback("none", undefined, env);
+        return;
+      }
+      const verdict = await handlers.worktreeRemove(env, session);
+      writeVerdict("none", verdict, env);
+      return;
+    }
+    case "Elicitation": {
+      if (!handlers.elicitation) {
+        writeFallback("elicitation-response", undefined, env);
+        return;
+      }
+      const verdict = await handlers.elicitation(env, session);
+      writeVerdict("elicitation-response", verdict, env);
+      return;
+    }
+    case "ElicitationResult": {
+      if (!handlers.elicitationResult) {
+        writeFallback("elicitation-response", undefined, env);
+        return;
+      }
+      const verdict = await handlers.elicitationResult(env, session);
+      writeVerdict("elicitation-response", verdict, env);
       return;
     }
     default:
@@ -623,6 +1199,10 @@ type Shape =
   | 'permission-decision'
   | 'decision-block'
   | 'permission-request'
+  | 'permission-denied-retry'
+  | 'elicitation-response'
+  | 'continue-block'
+  | 'additional-context'
   | 'cursor-permission'
   | 'cursor-observe'
   | 'cursor-continue'
@@ -652,6 +1232,7 @@ function renderVerdictOutput(
   shape: Shape,
   v: WorkflowVerdict | undefined,
   env: { hook_event_name?: string },
+  deferApproval = false,
 ): unknown {
   const arm = v?.arm ?? 'allow';
   const reason = brand(v?.reason ?? '');
@@ -670,7 +1251,7 @@ function renderVerdictOutput(
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            permissionDecision: 'ask',
+            permissionDecision: deferApproval ? 'defer' : 'ask',
             permissionDecisionReason: reason || '[OpenBox] approval required',
           },
         };
@@ -710,6 +1291,50 @@ function renderVerdictOutput(
             behavior: 'deny',
             message: reason || '[OpenBox] blocked by policy',
           },
+        },
+      };
+    }
+    case 'permission-denied-retry': {
+      const eventName = env.hook_event_name ?? 'PermissionDenied';
+      if (arm === 'allow' || arm === 'constrain') {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            retry: true,
+          },
+        };
+      }
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          retry: false,
+        },
+      };
+    }
+    case 'elicitation-response': {
+      const eventName = env.hook_event_name ?? 'Elicitation';
+      if (arm === 'allow' || arm === 'constrain') return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          action: arm === 'halt' ? 'cancel' : 'decline',
+          content: {},
+        },
+      };
+    }
+    case 'continue-block': {
+      if (arm === 'allow' || arm === 'constrain') return {};
+      return {
+        continue: false,
+        stopReason: reason || '[OpenBox] blocked by policy',
+      };
+    }
+    case 'additional-context': {
+      if (arm === 'allow' || arm === 'constrain') return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: env.hook_event_name ?? 'PostToolUseFailure',
+          additionalContext: reason || '[OpenBox] blocked by policy',
         },
       };
     }

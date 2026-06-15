@@ -21,17 +21,17 @@ function activityTypeFor(toolName: string): string | null {
   const direct = PRE_TOOL_USE_ROUTING[toolName];
   if (direct) return direct;
   if (toolName.startsWith('mcp__')) return ACTIVITY_TYPES.MCP_CALL;
-  return null;
+  return ACTIVITY_TYPES.AGENT_ACTION;
 }
 
 /** Map a tool name to the span type behavior rules will match on.
  *  Returns null for tools without a recognized span shape (the span
  *  is omitted; rules that need spans silently won't match). */
 function spanTypeFor(toolName: string): SpanType | null {
-  if (toolName === 'Read') return 'file_read';
-  if (toolName === 'Write' || toolName === 'Edit') return 'file_write';
+  if (toolName === 'Read' || toolName === 'NotebookRead' || toolName === 'Glob' || toolName === 'Grep') return 'file_read';
+  if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') return 'file_write';
   if (toolName === 'Delete') return 'file_delete';
-  if (toolName === 'Bash') return 'shell';
+  if (toolName === 'Bash' || toolName === 'PowerShell') return 'shell';
   if (toolName === 'WebFetch' || toolName === 'WebSearch') return 'http';
   if (toolName.startsWith('mcp__')) return 'mcp';
   return null;
@@ -50,15 +50,16 @@ export async function handlePreToolUse(
 ): Promise<WorkflowVerdict | undefined> {
   const toolName = env.tool_name ?? '';
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
-  if (cfg.skipTools.includes(toolName)) return undefined;
+  if ((cfg.skipTools ?? []).includes(toolName)) return undefined;
 
   const activityType = activityTypeFor(toolName);
   if (!activityType) return undefined;
+  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return undefined;
 
   // Skip-pattern guard for the file-touching tools; paths inside
   // SKIP_PATTERNS (.claude/, .git/, .ssh/, etc.) bypass governance to
   // avoid PII false-HALTs on IDE metadata.
-  const filePath = (toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? '') as string;
+  const filePath = (toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path ?? '') as string;
   if (filePath && isSkipped(filePath)) return undefined;
 
   const payload = buildPreToolUsePayload(env, toolName, sideEffects);

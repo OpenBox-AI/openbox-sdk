@@ -44,6 +44,7 @@ import {
   isNoPayload,
   getHookTarget,
   getInstallTimeout,
+  getInstallDefault,
   getActivityVariants,
   getActivityLabels,
   getHookEventLabel,
@@ -133,7 +134,7 @@ interface WrapperMethodSpec {
 interface WrapperEmitOptions {
   namespaceName: string;
   outRel: string;
-  pathsImport: string; // e.g. 'openbox-sdk/types'
+  pathsImport: string; // e.g. '@openbox-ai/openbox-sdk/types'
   pathsAlias: string; // 'Backend' | 'Core'; namespace re-export alias
   className: string;
   /**
@@ -1049,6 +1050,15 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
   );
   out.insertText(0, BANNER + '\n\n');
 
+  // Mark the verdict model so downstream code can branch off it.
+  let verdictModelName = 'WorkflowVerdict';
+  for (const [modelName, model] of ns.models) {
+    if (isVerdict(program, model)) {
+      verdictModelName = modelName;
+      break;
+    }
+  }
+
   // Tier 1; emit every enum + model in the namespace (CanonicalEventType,
   // ActivityStage, VerdictArm, WorkflowVerdict, GovernedPayload). These
   // are the locked envelope plus the public verdict + payload shapes.
@@ -1060,14 +1070,16 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
   }
   for (const [modelName, model] of ns.models) {
     if (modelName === 'Array' || modelName === 'Record') continue;
-    out.addStatements([emitInterface(modelName, model), '']);
+    out.addStatements([
+      emitInterface(modelName, model, {
+        terminalVerdict: modelName === verdictModelName,
+      }),
+      '',
+    ]);
   }
 
-  // Mark the verdict model so downstream code can branch off it.
-  let verdictModelName = 'WorkflowVerdict';
   for (const [modelName, model] of ns.models) {
     if (isVerdict(program, model)) {
-      verdictModelName = modelName;
       out.addStatements([`export type CanonicalVerdict = ${modelName};`, '']);
       break;
     }
@@ -1271,6 +1283,8 @@ interface AdapterMethod {
   noPayload?: boolean;
   /** Per-event install timeout (claude-array style only). */
   installTimeout?: number;
+  /** Whether host/plugin installers include the event by default. */
+  installDefault?: boolean;
   /** Predicate-based activity-type reroutes from @activityVariant. */
   variants?: ActivityVariant[];
   /** Human-readable display label from @hookEventLabel. */
@@ -1327,6 +1341,7 @@ function emitAdapters(program: Program, project: Project, repoRoot: string): voi
       const ps = getPayloadShape(program, op);
       const np = isNoPayload(program, op);
       const it = getInstallTimeout(program, op);
+      const id = getInstallDefault(program, op);
       const av = getActivityVariants(program, op);
       const hl = getHookEventLabel(program, op);
       methods.push({
@@ -1338,6 +1353,7 @@ function emitAdapters(program: Program, project: Project, repoRoot: string): voi
         payload: ps,
         noPayload: np,
         installTimeout: it,
+        installDefault: id,
         variants: av,
         eventLabel: hl,
       });
@@ -1553,6 +1569,7 @@ export interface ${configIface} {
    * from the \`APPROVAL_MODE\` config.
    */
   inlineApproval?: boolean;
+  deferApproval?: boolean;
   /**
    * Fired the moment the backend returns require_approval; before
    * the SDK starts polling. Receives the approval metadata plus the
@@ -1596,11 +1613,11 @@ export function ${factoryName}(config: ${configIface}) {
   const exit = config.exit ?? ((code: number) => process.exit(code));
 
   function writeFallback(shape: string, _v: WorkflowVerdict | undefined | void, env: ${a.envelopeName}): void {
-    const json = renderVerdictOutput(shape as Shape, undefined, env);
+    const json = renderVerdictOutput(shape as Shape, undefined, env, config.deferApproval === true);
     if (json !== undefined) write(JSON.stringify(json));
   }
   function writeVerdict(shape: string, v: WorkflowVerdict | undefined | void, env: ${a.envelopeName}): void {
-    const json = renderVerdictOutput(shape as Shape, v ?? undefined, env);
+    const json = renderVerdictOutput(shape as Shape, v ?? undefined, env, config.deferApproval === true);
     if (json !== undefined) write(JSON.stringify(json));
   }
 
@@ -1791,6 +1808,7 @@ function emitHookSpec(a: AdapterEntry): string {
   const events = a.methods.map((m) => ({
     name: m.eventName,
     timeout: m.installTimeout,
+    installDefault: m.installDefault,
   }));
   const spec = {
     file: it.file,
@@ -1806,7 +1824,7 @@ function emitHookSpec(a: AdapterEntry): string {
   style: 'claude-array' | 'cursor-keyed';
   command: string;
   configDir: string;
-  events: Array<{ name: string; timeout?: number }>;
+  events: Array<{ name: string; timeout?: number; installDefault?: boolean }>;
 }
 
 /** Hook metadata for this adapter. Host-specific installers and
@@ -1823,13 +1841,14 @@ function emitPayloadBuilder(a: AdapterEntry, m: AdapterMethod): string {
   const sideEffectsParam = ps.sideEffectKinds.size > 0
     ? `, sideEffects: ${sideEffectsTy} = {}`
     : '';
-  const sideEffectsUse = ps.sideEffectKinds.size > 0 ? '' : '/* no side effects */';
+  const sideEffectsPrelude =
+    ps.sideEffectKinds.size > 0 ? '' : '  /* no side effects */\n';
 
   const defaultBody = hasDefault ? compileFieldMap(ps.defaultFields) : `{}`;
 
   if (!hasByTool) {
     return `export function ${fnName}(env: ${a.envelopeName}${sideEffectsParam}): Record<string, unknown> {
-  ${sideEffectsUse}
+${sideEffectsPrelude}
   return ${defaultBody};
 }`;
   }
@@ -1839,7 +1858,7 @@ function emitPayloadBuilder(a: AdapterEntry, m: AdapterMethod): string {
     .join('\n');
 
   return `export function ${fnName}(env: ${a.envelopeName}, toolName: string${sideEffectsParam}): Record<string, unknown> {
-  ${sideEffectsUse}
+${sideEffectsPrelude}
   switch (toolName) {
 ${cases}
     default:
@@ -1857,6 +1876,10 @@ type Shape =
   | 'permission-decision'
   | 'decision-block'
   | 'permission-request'
+  | 'permission-denied-retry'
+  | 'elicitation-response'
+  | 'continue-block'
+  | 'additional-context'
   | 'cursor-permission'
   | 'cursor-observe'
   | 'cursor-continue'
@@ -1886,6 +1909,7 @@ function renderVerdictOutput(
   shape: Shape,
   v: WorkflowVerdict | undefined,
   env: { hook_event_name?: string },
+  deferApproval = false,
 ): unknown {
   const arm = v?.arm ?? 'allow';
   const reason = brand(v?.reason ?? '');
@@ -1904,7 +1928,7 @@ function renderVerdictOutput(
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            permissionDecision: 'ask',
+            permissionDecision: deferApproval ? 'defer' : 'ask',
             permissionDecisionReason: reason || '[OpenBox] approval required',
           },
         };
@@ -1944,6 +1968,50 @@ function renderVerdictOutput(
             behavior: 'deny',
             message: reason || '[OpenBox] blocked by policy',
           },
+        },
+      };
+    }
+    case 'permission-denied-retry': {
+      const eventName = env.hook_event_name ?? 'PermissionDenied';
+      if (arm === 'allow' || arm === 'constrain') {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            retry: true,
+          },
+        };
+      }
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          retry: false,
+        },
+      };
+    }
+    case 'elicitation-response': {
+      const eventName = env.hook_event_name ?? 'Elicitation';
+      if (arm === 'allow' || arm === 'constrain') return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          action: arm === 'halt' ? 'cancel' : 'decline',
+          content: {},
+        },
+      };
+    }
+    case 'continue-block': {
+      if (arm === 'allow' || arm === 'constrain') return {};
+      return {
+        continue: false,
+        stopReason: reason || '[OpenBox] blocked by policy',
+      };
+    }
+    case 'additional-context': {
+      if (arm === 'allow' || arm === 'constrain') return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: env.hook_event_name ?? 'PostToolUseFailure',
+          additionalContext: reason || '[OpenBox] blocked by policy',
         },
       };
     }
@@ -2229,6 +2297,7 @@ export class BaseGovernedSession {
   private finalized = false;
   private readonly autoOpenSuppressed: boolean;
   private readonly inFlight = new Set<string>();
+  private readonly activityStartsMs = new Map<string, number>();
   private readonly exitHandlerCleanup: Array<() => void> = [];
   protected readonly onPendingApproval?: GovernedSessionConfig['onPendingApproval'];
   protected readonly onApprovalResolved?: GovernedSessionConfig['onApprovalResolved'];
@@ -2291,14 +2360,17 @@ export class BaseGovernedSession {
    *
    * Backward-compat alias: \`complete()\`.
    */
-  async workflowCompleted(): Promise<void> {
-    if (this.finalized) return;
+  async workflowCompleted(): Promise<${verdictModelName} | undefined> {
+    if (this.finalized) return undefined;
     this.finalized = true;
-    await this.emit({ event_type: 'WorkflowCompleted', status: 'completed' });
-    this.cleanupExitHandlers();
+    try {
+      return await this.emit({ event_type: 'WorkflowCompleted', status: 'completed' });
+    } finally {
+      this.cleanupExitHandlers();
+    }
   }
   /** @deprecated use \`workflowCompleted()\`; same behavior. */
-  async complete(): Promise<void> {
+  async complete(): Promise<${verdictModelName} | undefined> {
     return this.workflowCompleted();
   }
 
@@ -2310,18 +2382,21 @@ export class BaseGovernedSession {
    *
    * Backward-compat alias: \`fail()\`.
    */
-  async workflowFailed(error?: unknown): Promise<void> {
-    if (this.finalized) return;
+  async workflowFailed(error?: unknown): Promise<${verdictModelName} | undefined> {
+    if (this.finalized) return undefined;
     this.finalized = true;
-    await this.emit({
-      event_type: 'WorkflowFailed',
-      status: 'failed',
-      error: errorInfoFrom(error),
-    });
-    this.cleanupExitHandlers();
+    try {
+      return await this.emit({
+        event_type: 'WorkflowFailed',
+        status: 'failed',
+        error: errorInfoFrom(error),
+      });
+    } finally {
+      this.cleanupExitHandlers();
+    }
   }
   /** @deprecated use \`workflowFailed()\`; same behavior. */
-  async fail(error?: unknown): Promise<void> {
+  async fail(error?: unknown): Promise<${verdictModelName} | undefined> {
     return this.workflowFailed(error);
   }
 
@@ -2367,16 +2442,22 @@ export class BaseGovernedSession {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
     if (!this.opened && !this.autoOpenSuppressed) await this.begin();
     const activityId = payload.activityId ?? randomUUID();
+    const startTime = payload.startTime ?? Date.now();
+    this.activityStartsMs.set(activityId, startTime);
     this.inFlight.add(activityId);
     try {
-      const verdict = await this.emit({
+      const verdict = await this.emitWithSpanHook({
         event_type: 'ActivityStarted',
         activity_id: activityId,
         activity_type: activityType,
         activity_input: payload.input,
+        start_time: startTime,
         spans: payload.spans as unknown as GovernanceEventPayload['spans'],
       });
       verdict.activityId = activityId;
+      if (verdict.arm !== 'allow' && verdict.arm !== 'constrain') {
+        this.activityStartsMs.delete(activityId);
+      }
       return {
         activityId,
         verdict,
@@ -2411,6 +2492,7 @@ export class BaseGovernedSession {
     if (this.finalized) throw new SessionAlreadyTerminatedError();
     if (!this.opened && !this.autoOpenSuppressed) await this.begin();
     const activityId = payload.activityId ?? randomUUID();
+    const startTime = payload.startTime ?? Date.now();
     this.inFlight.add(activityId);
 
     try {
@@ -2429,11 +2511,13 @@ export class BaseGovernedSession {
       }
 
       if (eventType === 'ActivityStarted') {
-        const startedVerdict = await this.emit({
+        this.activityStartsMs.set(activityId, startTime);
+        const startedVerdict = await this.emitWithSpanHook({
           event_type: 'ActivityStarted',
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
+          start_time: startTime,
           spans: payload.spans as unknown as GovernanceEventPayload['spans'],
         });
         startedVerdict.activityId = activityId;
@@ -2448,6 +2532,7 @@ export class BaseGovernedSession {
           return startedVerdict;
         }
         if (startedVerdict.arm !== 'allow') {
+          this.activityStartsMs.delete(activityId);
           // Pre-stage block; never emit ActivityCompleted, but if the
           // gate said require_approval, poll for the approval decision.
            // pollApproval keys on workflow_id + run_id + activity_id;           // approval_id is informational. Some backends omit it from
@@ -2512,14 +2597,24 @@ export class BaseGovernedSession {
     activityType: string,
     payload: GovernedPayload,
   ): Promise<${verdictModelName}> {
-    const completedVerdict = await this.emit({
+    const startTime = payload.startTime ?? this.activityStartsMs.get(activityId);
+    const endTime = payload.endTime ?? Date.now();
+    const durationMs =
+      payload.durationMs ??
+      (typeof startTime === 'number' ? Math.max(0, endTime - startTime) : undefined);
+    const completedVerdict = await this.emitWithSpanHook({
       event_type: 'ActivityCompleted',
       activity_id: activityId,
       activity_type: activityType,
+      status: activityCompletionStatus(activityType),
       activity_input: payload.input,
       activity_output: payload.output,
+      start_time: startTime,
+      end_time: endTime,
+      duration_ms: durationMs,
       spans: payload.spans as unknown as GovernanceEventPayload['spans'],
     });
+    this.activityStartsMs.delete(activityId);
     completedVerdict.activityId = activityId;
     if (completedVerdict.arm === 'require_approval') {
       // See comment in runActivity: poll on activity_id even if the
@@ -2554,11 +2649,36 @@ export class BaseGovernedSession {
     return completedVerdict;
   }
 
+  private async emitWithSpanHook(
+    event: Pick<
+      GovernanceEventPayload,
+      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms'
+    >,
+  ): Promise<${verdictModelName}> {
+    const hasActivitySpans =
+      (event.event_type === 'ActivityStarted' ||
+        event.event_type === 'ActivityCompleted') &&
+      Array.isArray(event.spans) &&
+      event.spans.some(isPersistableHookSpan);
+    if (!hasActivitySpans) return this.emit(event);
+
+    const baseVerdict = await this.emit({ ...event, spans: undefined });
+    if (baseVerdict.arm !== 'allow' && baseVerdict.arm !== 'constrain') {
+      return baseVerdict;
+    }
+
+    const hookVerdict = await this.emit({
+      ...event,
+      hook_trigger: true,
+    } as typeof event & { hook_trigger: true });
+    return stricterVerdict(baseVerdict, hookVerdict);
+  }
+
   private async emit(
     event: Pick<
       GovernanceEventPayload,
-      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'spans' | 'signal_name' | 'signal_args'
-    >,
+      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms'
+    > & { hook_trigger?: boolean },
   ): Promise<${verdictModelName}> {
     const payload = {
       ...event,
@@ -2714,6 +2834,50 @@ export class BaseGovernedSession {
     this.exitHandlerCleanup.length = 0;
   }
 }
+
+function activityCompletionStatus(activityType: string): 'completed' | 'failed' {
+  return /(error|fail|failed|failure|timeout|timedout|cancel|abort)/i.test(activityType)
+    ? 'failed'
+    : 'completed';
+}
+
+function toolActivityTypeFromPayload(payload: GovernedPayload): string {
+  const direct = namedToolFromRecord(payload as unknown);
+  if (direct) return direct;
+
+  for (const item of payload.input ?? []) {
+    const name = namedToolFromRecord(item);
+    if (name) return name;
+  }
+
+  return 'ToolCall';
+}
+
+function namedToolFromRecord(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const record = value as Record<string, unknown>;
+  const direct = firstNonEmptyString(
+    record.toolName,
+    record.tool_name,
+    record.tool,
+    record.name,
+  );
+  if (direct) return direct;
+
+  return (
+    namedToolFromRecord(record.toolCall) ??
+    namedToolFromRecord(record.tool_call) ??
+    namedToolFromRecord(record.call) ??
+    namedToolFromRecord(record.args)
+  );
+}
+
+function firstNonEmptyString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return undefined;
+}
 `;
 }
 
@@ -2751,7 +2915,7 @@ export class ${sessionName} extends BaseGovernedSession {
   const methods = p.methods
     .map((m) => {
       const eventType = JSON.stringify(m.eventType);
-      const activityType = JSON.stringify(m.activityType);
+      const activityType = activityTypeExpression(m.activityType, m.name);
       return `  async ${m.name}(payload: GovernedPayload): Promise<${verdictModelName}> {
     return this.runActivity(${eventType}, ${activityType}, payload);
   }`;
@@ -2762,6 +2926,17 @@ export class ${sessionName} extends BaseGovernedSession {
 export class ${sessionName} extends BaseGovernedSession {
 ${methods}
 }`;
+}
+
+function activityTypeExpression(
+  activityType: string | undefined,
+  fallback: string,
+): string {
+  const resolved = activityType ?? fallback;
+  if (resolved === 'on_tool_start' || resolved === 'on_tool_end') {
+    return 'toolActivityTypeFromPayload(payload)';
+  }
+  return JSON.stringify(resolved);
 }
 
 /**
@@ -2899,6 +3074,7 @@ function emitVerdictHelpers(verdictModelName: string): string {
     riskScore: response.risk_score ?? 0,
     trustTier: response.trust_tier ?? undefined,
     guardrailsResult: mapGuardrailsResult(response.guardrails_result),
+    ageResult: response.age_result,
   };
 }
 
@@ -2961,6 +3137,47 @@ function normalizeArm(value: string): VerdictArm {
   }
 }
 
+function verdictRank(arm: VerdictArm): number {
+  switch (arm) {
+    case 'halt':
+      return 4;
+    case 'block':
+      return 3;
+    case 'require_approval':
+      return 2;
+    case 'constrain':
+      return 1;
+    case 'allow':
+    default:
+      return 0;
+  }
+}
+
+function stricterVerdict(
+  base: WorkflowVerdict,
+  hook: WorkflowVerdict,
+): WorkflowVerdict {
+  return verdictRank(hook.arm) >= verdictRank(base.arm) ? hook : base;
+}
+
+function isPersistableHookSpan(span: unknown): boolean {
+  if (!span || typeof span !== 'object') return false;
+  const record = span as Record<string, unknown>;
+  if (typeof record.semantic_type === 'string' && record.semantic_type !== '') {
+    return true;
+  }
+  const attributes =
+    record.attributes && typeof record.attributes === 'object'
+      ? (record.attributes as Record<string, unknown>)
+      : {};
+  return (
+    typeof attributes['openbox.tool.name'] === 'string' ||
+    typeof attributes['tool.name'] === 'string' ||
+    typeof attributes.tool_name === 'string' ||
+    typeof attributes['gen_ai.system'] === 'string'
+  );
+}
+
 function errorInfoFrom(value: unknown): { type: string; message: string } | undefined {
   if (value == null) return undefined;
   if (value instanceof Error) {
@@ -3016,11 +3233,18 @@ function emitNamespaceTypes(
   }
 }
 
-function emitInterface(name: string, model: Model): string {
+function emitInterface(
+  name: string,
+  model: Model,
+  options: { terminalVerdict?: boolean } = {},
+): string {
   const lines: string[] = [`export interface ${name} {`];
   for (const [propName, prop] of model.properties) {
     const optional = prop.optional ? '?' : '';
     lines.push(`  ${quoteIdent(propName)}${optional}: ${tspTypeToTs(prop.type)};`);
+  }
+  if (options.terminalVerdict) {
+    lines.push(`  ageResult?: GovernanceVerdictResponse['age_result'];`);
   }
   lines.push('}');
   return lines.join('\n');

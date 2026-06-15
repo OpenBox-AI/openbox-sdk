@@ -33,7 +33,7 @@ async function pollForever(workflowId: string, runId: string, activityId: string
   }
 }
 
-import { govern } from 'openbox-sdk';
+import { govern } from '@openbox-ai/openbox-sdk';
 async function useSdk() {
   const res = await govern(
     async (opts) => ({}),

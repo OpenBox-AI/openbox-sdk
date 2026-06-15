@@ -1997,6 +1997,15 @@ var init_client2 = __esm({
   }
 });
 
+// ts/src/version.ts
+var OPENBOX_SDK_VERSION;
+var init_version = __esm({
+  "ts/src/version.ts"() {
+    "use strict";
+    OPENBOX_SDK_VERSION = "0.1.0";
+  }
+});
+
 // ts/src/core-client/core-client.ts
 import { createHash, createPrivateKey, randomUUID, sign } from "crypto";
 function requireCoreUrl(value) {
@@ -2061,6 +2070,7 @@ var init_core_client = __esm({
   "ts/src/core-client/core-client.ts"() {
     "use strict";
     init_client2();
+    init_version();
     CoreApiError = class extends Error {
       status;
       body;
@@ -2105,8 +2115,9 @@ var init_core_client = __esm({
         return this.request("GET", "/api/v1/auth/validate");
       }
       async evaluate(payload) {
+        const versionedPayload = payload.sdk_version && payload.sdk_version !== "" ? payload : { ...payload, sdk_version: OPENBOX_SDK_VERSION };
         return this.request("POST", "/api/v1/governance/evaluate", {
-          data: payload,
+          data: versionedPayload,
           retryable: false
         });
       }
@@ -2127,7 +2138,8 @@ var init_core_client = __esm({
         const timeoutMs = this.config.timeoutMs ?? 35e3;
         const baseHeaders = {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${this.config.apiKey}`
+          Authorization: `Bearer ${this.config.apiKey}`,
+          "X-OpenBox-SDK-Version": OPENBOX_SDK_VERSION
         };
         const body = options?.data ? JSON.stringify(options.data) : void 0;
         const signedHeaders = this.config.agentIdentity ? signAgentIdentityRequest({
@@ -2233,6 +2245,36 @@ function randomUUID2() {
     return (c === "x" ? r : r & 3 | 8).toString(16);
   });
 }
+function activityCompletionStatus(activityType) {
+  return /(error|fail|failed|failure|timeout|timedout|cancel|abort)/i.test(activityType) ? "failed" : "completed";
+}
+function toolActivityTypeFromPayload(payload) {
+  const direct = namedToolFromRecord(payload);
+  if (direct) return direct;
+  for (const item of payload.input ?? []) {
+    const name = namedToolFromRecord(item);
+    if (name) return name;
+  }
+  return "ToolCall";
+}
+function namedToolFromRecord(value) {
+  if (!value || typeof value !== "object") return void 0;
+  const record = value;
+  const direct = firstNonEmptyString(
+    record.toolName,
+    record.tool_name,
+    record.tool,
+    record.name
+  );
+  if (direct) return direct;
+  return namedToolFromRecord(record.toolCall) ?? namedToolFromRecord(record.tool_call) ?? namedToolFromRecord(record.call) ?? namedToolFromRecord(record.args);
+}
+function firstNonEmptyString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return void 0;
+}
 async function govern(config, body) {
   const { preset: Ctor, ...sessionConfig } = config;
   const session = new Ctor(sessionConfig);
@@ -2269,7 +2311,8 @@ function mapVerdict(response) {
     reason: response.reason,
     riskScore: response.risk_score ?? 0,
     trustTier: response.trust_tier ?? void 0,
-    guardrailsResult: mapGuardrailsResult(response.guardrails_result)
+    guardrailsResult: mapGuardrailsResult(response.guardrails_result),
+    ageResult: response.age_result
   };
 }
 function mapGuardrailsResult(raw) {
@@ -2325,6 +2368,33 @@ function normalizeArm(value) {
       return "allow";
   }
 }
+function verdictRank(arm) {
+  switch (arm) {
+    case "halt":
+      return 4;
+    case "block":
+      return 3;
+    case "require_approval":
+      return 2;
+    case "constrain":
+      return 1;
+    case "allow":
+    default:
+      return 0;
+  }
+}
+function stricterVerdict(base2, hook) {
+  return verdictRank(hook.arm) >= verdictRank(base2.arm) ? hook : base2;
+}
+function isPersistableHookSpan(span) {
+  if (!span || typeof span !== "object") return false;
+  const record = span;
+  if (typeof record.semantic_type === "string" && record.semantic_type !== "") {
+    return true;
+  }
+  const attributes = record.attributes && typeof record.attributes === "object" ? record.attributes : {};
+  return typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
+}
 function errorInfoFrom(value) {
   if (value == null) return void 0;
   if (value instanceof Error) {
@@ -2346,7 +2416,7 @@ var init_govern = __esm({
   "ts/src/core-client/generated/govern.ts"() {
     "use strict";
     CANONICAL_EVENT_TYPES = /* @__PURE__ */ new Set(["ActivityCompleted", "ActivityStarted", "SignalReceived", "WorkflowCompleted", "WorkflowFailed", "WorkflowStarted"]);
-    CANONICAL_ACTIVITY_LABELS = Object.freeze({ "AGENT_STEP": "Agent Step", "ActivityTaskCanceled": "Activity Task Canceled", "ActivityTaskCompleted": "Activity Task Completed", "ActivityTaskFailed": "Activity Task Failed", "ActivityTaskScheduled": "Activity Task Scheduled", "ActivityTaskStarted": "Activity Task Started", "ActivityTaskTimedOut": "Activity Task Timed Out", "AgentExecutionCompleted": "Agent Execution Completed", "AgentExecutionStarted": "Agent Execution Started", "AgentSpawn": "Agent Spawn", "CHUNKING": "Chunking", "CallToolsNode": "Call Tools Node", "ChildWorkflowExecutionCompleted": "Child Workflow Execution Completed", "ChildWorkflowExecutionInitiated": "Child Workflow Execution Initiated", "CrewKickoffCompleted": "Crew Kickoff Completed", "CrewKickoffStarted": "Crew Kickoff Started", "EMBEDDING": "Embedding", "EXCEPTION": "Exception", "End": "End", "FUNCTION_CALL": "Function Call", "FileDelete": "File Delete", "FileEdit": "File Edit", "FileRead": "File Read", "HTTPRequest": "HTTP Request", "HandoffMessage": "Handoff Message", "LLM": "LLM", "LLMCallCompleted": "LLM Call Completed", "LLMCallStarted": "LLM Call Started", "LLMCompleted": "LLM Completed", "MCPToolCall": "MCP Tool Call", "MarkerRecorded": "Marker Recorded", "MemoryQueryEvent": "Memory Query", "ModelRequestNode": "Model Request Node", "MultiModalMessage": "Multi-Modal Message", "Notification": "Notification", "OperationCompleted": "Operation Completed", "OperationStarted": "Operation Started", "PermissionRequest": "Permission Request", "PostToolUse": "Post-Tool Use", "PreCompact": "Pre-Compact", "PreSyncHookStarted": "Pre-Sync Hook Started", "PreSyncHookSucceeded": "Pre-Sync Hook Succeeded", "PreToolUse": "Pre-Tool Use", "PromptSubmission": "Prompt Submission", "QUERY": "Query", "RERANKING": "Reranking", "RETRIEVE": "Retrieve", "ResourceUpdated": "Resource Updated", "SUB_QUESTION": "Sub-Question", "SYNTHESIZE": "Synthesize", "ShellExecution": "Shell Execution", "Stop": "Stop", "StopMessage": "Stop Message", "SubagentStart": "Subagent Start", "SubagentStop": "Subagent Stop", "SyncStatusChanged": "Sync Status Changed", "TaskCompleted": "Task Completed", "TaskStart": "Task Start", "TaskStarted": "Task Started", "TextMessage": "Text Message", "TimerFired": "Timer Fired", "TimerStarted": "Timer Started", "ToolCallExecutionEvent": "Tool Call Execution", "ToolCallRequestEvent": "Tool Call Request", "ToolCompleted": "Tool Completed", "ToolStarted": "Tool Started", "ToolUsageError": "Tool Usage Error", "ToolUsageFinished": "Tool Usage Finished", "ToolUsageStarted": "Tool Usage Started", "UserInputRequestedEvent": "User Input Requested", "UserPromptNode": "User Prompt Node", "UserPromptSubmit": "User Prompt Submit", "WorkflowExecutionSignaled": "Workflow Execution Signaled", "afterAgentResponse": "After Agent Response", "afterAgentThought": "After Agent Thought", "afterFileEdit": "After File Edit", "afterMCPExecution": "After MCP Execution", "afterShellExecution": "After Shell Execution", "agentStop": "Agent Stop", "auto_function_invocation_post": "Auto Function Invocation Post", "auto_function_invocation_pre": "Auto Function Invocation Pre", "beforeMCPExecution": "Before MCP Execution", "beforeReadFile": "Before Read File", "beforeShellExecution": "Before Shell Execution", "beforeSubmitPrompt": "Before Submit Prompt", "checkpoint": "Checkpoint", "custom_event": "Custom Event", "error": "Error", "error-trigger": "Error Trigger", "errorOccurred": "Error Occurred", "function_invocation_post": "Function Invocation Post", "function_invocation_pre": "Function Invocation Pre", "incident.acknowledged": "Incident Acknowledged", "incident.annotated": "Incident Annotated", "incident.delegated": "Incident Delegated", "incident.escalated": "Incident Escalated", "incident.priority_updated": "Incident Priority Updated", "incident.reassigned": "Incident Reassigned", "incident.reopened": "Incident Reopened", "incident.resolved": "Incident Resolved", "incident.triggered": "Incident Triggered", "incident.unacknowledged": "Incident Unacknowledged", "interrupt": "Interrupt", "node-post-execute": "Node Post-Execute", "node-pre-execute": "Node Pre-Execute", "node_end": "Node End", "node_start": "Node Start", "onAbort": "Abort", "onError": "Error", "onFinish": "Finish", "onStepFinish": "Step Finish", "on_agent_action": "Agent Action", "on_agent_finish": "Agent Finish", "on_chain_end": "Chain End", "on_chain_start": "Chain Start", "on_chat_model_start": "Chat Model Start", "on_execute_callback": "Execute Callback", "on_failure_callback": "Failure Callback", "on_llm_end": "LLM End", "on_llm_error": "LLM Error", "on_llm_start": "LLM Start", "on_retriever_end": "Retriever End", "on_retriever_start": "Retriever Start", "on_retry_callback": "Retry Callback", "on_skipped_callback": "Skipped Callback", "on_success_callback": "Success Callback", "on_tool_end": "Tool End", "on_tool_error": "Tool Error", "on_tool_start": "Tool Start", "output_validator": "Output Validator", "payment_order.approved": "Payment Order Approved", "payment_order.begin_processing": "Payment Order Begin Processing", "payment_order.failed": "Payment Order Failed", "payment_order.reconciled": "Payment Order Reconciled", "payment_reference.created": "Payment Reference Created", "postToolUse": "Post-Tool Use", "preToolUse": "Pre-Tool Use", "prompt_render_post": "Prompt Render Post", "prompt_render_pre": "Prompt Render Pre", "sla_miss_callback": "SLA Miss Callback", "subagentStop": "Subagent Stop", "task_end": "Task End", "task_start": "Task Start", "tool-call": "Tool Call", "tool-result": "Tool Result", "tool_retry": "Tool Retry", "userPromptSubmitted": "User Prompt Submitted", "workflow-step-finish": "Workflow Step Finish", "workflow-step-progress": "Workflow Step Progress", "workflow-step-start": "Workflow Step Start" });
+    CANONICAL_ACTIVITY_LABELS = Object.freeze({ "AGENT_STEP": "Agent Step", "ActivityTaskCanceled": "Activity Task Canceled", "ActivityTaskCompleted": "Activity Task Completed", "ActivityTaskFailed": "Activity Task Failed", "ActivityTaskScheduled": "Activity Task Scheduled", "ActivityTaskStarted": "Activity Task Started", "ActivityTaskTimedOut": "Activity Task Timed Out", "AgentAction": "Agent Action", "AgentExecutionCompleted": "Agent Execution Completed", "AgentExecutionStarted": "Agent Execution Started", "AgentSpawn": "Agent Spawn", "CHUNKING": "Chunking", "CallToolsNode": "Call Tools Node", "ChildWorkflowExecutionCompleted": "Child Workflow Execution Completed", "ChildWorkflowExecutionInitiated": "Child Workflow Execution Initiated", "CrewKickoffCompleted": "Crew Kickoff Completed", "CrewKickoffStarted": "Crew Kickoff Started", "EMBEDDING": "Embedding", "EXCEPTION": "Exception", "End": "End", "FUNCTION_CALL": "Function Call", "FileDelete": "File Delete", "FileEdit": "File Edit", "FileRead": "File Read", "HTTPRequest": "HTTP Request", "HandoffMessage": "Handoff Message", "LLM": "LLM", "LLMCallCompleted": "LLM Call Completed", "LLMCallStarted": "LLM Call Started", "LLMCompleted": "LLM Completed", "MCPToolCall": "MCP Tool Call", "MarkerRecorded": "Marker Recorded", "MemoryQueryEvent": "Memory Query", "ModelRequestNode": "Model Request Node", "MultiModalMessage": "Multi-Modal Message", "Notification": "Notification", "OperationCompleted": "Operation Completed", "OperationStarted": "Operation Started", "PermissionRequest": "Permission Request", "PostToolUse": "Post-Tool Use", "PreCompact": "Pre-Compact", "PreSyncHookStarted": "Pre-Sync Hook Started", "PreSyncHookSucceeded": "Pre-Sync Hook Succeeded", "PreToolUse": "Pre-Tool Use", "PromptSubmission": "Prompt Submission", "QUERY": "Query", "RERANKING": "Reranking", "RETRIEVE": "Retrieve", "ResourceUpdated": "Resource Updated", "SUB_QUESTION": "Sub-Question", "SYNTHESIZE": "Synthesize", "ShellExecution": "Shell Execution", "Stop": "Stop", "StopMessage": "Stop Message", "SubagentStart": "Subagent Start", "SubagentStop": "Subagent Stop", "SyncStatusChanged": "Sync Status Changed", "TaskCompleted": "Task Completed", "TaskStart": "Task Start", "TaskStarted": "Task Started", "TextMessage": "Text Message", "TimerFired": "Timer Fired", "TimerStarted": "Timer Started", "ToolCallExecutionEvent": "Tool Call Execution", "ToolCallRequestEvent": "Tool Call Request", "ToolCompleted": "Tool Completed", "ToolStarted": "Tool Started", "ToolUsageError": "Tool Usage Error", "ToolUsageFinished": "Tool Usage Finished", "ToolUsageStarted": "Tool Usage Started", "UserInputRequestedEvent": "User Input Requested", "UserPromptNode": "User Prompt Node", "UserPromptSubmit": "User Prompt Submit", "WorkflowExecutionSignaled": "Workflow Execution Signaled", "afterAgentResponse": "After Agent Response", "afterAgentThought": "After Agent Thought", "afterFileEdit": "After File Edit", "afterMCPExecution": "After MCP Execution", "afterShellExecution": "After Shell Execution", "agentStop": "Agent Stop", "auto_function_invocation_post": "Auto Function Invocation Post", "auto_function_invocation_pre": "Auto Function Invocation Pre", "beforeMCPExecution": "Before MCP Execution", "beforeReadFile": "Before Read File", "beforeShellExecution": "Before Shell Execution", "beforeSubmitPrompt": "Before Submit Prompt", "checkpoint": "Checkpoint", "custom_event": "Custom Event", "error": "Error", "error-trigger": "Error Trigger", "errorOccurred": "Error Occurred", "function_invocation_post": "Function Invocation Post", "function_invocation_pre": "Function Invocation Pre", "incident.acknowledged": "Incident Acknowledged", "incident.annotated": "Incident Annotated", "incident.delegated": "Incident Delegated", "incident.escalated": "Incident Escalated", "incident.priority_updated": "Incident Priority Updated", "incident.reassigned": "Incident Reassigned", "incident.reopened": "Incident Reopened", "incident.resolved": "Incident Resolved", "incident.triggered": "Incident Triggered", "incident.unacknowledged": "Incident Unacknowledged", "interrupt": "Interrupt", "node-post-execute": "Node Post-Execute", "node-pre-execute": "Node Pre-Execute", "node_end": "Node End", "node_start": "Node Start", "onAbort": "Abort", "onError": "Error", "onFinish": "Finish", "onStepFinish": "Step Finish", "on_agent_action": "Agent Action", "on_agent_finish": "Agent Finish", "on_chain_end": "Chain End", "on_chain_start": "Chain Start", "on_chat_model_start": "Chat Model Start", "on_execute_callback": "Execute Callback", "on_failure_callback": "Failure Callback", "on_llm_end": "LLM End", "on_llm_error": "LLM Error", "on_llm_start": "LLM Start", "on_retriever_end": "Retriever End", "on_retriever_start": "Retriever Start", "on_retry_callback": "Retry Callback", "on_skipped_callback": "Skipped Callback", "on_success_callback": "Success Callback", "on_tool_end": "Tool End", "on_tool_error": "Tool Error", "on_tool_start": "Tool Start", "output_validator": "Output Validator", "payment_order.approved": "Payment Order Approved", "payment_order.begin_processing": "Payment Order Begin Processing", "payment_order.failed": "Payment Order Failed", "payment_order.reconciled": "Payment Order Reconciled", "payment_reference.created": "Payment Reference Created", "postToolUse": "Post-Tool Use", "preToolUse": "Pre-Tool Use", "prompt_render_post": "Prompt Render Post", "prompt_render_pre": "Prompt Render Pre", "sla_miss_callback": "SLA Miss Callback", "subagentStop": "Subagent Stop", "task_end": "Task End", "task_start": "Task Start", "tool-call": "Tool Call", "tool-result": "Tool Result", "tool_retry": "Tool Retry", "userPromptSubmitted": "User Prompt Submitted", "workflow-step-finish": "Workflow Step Finish", "workflow-step-progress": "Workflow Step Progress", "workflow-step-start": "Workflow Step Start" });
     SessionAlreadyTerminatedError = class extends Error {
       constructor() {
         super("[govern] session already terminated; create a new govern() scope to continue.");
@@ -2369,6 +2439,7 @@ var init_govern = __esm({
       finalized = false;
       autoOpenSuppressed;
       inFlight = /* @__PURE__ */ new Set();
+      activityStartsMs = /* @__PURE__ */ new Map();
       exitHandlerCleanup = [];
       onPendingApproval;
       onApprovalResolved;
@@ -2427,10 +2498,13 @@ var init_govern = __esm({
        * Backward-compat alias: `complete()`.
        */
       async workflowCompleted() {
-        if (this.finalized) return;
+        if (this.finalized) return void 0;
         this.finalized = true;
-        await this.emit({ event_type: "WorkflowCompleted", status: "completed" });
-        this.cleanupExitHandlers();
+        try {
+          return await this.emit({ event_type: "WorkflowCompleted", status: "completed" });
+        } finally {
+          this.cleanupExitHandlers();
+        }
       }
       /** @deprecated use `workflowCompleted()`; same behavior. */
       async complete() {
@@ -2445,14 +2519,17 @@ var init_govern = __esm({
        * Backward-compat alias: `fail()`.
        */
       async workflowFailed(error2) {
-        if (this.finalized) return;
+        if (this.finalized) return void 0;
         this.finalized = true;
-        await this.emit({
-          event_type: "WorkflowFailed",
-          status: "failed",
-          error: errorInfoFrom(error2)
-        });
-        this.cleanupExitHandlers();
+        try {
+          return await this.emit({
+            event_type: "WorkflowFailed",
+            status: "failed",
+            error: errorInfoFrom(error2)
+          });
+        } finally {
+          this.cleanupExitHandlers();
+        }
       }
       /** @deprecated use `workflowFailed()`; same behavior. */
       async fail(error2) {
@@ -2485,16 +2562,22 @@ var init_govern = __esm({
         if (this.finalized) throw new SessionAlreadyTerminatedError();
         if (!this.opened && !this.autoOpenSuppressed) await this.begin();
         const activityId = payload.activityId ?? randomUUID2();
+        const startTime = payload.startTime ?? Date.now();
+        this.activityStartsMs.set(activityId, startTime);
         this.inFlight.add(activityId);
         try {
-          const verdict = await this.emit({
+          const verdict = await this.emitWithSpanHook({
             event_type: "ActivityStarted",
             activity_id: activityId,
             activity_type: activityType,
             activity_input: payload.input,
+            start_time: startTime,
             spans: payload.spans
           });
           verdict.activityId = activityId;
+          if (verdict.arm !== "allow" && verdict.arm !== "constrain") {
+            this.activityStartsMs.delete(activityId);
+          }
           return {
             activityId,
             verdict,
@@ -2523,6 +2606,7 @@ var init_govern = __esm({
         if (this.finalized) throw new SessionAlreadyTerminatedError();
         if (!this.opened && !this.autoOpenSuppressed) await this.begin();
         const activityId = payload.activityId ?? randomUUID2();
+        const startTime = payload.startTime ?? Date.now();
         this.inFlight.add(activityId);
         try {
           if (eventType === "SignalReceived") {
@@ -2539,11 +2623,13 @@ var init_govern = __esm({
             return signalVerdict;
           }
           if (eventType === "ActivityStarted") {
-            const startedVerdict = await this.emit({
+            this.activityStartsMs.set(activityId, startTime);
+            const startedVerdict = await this.emitWithSpanHook({
               event_type: "ActivityStarted",
               activity_id: activityId,
               activity_type: activityType,
               activity_input: payload.input,
+              start_time: startTime,
               spans: payload.spans
             });
             startedVerdict.activityId = activityId;
@@ -2555,6 +2641,7 @@ var init_govern = __esm({
               return startedVerdict;
             }
             if (startedVerdict.arm !== "allow") {
+              this.activityStartsMs.delete(activityId);
               if (startedVerdict.arm === "require_approval") {
                 const approvalId = startedVerdict.approvalId ?? activityId;
                 if (this.onPendingApproval) {
@@ -2598,14 +2685,22 @@ var init_govern = __esm({
         }
       }
       async emitCompleted(activityId, activityType, payload) {
-        const completedVerdict = await this.emit({
+        const startTime = payload.startTime ?? this.activityStartsMs.get(activityId);
+        const endTime = payload.endTime ?? Date.now();
+        const durationMs = payload.durationMs ?? (typeof startTime === "number" ? Math.max(0, endTime - startTime) : void 0);
+        const completedVerdict = await this.emitWithSpanHook({
           event_type: "ActivityCompleted",
           activity_id: activityId,
           activity_type: activityType,
+          status: activityCompletionStatus(activityType),
           activity_input: payload.input,
           activity_output: payload.output,
+          start_time: startTime,
+          end_time: endTime,
+          duration_ms: durationMs,
           spans: payload.spans
         });
+        this.activityStartsMs.delete(activityId);
         completedVerdict.activityId = activityId;
         if (completedVerdict.arm === "require_approval") {
           const approvalId = completedVerdict.approvalId ?? activityId;
@@ -2636,6 +2731,19 @@ var init_govern = __esm({
           return polled;
         }
         return completedVerdict;
+      }
+      async emitWithSpanHook(event) {
+        const hasActivitySpans = (event.event_type === "ActivityStarted" || event.event_type === "ActivityCompleted") && Array.isArray(event.spans) && event.spans.some(isPersistableHookSpan);
+        if (!hasActivitySpans) return this.emit(event);
+        const baseVerdict = await this.emit({ ...event, spans: void 0 });
+        if (baseVerdict.arm !== "allow" && baseVerdict.arm !== "constrain") {
+          return baseVerdict;
+        }
+        const hookVerdict = await this.emit({
+          ...event,
+          hook_trigger: true
+        });
+        return stricterVerdict(baseVerdict, hookVerdict);
       }
       async emit(event) {
         const payload = {
@@ -3027,10 +3135,10 @@ var init_govern = __esm({
         return this.runActivity("ActivityStarted", "on_chat_model_start", payload);
       }
       async onToolStart(payload) {
-        return this.runActivity("ActivityStarted", "on_tool_start", payload);
+        return this.runActivity("ActivityStarted", toolActivityTypeFromPayload(payload), payload);
       }
       async onToolEnd(payload) {
-        return this.runActivity("ActivityCompleted", "on_tool_end", payload);
+        return this.runActivity("ActivityCompleted", toolActivityTypeFromPayload(payload), payload);
       }
       async onToolError(payload) {
         return this.runActivity("ActivityCompleted", "on_tool_error", payload);
@@ -3916,11 +4024,11 @@ function createCursorAdapter(config) {
   const write2 = config.writeStdout ?? ((data) => process.stdout.write(data));
   const exit = config.exit ?? ((code) => process.exit(code));
   function writeFallback(shape, _v, env) {
-    const json = renderVerdictOutput(shape, void 0, env);
+    const json = renderVerdictOutput(shape, void 0, env, config.deferApproval === true);
     if (json !== void 0) write2(JSON.stringify(json));
   }
   function writeVerdict(shape, v, env) {
-    const json = renderVerdictOutput(shape, v ?? void 0, env);
+    const json = renderVerdictOutput(shape, v ?? void 0, env, config.deferApproval === true);
     if (json !== void 0) write2(JSON.stringify(json));
   }
   return {
@@ -4164,7 +4272,7 @@ function brand(raw) {
   if (!sanitized) return "";
   return sanitized.startsWith("[OpenBox]") ? sanitized : "[OpenBox] " + sanitized;
 }
-function renderVerdictOutput(shape, v, env) {
+function renderVerdictOutput(shape, v, env, deferApproval = false) {
   const arm = v?.arm ?? "allow";
   const reason = brand(v?.reason ?? "");
   switch (shape) {
@@ -4182,7 +4290,7 @@ function renderVerdictOutput(shape, v, env) {
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            permissionDecision: "ask",
+            permissionDecision: deferApproval ? "defer" : "ask",
             permissionDecisionReason: reason || "[OpenBox] approval required"
           }
         };
@@ -4221,6 +4329,50 @@ function renderVerdictOutput(shape, v, env) {
             behavior: "deny",
             message: reason || "[OpenBox] blocked by policy"
           }
+        }
+      };
+    }
+    case "permission-denied-retry": {
+      const eventName = env.hook_event_name ?? "PermissionDenied";
+      if (arm === "allow" || arm === "constrain") {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            retry: true
+          }
+        };
+      }
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          retry: false
+        }
+      };
+    }
+    case "elicitation-response": {
+      const eventName = env.hook_event_name ?? "Elicitation";
+      if (arm === "allow" || arm === "constrain") return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          action: arm === "halt" ? "cancel" : "decline",
+          content: {}
+        }
+      };
+    }
+    case "continue-block": {
+      if (arm === "allow" || arm === "constrain") return {};
+      return {
+        continue: false,
+        stopReason: reason || "[OpenBox] blocked by policy"
+      };
+    }
+    case "additional-context": {
+      if (arm === "allow" || arm === "constrain") return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: env.hook_event_name ?? "PostToolUseFailure",
+          additionalContext: reason || "[OpenBox] blocked by policy"
         }
       };
     }
@@ -4924,7 +5076,47 @@ function buildPreToolUsePayload2(env, toolName, sideEffects3 = {}) {
         "content": getPath4(env, "tool_input.content") ?? getPath4(env, "tool_input.new_string"),
         "event_category": "file_write"
       };
+    case "MultiEdit":
+      return {
+        "text": getPath4(env, "tool_input.edits") ?? getPath4(env, "tool_input.content"),
+        "file_path": getPath4(env, "tool_input.file_path") ?? getPath4(env, "tool_input.filePath"),
+        "content": getPath4(env, "tool_input.edits") ?? getPath4(env, "tool_input.content"),
+        "event_category": "file_write"
+      };
+    case "NotebookEdit":
+      return {
+        "text": getPath4(env, "tool_input.new_source") ?? getPath4(env, "tool_input.content"),
+        "file_path": getPath4(env, "tool_input.notebook_path") ?? getPath4(env, "tool_input.file_path"),
+        "content": getPath4(env, "tool_input.new_source") ?? getPath4(env, "tool_input.content"),
+        "event_category": "file_write"
+      };
+    case "NotebookRead":
+      return {
+        "text": sideEffects3.readFile?.(getPath4(env, "tool_input.notebook_path")) ?? "",
+        "file_path": getPath4(env, "tool_input.notebook_path") ?? getPath4(env, "tool_input.file_path"),
+        "content": sideEffects3.readFile?.(getPath4(env, "tool_input.notebook_path")) ?? "",
+        "event_category": "file_read"
+      };
+    case "Glob":
+      return {
+        "text": getPath4(env, "tool_input.pattern"),
+        "file_path": getPath4(env, "tool_input.path") ?? getPath4(env, "cwd"),
+        "event_category": "file_read"
+      };
+    case "Grep":
+      return {
+        "text": getPath4(env, "tool_input.pattern"),
+        "file_path": getPath4(env, "tool_input.path") ?? getPath4(env, "cwd"),
+        "event_category": "file_read"
+      };
     case "Bash":
+      return {
+        "text": getPath4(env, "tool_input.command"),
+        "command": getPath4(env, "tool_input.command"),
+        "cwd": getPath4(env, "tool_input.cwd") ?? getPath4(env, "cwd"),
+        "event_category": "agent_action"
+      };
+    case "PowerShell":
       return {
         "text": getPath4(env, "tool_input.command"),
         "command": getPath4(env, "tool_input.command"),
@@ -4949,6 +5141,22 @@ function buildPreToolUsePayload2(env, toolName, sideEffects3 = {}) {
         "prompt": getPath4(env, "tool_input.prompt"),
         "event_category": "agent_action"
       };
+    case "AskUserQuestion":
+      return {
+        "text": getPath4(env, "tool_input.question") ?? getPath4(env, "tool_input.message"),
+        "event_category": "agent_action"
+      };
+    case "ExitPlanMode":
+      return {
+        "text": getPath4(env, "tool_input.plan"),
+        "event_category": "agent_action"
+      };
+    case "Skill":
+      return {
+        "tool_name": getPath4(env, "tool_name"),
+        "tool_input": getPath4(env, "tool_input"),
+        "event_category": "agent_action"
+      };
     default:
       return {
         "tool_name": getPath4(env, "tool_name"),
@@ -4964,11 +5172,35 @@ function buildPostToolUsePayload(env, sideEffects3 = {}) {
     "event_category": "agent_observation"
   };
 }
+function buildPostToolUseFailurePayload(env) {
+  return {
+    "tool_name": getPath4(env, "tool_name"),
+    "tool_input": getPath4(env, "tool_input"),
+    "error": getPath4(env, "error") ?? getPath4(env, "reason"),
+    "event_category": "agent_observation"
+  };
+}
+function buildPostToolBatchPayload(env, sideEffects3 = {}) {
+  return {
+    "tool_calls": getPath4(env, "tool_calls"),
+    "output": sideEffects3.stringifyTruncate?.(getPath4(env, "tool_calls")) ?? "",
+    "event_category": "agent_observation"
+  };
+}
 function buildUserPromptSubmitPayload(env) {
   return {
     "text": getPath4(env, "prompt"),
     "prompt": getPath4(env, "prompt"),
     "model": getPath4(env, "model"),
+    "event_category": "llm_prompt"
+  };
+}
+function buildUserPromptExpansionPayload(env) {
+  return {
+    "text": getPath4(env, "expanded_prompt") ?? getPath4(env, "prompt"),
+    "prompt": getPath4(env, "expanded_prompt") ?? getPath4(env, "prompt"),
+    "command_name": getPath4(env, "command_name"),
+    "command_args": getPath4(env, "command_args"),
     "event_category": "llm_prompt"
   };
 }
@@ -5045,6 +5277,33 @@ function buildPermissionRequestPayload(env, toolName) {
       };
   }
 }
+function buildPermissionDeniedPayload(env) {
+  return {
+    "tool_name": getPath4(env, "tool_name"),
+    "tool_input": getPath4(env, "tool_input"),
+    "reason": getPath4(env, "reason"),
+    "event_category": "agent_action"
+  };
+}
+function buildSetupPayload(env) {
+  return {
+    "trigger": getPath4(env, "trigger"),
+    "event_category": "workflow_start"
+  };
+}
+function buildPreCompactPayload(env) {
+  return {
+    "trigger": getPath4(env, "trigger"),
+    "custom_instructions": getPath4(env, "custom_instructions"),
+    "event_category": "workflow_compact"
+  };
+}
+function buildPostCompactPayload(env) {
+  return {
+    "compact_summary": getPath4(env, "compact_summary"),
+    "event_category": "workflow_compact"
+  };
+}
 function buildSessionStartPayload(env) {
   return {
     "status": "started",
@@ -5073,10 +5332,46 @@ function buildSubagentStopPayload(env) {
     "event_category": "agent_observation"
   };
 }
+function buildTaskCreatedPayload(env) {
+  return {
+    "task_id": getPath4(env, "task_id"),
+    "task_subject": getPath4(env, "task_subject"),
+    "task_description": getPath4(env, "task_description"),
+    "teammate_name": getPath4(env, "teammate_name"),
+    "team_name": getPath4(env, "team_name"),
+    "event_category": "agent_action"
+  };
+}
+function buildTaskCompletedPayload(env) {
+  return {
+    "task_id": getPath4(env, "task_id"),
+    "task_subject": getPath4(env, "task_subject"),
+    "task_description": getPath4(env, "task_description"),
+    "teammate_name": getPath4(env, "teammate_name"),
+    "team_name": getPath4(env, "team_name"),
+    "event_category": "agent_observation"
+  };
+}
 function buildStopPayload(env) {
   return {
     "cwd": getPath4(env, "cwd"),
+    "last_assistant_message": getPath4(env, "last_assistant_message"),
+    "background_tasks": getPath4(env, "background_tasks"),
+    "session_crons": getPath4(env, "session_crons"),
     "event_category": "workflow_stop_request"
+  };
+}
+function buildStopFailurePayload(env) {
+  return {
+    "error": getPath4(env, "error") ?? getPath4(env, "reason"),
+    "event_category": "workflow_failed"
+  };
+}
+function buildTeammateIdlePayload(env) {
+  return {
+    "teammate_name": getPath4(env, "teammate_name"),
+    "team_name": getPath4(env, "team_name"),
+    "event_category": "agent_observation"
   };
 }
 function createClaudeCodeAdapter(config) {
@@ -5084,11 +5379,11 @@ function createClaudeCodeAdapter(config) {
   const write2 = config.writeStdout ?? ((data) => process.stdout.write(data));
   const exit = config.exit ?? ((code) => process.exit(code));
   function writeFallback(shape, _v, env) {
-    const json = renderVerdictOutput2(shape, void 0, env);
+    const json = renderVerdictOutput2(shape, void 0, env, config.deferApproval === true);
     if (json !== void 0) write2(JSON.stringify(json));
   }
   function writeVerdict(shape, v, env) {
-    const json = renderVerdictOutput2(shape, v ?? void 0, env);
+    const json = renderVerdictOutput2(shape, v ?? void 0, env, config.deferApproval === true);
     if (json !== void 0) write2(JSON.stringify(json));
   }
   return {
@@ -5145,12 +5440,39 @@ async function dispatch2(eventName, env, session, handlers, writeFallback, write
       writeVerdict("decision-block", verdict, env);
       return;
     }
+    case "PostToolUseFailure": {
+      if (!handlers.postToolUseFailure) {
+        writeFallback("additional-context", void 0, env);
+        return;
+      }
+      const verdict = await handlers.postToolUseFailure(env, session);
+      writeVerdict("additional-context", verdict, env);
+      return;
+    }
+    case "PostToolBatch": {
+      if (!handlers.postToolBatch) {
+        writeFallback("decision-block", void 0, env);
+        return;
+      }
+      const verdict = await handlers.postToolBatch(env, session);
+      writeVerdict("decision-block", verdict, env);
+      return;
+    }
     case "UserPromptSubmit": {
       if (!handlers.userPromptSubmit) {
         writeFallback("decision-block", void 0, env);
         return;
       }
       const verdict = await handlers.userPromptSubmit(env, session);
+      writeVerdict("decision-block", verdict, env);
+      return;
+    }
+    case "UserPromptExpansion": {
+      if (!handlers.userPromptExpansion) {
+        writeFallback("decision-block", void 0, env);
+        return;
+      }
+      const verdict = await handlers.userPromptExpansion(env, session);
       writeVerdict("decision-block", verdict, env);
       return;
     }
@@ -5163,12 +5485,48 @@ async function dispatch2(eventName, env, session, handlers, writeFallback, write
       writeVerdict("permission-request", verdict, env);
       return;
     }
-    case "PreCompact": {
-      if (!handlers.preCompact) {
+    case "PermissionDenied": {
+      if (!handlers.permissionDenied) {
+        writeFallback("permission-denied-retry", void 0, env);
+        return;
+      }
+      const verdict = await handlers.permissionDenied(env, session);
+      writeVerdict("permission-denied-retry", verdict, env);
+      return;
+    }
+    case "Setup": {
+      if (!handlers.setup) {
         writeFallback("none", void 0, env);
         return;
       }
+      const verdict = await handlers.setup(env, session);
+      writeVerdict("none", verdict, env);
+      return;
+    }
+    case "InstructionsLoaded": {
+      if (!handlers.instructionsLoaded) {
+        writeFallback("none", void 0, env);
+        return;
+      }
+      const verdict = await handlers.instructionsLoaded(env, session);
+      writeVerdict("none", verdict, env);
+      return;
+    }
+    case "PreCompact": {
+      if (!handlers.preCompact) {
+        writeFallback("decision-block", void 0, env);
+        return;
+      }
       const verdict = await handlers.preCompact(env, session);
+      writeVerdict("decision-block", verdict, env);
+      return;
+    }
+    case "PostCompact": {
+      if (!handlers.postCompact) {
+        writeFallback("none", void 0, env);
+        return;
+      }
+      const verdict = await handlers.postCompact(env, session);
       writeVerdict("none", verdict, env);
       return;
     }
@@ -5201,20 +5559,56 @@ async function dispatch2(eventName, env, session, handlers, writeFallback, write
     }
     case "SubagentStop": {
       if (!handlers.subagentStop) {
-        writeFallback("none", void 0, env);
+        writeFallback("decision-block", void 0, env);
         return;
       }
       const verdict = await handlers.subagentStop(env, session);
-      writeVerdict("none", verdict, env);
+      writeVerdict("decision-block", verdict, env);
+      return;
+    }
+    case "TaskCreated": {
+      if (!handlers.taskCreated) {
+        writeFallback("continue-block", void 0, env);
+        return;
+      }
+      const verdict = await handlers.taskCreated(env, session);
+      writeVerdict("continue-block", verdict, env);
+      return;
+    }
+    case "TaskCompleted": {
+      if (!handlers.taskCompleted) {
+        writeFallback("continue-block", void 0, env);
+        return;
+      }
+      const verdict = await handlers.taskCompleted(env, session);
+      writeVerdict("continue-block", verdict, env);
       return;
     }
     case "Stop": {
       if (!handlers.stop) {
-        writeFallback("none", void 0, env);
+        writeFallback("decision-block", void 0, env);
         return;
       }
       const verdict = await handlers.stop(env, session);
+      writeVerdict("decision-block", verdict, env);
+      return;
+    }
+    case "StopFailure": {
+      if (!handlers.stopFailure) {
+        writeFallback("none", void 0, env);
+        return;
+      }
+      const verdict = await handlers.stopFailure(env, session);
       writeVerdict("none", verdict, env);
+      return;
+    }
+    case "TeammateIdle": {
+      if (!handlers.teammateIdle) {
+        writeFallback("continue-block", void 0, env);
+        return;
+      }
+      const verdict = await handlers.teammateIdle(env, session);
+      writeVerdict("continue-block", verdict, env);
       return;
     }
     case "Notification": {
@@ -5224,6 +5618,69 @@ async function dispatch2(eventName, env, session, handlers, writeFallback, write
       }
       const verdict = await handlers.notification(env, session);
       writeVerdict("none", verdict, env);
+      return;
+    }
+    case "MessageDisplay": {
+      if (!handlers.messageDisplay) {
+        writeFallback("none", void 0, env);
+        return;
+      }
+      const verdict = await handlers.messageDisplay(env, session);
+      writeVerdict("none", verdict, env);
+      return;
+    }
+    case "ConfigChange": {
+      if (!handlers.configChange) {
+        writeFallback("decision-block", void 0, env);
+        return;
+      }
+      const verdict = await handlers.configChange(env, session);
+      writeVerdict("decision-block", verdict, env);
+      return;
+    }
+    case "CwdChanged": {
+      if (!handlers.cwdChanged) {
+        writeFallback("none", void 0, env);
+        return;
+      }
+      const verdict = await handlers.cwdChanged(env, session);
+      writeVerdict("none", verdict, env);
+      return;
+    }
+    case "FileChanged": {
+      if (!handlers.fileChanged) {
+        writeFallback("none", void 0, env);
+        return;
+      }
+      const verdict = await handlers.fileChanged(env, session);
+      writeVerdict("none", verdict, env);
+      return;
+    }
+    case "WorktreeRemove": {
+      if (!handlers.worktreeRemove) {
+        writeFallback("none", void 0, env);
+        return;
+      }
+      const verdict = await handlers.worktreeRemove(env, session);
+      writeVerdict("none", verdict, env);
+      return;
+    }
+    case "Elicitation": {
+      if (!handlers.elicitation) {
+        writeFallback("elicitation-response", void 0, env);
+        return;
+      }
+      const verdict = await handlers.elicitation(env, session);
+      writeVerdict("elicitation-response", verdict, env);
+      return;
+    }
+    case "ElicitationResult": {
+      if (!handlers.elicitationResult) {
+        writeFallback("elicitation-response", void 0, env);
+        return;
+      }
+      const verdict = await handlers.elicitationResult(env, session);
+      writeVerdict("elicitation-response", verdict, env);
       return;
     }
     default:
@@ -5251,7 +5708,7 @@ function brand2(raw) {
   if (!sanitized) return "";
   return sanitized.startsWith("[OpenBox]") ? sanitized : "[OpenBox] " + sanitized;
 }
-function renderVerdictOutput2(shape, v, env) {
+function renderVerdictOutput2(shape, v, env, deferApproval = false) {
   const arm = v?.arm ?? "allow";
   const reason = brand2(v?.reason ?? "");
   switch (shape) {
@@ -5269,7 +5726,7 @@ function renderVerdictOutput2(shape, v, env) {
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            permissionDecision: "ask",
+            permissionDecision: deferApproval ? "defer" : "ask",
             permissionDecisionReason: reason || "[OpenBox] approval required"
           }
         };
@@ -5308,6 +5765,50 @@ function renderVerdictOutput2(shape, v, env) {
             behavior: "deny",
             message: reason || "[OpenBox] blocked by policy"
           }
+        }
+      };
+    }
+    case "permission-denied-retry": {
+      const eventName = env.hook_event_name ?? "PermissionDenied";
+      if (arm === "allow" || arm === "constrain") {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            retry: true
+          }
+        };
+      }
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          retry: false
+        }
+      };
+    }
+    case "elicitation-response": {
+      const eventName = env.hook_event_name ?? "Elicitation";
+      if (arm === "allow" || arm === "constrain") return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          action: arm === "halt" ? "cancel" : "decline",
+          content: {}
+        }
+      };
+    }
+    case "continue-block": {
+      if (arm === "allow" || arm === "constrain") return {};
+      return {
+        continue: false,
+        stopReason: reason || "[OpenBox] blocked by policy"
+      };
+    }
+    case "additional-context": {
+      if (arm === "allow" || arm === "constrain") return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName: env.hook_event_name ?? "PostToolUseFailure",
+          additionalContext: reason || "[OpenBox] blocked by policy"
         }
       };
     }
@@ -5377,30 +5878,75 @@ var init_claude_code = __esm({
       "Write": "FileEdit",
       "Edit": "FileEdit",
       "Delete": "FileDelete",
+      "MultiEdit": "FileEdit",
+      "NotebookEdit": "FileEdit",
+      "NotebookRead": "FileRead",
+      "Glob": "FileRead",
+      "Grep": "FileRead",
       "Bash": "ShellExecution",
+      "PowerShell": "ShellExecution",
       "WebFetch": "HTTPRequest",
       "WebSearch": "HTTPRequest",
-      "Agent": "AgentSpawn"
+      "Agent": "AgentSpawn",
+      "Skill": "AgentAction",
+      "TodoWrite": "AgentAction",
+      "AskUserQuestion": "AgentAction",
+      "EnterPlanMode": "AgentAction",
+      "ExitPlanMode": "AgentAction",
+      "EnterWorktree": "AgentAction",
+      "CronCreate": "AgentAction",
+      "CronDelete": "AgentAction",
+      "CronList": "AgentAction"
     };
     POST_TOOL_USE_ROUTING = {
       "Read": "FileRead",
       "Write": "FileEdit",
       "Edit": "FileEdit",
       "Delete": "FileDelete",
+      "MultiEdit": "FileEdit",
+      "NotebookEdit": "FileEdit",
+      "NotebookRead": "FileRead",
+      "Glob": "FileRead",
+      "Grep": "FileRead",
       "Bash": "ShellExecution",
+      "PowerShell": "ShellExecution",
       "WebFetch": "HTTPRequest",
       "WebSearch": "HTTPRequest",
-      "Agent": "AgentSpawn"
+      "Agent": "AgentSpawn",
+      "Skill": "AgentAction",
+      "TodoWrite": "AgentAction",
+      "AskUserQuestion": "AgentAction",
+      "EnterPlanMode": "AgentAction",
+      "ExitPlanMode": "AgentAction",
+      "EnterWorktree": "AgentAction",
+      "CronCreate": "AgentAction",
+      "CronDelete": "AgentAction",
+      "CronList": "AgentAction"
     };
     PERMISSION_REQUEST_ROUTING = {
       "Read": "FileRead",
       "Write": "FileEdit",
       "Edit": "FileEdit",
       "Delete": "FileDelete",
+      "MultiEdit": "FileEdit",
+      "NotebookEdit": "FileEdit",
+      "NotebookRead": "FileRead",
+      "Glob": "FileRead",
+      "Grep": "FileRead",
       "Bash": "ShellExecution",
+      "PowerShell": "ShellExecution",
       "WebFetch": "HTTPRequest",
       "WebSearch": "HTTPRequest",
-      "Agent": "AgentSpawn"
+      "Agent": "AgentSpawn",
+      "Skill": "AgentAction",
+      "TodoWrite": "AgentAction",
+      "AskUserQuestion": "AgentAction",
+      "EnterPlanMode": "AgentAction",
+      "ExitPlanMode": "AgentAction",
+      "EnterWorktree": "AgentAction",
+      "CronCreate": "AgentAction",
+      "CronDelete": "AgentAction",
+      "CronList": "AgentAction"
     };
     HOOK_SPEC2 = {
       "file": ".claude/settings.json",
@@ -5417,7 +5963,17 @@ var init_claude_code = __esm({
           "name": "PostToolUse"
         },
         {
+          "name": "PostToolUseFailure"
+        },
+        {
+          "name": "PostToolBatch"
+        },
+        {
           "name": "UserPromptSubmit",
+          "timeout": 86400
+        },
+        {
+          "name": "UserPromptExpansion",
           "timeout": 86400
         },
         {
@@ -5425,7 +5981,19 @@ var init_claude_code = __esm({
           "timeout": 86400
         },
         {
+          "name": "PermissionDenied"
+        },
+        {
+          "name": "Setup"
+        },
+        {
+          "name": "InstructionsLoaded"
+        },
+        {
           "name": "PreCompact"
+        },
+        {
+          "name": "PostCompact"
         },
         {
           "name": "SessionStart"
@@ -5440,18 +6008,155 @@ var init_claude_code = __esm({
           "name": "SubagentStop"
         },
         {
+          "name": "TaskCreated"
+        },
+        {
+          "name": "TaskCompleted"
+        },
+        {
           "name": "Stop"
         },
         {
+          "name": "StopFailure"
+        },
+        {
+          "name": "TeammateIdle"
+        },
+        {
           "name": "Notification"
+        },
+        {
+          "name": "MessageDisplay"
+        },
+        {
+          "name": "ConfigChange"
+        },
+        {
+          "name": "CwdChanged"
+        },
+        {
+          "name": "FileChanged"
+        },
+        {
+          "name": "WorktreeRemove"
+        },
+        {
+          "name": "Elicitation",
+          "timeout": 86400
+        },
+        {
+          "name": "ElicitationResult"
         }
       ]
     };
   }
 });
 
+// ts/src/runtime/claude-code/governance-matrix.ts
+function defaultClaudeCodeHookEvents() {
+  return CLAUDE_CODE_HOOK_MATRIX.filter((entry) => entry.defaultInstall && entry.status !== "diagnose_only" && entry.status !== "explicit_out_of_scope").map((entry) => entry.event);
+}
+function optInClaudeCodeHookEvents() {
+  return CLAUDE_CODE_HOOK_MATRIX.filter((entry) => !entry.defaultInstall).map((entry) => entry.event);
+}
+function claudeCodeGovernanceSummary() {
+  const byStatus = CLAUDE_CODE_HOOK_MATRIX.reduce(
+    (acc, entry) => {
+      acc[entry.status] += 1;
+      return acc;
+    },
+    { implement_now: 0, observe_only: 0, diagnose_only: 0, explicit_out_of_scope: 0 }
+  );
+  return {
+    audit: CLAUDE_CODE_GOVERNANCE_AUDIT,
+    hookCount: CLAUDE_CODE_HOOK_MATRIX.length,
+    defaultHookCount: defaultClaudeCodeHookEvents().length,
+    optInHooks: optInClaudeCodeHookEvents(),
+    byStatus,
+    surfaces: CLAUDE_CODE_SURFACE_MATRIX
+  };
+}
+var CLAUDE_CODE_GOVERNANCE_AUDIT, CLAUDE_CODE_HOOK_MATRIX, CLAUDE_CODE_SURFACE_MATRIX;
+var init_governance_matrix = __esm({
+  "ts/src/runtime/claude-code/governance-matrix.ts"() {
+    "use strict";
+    CLAUDE_CODE_GOVERNANCE_AUDIT = {
+      capturedAt: "2026-06-15",
+      installedClaudeCodeVersion: "2.1.177 (Claude Code)",
+      officialDocs: [
+        "https://code.claude.com/docs/en/hooks",
+        "https://code.claude.com/docs/en/plugins-reference",
+        "https://code.claude.com/docs/en/plugins",
+        "https://code.claude.com/docs/en/mcp",
+        "https://code.claude.com/docs/en/skills",
+        "https://code.claude.com/docs/en/settings",
+        "https://code.claude.com/docs/en/tools-reference",
+        "https://code.claude.com/docs/en/channels",
+        "https://code.claude.com/docs/en/changelog"
+      ],
+      auditedSdkSurfaces: [
+        "@openbox-ai/openbox-sdk/runtime/claude-code",
+        "@openbox-ai/openbox-sdk/runtime/mcp",
+        "@openbox-ai/openbox-sdk/runtime/cursor",
+        "@openbox-ai/openbox-sdk/copilotkit",
+        "@openbox-ai/openbox-sdk/copilotkit/react",
+        "apps/extension",
+        "skill",
+        "example/n8n"
+      ]
+    };
+    CLAUDE_CODE_HOOK_MATRIX = [
+      { event: "Setup", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "CI/init preparation signal." },
+      { event: "SessionStart", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Starts OpenBox workflow/session lifecycle." },
+      { event: "InstructionsLoaded", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Audits loaded instruction sources." },
+      { event: "UserPromptSubmit", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Prompt input gate." },
+      { event: "UserPromptExpansion", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Slash-command expansion gate." },
+      { event: "MessageDisplay", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Display-only streaming text surface." },
+      { event: "PreToolUse", status: "implement_now", defaultInstall: true, decisionSurface: "permission-decision", notes: "Primary pre-action tool gate." },
+      { event: "PermissionRequest", status: "implement_now", defaultInstall: true, decisionSurface: "permission-request", notes: "Native Claude permission prompt gate." },
+      { event: "PermissionDenied", status: "implement_now", defaultInstall: true, decisionSurface: "permission-denied-retry", notes: "Can request retry after auto-mode denial." },
+      { event: "PostToolUse", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Tool output governance." },
+      { event: "PostToolUseFailure", status: "implement_now", defaultInstall: true, decisionSurface: "additional-context", notes: "Feeds policy context after failed tool calls." },
+      { event: "PostToolBatch", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Parallel tool batch gate before next model call." },
+      { event: "SubagentStart", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Subagent lifecycle start telemetry." },
+      { event: "SubagentStop", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Subagent completion gate." },
+      { event: "TaskCreated", status: "implement_now", defaultInstall: true, decisionSurface: "continue-block", notes: "Agent-team task creation criteria." },
+      { event: "TaskCompleted", status: "implement_now", defaultInstall: true, decisionSurface: "continue-block", notes: "Agent-team task completion criteria." },
+      { event: "Stop", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Final assistant-output/session-stop gate." },
+      { event: "StopFailure", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "API/session failure telemetry." },
+      { event: "TeammateIdle", status: "implement_now", defaultInstall: true, decisionSurface: "continue-block", notes: "Agent-team idle/completion enforcement." },
+      { event: "Notification", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Notification telemetry." },
+      { event: "ConfigChange", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Blocks non-managed config changes from applying." },
+      { event: "CwdChanged", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Working-directory telemetry." },
+      { event: "FileChanged", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Watched-file telemetry; cannot block the file change." },
+      { event: "WorktreeCreate", status: "explicit_out_of_scope", defaultInstall: false, decisionSurface: "worktree-path", notes: "Invasive hook replaces Claude Code git worktree creation and must create/return a real path." },
+      { event: "WorktreeRemove", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Worktree removal telemetry." },
+      { event: "PreCompact", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Blocks unsafe compaction requests before context rewrite." },
+      { event: "PostCompact", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Compaction summary telemetry." },
+      { event: "SessionEnd", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Closes OpenBox workflow/session lifecycle." },
+      { event: "Elicitation", status: "implement_now", defaultInstall: true, decisionSurface: "elicitation-response", notes: "MCP user-input request governance." },
+      { event: "ElicitationResult", status: "implement_now", defaultInstall: true, decisionSurface: "elicitation-response", notes: "MCP elicitation response governance." }
+    ];
+    CLAUDE_CODE_SURFACE_MATRIX = [
+      { surface: "hooks", status: "implement_now", notes: "Generated from TypeSpec and installed by the Claude Code plugin." },
+      { surface: "skills", status: "implement_now", notes: "OpenBox skill ships under plugin skills/openbox." },
+      { surface: "commands", status: "implement_now", notes: "Compatibility command markdown files remain for Claude slash entrypoints." },
+      { surface: "agents", status: "implement_now", notes: "OpenBox reviewer agent ships in the plugin." },
+      { surface: "MCP", status: "implement_now", notes: "OpenBox MCP server exposes status, doctor, approvals, agents, rules, policies, and governance checks." },
+      { surface: "plugin settings", status: "diagnose_only", notes: "Only agent/subagentStatusLine are currently supported by Claude Code plugin settings." },
+      { surface: "monitors", status: "diagnose_only", notes: "Documented as opt-in because monitors run unsandboxed and project-scope plugins do not load them." },
+      { surface: "LSP", status: "explicit_out_of_scope", notes: "No OpenBox language server exists; official LSP plugins should be installed separately." },
+      { surface: "bin", status: "diagnose_only", notes: "OpenBox relies on the installed openbox binary; doctor reports command resolution." },
+      { surface: "managed settings", status: "diagnose_only", notes: "Enterprise policy belongs to managed Claude Code deployment, not SDK mutation." },
+      { surface: "channels", status: "diagnose_only", notes: "Research preview MCP push channel surface; standard MCP remains the connector path." },
+      { surface: "built-in tool permissions", status: "implement_now", notes: "PreToolUse/PermissionRequest routing covers current built-in tool names and dynamic mcp__ tools." }
+    ];
+  }
+});
+
 // ts/src/runtime/claude-code/plugin.ts
 import {
+  chmodSync,
   cpSync as cpSync2,
   existsSync as existsSync6,
   lstatSync as lstatSync2,
@@ -5558,9 +6263,17 @@ function writeRuntimeConfigTemplate2(configDir) {
 function claudeCodeRuntimeConfigDir(cwd = process.cwd()) {
   return path3.join(cwd, ".claude-hooks");
 }
-function claudeHooksJson(matchers) {
+function hookEvents(includeOptInHooks = false) {
+  const defaultEvents = new Set(defaultClaudeCodeHookEvents());
+  return HOOK_SPEC2.events.filter((event) => {
+    if (event.installDefault === false) return includeOptInHooks;
+    if (!defaultEvents.has(event.name)) return includeOptInHooks;
+    return true;
+  });
+}
+function claudeHooksJson(matchers, includeOptInHooks = false) {
   const hooks = {};
-  for (const event of HOOK_SPEC2.events) {
+  for (const event of hookEvents(includeOptInHooks)) {
     const hook = {
       type: "command",
       command: HOOK_SPEC2.command
@@ -5584,6 +6297,102 @@ function mcpJson2() {
       }
     }
   };
+}
+function componentInventory(version) {
+  const defaultEvents = hookEvents(false).map((event) => event.name);
+  return {
+    name: "openbox",
+    version,
+    capturedAt: CLAUDE_CODE_GOVERNANCE_AUDIT.capturedAt,
+    installedClaudeCodeVersion: CLAUDE_CODE_GOVERNANCE_AUDIT.installedClaudeCodeVersion,
+    components: {
+      skill: {
+        status: "installed",
+        path: "skills/openbox/SKILL.md"
+      },
+      commands: {
+        status: "installed",
+        path: "commands/",
+        files: [...EXPECTED_COMMAND_FILES2]
+      },
+      agent: {
+        status: "installed",
+        path: "agents/openbox-reviewer.md"
+      },
+      hooks: {
+        status: "installed",
+        path: "hooks/hooks.json",
+        defaultEvents,
+        optInEvents: optInClaudeCodeHookEvents()
+      },
+      mcp: {
+        status: "installed",
+        path: ".mcp.json",
+        command: "openbox mcp serve"
+      },
+      diagnostics: {
+        status: "installed",
+        path: "diagnostics/",
+        files: [...EXPECTED_DIAGNOSTIC_FILES]
+      },
+      bin: {
+        status: "installed",
+        path: "bin/openbox-plugin-doctor",
+        command: "openbox claude-code doctor"
+      },
+      monitors: {
+        status: "opt_in_metadata",
+        activeByDefault: false,
+        path: "diagnostics/monitors.opt-in.json",
+        notes: "Copy to monitors/monitors.json only after accepting unsandboxed monitor execution."
+      },
+      lsp: {
+        status: "not_included",
+        notes: "No OpenBox language-server use case was found in the Claude Code governance audit."
+      }
+    },
+    surfaces: CLAUDE_CODE_SURFACE_MATRIX
+  };
+}
+function governanceDiagnostic(version) {
+  return {
+    version,
+    audit: CLAUDE_CODE_GOVERNANCE_AUDIT,
+    hooks: CLAUDE_CODE_HOOK_MATRIX,
+    defaultHookEvents: defaultClaudeCodeHookEvents(),
+    optInHookEvents: optInClaudeCodeHookEvents(),
+    generatedHookSpecEvents: HOOK_SPEC2.events.map((event) => event.name),
+    surfaces: CLAUDE_CODE_SURFACE_MATRIX
+  };
+}
+function optInMonitorMetadata() {
+  return [
+    {
+      name: "openbox-status",
+      command: "openbox status --json",
+      description: "OpenBox runtime status and approval readiness notifications.",
+      when: "on-skill-invoke:openbox",
+      activeByDefault: false
+    }
+  ];
+}
+function writePluginDoctorShim(file) {
+  mkdirSync5(path3.dirname(file), { recursive: true });
+  writeFileSync5(
+    file,
+    [
+      "#!/usr/bin/env sh",
+      "set -eu",
+      "if command -v openbox >/dev/null 2>&1; then",
+      '  exec openbox claude-code doctor "$@"',
+      "fi",
+      'echo "openbox executable was not found on PATH" >&2',
+      "exit 127",
+      ""
+    ].join("\n"),
+    "utf-8"
+  );
+  chmodSync(file, 493);
 }
 function pluginManifest2(version) {
   return {
@@ -5663,8 +6472,12 @@ function exportClaudeCodePlugin(options) {
   copyDir2(findSkillDir2(), path3.join(out, "skills", "openbox"));
   copyDir2(findTemplateDir2("commands"), path3.join(out, "commands"));
   copyDir2(findTemplateDir2("agents"), path3.join(out, "agents"));
-  writeJson2(path3.join(out, "hooks", "hooks.json"), claudeHooksJson(options.matchers));
+  writeJson2(path3.join(out, "hooks", "hooks.json"), claudeHooksJson(options.matchers, options.includeOptInHooks));
   writeJson2(path3.join(out, ".mcp.json"), mcpJson2());
+  writeJson2(path3.join(out, "diagnostics", "component-inventory.json"), componentInventory(version));
+  writeJson2(path3.join(out, "diagnostics", "claude-code-governance.json"), governanceDiagnostic(version));
+  writeJson2(path3.join(out, "diagnostics", "monitors.opt-in.json"), optInMonitorMetadata());
+  writePluginDoctorShim(path3.join(out, "bin", "openbox-plugin-doctor"));
   return out;
 }
 function installClaudeCodePlugin(options = {}) {
@@ -5685,7 +6498,8 @@ function installClaudeCodePlugin(options = {}) {
   }
   const out = exportClaudeCodePlugin({
     out: target,
-    matchers: options.matchers
+    matchers: options.matchers,
+    includeOptInHooks: options.includeOptInHooks
   });
   if (!options.skipRuntimeConfig) {
     writeRuntimeConfigTemplate2(claudeCodeRuntimeConfigDir(cwd));
@@ -5725,7 +6539,7 @@ function checkHooks2(file) {
   if (!hooks || typeof hooks !== "object") {
     problems.push("hooks block missing");
   } else {
-    for (const event of HOOK_SPEC2.events) {
+    for (const event of hookEvents(false)) {
       const value = hooks[event.name];
       if (!Array.isArray(value) || value.length === 0) {
         problems.push(`${event.name}: missing array entry`);
@@ -5743,12 +6557,22 @@ function checkHooks2(file) {
         problems.push(`${event.name}: timeout ${String(hook?.timeout)} != ${event.timeout}`);
       }
     }
+    for (const entry of CLAUDE_CODE_HOOK_MATRIX.filter((item) => item.defaultInstall && item.status !== "explicit_out_of_scope")) {
+      if (!hooks[entry.event]) {
+        problems.push(`${entry.event}: missing from default governance matrix`);
+      }
+    }
+    for (const entry of CLAUDE_CODE_HOOK_MATRIX.filter((item) => !item.defaultInstall)) {
+      if (hooks[entry.event]) {
+        problems.push(`${entry.event}: opt-in event installed by default`);
+      }
+    }
   }
   return {
     name: "plugin-hooks",
     status: problems.length === 0 ? "pass" : "fail",
     path: file,
-    detail: problems.length === 0 ? `${HOOK_SPEC2.events.length} event(s)` : problems.join("; ")
+    detail: problems.length === 0 ? `${hookEvents(false).length} default event(s)` : problems.join("; ")
   };
 }
 function checkMcp2(file) {
@@ -5785,13 +6609,16 @@ function verifyClaudeCodePlugin(options = {}) {
   checks.push(checkDirFiles2("plugin-agents", path3.join(target, "agents"), EXPECTED_AGENT_FILES2));
   checks.push(checkHooks2(path3.join(target, "hooks", "hooks.json")));
   checks.push(checkMcp2(path3.join(target, ".mcp.json")));
+  checks.push(checkDirFiles2("plugin-diagnostics", path3.join(target, "diagnostics"), EXPECTED_DIAGNOSTIC_FILES));
+  checks.push(checkDirFiles2("plugin-bin", path3.join(target, "bin"), EXPECTED_BIN_FILES));
   return checks;
 }
-var __dirname2, EXPECTED_COMMAND_FILES2, EXPECTED_AGENT_FILES2;
+var __dirname2, EXPECTED_COMMAND_FILES2, EXPECTED_AGENT_FILES2, EXPECTED_DIAGNOSTIC_FILES, EXPECTED_BIN_FILES;
 var init_plugin2 = __esm({
   "ts/src/runtime/claude-code/plugin.ts"() {
     "use strict";
     init_claude_code();
+    init_governance_matrix();
     __dirname2 = path3.dirname(fileURLToPath2(import.meta.url));
     EXPECTED_COMMAND_FILES2 = [
       "openbox-check.md",
@@ -5801,6 +6628,12 @@ var init_plugin2 = __esm({
       "openbox-status.md"
     ];
     EXPECTED_AGENT_FILES2 = ["openbox-reviewer.md"];
+    EXPECTED_DIAGNOSTIC_FILES = [
+      "component-inventory.json",
+      "claude-code-governance.json",
+      "monitors.opt-in.json"
+    ];
+    EXPECTED_BIN_FILES = ["openbox-plugin-doctor"];
   }
 });
 
@@ -5814,6 +6647,7 @@ function buildMcpGovernanceSpan(spanType, input) {
     trace_id: hex(32),
     parent_span_id: null,
     kind: "CLIENT",
+    span_type: "function",
     stage: "started",
     start_time: Date.now() * 1e6,
     end_time: null,
@@ -5828,11 +6662,14 @@ function buildMcpGovernanceSpan(spanType, input) {
         ...base2,
         name: "llm.chat.completion",
         hook_type: "function_call",
+        span_type: "function",
         semantic_type: "llm_completion",
         attributes: {
           "gen_ai.system": "openai",
           "http.method": "POST",
-          "http.url": "https://api.openai.com/v1/chat/completions"
+          "http.url": "https://api.openai.com/v1/chat/completions",
+          "openbox.semantic_type": "llm_completion",
+          "openbox.span_type": "function"
         },
         function: "LLMCall",
         module: "activity",
@@ -5845,8 +6682,14 @@ function buildMcpGovernanceSpan(spanType, input) {
         name: "file.read",
         kind: "INTERNAL",
         hook_type: "file_operation",
+        span_type: "file_io",
         semantic_type: "file_read",
-        attributes: { "file.path": input.file_path || "", "file.operation": "read" },
+        attributes: {
+          "file.path": input.file_path || "",
+          "file.operation": "read",
+          "openbox.semantic_type": "file_read",
+          "openbox.span_type": "file_io"
+        },
         file_path: input.file_path || "",
         file_mode: "r",
         file_operation: "read"
@@ -5857,8 +6700,14 @@ function buildMcpGovernanceSpan(spanType, input) {
         name: "file.write",
         kind: "INTERNAL",
         hook_type: "file_operation",
+        span_type: "file_io",
         semantic_type: "file_write",
-        attributes: { "file.path": input.file_path || "", "file.operation": "write" },
+        attributes: {
+          "file.path": input.file_path || "",
+          "file.operation": "write",
+          "openbox.semantic_type": "file_write",
+          "openbox.span_type": "file_io"
+        },
         file_path: input.file_path || "",
         file_mode: "w",
         file_operation: "write"
@@ -5869,8 +6718,14 @@ function buildMcpGovernanceSpan(spanType, input) {
         name: "ShellExecution",
         kind: "INTERNAL",
         hook_type: "function_call",
+        span_type: "function",
         semantic_type: "internal",
-        attributes: { "shell.command": input.command || "", "shell.cwd": input.cwd || "" },
+        attributes: {
+          "shell.command": input.command || "",
+          "shell.cwd": input.cwd || "",
+          "openbox.semantic_type": "internal",
+          "openbox.span_type": "function"
+        },
         function: "ShellExecution",
         module: "activity",
         args: input,
@@ -5883,7 +6738,14 @@ function buildMcpGovernanceSpan(spanType, input) {
         ...base2,
         name: `${method} ${url}`,
         hook_type: "http_request",
-        attributes: { "http.method": method, "http.url": url },
+        span_type: "http",
+        semantic_type: `http_${method.toLowerCase()}`,
+        attributes: {
+          "http.method": method,
+          "http.url": url,
+          "openbox.semantic_type": `http_${method.toLowerCase()}`,
+          "openbox.span_type": "http"
+        },
         http_method: method,
         http_url: url,
         request_body: null,
@@ -5896,7 +6758,14 @@ function buildMcpGovernanceSpan(spanType, input) {
         ...base2,
         name: `${dbOp}`,
         hook_type: "db_query",
-        attributes: { "db.system": input.system || "postgresql", "db.operation": dbOp },
+        span_type: "database",
+        semantic_type: `database_${dbOp.toLowerCase()}`,
+        attributes: {
+          "db.system": input.system || "postgresql",
+          "db.operation": dbOp,
+          "openbox.semantic_type": `database_${dbOp.toLowerCase()}`,
+          "openbox.span_type": "database"
+        },
         db_system: input.system || "postgresql",
         db_operation: dbOp,
         db_statement: input.statement || ""
@@ -5907,11 +6776,17 @@ function buildMcpGovernanceSpan(spanType, input) {
         ...base2,
         name: `tool.${input.tool_name || "call"}`,
         hook_type: "function_call",
+        span_type: "mcp_tool_call",
         semantic_type: "llm_tool_call",
         attributes: {
           "gen_ai.system": "mcp",
           "http.method": "POST",
-          "http.url": "https://api.openai.com/v1/chat/completions"
+          "http.url": "https://api.openai.com/v1/chat/completions",
+          "openbox.semantic_type": "llm_tool_call",
+          "openbox.span_type": "mcp_tool_call",
+          "openbox.tool.name": input.tool_name || "call",
+          "tool.name": input.tool_name || "call",
+          tool_name: input.tool_name || "call"
         },
         function: `mcp.${input.tool_name || "call"}`,
         module: "activity",
@@ -5924,6 +6799,7 @@ function buildMcpGovernanceSpan(spanType, input) {
         name: "unknown",
         kind: "INTERNAL",
         hook_type: "function_call",
+        span_type: "function",
         attributes: {},
         function: "unknown",
         module: "activity",
@@ -5961,7 +6837,7 @@ import * as path4 from "path";
 async function runMcpServer() {
   const server = new McpServer({ name: "openbox", version: "0.1.0" });
   let callerName;
-  function resolveRuntime() {
+  function runtimeState() {
     const config = listConfig();
     const connection = resolveConnection({
       apiUrl: config.OPENBOX_API_URL,
@@ -5972,17 +6848,51 @@ async function runMcpServer() {
     });
     const apiUrl = connection.apiUrl;
     const coreUrl = connection.coreUrl;
-    const apiKey = loadApiKey();
-    if (!apiKey) {
+    const backendApiKey = loadApiKey();
+    const runtimeApiKey = process.env.OPENBOX_API_KEY ?? config.OPENBOX_API_KEY ?? "";
+    return {
+      apiUrl,
+      coreUrl,
+      backendApiKey,
+      runtimeApiKey,
+      governancePolicy: process.env.GOVERNANCE_POLICY ?? config.GOVERNANCE_POLICY ?? "fail_open",
+      approvalMode: process.env.APPROVAL_MODE ?? config.APPROVAL_MODE ?? "remote"
+    };
+  }
+  function runtimeDiagnostics() {
+    const runtime = runtimeState();
+    return {
+      apiUrl: runtime.apiUrl,
+      coreUrl: runtime.coreUrl,
+      mcpReady: Boolean(runtime.backendApiKey),
+      runtimeEnv: {
+        backendApiKeyPresent: Boolean(runtime.backendApiKey),
+        runtimeApiKeyPresent: Boolean(runtime.runtimeApiKey),
+        coreUrlPresent: Boolean(runtime.coreUrl)
+      },
+      failMode: runtime.governancePolicy,
+      approvalMode: runtime.approvalMode,
+      unsupportedOrOptInSurfaces: {
+        worktreeCreate: "opt_in",
+        monitors: "opt_in_unsandboxed",
+        lsp: "out_of_scope_no_language_server",
+        managedSettings: "enterprise_diagnose_only",
+        channels: "diagnose_only_research_preview"
+      }
+    };
+  }
+  function resolveRuntime() {
+    const runtime = runtimeState();
+    if (!runtime.backendApiKey) {
       throw new Error(
         `OpenBox MCP: no X-API-Key for the active OpenBox connection. Run \`openbox connect <stack-url> --api-key <key>\` or set OPENBOX_BACKEND_API_KEY.`
       );
     }
     return {
-      coreUrl,
+      coreUrl: runtime.coreUrl,
       client: new OpenBoxClient({
-        apiUrl,
-        apiKey,
+        apiUrl: runtime.apiUrl,
+        apiKey: runtime.backendApiKey,
         clientName: "runtime/mcp"
       })
     };
@@ -6039,19 +6949,31 @@ async function runMcpServer() {
     }
   });
   server.tool("openbox_status", "Return a compact OpenBox backend status for plugin slash commands without using shell execution", {}, async () => {
+    const diagnostics = runtimeDiagnostics();
     try {
       const health = await client().health();
       return {
         content: [{
           type: "text",
-          text: JSON.stringify({ status: "connected", health }, null, 2)
+          text: JSON.stringify({
+            status: "connected",
+            health,
+            coreUrl: diagnostics.coreUrl,
+            mcpReadiness: diagnostics,
+            claudeCodeGovernance: claudeCodeGovernanceSummary()
+          }, null, 2)
         }]
       };
     } catch (err) {
       return {
         content: [{
           type: "text",
-          text: JSON.stringify({ status: "not_reachable", error: err?.message ?? String(err) }, null, 2)
+          text: JSON.stringify({
+            status: "not_reachable",
+            error: err?.message ?? String(err),
+            mcpReadiness: diagnostics,
+            claudeCodeGovernance: claudeCodeGovernanceSummary()
+          }, null, 2)
         }],
         isError: true
       };
@@ -6095,7 +7017,12 @@ async function runMcpServer() {
       },
       { pass: 0, fail: 0 }
     );
-    return { content: [{ type: "text", text: JSON.stringify({ checks, summary: summary2 }, null, 2) }] };
+    return { content: [{ type: "text", text: JSON.stringify({
+      checks,
+      summary: summary2,
+      mcpReadiness: runtimeDiagnostics(),
+      claudeCodeGovernance: claudeCodeGovernanceSummary()
+    }, null, 2) }] };
   });
   server.tool("list_agents", "List all agents in the organization", {}, async () => {
     const agents = await client().listAgents({ page: 0, perPage: 50 });
@@ -6211,6 +7138,7 @@ async function runMcpServer() {
     { name: "rego-reference", path: "references/rego-reference.md", desc: "Rego policy syntax, input fields, example policies, policy lifecycle gotchas" },
     { name: "span-reference", path: "references/span-reference.md", desc: "Span types, gate attributes, semantic type detection" },
     { name: "commands", path: "references/commands.md", desc: "Full CLI command reference" },
+    { name: "claude-code-governance", path: "references/claude-code-governance.md", desc: "Claude Code hook/plugin/MCP governance surface audit and coverage matrix" },
     { name: "existing-sdks", path: "references/existing-sdks.md", desc: "Available SDKs and installation" }
   ];
   function findSkillDir3() {
@@ -6249,6 +7177,7 @@ var init_mcp = __esm({
     init_install();
     init_plugin2();
     init_governance_span();
+    init_governance_matrix();
   }
 });
 
@@ -6294,7 +7223,7 @@ function loadConfig() {
     hitlEnabled: get("HITL_ENABLED", "true") !== "false",
     hitlPollInterval: parseInt(get("HITL_POLL_INTERVAL", "5"), 10) || 5,
     hitlMaxWait: parseInt(get("HITL_MAX_WAIT", "300"), 10) || 300,
-    approvalMode: get("APPROVAL_MODE", "remote").toLowerCase() === "inline" ? "inline" : "remote",
+    approvalMode: parseApprovalMode(get("APPROVAL_MODE", "remote")),
     taskQueue: get("TASK_QUEUE", "claude-code"),
     sendStartEvent: get("SEND_START_EVENT", "true") !== "false",
     sendActivityStartEvent: get("SEND_ACTIVITY_START_EVENT", "true") !== "false",
@@ -6302,6 +7231,11 @@ function loadConfig() {
     skipTools,
     skipActivityTypes
   };
+}
+function parseApprovalMode(value) {
+  const mode = value.toLowerCase();
+  if (mode === "inline" || mode === "defer") return mode;
+  return "remote";
 }
 var CONFIG_DIR, CONFIG_FILE, ENV_FILE, loadConfigFile, loadEnvFile;
 var init_config3 = __esm({
@@ -6563,7 +7497,13 @@ var init_activity_types = __esm({
       HTTP_REQUEST: "HTTPRequest",
       MCP_CALL: "MCPToolCall",
       AGENT_SPAWN: "AgentSpawn",
-      SESSION: "ClaudeCodeSession"
+      AGENT_ACTION: "AgentAction",
+      SESSION: "ClaudeCodeSession",
+      CONFIG_CHANGE: "ClaudeCodeConfigChange",
+      WORKSPACE_CHANGE: "ClaudeCodeWorkspaceChange",
+      MCP_ELICITATION: "MCPElicitation",
+      TASK: "ClaudeCodeTask",
+      MESSAGE: "ClaudeCodeMessage"
     };
   }
 });
@@ -6625,6 +7565,7 @@ function base() {
     trace_id: hex2(32),
     parent_span_id: null,
     kind: "CLIENT",
+    span_type: "function",
     stage: "started",
     start_time: Date.now() * 1e6,
     end_time: null,
@@ -6641,12 +7582,15 @@ function buildSpan(host, type, input) {
       return {
         ...b,
         name: "llm.chat.completion",
+        span_type: "function",
         hook_type: "function_call",
         semantic_type: "llm_completion",
         attributes: {
           "gen_ai.system": host,
           "http.method": "POST",
-          "http.url": "https://api.openai.com/v1/chat/completions"
+          "http.url": "https://api.openai.com/v1/chat/completions",
+          "openbox.semantic_type": "llm_completion",
+          "openbox.span_type": "function"
         },
         function: "LLMCall",
         module: host,
@@ -6658,11 +7602,14 @@ function buildSpan(host, type, input) {
         ...b,
         name: "file.read",
         kind: "INTERNAL",
+        span_type: "file_io",
         hook_type: "file_operation",
         semantic_type: "file_read",
         attributes: {
           "file.path": input.file_path ?? "",
-          "file.operation": "read"
+          "file.operation": "read",
+          "openbox.semantic_type": "file_read",
+          "openbox.span_type": "file_io"
         },
         module: host,
         file_path: input.file_path ?? "",
@@ -6674,11 +7621,14 @@ function buildSpan(host, type, input) {
         ...b,
         name: "file.write",
         kind: "INTERNAL",
+        span_type: "file_io",
         hook_type: "file_operation",
         semantic_type: "file_write",
         attributes: {
           "file.path": input.file_path ?? "",
-          "file.operation": "write"
+          "file.operation": "write",
+          "openbox.semantic_type": "file_write",
+          "openbox.span_type": "file_io"
         },
         module: host,
         file_path: input.file_path ?? "",
@@ -6690,11 +7640,14 @@ function buildSpan(host, type, input) {
         ...b,
         name: "file.delete",
         kind: "INTERNAL",
+        span_type: "file_io",
         hook_type: "file_operation",
         semantic_type: "file_delete",
         attributes: {
           "file.path": input.file_path ?? "",
-          "file.operation": "delete"
+          "file.operation": "delete",
+          "openbox.semantic_type": "file_delete",
+          "openbox.span_type": "file_io"
         },
         module: host,
         file_path: input.file_path ?? "",
@@ -6705,11 +7658,14 @@ function buildSpan(host, type, input) {
         ...b,
         name: "ShellExecution",
         kind: "INTERNAL",
+        span_type: "function",
         hook_type: "function_call",
         semantic_type: "internal",
         attributes: {
           "shell.command": input.command ?? "",
-          "shell.cwd": input.cwd ?? ""
+          "shell.cwd": input.cwd ?? "",
+          "openbox.semantic_type": "internal",
+          "openbox.span_type": "function"
         },
         function: "ShellExecution",
         module: host,
@@ -6720,12 +7676,18 @@ function buildSpan(host, type, input) {
       return {
         ...b,
         name: `tool.${input.tool_name ?? "call"}`,
+        span_type: "mcp_tool_call",
         hook_type: "function_call",
         semantic_type: "llm_tool_call",
         attributes: {
           "gen_ai.system": "mcp",
           "http.method": "POST",
-          "http.url": "https://api.openai.com/v1/chat/completions"
+          "http.url": "https://api.openai.com/v1/chat/completions",
+          "openbox.semantic_type": "llm_tool_call",
+          "openbox.span_type": "mcp_tool_call",
+          "openbox.tool.name": input.tool_name ?? "call",
+          "tool.name": input.tool_name ?? "call",
+          tool_name: input.tool_name ?? "call"
         },
         function: `mcp.${input.tool_name ?? "call"}`,
         module: host,
@@ -6738,11 +7700,14 @@ function buildSpan(host, type, input) {
       return {
         ...b,
         name: `${method} ${url}`,
+        span_type: "http",
         hook_type: "http_request",
         semantic_type: `http_${method.toLowerCase()}`,
         attributes: {
           "http.method": method,
-          "http.url": url
+          "http.url": url,
+          "openbox.semantic_type": `http_${method.toLowerCase()}`,
+          "openbox.span_type": "http"
         },
         http_method: method,
         http_url: url,
@@ -6763,12 +7728,15 @@ function buildSpan(host, type, input) {
       return {
         ...b,
         name: `${dbOperation} ${dbStatement.split(" ").slice(0, 3).join(" ")}`,
+        span_type: "database",
         hook_type: "db_query",
         semantic_type: `database_${dbOperation.toLowerCase()}`,
         attributes: {
           "db.system": dbSystem,
           "db.operation": dbOperation,
-          "db.statement": dbStatement
+          "db.statement": dbStatement,
+          "openbox.semantic_type": `database_${dbOperation.toLowerCase()}`,
+          "openbox.span_type": "database"
         },
         db_system: dbSystem,
         db_name: null,
@@ -6827,13 +7795,13 @@ function activityTypeFor(toolName) {
   const direct = PRE_TOOL_USE_ROUTING2[toolName];
   if (direct) return direct;
   if (toolName.startsWith("mcp__")) return ACTIVITY_TYPES.MCP_CALL;
-  return null;
+  return ACTIVITY_TYPES.AGENT_ACTION;
 }
 function spanTypeFor(toolName) {
-  if (toolName === "Read") return "file_read";
-  if (toolName === "Write" || toolName === "Edit") return "file_write";
+  if (toolName === "Read" || toolName === "NotebookRead" || toolName === "Glob" || toolName === "Grep") return "file_read";
+  if (toolName === "Write" || toolName === "Edit" || toolName === "MultiEdit" || toolName === "NotebookEdit") return "file_write";
   if (toolName === "Delete") return "file_delete";
-  if (toolName === "Bash") return "shell";
+  if (toolName === "Bash" || toolName === "PowerShell") return "shell";
   if (toolName === "WebFetch" || toolName === "WebSearch") return "http";
   if (toolName.startsWith("mcp__")) return "mcp";
   return null;
@@ -6841,10 +7809,11 @@ function spanTypeFor(toolName) {
 async function handlePreToolUse(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
-  if (cfg.skipTools.includes(toolName)) return void 0;
+  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
   const activityType = activityTypeFor(toolName);
   if (!activityType) return void 0;
-  const filePath = toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? "";
+  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
+  const filePath = toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path ?? "";
   if (filePath && isSkipped(filePath)) return void 0;
   const payload = buildPreToolUsePayload2(env, toolName, sideEffects);
   const spanType = spanTypeFor(toolName);
@@ -6884,13 +7853,13 @@ function activityTypeFor2(toolName) {
   const direct = POST_TOOL_USE_ROUTING[toolName];
   if (direct) return direct;
   if (toolName.startsWith("mcp__")) return ACTIVITY_TYPES.MCP_CALL;
-  return null;
+  return ACTIVITY_TYPES.AGENT_ACTION;
 }
 function spanTypeFor2(toolName) {
-  if (toolName === "Read") return "file_read";
-  if (toolName === "Write" || toolName === "Edit") return "file_write";
+  if (toolName === "Read" || toolName === "NotebookRead" || toolName === "Glob" || toolName === "Grep") return "file_read";
+  if (toolName === "Write" || toolName === "Edit" || toolName === "MultiEdit" || toolName === "NotebookEdit") return "file_write";
   if (toolName === "Delete") return "file_delete";
-  if (toolName === "Bash") return "shell";
+  if (toolName === "Bash" || toolName === "PowerShell") return "shell";
   if (toolName === "WebFetch" || toolName === "WebSearch") return "http";
   if (toolName.startsWith("mcp__")) return "mcp";
   return null;
@@ -6898,14 +7867,14 @@ function spanTypeFor2(toolName) {
 async function handlePostToolUse(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const activityType = activityTypeFor2(toolName);
-  if (!activityType) return void 0;
+  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const toolInput = env.tool_input ?? {};
   const toolResponse = env.tool_response;
   const payload = buildPostToolUsePayload(env, sideEffects);
   const spanType = spanTypeFor2(toolName);
   const spans = spanType ? [
     buildSpan("claude-code", spanType, {
-      file_path: toolInput.file_path ?? toolInput.filePath ?? toolInput.path,
+      file_path: toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path,
       command: toolInput.command,
       cwd: toolInput.cwd,
       tool_name: toolName,
@@ -6917,6 +7886,25 @@ async function handlePostToolUse(env, session, cfg) {
   const verdict = await session.activity(EVENT.COMPLETE, activityType, {
     input: [stampSource(payload, "claude-code")],
     spans
+  });
+  if (verdict.arm === "halt") markHalted(env.session_id, cfg);
+  return verdict;
+}
+async function handlePostToolUseFailure(env, session, cfg) {
+  const toolName = env.tool_name ?? "";
+  const activityType = activityTypeFor2(toolName);
+  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
+  const payload = buildPostToolUseFailurePayload(env);
+  const verdict = await session.activity(EVENT.COMPLETE, activityType, {
+    input: [stampSource(payload, "claude-code")]
+  });
+  if (verdict.arm === "halt") markHalted(env.session_id, cfg);
+  return verdict;
+}
+async function handlePostToolBatch(env, session, cfg) {
+  const payload = buildPostToolBatchPayload(env, sideEffects);
+  const verdict = await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.AGENT_ACTION, {
+    input: [stampSource(payload, "claude-code")]
   });
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   return verdict;
@@ -6949,6 +7937,18 @@ async function handleUserPromptSubmit(env, session, cfg) {
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   return verdict;
 }
+async function handleUserPromptExpansion(env, session, cfg) {
+  const prompt = (env.expanded_prompt ?? env.prompt ?? "").trim();
+  if (!prompt) return void 0;
+  const payload = buildUserPromptExpansionPayload(env);
+  const span = buildSpan("claude-code", "llm", { prompt });
+  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, {
+    input: [stampSource(payload, "claude-code")],
+    spans: [span]
+  });
+  if (verdict.arm === "halt") markHalted(env.session_id, cfg);
+  return verdict;
+}
 var init_user_prompt = __esm({
   "ts/src/runtime/claude-code/mappers/user-prompt.ts"() {
     "use strict";
@@ -6965,27 +7965,28 @@ function activityTypeForTool(toolName) {
   const direct = PERMISSION_REQUEST_ROUTING[toolName];
   if (direct) return direct;
   if (toolName.startsWith("mcp__")) return ACTIVITY_TYPES.MCP_CALL;
-  return ACTIVITY_TYPES.SHELL;
+  return ACTIVITY_TYPES.AGENT_ACTION;
 }
 function spanTypeFor3(toolName) {
-  if (toolName === "Read") return "file_read";
-  if (toolName === "Write" || toolName === "Edit") return "file_write";
+  if (toolName === "Read" || toolName === "NotebookRead" || toolName === "Glob" || toolName === "Grep") return "file_read";
+  if (toolName === "Write" || toolName === "Edit" || toolName === "MultiEdit" || toolName === "NotebookEdit") return "file_write";
   if (toolName === "Delete") return "file_delete";
-  if (toolName === "Bash") return "shell";
+  if (toolName === "Bash" || toolName === "PowerShell") return "shell";
   if (toolName === "WebFetch" || toolName === "WebSearch") return "http";
   if (toolName.startsWith("mcp__")) return "mcp";
   return null;
 }
 async function handlePermissionRequest(env, session, cfg) {
   const toolName = env.tool_name ?? "";
-  if (cfg.skipTools.includes(toolName)) return void 0;
+  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
   const activityType = activityTypeForTool(toolName);
+  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const toolInput = env.tool_input ?? {};
   const payload = buildPermissionRequestPayload(env, toolName);
   const spanType = spanTypeFor3(toolName);
   const spans = spanType ? [
     buildSpan("claude-code", spanType, {
-      file_path: toolInput.file_path ?? toolInput.filePath ?? toolInput.path,
+      file_path: toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path,
       command: toolInput.command,
       cwd: toolInput.cwd,
       tool_name: toolName,
@@ -6997,6 +7998,17 @@ async function handlePermissionRequest(env, session, cfg) {
   const verdict = await session.activity(EVENT.START, activityType, {
     input: [stampSource(payload, "claude-code")],
     spans
+  });
+  if (verdict.arm === "halt") markHalted(env.session_id, cfg);
+  return verdict;
+}
+async function handlePermissionDenied(env, session, cfg) {
+  const toolName = env.tool_name ?? "";
+  const activityType = activityTypeForTool(toolName);
+  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
+  const payload = buildPermissionDeniedPayload(env);
+  const verdict = await session.activity(EVENT.START, activityType, {
+    input: [stampSource(payload, "claude-code")]
   });
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   return verdict;
@@ -7027,10 +8039,51 @@ async function handleStop(env, session, cfg) {
       input: [stampSource(buildStopPayload(env), "claude-code")]
     });
   } catch {
+    if (cfg.governancePolicy === "fail_closed") {
+      return {
+        arm: "block",
+        reason: "OpenBox Core was unavailable while governing Claude Code stop",
+        riskScore: 1
+      };
+    }
     return void 0;
   }
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   return verdict;
+}
+async function handleSetup(env, session, _cfg) {
+  try {
+    await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
+      input: [stampSource(buildSetupPayload(env), "claude-code")]
+    });
+  } catch {
+  }
+  return void 0;
+}
+async function handlePreCompact(env, session, cfg) {
+  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
+    input: [stampSource(buildPreCompactPayload(env), "claude-code")]
+  });
+  if (verdict.arm === "halt") markHalted(env.session_id, cfg);
+  return verdict;
+}
+async function handlePostCompact(env, session, _cfg) {
+  try {
+    await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
+      input: [stampSource(buildPostCompactPayload(env), "claude-code")]
+    });
+  } catch {
+  }
+  return void 0;
+}
+async function handleStopFailure(env, session, _cfg) {
+  try {
+    await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
+      input: [stampSource(buildStopFailurePayload(env), "claude-code")]
+    });
+  } catch {
+  }
+  return void 0;
 }
 async function handleSessionEnd(env, session, cfg) {
   if (lastResolveCreatedFreshSession()) {
@@ -7073,14 +8126,33 @@ async function handleSubagentStart(env, session, _cfg) {
   }
   return void 0;
 }
-async function handleSubagentStop(env, session, _cfg) {
-  try {
-    await session.activity(EVENT.COMPLETE, subAgentActivityType(env), {
-      input: [stampSource(buildSubagentStopPayload(env), "claude-code")]
-    });
-  } catch {
-  }
-  return void 0;
+async function handleSubagentStop(env, session, cfg) {
+  const verdict = await session.activity(EVENT.COMPLETE, subAgentActivityType(env), {
+    input: [stampSource(buildSubagentStopPayload(env), "claude-code")]
+  });
+  if (verdict.arm === "halt") markHalted(env.session_id, cfg);
+  return verdict;
+}
+async function handleTaskCreated(env, session, cfg) {
+  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.TASK, {
+    input: [stampSource(buildTaskCreatedPayload(env), "claude-code")]
+  });
+  if (verdict.arm === "halt") markHalted(env.session_id, cfg);
+  return verdict;
+}
+async function handleTaskCompleted(env, session, cfg) {
+  const verdict = await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.TASK, {
+    input: [stampSource(buildTaskCompletedPayload(env), "claude-code")]
+  });
+  if (verdict.arm === "halt") markHalted(env.session_id, cfg);
+  return verdict;
+}
+async function handleTeammateIdle(env, session, cfg) {
+  const verdict = await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.TASK, {
+    input: [stampSource(buildTeammateIdlePayload(env), "claude-code")]
+  });
+  if (verdict.arm === "halt") markHalted(env.session_id, cfg);
+  return verdict;
 }
 var init_subagent = __esm({
   "ts/src/runtime/claude-code/mappers/subagent.ts"() {
@@ -7088,6 +8160,90 @@ var init_subagent = __esm({
     init_claude_code();
     init_activity_types();
     init_source();
+    init_session_resolver();
+  }
+});
+
+// ts/src/runtime/claude-code/mappers/generic.ts
+function compactPayload(env, eventCategory) {
+  const source = env;
+  const payload = {
+    event_category: eventCategory
+  };
+  for (const field of IMPORTANT_FIELDS) {
+    const value = source[field];
+    if (value !== void 0) payload[field] = value;
+  }
+  return payload;
+}
+async function handleGenericClaudeEvent(env, session, cfg, options) {
+  const verdict = await session.activity(options.eventKind ?? EVENT.START, options.activityType, {
+    input: [stampSource(compactPayload(env, options.eventCategory), "claude-code")]
+  });
+  if (verdict.arm === "halt") markHalted(env.session_id, cfg);
+  return options.decisionCapable ? verdict : void 0;
+}
+async function observeGenericClaudeEvent(env, session, cfg, options) {
+  try {
+    await handleGenericClaudeEvent(env, session, cfg, {
+      ...options,
+      decisionCapable: false
+    });
+  } catch {
+  }
+  return void 0;
+}
+var IMPORTANT_FIELDS;
+var init_generic = __esm({
+  "ts/src/runtime/claude-code/mappers/generic.ts"() {
+    "use strict";
+    init_session_resolver();
+    init_activity_types();
+    init_source();
+    IMPORTANT_FIELDS = [
+      "hook_event_name",
+      "session_id",
+      "cwd",
+      "trigger",
+      "source",
+      "file_path",
+      "event",
+      "old_cwd",
+      "new_cwd",
+      "name",
+      "command_name",
+      "command_args",
+      "expanded_prompt",
+      "prompt",
+      "message",
+      "display_content",
+      "displayContent",
+      "tool_name",
+      "tool_input",
+      "tool_output",
+      "tool_response",
+      "tool_calls",
+      "error",
+      "reason",
+      "action",
+      "content",
+      "mcp_server_name",
+      "mode",
+      "url",
+      "elicitation_id",
+      "requested_schema",
+      "response",
+      "task_id",
+      "task_subject",
+      "task_description",
+      "teammate_name",
+      "team_name",
+      "last_assistant_message",
+      "background_tasks",
+      "session_crons",
+      "custom_instructions",
+      "compact_summary"
+    ];
   }
 });
 
@@ -7120,12 +8276,150 @@ function logged(event, verdictKind, fn) {
     }
   };
 }
+function failClosedVerdict(reason) {
+  return {
+    arm: "block",
+    reason,
+    riskScore: 1
+  };
+}
+function decisionSurface(eventName) {
+  return CLAUDE_CODE_HOOK_MATRIX.find((entry) => entry.event === eventName)?.decisionSurface ?? "none";
+}
+function isDecisionCapable(eventName) {
+  const surface = decisionSurface(eventName);
+  return surface !== "none" && surface !== "worktree-path";
+}
+function reasonFromError(prefix, err) {
+  const detail = err instanceof Error ? err.message : String(err ?? "");
+  return detail ? `${prefix}: ${detail}` : prefix;
+}
+function guarded(cfg, event, verdictKind, fn) {
+  return logged(event, verdictKind, async (env, session) => {
+    try {
+      return await fn(env, session);
+    } catch (err) {
+      const decisionCapable = isDecisionCapable(env.hook_event_name);
+      const reason = reasonFromError("OpenBox governance failed while processing Claude Code hook", err);
+      if (cfg.verbose) console.error(`[openbox claude-code] ${reason}`);
+      if (decisionCapable && cfg.governancePolicy === "fail_closed") {
+        return failClosedVerdict(reason);
+      }
+      return void 0;
+    }
+  });
+}
+function renderFailClosedHookOutput(env, reason) {
+  const eventName = env.hook_event_name ?? "ClaudeCode";
+  switch (decisionSurface(eventName)) {
+    case "permission-decision":
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          permissionDecision: "deny",
+          permissionDecisionReason: `[OpenBox] ${reason}`
+        }
+      };
+    case "permission-request":
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          decision: {
+            behavior: "deny",
+            message: `[OpenBox] ${reason}`
+          }
+        }
+      };
+    case "permission-denied-retry":
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          retry: false
+        }
+      };
+    case "elicitation-response":
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          action: "decline",
+          content: {}
+        }
+      };
+    case "continue-block":
+      return {
+        continue: false,
+        stopReason: `[OpenBox] ${reason}`
+      };
+    case "additional-context":
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+          additionalContext: `[OpenBox] ${reason}`
+        }
+      };
+    case "decision-block":
+      return {
+        decision: "block",
+        reason: `[OpenBox] ${reason}`
+      };
+    default:
+      return void 0;
+  }
+}
+function writeFailClosedIfPossible(env, reason) {
+  if (!env || !isDecisionCapable(env.hook_event_name)) return;
+  const output2 = renderFailClosedHookOutput(env, reason);
+  if (output2 !== void 0) process.stdout.write(JSON.stringify(output2));
+}
+function parseEnvelope(raw) {
+  const text = raw.trim();
+  if (!text) return void 0;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return void 0;
+  }
+}
+async function readHookStdin() {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of process.stdin) {
+    const buf = chunk;
+    total += buf.length;
+    if (total > MAX_STDIN_BYTES) {
+      throw new Error(
+        `hook stdin exceeded ${MAX_STDIN_BYTES.toLocaleString()} bytes; refusing to buffer further`
+      );
+    }
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks).toString("utf-8");
+}
 async function runClaudeHook() {
   applyEnvSource();
   const cfg = loadConfig();
   createLogger("claude-code").initLogger(cfg);
+  let raw = "";
+  let env;
+  try {
+    raw = await readHookStdin();
+    env = parseEnvelope(raw);
+  } catch (err) {
+    if (cfg.verbose) console.error(`[openbox claude-code] ${reasonFromError("failed to read hook stdin", err)}`);
+    process.exit(0);
+  }
   if (!cfg.openboxApiKey) {
+    if (cfg.governancePolicy === "fail_closed") {
+      writeFailClosedIfPossible(env, "missing OPENBOX_API_KEY");
+    }
     if (cfg.verbose) console.error("[openbox claude-code] no OPENBOX_API_KEY set, passing through");
+    process.exit(0);
+  }
+  if (!cfg.openboxEndpoint) {
+    if (cfg.governancePolicy === "fail_closed") {
+      writeFailClosedIfPossible(env, "missing OPENBOX_CORE_URL");
+    }
+    if (cfg.verbose) console.error("[openbox claude-code] no OPENBOX_CORE_URL set, passing through");
     process.exit(0);
   }
   const dryRun = cfg.dryRun;
@@ -7138,67 +8432,238 @@ async function runClaudeHook() {
     Math.max(1, cfg.hitlMaxWait) * 1e3,
     36e5
   );
+  const handlers = {
+    setup: guarded(
+      cfg,
+      "setup",
+      "observe",
+      async (env2, s) => dryRun ? void 0 : handleSetup(env2, s, cfg)
+    ),
+    sessionStart: guarded(
+      cfg,
+      "sessionStart",
+      "none",
+      async (env2, s) => dryRun ? void 0 : handleSessionStart(env2, s, cfg)
+    ),
+    instructionsLoaded: guarded(
+      cfg,
+      "instructionsLoaded",
+      "observe",
+      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+        activityType: ACTIVITY_TYPES.MESSAGE,
+        eventKind: EVENT.START,
+        eventCategory: "agent_observation"
+      })
+    ),
+    userPromptSubmit: guarded(
+      cfg,
+      "userPromptSubmit",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handleUserPromptSubmit(env2, s, cfg)
+    ),
+    userPromptExpansion: guarded(
+      cfg,
+      "userPromptExpansion",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handleUserPromptExpansion(env2, s, cfg)
+    ),
+    messageDisplay: guarded(
+      cfg,
+      "messageDisplay",
+      "observe",
+      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+        activityType: ACTIVITY_TYPES.MESSAGE,
+        eventKind: EVENT.COMPLETE,
+        eventCategory: "llm_output"
+      })
+    ),
+    preToolUse: guarded(
+      cfg,
+      "preToolUse",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handlePreToolUse(env2, s, cfg)
+    ),
+    permissionRequest: guarded(
+      cfg,
+      "permissionRequest",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handlePermissionRequest(env2, s, cfg)
+    ),
+    permissionDenied: guarded(
+      cfg,
+      "permissionDenied",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handlePermissionDenied(env2, s, cfg)
+    ),
+    postToolUse: guarded(
+      cfg,
+      "postToolUse",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handlePostToolUse(env2, s, cfg)
+    ),
+    postToolUseFailure: guarded(
+      cfg,
+      "postToolUseFailure",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handlePostToolUseFailure(env2, s, cfg)
+    ),
+    postToolBatch: guarded(
+      cfg,
+      "postToolBatch",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handlePostToolBatch(env2, s, cfg)
+    ),
+    subagentStart: guarded(
+      cfg,
+      "subagentStart",
+      "observe",
+      async (env2, s) => dryRun ? void 0 : handleSubagentStart(env2, s, cfg)
+    ),
+    subagentStop: guarded(
+      cfg,
+      "subagentStop",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handleSubagentStop(env2, s, cfg)
+    ),
+    taskCreated: guarded(
+      cfg,
+      "taskCreated",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handleTaskCreated(env2, s, cfg)
+    ),
+    taskCompleted: guarded(
+      cfg,
+      "taskCompleted",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handleTaskCompleted(env2, s, cfg)
+    ),
+    stop: guarded(
+      cfg,
+      "stop",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handleStop(env2, s, cfg)
+    ),
+    stopFailure: guarded(
+      cfg,
+      "stopFailure",
+      "observe",
+      async (env2, s) => dryRun ? void 0 : handleStopFailure(env2, s, cfg)
+    ),
+    teammateIdle: guarded(
+      cfg,
+      "teammateIdle",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handleTeammateIdle(env2, s, cfg)
+    ),
+    notification: guarded(
+      cfg,
+      "notification",
+      "observe",
+      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+        activityType: ACTIVITY_TYPES.MESSAGE,
+        eventKind: EVENT.SIGNAL,
+        eventCategory: "agent_notification"
+      })
+    ),
+    configChange: guarded(
+      cfg,
+      "configChange",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handleGenericClaudeEvent(env2, s, cfg, {
+        activityType: ACTIVITY_TYPES.CONFIG_CHANGE,
+        eventKind: EVENT.START,
+        eventCategory: "config_change",
+        decisionCapable: true
+      })
+    ),
+    cwdChanged: guarded(
+      cfg,
+      "cwdChanged",
+      "observe",
+      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+        activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
+        eventKind: EVENT.SIGNAL,
+        eventCategory: "cwd_changed"
+      })
+    ),
+    fileChanged: guarded(
+      cfg,
+      "fileChanged",
+      "observe",
+      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+        activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
+        eventKind: EVENT.SIGNAL,
+        eventCategory: "file_changed"
+      })
+    ),
+    worktreeRemove: guarded(
+      cfg,
+      "worktreeRemove",
+      "observe",
+      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+        activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
+        eventKind: EVENT.COMPLETE,
+        eventCategory: "worktree_remove"
+      })
+    ),
+    preCompact: guarded(
+      cfg,
+      "preCompact",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handlePreCompact(env2, s, cfg)
+    ),
+    postCompact: guarded(
+      cfg,
+      "postCompact",
+      "observe",
+      async (env2, s) => dryRun ? void 0 : handlePostCompact(env2, s, cfg)
+    ),
+    sessionEnd: guarded(
+      cfg,
+      "sessionEnd",
+      "none",
+      async (env2, s) => dryRun ? void 0 : handleSessionEnd(env2, s, cfg)
+    ),
+    elicitation: guarded(
+      cfg,
+      "elicitation",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handleGenericClaudeEvent(env2, s, cfg, {
+        activityType: ACTIVITY_TYPES.MCP_ELICITATION,
+        eventKind: EVENT.START,
+        eventCategory: "mcp_elicitation",
+        decisionCapable: true
+      })
+    ),
+    elicitationResult: guarded(
+      cfg,
+      "elicitationResult",
+      "permission",
+      async (env2, s) => dryRun ? void 0 : handleGenericClaudeEvent(env2, s, cfg, {
+        activityType: ACTIVITY_TYPES.MCP_ELICITATION,
+        eventKind: EVENT.COMPLETE,
+        eventCategory: "mcp_elicitation_result",
+        decisionCapable: true
+      })
+    )
+  };
   await createClaudeCodeAdapter({
     core,
-    resolveSession: (env) => resolveSession(env, cfg),
+    resolveSession: (env2) => resolveSession(env2, cfg),
     approvalMaxWaitMs,
+    readStdin: async () => raw,
     // When APPROVAL_MODE=inline, the SDK skips its internal poll loop
     // and the adapter renders permissionDecision:'ask' so Claude
     // Code's native permission dialog pops in the TUI on every
     // require_approval. External approval clients such as the
     // dashboard, mobile app, or editor extension can still resolve
     // the backend row, but the hook does not wait for them.
-    inlineApproval: cfg.approvalMode === "inline",
-    handlers: {
-      preToolUse: logged(
-        "preToolUse",
-        "permission",
-        async (env, s) => dryRun ? void 0 : handlePreToolUse(env, s, cfg)
-      ),
-      postToolUse: logged(
-        "postToolUse",
-        "observe",
-        async (env, s) => dryRun ? void 0 : handlePostToolUse(env, s, cfg)
-      ),
-      userPromptSubmit: logged(
-        "userPromptSubmit",
-        "permission",
-        async (env, s) => dryRun ? void 0 : handleUserPromptSubmit(env, s, cfg)
-      ),
-      permissionRequest: logged(
-        "permissionRequest",
-        "permission",
-        async (env, s) => dryRun ? void 0 : handlePermissionRequest(env, s, cfg)
-      ),
-      sessionStart: logged(
-        "sessionStart",
-        "none",
-        async (env, s) => dryRun ? void 0 : handleSessionStart(env, s, cfg)
-      ),
-      sessionEnd: logged(
-        "sessionEnd",
-        "none",
-        async (env, s) => dryRun ? void 0 : handleSessionEnd(env, s, cfg)
-      ),
-      stop: logged(
-        "stop",
-        "observe",
-        async (env, s) => dryRun ? void 0 : handleStop(env, s, cfg)
-      ),
-      subagentStart: logged(
-        "subagentStart",
-        "permission",
-        async (env, s) => dryRun ? void 0 : handleSubagentStart(env, s, cfg)
-      ),
-      subagentStop: logged(
-        "subagentStop",
-        "observe",
-        async (env, s) => dryRun ? void 0 : handleSubagentStop(env, s, cfg)
-      )
-    }
+    inlineApproval: cfg.approvalMode === "inline" || cfg.approvalMode === "defer",
+    deferApproval: cfg.approvalMode === "defer",
+    handlers
   }).run();
 }
-var hookLog;
+var hookLog, MAX_STDIN_BYTES;
 var init_hook_handler = __esm({
   "ts/src/runtime/claude-code/hook-handler.ts"() {
     "use strict";
@@ -7215,7 +8680,11 @@ var init_hook_handler = __esm({
     init_permission_request();
     init_session();
     init_subagent();
+    init_generic();
+    init_activity_types();
+    init_governance_matrix();
     hookLog = makeHookLog("claude-code");
+    MAX_STDIN_BYTES = 10 * 1024 * 1024;
   }
 });
 
@@ -7298,7 +8767,7 @@ function installAdapter(spec, options = {}) {
       hooksBlock = {};
       settings[spec.key] = hooksBlock;
     }
-    for (const evt of spec.events) {
+    for (const evt of spec.events.filter((event) => event.installDefault !== false)) {
       if (!hooksBlock[evt.name]) hooksBlock[evt.name] = [];
       hooksBlock[evt.name] = hooksBlock[evt.name].filter((r) => !ruleIsOpenBox(r, spec.command));
       const inner = { type: "command", command: spec.command };
@@ -7311,7 +8780,7 @@ function installAdapter(spec, options = {}) {
       hooksBlock = {};
       settings[spec.key] = hooksBlock;
     }
-    for (const evt of spec.events) {
+    for (const evt of spec.events.filter((event) => event.installDefault !== false)) {
       const entry = { command: spec.command };
       if (evt.timeout) entry.timeout = evt.timeout;
       if (evt.matcher) entry.matcher = evt.matcher;
@@ -7320,7 +8789,7 @@ function installAdapter(spec, options = {}) {
   }
   saveJson(paths.hooksFile, settings);
   console.log(`Installed OpenBox hooks (${paths.scope}) into ${paths.hooksFile}`);
-  console.log(`Hook events: ${spec.events.map((e) => e.name).join(", ")}`);
+  console.log(`Hook events: ${spec.events.filter((event) => event.installDefault !== false).map((e) => e.name).join(", ")}`);
   dropExampleConfig(paths.configDir);
 }
 function uninstallAdapter(spec, options = {}) {
@@ -7378,13 +8847,19 @@ var init_install2 = __esm({
 // ts/src/runtime/claude-code/index.ts
 var claude_code_exports = {};
 __export(claude_code_exports, {
+  CLAUDE_CODE_GOVERNANCE_AUDIT: () => CLAUDE_CODE_GOVERNANCE_AUDIT,
+  CLAUDE_CODE_HOOK_MATRIX: () => CLAUDE_CODE_HOOK_MATRIX,
+  CLAUDE_CODE_SURFACE_MATRIX: () => CLAUDE_CODE_SURFACE_MATRIX,
   HOOK_LOG_PATH: () => HOOK_LOG_PATH,
+  claudeCodeGovernanceSummary: () => claudeCodeGovernanceSummary,
   claudeCodePluginTargetDir: () => claudeCodePluginTargetDir,
   claudeCodeRuntimeConfigDir: () => claudeCodeRuntimeConfigDir,
   createClaudeCodeAdapter: () => createClaudeCodeAdapter,
+  defaultClaudeCodeHookEvents: () => defaultClaudeCodeHookEvents,
   exportClaudeCodePlugin: () => exportClaudeCodePlugin,
   installClaudeCode: () => installClaudeCode,
   installClaudeCodePlugin: () => installClaudeCodePlugin,
+  optInClaudeCodeHookEvents: () => optInClaudeCodeHookEvents,
   runClaudeHook: () => runClaudeHook,
   uninstallClaudeCode: () => uninstallClaudeCode,
   uninstallClaudeCodePlugin: () => uninstallClaudeCodePlugin,
@@ -7398,6 +8873,7 @@ var init_claude_code2 = __esm({
     init_hook_handler();
     init_install2();
     init_plugin2();
+    init_governance_matrix();
     init_hook_log();
     HOOK_LOG_PATH = makeHookLog("claude-code").path;
   }
@@ -8121,7 +9597,7 @@ async function handleSessionEnd2(env, session, cfg) {
 function handleAfterTabFileEdit(_env, _session, _cfg) {
   return Promise.resolve(void 0);
 }
-function handlePreCompact(_env, _session, _cfg) {
+function handlePreCompact2(_env, _session, _cfg) {
   return Promise.resolve(void 0);
 }
 function handleSubagentStop2(_env, _session, _cfg) {
@@ -8347,7 +9823,7 @@ async function runCursorHook() {
       preCompact: logged2(
         "preCompact",
         "observe",
-        async (env, s) => dryRun ? void 0 : handlePreCompact(env, s, cfg)
+        async (env, s) => dryRun ? void 0 : handlePreCompact2(env, s, cfg)
       ),
       subagentStart: logged2(
         "subagentStart",
@@ -9919,11 +11395,12 @@ function registerClaudeCodeCommands(program2) {
     "Hook matcher pair `<event>=<regex>` copied into hooks/hooks.json. Repeatable.",
     collectPair,
     []
-  ).action(async (opts) => {
+  ).option("--include-opt-in-hooks", "Also install opt-in/invasive hook events such as WorktreeCreate").action(async (opts) => {
     const { exportClaudeCodePlugin: exportClaudeCodePlugin2, verifyClaudeCodePlugin: verifyClaudeCodePlugin2 } = await Promise.resolve().then(() => (init_claude_code2(), claude_code_exports));
     const out = exportClaudeCodePlugin2({
       out: opts.out,
-      matchers: parseMatcherPairs(opts.matcher)
+      matchers: parseMatcherPairs(opts.matcher),
+      includeOptInHooks: opts.includeOptInHooks
     });
     const checks = verifyClaudeCodePlugin2({ target: out });
     const failed = checks.filter((check) => check.status === "fail");
@@ -9938,7 +11415,7 @@ function registerClaudeCodeCommands(program2) {
     "Hook matcher pair `<event>=<regex>` copied into hooks/hooks.json. Repeatable.",
     collectPair,
     []
-  ).action(
+  ).option("--include-opt-in-hooks", "Also install opt-in/invasive hook events such as WorktreeCreate").action(
     async (opts) => {
       const { installClaudeCodePlugin: installClaudeCodePlugin2 } = await Promise.resolve().then(() => (init_claude_code2(), claude_code_exports));
       const target = installClaudeCodePlugin2({
@@ -9946,7 +11423,8 @@ function registerClaudeCodeCommands(program2) {
         cwd: opts.cwd,
         target: opts.target,
         symlink: opts.symlink,
-        matchers: parseMatcherPairs(opts.matcher)
+        matchers: parseMatcherPairs(opts.matcher),
+        includeOptInHooks: opts.includeOptInHooks
       });
       success(`installed Claude Code plugin at ${target}`);
     }
@@ -9965,7 +11443,7 @@ function registerClaudeCodeCommands(program2) {
     "Hook matcher pair `<event>=<regex>` copied into hooks/hooks.json. Repeatable.",
     collectPair,
     []
-  ).action(
+  ).option("--include-opt-in-hooks", "Also install opt-in/invasive hook events such as WorktreeCreate").action(
     async (opts) => {
       const { installClaudeCodePlugin: installClaudeCodePlugin2 } = await Promise.resolve().then(() => (init_claude_code2(), claude_code_exports));
       const target = installClaudeCodePlugin2({
@@ -9973,7 +11451,8 @@ function registerClaudeCodeCommands(program2) {
         cwd: opts.cwd,
         target: opts.target,
         symlink: opts.symlink,
-        matchers: parseMatcherPairs(opts.matcher)
+        matchers: parseMatcherPairs(opts.matcher),
+        includeOptInHooks: opts.includeOptInHooks
       });
       success(`installed Claude Code plugin at ${target}`);
     }
@@ -10184,7 +11663,7 @@ function registerInstallCommands(program2) {
     "Hook matcher pair `<event>=<regex>` copied into the plugin's hooks/hooks.json. Repeatable.",
     collect,
     []
-  ).action(async (opts) => {
+  ).option("--include-opt-in-hooks", "Also install opt-in/invasive hook events such as WorktreeCreate").action(async (opts) => {
     const scope = parseHostScope(opts.scope, "claude-code");
     const cwd = opts.cwd ?? process.cwd();
     const { installClaudeCodePlugin: installClaudeCodePlugin2, verifyClaudeCodePlugin: verifyClaudeCodePlugin2 } = await Promise.resolve().then(() => (init_claude_code2(), claude_code_exports));
@@ -10193,7 +11672,8 @@ function registerInstallCommands(program2) {
       cwd,
       target: opts.pluginTarget,
       symlink: opts.symlink,
-      matchers: parseMatchers(opts.matcher)
+      matchers: parseMatchers(opts.matcher),
+      includeOptInHooks: opts.includeOptInHooks
     });
     success(`Claude Code plugin installed at ${target}`);
     info("");

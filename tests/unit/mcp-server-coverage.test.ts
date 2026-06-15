@@ -168,7 +168,16 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       await runMcpServer();
       const tool = captured.find((t) => t.name === 'openbox_status')!;
       const out = await tool.cb({});
-      expect(out.content[0].text).toContain('"status": "connected"');
+      const parsed = JSON.parse(out.content[0].text);
+      expect(parsed.status).toBe('connected');
+      expect(parsed.mcpReadiness.mcpReady).toBe(true);
+      expect(parsed.mcpReadiness.runtimeEnv.backendApiKeyPresent).toBe(true);
+      expect(parsed.mcpReadiness.runtimeEnv.runtimeApiKeyPresent).toBe(true);
+      expect(parsed.mcpReadiness.failMode).toBe('fail_open');
+      expect(parsed.mcpReadiness.approvalMode).toBe('remote');
+      expect(parsed.mcpReadiness.unsupportedOrOptInSurfaces.worktreeCreate).toBe('opt_in');
+      expect(parsed.claudeCodeGovernance.defaultHookCount).toBeGreaterThan(10);
+      expect(parsed.claudeCodeGovernance.optInHooks).toContain('WorktreeCreate');
     });
   });
 
@@ -189,8 +198,12 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       await runMcpServer();
       const tool = captured.find((t) => t.name === 'claude_code_doctor')!;
       const out = await tool.cb({ target: join(tmpdir(), 'openbox-missing-claude-plugin') });
-      expect(out.content[0].text).toContain('"checks"');
-      expect(out.content[0].text).toContain('"summary"');
+      const parsed = JSON.parse(out.content[0].text);
+      expect(parsed.checks).toBeDefined();
+      expect(parsed.summary.fail).toBeGreaterThan(0);
+      expect(parsed.mcpReadiness.runtimeEnv.coreUrlPresent).toBe(true);
+      expect(parsed.claudeCodeGovernance.audit.installedClaudeCodeVersion).toBe('2.1.177 (Claude Code)');
+      expect(parsed.claudeCodeGovernance.surfaces.some((surface: any) => surface.surface === 'monitors')).toBe(true);
     });
   });
 

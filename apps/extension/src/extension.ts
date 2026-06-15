@@ -5,8 +5,8 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import type { OpenBoxClient } from "openbox-sdk/client";
-import { resolveOsPath } from "openbox-sdk/os-paths";
+import type { OpenBoxClient } from "@openbox-ai/openbox-sdk/client";
+import { resolveOsPath } from "@openbox-ai/openbox-sdk/os-paths";
 import {
   apiKeyPrefix,
   clearApiKey,

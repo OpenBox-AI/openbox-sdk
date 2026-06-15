@@ -285,15 +285,9 @@ need node "install node 20+ from https://nodejs.org or nvm"
 node_major="$(node -p 'process.versions.node.split(".")[0]')"
 [ "$node_major" -ge 20 ] || fatal "node 20+ required (found $node_major); 'nvm install 20' fixes it"
 
-if command -v bun >/dev/null 2>&1; then
-  # bun for install (faster), npm for build (bun rewrites `npm run -w`
-  # in a way that recursively re-invokes the root build).
-  # `--ignore-scripts` skips the `prepare` lifecycle since we run the
-  # build explicitly below.
-  pm_name="bun"; pm_install="bun install --ignore-scripts"; pm_build="npm run build"
-else
-  pm_name="npm"; pm_install="npm ci --ignore-scripts";      pm_build="npm run build"
-fi
+# Keep the installer aligned with the repository's committed npm lockfile.
+# A second lockfile makes security scans and reproducible installs disagree.
+pm_name="npm"; pm_install="npm ci --ignore-scripts"; pm_build="npm run build"
 
 # ---------------------------------------------------------------------------
 # Source tree

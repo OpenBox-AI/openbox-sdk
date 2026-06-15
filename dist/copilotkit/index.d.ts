@@ -1,5 +1,5 @@
-import { W as WorkflowVerdict, O as OpenBoxCoreClient, i as AgentIdentityConfig } from '../govern-CX11GBkl.js';
-import '../core-types-Dxgkbox0.js';
+import { W as WorkflowVerdict, O as OpenBoxCoreClient, i as AgentIdentityConfig } from '../govern-DGn7jMgd.js';
+import { c as AGEResult, S as SpanData } from '../core-types-Dxgkbox0.js';
 
 declare const OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION: "openbox.copilotkit.result.v1";
 
@@ -54,6 +54,7 @@ interface OpenBoxCopilotActionResult<TArtifact = unknown> {
     riskScore?: number;
     trustTier?: string | number;
     guardrailsResult?: WorkflowVerdict['guardrailsResult'];
+    ageResult?: AGEResult;
     redactionSummary?: string;
     artifact?: TArtifact;
     workflowId?: string;
@@ -245,6 +246,7 @@ interface GovernedCopilotToolDefinition<TInput extends OpenBoxCopilotActionInput
     description?: string;
     normalizeInput?: (input: TInput) => TInput;
     execute: (input: TInput) => Promise<TArtifact> | TArtifact;
+    spanProfile?: (input: TInput, stage: 'started' | 'completed') => Partial<SpanData> | undefined;
     isArtifactRedacted?: (artifact: TArtifact | undefined) => boolean;
     markArtifactRedacted?: (artifact: TArtifact) => TArtifact;
     sessionKey?: (config?: unknown) => string;

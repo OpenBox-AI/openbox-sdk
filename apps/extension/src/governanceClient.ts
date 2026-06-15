@@ -1,4 +1,4 @@
-// Extension-side wrapper around openbox-sdk/governance. Reads the
+// Extension-side wrapper around @openbox-ai/openbox-sdk/governance. Reads the
 // agent ID from workspace config, applies the network deadline, and
 // folds the verdict into a tri-state outcome:
 //   "allow"            → proceed
@@ -10,7 +10,7 @@
 // openbox.failClosed setting).
 
 import * as vscode from 'vscode';
-import { checkGovernance, type SpanType } from 'openbox-sdk/governance';
+import { checkGovernance, type SpanType } from '@openbox-ai/openbox-sdk/governance';
 
 export type GovernanceOutcome = 'allow' | 'require_approval' | 'deny' | 'unknown';
 

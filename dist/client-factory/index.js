@@ -1806,7 +1806,7 @@ function requireApiUrl(value) {
 }
 
 // ts/src/client-factory/index.ts
-var DEFAULT_CLIENT_NAME = "openbox-sdk/client-factory";
+var DEFAULT_CLIENT_NAME = "@openbox-ai/openbox-sdk/client-factory";
 async function createConsumerClient(opts) {
   const connection = resolveConnection({
     apiUrl: opts.apiUrl,

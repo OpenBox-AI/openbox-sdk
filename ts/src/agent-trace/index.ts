@@ -15,7 +15,7 @@
 //
 // Spec: https://github.com/cursor/agent-trace
 //
-// Public sub-path: `import { writeTraceRecord, ... } from 'openbox-sdk/agent-trace'`
+// Public sub-path: `import { writeTraceRecord, ... } from '@openbox-ai/openbox-sdk/agent-trace'`
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';

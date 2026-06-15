@@ -33,13 +33,17 @@ interface MockCore {
   pollApproval: ReturnType<typeof vi.fn>;
 }
 
-function createMockCore(verdictArm: 'allow' | 'block' | 'require_approval' = 'allow'): MockCore {
+function createMockCore(
+  verdictArm: 'allow' | 'block' | 'require_approval' = 'allow',
+  overrides: Partial<GovernanceVerdictResponse> = {},
+): MockCore {
   const events: GovernanceEventPayload[] = [];
   const verdict: GovernanceVerdictResponse = {
     governance_event_id: 'evt_test',
     verdict: verdictArm,
     action: verdictArm,
     risk_score: 0,
+    ...overrides,
   } as GovernanceVerdictResponse;
   const evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
     events.push(payload);
@@ -473,6 +477,7 @@ describe('BaseGovernedSession.activity (cross-preset escape)', () => {
       async (session) => {
         const opened = await session.openActivity('on_tool_start', {
           activityId: 'tool-activity-1',
+          startTime: 1_000,
           input: [{ tool: 'crm_lookup' }],
         });
         expect(opened.activityId).toBe('tool-activity-1');
@@ -481,7 +486,7 @@ describe('BaseGovernedSession.activity (cross-preset escape)', () => {
         expect(
           mock.events.filter((e) => e.event_type === 'ActivityCompleted'),
         ).toHaveLength(0);
-        await opened.complete({ output: { rows: 3 } }, 'on_tool_end');
+        await opened.complete({ output: { rows: 3 }, endTime: 1_250 }, 'on_tool_end');
       },
     );
     const started = mock.events.find((e) => e.event_type === 'ActivityStarted');
@@ -489,7 +494,12 @@ describe('BaseGovernedSession.activity (cross-preset escape)', () => {
       (e) => e.event_type === 'ActivityCompleted' && e.activity_type === 'on_tool_end',
     );
     expect(started?.activity_id).toBe('tool-activity-1');
+    expect(started?.start_time).toBe(1_000);
     expect(completed?.activity_id).toBe('tool-activity-1');
+    expect(completed?.status).toBe('completed');
+    expect(completed?.start_time).toBe(1_000);
+    expect(completed?.end_time).toBe(1_250);
+    expect(completed?.duration_ms).toBe(250);
   });
 
   test('openActivity leaves a blocked start canonically unpaired', async () => {
@@ -580,6 +590,36 @@ describe('govern.attach (cross-process / harness-owned lifecycle)', () => {
     const completedCount = mock.events.filter((e) => e.event_type === 'WorkflowCompleted').length;
     expect(startedCount).toBe(1);
     expect(completedCount).toBe(1);
+  });
+
+  test('workflowCompleted returns terminal age result once', async () => {
+    const ageResult: GovernanceVerdictResponse['age_result'] = {
+      allowed: true,
+      verdict: 'allow',
+      reason: 'Passed governance checks',
+      goal_alignment_checked: true,
+      goal_drifted: false,
+      fallback_used: false,
+      span_results: [],
+      total_spans: 1,
+      violations_count: 0,
+      response_time_ms: 12,
+    };
+    const mock = createMockCore('allow', { age_result: ageResult });
+    const session = govern.attach({
+      core: mockCoreAsClient(mock),
+      preset: presets.claudeCode,
+      workflowId: 'wf_age',
+      runId: 'run_age',
+    });
+    await session.workflowStarted();
+
+    const completed = await session.workflowCompleted();
+    const duplicate = await session.workflowCompleted();
+
+    expect(completed?.ageResult).toEqual(ageResult);
+    expect(duplicate).toBeUndefined();
+    expect(mock.events.filter((e) => e.event_type === 'WorkflowCompleted')).toHaveLength(1);
   });
 
   test('reuses provided workflowId/runId on every emit', async () => {

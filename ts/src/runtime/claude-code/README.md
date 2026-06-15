@@ -2,7 +2,7 @@
 
 OpenBox integration with [Claude Code](https://claude.com/claude-code).
 Three surfaces are available via
-`import ... from 'openbox-sdk/runtime/claude-code'`:
+`import ... from '@openbox-ai/openbox-sdk/runtime/claude-code'`:
 
 1. **Adapter primitive**; `createClaudeCodeAdapter`, re-exported from
    the spec-emitted `core-client/generated/runtime/claude-code.ts`.
@@ -27,7 +27,7 @@ Three surfaces are available via
 
 ## Shared with cursor
 
-Everything cross-cutting lives at the SDK top level; `openbox-sdk/logging`,
+Everything cross-cutting lives at the SDK top level; `@openbox-ai/openbox-sdk/logging`,
 `/session`, `/install`, `/governance` (span builder + skip patterns +
 events + rules projection + hook-event labels), `/approvals`
 (socket client + server + resolve helper + source attribution),

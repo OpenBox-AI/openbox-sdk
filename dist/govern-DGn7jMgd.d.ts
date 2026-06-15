@@ -121,11 +121,15 @@ interface WorkflowVerdict {
     trustTier?: number;
     guardrailsResult?: GuardrailsVerdict;
     activityId?: string;
+    ageResult?: GovernanceVerdictResponse['age_result'];
 }
 interface GovernedPayload {
     input?: unknown[];
     output?: unknown;
     activityId?: string;
+    startTime?: number;
+    endTime?: number;
+    durationMs?: number;
     signalName?: string;
     signalArgs?: unknown;
     spans?: unknown[];
@@ -978,12 +982,7 @@ interface GovernedSessionConfig {
         expiresAt?: string;
     }) => Promise<'approve' | 'reject' | undefined>;
 }
-/**
- * Thrown when a session method is called after the session has been
- * terminated (workflowCompleted/Failed already fired). Tries to call
- * activity()/preset methods after this point would silently emit
- * orphan events without the SDK invariant; we throw instead.
- */
+/** Thrown when a session method is called after workflow termination. */
 declare class SessionAlreadyTerminatedError extends Error {
     constructor();
 }
@@ -1009,6 +1008,7 @@ declare class BaseGovernedSession {
     private finalized;
     private readonly autoOpenSuppressed;
     private readonly inFlight;
+    private readonly activityStartsMs;
     private readonly exitHandlerCleanup;
     protected readonly onPendingApproval?: GovernedSessionConfig['onPendingApproval'];
     protected readonly onApprovalResolved?: GovernedSessionConfig['onApprovalResolved'];
@@ -1037,9 +1037,9 @@ declare class BaseGovernedSession {
      *
      * Backward-compat alias: `complete()`.
      */
-    workflowCompleted(): Promise<void>;
+    workflowCompleted(): Promise<WorkflowVerdict | undefined>;
     /** @deprecated use `workflowCompleted()`; same behavior. */
-    complete(): Promise<void>;
+    complete(): Promise<WorkflowVerdict | undefined>;
     /**
      * Fire WorkflowFailed with an error payload. Idempotent. `govern()`
      * calls this if the body throws or if a process-exit handler fires;
@@ -1048,9 +1048,9 @@ declare class BaseGovernedSession {
      *
      * Backward-compat alias: `fail()`.
      */
-    workflowFailed(error?: unknown): Promise<void>;
+    workflowFailed(error?: unknown): Promise<WorkflowVerdict | undefined>;
     /** @deprecated use `workflowFailed()`; same behavior. */
-    fail(error?: unknown): Promise<void>;
+    fail(error?: unknown): Promise<WorkflowVerdict | undefined>;
     /**
      * Public escape for firing arbitrary (eventType, activityType, payload)
      * tuples beyond what the bound preset's typed methods cover. Used by
@@ -1090,6 +1090,7 @@ declare class BaseGovernedSession {
      */
     protected runActivity(eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived', activityType: string, payload: GovernedPayload): Promise<WorkflowVerdict>;
     private emitCompleted;
+    private emitWithSpanHook;
     private emit;
     private pollApproval;
     /**

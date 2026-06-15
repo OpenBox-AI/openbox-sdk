@@ -22,7 +22,7 @@
 // gives later wiring.
 import * as vscode from 'vscode';
 import { GovernanceClient } from './governanceClient';
-import { buildRecord, writeTraceRecord, type ContributorType } from 'openbox-sdk/agent-trace';
+import { buildRecord, writeTraceRecord, type ContributorType } from '@openbox-ai/openbox-sdk/agent-trace';
 
 const KEYSTROKE_IDLE_THRESHOLD_MS = 250;
 const MIN_NON_KEYSTROKE_CHARS = 20;

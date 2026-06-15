@@ -1,6 +1,6 @@
 // VS Code lifecycle wrapper for the OpenBox approval socket
 // server. All wire-format and IPC logic lives in
-// `openbox-sdk/approvals` so any host integration can use the
+// `@openbox-ai/openbox-sdk/approvals` so any host integration can use the
 // same protocol. This file contains only the `vscode.Disposable`
 // shim and the store-integration callback that turns incoming
 // `pending` messages into `ApprovalStore` rows.
@@ -10,7 +10,7 @@ import {
   ApprovalSocketServer as SdkApprovalSocketServer,
   type ApprovalPendingMessage,
   type ApprovalServerConnection,
-} from "openbox-sdk/approvals";
+} from "@openbox-ai/openbox-sdk/approvals";
 import type { ApprovalStore, ApprovalState } from "./approvalStore";
 
 export class ApprovalSocketServer implements vscode.Disposable {

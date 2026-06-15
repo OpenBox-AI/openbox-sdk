@@ -1,18 +1,18 @@
 // VS Code wrapper for resolving an approval. All protocol logic
 // (agent and approval row id lookup, the decide call, and the
 // governance-event-id alias) lives in
-// `openbox-sdk/approvals`. This file is the UI layer: error and
+// `@openbox-ai/openbox-sdk/approvals`. This file is the UI layer: error and
 // success toasts plus the store sync.
 //
 // Every UI button (toast, detail panel, status-bar action) routes
 // through here so the decision path stays consistent.
 
 import * as vscode from "vscode";
-import type { OpenBoxClient } from "openbox-sdk/client";
+import type { OpenBoxClient } from "@openbox-ai/openbox-sdk/client";
 import {
   decideApproval as sdkDecideApproval,
   ApprovalIdentityNotFoundError,
-} from "openbox-sdk/approvals";
+} from "@openbox-ai/openbox-sdk/approvals";
 import type { ApprovalStore } from "./approvalStore";
 import type { ApprovalState } from "./approvalStore";
 import { showAutoDismissError } from "./notifications";

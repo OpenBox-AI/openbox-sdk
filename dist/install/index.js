@@ -77,7 +77,7 @@ function installAdapter(spec, options = {}) {
       hooksBlock = {};
       settings[spec.key] = hooksBlock;
     }
-    for (const evt of spec.events) {
+    for (const evt of spec.events.filter((event) => event.installDefault !== false)) {
       if (!hooksBlock[evt.name]) hooksBlock[evt.name] = [];
       hooksBlock[evt.name] = hooksBlock[evt.name].filter((r) => !ruleIsOpenBox(r, spec.command));
       const inner = { type: "command", command: spec.command };
@@ -90,7 +90,7 @@ function installAdapter(spec, options = {}) {
       hooksBlock = {};
       settings[spec.key] = hooksBlock;
     }
-    for (const evt of spec.events) {
+    for (const evt of spec.events.filter((event) => event.installDefault !== false)) {
       const entry = { command: spec.command };
       if (evt.timeout) entry.timeout = evt.timeout;
       if (evt.matcher) entry.matcher = evt.matcher;
@@ -99,7 +99,7 @@ function installAdapter(spec, options = {}) {
   }
   saveJson(paths.hooksFile, settings);
   console.log(`Installed OpenBox hooks (${paths.scope}) into ${paths.hooksFile}`);
-  console.log(`Hook events: ${spec.events.map((e) => e.name).join(", ")}`);
+  console.log(`Hook events: ${spec.events.filter((event) => event.installDefault !== false).map((e) => e.name).join(", ")}`);
   dropExampleConfig(paths.configDir);
 }
 function uninstallAdapter(spec, options = {}) {

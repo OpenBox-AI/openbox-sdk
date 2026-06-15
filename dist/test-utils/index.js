@@ -64,8 +64,7 @@ function buildSpan(opts, spanId, traceId, nowNs) {
           attributes: {
             "gen_ai.system": "openai",
             "gen_ai.model": opts.model || "gpt-4",
-            // WORKAROUND: Core only detects LLM via HTTP POST to known domains.
-            // Remove once Core honors gen_ai.system. See session.go:381.
+            // Core currently classifies LLM spans from HTTP attributes.
             "http.method": "POST",
             "http.url": "https://api.openai.com/v1/chat/completions"
           },
@@ -211,7 +210,7 @@ function buildSpan(opts, spanId, traceId, nowNs) {
           semantic_type: "llm_tool_call",
           attributes: {
             "gen_ai.system": "mcp",
-            // WORKAROUND: same as LLM; Core needs http.method/url
+            // Core currently classifies tool-call spans from HTTP attributes.
             "http.method": "POST",
             "http.url": "https://api.openai.com/v1/chat/completions"
           },

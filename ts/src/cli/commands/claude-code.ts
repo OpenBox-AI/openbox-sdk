@@ -66,13 +66,15 @@ export function registerClaudeCodeCommands(program: Command) {
       collectPair,
       [],
     )
-    .action(async (opts: { out: string; matcher: string[] }) => {
+    .option('--include-opt-in-hooks', 'Also install opt-in/invasive hook events such as WorktreeCreate')
+    .action(async (opts: { out: string; matcher: string[]; includeOptInHooks?: boolean }) => {
       const { exportClaudeCodePlugin, verifyClaudeCodePlugin } = await import(
         '../../runtime/claude-code/index.js'
       );
       const out = exportClaudeCodePlugin({
         out: opts.out,
         matchers: parseMatcherPairs(opts.matcher),
+        includeOptInHooks: opts.includeOptInHooks,
       });
       const checks = verifyClaudeCodePlugin({ target: out });
       const failed = checks.filter((check) => check.status === 'fail');
@@ -96,6 +98,7 @@ export function registerClaudeCodeCommands(program: Command) {
       collectPair,
       [],
     )
+    .option('--include-opt-in-hooks', 'Also install opt-in/invasive hook events such as WorktreeCreate')
     .action(
       async (opts: {
         scope?: string;
@@ -103,6 +106,7 @@ export function registerClaudeCodeCommands(program: Command) {
         target?: string;
         symlink?: string;
         matcher: string[];
+        includeOptInHooks?: boolean;
       }) => {
         const { installClaudeCodePlugin } = await import('../../runtime/claude-code/index.js');
         const target = installClaudeCodePlugin({
@@ -111,6 +115,7 @@ export function registerClaudeCodeCommands(program: Command) {
           target: opts.target,
           symlink: opts.symlink,
           matchers: parseMatcherPairs(opts.matcher),
+          includeOptInHooks: opts.includeOptInHooks,
         });
         success(`installed Claude Code plugin at ${target}`);
       },
@@ -145,6 +150,7 @@ export function registerClaudeCodeCommands(program: Command) {
       collectPair,
       [],
     )
+    .option('--include-opt-in-hooks', 'Also install opt-in/invasive hook events such as WorktreeCreate')
     .action(
       async (opts: {
         scope?: string;
@@ -152,6 +158,7 @@ export function registerClaudeCodeCommands(program: Command) {
         target?: string;
         symlink?: string;
         matcher: string[];
+        includeOptInHooks?: boolean;
       }) => {
         const { installClaudeCodePlugin } = await import('../../runtime/claude-code/index.js');
         const target = installClaudeCodePlugin({
@@ -160,6 +167,7 @@ export function registerClaudeCodeCommands(program: Command) {
           target: opts.target,
           symlink: opts.symlink,
           matchers: parseMatcherPairs(opts.matcher),
+          includeOptInHooks: opts.includeOptInHooks,
         });
         success(`installed Claude Code plugin at ${target}`);
       },

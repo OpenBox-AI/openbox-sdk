@@ -8,6 +8,8 @@ interface HookSpec {
     events: Array<{
         name: string;
         timeout?: number;
+        /** False for invasive/special hooks that require an explicit opt-in. */
+        installDefault?: boolean;
         /**
          * Cursor-only: regex string scoping when this hook fires.
          * Cursor skips invoking the hook command entirely if the

@@ -1,6 +1,6 @@
 /**
  * Setup-time validators. Public sub-path:
- *   `import { validateUuid, validateIsoDate, ... } from 'openbox-sdk/validators'`
+ *   `import { validateUuid, validateIsoDate, ... } from '@openbox-ai/openbox-sdk/validators'`
  *
  * Job: reject any input that the OpenBox design says is broken before
  * it hits the backend (where behavior is often silent or the error is
@@ -69,8 +69,8 @@ export function reportAndExit(err: unknown): never {
     process.exit(EXIT.USAGE);
   }
 
-  // OpenBoxApiError (from openbox-sdk/client) and CoreApiError (from
-  // openbox-sdk/core-client); surface status + body so users don't see
+  // OpenBoxApiError (from @openbox-ai/openbox-sdk/client) and CoreApiError (from
+  // @openbox-ai/openbox-sdk/core-client); surface status + body so users don't see
   // a bare "Request failed: 500 Internal Server Error" with no context.
   // Both share the same { name, status, body } shape; check by name.
   const apiErr = err as { name?: string; message?: string; status?: number; body?: unknown; code?: string };

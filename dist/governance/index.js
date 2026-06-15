@@ -172,6 +172,9 @@ var TokenBucket = class {
   }
 };
 
+// ts/src/version.ts
+var OPENBOX_SDK_VERSION = "0.1.0";
+
 // ts/src/core-client/core-client.ts
 var CoreApiError = class extends Error {
   status;
@@ -217,8 +220,9 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
     return this.request("GET", "/api/v1/auth/validate");
   }
   async evaluate(payload) {
+    const versionedPayload = payload.sdk_version && payload.sdk_version !== "" ? payload : { ...payload, sdk_version: OPENBOX_SDK_VERSION };
     return this.request("POST", "/api/v1/governance/evaluate", {
-      data: payload,
+      data: versionedPayload,
       retryable: false
     });
   }
@@ -239,7 +243,8 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
     const timeoutMs = this.config.timeoutMs ?? 35e3;
     const baseHeaders = {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${this.config.apiKey}`
+      Authorization: `Bearer ${this.config.apiKey}`,
+      "X-OpenBox-SDK-Version": OPENBOX_SDK_VERSION
     };
     const body = options?.data ? JSON.stringify(options.data) : void 0;
     const signedHeaders = this.config.agentIdentity ? signAgentIdentityRequest({
@@ -391,7 +396,7 @@ function ed25519PrivateKeyFromRawBase64(rawBase64) {
 }
 
 // ts/src/core-client/generated/govern.ts
-var CANONICAL_ACTIVITY_LABELS = Object.freeze({ "AGENT_STEP": "Agent Step", "ActivityTaskCanceled": "Activity Task Canceled", "ActivityTaskCompleted": "Activity Task Completed", "ActivityTaskFailed": "Activity Task Failed", "ActivityTaskScheduled": "Activity Task Scheduled", "ActivityTaskStarted": "Activity Task Started", "ActivityTaskTimedOut": "Activity Task Timed Out", "AgentExecutionCompleted": "Agent Execution Completed", "AgentExecutionStarted": "Agent Execution Started", "AgentSpawn": "Agent Spawn", "CHUNKING": "Chunking", "CallToolsNode": "Call Tools Node", "ChildWorkflowExecutionCompleted": "Child Workflow Execution Completed", "ChildWorkflowExecutionInitiated": "Child Workflow Execution Initiated", "CrewKickoffCompleted": "Crew Kickoff Completed", "CrewKickoffStarted": "Crew Kickoff Started", "EMBEDDING": "Embedding", "EXCEPTION": "Exception", "End": "End", "FUNCTION_CALL": "Function Call", "FileDelete": "File Delete", "FileEdit": "File Edit", "FileRead": "File Read", "HTTPRequest": "HTTP Request", "HandoffMessage": "Handoff Message", "LLM": "LLM", "LLMCallCompleted": "LLM Call Completed", "LLMCallStarted": "LLM Call Started", "LLMCompleted": "LLM Completed", "MCPToolCall": "MCP Tool Call", "MarkerRecorded": "Marker Recorded", "MemoryQueryEvent": "Memory Query", "ModelRequestNode": "Model Request Node", "MultiModalMessage": "Multi-Modal Message", "Notification": "Notification", "OperationCompleted": "Operation Completed", "OperationStarted": "Operation Started", "PermissionRequest": "Permission Request", "PostToolUse": "Post-Tool Use", "PreCompact": "Pre-Compact", "PreSyncHookStarted": "Pre-Sync Hook Started", "PreSyncHookSucceeded": "Pre-Sync Hook Succeeded", "PreToolUse": "Pre-Tool Use", "PromptSubmission": "Prompt Submission", "QUERY": "Query", "RERANKING": "Reranking", "RETRIEVE": "Retrieve", "ResourceUpdated": "Resource Updated", "SUB_QUESTION": "Sub-Question", "SYNTHESIZE": "Synthesize", "ShellExecution": "Shell Execution", "Stop": "Stop", "StopMessage": "Stop Message", "SubagentStart": "Subagent Start", "SubagentStop": "Subagent Stop", "SyncStatusChanged": "Sync Status Changed", "TaskCompleted": "Task Completed", "TaskStart": "Task Start", "TaskStarted": "Task Started", "TextMessage": "Text Message", "TimerFired": "Timer Fired", "TimerStarted": "Timer Started", "ToolCallExecutionEvent": "Tool Call Execution", "ToolCallRequestEvent": "Tool Call Request", "ToolCompleted": "Tool Completed", "ToolStarted": "Tool Started", "ToolUsageError": "Tool Usage Error", "ToolUsageFinished": "Tool Usage Finished", "ToolUsageStarted": "Tool Usage Started", "UserInputRequestedEvent": "User Input Requested", "UserPromptNode": "User Prompt Node", "UserPromptSubmit": "User Prompt Submit", "WorkflowExecutionSignaled": "Workflow Execution Signaled", "afterAgentResponse": "After Agent Response", "afterAgentThought": "After Agent Thought", "afterFileEdit": "After File Edit", "afterMCPExecution": "After MCP Execution", "afterShellExecution": "After Shell Execution", "agentStop": "Agent Stop", "auto_function_invocation_post": "Auto Function Invocation Post", "auto_function_invocation_pre": "Auto Function Invocation Pre", "beforeMCPExecution": "Before MCP Execution", "beforeReadFile": "Before Read File", "beforeShellExecution": "Before Shell Execution", "beforeSubmitPrompt": "Before Submit Prompt", "checkpoint": "Checkpoint", "custom_event": "Custom Event", "error": "Error", "error-trigger": "Error Trigger", "errorOccurred": "Error Occurred", "function_invocation_post": "Function Invocation Post", "function_invocation_pre": "Function Invocation Pre", "incident.acknowledged": "Incident Acknowledged", "incident.annotated": "Incident Annotated", "incident.delegated": "Incident Delegated", "incident.escalated": "Incident Escalated", "incident.priority_updated": "Incident Priority Updated", "incident.reassigned": "Incident Reassigned", "incident.reopened": "Incident Reopened", "incident.resolved": "Incident Resolved", "incident.triggered": "Incident Triggered", "incident.unacknowledged": "Incident Unacknowledged", "interrupt": "Interrupt", "node-post-execute": "Node Post-Execute", "node-pre-execute": "Node Pre-Execute", "node_end": "Node End", "node_start": "Node Start", "onAbort": "Abort", "onError": "Error", "onFinish": "Finish", "onStepFinish": "Step Finish", "on_agent_action": "Agent Action", "on_agent_finish": "Agent Finish", "on_chain_end": "Chain End", "on_chain_start": "Chain Start", "on_chat_model_start": "Chat Model Start", "on_execute_callback": "Execute Callback", "on_failure_callback": "Failure Callback", "on_llm_end": "LLM End", "on_llm_error": "LLM Error", "on_llm_start": "LLM Start", "on_retriever_end": "Retriever End", "on_retriever_start": "Retriever Start", "on_retry_callback": "Retry Callback", "on_skipped_callback": "Skipped Callback", "on_success_callback": "Success Callback", "on_tool_end": "Tool End", "on_tool_error": "Tool Error", "on_tool_start": "Tool Start", "output_validator": "Output Validator", "payment_order.approved": "Payment Order Approved", "payment_order.begin_processing": "Payment Order Begin Processing", "payment_order.failed": "Payment Order Failed", "payment_order.reconciled": "Payment Order Reconciled", "payment_reference.created": "Payment Reference Created", "postToolUse": "Post-Tool Use", "preToolUse": "Pre-Tool Use", "prompt_render_post": "Prompt Render Post", "prompt_render_pre": "Prompt Render Pre", "sla_miss_callback": "SLA Miss Callback", "subagentStop": "Subagent Stop", "task_end": "Task End", "task_start": "Task Start", "tool-call": "Tool Call", "tool-result": "Tool Result", "tool_retry": "Tool Retry", "userPromptSubmitted": "User Prompt Submitted", "workflow-step-finish": "Workflow Step Finish", "workflow-step-progress": "Workflow Step Progress", "workflow-step-start": "Workflow Step Start" });
+var CANONICAL_ACTIVITY_LABELS = Object.freeze({ "AGENT_STEP": "Agent Step", "ActivityTaskCanceled": "Activity Task Canceled", "ActivityTaskCompleted": "Activity Task Completed", "ActivityTaskFailed": "Activity Task Failed", "ActivityTaskScheduled": "Activity Task Scheduled", "ActivityTaskStarted": "Activity Task Started", "ActivityTaskTimedOut": "Activity Task Timed Out", "AgentAction": "Agent Action", "AgentExecutionCompleted": "Agent Execution Completed", "AgentExecutionStarted": "Agent Execution Started", "AgentSpawn": "Agent Spawn", "CHUNKING": "Chunking", "CallToolsNode": "Call Tools Node", "ChildWorkflowExecutionCompleted": "Child Workflow Execution Completed", "ChildWorkflowExecutionInitiated": "Child Workflow Execution Initiated", "CrewKickoffCompleted": "Crew Kickoff Completed", "CrewKickoffStarted": "Crew Kickoff Started", "EMBEDDING": "Embedding", "EXCEPTION": "Exception", "End": "End", "FUNCTION_CALL": "Function Call", "FileDelete": "File Delete", "FileEdit": "File Edit", "FileRead": "File Read", "HTTPRequest": "HTTP Request", "HandoffMessage": "Handoff Message", "LLM": "LLM", "LLMCallCompleted": "LLM Call Completed", "LLMCallStarted": "LLM Call Started", "LLMCompleted": "LLM Completed", "MCPToolCall": "MCP Tool Call", "MarkerRecorded": "Marker Recorded", "MemoryQueryEvent": "Memory Query", "ModelRequestNode": "Model Request Node", "MultiModalMessage": "Multi-Modal Message", "Notification": "Notification", "OperationCompleted": "Operation Completed", "OperationStarted": "Operation Started", "PermissionRequest": "Permission Request", "PostToolUse": "Post-Tool Use", "PreCompact": "Pre-Compact", "PreSyncHookStarted": "Pre-Sync Hook Started", "PreSyncHookSucceeded": "Pre-Sync Hook Succeeded", "PreToolUse": "Pre-Tool Use", "PromptSubmission": "Prompt Submission", "QUERY": "Query", "RERANKING": "Reranking", "RETRIEVE": "Retrieve", "ResourceUpdated": "Resource Updated", "SUB_QUESTION": "Sub-Question", "SYNTHESIZE": "Synthesize", "ShellExecution": "Shell Execution", "Stop": "Stop", "StopMessage": "Stop Message", "SubagentStart": "Subagent Start", "SubagentStop": "Subagent Stop", "SyncStatusChanged": "Sync Status Changed", "TaskCompleted": "Task Completed", "TaskStart": "Task Start", "TaskStarted": "Task Started", "TextMessage": "Text Message", "TimerFired": "Timer Fired", "TimerStarted": "Timer Started", "ToolCallExecutionEvent": "Tool Call Execution", "ToolCallRequestEvent": "Tool Call Request", "ToolCompleted": "Tool Completed", "ToolStarted": "Tool Started", "ToolUsageError": "Tool Usage Error", "ToolUsageFinished": "Tool Usage Finished", "ToolUsageStarted": "Tool Usage Started", "UserInputRequestedEvent": "User Input Requested", "UserPromptNode": "User Prompt Node", "UserPromptSubmit": "User Prompt Submit", "WorkflowExecutionSignaled": "Workflow Execution Signaled", "afterAgentResponse": "After Agent Response", "afterAgentThought": "After Agent Thought", "afterFileEdit": "After File Edit", "afterMCPExecution": "After MCP Execution", "afterShellExecution": "After Shell Execution", "agentStop": "Agent Stop", "auto_function_invocation_post": "Auto Function Invocation Post", "auto_function_invocation_pre": "Auto Function Invocation Pre", "beforeMCPExecution": "Before MCP Execution", "beforeReadFile": "Before Read File", "beforeShellExecution": "Before Shell Execution", "beforeSubmitPrompt": "Before Submit Prompt", "checkpoint": "Checkpoint", "custom_event": "Custom Event", "error": "Error", "error-trigger": "Error Trigger", "errorOccurred": "Error Occurred", "function_invocation_post": "Function Invocation Post", "function_invocation_pre": "Function Invocation Pre", "incident.acknowledged": "Incident Acknowledged", "incident.annotated": "Incident Annotated", "incident.delegated": "Incident Delegated", "incident.escalated": "Incident Escalated", "incident.priority_updated": "Incident Priority Updated", "incident.reassigned": "Incident Reassigned", "incident.reopened": "Incident Reopened", "incident.resolved": "Incident Resolved", "incident.triggered": "Incident Triggered", "incident.unacknowledged": "Incident Unacknowledged", "interrupt": "Interrupt", "node-post-execute": "Node Post-Execute", "node-pre-execute": "Node Pre-Execute", "node_end": "Node End", "node_start": "Node Start", "onAbort": "Abort", "onError": "Error", "onFinish": "Finish", "onStepFinish": "Step Finish", "on_agent_action": "Agent Action", "on_agent_finish": "Agent Finish", "on_chain_end": "Chain End", "on_chain_start": "Chain Start", "on_chat_model_start": "Chat Model Start", "on_execute_callback": "Execute Callback", "on_failure_callback": "Failure Callback", "on_llm_end": "LLM End", "on_llm_error": "LLM Error", "on_llm_start": "LLM Start", "on_retriever_end": "Retriever End", "on_retriever_start": "Retriever Start", "on_retry_callback": "Retry Callback", "on_skipped_callback": "Skipped Callback", "on_success_callback": "Success Callback", "on_tool_end": "Tool End", "on_tool_error": "Tool Error", "on_tool_start": "Tool Start", "output_validator": "Output Validator", "payment_order.approved": "Payment Order Approved", "payment_order.begin_processing": "Payment Order Begin Processing", "payment_order.failed": "Payment Order Failed", "payment_order.reconciled": "Payment Order Reconciled", "payment_reference.created": "Payment Reference Created", "postToolUse": "Post-Tool Use", "preToolUse": "Pre-Tool Use", "prompt_render_post": "Prompt Render Post", "prompt_render_pre": "Prompt Render Pre", "sla_miss_callback": "SLA Miss Callback", "subagentStop": "Subagent Stop", "task_end": "Task End", "task_start": "Task Start", "tool-call": "Tool Call", "tool-result": "Tool Result", "tool_retry": "Tool Retry", "userPromptSubmitted": "User Prompt Submitted", "workflow-step-finish": "Workflow Step Finish", "workflow-step-progress": "Workflow Step Progress", "workflow-step-start": "Workflow Step Start" });
 async function govern(config, body) {
   const { preset: Ctor, ...sessionConfig } = config;
   const session = new Ctor(sessionConfig);
@@ -481,6 +486,7 @@ function buildSpan(spanType, input) {
     trace_id: hex(32),
     parent_span_id: null,
     kind: "CLIENT",
+    span_type: "function",
     stage: "started",
     start_time: Date.now() * 1e6,
     end_time: null,
@@ -495,11 +501,14 @@ function buildSpan(spanType, input) {
         ...base2,
         name: "llm.chat.completion",
         hook_type: "function_call",
+        span_type: "function",
         semantic_type: "llm_completion",
         attributes: {
           "gen_ai.system": "openai",
           "http.method": "POST",
-          "http.url": "https://api.openai.com/v1/chat/completions"
+          "http.url": "https://api.openai.com/v1/chat/completions",
+          "openbox.semantic_type": "llm_completion",
+          "openbox.span_type": "function"
         },
         function: "LLMCall",
         module: "activity",
@@ -512,8 +521,14 @@ function buildSpan(spanType, input) {
         name: "file.read",
         kind: "INTERNAL",
         hook_type: "file_operation",
+        span_type: "file_io",
         semantic_type: "file_read",
-        attributes: { "file.path": input.file_path || "", "file.operation": "read" },
+        attributes: {
+          "file.path": input.file_path || "",
+          "file.operation": "read",
+          "openbox.semantic_type": "file_read",
+          "openbox.span_type": "file_io"
+        },
         file_path: input.file_path || "",
         file_mode: "r",
         file_operation: "read"
@@ -524,8 +539,14 @@ function buildSpan(spanType, input) {
         name: "file.write",
         kind: "INTERNAL",
         hook_type: "file_operation",
+        span_type: "file_io",
         semantic_type: "file_write",
-        attributes: { "file.path": input.file_path || "", "file.operation": "write" },
+        attributes: {
+          "file.path": input.file_path || "",
+          "file.operation": "write",
+          "openbox.semantic_type": "file_write",
+          "openbox.span_type": "file_io"
+        },
         file_path: input.file_path || "",
         file_mode: "w",
         file_operation: "write"
@@ -536,8 +557,14 @@ function buildSpan(spanType, input) {
         name: "ShellExecution",
         kind: "INTERNAL",
         hook_type: "function_call",
+        span_type: "function",
         semantic_type: "internal",
-        attributes: { "shell.command": input.command || "", "shell.cwd": input.cwd || "" },
+        attributes: {
+          "shell.command": input.command || "",
+          "shell.cwd": input.cwd || "",
+          "openbox.semantic_type": "internal",
+          "openbox.span_type": "function"
+        },
         function: "ShellExecution",
         module: "activity",
         args: input,
@@ -550,7 +577,14 @@ function buildSpan(spanType, input) {
         ...base2,
         name: `${method} ${url}`,
         hook_type: "http_request",
-        attributes: { "http.method": method, "http.url": url },
+        span_type: "http",
+        semantic_type: `http_${method.toLowerCase()}`,
+        attributes: {
+          "http.method": method,
+          "http.url": url,
+          "openbox.semantic_type": `http_${method.toLowerCase()}`,
+          "openbox.span_type": "http"
+        },
         http_method: method,
         http_url: url,
         request_body: null,
@@ -563,7 +597,14 @@ function buildSpan(spanType, input) {
         ...base2,
         name: dbOp,
         hook_type: "db_query",
-        attributes: { "db.system": input.system || "postgresql", "db.operation": dbOp },
+        span_type: "database",
+        semantic_type: `database_${dbOp.toLowerCase()}`,
+        attributes: {
+          "db.system": input.system || "postgresql",
+          "db.operation": dbOp,
+          "openbox.semantic_type": `database_${dbOp.toLowerCase()}`,
+          "openbox.span_type": "database"
+        },
         db_system: input.system || "postgresql",
         db_operation: dbOp,
         db_statement: input.statement || ""
@@ -572,12 +613,23 @@ function buildSpan(spanType, input) {
     case "mcp":
       return {
         ...base2,
-        name: "MCPToolCall",
+        name: `tool.${input.tool_name || input.tool || "call"}`,
         kind: "INTERNAL",
+        span_type: "mcp_tool_call",
         hook_type: "function_call",
-        semantic_type: "internal",
-        attributes: { "mcp.tool": input.tool || "" },
-        function: "MCPToolCall",
+        semantic_type: "llm_tool_call",
+        attributes: {
+          "gen_ai.system": "mcp",
+          "http.method": "POST",
+          "http.url": "https://api.openai.com/v1/chat/completions",
+          "mcp.tool": input.tool_name || input.tool || "",
+          "openbox.semantic_type": "llm_tool_call",
+          "openbox.span_type": "mcp_tool_call",
+          "openbox.tool.name": input.tool_name || input.tool || "call",
+          "tool.name": input.tool_name || input.tool || "call",
+          tool_name: input.tool_name || input.tool || "call"
+        },
+        function: `mcp.${input.tool_name || input.tool || "call"}`,
         module: "activity",
         args: input,
         result: null
@@ -642,6 +694,7 @@ function base() {
     trace_id: hex2(32),
     parent_span_id: null,
     kind: "CLIENT",
+    span_type: "function",
     stage: "started",
     start_time: Date.now() * 1e6,
     end_time: null,
@@ -651,6 +704,118 @@ function base() {
     error: null
   };
 }
+function objectRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function parseJsonRecord(value) {
+  if (typeof value === "string") {
+    try {
+      return objectRecord(JSON.parse(value));
+    } catch {
+      return {};
+    }
+  }
+  return objectRecord(value);
+}
+function stringifyBody(value) {
+  if (value === void 0) return void 0;
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+function toPositiveInteger(value) {
+  const numberValue = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : void 0;
+  if (numberValue === void 0 || !Number.isFinite(numberValue) || numberValue <= 0)
+    return void 0;
+  return Math.trunc(numberValue);
+}
+function normalizeUsage(usage) {
+  if (!usage) return void 0;
+  const promptTokens = toPositiveInteger(
+    usage.promptTokens ?? usage.inputTokens
+  );
+  const completionTokens = toPositiveInteger(
+    usage.completionTokens ?? usage.outputTokens
+  );
+  const totalTokens = toPositiveInteger(usage.totalTokens);
+  const normalized = {};
+  if (promptTokens !== void 0) {
+    normalized.prompt_tokens = promptTokens;
+    normalized.input_tokens = promptTokens;
+  }
+  if (completionTokens !== void 0) {
+    normalized.completion_tokens = completionTokens;
+    normalized.output_tokens = completionTokens;
+  }
+  if (totalTokens !== void 0) normalized.total_tokens = totalTokens;
+  return Object.keys(normalized).length > 0 ? normalized : void 0;
+}
+function buildLLMCompletionResponseBody(content, metadata = {}) {
+  const body = parseJsonRecord(metadata.responseBody);
+  if (!Array.isArray(body.choices)) {
+    body.choices = [
+      {
+        message: { content }
+      }
+    ];
+  }
+  if (metadata.model && typeof body.model !== "string") {
+    body.model = metadata.model;
+  }
+  const usage = normalizeUsage(metadata.usage);
+  if (usage && Object.keys(objectRecord(body.usage)).length === 0) {
+    body.usage = usage;
+  }
+  return JSON.stringify(body);
+}
+function buildLLMCompletionSpan(input) {
+  const now = Date.now();
+  const source = input.span ?? {};
+  const usage = normalizeUsage(input.usage);
+  const inputTokens = toPositiveInteger(
+    usage?.input_tokens ?? usage?.prompt_tokens
+  );
+  const outputTokens = toPositiveInteger(
+    usage?.output_tokens ?? usage?.completion_tokens
+  );
+  const httpUrl = input.providerUrl ?? source.http_url ?? (typeof source.attributes?.["http.url"] === "string" ? source.attributes["http.url"] : "https://api.openai.com/v1/chat/completions");
+  return {
+    ...source,
+    span_id: source.span_id ?? hex2(16),
+    trace_id: source.trace_id ?? hex2(32),
+    name: input.name ?? source.name ?? "llm.chat.completion",
+    kind: input.kind ?? source.kind ?? "CLIENT",
+    start_time: input.startTime ?? source.start_time ?? now,
+    end_time: input.endTime ?? source.end_time ?? now,
+    duration_ns: input.durationNs ?? source.duration_ns ?? 0,
+    span_type: "function",
+    stage: "completed",
+    semantic_type: "llm_completion",
+    attributes: {
+      "gen_ai.system": input.system ?? "openbox-sdk",
+      ...input.model ? { "gen_ai.request.model": input.model } : {},
+      ...input.model ? { "gen_ai.response.model": input.model } : {},
+      ...inputTokens !== void 0 ? { "gen_ai.usage.input_tokens": inputTokens } : {},
+      ...outputTokens !== void 0 ? { "gen_ai.usage.output_tokens": outputTokens } : {},
+      "http.method": "POST",
+      "http.url": httpUrl,
+      "openbox.semantic_type": "llm_completion",
+      "openbox.span_type": "function",
+      ...source.attributes ?? {},
+      ...input.attributes ?? {}
+    },
+    ...input.model ? { model: input.model } : {},
+    ...inputTokens !== void 0 ? { input_tokens: inputTokens } : {},
+    ...outputTokens !== void 0 ? { output_tokens: outputTokens } : {},
+    http_method: source.http_method ?? "POST",
+    http_url: httpUrl,
+    request_body: stringifyBody(input.requestBody) ?? source.request_body ?? void 0,
+    data: input.data ?? source.data,
+    response_body: buildLLMCompletionResponseBody(input.content, {
+      model: input.model,
+      usage: input.usage,
+      responseBody: input.responseBody ?? source.response_body
+    })
+  };
+}
 function buildSpan2(host, type, input) {
   const b = base();
   switch (type) {
@@ -658,12 +823,15 @@ function buildSpan2(host, type, input) {
       return {
         ...b,
         name: "llm.chat.completion",
+        span_type: "function",
         hook_type: "function_call",
         semantic_type: "llm_completion",
         attributes: {
           "gen_ai.system": host,
           "http.method": "POST",
-          "http.url": "https://api.openai.com/v1/chat/completions"
+          "http.url": "https://api.openai.com/v1/chat/completions",
+          "openbox.semantic_type": "llm_completion",
+          "openbox.span_type": "function"
         },
         function: "LLMCall",
         module: host,
@@ -675,11 +843,14 @@ function buildSpan2(host, type, input) {
         ...b,
         name: "file.read",
         kind: "INTERNAL",
+        span_type: "file_io",
         hook_type: "file_operation",
         semantic_type: "file_read",
         attributes: {
           "file.path": input.file_path ?? "",
-          "file.operation": "read"
+          "file.operation": "read",
+          "openbox.semantic_type": "file_read",
+          "openbox.span_type": "file_io"
         },
         module: host,
         file_path: input.file_path ?? "",
@@ -691,11 +862,14 @@ function buildSpan2(host, type, input) {
         ...b,
         name: "file.write",
         kind: "INTERNAL",
+        span_type: "file_io",
         hook_type: "file_operation",
         semantic_type: "file_write",
         attributes: {
           "file.path": input.file_path ?? "",
-          "file.operation": "write"
+          "file.operation": "write",
+          "openbox.semantic_type": "file_write",
+          "openbox.span_type": "file_io"
         },
         module: host,
         file_path: input.file_path ?? "",
@@ -707,11 +881,14 @@ function buildSpan2(host, type, input) {
         ...b,
         name: "file.delete",
         kind: "INTERNAL",
+        span_type: "file_io",
         hook_type: "file_operation",
         semantic_type: "file_delete",
         attributes: {
           "file.path": input.file_path ?? "",
-          "file.operation": "delete"
+          "file.operation": "delete",
+          "openbox.semantic_type": "file_delete",
+          "openbox.span_type": "file_io"
         },
         module: host,
         file_path: input.file_path ?? "",
@@ -722,11 +899,14 @@ function buildSpan2(host, type, input) {
         ...b,
         name: "ShellExecution",
         kind: "INTERNAL",
+        span_type: "function",
         hook_type: "function_call",
         semantic_type: "internal",
         attributes: {
           "shell.command": input.command ?? "",
-          "shell.cwd": input.cwd ?? ""
+          "shell.cwd": input.cwd ?? "",
+          "openbox.semantic_type": "internal",
+          "openbox.span_type": "function"
         },
         function: "ShellExecution",
         module: host,
@@ -737,12 +917,18 @@ function buildSpan2(host, type, input) {
       return {
         ...b,
         name: `tool.${input.tool_name ?? "call"}`,
+        span_type: "mcp_tool_call",
         hook_type: "function_call",
         semantic_type: "llm_tool_call",
         attributes: {
           "gen_ai.system": "mcp",
           "http.method": "POST",
-          "http.url": "https://api.openai.com/v1/chat/completions"
+          "http.url": "https://api.openai.com/v1/chat/completions",
+          "openbox.semantic_type": "llm_tool_call",
+          "openbox.span_type": "mcp_tool_call",
+          "openbox.tool.name": input.tool_name ?? "call",
+          "tool.name": input.tool_name ?? "call",
+          tool_name: input.tool_name ?? "call"
         },
         function: `mcp.${input.tool_name ?? "call"}`,
         module: host,
@@ -755,11 +941,14 @@ function buildSpan2(host, type, input) {
       return {
         ...b,
         name: `${method} ${url}`,
+        span_type: "http",
         hook_type: "http_request",
         semantic_type: `http_${method.toLowerCase()}`,
         attributes: {
           "http.method": method,
-          "http.url": url
+          "http.url": url,
+          "openbox.semantic_type": `http_${method.toLowerCase()}`,
+          "openbox.span_type": "http"
         },
         http_method: method,
         http_url: url,
@@ -780,12 +969,15 @@ function buildSpan2(host, type, input) {
       return {
         ...b,
         name: `${dbOperation} ${dbStatement.split(" ").slice(0, 3).join(" ")}`,
+        span_type: "database",
         hook_type: "db_query",
         semantic_type: `database_${dbOperation.toLowerCase()}`,
         attributes: {
           "db.system": dbSystem,
           "db.operation": dbOperation,
-          "db.statement": dbStatement
+          "db.statement": dbStatement,
+          "openbox.semantic_type": `database_${dbOperation.toLowerCase()}`,
+          "openbox.span_type": "database"
         },
         db_system: dbSystem,
         db_name: null,
@@ -1027,15 +1219,33 @@ var HOOK_EVENT_LABELS = {
 var HOOK_EVENT_LABELS2 = {
   "PreToolUse": "Tool call",
   "PostToolUse": "Tool completion",
+  "PostToolUseFailure": "Tool failure",
+  "PostToolBatch": "Tool batch",
   "UserPromptSubmit": "Prompt submission",
+  "UserPromptExpansion": "Prompt expansion",
   "PermissionRequest": "Permission request",
+  "PermissionDenied": "Permission denied",
+  "Setup": "Setup",
+  "InstructionsLoaded": "Instructions loaded",
   "PreCompact": "Pre-compact",
+  "PostCompact": "Post-compact",
   "SessionStart": "Session start",
   "SessionEnd": "Session end",
   "SubagentStart": "Subagent spawn",
   "SubagentStop": "Subagent stop",
+  "TaskCreated": "Task created",
+  "TaskCompleted": "Task completed",
   "Stop": "Stop",
-  "Notification": "Notification"
+  "StopFailure": "Stop failure",
+  "TeammateIdle": "Teammate idle",
+  "Notification": "Notification",
+  "MessageDisplay": "Message display",
+  "ConfigChange": "Config change",
+  "CwdChanged": "CWD changed",
+  "FileChanged": "File changed",
+  "WorktreeRemove": "Worktree remove",
+  "Elicitation": "MCP elicitation",
+  "ElicitationResult": "MCP elicitation result"
 };
 
 // ts/src/governance/hook-event-labels.ts
@@ -1051,6 +1261,8 @@ export {
   EVENT,
   HOOK_EVENT_LABELS3 as HOOK_EVENT_LABELS,
   SKIP_PATTERNS,
+  buildLLMCompletionResponseBody,
+  buildLLMCompletionSpan,
   buildSpan2 as buildSpan,
   checkGovernance,
   fetchRulesProjection,

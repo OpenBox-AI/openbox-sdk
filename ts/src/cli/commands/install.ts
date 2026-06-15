@@ -115,12 +115,14 @@ export function registerInstallCommands(program: Command): void {
       collect,
       [],
     )
+    .option('--include-opt-in-hooks', 'Also install opt-in/invasive hook events such as WorktreeCreate')
     .action(async (opts: {
       scope?: string;
       cwd?: string;
       pluginTarget?: string;
       symlink?: string;
       matcher: string[];
+      includeOptInHooks?: boolean;
     }) => {
       const scope = parseHostScope(opts.scope, 'claude-code');
       const cwd = opts.cwd ?? process.cwd();
@@ -131,6 +133,7 @@ export function registerInstallCommands(program: Command): void {
         target: opts.pluginTarget,
         symlink: opts.symlink,
         matchers: parseMatchers(opts.matcher),
+        includeOptInHooks: opts.includeOptInHooks,
       });
       success(`Claude Code plugin installed at ${target}`);
       info('');
