@@ -449,4 +449,12 @@ jobs:
           echo "Version verified: ${pkg_version}"
 
       - name: Publish to npm with trusted publishing
-        run: npm publish dist-pack/*.tgz --access public --provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_file="$(find dist-pack -maxdepth 1 -name '*.tgz' -print -quit)"
+          if [[ -z "${package_file}" ]]; then
+            echo "No npm package tarball found in dist-pack"
+            exit 1
+          fi
+          npm publish "./${package_file}" --access public --provenance
