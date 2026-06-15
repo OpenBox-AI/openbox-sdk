@@ -3,18 +3,22 @@ import { describe, expect, it } from 'vitest';
 import type { WorkflowVerdict } from '../../ts/src/core-client/index.ts';
 import {
   compactRuntimeValue,
+  cloneValue,
   errorMessage,
   errorOutput,
   isRecord,
   mergeMessageContent,
   modelInput,
+  objectRecord,
   parseToolResult,
   sameJson,
   sessionKeyFromConfig,
   shouldStopForGate,
   swallow,
+  summarizeMessages,
   toPlain,
   toolCallInput,
+  truncate,
   withGovernedAssistantOutput,
   withGovernedModelInput,
   withGovernedToolInput,
@@ -100,6 +104,20 @@ describe('copilotkit helper coverage', () => {
       name: undefined,
       description: undefined,
     });
+    expect(modelInput({ messages: 'not-an-array' as any, tools: 'bad' as any })).toEqual({
+      systemPrompt: undefined,
+      messages: [],
+      tools: [],
+    });
+    expect(
+      summarizeMessages(
+        Array.from({ length: 12 }, (_, i) => ({
+          id: `message-${i}`,
+          type: i === 0 ? 'system' : 'human',
+          content: `message ${i}`,
+        })),
+      ).map((message: any) => message.index),
+    ).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 
     const compact = compactRuntimeValue({
       keep: ['a', 2, true, 3n, () => null],
@@ -111,6 +129,9 @@ describe('copilotkit helper coverage', () => {
     });
     expect(JSON.stringify(compact)).not.toContain('_secret');
     expect(JSON.stringify(compact)).toContain('[MaxDepth]');
+    expect(compactRuntimeValue(Symbol('x'))).toBe('Symbol(x)');
+    expect(truncate('short', 10)).toBe('short');
+    expect(truncate('long-value', 4)).toBe('long...[truncated]');
   });
 
   it('merges governed model, tool, and assistant payloads across edge shapes', () => {
@@ -131,12 +152,18 @@ describe('copilotkit helper coverage', () => {
       { content: 'new-1' },
       { content: 'new-2' },
     ]);
-    expect(
+    const governedModelInput = (
       withGovernedModelInput(
         { messages: originalMessages },
         { messages: safeMessages },
-      ),
-    ).toMatchObject({ messages: [{ content: 'new-0' }] });
+      ) as { messages: Array<Record<string, unknown>> }
+    );
+    expect(governedModelInput.messages[0]).toMatchObject({
+      content: 'new-0',
+      lc_kwargs: { content: 'new-0', other: true },
+    });
+    expect(governedModelInput.messages[1]).toMatchObject({ content: 'new-1' });
+    expect(governedModelInput.messages[2]).toMatchObject({ content: 'new-2' });
     expect(
       withGovernedModelInput(
         { messages: originalMessages },
@@ -188,6 +215,11 @@ describe('copilotkit helper coverage', () => {
     expect(toPlain({ _private: 'hidden', value: [1, () => null, 2n] })).toEqual({
       value: [1, '[Function]', '2'],
     });
+    expect(toPlain({ a: { b: { c: { d: { e: { f: 'too deep' } } } } } })).toEqual({
+      a: { b: { c: { d: { e: '[MaxDepth]' } } } },
+    });
+    expect(objectRecord('nope')).toEqual({});
+    expect(objectRecord({ ok: true })).toEqual({ ok: true });
     expect(isRecord({})).toBe(true);
     expect(isRecord([])).toBe(false);
     expect(errorOutput(new TypeError('bad'))).toEqual({
@@ -208,6 +240,10 @@ describe('copilotkit helper coverage', () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
     expect(sameJson(circular, { self: null })).toBe(false);
+    const original = { nested: { value: 1 } };
+    const cloned = cloneValue(original);
+    expect(cloned).toEqual({ nested: { value: 1 } });
+    expect(cloned.nested).not.toBe(original.nested);
     await expect(swallow(async () => {
       throw new Error('telemetry failed');
     })).resolves.toBeUndefined();
