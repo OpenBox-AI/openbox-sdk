@@ -5570,7 +5570,7 @@ function createOpenBoxLangChainMiddleware({
     wrapModelCall: async (request, handler) => {
       if (!adapter.isEnabled()) return handler(request);
       debugState("wrapModelCall", request.state);
-      if (hasTerminalOpenBoxToolResult(request.messages)) {
+      if (hasOpenBoxToolResult(request.messages)) {
         return new deps.AIMessage({ content: "" });
       }
       const key = sessionKeyFromConfig(request);
@@ -5748,7 +5748,10 @@ function createOpenBoxLangChainMiddleware({
     }
   });
 }
-var TERMINAL_OPENBOX_RESULT_STATUSES = /* @__PURE__ */ new Set([
+var OPENBOX_RESULT_STATUSES = /* @__PURE__ */ new Set([
+  "executed",
+  "constrained",
+  "allowed",
   "blocked",
   "halted",
   "session_halted",
@@ -5757,12 +5760,12 @@ var TERMINAL_OPENBOX_RESULT_STATUSES = /* @__PURE__ */ new Set([
   "approval_required",
   "approval_pending"
 ]);
-function hasTerminalOpenBoxToolResult(messages) {
+function hasOpenBoxToolResult(messages) {
   if (!Array.isArray(messages)) return false;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = objectRecord(messages[index]);
     if (isHumanMessage(message)) return false;
-    if (isTerminalOpenBoxResult(messageContent(message))) return true;
+    if (isOpenBoxResult(messageContent(message))) return true;
   }
   return false;
 }
@@ -5776,12 +5779,12 @@ function messageContent(message) {
   if ("content" in kwargs) return kwargs.content;
   return void 0;
 }
-function isTerminalOpenBoxResult(content) {
+function isOpenBoxResult(content) {
   const parsed = parseContent(content);
   if (!isRecord(parsed)) return false;
   if (parsed.schemaVersion !== OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION)
     return false;
-  return TERMINAL_OPENBOX_RESULT_STATUSES.has(String(parsed.status)) || parsed.verdict === "halt" || parsed.verdict === "block" || parsed.verdict === "error";
+  return OPENBOX_RESULT_STATUSES.has(String(parsed.status)) || parsed.verdict === "halt" || parsed.verdict === "block" || parsed.verdict === "error";
 }
 function parseContent(content) {
   if (isRecord(content)) return content;

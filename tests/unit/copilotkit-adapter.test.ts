@@ -784,6 +784,44 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(mock.events).toEqual([]);
   });
 
+  it('suppresses model continuation after a successful OpenBox tool result', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const middleware = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+    const handler = vi.fn(async () => ({ content: 'duplicate summary' }));
+
+    const result = await middleware.wrapModelCall(
+      {
+        messages: [
+          { type: 'human', content: 'Review the operations queue.' },
+          {
+            type: 'ai',
+            tool_calls: [{ name: 'openbox_governed_action', args: {} }],
+          },
+          {
+            type: 'tool',
+            content: JSON.stringify({
+              schemaVersion: 'openbox.copilotkit.result.v1',
+              status: 'executed',
+              verdict: 'allow',
+              executed: true,
+              artifact: { summary: 'Queue reviewed.' },
+            }),
+          },
+        ],
+      },
+      handler,
+    );
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(result.content).toBe('');
+    expect(mock.events).toEqual([]);
+  });
+
   it('keeps CopilotKit runtime gate payload compact without truncating allowed model input', async () => {
     const hugeSchema = 'A2UI component schema '.repeat(80_000);
     const userText = 'Show a customer account report for renewal planning.';
