@@ -10,16 +10,16 @@ fallback behavior belongs in the package.
 ## Install
 
 ```bash
-npm install openbox-sdk
+npm install @openbox-ai/openbox-sdk
 ```
 
 ## Runtime Governance
 
-Use `openbox-sdk/core-client` for runtime governance. The key is an agent
+Use `@openbox-ai/openbox-sdk/core-client` for runtime governance. The key is an agent
 runtime key such as `obx_live_*` or `obx_test_*`.
 
 ```ts
-import { OpenBoxCoreClient, govern, presets } from "openbox-sdk/core-client";
+import { OpenBoxCoreClient, govern, presets } from "@openbox-ai/openbox-sdk/core-client";
 
 const core = new OpenBoxCoreClient({
   apiUrl: process.env.OPENBOX_CORE_URL,
@@ -37,11 +37,11 @@ await govern({ core, preset: presets.default }, async (session) => {
 
 ## Backend API
 
-Use `openbox-sdk` or `openbox-sdk/client` for Backend/API setup, admin, and
+Use `@openbox-ai/openbox-sdk` or `@openbox-ai/openbox-sdk/client` for Backend/API setup, admin, and
 readiness work. The key is an org/API key such as `obx_key_*`.
 
 ```ts
-import { OpenBoxClient } from "openbox-sdk";
+import { OpenBoxClient } from "@openbox-ai/openbox-sdk";
 
 const backend = new OpenBoxClient({
   apiUrl: process.env.OPENBOX_API_URL,
@@ -58,11 +58,11 @@ Key split:
 
 | Import | Purpose |
 | --- | --- |
-| `openbox-sdk` | Root facade and Backend client |
-| `openbox-sdk/client` | Backend client |
-| `openbox-sdk/core-client` | Core client, `govern()`, presets, redaction helpers |
-| `openbox-sdk/types` | Generated DTO namespaces |
-| `openbox-sdk/runtime/*` | Optional runtime adapters |
+| `@openbox-ai/openbox-sdk` | Root facade and Backend client |
+| `@openbox-ai/openbox-sdk/client` | Backend client |
+| `@openbox-ai/openbox-sdk/core-client` | Core client, `govern()`, presets, redaction helpers |
+| `@openbox-ai/openbox-sdk/types` | Generated DTO namespaces |
+| `@openbox-ai/openbox-sdk/runtime/*` | Optional runtime adapters |
 
 `package.json` is the exhaustive export list. Integration-specific docs belong
 with that integration or example, not in this top-level README.

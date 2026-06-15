@@ -3,7 +3,7 @@
 // exercised end-to-end by the e2e suite, so drift between these
 // defaults and the live wire shapes is a test failure.
 //
-// Public sub-path: `import { makeCreateAgentDto, ... } from 'openbox-sdk/test-utils'`.
+// Public sub-path: `import { makeCreateAgentDto, ... } from '@openbox-ai/openbox-sdk/test-utils'`.
 //
 // Used by:
 //   - the openbox-sdk e2e suite (tests/helpers/fixtures.ts re-exports)

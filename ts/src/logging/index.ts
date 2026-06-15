@@ -1,4 +1,4 @@
-// Public sub-path: `openbox-sdk/logging`.
+// Public sub-path: `@openbox-ai/openbox-sdk/logging`.
 //
 // Diagnostic loggers and the hook-event JSONL log. Every runtime
 // adapter consumes these; any third-party consumer that wants hook

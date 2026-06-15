@@ -7,7 +7,7 @@ import {
   resolveClientName,
 } from '../../ts/src/env/index.js';
 
-describe('openbox-sdk/env URL resolution', () => {
+describe('@openbox-ai/openbox-sdk/env URL resolution', () => {
   const original = {
     OPENBOX_API_URL: process.env.OPENBOX_API_URL,
     OPENBOX_CORE_URL: process.env.OPENBOX_CORE_URL,
@@ -112,7 +112,7 @@ describe('openbox-sdk/env URL resolution', () => {
   });
 });
 
-describe('openbox-sdk/env token-codec', () => {
+describe('@openbox-ai/openbox-sdk/env token-codec', () => {
   it('parses a flat token store', () => {
     const store = parseTokenStore(
       'ACCESS_TOKEN=abc\nREFRESH_TOKEN=def\nAPI_KEY=obx_key_test\nUPDATED_AT=2026-01-01T00:00:00Z\nPERMISSIONS=Admin, create:agent,, \nFEATURES=webhooks:true,sso:false,badpair\nUNKNOWN=ignored\n',
@@ -151,7 +151,7 @@ describe('openbox-sdk/env token-codec', () => {
   });
 });
 
-describe('openbox-sdk/env resolveClientName', () => {
+describe('@openbox-ai/openbox-sdk/env resolveClientName', () => {
   const original = process.env.OPENBOX_CLIENT_VARIANT;
 
   beforeEach(() => {

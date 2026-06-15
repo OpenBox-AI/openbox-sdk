@@ -1,10 +1,10 @@
-// Public surface of `openbox-sdk`; single import path for everything.
+// Public surface of `@openbox-ai/openbox-sdk`; single import path for everything.
 //
 //   import { OpenBoxClient, OpenBoxCoreClient, resolveConnection,
-//            parseTokenStore, resolveClientName } from 'openbox-sdk';
+//            parseTokenStore, resolveClientName } from '@openbox-ai/openbox-sdk';
 //
 // Sub-paths exist for tree-shaking / RN bundlers; see package.json
-// `exports` map. (`openbox-sdk/client`, `openbox-sdk/core-client`, etc.)
+// `exports` map. (`@openbox-ai/openbox-sdk/client`, `@openbox-ai/openbox-sdk/core-client`, etc.)
 
 export * from './client/index.js';
 export * from './env/index.js';

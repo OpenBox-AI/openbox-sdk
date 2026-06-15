@@ -1,5 +1,5 @@
 {
-  "name": "openbox-sdk",
+  "name": "@openbox-ai/openbox-sdk",
   "version": "0.1.0",
   "description": "OpenBox AI governance SDK for TypeScript. Generated from a TypeSpec source of truth in this monorepo; the same spec drives sibling per-language SDKs.",
   "keywords": [

@@ -5,7 +5,7 @@
 // from extension.ts but otherwise don't talk to each other.
 
 import * as vscode from "vscode";
-import type { OpenBoxClient } from "openbox-sdk/client";
+import type { OpenBoxClient } from "@openbox-ai/openbox-sdk/client";
 import { ApprovalsTreeProvider } from "./approvalsView";
 import {
   EMPTY_FILTERS,
@@ -28,8 +28,8 @@ import {
   toggleSort,
   type FilterController,
 } from "./filterCommands";
-import { ApprovalsPollingService } from "openbox-sdk/polling";
-import { statusOf } from "openbox-sdk/approvals";
+import { ApprovalsPollingService } from "@openbox-ai/openbox-sdk/polling";
+import { statusOf } from "@openbox-ai/openbox-sdk/approvals";
 import type { Approval, Member, Team } from "./types";
 
 const DEFAULT_PAGE_SIZE = 50;

@@ -22,11 +22,11 @@ vi.mock('vscode', () => ({
 const mocks = vi.hoisted(() => ({
   checkGovernance: vi.fn(),
 }));
-vi.mock('openbox-sdk/governance', () => ({
+vi.mock('@openbox-ai/openbox-sdk/governance', () => ({
   checkGovernance: mocks.checkGovernance,
 }));
 
-// Avoid pulling the network-shaped openbox-sdk/governance into the
+// Avoid pulling the network-shaped @openbox-ai/openbox-sdk/governance into the
 // unit suite; we just need verdictToOutcome's behavior, which lives
 // inside the module's `check()` result mapping.
 import { GovernanceClient } from './governanceClient';
@@ -41,7 +41,7 @@ describe('GovernanceClient - verdict mapping (string + numeric)', () => {
     const c = new GovernanceClient();
     // Stub agentId so check() doesn't short-circuit.
     (c as unknown as { agentId: () => string }).agentId = () => 'stub-agent';
-    // Replace the openbox-sdk/governance call with a stub so we test
+    // Replace the @openbox-ai/openbox-sdk/governance call with a stub so we test
     // the mapping path in isolation (no network).
     const originalCheck = c.check.bind(c);
     c.check = async (opts) => {

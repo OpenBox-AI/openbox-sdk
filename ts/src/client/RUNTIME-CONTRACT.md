@@ -40,7 +40,7 @@ the test fails:
 - **Client identity.** Every request sends
   `X-Openbox-Client: <clientName>`, with `OPENBOX_CLIENT_VARIANT`
   appended via the env library's `resolveClientName`. Covered in
-  `openbox-sdk/env`'s contract tests.
+  `@openbox-ai/openbox-sdk/env`'s contract tests.
 - **Path concatenation.** The request URL is exactly
   `<baseUrl>/<path>`. Path placeholders like `/agent/{agentId}` are
   substituted by the generated wrapper before the call reaches this

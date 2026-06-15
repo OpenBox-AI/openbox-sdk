@@ -8,7 +8,7 @@
 // before display. The `[OpenBox]` prefix is enforced through
 // `brandedMessage`; applying it twice is a no-op.
 
-import { hookEventLabel } from "openbox-sdk/governance";
+import { hookEventLabel } from "@openbox-ai/openbox-sdk/governance";
 
 const DASH_RE = /[—–]/g;
 const COLLAPSE_SPACES = / {2,}/g;

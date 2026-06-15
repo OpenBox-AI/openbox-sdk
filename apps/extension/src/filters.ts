@@ -1,12 +1,12 @@
 // Memento-backed persistence for the filter state. The state shape,
 // date-range bounds, summary formatting, and client-side application
-// all live in `openbox-sdk/approvals` (one source of truth across the
+// all live in `@openbox-ai/openbox-sdk/approvals` (one source of truth across the
 // SDK and downstream consumers); the extension only owns the
 // per-target / per-scope storage namespacing because Memento isn't
 // available outside the editor host.
 
 import * as vscode from "vscode";
-import { EMPTY_FILTERS, type FilterState } from "openbox-sdk/approvals";
+import { EMPTY_FILTERS, type FilterState } from "@openbox-ai/openbox-sdk/approvals";
 
 export {
   EMPTY_FILTERS,
@@ -14,8 +14,8 @@ export {
   dateRangeBounds,
   hasActiveFilters,
   summarizeFilters,
-} from "openbox-sdk/approvals";
-export type { DateRangeKey, FilterState, SectionStatus } from "openbox-sdk/approvals";
+} from "@openbox-ai/openbox-sdk/approvals";
+export type { DateRangeKey, FilterState, SectionStatus } from "@openbox-ai/openbox-sdk/approvals";
 
 function key(scope: string, targetKey: string): string {
   // Per-target namespace so team and owner IDs from different deployments

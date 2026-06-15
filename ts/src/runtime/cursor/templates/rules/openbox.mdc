@@ -31,6 +31,6 @@ openbox-governance:
   hook activity log via the **OpenBox Hooks** output channel in
   Cursor (registered by the extension) before guessing.
 - For new agent integrations, default to spec-driven SDK usage
-  (`openbox-sdk/core-client`) and generated API calls
+  (`@openbox-ai/openbox-sdk/core-client`) and generated API calls
   (`openbox api backend <operationId>` / `openbox api core <operationId>`).
   Hand-coded HTTP calls bypass the governance shape and decay.

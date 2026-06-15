@@ -1,4 +1,4 @@
-// Public sub-path: `openbox-sdk/governance`.
+// Public sub-path: `@openbox-ai/openbox-sdk/governance`.
 //
 // Cross-cutting governance primitives that any SDK consumer can
 // reuse:

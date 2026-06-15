@@ -134,7 +134,7 @@ interface WrapperMethodSpec {
 interface WrapperEmitOptions {
   namespaceName: string;
   outRel: string;
-  pathsImport: string; // e.g. 'openbox-sdk/types'
+  pathsImport: string; // e.g. '@openbox-ai/openbox-sdk/types'
   pathsAlias: string; // 'Backend' | 'Core'; namespace re-export alias
   className: string;
   /**

@@ -60,7 +60,7 @@ describe('Claude Code governance matrix drift guard', () => {
       'https://code.claude.com/docs/en/channels',
       'https://code.claude.com/docs/en/changelog',
     ]);
-    expect(CLAUDE_CODE_GOVERNANCE_AUDIT.auditedSdkSurfaces).toContain('openbox-sdk/runtime/claude-code');
-    expect(CLAUDE_CODE_GOVERNANCE_AUDIT.auditedSdkSurfaces).toContain('openbox-sdk/copilotkit');
+    expect(CLAUDE_CODE_GOVERNANCE_AUDIT.auditedSdkSurfaces).toContain('@openbox-ai/openbox-sdk/runtime/claude-code');
+    expect(CLAUDE_CODE_GOVERNANCE_AUDIT.auditedSdkSurfaces).toContain('@openbox-ai/openbox-sdk/copilotkit');
   });
 });

@@ -1,5 +1,5 @@
 // Hand-curated DTOs (friendly names, stable surface); the primary exports.
-// `governance.ts` was deleted; the same types live in `openbox-sdk/core-client`
+// `governance.ts` was deleted; the same types live in `@openbox-ai/openbox-sdk/core-client`
 // (generated from specs/typespec/core/main.tsp).
 export * from './requests.js';
 export * from './responses.js';

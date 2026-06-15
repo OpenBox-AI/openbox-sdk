@@ -1,4 +1,4 @@
-// Public sub-path: `import { ... } from 'openbox-sdk/runtime/claude-code'`
+// Public sub-path: `import { ... } from '@openbox-ai/openbox-sdk/runtime/claude-code'`
 //
 // Two surfaces in this folder:
 //

@@ -6095,11 +6095,11 @@ var init_governance_matrix = __esm({
         "https://code.claude.com/docs/en/changelog"
       ],
       auditedSdkSurfaces: [
-        "openbox-sdk/runtime/claude-code",
-        "openbox-sdk/runtime/mcp",
-        "openbox-sdk/runtime/cursor",
-        "openbox-sdk/copilotkit",
-        "openbox-sdk/copilotkit/react",
+        "@openbox-ai/openbox-sdk/runtime/claude-code",
+        "@openbox-ai/openbox-sdk/runtime/mcp",
+        "@openbox-ai/openbox-sdk/runtime/cursor",
+        "@openbox-ai/openbox-sdk/copilotkit",
+        "@openbox-ai/openbox-sdk/copilotkit/react",
         "apps/extension",
         "skill",
         "example/n8n"

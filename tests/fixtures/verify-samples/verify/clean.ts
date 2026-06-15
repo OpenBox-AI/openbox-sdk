@@ -1,7 +1,7 @@
 // Regression fixture; an integration that does everything right.
 // Should produce ZERO findings from `openbox verify`.
 
-import { govern, type HttpTransport } from 'openbox-sdk';
+import { govern, type HttpTransport } from '@openbox-ai/openbox-sdk';
 
 // IDs resolved at runtime, never hardcoded.
 async function bootstrap(getTeamId: () => Promise<string>) {

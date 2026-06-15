@@ -11,7 +11,7 @@
 // so one toast renders regardless of source.
 
 import * as vscode from "vscode";
-import type { OpenBoxClient } from "openbox-sdk/client";
+import type { OpenBoxClient } from "@openbox-ai/openbox-sdk/client";
 import type { ApprovalStore } from "./approvalStore";
 import { sanitizeReason, eventLabel } from "./format";
 import { resolveApproval, type ResolvedApprovalEvent } from "./resolveApproval";

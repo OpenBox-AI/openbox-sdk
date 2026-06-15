@@ -1,4 +1,4 @@
-// Public surface of `openbox-sdk/core-client`. Re-exports are kept
+// Public surface of `@openbox-ai/openbox-sdk/core-client`. Re-exports are kept
 // explicit (no `export *`) so the file doubles as the inventory of
 // what's intended for consumers; adding a new preset to the spec
 // surfaces here as a one-line edit, not a silent leak.
@@ -112,5 +112,5 @@ export {
 
 // Spec-driven hook-protocol adapters live one folder out at
 // `runtime/claude-code/` and `runtime/cursor/`. Import them via the
-// public sub-paths `openbox-sdk/runtime/claude-code` /
-// `openbox-sdk/runtime/cursor`; NOT from `openbox-sdk/core-client`.
+// public sub-paths `@openbox-ai/openbox-sdk/runtime/claude-code` /
+// `@openbox-ai/openbox-sdk/runtime/cursor`; NOT from `@openbox-ai/openbox-sdk/core-client`.

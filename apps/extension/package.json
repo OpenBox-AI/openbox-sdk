@@ -493,7 +493,7 @@
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
     "esbuild": "^0.28.0",
-    "openbox-sdk": "file:../..",
+    "@openbox-ai/openbox-sdk": "file:../..",
     "typescript": "^5.0.0",
     "vitest": "^4.1.5"
   },

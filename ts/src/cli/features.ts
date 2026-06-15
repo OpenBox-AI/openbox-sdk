@@ -1,6 +1,6 @@
 // CLI integration over the public feature-flag gate. The pure query
 // functions (isFeatureEnabled, listFeatures + the FEATURE_MATURITY
-// registry) live in `openbox-sdk/maturity` so non-CLI consumers can
+// registry) live in `@openbox-ai/openbox-sdk/maturity` so non-CLI consumers can
 // gate their own experimental branches against the same spec.
 
 import {

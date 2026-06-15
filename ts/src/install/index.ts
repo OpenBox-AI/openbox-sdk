@@ -1,4 +1,4 @@
-// Public sub-path: `openbox-sdk/install`.
+// Public sub-path: `@openbox-ai/openbox-sdk/install`.
 //
 // Generic installer that consumes a host's spec-emitted
 // `HOOK_SPEC` (file path, JSON key, style, command, config

@@ -1,14 +1,14 @@
-import type { OpenBoxClient } from "openbox-sdk/client";
-import { validateApiKeyFormat } from "openbox-sdk/env";
+import type { OpenBoxClient } from "@openbox-ai/openbox-sdk/client";
+import { validateApiKeyFormat } from "@openbox-ai/openbox-sdk/env";
 import {
   loadApiKey as loadFileApiKey,
   saveApiKey as saveFileApiKey,
   clearApiKey as clearFileApiKey,
   hasApiKey as hasFileApiKey,
   readTokenStore,
-} from "openbox-sdk/file-tokens";
-import { createConsumerClient } from "openbox-sdk/client-factory";
-import { getConfig } from "openbox-sdk/config";
+} from "@openbox-ai/openbox-sdk/file-tokens";
+import { createConsumerClient } from "@openbox-ai/openbox-sdk/client-factory";
+import { getConfig } from "@openbox-ai/openbox-sdk/config";
 
 export const clearApiKey = clearFileApiKey;
 export const writeApiKey = saveFileApiKey;

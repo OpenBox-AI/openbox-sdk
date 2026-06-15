@@ -1,4 +1,4 @@
-// Public sub-path: `import { ... } from 'openbox-sdk/maturity'`.
+// Public sub-path: `import { ... } from '@openbox-ai/openbox-sdk/maturity'`.
 //
 // Optional maturity helpers. The lean CLI defaults active commands to
 // stable; generated tables are retained only for future explicitly

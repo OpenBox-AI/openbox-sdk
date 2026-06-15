@@ -200,7 +200,7 @@ declare const CLAUDE_CODE_GOVERNANCE_AUDIT: {
     readonly capturedAt: "2026-06-15";
     readonly installedClaudeCodeVersion: "2.1.177 (Claude Code)";
     readonly officialDocs: readonly ["https://code.claude.com/docs/en/hooks", "https://code.claude.com/docs/en/plugins-reference", "https://code.claude.com/docs/en/plugins", "https://code.claude.com/docs/en/mcp", "https://code.claude.com/docs/en/skills", "https://code.claude.com/docs/en/settings", "https://code.claude.com/docs/en/tools-reference", "https://code.claude.com/docs/en/channels", "https://code.claude.com/docs/en/changelog"];
-    readonly auditedSdkSurfaces: readonly ["openbox-sdk/runtime/claude-code", "openbox-sdk/runtime/mcp", "openbox-sdk/runtime/cursor", "openbox-sdk/copilotkit", "openbox-sdk/copilotkit/react", "apps/extension", "skill", "example/n8n"];
+    readonly auditedSdkSurfaces: readonly ["@openbox-ai/openbox-sdk/runtime/claude-code", "@openbox-ai/openbox-sdk/runtime/mcp", "@openbox-ai/openbox-sdk/runtime/cursor", "@openbox-ai/openbox-sdk/copilotkit", "@openbox-ai/openbox-sdk/copilotkit/react", "apps/extension", "skill", "example/n8n"];
 };
 declare const CLAUDE_CODE_HOOK_MATRIX: readonly ClaudeCodeHookMatrixEntry[];
 declare const CLAUDE_CODE_SURFACE_MATRIX: readonly ClaudeCodeSurfaceMatrixEntry[];

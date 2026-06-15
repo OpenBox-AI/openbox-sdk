@@ -1,6 +1,6 @@
 // Shared, platform-agnostic helpers for approvals.
 //
-//   import { formatLabel, summarizeInput, statusOf } from 'openbox-sdk/approvals';
+//   import { formatLabel, summarizeInput, statusOf } from '@openbox-ai/openbox-sdk/approvals';
 //
 // Rendering helpers are pure functions with no React, React Native,
 // Expo, VS Code, or other platform-runtime imports. Consumers

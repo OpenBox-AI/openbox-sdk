@@ -4,12 +4,12 @@
 //
 // When the user wants richer data (decided history, multi-page
 // pagination, the full state machine), promote mobile's
-// src/api/__mocks__/fixtures.ts into openbox-sdk/test-utils so both
+// src/api/__mocks__/fixtures.ts into @openbox-ai/openbox-sdk/test-utils so both
 // surfaces share one source. For now this is enough to demo the UI,
 // validate the gates' fail-open paths, and unblock contributors who
 // don't have a key minted.
 
-import type { Approval } from 'openbox-sdk/types';
+import type { Approval } from '@openbox-ai/openbox-sdk/types';
 
 const NOW = new Date();
 function isoOffset(minutes: number): string {

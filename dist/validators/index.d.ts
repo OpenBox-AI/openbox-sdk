@@ -55,7 +55,7 @@ declare function bailWith(code: ExitCode): never;
 
 /**
  * Setup-time validators. Public sub-path:
- *   `import { validateUuid, validateIsoDate, ... } from 'openbox-sdk/validators'`
+ *   `import { validateUuid, validateIsoDate, ... } from '@openbox-ai/openbox-sdk/validators'`
  *
  * Job: reject any input that the OpenBox design says is broken before
  * it hits the backend (where behavior is often silent or the error is

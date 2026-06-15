@@ -1,4 +1,4 @@
-# `openbox-sdk/approvals`
+# `@openbox-ai/openbox-sdk/approvals`
 
 Pure helpers for rendering approval rows across every consumer surface
 (mobile, web, IDE extensions, CLI). One canonical implementation per
@@ -16,7 +16,7 @@ helper; consumers drop their hand-rolled copies and import from here.
 | `filters`  | `FilterState`, `DateRangeKey`, `EMPTY_FILTERS`, `applyClientFilters`, `dateRangeBounds`, `hasActiveFilters`, `summarizeFilters` |
 
 Dev-only fixtures stay internal to repository tests and the explicit
-`openbox-sdk/test-utils` surface. The production approval helper
+`@openbox-ai/openbox-sdk/test-utils` surface. The production approval helper
 sub-path does not export mocks.
 
 ## What's not shared
@@ -34,7 +34,7 @@ These stay per-consumer because they require a platform runtime:
 ## Pinning behavior
 
 `formatLabel` looks up `CANONICAL_ACTIVITY_LABELS` (from
-`openbox-sdk/core-client`) first; the spec table is the single source
+`@openbox-ai/openbox-sdk/core-client`) first; the spec table is the single source
 of truth. The fallback handles free-form custom-preset activity types
 with two regex passes so acronyms like `MCPToolCall` render as
 `MCP Tool Call`, not `Mcptool Call`.
