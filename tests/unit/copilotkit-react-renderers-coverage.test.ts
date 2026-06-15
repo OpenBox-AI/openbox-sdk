@@ -145,7 +145,7 @@ describe('CopilotKit React renderer coverage', () => {
         demo: ({ artifact }) => ({
           type: 'artifact',
           props: { value: artifact.value },
-        }),
+        }) as any,
       },
     }) as MockElement;
 
