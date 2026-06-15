@@ -19,18 +19,44 @@ afterEach(() => {
 
 describe('governance/skip-patterns', () => {
   it('SKIP_PATTERNS hides editor + secret + dependency dirs', async () => {
-    const { SKIP_PATTERNS } = await import('../../ts/src/governance/skip-patterns');
+    const {
+      SKIP_PATTERNS,
+      isInsideAnyRoot,
+      isSensitivePath,
+      isSkipped,
+    } = await import('../../ts/src/governance/skip-patterns');
     const cases: [string, boolean][] = [
       ['/foo/.cursor/settings.json', true],
       ['/foo/.claude/anything', true],
+      ['/foo/mcps/server.json', true],
       ['/foo/node_modules/x.js', true],
       ['/foo/.git/HEAD', true],
+      ['/foo/INSTRUCTIONS.md', true],
+      ['/foo/SERVER_METADATA.json', true],
+      ['/foo/SKILL.md', true],
       ['/Users/me/source/main.ts', false],
     ];
     for (const [p, expected] of cases) {
       const matched = SKIP_PATTERNS.some((re) => re.test(p));
       expect(matched, `${p} → expected matched=${expected}`).toBe(expected);
+      expect(isSkipped(p)).toBe(expected);
     }
+    expect(isSensitivePath('/repo/.env')).toBe(true);
+    expect(isSensitivePath('/repo/.env.local')).toBe(true);
+    expect(isSensitivePath('/home/me/.ssh/id_ed25519')).toBe(true);
+    expect(isSensitivePath('/home/me/.ssh/id_ed25519.pub')).toBe(true);
+    expect(isSensitivePath('/repo/secrets.yaml')).toBe(true);
+    expect(isSensitivePath('/repo/token.txt')).toBe(true);
+    expect(isSensitivePath('/repo/.aws/credentials')).toBe(true);
+    expect(isSensitivePath('/home/me/.openbox/tokens')).toBe(true);
+    expect(isSensitivePath('/repo/src/index.ts')).toBe(false);
+
+    expect(isInsideAnyRoot(undefined, ['/repo'])).toBe(false);
+    expect(isInsideAnyRoot('/repo/file.ts', undefined)).toBe(false);
+    expect(isInsideAnyRoot('/repo/file.ts', [])).toBe(false);
+    expect(isInsideAnyRoot('src/index.ts', ['/repo'], '/repo')).toBe(true);
+    expect(isInsideAnyRoot('/repo', ['/repo'])).toBe(true);
+    expect(isInsideAnyRoot('/repo-other/file.ts', ['/repo'])).toBe(false);
   });
 });
 

@@ -16,6 +16,7 @@ import {
   resolveTheme,
   textValue,
 } from '../../ts/src/copilotkit/react-utils.ts';
+import { verdictFromResult } from '../../ts/src/copilotkit/react-governance-decision.ts';
 
 function withEnv<T>(
   values: Record<string, string | undefined>,
@@ -172,5 +173,47 @@ describe('CopilotKit pure utility coverage', () => {
     expect(asNode(1)).toBe(1);
     expect(asNode(null)).toBeUndefined();
     expect(asNode({})).toBeUndefined();
+  });
+
+  it('maps governance result verdicts for every UI branch', () => {
+    const scenario = {
+      action: 'demo_action',
+      title: 'Demo',
+      reason: 'Evaluate the action.',
+      capability: 'Runtime governance',
+      verdict: 'allow' as const,
+    };
+
+    expect(verdictFromResult({ status: 'approval_required' }, scenario)).toBe(
+      'approval',
+    );
+    expect(verdictFromResult({ status: 'rejected' }, scenario)).toBe('rejected');
+    expect(verdictFromResult({ status: 'error' }, scenario)).toBe('error');
+    expect(verdictFromResult({ verdict: 'error' }, scenario)).toBe('error');
+    expect(verdictFromResult({ status: 'halted' }, scenario)).toBe('halt');
+    expect(verdictFromResult({ verdict: 'halt' }, scenario)).toBe('halt');
+    expect(verdictFromResult({ status: 'constrained' }, scenario)).toBe(
+      'constrain',
+    );
+    expect(verdictFromResult({ verdict: 'constrain' }, scenario)).toBe(
+      'constrain',
+    );
+    expect(
+      verdictFromResult(
+        { status: 'executed', redactionSummary: 'OpenBox redacted field.' },
+        scenario,
+      ),
+    ).toBe('constrain');
+    expect(verdictFromResult({ status: 'executed' }, scenario)).toBe('allow');
+    expect(verdictFromResult({ verdict: 'allow' }, scenario)).toBe('allow');
+    expect(verdictFromResult({ status: 'blocked' }, scenario)).toBe('block');
+    expect(verdictFromResult({ status: 'approval_pending' }, scenario)).toBe(
+      'block',
+    );
+    expect(verdictFromResult({ verdict: 'block' }, scenario)).toBe('block');
+    expect(verdictFromResult({ verdict: 'require_approval' }, scenario)).toBe(
+      'approval',
+    );
+    expect(verdictFromResult({}, scenario)).toBe('reviewing');
   });
 });

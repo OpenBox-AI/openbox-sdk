@@ -33,13 +33,16 @@ import {
   baseResult,
   errorResult,
   executedResult,
+  isAllowed,
   mapGuardrailsResult,
+  mergedVerdictMetadata,
   normalizeArm,
   resultForAllowedVerdict,
   rejectedResult,
   safePayload,
   safePayloadToCopilotResult,
   stoppedResult,
+  verdictMetadata,
 } from '../../ts/src/copilotkit/results.ts';
 
 const ids = {
@@ -329,9 +332,48 @@ describe('copilotkit helper coverage', () => {
       status: 'error',
       message: expect.stringContaining('availability failure'),
     });
+    expect(
+      stoppedResult(input, ids, verdict({ arm: 'block', reason: '' })),
+    ).toMatchObject({
+      status: 'blocked',
+      verdict: 'block',
+      session: { status: 'active' },
+      reason: 'OpenBox stopped this action.',
+    });
+    expect(
+      stoppedResult(input, ids, verdict({ arm: 'halt', reason: '' })),
+    ).toMatchObject({
+      status: 'halted',
+      session: {
+        status: 'halted',
+        reason: 'OpenBox halted this conversation.',
+      },
+    });
     expect(errorResult(input, ids, new Error('business code failed'))).toMatchObject({
       status: 'error',
       message: expect.stringContaining('No business result'),
+    });
+    expect(verdictMetadata(undefined)).toEqual({
+      riskScore: undefined,
+      trustTier: undefined,
+      guardrailsResult: undefined,
+      redactionSummary: undefined,
+    });
+    expect(
+      mergedVerdictMetadata(
+        {
+          riskScore: 0.4,
+          trustTier: 'silver',
+          guardrailsResult: { inputType: 'activity_input' },
+          redactionSummary: 'existing',
+        } as any,
+        verdict({ arm: 'allow' }),
+      ),
+    ).toMatchObject({
+      riskScore: 0.4,
+      trustTier: 'silver',
+      guardrailsResult: { inputType: 'activity_input' },
+      redactionSummary: 'existing',
     });
   });
 
@@ -352,6 +394,44 @@ describe('copilotkit helper coverage', () => {
       status: 'halted',
       verdict: 'halt',
       artifact: undefined,
+    });
+    expect(
+      safePayload(
+        { ok: true },
+        { ok: true },
+        verdict({ arm: 'allow', reason: '' }),
+        ids,
+        false,
+      ),
+    ).toMatchObject({
+      status: 'executed',
+      rawBlocked: false,
+      reason: 'OpenBox allowed this CopilotKit runtime event.',
+      session: { status: 'active' },
+    });
+    expect(
+      safePayload(
+        { ok: true },
+        { ok: false },
+        verdict({ arm: 'allow', reason: '' }),
+        ids,
+        true,
+      ),
+    ).toMatchObject({
+      status: 'constrained',
+      changed: true,
+    });
+    expect(
+      safePayload(
+        { ok: false },
+        { ok: false },
+        verdict({ arm: 'require_approval', reason: '' }),
+        ids,
+        false,
+      ),
+    ).toMatchObject({
+      status: 'approval_required',
+      reason: 'OpenBox requires human approval.',
     });
 
     const unavailable = safePayload(
@@ -403,6 +483,10 @@ describe('copilotkit helper coverage', () => {
     expect(normalizeArm('continue')).toBe('allow');
     expect(normalizeArm('stop')).toBe('block');
     expect(normalizeArm('ask')).toBe('block');
+    expect(normalizeArm('halt')).toBe('halt');
+    expect(isAllowed('allow')).toBe(true);
+    expect(isAllowed('constrain')).toBe(true);
+    expect(isAllowed('block')).toBe(false);
     expect(shouldStopForGate({ rawBlocked: true } as any, 'enforce')).toBe(true);
     expect(shouldStopForGate({ rawBlocked: true } as any, 'observe')).toBe(false);
   });
@@ -453,6 +537,35 @@ describe('copilotkit helper coverage', () => {
       request: '[REDACTED]',
     });
     expect(started.summary).toContain('args.request');
+    expect(
+      applyStartedRedaction(
+        {
+          toolName: 'review_queue',
+          description: 'Review queue',
+        } as any,
+        input,
+        verdict({ arm: 'allow' }),
+      ),
+    ).toEqual({ input });
+    expect(
+      applyStartedRedaction(
+        {
+          toolName: 'review_queue',
+          description: 'Review queue',
+        } as any,
+        input,
+        verdict({
+          arm: 'allow',
+          guardrailsResult: {
+            inputType: 'activity_input',
+            redactedInput: { input: ['not-object'] },
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [{ field: 'args.request', status: 'redacted' }],
+          },
+        }),
+      ).input,
+    ).toBe(input);
     expect(
       applyOpenBoxTransform(
         { request: 'secret' },
@@ -512,6 +625,23 @@ describe('copilotkit helper coverage', () => {
     expect(visibleOnly).toMatchObject({
       status: 'constrained',
       verdict: 'constrain',
+    });
+    expect(
+      applyCompletedRedaction(
+        {
+          toolName: 'review_queue',
+          description: 'Review queue',
+          isArtifactRedacted: () => false,
+        } as any,
+        executedResult(input, ids, { body: 'plain' }, 'done'),
+        verdict({ arm: 'allow', riskScore: 0.2, trustTier: 1 }),
+      ),
+    ).toMatchObject({
+      status: 'executed',
+      verdict: 'allow',
+      riskScore: 0.2,
+      trustTier: 1,
+      artifact: { body: 'plain' },
     });
   });
 });
