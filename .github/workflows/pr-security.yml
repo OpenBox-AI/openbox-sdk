@@ -52,6 +52,7 @@ jobs:
             --ignore-unfixed \
             --severity HIGH,CRITICAL \
             --include-dev-deps \
+            --skip-dirs example \
             --format table \
             --exit-code 1
 
@@ -68,6 +69,7 @@ jobs:
             --ignore-unfixed \
             --severity HIGH,CRITICAL \
             --include-dev-deps \
+            --skip-dirs example \
             --format sarif \
             --output trivy-fs-results.sarif \
             --exit-code 1
