@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  createOpenBoxCopilotRuntime,
   createOpenBoxGovernedRunner,
   createOpenBoxRuntimeHooks,
   createGovernedCopilotTool,
   createOpenBoxCopilotKitAdapter,
   createOpenBoxApprovalRoute,
   createOpenBoxReadinessCheck,
+  OpenBoxCopilotKitError,
   type OpenBoxCopilotActionInput,
 } from '../../ts/src/copilotkit/index';
 import {
@@ -1236,6 +1238,99 @@ describe('CopilotKit OpenBox adapter', () => {
     ).toBe('blocked');
   });
 
+  it('runtime hooks no-op for routes, agents, disabled adapters, and malformed bodies', async () => {
+    const enabledAdapter = createOpenBoxCopilotKitAdapter({
+      core: createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }))
+        .core as any,
+    });
+    const hooks = createOpenBoxRuntimeHooks({
+      adapter: enabledAdapter,
+      agents: ['default'],
+    });
+    const request = new Request('http://localhost/api/copilotkit', {
+      method: 'POST',
+      body: JSON.stringify({ threadId: 'thread-1', messages: [] }),
+    });
+
+    await expect(
+      hooks.onBeforeHandler({
+        request,
+        path: '/api/copilotkit',
+        runtime: {},
+        route: { method: 'health' },
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      hooks.onBeforeHandler({
+        request,
+        path: '/api/copilotkit/agent/run/other',
+        runtime: {},
+        route: { method: 'agent/run', agentId: 'other' },
+      }),
+    ).resolves.toBeUndefined();
+
+    const disabledHooks = createOpenBoxRuntimeHooks({
+      adapter: createOpenBoxCopilotKitAdapter({ enabled: false }),
+    });
+    await expect(
+      disabledHooks.onBeforeHandler({
+        request,
+        path: '/api/copilotkit/agent/run/default',
+        runtime: {},
+        route: { method: 'agent/run', agentId: 'default' },
+      }),
+    ).resolves.toBeUndefined();
+
+    await expect(
+      hooks.onBeforeHandler({
+        request: new Request('http://localhost/api/copilotkit/agent/run/default', {
+          method: 'POST',
+          body: '{not-json',
+        }),
+        path: '/api/copilotkit/agent/run/default',
+        runtime: {},
+        route: { method: 'agent/run', agentId: 'default' },
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      hooks.onResponse({
+        request,
+        response: new Response('ok'),
+        path: '/api/copilotkit/agent/run/default',
+        runtime: {},
+        route: { method: 'agent/run', agentId: 'default' },
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('runtime error hook maps OpenBox errors to JSON and ignores ordinary errors', async () => {
+    const hooks = createOpenBoxRuntimeHooks({
+      adapter: createOpenBoxCopilotKitAdapter({ enabled: false }),
+    });
+    const request = new Request('http://localhost/api/copilotkit/agent/run/default');
+
+    const response = await hooks.onError({
+      request,
+      path: '/api/copilotkit/agent/run/default',
+      runtime: {},
+      route: { method: 'agent/run', agentId: 'default' },
+      error: new OpenBoxCopilotKitError('runtime missing'),
+    });
+
+    expect(response?.status).toBe(500);
+    expect(response?.headers.get('content-type')).toContain('application/json');
+    expect(await response?.json()).toEqual({ error: 'runtime missing' });
+    await expect(
+      hooks.onError({
+        request,
+        path: '/api/copilotkit/agent/run/default',
+        runtime: {},
+        route: { method: 'agent/run', agentId: 'default' },
+        error: new Error('plain error'),
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   it('continues when a runtime workflow start is already persisted', async () => {
     const events: GovernanceEventPayload[] = [];
     const adapter = createOpenBoxCopilotKitAdapter({
@@ -2105,6 +2200,35 @@ describe('CopilotKit OpenBox adapter', () => {
     );
   });
 
+  it('wraps CopilotKit runtimes with a governed runner and keeps runtime properties', () => {
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }))
+        .core as any,
+    });
+    const baseRunner = createFakeRunner([]);
+    const baseRuntime = { runner: baseRunner, name: 'runtime-1' };
+
+    const wrapped = createOpenBoxCopilotRuntime({
+      runtime: baseRuntime,
+      adapter,
+    });
+
+    expect(wrapped.runtime).not.toBe(baseRuntime);
+    expect(wrapped.runtime.name).toBe('runtime-1');
+    expect(wrapped.runtime.runner).toBe(wrapped.runner);
+    expect(wrapped.runner).not.toBe(baseRunner);
+    expect(wrapped.hooks).toHaveProperty('onBeforeHandler');
+  });
+
+  it('requires a runner before creating a governed CopilotKit runtime', () => {
+    expect(() =>
+      createOpenBoxCopilotRuntime({
+        runtime: {},
+        adapter: createOpenBoxCopilotKitAdapter({ enabled: false }),
+      }),
+    ).toThrow('CopilotKit runtime runner is required');
+  });
+
   it('bypasses governance only for explicitly mismatched agent ids', async () => {
     const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
     const baseRunner = createFakeRunner([
@@ -2131,6 +2255,46 @@ describe('CopilotKit OpenBox adapter', () => {
 
     expect(mock.events).toHaveLength(0);
     expect(baseRunner.run).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses agent object identifiers and function subscribers for governed runs', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+      agents: ['named-agent'],
+      sessionKey: (input) => `custom:${input.threadId}`,
+    });
+
+    const events = await new Promise<unknown[]>((resolve, reject) => {
+      const received: unknown[] = [];
+      runner.run({
+        threadId: 'thread-1',
+        agent: { name: 'named-agent' },
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+        },
+      }).subscribe(
+        (event: unknown) => received.push(event),
+        reject,
+        () => resolve(received),
+      );
+    });
+
+    expect(events.map((event: any) => event.type)).toEqual([
+      'RUN_STARTED',
+      'RUN_FINISHED',
+    ]);
+    expect(baseRunner.run).toHaveBeenCalledTimes(1);
+    expect(mock.events.map((event) => event.event_type)).toContain(
+      'WorkflowStarted',
+    );
+    expect(mock.events[0].workflow_id).toEqual(expect.any(String));
   });
 
   it('middleware opens one owned workflow lazily and closes it when state drops the IDs', async () => {

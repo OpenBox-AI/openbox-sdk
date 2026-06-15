@@ -1,0 +1,452 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+      - "*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish, such as v0.2.0 or 0.2.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-npm-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+  GITLEAKS_VERSION: "8.30.0"
+
+jobs:
+  release-governance:
+    name: Release Governance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "value=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.value }}
+          fetch-depth: 0
+
+      - name: Validate release tag format
+        env:
+          TAG_NAME: ${{ steps.tag.outputs.value }}
+        run: |
+          pattern='^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
+          if [[ ! "${TAG_NAME}" =~ ${pattern} ]]; then
+            echo "Invalid release tag: ${TAG_NAME}"
+            echo "Expected semver format, for example: v1.2.3, 1.2.3, or v1.2.3-alpha.1"
+            exit 1
+          fi
+
+      - name: Check governance files
+        shell: bash
+        run: |
+          required_files=(
+            "SECURITY.md"
+            "LICENSE"
+            "package.json"
+            "package-lock.json"
+          )
+          recommended_files=(
+            ".github/CODEOWNERS"
+            ".gitleaks.toml"
+          )
+
+          for file in "${required_files[@]}"; do
+            if [[ ! -f "${file}" ]]; then
+              echo "::error::Required release file is missing: ${file}"
+              exit 1
+            fi
+          done
+
+          missing_recommended=0
+          for file in "${recommended_files[@]}"; do
+            if [[ ! -f "${file}" ]]; then
+              echo "::warning::Recommended governance file is missing: ${file}"
+              missing_recommended=1
+            fi
+          done
+
+          if [[ "${missing_recommended}" -eq 1 ]]; then
+            echo "Governance file checks completed with warnings."
+          fi
+
+      - name: Verify CODEOWNERS coverage for protected files
+        if: ${{ hashFiles('.github/CODEOWNERS') != '' }}
+        shell: bash
+        run: |
+          declare -a required_patterns=(
+            "/.github/workflows/"
+            "/.github/CODEOWNERS"
+            "/.gitleaks.toml"
+            "/SECURITY.md"
+          )
+          for pattern in "${required_patterns[@]}"; do
+            if ! awk '!/^#/ && NF >= 2 {print $1}' .github/CODEOWNERS | grep -Fxq "${pattern}"; then
+              echo "Missing CODEOWNERS entry: ${pattern}"
+              exit 1
+            fi
+          done
+
+  release-quality:
+    name: Release Quality
+    runs-on: ubuntu-latest
+    needs:
+      - release-governance
+
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "value=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.value }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Generate specs and types
+        run: npm run specs:all
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run tests with coverage
+        run: npm run test:coverage -- --coverage.reporter=lcov
+
+      - name: Lint generated banners
+        run: npm run lint:generated-banners
+
+      - name: Check generated drift
+        run: npm run check:generated-drift
+
+      - name: Build package
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-coverage
+          path: coverage/
+          if-no-files-found: error
+
+      - name: Pack npm tarball
+        run: npm pack --json > npm-pack.json
+
+      - name: Upload npm package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-npm-package
+          path: |
+            *.tgz
+            npm-pack.json
+          if-no-files-found: error
+
+  release-security:
+    name: Release Security
+    runs-on: ubuntu-latest
+    needs:
+      - release-governance
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "value=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.value }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Audit npm dependencies
+        run: npm audit --audit-level=high
+
+      - name: Set up Trivy
+        uses: aquasecurity/setup-trivy@e07451d2e059ed86c2870430ea286b3a9e0bf241
+        with:
+          cache: true
+          version: v0.69.2
+
+      - name: Run Trivy filesystem scan for console output
+        id: trivy_console
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          trivy fs . \
+            --scanners vuln,misconfig \
+            --vuln-type os,library \
+            --ignore-unfixed \
+            --severity HIGH,CRITICAL \
+            --include-dev-deps \
+            --skip-dirs example \
+            --format table \
+            --exit-code 1
+
+      - name: Run Trivy filesystem scan for SARIF
+        id: trivy_sarif
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          trivy fs . \
+            --scanners vuln,misconfig \
+            --vuln-type os,library \
+            --ignore-unfixed \
+            --severity HIGH,CRITICAL \
+            --include-dev-deps \
+            --skip-dirs example \
+            --format sarif \
+            --output trivy-release-results.sarif \
+            --exit-code 1
+
+      - name: Upload Trivy SARIF to GitHub Security
+        if: always()
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-release-results.sarif
+          category: trivy-release
+
+      - name: Upload Trivy SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-release-results
+          path: trivy-release-results.sarif
+          if-no-files-found: error
+
+      - name: Run Gitleaks SARIF scan with config
+        id: gitleaks_scan_with_config
+        if: hashFiles('.gitleaks.toml') != ''
+        continue-on-error: true
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_VERSION: ${{ env.GITLEAKS_VERSION }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+      - name: Run Gitleaks SARIF scan
+        id: gitleaks_scan
+        if: hashFiles('.gitleaks.toml') == ''
+        continue-on-error: true
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          GITLEAKS_VERSION: ${{ env.GITLEAKS_VERSION }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+      - name: Upload Gitleaks SARIF to GitHub Security
+        if: always() && hashFiles('results.sarif') != ''
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif
+          category: gitleaks-release
+
+      - name: Upload Gitleaks SARIF artifact
+        if: always() && hashFiles('results.sarif') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-release-results
+          path: results.sarif
+          if-no-files-found: error
+
+      - name: Fail job when Trivy detects issues
+        if: always()
+        shell: bash
+        run: |
+          if [[ "${{ steps.trivy_console.outcome }}" == "failure" || "${{ steps.trivy_sarif.outcome }}" == "failure" ]]; then
+            echo "Trivy detected HIGH/CRITICAL findings."
+            exit 1
+          fi
+
+      - name: Fail job when Gitleaks detects issues
+        if: always()
+        shell: bash
+        run: |
+          if [[ "${{ steps.gitleaks_scan.outcome }}" == "failure" || "${{ steps.gitleaks_scan_with_config.outcome }}" == "failure" ]]; then
+            echo "Gitleaks detected potential secrets."
+            exit 1
+          fi
+
+  release-sonarqube:
+    name: Release SonarQube
+    runs-on: ubuntu-latest
+    needs:
+      - release-quality
+      - release-security
+
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "value=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Skip when SonarQube secrets are not configured
+        if: ${{ env.SONAR_TOKEN == '' || env.SONAR_HOST_URL == '' }}
+        run: echo "Skipping SonarQube because SONAR_TOKEN or SONAR_HOST_URL is not configured."
+
+      - name: Checkout repository
+        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.value }}
+          fetch-depth: 0
+
+      - name: Download coverage report
+        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: release-coverage
+          path: coverage
+
+      - name: Download Trivy SARIF artifact
+        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: trivy-release-results
+          path: security-artifacts/trivy
+
+      - name: Set up Java
+        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache SonarQube packages
+        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: SonarQube scan
+        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=openbox-sdk
+            -Dsonar.projectName=openbox-sdk
+            -Dsonar.sources=ts/src
+            -Dsonar.tests=tests
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.sarifReportPaths=security-artifacts/trivy/trivy-release-results.sarif
+            -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.exclusions=dist/**,coverage/**,specs/generated/**,ts/src/**/generated/**,codegen/**/dist/**,apps/**/dist/**
+
+  publish:
+    name: Build and Publish
+    runs-on: ubuntu-latest
+    environment: npm
+    needs:
+      - release-governance
+      - release-quality
+      - release-security
+      - release-sonarqube
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "value=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.value }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download npm package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-npm-package
+          path: dist-pack
+
+      - name: Verify version matches tag
+        env:
+          TAG_VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          pkg_version="$(node -p "require('./package.json').version")"
+          if [ "${TAG_VERSION}" != "${pkg_version}" ]; then
+            echo "Error: Tag version (${TAG_VERSION}) does not match package version (${pkg_version})"
+            exit 1
+          fi
+          echo "Version verified: ${pkg_version}"
+
+      - name: Publish to npm with trusted publishing
+        run: npm publish dist-pack/*.tgz --access public --provenance

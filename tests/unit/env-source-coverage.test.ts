@@ -19,7 +19,7 @@ describe('cli/env-source', () => {
     process.env.OPENBOX_HOME = home;
     delete process.env.OPENBOX_DEBUG;
     try {
-      const { setConfig } = await import('../../ts/src/config/store.ts');
+      const { setConfig, unsetConfig } = await import('../../ts/src/config/store.ts');
       const { applyEnvSource, isDebugMode } = await import('../../ts/src/cli/env-source.ts');
 
       setConfig('OPENBOX_DEBUG', 'yes');
@@ -31,6 +31,10 @@ describe('cli/env-source', () => {
       expect(isDebugMode()).toBe(true);
 
       process.env.OPENBOX_DEBUG = '0';
+      expect(isDebugMode()).toBe(false);
+
+      unsetConfig('OPENBOX_DEBUG');
+      delete process.env.OPENBOX_DEBUG;
       expect(isDebugMode()).toBe(false);
     } finally {
       rmSync(home, { recursive: true, force: true });

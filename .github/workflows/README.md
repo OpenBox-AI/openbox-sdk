@@ -3,7 +3,11 @@
 | Workflow | Triggers | Purpose |
 |---|---|---|
 | `codegen.yml` | push to `main`, PR to `main`, `workflow_dispatch` | TypeSpec compile and emitter snapshots, codegen-drift assertion, Spectral lint, breaking-change diff |
-| `test.yml` | `workflow_dispatch` only | Vitest unit and e2e suite. Push and PR triggers are commented out until the e2e harness is hardened |
+| `publish.yml` | semver tag push, `workflow_dispatch` | Release governance, quality, security, optional SonarQube, npm packing, and npm publish |
+| `pr-governance.yml` | push to `main`, PR to `main`, `workflow_dispatch` | Branch, PR title, optional commit convention, and sensitive path ownership checks |
+| `pr-quality.yml` | push to `main`, PR to `main`, `workflow_dispatch` | npm install, spec/type generation, lint, typecheck, coverage tests, build, optional Codecov and SonarQube |
+| `pr-security.yml` | push to `main`, PR to `main`, `workflow_dispatch` | Trivy filesystem scan and Gitleaks secret scan with SARIF artifacts |
+| `test.yml` | push to `main`, PR to `main`, `workflow_dispatch` | TypeScript compile, lint, generated spec/type checks, Vitest unit, contract, and hook integration tests |
 | `spec-drift.yml` | `workflow_dispatch` only | Reports drift between this repo's TypeSpec and the live deployments plus the upstream service repositories. PR and scheduled triggers are commented out until the secrets and first run validate clean |
 | `release-branch.yml` | `workflow_dispatch` only | Builds and creates a `release-v*` branch with committed `dist/` so consumers can `github:.../#release-v*` install without running `prepare`. Tag-push trigger is commented out until consumers verify the new SDK |
 
@@ -11,7 +15,10 @@
 
 | Secret | Used by | Notes |
 |---|---|---|
+| `CODECOV_TOKEN` | `pr-quality.yml` | Optional token for Codecov coverage uploads |
 | `OPENBOX_STAGING_API_URL` | `spec-drift.yml`, staging tier | Backend staging base URL. Read by CI only; not shipped in SDK code |
+| `SONAR_HOST_URL` | `pr-quality.yml`, `publish.yml` | Optional SonarQube server URL |
+| `SONAR_TOKEN` | `pr-quality.yml`, `publish.yml` | Optional token for SonarQube analysis |
 | `UPSTREAM_REPO_TOKEN` | `spec-drift.yml`, develop and main tiers | PAT with `repo:read` scope for `gh api` calls into the upstream service repositories. Read-only by intent. The workflow never pushes or comments on those repos |
 
 If any secret is unset, the matching tier emits a "skipped" report

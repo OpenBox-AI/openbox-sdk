@@ -4,10 +4,21 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { loadDotenv, loadJsonConfig } from '../../ts/src/config/host-config.ts';
+import {
+  applyConfigToProcessEnv,
+  configStorePath,
+  effectiveScope,
+  getConfig,
+  listConfig,
+  setConfig,
+  unsetConfig,
+} from '../../ts/src/config/store.ts';
 import { MAX_BYTES, makeHookLog, tailHookLog } from '../../ts/src/logging/hook-log.ts';
 
 const temps: string[] = [];
 const oldOpenboxHome = process.env.OPENBOX_HOME;
+const oldOpenboxApiKey = process.env.OPENBOX_API_KEY;
+const oldOpenboxCoreUrl = process.env.OPENBOX_CORE_URL;
 
 function tempRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), 'openbox-log-config-'));
@@ -19,6 +30,10 @@ afterEach(() => {
   vi.useRealTimers();
   if (oldOpenboxHome === undefined) delete process.env.OPENBOX_HOME;
   else process.env.OPENBOX_HOME = oldOpenboxHome;
+  if (oldOpenboxApiKey === undefined) delete process.env.OPENBOX_API_KEY;
+  else process.env.OPENBOX_API_KEY = oldOpenboxApiKey;
+  if (oldOpenboxCoreUrl === undefined) delete process.env.OPENBOX_CORE_URL;
+  else process.env.OPENBOX_CORE_URL = oldOpenboxCoreUrl;
   for (const dir of temps.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -96,5 +111,55 @@ describe('host config readers', () => {
       OPENBOX_CORE_URL: 'http://localhost:8086',
     });
     expect(loadDotenv(join(root, 'missing.env'))).toEqual({});
+  });
+});
+
+describe('config store', () => {
+  it('creates the global config file, ignores malformed lines, and preserves env precedence', () => {
+    const root = tempRoot();
+    process.env.OPENBOX_HOME = root;
+    const path = configStorePath();
+
+    expect(effectiveScope('global', 'OPENBOX_API_KEY')).toBe('global');
+    expect(listConfig()).toEqual({});
+    expect(setConfig('OPENBOX_API_KEY', 'from-store')).toEqual({
+      scope: 'global',
+      purged: 0,
+    });
+    expect(setConfig('OPENBOX_CORE_URL', 'http://127.0.0.1:8086')).toEqual({
+      scope: 'global',
+      purged: 0,
+    });
+    expect(readFileSync(path, 'utf-8')).toContain('OPENBOX_API_KEY=from-store');
+    expect(getConfig('OPENBOX_CORE_URL')).toBe('http://127.0.0.1:8086');
+
+    appendFileSync(path, [
+      '# comment',
+      '',
+      'bad-line',
+      'legacy.scope=value',
+      ' OPENBOX_EXTRA = kept ',
+      '',
+    ].join('\n'));
+    expect(listConfig()).toMatchObject({
+      OPENBOX_API_KEY: 'from-store',
+      OPENBOX_CORE_URL: 'http://127.0.0.1:8086',
+      OPENBOX_EXTRA: 'kept',
+    });
+
+    process.env.OPENBOX_API_KEY = 'from-env';
+    delete process.env.OPENBOX_CORE_URL;
+    applyConfigToProcessEnv();
+    expect(process.env.OPENBOX_API_KEY).toBe('from-env');
+    expect(process.env.OPENBOX_CORE_URL).toBe('http://127.0.0.1:8086');
+    expect(unsetConfig('OPENBOX_EXTRA')).toEqual({
+      scope: 'global',
+      removed: true,
+    });
+    expect(unsetConfig('MISSING')).toEqual({
+      scope: 'global',
+      removed: false,
+    });
+    expect(() => setConfig('', 'bad')).toThrow('config key cannot be empty');
   });
 });
