@@ -1,0 +1,9 @@
+[
+  {
+    "name": "openbox-status",
+    "command": "openbox status --json",
+    "description": "OpenBox runtime status and approval readiness notifications.",
+    "when": "on-skill-invoke:openbox",
+    "activeByDefault": false
+  }
+]
