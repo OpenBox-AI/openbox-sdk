@@ -1,0 +1,192 @@
+name: PR Quality
+
+on:
+  pull_request:
+    branches: [main, feat/workflow]
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+  push:
+    branches: [main, feat/workflow]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Generate specs and types
+        run: npm run specs:all
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run tests with coverage
+        id: tests
+        continue-on-error: true
+        run: npm run test:coverage -- --coverage.reporter=lcov
+
+      - name: Upload coverage report
+        if: ${{ always() && hashFiles('coverage/**') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: error
+
+      - name: Upload coverage to Codecov
+        if: ${{ always() && env.CODECOV_TOKEN != '' && hashFiles('coverage/lcov.info') != '' }}
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: pr-quality
+          fail_ci_if_error: true
+          verbose: true
+          token: ${{ env.CODECOV_TOKEN }}
+
+      - name: Fail job if tests failed
+        if: ${{ always() && steps.tests.outcome == 'failure' }}
+        run: exit 1
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs:
+      - test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Build package
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-dist
+          path: dist/
+          if-no-files-found: error
+
+  sonarqube:
+    name: SonarQube
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs:
+      - test
+
+    steps:
+      - name: Skip when SonarQube secrets are not configured
+        if: ${{ env.SONAR_TOKEN == '' || env.SONAR_HOST_URL == '' }}
+        run: echo "Skipping SonarQube because SONAR_TOKEN or SONAR_HOST_URL is not configured."
+
+      - name: Checkout repository
+        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage report
+        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage
+          path: coverage
+
+      - name: Set up Java
+        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache SonarQube packages
+        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: SonarQube scan with coverage
+        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' && hashFiles('coverage/lcov.info') != '' }}
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=openbox-sdk
+            -Dsonar.projectName=openbox-sdk
+            -Dsonar.sources=ts/src
+            -Dsonar.tests=tests
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.exclusions=dist/**,coverage/**,specs/generated/**,ts/src/**/generated/**,codegen/**/dist/**,apps/**/dist/**
+
+      - name: SonarQube scan without coverage
+        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' && hashFiles('coverage/lcov.info') == '' }}
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=openbox-sdk
+            -Dsonar.projectName=openbox-sdk
+            -Dsonar.sources=ts/src
+            -Dsonar.tests=tests
+            -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.exclusions=dist/**,coverage/**,specs/generated/**,ts/src/**/generated/**,codegen/**/dist/**,apps/**/dist/**
