@@ -346,7 +346,7 @@ function pipelineSpan(
   payload: unknown,
 ): SpanData {
   const now = Date.now();
-  return {
+  const span = {
     span_id: randomBytes(8).toString('hex'),
     trace_id: randomBytes(16).toString('hex'),
     name: activityType,
@@ -361,4 +361,55 @@ function pipelineSpan(
     },
     data: payload,
   } as SpanData;
+  if (kind !== 'assistant_output') return span;
+
+  const assistantContent = assistantContentFromPayload(payload);
+  if (!assistantContent) return span;
+  return {
+    ...span,
+    name: 'openbox.copilotkit.assistant_output',
+    semantic_type: 'llm_completion',
+    response_body: JSON.stringify({
+      choices: [{ message: { content: assistantContent } }],
+    }),
+  } as SpanData;
+}
+
+function assistantContentFromPayload(payload: unknown): string | undefined {
+  if (typeof payload === 'string') return payload;
+  if (!payload || typeof payload !== 'object') return undefined;
+  const record = payload as Record<string, unknown>;
+  for (const key of ['content', 'text', 'summary', 'body']) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  const message = record.message;
+  if (message && typeof message === 'object') {
+    const content = (message as Record<string, unknown>).content;
+    if (typeof content === 'string' && content.trim()) return content;
+  }
+  if (Array.isArray(record.messages)) {
+    const latestAssistant = [...record.messages]
+      .reverse()
+      .find(
+        (message): message is Record<string, unknown> =>
+          Boolean(message) &&
+          typeof message === 'object' &&
+          ['assistant', 'ai'].includes(
+            String(
+              (message as Record<string, unknown>).role ??
+                (message as Record<string, unknown>).type ??
+                '',
+            ),
+          ) &&
+          typeof (message as Record<string, unknown>).content === 'string',
+      );
+    if (
+      typeof latestAssistant?.content === 'string' &&
+      latestAssistant.content.trim()
+    ) {
+      return latestAssistant.content;
+    }
+  }
+  return undefined;
 }

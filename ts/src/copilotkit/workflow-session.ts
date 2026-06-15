@@ -258,7 +258,8 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
   stage: 'started' | 'completed',
 ): SpanData {
   const now = Date.now();
-  return {
+  const profile = definition.spanProfile?.(input, stage);
+  const base = {
     span_id: randomBytes(8).toString('hex'),
     trace_id: randomBytes(16).toString('hex'),
     name: definition.toolName,
@@ -273,6 +274,16 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
       'tool.name': definition.toolName,
     },
     data: input,
+  } as SpanData;
+  if (!profile) return base;
+  return {
+    ...base,
+    ...profile,
+    attributes: {
+      ...base.attributes,
+      ...(profile.attributes ?? {}),
+    },
+    data: profile.data ?? base.data,
   } as SpanData;
 }
 

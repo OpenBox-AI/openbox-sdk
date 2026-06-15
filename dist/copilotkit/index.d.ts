@@ -1,5 +1,271 @@
-import { W as WorkflowVerdict, O as OpenBoxCoreClient, i as AgentIdentityConfig } from '../govern-CX11GBkl.js';
-import '../core-types-Dxgkbox0.js';
+type Verdict = "allow" | "constrain" | "require_approval" | "block" | "halt";
+type LegacyAction = "allow" | "constrain" | "require_approval" | "block" | "halt" | "continue" | "stop";
+type EventType = "WorkflowStarted" | "WorkflowCompleted" | "WorkflowFailed" | "ActivityStarted" | "ActivityCompleted" | "SignalReceived";
+interface GovernanceEventPayload {
+    source: string;
+    event_type: EventType;
+    workflow_id: string;
+    run_id: string;
+    workflow_type: string;
+    task_queue: "langgraph" | "temporal" | "mastra" | "claude-code" | "cursor" | "generic";
+    timestamp: string;
+    sdk_version?: string;
+    parent_workflow_id?: string;
+    status?: "completed" | "failed" | "cancelled" | "terminated";
+    activity_id?: string;
+    activity_type?: string;
+    attempt?: number;
+    activity_input?: unknown[] | {};
+    activity_output?: unknown;
+    signal_name?: string;
+    signal_args?: unknown;
+    start_time?: number;
+    end_time?: number;
+    duration_ms?: number;
+    span_count?: number;
+    spans?: SpanData[];
+    hook_trigger?: boolean;
+    error?: ErrorInfo;
+}
+interface SpanData {
+    span_id: string;
+    trace_id: string;
+    parent_span_id?: string;
+    name: string;
+    kind?: string;
+    start_time: number;
+    end_time: number;
+    duration_ns?: number;
+    attributes?: Record<string, unknown>;
+    status?: SpanStatus;
+    events?: SpanEvent[];
+    request_headers?: Record<string, string>;
+    response_headers?: Record<string, string>;
+    request_body?: string;
+    response_body?: string;
+    semantic_type?: string;
+    stage?: "started" | "completed";
+    data?: unknown;
+    hook_type?: "http_request" | "db_query" | "file_operation" | "function_call";
+    attribute_key_identifiers?: string[];
+    error?: string;
+    http_method?: string;
+    http_url?: string;
+    http_status_code?: number;
+    db_system?: string;
+    db_name?: string;
+    db_operation?: string;
+    db_statement?: string;
+    server_address?: string;
+    server_port?: number;
+    rowcount?: number;
+    file_path?: string;
+    file_mode?: string;
+    file_operation?: string;
+    bytes_read?: number;
+    bytes_written?: number;
+    lines_count?: number;
+    function?: string;
+    module?: string;
+    args?: unknown;
+    result?: unknown;
+}
+interface SpanStatus {
+    code: "OK" | "ERROR" | "UNSET";
+    description?: string;
+}
+interface SpanEvent {
+    name: string;
+    timestamp: number;
+    attributes: Record<string, unknown>;
+}
+interface ErrorInfo {
+    type: string;
+    message: string;
+    stack_trace?: string;
+    cause?: ErrorInfo;
+    error_type?: string;
+    non_retryable?: boolean;
+}
+interface GovernanceVerdictResponse {
+    governance_event_id: string;
+    verdict: Verdict;
+    risk_score: number;
+    action: LegacyAction;
+    trust_tier?: number;
+    behavioral_violations?: string[];
+    approval_id?: string;
+    constraints?: string[];
+    approval_expiration_time?: string;
+    fallback_used: boolean;
+    reason?: string;
+    policy_id?: string;
+    metadata?: Record<string, unknown>;
+    guardrails_result?: GuardrailsResult;
+    age_result?: AGEResult;
+}
+interface GuardrailsResult {
+    input_type: "activity_input" | "activity_output";
+    redacted_input: unknown;
+    raw_logs: Record<string, unknown>;
+    validation_passed: boolean;
+    reasons: GuardrailReason[];
+    results: GuardrailsVerdictResult[];
+}
+interface GuardrailReason {
+    type: string;
+    field: string;
+    reason: string;
+}
+interface GuardrailsVerdictResult {
+    guardrail_type: string;
+    results: GuardrailFieldResult[];
+}
+interface GuardrailFieldResult {
+    field: string;
+    order: number;
+    status: "allowed" | "blocked" | "redacted" | "skipped";
+    reason?: string;
+}
+interface AGEResult {
+    allowed: boolean;
+    verdict: Verdict;
+    reason?: string;
+    goal_alignment_checked: boolean;
+    goal_drifted: boolean;
+    fallback_used: boolean;
+    final_trust_score?: AGETrustScore;
+    span_results: AGESpanResult[];
+    total_spans: number;
+    violations_count: number;
+    response_time_ms: number;
+}
+interface AGETrustScore {
+    trust_score: number;
+    trust_tier: number;
+    behavioral_compliance: number;
+    alignment_consistency: number;
+    aivss_baseline: number;
+}
+interface AGESpanResult {
+    span_id: string;
+    semantic_type: string;
+    behavioral_result: unknown;
+    alignment_result?: AGEAlignmentResult;
+    trust_score_after?: AGETrustScore;
+    timestamp: string;
+}
+interface AGEAlignmentResult {
+    is_aligned: boolean;
+    score: number;
+}
+interface ApprovalStatusRequest {
+    workflow_id: string;
+    run_id: string;
+    activity_id: string;
+}
+interface ApprovalStatusResponse {
+    id: string;
+    action: LegacyAction;
+    reason?: string;
+    approval_expiration_time?: string;
+}
+
+interface CoreClientConfig {
+    /** Base URL of the Core API. Defaults to OPENBOX_CORE_URL. */
+    apiUrl?: string;
+    /** Agent API key (obx_live_* or obx_test_*) */
+    apiKey: string;
+    /**
+     * Optional one-time agent identity returned by Backend `createAgent`
+     * / identity rotation. Core requires these signed DID headers when
+     * the agent has `signing_required=true`.
+     */
+    agentIdentity?: AgentIdentityConfig;
+    /** Request timeout in milliseconds. Default: 35000.
+     *  Sits slightly above core's 30s WorkflowExecutionTimeout so when a
+     *  workflow hits the server-side deadline, the client waits long
+     *  enough to receive the 500 + actual error message instead of
+     *  AbortController-cancelling first and surfacing an opaque
+     *  "operation aborted". 5s margin covers handler+marshal overhead. */
+    timeoutMs?: number;
+    /** Retry configuration */
+    retry?: {
+        maxRetries?: number;
+        initialDelayMs?: number;
+        maxDelayMs?: number;
+    };
+    /** Client-side rate limiting */
+    rateLimit?: {
+        requestsPerSecond: number;
+        burst?: number;
+    };
+}
+interface AgentIdentityConfig {
+    did: string;
+    /** Raw Ed25519 private key bytes, base64 encoded. */
+    privateKey: string;
+}
+declare class OpenBoxCoreClient {
+    private baseUrl;
+    private config;
+    private rateLimiter;
+    constructor(config: CoreClientConfig);
+    /**
+     * Dynamic operation request used by compact API-first tooling.
+     * Generated methods remain the preferred typed surface; this method
+     * exists for operationId-driven callers that already resolved a
+     * generated endpoint manifest entry.
+     */
+    requestOperation(method: string, path: string, options?: {
+        params?: Record<string, unknown>;
+        data?: unknown;
+    }): Promise<unknown>;
+    health(): Promise<string>;
+    validateApiKey(): Promise<unknown>;
+    evaluate(payload: GovernanceEventPayload): Promise<GovernanceVerdictResponse>;
+    pollApproval(request: ApprovalStatusRequest): Promise<ApprovalStatusResponse>;
+    private static readonly RETRYABLE_STATUSES;
+    private request;
+    /** Single-attempt fetch with the same per-request abort/timeout shape
+     *  as one iteration of executeWithRetry. Used by endpoints that opt
+     *  out of retries (evaluate). Network errors / timeouts surface as
+     *  exceptions for reportAndExit; HTTP 5xx come back as Response so
+     *  the caller can wrap them as CoreApiError. */
+    private executeOnce;
+    private executeWithRetry;
+    private calculateBackoff;
+}
+
+type VerdictArm = "allow" | "constrain" | "require_approval" | "block" | "halt";
+interface GuardrailFieldVerdict {
+    field: string;
+    status: "allowed" | "blocked" | "redacted" | "skipped";
+    reason?: string;
+}
+interface GuardrailReasonRef {
+    type: string;
+    field?: string;
+    reason: string;
+}
+interface GuardrailsVerdict {
+    inputType: "activity_input" | "activity_output";
+    redactedInput?: unknown;
+    validationPassed: boolean;
+    reasons: GuardrailReasonRef[];
+    fieldResults: GuardrailFieldVerdict[];
+}
+interface WorkflowVerdict {
+    arm: VerdictArm;
+    approvalId?: string;
+    governanceEventId?: string;
+    approvalExpiresAt?: string;
+    reason?: string;
+    riskScore: number;
+    trustTier?: number;
+    guardrailsResult?: GuardrailsVerdict;
+    activityId?: string;
+}
 
 declare const OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION: "openbox.copilotkit.result.v1";
 
@@ -245,6 +511,7 @@ interface GovernedCopilotToolDefinition<TInput extends OpenBoxCopilotActionInput
     description?: string;
     normalizeInput?: (input: TInput) => TInput;
     execute: (input: TInput) => Promise<TArtifact> | TArtifact;
+    spanProfile?: (input: TInput, stage: 'started' | 'completed') => Partial<SpanData> | undefined;
     isArtifactRedacted?: (artifact: TArtifact | undefined) => boolean;
     markArtifactRedacted?: (artifact: TArtifact) => TArtifact;
     sessionKey?: (config?: unknown) => string;

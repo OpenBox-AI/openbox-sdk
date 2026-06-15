@@ -781,6 +781,81 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(handler.mock.calls[0][0].messages[1].content).toBe(userText);
   });
 
+  it('emits Core-extractable assistant output spans for goal alignment', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const middleware = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+
+    await middleware.wrapModelCall(
+      {
+        messages: [{ type: 'human', content: 'Review the queue.' }],
+        state: { openboxWorkflowId: 'wf', openboxRunId: 'run' },
+      },
+      async () => ({ content: 'The queue has two governed requests ready.' }),
+    );
+
+    const completed = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'on_llm_end',
+    );
+    const span = completed?.spans?.[0] as Record<string, any> | undefined;
+    expect(span).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'llm_completion',
+    });
+    expect(JSON.parse(String(span?.response_body))).toEqual({
+      choices: [
+        {
+          message: {
+            content: 'The queue has two governed requests ready.',
+          },
+        },
+      ],
+    });
+  });
+
+  it('lets governed tools attach consumer span profiles', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const adapter = createOpenBoxCopilotKitAdapter({ core: mock.core as any });
+    const tool = createGovernedCopilotTool<DemoInput, DemoArtifact>({
+      adapter,
+      toolName: 'openbox_governed_action',
+      execute: async (input) => ({ body: input.request }),
+      spanProfile: () => ({
+        name: 'business.queue.review',
+        kind: 'client',
+        attributes: {
+          'openbox.operation': 'review_queue',
+        },
+      }),
+    });
+
+    await tool.execute({
+      action: 'demo_action',
+      request: 'Review the queue.',
+    });
+
+    const started = mock.events.find(
+      (event) => event.event_type === 'ActivityStarted',
+    );
+    expect(started?.spans?.[0]).toMatchObject({
+      name: 'business.queue.review',
+      kind: 'client',
+      attributes: expect.objectContaining({
+        'openbox.action': 'demo_action',
+        'openbox.operation': 'review_queue',
+      }),
+    });
+  });
+
   it('opens a workflow before standalone runtime gates when state IDs are missing', async () => {
     const mock = createMockCore(() => ({
       verdict: 'allow',
