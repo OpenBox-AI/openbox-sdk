@@ -440,7 +440,7 @@ describe('copilotkit helper coverage', () => {
         redactedInput: { output: { artifact: { body: '[REDACTED]' } } },
         validationPassed: true,
         reasons: [],
-        fieldResults: [{ field: 'artifact.body', status: 'transformed' }],
+        fieldResults: [{ field: 'artifact.body', status: 'transformed' as any }],
       },
     });
     const completed = applyCompletedRedaction(
