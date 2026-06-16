@@ -270,30 +270,26 @@ jobs:
           path: trivy-release-results.sarif
           if-no-files-found: error
 
-      - name: Run Gitleaks SARIF scan with config
-        id: gitleaks_scan_with_config
-        if: hashFiles('.gitleaks.toml') != ''
-        continue-on-error: true
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
-          GITLEAKS_CONFIG: .gitleaks.toml
-          GITLEAKS_VERSION: ${{ env.GITLEAKS_VERSION }}
-          GITLEAKS_ENABLE_COMMENTS: "false"
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+      - name: Install Gitleaks CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          gitleaks version
 
       - name: Run Gitleaks SARIF scan
         id: gitleaks_scan
-        if: hashFiles('.gitleaks.toml') == ''
         continue-on-error: true
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
-          GITLEAKS_VERSION: ${{ env.GITLEAKS_VERSION }}
-          GITLEAKS_ENABLE_COMMENTS: "false"
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--source . --redact --report-format sarif --report-path results.sarif)
+          if [[ -f .gitleaks.toml ]]; then
+            args+=(--config .gitleaks.toml)
+          fi
+          gitleaks detect "${args[@]}"
 
       - name: Upload Gitleaks SARIF to GitHub Security
         if: always() && hashFiles('results.sarif') != ''
@@ -324,7 +320,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if [[ "${{ steps.gitleaks_scan.outcome }}" == "failure" || "${{ steps.gitleaks_scan_with_config.outcome }}" == "failure" ]]; then
+          if [[ "${{ steps.gitleaks_scan.outcome }}" == "failure" ]]; then
             echo "Gitleaks detected potential secrets."
             exit 1
           fi

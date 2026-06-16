@@ -1,0 +1,16 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "OpenBox placeholder keys used by tests and generated contract fixtures"
+condition = "AND"
+paths = [
+  '''^codegen/fixtures/(cli-auth|env-resolution)\.json$''',
+  '''^tests/(unit|e2e)/(core-client|cursor-mcp-install-coverage|runtime-cursor-mappers)\.test\.ts$''',
+]
+regexes = [
+  '''obx_(?:key|live|test)_[a-f0-9]{48}''',
+  '''obx_live_(?:test123|mykey|invalid_key_000|secret)''',
+  '''obx_key_(?:cwd|body)''',
+  '''obx_test_x+''',
+]
