@@ -788,6 +788,129 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(mock.events).toEqual([]);
   });
 
+  it('routes approval-required OpenBox tool results to the CopilotKit approval action', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const middleware = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+    const handler = vi.fn(async () => ({ content: 'should not run' }));
+
+    const result = await middleware.wrapModelCall(
+      {
+        messages: [
+          { type: 'human', content: 'Issue a service credit.' },
+          {
+            type: 'ai',
+            tool_calls: [
+              { name: 'openbox_governed_approval_action', args: {} },
+            ],
+          },
+          {
+            type: 'tool',
+            content: JSON.stringify({
+              schemaVersion: 'openbox.copilotkit.result.v1',
+              action: 'issue_large_refund',
+              request: 'Issue a service credit.',
+              amountUsd: 7500,
+              workflowId: 'wf',
+              runId: 'run',
+              activityId: 'activity',
+              approvalId: 'approval',
+              governanceEventId: 'event',
+              expiresAt: '2026-06-16T00:00:00.000Z',
+              status: 'approval_required',
+              verdict: 'require_approval',
+              reason: 'Approval required.',
+            }),
+          },
+        ],
+      },
+      handler,
+    );
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(result.content).toBe('');
+    expect(result.tool_calls).toEqual([
+      {
+        id: expect.stringMatching(/^openbox_approval_/),
+        name: 'openboxApprovalReview',
+        args: {
+          action: 'issue_large_refund',
+          request: 'Issue a service credit.',
+          amountUsd: 7500,
+          riskReason: 'Approval required.',
+          workflowId: 'wf',
+          runId: 'run',
+          activityId: 'activity',
+          approvalId: 'approval',
+          governanceEventId: 'event',
+          expiresAt: '2026-06-16T00:00:00.000Z',
+        },
+      },
+    ]);
+    expect(mock.events).toEqual([]);
+  });
+
+  it('routes CopilotKit approval responses to the governed resume tool', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const middleware = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+    const handler = vi.fn(async () => ({ content: 'should not run' }));
+
+    const result = await middleware.wrapModelCall(
+      {
+        messages: [
+          { type: 'human', content: 'Issue a service credit.' },
+          {
+            type: 'tool',
+            content: JSON.stringify({
+              nextTool: 'openbox_resume_governed_action',
+              mustCallOpenBoxResumeGovernedAction: true,
+              approved: true,
+              workflowId: 'wf',
+              runId: 'run',
+              activityId: 'activity',
+              approvalId: 'approval',
+              governanceEventId: 'event',
+              action: 'issue_large_refund',
+              request: 'Issue a service credit.',
+              amountUsd: 7500,
+            }),
+          },
+        ],
+      },
+      handler,
+    );
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(result.content).toBe('');
+    expect(result.tool_calls).toEqual([
+      {
+        id: expect.stringMatching(/^openbox_resume_/),
+        name: 'openbox_resume_governed_action',
+        args: {
+          approved: true,
+          workflowId: 'wf',
+          runId: 'run',
+          activityId: 'activity',
+          approvalId: 'approval',
+          governanceEventId: 'event',
+          action: 'issue_large_refund',
+          request: 'Issue a service credit.',
+          amountUsd: 7500,
+        },
+      },
+    ]);
+    expect(mock.events).toEqual([]);
+  });
+
   it('suppresses model continuation after a successful OpenBox tool result', async () => {
     const mock = createMockCore(() => ({
       verdict: 'allow',

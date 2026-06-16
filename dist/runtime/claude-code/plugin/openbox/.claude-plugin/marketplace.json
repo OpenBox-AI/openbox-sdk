@@ -10,7 +10,7 @@
       "name": "openbox",
       "source": "./",
       "description": "Active governance for Claude Code through prompt/tool hooks, OpenBox Core verdicts, approvals, MCP tools, skills, and agent templates.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "OpenBox AI",
         "email": "team@openbox.ai"

@@ -1,7 +1,7 @@
 {
   "name": "openbox",
   "displayName": "OpenBox AI Governance",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Active governance for AI coding agents in Cursor: policy gates, guardrails, approvals, MCP, slash commands, rules, and agent templates.",
   "author": {
     "name": "OpenBox AI",

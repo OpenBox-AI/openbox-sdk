@@ -5648,7 +5648,34 @@ function createOpenBoxLangChainMiddleware({
     wrapModelCall: async (request, handler) => {
       if (!adapter.isEnabled()) return handler(request);
       debugState("wrapModelCall", request.state);
-      if (hasOpenBoxToolResult(request.messages)) {
+      const trailingToolResult = trailingToolContent(request.messages);
+      const approvalResponse = openBoxApprovalResponse(trailingToolResult);
+      if (approvalResponse) {
+        return new deps.AIMessage({
+          content: "",
+          tool_calls: [
+            {
+              id: `openbox_resume_${randomUUID6().replace(/-/g, "")}`,
+              name: "openbox_resume_governed_action",
+              args: approvalResponse
+            }
+          ]
+        });
+      }
+      const trailingOpenBoxResult = openBoxResultFromContent(trailingToolResult);
+      if (trailingOpenBoxResult) {
+        if (isApprovalRequiredResult(trailingOpenBoxResult)) {
+          return new deps.AIMessage({
+            content: "",
+            tool_calls: [
+              {
+                id: `openbox_approval_${randomUUID6().replace(/-/g, "")}`,
+                name: "openboxApprovalReview",
+                args: approvalReviewArgs(trailingOpenBoxResult)
+              }
+            ]
+          });
+        }
         return new deps.AIMessage({ content: "" });
       }
       const key = sessionKeyFromConfig(request);
@@ -5842,18 +5869,12 @@ var OPENBOX_RESULT_STATUSES = /* @__PURE__ */ new Set([
   "approval_required",
   "approval_pending"
 ]);
-function hasOpenBoxToolResult(messages) {
-  if (!Array.isArray(messages)) return false;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = objectRecord(messages[index]);
-    if (isHumanMessage(message)) return false;
-    if (isOpenBoxResult(messageContent(message))) return true;
-  }
-  return false;
-}
-function isHumanMessage(message) {
+function trailingToolContent(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return void 0;
+  const message = objectRecord(messages[messages.length - 1]);
   const role = String(message.role ?? message.type ?? "").toLowerCase();
-  return role === "human" || role === "user";
+  if (role !== "tool") return void 0;
+  return messageContent(message);
 }
 function messageContent(message) {
   if ("content" in message) return message.content;
@@ -5861,12 +5882,70 @@ function messageContent(message) {
   if ("content" in kwargs) return kwargs.content;
   return void 0;
 }
-function isOpenBoxResult(content) {
+function openBoxResultFromContent(content) {
   const parsed = parseContent(content);
-  if (!isRecord(parsed)) return false;
+  if (!isRecord(parsed)) return null;
   if (parsed.schemaVersion !== OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION)
-    return false;
-  return OPENBOX_RESULT_STATUSES.has(String(parsed.status)) || parsed.verdict === "halt" || parsed.verdict === "block" || parsed.verdict === "error";
+    return null;
+  return OPENBOX_RESULT_STATUSES.has(String(parsed.status)) || parsed.verdict === "halt" || parsed.verdict === "block" || parsed.verdict === "error" ? parsed : null;
+}
+function isApprovalRequiredResult(result) {
+  const status = String(result.status ?? "");
+  const verdict = String(result.verdict ?? "");
+  return status === "approval_required" || status === "approval_pending" || verdict === "require_approval";
+}
+function approvalReviewArgs(result) {
+  return compactObject({
+    action: stringValue(result.action),
+    request: stringValue(result.request),
+    destination: stringValue(result.destination),
+    amountUsd: typeof result.amountUsd === "number" ? result.amountUsd : void 0,
+    riskReason: stringValue(result.reason ?? result.message),
+    workflowId: stringValue(result.workflowId),
+    runId: stringValue(result.runId),
+    activityId: stringValue(result.activityId),
+    approvalId: stringValue(result.approvalId),
+    governanceEventId: stringValue(result.governanceEventId),
+    expiresAt: stringValue(result.expiresAt)
+  });
+}
+function openBoxApprovalResponse(content) {
+  const parsed = parseContent(content);
+  if (!isRecord(parsed)) return null;
+  const nextTool = String(parsed.nextTool ?? "");
+  const mustResume = parsed.mustCallOpenBoxResumeGovernedAction === true;
+  if (nextTool !== "openbox_resume_governed_action" && !mustResume) {
+    return null;
+  }
+  return compactObject({
+    workflowId: stringValue(parsed.workflowId),
+    runId: stringValue(parsed.runId),
+    activityId: stringValue(parsed.activityId),
+    approvalId: stringValue(parsed.approvalId),
+    governanceEventId: stringValue(parsed.governanceEventId),
+    approved: typeof parsed.approved === "boolean" ? parsed.approved : void 0,
+    action: stringValue(parsed.action),
+    request: stringValue(parsed.request),
+    destination: stringValue(parsed.destination),
+    amountUsd: typeof parsed.amountUsd === "number" ? parsed.amountUsd : void 0,
+    fields: Array.isArray(parsed.fields) ? parsed.fields : void 0,
+    audience: stringValue(parsed.audience),
+    manualInput: stringValue(parsed.manualInput),
+    sensitivity: stringValue(parsed.sensitivity),
+    choiceId: stringValue(parsed.choiceId)
+  });
+}
+function compactObject(input) {
+  return Object.fromEntries(
+    Object.entries(input).filter(([, value]) => {
+      if (value === void 0 || value === null) return false;
+      if (typeof value === "string" && value.length === 0) return false;
+      return true;
+    })
+  );
+}
+function stringValue(value) {
+  return typeof value === "string" ? value : void 0;
 }
 function parseContent(content) {
   if (isRecord(content)) return content;
