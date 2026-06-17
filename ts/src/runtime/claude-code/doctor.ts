@@ -49,7 +49,7 @@ function parseApprovalMode(value: string | undefined): 'inline' | 'remote' | 'de
 }
 
 function parseFailMode(value: string | undefined): 'fail_open' | 'fail_closed' {
-  return value === 'fail_closed' ? 'fail_closed' : 'fail_open';
+  return value === 'fail_open' ? 'fail_open' : 'fail_closed';
 }
 
 function buildProjectRuntimeEnv(cwd = process.cwd()) {

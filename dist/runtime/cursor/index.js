@@ -2229,7 +2229,7 @@ function loadConfig() {
       OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID") || void 0,
       OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY") || void 0
     }),
-    governancePolicy: get("GOVERNANCE_POLICY", "fail_open"),
+    governancePolicy: get("GOVERNANCE_POLICY", "fail_closed"),
     governanceTimeout: parseInt(get("GOVERNANCE_TIMEOUT", "15"), 10) || 15,
     activityType: get("ACTIVITY_TYPE", "CursorIDE"),
     sessionDir: get("SESSION_DIR", path.join(CONFIG_DIR, "sessions")),
@@ -3635,13 +3635,10 @@ function writeRuntimeConfigTemplate(configDir) {
   const file = path8.join(configDir, "config.json");
   if (existsSync5(file)) return;
   const example = {
-    OPENBOX_API_KEY: "obx_live_YOUR_API_KEY_HERE",
-    OPENBOX_CORE_URL: "https://core.example/ob",
-    GOVERNANCE_POLICY: "fail_open",
+    GOVERNANCE_POLICY: "fail_closed",
     HITL_ENABLED: true,
     HITL_MAX_WAIT: 300,
-    VERBOSE: false,
-    DRY_RUN: true
+    VERBOSE: false
   };
   writeFileSync3(file, JSON.stringify(example, null, 2) + "\n", {
     mode: 384,

@@ -1,7 +1,7 @@
 // Fail-open behavior for the claude-code runtime adapter.
 //
-// `GOVERNANCE_POLICY=fail_open` is the default for the local test
-// workspace, but the path matters: if the backend goes away (port
+// `GOVERNANCE_POLICY=fail_open` is an explicit opt-in mode. If the
+// backend goes away (port
 // unreachable, DNS failure, partial deploy) the hook subprocess
 // must still let claude proceed. A fail-closed misconfiguration
 // would silently shut down the IDE for the user, which is the worst

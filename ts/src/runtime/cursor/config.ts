@@ -90,7 +90,7 @@ export function loadConfig(): CursorConfig {
       OPENBOX_AGENT_DID: get('OPENBOX_AGENT_DID') || undefined,
       OPENBOX_AGENT_PRIVATE_KEY: get('OPENBOX_AGENT_PRIVATE_KEY') || undefined,
     }),
-    governancePolicy: (get('GOVERNANCE_POLICY', 'fail_open') as 'fail_open' | 'fail_closed'),
+    governancePolicy: (get('GOVERNANCE_POLICY', 'fail_closed') as 'fail_open' | 'fail_closed'),
     governanceTimeout: parseInt(get('GOVERNANCE_TIMEOUT', '15'), 10) || 15,
     activityType: get('ACTIVITY_TYPE', 'CursorIDE'),
     sessionDir: get('SESSION_DIR', path.join(CONFIG_DIR, 'sessions')),

@@ -4608,13 +4608,10 @@ function writeRuntimeConfigTemplate(configDir) {
   const file = path.join(configDir, "config.json");
   if (existsSync5(file)) return;
   const example = {
-    OPENBOX_API_KEY: "obx_live_YOUR_API_KEY_HERE",
-    OPENBOX_CORE_URL: "https://core.example/ob",
-    GOVERNANCE_POLICY: "fail_open",
+    GOVERNANCE_POLICY: "fail_closed",
     HITL_ENABLED: true,
     HITL_MAX_WAIT: 300,
-    VERBOSE: false,
-    DRY_RUN: true
+    VERBOSE: false
   };
   writeFileSync4(file, JSON.stringify(example, null, 2) + "\n", {
     mode: 384,
@@ -6403,13 +6400,10 @@ function writeRuntimeConfigTemplate2(configDir) {
   const file = path3.join(configDir, "config.json");
   if (existsSync6(file)) return;
   const example = {
-    OPENBOX_API_KEY: "obx_live_YOUR_API_KEY_HERE",
-    OPENBOX_CORE_URL: "https://core.example/ob",
-    GOVERNANCE_POLICY: "fail_open",
+    GOVERNANCE_POLICY: "fail_closed",
     HITL_ENABLED: true,
     HITL_MAX_WAIT: 300,
-    VERBOSE: false,
-    DRY_RUN: true
+    VERBOSE: false
   };
   writeFileSync5(file, JSON.stringify(example, null, 2) + "\n", {
     mode: 384,
@@ -6942,7 +6936,7 @@ function parseApprovalMode(value) {
   return "remote";
 }
 function parseFailMode(value) {
-  return value === "fail_closed" ? "fail_closed" : "fail_open";
+  return value === "fail_open" ? "fail_open" : "fail_closed";
 }
 function buildProjectRuntimeEnv(cwd = process.cwd()) {
   const configDir = claudeCodeRuntimeConfigDir(cwd);
@@ -7341,7 +7335,7 @@ async function runMcpServer() {
       backendApiKey,
       runtimeApiKey,
       agentIdentity,
-      governancePolicy: process.env.GOVERNANCE_POLICY ?? config.GOVERNANCE_POLICY ?? "fail_open",
+      governancePolicy: process.env.GOVERNANCE_POLICY ?? config.GOVERNANCE_POLICY ?? "fail_closed",
       approvalMode: process.env.APPROVAL_MODE ?? config.APPROVAL_MODE ?? "remote"
     };
   }
@@ -7708,7 +7702,7 @@ function loadConfig() {
     if (envConfig[key] !== void 0) return envConfig[key];
     return fileFallback ?? "";
   };
-  const skipToolsRaw = get("SKIP_TOOLS", "Glob,Grep");
+  const skipToolsRaw = get("SKIP_TOOLS");
   const skipTools = skipToolsRaw ? skipToolsRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
   const skipActivityRaw = get("SKIP_ACTIVITY_TYPES");
   const skipActivityTypes = skipActivityRaw ? skipActivityRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
@@ -7720,7 +7714,7 @@ function loadConfig() {
       OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID") || void 0,
       OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY") || void 0
     }),
-    governancePolicy: get("GOVERNANCE_POLICY", "fail_open"),
+    governancePolicy: get("GOVERNANCE_POLICY", "fail_closed"),
     governanceTimeout: parseInt(get("GOVERNANCE_TIMEOUT", "15"), 10) || 15,
     sessionDir: get("SESSION_DIR", path6.join(CONFIG_DIR, "sessions")),
     logFile: get("LOG_FILE", path6.join(CONFIG_DIR, "hook.log")) || null,
@@ -9925,7 +9919,7 @@ function loadConfig2() {
       OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID") || void 0,
       OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY") || void 0
     }),
-    governancePolicy: get("GOVERNANCE_POLICY", "fail_open"),
+    governancePolicy: get("GOVERNANCE_POLICY", "fail_closed"),
     governanceTimeout: parseInt(get("GOVERNANCE_TIMEOUT", "15"), 10) || 15,
     activityType: get("ACTIVITY_TYPE", "CursorIDE"),
     sessionDir: get("SESSION_DIR", path13.join(CONFIG_DIR2, "sessions")),

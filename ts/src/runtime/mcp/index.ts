@@ -57,7 +57,7 @@ export async function runMcpServer(): Promise<void> {
       backendApiKey,
       runtimeApiKey,
       agentIdentity,
-      governancePolicy: process.env.GOVERNANCE_POLICY ?? config.GOVERNANCE_POLICY ?? "fail_open",
+      governancePolicy: process.env.GOVERNANCE_POLICY ?? config.GOVERNANCE_POLICY ?? "fail_closed",
       approvalMode: process.env.APPROVAL_MODE ?? config.APPROVAL_MODE ?? "remote",
     };
   }

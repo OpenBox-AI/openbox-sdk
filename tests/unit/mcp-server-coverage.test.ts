@@ -173,7 +173,7 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       expect(parsed.mcpReadiness.mcpReady).toBe(true);
       expect(parsed.mcpReadiness.runtimeEnv.backendApiKeyPresent).toBe(true);
       expect(parsed.mcpReadiness.runtimeEnv.runtimeApiKeyPresent).toBe(true);
-      expect(parsed.mcpReadiness.failMode).toBe('fail_open');
+      expect(parsed.mcpReadiness.failMode).toBe('fail_closed');
       expect(parsed.mcpReadiness.approvalMode).toBe('remote');
       expect(parsed.mcpReadiness.unsupportedOrOptInSurfaces.worktreeCreate).toBe('opt_in');
       expect(parsed.claudeCodeRuntimeReadiness.projectScoped).toBe(true);

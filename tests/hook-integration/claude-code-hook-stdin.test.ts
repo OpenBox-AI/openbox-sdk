@@ -33,7 +33,7 @@ interface ConfigOverrides {
   /** SKIP_ACTIVITY_TYPES list; activity types in this list cause
    *  the hook to skip. */
   skipActivityTypes?: string[];
-  /** Pin GOVERNANCE_POLICY; defaults to fail_open. */
+  /** Pin GOVERNANCE_POLICY; defaults to fail_closed. */
   governancePolicy?: 'fail_open' | 'fail_closed';
   /** Override the core URL; the dead-port pattern exercises
    *  fail-open. */
@@ -57,7 +57,7 @@ function planConfigDir(opts: ConfigOverrides): string {
   mkdirSync(configDir, { recursive: true });
   const cfg: Record<string, unknown> = {
     OPENBOX_CORE_URL: opts.coreUrl ?? 'http://127.0.0.1:1',
-    GOVERNANCE_POLICY: opts.governancePolicy ?? 'fail_open',
+    GOVERNANCE_POLICY: opts.governancePolicy ?? 'fail_closed',
     GOVERNANCE_TIMEOUT: 1,
     HITL_ENABLED: false,
     DRY_RUN: opts.dryRun ?? false,

@@ -3091,7 +3091,7 @@ function parseApprovalMode(value) {
   return "remote";
 }
 function parseFailMode(value) {
-  return value === "fail_closed" ? "fail_closed" : "fail_open";
+  return value === "fail_open" ? "fail_open" : "fail_closed";
 }
 function buildProjectRuntimeEnv(cwd = process.cwd()) {
   const configDir = claudeCodeRuntimeConfigDir(cwd);
@@ -3466,7 +3466,7 @@ async function runMcpServer() {
       backendApiKey,
       runtimeApiKey,
       agentIdentity,
-      governancePolicy: process.env.GOVERNANCE_POLICY ?? config.GOVERNANCE_POLICY ?? "fail_open",
+      governancePolicy: process.env.GOVERNANCE_POLICY ?? config.GOVERNANCE_POLICY ?? "fail_closed",
       approvalMode: process.env.APPROVAL_MODE ?? config.APPROVAL_MODE ?? "remote"
     };
   }

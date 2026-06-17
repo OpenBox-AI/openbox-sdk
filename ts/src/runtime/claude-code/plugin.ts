@@ -298,13 +298,10 @@ function writeRuntimeConfigTemplate(configDir: string): void {
   const file = path.join(configDir, 'config.json');
   if (existsSync(file)) return;
   const example = {
-    OPENBOX_API_KEY: 'obx_live_YOUR_API_KEY_HERE',
-    OPENBOX_CORE_URL: 'https://core.example/ob',
-    GOVERNANCE_POLICY: 'fail_open',
+    GOVERNANCE_POLICY: 'fail_closed',
     HITL_ENABLED: true,
     HITL_MAX_WAIT: 300,
     VERBOSE: false,
-    DRY_RUN: true,
   };
   writeFileSync(file, JSON.stringify(example, null, 2) + '\n', {
     mode: 0o600,

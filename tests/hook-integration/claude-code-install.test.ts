@@ -45,6 +45,19 @@ function expectClaudePlugin(project: string): void {
   expect(existsSync(path.join(project, '.claude-hooks', 'config.json'))).toBe(true);
   expect(existsSync(path.join(project, '.claude', 'settings.json'))).toBe(false);
 
+  const runtimeConfig = JSON.parse(
+    readFileSync(path.join(project, '.claude-hooks', 'config.json'), 'utf-8'),
+  );
+  expect(runtimeConfig).toMatchObject({
+    GOVERNANCE_POLICY: 'fail_closed',
+    HITL_ENABLED: true,
+    HITL_MAX_WAIT: 300,
+    VERBOSE: false,
+  });
+  expect(runtimeConfig.OPENBOX_API_KEY).toBeUndefined();
+  expect(runtimeConfig.OPENBOX_CORE_URL).toBeUndefined();
+  expect(runtimeConfig.DRY_RUN).toBeUndefined();
+
   const inventory = JSON.parse(
     readFileSync(path.join(root, 'diagnostics', 'component-inventory.json'), 'utf-8'),
   );

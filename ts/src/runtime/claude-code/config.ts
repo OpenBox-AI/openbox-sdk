@@ -78,7 +78,7 @@ export function loadConfig(): ClaudeCodeConfig {
     return fileFallback ?? '';
   };
 
-  const skipToolsRaw = get('SKIP_TOOLS', 'Glob,Grep');
+  const skipToolsRaw = get('SKIP_TOOLS');
   const skipTools = skipToolsRaw ? skipToolsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
 
   const skipActivityRaw = get('SKIP_ACTIVITY_TYPES');
@@ -98,7 +98,7 @@ export function loadConfig(): ClaudeCodeConfig {
       OPENBOX_AGENT_DID: get('OPENBOX_AGENT_DID') || undefined,
       OPENBOX_AGENT_PRIVATE_KEY: get('OPENBOX_AGENT_PRIVATE_KEY') || undefined,
     }),
-    governancePolicy: (get('GOVERNANCE_POLICY', 'fail_open') as 'fail_open' | 'fail_closed'),
+    governancePolicy: (get('GOVERNANCE_POLICY', 'fail_closed') as 'fail_open' | 'fail_closed'),
     governanceTimeout: parseInt(get('GOVERNANCE_TIMEOUT', '15'), 10) || 15,
     sessionDir: get('SESSION_DIR', path.join(CONFIG_DIR, 'sessions')),
     logFile: get('LOG_FILE', path.join(CONFIG_DIR, 'hook.log')) || null,
