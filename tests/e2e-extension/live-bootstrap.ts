@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { OpenBoxCoreClient, type AgentIdentityConfig } from '../../ts/src/core-client/index.js';
 
 const BACKEND_KEY_PREFIX = /^obx_key_/;
 const RUNTIME_KEY_PREFIX = /^obx_(?:test|live)_/;
@@ -190,6 +191,22 @@ result := {"decision": "HALT", "reason": "e2e-halt-http"} if {
 `;
 }
 
+function bootstrapAgentIdentity(preferE2eIdentity = false): AgentIdentityConfig | undefined {
+  const did = preferE2eIdentity
+    ? process.env.OPENBOX_E2E_AGENT_DID ?? process.env.OPENBOX_AGENT_DID
+    : process.env.OPENBOX_AGENT_DID ?? process.env.OPENBOX_E2E_AGENT_DID;
+  const privateKey = preferE2eIdentity
+    ? process.env.OPENBOX_E2E_AGENT_PRIVATE_KEY ?? process.env.OPENBOX_AGENT_PRIVATE_KEY
+    : process.env.OPENBOX_AGENT_PRIVATE_KEY ?? process.env.OPENBOX_E2E_AGENT_PRIVATE_KEY;
+  if (!did && !privateKey) return undefined;
+  if (!did || !privateKey) {
+    throw new Error(
+      'signed live verdict verification requires both OPENBOX_AGENT_DID/OPENBOX_AGENT_PRIVATE_KEY or both OPENBOX_E2E_AGENT_DID/OPENBOX_E2E_AGENT_PRIVATE_KEY',
+    );
+  }
+  return { did, privateKey };
+}
+
 async function backend<T = any>(path: string, init: RequestInit = {}): Promise<BackendEnvelope<T>> {
   const apiUrl = process.env.OPENBOX_API_URL;
   const key = process.env.OPENBOX_BACKEND_API_KEY;
@@ -289,17 +306,30 @@ values (
 
 async function evaluate(spanType: SpanType, input: Record<string, unknown>): Promise<{ verdict?: string; reason?: string }> {
   const coreUrl = process.env.OPENBOX_CORE_URL;
-  const key = process.env.OPENBOX_E2E_RUNTIME_KEY ?? process.env.OPENBOX_API_KEY;
+  const e2eRuntimeKey = process.env.OPENBOX_E2E_RUNTIME_KEY;
+  const key = e2eRuntimeKey ?? process.env.OPENBOX_API_KEY;
   if (!coreUrl || !key || !RUNTIME_KEY_PREFIX.test(key)) {
     throw new Error('OPENBOX_CORE_URL and an agent runtime key are required for live verdict verification');
   }
+  const payload = governancePayload(spanType, input);
+  const agentIdentity = bootstrapAgentIdentity(Boolean(e2eRuntimeKey));
+  if (agentIdentity) {
+    const client = new OpenBoxCoreClient({
+      apiUrl: coreUrl,
+      apiKey: key,
+      agentIdentity,
+    });
+    const body = await client.evaluate(payload as Parameters<typeof client.evaluate>[0]);
+    return { verdict: String(body.verdict ?? body.action ?? ''), reason: body.reason };
+  }
+
   const res = await fetch(`${coreUrl}/api/v1/governance/evaluate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${key}`,
     },
-    body: JSON.stringify(governancePayload(spanType, input)),
+    body: JSON.stringify(payload),
   });
   const body = (await res.json().catch(() => ({}))) as { verdict?: string; action?: string; reason?: string };
   if (!res.ok) {
