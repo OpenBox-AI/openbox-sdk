@@ -268,6 +268,15 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       output_tokens: 54,
     });
     expect(assistantContentFromSpan(span)).toBe('done');
+    const usageSignal = session.calls.find(
+      (c: any) => c.method === 'activity' && c.args[1] === 'claude_usage',
+    );
+    expect(usageSignal?.args[2]?.input?.[0]).toMatchObject({
+      event_category: 'llm_usage',
+      model: 'claude-opus-4-8',
+      usage: { inputTokens: 321, outputTokens: 54, totalTokens: 375 },
+      _openbox_source: 'claude-code',
+    });
   });
 
   it('message-display final batch records Claude transcript usage and assistant content', async () => {

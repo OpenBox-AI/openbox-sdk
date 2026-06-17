@@ -8991,6 +8991,22 @@ function failClosedStopVerdict(env, cfg, reason) {
     riskScore: 1
   };
 }
+async function emitClaudeUsageSignal(env, session) {
+  const usage = readLatestAssistantUsage(env);
+  if (!usage?.usage) return;
+  try {
+    await session.activity(EVENT.SIGNAL, "claude_usage", {
+      input: [
+        stampSource({
+          event_category: "llm_usage",
+          model: usage.model,
+          usage: usage.usage
+        }, "claude-code")
+      ]
+    });
+  } catch {
+  }
+}
 async function handleSessionStart(env, session, _cfg) {
   await session.workflowStarted();
   await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
@@ -9016,6 +9032,7 @@ async function handleStop(env, session, cfg) {
     );
   }
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
+  await emitClaudeUsageSignal(env, session);
   if ((verdict.arm === "allow" || verdict.arm === "constrain") && !hasPendingClaudeWork(env)) {
     try {
       await session.workflowCompleted();
@@ -9098,6 +9115,7 @@ var init_session = __esm({
     init_activity_types();
     init_source();
     init_assistant_output();
+    init_transcript_usage();
   }
 });
 

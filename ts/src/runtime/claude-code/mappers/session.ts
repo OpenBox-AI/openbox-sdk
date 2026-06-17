@@ -21,6 +21,7 @@ import {
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
 import { buildClaudeAssistantOutputSpan } from './assistant-output.js';
+import { readLatestAssistantUsage } from '../transcript-usage.js';
 
 function hasPendingClaudeWork(env: ClaudeCodeEnvelope): boolean {
   return (
@@ -46,6 +47,27 @@ function failClosedStopVerdict(
     reason,
     riskScore: 1,
   };
+}
+
+async function emitClaudeUsageSignal(
+  env: ClaudeCodeEnvelope,
+  session: ClaudeCodeSession,
+): Promise<void> {
+  const usage = readLatestAssistantUsage(env);
+  if (!usage?.usage) return;
+  try {
+    await session.activity(EVENT.SIGNAL, 'claude_usage', {
+      input: [
+        stampSource({
+          event_category: 'llm_usage',
+          model: usage.model,
+          usage: usage.usage,
+        }, 'claude-code'),
+      ],
+    });
+  } catch {
+    // best-effort usage side channel; the Stop gate verdict is authoritative.
+  }
 }
 
 /**
@@ -94,6 +116,7 @@ export async function handleStop(
     );
   }
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
+  await emitClaudeUsageSignal(env, session);
   if (
     (verdict.arm === 'allow' || verdict.arm === 'constrain') &&
     !hasPendingClaudeWork(env)
