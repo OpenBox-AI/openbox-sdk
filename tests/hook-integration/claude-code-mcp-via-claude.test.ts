@@ -27,6 +27,8 @@ import {
   PLUGIN_DIR,
   WORKSPACE,
   assertClaudeOnPath,
+  hookLogSince,
+  snapshotHookLog,
 } from './helpers/claude-runner.js';
 
 const OPENBOX = process.env.OPENBOX_CLI ?? path.resolve(import.meta.dirname, '../../dist/cli/index.js');
@@ -142,9 +144,20 @@ function resolveAgentId(): string | undefined {
 const orgKey = resolveOrgApiKey();
 const runtimeKey = resolveRuntimeKey();
 const agentId = resolveAgentId();
+const USING_REMOTE_RUNTIME =
+  !isLoopbackUrl(runtimeUrl('api')) || !isLoopbackUrl(runtimeUrl('core'));
 const SHOULD_RUN = SUITE_SHOULD_RUN && !!orgKey;
 const SHOULD_RUN_GOVERNANCE = SHOULD_RUN && !!runtimeKey;
 const SHOULD_RUN_REAL_DB = SHOULD_RUN_GOVERNANCE && realDbAvailable();
+
+const GOVERNANCE_VERDICTS = [
+  'allow',
+  'constrain',
+  'require_approval',
+  'block',
+  'halt',
+  'deny',
+] as const;
 
 interface ClaudeResult {
   result: string;
@@ -159,6 +172,75 @@ interface GovernanceDbEvent {
   verdict?: number;
   reason?: string;
   input?: unknown;
+}
+
+interface PlatformSession {
+  id?: string;
+  status?: string;
+  workflow_id?: string;
+  started_at?: string;
+  completed_at?: string;
+}
+
+function isLoopbackUrl(raw: string): boolean {
+  try {
+    const host = new URL(raw).hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  return value as Record<string, unknown>;
+}
+
+function rowsFromEnvelope(body: unknown): unknown[] {
+  const root = asRecord(body);
+  const data = root?.data;
+  if (Array.isArray(data)) return data;
+  const nested = asRecord(data)?.data;
+  return Array.isArray(nested) ? nested : [];
+}
+
+function parseJsonObjectFromText(text: string): Record<string, unknown> {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced?.[1]?.trim()
+    ?? text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
+  expect(candidate.length, `no JSON object in claude result: ${text.slice(0, 500)}`).toBeGreaterThan(0);
+  return JSON.parse(candidate) as Record<string, unknown>;
+}
+
+function assertRemoteGovernanceResult(parsed: ClaudeResult, c: VerdictMatrixCase): void {
+  const body = parseJsonObjectFromText(parsed.result);
+  const verdict = String(body.verdict ?? '');
+  const ageResult = asRecord(body.age_result);
+
+  expect(typeof body.governance_event_id, `missing governance_event_id: ${parsed.result.slice(0, 1000)}`).toBe('string');
+  expect(GOVERNANCE_VERDICTS, `unexpected verdict for ${c.spanType}: ${parsed.result.slice(0, 1000)}`).toContain(
+    verdict as (typeof GOVERNANCE_VERDICTS)[number],
+  );
+  expect(ageResult?.total_spans, `missing AGE span count: ${parsed.result.slice(0, 1000)}`).toBe(1);
+  expect(body.fallback_used ?? ageResult?.fallback_used ?? false).toBe(false);
+}
+
+async function readPlatformSessionsSince(fromTime: string): Promise<PlatformSession[]> {
+  expect(agentId, 'OPENBOX_E2E_AGENT_ID is required for remote platform session proof').toBeTruthy();
+  expect(orgKey, 'OPENBOX_BACKEND_API_KEY is required for remote platform session proof').toBeTruthy();
+
+  let rows: unknown[] = [];
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const response = await fetch(
+      `${runtimeUrl('api')}/agent/${agentId}/sessions?perPage=10&fromTime=${encodeURIComponent(fromTime)}`,
+      { headers: { 'X-API-Key': orgKey! } },
+    );
+    expect(response.status, `session query failed for ${runtimeUrl('api')}`).toBe(200);
+    rows = rowsFromEnvelope(await response.json());
+    if (rows.length > 0) break;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  return rows.map((row) => asRecord(row) ?? {}) as PlatformSession[];
 }
 
 function realDbAvailable(): boolean {
@@ -433,6 +515,11 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
         expect(denied, 'claude was denied access to mcp__openbox__check_governance').not.toBe(true);
         expect(parsed.is_error, `claude returned is_error; result: ${parsed.result.slice(0, 500)}`).toBeFalsy();
 
+        if (USING_REMOTE_RUNTIME) {
+          assertRemoteGovernanceResult(parsed, c);
+          return;
+        }
+
         const text = parsed.result.toLowerCase();
         expect(
           text.includes(c.expectedRule.toLowerCase())
@@ -444,7 +531,7 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
   });
 
   describe.runIf(SHOULD_RUN_REAL_DB)('claude-governed real database MCP tool', () => {
-    it('runs a real Postgres query and records a constrained DatabaseQuery event', () => {
+    it('runs a real Postgres query and records governed DatabaseQuery evidence', async () => {
       const probeId = `obx_real_db_${Date.now()}_${Math.random().toString(16).slice(2)}`;
       const secret = `db_secret_${Math.random().toString(36).slice(2)}_${Date.now()}`;
       psqlExec(`
@@ -461,6 +548,8 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
       `);
       const query = `SELECT secret FROM openbox_e2e_probe WHERE probe_id = '${probeId}'`;
       const toolName = 'mcp__plugin_openbox_realdb__query_database';
+      const fromTime = new Date().toISOString();
+      const hookOffset = snapshotHookLog();
       const parsed = runGovernedPluginMcp(
         [
           `Call ${toolName} exactly once with this JSON:`,
@@ -476,6 +565,25 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
       expect(denied, 'claude was denied access to the real DB MCP tool').not.toBe(true);
       expect(parsed.is_error, `claude returned is_error; result: ${parsed.result.slice(0, 500)}`).toBeFalsy();
       expect(parsed.result).toContain(secret);
+
+      if (USING_REMOTE_RUNTIME) {
+        const hookEvents = hookLogSince(hookOffset);
+        const eventNames = hookEvents.map((line) => line.event);
+        expect(hookEvents.length, 'no Claude Code hook events were logged for the real DB MCP call').toBeGreaterThan(0);
+        for (const line of hookEvents) {
+          expect(line.error ?? null, `hook ${line.event} failed`).toBeNull();
+        }
+        expect(eventNames).toContain('userPromptSubmit');
+        expect(eventNames).toContain('preToolUse');
+        expect(eventNames).toContain('postToolUse');
+        expect(eventNames).toContain('postToolBatch');
+        expect(eventNames).toContain('stop');
+
+        const sessions = await readPlatformSessionsSince(fromTime);
+        expect(sessions.length, `no remote platform session found after ${fromTime}`).toBeGreaterThan(0);
+        expect(sessions.some((session) => session.status === 'completed')).toBe(true);
+        return;
+      }
 
       const event = readGovernanceDbEvent(probeId);
       expect(event, `no DatabaseQuery event found for ${probeId}`).not.toBeNull();
