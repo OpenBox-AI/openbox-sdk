@@ -45,8 +45,44 @@ export interface RunOptions {
   /** Hard ceiling on the spawn. Defaults to 150s; long enough for
    *  the SDK's `approvalMaxWaitMs` (60s) plus session boilerplate. */
   timeoutMs?: number;
-  /** Extra env overrides. Merged onto `process.env` before spawn. */
+  /** Extra env overrides. Merged after project-scope OpenBox env scrub. */
   env?: Record<string, string>;
+}
+
+const OPENBOX_RUNTIME_ENV = [
+  'OPENBOX_API_KEY',
+  'OPENBOX_CORE_URL',
+  'OPENBOX_ENDPOINT',
+  'OPENBOX_AGENT_DID',
+  'OPENBOX_AGENT_PRIVATE_KEY',
+  'OPENBOX_HOME',
+  'GOVERNANCE_POLICY',
+  'GOVERNANCE_TIMEOUT',
+  'APPROVAL_MODE',
+  'DRY_RUN',
+  'HITL_ENABLED',
+  'HITL_POLL_INTERVAL',
+  'SESSION_DIR',
+  'LOG_FILE',
+  'SKIP_TOOLS',
+  'SKIP_ACTIVITY_TYPES',
+  'TASK_QUEUE',
+] as const;
+
+function claudeEnv(overrides: Record<string, string> = {}): Record<string, string> {
+  const env: Record<string, string> = { ...(process.env as Record<string, string>) };
+  // tests/setup.ts installs loopback defaults for unit clients. Claude Code
+  // live tests must not leak those into the hook subprocess because the
+  // project-local .claude-hooks/config.json is the runtime authority.
+  for (const key of OPENBOX_RUNTIME_ENV) {
+    delete env[key];
+  }
+  return {
+    ...env,
+    OPENBOX_CLI: process.env.OPENBOX_CLI ?? DIST_CLI,
+    HITL_MAX_WAIT: '5',
+    ...overrides,
+  };
 }
 
 export function runClaude(prompt: string, opts: RunOptions = {}): ClaudeResult {
@@ -71,12 +107,7 @@ export function runClaude(prompt: string, opts: RunOptions = {}): ClaudeResult {
   // The round-trip test (which actively decides the approval
   // mid-poll) overrides this through `opts.env` to a longer
   // window so the watcher can fire before the soft deny lands.
-  const env: Record<string, string> = {
-    ...(process.env as Record<string, string>),
-    OPENBOX_CLI: process.env.OPENBOX_CLI ?? DIST_CLI,
-    HITL_MAX_WAIT: '5',
-    ...(opts.env ?? {}),
-  };
+  const env = claudeEnv(opts.env);
   const result = spawnSync('claude', args, {
     cwd: WORKSPACE,
     encoding: 'utf-8',

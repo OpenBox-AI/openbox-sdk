@@ -279,6 +279,13 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       usage: { inputTokens: 321, outputTokens: 54, totalTokens: 375 },
       _openbox_source: 'claude-code',
     });
+    expect(usageSignal?.args[2]?.signalName).toBe('claude_usage');
+    expect(usageSignal?.args[2]?.signalArgs?.[0]).toMatchObject({
+      event_category: 'llm_usage',
+      model: 'claude-opus-4-8',
+      usage: { inputTokens: 321, outputTokens: 54, totalTokens: 375 },
+      _openbox_source: 'claude-code',
+    });
   });
 
   it('message-display final batch records Claude transcript usage and assistant content', async () => {
@@ -322,6 +329,13 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       (c: any) => c.method === 'activity' && c.args[1] === 'claude_usage',
     );
     expect(usageSignal?.args[2]?.input?.[0]).toMatchObject({
+      event_category: 'llm_usage',
+      model: 'claude-opus-4-8',
+      usage: { inputTokens: 321, outputTokens: 54 },
+      _openbox_source: 'claude-code',
+    });
+    expect(usageSignal?.args[2]?.signalName).toBe('claude_usage');
+    expect(usageSignal?.args[2]?.signalArgs?.[0]).toMatchObject({
       event_category: 'llm_usage',
       model: 'claude-opus-4-8',
       usage: { inputTokens: 321, outputTokens: 54 },
@@ -409,6 +423,13 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       (c: any) => c.method === 'activity' && c.args[1] === 'claude_usage',
     );
     expect(usageSignal?.args[2]?.input?.[0]).toMatchObject({
+      event_category: 'llm_usage',
+      model: 'claude-opus-4-8',
+      usage: { inputTokens: 3140, outputTokens: 949, totalTokens: 4089 },
+      _openbox_source: 'claude-code',
+    });
+    expect(usageSignal?.args[2]?.signalName).toBe('claude_usage');
+    expect(usageSignal?.args[2]?.signalArgs?.[0]).toMatchObject({
       event_category: 'llm_usage',
       model: 'claude-opus-4-8',
       usage: { inputTokens: 3140, outputTokens: 949, totalTokens: 4089 },

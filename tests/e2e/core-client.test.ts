@@ -1,28 +1,43 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { OpenBoxCoreClient, CoreApiError } from '../../ts/src/core-client/core-client.js';
+import {
+  type AgentIdentityForSigning,
+  getBackendClient,
+  fullResponse,
+  getTeamIds,
+} from '../helpers/api-client';
+import { trackResource, cleanupAll } from '../helpers/cleanup';
+import { makeCreateAgentDto } from '../helpers/fixtures';
 
-function createCoreClient(): OpenBoxCoreClient {
-  const apiKey = process.env.OPENBOX_API_KEY;
-  if (!apiKey) {
-    throw new Error('OPENBOX_API_KEY is required for core e2e tests');
-  }
+function createCoreClient(apiKey: string, agentIdentity?: AgentIdentityForSigning): OpenBoxCoreClient {
   return new OpenBoxCoreClient({
     apiUrl: process.env.OPENBOX_CORE_URL || 'https://core.openbox.ai',
     apiKey,
+    agentIdentity,
   });
 }
 
 describe('OpenBoxCoreClient E2E', () => {
+  const backendClient = getBackendClient();
   let client: OpenBoxCoreClient;
-  let hasApiKey: boolean;
+  let apiKey: string;
+  let agentIdentity: AgentIdentityForSigning;
 
-  beforeAll(() => {
-    hasApiKey = !!process.env.OPENBOX_API_KEY;
-    if (!hasApiKey) {
-      console.log('Skipping core e2e tests; no OPENBOX_API_KEY available');
-      return;
-    }
-    client = createCoreClient();
+  beforeAll(async () => {
+    const teamIds = await getTeamIds();
+    const response = await backendClient.post('/agent/create', makeCreateAgentDto(teamIds));
+    const body = fullResponse(response);
+
+    expect(body.status).toBe(200);
+
+    const agentId = body.data.agent.id;
+    apiKey = body.data.token;
+    agentIdentity = {
+      did: body.data.identity.did,
+      privateKey: body.data.identity.privateKey,
+    };
+    trackResource({ type: 'agent', id: agentId });
+    client = createCoreClient(apiKey, agentIdentity);
   });
 
   // =========================================================================
@@ -31,7 +46,6 @@ describe('OpenBoxCoreClient E2E', () => {
 
   describe('health', () => {
     it('returns a response from the core API', async () => {
-      if (!hasApiKey) return;
       const result = await client.health();
       expect(result).toBeDefined();
     });
@@ -43,7 +57,6 @@ describe('OpenBoxCoreClient E2E', () => {
 
   describe('auth validation', () => {
     it('validates the API key', async () => {
-      if (!hasApiKey) return;
       const result = await client.validateApiKey();
       expect(result).toBeDefined();
     });
@@ -71,8 +84,6 @@ describe('OpenBoxCoreClient E2E', () => {
 
   describe('governance evaluation', () => {
     it('evaluates a workflow started event', async () => {
-      if (!hasApiKey) return;
-
       const result = await client.evaluate({
         event_type: 'WorkflowStarted',
         workflow_id: `e2e-test-${Date.now()}`,
@@ -89,8 +100,6 @@ describe('OpenBoxCoreClient E2E', () => {
     });
 
     it('evaluates an activity started event', async () => {
-      if (!hasApiKey) return;
-
       const wfId = `e2e-test-${Date.now()}`;
       const runId = `run-${Date.now()}`;
 
@@ -123,8 +132,6 @@ describe('OpenBoxCoreClient E2E', () => {
 
   describe('approval polling', () => {
     it('polls approval status for a non-existent workflow', async () => {
-      if (!hasApiKey) return;
-
       try {
         const result = await client.pollApproval({
           workflow_id: 'non-existent-wf',
@@ -138,5 +145,9 @@ describe('OpenBoxCoreClient E2E', () => {
         expect(err).toBeInstanceOf(CoreApiError);
       }
     });
+  });
+
+  afterAll(async () => {
+    await cleanupAll();
   });
 });

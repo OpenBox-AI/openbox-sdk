@@ -42,8 +42,9 @@ function prompt(c: VerdictMatrixCase): { prompt: string; tool: string } | null {
     case 'shell':
       return { prompt: 'Use the Bash tool to run exactly: echo hello', tool: 'Bash' };
     case 'file_write':
+      const writePath = `/tmp/openbox-claude-write-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`;
       return {
-        prompt: `Use the Write tool to create ${c.activityInput.file_path} with content 'hello'`,
+        prompt: `Use only the Write tool to create the new file ${writePath} with content 'hello'. The file does not exist; do not read it first.`,
         tool: 'Write',
       };
     case 'file_read':

@@ -3714,14 +3714,15 @@ async function emitClaudeUsageSignal(env, session) {
   const usage = readLatestAssistantUsage(env);
   if (!usage?.usage) return;
   try {
+    const usagePayload = stampSource({
+      event_category: "llm_usage",
+      model: usage.model,
+      usage: usage.usage
+    }, "claude-code");
     await session.activity(EVENT.SIGNAL, "claude_usage", {
-      input: [
-        stampSource({
-          event_category: "llm_usage",
-          model: usage.model,
-          usage: usage.usage
-        }, "claude-code")
-      ]
+      input: [usagePayload],
+      signalName: "claude_usage",
+      signalArgs: [usagePayload]
     });
   } catch {
   }
@@ -3963,14 +3964,15 @@ async function handleMessageDisplay(env, session, cfg, options) {
   }
   if (usage && env.final === true) {
     try {
+      const usagePayload = stampSource({
+        event_category: "llm_usage",
+        model: usage.model,
+        usage: usage.usage
+      }, "claude-code");
       await session.activity(EVENT.SIGNAL, "claude_usage", {
-        input: [
-          stampSource({
-            event_category: "llm_usage",
-            model: usage.model,
-            usage: usage.usage
-          }, "claude-code")
-        ]
+        input: [usagePayload],
+        signalName: "claude_usage",
+        signalArgs: [usagePayload]
       });
     } catch {
     }

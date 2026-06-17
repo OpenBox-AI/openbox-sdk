@@ -20,6 +20,7 @@ ts/*/src/**/*.d.ts.map
 /specs/generated/json-schema/
 # Local auth state; never commit.
 .tokens
+.openbox/
 .env
 .env.local
 .infisical.json
