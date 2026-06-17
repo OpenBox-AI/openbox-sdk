@@ -4,6 +4,7 @@ import { OpenBoxCoreClient } from '../core-client/index.js';
 import {
   FeatureMap,
   serializeTokenStore,
+  resolveAgentIdentity,
   resolveConnection,
   validateApiKeyFormat as generatedValidateApiKey,
 } from '../env/index.js';
@@ -75,7 +76,7 @@ function getClient(): OpenBoxClient {
     error('no X-API-Key configured', {
       help:
         'mint a key in the dashboard FE (Organization → API Keys), then:\n' +
-        '  openbox connect <stack-url> --api-key <key>\n' +
+        '  openbox connect --api-url <url> --core-url <url> --api-key <key>\n' +
         'or save a key for the active connection with:\n' +
         '  openbox auth set-api-key\n' +
         'or set OPENBOX_BACKEND_API_KEY=<key> in the environment',
@@ -128,6 +129,7 @@ function getCoreClient(): OpenBoxCoreClient {
   return new OpenBoxCoreClient({
     apiUrl: coreUrl,
     apiKey,
+    agentIdentity: resolveAgentIdentity(),
     timeoutMs: resolveTimeoutMs(),
   });
 }

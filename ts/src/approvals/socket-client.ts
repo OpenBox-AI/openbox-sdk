@@ -10,14 +10,13 @@
 
 import * as net from 'node:net';
 import * as path from 'node:path';
-import * as os from 'node:os';
+import { openboxDataRoot } from '../env/os-paths.js';
 
-export const APPROVAL_SOCKET_PATH = path.join(
-  os.homedir(),
-  '.openbox',
-  'run',
-  'openbox.sock',
-);
+export function defaultApprovalSocketPath(): string {
+  return path.join(openboxDataRoot(), 'run', 'openbox.sock');
+}
+
+export const APPROVAL_SOCKET_PATH = defaultApprovalSocketPath();
 
 export interface PendingNotification {
   governance_event_id: string;
@@ -57,7 +56,7 @@ interface ActiveConnection {
  * `null` so the caller can fall back to pollApproval-only.
  */
 export function connectApprovalSocket(
-  socketPath: string = APPROVAL_SOCKET_PATH,
+  socketPath: string = defaultApprovalSocketPath(),
 ): Promise<ActiveConnection | null> {
   return new Promise((resolve) => {
     const socket = net.createConnection({ path: socketPath });

@@ -33,6 +33,18 @@ function recordingSession(verdict: { arm?: string } = { arm: 'allow' }): any {
       calls.push({ method: 'activity', args });
       return verdict;
     },
+    async openActivity(...args: any[]) {
+      calls.push({ method: 'openActivity', args });
+      const activityId = args[1]?.activityId ?? `opened-${calls.length}`;
+      return {
+        activityId,
+        verdict: { ...verdict, activityId },
+        complete: async (...completeArgs: any[]) => {
+          calls.push({ method: 'openActivity.complete', args: completeArgs });
+          return verdict;
+        },
+      };
+    },
     async workflowStarted() {
       calls.push({ method: 'workflowStarted', args: [] });
     },
@@ -49,13 +61,21 @@ describe('runtime/claude-code/config', () => {
   it('loadConfig pulls API key + endpoint from env', async () => {
     process.env.OPENBOX_API_KEY = 'obx_live_test_x';
     process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
+    process.env.OPENBOX_AGENT_DID = 'did:openbox:agent:test';
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'a'.repeat(44);
     // Force re-import so config picks up our env state at module-load time.
     const mod = await import('../../ts/src/runtime/claude-code/config');
     const cfg = mod.loadConfig();
     expect(cfg.openboxApiKey).toBe('obx_live_test_x');
     expect(cfg.openboxEndpoint).toBe('http://localhost:8086');
+    expect(cfg.agentIdentity).toEqual({
+      did: 'did:openbox:agent:test',
+      privateKey: 'a'.repeat(44),
+    });
     delete process.env.OPENBOX_API_KEY;
     delete process.env.OPENBOX_CORE_URL;
+    delete process.env.OPENBOX_AGENT_DID;
+    delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
   });
 
   it('loadConfig supplies sane defaults for unspecified fields', async () => {
@@ -106,13 +126,13 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
     expect(session.calls.length).toBe(0);
   });
 
-  it('routes a known tool to activity() with the right activity_type', async () => {
+  it('routes a known tool to openActivity() with the right activity_type', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const session = recordingSession();
     const env: any = { tool_name: 'Read', tool_input: { file_path: '/Users/me/main.ts' }, session_id: 'S3' };
     const cfg: any = { skipTools: [], sessionDir: dir };
     await handlePreToolUse(env, session, cfg);
-    expect(session.calls[0]?.method).toBe('activity');
+    expect(session.calls[0]?.method).toBe('openActivity');
   });
 
   it('mcp__* tools fall through to MCP_CALL', async () => {
@@ -142,6 +162,21 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     const cfg: any = { skipTools: [], sessionDir: dir };
     await handlePostToolUse(env, session, cfg);
     expect(session.calls[0]?.method).toBe('activity');
+    expect(session.calls[0]?.args[2].output).toBe('ok');
+  });
+
+  it('skips post-tool completion when the matching pre-tool surface was skipped', async () => {
+    const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
+    const session = recordingSession();
+    const env: any = {
+      tool_name: 'Read',
+      tool_input: { file_path: '/Users/me/main.ts' },
+      tool_response: 'ok',
+      session_id: 'S5-skip',
+    };
+    const cfg: any = { skipTools: ['Read'], sessionDir: dir };
+    await expect(handlePostToolUse(env, session, cfg)).resolves.toBeUndefined();
+    expect(session.calls).toHaveLength(0);
   });
 
   it('routes unknown post-tool events through the generic agent action fallback', async () => {

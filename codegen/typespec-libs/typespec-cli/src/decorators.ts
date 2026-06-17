@@ -79,8 +79,8 @@ export function getValidator(program: Program, target: ModelProperty): string | 
 
 // ─── Maturity ─────────────────────────────────────────────────
 // CLI command surface gating. `stable` ships in the default openbox
-// surface; `beta` requires --experimental beta or env opt-in; `experimental`
-// requires --experimental. Decorator can target either a whole command
+// surface; consumers decide whether/how to expose `beta` or `experimental`.
+// Decorator can target either a whole command
 // (Interface) or a single subcommand (Operation).
 
 export type Maturity = 'stable' | 'beta' | 'experimental';

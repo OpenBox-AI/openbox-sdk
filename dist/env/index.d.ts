@@ -1,27 +1,17 @@
-import { e as RuntimeConfig, h as TokenCodec, i as ClientNameResolver } from '../env-bindings--BxVwc6f.js';
-export { A as ApiError, B as BackendClientConfig, C as CLIENT_VARIANT_PATTERN, j as CoreClientConfig, a as Credentials, E as ENV_VAR_BINDINGS, F as FeatureMap, O as OS_PATH_FIELDS, b as OsPathResolver, c as OsPathScope, R as RateLimitConfig, d as RetryConfig, T as TokenEntry, f as TokenPair, g as TokenStore, v as validateApiKeyFormat } from '../env-bindings--BxVwc6f.js';
+import { e as RuntimeConfig, h as TokenCodec, i as ClientNameResolver } from '../env-bindings-CCaolEHB.js';
+export { A as ApiError, B as BackendClientConfig, C as CLIENT_VARIANT_PATTERN, j as CoreClientConfig, a as Credentials, E as ENV_VAR_BINDINGS, F as FeatureMap, O as OS_PATH_FIELDS, b as OsPathResolver, c as OsPathScope, R as RateLimitConfig, d as RetryConfig, T as TokenEntry, f as TokenPair, g as TokenStore, v as validateApiKeyFormat } from '../env-bindings-CCaolEHB.js';
+import { A as AgentIdentityConfig } from '../core-client-BaOdHXQU.js';
+import '../core-types-Dxgkbox0.js';
 
-interface StackEndpoints {
-    apiUrl: string;
-    coreUrl: string;
-    authUrl?: string;
-    platformUrl?: string;
-}
-interface OpenBoxConnection extends StackEndpoints {
-    stackUrl?: string;
-    displayName?: string;
-    source: 'explicit' | 'stack-url';
+interface OpenBoxConnection extends RuntimeConfig {
+    source: 'explicit';
 }
 interface ResolveConnectionOptions {
-    stackUrl?: string;
     apiUrl?: string;
     coreUrl?: string;
     authUrl?: string;
     platformUrl?: string;
-    displayName?: string;
 }
-declare function normalizeStackUrl(raw: string): string;
-declare function endpointsFromStackUrl(raw: string): StackEndpoints;
 declare const resolveConnection: (opts?: ResolveConnectionOptions) => OpenBoxConnection & RuntimeConfig;
 
 declare const parseTokenStore: TokenCodec['parseTokenStore'];
@@ -43,4 +33,16 @@ declare function buildAuthHeader(creds: {
     accessToken?: string;
 }): Record<string, string>;
 
-export { type OpenBoxConnection, type ResolveConnectionOptions, RuntimeConfig, type StackEndpoints, buildAuthHeader, endpointsFromStackUrl, normalizeStackUrl, parseTokenStore, resolveClientName, resolveConnection, serializeTokenStore };
+interface AgentIdentitySource {
+    OPENBOX_AGENT_DID?: string;
+    OPENBOX_AGENT_PRIVATE_KEY?: string;
+}
+/**
+ * Resolve the optional signed agent identity used by Core when an
+ * agent has signing_required=true. Both values must be present; a
+ * half-configured identity would silently downgrade signed agents
+ * back into 401s.
+ */
+declare function resolveAgentIdentity(source?: AgentIdentitySource): AgentIdentityConfig | undefined;
+
+export { type AgentIdentitySource, type OpenBoxConnection, type ResolveConnectionOptions, RuntimeConfig, buildAuthHeader, parseTokenStore, resolveAgentIdentity, resolveClientName, resolveConnection, serializeTokenStore };

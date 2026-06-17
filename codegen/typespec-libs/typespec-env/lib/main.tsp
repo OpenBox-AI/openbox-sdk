@@ -34,9 +34,8 @@ extern dec token_format(target: ModelProperty, pattern: valueof string);
 
 /**
  * Marks a string property as a filesystem path that should be
- * resolved against the per-OS user data directory.
- * Linux/macOS: `~/.openbox/`. Windows: `%APPDATA%/openbox/`. macOS app
- * sandbox: `~/Library/Application Support/openbox/`. Emitters use the
- * per-language stdlib equivalent of `env-paths` / `dirs` / `platformdirs`.
+ * resolved against the active project-local OpenBox data directory.
+ * Default: `<cwd>/.openbox/`. `OPENBOX_HOME` is the explicit override
+ * for tests, CI, sandboxes, or caller-managed storage.
  */
 extern dec os_path(target: ModelProperty);

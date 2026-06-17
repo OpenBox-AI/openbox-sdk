@@ -23,10 +23,7 @@
 import * as net from 'node:net';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
-
-const RUN_DIR = path.join(os.homedir(), '.openbox', 'run');
-const SOCKET_PATH = path.join(RUN_DIR, 'openbox.sock');
+import { defaultApprovalSocketPath } from './socket-client.js';
 
 export interface ApprovalPendingMessage {
   type: 'pending';
@@ -53,7 +50,7 @@ export interface ApprovalServerConnection {
 
 export interface ApprovalSocketServerOptions {
   /** Override socket path. Defaults to
-   *  `~/.openbox/run/openbox.sock`. */
+   *  `<project>/.openbox/run/openbox.sock`. */
   socketPath?: string;
   /** Diagnostic logger for non-fatal I/O errors. */
   log?: (line: string) => void;
@@ -86,7 +83,7 @@ export class ApprovalSocketServer {
     private readonly handlers: ApprovalSocketServerHandlers,
     options: ApprovalSocketServerOptions = {},
   ) {
-    this.socketPath = options.socketPath ?? SOCKET_PATH;
+    this.socketPath = options.socketPath ?? defaultApprovalSocketPath();
     this.log = options.log ?? (() => undefined);
   }
 

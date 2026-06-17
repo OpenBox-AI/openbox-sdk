@@ -39,6 +39,7 @@ describe('Claude Code plugin asset', () => {
     expect(fs.existsSync(path.join(out, 'diagnostics', 'component-inventory.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'diagnostics', 'claude-code-governance.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'diagnostics', 'monitors.opt-in.json'))).toBe(true);
+    expect(fs.existsSync(path.join(out, 'bin', 'openbox-cli.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'bin', 'openbox-plugin-doctor'))).toBe(true);
     expect(fs.readdirSync(path.join(out, 'commands')).sort()).toEqual([
       'openbox-check.md',
@@ -65,12 +66,16 @@ describe('Claude Code plugin asset', () => {
     expect(hooks.hooks.PreToolUse[0].matcher).toBe('\\b(rm|sudo)\\b');
     expect(hooks.hooks.PreToolUse[0].hooks[0]).toEqual({
       type: 'command',
-      command: 'openbox claude-code hook',
+      command: 'node',
+      args: ['${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs', 'claude-code', 'hook'],
       timeout: 86400,
     });
 
     const mcp = JSON.parse(fs.readFileSync(path.join(out, '.mcp.json'), 'utf-8'));
-    expect(mcp.mcpServers.openbox).toEqual({ command: 'openbox', args: ['mcp', 'serve'] });
+    expect(mcp.mcpServers.openbox).toEqual({
+      command: 'node',
+      args: ['${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs', 'mcp', 'serve'],
+    });
 
     const inventory = JSON.parse(
       fs.readFileSync(path.join(out, 'diagnostics', 'component-inventory.json'), 'utf-8'),
@@ -79,8 +84,22 @@ describe('Claude Code plugin asset', () => {
     expect(inventory.components.hooks.defaultEvents).toContain('PreToolUse');
     expect(inventory.components.hooks.defaultEvents).toContain('Elicitation');
     expect(inventory.components.hooks.optInEvents).toContain('WorktreeCreate');
+    expect(inventory.components.hooks.optInEvents).toContain('SessionEnd');
+    expect(inventory.components.bin.files).toContain('openbox-cli.mjs');
+    expect(inventory.components.settings.status).toBe('diagnose_only');
+    expect(inventory.components.settings.emitted).toBe(false);
     expect(inventory.components.monitors.activeByDefault).toBe(false);
     expect(inventory.components.lsp.status).toBe('not_included');
+
+    const governance = JSON.parse(
+      fs.readFileSync(path.join(out, 'diagnostics', 'claude-code-governance.json'), 'utf-8'),
+    );
+    expect(governance.sdkCapabilities.some(
+      (entry: any) => entry.capability === 'workflow lifecycle failure',
+    )).toBe(true);
+    expect(governance.sdkCapabilities.some(
+      (entry: any) => entry.capability === 'guardrail transforms and constrain verdicts',
+    )).toBe(true);
 
     const checks = verifyClaudeCodePlugin({ target: out });
     expect(checks.every((check) => check.status === 'pass')).toBe(true);
@@ -114,11 +133,33 @@ describe('Claude Code plugin asset', () => {
     expect(fs.existsSync(target)).toBe(false);
   });
 
+  it('validates explicitly opt-in hook exports only when requested', () => {
+    const out = path.join(tempDir(), 'openbox-opt-in');
+    exportClaudeCodePlugin({ out, includeOptInHooks: true });
+
+    const defaultChecks = verifyClaudeCodePlugin({ target: out });
+    expect(defaultChecks.some((check) => check.status === 'fail')).toBe(true);
+
+    const optInChecks = verifyClaudeCodePlugin({ target: out, includeOptInHooks: true });
+    expect(optInChecks.every((check) => check.status === 'pass')).toBe(true);
+  });
+
   it('rejects install targets outside the project', () => {
     const cwd = tempDir();
 
     expect(() => installClaudeCodePlugin({ cwd, target: path.join(tempDir(), 'outside') })).toThrow(
       'Claude Code plugin install target must be inside the project',
+    );
+  });
+
+  it('reports missing plugin assets and rejects unsafe output paths', () => {
+    const missing = path.join(tempDir(), 'missing-plugin');
+    const checks = verifyClaudeCodePlugin({ target: missing });
+
+    expect(checks.some((check) => check.name === 'plugin' && check.status === 'fail')).toBe(true);
+    expect(checks.some((check) => check.name === 'plugin-hooks' && check.status === 'fail')).toBe(true);
+    expect(() => exportClaudeCodePlugin({ out: os.homedir() })).toThrow(
+      'Refusing to overwrite unsafe Claude Code plugin path',
     );
   });
 });

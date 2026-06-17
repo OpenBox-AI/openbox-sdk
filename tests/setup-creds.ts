@@ -14,7 +14,7 @@
 // `X-API-Key`), Core is the agent runtime (per-agent runtime key
 // over Bearer auth). Mobile is the only sanctioned JWT consumer for
 // the backend; every other surface (CLI, MCP, IDE extension, hooks)
-// reads the X-API-Key from ~/.openbox/tokens, so SDK e2e dogfoods
+// reads the X-API-Key from project-local token stores, so SDK e2e dogfoods
 // the same path.
 //
 // Unit tests deliberately do NOT load this file: file-tokens'
@@ -25,7 +25,6 @@
 
 import { resolve } from 'path';
 import { readFileSync, existsSync } from 'fs';
-import { homedir } from 'os';
 import { parseTokenStore } from '../ts/src/env/index';
 
 const DEFAULT_API_URL = 'http://localhost:3000';
@@ -35,6 +34,7 @@ const UNIT_DEFAULT_CORE_URL = 'http://localhost:18081';
 const E2E_AGENT_NAME = 'e2e-agent';
 const RUNTIME_KEY_PREFIX = /^obx_(test|live)_/;
 const BACKEND_KEY_PREFIX = /^obx_key_/;
+const PROJECT_ROOT = resolve(__dirname, '..');
 
 interface AgentKeyRecord {
   agentId: string;
@@ -59,18 +59,6 @@ function populateUrls(): void {
   }
 }
 
-function unlockExperimentalCli(): void {
-  // The cli-commands suite shells out to the openbox binary as a
-  // subprocess. The CLI gates org / team / behavior / etc. behind
-  // --experimental to prevent accidental use; e2e is exactly the
-  // case the gate is designed to allow. Unlock at the parent-process
-  // level so spawned subprocesses inherit the level rather than
-  // threading --experimental through every runCli call.
-  if (!process.env.OPENBOX_EXPERIMENTAL_LEVEL) {
-    process.env.OPENBOX_EXPERIMENTAL_LEVEL = 'experimental';
-  }
-}
-
 function loadBackendKey(): void {
   // If the env var is already set with the right shape, trust it
   // (CI override path). Wrong shape = stale shell export from
@@ -88,8 +76,8 @@ function loadBackendKey(): void {
   }
 
   const candidates = [
-    resolve(homedir(), '.openbox', 'tokens'),
-    resolve(__dirname, '..', '.tokens'),
+    resolve(PROJECT_ROOT, '.tokens'),
+    resolve(PROJECT_ROOT, '.openbox', 'tokens'),
   ];
   const tokensPath = candidates.find((p) => existsSync(p));
   if (!tokensPath) return;
@@ -116,7 +104,7 @@ function loadCoreRuntimeKey(): void {
     delete process.env.OPENBOX_API_KEY_OVERRIDE;
   }
 
-  const keysFile = resolve(homedir(), '.openbox', 'agent-keys');
+  const keysFile = resolve(PROJECT_ROOT, '.openbox', 'agent-keys');
   if (!existsSync(keysFile)) return;
 
   const cache: Record<string, AgentKeyRecord> = JSON.parse(
@@ -153,7 +141,6 @@ async function populateOrgId(): Promise<void> {
 }
 
 populateUrls();
-unlockExperimentalCli();
 loadBackendKey();
 loadCoreRuntimeKey();
 await populateOrgId();

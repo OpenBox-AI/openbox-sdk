@@ -223,6 +223,13 @@ extern dec hookTarget(target: Interface, target_: valueof Record<unknown>);
 extern dec installTimeout(target: Operation, seconds: valueof int32);
 
 /**
+ * Whether the hook event should be installed by default. Events that
+ * remain supported but are noisy or invasive in live hosts can stay in
+ * HOOK_SPEC as opt-in entries.
+ */
+extern dec installDefault(target: Operation, enabled: valueof boolean);
+
+/**
  * Predicate-based activity-type reroute. Sits alongside @activityRouting
  * for adapter ops where one tool's activity_type depends on a runtime
  * field value, such as Cursor's Shell tool rerouting to `file_write`

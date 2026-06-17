@@ -178,7 +178,9 @@ export const HOOK_SPEC: HookSpec = {
       "name": "SessionStart"
     },
     {
-      "name": "SessionEnd"
+      "name": "SessionEnd",
+      "timeout": 86400,
+      "installDefault": false
     },
     {
       "name": "SubagentStart"
@@ -370,7 +372,7 @@ export function buildPostToolUsePayload(env: ClaudeCodeEnvelope, sideEffects: Cl
 
   return {
       "tool_name": getPath(env, "tool_name"),
-      "output": (sideEffects.stringifyTruncate?.(getPath(env, "tool_output")) ?? ''),
+      "output": (sideEffects.stringifyTruncate?.(getPath(env, "tool_response")) ?? ''),
       "event_category": "agent_observation",
     };
 }
@@ -614,6 +616,7 @@ export function buildStopPayload(env: ClaudeCodeEnvelope): Record<string, unknow
 
   return {
       "cwd": getPath(env, "cwd"),
+      "stop_hook_active": getPath(env, "stop_hook_active"),
       "last_assistant_message": getPath(env, "last_assistant_message"),
       "background_tasks": getPath(env, "background_tasks"),
       "session_crons": getPath(env, "session_crons"),
@@ -1228,10 +1231,23 @@ function brand(raw: string): string {
   return sanitized.startsWith('[OpenBox]') ? sanitized : '[OpenBox] ' + sanitized;
 }
 
+function redactedInput(v: WorkflowVerdict | undefined): unknown {
+  return v?.guardrailsResult?.redactedInput;
+}
+
+function objectRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  return value as Record<string, unknown>;
+}
+
+function addIfDefined(target: Record<string, unknown>, key: string, value: unknown): void {
+  if (value !== undefined) target[key] = value;
+}
+
 function renderVerdictOutput(
   shape: Shape,
   v: WorkflowVerdict | undefined,
-  env: { hook_event_name?: string },
+  env: { hook_event_name?: string; content?: unknown; response?: unknown },
   deferApproval = false,
 ): unknown {
   const arm = v?.arm ?? 'allow';
@@ -1240,11 +1256,16 @@ function renderVerdictOutput(
     case 'permission-decision': {
       const eventName = env.hook_event_name ?? 'PreToolUse';
       if (arm === 'allow' || arm === 'constrain') {
+        const hookSpecificOutput: Record<string, unknown> = {
+          hookEventName: eventName,
+          permissionDecision: 'allow',
+        };
+        if (arm === 'constrain') {
+          addIfDefined(hookSpecificOutput, 'updatedInput', objectRecord(redactedInput(v)));
+          if (reason) hookSpecificOutput.additionalContext = reason;
+        }
         return {
-          hookSpecificOutput: {
-            hookEventName: eventName,
-            permissionDecision: 'allow',
-          },
+          hookSpecificOutput,
         };
       }
       if (arm === 'require_approval') {
@@ -1272,15 +1293,27 @@ function renderVerdictOutput(
           reason: reason || '[OpenBox] blocked by policy',
         };
       }
+      if (arm === 'constrain' && reason) {
+        const hookSpecificOutput: Record<string, unknown> = {
+          hookEventName: env.hook_event_name ?? 'ClaudeCode',
+          additionalContext: reason,
+        };
+        addIfDefined(hookSpecificOutput, 'updatedToolOutput', redactedInput(v));
+        return { hookSpecificOutput };
+      }
       return {};
     }
     case 'permission-request': {
       const eventName = env.hook_event_name ?? 'PermissionRequest';
       if (arm === 'allow' || arm === 'constrain') {
+        const decision: Record<string, unknown> = { behavior: 'allow' };
+        if (arm === 'constrain') {
+          addIfDefined(decision, 'updatedInput', objectRecord(redactedInput(v)));
+        }
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            decision: { behavior: 'allow' },
+            decision,
           },
         };
       }
@@ -1313,7 +1346,16 @@ function renderVerdictOutput(
     }
     case 'elicitation-response': {
       const eventName = env.hook_event_name ?? 'Elicitation';
-      if (arm === 'allow' || arm === 'constrain') return {};
+      if (arm === 'allow') return {};
+      if (arm === 'constrain') {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            action: 'accept',
+            content: redactedInput(v) ?? env.response ?? env.content ?? {},
+          },
+        };
+      }
       return {
         hookSpecificOutput: {
           hookEventName: eventName,
@@ -1330,7 +1372,7 @@ function renderVerdictOutput(
       };
     }
     case 'additional-context': {
-      if (arm === 'allow' || arm === 'constrain') return {};
+      if (arm === 'allow') return {};
       return {
         hookSpecificOutput: {
           hookEventName: env.hook_event_name ?? 'PostToolUseFailure',

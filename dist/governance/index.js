@@ -7,60 +7,28 @@ var ENV_VAR_BINDINGS = {
   coreUrl: { "name": "OPENBOX_CORE_URL" },
   platformUrl: { "name": "OPENBOX_PLATFORM_URL" },
   authUrl: { "name": "OPENBOX_AUTH_URL" },
-  stackUrl: { "name": "OPENBOX_STACK_URL" },
-  apiKey: { "name": "OPENBOX_API_KEY" },
-  experimentalLevel: { "name": "OPENBOX_EXPERIMENTAL_LEVEL" },
-  features: { "name": "OPENBOX_FEATURES" }
+  apiKey: { "name": "OPENBOX_API_KEY" }
 };
 var CLIENT_VARIANT_PATTERN = /^[A-Za-z0-9._+-]+$/;
 
 // ts/src/env/connection.ts
-function normalizeStackUrl(raw) {
-  const trimmed = raw.trim();
-  if (!trimmed) throw new Error("OpenBox stack URL cannot be empty.");
-  const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  const url = new URL(withProtocol);
-  if (url.protocol !== "https:" && !isLoopbackHost(url.hostname)) {
-    throw new Error("OpenBox stack URL must use https:// unless it points at localhost.");
-  }
-  url.hash = "";
-  url.search = "";
-  url.pathname = url.pathname.replace(/\/+$/, "");
-  return url.toString().replace(/\/$/, "");
-}
-function endpointsFromStackUrl(raw) {
-  const stackUrl = normalizeStackUrl(raw);
-  const url = new URL(stackUrl);
-  const rootHost = url.hostname.replace(/^(api|core|auth)\./, "");
-  const origin = `${url.protocol}//`;
-  return {
-    apiUrl: `${origin}api.${rootHost}/ob`,
-    coreUrl: `${origin}core.${rootHost}/ob`,
-    authUrl: `${origin}auth.${rootHost}/ob`,
-    platformUrl: stackUrl
-  };
-}
 var resolveConnection = (opts = {}) => {
-  const stackUrl = opts.stackUrl ?? process.env[ENV_VAR_BINDINGS.stackUrl.name];
-  const stackEndpoints = stackUrl ? endpointsFromStackUrl(stackUrl) : void 0;
   const apiUrl = requireUrl(
     "OPENBOX_API_URL",
-    opts.apiUrl ?? process.env[ENV_VAR_BINDINGS.apiUrl.name] ?? stackEndpoints?.apiUrl
+    opts.apiUrl ?? process.env[ENV_VAR_BINDINGS.apiUrl.name]
   );
   const coreUrl = requireUrl(
     "OPENBOX_CORE_URL",
-    opts.coreUrl ?? process.env[ENV_VAR_BINDINGS.coreUrl.name] ?? stackEndpoints?.coreUrl
+    opts.coreUrl ?? process.env[ENV_VAR_BINDINGS.coreUrl.name]
   );
-  const platformUrl = opts.platformUrl ?? process.env[ENV_VAR_BINDINGS.platformUrl.name] ?? stackEndpoints?.platformUrl;
-  const authUrl = opts.authUrl ?? process.env[ENV_VAR_BINDINGS.authUrl.name] ?? stackEndpoints?.authUrl;
+  const platformUrl = opts.platformUrl ?? process.env[ENV_VAR_BINDINGS.platformUrl.name];
+  const authUrl = opts.authUrl ?? process.env[ENV_VAR_BINDINGS.authUrl.name];
   return {
     apiUrl,
     coreUrl,
     platformUrl,
     authUrl,
-    stackUrl,
-    displayName: opts.displayName ?? process.env.OPENBOX_STACK_NAME,
-    source: stackUrl && !opts.apiUrl && !opts.coreUrl ? "stack-url" : "explicit"
+    source: "explicit"
   };
 };
 function requireUrl(name, value) {
@@ -136,6 +104,19 @@ function buildAuthHeader(creds) {
   return {};
 }
 
+// ts/src/env/agent-identity.ts
+function resolveAgentIdentity(source = process.env) {
+  const did = source.OPENBOX_AGENT_DID;
+  const privateKey = source.OPENBOX_AGENT_PRIVATE_KEY;
+  if (!did && !privateKey) return void 0;
+  if (!did || !privateKey) {
+    throw new Error(
+      "OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY."
+    );
+  }
+  return { did, privateKey };
+}
+
 // ts/src/client/rate-limiter.ts
 var TokenBucket = class {
   tokens;
@@ -156,11 +137,11 @@ var TokenBucket = class {
       return;
     }
     const waitMs = (1 - this.tokens) / this.refillRate;
-    return new Promise((resolve2) => {
+    return new Promise((resolve3) => {
       setTimeout(() => {
         this.refill();
         this.tokens -= 1;
-        resolve2();
+        resolve3();
       }, waitMs);
     });
   }
@@ -424,23 +405,13 @@ function governAttach(config) {
 
 // ts/src/file-tokens/agent-keys.ts
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { dirname } from "path";
 
 // ts/src/env/os-paths.ts
-import { homedir } from "os";
-import { join } from "path";
+import { join, resolve } from "path";
 function openboxDataRoot() {
   const override = process.env.OPENBOX_HOME;
-  if (override) return override;
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA ?? join(homedir(), "AppData", "Roaming");
-    return join(appData, "openbox");
-  }
-  if (process.platform === "linux") {
-    const xdg = process.env.XDG_DATA_HOME;
-    if (xdg) return join(xdg, "openbox");
-  }
-  return join(homedir(), ".openbox");
+  if (override) return resolve(override);
+  return resolve(process.cwd(), ".openbox");
 }
 var resolveOsPath = (scope) => {
   return join(openboxDataRoot(), scope);
@@ -448,10 +419,7 @@ var resolveOsPath = (scope) => {
 
 // ts/src/file-tokens/agent-keys.ts
 function getPath() {
-  const path3 = resolveOsPath("agent-keys");
-  const dir = dirname(path3);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  return path3;
+  return resolveOsPath("agent-keys");
 }
 function read() {
   const path3 = getPath();
@@ -677,7 +645,11 @@ async function checkGovernance(opts) {
     span_count: 1,
     attempt: 1
   };
-  const client = new OpenBoxCoreClient({ apiUrl: coreUrl, apiKey });
+  const client = new OpenBoxCoreClient({
+    apiUrl: coreUrl,
+    apiKey,
+    agentIdentity: resolveAgentIdentity()
+  });
   return client.evaluate(payload);
 }
 

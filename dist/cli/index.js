@@ -101,10 +101,7 @@ var init_env_bindings = __esm({
       coreUrl: { "name": "OPENBOX_CORE_URL" },
       platformUrl: { "name": "OPENBOX_PLATFORM_URL" },
       authUrl: { "name": "OPENBOX_AUTH_URL" },
-      stackUrl: { "name": "OPENBOX_STACK_URL" },
-      apiKey: { "name": "OPENBOX_API_KEY" },
-      experimentalLevel: { "name": "OPENBOX_EXPERIMENTAL_LEVEL" },
-      features: { "name": "OPENBOX_FEATURES" }
+      apiKey: { "name": "OPENBOX_API_KEY" }
     };
     API_KEY_PATTERN = /^obx_(?:live|test)_[0-9a-f]{48}$/;
     CLIENT_VARIANT_PATTERN = /^[A-Za-z0-9._+-]+$/;
@@ -112,31 +109,6 @@ var init_env_bindings = __esm({
 });
 
 // ts/src/env/connection.ts
-function normalizeStackUrl(raw) {
-  const trimmed = raw.trim();
-  if (!trimmed) throw new Error("OpenBox stack URL cannot be empty.");
-  const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  const url = new URL(withProtocol);
-  if (url.protocol !== "https:" && !isLoopbackHost(url.hostname)) {
-    throw new Error("OpenBox stack URL must use https:// unless it points at localhost.");
-  }
-  url.hash = "";
-  url.search = "";
-  url.pathname = url.pathname.replace(/\/+$/, "");
-  return url.toString().replace(/\/$/, "");
-}
-function endpointsFromStackUrl(raw) {
-  const stackUrl = normalizeStackUrl(raw);
-  const url = new URL(stackUrl);
-  const rootHost = url.hostname.replace(/^(api|core|auth)\./, "");
-  const origin = `${url.protocol}//`;
-  return {
-    apiUrl: `${origin}api.${rootHost}/ob`,
-    coreUrl: `${origin}core.${rootHost}/ob`,
-    authUrl: `${origin}auth.${rootHost}/ob`,
-    platformUrl: stackUrl
-  };
-}
 function requireUrl(name, value) {
   if (!value) throw new Error(`${name} is required. Set explicit OpenBox service URLs.`);
   return normalizeServiceUrl(name, value);
@@ -162,26 +134,22 @@ var init_connection = __esm({
     "use strict";
     init_env_bindings();
     resolveConnection = (opts = {}) => {
-      const stackUrl = opts.stackUrl ?? process.env[ENV_VAR_BINDINGS.stackUrl.name];
-      const stackEndpoints = stackUrl ? endpointsFromStackUrl(stackUrl) : void 0;
       const apiUrl = requireUrl(
         "OPENBOX_API_URL",
-        opts.apiUrl ?? process.env[ENV_VAR_BINDINGS.apiUrl.name] ?? stackEndpoints?.apiUrl
+        opts.apiUrl ?? process.env[ENV_VAR_BINDINGS.apiUrl.name]
       );
       const coreUrl = requireUrl(
         "OPENBOX_CORE_URL",
-        opts.coreUrl ?? process.env[ENV_VAR_BINDINGS.coreUrl.name] ?? stackEndpoints?.coreUrl
+        opts.coreUrl ?? process.env[ENV_VAR_BINDINGS.coreUrl.name]
       );
-      const platformUrl = opts.platformUrl ?? process.env[ENV_VAR_BINDINGS.platformUrl.name] ?? stackEndpoints?.platformUrl;
-      const authUrl = opts.authUrl ?? process.env[ENV_VAR_BINDINGS.authUrl.name] ?? stackEndpoints?.authUrl;
+      const platformUrl = opts.platformUrl ?? process.env[ENV_VAR_BINDINGS.platformUrl.name];
+      const authUrl = opts.authUrl ?? process.env[ENV_VAR_BINDINGS.authUrl.name];
       return {
         apiUrl,
         coreUrl,
         platformUrl,
         authUrl,
-        stackUrl,
-        displayName: opts.displayName ?? process.env.OPENBOX_STACK_NAME,
-        source: stackUrl && !opts.apiUrl && !opts.coreUrl ? "stack-url" : "explicit"
+        source: "explicit"
       };
     };
   }
@@ -276,6 +244,24 @@ var init_auth_header = __esm({
   }
 });
 
+// ts/src/env/agent-identity.ts
+function resolveAgentIdentity(source = process.env) {
+  const did = source.OPENBOX_AGENT_DID;
+  const privateKey = source.OPENBOX_AGENT_PRIVATE_KEY;
+  if (!did && !privateKey) return void 0;
+  if (!did || !privateKey) {
+    throw new Error(
+      "OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY."
+    );
+  }
+  return { did, privateKey };
+}
+var init_agent_identity = __esm({
+  "ts/src/env/agent-identity.ts"() {
+    "use strict";
+  }
+});
+
 // ts/src/env/index.ts
 var init_env = __esm({
   "ts/src/env/index.ts"() {
@@ -284,6 +270,7 @@ var init_env = __esm({
     init_token_codec();
     init_client_name();
     init_auth_header();
+    init_agent_identity();
     init_env_bindings();
   }
 });
@@ -312,11 +299,11 @@ var init_rate_limiter = __esm({
           return;
         }
         const waitMs = (1 - this.tokens) / this.refillRate;
-        return new Promise((resolve2) => {
+        return new Promise((resolve3) => {
           setTimeout(() => {
             this.refill();
             this.tokens -= 1;
-            resolve2();
+            resolve3();
           }, waitMs);
         });
       }
@@ -1103,12 +1090,12 @@ var init_wrapper_methods = __esm({
        * method bodies AND any hand-written shadow that calls http* directly.
        * No-op when `permissions` is undefined or no rule matches the path.
        */
-      checkPathPermissions(verb, path14) {
+      checkPathPermissions(verb, path15) {
         if (!this.permissions) return;
         const upperVerb = verb.toUpperCase();
         for (const rule of PATH_PERMISSION_RULES) {
           if (rule.verb !== upperVerb) continue;
-          if (!rule.pattern.test(path14)) continue;
+          if (!rule.pattern.test(path15)) continue;
           const missing = rule.perms.filter((p) => !this.permissions.has(p));
           if (missing.length > 0) {
             throw new MissingPermissionError(rule.methodName, missing, [...this.permissions]);
@@ -1633,8 +1620,8 @@ var init_client = __esm({
        * method exists for operationId-driven callers that already resolved
        * a generated endpoint manifest entry.
        */
-      async requestOperation(method, path14, options) {
-        return this.request(method, path14, options);
+      async requestOperation(method, path15, options) {
+        return this.request(method, path15, options);
       }
       /**
        * Update the cached permission set. Call this after a token refresh
@@ -1853,7 +1840,7 @@ var init_client = __esm({
         return Math.min(exponential + jitter, maxDelay);
       }
       sleep(ms) {
-        return new Promise((resolve2) => setTimeout(resolve2, ms));
+        return new Promise((resolve3) => setTimeout(resolve3, ms));
       }
       // -------------------------------------------------------------------------
       // Core request pipeline
@@ -1861,13 +1848,13 @@ var init_client = __esm({
       /**
        * Generic request method using native fetch with retry and rate limiting.
        */
-      async request(method, path14, options) {
-        this.checkPathPermissions(method, path14);
+      async request(method, path15, options) {
+        this.checkPathPermissions(method, path15);
         await this.ensureValidToken();
         if (this.rateLimiter) {
           await this.rateLimiter.acquire();
         }
-        let url = `${this.baseUrl}${path14}`;
+        let url = `${this.baseUrl}${path15}`;
         if (options?.params) {
           const searchParams = new URLSearchParams();
           for (const [key, value] of Object.entries(options.params)) {
@@ -1957,20 +1944,20 @@ var init_client = __esm({
       // `http` prefix avoids name clashes with wire methods like
       // `getProfile` / `postEvent` that TypeScript would otherwise read as
       // overloads of an unprefixed `get` / `post`.
-      async httpGet(path14, params) {
-        return this.request("GET", path14, { params });
+      async httpGet(path15, params) {
+        return this.request("GET", path15, { params });
       }
-      async httpPost(path14, data) {
-        return this.request("POST", path14, { data });
+      async httpPost(path15, data) {
+        return this.request("POST", path15, { data });
       }
-      async httpPut(path14, data, params) {
-        return this.request("PUT", path14, { data, params });
+      async httpPut(path15, data, params) {
+        return this.request("PUT", path15, { data, params });
       }
-      async httpPatch(path14, data) {
-        return this.request("PATCH", path14, { data });
+      async httpPatch(path15, data) {
+        return this.request("PATCH", path15, { data });
       }
-      async httpDelete(path14, data) {
-        return this.request("DELETE", path14, { data });
+      async httpDelete(path15, data) {
+        return this.request("DELETE", path15, { data });
       }
       /**
        * Unwraps the standard `{ status, data }` response envelope used by the
@@ -2016,8 +2003,8 @@ function requireCoreUrl(value) {
   url.pathname = url.pathname.replace(/\/+$/, "");
   return url.toString().replace(/\/$/, "");
 }
-function appendQuery(path14, params) {
-  if (!params) return path14;
+function appendQuery(path15, params) {
+  if (!params) return path15;
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value === void 0 || value === null) continue;
@@ -2030,8 +2017,8 @@ function appendQuery(path14, params) {
     }
   }
   const query = search.toString();
-  if (!query) return path14;
-  return `${path14}${path14.includes("?") ? "&" : "?"}${query}`;
+  if (!query) return path15;
+  return `${path15}${path15.includes("?") ? "&" : "?"}${query}`;
 }
 function signAgentIdentityRequest(input) {
   const timestamp = input.timestamp ?? (/* @__PURE__ */ new Date()).toISOString();
@@ -2104,8 +2091,8 @@ var init_core_client = __esm({
        * exists for operationId-driven callers that already resolved a
        * generated endpoint manifest entry.
        */
-      async requestOperation(method, path14, options) {
-        const renderedPath = appendQuery(path14, options?.params);
+      async requestOperation(method, path15, options) {
+        const renderedPath = appendQuery(path15, options?.params);
         return this.request(method, renderedPath, { data: options?.data });
       }
       async health() {
@@ -2130,11 +2117,11 @@ var init_core_client = __esm({
       // Private helpers
       // =========================================================================
       static RETRYABLE_STATUSES = /* @__PURE__ */ new Set([429, 500, 502, 503, 504]);
-      async request(method, path14, options) {
+      async request(method, path15, options) {
         if (this.rateLimiter) {
           await this.rateLimiter.acquire();
         }
-        const url = `${this.baseUrl}${path14}`;
+        const url = `${this.baseUrl}${path15}`;
         const timeoutMs = this.config.timeoutMs ?? 35e3;
         const baseHeaders = {
           "Content-Type": "application/json",
@@ -2403,7 +2390,7 @@ function errorInfoFrom(value) {
   return { type: typeof value, message: String(value) };
 }
 function sleep(ms) {
-  return new Promise((resolve2) => setTimeout(resolve2, ms));
+  return new Promise((resolve3) => setTimeout(resolve3, ms));
 }
 function applyJitter(baseMs, fraction) {
   const f = Math.max(0, Math.min(1, fraction));
@@ -3612,25 +3599,6 @@ function summary(counts) {
   const tail = parts.length > 0 ? " " + parts.join(" ") : "";
   console.log(`done.${tail}`);
 }
-function table(headers, rows) {
-  if (headers.length === 0) return;
-  if (isMachineMode()) {
-    const out = rows.map((r) => {
-      const o = {};
-      for (let i = 0; i < headers.length; i++) o[headers[i]] = r[i] ?? "";
-      return o;
-    });
-    console.log(JSON.stringify(out, null, 2));
-    return;
-  }
-  const widths = headers.map(
-    (h, i) => Math.max(h.length, ...rows.map((r) => (r[i] ?? "").length))
-  );
-  const fmt = (cells, decorate = (s) => s) => cells.map((c, i) => decorate((c ?? "").padEnd(widths[i]))).join("  ");
-  console.log(fmt(headers, color.bold));
-  console.log(color.dim(widths.map((w) => "-".repeat(w)).join("  ")));
-  for (const r of rows) console.log(fmt(r));
-}
 var TRAILER_INDENT, STATUS_COLORS, TARGET_COL, STATUS_COL;
 var init_output = __esm({
   "ts/src/cli/output.ts"() {
@@ -3657,20 +3625,11 @@ var init_output = __esm({
 });
 
 // ts/src/env/os-paths.ts
-import { homedir } from "os";
-import { join } from "path";
+import { join, resolve } from "path";
 function openboxDataRoot() {
   const override = process.env.OPENBOX_HOME;
-  if (override) return override;
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA ?? join(homedir(), "AppData", "Roaming");
-    return join(appData, "openbox");
-  }
-  if (process.platform === "linux") {
-    const xdg = process.env.XDG_DATA_HOME;
-    if (xdg) return join(xdg, "openbox");
-  }
-  return join(homedir(), ".openbox");
+  if (override) return resolve(override);
+  return resolve(process.cwd(), ".openbox");
 }
 var resolveOsPath;
 var init_os_paths = __esm({
@@ -3684,18 +3643,14 @@ var init_os_paths = __esm({
 
 // ts/src/file-tokens/agent-keys.ts
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { dirname } from "path";
 function getPath() {
-  const path14 = resolveOsPath("agent-keys");
-  const dir = dirname(path14);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  return path14;
+  return resolveOsPath("agent-keys");
 }
 function read() {
-  const path14 = getPath();
-  if (!existsSync(path14)) return {};
+  const path15 = getPath();
+  if (!existsSync(path15)) return {};
   try {
-    const parsed = JSON.parse(readFileSync(path14, "utf-8"));
+    const parsed = JSON.parse(readFileSync(path15, "utf-8"));
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
@@ -3713,33 +3668,32 @@ var init_agent_keys = __esm({
 
 // ts/src/file-tokens/index.ts
 import { existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2 } from "fs";
-import { dirname as dirname2, resolve } from "path";
+import { dirname, resolve as resolve2 } from "path";
 function getTokenPath() {
-  const projectTokens = resolve(process.cwd(), ".tokens");
+  const projectTokens = resolve2(process.cwd(), ".tokens");
   if (existsSync2(projectTokens)) return projectTokens;
-  const path14 = resolveOsPath("tokens");
-  const dir = dirname2(path14);
-  if (!existsSync2(dir)) mkdirSync2(dir, { recursive: true });
-  return path14;
+  return resolveOsPath("tokens");
 }
 function readTokenStore() {
-  const path14 = getTokenPath();
-  if (!existsSync2(path14)) return {};
-  return parseTokenStore(readFileSync2(path14, "utf-8"));
+  const path15 = getTokenPath();
+  if (!existsSync2(path15)) return {};
+  return parseTokenStore(readFileSync2(path15, "utf-8"));
 }
 function loadApiKey() {
   return process.env.OPENBOX_BACKEND_API_KEY ?? process.env.OPENBOX_API_KEY ?? readTokenStore().apiKey;
 }
 function saveApiKey(apiKey) {
-  const path14 = getTokenPath();
+  const path15 = getTokenPath();
   const store = readTokenStore();
   const {
     permissions: _permissions,
     features: _features,
     ...storeWithoutPrincipalMetadata
   } = store;
+  const dir = dirname(path15);
+  if (!existsSync2(dir)) mkdirSync2(dir, { recursive: true });
   writeFileSync2(
-    path14,
+    path15,
     serializeTokenStore({
       ...storeWithoutPrincipalMetadata,
       apiKey,
@@ -3749,11 +3703,13 @@ function saveApiKey(apiKey) {
   );
 }
 function clearApiKey() {
-  const path14 = getTokenPath();
+  const path15 = getTokenPath();
   const store = readTokenStore();
   if (!store.apiKey) return false;
   const { apiKey: _apiKey, ...next } = store;
-  writeFileSync2(path14, serializeTokenStore(next), { mode: 384 });
+  const dir = dirname(path15);
+  if (!existsSync2(dir)) mkdirSync2(dir, { recursive: true });
+  writeFileSync2(path15, serializeTokenStore(next), { mode: 384 });
   return true;
 }
 var init_file_tokens = __esm({
@@ -3810,48 +3766,49 @@ var init_host_config = __esm({
 
 // ts/src/config/store.ts
 import { existsSync as existsSync4, mkdirSync as mkdirSync3, readFileSync as readFileSync4, writeFileSync as writeFileSync3 } from "fs";
-import { dirname as dirname3 } from "path";
+import { dirname as dirname2 } from "path";
 function getPath2() {
-  const path14 = resolveOsPath("config");
-  const dir = dirname3(path14);
-  if (!existsSync4(dir)) mkdirSync3(dir, { recursive: true });
-  return path14;
+  return resolveOsPath("config");
 }
 function read2() {
-  const path14 = getPath2();
-  if (!existsSync4(path14)) return {};
+  const path15 = getPath2();
+  if (!existsSync4(path15)) return {};
   const out = {};
-  for (const line of readFileSync4(path14, "utf-8").split("\n")) {
+  for (const line of readFileSync4(path15, "utf-8").split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
     const eq = trimmed.indexOf("=");
     if (eq < 0) continue;
     const key = trimmed.slice(0, eq).trim();
     const value = trimmed.slice(eq + 1).trim();
-    if (key && !key.includes(".")) out[key] = value;
+    if (CONFIG_KEY.test(key)) out[key] = value;
   }
   return out;
 }
 function write(store) {
   const lines = ["# OpenBox CLI config; managed by `openbox config set/get/unset/list`."];
   for (const key of Object.keys(store).sort()) lines.push(`${key}=${store[key]}`);
-  writeFileSync3(getPath2(), `${lines.join("\n")}
+  const path15 = getPath2();
+  const dir = dirname2(path15);
+  if (!existsSync4(dir)) mkdirSync3(dir, { recursive: true });
+  writeFileSync3(path15, `${lines.join("\n")}
 `, { mode: 384 });
 }
 function setConfig(key, value) {
   if (!key) throw new Error("config key cannot be empty");
+  if (!CONFIG_KEY.test(key)) throw new Error(`invalid config key: ${key}`);
   write({ ...read2(), [key]: value });
-  return { scope: "global", purged: 0 };
+  return { scope: "project", purged: 0 };
 }
 function getConfig(key) {
   return read2()[key];
 }
 function unsetConfig(key) {
   const store = read2();
-  if (!(key in store)) return { scope: "global", removed: false };
+  if (!(key in store)) return { scope: "project", removed: false };
   const { [key]: _removed, ...next } = store;
   write(next);
-  return { scope: "global", removed: true };
+  return { scope: "project", removed: true };
 }
 function listConfig() {
   return read2();
@@ -3864,10 +3821,12 @@ function applyConfigToProcessEnv() {
     if (process.env[key] === void 0) process.env[key] = value;
   }
 }
+var CONFIG_KEY;
 var init_store = __esm({
   "ts/src/config/store.ts"() {
     "use strict";
     init_os_paths();
+    CONFIG_KEY = /^[A-Z][A-Z0-9_]*$/;
   }
 });
 
@@ -3877,17 +3836,6 @@ var init_config = __esm({
     "use strict";
     init_host_config();
     init_store();
-  }
-});
-
-// ts/src/cli/env-source.ts
-function applyEnvSource() {
-  applyConfigToProcessEnv();
-}
-var init_env_source = __esm({
-  "ts/src/cli/env-source.ts"() {
-    "use strict";
-    init_config();
   }
 });
 
@@ -3917,8 +3865,8 @@ var init_source = __esm({
 });
 
 // ts/src/core-client/generated/runtime/cursor.ts
-function applyActivityVariant(table2, toolName, env) {
-  for (const v of table2) {
+function applyActivityVariant(table, toolName, env) {
+  for (const v of table) {
     if (v.tool !== toolName) continue;
     const value = String((function getPath5(e, p) {
       if (e == null || typeof e !== "object") return void 0;
@@ -3933,10 +3881,10 @@ function applyActivityVariant(table2, toolName, env) {
   }
   return void 0;
 }
-function getPath3(env, path14) {
+function getPath3(env, path15) {
   if (env == null || typeof env !== "object") return void 0;
   let cur = env;
-  for (const seg of path14.split(".")) {
+  for (const seg of path15.split(".")) {
     if (cur == null || typeof cur !== "object") return void 0;
     cur = cur[seg];
   }
@@ -4272,6 +4220,16 @@ function brand(raw) {
   if (!sanitized) return "";
   return sanitized.startsWith("[OpenBox]") ? sanitized : "[OpenBox] " + sanitized;
 }
+function redactedInput(v) {
+  return v?.guardrailsResult?.redactedInput;
+}
+function objectRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return void 0;
+  return value;
+}
+function addIfDefined(target, key, value) {
+  if (value !== void 0) target[key] = value;
+}
 function renderVerdictOutput(shape, v, env, deferApproval = false) {
   const arm = v?.arm ?? "allow";
   const reason = brand(v?.reason ?? "");
@@ -4279,11 +4237,16 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
     case "permission-decision": {
       const eventName = env.hook_event_name ?? "PreToolUse";
       if (arm === "allow" || arm === "constrain") {
+        const hookSpecificOutput = {
+          hookEventName: eventName,
+          permissionDecision: "allow"
+        };
+        if (arm === "constrain") {
+          addIfDefined(hookSpecificOutput, "updatedInput", objectRecord(redactedInput(v)));
+          if (reason) hookSpecificOutput.additionalContext = reason;
+        }
         return {
-          hookSpecificOutput: {
-            hookEventName: eventName,
-            permissionDecision: "allow"
-          }
+          hookSpecificOutput
         };
       }
       if (arm === "require_approval") {
@@ -4310,15 +4273,27 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
           reason: reason || "[OpenBox] blocked by policy"
         };
       }
+      if (arm === "constrain" && reason) {
+        const hookSpecificOutput = {
+          hookEventName: env.hook_event_name ?? "ClaudeCode",
+          additionalContext: reason
+        };
+        addIfDefined(hookSpecificOutput, "updatedToolOutput", redactedInput(v));
+        return { hookSpecificOutput };
+      }
       return {};
     }
     case "permission-request": {
       const eventName = env.hook_event_name ?? "PermissionRequest";
       if (arm === "allow" || arm === "constrain") {
+        const decision = { behavior: "allow" };
+        if (arm === "constrain") {
+          addIfDefined(decision, "updatedInput", objectRecord(redactedInput(v)));
+        }
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            decision: { behavior: "allow" }
+            decision
           }
         };
       }
@@ -4351,7 +4326,16 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
     }
     case "elicitation-response": {
       const eventName = env.hook_event_name ?? "Elicitation";
-      if (arm === "allow" || arm === "constrain") return {};
+      if (arm === "allow") return {};
+      if (arm === "constrain") {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            action: "accept",
+            content: redactedInput(v) ?? env.response ?? env.content ?? {}
+          }
+        };
+      }
       return {
         hookSpecificOutput: {
           hookEventName: eventName,
@@ -4368,7 +4352,7 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
       };
     }
     case "additional-context": {
-      if (arm === "allow" || arm === "constrain") return {};
+      if (arm === "allow") return {};
       return {
         hookSpecificOutput: {
           hookEventName: env.hook_event_name ?? "PostToolUseFailure",
@@ -4878,64 +4862,7 @@ var install_exports = {};
 __export(install_exports, {
   verifyCursorInstall: () => verifyCursorInstall
 });
-import fs2 from "fs";
-import os2 from "os";
 import path2 from "path";
-function readJson2(file) {
-  try {
-    return JSON.parse(fs2.readFileSync(file, "utf-8"));
-  } catch {
-    return void 0;
-  }
-}
-function userCursorPath(...parts) {
-  return path2.join(os2.homedir(), ".cursor", ...parts);
-}
-function expectedExtensionVersion() {
-  const candidates = [
-    path2.resolve(process.cwd(), "apps/extension/package.json"),
-    path2.resolve("apps/extension/package.json")
-  ];
-  for (const file of candidates) {
-    const pkg = readJson2(file);
-    const version = pkg?.version;
-    if (typeof version === "string" && version) return version;
-  }
-  return void 0;
-}
-function checkExtensionInstall() {
-  if (process.env.OPENBOX_SKIP_EXTENSION === "1") {
-    return { name: "extension", status: "skip", detail: "OPENBOX_SKIP_EXTENSION=1" };
-  }
-  const dir = userCursorPath("extensions");
-  if (!fs2.existsSync(dir)) {
-    return { name: "extension", status: "fail", path: dir, detail: "directory missing" };
-  }
-  const entries = fs2.readdirSync(dir).filter((entry) => /^openbox\.openbox[-.]/.test(entry) || /^openbox[-.]/.test(entry));
-  if (entries.length === 0) {
-    return { name: "extension", status: "fail", path: dir, detail: "OpenBox extension missing" };
-  }
-  const expected = expectedExtensionVersion();
-  for (const entry of entries) {
-    const pkgFile = path2.join(dir, entry, "package.json");
-    const pkg = readJson2(pkgFile);
-    const actual = typeof pkg?.version === "string" ? pkg.version : void 0;
-    if (!expected || actual === expected) {
-      return {
-        name: "extension",
-        status: "pass",
-        path: pkgFile,
-        detail: `installed${actual ? ` ${actual}` : ""}; reload Cursor to verify loaded code`
-      };
-    }
-  }
-  return {
-    name: "extension",
-    status: "fail",
-    path: dir,
-    detail: expected ? `installed version does not match expected ${expected}` : "package version unreadable"
-  };
-}
 function truthy(value) {
   return value === "true" || value === "1";
 }
@@ -4965,12 +4892,17 @@ function buildHookRuntimeEnv(cwd = process.cwd()) {
   });
   const coreUrl = connection.coreUrl;
   const apiKey = get("OPENBOX_API_KEY") ?? "";
+  const agentIdentity = resolveAgentIdentity({
+    OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID"),
+    OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY")
+  });
   return {
     configFile,
     envFile,
     cliConfigFile: configStorePath(),
     coreUrl,
     apiKey,
+    agentIdentity,
     dryRun: truthy(get("DRY_RUN"))
   };
 }
@@ -5002,6 +4934,7 @@ async function checkRuntimeReadiness(cwd, validateRuntime) {
     const core = new OpenBoxCoreClient({
       apiKey: runtime.apiKey,
       apiUrl: runtime.coreUrl,
+      agentIdentity: runtime.agentIdentity,
       timeoutMs: 5e3
     });
     const validation = await core.validateApiKey();
@@ -5020,7 +4953,6 @@ function verifyCursorInstall(opts = {}) {
   const checks = [
     ...verifyCursorPlugin({ cwd: opts.cwd, target: opts.pluginTarget })
   ];
-  if (opts.includeExtension) checks.push(checkExtensionInstall());
   if (opts.includeRuntime || opts.validateRuntime) {
     return checkRuntimeReadiness(opts.cwd, Boolean(opts.validateRuntime)).then((runtime) => [...checks, runtime]);
   }
@@ -5038,10 +4970,10 @@ var init_install = __esm({
 });
 
 // ts/src/core-client/generated/runtime/claude-code.ts
-function getPath4(env, path14) {
+function getPath4(env, path15) {
   if (env == null || typeof env !== "object") return void 0;
   let cur = env;
-  for (const seg of path14.split(".")) {
+  for (const seg of path15.split(".")) {
     if (cur == null || typeof cur !== "object") return void 0;
     cur = cur[seg];
   }
@@ -5168,7 +5100,7 @@ function buildPreToolUsePayload2(env, toolName, sideEffects3 = {}) {
 function buildPostToolUsePayload(env, sideEffects3 = {}) {
   return {
     "tool_name": getPath4(env, "tool_name"),
-    "output": sideEffects3.stringifyTruncate?.(getPath4(env, "tool_output")) ?? "",
+    "output": sideEffects3.stringifyTruncate?.(getPath4(env, "tool_response")) ?? "",
     "event_category": "agent_observation"
   };
 }
@@ -5355,6 +5287,7 @@ function buildTaskCompletedPayload(env) {
 function buildStopPayload(env) {
   return {
     "cwd": getPath4(env, "cwd"),
+    "stop_hook_active": getPath4(env, "stop_hook_active"),
     "last_assistant_message": getPath4(env, "last_assistant_message"),
     "background_tasks": getPath4(env, "background_tasks"),
     "session_crons": getPath4(env, "session_crons"),
@@ -5708,6 +5641,16 @@ function brand2(raw) {
   if (!sanitized) return "";
   return sanitized.startsWith("[OpenBox]") ? sanitized : "[OpenBox] " + sanitized;
 }
+function redactedInput2(v) {
+  return v?.guardrailsResult?.redactedInput;
+}
+function objectRecord2(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return void 0;
+  return value;
+}
+function addIfDefined2(target, key, value) {
+  if (value !== void 0) target[key] = value;
+}
 function renderVerdictOutput2(shape, v, env, deferApproval = false) {
   const arm = v?.arm ?? "allow";
   const reason = brand2(v?.reason ?? "");
@@ -5715,11 +5658,16 @@ function renderVerdictOutput2(shape, v, env, deferApproval = false) {
     case "permission-decision": {
       const eventName = env.hook_event_name ?? "PreToolUse";
       if (arm === "allow" || arm === "constrain") {
+        const hookSpecificOutput = {
+          hookEventName: eventName,
+          permissionDecision: "allow"
+        };
+        if (arm === "constrain") {
+          addIfDefined2(hookSpecificOutput, "updatedInput", objectRecord2(redactedInput2(v)));
+          if (reason) hookSpecificOutput.additionalContext = reason;
+        }
         return {
-          hookSpecificOutput: {
-            hookEventName: eventName,
-            permissionDecision: "allow"
-          }
+          hookSpecificOutput
         };
       }
       if (arm === "require_approval") {
@@ -5746,15 +5694,27 @@ function renderVerdictOutput2(shape, v, env, deferApproval = false) {
           reason: reason || "[OpenBox] blocked by policy"
         };
       }
+      if (arm === "constrain" && reason) {
+        const hookSpecificOutput = {
+          hookEventName: env.hook_event_name ?? "ClaudeCode",
+          additionalContext: reason
+        };
+        addIfDefined2(hookSpecificOutput, "updatedToolOutput", redactedInput2(v));
+        return { hookSpecificOutput };
+      }
       return {};
     }
     case "permission-request": {
       const eventName = env.hook_event_name ?? "PermissionRequest";
       if (arm === "allow" || arm === "constrain") {
+        const decision = { behavior: "allow" };
+        if (arm === "constrain") {
+          addIfDefined2(decision, "updatedInput", objectRecord2(redactedInput2(v)));
+        }
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            decision: { behavior: "allow" }
+            decision
           }
         };
       }
@@ -5787,7 +5747,16 @@ function renderVerdictOutput2(shape, v, env, deferApproval = false) {
     }
     case "elicitation-response": {
       const eventName = env.hook_event_name ?? "Elicitation";
-      if (arm === "allow" || arm === "constrain") return {};
+      if (arm === "allow") return {};
+      if (arm === "constrain") {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            action: "accept",
+            content: redactedInput2(v) ?? env.response ?? env.content ?? {}
+          }
+        };
+      }
       return {
         hookSpecificOutput: {
           hookEventName: eventName,
@@ -5804,7 +5773,7 @@ function renderVerdictOutput2(shape, v, env, deferApproval = false) {
       };
     }
     case "additional-context": {
-      if (arm === "allow" || arm === "constrain") return {};
+      if (arm === "allow") return {};
       return {
         hookSpecificOutput: {
           hookEventName: env.hook_event_name ?? "PostToolUseFailure",
@@ -5999,7 +5968,9 @@ var init_claude_code = __esm({
           "name": "SessionStart"
         },
         {
-          "name": "SessionEnd"
+          "name": "SessionEnd",
+          "timeout": 86400,
+          "installDefault": false
         },
         {
           "name": "SubagentStart"
@@ -6073,22 +6044,25 @@ function claudeCodeGovernanceSummary() {
     defaultHookCount: defaultClaudeCodeHookEvents().length,
     optInHooks: optInClaudeCodeHookEvents(),
     byStatus,
-    surfaces: CLAUDE_CODE_SURFACE_MATRIX
+    surfaces: CLAUDE_CODE_SURFACE_MATRIX,
+    sdkCapabilities: CLAUDE_CODE_SDK_CAPABILITY_MATRIX
   };
 }
-var CLAUDE_CODE_GOVERNANCE_AUDIT, CLAUDE_CODE_HOOK_MATRIX, CLAUDE_CODE_SURFACE_MATRIX;
+var CLAUDE_CODE_GOVERNANCE_AUDIT, CLAUDE_CODE_HOOK_MATRIX, CLAUDE_CODE_SURFACE_MATRIX, CLAUDE_CODE_SDK_CAPABILITY_MATRIX;
 var init_governance_matrix = __esm({
   "ts/src/runtime/claude-code/governance-matrix.ts"() {
     "use strict";
     CLAUDE_CODE_GOVERNANCE_AUDIT = {
-      capturedAt: "2026-06-15",
-      installedClaudeCodeVersion: "2.1.177 (Claude Code)",
+      capturedAt: "2026-06-17",
+      installedClaudeCodeVersion: "2.1.179 (Claude Code)",
       officialDocs: [
         "https://code.claude.com/docs/en/hooks",
         "https://code.claude.com/docs/en/plugins-reference",
         "https://code.claude.com/docs/en/plugins",
         "https://code.claude.com/docs/en/mcp",
         "https://code.claude.com/docs/en/skills",
+        "https://code.claude.com/docs/en/commands",
+        "https://code.claude.com/docs/en/agents",
         "https://code.claude.com/docs/en/settings",
         "https://code.claude.com/docs/en/tools-reference",
         "https://code.claude.com/docs/en/channels",
@@ -6115,14 +6089,14 @@ var init_governance_matrix = __esm({
       { event: "PreToolUse", status: "implement_now", defaultInstall: true, decisionSurface: "permission-decision", notes: "Primary pre-action tool gate." },
       { event: "PermissionRequest", status: "implement_now", defaultInstall: true, decisionSurface: "permission-request", notes: "Native Claude permission prompt gate." },
       { event: "PermissionDenied", status: "implement_now", defaultInstall: true, decisionSurface: "permission-denied-retry", notes: "Can request retry after auto-mode denial." },
-      { event: "PostToolUse", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Tool output governance." },
-      { event: "PostToolUseFailure", status: "implement_now", defaultInstall: true, decisionSurface: "additional-context", notes: "Feeds policy context after failed tool calls." },
-      { event: "PostToolBatch", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Parallel tool batch gate before next model call." },
+      { event: "PostToolUse", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Tool output governance, including non-error feedback and redacted output on constrain." },
+      { event: "PostToolUseFailure", status: "implement_now", defaultInstall: true, decisionSurface: "additional-context", notes: "Feeds policy context after failed tool calls, including constrain feedback." },
+      { event: "PostToolBatch", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Parallel tool batch gate before next model call, including additional context on constrain." },
       { event: "SubagentStart", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Subagent lifecycle start telemetry." },
-      { event: "SubagentStop", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Subagent completion gate." },
+      { event: "SubagentStop", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Subagent completion gate, including non-error feedback on constrain." },
       { event: "TaskCreated", status: "implement_now", defaultInstall: true, decisionSurface: "continue-block", notes: "Agent-team task creation criteria." },
       { event: "TaskCompleted", status: "implement_now", defaultInstall: true, decisionSurface: "continue-block", notes: "Agent-team task completion criteria." },
-      { event: "Stop", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Final assistant-output/session-stop gate." },
+      { event: "Stop", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Final assistant-output/session-stop gate, including non-error feedback on constrain." },
       { event: "StopFailure", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "API/session failure telemetry." },
       { event: "TeammateIdle", status: "implement_now", defaultInstall: true, decisionSurface: "continue-block", notes: "Agent-team idle/completion enforcement." },
       { event: "Notification", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Notification telemetry." },
@@ -6133,7 +6107,7 @@ var init_governance_matrix = __esm({
       { event: "WorktreeRemove", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Worktree removal telemetry." },
       { event: "PreCompact", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Blocks unsafe compaction requests before context rewrite." },
       { event: "PostCompact", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Compaction summary telemetry." },
-      { event: "SessionEnd", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Closes OpenBox workflow/session lifecycle." },
+      { event: "SessionEnd", status: "diagnose_only", defaultInstall: false, decisionSurface: "none", notes: "Supported by the handler but not default-installed because shutdown hooks can be cancelled before network telemetry reliably completes; Stop is the governed final hook." },
       { event: "Elicitation", status: "implement_now", defaultInstall: true, decisionSurface: "elicitation-response", notes: "MCP user-input request governance." },
       { event: "ElicitationResult", status: "implement_now", defaultInstall: true, decisionSurface: "elicitation-response", notes: "MCP elicitation response governance." }
     ];
@@ -6146,10 +6120,117 @@ var init_governance_matrix = __esm({
       { surface: "plugin settings", status: "diagnose_only", notes: "Only agent/subagentStatusLine are currently supported by Claude Code plugin settings." },
       { surface: "monitors", status: "diagnose_only", notes: "Documented as opt-in because monitors run unsandboxed and project-scope plugins do not load them." },
       { surface: "LSP", status: "explicit_out_of_scope", notes: "No OpenBox language server exists; official LSP plugins should be installed separately." },
-      { surface: "bin", status: "diagnose_only", notes: "OpenBox relies on the installed openbox binary; doctor reports command resolution." },
+      { surface: "bin", status: "implement_now", notes: "Plugin ships a project-local Node runner for hooks, MCP, and diagnostics; no global OpenBox binary is required." },
       { surface: "managed settings", status: "diagnose_only", notes: "Enterprise policy belongs to managed Claude Code deployment, not SDK mutation." },
       { surface: "channels", status: "diagnose_only", notes: "Research preview MCP push channel surface; standard MCP remains the connector path." },
       { surface: "built-in tool permissions", status: "implement_now", notes: "PreToolUse/PermissionRequest routing covers current built-in tool names and dynamic mcp__ tools." }
+    ];
+    CLAUDE_CODE_SDK_CAPABILITY_MATRIX = [
+      {
+        capability: "workflow lifecycle start",
+        sdkSurface: "BaseGovernedSession.workflowStarted() / WorkflowStarted",
+        claudeCodeTreatment: "implement_now",
+        coverage: "SessionStart opens the workflow and records the Claude session boundary.",
+        tests: ["tests/unit/runtime-claude-code-mappers.test.ts", "tests/hook-integration/claude-code-hook-events.test.ts"]
+      },
+      {
+        capability: "workflow lifecycle complete",
+        sdkSurface: "BaseGovernedSession.workflowCompleted() / WorkflowCompleted",
+        claudeCodeTreatment: "implement_now",
+        coverage: "Stop completes workflows with no background tasks; SessionEnd remains opt-in shutdown telemetry.",
+        tests: ["tests/unit/runtime-claude-code-mappers.test.ts", "tests/hook-integration/claude-code-hook-stdin.test.ts"]
+      },
+      {
+        capability: "workflow lifecycle failure",
+        sdkSurface: "BaseGovernedSession.workflowFailed() / WorkflowFailed",
+        claudeCodeTreatment: "implement_now",
+        coverage: "StopFailure emits observe telemetry and then records WorkflowFailed best-effort.",
+        tests: ["tests/unit/runtime-claude-code-mappers.test.ts", "tests/hook-integration/claude-code-hook-stdin.test.ts"]
+      },
+      {
+        capability: "split-stage activity governance",
+        sdkSurface: "BaseGovernedSession.openActivity().complete()",
+        claudeCodeTreatment: "implement_now",
+        coverage: "PreToolUse opens a stable activity and PostToolUse/PostToolUseFailure closes it with output/duration.",
+        tests: ["tests/unit/runtime-claude-code-mappers.test.ts", "tests/unit/payload-shape.test.ts"]
+      },
+      {
+        capability: "single-stage activity gates",
+        sdkSurface: "BaseGovernedSession.activity(ActivityStarted|ActivityCompleted)",
+        claudeCodeTreatment: "implement_now",
+        coverage: "Prompts, permission requests, compaction, config changes, tasks, final output, subagents, and MCP elicitation map to activity gates.",
+        tests: ["tests/unit/claude-hook-handler-coverage.test.ts", "tests/hook-integration/claude-code-hook-stdin.test.ts"]
+      },
+      {
+        capability: "goal and signal telemetry",
+        sdkSurface: "BaseGovernedSession.activity(SignalReceived)",
+        claudeCodeTreatment: "implement_now",
+        coverage: "UserPromptSubmit emits SignalReceived(user_prompt) with the prompt and an LLM span before the prompt gate.",
+        tests: ["tests/unit/runtime-claude-code-mappers.test.ts", "tests/unit/payload-shape.test.ts"]
+      },
+      {
+        capability: "approval lifecycle",
+        sdkSurface: "WorkflowVerdict.arm=require_approval, pollApproval, inline/defer approval modes",
+        claudeCodeTreatment: "implement_now",
+        coverage: "Claude hook rendering supports remote polling, inline ask, defer, and fail-closed deny/block shapes for decision-capable hooks.",
+        tests: ["tests/hook-integration/claude-code-hook-stdin.test.ts", "tests/unit/runtime-adapters-coverage.test.ts"]
+      },
+      {
+        capability: "guardrail transforms and constrain verdicts",
+        sdkSurface: "WorkflowVerdict.arm=constrain, guardrailsResult.redactedInput, updated output rendering",
+        claudeCodeTreatment: "implement_now",
+        coverage: "Claude verdict renderer preserves allow+updatedInput, additionalContext, updatedToolOutput, and elicitation accept content where Claude supports mutation.",
+        tests: ["tests/unit/runtime-adapters-coverage.test.ts", "tests/unit/payload-shape.test.ts"]
+      },
+      {
+        capability: "halt/block session state",
+        sdkSurface: "WorkflowVerdict.arm=block|halt, session halted cache",
+        claudeCodeTreatment: "implement_now",
+        coverage: "Decision-capable hooks return Claude-native block/deny/continue=false responses and mark halted sessions for later hooks.",
+        tests: ["tests/hook-integration/claude-code-hook-stdin.test.ts", "tests/unit/runtime-claude-code-mappers.test.ts"]
+      },
+      {
+        capability: "behavior-rule spans and hook-trigger evaluation",
+        sdkSurface: "GovernedPayload.spans, hook_trigger re-evaluation",
+        claudeCodeTreatment: "implement_now",
+        coverage: "Prompt, shell, file, HTTP, and MCP tool paths attach spans so behavior rules can match the same shapes used by other SDK adapters.",
+        tests: ["tests/hook-integration/claude-code-span-content.test.ts", "tests/unit/runtime-claude-code-mappers.test.ts"]
+      },
+      {
+        capability: "MCP connector and governance tools",
+        sdkSurface: "@openbox-ai/openbox-sdk/runtime/mcp",
+        claudeCodeTreatment: "implement_now",
+        coverage: "Plugin .mcp.json points at the bundled project-local Node runner for mcp serve; MCP exposes status, doctor, approvals, agent/rule/policy reads, and check_governance.",
+        tests: ["tests/unit/mcp-server-coverage.test.ts", "tests/hook-integration/mcp-protocol.test.ts"]
+      },
+      {
+        capability: "plugin packaging and diagnostics",
+        sdkSurface: "@openbox-ai/openbox-sdk/runtime/claude-code plugin helpers",
+        claudeCodeTreatment: "implement_now",
+        coverage: "Export/install packages skill, commands, agent, hooks, MCP, diagnostics, project-local bin runner/doctor shim, and explicit settings/monitor/LSP inventory.",
+        tests: ["tests/unit/claude-code-plugin.test.ts", "tests/hook-integration/claude-code-install.test.ts"]
+      },
+      {
+        capability: "project-scoped runtime configuration",
+        sdkSurface: "Claude .claude-hooks config loader and plugin install",
+        claudeCodeTreatment: "implement_now",
+        coverage: "Claude hooks read only project .claude-hooks config/env plus process env; no global Claude config is mutated.",
+        tests: ["tests/hook-integration/claude-code-install.test.ts", "tests/unit/logging-and-config-coverage.test.ts"]
+      },
+      {
+        capability: "CopilotKit-specific UI/runtime wrappers",
+        sdkSurface: "@openbox-ai/openbox-sdk/copilotkit and /copilotkit/react",
+        claudeCodeTreatment: "explicit_out_of_scope",
+        coverage: "Claude Code does not embed CopilotKit UI wrappers; it maps the same governance primitives through hooks and MCP instead.",
+        tests: ["tests/unit/copilotkit-pure-coverage.test.ts", "tests/unit/runtime-claude-code-mappers.test.ts"]
+      },
+      {
+        capability: "non-Claude presets",
+        sdkSurface: "PRESET_MANIFEST presets for LangChain, Cursor, n8n, Temporal, etc.",
+        claudeCodeTreatment: "diagnose_only",
+        coverage: "SDK-wide presets are audited as broader SDK capability, but Claude Code only implements host-reachable Claude events.",
+        tests: ["tests/unit/claude-code-governance-matrix.test.ts"]
+      }
     ];
   }
 });
@@ -6167,13 +6248,13 @@ import {
   symlinkSync as symlinkSync2,
   writeFileSync as writeFileSync5
 } from "fs";
-import os3 from "os";
+import os2 from "os";
 import path3 from "path";
 import { fileURLToPath as fileURLToPath2 } from "url";
 function claudeCodePluginTargetDir(cwd = process.cwd()) {
   return path3.join(cwd, ".claude", "skills", "openbox");
 }
-function readJson3(file) {
+function readJson2(file) {
   try {
     return JSON.parse(readFileSync7(file, "utf-8"));
   } catch {
@@ -6188,7 +6269,7 @@ function packageVersion2() {
     path3.resolve(process.cwd(), "package.json")
   ];
   for (const candidate of candidates) {
-    const pkg = readJson3(candidate);
+    const pkg = readJson2(candidate);
     if (typeof pkg?.version === "string" && pkg.version.length > 0) {
       return pkg.version;
     }
@@ -6224,7 +6305,7 @@ function findSkillDir2() {
 function safeOutDir2(out) {
   const resolved = path3.resolve(out);
   const root = path3.parse(resolved).root;
-  if (resolved === root || resolved === os3.homedir()) {
+  if (resolved === root || resolved === os2.homedir()) {
     throw new Error(`Refusing to overwrite unsafe Claude Code plugin path: ${resolved}`);
   }
   return resolved;
@@ -6275,8 +6356,7 @@ function claudeHooksJson(matchers, includeOptInHooks = false) {
   const hooks = {};
   for (const event of hookEvents(includeOptInHooks)) {
     const hook = {
-      type: "command",
-      command: HOOK_SPEC2.command
+      ...PLUGIN_HOOK_HANDLER
     };
     if (event.timeout !== void 0) hook.timeout = event.timeout;
     const entry = {
@@ -6291,10 +6371,7 @@ function claudeHooksJson(matchers, includeOptInHooks = false) {
 function mcpJson2() {
   return {
     mcpServers: {
-      openbox: {
-        command: "openbox",
-        args: ["mcp", "serve"]
-      }
+      openbox: { ...PLUGIN_MCP_SERVER }
     }
   };
 }
@@ -6328,7 +6405,13 @@ function componentInventory(version) {
       mcp: {
         status: "installed",
         path: ".mcp.json",
-        command: "openbox mcp serve"
+        command: "node ${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs mcp serve"
+      },
+      settings: {
+        status: "diagnose_only",
+        path: "settings.json",
+        emitted: false,
+        notes: "OpenBox does not emit plugin settings; agent/subagentStatusLine and strictPluginOnlyCustomization remain deployment policy diagnostics."
       },
       diagnostics: {
         status: "installed",
@@ -6338,7 +6421,8 @@ function componentInventory(version) {
       bin: {
         status: "installed",
         path: "bin/openbox-plugin-doctor",
-        command: "openbox claude-code doctor"
+        files: [...EXPECTED_BIN_FILES],
+        command: "node ${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs claude-code doctor"
       },
       monitors: {
         status: "opt_in_metadata",
@@ -6362,19 +6446,86 @@ function governanceDiagnostic(version) {
     defaultHookEvents: defaultClaudeCodeHookEvents(),
     optInHookEvents: optInClaudeCodeHookEvents(),
     generatedHookSpecEvents: HOOK_SPEC2.events.map((event) => event.name),
-    surfaces: CLAUDE_CODE_SURFACE_MATRIX
+    surfaces: CLAUDE_CODE_SURFACE_MATRIX,
+    sdkCapabilities: CLAUDE_CODE_SDK_CAPABILITY_MATRIX
   };
 }
 function optInMonitorMetadata() {
   return [
     {
       name: "openbox-status",
-      command: "openbox status --json",
+      command: 'node "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs" status --json',
       description: "OpenBox runtime status and approval readiness notifications.",
       when: "on-skill-invoke:openbox",
       activeByDefault: false
     }
   ];
+}
+function writePluginCliRunner(file) {
+  mkdirSync5(path3.dirname(file), { recursive: true });
+  writeFileSync5(
+    file,
+    [
+      "#!/usr/bin/env node",
+      "import { existsSync } from 'node:fs';",
+      "import path from 'node:path';",
+      "import { spawnSync } from 'node:child_process';",
+      "",
+      "const args = process.argv.slice(2);",
+      "",
+      "function candidateFromEnv() {",
+      "  const value = process.env.OPENBOX_CLI;",
+      "  if (!value) return undefined;",
+      "  const resolved = path.resolve(value);",
+      "  return existsSync(resolved) ? resolved : undefined;",
+      "}",
+      "",
+      "function projectRoots() {",
+      "  const roots = [];",
+      "  if (process.env.CLAUDE_PROJECT_DIR) roots.push(process.env.CLAUDE_PROJECT_DIR);",
+      "  roots.push(process.cwd());",
+      "  const out = [];",
+      "  for (const root of roots) {",
+      "    let cur = path.resolve(root);",
+      "    for (let i = 0; i < 8; i += 1) {",
+      "      if (!out.includes(cur)) out.push(cur);",
+      "      const parent = path.dirname(cur);",
+      "      if (parent === cur) break;",
+      "      cur = parent;",
+      "    }",
+      "  }",
+      "  return out;",
+      "}",
+      "",
+      "function candidateFromProjectNodeModules() {",
+      "  for (const root of projectRoots()) {",
+      "    const candidate = path.join(root, 'node_modules', '@openbox-ai', 'openbox-sdk', 'dist', 'cli', 'index.js');",
+      "    if (existsSync(candidate)) return candidate;",
+      "  }",
+      "  return undefined;",
+      "}",
+      "",
+      "const cli = candidateFromEnv() ?? candidateFromProjectNodeModules();",
+      "if (!cli) {",
+      "  console.error('OpenBox SDK CLI not found for project-scoped Claude Code plugin. Set OPENBOX_CLI to this project\\'s SDK dist/cli/index.js, or install @openbox-ai/openbox-sdk in the project.');",
+      "  process.exit(127);",
+      "}",
+      "",
+      "const result = spawnSync(process.execPath, [cli, ...args], {",
+      "  stdio: 'inherit',",
+      "  env: process.env,",
+      "});",
+      "",
+      "if (result.error) {",
+      "  console.error(result.error.message);",
+      "  process.exit(127);",
+      "}",
+      "process.exit(result.status ?? 1);",
+      ""
+    ].join("\n"),
+    "utf-8"
+  );
+  chmodSync(file, 493);
 }
 function writePluginDoctorShim(file) {
   mkdirSync5(path3.dirname(file), { recursive: true });
@@ -6383,11 +6534,8 @@ function writePluginDoctorShim(file) {
     [
       "#!/usr/bin/env sh",
       "set -eu",
-      "if command -v openbox >/dev/null 2>&1; then",
-      '  exec openbox claude-code doctor "$@"',
-      "fi",
-      'echo "openbox executable was not found on PATH" >&2',
-      "exit 127",
+      'DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"',
+      'exec node "$DIR/openbox-cli.mjs" claude-code doctor "$@"',
       ""
     ].join("\n"),
     "utf-8"
@@ -6477,6 +6625,7 @@ function exportClaudeCodePlugin(options) {
   writeJson2(path3.join(out, "diagnostics", "component-inventory.json"), componentInventory(version));
   writeJson2(path3.join(out, "diagnostics", "claude-code-governance.json"), governanceDiagnostic(version));
   writeJson2(path3.join(out, "diagnostics", "monitors.opt-in.json"), optInMonitorMetadata());
+  writePluginCliRunner(path3.join(out, PLUGIN_CLI_RUNNER));
   writePluginDoctorShim(path3.join(out, "bin", "openbox-plugin-doctor"));
   return out;
 }
@@ -6532,14 +6681,14 @@ function checkDirFiles2(name, dir, expected) {
     detail: missing.length === 0 ? `${expected.length} file(s)` : `missing: ${missing.join(", ")}`
   };
 }
-function checkHooks2(file) {
-  const hooksJson = readJson3(file);
+function checkHooks2(file, includeOptInHooks = false) {
+  const hooksJson = readJson2(file);
   const hooks = hooksJson?.[HOOK_SPEC2.key];
   const problems = [];
   if (!hooks || typeof hooks !== "object") {
     problems.push("hooks block missing");
   } else {
-    for (const event of hookEvents(false)) {
+    for (const event of hookEvents(includeOptInHooks)) {
       const value = hooks[event.name];
       if (!Array.isArray(value) || value.length === 0) {
         problems.push(`${event.name}: missing array entry`);
@@ -6550,8 +6699,11 @@ function checkHooks2(file) {
       if (hook?.type !== "command") {
         problems.push(`${event.name}: hook type drift`);
       }
-      if (hook?.command !== HOOK_SPEC2.command) {
+      if (hook?.command !== PLUGIN_HOOK_HANDLER.command) {
         problems.push(`${event.name}: command drift`);
+      }
+      if (JSON.stringify(hook?.args) !== JSON.stringify(PLUGIN_HOOK_HANDLER.args)) {
+        problems.push(`${event.name}: args drift`);
       }
       if (event.timeout !== void 0 && hook?.timeout !== event.timeout) {
         problems.push(`${event.name}: timeout ${String(hook?.timeout)} != ${event.timeout}`);
@@ -6563,7 +6715,7 @@ function checkHooks2(file) {
       }
     }
     for (const entry of CLAUDE_CODE_HOOK_MATRIX.filter((item) => !item.defaultInstall)) {
-      if (hooks[entry.event]) {
+      if (!includeOptInHooks && hooks[entry.event]) {
         problems.push(`${entry.event}: opt-in event installed by default`);
       }
     }
@@ -6572,18 +6724,29 @@ function checkHooks2(file) {
     name: "plugin-hooks",
     status: problems.length === 0 ? "pass" : "fail",
     path: file,
-    detail: problems.length === 0 ? `${hookEvents(false).length} default event(s)` : problems.join("; ")
+    detail: problems.length === 0 ? `${hookEvents(includeOptInHooks).length} event(s)` : problems.join("; ")
   };
 }
 function checkMcp2(file) {
-  const json = readJson3(file);
+  const json = readJson2(file);
   const openbox = json?.mcpServers?.openbox;
-  const ok = openbox?.command === "openbox" && Array.isArray(openbox.args) && openbox.args[0] === "mcp" && openbox.args[1] === "serve";
+  const ok = openbox?.command === PLUGIN_MCP_SERVER.command && Array.isArray(openbox.args) && JSON.stringify(openbox.args) === JSON.stringify(PLUGIN_MCP_SERVER.args);
   return {
     name: "plugin-mcp",
     status: ok ? "pass" : "fail",
     path: file,
-    detail: ok ? "openbox mcp serve" : "openbox server entry missing or malformed"
+    detail: ok ? "node bin/openbox-cli.mjs mcp serve" : "openbox server entry missing or malformed"
+  };
+}
+function checkComponentInventory(file) {
+  const json = readJson2(file);
+  const components = json?.components;
+  const missing = EXPECTED_COMPONENT_NAMES.filter((name) => !components?.[name]);
+  return {
+    name: "plugin-component-inventory",
+    status: missing.length === 0 ? "pass" : "fail",
+    path: file,
+    detail: missing.length === 0 ? `${EXPECTED_COMPONENT_NAMES.length} component(s)` : `missing: ${missing.join(", ")}`
   };
 }
 function verifyClaudeCodePlugin(options = {}) {
@@ -6607,13 +6770,14 @@ function verifyClaudeCodePlugin(options = {}) {
   checks.push(checkFile2("plugin-skill", path3.join(target, "skills", "openbox", "SKILL.md")));
   checks.push(checkDirFiles2("plugin-commands", path3.join(target, "commands"), EXPECTED_COMMAND_FILES2));
   checks.push(checkDirFiles2("plugin-agents", path3.join(target, "agents"), EXPECTED_AGENT_FILES2));
-  checks.push(checkHooks2(path3.join(target, "hooks", "hooks.json")));
+  checks.push(checkHooks2(path3.join(target, "hooks", "hooks.json"), options.includeOptInHooks));
   checks.push(checkMcp2(path3.join(target, ".mcp.json")));
   checks.push(checkDirFiles2("plugin-diagnostics", path3.join(target, "diagnostics"), EXPECTED_DIAGNOSTIC_FILES));
+  checks.push(checkComponentInventory(path3.join(target, "diagnostics", "component-inventory.json")));
   checks.push(checkDirFiles2("plugin-bin", path3.join(target, "bin"), EXPECTED_BIN_FILES));
   return checks;
 }
-var __dirname2, EXPECTED_COMMAND_FILES2, EXPECTED_AGENT_FILES2, EXPECTED_DIAGNOSTIC_FILES, EXPECTED_BIN_FILES;
+var __dirname2, EXPECTED_COMMAND_FILES2, EXPECTED_AGENT_FILES2, EXPECTED_DIAGNOSTIC_FILES, EXPECTED_BIN_FILES, EXPECTED_COMPONENT_NAMES, PLUGIN_CLI_RUNNER, PLUGIN_HOOK_HANDLER, PLUGIN_MCP_SERVER;
 var init_plugin2 = __esm({
   "ts/src/runtime/claude-code/plugin.ts"() {
     "use strict";
@@ -6633,7 +6797,221 @@ var init_plugin2 = __esm({
       "claude-code-governance.json",
       "monitors.opt-in.json"
     ];
-    EXPECTED_BIN_FILES = ["openbox-plugin-doctor"];
+    EXPECTED_BIN_FILES = ["openbox-cli.mjs", "openbox-plugin-doctor"];
+    EXPECTED_COMPONENT_NAMES = [
+      "skill",
+      "commands",
+      "agent",
+      "hooks",
+      "mcp",
+      "diagnostics",
+      "bin",
+      "settings",
+      "monitors",
+      "lsp"
+    ];
+    PLUGIN_CLI_RUNNER = "bin/openbox-cli.mjs";
+    PLUGIN_HOOK_HANDLER = {
+      type: "command",
+      command: "node",
+      args: [`\${CLAUDE_PLUGIN_ROOT}/${PLUGIN_CLI_RUNNER}`, "claude-code", "hook"]
+    };
+    PLUGIN_MCP_SERVER = {
+      command: "node",
+      args: [`\${CLAUDE_PLUGIN_ROOT}/${PLUGIN_CLI_RUNNER}`, "mcp", "serve"]
+    };
+  }
+});
+
+// ts/src/runtime/claude-code/doctor.ts
+import { existsSync as existsSync7 } from "fs";
+import path4 from "path";
+function truthy2(value) {
+  return value === "true" || value === "1";
+}
+function isPlaceholderKey2(value) {
+  if (!value) return false;
+  return /YOUR_API_KEY|REPLACE_ME|placeholder/i.test(value);
+}
+function parseApprovalMode(value) {
+  const mode = (value ?? "remote").toLowerCase();
+  if (mode === "inline" || mode === "defer") return mode;
+  return "remote";
+}
+function parseFailMode(value) {
+  return value === "fail_closed" ? "fail_closed" : "fail_open";
+}
+function buildProjectRuntimeEnv(cwd = process.cwd()) {
+  const configDir = claudeCodeRuntimeConfigDir(cwd);
+  const configFile = path4.join(configDir, "config.json");
+  const envFile = path4.join(configDir, ".env");
+  const fileConfig = loadJsonConfig(configFile);
+  const envConfig = loadDotenv(envFile);
+  const get = (key) => process.env[key] ?? fileConfig[key] ?? envConfig[key];
+  const agentIdentity = resolveAgentIdentity({
+    OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID"),
+    OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY")
+  });
+  return {
+    configDir,
+    configFile,
+    envFile,
+    projectConfigPresent: existsSync7(configFile),
+    projectEnvPresent: existsSync7(envFile),
+    coreUrl: get("OPENBOX_CORE_URL") ?? "",
+    apiKey: get("OPENBOX_API_KEY") ?? "",
+    governancePolicy: parseFailMode(get("GOVERNANCE_POLICY")),
+    approvalMode: parseApprovalMode(get("APPROVAL_MODE")),
+    dryRun: truthy2(get("DRY_RUN")),
+    agentIdentity
+  };
+}
+function claudeCodeRuntimeDiagnostics(cwd = process.cwd()) {
+  const runtime = buildProjectRuntimeEnv(cwd);
+  return {
+    configDir: runtime.configDir,
+    configFile: runtime.configFile,
+    envFile: runtime.envFile,
+    projectScoped: true,
+    runtimeEnv: {
+      projectConfigPresent: runtime.projectConfigPresent,
+      projectEnvPresent: runtime.projectEnvPresent,
+      runtimeApiKeyPresent: Boolean(runtime.apiKey),
+      runtimeApiKeyPlaceholder: isPlaceholderKey2(runtime.apiKey),
+      coreUrlPresent: Boolean(runtime.coreUrl),
+      agentIdentityPresent: Boolean(runtime.agentIdentity)
+    },
+    failMode: runtime.governancePolicy,
+    approvalMode: runtime.approvalMode,
+    dryRun: runtime.dryRun,
+    unsupportedOrOptInSurfaces: {
+      worktreeCreate: "explicit_out_of_scope_replaces_default_git_behavior",
+      sessionEnd: "opt_in_shutdown_telemetry",
+      monitors: "opt_in_unsandboxed_not_project_scope",
+      lsp: "out_of_scope_no_openbox_language_server",
+      managedSettings: "enterprise_diagnose_only",
+      channels: "diagnose_only_research_preview"
+    }
+  };
+}
+async function checkRuntimeReadiness2(cwd, validateRuntime) {
+  const runtime = buildProjectRuntimeEnv(cwd);
+  const details = [
+    `config=${runtime.configFile}`,
+    `core=${runtime.coreUrl || "(missing)"}`,
+    `failMode=${runtime.governancePolicy}`,
+    `approvalMode=${runtime.approvalMode}`,
+    `dryRun=${runtime.dryRun}`
+  ];
+  if (runtime.dryRun) {
+    return {
+      name: "runtime",
+      status: "fail",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; DRY_RUN=true`
+    };
+  }
+  if (!runtime.coreUrl) {
+    return {
+      name: "runtime",
+      status: "fail",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; missing OPENBOX_CORE_URL`
+    };
+  }
+  if (!runtime.apiKey) {
+    return {
+      name: "runtime",
+      status: "fail",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; missing OPENBOX_API_KEY`
+    };
+  }
+  if (isPlaceholderKey2(runtime.apiKey)) {
+    return {
+      name: "runtime",
+      status: "fail",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; placeholder OPENBOX_API_KEY`
+    };
+  }
+  const format = validateApiKeyFormat(runtime.apiKey);
+  if (format !== true) {
+    return {
+      name: "runtime",
+      status: "fail",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; invalid OPENBOX_API_KEY format: ${format}`
+    };
+  }
+  if (!validateRuntime) {
+    return {
+      name: "runtime",
+      status: "pass",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; key=format-ok`
+    };
+  }
+  try {
+    const core = new OpenBoxCoreClient({
+      apiKey: runtime.apiKey,
+      apiUrl: runtime.coreUrl,
+      agentIdentity: runtime.agentIdentity,
+      timeoutMs: 5e3
+    });
+    const validation = await core.validateApiKey();
+    const agent = validation?.agent_id ? `; agent=${validation.agent_id}` : "";
+    return {
+      name: "runtime",
+      status: "pass",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; key=validated${agent}`
+    };
+  } catch (err) {
+    return {
+      name: "runtime",
+      status: "fail",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; core validation failed: ${String(err?.message ?? err)}`
+    };
+  }
+}
+function summarizeClaudeCodeChecks(checks) {
+  return checks.reduce(
+    (acc, check) => {
+      acc[check.status] += 1;
+      return acc;
+    },
+    { pass: 0, skip: 0, fail: 0 }
+  );
+}
+function verifyClaudeCodeInstall(opts = {}) {
+  const target = opts.pluginTarget ?? opts.target ?? claudeCodePluginTargetDir(opts.cwd);
+  const checks = verifyClaudeCodePlugin({
+    cwd: opts.cwd,
+    target,
+    includeOptInHooks: opts.includeOptInHooks
+  }).map((check) => ({
+    name: check.name,
+    status: check.status,
+    path: check.path,
+    detail: check.detail
+  }));
+  if (opts.includeRuntime || opts.validateRuntime) {
+    return checkRuntimeReadiness2(opts.cwd, Boolean(opts.validateRuntime)).then((runtime) => [
+      ...checks,
+      runtime
+    ]);
+  }
+  return checks;
+}
+var init_doctor = __esm({
+  "ts/src/runtime/claude-code/doctor.ts"() {
+    "use strict";
+    init_host_config();
+    init_core_client2();
+    init_env();
+    init_plugin2();
   }
 });
 
@@ -6832,8 +7210,8 @@ __export(mcp_exports, {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import * as fs3 from "fs";
-import * as path4 from "path";
+import * as fs2 from "fs";
+import * as path5 from "path";
 async function runMcpServer() {
   const server = new McpServer({ name: "openbox", version: "0.1.0" });
   let callerName;
@@ -6843,18 +7221,22 @@ async function runMcpServer() {
       apiUrl: config.OPENBOX_API_URL,
       coreUrl: config.OPENBOX_CORE_URL,
       platformUrl: config.OPENBOX_PLATFORM_URL,
-      authUrl: config.OPENBOX_AUTH_URL,
-      stackUrl: config.OPENBOX_STACK_URL
+      authUrl: config.OPENBOX_AUTH_URL
     });
     const apiUrl = connection.apiUrl;
     const coreUrl = connection.coreUrl;
     const backendApiKey = loadApiKey();
     const runtimeApiKey = process.env.OPENBOX_API_KEY ?? config.OPENBOX_API_KEY ?? "";
+    const agentIdentity = resolveAgentIdentity({
+      OPENBOX_AGENT_DID: process.env.OPENBOX_AGENT_DID ?? config.OPENBOX_AGENT_DID,
+      OPENBOX_AGENT_PRIVATE_KEY: process.env.OPENBOX_AGENT_PRIVATE_KEY ?? config.OPENBOX_AGENT_PRIVATE_KEY
+    });
     return {
       apiUrl,
       coreUrl,
       backendApiKey,
       runtimeApiKey,
+      agentIdentity,
       governancePolicy: process.env.GOVERNANCE_POLICY ?? config.GOVERNANCE_POLICY ?? "fail_open",
       approvalMode: process.env.APPROVAL_MODE ?? config.APPROVAL_MODE ?? "remote"
     };
@@ -6885,11 +7267,12 @@ async function runMcpServer() {
     const runtime = runtimeState();
     if (!runtime.backendApiKey) {
       throw new Error(
-        `OpenBox MCP: no X-API-Key for the active OpenBox connection. Run \`openbox connect <stack-url> --api-key <key>\` or set OPENBOX_BACKEND_API_KEY.`
+        `OpenBox MCP: no X-API-Key for the active OpenBox connection. Run \`openbox connect --api-url <url> --core-url <url> --api-key <key>\` in this project or set OPENBOX_BACKEND_API_KEY.`
       );
     }
     return {
       coreUrl: runtime.coreUrl,
+      agentIdentity: runtime.agentIdentity,
       client: new OpenBoxClient({
         apiUrl: runtime.apiUrl,
         apiKey: runtime.backendApiKey,
@@ -6960,6 +7343,7 @@ async function runMcpServer() {
             health,
             coreUrl: diagnostics.coreUrl,
             mcpReadiness: diagnostics,
+            claudeCodeRuntimeReadiness: claudeCodeRuntimeDiagnostics(process.cwd()),
             claudeCodeGovernance: claudeCodeGovernanceSummary()
           }, null, 2)
         }]
@@ -6972,6 +7356,7 @@ async function runMcpServer() {
             status: "not_reachable",
             error: err?.message ?? String(err),
             mcpReadiness: diagnostics,
+            claudeCodeRuntimeReadiness: claudeCodeRuntimeDiagnostics(process.cwd()),
             claudeCodeGovernance: claudeCodeGovernanceSummary()
           }, null, 2)
         }],
@@ -6982,14 +7367,12 @@ async function runMcpServer() {
   server.tool("cursor_doctor", "Verify installed Cursor/OpenBox surfaces and runtime readiness without requiring Cursor chat to run shell commands", {
     cwd: z.string().optional().describe("Project root for project-local install."),
     plugin_target: z.string().optional().describe("Explicit project-local plugin folder to inspect."),
-    include_extension: z.boolean().optional().describe("Also check the user-level Cursor approval extension."),
     surface_only: z.boolean().optional().describe("When true, skip runtime key/core validation and only inspect installed files."),
     validate_core: z.boolean().optional().describe("When false, validate runtime config/key format without calling core.")
-  }, async ({ cwd, plugin_target, include_extension, surface_only, validate_core }) => {
+  }, async ({ cwd, plugin_target, surface_only, validate_core }) => {
     const base2 = {
       cwd,
-      pluginTarget: plugin_target,
-      includeExtension: include_extension
+      pluginTarget: plugin_target
     };
     const checks = surface_only ? verifyCursorInstall(base2) : await verifyCursorInstall({
       ...base2,
@@ -7005,22 +7388,35 @@ async function runMcpServer() {
     );
     return { content: [{ type: "text", text: JSON.stringify({ checks, summary: summary2 }, null, 2) }] };
   });
-  server.tool("claude_code_doctor", "Verify installed Claude Code/OpenBox plugin surfaces without requiring Claude Code chat to run shell commands", {
+  server.tool("claude_code_doctor", "Verify installed Claude Code/OpenBox plugin surfaces and runtime readiness without requiring Claude Code chat to run shell commands", {
     cwd: z.string().optional().describe("Project root for project-local install."),
-    target: z.string().optional().describe("Explicit plugin folder to inspect.")
-  }, async ({ cwd, target }) => {
-    const checks = verifyClaudeCodePlugin({ cwd, target });
-    const summary2 = checks.reduce(
-      (acc, check) => {
-        acc[check.status] += 1;
-        return acc;
-      },
-      { pass: 0, fail: 0 }
+    plugin_target: z.string().optional().describe("Explicit project-local plugin folder to inspect."),
+    target: z.string().optional().describe("Alias for plugin_target."),
+    surface_only: z.boolean().optional().describe("When true, skip runtime key/core validation and only inspect installed files."),
+    validate_core: z.boolean().optional().describe("When false, validate runtime config and key format without calling core."),
+    include_opt_in_hooks: z.boolean().optional().describe("Validate an installation that intentionally includes opt-in hooks.")
+  }, async ({ cwd, plugin_target, target, surface_only, validate_core, include_opt_in_hooks }) => {
+    const checks = await Promise.resolve(
+      surface_only ? verifyClaudeCodeInstall({
+        cwd,
+        pluginTarget: plugin_target,
+        target,
+        includeOptInHooks: include_opt_in_hooks
+      }) : verifyClaudeCodeInstall({
+        cwd,
+        pluginTarget: plugin_target,
+        target,
+        includeOptInHooks: include_opt_in_hooks,
+        includeRuntime: true,
+        validateRuntime: validate_core !== false
+      })
     );
+    const summary2 = summarizeClaudeCodeChecks(checks);
     return { content: [{ type: "text", text: JSON.stringify({
       checks,
       summary: summary2,
       mcpReadiness: runtimeDiagnostics(),
+      runtimeReadiness: claudeCodeRuntimeDiagnostics(cwd),
       claudeCodeGovernance: claudeCodeGovernanceSummary()
     }, null, 2) }] };
   });
@@ -7068,7 +7464,7 @@ async function runMcpServer() {
     const ts = agent.agent_trust_score ?? null;
     return { content: [{ type: "text", text: JSON.stringify(ts, null, 2) }] };
   });
-  async function coreEvaluate(apiKey, spanType, activityInput, coreUrl, source) {
+  async function coreEvaluate(apiKey, spanType, activityInput, coreUrl, source, agentIdentity) {
     const span = buildMcpGovernanceSpan(spanType, activityInput);
     const payload = {
       source,
@@ -7088,7 +7484,8 @@ async function runMcpServer() {
     };
     const client2 = new OpenBoxCoreClient({
       apiUrl: coreUrl,
-      apiKey
+      apiKey,
+      agentIdentity
     });
     return await client2.evaluate(payload);
   }
@@ -7123,7 +7520,8 @@ async function runMcpServer() {
         span_type,
         input,
         runtime.coreUrl,
-        sourceLabel()
+        sourceLabel(),
+        runtime.agentIdentity
       );
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     } catch (err) {
@@ -7143,18 +7541,18 @@ async function runMcpServer() {
   ];
   function findSkillDir3() {
     const candidates = [
-      path4.join(process.cwd(), ".claude", "skills", "openbox", "skills", "openbox"),
-      path4.join(process.cwd(), ".cursor", "plugins", "local", "openbox", "skills", "openbox")
+      path5.join(process.cwd(), ".claude", "skills", "openbox", "skills", "openbox"),
+      path5.join(process.cwd(), ".cursor", "plugins", "local", "openbox", "skills", "openbox")
     ];
-    return candidates.find((p) => fs3.existsSync(p)) || null;
+    return candidates.find((p) => fs2.existsSync(p)) || null;
   }
   for (const ref of SKILL_PATHS) {
     server.resource(ref.name, `openbox://skill/${ref.name}`, { description: ref.desc }, async () => {
       const skillDir = findSkillDir3();
       if (!skillDir) return { contents: [{ uri: `openbox://skill/${ref.name}`, text: "Skill not installed. Run a project-local install: openbox install cursor or openbox install claude-code", mimeType: "text/plain" }] };
-      const filePath = path4.join(skillDir, ref.path);
-      if (!fs3.existsSync(filePath)) return { contents: [{ uri: `openbox://skill/${ref.name}`, text: `File not found: ${ref.path}`, mimeType: "text/plain" }] };
-      const text = fs3.readFileSync(filePath, "utf-8");
+      const filePath = path5.join(skillDir, ref.path);
+      if (!fs2.existsSync(filePath)) return { contents: [{ uri: `openbox://skill/${ref.name}`, text: `File not found: ${ref.path}`, mimeType: "text/plain" }] };
+      const text = fs2.readFileSync(filePath, "utf-8");
       return { contents: [{ uri: `openbox://skill/${ref.name}`, text, mimeType: "text/markdown" }] };
     });
   }
@@ -7175,27 +7573,27 @@ var init_mcp = __esm({
     init_agent_keys();
     init_source();
     init_install();
-    init_plugin2();
+    init_doctor();
     init_governance_span();
     init_governance_matrix();
   }
 });
 
 // ts/src/runtime/claude-code/config.ts
-import fs4 from "fs";
-import path5 from "path";
+import fs3 from "fs";
+import path6 from "path";
 function resolveConfigDir(startDir = process.cwd()) {
   let cur = startDir;
   for (let i = 0; i < 8; i++) {
-    const candidate = path5.join(cur, ".claude-hooks");
-    if (fs4.existsSync(path5.join(candidate, "config.json"))) {
+    const candidate = path6.join(cur, ".claude-hooks");
+    if (fs3.existsSync(path6.join(candidate, "config.json"))) {
       return candidate;
     }
-    const parent = path5.dirname(cur);
+    const parent = path6.dirname(cur);
     if (parent === cur) break;
     cur = parent;
   }
-  return path5.join(startDir, ".claude-hooks");
+  return path6.join(startDir, ".claude-hooks");
 }
 function loadConfig() {
   const fileConfig = loadConfigFile();
@@ -7214,16 +7612,20 @@ function loadConfig() {
   return {
     openboxApiKey: get("OPENBOX_API_KEY"),
     openboxEndpoint: coreUrl,
+    agentIdentity: resolveAgentIdentity({
+      OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID") || void 0,
+      OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY") || void 0
+    }),
     governancePolicy: get("GOVERNANCE_POLICY", "fail_open"),
     governanceTimeout: parseInt(get("GOVERNANCE_TIMEOUT", "15"), 10) || 15,
-    sessionDir: get("SESSION_DIR", path5.join(CONFIG_DIR, "sessions")),
-    logFile: get("LOG_FILE", path5.join(CONFIG_DIR, "hook.log")) || null,
+    sessionDir: get("SESSION_DIR", path6.join(CONFIG_DIR, "sessions")),
+    logFile: get("LOG_FILE", path6.join(CONFIG_DIR, "hook.log")) || null,
     verbose: get("VERBOSE") === "true" || get("VERBOSE") === "1",
     dryRun: get("DRY_RUN") === "true" || get("DRY_RUN") === "1",
     hitlEnabled: get("HITL_ENABLED", "true") !== "false",
     hitlPollInterval: parseInt(get("HITL_POLL_INTERVAL", "5"), 10) || 5,
     hitlMaxWait: parseInt(get("HITL_MAX_WAIT", "300"), 10) || 300,
-    approvalMode: parseApprovalMode(get("APPROVAL_MODE", "remote")),
+    approvalMode: parseApprovalMode2(get("APPROVAL_MODE", "remote")),
     taskQueue: get("TASK_QUEUE", "claude-code"),
     sendStartEvent: get("SEND_START_EVENT", "true") !== "false",
     sendActivityStartEvent: get("SEND_ACTIVITY_START_EVENT", "true") !== "false",
@@ -7232,7 +7634,10 @@ function loadConfig() {
     skipActivityTypes
   };
 }
-function parseApprovalMode(value) {
+function getConfigDir() {
+  return CONFIG_DIR;
+}
+function parseApprovalMode2(value) {
   const mode = value.toLowerCase();
   if (mode === "inline" || mode === "defer") return mode;
   return "remote";
@@ -7242,17 +7647,18 @@ var init_config3 = __esm({
   "ts/src/runtime/claude-code/config.ts"() {
     "use strict";
     init_host_config();
+    init_agent_identity();
     CONFIG_DIR = resolveConfigDir();
-    CONFIG_FILE = path5.join(CONFIG_DIR, "config.json");
-    ENV_FILE = path5.join(CONFIG_DIR, ".env");
+    CONFIG_FILE = path6.join(CONFIG_DIR, "config.json");
+    ENV_FILE = path6.join(CONFIG_DIR, ".env");
     loadConfigFile = () => loadJsonConfig(CONFIG_FILE);
     loadEnvFile = () => loadDotenv(ENV_FILE);
   }
 });
 
 // ts/src/logging/logger.ts
-import fs5 from "fs";
-import path6 from "path";
+import fs4 from "fs";
+import path7 from "path";
 function createLogger(adapterName) {
   let logPath = null;
   function summarize(data) {
@@ -7269,7 +7675,7 @@ function createLogger(adapterName) {
   return {
     initLogger(cfg) {
       logPath = cfg.logFile;
-      if (logPath) fs5.mkdirSync(path6.dirname(logPath), { recursive: true });
+      if (logPath) fs4.mkdirSync(path7.dirname(logPath), { recursive: true });
     },
     log(hookEvent, data, response) {
       const entry = {
@@ -7281,7 +7687,7 @@ function createLogger(adapterName) {
       const line = JSON.stringify(entry);
       if (logPath) {
         try {
-          fs5.appendFileSync(logPath, line + "\n");
+          fs4.appendFileSync(logPath, line + "\n");
         } catch {
         }
       }
@@ -7299,8 +7705,8 @@ var init_logger = __esm({
 });
 
 // ts/src/session/store.ts
-import fs6 from "fs";
-import path7 from "path";
+import fs5 from "fs";
+import path8 from "path";
 var SessionStore;
 var init_store2 = __esm({
   "ts/src/session/store.ts"() {
@@ -7309,20 +7715,20 @@ var init_store2 = __esm({
       dir;
       constructor(sessionDir) {
         this.dir = sessionDir;
-        fs6.mkdirSync(this.dir, { recursive: true });
+        fs5.mkdirSync(this.dir, { recursive: true });
       }
       filePath(key) {
         const safe = key.replace(/[^a-zA-Z0-9_-]/g, "_");
-        return path7.join(this.dir, `${safe}.json`);
+        return path8.join(this.dir, `${safe}.json`);
       }
       save(key, session) {
-        fs6.writeFileSync(this.filePath(key), JSON.stringify(session), { mode: 384, encoding: "utf-8" });
+        fs5.writeFileSync(this.filePath(key), JSON.stringify(session), { mode: 384, encoding: "utf-8" });
       }
       load(key) {
         const fp = this.filePath(key);
-        if (!fs6.existsSync(fp)) return null;
+        if (!fs5.existsSync(fp)) return null;
         try {
-          return JSON.parse(fs6.readFileSync(fp, "utf-8"));
+          return JSON.parse(fs5.readFileSync(fp, "utf-8"));
         } catch {
           return null;
         }
@@ -7330,18 +7736,18 @@ var init_store2 = __esm({
       delete(key) {
         const fp = this.filePath(key);
         try {
-          fs6.unlinkSync(fp);
+          fs5.unlinkSync(fp);
         } catch {
         }
       }
       cleanup(maxAgeMs = 864e5) {
         try {
           const now = Date.now();
-          for (const f of fs6.readdirSync(this.dir)) {
-            const fp = path7.join(this.dir, f);
-            const stat = fs6.statSync(fp);
+          for (const f of fs5.readdirSync(this.dir)) {
+            const fp = path8.join(this.dir, f);
+            const stat = fs5.statSync(fp);
             if (now - stat.mtimeMs > maxAgeMs) {
-              fs6.unlinkSync(fp);
+              fs5.unlinkSync(fp);
             }
           }
         } catch {
@@ -7423,38 +7829,38 @@ var init_session_resolver = __esm({
 });
 
 // ts/src/logging/hook-log.ts
-import * as fs7 from "fs";
-import * as path8 from "path";
+import * as fs6 from "fs";
+import * as path9 from "path";
 function logDir() {
-  return path8.join(openboxDataRoot(), "log");
+  return path9.join(openboxDataRoot(), "log");
 }
 function ensureDir(dir) {
-  if (!fs7.existsSync(dir)) fs7.mkdirSync(dir, { recursive: true, mode: 448 });
+  if (!fs6.existsSync(dir)) fs6.mkdirSync(dir, { recursive: true, mode: 448 });
 }
 function rotateIfNeeded(file) {
   try {
-    const st = fs7.statSync(file);
+    const st = fs6.statSync(file);
     if (st.size < MAX_BYTES) return;
   } catch {
     return;
   }
   try {
-    fs7.renameSync(file, `${file}.1`);
+    fs6.renameSync(file, `${file}.1`);
   } catch {
   }
 }
 function makeHookLog(host) {
   const initialDir = logDir();
-  const initialFile = path8.join(initialDir, `${host}-hook.jsonl`);
+  const initialFile = path9.join(initialDir, `${host}-hook.jsonl`);
   return {
     path: initialFile,
     record(line) {
       try {
         const dir = logDir();
-        const file = path8.join(dir, `${host}-hook.jsonl`);
+        const file = path9.join(dir, `${host}-hook.jsonl`);
         ensureDir(dir);
         rotateIfNeeded(file);
-        fs7.appendFileSync(file, JSON.stringify(line) + "\n", { mode: 384 });
+        fs6.appendFileSync(file, JSON.stringify(line) + "\n", { mode: 384 });
       } catch {
       }
     }
@@ -7509,7 +7915,7 @@ var init_activity_types = __esm({
 });
 
 // ts/src/governance/skip-patterns.ts
-import path9 from "path";
+import path10 from "path";
 function isSkipped(filePath) {
   return SKIP_PATTERNS.some((p) => p.test(filePath));
 }
@@ -7519,9 +7925,9 @@ function isSensitivePath(filePath) {
 function isInsideAnyRoot(filePath, roots, cwd) {
   if (!filePath || !roots || roots.length === 0) return false;
   const norm = (p) => p.replace(/\/+$/, "");
-  const f = norm(path9.resolve(cwd ?? roots[0] ?? process.cwd(), filePath));
+  const f = norm(path10.resolve(cwd ?? roots[0] ?? process.cwd(), filePath));
   return roots.some((r) => {
-    const root = norm(path9.resolve(r));
+    const root = norm(path10.resolve(r));
     return f === root || f.startsWith(root + "/");
   });
 }
@@ -7759,7 +8165,7 @@ var init_spans = __esm({
 });
 
 // ts/src/runtime/claude-code/side-effects.ts
-import * as fs8 from "fs";
+import * as fs7 from "fs";
 var TRUNCATE_LIMIT, sideEffects;
 var init_side_effects = __esm({
   "ts/src/runtime/claude-code/side-effects.ts"() {
@@ -7774,7 +8180,7 @@ var init_side_effects = __esm({
         if (typeof input !== "string" || !input) return "";
         if (isSkipped(input)) return "";
         try {
-          return fs8.existsSync(input) ? fs8.readFileSync(input, "utf-8") : "";
+          return fs7.existsSync(input) ? fs7.readFileSync(input, "utf-8") : "";
         } catch {
           return "";
         }
@@ -7787,6 +8193,56 @@ var init_side_effects = __esm({
         return s.length > TRUNCATE_LIMIT ? s.slice(0, TRUNCATE_LIMIT) : s;
       }
     };
+  }
+});
+
+// ts/src/runtime/claude-code/tool-activity-store.ts
+import { createHash as createHash2 } from "crypto";
+import path11 from "path";
+function storeFor(cfg) {
+  let store = stores2.get(cfg);
+  if (!store) {
+    store = new SessionStore(path11.join(cfg.sessionDir, "tool-activities"));
+    stores2.set(cfg, store);
+  }
+  return store;
+}
+function stableStringify(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  const obj = value;
+  return `{${Object.keys(obj).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(obj[key])}`).join(",")}}`;
+}
+function toolActivityKey(env) {
+  if (env.tool_use_id) {
+    return `${env.session_id}:${env.tool_use_id}`;
+  }
+  const digest = createHash2("sha256").update(env.session_id).update("\0").update(env.tool_name ?? "").update("\0").update(stableStringify(env.tool_input ?? null)).digest("hex").slice(0, 32);
+  return `${env.session_id}:${digest}`;
+}
+function rememberToolActivity(env, cfg, activity) {
+  storeFor(cfg).save(toolActivityKey(env), { ...activity });
+}
+function takeToolActivity(env, cfg) {
+  const key = toolActivityKey(env);
+  const store = storeFor(cfg);
+  const record = store.load(key);
+  store.delete(key);
+  if (!record || typeof record.activityId !== "string" || typeof record.activityType !== "string" || typeof record.startTime !== "number") {
+    return null;
+  }
+  return {
+    activityId: record.activityId,
+    activityType: record.activityType,
+    startTime: record.startTime
+  };
+}
+var stores2;
+var init_tool_activity_store = __esm({
+  "ts/src/runtime/claude-code/tool-activity-store.ts"() {
+    "use strict";
+    init_store2();
+    stores2 = /* @__PURE__ */ new WeakMap();
   }
 });
 
@@ -7828,10 +8284,20 @@ async function handlePreToolUse(env, session, cfg) {
       method: "GET"
     })
   ] : void 0;
-  const verdict = await session.activity(EVENT.START, activityType, {
+  const startTime = Date.now();
+  const opened = await session.openActivity(activityType, {
     input: [stampSource(payload, "claude-code")],
+    startTime,
     spans
   });
+  const verdict = opened.verdict;
+  if (verdict.arm === "allow" || verdict.arm === "constrain" || verdict.arm === "require_approval") {
+    rememberToolActivity(env, cfg, {
+      activityId: opened.activityId,
+      activityType,
+      startTime
+    });
+  }
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   return verdict;
 }
@@ -7845,6 +8311,7 @@ var init_pre_tool_use = __esm({
     init_spans();
     init_source();
     init_side_effects();
+    init_tool_activity_store();
   }
 });
 
@@ -7864,13 +8331,25 @@ function spanTypeFor2(toolName) {
   if (toolName.startsWith("mcp__")) return "mcp";
   return null;
 }
+function durationMsFor(env) {
+  const durationMs = env.duration_ms;
+  return typeof durationMs === "number" && Number.isFinite(durationMs) ? durationMs : void 0;
+}
+function outputFor(env, payload) {
+  return env.tool_response ?? env.tool_output ?? payload.output;
+}
 async function handlePostToolUse(env, session, cfg) {
   const toolName = env.tool_name ?? "";
+  const toolInput = env.tool_input ?? {};
+  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
   const activityType = activityTypeFor2(toolName);
   if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
-  const toolInput = env.tool_input ?? {};
-  const toolResponse = env.tool_response;
+  const filePath = toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path ?? "";
+  if (filePath && isSkipped(filePath)) return void 0;
+  const pending = takeToolActivity(env, cfg);
+  const toolResponse = outputFor(env, {});
   const payload = buildPostToolUsePayload(env, sideEffects);
+  const startedPayload = buildPreToolUsePayload2(env, toolName, sideEffects);
   const spanType = spanTypeFor2(toolName);
   const spans = spanType ? [
     buildSpan("claude-code", spanType, {
@@ -7883,8 +8362,14 @@ async function handlePostToolUse(env, session, cfg) {
       method: "GET"
     })
   ] : void 0;
+  const durationMs = durationMsFor(env);
   const verdict = await session.activity(EVENT.COMPLETE, activityType, {
-    input: [stampSource(payload, "claude-code")],
+    activityId: pending?.activityId,
+    startTime: pending?.startTime,
+    endTime: pending && durationMs !== void 0 ? pending.startTime + durationMs : void 0,
+    durationMs,
+    input: [stampSource(startedPayload, "claude-code")],
+    output: outputFor(env, payload),
     spans
   });
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
@@ -7892,11 +8377,23 @@ async function handlePostToolUse(env, session, cfg) {
 }
 async function handlePostToolUseFailure(env, session, cfg) {
   const toolName = env.tool_name ?? "";
+  const toolInput = env.tool_input ?? {};
+  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
   const activityType = activityTypeFor2(toolName);
   if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
+  const filePath = toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path ?? "";
+  if (filePath && isSkipped(filePath)) return void 0;
+  const pending = takeToolActivity(env, cfg);
   const payload = buildPostToolUseFailurePayload(env);
+  const startedPayload = buildPreToolUsePayload2(env, toolName, sideEffects);
+  const durationMs = durationMsFor(env);
   const verdict = await session.activity(EVENT.COMPLETE, activityType, {
-    input: [stampSource(payload, "claude-code")]
+    activityId: pending?.activityId,
+    startTime: pending?.startTime,
+    endTime: pending && durationMs !== void 0 ? pending.startTime + durationMs : void 0,
+    durationMs,
+    input: [stampSource(startedPayload, "claude-code")],
+    output: stampSource(payload, "claude-code")
   });
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   return verdict;
@@ -7904,7 +8401,8 @@ async function handlePostToolUseFailure(env, session, cfg) {
 async function handlePostToolBatch(env, session, cfg) {
   const payload = buildPostToolBatchPayload(env, sideEffects);
   const verdict = await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.AGENT_ACTION, {
-    input: [stampSource(payload, "claude-code")]
+    input: [stampSource(payload, "claude-code")],
+    output: stampSource(payload, "claude-code")
   });
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   return verdict;
@@ -7918,6 +8416,8 @@ var init_post_tool_use = __esm({
     init_spans();
     init_source();
     init_side_effects();
+    init_skip_patterns();
+    init_tool_activity_store();
   }
 });
 
@@ -7925,8 +8425,11 @@ var init_post_tool_use = __esm({
 async function handleUserPromptSubmit(env, session, cfg) {
   const prompt = (env.prompt ?? "").trim();
   if (!prompt) return void 0;
-  void session.activity(EVENT.SIGNAL, "goal", {
-    input: [stampSource({ goal: prompt, event_category: "agent_goal" }, "claude-code")]
+  void session.activity(EVENT.SIGNAL, "user_prompt", {
+    input: [stampSource({ prompt, event_category: "agent_goal" }, "claude-code")],
+    signalName: "user_prompt",
+    signalArgs: prompt,
+    spans: [buildSpan("claude-code", "llm", { prompt })]
   }).catch(() => void 0);
   const payload = buildUserPromptSubmitPayload(env);
   const span = buildSpan("claude-code", "llm", { prompt });
@@ -8025,6 +8528,9 @@ var init_permission_request = __esm({
 });
 
 // ts/src/runtime/claude-code/mappers/session.ts
+function hasPendingClaudeWork(env) {
+  return Array.isArray(env.background_tasks) && env.background_tasks.length > 0 || Array.isArray(env.session_crons) && env.session_crons.length > 0;
+}
 async function handleSessionStart(env, session, _cfg) {
   await session.workflowStarted();
   await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
@@ -8049,6 +8555,20 @@ async function handleStop(env, session, cfg) {
     return void 0;
   }
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
+  if ((verdict.arm === "allow" || verdict.arm === "constrain") && !hasPendingClaudeWork(env)) {
+    try {
+      await session.workflowCompleted();
+      clearSession(env.session_id, cfg);
+    } catch {
+      if (cfg.governancePolicy === "fail_closed") {
+        return {
+          arm: "block",
+          reason: "OpenBox Core was unavailable while completing Claude Code workflow",
+          riskScore: 1
+        };
+      }
+    }
+  }
   return verdict;
 }
 async function handleSetup(env, session, _cfg) {
@@ -8076,11 +8596,18 @@ async function handlePostCompact(env, session, _cfg) {
   }
   return void 0;
 }
-async function handleStopFailure(env, session, _cfg) {
+async function handleStopFailure(env, session, cfg) {
   try {
     await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
       input: [stampSource(buildStopFailurePayload(env), "claude-code")]
     });
+  } catch {
+  }
+  try {
+    await session.workflowFailed(
+      new Error(String(env.error ?? env.reason ?? "Claude Code StopFailure"))
+    );
+    clearSession(env.session_id, cfg);
   } catch {
   }
   return void 0;
@@ -8396,8 +8923,10 @@ async function readHookStdin() {
   return Buffer.concat(chunks).toString("utf-8");
 }
 async function runClaudeHook() {
-  applyEnvSource();
   const cfg = loadConfig();
+  if (!process.env.OPENBOX_HOME) {
+    process.env.OPENBOX_HOME = getConfigDir();
+  }
   createLogger("claude-code").initLogger(cfg);
   let raw = "";
   let env;
@@ -8426,6 +8955,7 @@ async function runClaudeHook() {
   const core = new OpenBoxCoreClient({
     apiKey: cfg.openboxApiKey,
     apiUrl: cfg.openboxEndpoint,
+    agentIdentity: cfg.agentIdentity,
     timeoutMs: cfg.governanceTimeout * 1e3
   });
   const approvalMaxWaitMs = Math.min(
@@ -8670,7 +9200,6 @@ var init_hook_handler = __esm({
     init_claude_code();
     init_core_client2();
     init_config3();
-    init_env_source();
     init_logger();
     init_session_resolver();
     init_hook_log();
@@ -8688,159 +9217,17 @@ var init_hook_handler = __esm({
   }
 });
 
-// ts/src/install/from-spec.ts
-import fs9 from "fs";
-import path10 from "path";
-function resolveInstallPaths(spec, options = {}) {
-  const scope = options.scope ?? "project";
-  const cwd = options.cwd ?? process.cwd();
-  if (scope !== "project") {
-    throw new Error(`scope \`${scope}\` is not supported; expected project`);
-  }
-  if (spec.style === "claude-array") {
-    return {
-      scope,
-      hooksFile: path10.join(cwd, ".claude", "settings.json"),
-      configDir: path10.join(cwd, ".claude-hooks"),
-      mcpFile: path10.join(cwd, ".mcp.json"),
-      mcpKey: "mcpServers"
-    };
-  }
-  return {
-    scope,
-    hooksFile: path10.join(cwd, ".cursor", "hooks.json"),
-    configDir: path10.join(cwd, ".cursor-hooks"),
-    mcpFile: path10.join(cwd, ".cursor", "mcp.json"),
-    mcpKey: "mcpServers"
-  };
-}
-function loadJson(file) {
-  try {
-    if (fs9.existsSync(file)) {
-      return JSON.parse(fs9.readFileSync(file, "utf-8"));
-    }
-  } catch {
-  }
-  return {};
-}
-function saveJson(file, value) {
-  fs9.mkdirSync(path10.dirname(file), { recursive: true });
-  fs9.writeFileSync(file, JSON.stringify(value, null, 2) + "\n", "utf-8");
-}
-function ruleIsOpenBox(rule, command) {
-  return rule.hooks?.some(
-    (h) => h.command === command || h.command?.includes("openbox claude-code") || h.command?.includes("openbox cursor")
-  ) ?? false;
-}
-function isCursorOpenBoxHook(value, command) {
-  if (!value) return false;
-  if (Array.isArray(value)) {
-    return value.some((e) => isCursorOpenBoxHook(e, command));
-  }
-  if (typeof value !== "object") return false;
-  const cmd = value.command;
-  return cmd === command || cmd?.includes("openbox cursor") === true;
-}
-function dropExampleConfig(configDir) {
-  fs9.mkdirSync(configDir, { recursive: true });
-  const file = path10.join(configDir, "config.json");
-  if (fs9.existsSync(file)) return;
-  const example = {
-    OPENBOX_API_KEY: "obx_live_YOUR_API_KEY_HERE",
-    OPENBOX_CORE_URL: "https://core.example/ob",
-    GOVERNANCE_POLICY: "fail_open",
-    HITL_ENABLED: true,
-    HITL_MAX_WAIT: 300,
-    VERBOSE: false,
-    DRY_RUN: true
-  };
-  fs9.writeFileSync(file, JSON.stringify(example, null, 2) + "\n", { mode: 384, encoding: "utf-8" });
-  console.log(`Created example config at ${file}`);
-  console.log("  -> Set OPENBOX_API_KEY and DRY_RUN=false to enable governance");
-}
-function installAdapter(spec, options = {}) {
-  const paths = resolveInstallPaths(spec, options);
-  const settings = loadJson(paths.hooksFile);
-  if (spec.style === "claude-array") {
-    let hooksBlock = settings[spec.key];
-    if (!hooksBlock) {
-      hooksBlock = {};
-      settings[spec.key] = hooksBlock;
-    }
-    for (const evt of spec.events.filter((event) => event.installDefault !== false)) {
-      if (!hooksBlock[evt.name]) hooksBlock[evt.name] = [];
-      hooksBlock[evt.name] = hooksBlock[evt.name].filter((r) => !ruleIsOpenBox(r, spec.command));
-      const inner = { type: "command", command: spec.command };
-      if (evt.timeout) inner.timeout = evt.timeout;
-      hooksBlock[evt.name].push({ hooks: [inner] });
-    }
-  } else {
-    let hooksBlock = settings[spec.key];
-    if (!hooksBlock) {
-      hooksBlock = {};
-      settings[spec.key] = hooksBlock;
-    }
-    for (const evt of spec.events.filter((event) => event.installDefault !== false)) {
-      const entry = { command: spec.command };
-      if (evt.timeout) entry.timeout = evt.timeout;
-      if (evt.matcher) entry.matcher = evt.matcher;
-      hooksBlock[evt.name] = [entry];
-    }
-  }
-  saveJson(paths.hooksFile, settings);
-  console.log(`Installed OpenBox hooks (${paths.scope}) into ${paths.hooksFile}`);
-  console.log(`Hook events: ${spec.events.filter((event) => event.installDefault !== false).map((e) => e.name).join(", ")}`);
-  dropExampleConfig(paths.configDir);
-}
-function uninstallAdapter(spec, options = {}) {
-  const paths = resolveInstallPaths(spec, options);
-  const settings = loadJson(paths.hooksFile);
-  const hooksBlock = settings[spec.key];
-  if (!hooksBlock || typeof hooksBlock !== "object") {
-    console.log(`No hooks configured at ${paths.hooksFile}. Nothing to uninstall.`);
-    return;
-  }
-  let removed = 0;
-  if (spec.style === "claude-array") {
-    const block = hooksBlock;
-    for (const evt of Object.keys(block)) {
-      const before = block[evt].length;
-      block[evt] = block[evt].filter((r) => !ruleIsOpenBox(r, spec.command));
-      removed += before - block[evt].length;
-      if (block[evt].length === 0) delete block[evt];
-    }
-    if (Object.keys(block).length === 0) delete settings[spec.key];
-  } else {
-    const block = hooksBlock;
-    for (const evt of spec.events) {
-      if (isCursorOpenBoxHook(block[evt.name], spec.command)) {
-        delete block[evt.name];
-        removed += 1;
-      }
-    }
-    if (Object.keys(block).length === 0) delete settings[spec.key];
-  }
-  saveJson(paths.hooksFile, settings);
-  console.log(`Removed ${removed} OpenBox hook(s) from ${paths.hooksFile}`);
-}
-var init_from_spec = __esm({
-  "ts/src/install/from-spec.ts"() {
-    "use strict";
-  }
-});
-
 // ts/src/runtime/claude-code/install.ts
 function installClaudeCode(opts = {}) {
-  installAdapter(HOOK_SPEC2, opts);
+  installClaudeCodePlugin({ scope: opts.scope, cwd: opts.cwd });
 }
 function uninstallClaudeCode(opts = {}) {
-  uninstallAdapter(HOOK_SPEC2, opts);
+  uninstallClaudeCodePlugin({ scope: opts.scope, cwd: opts.cwd });
 }
 var init_install2 = __esm({
   "ts/src/runtime/claude-code/install.ts"() {
     "use strict";
-    init_claude_code();
-    init_from_spec();
+    init_plugin2();
   }
 });
 
@@ -8849,11 +9236,13 @@ var claude_code_exports = {};
 __export(claude_code_exports, {
   CLAUDE_CODE_GOVERNANCE_AUDIT: () => CLAUDE_CODE_GOVERNANCE_AUDIT,
   CLAUDE_CODE_HOOK_MATRIX: () => CLAUDE_CODE_HOOK_MATRIX,
+  CLAUDE_CODE_SDK_CAPABILITY_MATRIX: () => CLAUDE_CODE_SDK_CAPABILITY_MATRIX,
   CLAUDE_CODE_SURFACE_MATRIX: () => CLAUDE_CODE_SURFACE_MATRIX,
   HOOK_LOG_PATH: () => HOOK_LOG_PATH,
   claudeCodeGovernanceSummary: () => claudeCodeGovernanceSummary,
   claudeCodePluginTargetDir: () => claudeCodePluginTargetDir,
   claudeCodeRuntimeConfigDir: () => claudeCodeRuntimeConfigDir,
+  claudeCodeRuntimeDiagnostics: () => claudeCodeRuntimeDiagnostics,
   createClaudeCodeAdapter: () => createClaudeCodeAdapter,
   defaultClaudeCodeHookEvents: () => defaultClaudeCodeHookEvents,
   exportClaudeCodePlugin: () => exportClaudeCodePlugin,
@@ -8861,8 +9250,10 @@ __export(claude_code_exports, {
   installClaudeCodePlugin: () => installClaudeCodePlugin,
   optInClaudeCodeHookEvents: () => optInClaudeCodeHookEvents,
   runClaudeHook: () => runClaudeHook,
+  summarizeClaudeCodeChecks: () => summarizeClaudeCodeChecks,
   uninstallClaudeCode: () => uninstallClaudeCode,
   uninstallClaudeCodePlugin: () => uninstallClaudeCodePlugin,
+  verifyClaudeCodeInstall: () => verifyClaudeCodeInstall,
   verifyClaudeCodePlugin: () => verifyClaudeCodePlugin
 });
 var HOOK_LOG_PATH;
@@ -8874,26 +9265,27 @@ var init_claude_code2 = __esm({
     init_install2();
     init_plugin2();
     init_governance_matrix();
+    init_doctor();
     init_hook_log();
     HOOK_LOG_PATH = makeHookLog("claude-code").path;
   }
 });
 
 // ts/src/runtime/cursor/config.ts
-import fs10 from "fs";
-import path11 from "path";
+import fs8 from "fs";
+import path12 from "path";
 function resolveConfigDir2(startDir = process.cwd()) {
   let cur = startDir;
   for (let i = 0; i < 8; i++) {
-    const candidate = path11.join(cur, ".cursor-hooks");
-    if (fs10.existsSync(path11.join(candidate, "config.json"))) {
+    const candidate = path12.join(cur, ".cursor-hooks");
+    if (fs8.existsSync(path12.join(candidate, "config.json"))) {
       return candidate;
     }
-    const parent = path11.dirname(cur);
+    const parent = path12.dirname(cur);
     if (parent === cur) break;
     cur = parent;
   }
-  return path11.join(startDir, ".cursor-hooks");
+  return path12.join(startDir, ".cursor-hooks");
 }
 function loadConfig2() {
   const fileConfig = loadConfigFile2();
@@ -8910,11 +9302,15 @@ function loadConfig2() {
   return {
     openboxApiKey: get("OPENBOX_API_KEY"),
     openboxEndpoint: coreUrl,
+    agentIdentity: resolveAgentIdentity({
+      OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID") || void 0,
+      OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY") || void 0
+    }),
     governancePolicy: get("GOVERNANCE_POLICY", "fail_open"),
     governanceTimeout: parseInt(get("GOVERNANCE_TIMEOUT", "15"), 10) || 15,
     activityType: get("ACTIVITY_TYPE", "CursorIDE"),
-    sessionDir: get("SESSION_DIR", path11.join(CONFIG_DIR2, "sessions")),
-    logFile: get("LOG_FILE", path11.join(CONFIG_DIR2, "hook.log")) || null,
+    sessionDir: get("SESSION_DIR", path12.join(CONFIG_DIR2, "sessions")),
+    logFile: get("LOG_FILE", path12.join(CONFIG_DIR2, "hook.log")) || null,
     verbose: get("VERBOSE") === "true" || get("VERBOSE") === "1",
     dryRun: get("DRY_RUN") === "true" || get("DRY_RUN") === "1",
     hitlEnabled: get("HITL_ENABLED", "true") !== "false",
@@ -8930,14 +9326,18 @@ function loadConfig2() {
     testDriftResponse: get("TEST_DRIFT_RESPONSE") || null
   };
 }
+function getConfigDir2() {
+  return CONFIG_DIR2;
+}
 var CONFIG_DIR2, CONFIG_FILE2, ENV_FILE2, loadConfigFile2, loadEnvFile2;
 var init_config4 = __esm({
   "ts/src/runtime/cursor/config.ts"() {
     "use strict";
     init_host_config();
+    init_agent_identity();
     CONFIG_DIR2 = resolveConfigDir2();
-    CONFIG_FILE2 = path11.join(CONFIG_DIR2, "config.json");
-    ENV_FILE2 = path11.join(CONFIG_DIR2, ".env");
+    CONFIG_FILE2 = path12.join(CONFIG_DIR2, "config.json");
+    ENV_FILE2 = path12.join(CONFIG_DIR2, ".env");
     loadConfigFile2 = () => loadJsonConfig(CONFIG_FILE2);
     loadEnvFile2 = () => loadDotenv(ENV_FILE2);
   }
@@ -8962,16 +9362,18 @@ var init_session_resolver2 = __esm({
 
 // ts/src/approvals/socket-client.ts
 import * as net from "net";
-import * as path12 from "path";
-import * as os4 from "os";
-function connectApprovalSocket(socketPath = APPROVAL_SOCKET_PATH) {
-  return new Promise((resolve2) => {
+import * as path13 from "path";
+function defaultApprovalSocketPath() {
+  return path13.join(openboxDataRoot(), "run", "openbox.sock");
+}
+function connectApprovalSocket(socketPath = defaultApprovalSocketPath()) {
+  return new Promise((resolve3) => {
     const socket = net.createConnection({ path: socketPath });
     let settled = false;
     const onConnect = () => {
       if (settled) return;
       settled = true;
-      resolve2(buildHandle(socket));
+      resolve3(buildHandle(socket));
     };
     const onError = () => {
       if (settled) return;
@@ -8980,7 +9382,7 @@ function connectApprovalSocket(socketPath = APPROVAL_SOCKET_PATH) {
         socket.destroy();
       } catch {
       }
-      resolve2(null);
+      resolve3(null);
     };
     socket.once("connect", onConnect);
     socket.once("error", onError);
@@ -8991,7 +9393,7 @@ function connectApprovalSocket(socketPath = APPROVAL_SOCKET_PATH) {
         socket.destroy();
       } catch {
       }
-      resolve2(null);
+      resolve3(null);
     }, 200);
   });
 }
@@ -9040,19 +9442,19 @@ function buildHandle(socket) {
       } catch {
       }
     },
-    awaitDecision: (geid, deadlineMs) => new Promise((resolve2) => {
+    awaitDecision: (geid, deadlineMs) => new Promise((resolve3) => {
       const list = listenersByGeid.get(geid) ?? [];
-      list.push(resolve2);
+      list.push(resolve3);
       listenersByGeid.set(geid, list);
       if (deadlineMs > 0) {
         setTimeout(() => {
           const cur = listenersByGeid.get(geid);
           if (!cur) return;
-          const idx = cur.indexOf(resolve2);
+          const idx = cur.indexOf(resolve3);
           if (idx === -1) return;
           cur.splice(idx, 1);
           if (cur.length === 0) listenersByGeid.delete(geid);
-          resolve2({ kind: "timeout" });
+          resolve3({ kind: "timeout" });
         }, deadlineMs);
       }
     }),
@@ -9068,34 +9470,16 @@ var APPROVAL_SOCKET_PATH;
 var init_socket_client = __esm({
   "ts/src/approvals/socket-client.ts"() {
     "use strict";
-    APPROVAL_SOCKET_PATH = path12.join(
-      os4.homedir(),
-      ".openbox",
-      "run",
-      "openbox.sock"
-    );
+    init_os_paths();
+    APPROVAL_SOCKET_PATH = defaultApprovalSocketPath();
   }
 });
 
 // ts/src/runtime/cursor/activity-types.ts
-var ACTIVITY_TYPES2;
 var init_activity_types2 = __esm({
   "ts/src/runtime/cursor/activity-types.ts"() {
     "use strict";
     init_events();
-    ACTIVITY_TYPES2 = {
-      PROMPT: "llm_prompt",
-      COMPLETION: "llm_completion",
-      FILE_READ: "file_read",
-      FILE_WRITE: "file_write",
-      AGENT_ACTION: "agent_action",
-      AGENT_OBSERVATION: "agent_observation",
-      AGENT_DECISION: "agent_decision",
-      AGENT_GOAL: "agent_goal",
-      API_CALL: "api_call",
-      WORKFLOW_START: "workflow_start",
-      WORKFLOW_COMPLETE: "workflow_complete"
-    };
   }
 });
 
@@ -9103,8 +9487,11 @@ var init_activity_types2 = __esm({
 async function handleBeforeSubmitPrompt(env, session, cfg) {
   const prompt = (env.prompt ?? "").trim();
   if (!prompt) return void 0;
-  void session.activity(EVENT.SIGNAL, ACTIVITY_TYPES2.AGENT_GOAL, {
-    input: [stampSource({ goal: prompt, event_category: "agent_goal" }, "cursor")]
+  void session.activity(EVENT.SIGNAL, "user_prompt", {
+    input: [stampSource({ prompt, event_category: "agent_goal" }, "cursor")],
+    signalName: "user_prompt",
+    signalArgs: prompt,
+    spans: [buildSpan("cursor", "llm", { prompt })]
   }).catch(() => void 0);
   const payload = buildBeforeSubmitPromptPayload(env);
   const span = buildSpan("cursor", "llm", { prompt });
@@ -9128,29 +9515,31 @@ var init_prompt = __esm({
 });
 
 // ts/src/runtime/cursor/dedup.ts
-import * as fs11 from "fs";
-import * as path13 from "path";
-import * as os5 from "os";
+import * as fs9 from "fs";
+import * as path14 from "path";
 import * as crypto2 from "crypto";
+function dedupDir() {
+  return path14.join(openboxDataRoot(), "run", "dedup");
+}
 function ensureDir2() {
   try {
-    fs11.mkdirSync(DEDUP_DIR, { recursive: true, mode: 448 });
+    fs9.mkdirSync(dedupDir(), { recursive: true, mode: 448 });
   } catch {
   }
 }
 function reapStale() {
   let entries;
   try {
-    entries = fs11.readdirSync(DEDUP_DIR);
+    entries = fs9.readdirSync(dedupDir());
   } catch {
     return;
   }
   const cutoff = Date.now() - TTL_MS;
   for (const name of entries) {
-    const p = path13.join(DEDUP_DIR, name);
+    const p = path14.join(dedupDir(), name);
     try {
-      const st = fs11.statSync(p);
-      if (st.mtimeMs < cutoff) fs11.unlinkSync(p);
+      const st = fs9.statSync(p);
+      if (st.mtimeMs < cutoff) fs9.unlinkSync(p);
     } catch {
     }
   }
@@ -9165,24 +9554,24 @@ function buildActionKey(parts) {
 function claimAction(key) {
   ensureDir2();
   reapStale();
-  const lockPath = path13.join(DEDUP_DIR, key);
+  const lockPath = path14.join(dedupDir(), key);
   try {
-    const fd = fs11.openSync(lockPath, "wx", 384);
+    const fd = fs9.openSync(lockPath, "wx", 384);
     try {
-      fs11.writeSync(fd, String(Date.now()));
+      fs9.writeSync(fd, String(Date.now()));
     } finally {
-      fs11.closeSync(fd);
+      fs9.closeSync(fd);
     }
     return { won: true, path: lockPath };
   } catch (err) {
     if (err?.code === "EEXIST") {
       try {
-        const st = fs11.statSync(lockPath);
+        const st = fs9.statSync(lockPath);
         if (Date.now() - st.mtimeMs > TTL_MS) {
-          fs11.unlinkSync(lockPath);
+          fs9.unlinkSync(lockPath);
           try {
-            const fd = fs11.openSync(lockPath, "wx", 384);
-            fs11.closeSync(fd);
+            const fd = fs9.openSync(lockPath, "wx", 384);
+            fs9.closeSync(fd);
             return { won: true, path: lockPath };
           } catch {
             return { won: false, path: lockPath };
@@ -9199,21 +9588,21 @@ function publishClaimDecision(claim, decision) {
   if (!claim.won) return;
   const tmp = `${claim.path}.tmp.${process.pid}`;
   try {
-    fs11.writeFileSync(
+    fs9.writeFileSync(
       tmp,
       JSON.stringify({ ts: Date.now(), arm: decision.arm, reason: decision.reason }),
       { mode: 384 }
     );
-    fs11.renameSync(tmp, claim.path);
+    fs9.renameSync(tmp, claim.path);
     setTimeout(() => {
       try {
-        fs11.unlinkSync(claim.path);
+        fs9.unlinkSync(claim.path);
       } catch {
       }
     }, PUBLISH_GRACE_MS);
   } catch {
     try {
-      fs11.unlinkSync(tmp);
+      fs9.unlinkSync(tmp);
     } catch {
     }
   }
@@ -9224,7 +9613,7 @@ function sleep2(ms) {
 function readDecisionOnce(lockPath) {
   let content;
   try {
-    content = fs11.readFileSync(lockPath, "utf-8");
+    content = fs9.readFileSync(lockPath, "utf-8");
   } catch {
     return null;
   }
@@ -9257,11 +9646,11 @@ function isFileDeleteCommand(command) {
   if (!command) return false;
   return RM_PATTERN.test(command);
 }
-var DEDUP_DIR, TTL_MS, POLL_INTERVAL_MS, DEFAULT_AWAIT_TIMEOUT_MS, PUBLISH_GRACE_MS, RM_PATTERN;
+var TTL_MS, POLL_INTERVAL_MS, DEFAULT_AWAIT_TIMEOUT_MS, PUBLISH_GRACE_MS, RM_PATTERN;
 var init_dedup = __esm({
   "ts/src/runtime/cursor/dedup.ts"() {
     "use strict";
-    DEDUP_DIR = path13.join(os5.homedir(), ".openbox", "run", "dedup");
+    init_os_paths();
     TTL_MS = 60 * 60 * 1e3;
     POLL_INTERVAL_MS = 100;
     DEFAULT_AWAIT_TIMEOUT_MS = 60 * 60 * 1e3;
@@ -9322,7 +9711,7 @@ var init_shell = __esm({
 });
 
 // ts/src/runtime/cursor/side-effects.ts
-import * as fs12 from "fs";
+import * as fs10 from "fs";
 var sideEffects2;
 var init_side_effects2 = __esm({
   "ts/src/runtime/cursor/side-effects.ts"() {
@@ -9336,7 +9725,7 @@ var init_side_effects2 = __esm({
         if (typeof input !== "string" || !input) return "";
         if (isSkipped(input)) return "";
         try {
-          return fs12.existsSync(input) ? fs12.readFileSync(input, "utf-8") : "";
+          return fs10.existsSync(input) ? fs10.readFileSync(input, "utf-8") : "";
         } catch {
           return "";
         }
@@ -9640,8 +10029,10 @@ function logged2(event, verdictKind, fn) {
   };
 }
 async function runCursorHook() {
-  applyEnvSource();
   const cfg = loadConfig2();
+  if (!process.env.OPENBOX_HOME) {
+    process.env.OPENBOX_HOME = getConfigDir2();
+  }
   createLogger("cursor").initLogger(cfg);
   if (!cfg.openboxApiKey) {
     if (cfg.verbose) console.error("[openbox cursor] no OPENBOX_API_KEY set, passing through");
@@ -9651,6 +10042,7 @@ async function runCursorHook() {
   const core = new OpenBoxCoreClient({
     apiKey: cfg.openboxApiKey,
     apiUrl: cfg.openboxEndpoint,
+    agentIdentity: cfg.agentIdentity,
     timeoutMs: cfg.governanceTimeout * 1e3
   });
   const approvalMaxWaitMs = Math.min(
@@ -9845,7 +10237,6 @@ var init_hook_handler2 = __esm({
     init_cursor();
     init_core_client2();
     init_config4();
-    init_env_source();
     init_logger();
     init_session_resolver2();
     init_hook_log();
@@ -9945,10 +10336,6 @@ function loadPermissions(activeApiKey) {
   }
   return store.permissions ?? [];
 }
-function loadFeatures() {
-  const store = readTokenStore();
-  return store.features ?? {};
-}
 function resolveTimeoutMs() {
   const raw = process.env.OPENBOX_TIMEOUT_MS;
   if (!raw) return void 0;
@@ -9961,7 +10348,7 @@ function getClient() {
   const apiKey = loadApiKey();
   if (!apiKey) {
     error("no X-API-Key configured", {
-      help: "mint a key in the dashboard FE (Organization \u2192 API Keys), then:\n  openbox connect <stack-url> --api-key <key>\nor save a key for the active connection with:\n  openbox auth set-api-key\nor set OPENBOX_BACKEND_API_KEY=<key> in the environment"
+      help: "mint a key in the dashboard FE (Organization \u2192 API Keys), then:\n  openbox connect --api-url <url> --core-url <url> --api-key <key>\nor save a key for the active connection with:\n  openbox auth set-api-key\nor set OPENBOX_BACKEND_API_KEY=<key> in the environment"
     });
     bailWith(EXIT.AUTH);
   }
@@ -9997,21 +10384,21 @@ function getCoreClient() {
   return new OpenBoxCoreClient({
     apiUrl: coreUrl,
     apiKey,
+    agentIdentity: resolveAgentIdentity(),
     timeoutMs: resolveTimeoutMs()
   });
 }
 
-// ts/src/cli/index.ts
-init_env_source();
+// ts/src/cli/env-source.ts
+init_config();
+function applyEnvSource() {
+  applyConfigToProcessEnv();
+}
 
 // ts/src/cli/permissions.ts
 var COMMAND_PERMISSIONS = {};
-var COMMAND_FEATURES = {};
 function missingPermissions(required, have) {
   return required.filter((permission) => !have.includes(permission));
-}
-function missingFeatures(required, have) {
-  return required.filter((feature) => have[feature] !== true);
 }
 
 // ts/src/validators/index.ts
@@ -10073,7 +10460,7 @@ function extractApiErrorDetail(body) {
 function hintForDetail(detail) {
   if (!detail) return null;
   if (detail.includes("failed to start workflow: context deadline exceeded")) {
-    return "Core's GovernanceWorkflow is hanging on the post-OPA non-ALLOW path (staging-only bug, image 591f66f+). To confirm vs random Temporal flake, fire `core evaluate --type llm --prompt hi` against the same agent; if that returns <1s but `--type shell` (or any path that triggers a non-ALLOW verdict) hangs 30s, this is the cccff05 cancellation deadlock. Pivot to prod for end-to-end approval testing until the staging fix lands.";
+    return "Core's GovernanceWorkflow is hanging on the post-OPA non-ALLOW path (staging-only bug, image 591f66f+). To confirm vs random Temporal flake, send an `evaluateGovernance` payload against the same agent; if the ALLOW path returns <1s but shell/file-write (or any path that triggers a non-ALLOW verdict) hangs 30s, this is the cccff05 cancellation deadlock. Pivot to prod for end-to-end approval testing until the staging fix lands.";
   }
   if (detail.includes("stream terminated by RST_STREAM")) {
     return "Temporal frontend RST_STREAM; cluster degradation rather than a workflow bug. Retry with backoff; if it persists, escalate to staging-infra with the agent_id + governance_event_id.";
@@ -10156,7 +10543,7 @@ var API_KEY_GRANTABLE_PERMISSIONS = ALL_PERMISSIONS.filter(
 init_non_interactive();
 init_output();
 function registerAuthCommands(program2) {
-  const auth = program2.command("auth").description("Manage the local X-API-Key store for backend auth");
+  const auth = program2.command("auth").description("Manage the project-local X-API-Key store for backend auth");
   auth.command("set-api-key").description("Save an org-level X-API-Key for the active OpenBox connection").option("-k, --key <key>", "Pass the key directly instead of prompting").action(async (opts) => {
     try {
       let key = opts.key?.trim();
@@ -10227,22 +10614,19 @@ function registerAuthCommands(program2) {
 
 // ts/src/cli/commands/connect.ts
 init_client2();
-init_env();
 init_file_tokens();
 init_config();
 init_non_interactive();
 init_output();
 function registerConnectCommand(program2) {
-  program2.command("connect").description("Connect this machine to OpenBox API and core endpoints").argument("[remote-url]", "Optional base URL used only to derive endpoints, for example https://ipsum.lat").option("--api-key <key>", "Org API key for backend and extension access").option("--api-url <url>", "Backend API endpoint URL").option("--core-url <url>", "Core/runtime policy endpoint URL").option("--no-validate", "Save the connection without probing /auth/profile").action(async (remoteUrlArg, opts) => {
+  program2.command("connect").description("Connect this project to explicit OpenBox API and core endpoints").option("--api-key <key>", "Org API key for backend and extension access").option("--api-url <url>", "Backend API endpoint URL").option("--core-url <url>", "Core/runtime policy endpoint URL").option("--no-validate", "Save the connection without probing /auth/profile").action(async (opts) => {
     try {
-      const connection = await resolveConnectionProfile(remoteUrlArg, {
+      const connection = resolveConnectionProfile({
         apiUrl: opts.apiUrl,
         coreUrl: opts.coreUrl
       });
       setConfig("OPENBOX_API_URL", connection.apiUrl);
       setConfig("OPENBOX_CORE_URL", connection.coreUrl);
-      unsetConfig("OPENBOX_STACK_URL");
-      unsetConfig("OPENBOX_STACK_NAME");
       let profile;
       if (opts.apiKey) {
         const key = opts.apiKey.trim();
@@ -10256,7 +10640,7 @@ function registerConnectCommand(program2) {
           }).getProfile();
         }
       } else if (!isMachineMode()) {
-        warn("no API key saved; run openbox connect --api-url <url> --core-url <url> --api-key <key> when you have one");
+        warn("no API key saved; rerun openbox connect --api-url <url> --core-url <url> --api-key <key> in this project when you have one");
       }
       const result = {
         apiUrl: connection.apiUrl,
@@ -10275,49 +10659,30 @@ function registerConnectCommand(program2) {
     }
   });
 }
-async function resolveConnectionProfile(raw, opts = {}) {
-  const remoteUrl = raw ? normalizeStackUrl(raw) : void 0;
-  const fallback = remoteUrl ? endpointsFromStackUrl(remoteUrl) : void 0;
-  const discovered = remoteUrl ? await discover(remoteUrl) : void 0;
-  const apiUrl = opts.apiUrl ?? discovered?.apiUrl ?? fallback?.apiUrl;
-  const coreUrl = opts.coreUrl ?? discovered?.coreUrl ?? fallback?.coreUrl;
-  if (!apiUrl || !coreUrl) {
-    throw new Error("connect requires --api-url and --core-url when no endpoint discovery URL is provided.");
+function resolveConnectionProfile(opts) {
+  if (!opts.apiUrl || !opts.coreUrl) {
+    throw new Error("connect requires explicit --api-url and --core-url.");
   }
-  const endpoints = discovered ? {
-    apiUrl,
-    coreUrl,
-    authUrl: discovered.authUrl ?? fallback?.authUrl,
-    platformUrl: discovered.platformUrl ?? fallback?.platformUrl ?? ""
-  } : {
-    apiUrl,
-    coreUrl,
-    authUrl: fallback?.authUrl,
-    platformUrl: fallback?.platformUrl ?? ""
-  };
   return {
-    discovered: !!discovered,
-    ...endpoints
+    apiUrl: normalizeServiceUrl2("OPENBOX_API_URL", opts.apiUrl),
+    coreUrl: normalizeServiceUrl2("OPENBOX_CORE_URL", opts.coreUrl),
+    discovered: false
   };
 }
-async function discover(remoteUrl) {
-  const url = `${remoteUrl}/.well-known/openbox.json`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 3e3);
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { accept: "application/json" }
-    });
-    if (!response.ok) return void 0;
-    const data = await response.json();
-    if (!data || typeof data !== "object") return void 0;
-    return data;
-  } catch {
-    return void 0;
-  } finally {
-    clearTimeout(timeout);
+function normalizeServiceUrl2(name, raw) {
+  const trimmed = raw.trim();
+  if (!trimmed) throw new Error(`${name} cannot be empty.`);
+  const url = new URL(trimmed);
+  if (url.protocol !== "https:" && !isLoopbackHost2(url.hostname)) {
+    throw new Error(`${name} must use https:// unless it points at localhost.`);
   }
+  url.hash = "";
+  url.search = "";
+  url.pathname = url.pathname.replace(/\/+$/, "");
+  return url.toString().replace(/\/$/, "");
+}
+function isLoopbackHost2(host) {
+  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
 }
 
 // ts/src/cli/commands/config.ts
@@ -10325,7 +10690,7 @@ init_output();
 init_config();
 function registerConfigCommands(program2) {
   const config = program2.command("config").description("Persistent CLI config (URL overrides, default flags)");
-  config.command("set <key> <value>").description("Persist a global config value, such as OPENBOX_API_URL or OPENBOX_CORE_URL").action((key, value) => {
+  config.command("set <key> <value>").description("Persist a project-local config value, such as OPENBOX_API_URL or OPENBOX_CORE_URL").action((key, value) => {
     try {
       const { scope } = setConfig(key, value);
       output({ scope, key, value, file: configStorePath() });
@@ -10333,7 +10698,7 @@ function registerConfigCommands(program2) {
       reportAndExit(err);
     }
   });
-  config.command("get <key>").description("Look up a previously-persisted global value").action((key) => {
+  config.command("get <key>").description("Look up a previously-persisted project-local value").action((key) => {
     const value = getConfig(key);
     if (value === void 0) {
       error(`no config value for ${key}`, {
@@ -10342,7 +10707,7 @@ function registerConfigCommands(program2) {
       });
       bailWith(EXIT.NOT_FOUND);
     }
-    output({ scope: "global", key, value });
+    output({ scope: "project", key, value });
   });
   config.command("unset <key>").description("Remove a config value (no-op if unset)").action((key) => {
     try {
@@ -10352,9 +10717,9 @@ function registerConfigCommands(program2) {
       reportAndExit(err);
     }
   });
-  config.command("list").description("Print persisted global values").action(() => {
+  config.command("list").description("Print persisted project-local values").action(() => {
     output({
-      scope: "global",
+      scope: "project",
       file: configStorePath(),
       values: listConfig()
     });
@@ -11290,8 +11655,8 @@ async function callOperation(service, operationId, options, client) {
     bailWith(EXIT.USAGE);
   }
   try {
-    const path14 = renderOperationPath(operation.path, params);
-    const data = await client.requestOperation(operation.verb.toUpperCase(), path14, {
+    const path15 = renderOperationPath(operation.path, params);
+    const data = await client.requestOperation(operation.verb.toUpperCase(), path15, {
       params: query,
       data: body
     });
@@ -11354,6 +11719,7 @@ function registerMcpCommands(program2) {
 }
 
 // ts/src/cli/commands/claude-code.ts
+init_non_interactive();
 init_output();
 function collectPair(value, prior) {
   return [...prior, value];
@@ -11395,14 +11761,17 @@ function registerClaudeCodeCommands(program2) {
     "Hook matcher pair `<event>=<regex>` copied into hooks/hooks.json. Repeatable.",
     collectPair,
     []
-  ).option("--include-opt-in-hooks", "Also install opt-in/invasive hook events such as WorktreeCreate").action(async (opts) => {
+  ).option("--include-opt-in-hooks", "Also install opt-in hook events such as SessionEnd; WorktreeCreate remains diagnostic-only").action(async (opts) => {
     const { exportClaudeCodePlugin: exportClaudeCodePlugin2, verifyClaudeCodePlugin: verifyClaudeCodePlugin2 } = await Promise.resolve().then(() => (init_claude_code2(), claude_code_exports));
     const out = exportClaudeCodePlugin2({
       out: opts.out,
       matchers: parseMatcherPairs(opts.matcher),
       includeOptInHooks: opts.includeOptInHooks
     });
-    const checks = verifyClaudeCodePlugin2({ target: out });
+    const checks = verifyClaudeCodePlugin2({
+      target: out,
+      includeOptInHooks: opts.includeOptInHooks
+    });
     const failed = checks.filter((check) => check.status === "fail");
     if (failed.length > 0) {
       output({ out, checks });
@@ -11415,7 +11784,7 @@ function registerClaudeCodeCommands(program2) {
     "Hook matcher pair `<event>=<regex>` copied into hooks/hooks.json. Repeatable.",
     collectPair,
     []
-  ).option("--include-opt-in-hooks", "Also install opt-in/invasive hook events such as WorktreeCreate").action(
+  ).option("--include-opt-in-hooks", "Also install opt-in hook events such as SessionEnd; WorktreeCreate remains diagnostic-only").action(
     async (opts) => {
       const { installClaudeCodePlugin: installClaudeCodePlugin2 } = await Promise.resolve().then(() => (init_claude_code2(), claude_code_exports));
       const target = installClaudeCodePlugin2({
@@ -11438,36 +11807,43 @@ function registerClaudeCodeCommands(program2) {
     });
     success("removed Claude Code plugin");
   });
-  claude.command("install").description("Alias for `openbox claude-code plugin install`").option("--scope <scope>", "project only", "project").option("--cwd <dir>", "Project root for --scope project").option("--target <dir>", "Explicit Claude Code plugin target directory").option("--symlink <dir>", "Symlink an already-exported plugin folder into Claude Code").option(
-    "--matcher <pair>",
-    "Hook matcher pair `<event>=<regex>` copied into hooks/hooks.json. Repeatable.",
-    collectPair,
-    []
-  ).option("--include-opt-in-hooks", "Also install opt-in/invasive hook events such as WorktreeCreate").action(
-    async (opts) => {
-      const { installClaudeCodePlugin: installClaudeCodePlugin2 } = await Promise.resolve().then(() => (init_claude_code2(), claude_code_exports));
-      const target = installClaudeCodePlugin2({
-        scope: parsePluginScope(opts.scope),
+  claude.command("doctor").description("Verify the installed Claude Code surface and hook runtime readiness").option("--cwd <dir>", "Project root for project-local install").option("--plugin-target <dir>", "Claude Code project-local plugin target directory").option("--surface-only", "Check installed files only; skip runtime key/core validation", false).option("--no-core-validate", "Check runtime config and key format without calling core").option("--include-opt-in-hooks", "Validate an installation that intentionally includes opt-in hooks").option("--json", "Emit machine-readable JSON", false).action(async (opts) => {
+    const {
+      claudeCodeGovernanceSummary: claudeCodeGovernanceSummary2,
+      claudeCodeRuntimeDiagnostics: claudeCodeRuntimeDiagnostics2,
+      summarizeClaudeCodeChecks: summarizeClaudeCodeChecks2,
+      verifyClaudeCodeInstall: verifyClaudeCodeInstall2
+    } = await Promise.resolve().then(() => (init_claude_code2(), claude_code_exports));
+    const checks = await Promise.resolve(
+      opts.surfaceOnly ? verifyClaudeCodeInstall2({
         cwd: opts.cwd,
-        target: opts.target,
-        symlink: opts.symlink,
-        matchers: parseMatcherPairs(opts.matcher),
+        pluginTarget: opts.pluginTarget,
         includeOptInHooks: opts.includeOptInHooks
-      });
-      success(`installed Claude Code plugin at ${target}`);
-    }
-  );
-  claude.command("uninstall").description("Alias for `openbox claude-code plugin uninstall`").option("--scope <scope>", "project only", "project").option("--cwd <dir>", "Project root for --scope project").option("--target <dir>", "Explicit Claude Code plugin target directory").action(
-    async (opts) => {
-      const { uninstallClaudeCodePlugin: uninstallClaudeCodePlugin2 } = await Promise.resolve().then(() => (init_claude_code2(), claude_code_exports));
-      uninstallClaudeCodePlugin2({
-        scope: parsePluginScope(opts.scope),
+      }) : verifyClaudeCodeInstall2({
         cwd: opts.cwd,
-        target: opts.target
-      });
-      success("removed Claude Code plugin");
+        pluginTarget: opts.pluginTarget,
+        includeOptInHooks: opts.includeOptInHooks,
+        includeRuntime: true,
+        validateRuntime: opts.coreValidate !== false
+      })
+    );
+    const counts = summarizeClaudeCodeChecks2(checks);
+    const payload = {
+      checks,
+      summary: counts,
+      runtimeReadiness: claudeCodeRuntimeDiagnostics2(opts.cwd),
+      claudeCodeGovernance: claudeCodeGovernanceSummary2()
+    };
+    if (opts.json || isMachineMode()) {
+      output(payload);
+    } else {
+      for (const c of checks) {
+        row(c.name, c.status, c.detail ? `${c.detail}${c.path ? ` (${c.path})` : ""}` : c.path);
+      }
+      summary(counts);
     }
-  );
+    if (counts.fail > 0) bailWith(EXIT.GENERIC);
+  });
 }
 
 // ts/src/cli/commands/cursor.ts
@@ -11519,23 +11895,6 @@ function registerCursorCommands(program2) {
     }
     success(`exported Cursor plugin to ${out}`);
   });
-  cursor.command("install").description("Alias for `openbox cursor plugin install`").option("--cwd <dir>", "Project root for project-local install").option("--target <dir>", "Cursor project-local plugin target directory").option("--symlink <dir>", "Symlink an already-exported plugin folder into Cursor").option(
-    "--matcher <pair>",
-    "Hook matcher pair `<event>=<regex>` copied into hooks/hooks.json. Repeatable.",
-    collectPair2,
-    []
-  ).action(
-    async (opts) => {
-      const { installCursorPlugin: installCursorPlugin2 } = await Promise.resolve().then(() => (init_cursor2(), cursor_exports));
-      const target = installCursorPlugin2({
-        cwd: opts.cwd,
-        target: opts.target,
-        symlink: opts.symlink,
-        matchers: parseMatcherPairs2(opts.matcher)
-      });
-      success(`installed Cursor plugin at ${target}`);
-    }
-  );
   plugin.command("install").description("Install the project-local OpenBox Cursor plugin only").option("--cwd <dir>", "Project root for project-local install").option("--target <dir>", "Cursor project-local plugin target directory").option("--symlink <dir>", "Symlink an already-exported plugin folder into Cursor").option(
     "--matcher <pair>",
     "Hook matcher pair `<event>=<regex>` copied into hooks/hooks.json. Repeatable.",
@@ -11553,11 +11912,6 @@ function registerCursorCommands(program2) {
       success(`installed Cursor plugin at ${target}`);
     }
   );
-  cursor.command("uninstall").description("Alias for `openbox cursor plugin uninstall`").option("--cwd <dir>", "Project root for project-local install").option("--target <dir>", "Cursor project-local plugin target directory").action(async (opts) => {
-    const { uninstallCursorPlugin: uninstallCursorPlugin2 } = await Promise.resolve().then(() => (init_cursor2(), cursor_exports));
-    uninstallCursorPlugin2({ cwd: opts.cwd, target: opts.target });
-    success("removed Cursor plugin");
-  });
   plugin.command("uninstall").description("Remove the project-local OpenBox Cursor plugin only").option("--cwd <dir>", "Project root for project-local install").option("--target <dir>", "Cursor project-local plugin target directory").action(async (opts) => {
     const { uninstallCursorPlugin: uninstallCursorPlugin2 } = await Promise.resolve().then(() => (init_cursor2(), cursor_exports));
     uninstallCursorPlugin2({ cwd: opts.cwd, target: opts.target });
@@ -11565,12 +11919,11 @@ function registerCursorCommands(program2) {
   });
   cursor.command("doctor").description(
     "Verify the installed Cursor surface and hook runtime readiness."
-  ).option("--cwd <dir>", "Project root for project-local install").option("--plugin-target <dir>", "Cursor project-local plugin target directory").option("--surface-only", "Check installed files only; skip runtime key/core validation", false).option("--include-extension", "Also check the user-level Cursor approval extension", false).option("--no-core-validate", "Check runtime config and key format without calling core").option("--json", "Emit machine-readable JSON", false).action(async (opts) => {
+  ).option("--cwd <dir>", "Project root for project-local install").option("--plugin-target <dir>", "Cursor project-local plugin target directory").option("--surface-only", "Check installed files only; skip runtime key/core validation", false).option("--no-core-validate", "Check runtime config and key format without calling core").option("--json", "Emit machine-readable JSON", false).action(async (opts) => {
     const { verifyCursorInstall: verifyCursorInstall2 } = await Promise.resolve().then(() => (init_install(), install_exports));
     const base2 = {
       cwd: opts.cwd,
-      pluginTarget: opts.pluginTarget,
-      includeExtension: opts.includeExtension
+      pluginTarget: opts.pluginTarget
     };
     const checks = opts.surfaceOnly ? verifyCursorInstall2(base2) : await verifyCursorInstall2({
       ...base2,
@@ -11663,7 +12016,7 @@ function registerInstallCommands(program2) {
     "Hook matcher pair `<event>=<regex>` copied into the plugin's hooks/hooks.json. Repeatable.",
     collect,
     []
-  ).option("--include-opt-in-hooks", "Also install opt-in/invasive hook events such as WorktreeCreate").action(async (opts) => {
+  ).option("--include-opt-in-hooks", "Also install opt-in hook events such as SessionEnd; WorktreeCreate remains diagnostic-only").action(async (opts) => {
     const scope = parseHostScope(opts.scope, "claude-code");
     const cwd = opts.cwd ?? process.cwd();
     const { installClaudeCodePlugin: installClaudeCodePlugin2, verifyClaudeCodePlugin: verifyClaudeCodePlugin2 } = await Promise.resolve().then(() => (init_claude_code2(), claude_code_exports));
@@ -11699,7 +12052,7 @@ function registerInstallCommands(program2) {
 
 // ts/src/cli/commands/doctor.ts
 init_core_client2();
-import { existsSync as existsSync11, readFileSync as readFileSync12 } from "fs";
+import { existsSync as existsSync12, readFileSync as readFileSync12 } from "fs";
 init_env();
 init_output();
 init_non_interactive();
@@ -11711,8 +12064,8 @@ function registerDoctorCommand(program2) {
     const tokenPath = getTokenPath();
     checks.push({
       name: "token file",
-      status: existsSync11(tokenPath) ? "pass" : "skip",
-      detail: existsSync11(tokenPath) ? tokenPath : `(none; first run sets up via auth set-api-key)`
+      status: existsSync12(tokenPath) ? "pass" : "skip",
+      detail: existsSync12(tokenPath) ? tokenPath : `(none; first run sets up via auth set-api-key)`
     });
     const apiKey = loadApiKey();
     const haveKey = !!apiKey;
@@ -11739,8 +12092,9 @@ function registerDoctorCommand(program2) {
     }
     checks.push({ name: "core URL", status: "skip", detail: urls.coreUrl });
     const coreApiKey = process.env.OPENBOX_API_KEY;
+    const agentIdentity = resolveAgentIdentity();
     try {
-      const core = new OpenBoxCoreClient({ apiUrl: urls.coreUrl, apiKey: coreApiKey ?? "" });
+      const core = new OpenBoxCoreClient({ apiUrl: urls.coreUrl, apiKey: coreApiKey ?? "", agentIdentity });
       await core.health();
       checks.push({ name: "core /health", status: "pass", detail: "200 OK" });
     } catch (err) {
@@ -11757,7 +12111,7 @@ function registerDoctorCommand(program2) {
       });
     } else {
       try {
-        const core = new OpenBoxCoreClient({ apiUrl: urls.coreUrl, apiKey: coreApiKey });
+        const core = new OpenBoxCoreClient({ apiUrl: urls.coreUrl, apiKey: coreApiKey, agentIdentity });
         await core.validateApiKey();
         checks.push({ name: "core API key", status: "pass", detail: "valid" });
       } catch (err) {
@@ -11792,7 +12146,7 @@ function registerDoctorCommand(program2) {
 
 // ts/src/cli/commands/verify.ts
 init_govern();
-import { readFileSync as readFileSync13, readdirSync as readdirSync4, statSync as statSync3, existsSync as existsSync12 } from "fs";
+import { readFileSync as readFileSync13, readdirSync as readdirSync4, statSync as statSync3, existsSync as existsSync13 } from "fs";
 import { join as join6, extname, relative } from "path";
 init_output();
 var SKIP_DIRS = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", ".next", ".turbo", "coverage", "__pycache__", ".venv", "venv", ".pnpm-store"]);
@@ -11919,7 +12273,7 @@ var rules = [
     severity: "warn",
     message: "UUID literal that looks like an agent/team/org ID. These are user-specific and must be resolved at runtime.",
     fix: "Derive from `openbox auth profile`, generated backend API calls, or the dashboard; pass via env var / config.",
-    appliesTo: (path14) => !/test|spec|\.md$|fixture|seed|examples?\//i.test(path14),
+    appliesTo: (path15) => !/test|spec|\.md$|fixture|seed|examples?\//i.test(path15),
     detect: (_content, origLines) => {
       const strippedLines = stripComments(origLines.join("\n")).split("\n");
       const out = [];
@@ -11938,7 +12292,7 @@ var rules = [
     severity: "info",
     message: "A `WorkflowStarted` event appears without an obvious `finally`/`defer`/`try/catch` structure nearby guaranteeing `WorkflowCompleted` / `WorkflowFailed` on failure paths.",
     fix: 'Wrap the lifecycle: emit start inside try, emit completed/failed in finally (JS/Python) or defer (Go). See references/governance-flow.md \xA7 "Nothing dangles".',
-    appliesTo: (path14) => /\.(ts|tsx|js|jsx|mjs|cjs|py|go)$/.test(path14),
+    appliesTo: (path15) => /\.(ts|tsx|js|jsx|mjs|cjs|py|go)$/.test(path15),
     detect: (content, lines) => {
       const out = [];
       const strippedLines = stripComments(content).split("\n");
@@ -11960,7 +12314,7 @@ var rules = [
     severity: "info",
     message: "A path emits `ActivityStarted` without an obvious paired `ActivityCompleted` in the same scope. Orphan activities break output-stage guardrails and trust scoring.",
     fix: 'Every Started must be Completed; on success AND failure. See references/governance-flow.md \xA7 "Nothing dangles".',
-    appliesTo: (path14) => /\.(ts|tsx|js|jsx|mjs|cjs|py|go)$/.test(path14),
+    appliesTo: (path15) => /\.(ts|tsx|js|jsx|mjs|cjs|py|go)$/.test(path15),
     detect: (content, origLines) => {
       const stripped = stripComments(content);
       const strippedLines = stripped.split("\n");
@@ -12162,9 +12516,9 @@ function printReport(findings, totalFiles, rootLabel) {
   return { errors: errs.length, warns: warns.length, infos: infos.length };
 }
 function registerVerifyCommand(program2) {
-  program2.command("verify [path]").description("Static lint: scan integration code for OpenBox protocol drift").option("--fail-on <severity>", "Exit non-zero on this severity or worse (error|warn|info)", "error").option("--json", "Emit findings as JSON instead of human-readable", false).action(async (path14, opts) => {
-    const root = path14 ? path14.startsWith("/") ? path14 : join6(process.cwd(), path14) : process.cwd();
-    if (!existsSync12(root)) {
+  program2.command("verify [path]").description("Static lint: scan integration code for OpenBox protocol drift").option("--fail-on <severity>", "Exit non-zero on this severity or worse (error|warn|info)", "error").option("--json", "Emit findings as JSON instead of human-readable", false).action(async (path15, opts) => {
+    const root = path15 ? path15.startsWith("/") ? path15 : join6(process.cwd(), path15) : process.cwd();
+    if (!existsSync13(root)) {
       error(`path not found: ${root}`);
       bailWith(EXIT.USAGE);
     }
@@ -12189,139 +12543,6 @@ function registerVerifyCommand(program2) {
   });
 }
 
-// ts/src/cli/commands/versions.ts
-init_client2();
-init_env();
-init_output();
-var SERVICES = ["backend", "core", "guardrails"];
-function urlFor(service) {
-  const urls = resolveConnection();
-  switch (service) {
-    case "backend":
-      return urls.apiUrl;
-    case "core":
-      return urls.coreUrl;
-    case "guardrails":
-      return process.env.OPENBOX_GUARDRAILS_URL ?? "";
-  }
-}
-async function liveVersion(baseUrl) {
-  if (!baseUrl) return null;
-  const v = await OpenBoxClient.getVersion(baseUrl, { timeoutMs: 5e3 });
-  if (!v) return null;
-  const tag = v.commit || v.version || null;
-  return tag ? { tag, source: `${baseUrl}/version` } : null;
-}
-async function cellFor(service) {
-  const baseUrl = urlFor(service);
-  const live = await liveVersion(baseUrl);
-  if (live) return live;
-  return {
-    tag: "(no /version)",
-    source: `${baseUrl || service}: /version not deployed`
-  };
-}
-function registerVersionsCommand(program2) {
-  program2.command("versions").description("Show deployed versions for each service via /version").option("--sources", "Print where each value was read from").action(async (opts) => {
-    const cells = {};
-    await Promise.all(SERVICES.map((svc) => cellFor(svc).then((cell) => cells[svc] = cell)));
-    table(
-      ["service", "version"],
-      SERVICES.map((svc) => [svc, cells[svc].tag])
-    );
-    if (opts.sources) {
-      info("");
-      info("sources:");
-      for (const svc of SERVICES) {
-        info(`  ${svc}: ${cells[svc].source}`);
-      }
-    }
-  });
-}
-
-// ts/src/maturity/index.ts
-init_env_bindings();
-
-// ts/src/cli/generated/cli-maturity.ts
-var COMMAND_MATURITY = {};
-
-// ts/src/maturity/index.ts
-var LEVEL = {
-  stable: 0,
-  beta: 1,
-  experimental: 2
-};
-var consumerOverride = null;
-var explicitlyEnabled = /* @__PURE__ */ new Set();
-function setMaturityLevel(level) {
-  consumerOverride = level;
-}
-function currentMaturityLevel() {
-  if (consumerOverride) return consumerOverride;
-  const envName = ENV_VAR_BINDINGS.experimentalLevel.name;
-  const env = (process.env[envName] ?? "").toLowerCase();
-  if (env === "experimental" || env === "beta" || env === "stable") return env;
-  return "stable";
-}
-function isMaturityVisible(target, current = currentMaturityLevel()) {
-  return LEVEL[target] <= LEVEL[current];
-}
-function enableFeatures(names) {
-  if (!names) return;
-  for (const n of names) {
-    if (n && typeof n === "string") explicitlyEnabled.add(n);
-  }
-}
-
-// ts/src/cli/maturity.ts
-function setMaturityOverride(level) {
-  setMaturityLevel(level);
-}
-var ALWAYS_RESOLVABLE_ROOTS = /* @__PURE__ */ new Set([
-  "claude-code",
-  "cursor",
-  "mcp",
-  "install",
-  "uninstall",
-  "skill"
-]);
-var HAND_CODED_MATURITY = {
-  "cursor plugin export": "stable",
-  "cursor plugin install": "stable",
-  "cursor plugin uninstall": "stable"
-};
-function gateCommands(program2) {
-  const current = currentMaturityLevel();
-  function walk2(parent, path14) {
-    const snapshot = [...parent.commands];
-    for (const sub of snapshot) {
-      const subPath = [...path14, sub.name()];
-      const key = subPath.join(" ");
-      const target = HAND_CODED_MATURITY[key] ?? COMMAND_MATURITY[key] ?? "stable";
-      const alwaysResolvable = ALWAYS_RESOLVABLE_ROOTS.has(subPath[0]);
-      if (!alwaysResolvable && !isMaturityVisible(target, current)) {
-        const idx = parent.commands.indexOf(sub);
-        if (idx >= 0) parent.commands.splice(idx, 1);
-        continue;
-      }
-      if (target !== "stable") {
-        const tag = target === "experimental" ? "[experimental] " : "[beta] ";
-        const desc = sub.description() ?? "";
-        if (!desc.startsWith("[experimental]") && !desc.startsWith("[beta]")) {
-          sub.description(tag + desc);
-        }
-      }
-      walk2(sub, subPath);
-    }
-  }
-  walk2(program2, []);
-}
-
-// ts/src/cli/features.ts
-function setExplicitFeatures(names) {
-  enableFeatures(names);
-}
-
 // ts/src/cli/index.ts
 init_output();
 var program = new Command();
@@ -12341,27 +12562,22 @@ function packageVersion3() {
   return "0.0.0";
 }
 function deepestRegisteredPath() {
-  const VALUE_FLAGS = /* @__PURE__ */ new Set(["--feature"]);
   const argv2 = activeArgv.slice(2);
   const positionals = [];
   for (let i = 0; i < argv2.length; i++) {
     const a = argv2[i];
-    if (VALUE_FLAGS.has(a)) {
-      i++;
-      continue;
-    }
     if (a.startsWith("-")) break;
     positionals.push(a);
   }
   let cmd = program;
-  const path14 = [];
+  const path15 = [];
   for (const tok of positionals) {
     const sub = cmd.commands.find((c) => c.name() === tok);
     if (!sub) break;
-    path14.push(tok);
+    path15.push(tok);
     cmd = sub;
   }
-  return path14.length > 0 ? path14.join(" ") : null;
+  return path15.length > 0 ? path15.join(" ") : null;
 }
 function helpRef(cmd) {
   const c = cmd ?? deepestRegisteredPath();
@@ -12372,7 +12588,11 @@ function emitCommanderError(err) {
   switch (err.code) {
     case "commander.excessArguments": {
       const cmd = m.match(/for '([^']+)'/)?.[1];
-      const positionals = activeArgv.slice(2).filter((a) => !a.startsWith("-"));
+      const positionals = [];
+      for (const arg of activeArgv.slice(2)) {
+        if (arg.startsWith("-")) break;
+        positionals.push(arg);
+      }
       const extra = positionals[positionals.length - 1];
       if (cmd && extra && extra !== cmd) {
         error(`'${extra}' is not a subcommand of '${cmd}'`, {
@@ -12438,12 +12658,6 @@ function applyUniformErrorHandling(cmd) {
   for (const sub of cmd.commands) applyUniformErrorHandling(sub);
 }
 program.name("openbox").description("openbox-sdk").version(packageVersion3()).option(
-  "--experimental",
-  "Reveal experimental subcommands. Equivalent to OPENBOX_EXPERIMENTAL_LEVEL=experimental. Coarse gate; controls whole subcommands."
-).option(
-  "--feature <name...>",
-  "Enable specific experimental feature flags inside stable commands. Equivalent to OPENBOX_FEATURES=name1,name2. Fine gate; controls code paths."
-).option(
   "-y, --yes",
   "Assume yes on confirmation prompts. Implied by CI=1, OPENBOX_NONINTERACTIVE=1, or non-TTY stdin."
 ).option(
@@ -12460,22 +12674,9 @@ program.name("openbox").description("openbox-sdk").version(packageVersion3()).op
   "Emit machine-readable JSON instead of human-rendered output"
 ).hook("preAction", (thisCommand, actionCommand) => {
   const commandPath = buildCommandKey(actionCommand);
-  applyEnvSource();
-  const requiredFeatures = COMMAND_FEATURES[commandPath];
-  if (requiredFeatures && requiredFeatures.length > 0) {
-    const features = loadFeatures();
-    if (Object.keys(features).length > 0) {
-      const missingF = missingFeatures(requiredFeatures, features);
-      if (missingF.length > 0) {
-        error(
-          `feature disabled for \`openbox ${commandPath}\`: ${missingF.join(", ")}`,
-          {
-            help: `ask your admin to enable the feature for the active OpenBox connection`
-          }
-        );
-        bailWith(EXIT.FEATURE_DISABLED);
-      }
-    }
+  const projectScopedHook = commandPath === "claude-code hook";
+  if (!projectScopedHook) {
+    applyEnvSource();
   }
   const required = COMMAND_PERMISSIONS[commandPath];
   if (!required || required.length === 0) return;
@@ -12512,7 +12713,6 @@ registerCursorCommands(program);
 registerInstallCommands(program);
 registerDoctorCommand(program);
 registerVerifyCommand(program);
-registerVersionsCommand(program);
 function isCliEntrypoint() {
   const entrypoint = process.argv[1];
   if (!entrypoint) return false;
@@ -12525,23 +12725,21 @@ function isCliEntrypoint() {
 }
 function configureCommandTree(argv2) {
   if (commandTreeConfigured) return;
-  const envMaturity = process.env.OPENBOX_EXPERIMENTAL_LEVEL?.toLowerCase();
-  if (envMaturity === "experimental" || envMaturity === "beta" || envMaturity === "stable") {
-    setMaturityOverride(envMaturity);
-  }
-  if (argv2.includes("--experimental")) setMaturityOverride("experimental");
-  const features = [];
-  for (let i = 0; i < argv2.length; i++) {
-    if (argv2[i] === "--feature" && i + 1 < argv2.length)
-      features.push(argv2[i + 1]);
-  }
-  if (features.length) setExplicitFeatures(features);
-  gateCommands(program);
+  void argv2;
   applyUniformErrorHandling(program);
   commandTreeConfigured = true;
 }
+function rejectRemovedGlobalFlags(argv2) {
+  const removed = argv2.slice(2).find(
+    (arg) => arg === "--experimental" || arg.startsWith("--experimental=") || arg === "--feature" || arg.startsWith("--feature=")
+  );
+  if (!removed) return;
+  error(`unknown option \`${removed}\``, { help: "see `openbox --help`" });
+  bailWith(EXIT.USAGE);
+}
 async function runOpenBoxCli(argv2 = process.argv) {
   activeArgv = argv2;
+  rejectRemovedGlobalFlags(argv2);
   configureCommandTree(argv2);
   if (argv2.length === 2) {
     program.outputHelp();

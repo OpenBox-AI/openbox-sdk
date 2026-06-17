@@ -5,7 +5,7 @@
 // `mcp__openbox__*` tools at all?
 //
 // Strategy: drop a minimal `.mcp.json` next to the test workspace
-// that points at `openbox mcp serve` with the org
+// that points at this checkout's OpenBox MCP server with the org
 // X-API-Key baked into the env block. Run `claude -p` asking it to
 // invoke `mcp__openbox__list_agents`. Assert the JSON envelope
 // reports the tool was called and returned a non-error result.
@@ -23,11 +23,12 @@ import {
   assertClaudeOnPath,
 } from './helpers/claude-runner.js';
 
-const OPENBOX = process.env.OPENBOX_CLI ?? 'openbox';
+const OPENBOX = process.env.OPENBOX_CLI ?? path.resolve(import.meta.dirname, '../../dist/cli/index.js');
+const PROJECT_OPENBOX = path.resolve(process.cwd(), '.openbox');
 
 function resolveOrgApiKey(): string | undefined {
   if (process.env.OPENBOX_BACKEND_API_KEY) return process.env.OPENBOX_BACKEND_API_KEY;
-  const tokens = path.join(os.homedir(), '.openbox', 'tokens');
+  const tokens = path.join(PROJECT_OPENBOX, 'tokens');
   if (!existsSync(tokens)) return undefined;
   const text = readFileSync(tokens, 'utf-8');
   return text.match(/obx_key_[a-z0-9]+/i)?.[0];

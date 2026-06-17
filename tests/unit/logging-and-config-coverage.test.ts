@@ -115,19 +115,19 @@ describe('host config readers', () => {
 });
 
 describe('config store', () => {
-  it('creates the global config file, ignores malformed lines, and preserves env precedence', () => {
+  it('creates the project config file, ignores malformed lines, and preserves env precedence', () => {
     const root = tempRoot();
     process.env.OPENBOX_HOME = root;
     const path = configStorePath();
 
-    expect(effectiveScope('global', 'OPENBOX_API_KEY')).toBe('global');
+    expect(effectiveScope('project', 'OPENBOX_API_KEY')).toBe('project');
     expect(listConfig()).toEqual({});
     expect(setConfig('OPENBOX_API_KEY', 'from-store')).toEqual({
-      scope: 'global',
+      scope: 'project',
       purged: 0,
     });
     expect(setConfig('OPENBOX_CORE_URL', 'http://127.0.0.1:8086')).toEqual({
-      scope: 'global',
+      scope: 'project',
       purged: 0,
     });
     expect(readFileSync(path, 'utf-8')).toContain('OPENBOX_API_KEY=from-store');
@@ -137,7 +137,7 @@ describe('config store', () => {
       '# comment',
       '',
       'bad-line',
-      'legacy.scope=value',
+      'bad.key=value',
       ' OPENBOX_EXTRA = kept ',
       '',
     ].join('\n'));
@@ -153,11 +153,11 @@ describe('config store', () => {
     expect(process.env.OPENBOX_API_KEY).toBe('from-env');
     expect(process.env.OPENBOX_CORE_URL).toBe('http://127.0.0.1:8086');
     expect(unsetConfig('OPENBOX_EXTRA')).toEqual({
-      scope: 'global',
+      scope: 'project',
       removed: true,
     });
     expect(unsetConfig('MISSING')).toEqual({
-      scope: 'global',
+      scope: 'project',
       removed: false,
     });
     expect(() => setConfig('', 'bad')).toThrow('config key cannot be empty');

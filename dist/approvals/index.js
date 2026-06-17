@@ -283,21 +283,28 @@ function applyClientFilters(approvals, filters, agentOwnerLookup) {
 // ts/src/approvals/socket-client.ts
 import * as net from "net";
 import * as path from "path";
-import * as os from "os";
-var APPROVAL_SOCKET_PATH = path.join(
-  os.homedir(),
-  ".openbox",
-  "run",
-  "openbox.sock"
-);
-function connectApprovalSocket(socketPath = APPROVAL_SOCKET_PATH) {
-  return new Promise((resolve) => {
+
+// ts/src/env/os-paths.ts
+import { join, resolve } from "path";
+function openboxDataRoot() {
+  const override = process.env.OPENBOX_HOME;
+  if (override) return resolve(override);
+  return resolve(process.cwd(), ".openbox");
+}
+
+// ts/src/approvals/socket-client.ts
+function defaultApprovalSocketPath() {
+  return path.join(openboxDataRoot(), "run", "openbox.sock");
+}
+var APPROVAL_SOCKET_PATH = defaultApprovalSocketPath();
+function connectApprovalSocket(socketPath = defaultApprovalSocketPath()) {
+  return new Promise((resolve2) => {
     const socket = net.createConnection({ path: socketPath });
     let settled = false;
     const onConnect = () => {
       if (settled) return;
       settled = true;
-      resolve(buildHandle(socket));
+      resolve2(buildHandle(socket));
     };
     const onError = () => {
       if (settled) return;
@@ -306,7 +313,7 @@ function connectApprovalSocket(socketPath = APPROVAL_SOCKET_PATH) {
         socket.destroy();
       } catch {
       }
-      resolve(null);
+      resolve2(null);
     };
     socket.once("connect", onConnect);
     socket.once("error", onError);
@@ -317,7 +324,7 @@ function connectApprovalSocket(socketPath = APPROVAL_SOCKET_PATH) {
         socket.destroy();
       } catch {
       }
-      resolve(null);
+      resolve2(null);
     }, 200);
   });
 }
@@ -366,19 +373,19 @@ function buildHandle(socket) {
       } catch {
       }
     },
-    awaitDecision: (geid, deadlineMs) => new Promise((resolve) => {
+    awaitDecision: (geid, deadlineMs) => new Promise((resolve2) => {
       const list = listenersByGeid.get(geid) ?? [];
-      list.push(resolve);
+      list.push(resolve2);
       listenersByGeid.set(geid, list);
       if (deadlineMs > 0) {
         setTimeout(() => {
           const cur = listenersByGeid.get(geid);
           if (!cur) return;
-          const idx = cur.indexOf(resolve);
+          const idx = cur.indexOf(resolve2);
           if (idx === -1) return;
           cur.splice(idx, 1);
           if (cur.length === 0) listenersByGeid.delete(geid);
-          resolve({ kind: "timeout" });
+          resolve2({ kind: "timeout" });
         }, deadlineMs);
       }
     }),
@@ -395,13 +402,10 @@ function buildHandle(socket) {
 import * as net2 from "net";
 import * as fs from "fs";
 import * as path2 from "path";
-import * as os2 from "os";
-var RUN_DIR = path2.join(os2.homedir(), ".openbox", "run");
-var SOCKET_PATH = path2.join(RUN_DIR, "openbox.sock");
 var ApprovalSocketServer = class {
   constructor(handlers, options = {}) {
     this.handlers = handlers;
-    this.socketPath = options.socketPath ?? SOCKET_PATH;
+    this.socketPath = options.socketPath ?? defaultApprovalSocketPath();
     this.log = options.log ?? (() => void 0);
   }
   handlers;
@@ -608,6 +612,7 @@ export {
   connectApprovalSocket,
   dateRangeBounds,
   decideApproval,
+  defaultApprovalSocketPath,
   formatLabel,
   hasActiveFilters,
   resolveApprovalIdentity,

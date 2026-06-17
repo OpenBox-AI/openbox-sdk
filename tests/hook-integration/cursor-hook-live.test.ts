@@ -23,8 +23,8 @@
 // suite only consumes the result.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { existsSync, readFileSync, statSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ENVELOPES, type EventName, OBSERVE_EVENTS, PERMISSION_EVENTS } from './fixtures/envelopes';
@@ -35,12 +35,15 @@ const SHOULD_RUN =
   !!process.env.OPENBOX_E2E_RUNTIME_KEY;
 
 const CLI = resolve(__dirname, '../../dist/cli/index.js');
-const LOG = join(homedir(), '.openbox', 'log', 'cursor-hook.jsonl');
+const HOOK_ROOT = mkdtempSync(join(tmpdir(), 'openbox-cursor-hook-live-'));
+const HOOK_HOME = join(HOOK_ROOT, '.cursor-hooks');
+const LOG = join(HOOK_HOME, 'log', 'cursor-hook.jsonl');
 
 function runHook(envelope: Record<string, unknown>) {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     OPENBOX_API_KEY: process.env.OPENBOX_E2E_RUNTIME_KEY!,
+    OPENBOX_HOME: HOOK_HOME,
     // Live e2e agents can legitimately return require_approval.
     // Keep this suite a bounded smoke test: prove the hook emits the
     // Cursor gate shape after a short poll timeout instead of letting
@@ -49,35 +52,11 @@ function runHook(envelope: Record<string, unknown>) {
   };
   return spawnSync('node', [CLI, 'cursor', 'hook'], {
     input: JSON.stringify(envelope),
+    cwd: HOOK_ROOT,
     env,
     encoding: 'utf-8',
     timeout: 10_000,
   });
-}
-
-function cleanupPendingApprovals(): void {
-  if (!SHOULD_RUN) return;
-  const agentId = process.env.OPENBOX_E2E_AGENT_ID!;
-  const list = spawnSync('node', [CLI, '--experimental', 'approval', 'pending', agentId, '--json'], {
-    encoding: 'utf-8',
-    env: process.env,
-    timeout: 10_000,
-  });
-  if (list.status !== 0 || !list.stdout.trim()) return;
-  let rows: Array<{ id?: string }> = [];
-  try {
-    rows = JSON.parse(list.stdout);
-  } catch {
-    return;
-  }
-  for (const row of rows) {
-    if (!row.id) continue;
-    spawnSync('node', [CLI, '--experimental', 'approval', 'decide', agentId, row.id, 'reject', '--json'], {
-      encoding: 'utf-8',
-      env: process.env,
-      timeout: 10_000,
-    });
-  }
 }
 
 function logSize(): number {
@@ -102,12 +81,12 @@ beforeAll(() => {
   if (!existsSync(CLI)) {
     throw new Error(`CLI not built at ${CLI}.`);
   }
-  mkdirSync(join(homedir(), '.openbox', 'log'), { recursive: true });
+  mkdirSync(join(HOOK_HOME, 'log'), { recursive: true });
   if (!existsSync(LOG)) writeFileSync(LOG, '');
 });
 
 afterAll(() => {
-  cleanupPendingApprovals();
+  rmSync(HOOK_ROOT, { recursive: true, force: true });
 });
 
 describe.runIf(SHOULD_RUN)('cursor hook handler; live verdict path', () => {

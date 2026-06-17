@@ -57,7 +57,7 @@ describe('claude-code payload builders', () => {
       hook_event_name: 'PostToolUse',
       session_id: 's',
       tool_name: 'Bash',
-      tool_output: { stdout: 'x'.repeat(10000) },
+      tool_response: { stdout: 'x'.repeat(10000) },
     } as cc.ClaudeCodeEnvelope;
     const payload = cc.buildPostToolUsePayload(env, {
       stringifyTruncate: (input) => {

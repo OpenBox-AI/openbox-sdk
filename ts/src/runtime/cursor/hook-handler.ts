@@ -5,8 +5,7 @@
 // fail-open.
 import { createCursorAdapter } from '../../core-client/generated/runtime/cursor.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
-import { loadConfig } from './config.js';
-import { applyEnvSource } from '../../cli/env-source.js';
+import { getConfigDir, loadConfig } from './config.js';
 import { createLogger } from '../../logging/logger.js';
 import { resolveSession } from './session-resolver.js';
 import { makeHookLog } from '../../logging/hook-log.js';
@@ -70,16 +69,10 @@ function logged<E, S, R>(
 }
 
 export async function runCursorHook(): Promise<void> {
-  // Single-source env resolution. Layers ~/.openbox/config into
-  // process.env BEFORE loadConfig reads it, so a user who switched
-  // env via the extension (or `openbox config set --global`) sees
-  // their hook fire against the matching env automatically. Without
-  // this, the hook would use whatever was snapshotted into
-  // project .cursor-hooks/config.json at install time; so an env switch
-  // wouldn't propagate to already-installed hooks.
-  applyEnvSource();
-
   const cfg = loadConfig();
+  if (!process.env.OPENBOX_HOME) {
+    process.env.OPENBOX_HOME = getConfigDir();
+  }
   createLogger('cursor').initLogger(cfg);
 
   if (!cfg.openboxApiKey) {
@@ -92,6 +85,7 @@ export async function runCursorHook(): Promise<void> {
   const core = new OpenBoxCoreClient({
     apiKey: cfg.openboxApiKey,
     apiUrl: cfg.openboxEndpoint,
+    agentIdentity: cfg.agentIdentity,
     timeoutMs: cfg.governanceTimeout * 1000,
   });
 

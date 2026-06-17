@@ -57,16 +57,13 @@ the test fails:
 
 ## Per-OS path contract
 
-`tests/unit/os-paths.test.ts` pins down `resolveOsPath` for all three
-host platforms by mocking `process.platform` and the relevant env
-vars. Any reimplementation must produce:
+`tests/unit/os-paths.test.ts` pins down `resolveOsPath` as
+project-local by default. Any reimplementation must produce:
 
 | Platform | `resolveOsPath('tokens')` |
 |---|---|
-| Linux | `$XDG_DATA_HOME/openbox/tokens` if set, else `~/.openbox/tokens` |
-| macOS | `~/.openbox/tokens`. Deliberately not `~/Library/Application Support/...` |
-| Windows | `%APPDATA%\openbox\tokens` if set, else `~\AppData\Roaming\openbox\tokens` |
-| any | `$OPENBOX_HOME/tokens` always wins. Used by CI and sandboxes |
+| any | `<cwd>/.openbox/tokens` |
+| any with `OPENBOX_HOME` | `$OPENBOX_HOME/tokens` |
 
 ## Reproducibility
 

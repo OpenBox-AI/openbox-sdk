@@ -301,6 +301,19 @@ function buildAuthHeader(creds) {
   return {};
 }
 
+// ts/src/env/agent-identity.ts
+function resolveAgentIdentity(source = process.env) {
+  const did = source.OPENBOX_AGENT_DID;
+  const privateKey = source.OPENBOX_AGENT_PRIVATE_KEY;
+  if (!did && !privateKey) return void 0;
+  if (!did || !privateKey) {
+    throw new Error(
+      "OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY."
+    );
+  }
+  return { did, privateKey };
+}
+
 // ts/src/client/rate-limiter.ts
 var TokenBucket = class {
   tokens;
@@ -321,11 +334,11 @@ var TokenBucket = class {
       return;
     }
     const waitMs = (1 - this.tokens) / this.refillRate;
-    return new Promise((resolve) => {
+    return new Promise((resolve2) => {
       setTimeout(() => {
         this.refill();
         this.tokens -= 1;
-        resolve();
+        resolve2();
       }, waitMs);
     });
   }
@@ -1838,7 +1851,7 @@ var OpenBoxClient = class _OpenBoxClient extends OpenBoxClientWrapperBase {
     return Math.min(exponential + jitter, maxDelay);
   }
   sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise((resolve2) => setTimeout(resolve2, ms));
   }
   // -------------------------------------------------------------------------
   // Core request pipeline
@@ -3372,7 +3385,7 @@ function errorInfoFrom(value) {
   return { type: typeof value, message: String(value) };
 }
 function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve2) => setTimeout(resolve2, ms));
 }
 function applyJitter(baseMs, fraction) {
   const f = Math.max(0, Math.min(1, fraction));
@@ -3916,7 +3929,7 @@ async function pollApproval(adapter, ids) {
       guardrailsResult: mapGuardrailsResult2(extra.guardrails_result)
     };
     if (last && last.arm !== "require_approval") return last;
-    await new Promise((resolve) => setTimeout(resolve, 750));
+    await new Promise((resolve2) => setTimeout(resolve2, 750));
   }
   return last ?? {
     arm: "require_approval",
@@ -4018,7 +4031,7 @@ async function bestEffortTerminalEvent(fn) {
     return await Promise.race([
       terminalEvent,
       new Promise(
-        (resolve) => setTimeout(() => resolve(void 0), TERMINAL_EVENT_TIMEOUT_MS)
+        (resolve2) => setTimeout(() => resolve2(void 0), TERMINAL_EVENT_TIMEOUT_MS)
       )
     ]);
   } catch {
@@ -4817,35 +4830,37 @@ function createCoreClientResolver(config) {
 }
 function getAgentIdentity(config) {
   if (config.agentIdentity) return config.agentIdentity;
-  const did = process.env.OPENBOX_AGENT_DID;
-  const privateKey = process.env.OPENBOX_AGENT_PRIVATE_KEY;
-  if (!did && !privateKey) return void 0;
-  if (!did || !privateKey) {
+  try {
+    return resolveAgentIdentity();
+  } catch {
     throw new OpenBoxCopilotKitError(
       "OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY."
     );
   }
-  return { did, privateKey };
 }
 
 // ts/src/approvals/socket-client.ts
 import * as net from "net";
 import * as path from "path";
-import * as os from "os";
-var APPROVAL_SOCKET_PATH = path.join(
-  os.homedir(),
-  ".openbox",
-  "run",
-  "openbox.sock"
-);
+
+// ts/src/env/os-paths.ts
+import { join, resolve } from "path";
+function openboxDataRoot() {
+  const override = process.env.OPENBOX_HOME;
+  if (override) return resolve(override);
+  return resolve(process.cwd(), ".openbox");
+}
+
+// ts/src/approvals/socket-client.ts
+function defaultApprovalSocketPath() {
+  return path.join(openboxDataRoot(), "run", "openbox.sock");
+}
+var APPROVAL_SOCKET_PATH = defaultApprovalSocketPath();
 
 // ts/src/approvals/socket-server.ts
 import * as net2 from "net";
 import * as fs from "fs";
 import * as path2 from "path";
-import * as os2 from "os";
-var RUN_DIR = path2.join(os2.homedir(), ".openbox", "run");
-var SOCKET_PATH = path2.join(RUN_DIR, "openbox.sock");
 
 // ts/src/approvals/resolve.ts
 var APPROVAL_LOOKUP_PAGE_SIZE = 100;

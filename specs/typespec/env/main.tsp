@@ -40,22 +40,18 @@ model RuntimeConfig {
   /** Auth / IdP URL. Optional UI/auth affordance. */
   @env_var("OPENBOX_AUTH_URL")
   authUrl?: url;
-
-  /** Stack URL for deriving endpoints when individual URLs are omitted. */
-  @env_var("OPENBOX_STACK_URL")
-  stackUrl?: url;
 }
 
 /**
  * Persistent on-disk credentials. The shape is the same on every
- * platform; only the lookup path differs (XDG / %APPDATA% /
- * ~/Library/Application Support).
+ * platform. The default lookup path is project-local; explicit
+ * `OPENBOX_HOME` is the only supported override.
  */
 model Credentials {
   /**
-   * Filesystem path to the token-store file. Resolved per-OS via the
-   * platform's user-data directory helper (env-paths / dirs /
-   * platformdirs).
+   * Filesystem path to the token-store file. Resolved under the
+   * current project's OpenBox data directory unless `OPENBOX_HOME`
+   * is explicitly set.
    */
   @os_path
   path: string;
@@ -81,35 +77,6 @@ model Credentials {
 model Runtime {
   config: RuntimeConfig;
   credentials: Credentials;
-}
-
-/**
- * CLI-only env vars that gate which subcommands / code paths are
- * available. NOT runtime config (no URLs, no credentials); these
- * shape what the user sees in `--help` and what experimental code
- * paths run inside otherwise-stable commands.
- *
- * Spec'd here so the env-var-binding table includes them; the CLI's
- * maturity.ts + features.ts modules read these by NAME from
- * ENV_VAR_BINDINGS rather than hard-coding the strings.
- */
-model CliRuntimeConfig {
-  /**
-   * Reveals subcommands gated as `experimental` (or `beta`). Set to
-   * `experimental` to see every command in `--help`. Default: `stable`.
-   * Same effect as passing `--experimental` on the openbox CLI.
-   */
-  @env_var("OPENBOX_EXPERIMENTAL_LEVEL")
-  experimentalLevel: string;
-
-  /**
-   * Comma-separated list of feature flags to enable. Each entry is a
-   * dotted path like `audit.deep-scan` or `agent.list.include-deleted`
-   * matching an entry in the CLI's FEATURE_MATURITY registry.
-   * Same effect as passing `--feature <name>` on the openbox CLI.
-   */
-  @env_var("OPENBOX_FEATURES")
-  features: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -158,8 +125,7 @@ model TokenStore {
 /**
  * String <-> TokenStore codec. Implementations must round-trip:
  * `serializeTokenStore(parseTokenStore(s)) === s'` where `s'` is
- * the canonical flat form. Legacy scoped input is ignored and is never
- * re-emitted.
+ * the canonical flat form.
  */
 interface TokenCodec {
   parseTokenStore(content: string): TokenStore;
@@ -195,19 +161,16 @@ model ClientVariant {
 }
 
 /**
- * Per-OS data scopes. Each maps to a different subdirectory under
- * the user-data directory:
+ * Project-local data scopes. Each maps to a different subpath under
+ * the active OpenBox data root:
  *
  *   - `tokens`: persistent OAuth tokens + API keys
  *   - `config`: declarative settings (URLs, output format)
  *   - `cache`: ephemeral state (decoded JWT claims, last-known
  *     feature flags) safe to delete
  *
- * Linux (XDG_DATA_HOME or ~/.openbox/<scope>),
- * macOS (~/.openbox/<scope>; we deliberately don't follow Apple's
- *   `~/Library/Application Support/openbox/` because the file is
- *   intended to be findable + editable from the terminal),
- * Windows (%APPDATA%\openbox\<scope>).
+ * Default: `<cwd>/.openbox/<scope>`.
+ * Override: `<OPENBOX_HOME>/<scope>`.
  */
 enum OsPathScope {
   tokens: "tokens",
@@ -224,17 +187,17 @@ enum OsPathScope {
 }
 
 /**
- * Resolves filesystem paths under the per-OS user-data directory.
+ * Resolves filesystem paths under the project-local OpenBox data
+ * directory.
  * Every property tagged `@os_path` somewhere in the spec resolves
  * via this contract. The implementation is hand-written per
- * language (Node uses `os.homedir()`, browser/mobile uses platform
- * SecureStore APIs) but the OUTPUT is deterministic given the
- * platform; see `tests/unit/os-paths.test.ts` for the lockdown.
+ * language but the default must not read or write global/user-level
+ * OpenBox state; see `tests/unit/os-paths.test.ts` for the lockdown.
  */
 interface OsPathResolver {
   /**
    * Returns the absolute path for a given data scope under
-   * the openbox user-data directory.
+   * the active project-local OpenBox data directory.
    */
   resolveOsPath(scope: OsPathScope): string;
 }

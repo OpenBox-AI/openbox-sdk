@@ -16,8 +16,8 @@ import { stampSource } from '../../../approvals/source.js';
 /**
  * UserPromptSubmit: user typed something into Claude Code. We govern the
  * prompt (input guardrails; PII, toxicity, ban words) AND fire a
- * SignalReceived(goal) so the goal-alignment service captures the user's
- * intent for drift detection later in the session.
+ * SignalReceived(user_prompt) so the goal-alignment service captures the
+ * user's intent for drift detection later in the session.
  */
 export async function handleUserPromptSubmit(
   env: ClaudeCodeEnvelope,
@@ -28,8 +28,11 @@ export async function handleUserPromptSubmit(
   if (!prompt) return undefined;
 
   // Best-effort goal signal; never blocks the prompt path.
-  void session.activity(EVENT.SIGNAL, 'goal', {
-    input: [stampSource({ goal: prompt, event_category: 'agent_goal' }, 'claude-code')],
+  void session.activity(EVENT.SIGNAL, 'user_prompt', {
+    input: [stampSource({ prompt, event_category: 'agent_goal' }, 'claude-code')],
+    signalName: 'user_prompt',
+    signalArgs: prompt,
+    spans: [buildSpan('claude-code', 'llm', { prompt })],
   }).catch(() => undefined);
 
   const payload = buildUserPromptSubmitPayload(env);

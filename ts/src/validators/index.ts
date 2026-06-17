@@ -142,8 +142,8 @@ function hintForDetail(detail: string | null): string | null {
     return (
       "Core's GovernanceWorkflow is hanging on the post-OPA non-ALLOW path " +
       '(staging-only bug, image 591f66f+). To confirm vs random Temporal flake, ' +
-      "fire `core evaluate --type llm --prompt hi` against the same agent; if " +
-      "that returns <1s but `--type shell` (or any path that triggers a non-ALLOW " +
+      'send an `evaluateGovernance` payload against the same agent; if ' +
+      'the ALLOW path returns <1s but shell/file-write (or any path that triggers a non-ALLOW ' +
       'verdict) hangs 30s, this is the cccff05 cancellation deadlock. Pivot to ' +
       'prod for end-to-end approval testing until the staging fix lands.'
     );

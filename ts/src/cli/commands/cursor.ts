@@ -24,8 +24,8 @@ function parseMatcherPairs(pairs: string[] | undefined): Record<string, string> 
  *
  *    hook         stdin to governance to stdout, invoked by Cursor
  *                 per hook event.
- *    install      install the project-local OpenBox Cursor plugin.
- *    uninstall    remove the project-local OpenBox Cursor plugin.
+ *    plugin       export/install/remove the project-local OpenBox Cursor plugin.
+ *    doctor       verify project-local Cursor readiness.
  */
 export function registerCursorCommands(program: Command) {
   const cursor = program.command('cursor').description('Cursor IDE integration');
@@ -73,36 +73,6 @@ export function registerCursorCommands(program: Command) {
       success(`exported Cursor plugin to ${out}`);
     });
 
-  cursor
-    .command('install')
-    .description('Alias for `openbox cursor plugin install`')
-    .option('--cwd <dir>', 'Project root for project-local install')
-    .option('--target <dir>', 'Cursor project-local plugin target directory')
-    .option('--symlink <dir>', 'Symlink an already-exported plugin folder into Cursor')
-    .option(
-      '--matcher <pair>',
-      "Hook matcher pair `<event>=<regex>` copied into hooks/hooks.json. Repeatable.",
-      collectPair,
-      [],
-    )
-    .action(
-      async (opts: {
-        cwd?: string;
-        target?: string;
-        symlink?: string;
-        matcher: string[];
-      }) => {
-        const { installCursorPlugin } = await import('../../runtime/cursor/index.js');
-        const target = installCursorPlugin({
-          cwd: opts.cwd,
-          target: opts.target,
-          symlink: opts.symlink,
-          matchers: parseMatcherPairs(opts.matcher),
-        });
-        success(`installed Cursor plugin at ${target}`);
-      },
-    );
-
   plugin
     .command('install')
     .description('Install the project-local OpenBox Cursor plugin only')
@@ -133,17 +103,6 @@ export function registerCursorCommands(program: Command) {
       },
     );
 
-  cursor
-    .command('uninstall')
-    .description('Alias for `openbox cursor plugin uninstall`')
-    .option('--cwd <dir>', 'Project root for project-local install')
-    .option('--target <dir>', 'Cursor project-local plugin target directory')
-    .action(async (opts: { cwd?: string; target?: string }) => {
-      const { uninstallCursorPlugin } = await import('../../runtime/cursor/index.js');
-      uninstallCursorPlugin({ cwd: opts.cwd, target: opts.target });
-      success('removed Cursor plugin');
-    });
-
   plugin
     .command('uninstall')
     .description('Remove the project-local OpenBox Cursor plugin only')
@@ -163,15 +122,13 @@ export function registerCursorCommands(program: Command) {
     .option('--cwd <dir>', 'Project root for project-local install')
     .option('--plugin-target <dir>', 'Cursor project-local plugin target directory')
     .option('--surface-only', 'Check installed files only; skip runtime key/core validation', false)
-    .option('--include-extension', 'Also check the user-level Cursor approval extension', false)
     .option('--no-core-validate', 'Check runtime config and key format without calling core')
     .option('--json', 'Emit machine-readable JSON', false)
-    .action(async (opts: { cwd?: string; pluginTarget?: string; surfaceOnly?: boolean; includeExtension?: boolean; coreValidate?: boolean; json?: boolean }) => {
+    .action(async (opts: { cwd?: string; pluginTarget?: string; surfaceOnly?: boolean; coreValidate?: boolean; json?: boolean }) => {
       const { verifyCursorInstall } = await import('../../runtime/cursor/install.js');
       const base = {
         cwd: opts.cwd,
         pluginTarget: opts.pluginTarget,
-        includeExtension: opts.includeExtension,
       };
       const checks = opts.surfaceOnly
         ? verifyCursorInstall(base)

@@ -13,11 +13,9 @@ Regenerate with `npm run specs:compile`.
 
 Two consumption patterns:
 
-- **`CLI_COMMAND_MANIFEST`.** The commander registration in
-  `ts/src/cli/index.ts` walks this array to declare verbs,
-  subcommands, flags (long form, short alias, description), and
-  env-var fallbacks. Adding a flag in the spec, recompiling, and
-  re-running registers it on the CLI without a code edit.
+- **`CLI_COMMAND_MANIFEST`.** Generated metadata records command,
+  subcommand, and flag shapes for drift checks and typed handlers.
+  Active command registration remains hand-authored in `ts/src/cli/`.
 - **The `<Command>` interfaces, e.g. `Auth`.** Hand-written handler
   functions annotate themselves with `Auth['setApiKey']` and
   `Auth['clearApiKey']` so a return-type or argument-list drift from

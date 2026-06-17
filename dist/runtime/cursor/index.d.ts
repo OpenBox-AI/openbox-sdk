@@ -1,5 +1,6 @@
-import { O as OpenBoxCoreClient, w as CursorSession, W as WorkflowVerdict } from '../../govern-DGn7jMgd.js';
-import { C as CursorEnvelope } from '../../envelopes-DnviQ3yd.js';
+import { O as OpenBoxCoreClient } from '../../core-client-BaOdHXQU.js';
+import { s as CursorSession, W as WorkflowVerdict } from '../../govern-BdX8nYkt.js';
+import { C as CursorEnvelope } from '../../envelopes-TdSIMUKK.js';
 import '../../core-types-Dxgkbox0.js';
 
 /**
@@ -131,8 +132,6 @@ interface VerifyCursorInstallOptions {
     cwd?: string;
     /** Cursor project-local plugin target. Defaults to <cwd>/.cursor/plugins/local/openbox. */
     pluginTarget?: string;
-    /** Include the user-level approval extension check. Defaults to false. */
-    includeExtension?: boolean;
     /** Include hook runtime readiness checks. Install flows keep this
      *  false so they can lay down files before a runtime key exists. */
     includeRuntime?: boolean;

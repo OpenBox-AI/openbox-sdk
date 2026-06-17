@@ -9,7 +9,7 @@ import {
 } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
-import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
+import { EVENT } from '../activity-types.js';
 import { buildSpan } from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
 
@@ -23,8 +23,11 @@ export async function handleBeforeSubmitPrompt(
   if (!prompt) return undefined;
 
   // Goal signal; best-effort, never blocks.
-  void session.activity(EVENT.SIGNAL, ACTIVITY_TYPES.AGENT_GOAL, {
-    input: [stampSource({ goal: prompt, event_category: 'agent_goal' }, 'cursor')],
+  void session.activity(EVENT.SIGNAL, 'user_prompt', {
+    input: [stampSource({ prompt, event_category: 'agent_goal' }, 'cursor')],
+    signalName: 'user_prompt',
+    signalArgs: prompt,
+    spans: [buildSpan('cursor', 'llm', { prompt })],
   }).catch(() => undefined);
 
   const payload = buildBeforeSubmitPromptPayload(env);

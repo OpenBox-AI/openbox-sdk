@@ -7,6 +7,7 @@ export interface ClaudeCodeEnvelope {
   tool_input?: unknown;
   tool_output?: unknown;
   tool_use_id?: string;
+  duration_ms?: number;
   cwd?: string;
   transcript_path?: string;
   prompt?: string;
@@ -50,6 +51,7 @@ export interface ClaudeCodeEnvelope {
   last_assistant_message?: string;
   background_tasks?: unknown;
   session_crons?: unknown;
+  stop_hook_active?: boolean;
   custom_instructions?: string;
   compact_summary?: string;
   compact?: unknown;

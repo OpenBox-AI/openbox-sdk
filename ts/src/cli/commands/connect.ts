@@ -1,52 +1,38 @@
 import { Command } from 'commander';
 import { OpenBoxClient } from '../../client/index.js';
-import {
-  endpointsFromStackUrl,
-  normalizeStackUrl,
-  type StackEndpoints,
-} from '../../env/index.js';
 import { saveApiKey } from '../../file-tokens/index.js';
 import { reportAndExit } from '../../validators/index.js';
-import { setConfig, unsetConfig } from '../../config/index.js';
+import { setConfig } from '../../config/index.js';
 import { isMachineMode } from '../non-interactive.js';
 import { output, success, warn } from '../output.js';
 
-interface DiscoveryResponse {
-  apiUrl?: string;
-  coreUrl?: string;
-  authUrl?: string;
-  platformUrl?: string;
-  name?: string;
-}
-
-interface ResolvedStack extends StackEndpoints {
+interface ResolvedConnection {
+  apiUrl: string;
+  coreUrl: string;
   discovered: boolean;
 }
 
 export function registerConnectCommand(program: Command) {
   program
     .command('connect')
-    .description('Connect this machine to OpenBox API and core endpoints')
-    .argument('[remote-url]', 'Optional base URL used only to derive endpoints, for example https://ipsum.lat')
+    .description('Connect this project to explicit OpenBox API and core endpoints')
     .option('--api-key <key>', 'Org API key for backend and extension access')
     .option('--api-url <url>', 'Backend API endpoint URL')
     .option('--core-url <url>', 'Core/runtime policy endpoint URL')
     .option('--no-validate', 'Save the connection without probing /auth/profile')
-    .action(async (remoteUrlArg: string | undefined, opts: {
+    .action(async (opts: {
       apiKey?: string;
       apiUrl?: string;
       coreUrl?: string;
       validate?: boolean;
     }) => {
       try {
-        const connection = await resolveConnectionProfile(remoteUrlArg, {
+        const connection = resolveConnectionProfile({
           apiUrl: opts.apiUrl,
           coreUrl: opts.coreUrl,
         });
         setConfig('OPENBOX_API_URL', connection.apiUrl);
         setConfig('OPENBOX_CORE_URL', connection.coreUrl);
-        unsetConfig('OPENBOX_STACK_URL');
-        unsetConfig('OPENBOX_STACK_NAME');
 
         let profile: unknown;
         if (opts.apiKey) {
@@ -61,7 +47,7 @@ export function registerConnectCommand(program: Command) {
             }).getProfile();
           }
         } else if (!isMachineMode()) {
-          warn('no API key saved; run openbox connect --api-url <url> --core-url <url> --api-key <key> when you have one');
+          warn('no API key saved; rerun openbox connect --api-url <url> --core-url <url> --api-key <key> in this project when you have one');
         }
 
         const result = {
@@ -82,53 +68,33 @@ export function registerConnectCommand(program: Command) {
     });
 }
 
-async function resolveConnectionProfile(raw: string | undefined, opts: {
+function resolveConnectionProfile(opts: {
   apiUrl?: string;
   coreUrl?: string;
-} = {}): Promise<ResolvedStack> {
-  const remoteUrl = raw ? normalizeStackUrl(raw) : undefined;
-  const fallback = remoteUrl ? endpointsFromStackUrl(remoteUrl) : undefined;
-  const discovered = remoteUrl ? await discover(remoteUrl) : undefined;
-  const apiUrl = opts.apiUrl ?? discovered?.apiUrl ?? fallback?.apiUrl;
-  const coreUrl = opts.coreUrl ?? discovered?.coreUrl ?? fallback?.coreUrl;
-  if (!apiUrl || !coreUrl) {
-    throw new Error('connect requires --api-url and --core-url when no endpoint discovery URL is provided.');
+}): ResolvedConnection {
+  if (!opts.apiUrl || !opts.coreUrl) {
+    throw new Error('connect requires explicit --api-url and --core-url.');
   }
-  const endpoints = discovered
-    ? {
-        apiUrl,
-        coreUrl,
-        authUrl: discovered.authUrl ?? fallback?.authUrl,
-        platformUrl: discovered.platformUrl ?? fallback?.platformUrl ?? '',
-      }
-    : {
-        apiUrl,
-        coreUrl,
-        authUrl: fallback?.authUrl,
-        platformUrl: fallback?.platformUrl ?? '',
-      };
   return {
-    discovered: !!discovered,
-    ...endpoints,
+    apiUrl: normalizeServiceUrl('OPENBOX_API_URL', opts.apiUrl),
+    coreUrl: normalizeServiceUrl('OPENBOX_CORE_URL', opts.coreUrl),
+    discovered: false,
   };
 }
 
-async function discover(remoteUrl: string): Promise<DiscoveryResponse | undefined> {
-  const url = `${remoteUrl}/.well-known/openbox.json`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 3_000);
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { accept: 'application/json' },
-    });
-    if (!response.ok) return undefined;
-    const data = (await response.json()) as DiscoveryResponse;
-    if (!data || typeof data !== 'object') return undefined;
-    return data;
-  } catch {
-    return undefined;
-  } finally {
-    clearTimeout(timeout);
+function normalizeServiceUrl(name: 'OPENBOX_API_URL' | 'OPENBOX_CORE_URL', raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) throw new Error(`${name} cannot be empty.`);
+  const url = new URL(trimmed);
+  if (url.protocol !== 'https:' && !isLoopbackHost(url.hostname)) {
+    throw new Error(`${name} must use https:// unless it points at localhost.`);
   }
+  url.hash = '';
+  url.search = '';
+  url.pathname = url.pathname.replace(/\/+$/, '');
+  return url.toString().replace(/\/$/, '');
+}
+
+function isLoopbackHost(host: string): boolean {
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
 }

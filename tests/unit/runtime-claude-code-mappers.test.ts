@@ -49,6 +49,18 @@ function recordingSession(verdict: { arm?: string } = { arm: 'allow' }): any {
     workflowId: 'wf', runId: 'run', workflowType: 't', taskQueue: 'g',
     isOpen: true, isTerminated: false, calls,
     async activity(...a: any[]) { calls.push({ method: 'activity', args: a }); return verdict; },
+    async openActivity(...a: any[]) {
+      calls.push({ method: 'openActivity', args: a });
+      const activityId = a[1]?.activityId ?? `opened-${calls.length}`;
+      return {
+        activityId,
+        verdict: { ...verdict, activityId },
+        complete: async (...completeArgs: any[]) => {
+          calls.push({ method: 'openActivity.complete', args: completeArgs });
+          return verdict;
+        },
+      };
+    },
     async workflowStarted() { calls.push({ method: 'workflowStarted', args: [] }); },
     async workflowCompleted() { calls.push({ method: 'workflowCompleted', args: [] }); },
     async workflowFailed(...a: any[]) { calls.push({ method: 'workflowFailed', args: a }); },
@@ -65,6 +77,64 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       { skipTools: [], sessionDir: dir } as any,
     );
     expect(session.calls.length).toBeGreaterThan(0);
+    const goalSignal = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[0] === 'SignalReceived',
+    );
+    expect(goalSignal?.args[1]).toBe('user_prompt');
+    expect(goalSignal?.args[2]).toMatchObject({
+      signalName: 'user_prompt',
+      signalArgs: 'hi',
+      input: [{ prompt: 'hi', event_category: 'agent_goal', _openbox_source: 'claude-code' }],
+    });
+    expect(goalSignal?.args[2].spans?.[0]).toMatchObject({
+      semantic_type: 'llm_completion',
+      module: 'claude-code',
+    });
+    const promptGate = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[0] === 'ActivityStarted',
+    );
+    expect(promptGate?.args[1]).toBe('PromptSubmission');
+  });
+
+  it('pre/post tool hooks pair on tool_use_id and send tool results as activity output', async () => {
+    const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
+    const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
+    const session = recordingSession();
+    const cfg = { skipTools: [], skipActivityTypes: [], sessionDir: dir } as any;
+    const base = {
+      session_id: 'S-tool',
+      tool_use_id: 'toolu_1',
+      tool_name: 'Bash',
+      tool_input: { command: 'echo ok', cwd: dir },
+    } as any;
+
+    await handlePreToolUse(base, session, cfg);
+    await handlePostToolUse(
+      {
+        ...base,
+        tool_response: { stdout: 'ok\n', stderr: '', interrupted: false },
+        duration_ms: 12,
+      },
+      session,
+      cfg,
+    );
+
+    const opened = session.calls.find((call: any) => call.method === 'openActivity');
+    expect(opened?.args[0]).toBe('ShellExecution');
+    const completed = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[0] === 'ActivityCompleted',
+    );
+    expect(completed?.args[1]).toBe('ShellExecution');
+    expect(completed?.args[2]).toMatchObject({
+      activityId: opened?.args[1].activityId ?? 'opened-1',
+      durationMs: 12,
+      output: { stdout: 'ok\n', stderr: '', interrupted: false },
+    });
+    expect(completed?.args[2].input[0]).toMatchObject({
+      command: 'echo ok',
+      event_category: 'agent_action',
+      _openbox_source: 'claude-code',
+    });
   });
 
   it('session-start workflowStarted + START activity', async () => {
@@ -99,6 +169,57 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     await handleSessionEnd({ session_id: 'REAL', reason: 'stop' } as any, session, cfg);
     expect(session.calls.some((c: any) => c.method === 'activity')).toBe(true);
     expect(session.calls.some((c: any) => c.method === 'workflowCompleted')).toBe(true);
+  });
+
+  it('stop completes the OpenBox workflow when Claude has no pending background work', async () => {
+    const { handleStop } = await import('../../ts/src/runtime/claude-code/mappers/session');
+    const session = recordingSession();
+    await handleStop(
+      {
+        session_id: 'STOP',
+        last_assistant_message: 'done',
+        background_tasks: [],
+        session_crons: [],
+      } as any,
+      session,
+      { skipTools: [], sessionDir: dir, governancePolicy: 'fail_open' } as any,
+    );
+    expect(session.calls.some((c: any) => c.method === 'workflowCompleted')).toBe(true);
+  });
+
+  it('stop keeps the workflow open while Claude reports background work', async () => {
+    const { handleStop } = await import('../../ts/src/runtime/claude-code/mappers/session');
+    const session = recordingSession();
+    await handleStop(
+      {
+        session_id: 'STOP-BG',
+        last_assistant_message: 'waiting',
+        background_tasks: [{ id: 'task-1', status: 'running' }],
+        session_crons: [],
+      } as any,
+      session,
+      { skipTools: [], sessionDir: dir, governancePolicy: 'fail_open' } as any,
+    );
+    expect(session.calls.some((c: any) => c.method === 'workflowCompleted')).toBe(false);
+  });
+
+  it('stop-failure records the SDK workflowFailed terminal event', async () => {
+    const { handleStopFailure } = await import('../../ts/src/runtime/claude-code/mappers/session');
+    const session = recordingSession();
+    await handleStopFailure(
+      {
+        session_id: 'STOP-FAIL',
+        error: 'model endpoint failed',
+      } as any,
+      session,
+      { skipTools: [], sessionDir: dir } as any,
+    );
+    const activity = session.calls.find((c: any) => c.method === 'activity');
+    expect(activity?.args[0]).toBe('ActivityCompleted');
+    expect(activity?.args[1]).toBe('ClaudeCodeSession');
+    const failed = session.calls.find((c: any) => c.method === 'workflowFailed');
+    expect(failed?.args[0]).toBeInstanceOf(Error);
+    expect(String(failed?.args[0]?.message)).toContain('model endpoint failed');
   });
 
   it('permission-request fires START activity', async () => {
@@ -151,15 +272,7 @@ describe('runtime/claude-code/hook-handler', () => {
   });
 });
 
-describe('cli/commands; versions + skill + core', () => {
-  it('versions command registers + can be invoked dry', async () => {
-    const { registerVersionsCommand } = await import('../../ts/src/cli/commands/versions');
-    const program = new Command();
-    program.exitOverride();
-    registerVersionsCommand(program);
-    expect(program.commands.find((c) => c.name() === 'versions')).toBeDefined();
-  });
-
+describe('cli/commands; skill + install', () => {
   it('skill command registers its non-install subcommands', async () => {
     // Skill installation is now an internal helper used by host
     // installers. The `skill` top-level command keeps only read-only

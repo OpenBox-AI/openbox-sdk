@@ -1169,7 +1169,7 @@ function errorInfoFrom(value) {
   return { type: typeof value, message: String(value) };
 }
 function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve2) => setTimeout(resolve2, ms));
 }
 function applyJitter(baseMs, fraction) {
   const f = Math.max(0, Math.min(1, fraction));
@@ -1630,6 +1630,16 @@ function brand(raw) {
   if (!sanitized) return "";
   return sanitized.startsWith("[OpenBox]") ? sanitized : "[OpenBox] " + sanitized;
 }
+function redactedInput(v) {
+  return v?.guardrailsResult?.redactedInput;
+}
+function objectRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return void 0;
+  return value;
+}
+function addIfDefined(target, key, value) {
+  if (value !== void 0) target[key] = value;
+}
 function renderVerdictOutput(shape, v, env, deferApproval = false) {
   const arm = v?.arm ?? "allow";
   const reason = brand(v?.reason ?? "");
@@ -1637,11 +1647,16 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
     case "permission-decision": {
       const eventName = env.hook_event_name ?? "PreToolUse";
       if (arm === "allow" || arm === "constrain") {
+        const hookSpecificOutput = {
+          hookEventName: eventName,
+          permissionDecision: "allow"
+        };
+        if (arm === "constrain") {
+          addIfDefined(hookSpecificOutput, "updatedInput", objectRecord(redactedInput(v)));
+          if (reason) hookSpecificOutput.additionalContext = reason;
+        }
         return {
-          hookSpecificOutput: {
-            hookEventName: eventName,
-            permissionDecision: "allow"
-          }
+          hookSpecificOutput
         };
       }
       if (arm === "require_approval") {
@@ -1668,15 +1683,27 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
           reason: reason || "[OpenBox] blocked by policy"
         };
       }
+      if (arm === "constrain" && reason) {
+        const hookSpecificOutput = {
+          hookEventName: env.hook_event_name ?? "ClaudeCode",
+          additionalContext: reason
+        };
+        addIfDefined(hookSpecificOutput, "updatedToolOutput", redactedInput(v));
+        return { hookSpecificOutput };
+      }
       return {};
     }
     case "permission-request": {
       const eventName = env.hook_event_name ?? "PermissionRequest";
       if (arm === "allow" || arm === "constrain") {
+        const decision = { behavior: "allow" };
+        if (arm === "constrain") {
+          addIfDefined(decision, "updatedInput", objectRecord(redactedInput(v)));
+        }
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            decision: { behavior: "allow" }
+            decision
           }
         };
       }
@@ -1709,7 +1736,16 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
     }
     case "elicitation-response": {
       const eventName = env.hook_event_name ?? "Elicitation";
-      if (arm === "allow" || arm === "constrain") return {};
+      if (arm === "allow") return {};
+      if (arm === "constrain") {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            action: "accept",
+            content: redactedInput(v) ?? env.response ?? env.content ?? {}
+          }
+        };
+      }
       return {
         hookSpecificOutput: {
           hookEventName: eventName,
@@ -1726,7 +1762,7 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
       };
     }
     case "additional-context": {
-      if (arm === "allow" || arm === "constrain") return {};
+      if (arm === "allow") return {};
       return {
         hookSpecificOutput: {
           hookEventName: env.hook_event_name ?? "PostToolUseFailure",
@@ -1800,10 +1836,7 @@ var ENV_VAR_BINDINGS = {
   coreUrl: { "name": "OPENBOX_CORE_URL" },
   platformUrl: { "name": "OPENBOX_PLATFORM_URL" },
   authUrl: { "name": "OPENBOX_AUTH_URL" },
-  stackUrl: { "name": "OPENBOX_STACK_URL" },
-  apiKey: { "name": "OPENBOX_API_KEY" },
-  experimentalLevel: { "name": "OPENBOX_EXPERIMENTAL_LEVEL" },
-  features: { "name": "OPENBOX_FEATURES" }
+  apiKey: { "name": "OPENBOX_API_KEY" }
 };
 var API_KEY_PATTERN = /^obx_(?:live|test)_[0-9a-f]{48}$/;
 function validateApiKeyFormat(value) {
@@ -1814,52 +1847,23 @@ function validateApiKeyFormat(value) {
 }
 
 // ts/src/env/connection.ts
-function normalizeStackUrl(raw) {
-  const trimmed = raw.trim();
-  if (!trimmed) throw new Error("OpenBox stack URL cannot be empty.");
-  const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  const url = new URL(withProtocol);
-  if (url.protocol !== "https:" && !isLoopbackHost(url.hostname)) {
-    throw new Error("OpenBox stack URL must use https:// unless it points at localhost.");
-  }
-  url.hash = "";
-  url.search = "";
-  url.pathname = url.pathname.replace(/\/+$/, "");
-  return url.toString().replace(/\/$/, "");
-}
-function endpointsFromStackUrl(raw) {
-  const stackUrl = normalizeStackUrl(raw);
-  const url = new URL(stackUrl);
-  const rootHost = url.hostname.replace(/^(api|core|auth)\./, "");
-  const origin = `${url.protocol}//`;
-  return {
-    apiUrl: `${origin}api.${rootHost}/ob`,
-    coreUrl: `${origin}core.${rootHost}/ob`,
-    authUrl: `${origin}auth.${rootHost}/ob`,
-    platformUrl: stackUrl
-  };
-}
 var resolveConnection = (opts = {}) => {
-  const stackUrl = opts.stackUrl ?? process.env[ENV_VAR_BINDINGS.stackUrl.name];
-  const stackEndpoints = stackUrl ? endpointsFromStackUrl(stackUrl) : void 0;
   const apiUrl = requireUrl(
     "OPENBOX_API_URL",
-    opts.apiUrl ?? process.env[ENV_VAR_BINDINGS.apiUrl.name] ?? stackEndpoints?.apiUrl
+    opts.apiUrl ?? process.env[ENV_VAR_BINDINGS.apiUrl.name]
   );
   const coreUrl = requireUrl(
     "OPENBOX_CORE_URL",
-    opts.coreUrl ?? process.env[ENV_VAR_BINDINGS.coreUrl.name] ?? stackEndpoints?.coreUrl
+    opts.coreUrl ?? process.env[ENV_VAR_BINDINGS.coreUrl.name]
   );
-  const platformUrl = opts.platformUrl ?? process.env[ENV_VAR_BINDINGS.platformUrl.name] ?? stackEndpoints?.platformUrl;
-  const authUrl = opts.authUrl ?? process.env[ENV_VAR_BINDINGS.authUrl.name] ?? stackEndpoints?.authUrl;
+  const platformUrl = opts.platformUrl ?? process.env[ENV_VAR_BINDINGS.platformUrl.name];
+  const authUrl = opts.authUrl ?? process.env[ENV_VAR_BINDINGS.authUrl.name];
   return {
     apiUrl,
     coreUrl,
     platformUrl,
     authUrl,
-    stackUrl,
-    displayName: opts.displayName ?? process.env.OPENBOX_STACK_NAME,
-    source: stackUrl && !opts.apiUrl && !opts.coreUrl ? "stack-url" : "explicit"
+    source: "explicit"
   };
 };
 function requireUrl(name, value) {
@@ -1882,6 +1886,19 @@ function isLoopbackHost(host) {
   return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
 }
 
+// ts/src/env/agent-identity.ts
+function resolveAgentIdentity(source = process.env) {
+  const did = source.OPENBOX_AGENT_DID;
+  const privateKey = source.OPENBOX_AGENT_PRIVATE_KEY;
+  if (!did && !privateKey) return void 0;
+  if (!did || !privateKey) {
+    throw new Error(
+      "OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY."
+    );
+  }
+  return { did, privateKey };
+}
+
 // ts/src/client/rate-limiter.ts
 var TokenBucket = class {
   tokens;
@@ -1902,11 +1919,11 @@ var TokenBucket = class {
       return;
     }
     const waitMs = (1 - this.tokens) / this.refillRate;
-    return new Promise((resolve) => {
+    return new Promise((resolve2) => {
       setTimeout(() => {
         this.refill();
         this.tokens -= 1;
-        resolve();
+        resolve2();
       }, waitMs);
     });
   }
@@ -2215,6 +2232,10 @@ function loadConfig() {
   return {
     openboxApiKey: get("OPENBOX_API_KEY"),
     openboxEndpoint: coreUrl,
+    agentIdentity: resolveAgentIdentity({
+      OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID") || void 0,
+      OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY") || void 0
+    }),
     governancePolicy: get("GOVERNANCE_POLICY", "fail_open"),
     governanceTimeout: parseInt(get("GOVERNANCE_TIMEOUT", "15"), 10) || 15,
     activityType: get("ACTIVITY_TYPE", "CursorIDE"),
@@ -2237,68 +2258,8 @@ function loadConfig() {
 }
 var loadConfigFile = () => loadJsonConfig(CONFIG_FILE);
 var loadEnvFile = () => loadDotenv(ENV_FILE);
-
-// ts/src/config/store.ts
-import { existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, writeFileSync } from "fs";
-import { dirname } from "path";
-
-// ts/src/env/os-paths.ts
-import { homedir } from "os";
-import { join } from "path";
-function openboxDataRoot() {
-  const override = process.env.OPENBOX_HOME;
-  if (override) return override;
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA ?? join(homedir(), "AppData", "Roaming");
-    return join(appData, "openbox");
-  }
-  if (process.platform === "linux") {
-    const xdg = process.env.XDG_DATA_HOME;
-    if (xdg) return join(xdg, "openbox");
-  }
-  return join(homedir(), ".openbox");
-}
-var resolveOsPath = (scope) => {
-  return join(openboxDataRoot(), scope);
-};
-
-// ts/src/config/store.ts
-function getPath2() {
-  const path10 = resolveOsPath("config");
-  const dir = dirname(path10);
-  if (!existsSync2(dir)) mkdirSync(dir, { recursive: true });
-  return path10;
-}
-function read() {
-  const path10 = getPath2();
-  if (!existsSync2(path10)) return {};
-  const out = {};
-  for (const line of readFileSync2(path10, "utf-8").split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq < 0) continue;
-    const key = trimmed.slice(0, eq).trim();
-    const value = trimmed.slice(eq + 1).trim();
-    if (key && !key.includes(".")) out[key] = value;
-  }
-  return out;
-}
-function listConfig() {
-  return read();
-}
-function configStorePath() {
-  return getPath2();
-}
-function applyConfigToProcessEnv() {
-  for (const [key, value] of Object.entries(listConfig())) {
-    if (process.env[key] === void 0) process.env[key] = value;
-  }
-}
-
-// ts/src/cli/env-source.ts
-function applyEnvSource() {
-  applyConfigToProcessEnv();
+function getConfigDir() {
+  return CONFIG_DIR;
 }
 
 // ts/src/logging/logger.ts
@@ -2438,6 +2399,19 @@ function clearSession(conversationId, cfg) {
 // ts/src/logging/hook-log.ts
 import * as fs5 from "fs";
 import * as path4 from "path";
+
+// ts/src/env/os-paths.ts
+import { join, resolve } from "path";
+function openboxDataRoot() {
+  const override = process.env.OPENBOX_HOME;
+  if (override) return resolve(override);
+  return resolve(process.cwd(), ".openbox");
+}
+var resolveOsPath = (scope) => {
+  return join(openboxDataRoot(), scope);
+};
+
+// ts/src/logging/hook-log.ts
 function logDir() {
   return path4.join(openboxDataRoot(), "log");
 }
@@ -2478,21 +2452,18 @@ function makeHookLog(host) {
 // ts/src/approvals/socket-client.ts
 import * as net from "net";
 import * as path5 from "path";
-import * as os from "os";
-var APPROVAL_SOCKET_PATH = path5.join(
-  os.homedir(),
-  ".openbox",
-  "run",
-  "openbox.sock"
-);
-function connectApprovalSocket(socketPath = APPROVAL_SOCKET_PATH) {
-  return new Promise((resolve) => {
+function defaultApprovalSocketPath() {
+  return path5.join(openboxDataRoot(), "run", "openbox.sock");
+}
+var APPROVAL_SOCKET_PATH = defaultApprovalSocketPath();
+function connectApprovalSocket(socketPath = defaultApprovalSocketPath()) {
+  return new Promise((resolve2) => {
     const socket = net.createConnection({ path: socketPath });
     let settled = false;
     const onConnect = () => {
       if (settled) return;
       settled = true;
-      resolve(buildHandle(socket));
+      resolve2(buildHandle(socket));
     };
     const onError = () => {
       if (settled) return;
@@ -2501,7 +2472,7 @@ function connectApprovalSocket(socketPath = APPROVAL_SOCKET_PATH) {
         socket.destroy();
       } catch {
       }
-      resolve(null);
+      resolve2(null);
     };
     socket.once("connect", onConnect);
     socket.once("error", onError);
@@ -2512,7 +2483,7 @@ function connectApprovalSocket(socketPath = APPROVAL_SOCKET_PATH) {
         socket.destroy();
       } catch {
       }
-      resolve(null);
+      resolve2(null);
     }, 200);
   });
 }
@@ -2561,19 +2532,19 @@ function buildHandle(socket) {
       } catch {
       }
     },
-    awaitDecision: (geid, deadlineMs) => new Promise((resolve) => {
+    awaitDecision: (geid, deadlineMs) => new Promise((resolve2) => {
       const list = listenersByGeid.get(geid) ?? [];
-      list.push(resolve);
+      list.push(resolve2);
       listenersByGeid.set(geid, list);
       if (deadlineMs > 0) {
         setTimeout(() => {
           const cur = listenersByGeid.get(geid);
           if (!cur) return;
-          const idx = cur.indexOf(resolve);
+          const idx = cur.indexOf(resolve2);
           if (idx === -1) return;
           cur.splice(idx, 1);
           if (cur.length === 0) listenersByGeid.delete(geid);
-          resolve({ kind: "timeout" });
+          resolve2({ kind: "timeout" });
         }, deadlineMs);
       }
     }),
@@ -2591,21 +2562,6 @@ var EVENT = {
   START: "ActivityStarted",
   COMPLETE: "ActivityCompleted",
   SIGNAL: "SignalReceived"
-};
-
-// ts/src/runtime/cursor/activity-types.ts
-var ACTIVITY_TYPES = {
-  PROMPT: "llm_prompt",
-  COMPLETION: "llm_completion",
-  FILE_READ: "file_read",
-  FILE_WRITE: "file_write",
-  AGENT_ACTION: "agent_action",
-  AGENT_OBSERVATION: "agent_observation",
-  AGENT_DECISION: "agent_decision",
-  AGENT_GOAL: "agent_goal",
-  API_CALL: "api_call",
-  WORKFLOW_START: "workflow_start",
-  WORKFLOW_COMPLETE: "workflow_complete"
 };
 
 // ts/src/governance/spans.ts
@@ -2819,8 +2775,11 @@ function stampSource(payload, host) {
 async function handleBeforeSubmitPrompt(env, session, cfg) {
   const prompt = (env.prompt ?? "").trim();
   if (!prompt) return void 0;
-  void session.activity(EVENT.SIGNAL, ACTIVITY_TYPES.AGENT_GOAL, {
-    input: [stampSource({ goal: prompt, event_category: "agent_goal" }, "cursor")]
+  void session.activity(EVENT.SIGNAL, "user_prompt", {
+    input: [stampSource({ prompt, event_category: "agent_goal" }, "cursor")],
+    signalName: "user_prompt",
+    signalArgs: prompt,
+    spans: [buildSpan("cursor", "llm", { prompt })]
   }).catch(() => void 0);
   const payload = buildBeforeSubmitPromptPayload(env);
   const span = buildSpan("cursor", "llm", { prompt });
@@ -2836,28 +2795,29 @@ async function handleBeforeSubmitPrompt(env, session, cfg) {
 // ts/src/runtime/cursor/dedup.ts
 import * as fs6 from "fs";
 import * as path6 from "path";
-import * as os2 from "os";
 import * as crypto from "crypto";
-var DEDUP_DIR = path6.join(os2.homedir(), ".openbox", "run", "dedup");
 var TTL_MS = 60 * 60 * 1e3;
 var POLL_INTERVAL_MS = 100;
 var DEFAULT_AWAIT_TIMEOUT_MS = 60 * 60 * 1e3;
+function dedupDir() {
+  return path6.join(openboxDataRoot(), "run", "dedup");
+}
 function ensureDir2() {
   try {
-    fs6.mkdirSync(DEDUP_DIR, { recursive: true, mode: 448 });
+    fs6.mkdirSync(dedupDir(), { recursive: true, mode: 448 });
   } catch {
   }
 }
 function reapStale() {
   let entries;
   try {
-    entries = fs6.readdirSync(DEDUP_DIR);
+    entries = fs6.readdirSync(dedupDir());
   } catch {
     return;
   }
   const cutoff = Date.now() - TTL_MS;
   for (const name of entries) {
-    const p = path6.join(DEDUP_DIR, name);
+    const p = path6.join(dedupDir(), name);
     try {
       const st = fs6.statSync(p);
       if (st.mtimeMs < cutoff) fs6.unlinkSync(p);
@@ -2875,7 +2835,7 @@ function buildActionKey(parts) {
 function claimAction(key) {
   ensureDir2();
   reapStale();
-  const lockPath = path6.join(DEDUP_DIR, key);
+  const lockPath = path6.join(dedupDir(), key);
   try {
     const fd = fs6.openSync(lockPath, "wx", 384);
     try {
@@ -3303,8 +3263,10 @@ function logged(event, verdictKind, fn) {
   };
 }
 async function runCursorHook() {
-  applyEnvSource();
   const cfg = loadConfig();
+  if (!process.env.OPENBOX_HOME) {
+    process.env.OPENBOX_HOME = getConfigDir();
+  }
   createLogger("cursor").initLogger(cfg);
   if (!cfg.openboxApiKey) {
     if (cfg.verbose) console.error("[openbox cursor] no OPENBOX_API_KEY set, passing through");
@@ -3314,6 +3276,7 @@ async function runCursorHook() {
   const core = new OpenBoxCoreClient({
     apiKey: cfg.openboxApiKey,
     apiUrl: cfg.openboxEndpoint,
+    agentIdentity: cfg.agentIdentity,
     timeoutMs: cfg.governanceTimeout * 1e3
   });
   const approvalMaxWaitMs = Math.min(
@@ -3503,9 +3466,35 @@ async function runCursorHook() {
 }
 
 // ts/src/runtime/cursor/install.ts
-import fs8 from "fs";
-import os4 from "os";
 import path9 from "path";
+
+// ts/src/config/store.ts
+import { existsSync as existsSync4, mkdirSync as mkdirSync3, readFileSync as readFileSync4, writeFileSync as writeFileSync2 } from "fs";
+var CONFIG_KEY = /^[A-Z][A-Z0-9_]*$/;
+function getPath2() {
+  return resolveOsPath("config");
+}
+function read() {
+  const path10 = getPath2();
+  if (!existsSync4(path10)) return {};
+  const out = {};
+  for (const line of readFileSync4(path10, "utf-8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq < 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    const value = trimmed.slice(eq + 1).trim();
+    if (CONFIG_KEY.test(key)) out[key] = value;
+  }
+  return out;
+}
+function listConfig() {
+  return read();
+}
+function configStorePath() {
+  return getPath2();
+}
 
 // ts/src/runtime/cursor/plugin.ts
 import {
@@ -3519,7 +3508,7 @@ import {
   symlinkSync,
   writeFileSync as writeFileSync3
 } from "fs";
-import os3 from "os";
+import os from "os";
 import path8 from "path";
 import { fileURLToPath } from "url";
 var __dirname = path8.dirname(fileURLToPath(import.meta.url));
@@ -3589,7 +3578,7 @@ function findSkillDir() {
 function safeOutDir(out) {
   const resolved = path8.resolve(out);
   const root = path8.parse(resolved).root;
-  if (resolved === root || resolved === os3.homedir()) {
+  if (resolved === root || resolved === os.homedir()) {
     throw new Error(`Refusing to overwrite unsafe plugin output path: ${resolved}`);
   }
   return resolved;
@@ -3838,61 +3827,6 @@ function verifyCursorPlugin(options = {}) {
 }
 
 // ts/src/runtime/cursor/install.ts
-function readJson2(file) {
-  try {
-    return JSON.parse(fs8.readFileSync(file, "utf-8"));
-  } catch {
-    return void 0;
-  }
-}
-function userCursorPath(...parts) {
-  return path9.join(os4.homedir(), ".cursor", ...parts);
-}
-function expectedExtensionVersion() {
-  const candidates = [
-    path9.resolve(process.cwd(), "apps/extension/package.json"),
-    path9.resolve("apps/extension/package.json")
-  ];
-  for (const file of candidates) {
-    const pkg = readJson2(file);
-    const version = pkg?.version;
-    if (typeof version === "string" && version) return version;
-  }
-  return void 0;
-}
-function checkExtensionInstall() {
-  if (process.env.OPENBOX_SKIP_EXTENSION === "1") {
-    return { name: "extension", status: "skip", detail: "OPENBOX_SKIP_EXTENSION=1" };
-  }
-  const dir = userCursorPath("extensions");
-  if (!fs8.existsSync(dir)) {
-    return { name: "extension", status: "fail", path: dir, detail: "directory missing" };
-  }
-  const entries = fs8.readdirSync(dir).filter((entry) => /^openbox\.openbox[-.]/.test(entry) || /^openbox[-.]/.test(entry));
-  if (entries.length === 0) {
-    return { name: "extension", status: "fail", path: dir, detail: "OpenBox extension missing" };
-  }
-  const expected = expectedExtensionVersion();
-  for (const entry of entries) {
-    const pkgFile = path9.join(dir, entry, "package.json");
-    const pkg = readJson2(pkgFile);
-    const actual = typeof pkg?.version === "string" ? pkg.version : void 0;
-    if (!expected || actual === expected) {
-      return {
-        name: "extension",
-        status: "pass",
-        path: pkgFile,
-        detail: `installed${actual ? ` ${actual}` : ""}; reload Cursor to verify loaded code`
-      };
-    }
-  }
-  return {
-    name: "extension",
-    status: "fail",
-    path: dir,
-    detail: expected ? `installed version does not match expected ${expected}` : "package version unreadable"
-  };
-}
 function truthy(value) {
   return value === "true" || value === "1";
 }
@@ -3922,12 +3856,17 @@ function buildHookRuntimeEnv(cwd = process.cwd()) {
   });
   const coreUrl = connection.coreUrl;
   const apiKey = get("OPENBOX_API_KEY") ?? "";
+  const agentIdentity = resolveAgentIdentity({
+    OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID"),
+    OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY")
+  });
   return {
     configFile,
     envFile,
     cliConfigFile: configStorePath(),
     coreUrl,
     apiKey,
+    agentIdentity,
     dryRun: truthy(get("DRY_RUN"))
   };
 }
@@ -3959,6 +3898,7 @@ async function checkRuntimeReadiness(cwd, validateRuntime) {
     const core = new OpenBoxCoreClient({
       apiKey: runtime.apiKey,
       apiUrl: runtime.coreUrl,
+      agentIdentity: runtime.agentIdentity,
       timeoutMs: 5e3
     });
     const validation = await core.validateApiKey();
@@ -3977,7 +3917,6 @@ function verifyCursorInstall(opts = {}) {
   const checks = [
     ...verifyCursorPlugin({ cwd: opts.cwd, target: opts.pluginTarget })
   ];
-  if (opts.includeExtension) checks.push(checkExtensionInstall());
   if (opts.includeRuntime || opts.validateRuntime) {
     return checkRuntimeReadiness(opts.cwd, Boolean(opts.validateRuntime)).then((runtime) => [...checks, runtime]);
   }

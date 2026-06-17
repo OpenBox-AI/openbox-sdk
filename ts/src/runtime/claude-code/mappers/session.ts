@@ -21,6 +21,13 @@ import {
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
 
+function hasPendingClaudeWork(env: ClaudeCodeEnvelope): boolean {
+  return (
+    (Array.isArray(env.background_tasks) && env.background_tasks.length > 0) ||
+    (Array.isArray(env.session_crons) && env.session_crons.length > 0)
+  );
+}
+
 /**
  * SessionStart: opens the workflow envelope + records the session boundary.
  *
@@ -66,6 +73,23 @@ export async function handleStop(
     return undefined;
   }
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
+  if (
+    (verdict.arm === 'allow' || verdict.arm === 'constrain') &&
+    !hasPendingClaudeWork(env)
+  ) {
+    try {
+      await session.workflowCompleted();
+      clearSession(env.session_id, cfg);
+    } catch {
+      if (cfg.governancePolicy === 'fail_closed') {
+        return {
+          arm: 'block',
+          reason: 'OpenBox Core was unavailable while completing Claude Code workflow',
+          riskScore: 1,
+        };
+      }
+    }
+  }
   return verdict;
 }
 
@@ -114,7 +138,7 @@ export async function handlePostCompact(
 export async function handleStopFailure(
   env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
-  _cfg: ClaudeCodeConfig,
+  cfg: ClaudeCodeConfig,
 ): Promise<undefined> {
   try {
     await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
@@ -122,6 +146,14 @@ export async function handleStopFailure(
     });
   } catch {
     // best-effort
+  }
+  try {
+    await session.workflowFailed(
+      new Error(String(env.error ?? env.reason ?? 'Claude Code StopFailure')),
+    );
+    clearSession(env.session_id, cfg);
+  } catch {
+    // best-effort terminal telemetry; StopFailure cannot safely block Claude Code.
   }
   return undefined;
 }

@@ -26,10 +26,7 @@ export interface AgentKeyRecord {
 type Store = Record<string, AgentKeyRecord>;
 
 function getPath(): string {
-  const path = resolveOsPath('agent-keys' as never);
-  const dir = dirname(path);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  return path;
+  return resolveOsPath('agent-keys' as never);
 }
 
 function read(): Store {
@@ -44,7 +41,10 @@ function read(): Store {
 }
 
 function write(store: Store): void {
-  writeFileSync(getPath(), JSON.stringify(store, null, 2) + '\n', { mode: 0o600 });
+  const path = getPath();
+  const dir = dirname(path);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(path, JSON.stringify(store, null, 2) + '\n', { mode: 0o600 });
 }
 
 /** Persist the runtime key for an agent. Last-write-wins on agentId. */

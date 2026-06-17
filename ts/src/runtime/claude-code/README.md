@@ -11,10 +11,12 @@ Three surfaces are available via
    custom integration on top of OpenBox.
 
 2. **Hook runtime primitive**; `openbox claude-code hook`.
-   `hook-handler.ts` wires the spec-emitted adapter to per-event
-   mappers in `mappers/`. `install.ts` remains a low-level helper
-   for consumers that intentionally want to write Claude settings
-   directly, but the public CLI install path is plugin-first.
+   Project plugins invoke it through `bin/openbox-cli.mjs`, which resolves
+   an explicit `OPENBOX_CLI` or a project-local SDK install instead of a
+   global binary. `hook-handler.ts` wires the spec-emitted adapter to per-event
+   mappers in `mappers/`. `install.ts` is a compatibility alias for
+   the plugin installer so SDK consumers do not write Claude settings
+   directly.
 
 3. **Claude Code plugin bundle**;
    `openbox install claude-code` or

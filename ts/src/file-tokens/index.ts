@@ -6,10 +6,7 @@ import { resolveOsPath } from '../env/os-paths.js';
 export function getTokenPath(): string {
   const projectTokens = resolve(process.cwd(), '.tokens');
   if (existsSync(projectTokens)) return projectTokens;
-  const path = resolveOsPath('tokens');
-  const dir = dirname(path);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  return path;
+  return resolveOsPath('tokens');
 }
 
 export function readTokenStore(): TokenStore {
@@ -30,6 +27,8 @@ export function saveApiKey(apiKey: string): void {
     features: _features,
     ...storeWithoutPrincipalMetadata
   } = store;
+  const dir = dirname(path);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(
     path,
     serializeTokenStore({
@@ -46,6 +45,8 @@ export function clearApiKey(): boolean {
   const store = readTokenStore();
   if (!store.apiKey) return false;
   const { apiKey: _apiKey, ...next } = store;
+  const dir = dirname(path);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(path, serializeTokenStore(next), { mode: 0o600 });
   return true;
 }

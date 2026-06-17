@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let adapterOptions: any;
+let coreClientOptions: any;
 let activityVerdict: any = { arm: 'allow' };
 let validateApiKeyCalls = 0;
 let socketConnects = 0;
@@ -39,7 +40,9 @@ vi.mock('../../ts/src/approvals/socket-client.js', () => ({
 
 vi.mock('../../ts/src/core-client/index.js', () => ({
   OpenBoxCoreClient: class {
-    constructor(public opts: any) {}
+    constructor(public opts: any) {
+      coreClientOptions = opts;
+    }
     async validateApiKey() {
       validateApiKeyCalls += 1;
       if (process.env.OPENBOX_VALIDATE_FAIL === '1') throw new Error('invalid key');
@@ -62,9 +65,16 @@ vi.mock('../../ts/src/core-client/generated/runtime/cursor.js', async (importOri
 });
 
 vi.mock('../../ts/src/runtime/cursor/config.js', () => ({
+  getConfigDir: vi.fn(() => '/tmp/openbox-cursor-hook-handler-test/.cursor-hooks'),
   loadConfig: vi.fn(() => ({
     openboxApiKey: process.env.OPENBOX_API_KEY ?? '',
     openboxEndpoint: 'http://core.test',
+    agentIdentity: process.env.OPENBOX_AGENT_DID && process.env.OPENBOX_AGENT_PRIVATE_KEY
+      ? {
+        did: process.env.OPENBOX_AGENT_DID,
+        privateKey: process.env.OPENBOX_AGENT_PRIVATE_KEY,
+      }
+      : undefined,
     governancePolicy: 'fail_open',
     governanceTimeout: 15,
     activityType: 'CursorIDE',
@@ -98,6 +108,7 @@ vi.mock('../../ts/src/runtime/cursor/session-resolver.js', () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   adapterOptions = undefined;
+  coreClientOptions = undefined;
   activityVerdict = { arm: 'allow' };
   validateApiKeyCalls = 0;
   socketConnects = 0;
@@ -105,6 +116,8 @@ beforeEach(() => {
   process.env.OPENBOX_API_KEY = 'obx_test_cursor_handler';
   delete process.env.DRY_RUN;
   delete process.env.APPROVAL_MODE;
+  delete process.env.OPENBOX_AGENT_DID;
+  delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
 });
 
 afterEach(() => {
@@ -116,6 +129,9 @@ afterEach(() => {
   delete process.env.OPENBOX_SOCKET_TIMEOUT;
   delete process.env.OPENBOX_SOCKET_CLOSE_THROW;
   delete process.env.OPENBOX_VALIDATE_FAIL;
+  delete process.env.OPENBOX_HOME;
+  delete process.env.OPENBOX_AGENT_DID;
+  delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
 });
 
 describe('runtime/cursor/hook-handler; adapter orchestration', () => {
@@ -194,6 +210,19 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
     expect(adapterOptions.inlineApproval).toBe(true);
     expect(socketConnects).toBe(0);
     expect(decision).toBeUndefined();
+  });
+
+  it('passes signed agent identity through to the Core client', async () => {
+    process.env.OPENBOX_AGENT_DID = 'did:openbox:agent:test';
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'a'.repeat(44);
+    const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
+
+    await runCursorHook();
+
+    expect(coreClientOptions?.agentIdentity).toEqual({
+      did: 'did:openbox:agent:test',
+      privateKey: 'a'.repeat(44),
+    });
   });
 
   it('dry-run handlers pass through without calling governance mappers', async () => {

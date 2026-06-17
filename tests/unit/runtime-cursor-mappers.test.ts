@@ -183,6 +183,19 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     if (typeof promptMod.handleBeforeSubmitPrompt === 'function') {
       await promptMod.handleBeforeSubmitPrompt({ conversation_id: 'C', prompt: 'hi' } as any, session, cfg);
     }
+    const goalSignal = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[0] === 'SignalReceived',
+    );
+    expect(goalSignal?.args[1]).toBe('user_prompt');
+    expect(goalSignal?.args[2]).toMatchObject({
+      signalName: 'user_prompt',
+      signalArgs: 'hi',
+      input: [{ prompt: 'hi', event_category: 'agent_goal', _openbox_source: 'cursor' }],
+    });
+    expect(goalSignal?.args[2].spans?.[0]).toMatchObject({
+      semantic_type: 'llm_completion',
+      module: 'cursor',
+    });
     if (typeof shellMod.handleBeforeShellExecution === 'function') {
       await shellMod.handleBeforeShellExecution({ conversation_id: 'C', command: 'ls' } as any, session, cfg);
     }
@@ -255,6 +268,8 @@ describe('runtime configs; env precedence + defaults', () => {
     const before = { ...process.env };
     process.env.OPENBOX_API_KEY = 'obx_live_envtest';
     process.env.OPENBOX_CORE_URL = 'http://localhost:9999';
+    process.env.OPENBOX_AGENT_DID = 'did:openbox:agent:test';
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'a'.repeat(44);
     process.env.GOVERNANCE_POLICY = 'fail_closed';
     process.env.VERBOSE = 'true';
     try {
@@ -262,6 +277,10 @@ describe('runtime configs; env precedence + defaults', () => {
       const cfg = mod.loadConfig();
       expect(cfg.openboxApiKey).toBe('obx_live_envtest');
       expect(cfg.openboxEndpoint).toBe('http://localhost:9999');
+      expect(cfg.agentIdentity).toEqual({
+        did: 'did:openbox:agent:test',
+        privateKey: 'a'.repeat(44),
+      });
     } finally {
       process.env = before;
     }
@@ -269,7 +288,7 @@ describe('runtime configs; env precedence + defaults', () => {
 });
 
 describe('install commands; claude-code / cursor / skill', () => {
-  it('claude-code install / uninstall register plugin-first commands', async () => {
+  it('claude-code plugin commands register cleanly', async () => {
     const { registerClaudeCodeCommands } = await import('../../ts/src/cli/commands/claude-code');
     const program = new Command();
     program.exitOverride();
@@ -279,7 +298,7 @@ describe('install commands; claude-code / cursor / skill', () => {
     expect(program.commands.find((c) => c.name() === 'claude-code')).toBeDefined();
   });
 
-  it('cursor install / uninstall registers cleanly', async () => {
+  it('cursor plugin commands register cleanly', async () => {
     const { registerCursorCommands } = await import('../../ts/src/cli/commands/cursor');
     const program = new Command();
     program.exitOverride();

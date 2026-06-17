@@ -176,8 +176,14 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       expect(parsed.mcpReadiness.failMode).toBe('fail_open');
       expect(parsed.mcpReadiness.approvalMode).toBe('remote');
       expect(parsed.mcpReadiness.unsupportedOrOptInSurfaces.worktreeCreate).toBe('opt_in');
+      expect(parsed.claudeCodeRuntimeReadiness.projectScoped).toBe(true);
+      expect(parsed.claudeCodeRuntimeReadiness.unsupportedOrOptInSurfaces.worktreeCreate).toContain('explicit_out_of_scope');
       expect(parsed.claudeCodeGovernance.defaultHookCount).toBeGreaterThan(10);
       expect(parsed.claudeCodeGovernance.optInHooks).toContain('WorktreeCreate');
+      expect(parsed.claudeCodeGovernance.optInHooks).toContain('SessionEnd');
+      expect(parsed.claudeCodeGovernance.sdkCapabilities.some(
+        (capability: any) => capability.capability === 'split-stage activity governance',
+      )).toBe(true);
     });
   });
 
@@ -202,8 +208,12 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       expect(parsed.checks).toBeDefined();
       expect(parsed.summary.fail).toBeGreaterThan(0);
       expect(parsed.mcpReadiness.runtimeEnv.coreUrlPresent).toBe(true);
-      expect(parsed.claudeCodeGovernance.audit.installedClaudeCodeVersion).toBe('2.1.177 (Claude Code)');
+      expect(parsed.runtimeReadiness.projectScoped).toBe(true);
+      expect(parsed.claudeCodeGovernance.audit.installedClaudeCodeVersion).toBe('2.1.179 (Claude Code)');
       expect(parsed.claudeCodeGovernance.surfaces.some((surface: any) => surface.surface === 'monitors')).toBe(true);
+      expect(parsed.claudeCodeGovernance.sdkCapabilities.some(
+        (capability: any) => capability.capability === 'workflow lifecycle failure',
+      )).toBe(true);
     });
   });
 

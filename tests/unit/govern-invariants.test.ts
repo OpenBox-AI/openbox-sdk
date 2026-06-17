@@ -458,15 +458,19 @@ describe('BaseGovernedSession.activity (cross-preset escape)', () => {
     await govern(
       { ...baseConfig(mock), preset: presets.claudeCode },
       async (session) => {
-        await session.activity('SignalReceived', 'goal', {
-          input: [{ goal: 'refactor the foo module' }],
+        await session.activity('SignalReceived', 'user_prompt', {
+          signalName: 'user_prompt',
+          signalArgs: 'refactor the foo module',
+          input: [{ prompt: 'refactor the foo module' }],
         });
       },
     );
     const signal = mock.events.find((e) => e.event_type === 'SignalReceived');
-    expect(signal?.activity_type).toBe('goal');
+    expect(signal?.activity_type).toBe('user_prompt');
+    expect(signal?.signal_name).toBe('user_prompt');
+    expect(signal?.signal_args).toBe('refactor the foo module');
     // Signals don't get paired ActivityCompleted.
-    const stray = mock.events.find((e) => e.event_type === 'ActivityCompleted' && e.activity_type === 'goal');
+    const stray = mock.events.find((e) => e.event_type === 'ActivityCompleted' && e.activity_type === 'user_prompt');
     expect(stray).toBeUndefined();
   });
 

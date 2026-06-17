@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadJsonConfig, loadDotenv } from '../../config/host-config.js';
+import type { AgentIdentityConfig } from '../../core-client/index.js';
+import { resolveAgentIdentity } from '../../env/agent-identity.js';
 
 /**
  * Resolve which `.claude-hooks/` directory the hook subprocess
@@ -39,6 +41,7 @@ const ENV_FILE = path.join(CONFIG_DIR, '.env');
 export interface ClaudeCodeConfig {
   openboxApiKey: string;
   openboxEndpoint: string;
+  agentIdentity?: AgentIdentityConfig;
   governancePolicy: 'fail_open' | 'fail_closed';
   governanceTimeout: number;
   sessionDir: string;
@@ -91,6 +94,10 @@ export function loadConfig(): ClaudeCodeConfig {
   return {
     openboxApiKey: get('OPENBOX_API_KEY'),
     openboxEndpoint: coreUrl,
+    agentIdentity: resolveAgentIdentity({
+      OPENBOX_AGENT_DID: get('OPENBOX_AGENT_DID') || undefined,
+      OPENBOX_AGENT_PRIVATE_KEY: get('OPENBOX_AGENT_PRIVATE_KEY') || undefined,
+    }),
     governancePolicy: (get('GOVERNANCE_POLICY', 'fail_open') as 'fail_open' | 'fail_closed'),
     governanceTimeout: parseInt(get('GOVERNANCE_TIMEOUT', '15'), 10) || 15,
     sessionDir: get('SESSION_DIR', path.join(CONFIG_DIR, 'sessions')),

@@ -41,8 +41,6 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   '../output.js': 'output / outputList renderers.',
   '../../validators/index.js': 'public @openbox-ai/openbox-sdk/validators surface; reportAndExit + named validators + parseJsonInput.',
   '../../test-utils/index.js': 'public @openbox-ai/openbox-sdk/test-utils surface; buildTestPayload, SPAN_TYPES.',
-  '../features.js': 'isFeatureEnabled gate.',
-  '../maturity.js': 'CLI maturity gate (gateCommands).',
   '../exit-codes.js': 'EXIT taxonomy + bailWith; exit-code contract.',
   '../../file-tokens/agent-keys.js':
     'recordAgentKey / recallAgentKey; local 0o600 cache for runtime API keys shared between cli and runtime/mcp.',
@@ -54,11 +52,7 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   '../colors.js': 'useColor-aware ANSI helpers; color discipline.',
   '../non-interactive.js':
     'isNonInteractive / assumeYes / useColor / isQuiet; non-interactive contract.',
-  // Host installers delegate to skill.ts's installSkill(); install.ts
-  // is the only commander module that imports a sibling command module.
-  './skill.js': 'host installers delegate to installSkill().',
-  // Generated manifest imports are not allowed in live command modules;
-  // they remain contract artifacts for tests and codegen drift only.
+  // Generated manifest imports are allowed only for the compact api command.
   // Spec-driven canonical sets (CANONICAL_EVENT_TYPES,
   // CANONICAL_ACTIVITY_TYPES, CANONICAL_VERDICT_ARMS) used by session
   // inspect, agent audit, and verify for protocol-conformance checks.

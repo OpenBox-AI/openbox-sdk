@@ -1,8 +1,8 @@
 {
   "name": "openbox",
   "version": "0.1.1",
-  "capturedAt": "2026-06-15",
-  "installedClaudeCodeVersion": "2.1.177 (Claude Code)",
+  "capturedAt": "2026-06-17",
+  "installedClaudeCodeVersion": "2.1.179 (Claude Code)",
   "components": {
     "skill": {
       "status": "installed",
@@ -40,7 +40,6 @@
         "PreCompact",
         "PostCompact",
         "SessionStart",
-        "SessionEnd",
         "SubagentStart",
         "SubagentStop",
         "TaskCreated",
@@ -58,13 +57,20 @@
         "ElicitationResult"
       ],
       "optInEvents": [
-        "WorktreeCreate"
+        "WorktreeCreate",
+        "SessionEnd"
       ]
     },
     "mcp": {
       "status": "installed",
       "path": ".mcp.json",
-      "command": "openbox mcp serve"
+      "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs mcp serve"
+    },
+    "settings": {
+      "status": "diagnose_only",
+      "path": "settings.json",
+      "emitted": false,
+      "notes": "OpenBox does not emit plugin settings; agent/subagentStatusLine and strictPluginOnlyCustomization remain deployment policy diagnostics."
     },
     "diagnostics": {
       "status": "installed",
@@ -78,7 +84,11 @@
     "bin": {
       "status": "installed",
       "path": "bin/openbox-plugin-doctor",
-      "command": "openbox claude-code doctor"
+      "files": [
+        "openbox-cli.mjs",
+        "openbox-plugin-doctor"
+      ],
+      "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs claude-code doctor"
     },
     "monitors": {
       "status": "opt_in_metadata",
@@ -134,8 +144,8 @@
     },
     {
       "surface": "bin",
-      "status": "diagnose_only",
-      "notes": "OpenBox relies on the installed openbox binary; doctor reports command resolution."
+      "status": "implement_now",
+      "notes": "Plugin ships a project-local Node runner for hooks, MCP, and diagnostics; no global OpenBox binary is required."
     },
     {
       "surface": "managed settings",

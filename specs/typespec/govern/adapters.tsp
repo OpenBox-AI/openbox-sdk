@@ -37,6 +37,7 @@ model ClaudeCodeEnvelope {
   tool_input?: unknown;
   tool_output?: unknown;
   tool_use_id?: string;
+  duration_ms?: numeric;
   cwd?: string;
   transcript_path?: string;
   prompt?: string;
@@ -80,6 +81,7 @@ model ClaudeCodeEnvelope {
   last_assistant_message?: string;
   background_tasks?: unknown;
   session_crons?: unknown;
+  stop_hook_active?: boolean;
   custom_instructions?: string;
   compact_summary?: string;
   compact?: unknown;
@@ -269,7 +271,7 @@ interface ClaudeCodeAdapter {
   @payloadShape(#{
     default: #{
       tool_name: #{ from: "tool_name" },
-      output: #{ sideEffect: "stringifyTruncate", from: "tool_output" },
+      output: #{ sideEffect: "stringifyTruncate", from: "tool_response" },
       event_category: #{ literal: "agent_observation" },
     },
   })
@@ -497,6 +499,8 @@ interface ClaudeCodeAdapter {
 
   @hookEvent("SessionEnd")
   @hookEventLabel("Session end")
+  @installTimeout(86400)
+  @installDefault(false)
   @verdictShape("none")
   @payloadShape(#{
     default: #{
@@ -567,6 +571,7 @@ interface ClaudeCodeAdapter {
   @payloadShape(#{
     default: #{
       cwd: #{ from: "cwd" },
+      stop_hook_active: #{ from: "stop_hook_active" },
       last_assistant_message: #{ from: "last_assistant_message" },
       background_tasks: #{ from: "background_tasks" },
       session_crons: #{ from: "session_crons" },

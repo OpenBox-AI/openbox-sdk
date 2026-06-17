@@ -6,7 +6,7 @@
 // Key resolution mirrors `runtime/mcp` exactly:
 //   1. explicit `apiKey` argument (highest priority; useful for tests)
 //   2. process.env.OPENBOX_API_KEY (CI / hook-handler convention)
-//   3. ~/.openbox/agent-keys cache via recallAgentKey(agentId)
+//   3. project-local agent-keys cache via recallAgentKey(agentId)
 //
 // All three accept only the agent runtime-key shape (`obx_live_*` or
 // `obx_test_*`); the org-level X-API-Key (`obx_key_*`) is rejected
@@ -15,7 +15,7 @@
 
 import { OpenBoxCoreClient, type GovernanceVerdictResponse } from '../core-client/index.js';
 import { recallAgentKey } from '../file-tokens/agent-keys.js';
-import { resolveConnection } from '../env/index.js';
+import { resolveAgentIdentity, resolveConnection } from '../env/index.js';
 
 export type SpanType = 'llm' | 'file_read' | 'file_write' | 'shell' | 'http' | 'db' | 'mcp';
 
@@ -28,7 +28,7 @@ export interface CheckGovernanceOptions {
   activityInput: Record<string, unknown>;
   /** Override the runtime API key. Skips env + cache lookup. */
   apiKey?: string;
-  /** Override the core base URL. Defaults to OPENBOX_CORE_URL or OPENBOX_STACK_URL-derived core URL. */
+  /** Override the core base URL. Defaults to explicit OPENBOX_CORE_URL. */
   coreUrl?: string;
 }
 
@@ -270,6 +270,10 @@ export async function checkGovernance(
     span_count: 1,
     attempt: 1,
   };
-  const client = new OpenBoxCoreClient({ apiUrl: coreUrl, apiKey });
+  const client = new OpenBoxCoreClient({
+    apiUrl: coreUrl,
+    apiKey,
+    agentIdentity: resolveAgentIdentity(),
+  });
   return client.evaluate(payload as unknown as Parameters<typeof client.evaluate>[0]);
 }

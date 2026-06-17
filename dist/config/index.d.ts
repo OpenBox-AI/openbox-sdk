@@ -8,7 +8,7 @@ declare function loadJsonConfig(file: string): Record<string, string>;
  *  stripped. */
 declare function loadDotenv(file: string): Record<string, string>;
 
-type Scope = 'global';
+type Scope = 'project';
 declare function effectiveScope(_requested: Scope, _key: string): Scope;
 declare function setConfig(key: string, value: string): {
     scope: Scope;

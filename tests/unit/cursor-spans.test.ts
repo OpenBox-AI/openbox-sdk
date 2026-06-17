@@ -65,7 +65,12 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
   test('beforeReadFile → file_read span with file.path attribute', async () => {
     const captured: ActivityCall[] = [];
     await handleBeforeReadFile(
-      { conversation_id: 'c', file_path: '/etc/passwd', content: 'x' } as never,
+      {
+        conversation_id: 'c',
+        generation_id: 'spans-read-' + Math.random().toString(36).slice(2),
+        file_path: '/etc/passwd',
+        content: 'x',
+      } as never,
       makeCapturingSession(captured) as never,
       cfg,
     );

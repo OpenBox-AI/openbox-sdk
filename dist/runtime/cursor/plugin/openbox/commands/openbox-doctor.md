@@ -13,7 +13,7 @@ cursor_doctor
 
 This verifies the installed Cursor/OpenBox surfaces and runtime
 readiness without asking Cursor chat to run a shell command. It reads
-the same `~/.openbox/config` env source as the extension and MCP server.
+the same project-local `.openbox/config` env source as the extension and MCP server.
 
 ## Output rules
 

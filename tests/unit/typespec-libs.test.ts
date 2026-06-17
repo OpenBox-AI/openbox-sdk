@@ -148,7 +148,6 @@ describe('typespec-env', () => {
     expect(getEnvVar(program, prop(config, 'coreUrl'))?.name).toBe('OPENBOX_CORE_URL');
     expect(getEnvVar(program, prop(config, 'platformUrl'))?.name).toBe('OPENBOX_PLATFORM_URL');
     expect(getEnvVar(program, prop(config, 'authUrl'))?.name).toBe('OPENBOX_AUTH_URL');
-    expect(getEnvVar(program, prop(config, 'stackUrl'))?.name).toBe('OPENBOX_STACK_URL');
   });
 
   test('@token_format attaches the regex literally', () => {

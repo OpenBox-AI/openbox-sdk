@@ -6,7 +6,7 @@
 //      and still exit 0).
 //   2. Stdout is parseable JSON for `before*`/`preToolUse`/`after*`
 //      events; sessionStart/stop emit nothing per the spec.
-//   3. The JSONL log line at ~/.openbox/log/cursor-hook.jsonl has a
+//   3. The JSONL log line at <project>/.cursor-hooks/log/cursor-hook.jsonl has a
 //      matching record (event name + verdict_kind).
 //
 // Auth: each invocation runs without OPENBOX_API_KEY so the handler
@@ -16,14 +16,16 @@
 // to an agent's runtime key in a follow-up suite.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { existsSync, readFileSync, statSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ENVELOPES, type EventName, OBSERVE_EVENTS, PERMISSION_EVENTS } from './fixtures/envelopes';
 
 const CLI = resolve(__dirname, '../../dist/cli/index.js');
-const LOG = join(homedir(), '.openbox', 'log', 'cursor-hook.jsonl');
+const HOOK_ROOT = mkdtempSync(join(tmpdir(), 'openbox-cursor-hook-'));
+const HOOK_HOME = join(HOOK_ROOT, '.cursor-hooks');
+const LOG = join(HOOK_HOME, 'log', 'cursor-hook.jsonl');
 
 interface HookOutcome {
   status: number | null;
@@ -34,6 +36,7 @@ interface HookOutcome {
 function runHook(envelope: Record<string, unknown>): HookOutcome {
   const result = spawnSync('node', [CLI, 'cursor', 'hook'], {
     input: JSON.stringify(envelope),
+    cwd: HOOK_ROOT,
     env: {
       ...process.env,
       // Need a non-empty key so the handler doesn't take the
@@ -42,6 +45,7 @@ function runHook(envelope: Record<string, unknown>): HookOutcome {
       // wrapper still runs and records the JSONL line, which is what
       // the test asserts.
       OPENBOX_API_KEY: 'obx_test_' + 'x'.repeat(48),
+      OPENBOX_HOME: HOOK_HOME,
       DRY_RUN: '1',
     },
     encoding: 'utf-8',
@@ -80,8 +84,12 @@ beforeAll(() => {
     );
   }
   // Ensure log dir exists so readLogTail works on first iteration.
-  mkdirSync(join(homedir(), '.openbox', 'log'), { recursive: true });
+  mkdirSync(join(HOOK_HOME, 'log'), { recursive: true });
   if (!existsSync(LOG)) writeFileSync(LOG, '');
+});
+
+afterAll(() => {
+  rmSync(HOOK_ROOT, { recursive: true, force: true });
 });
 
 describe('cursor hook handler; every event', () => {

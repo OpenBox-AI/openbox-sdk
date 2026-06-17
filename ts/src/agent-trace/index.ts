@@ -3,7 +3,7 @@
 //
 // We emit one TraceRecord per classified non-keystroke insert in the
 // extension's TabObserver. The records land at
-// ~/.openbox/log/agent-trace.jsonl (JSONL; one record per line) so
+// <project>/.openbox/log/agent-trace.jsonl (JSONL; one record per line) so
 // downstream tools (Cursor canvas, git blame integrations, audit
 // pipelines) can ingest the same shape that any compliant emitter
 // produces.
@@ -78,8 +78,10 @@ export interface TraceRecord {
 
 // Spec-current as of cursor/agent-trace v0.1.0 (RFC, January 2026).
 const SPEC_VERSION = '0.1.0';
-const LOG_DIR = path.join(openboxDataRoot(), 'log');
-const LOG_FILE = path.join(LOG_DIR, 'agent-trace.jsonl');
+
+export function defaultTraceLogPath(): string {
+  return path.join(openboxDataRoot(), 'log', 'agent-trace.jsonl');
+}
 
 /** Hash inserted content with sha256; deterministic for
  *  position-independent tracking per the spec's `content_hash`
@@ -149,7 +151,7 @@ export function buildRecord(args: BuildRecordArgs): TraceRecord {
  *  (mkdirs as needed). Any IO failure is swallowed; telemetry
  *  must never break the caller. */
 export function writeTraceRecord(record: TraceRecord, opts: { logFile?: string } = {}): void {
-  const file = opts.logFile ?? LOG_FILE;
+  const file = opts.logFile ?? defaultTraceLogPath();
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
     fs.appendFileSync(file, JSON.stringify(record) + '\n', { mode: 0o600 });
@@ -161,7 +163,7 @@ export function writeTraceRecord(record: TraceRecord, opts: { logFile?: string }
 /** Read the JSONL log back as parsed records. Used by ingesters,
  *  tests, and tooling. Skips malformed lines silently. */
 export function readTraceLog(opts: { logFile?: string } = {}): TraceRecord[] {
-  const file = opts.logFile ?? LOG_FILE;
+  const file = opts.logFile ?? defaultTraceLogPath();
   if (!fs.existsSync(file)) return [];
   const raw = fs.readFileSync(file, 'utf-8');
   const out: TraceRecord[] = [];
@@ -177,5 +179,5 @@ export function readTraceLog(opts: { logFile?: string } = {}): TraceRecord[] {
   return out;
 }
 
-export const TRACE_LOG_PATH = LOG_FILE;
+export const TRACE_LOG_PATH = defaultTraceLogPath();
 export const TRACE_SPEC_VERSION = SPEC_VERSION;

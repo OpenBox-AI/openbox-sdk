@@ -16,11 +16,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
-import { tmpdir, homedir } from 'node:os';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { HOOK_SPEC } from '../../ts/src/core-client/generated/runtime/claude-code.js';
 
-const OPENBOX = process.env.OPENBOX_CLI ?? 'openbox';
+const OPENBOX = process.env.OPENBOX_CLI ?? path.resolve(import.meta.dirname, '../../dist/cli/index.js');
 
 interface ConfigOverrides {
   /** When set, the synthetic config writes DRY_RUN=true so the
@@ -149,7 +149,7 @@ describe('claude-code hook stdin/stdout', () => {
         session_id: 's-3',
         tool_name: 'Read',
         tool_input: { file_path: '/etc/hostname' },
-        tool_output: 'hostname-contents',
+        tool_response: { content: 'hostname-contents' },
       },
       root,
     );
@@ -240,7 +240,7 @@ describe('claude-code hook stdin/stdout', () => {
     // Note: the per-event verbose log (`<configDir>/hook.log`) is
     // not currently wired; the adapter calls `createLogger().initLogger`
     // but never calls `log()`. The only on-disk log today is the
-    // JSONL hook log at `~/.openbox/log/claude-code-hook.jsonl`,
+    // JSONL hook log at `<project>/.claude-hooks/log/claude-code-hook.jsonl`,
     // which is covered separately. If a future PR wires the
     // human-readable log, this test should grow assertions on
     // <configDir>/hook.log; for now we only assert that VERBOSE
@@ -400,7 +400,7 @@ describe('claude-code hook stdin/stdout', () => {
 
   it('JSONL hook log captures one record per event', () => {
     const root = planConfigDir({ dryRun: true });
-    const logPath = path.join(homedir(), '.openbox', 'log', 'claude-code-hook.jsonl');
+    const logPath = path.join(root, '.claude-hooks', 'log', 'claude-code-hook.jsonl');
     const before = existsSync(logPath) ? readFileSync(logPath, 'utf-8').length : 0;
 
     const events = ['PreToolUse', 'PostToolUse', 'SessionStart', 'SessionEnd', 'Stop'];
@@ -426,4 +426,5 @@ describe('claude-code hook stdin/stdout', () => {
       expect(lines.some((l) => l.event === event), `log missing ${event}`).toBe(true);
     }
   });
+
 });

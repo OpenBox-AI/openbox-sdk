@@ -1,10 +1,7 @@
 export {
-  endpointsFromStackUrl,
-  normalizeStackUrl,
   resolveConnection,
   type OpenBoxConnection,
   type ResolveConnectionOptions,
-  type StackEndpoints,
 } from './connection.js';
 
 export type { FeatureMap, TokenEntry, TokenStore } from './token-codec.js';
@@ -12,6 +9,8 @@ export { parseTokenStore, serializeTokenStore } from './token-codec.js';
 
 export { resolveClientName } from './client-name.js';
 export { buildAuthHeader } from './auth-header.js';
+export { resolveAgentIdentity } from './agent-identity.js';
+export type { AgentIdentitySource } from './agent-identity.js';
 
 // Per-OS data-path resolver lives at the `@openbox-ai/openbox-sdk/os-paths` sub-path
 // instead of the default entry. The implementation imports Node's `os`

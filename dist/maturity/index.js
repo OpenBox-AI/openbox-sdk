@@ -1,15 +1,3 @@
-// ts/src/env/generated/env-bindings.ts
-var ENV_VAR_BINDINGS = {
-  apiUrl: { "name": "OPENBOX_API_URL" },
-  coreUrl: { "name": "OPENBOX_CORE_URL" },
-  platformUrl: { "name": "OPENBOX_PLATFORM_URL" },
-  authUrl: { "name": "OPENBOX_AUTH_URL" },
-  stackUrl: { "name": "OPENBOX_STACK_URL" },
-  apiKey: { "name": "OPENBOX_API_KEY" },
-  experimentalLevel: { "name": "OPENBOX_EXPERIMENTAL_LEVEL" },
-  features: { "name": "OPENBOX_FEATURES" }
-};
-
 // ts/src/cli/generated/cli-maturity.ts
 var COMMAND_MATURITY = {};
 
@@ -29,9 +17,6 @@ function setMaturityLevel(level) {
 }
 function currentMaturityLevel() {
   if (consumerOverride) return consumerOverride;
-  const envName = ENV_VAR_BINDINGS.experimentalLevel.name;
-  const env = (process.env[envName] ?? "").toLowerCase();
-  if (env === "experimental" || env === "beta" || env === "stable") return env;
   return "stable";
 }
 function isMaturityVisible(target, current = currentMaturityLevel()) {
@@ -49,14 +34,8 @@ function enableFeatures(names) {
     if (n && typeof n === "string") explicitlyEnabled.add(n);
   }
 }
-function envFeatures() {
-  const envName = ENV_VAR_BINDINGS.features.name;
-  const raw = (process.env[envName] ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  return new Set(raw);
-}
 function isFeatureEnabled(name) {
   if (explicitlyEnabled.has(name)) return true;
-  if (envFeatures().has(name)) return true;
   const declared = FEATURE_MATURITY[name];
   if (declared && isMaturityVisible(declared)) return true;
   return false;

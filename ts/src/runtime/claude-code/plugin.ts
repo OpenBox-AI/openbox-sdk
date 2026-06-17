@@ -17,6 +17,7 @@ import { HOOK_SPEC } from '../../core-client/generated/runtime/claude-code.js';
 import {
   CLAUDE_CODE_GOVERNANCE_AUDIT,
   CLAUDE_CODE_HOOK_MATRIX,
+  CLAUDE_CODE_SDK_CAPABILITY_MATRIX,
   CLAUDE_CODE_SURFACE_MATRIX,
   defaultClaudeCodeHookEvents,
   optInClaudeCodeHookEvents,
@@ -37,7 +38,30 @@ const EXPECTED_DIAGNOSTIC_FILES = [
   'claude-code-governance.json',
   'monitors.opt-in.json',
 ] as const;
-const EXPECTED_BIN_FILES = ['openbox-plugin-doctor'] as const;
+const EXPECTED_BIN_FILES = ['openbox-cli.mjs', 'openbox-plugin-doctor'] as const;
+const EXPECTED_COMPONENT_NAMES = [
+  'skill',
+  'commands',
+  'agent',
+  'hooks',
+  'mcp',
+  'diagnostics',
+  'bin',
+  'settings',
+  'monitors',
+  'lsp',
+] as const;
+
+const PLUGIN_CLI_RUNNER = 'bin/openbox-cli.mjs';
+const PLUGIN_HOOK_HANDLER = {
+  type: 'command',
+  command: 'node',
+  args: [`\${CLAUDE_PLUGIN_ROOT}/${PLUGIN_CLI_RUNNER}`, 'claude-code', 'hook'],
+} as const;
+const PLUGIN_MCP_SERVER = {
+  command: 'node',
+  args: [`\${CLAUDE_PLUGIN_ROOT}/${PLUGIN_CLI_RUNNER}`, 'mcp', 'serve'],
+} as const;
 
 export type ClaudeCodePluginScope = 'project';
 export type ClaudeCodePluginCheckStatus = 'pass' | 'fail';
@@ -56,7 +80,7 @@ export interface ExportClaudeCodePluginOptions {
   force?: boolean;
   /** Optional per-event hook matchers copied into hooks/hooks.json. */
   matchers?: Record<string, string>;
-  /** Include opt-in invasive hooks such as WorktreeCreate. Defaults to false. */
+  /** Include opt-in hook events such as SessionEnd. Defaults to false. */
   includeOptInHooks?: boolean;
 }
 
@@ -71,7 +95,7 @@ export interface InstallClaudeCodePluginOptions {
   symlink?: string;
   /** Optional per-event hook matchers copied into hooks/hooks.json. */
   matchers?: Record<string, string>;
-  /** Include opt-in invasive hooks such as WorktreeCreate. Defaults to false. */
+  /** Include opt-in hook events such as SessionEnd. Defaults to false. */
   includeOptInHooks?: boolean;
   /** Skip creating the hook runtime config template. Defaults to false. */
   skipRuntimeConfig?: boolean;
@@ -81,6 +105,8 @@ export interface VerifyClaudeCodePluginOptions {
   scope?: ClaudeCodePluginScope;
   cwd?: string;
   target?: string;
+  /** Validate a plugin that intentionally includes opt-in hooks. */
+  includeOptInHooks?: boolean;
 }
 
 export interface UninstallClaudeCodePluginOptions {
@@ -207,8 +233,7 @@ function claudeHooksJson(matchers?: Record<string, string>, includeOptInHooks = 
   const hooks: Record<string, Array<Record<string, unknown>>> = {};
   for (const event of hookEvents(includeOptInHooks)) {
     const hook: Record<string, unknown> = {
-      type: 'command',
-      command: HOOK_SPEC.command,
+      ...PLUGIN_HOOK_HANDLER,
     };
     if (event.timeout !== undefined) hook.timeout = event.timeout;
     const entry: Record<string, unknown> = {
@@ -224,10 +249,7 @@ function claudeHooksJson(matchers?: Record<string, string>, includeOptInHooks = 
 function mcpJson(): Record<string, unknown> {
   return {
     mcpServers: {
-      openbox: {
-        command: 'openbox',
-        args: ['mcp', 'serve'],
-      },
+      openbox: { ...PLUGIN_MCP_SERVER },
     },
   };
 }
@@ -262,7 +284,13 @@ function componentInventory(version: string): Record<string, unknown> {
       mcp: {
         status: 'installed',
         path: '.mcp.json',
-        command: 'openbox mcp serve',
+        command: 'node ${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs mcp serve',
+      },
+      settings: {
+        status: 'diagnose_only',
+        path: 'settings.json',
+        emitted: false,
+        notes: 'OpenBox does not emit plugin settings; agent/subagentStatusLine and strictPluginOnlyCustomization remain deployment policy diagnostics.',
       },
       diagnostics: {
         status: 'installed',
@@ -272,7 +300,8 @@ function componentInventory(version: string): Record<string, unknown> {
       bin: {
         status: 'installed',
         path: 'bin/openbox-plugin-doctor',
-        command: 'openbox claude-code doctor',
+        files: [...EXPECTED_BIN_FILES],
+        command: 'node ${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs claude-code doctor',
       },
       monitors: {
         status: 'opt_in_metadata',
@@ -298,6 +327,7 @@ function governanceDiagnostic(version: string): Record<string, unknown> {
     optInHookEvents: optInClaudeCodeHookEvents(),
     generatedHookSpecEvents: HOOK_SPEC.events.map((event) => event.name),
     surfaces: CLAUDE_CODE_SURFACE_MATRIX,
+    sdkCapabilities: CLAUDE_CODE_SDK_CAPABILITY_MATRIX,
   };
 }
 
@@ -305,12 +335,79 @@ function optInMonitorMetadata(): Array<Record<string, unknown>> {
   return [
     {
       name: 'openbox-status',
-      command: 'openbox status --json',
+      command: 'node "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs" status --json',
       description: 'OpenBox runtime status and approval readiness notifications.',
       when: 'on-skill-invoke:openbox',
       activeByDefault: false,
     },
   ];
+}
+
+function writePluginCliRunner(file: string): void {
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(
+    file,
+    [
+      '#!/usr/bin/env node',
+      "import { existsSync } from 'node:fs';",
+      "import path from 'node:path';",
+      "import { spawnSync } from 'node:child_process';",
+      '',
+      'const args = process.argv.slice(2);',
+      '',
+      'function candidateFromEnv() {',
+      '  const value = process.env.OPENBOX_CLI;',
+      '  if (!value) return undefined;',
+      '  const resolved = path.resolve(value);',
+      '  return existsSync(resolved) ? resolved : undefined;',
+      '}',
+      '',
+      'function projectRoots() {',
+      '  const roots = [];',
+      '  if (process.env.CLAUDE_PROJECT_DIR) roots.push(process.env.CLAUDE_PROJECT_DIR);',
+      '  roots.push(process.cwd());',
+      '  const out = [];',
+      '  for (const root of roots) {',
+      '    let cur = path.resolve(root);',
+      '    for (let i = 0; i < 8; i += 1) {',
+      '      if (!out.includes(cur)) out.push(cur);',
+      '      const parent = path.dirname(cur);',
+      '      if (parent === cur) break;',
+      '      cur = parent;',
+      '    }',
+      '  }',
+      '  return out;',
+      '}',
+      '',
+      'function candidateFromProjectNodeModules() {',
+      '  for (const root of projectRoots()) {',
+      "    const candidate = path.join(root, 'node_modules', '@openbox-ai', 'openbox-sdk', 'dist', 'cli', 'index.js');",
+      '    if (existsSync(candidate)) return candidate;',
+      '  }',
+      '  return undefined;',
+      '}',
+      '',
+      'const cli = candidateFromEnv() ?? candidateFromProjectNodeModules();',
+      'if (!cli) {',
+      "  console.error('OpenBox SDK CLI not found for project-scoped Claude Code plugin. Set OPENBOX_CLI to this project\\'s SDK dist/cli/index.js, or install @openbox-ai/openbox-sdk in the project.');",
+      '  process.exit(127);',
+      '}',
+      '',
+      'const result = spawnSync(process.execPath, [cli, ...args], {',
+      "  stdio: 'inherit',",
+      '  env: process.env,',
+      '});',
+      '',
+      'if (result.error) {',
+      '  console.error(result.error.message);',
+      '  process.exit(127);',
+      '}',
+      'process.exit(result.status ?? 1);',
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+  chmodSync(file, 0o755);
 }
 
 function writePluginDoctorShim(file: string): void {
@@ -320,11 +417,8 @@ function writePluginDoctorShim(file: string): void {
     [
       '#!/usr/bin/env sh',
       'set -eu',
-      'if command -v openbox >/dev/null 2>&1; then',
-      '  exec openbox claude-code doctor "$@"',
-      'fi',
-      'echo "openbox executable was not found on PATH" >&2',
-      'exit 127',
+      'DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"',
+      'exec node "$DIR/openbox-cli.mjs" claude-code doctor "$@"',
       '',
     ].join('\n'),
     'utf-8',
@@ -422,6 +516,7 @@ export function exportClaudeCodePlugin(options: ExportClaudeCodePluginOptions): 
   writeJson(path.join(out, 'diagnostics', 'component-inventory.json'), componentInventory(version));
   writeJson(path.join(out, 'diagnostics', 'claude-code-governance.json'), governanceDiagnostic(version));
   writeJson(path.join(out, 'diagnostics', 'monitors.opt-in.json'), optInMonitorMetadata());
+  writePluginCliRunner(path.join(out, PLUGIN_CLI_RUNNER));
   writePluginDoctorShim(path.join(out, 'bin', 'openbox-plugin-doctor'));
 
   return out;
@@ -483,14 +578,14 @@ function checkDirFiles(name: string, dir: string, expected: readonly string[]): 
   };
 }
 
-function checkHooks(file: string): ClaudeCodePluginCheck {
+function checkHooks(file: string, includeOptInHooks = false): ClaudeCodePluginCheck {
   const hooksJson = readJson(file);
   const hooks = hooksJson?.[HOOK_SPEC.key] as Record<string, unknown> | undefined;
   const problems: string[] = [];
   if (!hooks || typeof hooks !== 'object') {
     problems.push('hooks block missing');
   } else {
-    for (const event of hookEvents(false)) {
+    for (const event of hookEvents(includeOptInHooks)) {
       const value = hooks[event.name];
       if (!Array.isArray(value) || value.length === 0) {
         problems.push(`${event.name}: missing array entry`);
@@ -498,13 +593,16 @@ function checkHooks(file: string): ClaudeCodePluginCheck {
       }
       const entry = value[0] as { hooks?: unknown; matcher?: unknown };
       const hook = Array.isArray(entry.hooks)
-        ? entry.hooks[0] as { command?: unknown; type?: unknown; timeout?: unknown } | undefined
+        ? entry.hooks[0] as { args?: unknown; command?: unknown; type?: unknown; timeout?: unknown } | undefined
         : undefined;
       if (hook?.type !== 'command') {
         problems.push(`${event.name}: hook type drift`);
       }
-      if (hook?.command !== HOOK_SPEC.command) {
+      if (hook?.command !== PLUGIN_HOOK_HANDLER.command) {
         problems.push(`${event.name}: command drift`);
+      }
+      if (JSON.stringify(hook?.args) !== JSON.stringify(PLUGIN_HOOK_HANDLER.args)) {
+        problems.push(`${event.name}: args drift`);
       }
       if (event.timeout !== undefined && hook?.timeout !== event.timeout) {
         problems.push(`${event.name}: timeout ${String(hook?.timeout)} != ${event.timeout}`);
@@ -516,7 +614,7 @@ function checkHooks(file: string): ClaudeCodePluginCheck {
       }
     }
     for (const entry of CLAUDE_CODE_HOOK_MATRIX.filter((item) => !item.defaultInstall)) {
-      if (hooks[entry.event]) {
+      if (!includeOptInHooks && hooks[entry.event]) {
         problems.push(`${entry.event}: opt-in event installed by default`);
       }
     }
@@ -525,7 +623,7 @@ function checkHooks(file: string): ClaudeCodePluginCheck {
     name: 'plugin-hooks',
     status: problems.length === 0 ? 'pass' : 'fail',
     path: file,
-    detail: problems.length === 0 ? `${hookEvents(false).length} default event(s)` : problems.join('; '),
+    detail: problems.length === 0 ? `${hookEvents(includeOptInHooks).length} event(s)` : problems.join('; '),
   };
 }
 
@@ -535,15 +633,28 @@ function checkMcp(file: string): ClaudeCodePluginCheck {
     | { command?: unknown; args?: unknown }
     | undefined;
   const ok =
-    openbox?.command === 'openbox' &&
+    openbox?.command === PLUGIN_MCP_SERVER.command &&
     Array.isArray(openbox.args) &&
-    openbox.args[0] === 'mcp' &&
-    openbox.args[1] === 'serve';
+    JSON.stringify(openbox.args) === JSON.stringify(PLUGIN_MCP_SERVER.args);
   return {
     name: 'plugin-mcp',
     status: ok ? 'pass' : 'fail',
     path: file,
-    detail: ok ? 'openbox mcp serve' : 'openbox server entry missing or malformed',
+    detail: ok ? 'node bin/openbox-cli.mjs mcp serve' : 'openbox server entry missing or malformed',
+  };
+}
+
+function checkComponentInventory(file: string): ClaudeCodePluginCheck {
+  const json = readJson(file);
+  const components = json?.components as Record<string, unknown> | undefined;
+  const missing = EXPECTED_COMPONENT_NAMES.filter((name) => !components?.[name]);
+  return {
+    name: 'plugin-component-inventory',
+    status: missing.length === 0 ? 'pass' : 'fail',
+    path: file,
+    detail: missing.length === 0
+      ? `${EXPECTED_COMPONENT_NAMES.length} component(s)`
+      : `missing: ${missing.join(', ')}`,
   };
 }
 
@@ -570,9 +681,10 @@ export function verifyClaudeCodePlugin(
   checks.push(checkFile('plugin-skill', path.join(target, 'skills', 'openbox', 'SKILL.md')));
   checks.push(checkDirFiles('plugin-commands', path.join(target, 'commands'), EXPECTED_COMMAND_FILES));
   checks.push(checkDirFiles('plugin-agents', path.join(target, 'agents'), EXPECTED_AGENT_FILES));
-  checks.push(checkHooks(path.join(target, 'hooks', 'hooks.json')));
+  checks.push(checkHooks(path.join(target, 'hooks', 'hooks.json'), options.includeOptInHooks));
   checks.push(checkMcp(path.join(target, '.mcp.json')));
   checks.push(checkDirFiles('plugin-diagnostics', path.join(target, 'diagnostics'), EXPECTED_DIAGNOSTIC_FILES));
+  checks.push(checkComponentInventory(path.join(target, 'diagnostics', 'component-inventory.json')));
   checks.push(checkDirFiles('plugin-bin', path.join(target, 'bin'), EXPECTED_BIN_FILES));
   return checks;
 }

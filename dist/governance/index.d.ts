@@ -10,7 +10,7 @@ interface CheckGovernanceOptions {
     activityInput: Record<string, unknown>;
     /** Override the runtime API key. Skips env + cache lookup. */
     apiKey?: string;
-    /** Override the core base URL. Defaults to OPENBOX_CORE_URL or OPENBOX_STACK_URL-derived core URL. */
+    /** Override the core base URL. Defaults to explicit OPENBOX_CORE_URL. */
     coreUrl?: string;
 }
 /**

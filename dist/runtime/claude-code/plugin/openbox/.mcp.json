@@ -1,8 +1,9 @@
 {
   "mcpServers": {
     "openbox": {
-      "command": "openbox",
+      "command": "node",
       "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
         "mcp",
         "serve"
       ]

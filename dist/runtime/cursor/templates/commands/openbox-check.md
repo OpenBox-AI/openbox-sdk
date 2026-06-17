@@ -1,12 +1,9 @@
 ---
 name: openbox-check
-description: Evaluate a hypothetical agent action against OPA without executing it. (uses experimental commands)
+description: Evaluate a hypothetical agent action against OPA without executing it.
 ---
 
 # Dry-run governance check
-
-`core` subcommands are gated behind `--experimental`. Always
-include the flag in invocations.
 
 Ask the user (one sentence) which action they want to evaluate -
 a shell command, a file write, a network call - and which agent

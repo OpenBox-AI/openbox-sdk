@@ -1,5 +1,5 @@
 import { u as paths, P as PaginatedResponse } from './responses-C2s9PwZF.js';
-import { B as BackendClientConfig, A as ApiError } from './env-bindings--BxVwc6f.js';
+import { B as BackendClientConfig, A as ApiError } from './env-bindings-CCaolEHB.js';
 
 /**
  * Permission requirements per method, extracted from backend NestJS

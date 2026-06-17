@@ -293,12 +293,107 @@ describe('low-branch utility coverage', () => {
     setArgvForTesting(null);
   });
 
-  it('delegates Claude Code hook install wrappers to the shared spec installer', async () => {
-    const installAdapter = vi.fn();
-    const uninstallAdapter = vi.fn();
-    vi.doMock('../../ts/src/install/from-spec.js', () => ({
-      installAdapter,
-      uninstallAdapter,
+  it('covers Claude Code tool activity store fallbacks and invalid records', async () => {
+    const {
+      rememberToolActivity,
+      takeToolActivity,
+      toolActivityKey,
+    } = await import('../../ts/src/runtime/claude-code/tool-activity-store.ts');
+    const { SessionStore } = await import('../../ts/src/session/store.ts');
+    const cfg = { sessionDir: tempDir() } as any;
+
+    const keyed = { session_id: 'S', tool_use_id: 'toolu_1' } as any;
+    expect(toolActivityKey(keyed)).toBe('S:toolu_1');
+
+    const fallbackA = {
+      session_id: 'S',
+      tool_name: 'Bash',
+      tool_input: { b: 2, a: 1 },
+    } as any;
+    const fallbackB = {
+      session_id: 'S',
+      tool_name: 'Bash',
+      tool_input: { a: 1, b: 2 },
+    } as any;
+    expect(toolActivityKey(fallbackA)).toBe(toolActivityKey(fallbackB));
+
+    rememberToolActivity(fallbackA, cfg, {
+      activityId: 'activity-1',
+      activityType: 'ShellExecution',
+      startTime: 10,
+    });
+    expect(takeToolActivity(fallbackB, cfg)).toEqual({
+      activityId: 'activity-1',
+      activityType: 'ShellExecution',
+      startTime: 10,
+    });
+    expect(takeToolActivity(fallbackB, cfg)).toBeNull();
+
+    const invalid = { session_id: 'S', tool_use_id: 'bad-record' } as any;
+    new SessionStore(join(cfg.sessionDir, 'tool-activities')).save(
+      toolActivityKey(invalid),
+      { activityId: 42 },
+    );
+    expect(takeToolActivity(invalid, cfg)).toBeNull();
+  });
+
+  it('covers Claude Code stop finalization and observe-only catch branches', async () => {
+    const {
+      handlePostCompact,
+      handleSetup,
+      handleStop,
+      handleStopFailure,
+    } = await import('../../ts/src/runtime/claude-code/mappers/session.ts');
+    const cfg = { sessionDir: tempDir(), governancePolicy: 'fail_closed' } as any;
+
+    const failingCompletion = {
+      ...recordingSession({ arm: 'allow' }),
+      workflowCompleted: vi.fn(async () => {
+        throw new Error('core down');
+      }),
+    };
+    await expect(
+      handleStop(
+        { session_id: 'stop-fail-closed', background_tasks: [], session_crons: [] } as any,
+        failingCompletion as any,
+        cfg,
+      ),
+    ).resolves.toMatchObject({
+      arm: 'block',
+      reason: 'OpenBox Core was unavailable while completing Claude Code workflow',
+    });
+
+    const cronSession = recordingSession({ arm: 'allow' });
+    await expect(
+      handleStop(
+        {
+          session_id: 'stop-cron',
+          background_tasks: [],
+          session_crons: [{ id: 'cron-1', prompt: 'later' }],
+        } as any,
+        cronSession as any,
+        { ...cfg, governancePolicy: 'fail_open' },
+      ),
+    ).resolves.toMatchObject({ arm: 'allow' });
+    expect(cronSession.workflowCompleted).not.toHaveBeenCalled();
+
+    const throwingActivity = {
+      ...recordingSession(),
+      activity: vi.fn(async () => {
+        throw new Error('observe failed');
+      }),
+    };
+    await expect(handleSetup({ session_id: 'setup' } as any, throwingActivity as any, cfg)).resolves.toBeUndefined();
+    await expect(handlePostCompact({ session_id: 'compact' } as any, throwingActivity as any, cfg)).resolves.toBeUndefined();
+    await expect(handleStopFailure({ session_id: 'stop-failure' } as any, throwingActivity as any, cfg)).resolves.toBeUndefined();
+  });
+
+  it('delegates Claude Code compatibility install wrappers to the plugin installer', async () => {
+    const installClaudeCodePlugin = vi.fn();
+    const uninstallClaudeCodePlugin = vi.fn();
+    vi.doMock('../../ts/src/runtime/claude-code/plugin.js', () => ({
+      installClaudeCodePlugin,
+      uninstallClaudeCodePlugin,
     }));
     vi.resetModules();
 
@@ -309,13 +404,7 @@ describe('low-branch utility coverage', () => {
     installClaudeCode();
     uninstallClaudeCode({ cwd: '/repo', scope: 'project' });
 
-    expect(installAdapter).toHaveBeenCalledWith(
-      expect.objectContaining({ style: 'claude-array' }),
-      {},
-    );
-    expect(uninstallAdapter).toHaveBeenCalledWith(
-      expect.objectContaining({ style: 'claude-array' }),
-      { cwd: '/repo', scope: 'project' },
-    );
+    expect(installClaudeCodePlugin).toHaveBeenCalledWith({ cwd: undefined, scope: undefined });
+    expect(uninstallClaudeCodePlugin).toHaveBeenCalledWith({ cwd: '/repo', scope: 'project' });
   });
 });

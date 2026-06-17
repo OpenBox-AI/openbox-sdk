@@ -14,17 +14,20 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import * as fs from "fs";
 import * as path from "path";
-import * as os from "os";
 import { OpenBoxClient } from "../../client/index.js";
-import { OpenBoxCoreClient } from "../../core-client/index.js";
+import { OpenBoxCoreClient, type AgentIdentityConfig } from "../../core-client/index.js";
 import { loadApiKey } from "../../file-tokens/index.js";
 import { listConfig } from "../../config/index.js";
 import { setMcpClientName } from "./config.js";
-import { resolveConnection } from "../../env/index.js";
+import { resolveAgentIdentity, resolveConnection } from "../../env/index.js";
 import { recallAgentKey } from "../../file-tokens/agent-keys.js";
 import { stampSource } from "../../approvals/source.js";
 import { verifyCursorInstall } from "../cursor/install.js";
-import { verifyClaudeCodePlugin } from "../claude-code/plugin.js";
+import {
+  claudeCodeRuntimeDiagnostics,
+  summarizeClaudeCodeChecks,
+  verifyClaudeCodeInstall,
+} from "../claude-code/doctor.js";
 import { buildMcpGovernanceSpan, MCP_ACTIVITY_TYPE_MAP } from "./governance-span.js";
 import { claudeCodeGovernanceSummary } from "../claude-code/governance-matrix.js";
 
@@ -39,17 +42,21 @@ export async function runMcpServer(): Promise<void> {
       coreUrl: config.OPENBOX_CORE_URL,
       platformUrl: config.OPENBOX_PLATFORM_URL,
       authUrl: config.OPENBOX_AUTH_URL,
-      stackUrl: config.OPENBOX_STACK_URL,
     });
     const apiUrl = connection.apiUrl;
     const coreUrl = connection.coreUrl;
     const backendApiKey = loadApiKey();
     const runtimeApiKey = process.env.OPENBOX_API_KEY ?? config.OPENBOX_API_KEY ?? "";
+    const agentIdentity = resolveAgentIdentity({
+      OPENBOX_AGENT_DID: process.env.OPENBOX_AGENT_DID ?? config.OPENBOX_AGENT_DID,
+      OPENBOX_AGENT_PRIVATE_KEY: process.env.OPENBOX_AGENT_PRIVATE_KEY ?? config.OPENBOX_AGENT_PRIVATE_KEY,
+    });
     return {
       apiUrl,
       coreUrl,
       backendApiKey,
       runtimeApiKey,
+      agentIdentity,
       governancePolicy: process.env.GOVERNANCE_POLICY ?? config.GOVERNANCE_POLICY ?? "fail_open",
       approvalMode: process.env.APPROVAL_MODE ?? config.APPROVAL_MODE ?? "remote",
     };
@@ -83,16 +90,17 @@ export async function runMcpServer(): Promise<void> {
 
     // MCP talks to the backend API, so it must use the org X-API-Key.
     // OPENBOX_API_KEY is the agent runtime key used by hooks/core
-    // governance checks; Cursor often inherits it from ~/.openbox/config,
-    // and sending it to backend endpoints yields 401s in chat MCP calls.
+    // governance checks; project-local hook config may provide it, and
+    // sending it to backend endpoints yields 401s in chat MCP calls.
     if (!runtime.backendApiKey) {
       throw new Error(
         `OpenBox MCP: no X-API-Key for the active OpenBox connection. ` +
-          `Run \`openbox connect <stack-url> --api-key <key>\` or set OPENBOX_BACKEND_API_KEY.`,
+          `Run \`openbox connect --api-url <url> --core-url <url> --api-key <key>\` in this project or set OPENBOX_BACKEND_API_KEY.`,
       );
     }
     return {
       coreUrl: runtime.coreUrl,
+      agentIdentity: runtime.agentIdentity,
       client: new OpenBoxClient({
         apiUrl: runtime.apiUrl,
         apiKey: runtime.backendApiKey,
@@ -173,6 +181,7 @@ server.tool("openbox_status", "Return a compact OpenBox backend status for plugi
           health,
           coreUrl: diagnostics.coreUrl,
           mcpReadiness: diagnostics,
+          claudeCodeRuntimeReadiness: claudeCodeRuntimeDiagnostics(process.cwd()),
           claudeCodeGovernance: claudeCodeGovernanceSummary(),
         }, null, 2),
       }],
@@ -185,6 +194,7 @@ server.tool("openbox_status", "Return a compact OpenBox backend status for plugi
           status: "not_reachable",
           error: err?.message ?? String(err),
           mcpReadiness: diagnostics,
+          claudeCodeRuntimeReadiness: claudeCodeRuntimeDiagnostics(process.cwd()),
           claudeCodeGovernance: claudeCodeGovernanceSummary(),
         }, null, 2),
       }],
@@ -196,14 +206,12 @@ server.tool("openbox_status", "Return a compact OpenBox backend status for plugi
 server.tool("cursor_doctor", "Verify installed Cursor/OpenBox surfaces and runtime readiness without requiring Cursor chat to run shell commands", {
   cwd: z.string().optional().describe("Project root for project-local install."),
   plugin_target: z.string().optional().describe("Explicit project-local plugin folder to inspect."),
-  include_extension: z.boolean().optional().describe("Also check the user-level Cursor approval extension."),
   surface_only: z.boolean().optional().describe("When true, skip runtime key/core validation and only inspect installed files."),
   validate_core: z.boolean().optional().describe("When false, validate runtime config/key format without calling core."),
-}, async ({ cwd, plugin_target, include_extension, surface_only, validate_core }) => {
+}, async ({ cwd, plugin_target, surface_only, validate_core }) => {
   const base = {
     cwd,
     pluginTarget: plugin_target,
-    includeExtension: include_extension,
   };
   const checks = surface_only
     ? verifyCursorInstall(base)
@@ -222,22 +230,37 @@ server.tool("cursor_doctor", "Verify installed Cursor/OpenBox surfaces and runti
   return { content: [{ type: "text", text: JSON.stringify({ checks, summary }, null, 2) }] };
 });
 
-server.tool("claude_code_doctor", "Verify installed Claude Code/OpenBox plugin surfaces without requiring Claude Code chat to run shell commands", {
+server.tool("claude_code_doctor", "Verify installed Claude Code/OpenBox plugin surfaces and runtime readiness without requiring Claude Code chat to run shell commands", {
   cwd: z.string().optional().describe("Project root for project-local install."),
-  target: z.string().optional().describe("Explicit plugin folder to inspect."),
-}, async ({ cwd, target }) => {
-  const checks = verifyClaudeCodePlugin({ cwd, target });
-  const summary = checks.reduce(
-    (acc, check) => {
-      acc[check.status] += 1;
-      return acc;
-    },
-    { pass: 0, fail: 0 } as Record<"pass" | "fail", number>,
+  plugin_target: z.string().optional().describe("Explicit project-local plugin folder to inspect."),
+  target: z.string().optional().describe("Alias for plugin_target."),
+  surface_only: z.boolean().optional().describe("When true, skip runtime key/core validation and only inspect installed files."),
+  validate_core: z.boolean().optional().describe("When false, validate runtime config and key format without calling core."),
+  include_opt_in_hooks: z.boolean().optional().describe("Validate an installation that intentionally includes opt-in hooks."),
+}, async ({ cwd, plugin_target, target, surface_only, validate_core, include_opt_in_hooks }) => {
+  const checks = await Promise.resolve(
+    surface_only
+      ? verifyClaudeCodeInstall({
+          cwd,
+          pluginTarget: plugin_target,
+          target,
+          includeOptInHooks: include_opt_in_hooks,
+        })
+      : verifyClaudeCodeInstall({
+          cwd,
+          pluginTarget: plugin_target,
+          target,
+          includeOptInHooks: include_opt_in_hooks,
+          includeRuntime: true,
+          validateRuntime: validate_core !== false,
+        }),
   );
+  const summary = summarizeClaudeCodeChecks(checks);
   return { content: [{ type: "text", text: JSON.stringify({
     checks,
     summary,
     mcpReadiness: runtimeDiagnostics(),
+    runtimeReadiness: claudeCodeRuntimeDiagnostics(cwd),
     claudeCodeGovernance: claudeCodeGovernanceSummary(),
   }, null, 2) }] };
 });
@@ -304,6 +327,7 @@ async function coreEvaluate(
   activityInput: Record<string, unknown>,
   coreUrl: string,
   source: string,
+  agentIdentity?: AgentIdentityConfig,
 ) {
   const span = buildMcpGovernanceSpan(spanType, activityInput);
   const payload = {
@@ -332,6 +356,7 @@ async function coreEvaluate(
   const client = new OpenBoxCoreClient({
     apiUrl: coreUrl,
     apiKey,
+    agentIdentity,
   });
   return await client.evaluate(payload as unknown as Parameters<typeof client.evaluate>[0]);
 }
@@ -382,6 +407,7 @@ server.tool("check_governance", "Evaluate an action against governance rules. Th
       input as Record<string, unknown>,
       runtime.coreUrl,
       sourceLabel(),
+      runtime.agentIdentity,
     );
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   } catch (err: any) {

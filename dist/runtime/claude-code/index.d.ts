@@ -1,5 +1,6 @@
-import { O as OpenBoxCoreClient, r as ClaudeCodeSession, W as WorkflowVerdict } from '../../govern-DGn7jMgd.js';
-import { a as ClaudeCodeEnvelope } from '../../envelopes-DnviQ3yd.js';
+import { O as OpenBoxCoreClient } from '../../core-client-BaOdHXQU.js';
+import { m as ClaudeCodeSession, W as WorkflowVerdict } from '../../govern-BdX8nYkt.js';
+import { a as ClaudeCodeEnvelope } from '../../envelopes-TdSIMUKK.js';
 import { InstallOptions } from '../../install/index.js';
 import '../../core-types-Dxgkbox0.js';
 
@@ -147,7 +148,7 @@ interface ExportClaudeCodePluginOptions {
     force?: boolean;
     /** Optional per-event hook matchers copied into hooks/hooks.json. */
     matchers?: Record<string, string>;
-    /** Include opt-in invasive hooks such as WorktreeCreate. Defaults to false. */
+    /** Include opt-in hook events such as SessionEnd. Defaults to false. */
     includeOptInHooks?: boolean;
 }
 interface InstallClaudeCodePluginOptions {
@@ -161,7 +162,7 @@ interface InstallClaudeCodePluginOptions {
     symlink?: string;
     /** Optional per-event hook matchers copied into hooks/hooks.json. */
     matchers?: Record<string, string>;
-    /** Include opt-in invasive hooks such as WorktreeCreate. Defaults to false. */
+    /** Include opt-in hook events such as SessionEnd. Defaults to false. */
     includeOptInHooks?: boolean;
     /** Skip creating the hook runtime config template. Defaults to false. */
     skipRuntimeConfig?: boolean;
@@ -170,6 +171,8 @@ interface VerifyClaudeCodePluginOptions {
     scope?: ClaudeCodePluginScope;
     cwd?: string;
     target?: string;
+    /** Validate a plugin that intentionally includes opt-in hooks. */
+    includeOptInHooks?: boolean;
 }
 interface UninstallClaudeCodePluginOptions {
     scope?: ClaudeCodePluginScope;
@@ -196,20 +199,61 @@ interface ClaudeCodeSurfaceMatrixEntry {
     status: ClaudeCodeGovernanceStatus;
     notes: string;
 }
+interface ClaudeCodeSdkCapabilityMatrixEntry {
+    capability: string;
+    sdkSurface: string;
+    claudeCodeTreatment: ClaudeCodeGovernanceStatus;
+    coverage: string;
+    tests: readonly string[];
+}
 declare const CLAUDE_CODE_GOVERNANCE_AUDIT: {
-    readonly capturedAt: "2026-06-15";
-    readonly installedClaudeCodeVersion: "2.1.177 (Claude Code)";
-    readonly officialDocs: readonly ["https://code.claude.com/docs/en/hooks", "https://code.claude.com/docs/en/plugins-reference", "https://code.claude.com/docs/en/plugins", "https://code.claude.com/docs/en/mcp", "https://code.claude.com/docs/en/skills", "https://code.claude.com/docs/en/settings", "https://code.claude.com/docs/en/tools-reference", "https://code.claude.com/docs/en/channels", "https://code.claude.com/docs/en/changelog"];
+    readonly capturedAt: "2026-06-17";
+    readonly installedClaudeCodeVersion: "2.1.179 (Claude Code)";
+    readonly officialDocs: readonly ["https://code.claude.com/docs/en/hooks", "https://code.claude.com/docs/en/plugins-reference", "https://code.claude.com/docs/en/plugins", "https://code.claude.com/docs/en/mcp", "https://code.claude.com/docs/en/skills", "https://code.claude.com/docs/en/commands", "https://code.claude.com/docs/en/agents", "https://code.claude.com/docs/en/settings", "https://code.claude.com/docs/en/tools-reference", "https://code.claude.com/docs/en/channels", "https://code.claude.com/docs/en/changelog"];
     readonly auditedSdkSurfaces: readonly ["@openbox-ai/openbox-sdk/runtime/claude-code", "@openbox-ai/openbox-sdk/runtime/mcp", "@openbox-ai/openbox-sdk/runtime/cursor", "@openbox-ai/openbox-sdk/copilotkit", "@openbox-ai/openbox-sdk/copilotkit/react", "apps/extension", "skill", "example/n8n"];
 };
 declare const CLAUDE_CODE_HOOK_MATRIX: readonly ClaudeCodeHookMatrixEntry[];
 declare const CLAUDE_CODE_SURFACE_MATRIX: readonly ClaudeCodeSurfaceMatrixEntry[];
+declare const CLAUDE_CODE_SDK_CAPABILITY_MATRIX: readonly ClaudeCodeSdkCapabilityMatrixEntry[];
 declare function defaultClaudeCodeHookEvents(): string[];
 declare function optInClaudeCodeHookEvents(): string[];
 declare function claudeCodeGovernanceSummary(): Record<string, unknown>;
+
+type ClaudeCodeInstallCheckStatus = 'pass' | 'fail' | 'skip';
+interface ClaudeCodeInstallCheck {
+    name: string;
+    status: ClaudeCodeInstallCheckStatus;
+    path?: string;
+    detail?: string;
+}
+interface VerifyClaudeCodeInstallOptions {
+    /** Project root for project-scoped install. Defaults to process.cwd(). */
+    cwd?: string;
+    /** Project-local plugin target. Defaults to <cwd>/.claude/skills/openbox. */
+    pluginTarget?: string;
+    /** Alias for pluginTarget, used by MCP payloads. */
+    target?: string;
+    /** Include hook runtime readiness checks. */
+    includeRuntime?: boolean;
+    /** Validate the runtime key against Core. Implies includeRuntime. */
+    validateRuntime?: boolean;
+    /** Validate a plugin that intentionally includes opt-in hooks. */
+    includeOptInHooks?: boolean;
+}
+declare function claudeCodeRuntimeDiagnostics(cwd?: string): Record<string, unknown>;
+declare function summarizeClaudeCodeChecks(checks: ClaudeCodeInstallCheck[]): Record<ClaudeCodeInstallCheckStatus, number>;
+declare function verifyClaudeCodeInstall(opts?: VerifyClaudeCodeInstallOptions & {
+    includeRuntime?: false;
+    validateRuntime?: false;
+}): ClaudeCodeInstallCheck[];
+declare function verifyClaudeCodeInstall(opts: VerifyClaudeCodeInstallOptions & ({
+    includeRuntime: true;
+} | {
+    validateRuntime: true;
+})): Promise<ClaudeCodeInstallCheck[]>;
 
 /** Path of the JSONL log written by the claude-code hook subprocess.
  *  Mirrors cursor's HOOK_LOG_PATH so the extension can tail both. */
 declare const HOOK_LOG_PATH: string;
 
-export { CLAUDE_CODE_GOVERNANCE_AUDIT, CLAUDE_CODE_HOOK_MATRIX, CLAUDE_CODE_SURFACE_MATRIX, type ClaudeCodeAdapterConfig, type ClaudeCodeAdapterHandlers, ClaudeCodeEnvelope, type ClaudeCodeGovernanceStatus, type ClaudeCodeHookMatrixEntry, type ClaudeCodePluginCheck, type ClaudeCodePluginCheckStatus, type ClaudeCodePluginScope, type ClaudeCodeSurfaceMatrixEntry, type ExportClaudeCodePluginOptions, HOOK_LOG_PATH, type InstallClaudeCodePluginOptions, type UninstallClaudeCodePluginOptions, type VerifyClaudeCodePluginOptions, claudeCodeGovernanceSummary, claudeCodePluginTargetDir, claudeCodeRuntimeConfigDir, createClaudeCodeAdapter, defaultClaudeCodeHookEvents, exportClaudeCodePlugin, installClaudeCode, installClaudeCodePlugin, optInClaudeCodeHookEvents, runClaudeHook, uninstallClaudeCode, uninstallClaudeCodePlugin, verifyClaudeCodePlugin };
+export { CLAUDE_CODE_GOVERNANCE_AUDIT, CLAUDE_CODE_HOOK_MATRIX, CLAUDE_CODE_SDK_CAPABILITY_MATRIX, CLAUDE_CODE_SURFACE_MATRIX, type ClaudeCodeAdapterConfig, type ClaudeCodeAdapterHandlers, ClaudeCodeEnvelope, type ClaudeCodeGovernanceStatus, type ClaudeCodeHookMatrixEntry, type ClaudeCodeInstallCheck, type ClaudeCodeInstallCheckStatus, type ClaudeCodePluginCheck, type ClaudeCodePluginCheckStatus, type ClaudeCodePluginScope, type ClaudeCodeSdkCapabilityMatrixEntry, type ClaudeCodeSurfaceMatrixEntry, type ExportClaudeCodePluginOptions, HOOK_LOG_PATH, type InstallClaudeCodePluginOptions, type UninstallClaudeCodePluginOptions, type VerifyClaudeCodeInstallOptions, type VerifyClaudeCodePluginOptions, claudeCodeGovernanceSummary, claudeCodePluginTargetDir, claudeCodeRuntimeConfigDir, claudeCodeRuntimeDiagnostics, createClaudeCodeAdapter, defaultClaudeCodeHookEvents, exportClaudeCodePlugin, installClaudeCode, installClaudeCodePlugin, optInClaudeCodeHookEvents, runClaudeHook, summarizeClaudeCodeChecks, uninstallClaudeCode, uninstallClaudeCodePlugin, verifyClaudeCodeInstall, verifyClaudeCodePlugin };

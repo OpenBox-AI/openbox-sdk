@@ -51,7 +51,7 @@ OPENBOX_API_URL=http://localhost:3000
 OPENBOX_BACKEND_API_KEY=obx_key_...
 ```
 
-Use `openbox connect <stack-url> --api-key <key>` or `openbox auth set-api-key` to persist backend credentials locally. The shared config store is read by CLI, MCP, Cursor, Claude Code, and extension surfaces.
+Use `openbox connect --api-url <url> --core-url <url> --api-key <key>` or `openbox auth set-api-key` to persist backend credentials locally. The shared config store is read by CLI, MCP, Cursor, and extension surfaces. Claude Code hooks read the project-local `.claude-hooks/config.json` or `.claude-hooks/.env` created by the project plugin install; do not rely on user-level Claude or OpenBox config for hook governance.
 
 ## CLI Shape
 
@@ -65,7 +65,6 @@ Stable command groups:
 - `openbox api`
 - `openbox health`
 - `openbox doctor`
-- `openbox versions`
 - `openbox install`
 - `openbox uninstall`
 - `openbox cursor`
@@ -92,6 +91,7 @@ openbox install cursor --cwd <project>
 openbox install claude-code --cwd <project>
 openbox cursor plugin export --out <dir>
 openbox claude-code plugin export --out <dir>
+openbox claude-code doctor --cwd <project> --surface-only --json
 openbox mcp serve
 ```
 

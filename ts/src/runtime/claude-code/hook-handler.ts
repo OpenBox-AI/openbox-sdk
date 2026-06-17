@@ -1,5 +1,6 @@
-// Hook handler; invoked by `openbox claude-code hook` from Claude
-// Code's hooks.json config. Reads stdin, dispatches via the spec-driven
+// Hook handler; invoked by the Claude Code plugin runner, which calls
+// `openbox claude-code hook` through a project-local SDK CLI. Reads
+// stdin, dispatches via the spec-driven
 // claude-code adapter, returns appropriate stdout per hook event,
 // exits 0. Decision-capable hooks honor GOVERNANCE_POLICY:
 // fail_open writes Claude's default allow shape on runtime failure;
@@ -14,8 +15,7 @@ import type {
   WorkflowVerdict,
 } from '../../core-client/index.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
-import { loadConfig } from './config.js';
-import { applyEnvSource } from '../../cli/env-source.js';
+import { getConfigDir, loadConfig } from './config.js';
 import { createLogger } from '../../logging/logger.js';
 import { resolveSession } from './session-resolver.js';
 import { makeHookLog } from '../../logging/hook-log.js';
@@ -229,12 +229,14 @@ async function readHookStdin(): Promise<string> {
 }
 
 export async function runClaudeHook(): Promise<void> {
-  // Single-source env resolution. Same call CLI / MCP / cursor hook
-  // make so every OpenBox process on this machine converges on the
-  // active env from ~/.openbox/config.
-  applyEnvSource();
-
   const cfg = loadConfig();
+  // Claude Code governance is project-scoped. Keep hook-owned
+  // auxiliary state such as JSONL logs under the resolved
+  // `.claude-hooks/` tree unless the caller intentionally overrides
+  // OPENBOX_HOME for tests or an alternate project-local location.
+  if (!process.env.OPENBOX_HOME) {
+    process.env.OPENBOX_HOME = getConfigDir();
+  }
   createLogger('claude-code').initLogger(cfg);
 
   let raw = '';
@@ -273,6 +275,7 @@ export async function runClaudeHook(): Promise<void> {
   const core = new OpenBoxCoreClient({
     apiKey: cfg.openboxApiKey,
     apiUrl: cfg.openboxEndpoint,
+    agentIdentity: cfg.agentIdentity,
     timeoutMs: cfg.governanceTimeout * 1000,
   });
 

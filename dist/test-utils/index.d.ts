@@ -3,9 +3,9 @@
  * Handles all gate attributes, semantic type detection workarounds, and
  * payload structure so callers don't need to know the internals.
  */
-/** Single source of truth for `core evaluate --type` vocabulary.
- *  The validator + CLI help text both read from this; adding a new
- *  shorthand is one entry here + one branch in `buildSpan` below. */
+/** Single source of truth for governance smoke-test span vocabulary.
+ *  Adding a new shorthand is one entry here + one branch in `buildSpan`
+ *  below. */
 declare const SPAN_TYPES: readonly ["llm", "file_read", "file_write", "shell", "http", "db", "mcp"];
 type SpanType = (typeof SPAN_TYPES)[number];
 interface SpanOptions {

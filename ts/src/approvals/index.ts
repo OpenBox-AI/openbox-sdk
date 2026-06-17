@@ -32,6 +32,7 @@ export {
 export {
   connectApprovalSocket,
   APPROVAL_SOCKET_PATH,
+  defaultApprovalSocketPath,
   type PendingNotification,
   type SocketResult,
 } from './socket-client.js';

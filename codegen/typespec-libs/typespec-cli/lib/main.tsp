@@ -56,8 +56,7 @@ extern dec cli_validator(target: ModelProperty, name: valueof string);
 
 /**
  * CLI maturity gate. `stable` ships in the default surface; `beta`
- * requires --experimental=beta (or env); `experimental` requires
- * --experimental. Decorator can target a whole command interface
+ * is consumer-defined. Decorator can target a whole command interface
  * (gates the whole subtree) or a single operation (gates one
  * subcommand within an otherwise-stable parent).
  *

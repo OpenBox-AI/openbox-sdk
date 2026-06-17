@@ -115,7 +115,7 @@ export function registerInstallCommands(program: Command): void {
       collect,
       [],
     )
-    .option('--include-opt-in-hooks', 'Also install opt-in/invasive hook events such as WorktreeCreate')
+    .option('--include-opt-in-hooks', 'Also install opt-in hook events such as SessionEnd; WorktreeCreate remains diagnostic-only')
     .action(async (opts: {
       scope?: string;
       cwd?: string;

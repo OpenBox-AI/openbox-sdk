@@ -8,10 +8,7 @@ export const ENV_VAR_BINDINGS = {
   coreUrl: {"name":"OPENBOX_CORE_URL"} as const,
   platformUrl: {"name":"OPENBOX_PLATFORM_URL"} as const,
   authUrl: {"name":"OPENBOX_AUTH_URL"} as const,
-  stackUrl: {"name":"OPENBOX_STACK_URL"} as const,
   apiKey: {"name":"OPENBOX_API_KEY"} as const,
-  experimentalLevel: {"name":"OPENBOX_EXPERIMENTAL_LEVEL"} as const,
-  features: {"name":"OPENBOX_FEATURES"} as const,
 } as const;
 const API_KEY_PATTERN = /^obx_(?:live|test)_[0-9a-f]{48}$/;
 export function validateApiKeyFormat(value: string): true | string {
@@ -26,7 +23,6 @@ export interface RuntimeConfig {
   coreUrl: string;
   platformUrl?: string;
   authUrl?: string;
-  stackUrl?: string;
 }
 export interface Credentials {
   path: string;
@@ -49,10 +45,6 @@ export interface TokenStore {
   features?: Record<string, boolean>;
 }
 export type FeatureMap = NonNullable<TokenEntry['features']>;
-export interface CliRuntimeConfig {
-  experimentalLevel: string;
-  features: string;
-}
 export interface RetryConfig {
   maxRetries?: number;
   initialDelayMs?: number;

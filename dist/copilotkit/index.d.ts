@@ -1,4 +1,5 @@
-import { W as WorkflowVerdict, O as OpenBoxCoreClient, i as AgentIdentityConfig } from '../govern-DGn7jMgd.js';
+import { O as OpenBoxCoreClient, A as AgentIdentityConfig } from '../core-client-BaOdHXQU.js';
+import { W as WorkflowVerdict } from '../govern-BdX8nYkt.js';
 import { c as AGEResult, S as SpanData } from '../core-types-Dxgkbox0.js';
 
 declare const OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION: "openbox.copilotkit.result.v1";

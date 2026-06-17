@@ -1,6 +1,6 @@
 ---
 name: openbox-list-agents
-description: List agents in the active workspace with their current trust score. (uses experimental commands)
+description: List agents in the active workspace with their current trust score.
 ---
 
 # List agents
@@ -20,7 +20,5 @@ If the user follows up with an id, use:
 get_agent
 ```
 
-Do not fall back to shell unless the user explicitly asks you to. If
-MCP is unavailable and the user asks for shell fallback, `agent`
-subcommands are gated behind `--experimental`, so include the flag.
+Do not fall back to shell unless the user explicitly asks you to.
 Don't mention environment names in your output.

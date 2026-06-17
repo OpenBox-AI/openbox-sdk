@@ -17,7 +17,7 @@ export function registerConfigCommands(program: Command) {
 
   config
     .command('set <key> <value>')
-    .description('Persist a global config value, such as OPENBOX_API_URL or OPENBOX_CORE_URL')
+    .description('Persist a project-local config value, such as OPENBOX_API_URL or OPENBOX_CORE_URL')
     .action((key: string, value: string) => {
       try {
         const { scope } = setConfig(key, value);
@@ -29,7 +29,7 @@ export function registerConfigCommands(program: Command) {
 
   config
     .command('get <key>')
-    .description('Look up a previously-persisted global value')
+    .description('Look up a previously-persisted project-local value')
     .action((key: string) => {
       const value = getConfig(key);
       if (value === undefined) {
@@ -39,7 +39,7 @@ export function registerConfigCommands(program: Command) {
         });
         bailWith(EXIT.NOT_FOUND);
       }
-      output({ scope: 'global', key, value });
+      output({ scope: 'project', key, value });
     });
 
   config
@@ -56,10 +56,10 @@ export function registerConfigCommands(program: Command) {
 
   config
     .command('list')
-    .description('Print persisted global values')
+    .description('Print persisted project-local values')
     .action(() => {
       output({
-        scope: 'global',
+        scope: 'project',
         file: configStorePath(),
         values: listConfig(),
       });

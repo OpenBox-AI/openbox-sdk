@@ -1,7 +1,7 @@
 // Headless end-to-end matrix for the claude-code runtime adapter.
 //
-// Spawns `claude -p ...` inside a project-scope-installed test
-// workspace and asserts that each rule planted by the local
+// Spawns `claude -p ...` with the project-scope OpenBox plugin loaded
+// through `--plugin-dir` and asserts that each rule planted by the local
 // bootstrap fires through the hook subprocess. Mirrors the cursor
 // wdio suite's verdict matrix (sourced from the same shared
 // fixture under `fixtures/verdict-matrix.ts`) so adding a host
@@ -10,16 +10,18 @@
 // Skipped unless:
 //   - `OPENBOX_E2E_LIVE=1`
 //   - the local stack is reachable
-//   - the test workspace `~/workspace/openbox-claude-test/` is
-//     present and configured
+//   - the test workspace `~/workspace/openbox-claude-test/` contains
+//     `.claude/skills/openbox` and `.claude-hooks/config.json`
 //
 // Set up the workspace once with:
 //
-//   openbox claude-code install --scope project \
+//   openbox claude-code plugin install --scope project \
 //     --cwd ~/workspace/openbox-claude-test
 //
 // then edit `<cwd>/.claude-hooks/config.json` to point at the
-// local stack with a runtime key.
+// target Core with a runtime key. The helper passes `OPENBOX_CLI`
+// to this checkout's `dist/cli/index.js`, so no global `openbox`
+// command is required.
 
 import { describe, expect, it, beforeAll } from 'vitest';
 import {
@@ -38,7 +40,7 @@ import {
 function prompt(c: VerdictMatrixCase): { prompt: string; tool: string } | null {
   switch (c.spanType) {
     case 'shell':
-      return { prompt: 'Run shell: echo hello', tool: 'Bash' };
+      return { prompt: 'Use the Bash tool to run exactly: echo hello', tool: 'Bash' };
     case 'file_write':
       return {
         prompt: `Use the Write tool to create ${c.activityInput.file_path} with content 'hello'`,

@@ -5,21 +5,25 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import os from 'node:os';
+import { homedir } from 'node:os';
 import path from 'node:path';
 
 export const WORKSPACE =
   process.env.OPENBOX_E2E_CLAUDE_WORKSPACE ??
-  path.join(os.homedir(), 'workspace', 'openbox-claude-test');
+  path.join(homedir(), 'workspace', 'openbox-claude-test');
+export const PLUGIN_DIR =
+  process.env.OPENBOX_E2E_CLAUDE_PLUGIN_DIR ??
+  path.join(WORKSPACE, '.claude', 'skills', 'openbox');
+const DIST_CLI = path.resolve(import.meta.dirname, '../../../dist/cli/index.js');
 
 export const SHOULD_RUN =
   process.env.OPENBOX_E2E_LIVE === '1' &&
-  existsSync(path.join(WORKSPACE, '.claude', 'settings.json')) &&
+  existsSync(path.join(PLUGIN_DIR, '.claude-plugin', 'plugin.json')) &&
   existsSync(path.join(WORKSPACE, '.claude-hooks', 'config.json'));
 
 export const HOOK_LOG = path.join(
-  os.homedir(),
-  '.openbox',
+  WORKSPACE,
+  '.claude-hooks',
   'log',
   'claude-code-hook.jsonl',
 );
@@ -52,6 +56,10 @@ export function runClaude(prompt: string, opts: RunOptions = {}): ClaudeResult {
     '--output-format',
     'json',
     '--dangerously-skip-permissions',
+    '--plugin-dir',
+    PLUGIN_DIR,
+    '--setting-sources',
+    'user',
   ];
   if (opts.allowedTool !== undefined) {
     args.push('--allowedTools', opts.allowedTool);
@@ -65,6 +73,7 @@ export function runClaude(prompt: string, opts: RunOptions = {}): ClaudeResult {
   // window so the watcher can fire before the soft deny lands.
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
+    OPENBOX_CLI: process.env.OPENBOX_CLI ?? DIST_CLI,
     HITL_MAX_WAIT: '5',
     ...(opts.env ?? {}),
   };

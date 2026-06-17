@@ -8,10 +8,9 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
 import * as crypto from 'node:crypto';
+import { openboxDataRoot } from '../../env/os-paths.js';
 
-const DEDUP_DIR = path.join(os.homedir(), '.openbox', 'run', 'dedup');
 const TTL_MS = 60 * 60 * 1000; // 1h
 const POLL_INTERVAL_MS = 100;
 // Match Cursor's hook subprocess timeout ceiling (per the bundle's
@@ -19,9 +18,13 @@ const POLL_INTERVAL_MS = 100;
 // then, Cursor has already killed both subprocesses anyway.
 const DEFAULT_AWAIT_TIMEOUT_MS = 60 * 60 * 1000; // 1h
 
+function dedupDir(): string {
+  return path.join(openboxDataRoot(), 'run', 'dedup');
+}
+
 function ensureDir(): void {
   try {
-    fs.mkdirSync(DEDUP_DIR, { recursive: true, mode: 0o700 });
+    fs.mkdirSync(dedupDir(), { recursive: true, mode: 0o700 });
   } catch {
     /* best-effort; claim() will fail loudly if the dir really isn't there */
   }
@@ -31,13 +34,13 @@ function ensureDir(): void {
 function reapStale(): void {
   let entries: string[];
   try {
-    entries = fs.readdirSync(DEDUP_DIR);
+    entries = fs.readdirSync(dedupDir());
   } catch {
     return;
   }
   const cutoff = Date.now() - TTL_MS;
   for (const name of entries) {
-    const p = path.join(DEDUP_DIR, name);
+    const p = path.join(dedupDir(), name);
     try {
       const st = fs.statSync(p);
       if (st.mtimeMs < cutoff) fs.unlinkSync(p);
@@ -100,7 +103,7 @@ export interface ActionClaim {
 export function claimAction(key: string): ActionClaim {
   ensureDir();
   reapStale();
-  const lockPath = path.join(DEDUP_DIR, key);
+  const lockPath = path.join(dedupDir(), key);
   try {
     const fd = fs.openSync(lockPath, 'wx', 0o600);
     try {

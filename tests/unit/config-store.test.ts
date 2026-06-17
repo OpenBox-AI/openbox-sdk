@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { mkdtempSync, existsSync, rmSync, statSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const sandbox = mkdtempSync(join(tmpdir(), 'openbox-config-'));
 const originalHome = process.env.OPENBOX_HOME;
@@ -28,13 +28,23 @@ beforeEach(() => {
 });
 
 describe('config-store', () => {
-  it('round-trips a global value', () => {
+  it('read operations do not create an OpenBox data directory', () => {
+    const dir = dirname(configStorePath());
+    rmSync(dir, { recursive: true, force: true });
+
+    expect(getConfig('OPENBOX_CORE_URL')).toBeUndefined();
+    expect(listConfig()).toEqual({});
+
+    expect(existsSync(dir)).toBe(false);
+  });
+
+  it('round-trips a project-local value', () => {
     setConfig('OPENBOX_API_URL', 'https://api.example/ob');
     expect(getConfig('OPENBOX_API_URL')).toBe('https://api.example/ob');
   });
 
-  it('ignores legacy dotted entries when reading', () => {
-    writeFileSync(configStorePath(), 'production.OPENBOX_API_URL=https://legacy\nOPENBOX_CORE_URL=https://core\n', { mode: 0o600 });
+  it('ignores invalid entries when reading', () => {
+    writeFileSync(configStorePath(), 'bad.key=https://invalid\nOPENBOX_CORE_URL=https://core\n', { mode: 0o600 });
     expect(listConfig()).toEqual({ OPENBOX_CORE_URL: 'https://core' });
   });
 
@@ -45,13 +55,14 @@ describe('config-store', () => {
 
   it('unset removes a value and is idempotent', () => {
     setConfig('A', '1');
-    expect(unsetConfig('A')).toEqual({ scope: 'global', removed: true });
+    expect(unsetConfig('A')).toEqual({ scope: 'project', removed: true });
     expect(getConfig('A')).toBeUndefined();
-    expect(unsetConfig('A')).toEqual({ scope: 'global', removed: false });
+    expect(unsetConfig('A')).toEqual({ scope: 'project', removed: false });
   });
 
   it('rejects empty keys', () => {
     expect(() => setConfig('', 'value')).toThrow(/key/i);
+    expect(() => setConfig('bad.key', 'value')).toThrow(/invalid config key/i);
   });
 
   it('applyConfigToProcessEnv populates only unset vars', () => {

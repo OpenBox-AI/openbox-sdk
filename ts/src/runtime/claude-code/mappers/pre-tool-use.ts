@@ -14,6 +14,7 @@ import { isSkipped } from '../../../governance/skip-patterns.js';
 import { buildSpan, type SpanType } from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import { sideEffects } from '../side-effects.js';
+import { rememberToolActivity } from '../tool-activity-store.js';
 
 /** Activity-type lookup. Spec-driven for the standard tools; mcp__* tools
  *  fall through to MCP_CALL because their names are dynamic. */
@@ -83,10 +84,24 @@ export async function handlePreToolUse(
       ]
     : undefined;
 
-  const verdict = await session.activity(EVENT.START, activityType, {
+  const startTime = Date.now();
+  const opened = await session.openActivity(activityType, {
     input: [stampSource(payload, 'claude-code')],
+    startTime,
     spans,
   });
+  const verdict = opened.verdict;
+  if (
+    verdict.arm === 'allow' ||
+    verdict.arm === 'constrain' ||
+    verdict.arm === 'require_approval'
+  ) {
+    rememberToolActivity(env, cfg, {
+      activityId: opened.activityId,
+      activityType,
+      startTime,
+    });
+  }
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;
 }
