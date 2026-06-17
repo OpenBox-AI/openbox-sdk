@@ -11,6 +11,12 @@ export interface ClaudeTranscriptUsage {
   content?: string;
 }
 
+interface AssistantTranscriptRecord {
+  model?: string;
+  usage?: LLMTokenUsage;
+  content?: string;
+}
+
 function toPositiveInteger(value: unknown): number | undefined {
   const numberValue =
     typeof value === 'number'
@@ -34,6 +40,67 @@ function normalizeClaudeUsage(value: unknown): LLMTokenUsage | undefined {
   return Object.values(normalized).some((entry) => entry !== undefined)
     ? normalized
     : undefined;
+}
+
+function sumTokenField(
+  left: number | undefined,
+  right: number | undefined,
+): number | undefined {
+  if (left === undefined) return right;
+  if (right === undefined) return left;
+  return left + right;
+}
+
+function withDerivedTotal(usage: LLMTokenUsage): LLMTokenUsage {
+  const input =
+    usage.inputTokens ??
+    usage.promptTokens;
+  const output =
+    usage.outputTokens ??
+    usage.completionTokens;
+  if (input === undefined && output === undefined) return usage;
+  const calculatedTotal = (input ?? 0) + (output ?? 0);
+  if (
+    usage.totalTokens !== undefined &&
+    usage.totalTokens >= calculatedTotal
+  ) {
+    return usage;
+  }
+  return {
+    ...usage,
+    totalTokens: calculatedTotal,
+  };
+}
+
+function combineUsage(
+  left: LLMTokenUsage | undefined,
+  right: LLMTokenUsage | undefined,
+): LLMTokenUsage | undefined {
+  if (!left) return right;
+  if (!right) return left;
+  return {
+    promptTokens: sumTokenField(left.promptTokens, right.promptTokens),
+    completionTokens: sumTokenField(
+      left.completionTokens,
+      right.completionTokens,
+    ),
+    inputTokens: sumTokenField(left.inputTokens, right.inputTokens),
+    outputTokens: sumTokenField(left.outputTokens, right.outputTokens),
+    totalTokens: sumTokenField(left.totalTokens, right.totalTokens),
+  };
+}
+
+function transcriptRecordId(
+  record: { uuid?: unknown; message?: { id?: unknown } },
+  index: number,
+): string {
+  const messageId = record.message?.id;
+  if (typeof messageId === 'string' && messageId.trim()) {
+    return `message:${messageId}`;
+  }
+  const uuid = record.uuid;
+  if (typeof uuid === 'string' && uuid.trim()) return `uuid:${uuid}`;
+  return `line:${index}`;
 }
 
 function textFromClaudeContent(value: unknown): string | undefined {
@@ -106,14 +173,20 @@ export function readLatestAssistantTurn(
   const text = readTranscriptTail(transcriptPath);
   if (!text) return undefined;
 
-  const lines = text.split('\n').filter(Boolean).reverse();
-  for (const line of lines) {
+  const lines = text.split('\n').filter(Boolean);
+  const assistantRecords = new Map<string, AssistantTranscriptRecord>();
+  let latestModel: string | undefined;
+  let latestContent: string | undefined;
+
+  for (const [index, line] of lines.entries()) {
     const jsonStart = line.indexOf('{');
     if (jsonStart < 0) continue;
     try {
       const record = JSON.parse(line.slice(jsonStart)) as {
         type?: string;
+        uuid?: unknown;
         message?: {
+          id?: unknown;
           role?: string;
           model?: string;
           usage?: unknown;
@@ -126,16 +199,35 @@ export function readLatestAssistantTurn(
       const usage = normalizeClaudeUsage(record.message?.usage);
       const content = textFromClaudeContent(record.message?.content);
       if (!usage && !content) continue;
-      return {
-        model: record.message?.model,
-        usage,
-        content,
-      };
+      const id = transcriptRecordId(record, index);
+      const previous = assistantRecords.get(id);
+      const model = record.message?.model ?? previous?.model;
+      assistantRecords.set(id, {
+        model,
+        usage: usage ?? previous?.usage,
+        content: content ?? previous?.content,
+      });
+      if (record.message?.model) latestModel = record.message.model;
+      if (content) latestContent = content;
     } catch {
       continue;
     }
   }
-  return undefined;
+
+  let aggregatedUsage: LLMTokenUsage | undefined;
+  for (const record of assistantRecords.values()) {
+    aggregatedUsage = combineUsage(aggregatedUsage, record.usage);
+  }
+  aggregatedUsage = aggregatedUsage
+    ? withDerivedTotal(aggregatedUsage)
+    : undefined;
+
+  if (!aggregatedUsage && !latestContent) return undefined;
+  return {
+    model: latestModel,
+    usage: aggregatedUsage,
+    content: latestContent,
+  };
 }
 
 export function readLatestAssistantUsage(

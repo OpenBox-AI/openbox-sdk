@@ -3515,6 +3515,47 @@ function normalizeClaudeUsage(value) {
   };
   return Object.values(normalized).some((entry) => entry !== void 0) ? normalized : void 0;
 }
+function sumTokenField(left, right) {
+  if (left === void 0) return right;
+  if (right === void 0) return left;
+  return left + right;
+}
+function withDerivedTotal(usage) {
+  const input = usage.inputTokens ?? usage.promptTokens;
+  const output = usage.outputTokens ?? usage.completionTokens;
+  if (input === void 0 && output === void 0) return usage;
+  const calculatedTotal = (input ?? 0) + (output ?? 0);
+  if (usage.totalTokens !== void 0 && usage.totalTokens >= calculatedTotal) {
+    return usage;
+  }
+  return {
+    ...usage,
+    totalTokens: calculatedTotal
+  };
+}
+function combineUsage(left, right) {
+  if (!left) return right;
+  if (!right) return left;
+  return {
+    promptTokens: sumTokenField(left.promptTokens, right.promptTokens),
+    completionTokens: sumTokenField(
+      left.completionTokens,
+      right.completionTokens
+    ),
+    inputTokens: sumTokenField(left.inputTokens, right.inputTokens),
+    outputTokens: sumTokenField(left.outputTokens, right.outputTokens),
+    totalTokens: sumTokenField(left.totalTokens, right.totalTokens)
+  };
+}
+function transcriptRecordId(record, index) {
+  const messageId = record.message?.id;
+  if (typeof messageId === "string" && messageId.trim()) {
+    return `message:${messageId}`;
+  }
+  const uuid = record.uuid;
+  if (typeof uuid === "string" && uuid.trim()) return `uuid:${uuid}`;
+  return `line:${index}`;
+}
 function textFromClaudeContent(value) {
   if (typeof value === "string") {
     const trimmed = value.trim();
@@ -3569,8 +3610,11 @@ function readLatestAssistantTurn(env) {
   if (!transcriptPath) return void 0;
   const text = readTranscriptTail(transcriptPath);
   if (!text) return void 0;
-  const lines = text.split("\n").filter(Boolean).reverse();
-  for (const line of lines) {
+  const lines = text.split("\n").filter(Boolean);
+  const assistantRecords = /* @__PURE__ */ new Map();
+  let latestModel;
+  let latestContent;
+  for (const [index, line] of lines.entries()) {
     const jsonStart = line.indexOf("{");
     if (jsonStart < 0) continue;
     try {
@@ -3581,16 +3625,31 @@ function readLatestAssistantTurn(env) {
       const usage = normalizeClaudeUsage(record.message?.usage);
       const content = textFromClaudeContent(record.message?.content);
       if (!usage && !content) continue;
-      return {
-        model: record.message?.model,
-        usage,
-        content
-      };
+      const id = transcriptRecordId(record, index);
+      const previous = assistantRecords.get(id);
+      const model = record.message?.model ?? previous?.model;
+      assistantRecords.set(id, {
+        model,
+        usage: usage ?? previous?.usage,
+        content: content ?? previous?.content
+      });
+      if (record.message?.model) latestModel = record.message.model;
+      if (content) latestContent = content;
     } catch {
       continue;
     }
   }
-  return void 0;
+  let aggregatedUsage;
+  for (const record of assistantRecords.values()) {
+    aggregatedUsage = combineUsage(aggregatedUsage, record.usage);
+  }
+  aggregatedUsage = aggregatedUsage ? withDerivedTotal(aggregatedUsage) : void 0;
+  if (!aggregatedUsage && !latestContent) return void 0;
+  return {
+    model: latestModel,
+    usage: aggregatedUsage,
+    content: latestContent
+  };
 }
 function readLatestAssistantUsage(env) {
   const turn = readLatestAssistantTurn(env);

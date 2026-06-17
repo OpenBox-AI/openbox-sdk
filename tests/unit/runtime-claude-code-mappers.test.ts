@@ -72,23 +72,27 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     fileName = 'transcript.jsonl',
     content = 'done',
   ) {
+    return writeTranscriptRecords(fileName, [
+      {
+        type: 'assistant',
+        message: {
+          role: 'assistant',
+          model: 'claude-opus-4-8',
+          content: [{ type: 'text', text: content }],
+          usage: {
+            input_tokens: 321,
+            output_tokens: 54,
+          },
+        },
+      },
+    ]);
+  }
+
+  function writeTranscriptRecords(fileName: string, records: unknown[]) {
     const transcript = join(dir, fileName);
     writeFileSync(
       transcript,
-      [
-        JSON.stringify({
-          type: 'assistant',
-          message: {
-            role: 'assistant',
-            model: 'claude-opus-4-8',
-            content: [{ type: 'text', text: content }],
-            usage: {
-              input_tokens: 321,
-              output_tokens: 54,
-            },
-          },
-        }),
-      ].join('\n') + '\n',
+      records.map((record) => JSON.stringify(record)).join('\n') + '\n',
     );
     return transcript;
   }
@@ -310,6 +314,93 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       event_category: 'llm_usage',
       model: 'claude-opus-4-8',
       usage: { inputTokens: 321, outputTokens: 54 },
+      _openbox_source: 'claude-code',
+    });
+  });
+
+  it('message-display aggregates unique Claude assistant message usage without double-counting duplicate transcript rows', async () => {
+    const { handleMessageDisplay } = await import('../../ts/src/runtime/claude-code/mappers/generic');
+    const session = recordingSession();
+    const transcript = writeTranscriptRecords('multi-turn-message.jsonl', [
+      {
+        type: 'assistant',
+        uuid: 'row-1',
+        message: {
+          id: 'msg_tool',
+          role: 'assistant',
+          model: 'claude-opus-4-8',
+          content: [{ type: 'tool_use', name: 'Read' }],
+          usage: {
+            input_tokens: 3138,
+            output_tokens: 358,
+          },
+        },
+      },
+      {
+        type: 'assistant',
+        uuid: 'row-1-duplicate',
+        message: {
+          id: 'msg_tool',
+          role: 'assistant',
+          model: 'claude-opus-4-8',
+          content: [{ type: 'tool_use', name: 'Read' }],
+          usage: {
+            input_tokens: 3138,
+            output_tokens: 358,
+          },
+        },
+      },
+      {
+        type: 'assistant',
+        uuid: 'row-2',
+        message: {
+          id: 'msg_final',
+          role: 'assistant',
+          model: 'claude-opus-4-8',
+          content: [{ type: 'text', text: 'final canonical answer' }],
+          usage: {
+            input_tokens: 2,
+            output_tokens: 591,
+          },
+        },
+      },
+    ]);
+
+    await handleMessageDisplay(
+      {
+        session_id: 'MSG-MULTI-USAGE',
+        hook_event_name: 'MessageDisplay',
+        transcript_path: transcript,
+        final: true,
+        delta: 'tail chunk',
+      } as any,
+      session,
+      { skipTools: [], sessionDir: dir } as any,
+      {
+        activityType: 'ClaudeCodeMessage',
+        eventKind: 'ActivityCompleted',
+        eventCategory: 'llm_output',
+      },
+    );
+
+    const message = session.calls.find(
+      (c: any) => c.method === 'activity' && c.args[1] === 'ClaudeCodeMessage',
+    );
+    expect(message?.args[2]?.spans?.[0]).toMatchObject({
+      model: 'claude-opus-4-8',
+      input_tokens: 3140,
+      output_tokens: 949,
+    });
+    expect(assistantContentFromSpan(message?.args[2]?.spans?.[0])).toBe(
+      'final canonical answer',
+    );
+    const usageSignal = session.calls.find(
+      (c: any) => c.method === 'activity' && c.args[1] === 'claude_usage',
+    );
+    expect(usageSignal?.args[2]?.input?.[0]).toMatchObject({
+      event_category: 'llm_usage',
+      model: 'claude-opus-4-8',
+      usage: { inputTokens: 3140, outputTokens: 949, totalTokens: 4089 },
       _openbox_source: 'claude-code',
     });
   });
