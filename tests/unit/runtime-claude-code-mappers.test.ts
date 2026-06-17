@@ -68,7 +68,10 @@ function recordingSession(verdict: { arm?: string } = { arm: 'allow' }): any {
 }
 
 describe('runtime/claude-code/mappers; every event handler', () => {
-  function writeTranscriptWithUsage(fileName = 'transcript.jsonl') {
+  function writeTranscriptWithUsage(
+    fileName = 'transcript.jsonl',
+    content = 'done',
+  ) {
     const transcript = join(dir, fileName);
     writeFileSync(
       transcript,
@@ -78,6 +81,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
           message: {
             role: 'assistant',
             model: 'claude-opus-4-8',
+            content: [{ type: 'text', text: content }],
             usage: {
               input_tokens: 321,
               output_tokens: 54,
@@ -87,6 +91,14 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       ].join('\n') + '\n',
     );
     return transcript;
+  }
+
+  function assistantContentFromSpan(span: any): string {
+    const response = JSON.parse(String(span?.response_body ?? '{}')) as {
+      choices?: Array<{ message?: { content?: unknown } }>;
+    };
+    const content = response.choices?.[0]?.message?.content;
+    return typeof content === 'string' ? content : '';
   }
 
   it('user-prompt-submit fires PromptSubmission activity', async () => {
@@ -206,15 +218,31 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       { skipTools: [], sessionDir: dir, governancePolicy: 'fail_open' } as any,
     );
     expect(session.calls.some((c: any) => c.method === 'workflowCompleted')).toBe(true);
+    const stop = session.calls.find(
+      (c: any) => c.method === 'activity' && c.args[1] === 'ClaudeCodeSession',
+    );
+    const span = stop?.args[2]?.spans?.[0];
+    expect(span).toMatchObject({
+      name: 'openbox.claude-code.assistant_output',
+      module: 'claude-code',
+      stage: 'completed',
+      semantic_type: 'llm_completion',
+      attributes: {
+        'gen_ai.system': 'claude-code',
+        'http.url': 'https://api.anthropic.com/v1/messages',
+        'openbox.claude_code.event': 'Stop',
+      },
+    });
+    expect(assistantContentFromSpan(span)).toBe('done');
   });
 
-  it('stop adds Claude transcript input/output token usage to the final llm span', async () => {
+  it('stop adds Claude transcript input/output token usage to the Core-extractable final llm span', async () => {
     const { handleStop } = await import('../../ts/src/runtime/claude-code/mappers/session');
     const session = recordingSession();
     await handleStop(
       {
         session_id: 'STOP-USAGE',
-        transcript_path: writeTranscriptWithUsage(),
+        transcript_path: writeTranscriptWithUsage('transcript.jsonl', 'full final answer'),
         last_assistant_message: 'done',
         background_tasks: [],
         session_crons: [],
@@ -228,22 +256,26 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     const span = stop?.args[2]?.spans?.[0];
     expect(span).toMatchObject({
       module: 'claude-code',
+      name: 'openbox.claude-code.assistant_output',
+      stage: 'completed',
+      semantic_type: 'llm_completion',
       model: 'claude-opus-4-8',
       input_tokens: 321,
       output_tokens: 54,
     });
+    expect(assistantContentFromSpan(span)).toBe('done');
   });
 
-  it('message-display final batch records Claude transcript usage', async () => {
+  it('message-display final batch records Claude transcript usage and assistant content', async () => {
     const { handleMessageDisplay } = await import('../../ts/src/runtime/claude-code/mappers/generic');
     const session = recordingSession();
     await handleMessageDisplay(
       {
         session_id: 'MSG-USAGE',
         hook_event_name: 'MessageDisplay',
-        transcript_path: writeTranscriptWithUsage('message.jsonl'),
+        transcript_path: writeTranscriptWithUsage('message.jsonl', 'full displayed answer'),
         final: true,
-        delta: 'done',
+        delta: 'last chunk',
       } as any,
       session,
       { skipTools: [], sessionDir: dir } as any,
@@ -257,10 +289,20 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       (c: any) => c.method === 'activity' && c.args[1] === 'ClaudeCodeMessage',
     );
     expect(message?.args[2]?.spans?.[0]).toMatchObject({
+      name: 'openbox.claude-code.assistant_output',
+      stage: 'completed',
+      semantic_type: 'llm_completion',
       model: 'claude-opus-4-8',
       input_tokens: 321,
       output_tokens: 54,
+      attributes: {
+        'gen_ai.system': 'claude-code',
+        'openbox.claude_code.event': 'MessageDisplay',
+      },
     });
+    expect(assistantContentFromSpan(message?.args[2]?.spans?.[0])).toBe(
+      'full displayed answer',
+    );
     const usageSignal = session.calls.find(
       (c: any) => c.method === 'activity' && c.args[1] === 'claude_usage',
     );
@@ -337,6 +379,42 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       { skipTools: [], sessionDir: dir } as any,
     );
     expect(session.calls.length).toBeGreaterThan(0);
+  });
+
+  it('subagent-stop emits a Core-extractable assistant output span when Claude provides transcript output', async () => {
+    const { handleSubagentStop } = await import(
+      '../../ts/src/runtime/claude-code/mappers/subagent'
+    );
+    const session = recordingSession();
+    await handleSubagentStop(
+      {
+        agent_type: 'researcher',
+        session_id: 'S',
+        agent_transcript_path: writeTranscriptWithUsage(
+          'subagent.jsonl',
+          'subagent final answer',
+        ),
+      } as any,
+      session,
+      { skipTools: [], sessionDir: dir } as any,
+    );
+    const stop = session.calls.find(
+      (c: any) => c.method === 'activity' && c.args[1] === 'SubAgent:researcher',
+    );
+    const span = stop?.args[2]?.spans?.[0];
+    expect(span).toMatchObject({
+      name: 'openbox.claude-code.assistant_output',
+      stage: 'completed',
+      semantic_type: 'llm_completion',
+      model: 'claude-opus-4-8',
+      input_tokens: 321,
+      output_tokens: 54,
+      attributes: {
+        'gen_ai.system': 'claude-code',
+        'openbox.claude_code.event': 'SubagentStop',
+      },
+    });
+    expect(assistantContentFromSpan(span)).toBe('subagent final answer');
   });
 });
 

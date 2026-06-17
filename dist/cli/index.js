@@ -7981,6 +7981,23 @@ function base() {
     error: null
   };
 }
+function objectRecord3(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function parseJsonRecord(value) {
+  if (typeof value === "string") {
+    try {
+      return objectRecord3(JSON.parse(value));
+    } catch {
+      return {};
+    }
+  }
+  return objectRecord3(value);
+}
+function stringifyBody(value) {
+  if (value === void 0) return void 0;
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
 function toPositiveInteger(value) {
   const numberValue = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : void 0;
   if (numberValue === void 0 || !Number.isFinite(numberValue) || numberValue <= 0)
@@ -8007,6 +8024,74 @@ function normalizeUsage(usage) {
   }
   if (totalTokens !== void 0) normalized.total_tokens = totalTokens;
   return Object.keys(normalized).length > 0 ? normalized : void 0;
+}
+function buildLLMCompletionResponseBody(content, metadata = {}) {
+  const body = parseJsonRecord(metadata.responseBody);
+  if (!Array.isArray(body.choices)) {
+    body.choices = [
+      {
+        message: { content }
+      }
+    ];
+  }
+  if (metadata.model && typeof body.model !== "string") {
+    body.model = metadata.model;
+  }
+  const usage = normalizeUsage(metadata.usage);
+  if (usage && Object.keys(objectRecord3(body.usage)).length === 0) {
+    body.usage = usage;
+  }
+  return JSON.stringify(body);
+}
+function buildLLMCompletionSpan(input) {
+  const now = Date.now();
+  const source = input.span ?? {};
+  const usage = normalizeUsage(input.usage);
+  const inputTokens = toPositiveInteger(
+    usage?.input_tokens ?? usage?.prompt_tokens
+  );
+  const outputTokens = toPositiveInteger(
+    usage?.output_tokens ?? usage?.completion_tokens
+  );
+  const httpUrl = input.providerUrl ?? source.http_url ?? (typeof source.attributes?.["http.url"] === "string" ? source.attributes["http.url"] : "https://api.openai.com/v1/chat/completions");
+  return {
+    ...source,
+    span_id: source.span_id ?? hex2(16),
+    trace_id: source.trace_id ?? hex2(32),
+    name: input.name ?? source.name ?? "llm.chat.completion",
+    kind: input.kind ?? source.kind ?? "CLIENT",
+    start_time: input.startTime ?? source.start_time ?? now,
+    end_time: input.endTime ?? source.end_time ?? now,
+    duration_ns: input.durationNs ?? source.duration_ns ?? 0,
+    span_type: "function",
+    stage: "completed",
+    semantic_type: "llm_completion",
+    attributes: {
+      "gen_ai.system": input.system ?? "openbox-sdk",
+      ...input.model ? { "gen_ai.request.model": input.model } : {},
+      ...input.model ? { "gen_ai.response.model": input.model } : {},
+      ...inputTokens !== void 0 ? { "gen_ai.usage.input_tokens": inputTokens } : {},
+      ...outputTokens !== void 0 ? { "gen_ai.usage.output_tokens": outputTokens } : {},
+      "http.method": "POST",
+      "http.url": httpUrl,
+      "openbox.semantic_type": "llm_completion",
+      "openbox.span_type": "function",
+      ...source.attributes ?? {},
+      ...input.attributes ?? {}
+    },
+    ...input.model ? { model: input.model } : {},
+    ...inputTokens !== void 0 ? { input_tokens: inputTokens } : {},
+    ...outputTokens !== void 0 ? { output_tokens: outputTokens } : {},
+    http_method: source.http_method ?? "POST",
+    http_url: httpUrl,
+    request_body: stringifyBody(input.requestBody) ?? source.request_body ?? void 0,
+    data: input.data ?? source.data,
+    response_body: buildLLMCompletionResponseBody(input.content, {
+      model: input.model,
+      usage: input.usage,
+      responseBody: input.responseBody ?? source.response_body
+    })
+  };
 }
 function buildSpan(host, type, input) {
   const b = base();
@@ -8587,6 +8672,29 @@ function normalizeClaudeUsage(value) {
   };
   return Object.values(normalized).some((entry) => entry !== void 0) ? normalized : void 0;
 }
+function textFromClaudeContent(value) {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || void 0;
+  }
+  if (Array.isArray(value)) {
+    const text = value.map((item) => {
+      if (typeof item === "string") return item;
+      if (item === null || typeof item !== "object") return "";
+      const record = item;
+      if (typeof record.text === "string") return record.text;
+      if (typeof record.content === "string") return record.content;
+      return "";
+    }).filter(Boolean).join("");
+    const trimmed = text.trim();
+    return trimmed || void 0;
+  }
+  if (value !== null && typeof value === "object") {
+    const record = value;
+    return textFromClaudeContent(record.text ?? record.content);
+  }
+  return void 0;
+}
 function isSafeTranscriptPath(filePath) {
   return path12.isAbsolute(filePath) && filePath.endsWith(".jsonl") && !filePath.includes("\0");
 }
@@ -8613,7 +8721,7 @@ function readTranscriptTail(filePath) {
     }
   }
 }
-function readLatestAssistantUsage(env) {
+function readLatestAssistantTurn(env) {
   const transcriptPath = env.agent_transcript_path ?? env.transcript_path;
   if (!transcriptPath) return void 0;
   const text = readTranscriptTail(transcriptPath);
@@ -8628,10 +8736,12 @@ function readLatestAssistantUsage(env) {
         continue;
       }
       const usage = normalizeClaudeUsage(record.message?.usage);
-      if (!usage) continue;
+      const content = textFromClaudeContent(record.message?.content);
+      if (!usage && !content) continue;
       return {
         model: record.message?.model,
-        usage
+        usage,
+        content
       };
     } catch {
       continue;
@@ -8639,11 +8749,59 @@ function readLatestAssistantUsage(env) {
   }
   return void 0;
 }
+function readLatestAssistantUsage(env) {
+  const turn = readLatestAssistantTurn(env);
+  return turn?.usage ? { model: turn.model, usage: turn.usage, content: turn.content } : void 0;
+}
 var MAX_TRANSCRIPT_TAIL_BYTES;
 var init_transcript_usage = __esm({
   "ts/src/runtime/claude-code/transcript-usage.ts"() {
     "use strict";
     MAX_TRANSCRIPT_TAIL_BYTES = 1024 * 1024;
+  }
+});
+
+// ts/src/runtime/claude-code/mappers/assistant-output.ts
+function firstText(...values) {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+  return void 0;
+}
+function buildClaudeAssistantOutputSpan(env, options) {
+  const transcript = readLatestAssistantTurn(env);
+  const content = options.preferTranscriptContent ? firstText(transcript?.content, options.fallbackText) : firstText(options.fallbackText, transcript?.content);
+  if (!content && !transcript?.usage) return void 0;
+  return [
+    buildLLMCompletionSpan({
+      content: content ?? "",
+      span: { module: "claude-code" },
+      name: "openbox.claude-code.assistant_output",
+      kind: "llm",
+      system: "claude-code",
+      model: transcript?.model,
+      usage: transcript?.usage,
+      providerUrl: "https://api.anthropic.com/v1/messages",
+      attributes: {
+        "gen_ai.system": "claude-code",
+        "openbox.claude_code.event": options.event
+      },
+      data: {
+        source: "claude-code",
+        event: options.event,
+        session_id: env.session_id,
+        hook_event_name: env.hook_event_name
+      }
+    })
+  ];
+}
+var init_assistant_output = __esm({
+  "ts/src/runtime/claude-code/mappers/assistant-output.ts"() {
+    "use strict";
+    init_spans();
+    init_transcript_usage();
   }
 });
 
@@ -8659,18 +8817,14 @@ async function handleSessionStart(env, session, _cfg) {
   return void 0;
 }
 async function handleStop(env, session, cfg) {
-  const usage = readLatestAssistantUsage(env);
   let verdict;
   try {
     verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
       input: [stampSource(buildStopPayload(env), "claude-code")],
-      spans: usage ? [
-        buildSpan("claude-code", "llm", {
-          response: env.last_assistant_message ?? "",
-          model: usage.model,
-          usage: usage.usage
-        })
-      ] : void 0
+      spans: buildClaudeAssistantOutputSpan(env, {
+        event: "Stop",
+        fallbackText: env.last_assistant_message
+      })
     });
   } catch {
     if (cfg.governancePolicy === "fail_closed") {
@@ -8765,8 +8919,7 @@ var init_session = __esm({
     init_session_resolver();
     init_activity_types();
     init_source();
-    init_spans();
-    init_transcript_usage();
+    init_assistant_output();
   }
 });
 
@@ -8784,16 +8937,12 @@ async function handleSubagentStart(env, session, _cfg) {
   return void 0;
 }
 async function handleSubagentStop(env, session, cfg) {
-  const usage = readLatestAssistantUsage(env);
   const verdict = await session.activity(EVENT.COMPLETE, subAgentActivityType(env), {
     input: [stampSource(buildSubagentStopPayload(env), "claude-code")],
-    spans: usage ? [
-      buildSpan("claude-code", "llm", {
-        response: env.last_assistant_message ?? "",
-        model: usage.model,
-        usage: usage.usage
-      })
-    ] : void 0
+    spans: buildClaudeAssistantOutputSpan(env, {
+      event: "SubagentStop",
+      fallbackText: env.last_assistant_message
+    })
   });
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   return verdict;
@@ -8826,8 +8975,7 @@ var init_subagent = __esm({
     init_activity_types();
     init_source();
     init_session_resolver();
-    init_spans();
-    init_transcript_usage();
+    init_assistant_output();
   }
 });
 
@@ -8867,13 +9015,11 @@ async function handleMessageDisplay(env, session, cfg, options) {
     await session.activity(options.eventKind ?? EVENT.COMPLETE, options.activityType, {
       input: [stampSource(compactPayload(env, options.eventCategory), "claude-code")],
       output: stampSource({ text, event_category: options.eventCategory }, "claude-code"),
-      spans: usage ? [
-        buildSpan("claude-code", "llm", {
-          response: text,
-          model: usage.model,
-          usage: usage.usage
-        })
-      ] : void 0
+      spans: env.final === true ? buildClaudeAssistantOutputSpan(env, {
+        event: "MessageDisplay",
+        fallbackText: text,
+        preferTranscriptContent: true
+      }) : void 0
     });
   } catch {
   }
@@ -8900,7 +9046,7 @@ var init_generic = __esm({
     init_session_resolver();
     init_activity_types();
     init_source();
-    init_spans();
+    init_assistant_output();
     init_transcript_usage();
     IMPORTANT_FIELDS = [
       "hook_event_name",

@@ -8,6 +8,7 @@ const MAX_TRANSCRIPT_TAIL_BYTES = 1024 * 1024;
 export interface ClaudeTranscriptUsage {
   model?: string;
   usage?: LLMTokenUsage;
+  content?: string;
 }
 
 function toPositiveInteger(value: unknown): number | undefined {
@@ -33,6 +34,33 @@ function normalizeClaudeUsage(value: unknown): LLMTokenUsage | undefined {
   return Object.values(normalized).some((entry) => entry !== undefined)
     ? normalized
     : undefined;
+}
+
+function textFromClaudeContent(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  }
+  if (Array.isArray(value)) {
+    const text = value
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (item === null || typeof item !== 'object') return '';
+        const record = item as Record<string, unknown>;
+        if (typeof record.text === 'string') return record.text;
+        if (typeof record.content === 'string') return record.content;
+        return '';
+      })
+      .filter(Boolean)
+      .join('');
+    const trimmed = text.trim();
+    return trimmed || undefined;
+  }
+  if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return textFromClaudeContent(record.text ?? record.content);
+  }
+  return undefined;
 }
 
 function isSafeTranscriptPath(filePath: string): boolean {
@@ -68,7 +96,7 @@ function readTranscriptTail(filePath: string): string | undefined {
   }
 }
 
-export function readLatestAssistantUsage(
+export function readLatestAssistantTurn(
   env: ClaudeCodeEnvelope,
 ): ClaudeTranscriptUsage | undefined {
   const transcriptPath =
@@ -89,20 +117,32 @@ export function readLatestAssistantUsage(
           role?: string;
           model?: string;
           usage?: unknown;
+          content?: unknown;
         };
       };
       if (record.type !== 'assistant' && record.message?.role !== 'assistant') {
         continue;
       }
       const usage = normalizeClaudeUsage(record.message?.usage);
-      if (!usage) continue;
+      const content = textFromClaudeContent(record.message?.content);
+      if (!usage && !content) continue;
       return {
         model: record.message?.model,
         usage,
+        content,
       };
     } catch {
       continue;
     }
   }
   return undefined;
+}
+
+export function readLatestAssistantUsage(
+  env: ClaudeCodeEnvelope,
+): ClaudeTranscriptUsage | undefined {
+  const turn = readLatestAssistantTurn(env);
+  return turn?.usage
+    ? { model: turn.model, usage: turn.usage, content: turn.content }
+    : undefined;
 }
