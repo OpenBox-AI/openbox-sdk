@@ -2,7 +2,7 @@
 
 Cross-cutting concerns when calling the backend management API or the
 core governance API directly. Resource-specific shapes live in the
-generated types under `openbox-sdk/types`.
+generated types under `@openbox-ai/openbox-sdk/types`.
 
 ## Two services, two hosts
 
@@ -73,15 +73,11 @@ check.
 
 ## OpenAPI
 
-The hosted services expose Swagger today:
-
-```bash
-curl -sI https://api.openbox.ai/api/docs         # 200
-curl -sI https://api.openbox.ai/api/docs-json    # 200
-```
-
 The repo's TypeSpec sources at `specs/typespec/` are the single source
-of truth. Each language's emitter reads from there. The TS step is:
+of truth. Hosted OpenAPI availability can differ by deployment and
+should be verified against the target environment before documenting a
+URL as public. SDK emitters read from the TypeSpec source.
+The TS step is:
 
 ```bash
 npm run generate:types

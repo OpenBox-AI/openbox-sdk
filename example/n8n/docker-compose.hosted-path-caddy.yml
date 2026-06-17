@@ -1,9 +1,8 @@
-# Host-Caddy deployment for the OpenBox + n8n demo on the existing
-# openbox-dev Hetzner host.
+# Host-Caddy deployment for the OpenBox + n8n demo on an existing host.
 #
 # This intentionally does not run Caddy in Docker. The host already owns
 # :80/:443 with system Caddy. n8n is published only on 127.0.0.1 and should be
-# exposed by a path route such as https://app.ipsum.lat/ob/n8n/.
+# exposed by a path route such as https://n8n.example.test/ob/n8n/.
 
 volumes:
   n8n_storage:
@@ -19,7 +18,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-n8n}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.ipsum}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.hosted}
       POSTGRES_DB: ${POSTGRES_DB:-n8n}
     volumes:
       - postgres_storage:/var/lib/postgresql/data
@@ -39,10 +38,10 @@ services:
       DB_TYPE: postgresdb
       DB_POSTGRESDB_HOST: postgres
       DB_POSTGRESDB_USER: ${POSTGRES_USER:-n8n}
-      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.ipsum}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.hosted}
       DB_POSTGRESDB_DATABASE: ${POSTGRES_DB:-n8n}
-      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?set N8N_ENCRYPTION_KEY in .env.ipsum}
-      N8N_USER_MANAGEMENT_JWT_SECRET: ${N8N_USER_MANAGEMENT_JWT_SECRET:?set N8N_USER_MANAGEMENT_JWT_SECRET in .env.ipsum}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?set N8N_ENCRYPTION_KEY in .env.hosted}
+      N8N_USER_MANAGEMENT_JWT_SECRET: ${N8N_USER_MANAGEMENT_JWT_SECRET:?set N8N_USER_MANAGEMENT_JWT_SECRET in .env.hosted}
       N8N_PATH: /ob/n8n/
     entrypoint: /bin/sh
     command:
@@ -79,22 +78,22 @@ services:
       DB_TYPE: postgresdb
       DB_POSTGRESDB_HOST: postgres
       DB_POSTGRESDB_USER: ${POSTGRES_USER:-n8n}
-      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.ipsum}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.hosted}
       DB_POSTGRESDB_DATABASE: ${POSTGRES_DB:-n8n}
-      N8N_HOST: ${N8N_HOST:-app.ipsum.lat}
+      N8N_HOST: ${N8N_HOST:-n8n.example.test}
       N8N_PROTOCOL: https
       N8N_PORT: 5678
       N8N_PATH: /ob/n8n/
       N8N_PROXY_HOPS: 1
       N8N_SECURE_COOKIE: 'true'
-      N8N_EDITOR_BASE_URL: https://${N8N_HOST:-app.ipsum.lat}/ob/n8n/
-      WEBHOOK_URL: https://${N8N_HOST:-app.ipsum.lat}/ob/n8n/
+      N8N_EDITOR_BASE_URL: https://${N8N_HOST:-n8n.example.test}/ob/n8n/
+      WEBHOOK_URL: https://${N8N_HOST:-n8n.example.test}/ob/n8n/
       N8N_DIAGNOSTICS_ENABLED: 'false'
       N8N_PERSONALIZATION_ENABLED: 'false'
       N8N_CUSTOM_EXTENSIONS: /home/node/.n8n/custom
       N8N_LOG_LEVEL: ${N8N_LOG_LEVEL:-info}
-      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?set N8N_ENCRYPTION_KEY in .env.ipsum}
-      N8N_USER_MANAGEMENT_JWT_SECRET: ${N8N_USER_MANAGEMENT_JWT_SECRET:?set N8N_USER_MANAGEMENT_JWT_SECRET in .env.ipsum}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?set N8N_ENCRYPTION_KEY in .env.hosted}
+      N8N_USER_MANAGEMENT_JWT_SECRET: ${N8N_USER_MANAGEMENT_JWT_SECRET:?set N8N_USER_MANAGEMENT_JWT_SECRET in .env.hosted}
       N8N_BLOCK_ENV_ACCESS_IN_NODE: 'false'
       N8N_RUNNERS_ENABLED: 'true'
       LLM_PROVIDER_API_KEY: ${LLM_PROVIDER_API_KEY:-${LLM7_API_KEY:-}}
@@ -104,8 +103,8 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-liquid/lfm-2.5-1.2b-instruct:free}
       OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
-      OPENBOX_API_URL: ${OPENBOX_API_URL:?set OPENBOX_API_URL in .env.ipsum}
-      OPENBOX_API_KEY: ${OPENBOX_API_KEY:?set OPENBOX_API_KEY in .env.ipsum}
+      OPENBOX_API_URL: ${OPENBOX_API_URL:?set OPENBOX_API_URL in .env.hosted}
+      OPENBOX_API_KEY: ${OPENBOX_API_KEY:?set OPENBOX_API_KEY in .env.hosted}
       SLACK_CHANNEL_ID: ${SLACK_CHANNEL_ID:-}
       HUBSPOT_CRM_ENABLED: ${HUBSPOT_CRM_ENABLED:-false}
     volumes:

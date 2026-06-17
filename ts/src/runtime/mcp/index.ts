@@ -420,7 +420,7 @@ const SKILL_PATHS = [
   { name: "governance-flow", path: "references/governance-flow.md", desc: "Event protocol, wire format, verdicts, approval polling, spec-vs-implementation mismatches" },
   { name: "guardrails", path: "references/guardrails.md", desc: "Guardrail configuration: numeric IDs, stage gating, settings.activities[] shape, per-field status, backend validation gaps" },
   { name: "behaviors", path: "references/behaviors.md", desc: "Behavior rules: trigger/states enum, time_window, priority, active toggle, shell-as-internal" },
-  { name: "backend-api", path: "references/backend-api.md", desc: "Backend conventions: {status,data} envelope, X-Openbox-Client header, /auth/refresh caveats, swagger availability" },
+  { name: "backend-api", path: "references/backend-api.md", desc: "Backend conventions: {status,data} envelope, X-Openbox-Client header, /auth/refresh caveats, OpenAPI availability" },
   { name: "rego-reference", path: "references/rego-reference.md", desc: "Rego policy syntax, input fields, example policies, policy lifecycle gotchas" },
   { name: "span-reference", path: "references/span-reference.md", desc: "Span types, gate attributes, semantic type detection" },
   { name: "commands", path: "references/commands.md", desc: "Full CLI command reference" },

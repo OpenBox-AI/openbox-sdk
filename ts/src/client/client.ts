@@ -34,10 +34,9 @@ import type {
 // Spec source: specs/typespec/env/main.tsp (BackendClientConfig,
 // RetryConfig, RateLimitConfig, ApiError). Re-exported here under the
 // legacy public names so existing consumers keep compiling. The
-// `onTokenRefresh` callback below is the only TS-language-specific
-// extension; it has no runtime equivalent in Rust/Python/Go (those
-// languages use a poll-and-rewrite pattern instead) and stays
-// hand-written.
+// `onTokenRefresh` callback below is the only TypeScript-specific
+// extension; future SDK targets can expose equivalent token-rotation
+// hooks in their platform-native style. This one stays hand-written.
 // ---------------------------------------------------------------------------
 
 import type {

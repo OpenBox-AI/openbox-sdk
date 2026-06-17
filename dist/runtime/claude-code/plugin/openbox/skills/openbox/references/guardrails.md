@@ -26,4 +26,4 @@ openbox api backend AgentController_deleteGuardrails --params '{"agentId":"...",
 ## Runtime Proof
 
 Use `openbox api core evaluateGovernance --body @event.json` for a CLI
-smoke, or prefer `openbox-sdk/core-client` sessions in code.
+smoke, or prefer `@openbox-ai/openbox-sdk/core-client` sessions in code.

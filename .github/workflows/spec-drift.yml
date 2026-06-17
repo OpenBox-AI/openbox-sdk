@@ -1,8 +1,8 @@
 name: spec drift
 
 # Compares specs/typespec/ (the source of truth) against:
-#   - prod backend swagger (curl, public)
-#   - staging backend swagger (curl, URL from secrets)
+#   - prod backend OpenAPI from the live deployment
+#   - staging backend OpenAPI from the URL stored in repo secrets
 #   - upstream backend@develop / @main (via gh API regex parse)
 #   - upstream core@develop / @main (via gh API regex parse)
 #

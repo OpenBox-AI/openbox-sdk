@@ -29,21 +29,21 @@ describe('@openbox-ai/openbox-sdk/env URL resolution', () => {
   });
 
   it('uses explicit API and core URLs without an environment selector', () => {
-    process.env.OPENBOX_API_URL = 'https://api.ipsum.lat/ob';
-    process.env.OPENBOX_CORE_URL = 'https://core.ipsum.lat/ob';
-    process.env.OPENBOX_PLATFORM_URL = 'https://app.ipsum.lat/';
-    process.env.OPENBOX_AUTH_URL = 'https://auth.ipsum.lat/';
+    process.env.OPENBOX_API_URL = 'https://api.example.test';
+    process.env.OPENBOX_CORE_URL = 'https://core.example.test';
+    process.env.OPENBOX_PLATFORM_URL = 'https://n8n.example.test/';
+    process.env.OPENBOX_AUTH_URL = 'https://auth.example.test/';
     const connection = resolveConnection();
     expect(connection.source).toBe('explicit');
-    expect(connection.apiUrl).toBe('https://api.ipsum.lat/ob');
-    expect(connection.coreUrl).toBe('https://core.ipsum.lat/ob');
-    expect(connection.platformUrl).toBe('https://app.ipsum.lat/');
-    expect(connection.authUrl).toBe('https://auth.ipsum.lat/');
+    expect(connection.apiUrl).toBe('https://api.example.test');
+    expect(connection.coreUrl).toBe('https://core.example.test');
+    expect(connection.platformUrl).toBe('https://n8n.example.test/');
+    expect(connection.authUrl).toBe('https://auth.example.test/');
   });
 
   it('uses explicit option URLs over process env URLs', () => {
-    process.env.OPENBOX_API_URL = 'https://api.ipsum.lat/ob';
-    process.env.OPENBOX_CORE_URL = 'https://core.ipsum.lat/ob';
+    process.env.OPENBOX_API_URL = 'https://api.example.test';
+    process.env.OPENBOX_CORE_URL = 'https://core.example.test';
     const explicit = resolveConnection({
       apiUrl: 'http://localhost:8080/api/',
       coreUrl: 'http://127.0.0.1:8086/core/',
@@ -63,13 +63,13 @@ describe('@openbox-ai/openbox-sdk/env URL resolution', () => {
     expect(() =>
       resolveConnection({
         apiUrl: '   ',
-        coreUrl: 'https://core.ipsum.lat',
+        coreUrl: 'https://core.example.test',
       }),
     ).toThrow('OPENBOX_API_URL cannot be empty');
     expect(() =>
       resolveConnection({
-        apiUrl: 'http://api.ipsum.lat',
-        coreUrl: 'https://core.ipsum.lat',
+        apiUrl: 'http://api.example.test',
+        coreUrl: 'https://core.example.test',
       }),
     ).toThrow('OPENBOX_API_URL must use https://');
   });

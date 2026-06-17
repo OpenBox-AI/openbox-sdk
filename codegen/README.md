@@ -14,7 +14,7 @@ Spec-driven code-generation pipeline. TypeSpec sources at
 | `typespec-libs/typespec-cli/` | Decorator library: `@cli_command`, `@cli_flag`, etc. Drives CLI binding emit |
 | `typespec-libs/typespec-env/` | Decorator library: `@env_var`, `@token_format`, `@os_path` |
 | `emitters/typespec-emitter-typescript/` | TypeSpec emitter using `ts-morph`. Walks the program, writes TS source |
-| `fixtures/` | Conformance test inputs in JSON. Future language SDK branches should replay the same fixtures |
+| `fixtures/` | Conformance test inputs in JSON. Future SDK target branches should replay the same fixtures |
 | `method-permissions.json` | Mirrored `@Permissions` map from the live backend controllers, keyed by `operationId` to required perms |
 | `method-names.json` | OpenAPI `operationId` to CLI method name mapping. Used by the wrapper-method emitter |
 
@@ -77,7 +77,7 @@ The line is: spec the contract, hand-code the data extraction.
 | Env var names, OS path semantics | UI and display formatting |
 | CLI command structure: args, flags, permissions | CLI command bodies, the action callbacks |
 
-Litmus test: would another language SDK want this? Yes → spec.
+Litmus test: would another SDK target want this? Yes -> spec.
 No → hand-code.
 
 ## Per-package contract status
@@ -90,15 +90,15 @@ No → hand-code.
 | `ts/src/core-client` | `specs/typespec/core/main.tsp`, `specs/typespec/govern/main.tsp`, `specs/typespec/govern/adapters.tsp` | Wire types via `openapi-typescript` to `ts/src/types/generated/core.ts`; `CORE_ENDPOINT_MANIFEST`; full `govern.ts` with `BaseGovernedSession`, 22 preset Session classes, and the `govern()` helper; per-adapter runtime modules under `generated/runtime/` | Same wrapper rule as `client`. Verdict arms come from the `govern/main.tsp` `VerdictArm` enum. The `runtime/<platform>/index.ts` files re-export the spec-emitted adapter primitive plus platform-specific install scripts |
 | `ts/src/types` | Both OpenAPI specs | `backend.ts` and `core.ts`, entirely generated | No hand-written code in this package |
 
-## Adding a new language target
+## Adding a new SDK target
 
-Add it on a branch or in a separate package track first. A language
-target should only come back to `main` when it has:
+Add it on a branch or in a separate package track first. A target
+should only come back to `main` when it has:
 
 - an emitter under `codegen/emitters/typespec-emitter-<lang>/`,
-- a language-native build and test gate,
+- a target-native build and test gate,
 - conformance coverage against `codegen/fixtures/`,
 - a release story independent from the TypeScript npm package.
 
-The decorator libraries are language-agnostic, so new targets can reuse
+The decorator libraries are target-agnostic, so new targets can reuse
 the same TypeSpec metadata without changing the TypeScript SDK boundary.

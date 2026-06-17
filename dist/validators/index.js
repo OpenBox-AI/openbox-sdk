@@ -257,10 +257,10 @@ function extractApiErrorDetail(body) {
 function hintForDetail(detail) {
   if (!detail) return null;
   if (detail.includes("failed to start workflow: context deadline exceeded")) {
-    return "Core's GovernanceWorkflow is hanging on the post-OPA non-ALLOW path (staging-only bug, image 591f66f+). To confirm vs random Temporal flake, send an `evaluateGovernance` payload against the same agent; if the ALLOW path returns <1s but shell/file-write (or any path that triggers a non-ALLOW verdict) hangs 30s, this is the cccff05 cancellation deadlock. Pivot to prod for end-to-end approval testing until the staging fix lands.";
+    return "Core's GovernanceWorkflow did not start before the gateway deadline. Retry once with the same agent and a fresh workflow_id; if it repeats, check core and Temporal health for the target deployment before treating the verdict as a policy outcome.";
   }
   if (detail.includes("stream terminated by RST_STREAM")) {
-    return "Temporal frontend RST_STREAM; cluster degradation rather than a workflow bug. Retry with backoff; if it persists, escalate to staging-infra with the agent_id + governance_event_id.";
+    return "Workflow service RST_STREAM; likely downstream degradation rather than a policy result. Retry with backoff; if it persists, check the target deployment with the agent_id + governance_event_id.";
   }
   if (detail.includes("OPA unavailable")) {
     return "OPA service was unreachable from core; the fail-closed security policy converted the verdict to BLOCK. The user's actual policy never ran; fix the OPA service and retry.";

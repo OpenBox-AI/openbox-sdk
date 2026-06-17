@@ -8,7 +8,7 @@
 // update automatically.
 //
 // The query-helper interfaces at the top stay hand-written: NestJS
-// flattens `@Query` parameters into individual swagger entries
+// flattens `@Query` parameters into individual OpenAPI entries
 // instead of bundling them as a DTO, so the OpenAPI never carries
 // these shapes. They live here as a consumer-side convenience layer.
 
@@ -209,7 +209,7 @@ export type UpdateWebhookDto = Schema<'UpdateWebhookDto'>;
 // ---------------------------------------------------------------------------
 
 // The backend's ConfigureOidcDto / ConfigureSamlDto / EnforceSsoDto are
-// published as empty objects in the current swagger; they accept any shape.
+// published as empty objects in the current OpenAPI document; they accept any shape.
 // Typed as open records until the server stabilizes the contract.
 export type ConfigureOidcDto = Record<string, unknown>;
 export type ConfigureSamlDto = Record<string, unknown>;

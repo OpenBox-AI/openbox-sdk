@@ -23,7 +23,7 @@ openbox ...
 
 ## Environment
 
-- `openbox-sdk` version: <!-- `npm ls openbox-sdk` or package manager lockfile version -->
+- `@openbox-ai/openbox-sdk` version: <!-- `npm ls @openbox-ai/openbox-sdk` or package manager lockfile version -->
 - Node version: <!-- `node -v` -->
 - OS: <!-- macOS 14.x / Ubuntu 24.04 / Windows 11 -->
 - `OPENBOX_API_URL` / `OPENBOX_CORE_URL`: <!-- redact host if needed -->

@@ -19,21 +19,21 @@ Use the narrowest import that fits:
 
 | Import | Use |
 |---|---|
-| `openbox-sdk` | Root facade for common SDK exports |
-| `openbox-sdk/client` | Backend management client |
-| `openbox-sdk/core-client` | Core governance client, `govern()`, presets, sessions |
-| `openbox-sdk/env` | URL/key/client-name resolution helpers |
-| `openbox-sdk/config` | Node config-file readers and shared OpenBox config store |
-| `openbox-sdk/types` | Generated Backend/Core DTO namespaces |
-| `openbox-sdk/validators` | Shared validation/error helpers |
-| `openbox-sdk/approvals` | Platform-agnostic approval formatting/state helpers |
-| `openbox-sdk/runtime/mcp` | MCP stdio runtime |
-| `openbox-sdk/runtime/cursor` | Cursor project plugin + hook runtime |
-| `openbox-sdk/runtime/claude-code` | Claude Code project plugin + hook runtime |
-| `openbox-sdk/copilotkit` | CopilotKit runtime adapter |
-| `openbox-sdk/copilotkit/react` | CopilotKit React hooks/renderers |
+| `@openbox-ai/openbox-sdk` | Root facade for common SDK exports |
+| `@openbox-ai/openbox-sdk/client` | Backend management client |
+| `@openbox-ai/openbox-sdk/core-client` | Core governance client, `govern()`, presets, sessions |
+| `@openbox-ai/openbox-sdk/env` | URL/key/client-name resolution helpers |
+| `@openbox-ai/openbox-sdk/config` | Node config-file readers and shared OpenBox config store |
+| `@openbox-ai/openbox-sdk/types` | Generated Backend/Core DTO namespaces |
+| `@openbox-ai/openbox-sdk/validators` | Shared validation/error helpers |
+| `@openbox-ai/openbox-sdk/approvals` | Platform-agnostic approval formatting/state helpers |
+| `@openbox-ai/openbox-sdk/runtime/mcp` | MCP stdio runtime |
+| `@openbox-ai/openbox-sdk/runtime/cursor` | Cursor project plugin + hook runtime |
+| `@openbox-ai/openbox-sdk/runtime/claude-code` | Claude Code project plugin + hook runtime |
+| `@openbox-ai/openbox-sdk/copilotkit` | CopilotKit runtime adapter |
+| `@openbox-ai/openbox-sdk/copilotkit/react` | CopilotKit React hooks/renderers |
 
-There is no public `openbox-sdk/approvals/mocks` import. Test fixtures stay in repository tests or explicit test utilities.
+There is no public `@openbox-ai/openbox-sdk/approvals/mocks` import. Test fixtures stay in repository tests or explicit test utilities.
 
 ## Environment Model
 
@@ -102,7 +102,7 @@ Cursor install writes a local plugin under `<project>/.cursor/plugins/local/open
 For custom TypeScript agents, use Core client sessions instead of hand-rolling workflow envelopes:
 
 ```ts
-import { OpenBoxCoreClient, govern, presets } from 'openbox-sdk/core-client';
+import { OpenBoxCoreClient, govern, presets } from '@openbox-ai/openbox-sdk/core-client';
 
 const core = new OpenBoxCoreClient({
   apiUrl: process.env.OPENBOX_CORE_URL,
@@ -125,5 +125,5 @@ The SDK must fail closed on governed paths. If Core is unavailable, do not silen
 - `references/existing-sdks.md`: integration path by host/framework.
 - `references/governance-flow.md`: workflow/session/event lifecycle.
 - `references/claude-code-governance.md`: current Claude Code hook/plugin/MCP surface audit.
-- `references/guardrails.md`, `references/policies-rego.md`, `references/behaviors.md`: policy concepts and examples.
+- `references/guardrails.md`, `references/rego-reference.md`, `references/behaviors.md`: policy concepts and examples.
 - `references/validation-checklist.md`: release/integration checks.

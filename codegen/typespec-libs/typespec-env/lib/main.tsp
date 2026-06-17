@@ -1,8 +1,8 @@
 // typespec-env; decorators that describe how a runtime
 // environment value is sourced + validated. Authored once here, used
-// by every language's env emitter so that the lookup order
+// by each SDK target's env emitter so that the lookup order
 // (process env override → token store → built-in default) stays
-// consistent across TS / Rust / Python / Go.
+// consistent across targets.
 
 import "../dist/index.js";
 
@@ -11,9 +11,9 @@ using TypeSpec.Reflection;
 namespace OpenBox.Env;
 
 /**
- * Marks a property as environment-variable-backed. The TS / Rust /
- * Python / Go emitters generate `process.env.<name>` (or equivalent)
- * lookups with `defaultValue` as the fallback when unset.
+ * Marks a property as environment-variable-backed. Target emitters
+ * generate environment lookups with `defaultValue` as the fallback
+ * when unset.
  *
  * @param name The OS environment variable name. SCREAMING_SNAKE_CASE.
  * @param defaultValue Optional fallback when the env var is unset.

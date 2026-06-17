@@ -13,7 +13,7 @@
     "smoke:load": "node -e \"require('./dist/OpenboxLlm.node.js'); console.log('node-load-ok')\""
   },
   "dependencies": {
-    "openbox-sdk": "file:../../.."
+    "@openbox-ai/openbox-sdk": "file:../../.."
   },
   "peerDependencies": {
     "n8n-workflow": ">=1.0.0"
@@ -24,7 +24,7 @@
     "typescript": "^5.9.3"
   },
   "overrides": {
-    "form-data": "4.0.4"
+    "form-data": "4.0.6"
   },
   "n8n": {
     "n8nNodesApiVersion": 1,

@@ -39,7 +39,7 @@ OPENBOX_API_KEY=$RUNTIME_KEY openbox api core evaluateGovernance \
 Prefer SDK sessions for application code:
 
 ```ts
-import { govern, presets } from 'openbox-sdk/core-client';
+import { govern, presets } from '@openbox-ai/openbox-sdk/core-client';
 
 await govern({ core, preset: presets.custom }, async (session) => {
   await session.activity('ActivityStarted', 'ToolCall', { input: { test: 'data' } });

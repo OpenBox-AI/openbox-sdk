@@ -1,6 +1,6 @@
 ---
 name: openbox-check
-description: Evaluate a hypothetical agent action against OPA without executing it.
+description: Evaluate a hypothetical agent action against OpenBox governance without executing it.
 ---
 
 # Dry-run governance check
@@ -37,8 +37,7 @@ The MCP server resolves cached runtime keys internally. Never print a
 runtime key, paste it into chat, or include it in the final response.
 Do not fall back to shell unless the user explicitly asks you to.
 
-Report the verdict (`allow` / `require_approval` / `deny` /
-`block`) and the matched rule id. If `require_approval`, mention
-they can decide via `/openbox-pending` once it surfaces.
+Report the returned verdict and the matched rule id when present. If
+the verdict requires approval, mention `/openbox-pending`.
 
 Don't mention environment names in your output.

@@ -33,9 +33,15 @@ the lifetime of the LLM session and exits when stdin closes.
 `index.ts` is the source of truth for the registered tool set:
 
 - `get_profile`: current user and permissions.
+- `cursor_status`, `openbox_status`: compact backend status for slash
+  commands.
+- `cursor_doctor`, `claude_code_doctor`: project-local install and
+  runtime readiness diagnostics.
 - `list_agents`, `get_agent`.
 - `list_pending_approvals`.
 - `decide_approval`.
+- `list_guardrails`, `list_policies`.
+- `get_trust_score`.
 - `check_governance`: evaluate a span via the core client.
 - Skill resources at `openbox://skill/<ref>` surface the SKILL.md
   references when a project-local plugin is installed in either

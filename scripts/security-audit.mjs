@@ -8,7 +8,6 @@ import { mkdtempSync } from 'node:fs';
 const steps = [
   ['npm', ['audit'], { label: 'root npm audit' }],
   ['npm', ['--prefix', 'example/n8n/custom-node', 'audit'], { label: 'n8n npm audit' }],
-  ['cargo', ['audit'], { label: 'cargo audit' }],
   ['infisical', ['scan', 'git-changes', '--redact', '--no-color'], { label: 'infisical redacted secret scan for local changes' }],
 ];
 

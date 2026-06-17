@@ -36,7 +36,7 @@ oauth_config:
 
 settings:
   event_subscriptions:
-    request_url: https://app.ipsum.lat/ob/n8n/webhook/aaaaaaaa-bbbb-cccc-dddd-ffffffffffff/webhook
+    request_url: https://n8n.example.test/ob/n8n/webhook/aaaaaaaa-bbbb-cccc-dddd-ffffffffffff/webhook
     bot_events:
       - app_mention
   interactivity:

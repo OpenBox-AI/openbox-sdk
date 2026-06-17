@@ -80,7 +80,7 @@ model Runtime {
 }
 
 // ---------------------------------------------------------------------------
-// On-disk token store; wire format every language SDK must parse
+// On-disk token store; wire format every SDK target must parse
 // identically. One FIELD=value line per entry. There is no env scope.
 // ---------------------------------------------------------------------------
 
@@ -134,7 +134,7 @@ interface TokenCodec {
 
 // ---------------------------------------------------------------------------
 // X-Openbox-Client header composer. Every outbound request from any
-// language SDK must produce the same shape: `<base>`, such as
+// SDK target must produce the same shape: `<base>`, such as
 // `openbox-cli`, optionally followed by `/<variant>` where variant
 // matches CLIENT_VARIANT_PATTERN. The variant comes from the explicit
 // override or the OPENBOX_CLIENT_VARIANT env var. Bad values are
@@ -216,9 +216,9 @@ interface ClientNameResolver {
 // ---------------------------------------------------------------------------
 // ConnectionLoader; runtime contract for URL resolution. Hand-written
 // implementations under ts/src/env/*.ts MUST satisfy the operations
-// declared on this interface. Future language SDKs should implement the
-// same interface on their own release tracks. There is no target selector
-// beyond explicit URLs.
+// declared on this interface. Future SDK targets should implement the same
+// interface on their own release tracks. There is no target selector beyond
+// explicit URLs.
 // ---------------------------------------------------------------------------
 
 interface ConnectionLoader {
@@ -229,15 +229,15 @@ interface ConnectionLoader {
 // ---------------------------------------------------------------------------
 // Client construction contract; the "set token directly" entry point.
 //
-// Every language's HTTP wrapper accepts these option bundles in its
-// constructor. The shapes are part of the cross-language SDK contract:
+// Every SDK target's HTTP wrapper accepts these option bundles in its
+// constructor. The shapes are part of the cross-target SDK contract:
 // what fields can a caller pass when bootstrapping a client, and what
 // happens when tokens rotate. Hand-written code on top of these is
 // purely the platform-specific HTTP layer (`fetch` vs `reqwest` vs
 // `requests`).
 // ---------------------------------------------------------------------------
 
-/** Cross-language retry-policy configuration. */
+/** Cross-target retry-policy configuration. */
 model RetryConfig {
   /** Maximum number of retry attempts. */
   maxRetries?: int32;
@@ -247,7 +247,7 @@ model RetryConfig {
   maxDelayMs?: int32;
 }
 
-/** Cross-language rate-limit configuration. Implementations differ; the shape doesn't. */
+/** Cross-target rate-limit configuration. Implementations differ; the shape doesn't. */
 model RateLimitConfig {
   /** Maximum requests per second. */
   requestsPerSecond: float64;
@@ -339,7 +339,7 @@ model CoreClientConfig {
 }
 
 /**
- * Common shape every language SDK throws for non-2xx responses.
+ * Common shape every SDK target throws for non-2xx responses.
  * Consumers branch on `status` and `body` to pull out structured
  * error details from the wrapped service.
  */

@@ -25,8 +25,9 @@ harness respects the injected values and does not require a committed
 endpoint profile:
 
 ```bash
-INFISICAL_PROJECT_ID="<project-id>" \
-infisical run --env=dev --projectId "$INFISICAL_PROJECT_ID" -- \
+OPENBOX_API_URL="https://api.example.test" \
+OPENBOX_CORE_URL="https://core.example.test" \
+OPENBOX_BACKEND_API_KEY="obx_key_..." \
   npm run test:e2e-extension
 ```
 
@@ -34,7 +35,6 @@ If `OPENBOX_E2E_AGENT_ID` and `OPENBOX_E2E_RUNTIME_KEY` are not
 present, the harness uses `OPENBOX_BACKEND_API_KEY` to create a
 disposable test agent and deletes it at the end of the run.
 
-`infisical run --env=dev` selects only the Infisical secret environment.
 The SDK target is URL-first: inject `OPENBOX_API_URL` and
 `OPENBOX_CORE_URL` for the stack under test.
 

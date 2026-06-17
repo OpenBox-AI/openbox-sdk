@@ -23,7 +23,7 @@ OPENBOX_API_KEY=$RUNTIME_KEY openbox api core evaluateGovernance \
   --body @event.json
 ```
 
-For real integrations, prefer `openbox-sdk/core-client` sessions so
+For real integrations, prefer `@openbox-ai/openbox-sdk/core-client` sessions so
 workflow IDs, run IDs, activity IDs, approval polling, redaction, and
 final completion are handled consistently.
 

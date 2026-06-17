@@ -1,7 +1,7 @@
 # specs/
 
-The single source of truth that every SDK in the monorepo lowers
-from.
+The TypeSpec contract source for the TypeScript SDK and any future
+SDK tracks.
 
 | File or dir | Role |
 |---|---|
@@ -18,8 +18,8 @@ npm run specs:all          # build:codegen + specs:compile + generate:types
 ```
 
 The TypeScript emitter under
-`codegen/emitters/typespec-emitter-typescript/` writes language-
-native source into `ts/src/**/generated/`. The hand-written files in
+`codegen/emitters/typespec-emitter-typescript/` writes TypeScript
+source into `ts/src/**/generated/`. The hand-written files in
 `ts/src/` only consume those generated artifacts.
 
 ## Drift detection
@@ -32,8 +32,8 @@ until the secrets and first run validate clean; the workflow is
 
 ## Backend snapshot bugs fixed at the TypeSpec layer
 
-Two issues that previously required patches in the Rust crate's
-`build.rs` are now correct in the spec:
+Two issues that previously required downstream patching are now correct
+in the spec:
 
 1. 13 endpoints under `/organization/{organizationId}/...` lacked
    path-param declarations because the NestJS upstream was missing
@@ -41,5 +41,5 @@ Two issues that previously required patches in the Rust crate's
 2. Two `AgentController` endpoints declared a redundant
    `organization_id` query param alongside `{agentId}`.
 
-Once the Rust crate switches to consuming the emitted spec, the
-matching `build.rs` patches can be deleted.
+Downstream generators should consume the emitted spec directly instead
+of carrying local patches for these cases.

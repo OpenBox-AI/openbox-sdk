@@ -2,7 +2,7 @@
 // assert that every custom decorator we ship attaches the state it
 // claims to. If the decorator wiring breaks (state-key drift,
 // mis-registered namespace, missing tsp-index re-export), this test
-// catches it without needing the per-language emitters to be in place.
+// catches it without needing every target emitter to be in place.
 
 import { compile, NodeHost, resolvePath } from '@typespec/compiler';
 import { execFileSync } from 'node:child_process';

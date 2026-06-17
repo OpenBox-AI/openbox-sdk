@@ -1,6 +1,6 @@
 // typespec-cli; decorators that describe the CLI surface
-// in protocol form, separate from any one language's argument parser.
-// Per-language emitters lower these to commander/clap/click/cobra
+// in protocol form, separate from any one target's argument parser.
+// Per-target emitters lower these to commander/clap/click/cobra
 // while the .tsp source captures only the contract: command tree,
 // flag names + types + defaults, validators, output schema.
 
@@ -46,7 +46,7 @@ extern dec cli_flag(
 
 /**
  * Attaches a validator name to a flag. The named validator must exist
- * in the per-language runtime helper bundle, such as
+ * in the target runtime helper bundle, such as
  * `validateApiKeyFormat` for the `obx_live_*` regex. Emitters generate
  * the call site; they do not emit the validator body itself.
  *

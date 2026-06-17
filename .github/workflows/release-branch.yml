@@ -6,7 +6,7 @@ name: release branch
 # package.json so consumer installs don't rebuild from source.
 #
 # Consumers pin via:
-#   "openbox-sdk": "github:OpenBox-AI/openbox-sdk#release-v0.2.0-alpha.1"
+#   "@openbox-ai/openbox-sdk": "github:OpenBox-AI/openbox-sdk#release-v1.2.3"
 #
 # A second branch `release-latest` is force-updated to track the most
 # recent stable tag (alpha/beta/rc tags don't update it).
@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to publish a release branch for, such as v0.2.0-alpha.1'
+        description: 'Tag to publish a release branch for, such as v1.2.3'
         required: true
         type: string
   push:
@@ -50,17 +50,6 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux deps for Tauri/Rust checks
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf
 
       - run: NODE_OPTIONS=--max-old-space-size=4096 npm ci --prefer-offline --no-audit --no-fund
 
@@ -92,17 +81,9 @@ jobs:
 
       - run: npm --prefix example/n8n/custom-node run smoke:load
 
-      - run: cargo check --workspace
-
-      - run: cargo test --workspace
-
-      - run: cargo install cargo-audit --locked
-
       - run: npm audit
 
       - run: npm --prefix example/n8n/custom-node audit
-
-      - run: cargo audit
 
       - name: Create release branch
         env:

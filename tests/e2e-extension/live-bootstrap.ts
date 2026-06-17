@@ -249,14 +249,7 @@ async function createPolicyViaBackend(agentId: string, rego: string): Promise<vo
 
 function inferSshHost(): string | undefined {
   if (process.env.OPENBOX_E2E_BOOTSTRAP_SSH_HOST) return process.env.OPENBOX_E2E_BOOTSTRAP_SSH_HOST;
-  const host = (() => {
-    try {
-      return new URL(process.env.OPENBOX_API_URL ?? '').hostname;
-    } catch {
-      return '';
-    }
-  })();
-  return host.endsWith('ipsum.lat') ? 'openbox-dev_hetzner' : undefined;
+  return undefined;
 }
 
 function seedViaDevHost(agentId: string): void {

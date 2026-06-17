@@ -21,7 +21,7 @@ Consistent rule for what gets specced vs hand-coded:
 
 Roughly: **structural and contractual code goes in the spec;
 data-shaping logic and platform-boundary primitives stay hand-coded**.
-When in doubt, ask "would another language SDK want this?". Yes means
+When in doubt, ask "would another SDK target want this?". Yes means
 spec; no means hand-code.
 
 The TypeScript boundary is enforced by:
@@ -67,7 +67,7 @@ The TypeScript boundary is enforced by:
    `stringify`, `extractMcpText`, etc).
 4. Add `ts/src/runtime/<platform>/install.ts`. Around 10 LOC: import
    `INSTALL_SPEC` and delegate to `installAdapter` / `uninstallAdapter`
-   from `openbox-sdk/install`.
+   from `@openbox-ai/openbox-sdk/install`.
 5. Add per-event mappers under `ts/src/runtime/<platform>/mappers/`.
    Each mapper is a thin shell: load envelope, call generated builder,
    fire activity, mark halt. Around 30–50 LOC each.
@@ -114,7 +114,7 @@ The TypeScript boundary is enforced by:
    `CliRuntimeConfig` (CLI-only gating) with `@env_var("OPENBOX_...")`.
 2. `npm run specs:all`. The emitter adds the var to `ENV_VAR_BINDINGS`.
 3. Code reading the var imports `ENV_VAR_BINDINGS` from
-   `'openbox-sdk/env'` and reads `process.env[BINDING.name]`. No magic
+   `@openbox-ai/openbox-sdk/env` and reads `process.env[BINDING.name]`. No magic
    string lookups, no drift.
 
 ## Commit conventions
