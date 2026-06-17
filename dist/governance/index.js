@@ -560,7 +560,8 @@ function buildSpan(spanType, input) {
       };
     }
     case "db": {
-      const dbOp = (input.operation || "SELECT").toUpperCase();
+      const statement = input.statement || input.query || "";
+      const dbOp = (input.operation || "QUERY").toUpperCase();
       return {
         ...base2,
         name: dbOp,
@@ -575,7 +576,7 @@ function buildSpan(spanType, input) {
         },
         db_system: input.system || "postgresql",
         db_operation: dbOp,
-        db_statement: input.statement || ""
+        db_statement: statement
       };
     }
     case "mcp":
@@ -954,7 +955,7 @@ function buildSpan2(host, type, input) {
       const dbStatement = input.db_statement ?? `${dbOperation} statement`;
       return {
         ...b,
-        name: `${dbOperation} ${dbStatement.split(" ").slice(0, 3).join(" ")}`,
+        name: dbOperation,
         span_type: "database",
         hook_type: "db_query",
         semantic_type: `database_${dbOperation.toLowerCase()}`,

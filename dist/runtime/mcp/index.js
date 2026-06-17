@@ -3374,7 +3374,8 @@ function buildMcpGovernanceSpan(spanType, input) {
       };
     }
     case "db": {
-      const dbOp = (input.operation || "SELECT").toUpperCase();
+      const statement = input.statement || input.query || "";
+      const dbOp = (input.operation || "QUERY").toUpperCase();
       return {
         ...base,
         name: `${dbOp}`,
@@ -3389,7 +3390,7 @@ function buildMcpGovernanceSpan(spanType, input) {
         },
         db_system: input.system || "postgresql",
         db_operation: dbOp,
-        db_statement: input.statement || ""
+        db_statement: statement
       };
     }
     case "mcp":

@@ -626,11 +626,10 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(JSON.stringify(events[0].activity_output)).toContain('7,500');
     expect(events.map((event) => event.event_type)).toEqual([
       'ActivityCompleted',
-      'ActivityCompleted',
       'WorkflowCompleted',
     ]);
-    expect(events[1].hook_trigger).toBe(true);
-    expect(JSON.stringify(events[1].spans ?? [])).not.toContain('7500');
+    expect(events[0].hook_trigger).toBe(true);
+    expect(JSON.stringify(events[0].spans ?? [])).not.toContain('7500');
   });
 
   it('fails closed and skips execution when OpenBox blocks activity start', async () => {

@@ -459,7 +459,7 @@ export function buildSpan(
       const dbStatement = input.db_statement ?? `${dbOperation} statement`;
       return {
         ...b,
-        name: `${dbOperation} ${dbStatement.split(' ').slice(0, 3).join(' ')}`,
+        name: dbOperation,
         span_type: 'database',
         hook_type: 'db_query',
         semantic_type: `database_${dbOperation.toLowerCase()}`,

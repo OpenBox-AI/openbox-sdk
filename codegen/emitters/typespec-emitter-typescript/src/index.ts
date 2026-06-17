@@ -2691,7 +2691,7 @@ export class BaseGovernedSession {
   private async emitWithSpanHook(
     event: Pick<
       GovernanceEventPayload,
-      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms'
+      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms'
     >,
   ): Promise<${verdictModelName}> {
     const hasActivitySpans =
@@ -2701,22 +2701,17 @@ export class BaseGovernedSession {
       event.spans.some(isPersistableHookSpan);
     if (!hasActivitySpans) return this.emit(event);
 
-    const baseVerdict = await this.emit({ ...event, spans: undefined });
-    if (baseVerdict.arm !== 'allow' && baseVerdict.arm !== 'constrain') {
-      return baseVerdict;
-    }
-
-    const hookVerdict = await this.emit({
+    return await this.emit({
       ...event,
+      attempt: event.attempt ?? 1,
       hook_trigger: true,
     } as typeof event & { hook_trigger: true });
-    return stricterVerdict(baseVerdict, hookVerdict);
   }
 
   private async emit(
     event: Pick<
       GovernanceEventPayload,
-      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms'
+      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms'
     > & { hook_trigger?: boolean },
   ): Promise<${verdictModelName}> {
     const payload = {
@@ -3156,7 +3151,22 @@ function normalizeGuardrailFieldStatus(value: string | undefined): 'allowed' | '
   }
 }
 
-function normalizeArm(value: string): VerdictArm {
+function normalizeArm(value: string | number | undefined): VerdictArm {
+  if (typeof value === 'number') {
+    switch (value) {
+      case 1:
+        return 'constrain';
+      case 2:
+        return 'require_approval';
+      case 3:
+        return 'block';
+      case 4:
+        return 'halt';
+      case 0:
+      default:
+        return 'allow';
+    }
+  }
   switch (value) {
     case 'allow':
     case 'continue':
@@ -3210,6 +3220,12 @@ function isPersistableHookSpan(span: unknown): boolean {
       ? (record.attributes as Record<string, unknown>)
       : {};
   return (
+    typeof record.db_statement === 'string' ||
+    typeof record.db_operation === 'string' ||
+    typeof record.db_system === 'string' ||
+    typeof attributes['db.statement'] === 'string' ||
+    typeof attributes['db.operation'] === 'string' ||
+    typeof attributes['db.system'] === 'string' ||
     typeof attributes['openbox.tool.name'] === 'string' ||
     typeof attributes['tool.name'] === 'string' ||
     typeof attributes.tool_name === 'string' ||

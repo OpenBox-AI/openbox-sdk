@@ -15,13 +15,22 @@ import { buildSpan, type SpanType } from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import { sideEffects } from '../side-effects.js';
 import { rememberToolActivity } from '../tool-activity-store.js';
-import { filePathFor, httpMethodFor, httpTargetFor } from './tool-input.js';
+import {
+  dbOperationFor,
+  dbStatementFor,
+  dbSystemFor,
+  filePathFor,
+  httpMethodFor,
+  httpTargetFor,
+  isDatabaseMcpTool,
+} from './tool-input.js';
 
 /** Activity-type lookup. Spec-driven for the standard tools; mcp__* tools
  *  fall through to MCP_CALL because their names are dynamic. */
-function activityTypeFor(toolName: string): string | null {
+function activityTypeFor(toolName: string, toolInput: Record<string, unknown>): string | null {
   const direct = PRE_TOOL_USE_ROUTING[toolName];
   if (direct) return direct;
+  if (isDatabaseMcpTool(toolName, toolInput)) return ACTIVITY_TYPES.DB_QUERY;
   if (toolName.startsWith('mcp__')) return ACTIVITY_TYPES.MCP_CALL;
   return ACTIVITY_TYPES.AGENT_ACTION;
 }
@@ -29,12 +38,13 @@ function activityTypeFor(toolName: string): string | null {
 /** Map a tool name to the span type behavior rules will match on.
  *  Returns null for tools without a recognized span shape (the span
  *  is omitted; rules that need spans silently won't match). */
-function spanTypeFor(toolName: string): SpanType | null {
+function spanTypeFor(toolName: string, toolInput: Record<string, unknown>): SpanType | null {
   if (toolName === 'Read' || toolName === 'NotebookRead' || toolName === 'Glob' || toolName === 'Grep') return 'file_read';
   if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') return 'file_write';
   if (toolName === 'Delete') return 'file_delete';
   if (toolName === 'Bash' || toolName === 'PowerShell') return 'shell';
   if (toolName === 'WebFetch' || toolName === 'WebSearch') return 'http';
+  if (isDatabaseMcpTool(toolName, toolInput)) return 'db';
   if (toolName.startsWith('mcp__')) return 'mcp';
   return null;
 }
@@ -54,7 +64,7 @@ export async function handlePreToolUse(
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
   if ((cfg.skipTools ?? []).includes(toolName)) return undefined;
 
-  const activityType = activityTypeFor(toolName);
+  const activityType = activityTypeFor(toolName, toolInput);
   if (!activityType) return undefined;
   if ((cfg.skipActivityTypes ?? []).includes(activityType)) return undefined;
 
@@ -70,10 +80,11 @@ export async function handlePreToolUse(
   // governance/spans.ts. Without spans, every rule silently
   // no-ops (Activity type alone is not a behavior trigger; see
   // skill/references/span-reference.md).
-  const spanType = spanTypeFor(toolName);
-  const spans = spanType
+  const spanType = spanTypeFor(toolName, toolInput);
+  const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? 'db' : null);
+  const spans = effectiveSpanType
     ? [
-        buildSpan('claude-code', spanType, {
+        buildSpan('claude-code', effectiveSpanType, {
           file_path: filePath || undefined,
           command: (toolInput.command as string) || undefined,
           cwd: (toolInput.cwd as string) || undefined,
@@ -81,6 +92,9 @@ export async function handlePreToolUse(
           tool_input: toolInput,
           url: httpTargetFor(toolInput),
           method: httpMethodFor(toolInput),
+          db_system: dbSystemFor(toolName, toolInput),
+          db_operation: dbOperationFor(toolInput),
+          db_statement: dbStatementFor(toolInput),
         }),
       ]
     : undefined;

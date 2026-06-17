@@ -3439,15 +3439,11 @@ var BaseGovernedSession = class {
   async emitWithSpanHook(event) {
     const hasActivitySpans = (event.event_type === "ActivityStarted" || event.event_type === "ActivityCompleted") && Array.isArray(event.spans) && event.spans.some(isPersistableHookSpan);
     if (!hasActivitySpans) return this.emit(event);
-    const baseVerdict = await this.emit({ ...event, spans: void 0 });
-    if (baseVerdict.arm !== "allow" && baseVerdict.arm !== "constrain") {
-      return baseVerdict;
-    }
-    const hookVerdict = await this.emit({
+    return await this.emit({
       ...event,
+      attempt: event.attempt ?? 1,
       hook_trigger: true
     });
-    return stricterVerdict(baseVerdict, hookVerdict);
   }
   async emit(event) {
     const payload = {
@@ -4228,6 +4224,21 @@ function normalizeGuardrailFieldStatus(value) {
   }
 }
 function normalizeArm(value) {
+  if (typeof value === "number") {
+    switch (value) {
+      case 1:
+        return "constrain";
+      case 2:
+        return "require_approval";
+      case 3:
+        return "block";
+      case 4:
+        return "halt";
+      case 0:
+      default:
+        return "allow";
+    }
+  }
   switch (value) {
     case "allow":
     case "continue":
@@ -4246,24 +4257,6 @@ function normalizeArm(value) {
       return "allow";
   }
 }
-function verdictRank(arm) {
-  switch (arm) {
-    case "halt":
-      return 4;
-    case "block":
-      return 3;
-    case "require_approval":
-      return 2;
-    case "constrain":
-      return 1;
-    case "allow":
-    default:
-      return 0;
-  }
-}
-function stricterVerdict(base, hook) {
-  return verdictRank(hook.arm) >= verdictRank(base.arm) ? hook : base;
-}
 function isPersistableHookSpan(span) {
   if (!span || typeof span !== "object") return false;
   const record = span;
@@ -4271,7 +4264,7 @@ function isPersistableHookSpan(span) {
     return true;
   }
   const attributes = record.attributes && typeof record.attributes === "object" ? record.attributes : {};
-  return typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
+  return typeof record.db_statement === "string" || typeof record.db_operation === "string" || typeof record.db_system === "string" || typeof attributes["db.statement"] === "string" || typeof attributes["db.operation"] === "string" || typeof attributes["db.system"] === "string" || typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
 }
 function errorInfoFrom(value) {
   if (value == null) return void 0;

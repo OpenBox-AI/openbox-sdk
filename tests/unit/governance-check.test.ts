@@ -116,6 +116,7 @@ describe('governance/check', () => {
       ['file_read', { file_path: '/tmp/r' }, 'FileRead', 'file.read'],
       ['http', { method: 'get', url: 'https://example.test' }, 'HTTPRequest', 'GET https://example.test'],
       ['db', { operation: 'insert', statement: 'insert 1' }, 'DatabaseQuery', 'INSERT'],
+      ['db', { query: 'SELECT 1' }, 'DatabaseQuery', 'QUERY'],
       ['mcp', { tool: 'read' }, 'MCPToolCall', 'tool.read'],
     ] as const;
 

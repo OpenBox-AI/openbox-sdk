@@ -137,7 +137,7 @@ describe('low-branch utility coverage', () => {
     expect(buildMcpGovernanceSpan('http', {}).name).toBe(
       'POST https://api.example.com',
     );
-    expect(buildMcpGovernanceSpan('db', {}).db_operation).toBe('SELECT');
+    expect(buildMcpGovernanceSpan('db', {}).db_operation).toBe('QUERY');
     expect(buildMcpGovernanceSpan('mcp', {}).function).toBe('mcp.call');
     expect(MCP_ACTIVITY_TYPE_MAP).toMatchObject({
       llm: 'PromptSubmission',

@@ -2337,6 +2337,21 @@ function normalizeGuardrailFieldStatus(value) {
   }
 }
 function normalizeArm(value) {
+  if (typeof value === "number") {
+    switch (value) {
+      case 1:
+        return "constrain";
+      case 2:
+        return "require_approval";
+      case 3:
+        return "block";
+      case 4:
+        return "halt";
+      case 0:
+      default:
+        return "allow";
+    }
+  }
   switch (value) {
     case "allow":
     case "continue":
@@ -2355,24 +2370,6 @@ function normalizeArm(value) {
       return "allow";
   }
 }
-function verdictRank(arm) {
-  switch (arm) {
-    case "halt":
-      return 4;
-    case "block":
-      return 3;
-    case "require_approval":
-      return 2;
-    case "constrain":
-      return 1;
-    case "allow":
-    default:
-      return 0;
-  }
-}
-function stricterVerdict(base2, hook) {
-  return verdictRank(hook.arm) >= verdictRank(base2.arm) ? hook : base2;
-}
 function isPersistableHookSpan(span) {
   if (!span || typeof span !== "object") return false;
   const record = span;
@@ -2380,7 +2377,7 @@ function isPersistableHookSpan(span) {
     return true;
   }
   const attributes = record.attributes && typeof record.attributes === "object" ? record.attributes : {};
-  return typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
+  return typeof record.db_statement === "string" || typeof record.db_operation === "string" || typeof record.db_system === "string" || typeof attributes["db.statement"] === "string" || typeof attributes["db.operation"] === "string" || typeof attributes["db.system"] === "string" || typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
 }
 function errorInfoFrom(value) {
   if (value == null) return void 0;
@@ -2722,15 +2719,11 @@ var init_govern = __esm({
       async emitWithSpanHook(event) {
         const hasActivitySpans = (event.event_type === "ActivityStarted" || event.event_type === "ActivityCompleted") && Array.isArray(event.spans) && event.spans.some(isPersistableHookSpan);
         if (!hasActivitySpans) return this.emit(event);
-        const baseVerdict = await this.emit({ ...event, spans: void 0 });
-        if (baseVerdict.arm !== "allow" && baseVerdict.arm !== "constrain") {
-          return baseVerdict;
-        }
-        const hookVerdict = await this.emit({
+        return await this.emit({
           ...event,
+          attempt: event.attempt ?? 1,
           hook_trigger: true
         });
-        return stricterVerdict(baseVerdict, hookVerdict);
       }
       async emit(event) {
         const payload = {
@@ -7241,7 +7234,8 @@ function buildMcpGovernanceSpan(spanType, input) {
       };
     }
     case "db": {
-      const dbOp = (input.operation || "SELECT").toUpperCase();
+      const statement = input.statement || input.query || "";
+      const dbOp = (input.operation || "QUERY").toUpperCase();
       return {
         ...base2,
         name: `${dbOp}`,
@@ -7256,7 +7250,7 @@ function buildMcpGovernanceSpan(spanType, input) {
         },
         db_system: input.system || "postgresql",
         db_operation: dbOp,
-        db_statement: input.statement || ""
+        db_statement: statement
       };
     }
     case "mcp":
@@ -8011,6 +8005,7 @@ var init_activity_types = __esm({
       FILE_DELETE: "FileDelete",
       SHELL: "ShellExecution",
       HTTP_REQUEST: "HTTPRequest",
+      DB_QUERY: "DatabaseQuery",
       MCP_CALL: "MCPToolCall",
       AGENT_SPAWN: "AgentSpawn",
       AGENT_ACTION: "AgentAction",
@@ -8369,7 +8364,7 @@ function buildSpan(host, type, input) {
       const dbStatement = input.db_statement ?? `${dbOperation} statement`;
       return {
         ...b,
-        name: `${dbOperation} ${dbStatement.split(" ").slice(0, 3).join(" ")}`,
+        name: dbOperation,
         span_type: "database",
         hook_type: "db_query",
         semantic_type: `database_${dbOperation.toLowerCase()}`,
@@ -8514,6 +8509,46 @@ function httpMethodFor(toolInput) {
     toolInput.httpMethod
   )?.toUpperCase() ?? "GET";
 }
+function dbStatementFor(toolInput) {
+  return firstString(
+    toolInput.db_statement,
+    toolInput.dbStatement,
+    toolInput.statement,
+    toolInput.sql,
+    toolInput.query
+  );
+}
+function dbSystemFor(toolName, toolInput) {
+  const explicit = firstString(
+    toolInput.db_system,
+    toolInput.dbSystem,
+    toolInput.system,
+    toolInput.database_system
+  );
+  if (explicit) return explicit;
+  const lowerName = toolName.toLowerCase();
+  if (lowerName.includes("sqlite")) return "sqlite";
+  if (lowerName.includes("mysql")) return "mysql";
+  if (lowerName.includes("postgres")) return "postgresql";
+  return "postgresql";
+}
+function dbOperationFor(toolInput) {
+  const explicit = firstString(
+    toolInput.db_operation,
+    toolInput.dbOperation,
+    toolInput.operation
+  );
+  if (explicit) return explicit.toUpperCase();
+  if (dbStatementFor(toolInput)) return "QUERY";
+  return "QUERY";
+}
+function isDatabaseMcpTool(toolName, toolInput) {
+  if (!toolName.startsWith("mcp__")) return false;
+  const lowerName = toolName.toLowerCase();
+  const nameLooksDatabase = lowerName.includes("db") || lowerName.includes("sql") || lowerName.includes("database") || lowerName.includes("postgres") || lowerName.includes("mysql") || lowerName.includes("sqlite");
+  if (!nameLooksDatabase) return false;
+  return Boolean(dbStatementFor(toolInput)) || lowerName.includes("query") || lowerName.includes("execute") || lowerName.includes("select");
+}
 var init_tool_input = __esm({
   "ts/src/runtime/claude-code/mappers/tool-input.ts"() {
     "use strict";
@@ -8521,18 +8556,20 @@ var init_tool_input = __esm({
 });
 
 // ts/src/runtime/claude-code/mappers/pre-tool-use.ts
-function activityTypeFor(toolName) {
+function activityTypeFor(toolName, toolInput) {
   const direct = PRE_TOOL_USE_ROUTING2[toolName];
   if (direct) return direct;
+  if (isDatabaseMcpTool(toolName, toolInput)) return ACTIVITY_TYPES.DB_QUERY;
   if (toolName.startsWith("mcp__")) return ACTIVITY_TYPES.MCP_CALL;
   return ACTIVITY_TYPES.AGENT_ACTION;
 }
-function spanTypeFor(toolName) {
+function spanTypeFor(toolName, toolInput) {
   if (toolName === "Read" || toolName === "NotebookRead" || toolName === "Glob" || toolName === "Grep") return "file_read";
   if (toolName === "Write" || toolName === "Edit" || toolName === "MultiEdit" || toolName === "NotebookEdit") return "file_write";
   if (toolName === "Delete") return "file_delete";
   if (toolName === "Bash" || toolName === "PowerShell") return "shell";
   if (toolName === "WebFetch" || toolName === "WebSearch") return "http";
+  if (isDatabaseMcpTool(toolName, toolInput)) return "db";
   if (toolName.startsWith("mcp__")) return "mcp";
   return null;
 }
@@ -8540,22 +8577,26 @@ async function handlePreToolUse(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
   if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
-  const activityType = activityTypeFor(toolName);
+  const activityType = activityTypeFor(toolName, toolInput);
   if (!activityType) return void 0;
   if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const filePath = filePathFor(toolInput) ?? "";
   if (filePath && isSkipped(filePath)) return void 0;
   const payload = buildPreToolUsePayload2(env, toolName, sideEffects);
-  const spanType = spanTypeFor(toolName);
-  const spans = spanType ? [
-    buildSpan("claude-code", spanType, {
+  const spanType = spanTypeFor(toolName, toolInput);
+  const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? "db" : null);
+  const spans = effectiveSpanType ? [
+    buildSpan("claude-code", effectiveSpanType, {
       file_path: filePath || void 0,
       command: toolInput.command || void 0,
       cwd: toolInput.cwd || void 0,
       tool_name: toolName,
       tool_input: toolInput,
       url: httpTargetFor(toolInput),
-      method: httpMethodFor(toolInput)
+      method: httpMethodFor(toolInput),
+      db_system: dbSystemFor(toolName, toolInput),
+      db_operation: dbOperationFor(toolInput),
+      db_statement: dbStatementFor(toolInput)
     })
   ] : void 0;
   const startTime = Date.now();
@@ -8591,18 +8632,20 @@ var init_pre_tool_use = __esm({
 });
 
 // ts/src/runtime/claude-code/mappers/post-tool-use.ts
-function activityTypeFor2(toolName) {
+function activityTypeFor2(toolName, toolInput) {
   const direct = POST_TOOL_USE_ROUTING[toolName];
   if (direct) return direct;
+  if (isDatabaseMcpTool(toolName, toolInput)) return ACTIVITY_TYPES.DB_QUERY;
   if (toolName.startsWith("mcp__")) return ACTIVITY_TYPES.MCP_CALL;
   return ACTIVITY_TYPES.AGENT_ACTION;
 }
-function spanTypeFor2(toolName) {
+function spanTypeFor2(toolName, toolInput) {
   if (toolName === "Read" || toolName === "NotebookRead" || toolName === "Glob" || toolName === "Grep") return "file_read";
   if (toolName === "Write" || toolName === "Edit" || toolName === "MultiEdit" || toolName === "NotebookEdit") return "file_write";
   if (toolName === "Delete") return "file_delete";
   if (toolName === "Bash" || toolName === "PowerShell") return "shell";
   if (toolName === "WebFetch" || toolName === "WebSearch") return "http";
+  if (isDatabaseMcpTool(toolName, toolInput)) return "db";
   if (toolName.startsWith("mcp__")) return "mcp";
   return null;
 }
@@ -8617,7 +8660,7 @@ async function handlePostToolUse(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
   if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
-  const activityType = activityTypeFor2(toolName);
+  const activityType = activityTypeFor2(toolName, toolInput);
   if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const filePath = filePathFor(toolInput) ?? "";
   if (filePath && isSkipped(filePath)) return void 0;
@@ -8625,16 +8668,20 @@ async function handlePostToolUse(env, session, cfg) {
   const toolResponse = outputFor(env, {});
   const payload = buildPostToolUsePayload(env, sideEffects);
   const startedPayload = buildPreToolUsePayload2(env, toolName, sideEffects);
-  const spanType = spanTypeFor2(toolName);
-  const spans = spanType ? [
-    buildSpan("claude-code", spanType, {
+  const spanType = spanTypeFor2(toolName, toolInput);
+  const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? "db" : null);
+  const spans = effectiveSpanType ? [
+    buildSpan("claude-code", effectiveSpanType, {
       file_path: toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path,
       command: toolInput.command,
       cwd: toolInput.cwd,
       tool_name: toolName,
       tool_output: toolResponse,
       url: httpTargetFor(toolInput),
-      method: httpMethodFor(toolInput)
+      method: httpMethodFor(toolInput),
+      db_system: dbSystemFor(toolName, toolInput),
+      db_operation: dbOperationFor(toolInput),
+      db_statement: dbStatementFor(toolInput)
     })
   ] : void 0;
   const durationMs = durationMsFor(env);
@@ -8654,7 +8701,7 @@ async function handlePostToolUseFailure(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
   if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
-  const activityType = activityTypeFor2(toolName);
+  const activityType = activityTypeFor2(toolName, toolInput);
   if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const filePath = filePathFor(toolInput) ?? "";
   if (filePath && isSkipped(filePath)) return void 0;
@@ -8740,39 +8787,45 @@ var init_user_prompt = __esm({
 });
 
 // ts/src/runtime/claude-code/mappers/permission-request.ts
-function activityTypeForTool(toolName) {
+function activityTypeForTool(toolName, toolInput) {
   const direct = PERMISSION_REQUEST_ROUTING[toolName];
   if (direct) return direct;
+  if (isDatabaseMcpTool(toolName, toolInput)) return ACTIVITY_TYPES.DB_QUERY;
   if (toolName.startsWith("mcp__")) return ACTIVITY_TYPES.MCP_CALL;
   return ACTIVITY_TYPES.AGENT_ACTION;
 }
-function spanTypeFor3(toolName) {
+function spanTypeFor3(toolName, toolInput) {
   if (toolName === "Read" || toolName === "NotebookRead" || toolName === "Glob" || toolName === "Grep") return "file_read";
   if (toolName === "Write" || toolName === "Edit" || toolName === "MultiEdit" || toolName === "NotebookEdit") return "file_write";
   if (toolName === "Delete") return "file_delete";
   if (toolName === "Bash" || toolName === "PowerShell") return "shell";
   if (toolName === "WebFetch" || toolName === "WebSearch") return "http";
+  if (isDatabaseMcpTool(toolName, toolInput)) return "db";
   if (toolName.startsWith("mcp__")) return "mcp";
   return null;
 }
 async function handlePermissionRequest(env, session, cfg) {
   const toolName = env.tool_name ?? "";
-  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
-  const activityType = activityTypeForTool(toolName);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const toolInput = env.tool_input ?? {};
+  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
+  const activityType = activityTypeForTool(toolName, toolInput);
+  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const payload = buildPermissionRequestPayload(env, toolName);
-  const spanType = spanTypeFor3(toolName);
+  const spanType = spanTypeFor3(toolName, toolInput);
+  const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? "db" : null);
   const filePath = filePathFor(toolInput);
-  const spans = spanType ? [
-    buildSpan("claude-code", spanType, {
+  const spans = effectiveSpanType ? [
+    buildSpan("claude-code", effectiveSpanType, {
       file_path: filePath,
       command: toolInput.command,
       cwd: toolInput.cwd,
       tool_name: toolName,
       tool_input: toolInput,
       url: httpTargetFor(toolInput),
-      method: httpMethodFor(toolInput)
+      method: httpMethodFor(toolInput),
+      db_system: dbSystemFor(toolName, toolInput),
+      db_operation: dbOperationFor(toolInput),
+      db_statement: dbStatementFor(toolInput)
     })
   ] : void 0;
   const verdict = await session.activity(EVENT.START, activityType, {
@@ -8784,7 +8837,8 @@ async function handlePermissionRequest(env, session, cfg) {
 }
 async function handlePermissionDenied(env, session, cfg) {
   const toolName = env.tool_name ?? "";
-  const activityType = activityTypeForTool(toolName);
+  const toolInput = env.tool_input ?? {};
+  const activityType = activityTypeForTool(toolName, toolInput);
   if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const payload = buildPermissionDeniedPayload(env);
   const verdict = await session.activity(EVENT.START, activityType, {

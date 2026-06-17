@@ -15,7 +15,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import {
@@ -24,16 +24,38 @@ import {
 } from './fixtures/verdict-matrix.js';
 import {
   SHOULD_RUN as SUITE_SHOULD_RUN,
+  PLUGIN_DIR,
   WORKSPACE,
   assertClaudeOnPath,
 } from './helpers/claude-runner.js';
 
 const OPENBOX = process.env.OPENBOX_CLI ?? path.resolve(import.meta.dirname, '../../dist/cli/index.js');
 const PROJECT_OPENBOX = path.resolve(process.cwd(), '.openbox');
+const REAL_DB_MCP = path.resolve(import.meta.dirname, 'fixtures/real-db-mcp-server.mjs');
 const DEFAULT_API_URL = 'http://127.0.0.1:3000';
 const DEFAULT_CORE_URL = 'http://127.0.0.1:8086';
 const UNIT_API_URL = 'http://localhost:18080';
 const UNIT_CORE_URL = 'http://localhost:18081';
+const OPENBOX_RUNTIME_ENV = [
+  'OPENBOX_API_KEY',
+  'OPENBOX_API_URL',
+  'OPENBOX_CORE_URL',
+  'OPENBOX_ENDPOINT',
+  'OPENBOX_AGENT_DID',
+  'OPENBOX_AGENT_PRIVATE_KEY',
+  'OPENBOX_HOME',
+  'GOVERNANCE_POLICY',
+  'GOVERNANCE_TIMEOUT',
+  'APPROVAL_MODE',
+  'DRY_RUN',
+  'HITL_ENABLED',
+  'HITL_POLL_INTERVAL',
+  'SESSION_DIR',
+  'LOG_FILE',
+  'SKIP_TOOLS',
+  'SKIP_ACTIVITY_TYPES',
+  'TASK_QUEUE',
+] as const;
 const E2E_AGENT_NAME = 'e2e-agent';
 const RUNTIME_KEY_PREFIX = /^obx_(test|live)_/;
 
@@ -78,6 +100,12 @@ function runtimeUrl(kind: 'api' | 'core'): string {
       : DEFAULT_CORE_URL);
 }
 
+function claudeHookEnv(): Record<string, string> {
+  const env: Record<string, string> = { ...(process.env as Record<string, string>) };
+  for (const key of OPENBOX_RUNTIME_ENV) delete env[key];
+  return { ...env, OPENBOX_CLI: OPENBOX, HITL_MAX_WAIT: '5' };
+}
+
 function readAgentRecords(): AgentKeyRecord[] {
   const keys = path.join(PROJECT_OPENBOX, 'agent-keys');
   if (!existsSync(keys)) return [];
@@ -116,6 +144,7 @@ const runtimeKey = resolveRuntimeKey();
 const agentId = resolveAgentId();
 const SHOULD_RUN = SUITE_SHOULD_RUN && !!orgKey;
 const SHOULD_RUN_GOVERNANCE = SHOULD_RUN && !!runtimeKey;
+const SHOULD_RUN_REAL_DB = SHOULD_RUN_GOVERNANCE && realDbAvailable();
 
 interface ClaudeResult {
   result: string;
@@ -123,13 +152,142 @@ interface ClaudeResult {
   is_error?: boolean;
 }
 
+interface GovernanceDbEvent {
+  event_type?: string;
+  activity_type?: string;
+  span_count?: number;
+  verdict?: number;
+  reason?: string;
+  input?: unknown;
+}
+
+function realDbAvailable(): boolean {
+  const r = spawnSync('docker', ['ps', '--format', '{{.Names}}'], {
+    encoding: 'utf-8',
+    timeout: 5_000,
+  });
+  return r.status === 0 && r.stdout.split('\n').includes('openbox-postgres');
+}
+
+function psqlScalar(sql: string): string {
+  const r = spawnSync(
+    'docker',
+    [
+      'exec',
+      'openbox-postgres',
+      'psql',
+      '-U',
+      'postgres',
+      '-d',
+      'openbox',
+      '-t',
+      '-A',
+      '-c',
+      sql,
+    ],
+    {
+      encoding: 'utf-8',
+      timeout: 15_000,
+    },
+  );
+  expect(r.status, `psql failed: ${r.stderr || r.stdout}`).toBe(0);
+  return r.stdout.trim();
+}
+
+function psqlExec(sql: string): void {
+  const r = spawnSync(
+    'docker',
+    [
+      'exec',
+      'openbox-postgres',
+      'psql',
+      '-U',
+      'postgres',
+      '-d',
+      'openbox',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      sql,
+    ],
+    {
+      encoding: 'utf-8',
+      timeout: 15_000,
+    },
+  );
+  expect(r.status, `psql failed: ${r.stderr || r.stdout}`).toBe(0);
+}
+
+function sqlLiteral(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function readGovernanceDbEvent(marker: string): GovernanceDbEvent | null {
+  const escapedMarker = marker.replaceAll("'", "''");
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const text = psqlScalar(`
+      SELECT json_build_object(
+        'event_type', event_type,
+        'activity_type', activity_type,
+        'span_count', span_count,
+        'verdict', verdict,
+        'reason', coalesce(reason, ''),
+        'input', input,
+        'output', output
+      )::text
+      FROM governance_events
+      WHERE activity_type = 'DatabaseQuery'
+        AND (
+          input::text LIKE '%${escapedMarker}%'
+          OR output::text LIKE '%${escapedMarker}%'
+        )
+      ORDER BY
+        CASE WHEN event_type = 'ActivityStarted' THEN 0 ELSE 1 END,
+        created_at DESC
+      LIMIT 1
+    `);
+    if (text) return JSON.parse(text) as GovernanceDbEvent;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+  }
+  return null;
+}
+
 describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
   let mcpConfigPath: string;
+  let realDbPluginDir: string;
 
   beforeAll(() => {
     assertClaudeOnPath();
     const tmp = mkdtempSync(path.join(os.tmpdir(), 'obx-mcp-via-claude-'));
     mcpConfigPath = path.join(tmp, '.mcp.json');
+    realDbPluginDir = path.join(tmp, 'openbox');
+    cpSync(PLUGIN_DIR, realDbPluginDir, { recursive: true });
+    const pluginMcpPath = path.join(realDbPluginDir, '.mcp.json');
+    const pluginMcpConfig = JSON.parse(readFileSync(pluginMcpPath, 'utf-8')) as {
+      mcpServers?: Record<string, unknown>;
+    };
+    writeFileSync(
+      pluginMcpPath,
+      JSON.stringify(
+        {
+          ...pluginMcpConfig,
+          mcpServers: {
+            ...(pluginMcpConfig.mcpServers ?? {}),
+            realdb: {
+              command: process.execPath,
+              args: [REAL_DB_MCP],
+              env: {
+                OPENBOX_E2E_POSTGRES_CONTAINER: 'openbox-postgres',
+                OPENBOX_E2E_POSTGRES_DB: 'openbox',
+                OPENBOX_E2E_POSTGRES_USER: 'postgres',
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
     // Point claude at the openbox MCP server. Pass the org X-API-Key
     // and the `local` env explicitly so the MCP server reaches the
     // local stack regardless of the user's default env.
@@ -199,6 +357,35 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
     return JSON.parse(r.stdout.slice(start)) as ClaudeResult;
   }
 
+  function runGovernedPluginMcp(prompt: string, allowedTool: string): ClaudeResult {
+    const r = spawnSync(
+      'claude',
+      [
+        '-p',
+        prompt,
+        '--output-format',
+        'json',
+        '--dangerously-skip-permissions',
+        '--plugin-dir',
+        realDbPluginDir,
+        '--setting-sources',
+        'user',
+        '--allowedTools',
+        allowedTool,
+      ],
+      {
+        cwd: WORKSPACE,
+        encoding: 'utf-8',
+        timeout: 200_000,
+        env: claudeHookEnv(),
+      },
+    );
+    expect(r.status, `claude exited ${r.status}; stderr: ${r.stderr}`).toBe(0);
+    const start = r.stdout.indexOf('{');
+    expect(start, 'no JSON in claude output').toBeGreaterThanOrEqual(0);
+    return JSON.parse(r.stdout.slice(start)) as ClaudeResult;
+  }
+
   it('claude can call mcp__openbox__openbox_status and gets a non-error result', () => {
     const parsed = runClaudeMcp(
       'Call the mcp__openbox__openbox_status tool. Return only the text content of the tool response.',
@@ -249,11 +436,54 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
         const text = parsed.result.toLowerCase();
         expect(
           text.includes(c.expectedRule.toLowerCase())
-            || text.includes(c.expectedVerdict.toLowerCase())
-            || text.includes(c.expectedOutcome.toLowerCase()),
+            || text.includes(c.expectedVerdict.toLowerCase()),
           `expected ${c.expectedRule}/${c.expectedVerdict}; got ${parsed.result.slice(0, 1000)}`,
         ).toBe(true);
       }, 200_000);
     }
+  });
+
+  describe.runIf(SHOULD_RUN_REAL_DB)('claude-governed real database MCP tool', () => {
+    it('runs a real Postgres query and records a constrained DatabaseQuery event', () => {
+      const probeId = `obx_real_db_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      const secret = `db_secret_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+      psqlExec(`
+        CREATE TABLE IF NOT EXISTS openbox_e2e_probe (
+          probe_id text PRIMARY KEY,
+          secret text NOT NULL,
+          created_at timestamptz NOT NULL DEFAULT now()
+        )
+      `);
+      psqlExec(`
+        INSERT INTO openbox_e2e_probe (probe_id, secret)
+        VALUES (${sqlLiteral(probeId)}, ${sqlLiteral(secret)})
+        ON CONFLICT (probe_id) DO UPDATE SET secret = EXCLUDED.secret
+      `);
+      const query = `SELECT secret FROM openbox_e2e_probe WHERE probe_id = '${probeId}'`;
+      const toolName = 'mcp__plugin_openbox_realdb__query_database';
+      const parsed = runGovernedPluginMcp(
+        [
+          `Call ${toolName} exactly once with this JSON:`,
+          JSON.stringify({ query, operation: 'QUERY', system: 'postgresql' }),
+          'Return only the stdout value from the tool response.',
+        ].join(' '),
+        toolName,
+      );
+
+      const denied = parsed.permission_denials?.some(
+        (d) => d.tool_name === toolName,
+      );
+      expect(denied, 'claude was denied access to the real DB MCP tool').not.toBe(true);
+      expect(parsed.is_error, `claude returned is_error; result: ${parsed.result.slice(0, 500)}`).toBeFalsy();
+      expect(parsed.result).toContain(secret);
+
+      const event = readGovernanceDbEvent(probeId);
+      expect(event, `no DatabaseQuery event found for ${probeId}`).not.toBeNull();
+      expect(event?.event_type).toBe('ActivityStarted');
+      expect(event?.activity_type).toBe('DatabaseQuery');
+      expect(event?.span_count).toBe(1);
+      expect(event?.verdict, `unexpected DatabaseQuery event: ${JSON.stringify(event)}`).toBe(1);
+      expect(event?.reason ?? '').toContain('e2e-constrain-db');
+    }, 240_000);
   });
 });

@@ -144,6 +144,27 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
     expect(session.calls.length).toBeGreaterThan(0);
   });
 
+  it('classifies database MCP tools as DatabaseQuery with database_query spans', async () => {
+    const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
+    const session = recordingSession();
+    const env: any = {
+      tool_name: 'mcp__realdb__query_database',
+      tool_input: {
+        query: 'SELECT 1 AS openbox_real_db_probe',
+        operation: 'QUERY',
+        system: 'postgresql',
+      },
+      session_id: 'S4-db-mcp',
+    };
+    const cfg: any = { skipTools: [], sessionDir: dir };
+    await handlePreToolUse(env, session, cfg);
+    expect(session.calls[0]?.args[0]).toBe('DatabaseQuery');
+    const span = session.calls[0]?.args[1]?.spans?.[0] as Record<string, any>;
+    expect(span?.semantic_type).toBe('database_query');
+    expect(span?.db_operation).toBe('QUERY');
+    expect(span?.db_statement).toBe('SELECT 1 AS openbox_real_db_probe');
+  });
+
   it('builds HTTP spans from Claude tool input instead of hard-coding GET', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const session = recordingSession();

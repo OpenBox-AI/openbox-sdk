@@ -18,21 +18,31 @@ import { stampSource } from '../../../approvals/source.js';
 import { sideEffects } from '../side-effects.js';
 import { isSkipped } from '../../../governance/skip-patterns.js';
 import { takeToolActivity } from '../tool-activity-store.js';
-import { filePathFor, httpMethodFor, httpTargetFor } from './tool-input.js';
+import {
+  dbOperationFor,
+  dbStatementFor,
+  dbSystemFor,
+  filePathFor,
+  httpMethodFor,
+  httpTargetFor,
+  isDatabaseMcpTool,
+} from './tool-input.js';
 
-function activityTypeFor(toolName: string): string {
+function activityTypeFor(toolName: string, toolInput: Record<string, unknown>): string {
   const direct = POST_TOOL_USE_ROUTING[toolName];
   if (direct) return direct;
+  if (isDatabaseMcpTool(toolName, toolInput)) return ACTIVITY_TYPES.DB_QUERY;
   if (toolName.startsWith('mcp__')) return ACTIVITY_TYPES.MCP_CALL;
   return ACTIVITY_TYPES.AGENT_ACTION;
 }
 
-function spanTypeFor(toolName: string): SpanType | null {
+function spanTypeFor(toolName: string, toolInput: Record<string, unknown>): SpanType | null {
   if (toolName === 'Read' || toolName === 'NotebookRead' || toolName === 'Glob' || toolName === 'Grep') return 'file_read';
   if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') return 'file_write';
   if (toolName === 'Delete') return 'file_delete';
   if (toolName === 'Bash' || toolName === 'PowerShell') return 'shell';
   if (toolName === 'WebFetch' || toolName === 'WebSearch') return 'http';
+  if (isDatabaseMcpTool(toolName, toolInput)) return 'db';
   if (toolName.startsWith('mcp__')) return 'mcp';
   return null;
 }
@@ -62,7 +72,7 @@ export async function handlePostToolUse(
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
   if ((cfg.skipTools ?? []).includes(toolName)) return undefined;
 
-  const activityType = activityTypeFor(toolName);
+  const activityType = activityTypeFor(toolName, toolInput);
   if ((cfg.skipActivityTypes ?? []).includes(activityType)) return undefined;
 
   const filePath = filePathFor(toolInput) ?? '';
@@ -72,10 +82,11 @@ export async function handlePostToolUse(
   const toolResponse = outputFor(env, {});
   const payload = buildPostToolUsePayload(env, sideEffects);
   const startedPayload = buildPreToolUsePayload(env, toolName, sideEffects);
-  const spanType = spanTypeFor(toolName);
-  const spans = spanType
+  const spanType = spanTypeFor(toolName, toolInput);
+  const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? 'db' : null);
+  const spans = effectiveSpanType
     ? [
-        buildSpan('claude-code', spanType, {
+        buildSpan('claude-code', effectiveSpanType, {
           file_path: (toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path) as string | undefined,
           command: toolInput.command as string | undefined,
           cwd: toolInput.cwd as string | undefined,
@@ -83,6 +94,9 @@ export async function handlePostToolUse(
           tool_output: toolResponse,
           url: httpTargetFor(toolInput),
           method: httpMethodFor(toolInput),
+          db_system: dbSystemFor(toolName, toolInput),
+          db_operation: dbOperationFor(toolInput),
+          db_statement: dbStatementFor(toolInput),
         }),
       ]
     : undefined;
@@ -109,7 +123,7 @@ export async function handlePostToolUseFailure(
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
   if ((cfg.skipTools ?? []).includes(toolName)) return undefined;
 
-  const activityType = activityTypeFor(toolName);
+  const activityType = activityTypeFor(toolName, toolInput);
   if ((cfg.skipActivityTypes ?? []).includes(activityType)) return undefined;
   const filePath = filePathFor(toolInput) ?? '';
   if (filePath && isSkipped(filePath)) return undefined;
