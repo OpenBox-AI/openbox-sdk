@@ -195,6 +195,70 @@ function writeJson(file: string, value: unknown): void {
   writeFileSync(file, JSON.stringify(value, null, 2) + '\n', 'utf-8');
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isLegacyClaudeCodeHook(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.command === 'string' &&
+    /\bopenbox\s+claude-code\s+hook\b/.test(value.command)
+  );
+}
+
+function scrubLegacyClaudeCodeSettingsHooks(cwd: string): void {
+  const settingsFile = path.join(cwd, '.claude', 'settings.json');
+  const settings = readJson(settingsFile);
+  if (!settings || !isRecord(settings.hooks)) return;
+
+  let changed = false;
+  const nextHooks: Record<string, unknown> = {};
+  for (const [eventName, entries] of Object.entries(settings.hooks)) {
+    if (!Array.isArray(entries)) {
+      nextHooks[eventName] = entries;
+      continue;
+    }
+    const nextEntries = entries
+      .map((entry) => {
+        if (!isRecord(entry)) return entry;
+        if (isLegacyClaudeCodeHook(entry)) {
+          changed = true;
+          return undefined;
+        }
+        if (!Array.isArray(entry.hooks)) return entry;
+        const nextInnerHooks = entry.hooks.filter((hook) => !isLegacyClaudeCodeHook(hook));
+        if (nextInnerHooks.length !== entry.hooks.length) changed = true;
+        if (nextInnerHooks.length === 0) return undefined;
+        return { ...entry, hooks: nextInnerHooks };
+      })
+      .filter((entry) => entry !== undefined);
+    if (nextEntries.length === 0) {
+      changed = true;
+      continue;
+    }
+    nextHooks[eventName] = nextEntries;
+  }
+
+  if (!changed) return;
+  const nextSettings = { ...settings };
+  if (Object.keys(nextHooks).length > 0) {
+    nextSettings.hooks = nextHooks;
+  } else {
+    delete nextSettings.hooks;
+  }
+  if (Object.keys(nextSettings).length === 0) {
+    rmSync(settingsFile, { force: true });
+    return;
+  }
+  writeJson(settingsFile, nextSettings);
+}
+
+function hasLegacyClaudeCodeSettingsHooks(cwd = process.cwd()): boolean {
+  const settings = readJson(path.join(cwd, '.claude', 'settings.json'));
+  return JSON.stringify(settings ?? {}).includes('openbox claude-code hook');
+}
+
 function writeRuntimeConfigTemplate(configDir: string): void {
   mkdirSync(configDir, { recursive: true });
   const file = path.join(configDir, 'config.json');
@@ -536,6 +600,7 @@ export function installClaudeCodePlugin(options: InstallClaudeCodePluginOptions 
     if (!options.skipRuntimeConfig) {
       writeRuntimeConfigTemplate(claudeCodeRuntimeConfigDir(cwd));
     }
+    scrubLegacyClaudeCodeSettingsHooks(cwd);
     return target;
   }
   const out = exportClaudeCodePlugin({
@@ -546,6 +611,7 @@ export function installClaudeCodePlugin(options: InstallClaudeCodePluginOptions 
   if (!options.skipRuntimeConfig) {
     writeRuntimeConfigTemplate(claudeCodeRuntimeConfigDir(cwd));
   }
+  scrubLegacyClaudeCodeSettingsHooks(cwd);
   return out;
 }
 
@@ -553,6 +619,7 @@ export function uninstallClaudeCodePlugin(options: UninstallClaudeCodePluginOpti
   const cwd = options.cwd ?? process.cwd();
   const target = assertProjectTarget(options.target ?? claudeCodePluginTargetDir(cwd), cwd);
   rmSync(target, { recursive: true, force: true });
+  scrubLegacyClaudeCodeSettingsHooks(cwd);
 }
 
 function checkFile(name: string, file: string): ClaudeCodePluginCheck {
@@ -658,6 +725,19 @@ function checkComponentInventory(file: string): ClaudeCodePluginCheck {
   };
 }
 
+function checkNoLegacySettingsHooks(cwd = process.cwd()): ClaudeCodePluginCheck {
+  const file = path.join(cwd, '.claude', 'settings.json');
+  const stale = hasLegacyClaudeCodeSettingsHooks(cwd);
+  return {
+    name: 'project-settings-legacy-hooks',
+    status: stale ? 'fail' : 'pass',
+    path: file,
+    detail: stale
+      ? 'remove stale `openbox claude-code hook` project settings entries'
+      : 'no legacy project settings hooks',
+  };
+}
+
 export function verifyClaudeCodePlugin(
   options: VerifyClaudeCodePluginOptions = {},
 ): ClaudeCodePluginCheck[] {
@@ -686,5 +766,6 @@ export function verifyClaudeCodePlugin(
   checks.push(checkDirFiles('plugin-diagnostics', path.join(target, 'diagnostics'), EXPECTED_DIAGNOSTIC_FILES));
   checks.push(checkComponentInventory(path.join(target, 'diagnostics', 'component-inventory.json')));
   checks.push(checkDirFiles('plugin-bin', path.join(target, 'bin'), EXPECTED_BIN_FILES));
+  checks.push(checkNoLegacySettingsHooks(options.cwd));
   return checks;
 }

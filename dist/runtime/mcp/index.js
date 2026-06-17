@@ -2908,6 +2908,10 @@ function safeOutDir2(out) {
   }
   return resolved;
 }
+function hasLegacyClaudeCodeSettingsHooks(cwd = process.cwd()) {
+  const settings = readJson2(path3.join(cwd, ".claude", "settings.json"));
+  return JSON.stringify(settings ?? {}).includes("openbox claude-code hook");
+}
 function claudeCodeRuntimeConfigDir(cwd = process.cwd()) {
   return path3.join(cwd, ".claude-hooks");
 }
@@ -3008,6 +3012,16 @@ function checkComponentInventory(file) {
     detail: missing.length === 0 ? `${EXPECTED_COMPONENT_NAMES.length} component(s)` : `missing: ${missing.join(", ")}`
   };
 }
+function checkNoLegacySettingsHooks(cwd = process.cwd()) {
+  const file = path3.join(cwd, ".claude", "settings.json");
+  const stale = hasLegacyClaudeCodeSettingsHooks(cwd);
+  return {
+    name: "project-settings-legacy-hooks",
+    status: stale ? "fail" : "pass",
+    path: file,
+    detail: stale ? "remove stale `openbox claude-code hook` project settings entries" : "no legacy project settings hooks"
+  };
+}
 function verifyClaudeCodePlugin(options = {}) {
   const target = safeOutDir2(
     options.target ?? claudeCodePluginTargetDir(options.cwd)
@@ -3034,6 +3048,7 @@ function verifyClaudeCodePlugin(options = {}) {
   checks.push(checkDirFiles2("plugin-diagnostics", path3.join(target, "diagnostics"), EXPECTED_DIAGNOSTIC_FILES));
   checks.push(checkComponentInventory(path3.join(target, "diagnostics", "component-inventory.json")));
   checks.push(checkDirFiles2("plugin-bin", path3.join(target, "bin"), EXPECTED_BIN_FILES));
+  checks.push(checkNoLegacySettingsHooks(options.cwd));
   return checks;
 }
 

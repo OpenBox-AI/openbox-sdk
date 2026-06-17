@@ -6323,6 +6323,58 @@ function writeJson2(file, value) {
   mkdirSync5(path3.dirname(file), { recursive: true });
   writeFileSync5(file, JSON.stringify(value, null, 2) + "\n", "utf-8");
 }
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function isLegacyClaudeCodeHook(value) {
+  return isRecord(value) && typeof value.command === "string" && /\bopenbox\s+claude-code\s+hook\b/.test(value.command);
+}
+function scrubLegacyClaudeCodeSettingsHooks(cwd) {
+  const settingsFile = path3.join(cwd, ".claude", "settings.json");
+  const settings = readJson2(settingsFile);
+  if (!settings || !isRecord(settings.hooks)) return;
+  let changed = false;
+  const nextHooks = {};
+  for (const [eventName, entries] of Object.entries(settings.hooks)) {
+    if (!Array.isArray(entries)) {
+      nextHooks[eventName] = entries;
+      continue;
+    }
+    const nextEntries = entries.map((entry) => {
+      if (!isRecord(entry)) return entry;
+      if (isLegacyClaudeCodeHook(entry)) {
+        changed = true;
+        return void 0;
+      }
+      if (!Array.isArray(entry.hooks)) return entry;
+      const nextInnerHooks = entry.hooks.filter((hook) => !isLegacyClaudeCodeHook(hook));
+      if (nextInnerHooks.length !== entry.hooks.length) changed = true;
+      if (nextInnerHooks.length === 0) return void 0;
+      return { ...entry, hooks: nextInnerHooks };
+    }).filter((entry) => entry !== void 0);
+    if (nextEntries.length === 0) {
+      changed = true;
+      continue;
+    }
+    nextHooks[eventName] = nextEntries;
+  }
+  if (!changed) return;
+  const nextSettings = { ...settings };
+  if (Object.keys(nextHooks).length > 0) {
+    nextSettings.hooks = nextHooks;
+  } else {
+    delete nextSettings.hooks;
+  }
+  if (Object.keys(nextSettings).length === 0) {
+    rmSync2(settingsFile, { force: true });
+    return;
+  }
+  writeJson2(settingsFile, nextSettings);
+}
+function hasLegacyClaudeCodeSettingsHooks(cwd = process.cwd()) {
+  const settings = readJson2(path3.join(cwd, ".claude", "settings.json"));
+  return JSON.stringify(settings ?? {}).includes("openbox claude-code hook");
+}
 function writeRuntimeConfigTemplate2(configDir) {
   mkdirSync5(configDir, { recursive: true });
   const file = path3.join(configDir, "config.json");
@@ -6643,6 +6695,7 @@ function installClaudeCodePlugin(options = {}) {
     if (!options.skipRuntimeConfig) {
       writeRuntimeConfigTemplate2(claudeCodeRuntimeConfigDir(cwd));
     }
+    scrubLegacyClaudeCodeSettingsHooks(cwd);
     return target;
   }
   const out = exportClaudeCodePlugin({
@@ -6653,12 +6706,14 @@ function installClaudeCodePlugin(options = {}) {
   if (!options.skipRuntimeConfig) {
     writeRuntimeConfigTemplate2(claudeCodeRuntimeConfigDir(cwd));
   }
+  scrubLegacyClaudeCodeSettingsHooks(cwd);
   return out;
 }
 function uninstallClaudeCodePlugin(options = {}) {
   const cwd = options.cwd ?? process.cwd();
   const target = assertProjectTarget2(options.target ?? claudeCodePluginTargetDir(cwd), cwd);
   rmSync2(target, { recursive: true, force: true });
+  scrubLegacyClaudeCodeSettingsHooks(cwd);
 }
 function checkFile2(name, file) {
   return {
@@ -6749,6 +6804,16 @@ function checkComponentInventory(file) {
     detail: missing.length === 0 ? `${EXPECTED_COMPONENT_NAMES.length} component(s)` : `missing: ${missing.join(", ")}`
   };
 }
+function checkNoLegacySettingsHooks(cwd = process.cwd()) {
+  const file = path3.join(cwd, ".claude", "settings.json");
+  const stale = hasLegacyClaudeCodeSettingsHooks(cwd);
+  return {
+    name: "project-settings-legacy-hooks",
+    status: stale ? "fail" : "pass",
+    path: file,
+    detail: stale ? "remove stale `openbox claude-code hook` project settings entries" : "no legacy project settings hooks"
+  };
+}
 function verifyClaudeCodePlugin(options = {}) {
   const target = safeOutDir2(
     options.target ?? claudeCodePluginTargetDir(options.cwd)
@@ -6775,6 +6840,7 @@ function verifyClaudeCodePlugin(options = {}) {
   checks.push(checkDirFiles2("plugin-diagnostics", path3.join(target, "diagnostics"), EXPECTED_DIAGNOSTIC_FILES));
   checks.push(checkComponentInventory(path3.join(target, "diagnostics", "component-inventory.json")));
   checks.push(checkDirFiles2("plugin-bin", path3.join(target, "bin"), EXPECTED_BIN_FILES));
+  checks.push(checkNoLegacySettingsHooks(options.cwd));
   return checks;
 }
 var __dirname2, EXPECTED_COMMAND_FILES2, EXPECTED_AGENT_FILES2, EXPECTED_DIAGNOSTIC_FILES, EXPECTED_BIN_FILES, EXPECTED_COMPONENT_NAMES, PLUGIN_CLI_RUNNER, PLUGIN_HOOK_HANDLER, PLUGIN_MCP_SERVER;

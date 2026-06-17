@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -174,5 +174,87 @@ describe('claude-code plugin install / uninstall', () => {
     expect(r.status, `install failed: ${r.stderr}`).toBe(0);
     const hooks = readHooks(project);
     expect(hooks.PreToolUse[0].matcher).toBe('Bash|Write');
+  });
+
+  it('install removes stale project settings hooks that invoke a global openbox binary', () => {
+    const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-stale-settings-'));
+    const settingsPath = path.join(project, '.claude', 'settings.json');
+    mkdirSync(path.dirname(settingsPath), { recursive: true });
+    writeFileSync(
+      settingsPath,
+      JSON.stringify(
+        {
+          hooks: {
+            UserPromptSubmit: [
+              {
+                hooks: [
+                  { type: 'command', command: 'openbox claude-code hook' },
+                  { type: 'command', command: 'node', args: ['project-hook.mjs'] },
+                ],
+              },
+            ],
+            Stop: [
+              {
+                hooks: [
+                  { type: 'command', command: 'openbox claude-code hook' },
+                ],
+              },
+            ],
+          },
+          unrelated: { keep: true },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const install = runCli(
+      ['claude-code', 'plugin', 'install', '--scope', 'project', '--cwd', project],
+      project,
+    );
+    expect(install.status, `install failed: ${install.stderr}`).toBe(0);
+
+    const settings = JSON.parse(readFileSync(settingsPath, 'utf-8')) as {
+      hooks?: Record<string, Array<{ hooks?: Array<{ command?: string }> }>>;
+      unrelated?: { keep?: boolean };
+    };
+    expect(JSON.stringify(settings)).not.toContain('openbox claude-code hook');
+    expect(settings.unrelated?.keep).toBe(true);
+    expect(settings.hooks?.UserPromptSubmit?.[0]?.hooks?.[0]).toMatchObject({
+      command: 'node',
+      args: ['project-hook.mjs'],
+    });
+    expect(settings.hooks?.Stop).toBeUndefined();
+  });
+
+  it('install deletes a project settings file that only contained stale OpenBox hooks', () => {
+    const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-stale-only-'));
+    const settingsPath = path.join(project, '.claude', 'settings.json');
+    mkdirSync(path.dirname(settingsPath), { recursive: true });
+    writeFileSync(
+      settingsPath,
+      JSON.stringify(
+        {
+          hooks: {
+            Stop: [
+              {
+                hooks: [
+                  { type: 'command', command: 'openbox claude-code hook' },
+                ],
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const install = runCli(
+      ['claude-code', 'plugin', 'install', '--scope', 'project', '--cwd', project],
+      project,
+    );
+    expect(install.status, `install failed: ${install.stderr}`).toBe(0);
+    expect(existsSync(settingsPath)).toBe(false);
   });
 });
