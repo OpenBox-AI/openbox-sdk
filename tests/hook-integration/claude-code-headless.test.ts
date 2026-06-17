@@ -52,6 +52,15 @@ function prompt(c: VerdictMatrixCase): { prompt: string; tool: string } | null {
         prompt: 'Read /etc/hostname using the Read tool',
         tool: 'Read',
       };
+    case 'http': {
+      const url = typeof c.activityInput.url === 'string'
+        ? c.activityInput.url
+        : 'https://example.com/blocked';
+      return {
+        prompt: `Use only the WebFetch tool to fetch ${url}. Do not use Bash or WebSearch.`,
+        tool: 'WebFetch',
+      };
+    }
     case 'llm':
       // The userPromptSubmit hook fires on every prompt, so any
       // benign prompt exercises the llm rule. No tool is needed.

@@ -13,6 +13,7 @@ import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { buildSpan, type SpanType } from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
+import { filePathFor, httpMethodFor, httpTargetFor } from './tool-input.js';
 
 function activityTypeForTool(toolName: string): string {
   const direct = PERMISSION_REQUEST_ROUTING[toolName];
@@ -49,16 +50,17 @@ export async function handlePermissionRequest(
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
   const payload = buildPermissionRequestPayload(env, toolName);
   const spanType = spanTypeFor(toolName);
+  const filePath = filePathFor(toolInput);
   const spans = spanType
     ? [
         buildSpan('claude-code', spanType, {
-          file_path: (toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path) as string | undefined,
+          file_path: filePath,
           command: toolInput.command as string | undefined,
           cwd: toolInput.cwd as string | undefined,
           tool_name: toolName,
           tool_input: toolInput,
-          url: (toolInput.url as string) || (toolInput.query as string) || undefined,
-          method: 'GET',
+          url: httpTargetFor(toolInput),
+          method: httpMethodFor(toolInput),
         }),
       ]
     : undefined;

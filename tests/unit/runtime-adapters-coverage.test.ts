@@ -144,6 +144,25 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
     expect(session.calls.length).toBeGreaterThan(0);
   });
 
+  it('builds HTTP spans from Claude tool input instead of hard-coding GET', async () => {
+    const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
+    const session = recordingSession();
+    const env: any = {
+      tool_name: 'WebFetch',
+      tool_input: {
+        url: 'https://example.test/blocked',
+        method: 'post',
+      },
+      session_id: 'S4-http',
+    };
+    const cfg: any = { skipTools: [], sessionDir: dir };
+    await handlePreToolUse(env, session, cfg);
+    const span = session.calls[0]?.args[1]?.spans?.[0] as Record<string, any>;
+    expect(span?.semantic_type).toBe('http_post');
+    expect(span?.http_method).toBe('POST');
+    expect(span?.http_url).toBe('https://example.test/blocked');
+  });
+
   it('halt verdict triggers markHalted (no throw)', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const session = recordingSession({ arm: 'halt' });
@@ -208,6 +227,26 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
       expect(session.calls[0]?.method).toBe('activity');
     }
   });
+
+  it('preserves HTTP method and target in post-tool spans', async () => {
+    const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
+    const session = recordingSession();
+    const env: any = {
+      tool_name: 'WebFetch',
+      tool_input: {
+        url: 'https://example.test/complete',
+        http_method: 'patch',
+      },
+      tool_response: { ok: true },
+      session_id: 'post-http',
+    };
+    const cfg: any = { skipTools: [], sessionDir: dir };
+    await handlePostToolUse(env, session, cfg);
+    const span = session.calls[0]?.args[2]?.spans?.[0] as Record<string, any>;
+    expect(span?.semantic_type).toBe('http_patch');
+    expect(span?.http_method).toBe('PATCH');
+    expect(span?.http_url).toBe('https://example.test/complete');
+  });
 });
 
 describe('runtime/claude-code/mappers/permission-request', () => {
@@ -240,6 +279,25 @@ describe('runtime/claude-code/mappers/permission-request', () => {
       expect(verdict?.arm).toBe(toolName === 'Bash' ? 'halt' : 'allow');
       expect(session.calls[0]?.method).toBe('activity');
     }
+  });
+
+  it('preserves HTTP method and target in permission-request spans', async () => {
+    const { handlePermissionRequest } = await import('../../ts/src/runtime/claude-code/mappers/permission-request');
+    const session = recordingSession();
+    const env: any = {
+      tool_name: 'WebFetch',
+      tool_input: {
+        href: 'https://example.test/permission',
+        httpMethod: 'delete',
+      },
+      session_id: 'perm-http',
+    };
+    const cfg: any = { skipTools: [], sessionDir: dir };
+    await handlePermissionRequest(env, session, cfg);
+    const span = session.calls[0]?.args[2]?.spans?.[0] as Record<string, any>;
+    expect(span?.semantic_type).toBe('http_delete');
+    expect(span?.http_method).toBe('DELETE');
+    expect(span?.http_url).toBe('https://example.test/permission');
   });
 });
 

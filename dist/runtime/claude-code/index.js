@@ -3260,6 +3260,39 @@ function takeToolActivity(env, cfg) {
   };
 }
 
+// ts/src/runtime/claude-code/mappers/tool-input.ts
+function firstString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return void 0;
+}
+function filePathFor(toolInput) {
+  return firstString(
+    toolInput.file_path,
+    toolInput.filePath,
+    toolInput.path,
+    toolInput.notebook_path
+  );
+}
+function httpTargetFor(toolInput) {
+  return firstString(
+    toolInput.url,
+    toolInput.uri,
+    toolInput.href,
+    toolInput.query
+  );
+}
+function httpMethodFor(toolInput) {
+  return firstString(
+    toolInput.method,
+    toolInput.http_method,
+    toolInput.httpMethod
+  )?.toUpperCase() ?? "GET";
+}
+
 // ts/src/runtime/claude-code/mappers/pre-tool-use.ts
 function activityTypeFor(toolName) {
   const direct = PRE_TOOL_USE_ROUTING[toolName];
@@ -3283,7 +3316,7 @@ async function handlePreToolUse(env, session, cfg) {
   const activityType = activityTypeFor(toolName);
   if (!activityType) return void 0;
   if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
-  const filePath = toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path ?? "";
+  const filePath = filePathFor(toolInput) ?? "";
   if (filePath && isSkipped(filePath)) return void 0;
   const payload = buildPreToolUsePayload(env, toolName, sideEffects);
   const spanType = spanTypeFor(toolName);
@@ -3294,8 +3327,8 @@ async function handlePreToolUse(env, session, cfg) {
       cwd: toolInput.cwd || void 0,
       tool_name: toolName,
       tool_input: toolInput,
-      url: toolInput.url || toolInput.query || void 0,
-      method: "GET"
+      url: httpTargetFor(toolInput),
+      method: httpMethodFor(toolInput)
     })
   ] : void 0;
   const startTime = Date.now();
@@ -3345,7 +3378,7 @@ async function handlePostToolUse(env, session, cfg) {
   if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
   const activityType = activityTypeFor2(toolName);
   if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
-  const filePath = toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path ?? "";
+  const filePath = filePathFor(toolInput) ?? "";
   if (filePath && isSkipped(filePath)) return void 0;
   const pending = takeToolActivity(env, cfg);
   const toolResponse = outputFor(env, {});
@@ -3359,8 +3392,8 @@ async function handlePostToolUse(env, session, cfg) {
       cwd: toolInput.cwd,
       tool_name: toolName,
       tool_output: toolResponse,
-      url: toolInput.url || toolInput.query || void 0,
-      method: "GET"
+      url: httpTargetFor(toolInput),
+      method: httpMethodFor(toolInput)
     })
   ] : void 0;
   const durationMs = durationMsFor(env);
@@ -3382,7 +3415,7 @@ async function handlePostToolUseFailure(env, session, cfg) {
   if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
   const activityType = activityTypeFor2(toolName);
   if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
-  const filePath = toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path ?? "";
+  const filePath = filePathFor(toolInput) ?? "";
   if (filePath && isSkipped(filePath)) return void 0;
   const pending = takeToolActivity(env, cfg);
   const payload = buildPostToolUseFailurePayload(env);
@@ -3465,15 +3498,16 @@ async function handlePermissionRequest(env, session, cfg) {
   const toolInput = env.tool_input ?? {};
   const payload = buildPermissionRequestPayload(env, toolName);
   const spanType = spanTypeFor3(toolName);
+  const filePath = filePathFor(toolInput);
   const spans = spanType ? [
     buildSpan("claude-code", spanType, {
-      file_path: toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path,
+      file_path: filePath,
       command: toolInput.command,
       cwd: toolInput.cwd,
       tool_name: toolName,
       tool_input: toolInput,
-      url: toolInput.url || toolInput.query || void 0,
-      method: "GET"
+      url: httpTargetFor(toolInput),
+      method: httpMethodFor(toolInput)
     })
   ] : void 0;
   const verdict = await session.activity(EVENT.START, activityType, {

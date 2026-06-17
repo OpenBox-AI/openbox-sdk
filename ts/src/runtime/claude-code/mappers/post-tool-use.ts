@@ -18,6 +18,7 @@ import { stampSource } from '../../../approvals/source.js';
 import { sideEffects } from '../side-effects.js';
 import { isSkipped } from '../../../governance/skip-patterns.js';
 import { takeToolActivity } from '../tool-activity-store.js';
+import { filePathFor, httpMethodFor, httpTargetFor } from './tool-input.js';
 
 function activityTypeFor(toolName: string): string {
   const direct = POST_TOOL_USE_ROUTING[toolName];
@@ -64,7 +65,7 @@ export async function handlePostToolUse(
   const activityType = activityTypeFor(toolName);
   if ((cfg.skipActivityTypes ?? []).includes(activityType)) return undefined;
 
-  const filePath = (toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path ?? '') as string;
+  const filePath = filePathFor(toolInput) ?? '';
   if (filePath && isSkipped(filePath)) return undefined;
 
   const pending = takeToolActivity(env, cfg);
@@ -80,8 +81,8 @@ export async function handlePostToolUse(
           cwd: toolInput.cwd as string | undefined,
           tool_name: toolName,
           tool_output: toolResponse,
-          url: (toolInput.url as string) || (toolInput.query as string) || undefined,
-          method: 'GET',
+          url: httpTargetFor(toolInput),
+          method: httpMethodFor(toolInput),
         }),
       ]
     : undefined;
@@ -110,7 +111,7 @@ export async function handlePostToolUseFailure(
 
   const activityType = activityTypeFor(toolName);
   if ((cfg.skipActivityTypes ?? []).includes(activityType)) return undefined;
-  const filePath = (toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path ?? '') as string;
+  const filePath = filePathFor(toolInput) ?? '';
   if (filePath && isSkipped(filePath)) return undefined;
 
   const pending = takeToolActivity(env, cfg);

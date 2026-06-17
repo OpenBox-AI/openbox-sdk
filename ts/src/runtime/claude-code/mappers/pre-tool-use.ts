@@ -15,6 +15,7 @@ import { buildSpan, type SpanType } from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import { sideEffects } from '../side-effects.js';
 import { rememberToolActivity } from '../tool-activity-store.js';
+import { filePathFor, httpMethodFor, httpTargetFor } from './tool-input.js';
 
 /** Activity-type lookup. Spec-driven for the standard tools; mcp__* tools
  *  fall through to MCP_CALL because their names are dynamic. */
@@ -60,7 +61,7 @@ export async function handlePreToolUse(
   // Skip-pattern guard for the file-touching tools; paths inside
   // SKIP_PATTERNS (.claude/, .git/, .ssh/, etc.) bypass governance to
   // avoid PII false-HALTs on IDE metadata.
-  const filePath = (toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path ?? '') as string;
+  const filePath = filePathFor(toolInput) ?? '';
   if (filePath && isSkipped(filePath)) return undefined;
 
   const payload = buildPreToolUsePayload(env, toolName, sideEffects);
@@ -78,8 +79,8 @@ export async function handlePreToolUse(
           cwd: (toolInput.cwd as string) || undefined,
           tool_name: toolName,
           tool_input: toolInput,
-          url: (toolInput.url as string) || (toolInput.query as string) || undefined,
-          method: 'GET',
+          url: httpTargetFor(toolInput),
+          method: httpMethodFor(toolInput),
         }),
       ]
     : undefined;
