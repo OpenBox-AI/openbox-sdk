@@ -1357,10 +1357,10 @@ var HOOK_SPEC = {
     }
   ]
 };
-function getPath(env, path9) {
+function getPath(env, path10) {
   if (env == null || typeof env !== "object") return void 0;
   let cur = env;
-  for (const seg of path9.split(".")) {
+  for (const seg of path10.split(".")) {
     if (cur == null || typeof cur !== "object") return void 0;
     cur = cur[seg];
   }
@@ -2323,8 +2323,8 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
    * exists for operationId-driven callers that already resolved a
    * generated endpoint manifest entry.
    */
-  async requestOperation(method, path9, options) {
-    const renderedPath = appendQuery(path9, options?.params);
+  async requestOperation(method, path10, options) {
+    const renderedPath = appendQuery(path10, options?.params);
     return this.request(method, renderedPath, { data: options?.data });
   }
   async health() {
@@ -2349,11 +2349,11 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
   // Private helpers
   // =========================================================================
   static RETRYABLE_STATUSES = /* @__PURE__ */ new Set([429, 500, 502, 503, 504]);
-  async request(method, path9, options) {
+  async request(method, path10, options) {
     if (this.rateLimiter) {
       await this.rateLimiter.acquire();
     }
-    const url = `${this.baseUrl}${path9}`;
+    const url = `${this.baseUrl}${path10}`;
     const timeoutMs = this.config.timeoutMs ?? 35e3;
     const baseHeaders = {
       "Content-Type": "application/json",
@@ -2458,8 +2458,8 @@ function requireCoreUrl(value) {
   url.pathname = url.pathname.replace(/\/+$/, "");
   return url.toString().replace(/\/$/, "");
 }
-function appendQuery(path9, params) {
-  if (!params) return path9;
+function appendQuery(path10, params) {
+  if (!params) return path10;
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value === void 0 || value === null) continue;
@@ -2472,8 +2472,8 @@ function appendQuery(path9, params) {
     }
   }
   const query = search.toString();
-  if (!query) return path9;
-  return `${path9}${path9.includes("?") ? "&" : "?"}${query}`;
+  if (!query) return path10;
+  return `${path10}${path10.includes("?") ? "&" : "?"}${query}`;
 }
 var ED25519_PKCS8_PREFIX = Buffer.from("302e020100300506032b657004220420", "hex");
 function signAgentIdentityRequest(input) {
@@ -2882,10 +2882,44 @@ function base() {
     error: null
   };
 }
+function toPositiveInteger(value) {
+  const numberValue = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : void 0;
+  if (numberValue === void 0 || !Number.isFinite(numberValue) || numberValue <= 0)
+    return void 0;
+  return Math.trunc(numberValue);
+}
+function normalizeUsage(usage) {
+  if (!usage) return void 0;
+  const promptTokens = toPositiveInteger(
+    usage.promptTokens ?? usage.inputTokens
+  );
+  const completionTokens = toPositiveInteger(
+    usage.completionTokens ?? usage.outputTokens
+  );
+  const totalTokens = toPositiveInteger(usage.totalTokens);
+  const normalized = {};
+  if (promptTokens !== void 0) {
+    normalized.prompt_tokens = promptTokens;
+    normalized.input_tokens = promptTokens;
+  }
+  if (completionTokens !== void 0) {
+    normalized.completion_tokens = completionTokens;
+    normalized.output_tokens = completionTokens;
+  }
+  if (totalTokens !== void 0) normalized.total_tokens = totalTokens;
+  return Object.keys(normalized).length > 0 ? normalized : void 0;
+}
 function buildSpan(host, type, input) {
   const b = base();
   switch (type) {
     case "llm":
+      const usage = normalizeUsage(input.usage);
+      const inputTokens = toPositiveInteger(
+        usage?.input_tokens ?? usage?.prompt_tokens
+      );
+      const outputTokens = toPositiveInteger(
+        usage?.output_tokens ?? usage?.completion_tokens
+      );
       return {
         ...b,
         name: "llm.chat.completion",
@@ -2894,11 +2928,18 @@ function buildSpan(host, type, input) {
         semantic_type: "llm_completion",
         attributes: {
           "gen_ai.system": host,
+          ...input.model ? { "gen_ai.request.model": input.model } : {},
+          ...input.model ? { "gen_ai.response.model": input.model } : {},
+          ...inputTokens !== void 0 ? { "gen_ai.usage.input_tokens": inputTokens } : {},
+          ...outputTokens !== void 0 ? { "gen_ai.usage.output_tokens": outputTokens } : {},
           "http.method": "POST",
           "http.url": "https://api.openai.com/v1/chat/completions",
           "openbox.semantic_type": "llm_completion",
           "openbox.span_type": "function"
         },
+        ...input.model ? { model: input.model } : {},
+        ...inputTokens !== void 0 ? { input_tokens: inputTokens } : {},
+        ...outputTokens !== void 0 ? { output_tokens: outputTokens } : {},
         function: "LLMCall",
         module: host,
         args: input,
@@ -3369,6 +3410,79 @@ async function handlePermissionDenied(env, session, cfg) {
   return verdict;
 }
 
+// ts/src/runtime/claude-code/transcript-usage.ts
+import fs7 from "fs";
+import path7 from "path";
+var MAX_TRANSCRIPT_TAIL_BYTES = 1024 * 1024;
+function toPositiveInteger2(value) {
+  const numberValue = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : void 0;
+  if (numberValue === void 0 || !Number.isFinite(numberValue) || numberValue <= 0)
+    return void 0;
+  return Math.trunc(numberValue);
+}
+function normalizeClaudeUsage(value) {
+  if (value === null || typeof value !== "object") return void 0;
+  const usage = value;
+  const normalized = {
+    inputTokens: toPositiveInteger2(usage.input_tokens),
+    outputTokens: toPositiveInteger2(usage.output_tokens),
+    totalTokens: toPositiveInteger2(usage.total_tokens)
+  };
+  return Object.values(normalized).some((entry) => entry !== void 0) ? normalized : void 0;
+}
+function isSafeTranscriptPath(filePath) {
+  return path7.isAbsolute(filePath) && filePath.endsWith(".jsonl") && !filePath.includes("\0");
+}
+function readTranscriptTail(filePath) {
+  if (!isSafeTranscriptPath(filePath)) return void 0;
+  let fd;
+  try {
+    const stat = fs7.statSync(filePath);
+    if (!stat.isFile()) return void 0;
+    const length = Math.min(stat.size, MAX_TRANSCRIPT_TAIL_BYTES);
+    const offset = Math.max(0, stat.size - length);
+    const buffer = Buffer.alloc(length);
+    fd = fs7.openSync(filePath, "r");
+    fs7.readSync(fd, buffer, 0, length, offset);
+    return buffer.toString("utf-8");
+  } catch {
+    return void 0;
+  } finally {
+    if (fd !== void 0) {
+      try {
+        fs7.closeSync(fd);
+      } catch {
+      }
+    }
+  }
+}
+function readLatestAssistantUsage(env) {
+  const transcriptPath = env.agent_transcript_path ?? env.transcript_path;
+  if (!transcriptPath) return void 0;
+  const text = readTranscriptTail(transcriptPath);
+  if (!text) return void 0;
+  const lines = text.split("\n").filter(Boolean).reverse();
+  for (const line of lines) {
+    const jsonStart = line.indexOf("{");
+    if (jsonStart < 0) continue;
+    try {
+      const record = JSON.parse(line.slice(jsonStart));
+      if (record.type !== "assistant" && record.message?.role !== "assistant") {
+        continue;
+      }
+      const usage = normalizeClaudeUsage(record.message?.usage);
+      if (!usage) continue;
+      return {
+        model: record.message?.model,
+        usage
+      };
+    } catch {
+      continue;
+    }
+  }
+  return void 0;
+}
+
 // ts/src/runtime/claude-code/mappers/session.ts
 function hasPendingClaudeWork(env) {
   return Array.isArray(env.background_tasks) && env.background_tasks.length > 0 || Array.isArray(env.session_crons) && env.session_crons.length > 0;
@@ -3381,10 +3495,18 @@ async function handleSessionStart(env, session, _cfg) {
   return void 0;
 }
 async function handleStop(env, session, cfg) {
+  const usage = readLatestAssistantUsage(env);
   let verdict;
   try {
     verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
-      input: [stampSource(buildStopPayload(env), "claude-code")]
+      input: [stampSource(buildStopPayload(env), "claude-code")],
+      spans: usage ? [
+        buildSpan("claude-code", "llm", {
+          response: env.last_assistant_message ?? "",
+          model: usage.model,
+          usage: usage.usage
+        })
+      ] : void 0
     });
   } catch {
     if (cfg.governancePolicy === "fail_closed") {
@@ -3487,8 +3609,16 @@ async function handleSubagentStart(env, session, _cfg) {
   return void 0;
 }
 async function handleSubagentStop(env, session, cfg) {
+  const usage = readLatestAssistantUsage(env);
   const verdict = await session.activity(EVENT.COMPLETE, subAgentActivityType(env), {
-    input: [stampSource(buildSubagentStopPayload(env), "claude-code")]
+    input: [stampSource(buildSubagentStopPayload(env), "claude-code")],
+    spans: usage ? [
+      buildSpan("claude-code", "llm", {
+        response: env.last_assistant_message ?? "",
+        model: usage.model,
+        usage: usage.usage
+      })
+    ] : void 0
   });
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   return verdict;
@@ -3585,6 +3715,39 @@ async function observeGenericClaudeEvent(env, session, cfg, options) {
       decisionCapable: false
     });
   } catch {
+  }
+  return void 0;
+}
+async function handleMessageDisplay(env, session, cfg, options) {
+  const usage = env.final === true ? readLatestAssistantUsage(env) : void 0;
+  const text = env.delta ?? env.display_content ?? env.displayContent ?? env.message ?? "";
+  try {
+    await session.activity(options.eventKind ?? EVENT.COMPLETE, options.activityType, {
+      input: [stampSource(compactPayload(env, options.eventCategory), "claude-code")],
+      output: stampSource({ text, event_category: options.eventCategory }, "claude-code"),
+      spans: usage ? [
+        buildSpan("claude-code", "llm", {
+          response: text,
+          model: usage.model,
+          usage: usage.usage
+        })
+      ] : void 0
+    });
+  } catch {
+  }
+  if (usage && env.final === true) {
+    try {
+      await session.activity(EVENT.SIGNAL, "claude_usage", {
+        input: [
+          stampSource({
+            event_category: "llm_usage",
+            model: usage.model,
+            usage: usage.usage
+          }, "claude-code")
+        ]
+      });
+    } catch {
+    }
   }
   return void 0;
 }
@@ -4020,7 +4183,7 @@ async function runClaudeHook() {
       cfg,
       "messageDisplay",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => dryRun ? void 0 : handleMessageDisplay(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.COMPLETE,
         eventCategory: "llm_output"
@@ -4227,9 +4390,9 @@ import {
   writeFileSync
 } from "fs";
 import os from "os";
-import path7 from "path";
+import path8 from "path";
 import { fileURLToPath } from "url";
-var __dirname = path7.dirname(fileURLToPath(import.meta.url));
+var __dirname = path8.dirname(fileURLToPath(import.meta.url));
 var EXPECTED_COMMAND_FILES = [
   "openbox-check.md",
   "openbox-doctor.md",
@@ -4267,7 +4430,7 @@ var PLUGIN_MCP_SERVER = {
   args: [`\${CLAUDE_PLUGIN_ROOT}/${PLUGIN_CLI_RUNNER}`, "mcp", "serve"]
 };
 function claudeCodePluginTargetDir(cwd = process.cwd()) {
-  return path7.join(cwd, ".claude", "skills", "openbox");
+  return path8.join(cwd, ".claude", "skills", "openbox");
 }
 function readJson(file) {
   try {
@@ -4278,10 +4441,10 @@ function readJson(file) {
 }
 function packageVersion() {
   const candidates = [
-    path7.resolve(__dirname, "../../package.json"),
-    path7.resolve(__dirname, "../../../package.json"),
-    path7.resolve(__dirname, "../../../../package.json"),
-    path7.resolve(process.cwd(), "package.json")
+    path8.resolve(__dirname, "../../package.json"),
+    path8.resolve(__dirname, "../../../package.json"),
+    path8.resolve(__dirname, "../../../../package.json"),
+    path8.resolve(process.cwd(), "package.json")
   ];
   for (const candidate of candidates) {
     const pkg = readJson(candidate);
@@ -4302,24 +4465,24 @@ ${candidates.map((c) => `  - ${c}`).join("\n")}`
 }
 function findTemplateDir(kind) {
   return findExistingDir(`Claude Code template directory '${kind}'`, [
-    path7.resolve(__dirname, "templates", kind),
-    path7.resolve(__dirname, "../runtime/claude-code/templates", kind),
-    path7.resolve(__dirname, "../../ts/src/runtime/claude-code/templates", kind),
-    path7.resolve(__dirname, "../../../ts/src/runtime/claude-code/templates", kind),
-    path7.resolve(process.cwd(), "ts/src/runtime/claude-code/templates", kind)
+    path8.resolve(__dirname, "templates", kind),
+    path8.resolve(__dirname, "../runtime/claude-code/templates", kind),
+    path8.resolve(__dirname, "../../ts/src/runtime/claude-code/templates", kind),
+    path8.resolve(__dirname, "../../../ts/src/runtime/claude-code/templates", kind),
+    path8.resolve(process.cwd(), "ts/src/runtime/claude-code/templates", kind)
   ]);
 }
 function findSkillDir() {
   return findExistingDir("OpenBox skill directory", [
-    path7.resolve(__dirname, "../../skill"),
-    path7.resolve(__dirname, "../../../skill"),
-    path7.resolve(__dirname, "../../../../skill"),
-    path7.resolve(process.cwd(), "skill")
+    path8.resolve(__dirname, "../../skill"),
+    path8.resolve(__dirname, "../../../skill"),
+    path8.resolve(__dirname, "../../../../skill"),
+    path8.resolve(process.cwd(), "skill")
   ]);
 }
 function safeOutDir(out) {
-  const resolved = path7.resolve(out);
-  const root = path7.parse(resolved).root;
+  const resolved = path8.resolve(out);
+  const root = path8.parse(resolved).root;
   if (resolved === root || resolved === os.homedir()) {
     throw new Error(`Refusing to overwrite unsafe Claude Code plugin path: ${resolved}`);
   }
@@ -4327,20 +4490,20 @@ function safeOutDir(out) {
 }
 function assertProjectTarget(target, cwd) {
   const resolvedTarget = safeOutDir(target);
-  const resolvedProject = path7.resolve(cwd);
-  const rel = path7.relative(resolvedProject, resolvedTarget);
-  if (rel.startsWith("..") || path7.isAbsolute(rel)) {
+  const resolvedProject = path8.resolve(cwd);
+  const rel = path8.relative(resolvedProject, resolvedTarget);
+  if (rel.startsWith("..") || path8.isAbsolute(rel)) {
     throw new Error(`Claude Code plugin install target must be inside the project: ${resolvedProject}`);
   }
   return resolvedTarget;
 }
 function writeJson(file, value) {
-  mkdirSync2(path7.dirname(file), { recursive: true });
+  mkdirSync2(path8.dirname(file), { recursive: true });
   writeFileSync(file, JSON.stringify(value, null, 2) + "\n", "utf-8");
 }
 function writeRuntimeConfigTemplate(configDir) {
   mkdirSync2(configDir, { recursive: true });
-  const file = path7.join(configDir, "config.json");
+  const file = path8.join(configDir, "config.json");
   if (existsSync4(file)) return;
   const example = {
     OPENBOX_API_KEY: "obx_live_YOUR_API_KEY_HERE",
@@ -4357,7 +4520,7 @@ function writeRuntimeConfigTemplate(configDir) {
   });
 }
 function claudeCodeRuntimeConfigDir(cwd = process.cwd()) {
-  return path7.join(cwd, ".claude-hooks");
+  return path8.join(cwd, ".claude-hooks");
 }
 function hookEvents(includeOptInHooks = false) {
   const defaultEvents = new Set(defaultClaudeCodeHookEvents());
@@ -4477,7 +4640,7 @@ function optInMonitorMetadata() {
   ];
 }
 function writePluginCliRunner(file) {
-  mkdirSync2(path7.dirname(file), { recursive: true });
+  mkdirSync2(path8.dirname(file), { recursive: true });
   writeFileSync(
     file,
     [
@@ -4543,7 +4706,7 @@ function writePluginCliRunner(file) {
   chmodSync(file, 493);
 }
 function writePluginDoctorShim(file) {
-  mkdirSync2(path7.dirname(file), { recursive: true });
+  mkdirSync2(path8.dirname(file), { recursive: true });
   writeFileSync(
     file,
     [
@@ -4617,7 +4780,7 @@ function marketplaceManifest(version) {
 }
 function copyDir(src, dst) {
   rmSync(dst, { recursive: true, force: true });
-  mkdirSync2(path7.dirname(dst), { recursive: true });
+  mkdirSync2(path8.dirname(dst), { recursive: true });
   cpSync(src, dst, { recursive: true });
 }
 function exportClaudeCodePlugin(options) {
@@ -4630,18 +4793,18 @@ function exportClaudeCodePlugin(options) {
   }
   mkdirSync2(out, { recursive: true });
   const version = packageVersion();
-  writeJson(path7.join(out, ".claude-plugin", "plugin.json"), pluginManifest(version));
-  writeJson(path7.join(out, ".claude-plugin", "marketplace.json"), marketplaceManifest(version));
-  copyDir(findSkillDir(), path7.join(out, "skills", "openbox"));
-  copyDir(findTemplateDir("commands"), path7.join(out, "commands"));
-  copyDir(findTemplateDir("agents"), path7.join(out, "agents"));
-  writeJson(path7.join(out, "hooks", "hooks.json"), claudeHooksJson(options.matchers, options.includeOptInHooks));
-  writeJson(path7.join(out, ".mcp.json"), mcpJson());
-  writeJson(path7.join(out, "diagnostics", "component-inventory.json"), componentInventory(version));
-  writeJson(path7.join(out, "diagnostics", "claude-code-governance.json"), governanceDiagnostic(version));
-  writeJson(path7.join(out, "diagnostics", "monitors.opt-in.json"), optInMonitorMetadata());
-  writePluginCliRunner(path7.join(out, PLUGIN_CLI_RUNNER));
-  writePluginDoctorShim(path7.join(out, "bin", "openbox-plugin-doctor"));
+  writeJson(path8.join(out, ".claude-plugin", "plugin.json"), pluginManifest(version));
+  writeJson(path8.join(out, ".claude-plugin", "marketplace.json"), marketplaceManifest(version));
+  copyDir(findSkillDir(), path8.join(out, "skills", "openbox"));
+  copyDir(findTemplateDir("commands"), path8.join(out, "commands"));
+  copyDir(findTemplateDir("agents"), path8.join(out, "agents"));
+  writeJson(path8.join(out, "hooks", "hooks.json"), claudeHooksJson(options.matchers, options.includeOptInHooks));
+  writeJson(path8.join(out, ".mcp.json"), mcpJson());
+  writeJson(path8.join(out, "diagnostics", "component-inventory.json"), componentInventory(version));
+  writeJson(path8.join(out, "diagnostics", "claude-code-governance.json"), governanceDiagnostic(version));
+  writeJson(path8.join(out, "diagnostics", "monitors.opt-in.json"), optInMonitorMetadata());
+  writePluginCliRunner(path8.join(out, PLUGIN_CLI_RUNNER));
+  writePluginDoctorShim(path8.join(out, "bin", "openbox-plugin-doctor"));
   return out;
 }
 function installClaudeCodePlugin(options = {}) {
@@ -4653,7 +4816,7 @@ function installClaudeCodePlugin(options = {}) {
       throw new Error(`Claude Code plugin symlink source does not exist: ${source}`);
     }
     rmSync(target, { recursive: true, force: true });
-    mkdirSync2(path7.dirname(target), { recursive: true });
+    mkdirSync2(path8.dirname(target), { recursive: true });
     symlinkSync(source, target, "dir");
     if (!options.skipRuntimeConfig) {
       writeRuntimeConfigTemplate(claudeCodeRuntimeConfigDir(cwd));
@@ -4780,16 +4943,16 @@ function verifyClaudeCodePlugin(options = {}) {
   } else {
     checks.push({ name: "plugin", status: "fail", path: target, detail: "missing" });
   }
-  checks.push(checkFile("plugin-manifest", path7.join(target, ".claude-plugin", "plugin.json")));
-  checks.push(checkFile("plugin-marketplace", path7.join(target, ".claude-plugin", "marketplace.json")));
-  checks.push(checkFile("plugin-skill", path7.join(target, "skills", "openbox", "SKILL.md")));
-  checks.push(checkDirFiles("plugin-commands", path7.join(target, "commands"), EXPECTED_COMMAND_FILES));
-  checks.push(checkDirFiles("plugin-agents", path7.join(target, "agents"), EXPECTED_AGENT_FILES));
-  checks.push(checkHooks(path7.join(target, "hooks", "hooks.json"), options.includeOptInHooks));
-  checks.push(checkMcp(path7.join(target, ".mcp.json")));
-  checks.push(checkDirFiles("plugin-diagnostics", path7.join(target, "diagnostics"), EXPECTED_DIAGNOSTIC_FILES));
-  checks.push(checkComponentInventory(path7.join(target, "diagnostics", "component-inventory.json")));
-  checks.push(checkDirFiles("plugin-bin", path7.join(target, "bin"), EXPECTED_BIN_FILES));
+  checks.push(checkFile("plugin-manifest", path8.join(target, ".claude-plugin", "plugin.json")));
+  checks.push(checkFile("plugin-marketplace", path8.join(target, ".claude-plugin", "marketplace.json")));
+  checks.push(checkFile("plugin-skill", path8.join(target, "skills", "openbox", "SKILL.md")));
+  checks.push(checkDirFiles("plugin-commands", path8.join(target, "commands"), EXPECTED_COMMAND_FILES));
+  checks.push(checkDirFiles("plugin-agents", path8.join(target, "agents"), EXPECTED_AGENT_FILES));
+  checks.push(checkHooks(path8.join(target, "hooks", "hooks.json"), options.includeOptInHooks));
+  checks.push(checkMcp(path8.join(target, ".mcp.json")));
+  checks.push(checkDirFiles("plugin-diagnostics", path8.join(target, "diagnostics"), EXPECTED_DIAGNOSTIC_FILES));
+  checks.push(checkComponentInventory(path8.join(target, "diagnostics", "component-inventory.json")));
+  checks.push(checkDirFiles("plugin-bin", path8.join(target, "bin"), EXPECTED_BIN_FILES));
   return checks;
 }
 
@@ -4803,7 +4966,7 @@ function uninstallClaudeCode(opts = {}) {
 
 // ts/src/runtime/claude-code/doctor.ts
 import { existsSync as existsSync5 } from "fs";
-import path8 from "path";
+import path9 from "path";
 function truthy(value) {
   return value === "true" || value === "1";
 }
@@ -4821,8 +4984,8 @@ function parseFailMode(value) {
 }
 function buildProjectRuntimeEnv(cwd = process.cwd()) {
   const configDir = claudeCodeRuntimeConfigDir(cwd);
-  const configFile = path8.join(configDir, "config.json");
-  const envFile = path8.join(configDir, ".env");
+  const configFile = path9.join(configDir, "config.json");
+  const envFile = path9.join(configDir, ".env");
   const fileConfig = loadJsonConfig(configFile);
   const envConfig = loadDotenv(envFile);
   const get = (key) => process.env[key] ?? fileConfig[key] ?? envConfig[key];

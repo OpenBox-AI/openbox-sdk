@@ -17,7 +17,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Command } from 'commander';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -68,6 +68,27 @@ function recordingSession(verdict: { arm?: string } = { arm: 'allow' }): any {
 }
 
 describe('runtime/claude-code/mappers; every event handler', () => {
+  function writeTranscriptWithUsage(fileName = 'transcript.jsonl') {
+    const transcript = join(dir, fileName);
+    writeFileSync(
+      transcript,
+      [
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            model: 'claude-opus-4-8',
+            usage: {
+              input_tokens: 321,
+              output_tokens: 54,
+            },
+          },
+        }),
+      ].join('\n') + '\n',
+    );
+    return transcript;
+  }
+
   it('user-prompt-submit fires PromptSubmission activity', async () => {
     const { handleUserPromptSubmit } = await import('../../ts/src/runtime/claude-code/mappers/user-prompt');
     const session = recordingSession();
@@ -185,6 +206,70 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       { skipTools: [], sessionDir: dir, governancePolicy: 'fail_open' } as any,
     );
     expect(session.calls.some((c: any) => c.method === 'workflowCompleted')).toBe(true);
+  });
+
+  it('stop adds Claude transcript input/output token usage to the final llm span', async () => {
+    const { handleStop } = await import('../../ts/src/runtime/claude-code/mappers/session');
+    const session = recordingSession();
+    await handleStop(
+      {
+        session_id: 'STOP-USAGE',
+        transcript_path: writeTranscriptWithUsage(),
+        last_assistant_message: 'done',
+        background_tasks: [],
+        session_crons: [],
+      } as any,
+      session,
+      { skipTools: [], sessionDir: dir, governancePolicy: 'fail_open' } as any,
+    );
+    const stop = session.calls.find(
+      (c: any) => c.method === 'activity' && c.args[1] === 'ClaudeCodeSession',
+    );
+    const span = stop?.args[2]?.spans?.[0];
+    expect(span).toMatchObject({
+      module: 'claude-code',
+      model: 'claude-opus-4-8',
+      input_tokens: 321,
+      output_tokens: 54,
+    });
+  });
+
+  it('message-display final batch records Claude transcript usage', async () => {
+    const { handleMessageDisplay } = await import('../../ts/src/runtime/claude-code/mappers/generic');
+    const session = recordingSession();
+    await handleMessageDisplay(
+      {
+        session_id: 'MSG-USAGE',
+        hook_event_name: 'MessageDisplay',
+        transcript_path: writeTranscriptWithUsage('message.jsonl'),
+        final: true,
+        delta: 'done',
+      } as any,
+      session,
+      { skipTools: [], sessionDir: dir } as any,
+      {
+        activityType: 'ClaudeCodeMessage',
+        eventKind: 'ActivityCompleted',
+        eventCategory: 'llm_output',
+      },
+    );
+    const message = session.calls.find(
+      (c: any) => c.method === 'activity' && c.args[1] === 'ClaudeCodeMessage',
+    );
+    expect(message?.args[2]?.spans?.[0]).toMatchObject({
+      model: 'claude-opus-4-8',
+      input_tokens: 321,
+      output_tokens: 54,
+    });
+    const usageSignal = session.calls.find(
+      (c: any) => c.method === 'activity' && c.args[1] === 'claude_usage',
+    );
+    expect(usageSignal?.args[2]?.input?.[0]).toMatchObject({
+      event_category: 'llm_usage',
+      model: 'claude-opus-4-8',
+      usage: { inputTokens: 321, outputTokens: 54 },
+      _openbox_source: 'claude-code',
+    });
   });
 
   it('stop keeps the workflow open while Claude reports background work', async () => {

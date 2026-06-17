@@ -7,6 +7,8 @@ import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
+import { buildSpan } from '../../../governance/spans.js';
+import { readLatestAssistantUsage } from '../transcript-usage.js';
 
 type GenericEventKind = typeof EVENT.START | typeof EVENT.COMPLETE | typeof EVENT.SIGNAL;
 
@@ -100,6 +102,54 @@ export async function observeGenericClaudeEvent(
     });
   } catch {
     // Observe-only hooks must not disturb Claude Code.
+  }
+  return undefined;
+}
+
+export async function handleMessageDisplay(
+  env: ClaudeCodeEnvelope,
+  session: ClaudeCodeSession,
+  cfg: ClaudeCodeConfig,
+  options: GenericEventOptions,
+): Promise<undefined> {
+  const usage = env.final === true ? readLatestAssistantUsage(env) : undefined;
+  const text =
+    env.delta ??
+    env.display_content ??
+    env.displayContent ??
+    env.message ??
+    '';
+  try {
+    await session.activity(options.eventKind ?? EVENT.COMPLETE, options.activityType, {
+      input: [stampSource(compactPayload(env, options.eventCategory), 'claude-code')],
+      output: stampSource({ text, event_category: options.eventCategory }, 'claude-code'),
+      spans: usage
+        ? [
+            buildSpan('claude-code', 'llm', {
+              response: text,
+              model: usage.model,
+              usage: usage.usage,
+            }),
+          ]
+        : undefined,
+    });
+  } catch {
+    // MessageDisplay is observe-only; never disturb Claude Code output.
+  }
+  if (usage && env.final === true) {
+    try {
+      await session.activity(EVENT.SIGNAL, 'claude_usage', {
+        input: [
+          stampSource({
+            event_category: 'llm_usage',
+            model: usage.model,
+            usage: usage.usage,
+          }, 'claude-code'),
+        ],
+      });
+    } catch {
+      // best-effort usage side channel
+    }
   }
   return undefined;
 }

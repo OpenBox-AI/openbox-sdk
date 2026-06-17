@@ -32,6 +32,8 @@ type SpanType = 'llm' | 'file_read' | 'file_write' | 'file_delete' | 'shell' | '
 interface SpanInput {
     prompt?: string;
     response?: string;
+    model?: string;
+    usage?: LLMTokenUsage;
     file_path?: string;
     command?: string;
     cwd?: string;

@@ -792,6 +792,13 @@ function buildSpan2(host, type, input) {
   const b = base();
   switch (type) {
     case "llm":
+      const usage = normalizeUsage(input.usage);
+      const inputTokens = toPositiveInteger(
+        usage?.input_tokens ?? usage?.prompt_tokens
+      );
+      const outputTokens = toPositiveInteger(
+        usage?.output_tokens ?? usage?.completion_tokens
+      );
       return {
         ...b,
         name: "llm.chat.completion",
@@ -800,11 +807,18 @@ function buildSpan2(host, type, input) {
         semantic_type: "llm_completion",
         attributes: {
           "gen_ai.system": host,
+          ...input.model ? { "gen_ai.request.model": input.model } : {},
+          ...input.model ? { "gen_ai.response.model": input.model } : {},
+          ...inputTokens !== void 0 ? { "gen_ai.usage.input_tokens": inputTokens } : {},
+          ...outputTokens !== void 0 ? { "gen_ai.usage.output_tokens": outputTokens } : {},
           "http.method": "POST",
           "http.url": "https://api.openai.com/v1/chat/completions",
           "openbox.semantic_type": "llm_completion",
           "openbox.span_type": "function"
         },
+        ...input.model ? { model: input.model } : {},
+        ...inputTokens !== void 0 ? { input_tokens: inputTokens } : {},
+        ...outputTokens !== void 0 ? { output_tokens: outputTokens } : {},
         function: "LLMCall",
         module: host,
         args: input,

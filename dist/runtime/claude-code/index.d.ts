@@ -1,6 +1,6 @@
 import { O as OpenBoxCoreClient } from '../../core-client-BaOdHXQU.js';
 import { m as ClaudeCodeSession, W as WorkflowVerdict } from '../../govern-BdX8nYkt.js';
-import { a as ClaudeCodeEnvelope } from '../../envelopes-TdSIMUKK.js';
+import { a as ClaudeCodeEnvelope } from '../../envelopes-BmEEbpul.js';
 import { InstallOptions } from '../../install/index.js';
 import '../../core-types-Dxgkbox0.js';
 

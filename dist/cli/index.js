@@ -1090,12 +1090,12 @@ var init_wrapper_methods = __esm({
        * method bodies AND any hand-written shadow that calls http* directly.
        * No-op when `permissions` is undefined or no rule matches the path.
        */
-      checkPathPermissions(verb, path15) {
+      checkPathPermissions(verb, path16) {
         if (!this.permissions) return;
         const upperVerb = verb.toUpperCase();
         for (const rule of PATH_PERMISSION_RULES) {
           if (rule.verb !== upperVerb) continue;
-          if (!rule.pattern.test(path15)) continue;
+          if (!rule.pattern.test(path16)) continue;
           const missing = rule.perms.filter((p) => !this.permissions.has(p));
           if (missing.length > 0) {
             throw new MissingPermissionError(rule.methodName, missing, [...this.permissions]);
@@ -1620,8 +1620,8 @@ var init_client = __esm({
        * method exists for operationId-driven callers that already resolved
        * a generated endpoint manifest entry.
        */
-      async requestOperation(method, path15, options) {
-        return this.request(method, path15, options);
+      async requestOperation(method, path16, options) {
+        return this.request(method, path16, options);
       }
       /**
        * Update the cached permission set. Call this after a token refresh
@@ -1848,13 +1848,13 @@ var init_client = __esm({
       /**
        * Generic request method using native fetch with retry and rate limiting.
        */
-      async request(method, path15, options) {
-        this.checkPathPermissions(method, path15);
+      async request(method, path16, options) {
+        this.checkPathPermissions(method, path16);
         await this.ensureValidToken();
         if (this.rateLimiter) {
           await this.rateLimiter.acquire();
         }
-        let url = `${this.baseUrl}${path15}`;
+        let url = `${this.baseUrl}${path16}`;
         if (options?.params) {
           const searchParams = new URLSearchParams();
           for (const [key, value] of Object.entries(options.params)) {
@@ -1944,20 +1944,20 @@ var init_client = __esm({
       // `http` prefix avoids name clashes with wire methods like
       // `getProfile` / `postEvent` that TypeScript would otherwise read as
       // overloads of an unprefixed `get` / `post`.
-      async httpGet(path15, params) {
-        return this.request("GET", path15, { params });
+      async httpGet(path16, params) {
+        return this.request("GET", path16, { params });
       }
-      async httpPost(path15, data) {
-        return this.request("POST", path15, { data });
+      async httpPost(path16, data) {
+        return this.request("POST", path16, { data });
       }
-      async httpPut(path15, data, params) {
-        return this.request("PUT", path15, { data, params });
+      async httpPut(path16, data, params) {
+        return this.request("PUT", path16, { data, params });
       }
-      async httpPatch(path15, data) {
-        return this.request("PATCH", path15, { data });
+      async httpPatch(path16, data) {
+        return this.request("PATCH", path16, { data });
       }
-      async httpDelete(path15, data) {
-        return this.request("DELETE", path15, { data });
+      async httpDelete(path16, data) {
+        return this.request("DELETE", path16, { data });
       }
       /**
        * Unwraps the standard `{ status, data }` response envelope used by the
@@ -2003,8 +2003,8 @@ function requireCoreUrl(value) {
   url.pathname = url.pathname.replace(/\/+$/, "");
   return url.toString().replace(/\/$/, "");
 }
-function appendQuery(path15, params) {
-  if (!params) return path15;
+function appendQuery(path16, params) {
+  if (!params) return path16;
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value === void 0 || value === null) continue;
@@ -2017,8 +2017,8 @@ function appendQuery(path15, params) {
     }
   }
   const query = search.toString();
-  if (!query) return path15;
-  return `${path15}${path15.includes("?") ? "&" : "?"}${query}`;
+  if (!query) return path16;
+  return `${path16}${path16.includes("?") ? "&" : "?"}${query}`;
 }
 function signAgentIdentityRequest(input) {
   const timestamp = input.timestamp ?? (/* @__PURE__ */ new Date()).toISOString();
@@ -2091,8 +2091,8 @@ var init_core_client = __esm({
        * exists for operationId-driven callers that already resolved a
        * generated endpoint manifest entry.
        */
-      async requestOperation(method, path15, options) {
-        const renderedPath = appendQuery(path15, options?.params);
+      async requestOperation(method, path16, options) {
+        const renderedPath = appendQuery(path16, options?.params);
         return this.request(method, renderedPath, { data: options?.data });
       }
       async health() {
@@ -2117,11 +2117,11 @@ var init_core_client = __esm({
       // Private helpers
       // =========================================================================
       static RETRYABLE_STATUSES = /* @__PURE__ */ new Set([429, 500, 502, 503, 504]);
-      async request(method, path15, options) {
+      async request(method, path16, options) {
         if (this.rateLimiter) {
           await this.rateLimiter.acquire();
         }
-        const url = `${this.baseUrl}${path15}`;
+        const url = `${this.baseUrl}${path16}`;
         const timeoutMs = this.config.timeoutMs ?? 35e3;
         const baseHeaders = {
           "Content-Type": "application/json",
@@ -3647,10 +3647,10 @@ function getPath() {
   return resolveOsPath("agent-keys");
 }
 function read() {
-  const path15 = getPath();
-  if (!existsSync(path15)) return {};
+  const path16 = getPath();
+  if (!existsSync(path16)) return {};
   try {
-    const parsed = JSON.parse(readFileSync(path15, "utf-8"));
+    const parsed = JSON.parse(readFileSync(path16, "utf-8"));
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
@@ -3675,25 +3675,25 @@ function getTokenPath() {
   return resolveOsPath("tokens");
 }
 function readTokenStore() {
-  const path15 = getTokenPath();
-  if (!existsSync2(path15)) return {};
-  return parseTokenStore(readFileSync2(path15, "utf-8"));
+  const path16 = getTokenPath();
+  if (!existsSync2(path16)) return {};
+  return parseTokenStore(readFileSync2(path16, "utf-8"));
 }
 function loadApiKey() {
   return process.env.OPENBOX_BACKEND_API_KEY ?? process.env.OPENBOX_API_KEY ?? readTokenStore().apiKey;
 }
 function saveApiKey(apiKey) {
-  const path15 = getTokenPath();
+  const path16 = getTokenPath();
   const store = readTokenStore();
   const {
     permissions: _permissions,
     features: _features,
     ...storeWithoutPrincipalMetadata
   } = store;
-  const dir = dirname(path15);
+  const dir = dirname(path16);
   if (!existsSync2(dir)) mkdirSync2(dir, { recursive: true });
   writeFileSync2(
-    path15,
+    path16,
     serializeTokenStore({
       ...storeWithoutPrincipalMetadata,
       apiKey,
@@ -3703,13 +3703,13 @@ function saveApiKey(apiKey) {
   );
 }
 function clearApiKey() {
-  const path15 = getTokenPath();
+  const path16 = getTokenPath();
   const store = readTokenStore();
   if (!store.apiKey) return false;
   const { apiKey: _apiKey, ...next } = store;
-  const dir = dirname(path15);
+  const dir = dirname(path16);
   if (!existsSync2(dir)) mkdirSync2(dir, { recursive: true });
-  writeFileSync2(path15, serializeTokenStore(next), { mode: 384 });
+  writeFileSync2(path16, serializeTokenStore(next), { mode: 384 });
   return true;
 }
 var init_file_tokens = __esm({
@@ -3771,10 +3771,10 @@ function getPath2() {
   return resolveOsPath("config");
 }
 function read2() {
-  const path15 = getPath2();
-  if (!existsSync4(path15)) return {};
+  const path16 = getPath2();
+  if (!existsSync4(path16)) return {};
   const out = {};
-  for (const line of readFileSync4(path15, "utf-8").split("\n")) {
+  for (const line of readFileSync4(path16, "utf-8").split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
     const eq = trimmed.indexOf("=");
@@ -3788,10 +3788,10 @@ function read2() {
 function write(store) {
   const lines = ["# OpenBox CLI config; managed by `openbox config set/get/unset/list`."];
   for (const key of Object.keys(store).sort()) lines.push(`${key}=${store[key]}`);
-  const path15 = getPath2();
-  const dir = dirname2(path15);
+  const path16 = getPath2();
+  const dir = dirname2(path16);
   if (!existsSync4(dir)) mkdirSync3(dir, { recursive: true });
-  writeFileSync3(path15, `${lines.join("\n")}
+  writeFileSync3(path16, `${lines.join("\n")}
 `, { mode: 384 });
 }
 function setConfig(key, value) {
@@ -3881,10 +3881,10 @@ function applyActivityVariant(table, toolName, env) {
   }
   return void 0;
 }
-function getPath3(env, path15) {
+function getPath3(env, path16) {
   if (env == null || typeof env !== "object") return void 0;
   let cur = env;
-  for (const seg of path15.split(".")) {
+  for (const seg of path16.split(".")) {
     if (cur == null || typeof cur !== "object") return void 0;
     cur = cur[seg];
   }
@@ -4970,10 +4970,10 @@ var init_install = __esm({
 });
 
 // ts/src/core-client/generated/runtime/claude-code.ts
-function getPath4(env, path15) {
+function getPath4(env, path16) {
   if (env == null || typeof env !== "object") return void 0;
   let cur = env;
-  for (const seg of path15.split(".")) {
+  for (const seg of path16.split(".")) {
     if (cur == null || typeof cur !== "object") return void 0;
     cur = cur[seg];
   }
@@ -7981,10 +7981,44 @@ function base() {
     error: null
   };
 }
+function toPositiveInteger(value) {
+  const numberValue = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : void 0;
+  if (numberValue === void 0 || !Number.isFinite(numberValue) || numberValue <= 0)
+    return void 0;
+  return Math.trunc(numberValue);
+}
+function normalizeUsage(usage) {
+  if (!usage) return void 0;
+  const promptTokens = toPositiveInteger(
+    usage.promptTokens ?? usage.inputTokens
+  );
+  const completionTokens = toPositiveInteger(
+    usage.completionTokens ?? usage.outputTokens
+  );
+  const totalTokens = toPositiveInteger(usage.totalTokens);
+  const normalized = {};
+  if (promptTokens !== void 0) {
+    normalized.prompt_tokens = promptTokens;
+    normalized.input_tokens = promptTokens;
+  }
+  if (completionTokens !== void 0) {
+    normalized.completion_tokens = completionTokens;
+    normalized.output_tokens = completionTokens;
+  }
+  if (totalTokens !== void 0) normalized.total_tokens = totalTokens;
+  return Object.keys(normalized).length > 0 ? normalized : void 0;
+}
 function buildSpan(host, type, input) {
   const b = base();
   switch (type) {
     case "llm":
+      const usage = normalizeUsage(input.usage);
+      const inputTokens = toPositiveInteger(
+        usage?.input_tokens ?? usage?.prompt_tokens
+      );
+      const outputTokens = toPositiveInteger(
+        usage?.output_tokens ?? usage?.completion_tokens
+      );
       return {
         ...b,
         name: "llm.chat.completion",
@@ -7993,11 +8027,18 @@ function buildSpan(host, type, input) {
         semantic_type: "llm_completion",
         attributes: {
           "gen_ai.system": host,
+          ...input.model ? { "gen_ai.request.model": input.model } : {},
+          ...input.model ? { "gen_ai.response.model": input.model } : {},
+          ...inputTokens !== void 0 ? { "gen_ai.usage.input_tokens": inputTokens } : {},
+          ...outputTokens !== void 0 ? { "gen_ai.usage.output_tokens": outputTokens } : {},
           "http.method": "POST",
           "http.url": "https://api.openai.com/v1/chat/completions",
           "openbox.semantic_type": "llm_completion",
           "openbox.span_type": "function"
         },
+        ...input.model ? { model: input.model } : {},
+        ...inputTokens !== void 0 ? { input_tokens: inputTokens } : {},
+        ...outputTokens !== void 0 ? { output_tokens: outputTokens } : {},
         function: "LLMCall",
         module: host,
         args: input,
@@ -8527,6 +8568,85 @@ var init_permission_request = __esm({
   }
 });
 
+// ts/src/runtime/claude-code/transcript-usage.ts
+import fs8 from "fs";
+import path12 from "path";
+function toPositiveInteger2(value) {
+  const numberValue = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : void 0;
+  if (numberValue === void 0 || !Number.isFinite(numberValue) || numberValue <= 0)
+    return void 0;
+  return Math.trunc(numberValue);
+}
+function normalizeClaudeUsage(value) {
+  if (value === null || typeof value !== "object") return void 0;
+  const usage = value;
+  const normalized = {
+    inputTokens: toPositiveInteger2(usage.input_tokens),
+    outputTokens: toPositiveInteger2(usage.output_tokens),
+    totalTokens: toPositiveInteger2(usage.total_tokens)
+  };
+  return Object.values(normalized).some((entry) => entry !== void 0) ? normalized : void 0;
+}
+function isSafeTranscriptPath(filePath) {
+  return path12.isAbsolute(filePath) && filePath.endsWith(".jsonl") && !filePath.includes("\0");
+}
+function readTranscriptTail(filePath) {
+  if (!isSafeTranscriptPath(filePath)) return void 0;
+  let fd;
+  try {
+    const stat = fs8.statSync(filePath);
+    if (!stat.isFile()) return void 0;
+    const length = Math.min(stat.size, MAX_TRANSCRIPT_TAIL_BYTES);
+    const offset = Math.max(0, stat.size - length);
+    const buffer = Buffer.alloc(length);
+    fd = fs8.openSync(filePath, "r");
+    fs8.readSync(fd, buffer, 0, length, offset);
+    return buffer.toString("utf-8");
+  } catch {
+    return void 0;
+  } finally {
+    if (fd !== void 0) {
+      try {
+        fs8.closeSync(fd);
+      } catch {
+      }
+    }
+  }
+}
+function readLatestAssistantUsage(env) {
+  const transcriptPath = env.agent_transcript_path ?? env.transcript_path;
+  if (!transcriptPath) return void 0;
+  const text = readTranscriptTail(transcriptPath);
+  if (!text) return void 0;
+  const lines = text.split("\n").filter(Boolean).reverse();
+  for (const line of lines) {
+    const jsonStart = line.indexOf("{");
+    if (jsonStart < 0) continue;
+    try {
+      const record = JSON.parse(line.slice(jsonStart));
+      if (record.type !== "assistant" && record.message?.role !== "assistant") {
+        continue;
+      }
+      const usage = normalizeClaudeUsage(record.message?.usage);
+      if (!usage) continue;
+      return {
+        model: record.message?.model,
+        usage
+      };
+    } catch {
+      continue;
+    }
+  }
+  return void 0;
+}
+var MAX_TRANSCRIPT_TAIL_BYTES;
+var init_transcript_usage = __esm({
+  "ts/src/runtime/claude-code/transcript-usage.ts"() {
+    "use strict";
+    MAX_TRANSCRIPT_TAIL_BYTES = 1024 * 1024;
+  }
+});
+
 // ts/src/runtime/claude-code/mappers/session.ts
 function hasPendingClaudeWork(env) {
   return Array.isArray(env.background_tasks) && env.background_tasks.length > 0 || Array.isArray(env.session_crons) && env.session_crons.length > 0;
@@ -8539,10 +8659,18 @@ async function handleSessionStart(env, session, _cfg) {
   return void 0;
 }
 async function handleStop(env, session, cfg) {
+  const usage = readLatestAssistantUsage(env);
   let verdict;
   try {
     verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
-      input: [stampSource(buildStopPayload(env), "claude-code")]
+      input: [stampSource(buildStopPayload(env), "claude-code")],
+      spans: usage ? [
+        buildSpan("claude-code", "llm", {
+          response: env.last_assistant_message ?? "",
+          model: usage.model,
+          usage: usage.usage
+        })
+      ] : void 0
     });
   } catch {
     if (cfg.governancePolicy === "fail_closed") {
@@ -8637,6 +8765,8 @@ var init_session = __esm({
     init_session_resolver();
     init_activity_types();
     init_source();
+    init_spans();
+    init_transcript_usage();
   }
 });
 
@@ -8654,8 +8784,16 @@ async function handleSubagentStart(env, session, _cfg) {
   return void 0;
 }
 async function handleSubagentStop(env, session, cfg) {
+  const usage = readLatestAssistantUsage(env);
   const verdict = await session.activity(EVENT.COMPLETE, subAgentActivityType(env), {
-    input: [stampSource(buildSubagentStopPayload(env), "claude-code")]
+    input: [stampSource(buildSubagentStopPayload(env), "claude-code")],
+    spans: usage ? [
+      buildSpan("claude-code", "llm", {
+        response: env.last_assistant_message ?? "",
+        model: usage.model,
+        usage: usage.usage
+      })
+    ] : void 0
   });
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   return verdict;
@@ -8688,6 +8826,8 @@ var init_subagent = __esm({
     init_activity_types();
     init_source();
     init_session_resolver();
+    init_spans();
+    init_transcript_usage();
   }
 });
 
@@ -8720,6 +8860,39 @@ async function observeGenericClaudeEvent(env, session, cfg, options) {
   }
   return void 0;
 }
+async function handleMessageDisplay(env, session, cfg, options) {
+  const usage = env.final === true ? readLatestAssistantUsage(env) : void 0;
+  const text = env.delta ?? env.display_content ?? env.displayContent ?? env.message ?? "";
+  try {
+    await session.activity(options.eventKind ?? EVENT.COMPLETE, options.activityType, {
+      input: [stampSource(compactPayload(env, options.eventCategory), "claude-code")],
+      output: stampSource({ text, event_category: options.eventCategory }, "claude-code"),
+      spans: usage ? [
+        buildSpan("claude-code", "llm", {
+          response: text,
+          model: usage.model,
+          usage: usage.usage
+        })
+      ] : void 0
+    });
+  } catch {
+  }
+  if (usage && env.final === true) {
+    try {
+      await session.activity(EVENT.SIGNAL, "claude_usage", {
+        input: [
+          stampSource({
+            event_category: "llm_usage",
+            model: usage.model,
+            usage: usage.usage
+          }, "claude-code")
+        ]
+      });
+    } catch {
+    }
+  }
+  return void 0;
+}
 var IMPORTANT_FIELDS;
 var init_generic = __esm({
   "ts/src/runtime/claude-code/mappers/generic.ts"() {
@@ -8727,6 +8900,8 @@ var init_generic = __esm({
     init_session_resolver();
     init_activity_types();
     init_source();
+    init_spans();
+    init_transcript_usage();
     IMPORTANT_FIELDS = [
       "hook_event_name",
       "session_id",
@@ -9001,7 +9176,7 @@ async function runClaudeHook() {
       cfg,
       "messageDisplay",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => dryRun ? void 0 : handleMessageDisplay(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.COMPLETE,
         eventCategory: "llm_output"
@@ -9272,20 +9447,20 @@ var init_claude_code2 = __esm({
 });
 
 // ts/src/runtime/cursor/config.ts
-import fs8 from "fs";
-import path12 from "path";
+import fs9 from "fs";
+import path13 from "path";
 function resolveConfigDir2(startDir = process.cwd()) {
   let cur = startDir;
   for (let i = 0; i < 8; i++) {
-    const candidate = path12.join(cur, ".cursor-hooks");
-    if (fs8.existsSync(path12.join(candidate, "config.json"))) {
+    const candidate = path13.join(cur, ".cursor-hooks");
+    if (fs9.existsSync(path13.join(candidate, "config.json"))) {
       return candidate;
     }
-    const parent = path12.dirname(cur);
+    const parent = path13.dirname(cur);
     if (parent === cur) break;
     cur = parent;
   }
-  return path12.join(startDir, ".cursor-hooks");
+  return path13.join(startDir, ".cursor-hooks");
 }
 function loadConfig2() {
   const fileConfig = loadConfigFile2();
@@ -9309,8 +9484,8 @@ function loadConfig2() {
     governancePolicy: get("GOVERNANCE_POLICY", "fail_open"),
     governanceTimeout: parseInt(get("GOVERNANCE_TIMEOUT", "15"), 10) || 15,
     activityType: get("ACTIVITY_TYPE", "CursorIDE"),
-    sessionDir: get("SESSION_DIR", path12.join(CONFIG_DIR2, "sessions")),
-    logFile: get("LOG_FILE", path12.join(CONFIG_DIR2, "hook.log")) || null,
+    sessionDir: get("SESSION_DIR", path13.join(CONFIG_DIR2, "sessions")),
+    logFile: get("LOG_FILE", path13.join(CONFIG_DIR2, "hook.log")) || null,
     verbose: get("VERBOSE") === "true" || get("VERBOSE") === "1",
     dryRun: get("DRY_RUN") === "true" || get("DRY_RUN") === "1",
     hitlEnabled: get("HITL_ENABLED", "true") !== "false",
@@ -9336,8 +9511,8 @@ var init_config4 = __esm({
     init_host_config();
     init_agent_identity();
     CONFIG_DIR2 = resolveConfigDir2();
-    CONFIG_FILE2 = path12.join(CONFIG_DIR2, "config.json");
-    ENV_FILE2 = path12.join(CONFIG_DIR2, ".env");
+    CONFIG_FILE2 = path13.join(CONFIG_DIR2, "config.json");
+    ENV_FILE2 = path13.join(CONFIG_DIR2, ".env");
     loadConfigFile2 = () => loadJsonConfig(CONFIG_FILE2);
     loadEnvFile2 = () => loadDotenv(ENV_FILE2);
   }
@@ -9362,9 +9537,9 @@ var init_session_resolver2 = __esm({
 
 // ts/src/approvals/socket-client.ts
 import * as net from "net";
-import * as path13 from "path";
+import * as path14 from "path";
 function defaultApprovalSocketPath() {
-  return path13.join(openboxDataRoot(), "run", "openbox.sock");
+  return path14.join(openboxDataRoot(), "run", "openbox.sock");
 }
 function connectApprovalSocket(socketPath = defaultApprovalSocketPath()) {
   return new Promise((resolve3) => {
@@ -9515,31 +9690,31 @@ var init_prompt = __esm({
 });
 
 // ts/src/runtime/cursor/dedup.ts
-import * as fs9 from "fs";
-import * as path14 from "path";
+import * as fs10 from "fs";
+import * as path15 from "path";
 import * as crypto2 from "crypto";
 function dedupDir() {
-  return path14.join(openboxDataRoot(), "run", "dedup");
+  return path15.join(openboxDataRoot(), "run", "dedup");
 }
 function ensureDir2() {
   try {
-    fs9.mkdirSync(dedupDir(), { recursive: true, mode: 448 });
+    fs10.mkdirSync(dedupDir(), { recursive: true, mode: 448 });
   } catch {
   }
 }
 function reapStale() {
   let entries;
   try {
-    entries = fs9.readdirSync(dedupDir());
+    entries = fs10.readdirSync(dedupDir());
   } catch {
     return;
   }
   const cutoff = Date.now() - TTL_MS;
   for (const name of entries) {
-    const p = path14.join(dedupDir(), name);
+    const p = path15.join(dedupDir(), name);
     try {
-      const st = fs9.statSync(p);
-      if (st.mtimeMs < cutoff) fs9.unlinkSync(p);
+      const st = fs10.statSync(p);
+      if (st.mtimeMs < cutoff) fs10.unlinkSync(p);
     } catch {
     }
   }
@@ -9554,24 +9729,24 @@ function buildActionKey(parts) {
 function claimAction(key) {
   ensureDir2();
   reapStale();
-  const lockPath = path14.join(dedupDir(), key);
+  const lockPath = path15.join(dedupDir(), key);
   try {
-    const fd = fs9.openSync(lockPath, "wx", 384);
+    const fd = fs10.openSync(lockPath, "wx", 384);
     try {
-      fs9.writeSync(fd, String(Date.now()));
+      fs10.writeSync(fd, String(Date.now()));
     } finally {
-      fs9.closeSync(fd);
+      fs10.closeSync(fd);
     }
     return { won: true, path: lockPath };
   } catch (err) {
     if (err?.code === "EEXIST") {
       try {
-        const st = fs9.statSync(lockPath);
+        const st = fs10.statSync(lockPath);
         if (Date.now() - st.mtimeMs > TTL_MS) {
-          fs9.unlinkSync(lockPath);
+          fs10.unlinkSync(lockPath);
           try {
-            const fd = fs9.openSync(lockPath, "wx", 384);
-            fs9.closeSync(fd);
+            const fd = fs10.openSync(lockPath, "wx", 384);
+            fs10.closeSync(fd);
             return { won: true, path: lockPath };
           } catch {
             return { won: false, path: lockPath };
@@ -9588,21 +9763,21 @@ function publishClaimDecision(claim, decision) {
   if (!claim.won) return;
   const tmp = `${claim.path}.tmp.${process.pid}`;
   try {
-    fs9.writeFileSync(
+    fs10.writeFileSync(
       tmp,
       JSON.stringify({ ts: Date.now(), arm: decision.arm, reason: decision.reason }),
       { mode: 384 }
     );
-    fs9.renameSync(tmp, claim.path);
+    fs10.renameSync(tmp, claim.path);
     setTimeout(() => {
       try {
-        fs9.unlinkSync(claim.path);
+        fs10.unlinkSync(claim.path);
       } catch {
       }
     }, PUBLISH_GRACE_MS);
   } catch {
     try {
-      fs9.unlinkSync(tmp);
+      fs10.unlinkSync(tmp);
     } catch {
     }
   }
@@ -9613,7 +9788,7 @@ function sleep2(ms) {
 function readDecisionOnce(lockPath) {
   let content;
   try {
-    content = fs9.readFileSync(lockPath, "utf-8");
+    content = fs10.readFileSync(lockPath, "utf-8");
   } catch {
     return null;
   }
@@ -9711,7 +9886,7 @@ var init_shell = __esm({
 });
 
 // ts/src/runtime/cursor/side-effects.ts
-import * as fs10 from "fs";
+import * as fs11 from "fs";
 var sideEffects2;
 var init_side_effects2 = __esm({
   "ts/src/runtime/cursor/side-effects.ts"() {
@@ -9725,7 +9900,7 @@ var init_side_effects2 = __esm({
         if (typeof input !== "string" || !input) return "";
         if (isSkipped(input)) return "";
         try {
-          return fs10.existsSync(input) ? fs10.readFileSync(input, "utf-8") : "";
+          return fs11.existsSync(input) ? fs11.readFileSync(input, "utf-8") : "";
         } catch {
           return "";
         }
@@ -11655,8 +11830,8 @@ async function callOperation(service, operationId, options, client) {
     bailWith(EXIT.USAGE);
   }
   try {
-    const path15 = renderOperationPath(operation.path, params);
-    const data = await client.requestOperation(operation.verb.toUpperCase(), path15, {
+    const path16 = renderOperationPath(operation.path, params);
+    const data = await client.requestOperation(operation.verb.toUpperCase(), path16, {
       params: query,
       data: body
     });
@@ -12273,7 +12448,7 @@ var rules = [
     severity: "warn",
     message: "UUID literal that looks like an agent/team/org ID. These are user-specific and must be resolved at runtime.",
     fix: "Derive from `openbox auth profile`, generated backend API calls, or the dashboard; pass via env var / config.",
-    appliesTo: (path15) => !/test|spec|\.md$|fixture|seed|examples?\//i.test(path15),
+    appliesTo: (path16) => !/test|spec|\.md$|fixture|seed|examples?\//i.test(path16),
     detect: (_content, origLines) => {
       const strippedLines = stripComments(origLines.join("\n")).split("\n");
       const out = [];
@@ -12292,7 +12467,7 @@ var rules = [
     severity: "info",
     message: "A `WorkflowStarted` event appears without an obvious `finally`/`defer`/`try/catch` structure nearby guaranteeing `WorkflowCompleted` / `WorkflowFailed` on failure paths.",
     fix: 'Wrap the lifecycle: emit start inside try, emit completed/failed in finally (JS/Python) or defer (Go). See references/governance-flow.md \xA7 "Nothing dangles".',
-    appliesTo: (path15) => /\.(ts|tsx|js|jsx|mjs|cjs|py|go)$/.test(path15),
+    appliesTo: (path16) => /\.(ts|tsx|js|jsx|mjs|cjs|py|go)$/.test(path16),
     detect: (content, lines) => {
       const out = [];
       const strippedLines = stripComments(content).split("\n");
@@ -12314,7 +12489,7 @@ var rules = [
     severity: "info",
     message: "A path emits `ActivityStarted` without an obvious paired `ActivityCompleted` in the same scope. Orphan activities break output-stage guardrails and trust scoring.",
     fix: 'Every Started must be Completed; on success AND failure. See references/governance-flow.md \xA7 "Nothing dangles".',
-    appliesTo: (path15) => /\.(ts|tsx|js|jsx|mjs|cjs|py|go)$/.test(path15),
+    appliesTo: (path16) => /\.(ts|tsx|js|jsx|mjs|cjs|py|go)$/.test(path16),
     detect: (content, origLines) => {
       const stripped = stripComments(content);
       const strippedLines = stripped.split("\n");
@@ -12516,8 +12691,8 @@ function printReport(findings, totalFiles, rootLabel) {
   return { errors: errs.length, warns: warns.length, infos: infos.length };
 }
 function registerVerifyCommand(program2) {
-  program2.command("verify [path]").description("Static lint: scan integration code for OpenBox protocol drift").option("--fail-on <severity>", "Exit non-zero on this severity or worse (error|warn|info)", "error").option("--json", "Emit findings as JSON instead of human-readable", false).action(async (path15, opts) => {
-    const root = path15 ? path15.startsWith("/") ? path15 : join6(process.cwd(), path15) : process.cwd();
+  program2.command("verify [path]").description("Static lint: scan integration code for OpenBox protocol drift").option("--fail-on <severity>", "Exit non-zero on this severity or worse (error|warn|info)", "error").option("--json", "Emit findings as JSON instead of human-readable", false).action(async (path16, opts) => {
+    const root = path16 ? path16.startsWith("/") ? path16 : join6(process.cwd(), path16) : process.cwd();
     if (!existsSync13(root)) {
       error(`path not found: ${root}`);
       bailWith(EXIT.USAGE);
@@ -12570,14 +12745,14 @@ function deepestRegisteredPath() {
     positionals.push(a);
   }
   let cmd = program;
-  const path15 = [];
+  const path16 = [];
   for (const tok of positionals) {
     const sub = cmd.commands.find((c) => c.name() === tok);
     if (!sub) break;
-    path15.push(tok);
+    path16.push(tok);
     cmd = sub;
   }
-  return path15.length > 0 ? path15.join(" ") : null;
+  return path16.length > 0 ? path16.join(" ") : null;
 }
 function helpRef(cmd) {
   const c = cmd ?? deepestRegisteredPath();

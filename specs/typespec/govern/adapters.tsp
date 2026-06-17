@@ -44,6 +44,7 @@ model ClaudeCodeEnvelope {
   `model`?: string;
   agent_id?: string;
   agent_type?: string;
+  agent_transcript_path?: string;
   permission_mode?: string;
   permission_suggestions?: unknown;
   trigger?: string;
@@ -57,8 +58,15 @@ model ClaudeCodeEnvelope {
   command_args?: string;
   expanded_prompt?: string;
   message?: string;
+  title?: string;
+  notification_type?: string;
   display_content?: string;
   displayContent?: string;
+  turn_id?: string;
+  message_id?: string;
+  index?: numeric;
+  final?: boolean;
+  delta?: string;
   tool_response?: unknown;
   tool_calls?: unknown;
   error?: string;

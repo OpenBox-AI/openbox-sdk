@@ -66,6 +66,8 @@ export type SpanType =
 export interface SpanInput {
   prompt?: string;
   response?: string;
+  model?: string;
+  usage?: LLMTokenUsage;
   file_path?: string;
   command?: string;
   cwd?: string;
@@ -283,6 +285,13 @@ export function buildSpan(
       // `http.url` that matches a known LLM domain. IDE and agent
       // hosts abstract the underlying model call, so tag a generic
       // OpenAI-shaped URL. See `span-reference.md`.
+      const usage = normalizeUsage(input.usage);
+      const inputTokens = toPositiveInteger(
+        usage?.input_tokens ?? usage?.prompt_tokens,
+      );
+      const outputTokens = toPositiveInteger(
+        usage?.output_tokens ?? usage?.completion_tokens,
+      );
       return {
         ...b,
         name: 'llm.chat.completion',
@@ -291,11 +300,22 @@ export function buildSpan(
         semantic_type: 'llm_completion',
         attributes: {
           'gen_ai.system': host,
+          ...(input.model ? { 'gen_ai.request.model': input.model } : {}),
+          ...(input.model ? { 'gen_ai.response.model': input.model } : {}),
+          ...(inputTokens !== undefined
+            ? { 'gen_ai.usage.input_tokens': inputTokens }
+            : {}),
+          ...(outputTokens !== undefined
+            ? { 'gen_ai.usage.output_tokens': outputTokens }
+            : {}),
           'http.method': 'POST',
           'http.url': 'https://api.openai.com/v1/chat/completions',
           'openbox.semantic_type': 'llm_completion',
           'openbox.span_type': 'function',
         },
+        ...(input.model ? { model: input.model } : {}),
+        ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
+        ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
         function: 'LLMCall',
         module: host,
         args: input,

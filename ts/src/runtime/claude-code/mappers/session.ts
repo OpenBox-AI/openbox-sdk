@@ -20,6 +20,8 @@ import {
 } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
+import { buildSpan } from '../../../governance/spans.js';
+import { readLatestAssistantUsage } from '../transcript-usage.js';
 
 function hasPendingClaudeWork(env: ClaudeCodeEnvelope): boolean {
   return (
@@ -57,10 +59,20 @@ export async function handleStop(
   session: ClaudeCodeSession,
   cfg: ClaudeCodeConfig,
 ): Promise<WorkflowVerdict | undefined> {
+  const usage = readLatestAssistantUsage(env);
   let verdict: WorkflowVerdict;
   try {
     verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
       input: [stampSource(buildStopPayload(env), 'claude-code')],
+      spans: usage
+        ? [
+            buildSpan('claude-code', 'llm', {
+              response: env.last_assistant_message ?? '',
+              model: usage.model,
+              usage: usage.usage,
+            }),
+          ]
+        : undefined,
     });
   } catch {
     if (cfg.governancePolicy === 'fail_closed') {

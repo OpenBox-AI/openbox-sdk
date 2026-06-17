@@ -11,6 +11,8 @@ import type { ClaudeCodeConfig } from '../config.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
 import { markHalted } from '../session-resolver.js';
+import { buildSpan } from '../../../governance/spans.js';
+import { readLatestAssistantUsage } from '../transcript-usage.js';
 
 /** Pinned per-subagent activity_type so START/STOP balance. Activity name
  *  carries identity that the spec-driven payload doesn't (the activity_type
@@ -42,8 +44,18 @@ export async function handleSubagentStop(
   session: ClaudeCodeSession,
   cfg: ClaudeCodeConfig,
 ): Promise<WorkflowVerdict | undefined> {
+  const usage = readLatestAssistantUsage(env);
   const verdict = await session.activity(EVENT.COMPLETE, subAgentActivityType(env), {
     input: [stampSource(buildSubagentStopPayload(env), 'claude-code')],
+    spans: usage
+      ? [
+          buildSpan('claude-code', 'llm', {
+            response: env.last_assistant_message ?? '',
+            model: usage.model,
+            usage: usage.usage,
+          }),
+        ]
+      : undefined,
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;

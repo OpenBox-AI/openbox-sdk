@@ -50,6 +50,7 @@ import {
   handleTeammateIdle,
 } from './mappers/subagent.js';
 import {
+  handleMessageDisplay,
   handleGenericClaudeEvent,
   observeGenericClaudeEvent,
 } from './mappers/generic.js';
@@ -305,7 +306,7 @@ export async function runClaudeHook(): Promise<void> {
     userPromptExpansion: guarded(cfg, 'userPromptExpansion', 'permission',
       async (env, s) => dryRun ? undefined : handleUserPromptExpansion(env, s, cfg)),
     messageDisplay: guarded(cfg, 'messageDisplay', 'observe',
-      async (env, s) => dryRun ? undefined : observeGenericClaudeEvent(env, s, cfg, {
+      async (env, s) => dryRun ? undefined : handleMessageDisplay(env, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.COMPLETE,
         eventCategory: 'llm_output',

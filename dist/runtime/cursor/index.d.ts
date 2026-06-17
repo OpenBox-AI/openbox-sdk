@@ -1,6 +1,6 @@
 import { O as OpenBoxCoreClient } from '../../core-client-BaOdHXQU.js';
 import { s as CursorSession, W as WorkflowVerdict } from '../../govern-BdX8nYkt.js';
-import { C as CursorEnvelope } from '../../envelopes-TdSIMUKK.js';
+import { C as CursorEnvelope } from '../../envelopes-BmEEbpul.js';
 import '../../core-types-Dxgkbox0.js';
 
 /**
