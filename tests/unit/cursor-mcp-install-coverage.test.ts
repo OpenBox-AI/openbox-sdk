@@ -93,13 +93,6 @@ describe('runtime/cursor/install; source-level verification', () => {
 
     writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {
       OPENBOX_API_KEY: `obx_test_${'a'.repeat(48)}`,
-      DRY_RUN: true,
-    });
-    checks = await verifyCursorInstall({ cwd, includeRuntime: true });
-    expect(checks.find((c) => c.name === 'runtime')?.detail).toContain('DRY_RUN=true');
-
-    writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {
-      OPENBOX_API_KEY: `obx_test_${'a'.repeat(48)}`,
       OPENBOX_CORE_URL: 'http://127.0.0.1:8086',
     });
     checks = await verifyCursorInstall({ cwd, includeRuntime: true });

@@ -30,7 +30,7 @@ Three surfaces are available via
 ## Shared with cursor
 
 Everything cross-cutting lives at the SDK top level; `@openbox-ai/openbox-sdk/logging`,
-`/session`, `/install`, `/governance` (span builder + skip patterns +
+`/session`, `/install`, `/governance` (span builder + redaction patterns +
 events + rules projection + hook-event labels), `/approvals`
 (socket client + server + resolve helper + source attribution),
 `/config`, `/file-tokens` (agent-keys cache). The per-host code here is
@@ -44,5 +44,6 @@ the event JSON from stdin, dispatches by `hook_event_name`, the mapper
 builds a payload + span and calls `session.activity(...)` on the
 attached SDK session, the verdict comes back and the adapter writes
 the verdict shape per `@verdictShape` (`permission-decision`,
-`decision-block`, `permission-request`, or `none`), then exits 0
-fail-open.
+`decision-block`, `permission-request`, or `none`), then exits 0.
+Decision-capable hook failures return the event-specific deny/block
+shape; observe-only hooks pass through after best-effort telemetry.

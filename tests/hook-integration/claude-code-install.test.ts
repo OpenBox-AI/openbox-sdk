@@ -56,7 +56,6 @@ function expectClaudePlugin(project: string): void {
   });
   expect(runtimeConfig.OPENBOX_API_KEY).toBeUndefined();
   expect(runtimeConfig.OPENBOX_CORE_URL).toBeUndefined();
-  expect(runtimeConfig.DRY_RUN).toBeUndefined();
 
   const inventory = JSON.parse(
     readFileSync(path.join(root, 'diagnostics', 'component-inventory.json'), 'utf-8'),

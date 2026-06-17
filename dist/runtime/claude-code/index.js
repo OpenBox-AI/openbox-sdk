@@ -2570,10 +2570,6 @@ function loadConfig() {
     if (envConfig[key] !== void 0) return envConfig[key];
     return fileFallback ?? "";
   };
-  const skipToolsRaw = get("SKIP_TOOLS");
-  const skipTools = skipToolsRaw ? skipToolsRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
-  const skipActivityRaw = get("SKIP_ACTIVITY_TYPES");
-  const skipActivityTypes = skipActivityRaw ? skipActivityRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
   const coreUrl = process.env.OPENBOX_CORE_URL ?? fileConfig.OPENBOX_CORE_URL ?? envConfig.OPENBOX_CORE_URL ?? "";
   return {
     openboxApiKey: get("OPENBOX_API_KEY"),
@@ -2582,12 +2578,11 @@ function loadConfig() {
       OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID") || void 0,
       OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY") || void 0
     }),
-    governancePolicy: get("GOVERNANCE_POLICY", "fail_closed"),
+    governancePolicy: "fail_closed",
     governanceTimeout: parseInt(get("GOVERNANCE_TIMEOUT", "15"), 10) || 15,
     sessionDir: get("SESSION_DIR", path.join(CONFIG_DIR, "sessions")),
     logFile: get("LOG_FILE", path.join(CONFIG_DIR, "hook.log")) || null,
     verbose: get("VERBOSE") === "true" || get("VERBOSE") === "1",
-    dryRun: get("DRY_RUN") === "true" || get("DRY_RUN") === "1",
     hitlEnabled: get("HITL_ENABLED", "true") !== "false",
     hitlPollInterval: parseInt(get("HITL_POLL_INTERVAL", "5"), 10) || 5,
     hitlMaxWait: parseInt(get("HITL_MAX_WAIT", "300"), 10) || 300,
@@ -2595,9 +2590,7 @@ function loadConfig() {
     taskQueue: get("TASK_QUEUE", "claude-code"),
     sendStartEvent: get("SEND_START_EVENT", "true") !== "false",
     sendActivityStartEvent: get("SEND_ACTIVITY_START_EVENT", "true") !== "false",
-    maxBodySize: get("MAX_BODY_SIZE") ? parseInt(get("MAX_BODY_SIZE"), 10) || null : null,
-    skipTools,
-    skipActivityTypes
+    maxBodySize: get("MAX_BODY_SIZE") ? parseInt(get("MAX_BODY_SIZE"), 10) || null : null
   };
 }
 var loadConfigFile = () => loadJsonConfig(CONFIG_FILE);
@@ -2836,22 +2829,6 @@ var ACTIVITY_TYPES = {
   TASK: "ClaudeCodeTask",
   MESSAGE: "ClaudeCodeMessage"
 };
-
-// ts/src/governance/skip-patterns.ts
-import path5 from "path";
-var SKIP_PATTERNS = [
-  /\.cursor\//,
-  /\.claude\//,
-  /\/mcps\//,
-  /\/node_modules\//,
-  /\.git\//,
-  /INSTRUCTIONS\.md$/,
-  /SERVER_METADATA\.json$/,
-  /SKILL\.md$/
-];
-function isSkipped(filePath) {
-  return SKIP_PATTERNS.some((p) => p.test(filePath));
-}
 
 // ts/src/governance/spans.ts
 function hex(len) {
@@ -3188,14 +3165,44 @@ function stampSource(payload, host) {
 
 // ts/src/runtime/claude-code/side-effects.ts
 import * as fs6 from "fs";
+
+// ts/src/governance/skip-patterns.ts
+import path5 from "path";
+var REDACT_PATH_CONTENT_PATTERNS = [
+  /\.cursor\//,
+  /\.claude\//,
+  /\/mcps\//,
+  /\/node_modules\//,
+  /\.git\//,
+  /INSTRUCTIONS\.md$/,
+  /SERVER_METADATA\.json$/,
+  /SKILL\.md$/
+];
+function shouldRedactPathContent(filePath) {
+  return REDACT_PATH_CONTENT_PATTERNS.some((p) => p.test(filePath)) || isSensitivePath(filePath);
+}
+var SENSITIVE_PATH_PATTERNS = [
+  /(^|\/)\.env($|[./-])/,
+  /(^|\/)\.env\.[^/]+$/,
+  /(^|\/)(id_rsa|id_dsa|id_ecdsa|id_ed25519)(\.pub)?$/,
+  /(^|\/)(credentials|secrets?|token|tokens)\.(json|ya?ml|toml|ini|env|txt)$/,
+  /(^|\/)(credentials|config)$/,
+  /\.(pem|key|p12|pfx|crt)$/i,
+  /(^|\/)\.aws\/credentials$/,
+  /(^|\/)\.openbox\/tokens$/
+];
+function isSensitivePath(filePath) {
+  return SENSITIVE_PATH_PATTERNS.some((p) => p.test(filePath));
+}
+
+// ts/src/runtime/claude-code/side-effects.ts
 var TRUNCATE_LIMIT = 5e3;
 var sideEffects = {
-  /** Read the file at the given path; returns '' on missing/unreadable
-   *  files and on paths the SKIP_PATTERNS list flags as IDE/secret
-   *  internals so PII scanning can't false-HALT on metadata reads. */
+  /** Read the file at the given path unless the path is metadata or
+   *  secret-like. Redacted files are still governed by path/span data. */
   readFile(input) {
     if (typeof input !== "string" || !input) return "";
-    if (isSkipped(input)) return "";
+    if (shouldRedactPathContent(input)) return "[OpenBox redacted file content]";
     try {
       return fs6.existsSync(input) ? fs6.readFileSync(input, "utf-8") : "";
     } catch {
@@ -3348,12 +3355,9 @@ function spanTypeFor(toolName, toolInput) {
 async function handlePreToolUse(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
-  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
   const activityType = activityTypeFor(toolName, toolInput);
   if (!activityType) return void 0;
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const filePath = filePathFor(toolInput) ?? "";
-  if (filePath && isSkipped(filePath)) return void 0;
   const payload = buildPreToolUsePayload(env, toolName, sideEffects);
   const spanType = spanTypeFor(toolName, toolInput);
   const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? "db" : null);
@@ -3417,11 +3421,8 @@ function outputFor(env, payload) {
 async function handlePostToolUse(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
-  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
   const activityType = activityTypeFor2(toolName, toolInput);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const filePath = filePathFor(toolInput) ?? "";
-  if (filePath && isSkipped(filePath)) return void 0;
   const pending = takeToolActivity(env, cfg);
   const toolResponse = outputFor(env, {});
   const payload = buildPostToolUsePayload(env, sideEffects);
@@ -3458,11 +3459,8 @@ async function handlePostToolUse(env, session, cfg) {
 async function handlePostToolUseFailure(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
-  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
   const activityType = activityTypeFor2(toolName, toolInput);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const filePath = filePathFor(toolInput) ?? "";
-  if (filePath && isSkipped(filePath)) return void 0;
   const pending = takeToolActivity(env, cfg);
   const payload = buildPostToolUseFailurePayload(env);
   const startedPayload = buildPreToolUsePayload(env, toolName, sideEffects);
@@ -3541,9 +3539,7 @@ function spanTypeFor3(toolName, toolInput) {
 async function handlePermissionRequest(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
-  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
   const activityType = activityTypeForTool(toolName, toolInput);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const payload = buildPermissionRequestPayload(env, toolName);
   const spanType = spanTypeFor3(toolName, toolInput);
   const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? "db" : null);
@@ -3573,7 +3569,6 @@ async function handlePermissionDenied(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
   const activityType = activityTypeForTool(toolName, toolInput);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const payload = buildPermissionDeniedPayload(env);
   const verdict = await session.activity(EVENT.START, activityType, {
     input: [stampSource(payload, "claude-code")]
@@ -3787,8 +3782,8 @@ function hasPendingClaudeWork(env) {
 function isStopHookRetry(env) {
   return env.stop_hook_active === true;
 }
-function failClosedStopVerdict(env, cfg, reason) {
-  if (cfg.governancePolicy !== "fail_closed" || isStopHookRetry(env)) {
+function failClosedStopVerdict(env, _cfg, reason) {
+  if (isStopHookRetry(env)) {
     return void 0;
   }
   return {
@@ -4329,7 +4324,7 @@ function guarded(cfg, event, verdictKind, fn) {
       const decisionCapable = isDecisionCapable(env.hook_event_name);
       const reason = reasonFromError("OpenBox governance failed while processing Claude Code hook", err);
       if (cfg.verbose) console.error(`[openbox claude-code] ${reason}`);
-      if (decisionCapable && cfg.governancePolicy === "fail_closed" && !isActiveStopRetry(env)) {
+      if (decisionCapable && !isActiveStopRetry(env)) {
         return failClosedVerdict(reason);
       }
       return void 0;
@@ -4439,20 +4434,15 @@ async function runClaudeHook() {
     process.exit(0);
   }
   if (!cfg.openboxApiKey) {
-    if (cfg.governancePolicy === "fail_closed") {
-      writeFailClosedIfPossible(env, "missing OPENBOX_API_KEY");
-    }
-    if (cfg.verbose) console.error("[openbox claude-code] no OPENBOX_API_KEY set, passing through");
+    writeFailClosedIfPossible(env, "missing OPENBOX_API_KEY");
+    if (cfg.verbose) console.error("[openbox claude-code] no OPENBOX_API_KEY set; decision-capable hooks fail closed");
     process.exit(0);
   }
   if (!cfg.openboxEndpoint) {
-    if (cfg.governancePolicy === "fail_closed") {
-      writeFailClosedIfPossible(env, "missing OPENBOX_CORE_URL");
-    }
-    if (cfg.verbose) console.error("[openbox claude-code] no OPENBOX_CORE_URL set, passing through");
+    writeFailClosedIfPossible(env, "missing OPENBOX_CORE_URL");
+    if (cfg.verbose) console.error("[openbox claude-code] no OPENBOX_CORE_URL set; decision-capable hooks fail closed");
     process.exit(0);
   }
-  const dryRun = cfg.dryRun;
   const core = new OpenBoxCoreClient({
     apiKey: cfg.openboxApiKey,
     apiUrl: cfg.openboxEndpoint,
@@ -4468,19 +4458,19 @@ async function runClaudeHook() {
       cfg,
       "setup",
       "observe",
-      async (env2, s) => dryRun ? void 0 : handleSetup(env2, s, cfg)
+      async (env2, s) => handleSetup(env2, s, cfg)
     ),
     sessionStart: guarded(
       cfg,
       "sessionStart",
       "none",
-      async (env2, s) => dryRun ? void 0 : handleSessionStart(env2, s, cfg)
+      async (env2, s) => handleSessionStart(env2, s, cfg)
     ),
     instructionsLoaded: guarded(
       cfg,
       "instructionsLoaded",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.START,
         eventCategory: "agent_observation"
@@ -4490,19 +4480,19 @@ async function runClaudeHook() {
       cfg,
       "userPromptSubmit",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleUserPromptSubmit(env2, s, cfg)
+      async (env2, s) => handleUserPromptSubmit(env2, s, cfg)
     ),
     userPromptExpansion: guarded(
       cfg,
       "userPromptExpansion",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleUserPromptExpansion(env2, s, cfg)
+      async (env2, s) => handleUserPromptExpansion(env2, s, cfg)
     ),
     messageDisplay: guarded(
       cfg,
       "messageDisplay",
       "observe",
-      async (env2, s) => dryRun ? void 0 : handleMessageDisplay(env2, s, cfg, {
+      async (env2, s) => handleMessageDisplay(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.COMPLETE,
         eventCategory: "llm_output"
@@ -4512,85 +4502,85 @@ async function runClaudeHook() {
       cfg,
       "preToolUse",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePreToolUse(env2, s, cfg)
+      async (env2, s) => handlePreToolUse(env2, s, cfg)
     ),
     permissionRequest: guarded(
       cfg,
       "permissionRequest",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePermissionRequest(env2, s, cfg)
+      async (env2, s) => handlePermissionRequest(env2, s, cfg)
     ),
     permissionDenied: guarded(
       cfg,
       "permissionDenied",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePermissionDenied(env2, s, cfg)
+      async (env2, s) => handlePermissionDenied(env2, s, cfg)
     ),
     postToolUse: guarded(
       cfg,
       "postToolUse",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePostToolUse(env2, s, cfg)
+      async (env2, s) => handlePostToolUse(env2, s, cfg)
     ),
     postToolUseFailure: guarded(
       cfg,
       "postToolUseFailure",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePostToolUseFailure(env2, s, cfg)
+      async (env2, s) => handlePostToolUseFailure(env2, s, cfg)
     ),
     postToolBatch: guarded(
       cfg,
       "postToolBatch",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePostToolBatch(env2, s, cfg)
+      async (env2, s) => handlePostToolBatch(env2, s, cfg)
     ),
     subagentStart: guarded(
       cfg,
       "subagentStart",
       "observe",
-      async (env2, s) => dryRun ? void 0 : handleSubagentStart(env2, s, cfg)
+      async (env2, s) => handleSubagentStart(env2, s, cfg)
     ),
     subagentStop: guarded(
       cfg,
       "subagentStop",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleSubagentStop(env2, s, cfg)
+      async (env2, s) => handleSubagentStop(env2, s, cfg)
     ),
     taskCreated: guarded(
       cfg,
       "taskCreated",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleTaskCreated(env2, s, cfg)
+      async (env2, s) => handleTaskCreated(env2, s, cfg)
     ),
     taskCompleted: guarded(
       cfg,
       "taskCompleted",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleTaskCompleted(env2, s, cfg)
+      async (env2, s) => handleTaskCompleted(env2, s, cfg)
     ),
     stop: guarded(
       cfg,
       "stop",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleStop(env2, s, cfg)
+      async (env2, s) => handleStop(env2, s, cfg)
     ),
     stopFailure: guarded(
       cfg,
       "stopFailure",
       "observe",
-      async (env2, s) => dryRun ? void 0 : handleStopFailure(env2, s, cfg)
+      async (env2, s) => handleStopFailure(env2, s, cfg)
     ),
     teammateIdle: guarded(
       cfg,
       "teammateIdle",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleTeammateIdle(env2, s, cfg)
+      async (env2, s) => handleTeammateIdle(env2, s, cfg)
     ),
     notification: guarded(
       cfg,
       "notification",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.SIGNAL,
         eventCategory: "agent_notification"
@@ -4600,7 +4590,7 @@ async function runClaudeHook() {
       cfg,
       "configChange",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => handleGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.CONFIG_CHANGE,
         eventKind: EVENT.START,
         eventCategory: "config_change",
@@ -4611,7 +4601,7 @@ async function runClaudeHook() {
       cfg,
       "cwdChanged",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
         eventKind: EVENT.SIGNAL,
         eventCategory: "cwd_changed"
@@ -4621,7 +4611,7 @@ async function runClaudeHook() {
       cfg,
       "fileChanged",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
         eventKind: EVENT.SIGNAL,
         eventCategory: "file_changed"
@@ -4631,7 +4621,7 @@ async function runClaudeHook() {
       cfg,
       "worktreeRemove",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
         eventKind: EVENT.COMPLETE,
         eventCategory: "worktree_remove"
@@ -4641,25 +4631,25 @@ async function runClaudeHook() {
       cfg,
       "preCompact",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePreCompact(env2, s, cfg)
+      async (env2, s) => handlePreCompact(env2, s, cfg)
     ),
     postCompact: guarded(
       cfg,
       "postCompact",
       "observe",
-      async (env2, s) => dryRun ? void 0 : handlePostCompact(env2, s, cfg)
+      async (env2, s) => handlePostCompact(env2, s, cfg)
     ),
     sessionEnd: guarded(
       cfg,
       "sessionEnd",
       "none",
-      async (env2, s) => dryRun ? void 0 : handleSessionEnd(env2, s, cfg)
+      async (env2, s) => handleSessionEnd(env2, s, cfg)
     ),
     elicitation: guarded(
       cfg,
       "elicitation",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => handleGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MCP_ELICITATION,
         eventKind: EVENT.START,
         eventCategory: "mcp_elicitation",
@@ -4670,7 +4660,7 @@ async function runClaudeHook() {
       cfg,
       "elicitationResult",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => handleGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MCP_ELICITATION,
         eventKind: EVENT.COMPLETE,
         eventCategory: "mcp_elicitation_result",
@@ -5393,9 +5383,6 @@ function uninstallClaudeCode(opts = {}) {
 // ts/src/runtime/claude-code/doctor.ts
 import { existsSync as existsSync5 } from "fs";
 import path9 from "path";
-function truthy(value) {
-  return value === "true" || value === "1";
-}
 function isPlaceholderKey(value) {
   if (!value) return false;
   return /YOUR_API_KEY|REPLACE_ME|placeholder/i.test(value);
@@ -5404,9 +5391,6 @@ function parseApprovalMode2(value) {
   const mode = (value ?? "remote").toLowerCase();
   if (mode === "inline" || mode === "defer") return mode;
   return "remote";
-}
-function parseFailMode(value) {
-  return value === "fail_open" ? "fail_open" : "fail_closed";
 }
 function buildProjectRuntimeEnv(cwd = process.cwd()) {
   const configDir = claudeCodeRuntimeConfigDir(cwd);
@@ -5427,9 +5411,8 @@ function buildProjectRuntimeEnv(cwd = process.cwd()) {
     projectEnvPresent: existsSync5(envFile),
     coreUrl: get("OPENBOX_CORE_URL") ?? "",
     apiKey: get("OPENBOX_API_KEY") ?? "",
-    governancePolicy: parseFailMode(get("GOVERNANCE_POLICY")),
+    governancePolicy: "fail_closed",
     approvalMode: parseApprovalMode2(get("APPROVAL_MODE")),
-    dryRun: truthy(get("DRY_RUN")),
     agentIdentity
   };
 }
@@ -5450,7 +5433,6 @@ function claudeCodeRuntimeDiagnostics(cwd = process.cwd()) {
     },
     failMode: runtime.governancePolicy,
     approvalMode: runtime.approvalMode,
-    dryRun: runtime.dryRun,
     unsupportedOrOptInSurfaces: {
       worktreeCreate: "explicit_out_of_scope_replaces_default_git_behavior",
       sessionEnd: "opt_in_shutdown_telemetry",
@@ -5467,17 +5449,8 @@ async function checkRuntimeReadiness(cwd, validateRuntime) {
     `config=${runtime.configFile}`,
     `core=${runtime.coreUrl || "(missing)"}`,
     `failMode=${runtime.governancePolicy}`,
-    `approvalMode=${runtime.approvalMode}`,
-    `dryRun=${runtime.dryRun}`
+    `approvalMode=${runtime.approvalMode}`
   ];
-  if (runtime.dryRun) {
-    return {
-      name: "runtime",
-      status: "fail",
-      path: runtime.configFile,
-      detail: `${details.join("; ")}; DRY_RUN=true`
-    };
-  }
   if (!runtime.coreUrl) {
     return {
       name: "runtime",

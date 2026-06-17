@@ -16,7 +16,6 @@ import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { buildSpan, type SpanType } from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import { sideEffects } from '../side-effects.js';
-import { isSkipped } from '../../../governance/skip-patterns.js';
 import { takeToolActivity } from '../tool-activity-store.js';
 import {
   dbOperationFor,
@@ -70,13 +69,10 @@ export async function handlePostToolUse(
 ): Promise<WorkflowVerdict | undefined> {
   const toolName = env.tool_name ?? '';
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
-  if ((cfg.skipTools ?? []).includes(toolName)) return undefined;
 
   const activityType = activityTypeFor(toolName, toolInput);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return undefined;
 
   const filePath = filePathFor(toolInput) ?? '';
-  if (filePath && isSkipped(filePath)) return undefined;
 
   const pending = takeToolActivity(env, cfg);
   const toolResponse = outputFor(env, {});
@@ -121,12 +117,9 @@ export async function handlePostToolUseFailure(
 ): Promise<WorkflowVerdict | undefined> {
   const toolName = env.tool_name ?? '';
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
-  if ((cfg.skipTools ?? []).includes(toolName)) return undefined;
 
   const activityType = activityTypeFor(toolName, toolInput);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return undefined;
   const filePath = filePathFor(toolInput) ?? '';
-  if (filePath && isSkipped(filePath)) return undefined;
 
   const pending = takeToolActivity(env, cfg);
   const payload = buildPostToolUseFailurePayload(env);

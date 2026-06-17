@@ -1,7 +1,7 @@
 // CLI helpers, public-library entry points, and thin command-wrapper
 // registrations. Covers every module that doesn't justify a dedicated
 // per-module test file but still needs behavioral assertions:
-//   - Constant exports (SKIP_PATTERNS, ACTIVITY_TYPES, COMMAND_PERMISSIONS)
+//   - Constant exports (redaction patterns, ACTIVITY_TYPES, COMMAND_PERMISSIONS)
 //   - Public library helpers (output, colors, exit-codes, non-interactive,
 //     maturity); call each export with a real argument and
 //     assert observable behavior, not just module shape.
@@ -16,13 +16,14 @@ import { describe, it, expect } from 'vitest';
 import { Command } from 'commander';
 
 describe('thin exports', () => {
-  it('governance/skip-patterns exports SKIP_PATTERNS', async () => {
-    const { SKIP_PATTERNS } = await import('../../ts/src/governance/skip-patterns');
-    expect(Array.isArray(SKIP_PATTERNS)).toBe(true);
-    expect(SKIP_PATTERNS.length).toBeGreaterThan(0);
-    expect(SKIP_PATTERNS.every((p) => p instanceof RegExp)).toBe(true);
-    // Spot-check: cursor / claude internals must skip.
-    expect(SKIP_PATTERNS.some((re) => re.test('/.cursor/foo'))).toBe(true);
+  it('governance/skip-patterns exports redaction patterns', async () => {
+    const { REDACT_PATH_CONTENT_PATTERNS, shouldRedactPathContent } = await import(
+      '../../ts/src/governance/skip-patterns'
+    );
+    expect(Array.isArray(REDACT_PATH_CONTENT_PATTERNS)).toBe(true);
+    expect(REDACT_PATH_CONTENT_PATTERNS.length).toBeGreaterThan(0);
+    expect(REDACT_PATH_CONTENT_PATTERNS.every((p) => p instanceof RegExp)).toBe(true);
+    expect(shouldRedactPathContent('/.cursor/foo')).toBe(true);
   });
 
   it('runtime/claude-code/activity-types exports the canonical map', async () => {

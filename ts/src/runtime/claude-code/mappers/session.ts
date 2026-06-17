@@ -36,10 +36,10 @@ function isStopHookRetry(env: ClaudeCodeEnvelope): boolean {
 
 function failClosedStopVerdict(
   env: ClaudeCodeEnvelope,
-  cfg: ClaudeCodeConfig,
+  _cfg: ClaudeCodeConfig,
   reason: string,
 ): WorkflowVerdict | undefined {
-  if (cfg.governancePolicy !== 'fail_closed' || isStopHookRetry(env)) {
+  if (isStopHookRetry(env)) {
     return undefined;
   }
   return {

@@ -12,7 +12,10 @@ import {
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
-import { isSkipped, isInsideAnyRoot } from '../../../governance/skip-patterns.js';
+import {
+  isInsideAnyRoot,
+  shouldRedactPathContent,
+} from '../../../governance/skip-patterns.js';
 import { sideEffects } from '../side-effects.js';
 import { buildSpan, type SpanType } from '../../../governance/spans.js';
 import {
@@ -47,15 +50,15 @@ export async function handlePreToolUse(
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
   const filePath = (toolInput.file_path ?? toolInput.filePath ?? '') as string;
   const command = (toolInput.command ?? '') as string;
-  if (filePath && isSkipped(filePath)) return undefined;
   // For file-touching tools (Read/Write), in-workspace operations are
   // routine. Skip evaluate so the user's file_read / file_write rules
-  // fire only on out-of-project paths. Shell / Delete / unknown tools
-  // fall through (no path scope or different threat model).
+  // fire only on out-of-project paths. Metadata and secret-like paths
+  // are governed even when they live inside the project.
   if (
     filePath &&
     (toolName === 'Read' || toolName === 'Write') &&
-    isInsideAnyRoot(filePath, env.workspace_roots, env.cwd)
+    isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) &&
+    !shouldRedactPathContent(filePath)
   ) {
     return undefined;
   }
@@ -76,7 +79,13 @@ export async function handlePreToolUse(
     : null;
   if (claim && !claim.won) {
     const decision = await awaitClaimDecision(claim, cfg.hitlMaxWait * 1000);
-    if (!decision) return undefined;
+    if (!decision) {
+      return {
+        arm: 'block',
+        reason: '[OpenBox] no governance decision was published for duplicate Cursor tool hook',
+        riskScore: 1,
+      };
+    }
     if (decision.arm === 'allow' || decision.arm === 'constrain') return undefined;
     if (decision.arm === 'halt') markHalted(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };

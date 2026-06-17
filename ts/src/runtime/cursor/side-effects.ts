@@ -3,16 +3,15 @@
 // these by name; missing impls surface as type errors at consumer sites.
 
 import * as fs from 'node:fs';
-import { isSkipped } from '../../governance/skip-patterns.js';
+import { shouldRedactPathContent } from '../../governance/skip-patterns.js';
 import type { CursorSideEffects } from '../../core-client/generated/runtime/cursor.js';
 
 export const sideEffects: CursorSideEffects = {
-  /** File read for cursor's preToolUse Read mapping. Same skip-pattern
-   *  filter as claude-code; cursor's `beforeReadFile` already inlines
-   *  content into the envelope so this is only used for preToolUse. */
+  /** File read for cursor's preToolUse Read mapping. Metadata and
+   *  secret-like content is redacted while the path/span remains governed. */
   readFile(input: unknown): string {
     if (typeof input !== 'string' || !input) return '';
-    if (isSkipped(input)) return '';
+    if (shouldRedactPathContent(input)) return '[OpenBox redacted file content]';
     try {
       return fs.existsSync(input) ? fs.readFileSync(input, 'utf-8') : '';
     } catch {
@@ -20,7 +19,7 @@ export const sideEffects: CursorSideEffects = {
     }
   },
 
-  /** JSON-stringify pass-through (no truncation; cursor's beforeMCPExecution
+  /** JSON-stringify helper (no truncation; cursor's beforeMCPExecution
    *  payload is bounded by the originating tool call, not by
    *  agent-streamed output). */
   stringify(input: unknown): string {

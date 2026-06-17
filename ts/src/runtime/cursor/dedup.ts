@@ -63,9 +63,8 @@ function hashKey(raw: string): string {
  * `arg` (the discriminating field; command / file_path / tool_name)
  * is enough to identify one action across the events Cursor fires
  * for it. Two different actions with the same command in the same
- * generation would collide (rare), but the worst case is "one of
- * them sees an allow without a fresh evaluate"; falls open on
- * accident, which matches the SDK's overall fail-open posture.
+   * generation would collide (rare); publish grace plus timeout-deny
+   * behavior limits the blast radius.
  *
  * conversation_id is the fallback when generation_id is missing
  * (some envelopes don't carry it consistently).
@@ -96,9 +95,9 @@ export interface ActionClaim {
  * atomic-create primitive. Node exposes it as the `wx` flag. Whoever
  * succeeds at create owns the claim; everyone else gets EEXIST.
  *
- * On any unexpected filesystem error (disk full, permission denied),
- * fail open: return `won: true` so the gate runs. Better to
- * double-evaluate than to silently allow.
+   * On any unexpected filesystem error (disk full, permission denied),
+   * return `won: true` so this subprocess still runs the governance gate.
+   * Better to double-evaluate than to silently allow.
  */
 export function claimAction(key: string): ActionClaim {
   ensureDir();
@@ -136,8 +135,8 @@ export function claimAction(key: string): ActionClaim {
       }
       return { won: false, path: lockPath };
     }
-    // Unexpected error (EACCES, ENOSPC, etc): fail open so governance
-    // still runs.
+    // Unexpected error (EACCES, ENOSPC, etc): run the governance gate
+    // in this subprocess instead of allowing silently.
     return { won: true, path: lockPath };
   }
 }
@@ -196,8 +195,7 @@ export function publishClaimDecision(claim: ActionClaim, decision: ClaimDecision
     }, PUBLISH_GRACE_MS);
   } catch {
     // Best-effort. If we fail to publish, losers poll until their
-    // deadline and then fail open. That matches the SDK's overall
-    // fail-open posture for hook errors.
+    // deadline and then return a block verdict.
     try { fs.unlinkSync(tmp); } catch { /* ignore */ }
   }
 }
@@ -230,10 +228,8 @@ function readDecisionOnce(lockPath: string): ClaimDecision | null {
  * Loser: poll the lock file until the winner publishes a decision, or
  * the deadline passes. Returns the decision, or null on timeout.
  *
- * On timeout: caller should fail open (return undefined to Cursor),
- * matching the SDK's overall fail-open posture. Cursor's hook
- * subprocess timeout will usually kill us before our own deadline
- * elapses, so this branch is rare in practice.
+ * On timeout, callers must block the duplicate hook because no
+ * authoritative governance decision was published.
  */
 export async function awaitClaimDecision(
   claim: ActionClaim,

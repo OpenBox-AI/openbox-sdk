@@ -33,10 +33,6 @@ export interface VerifyClaudeCodeInstallOptions {
   includeOptInHooks?: boolean;
 }
 
-function truthy(value: string | undefined): boolean {
-  return value === 'true' || value === '1';
-}
-
 function isPlaceholderKey(value: string | undefined): boolean {
   if (!value) return false;
   return /YOUR_API_KEY|REPLACE_ME|placeholder/i.test(value);
@@ -46,10 +42,6 @@ function parseApprovalMode(value: string | undefined): 'inline' | 'remote' | 'de
   const mode = (value ?? 'remote').toLowerCase();
   if (mode === 'inline' || mode === 'defer') return mode;
   return 'remote';
-}
-
-function parseFailMode(value: string | undefined): 'fail_open' | 'fail_closed' {
-  return value === 'fail_open' ? 'fail_open' : 'fail_closed';
 }
 
 function buildProjectRuntimeEnv(cwd = process.cwd()) {
@@ -74,9 +66,8 @@ function buildProjectRuntimeEnv(cwd = process.cwd()) {
     projectEnvPresent: existsSync(envFile),
     coreUrl: get('OPENBOX_CORE_URL') ?? '',
     apiKey: get('OPENBOX_API_KEY') ?? '',
-    governancePolicy: parseFailMode(get('GOVERNANCE_POLICY')),
+    governancePolicy: 'fail_closed' as const,
     approvalMode: parseApprovalMode(get('APPROVAL_MODE')),
-    dryRun: truthy(get('DRY_RUN')),
     agentIdentity,
   };
 }
@@ -98,7 +89,6 @@ export function claudeCodeRuntimeDiagnostics(cwd = process.cwd()): Record<string
     },
     failMode: runtime.governancePolicy,
     approvalMode: runtime.approvalMode,
-    dryRun: runtime.dryRun,
     unsupportedOrOptInSurfaces: {
       worktreeCreate: 'explicit_out_of_scope_replaces_default_git_behavior',
       sessionEnd: 'opt_in_shutdown_telemetry',
@@ -120,17 +110,8 @@ async function checkRuntimeReadiness(
     `core=${runtime.coreUrl || '(missing)'}`,
     `failMode=${runtime.governancePolicy}`,
     `approvalMode=${runtime.approvalMode}`,
-    `dryRun=${runtime.dryRun}`,
   ];
 
-  if (runtime.dryRun) {
-    return {
-      name: 'runtime',
-      status: 'fail',
-      path: runtime.configFile,
-      detail: `${details.join('; ')}; DRY_RUN=true`,
-    };
-  }
   if (!runtime.coreUrl) {
     return {
       name: 'runtime',

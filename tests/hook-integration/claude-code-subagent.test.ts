@@ -34,7 +34,7 @@ function planConfigDir(): string {
       OPENBOX_CORE_URL: 'http://127.0.0.1:1',
       GOVERNANCE_POLICY: 'fail_closed',
       HITL_ENABLED: false,
-      DRY_RUN: true,
+      GOVERNANCE_TIMEOUT: 1,
     }),
   );
   return root;

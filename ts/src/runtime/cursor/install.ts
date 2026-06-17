@@ -31,10 +31,6 @@ export interface VerifyCursorInstallOptions {
   validateRuntime?: boolean;
 }
 
-function truthy(value: string | undefined): boolean {
-  return value === 'true' || value === '1';
-}
-
 function isPlaceholderKey(value: string | undefined): boolean {
   if (!value) return false;
   return /YOUR_API_KEY|REPLACE_ME|placeholder/i.test(value);
@@ -77,7 +73,6 @@ function buildHookRuntimeEnv(cwd = process.cwd()) {
     coreUrl,
     apiKey,
     agentIdentity,
-    dryRun: truthy(get('DRY_RUN')),
   };
 }
 
@@ -87,11 +82,7 @@ async function checkRuntimeReadiness(cwd: string | undefined, validateRuntime: b
     `config=${runtime.configFile}`,
     `cliConfig=${runtime.cliConfigFile}`,
     `core=${runtime.coreUrl}`,
-    `dryRun=${runtime.dryRun}`,
   ];
-  if (runtime.dryRun) {
-    return { name: 'runtime', status: 'fail', path: runtime.configFile, detail: `${details.join('; ')}; DRY_RUN=true` };
-  }
   if (!runtime.apiKey) {
     return { name: 'runtime', status: 'fail', path: runtime.configFile, detail: `${details.join('; ')}; missing OPENBOX_API_KEY` };
   }

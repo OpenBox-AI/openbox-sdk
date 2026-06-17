@@ -1,5 +1,9 @@
-// Host metadata paths skipped by runtime governance.
-export const SKIP_PATTERNS: readonly RegExp[] = [
+import path from 'node:path';
+
+// Host metadata paths whose file contents should be redacted from runtime
+// payloads. These patterns do not bypass governance; mappers still emit the
+// event with path/span context.
+export const REDACT_PATH_CONTENT_PATTERNS: readonly RegExp[] = [
   /\.cursor\//,
   /\.claude\//,
   /\/mcps\//,
@@ -10,8 +14,8 @@ export const SKIP_PATTERNS: readonly RegExp[] = [
   /SKILL\.md$/,
 ];
 
-export function isSkipped(filePath: string): boolean {
-  return SKIP_PATTERNS.some((p) => p.test(filePath));
+export function shouldRedactPathContent(filePath: string): boolean {
+  return REDACT_PATH_CONTENT_PATTERNS.some((p) => p.test(filePath)) || isSensitivePath(filePath);
 }
 
 export const SENSITIVE_PATH_PATTERNS: readonly RegExp[] = [
@@ -54,4 +58,3 @@ export function isInsideAnyRoot(
     return f === root || f.startsWith(root + "/");
   });
 }
-import path from 'node:path';

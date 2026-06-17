@@ -10,7 +10,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { govern } from '../../ts/src/core-client/generated/govern.js';
 import { presets } from '../../ts/src/core-client/generated/govern.js';
 
-function fakeCore(plan: Array<{ action?: string; reason?: string }>) {
+function mockCore(plan: Array<{ action?: string; reason?: string }>) {
   let i = 0;
   return {
     pollApproval: vi.fn(async () => {
@@ -37,7 +37,7 @@ describe('awaitExternalDecision fast path', () => {
     // Plan: backend says require_approval on first poll, then allow.
     // External signal fires after 50ms; orders of magnitude before
     // the 500ms first tick.
-    const core = fakeCore([
+    const core = mockCore([
       { action: 'require_approval' },
       { action: 'allow' },
     ]);
@@ -75,7 +75,7 @@ describe('awaitExternalDecision fast path', () => {
   });
 
   test('no external decision → loop falls back to normal interval', async () => {
-    const core = fakeCore([
+    const core = mockCore([
       { action: 'require_approval' },
       { action: 'allow' },
     ]);

@@ -197,12 +197,12 @@ describe('per-action dedup across hook subprocesses', () => {
     expect(captured).toHaveLength(2);
   });
 
-  test('loser fails open if winner never publishes (deadline elapses)', async () => {
+  test('loser fails closed if winner never publishes (deadline elapses)', async () => {
     const generation_id = uniqueGenId();
     const command = 'echo orphan-claim';
     // Hand-write a lock with no decision; simulates a winner that
     // crashed before publishing. The loser should poll until cfg's
-    // hitlMaxWait (set to 2s here) and then fail open (undefined).
+    // hitlMaxWait (set to 2s here) and then fail closed.
     const key = buildActionKey({ generation_id, kind: 'shell', arg: command });
     expect(claimAction(key).won).toBe(true);
 
@@ -214,7 +214,10 @@ describe('per-action dedup across hook subprocesses', () => {
     );
     const elapsed = Date.now() - t0;
 
-    expect(verdict).toBeUndefined(); // fail open
+    expect(verdict).toMatchObject({
+      arm: 'block',
+      reason: expect.stringContaining('no governance decision was published'),
+    });
     expect(elapsed).toBeGreaterThanOrEqual(1500); // waited at least
     expect(elapsed).toBeLessThan(4000); // bounded by hitlMaxWait*1000
   });

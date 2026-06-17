@@ -2424,9 +2424,6 @@ function verifyCursorPlugin(options = {}) {
 }
 
 // ts/src/runtime/cursor/install.ts
-function truthy(value) {
-  return value === "true" || value === "1";
-}
 function isPlaceholderKey(value) {
   if (!value) return false;
   return /YOUR_API_KEY|REPLACE_ME|placeholder/i.test(value);
@@ -2463,8 +2460,7 @@ function buildHookRuntimeEnv(cwd = process.cwd()) {
     cliConfigFile: configStorePath(),
     coreUrl,
     apiKey,
-    agentIdentity,
-    dryRun: truthy(get("DRY_RUN"))
+    agentIdentity
   };
 }
 async function checkRuntimeReadiness(cwd, validateRuntime) {
@@ -2472,12 +2468,8 @@ async function checkRuntimeReadiness(cwd, validateRuntime) {
   const details = [
     `config=${runtime.configFile}`,
     `cliConfig=${runtime.cliConfigFile}`,
-    `core=${runtime.coreUrl}`,
-    `dryRun=${runtime.dryRun}`
+    `core=${runtime.coreUrl}`
   ];
-  if (runtime.dryRun) {
-    return { name: "runtime", status: "fail", path: runtime.configFile, detail: `${details.join("; ")}; DRY_RUN=true` };
-  }
   if (!runtime.apiKey) {
     return { name: "runtime", status: "fail", path: runtime.configFile, detail: `${details.join("; ")}; missing OPENBOX_API_KEY` };
   }
@@ -3078,9 +3070,6 @@ function verifyClaudeCodePlugin(options = {}) {
 }
 
 // ts/src/runtime/claude-code/doctor.ts
-function truthy2(value) {
-  return value === "true" || value === "1";
-}
 function isPlaceholderKey2(value) {
   if (!value) return false;
   return /YOUR_API_KEY|REPLACE_ME|placeholder/i.test(value);
@@ -3089,9 +3078,6 @@ function parseApprovalMode(value) {
   const mode = (value ?? "remote").toLowerCase();
   if (mode === "inline" || mode === "defer") return mode;
   return "remote";
-}
-function parseFailMode(value) {
-  return value === "fail_open" ? "fail_open" : "fail_closed";
 }
 function buildProjectRuntimeEnv(cwd = process.cwd()) {
   const configDir = claudeCodeRuntimeConfigDir(cwd);
@@ -3112,9 +3098,8 @@ function buildProjectRuntimeEnv(cwd = process.cwd()) {
     projectEnvPresent: existsSync7(envFile),
     coreUrl: get("OPENBOX_CORE_URL") ?? "",
     apiKey: get("OPENBOX_API_KEY") ?? "",
-    governancePolicy: parseFailMode(get("GOVERNANCE_POLICY")),
+    governancePolicy: "fail_closed",
     approvalMode: parseApprovalMode(get("APPROVAL_MODE")),
-    dryRun: truthy2(get("DRY_RUN")),
     agentIdentity
   };
 }
@@ -3135,7 +3120,6 @@ function claudeCodeRuntimeDiagnostics(cwd = process.cwd()) {
     },
     failMode: runtime.governancePolicy,
     approvalMode: runtime.approvalMode,
-    dryRun: runtime.dryRun,
     unsupportedOrOptInSurfaces: {
       worktreeCreate: "explicit_out_of_scope_replaces_default_git_behavior",
       sessionEnd: "opt_in_shutdown_telemetry",
@@ -3152,17 +3136,8 @@ async function checkRuntimeReadiness2(cwd, validateRuntime) {
     `config=${runtime.configFile}`,
     `core=${runtime.coreUrl || "(missing)"}`,
     `failMode=${runtime.governancePolicy}`,
-    `approvalMode=${runtime.approvalMode}`,
-    `dryRun=${runtime.dryRun}`
+    `approvalMode=${runtime.approvalMode}`
   ];
-  if (runtime.dryRun) {
-    return {
-      name: "runtime",
-      status: "fail",
-      path: runtime.configFile,
-      detail: `${details.join("; ")}; DRY_RUN=true`
-    };
-  }
   if (!runtime.coreUrl) {
     return {
       name: "runtime",
@@ -3466,7 +3441,7 @@ async function runMcpServer() {
       backendApiKey,
       runtimeApiKey,
       agentIdentity,
-      governancePolicy: process.env.GOVERNANCE_POLICY ?? config.GOVERNANCE_POLICY ?? "fail_closed",
+      governancePolicy: "fail_closed",
       approvalMode: process.env.APPROVAL_MODE ?? config.APPROVAL_MODE ?? "remote"
     };
   }

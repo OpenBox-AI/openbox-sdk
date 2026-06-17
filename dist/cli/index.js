@@ -4853,9 +4853,6 @@ __export(install_exports, {
   verifyCursorInstall: () => verifyCursorInstall
 });
 import path2 from "path";
-function truthy(value) {
-  return value === "true" || value === "1";
-}
 function isPlaceholderKey(value) {
   if (!value) return false;
   return /YOUR_API_KEY|REPLACE_ME|placeholder/i.test(value);
@@ -4892,8 +4889,7 @@ function buildHookRuntimeEnv(cwd = process.cwd()) {
     cliConfigFile: configStorePath(),
     coreUrl,
     apiKey,
-    agentIdentity,
-    dryRun: truthy(get("DRY_RUN"))
+    agentIdentity
   };
 }
 async function checkRuntimeReadiness(cwd, validateRuntime) {
@@ -4901,12 +4897,8 @@ async function checkRuntimeReadiness(cwd, validateRuntime) {
   const details = [
     `config=${runtime.configFile}`,
     `cliConfig=${runtime.cliConfigFile}`,
-    `core=${runtime.coreUrl}`,
-    `dryRun=${runtime.dryRun}`
+    `core=${runtime.coreUrl}`
   ];
-  if (runtime.dryRun) {
-    return { name: "runtime", status: "fail", path: runtime.configFile, detail: `${details.join("; ")}; DRY_RUN=true` };
-  }
   if (!runtime.apiKey) {
     return { name: "runtime", status: "fail", path: runtime.configFile, detail: `${details.join("; ")}; missing OPENBOX_API_KEY` };
   }
@@ -6923,9 +6915,6 @@ var init_plugin2 = __esm({
 // ts/src/runtime/claude-code/doctor.ts
 import { existsSync as existsSync7 } from "fs";
 import path4 from "path";
-function truthy2(value) {
-  return value === "true" || value === "1";
-}
 function isPlaceholderKey2(value) {
   if (!value) return false;
   return /YOUR_API_KEY|REPLACE_ME|placeholder/i.test(value);
@@ -6934,9 +6923,6 @@ function parseApprovalMode(value) {
   const mode = (value ?? "remote").toLowerCase();
   if (mode === "inline" || mode === "defer") return mode;
   return "remote";
-}
-function parseFailMode(value) {
-  return value === "fail_open" ? "fail_open" : "fail_closed";
 }
 function buildProjectRuntimeEnv(cwd = process.cwd()) {
   const configDir = claudeCodeRuntimeConfigDir(cwd);
@@ -6957,9 +6943,8 @@ function buildProjectRuntimeEnv(cwd = process.cwd()) {
     projectEnvPresent: existsSync7(envFile),
     coreUrl: get("OPENBOX_CORE_URL") ?? "",
     apiKey: get("OPENBOX_API_KEY") ?? "",
-    governancePolicy: parseFailMode(get("GOVERNANCE_POLICY")),
+    governancePolicy: "fail_closed",
     approvalMode: parseApprovalMode(get("APPROVAL_MODE")),
-    dryRun: truthy2(get("DRY_RUN")),
     agentIdentity
   };
 }
@@ -6980,7 +6965,6 @@ function claudeCodeRuntimeDiagnostics(cwd = process.cwd()) {
     },
     failMode: runtime.governancePolicy,
     approvalMode: runtime.approvalMode,
-    dryRun: runtime.dryRun,
     unsupportedOrOptInSurfaces: {
       worktreeCreate: "explicit_out_of_scope_replaces_default_git_behavior",
       sessionEnd: "opt_in_shutdown_telemetry",
@@ -6997,17 +6981,8 @@ async function checkRuntimeReadiness2(cwd, validateRuntime) {
     `config=${runtime.configFile}`,
     `core=${runtime.coreUrl || "(missing)"}`,
     `failMode=${runtime.governancePolicy}`,
-    `approvalMode=${runtime.approvalMode}`,
-    `dryRun=${runtime.dryRun}`
+    `approvalMode=${runtime.approvalMode}`
   ];
-  if (runtime.dryRun) {
-    return {
-      name: "runtime",
-      status: "fail",
-      path: runtime.configFile,
-      detail: `${details.join("; ")}; DRY_RUN=true`
-    };
-  }
   if (!runtime.coreUrl) {
     return {
       name: "runtime",
@@ -7335,7 +7310,7 @@ async function runMcpServer() {
       backendApiKey,
       runtimeApiKey,
       agentIdentity,
-      governancePolicy: process.env.GOVERNANCE_POLICY ?? config.GOVERNANCE_POLICY ?? "fail_closed",
+      governancePolicy: "fail_closed",
       approvalMode: process.env.APPROVAL_MODE ?? config.APPROVAL_MODE ?? "remote"
     };
   }
@@ -7702,10 +7677,6 @@ function loadConfig() {
     if (envConfig[key] !== void 0) return envConfig[key];
     return fileFallback ?? "";
   };
-  const skipToolsRaw = get("SKIP_TOOLS");
-  const skipTools = skipToolsRaw ? skipToolsRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
-  const skipActivityRaw = get("SKIP_ACTIVITY_TYPES");
-  const skipActivityTypes = skipActivityRaw ? skipActivityRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
   const coreUrl = process.env.OPENBOX_CORE_URL ?? fileConfig.OPENBOX_CORE_URL ?? envConfig.OPENBOX_CORE_URL ?? "";
   return {
     openboxApiKey: get("OPENBOX_API_KEY"),
@@ -7714,12 +7685,11 @@ function loadConfig() {
       OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID") || void 0,
       OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY") || void 0
     }),
-    governancePolicy: get("GOVERNANCE_POLICY", "fail_closed"),
+    governancePolicy: "fail_closed",
     governanceTimeout: parseInt(get("GOVERNANCE_TIMEOUT", "15"), 10) || 15,
     sessionDir: get("SESSION_DIR", path6.join(CONFIG_DIR, "sessions")),
     logFile: get("LOG_FILE", path6.join(CONFIG_DIR, "hook.log")) || null,
     verbose: get("VERBOSE") === "true" || get("VERBOSE") === "1",
-    dryRun: get("DRY_RUN") === "true" || get("DRY_RUN") === "1",
     hitlEnabled: get("HITL_ENABLED", "true") !== "false",
     hitlPollInterval: parseInt(get("HITL_POLL_INTERVAL", "5"), 10) || 5,
     hitlMaxWait: parseInt(get("HITL_MAX_WAIT", "300"), 10) || 300,
@@ -7727,9 +7697,7 @@ function loadConfig() {
     taskQueue: get("TASK_QUEUE", "claude-code"),
     sendStartEvent: get("SEND_START_EVENT", "true") !== "false",
     sendActivityStartEvent: get("SEND_ACTIVITY_START_EVENT", "true") !== "false",
-    maxBodySize: get("MAX_BODY_SIZE") ? parseInt(get("MAX_BODY_SIZE"), 10) || null : null,
-    skipTools,
-    skipActivityTypes
+    maxBodySize: get("MAX_BODY_SIZE") ? parseInt(get("MAX_BODY_SIZE"), 10) || null : null
   };
 }
 function getConfigDir() {
@@ -8010,50 +7978,6 @@ var init_activity_types = __esm({
       TASK: "ClaudeCodeTask",
       MESSAGE: "ClaudeCodeMessage"
     };
-  }
-});
-
-// ts/src/governance/skip-patterns.ts
-import path10 from "path";
-function isSkipped(filePath) {
-  return SKIP_PATTERNS.some((p) => p.test(filePath));
-}
-function isSensitivePath(filePath) {
-  return SENSITIVE_PATH_PATTERNS.some((p) => p.test(filePath));
-}
-function isInsideAnyRoot(filePath, roots, cwd) {
-  if (!filePath || !roots || roots.length === 0) return false;
-  const norm = (p) => p.replace(/\/+$/, "");
-  const f = norm(path10.resolve(cwd ?? roots[0] ?? process.cwd(), filePath));
-  return roots.some((r) => {
-    const root = norm(path10.resolve(r));
-    return f === root || f.startsWith(root + "/");
-  });
-}
-var SKIP_PATTERNS, SENSITIVE_PATH_PATTERNS;
-var init_skip_patterns = __esm({
-  "ts/src/governance/skip-patterns.ts"() {
-    "use strict";
-    SKIP_PATTERNS = [
-      /\.cursor\//,
-      /\.claude\//,
-      /\/mcps\//,
-      /\/node_modules\//,
-      /\.git\//,
-      /INSTRUCTIONS\.md$/,
-      /SERVER_METADATA\.json$/,
-      /SKILL\.md$/
-    ];
-    SENSITIVE_PATH_PATTERNS = [
-      /(^|\/)\.env($|[./-])/,
-      /(^|\/)\.env\.[^/]+$/,
-      /(^|\/)(id_rsa|id_dsa|id_ecdsa|id_ed25519)(\.pub)?$/,
-      /(^|\/)(credentials|secrets?|token|tokens)\.(json|ya?ml|toml|ini|env|txt)$/,
-      /(^|\/)(credentials|config)$/,
-      /\.(pem|key|p12|pfx|crt)$/i,
-      /(^|\/)\.aws\/credentials$/,
-      /(^|\/)\.openbox\/tokens$/
-    ];
   }
 });
 
@@ -8389,6 +8313,50 @@ var init_spans = __esm({
   }
 });
 
+// ts/src/governance/skip-patterns.ts
+import path10 from "path";
+function shouldRedactPathContent(filePath) {
+  return REDACT_PATH_CONTENT_PATTERNS.some((p) => p.test(filePath)) || isSensitivePath(filePath);
+}
+function isSensitivePath(filePath) {
+  return SENSITIVE_PATH_PATTERNS.some((p) => p.test(filePath));
+}
+function isInsideAnyRoot(filePath, roots, cwd) {
+  if (!filePath || !roots || roots.length === 0) return false;
+  const norm = (p) => p.replace(/\/+$/, "");
+  const f = norm(path10.resolve(cwd ?? roots[0] ?? process.cwd(), filePath));
+  return roots.some((r) => {
+    const root = norm(path10.resolve(r));
+    return f === root || f.startsWith(root + "/");
+  });
+}
+var REDACT_PATH_CONTENT_PATTERNS, SENSITIVE_PATH_PATTERNS;
+var init_skip_patterns = __esm({
+  "ts/src/governance/skip-patterns.ts"() {
+    "use strict";
+    REDACT_PATH_CONTENT_PATTERNS = [
+      /\.cursor\//,
+      /\.claude\//,
+      /\/mcps\//,
+      /\/node_modules\//,
+      /\.git\//,
+      /INSTRUCTIONS\.md$/,
+      /SERVER_METADATA\.json$/,
+      /SKILL\.md$/
+    ];
+    SENSITIVE_PATH_PATTERNS = [
+      /(^|\/)\.env($|[./-])/,
+      /(^|\/)\.env\.[^/]+$/,
+      /(^|\/)(id_rsa|id_dsa|id_ecdsa|id_ed25519)(\.pub)?$/,
+      /(^|\/)(credentials|secrets?|token|tokens)\.(json|ya?ml|toml|ini|env|txt)$/,
+      /(^|\/)(credentials|config)$/,
+      /\.(pem|key|p12|pfx|crt)$/i,
+      /(^|\/)\.aws\/credentials$/,
+      /(^|\/)\.openbox\/tokens$/
+    ];
+  }
+});
+
 // ts/src/runtime/claude-code/side-effects.ts
 import * as fs7 from "fs";
 var TRUNCATE_LIMIT, sideEffects;
@@ -8398,12 +8366,11 @@ var init_side_effects = __esm({
     init_skip_patterns();
     TRUNCATE_LIMIT = 5e3;
     sideEffects = {
-      /** Read the file at the given path; returns '' on missing/unreadable
-       *  files and on paths the SKIP_PATTERNS list flags as IDE/secret
-       *  internals so PII scanning can't false-HALT on metadata reads. */
+      /** Read the file at the given path unless the path is metadata or
+       *  secret-like. Redacted files are still governed by path/span data. */
       readFile(input) {
         if (typeof input !== "string" || !input) return "";
-        if (isSkipped(input)) return "";
+        if (shouldRedactPathContent(input)) return "[OpenBox redacted file content]";
         try {
           return fs7.existsSync(input) ? fs7.readFileSync(input, "utf-8") : "";
         } catch {
@@ -8570,12 +8537,9 @@ function spanTypeFor(toolName, toolInput) {
 async function handlePreToolUse(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
-  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
   const activityType = activityTypeFor(toolName, toolInput);
   if (!activityType) return void 0;
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const filePath = filePathFor(toolInput) ?? "";
-  if (filePath && isSkipped(filePath)) return void 0;
   const payload = buildPreToolUsePayload2(env, toolName, sideEffects);
   const spanType = spanTypeFor(toolName, toolInput);
   const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? "db" : null);
@@ -8616,7 +8580,6 @@ var init_pre_tool_use = __esm({
     init_claude_code();
     init_session_resolver();
     init_activity_types();
-    init_skip_patterns();
     init_spans();
     init_source();
     init_side_effects();
@@ -8653,11 +8616,8 @@ function outputFor(env, payload) {
 async function handlePostToolUse(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
-  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
   const activityType = activityTypeFor2(toolName, toolInput);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const filePath = filePathFor(toolInput) ?? "";
-  if (filePath && isSkipped(filePath)) return void 0;
   const pending = takeToolActivity(env, cfg);
   const toolResponse = outputFor(env, {});
   const payload = buildPostToolUsePayload(env, sideEffects);
@@ -8694,11 +8654,8 @@ async function handlePostToolUse(env, session, cfg) {
 async function handlePostToolUseFailure(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
-  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
   const activityType = activityTypeFor2(toolName, toolInput);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const filePath = filePathFor(toolInput) ?? "";
-  if (filePath && isSkipped(filePath)) return void 0;
   const pending = takeToolActivity(env, cfg);
   const payload = buildPostToolUseFailurePayload(env);
   const startedPayload = buildPreToolUsePayload2(env, toolName, sideEffects);
@@ -8732,7 +8689,6 @@ var init_post_tool_use = __esm({
     init_spans();
     init_source();
     init_side_effects();
-    init_skip_patterns();
     init_tool_activity_store();
     init_tool_input();
   }
@@ -8801,9 +8757,7 @@ function spanTypeFor3(toolName, toolInput) {
 async function handlePermissionRequest(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
-  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
   const activityType = activityTypeForTool(toolName, toolInput);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const payload = buildPermissionRequestPayload(env, toolName);
   const spanType = spanTypeFor3(toolName, toolInput);
   const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? "db" : null);
@@ -8833,7 +8787,6 @@ async function handlePermissionDenied(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
   const activityType = activityTypeForTool(toolName, toolInput);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const payload = buildPermissionDeniedPayload(env);
   const verdict = await session.activity(EVENT.START, activityType, {
     input: [stampSource(payload, "claude-code")]
@@ -9071,8 +9024,8 @@ function hasPendingClaudeWork(env) {
 function isStopHookRetry(env) {
   return env.stop_hook_active === true;
 }
-function failClosedStopVerdict(env, cfg, reason) {
-  if (cfg.governancePolicy !== "fail_closed" || isStopHookRetry(env)) {
+function failClosedStopVerdict(env, _cfg, reason) {
+  if (isStopHookRetry(env)) {
     return void 0;
   }
   return {
@@ -9441,7 +9394,7 @@ function guarded(cfg, event, verdictKind, fn) {
       const decisionCapable = isDecisionCapable(env.hook_event_name);
       const reason = reasonFromError("OpenBox governance failed while processing Claude Code hook", err);
       if (cfg.verbose) console.error(`[openbox claude-code] ${reason}`);
-      if (decisionCapable && cfg.governancePolicy === "fail_closed" && !isActiveStopRetry(env)) {
+      if (decisionCapable && !isActiveStopRetry(env)) {
         return failClosedVerdict(reason);
       }
       return void 0;
@@ -9551,20 +9504,15 @@ async function runClaudeHook() {
     process.exit(0);
   }
   if (!cfg.openboxApiKey) {
-    if (cfg.governancePolicy === "fail_closed") {
-      writeFailClosedIfPossible(env, "missing OPENBOX_API_KEY");
-    }
-    if (cfg.verbose) console.error("[openbox claude-code] no OPENBOX_API_KEY set, passing through");
+    writeFailClosedIfPossible(env, "missing OPENBOX_API_KEY");
+    if (cfg.verbose) console.error("[openbox claude-code] no OPENBOX_API_KEY set; decision-capable hooks fail closed");
     process.exit(0);
   }
   if (!cfg.openboxEndpoint) {
-    if (cfg.governancePolicy === "fail_closed") {
-      writeFailClosedIfPossible(env, "missing OPENBOX_CORE_URL");
-    }
-    if (cfg.verbose) console.error("[openbox claude-code] no OPENBOX_CORE_URL set, passing through");
+    writeFailClosedIfPossible(env, "missing OPENBOX_CORE_URL");
+    if (cfg.verbose) console.error("[openbox claude-code] no OPENBOX_CORE_URL set; decision-capable hooks fail closed");
     process.exit(0);
   }
-  const dryRun = cfg.dryRun;
   const core = new OpenBoxCoreClient({
     apiKey: cfg.openboxApiKey,
     apiUrl: cfg.openboxEndpoint,
@@ -9580,19 +9528,19 @@ async function runClaudeHook() {
       cfg,
       "setup",
       "observe",
-      async (env2, s) => dryRun ? void 0 : handleSetup(env2, s, cfg)
+      async (env2, s) => handleSetup(env2, s, cfg)
     ),
     sessionStart: guarded(
       cfg,
       "sessionStart",
       "none",
-      async (env2, s) => dryRun ? void 0 : handleSessionStart(env2, s, cfg)
+      async (env2, s) => handleSessionStart(env2, s, cfg)
     ),
     instructionsLoaded: guarded(
       cfg,
       "instructionsLoaded",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.START,
         eventCategory: "agent_observation"
@@ -9602,19 +9550,19 @@ async function runClaudeHook() {
       cfg,
       "userPromptSubmit",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleUserPromptSubmit(env2, s, cfg)
+      async (env2, s) => handleUserPromptSubmit(env2, s, cfg)
     ),
     userPromptExpansion: guarded(
       cfg,
       "userPromptExpansion",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleUserPromptExpansion(env2, s, cfg)
+      async (env2, s) => handleUserPromptExpansion(env2, s, cfg)
     ),
     messageDisplay: guarded(
       cfg,
       "messageDisplay",
       "observe",
-      async (env2, s) => dryRun ? void 0 : handleMessageDisplay(env2, s, cfg, {
+      async (env2, s) => handleMessageDisplay(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.COMPLETE,
         eventCategory: "llm_output"
@@ -9624,85 +9572,85 @@ async function runClaudeHook() {
       cfg,
       "preToolUse",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePreToolUse(env2, s, cfg)
+      async (env2, s) => handlePreToolUse(env2, s, cfg)
     ),
     permissionRequest: guarded(
       cfg,
       "permissionRequest",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePermissionRequest(env2, s, cfg)
+      async (env2, s) => handlePermissionRequest(env2, s, cfg)
     ),
     permissionDenied: guarded(
       cfg,
       "permissionDenied",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePermissionDenied(env2, s, cfg)
+      async (env2, s) => handlePermissionDenied(env2, s, cfg)
     ),
     postToolUse: guarded(
       cfg,
       "postToolUse",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePostToolUse(env2, s, cfg)
+      async (env2, s) => handlePostToolUse(env2, s, cfg)
     ),
     postToolUseFailure: guarded(
       cfg,
       "postToolUseFailure",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePostToolUseFailure(env2, s, cfg)
+      async (env2, s) => handlePostToolUseFailure(env2, s, cfg)
     ),
     postToolBatch: guarded(
       cfg,
       "postToolBatch",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePostToolBatch(env2, s, cfg)
+      async (env2, s) => handlePostToolBatch(env2, s, cfg)
     ),
     subagentStart: guarded(
       cfg,
       "subagentStart",
       "observe",
-      async (env2, s) => dryRun ? void 0 : handleSubagentStart(env2, s, cfg)
+      async (env2, s) => handleSubagentStart(env2, s, cfg)
     ),
     subagentStop: guarded(
       cfg,
       "subagentStop",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleSubagentStop(env2, s, cfg)
+      async (env2, s) => handleSubagentStop(env2, s, cfg)
     ),
     taskCreated: guarded(
       cfg,
       "taskCreated",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleTaskCreated(env2, s, cfg)
+      async (env2, s) => handleTaskCreated(env2, s, cfg)
     ),
     taskCompleted: guarded(
       cfg,
       "taskCompleted",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleTaskCompleted(env2, s, cfg)
+      async (env2, s) => handleTaskCompleted(env2, s, cfg)
     ),
     stop: guarded(
       cfg,
       "stop",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleStop(env2, s, cfg)
+      async (env2, s) => handleStop(env2, s, cfg)
     ),
     stopFailure: guarded(
       cfg,
       "stopFailure",
       "observe",
-      async (env2, s) => dryRun ? void 0 : handleStopFailure(env2, s, cfg)
+      async (env2, s) => handleStopFailure(env2, s, cfg)
     ),
     teammateIdle: guarded(
       cfg,
       "teammateIdle",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleTeammateIdle(env2, s, cfg)
+      async (env2, s) => handleTeammateIdle(env2, s, cfg)
     ),
     notification: guarded(
       cfg,
       "notification",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.SIGNAL,
         eventCategory: "agent_notification"
@@ -9712,7 +9660,7 @@ async function runClaudeHook() {
       cfg,
       "configChange",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => handleGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.CONFIG_CHANGE,
         eventKind: EVENT.START,
         eventCategory: "config_change",
@@ -9723,7 +9671,7 @@ async function runClaudeHook() {
       cfg,
       "cwdChanged",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
         eventKind: EVENT.SIGNAL,
         eventCategory: "cwd_changed"
@@ -9733,7 +9681,7 @@ async function runClaudeHook() {
       cfg,
       "fileChanged",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
         eventKind: EVENT.SIGNAL,
         eventCategory: "file_changed"
@@ -9743,7 +9691,7 @@ async function runClaudeHook() {
       cfg,
       "worktreeRemove",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
         eventKind: EVENT.COMPLETE,
         eventCategory: "worktree_remove"
@@ -9753,25 +9701,25 @@ async function runClaudeHook() {
       cfg,
       "preCompact",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePreCompact(env2, s, cfg)
+      async (env2, s) => handlePreCompact(env2, s, cfg)
     ),
     postCompact: guarded(
       cfg,
       "postCompact",
       "observe",
-      async (env2, s) => dryRun ? void 0 : handlePostCompact(env2, s, cfg)
+      async (env2, s) => handlePostCompact(env2, s, cfg)
     ),
     sessionEnd: guarded(
       cfg,
       "sessionEnd",
       "none",
-      async (env2, s) => dryRun ? void 0 : handleSessionEnd(env2, s, cfg)
+      async (env2, s) => handleSessionEnd(env2, s, cfg)
     ),
     elicitation: guarded(
       cfg,
       "elicitation",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => handleGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MCP_ELICITATION,
         eventKind: EVENT.START,
         eventCategory: "mcp_elicitation",
@@ -9782,7 +9730,7 @@ async function runClaudeHook() {
       cfg,
       "elicitationResult",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => handleGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MCP_ELICITATION,
         eventKind: EVENT.COMPLETE,
         eventCategory: "mcp_elicitation_result",
@@ -9909,8 +9857,6 @@ function loadConfig2() {
     if (envConfig[key] !== void 0) return envConfig[key];
     return fileFallback ?? "";
   };
-  const skipRaw = get("SKIP_ACTIVITY_TYPES");
-  const skipList = skipRaw ? skipRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
   const coreUrl = process.env.OPENBOX_CORE_URL ?? fileConfig.OPENBOX_CORE_URL ?? envConfig.OPENBOX_CORE_URL ?? "";
   return {
     openboxApiKey: get("OPENBOX_API_KEY"),
@@ -9919,13 +9865,12 @@ function loadConfig2() {
       OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID") || void 0,
       OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY") || void 0
     }),
-    governancePolicy: get("GOVERNANCE_POLICY", "fail_closed"),
+    governancePolicy: "fail_closed",
     governanceTimeout: parseInt(get("GOVERNANCE_TIMEOUT", "15"), 10) || 15,
     activityType: get("ACTIVITY_TYPE", "CursorIDE"),
     sessionDir: get("SESSION_DIR", path13.join(CONFIG_DIR2, "sessions")),
     logFile: get("LOG_FILE", path13.join(CONFIG_DIR2, "hook.log")) || null,
     verbose: get("VERBOSE") === "true" || get("VERBOSE") === "1",
-    dryRun: get("DRY_RUN") === "true" || get("DRY_RUN") === "1",
     hitlEnabled: get("HITL_ENABLED", "true") !== "false",
     hitlPollInterval: parseInt(get("HITL_POLL_INTERVAL", "5"), 10) || 5,
     hitlMaxWait: parseInt(get("HITL_MAX_WAIT", "300"), 10) || 300,
@@ -9934,9 +9879,7 @@ function loadConfig2() {
     taskQueue: get("TASK_QUEUE", "cursor-hooks"),
     sendStartEvent: get("SEND_START_EVENT", "true") !== "false",
     sendActivityStartEvent: get("SEND_ACTIVITY_START_EVENT", "true") !== "false",
-    maxBodySize: get("MAX_BODY_SIZE") ? parseInt(get("MAX_BODY_SIZE"), 10) || null : null,
-    skipActivityTypes: skipList,
-    testDriftResponse: get("TEST_DRIFT_RESPONSE") || null
+    maxBodySize: get("MAX_BODY_SIZE") ? parseInt(get("MAX_BODY_SIZE"), 10) || null : null
   };
 }
 function getConfigDir2() {
@@ -10285,7 +10228,13 @@ async function handleBeforeShellExecution(env, session, cfg) {
   const claim = claimAction(key);
   if (!claim.won) {
     const decision = await awaitClaimDecision(claim, cfg.hitlMaxWait * 1e3);
-    if (!decision) return void 0;
+    if (!decision) {
+      return {
+        arm: "block",
+        reason: "[OpenBox] no governance decision was published for duplicate Cursor shell hook",
+        riskScore: 1
+      };
+    }
     if (decision.arm === "allow" || decision.arm === "constrain") return void 0;
     if (decision.arm === "halt") markHalted2(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
@@ -10331,19 +10280,18 @@ var init_side_effects2 = __esm({
     "use strict";
     init_skip_patterns();
     sideEffects2 = {
-      /** File read for cursor's preToolUse Read mapping. Same skip-pattern
-       *  filter as claude-code; cursor's `beforeReadFile` already inlines
-       *  content into the envelope so this is only used for preToolUse. */
+      /** File read for cursor's preToolUse Read mapping. Metadata and
+       *  secret-like content is redacted while the path/span remains governed. */
       readFile(input) {
         if (typeof input !== "string" || !input) return "";
-        if (isSkipped(input)) return "";
+        if (shouldRedactPathContent(input)) return "[OpenBox redacted file content]";
         try {
           return fs11.existsSync(input) ? fs11.readFileSync(input, "utf-8") : "";
         } catch {
           return "";
         }
       },
-      /** JSON-stringify pass-through (no truncation; cursor's beforeMCPExecution
+      /** JSON-stringify helper (no truncation; cursor's beforeMCPExecution
        *  payload is bounded by the originating tool call, not by
        *  agent-streamed output). */
       stringify(input) {
@@ -10400,8 +10348,9 @@ var init_mcp2 = __esm({
 async function handleBeforeReadFile(env, session, cfg) {
   const filePath = env.file_path ?? "";
   if (!filePath) return void 0;
-  if (isSkipped(filePath)) return void 0;
-  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd)) return void 0;
+  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) && !shouldRedactPathContent(filePath)) {
+    return void 0;
+  }
   const key = buildActionKey({
     generation_id: env.generation_id,
     conversation_id: env.conversation_id,
@@ -10411,7 +10360,13 @@ async function handleBeforeReadFile(env, session, cfg) {
   const claim = claimAction(key);
   if (!claim.won) {
     const decision = await awaitClaimDecision(claim, cfg.hitlMaxWait * 1e3);
-    if (!decision) return void 0;
+    if (!decision) {
+      return {
+        arm: "block",
+        reason: "[OpenBox] no governance decision was published for duplicate Cursor file-read hook",
+        riskScore: 1
+      };
+    }
     if (decision.arm === "allow" || decision.arm === "constrain") return void 0;
     if (decision.arm === "halt") markHalted2(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
@@ -10435,8 +10390,7 @@ async function handleBeforeReadFile(env, session, cfg) {
 async function handleBeforeTabFileRead(env, session, cfg) {
   const filePath = env.file_path ?? "";
   if (!filePath) return void 0;
-  if (isSkipped(filePath)) return void 0;
-  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) && !isSensitivePath(filePath)) {
+  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) && !shouldRedactPathContent(filePath)) {
     return void 0;
   }
   const payload = buildBeforeTabFileReadPayload(env);
@@ -10470,8 +10424,7 @@ async function handlePreToolUse2(env, session, cfg) {
   const toolInput = env.tool_input ?? {};
   const filePath = toolInput.file_path ?? toolInput.filePath ?? "";
   const command = toolInput.command ?? "";
-  if (filePath && isSkipped(filePath)) return void 0;
-  if (filePath && (toolName === "Read" || toolName === "Write") && isInsideAnyRoot(filePath, env.workspace_roots, env.cwd)) {
+  if (filePath && (toolName === "Read" || toolName === "Write") && isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) && !shouldRedactPathContent(filePath)) {
     return void 0;
   }
   const claimKind = toolName === "Shell" ? "shell" : toolName === "Read" ? "read" : toolName === "Write" ? "write" : null;
@@ -10483,7 +10436,13 @@ async function handlePreToolUse2(env, session, cfg) {
   })) : null;
   if (claim && !claim.won) {
     const decision = await awaitClaimDecision(claim, cfg.hitlMaxWait * 1e3);
-    if (!decision) return void 0;
+    if (!decision) {
+      return {
+        arm: "block",
+        reason: "[OpenBox] no governance decision was published for duplicate Cursor tool hook",
+        riskScore: 1
+      };
+    }
     if (decision.arm === "allow" || decision.arm === "constrain") return void 0;
     if (decision.arm === "halt") markHalted2(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
@@ -10641,17 +10600,104 @@ function logged2(event, verdictKind, fn) {
     }
   };
 }
+function failClosedVerdict2(reason) {
+  return {
+    arm: "block",
+    reason,
+    riskScore: 1
+  };
+}
+function isDecisionCapable2(eventName) {
+  return CURSOR_CONTINUE_EVENTS.has(String(eventName ?? "")) || CURSOR_PERMISSION_EVENTS.has(String(eventName ?? ""));
+}
+function reasonFromError2(prefix, err) {
+  const detail = err instanceof Error ? err.message : String(err ?? "");
+  return detail ? `${prefix}: ${detail}` : prefix;
+}
+function guarded2(cfg, event, verdictKind, fn) {
+  return logged2(event, verdictKind, async (env, session) => {
+    try {
+      return await fn(env, session);
+    } catch (err) {
+      const reason = reasonFromError2("OpenBox governance failed while processing Cursor hook", err);
+      if (cfg.verbose) console.error(`[openbox cursor] ${reason}`);
+      if (isDecisionCapable2(env.hook_event_name)) return failClosedVerdict2(reason);
+      return void 0;
+    }
+  });
+}
+function renderFailClosedHookOutput2(env, reason) {
+  const eventName = String(env.hook_event_name ?? "");
+  const message = `[OpenBox] ${reason}`;
+  if (CURSOR_CONTINUE_EVENTS.has(eventName)) {
+    return {
+      continue: false,
+      user_message: message
+    };
+  }
+  if (CURSOR_PERMISSION_EVENTS.has(eventName)) {
+    return {
+      permission: "deny",
+      user_message: message,
+      agent_message: `${message}. Stop and ask the user to fix OpenBox project runtime configuration before retrying.`
+    };
+  }
+  return void 0;
+}
+function writeFailClosedIfPossible2(env, reason) {
+  if (!env || !isDecisionCapable2(env.hook_event_name)) return;
+  const output2 = renderFailClosedHookOutput2(env, reason);
+  if (output2 !== void 0) process.stdout.write(JSON.stringify(output2));
+}
+function parseEnvelope2(raw) {
+  const text = raw.trim();
+  if (!text) return void 0;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return void 0;
+  }
+}
+async function readHookStdin2() {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of process.stdin) {
+    const buf = chunk;
+    total += buf.length;
+    if (total > MAX_STDIN_BYTES2) {
+      throw new Error(
+        `hook stdin exceeded ${MAX_STDIN_BYTES2.toLocaleString()} bytes; refusing to buffer further`
+      );
+    }
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks).toString("utf-8");
+}
 async function runCursorHook() {
   const cfg = loadConfig2();
   if (!process.env.OPENBOX_HOME) {
     process.env.OPENBOX_HOME = getConfigDir2();
   }
   createLogger("cursor").initLogger(cfg);
-  if (!cfg.openboxApiKey) {
-    if (cfg.verbose) console.error("[openbox cursor] no OPENBOX_API_KEY set, passing through");
+  let raw = "";
+  let env;
+  try {
+    raw = await readHookStdin2();
+    env = parseEnvelope2(raw);
+  } catch (err) {
+    if (cfg.verbose) console.error(`[openbox cursor] ${reasonFromError2("failed to read hook stdin", err)}`);
     process.exit(0);
   }
-  const dryRun = cfg.dryRun;
+  if (!cfg.openboxApiKey) {
+    writeFailClosedIfPossible2(env, "missing OPENBOX_API_KEY");
+    if (cfg.verbose) console.error("[openbox cursor] no OPENBOX_API_KEY set; decision-capable hooks fail closed");
+    process.exit(0);
+  }
+  if (!cfg.openboxEndpoint) {
+    writeFailClosedIfPossible2(env, "missing OPENBOX_CORE_URL");
+    if (cfg.verbose) console.error("[openbox cursor] no OPENBOX_CORE_URL set; decision-capable hooks fail closed");
+    process.exit(0);
+  }
   const core = new OpenBoxCoreClient({
     apiKey: cfg.openboxApiKey,
     apiUrl: cfg.openboxEndpoint,
@@ -10697,8 +10743,9 @@ async function runCursorHook() {
   ]);
   await createCursorAdapter({
     core,
-    resolveSession: (env) => resolveSession2(env, cfg),
+    resolveSession: (env2) => resolveSession2(env2, cfg),
     approvalMaxWaitMs,
+    readStdin: async () => raw,
     // When APPROVAL_MODE=inline, the SDK skips its internal poll loop
     // and the adapter renders permission:'ask' so Cursor's native
     // permission dialog pops in the IDE on every require_approval.
@@ -10706,17 +10753,17 @@ async function runCursorHook() {
     // or editor extension can still resolve the backend row, but the
     // hook does not wait.
     inlineApproval: cfg.approvalMode === "inline",
-    onPendingApproval: async (info2, env) => {
-      if (OBSERVE_ONLY.has(String(env.hook_event_name ?? ""))) return;
+    onPendingApproval: async (info2, env2) => {
+      if (OBSERVE_ONLY.has(String(env2.hook_event_name ?? ""))) return;
       const conn = await ensureSocket();
       if (!conn) return;
       const agentId = await resolveAgentId();
-      const toolSummary = env.tool_name ? `${env.tool_name}(${typeof env.tool_input === "string" ? env.tool_input : JSON.stringify(env.tool_input ?? {})})` : void 0;
-      const summary2 = env.command ?? env.file_path ?? toolSummary ?? env.prompt ?? "";
+      const toolSummary = env2.tool_name ? `${env2.tool_name}(${typeof env2.tool_input === "string" ? env2.tool_input : JSON.stringify(env2.tool_input ?? {})})` : void 0;
+      const summary2 = env2.command ?? env2.file_path ?? toolSummary ?? env2.prompt ?? "";
       conn.notifyPending({
         governance_event_id: info2.governanceEventId ?? info2.approvalId,
         agent_id: agentId ?? "",
-        hook_event_name: String(env.hook_event_name ?? ""),
+        hook_event_name: String(env2.hook_event_name ?? ""),
         source: "cursor",
         summary: summary2.slice(0, 200),
         reason: info2.reason ?? "",
@@ -10729,8 +10776,8 @@ async function runCursorHook() {
     // exponential-backoff tick (default 500ms-5s). Approving in the
     // extension toast resolves the hook subprocess in O(1 poll RTT)
     // instead of O(poll-cycle).
-    awaitExternalDecision: async (info2, env) => {
-      if (OBSERVE_ONLY.has(String(env.hook_event_name ?? ""))) return void 0;
+    awaitExternalDecision: async (info2, env2) => {
+      if (OBSERVE_ONLY.has(String(env2.hook_event_name ?? ""))) return void 0;
       const conn = await ensureSocket();
       if (!conn) return void 0;
       const geid = info2.governanceEventId ?? info2.approvalId;
@@ -10744,106 +10791,124 @@ async function runCursorHook() {
       }
     },
     handlers: {
-      beforeSubmitPrompt: logged2(
+      beforeSubmitPrompt: guarded2(
+        cfg,
         "beforeSubmitPrompt",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeSubmitPrompt(env, s, cfg)
+        async (env2, s) => handleBeforeSubmitPrompt(env2, s, cfg)
       ),
-      beforeShellExecution: logged2(
+      beforeShellExecution: guarded2(
+        cfg,
         "beforeShellExecution",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeShellExecution(env, s, cfg)
+        async (env2, s) => handleBeforeShellExecution(env2, s, cfg)
       ),
-      beforeMCPExecution: logged2(
+      beforeMCPExecution: guarded2(
+        cfg,
         "beforeMCPExecution",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeMCPExecution(env, s, cfg)
+        async (env2, s) => handleBeforeMCPExecution(env2, s, cfg)
       ),
-      beforeReadFile: logged2(
+      beforeReadFile: guarded2(
+        cfg,
         "beforeReadFile",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeReadFile(env, s, cfg)
+        async (env2, s) => handleBeforeReadFile(env2, s, cfg)
       ),
-      preToolUse: logged2(
+      preToolUse: guarded2(
+        cfg,
         "preToolUse",
         "permission",
-        async (env, s) => dryRun ? void 0 : handlePreToolUse2(env, s, cfg)
+        async (env2, s) => handlePreToolUse2(env2, s, cfg)
       ),
-      afterMCPExecution: logged2(
+      afterMCPExecution: guarded2(
+        cfg,
         "afterMCPExecution",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterMCPExecution(env, s, cfg)
+        async (env2, s) => handleAfterMCPExecution(env2, s, cfg)
       ),
-      afterAgentResponse: logged2(
+      afterAgentResponse: guarded2(
+        cfg,
         "afterAgentResponse",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterAgentResponse(env, s, cfg)
+        async (env2, s) => handleAfterAgentResponse(env2, s, cfg)
       ),
-      afterAgentThought: logged2(
+      afterAgentThought: guarded2(
+        cfg,
         "afterAgentThought",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterAgentThought(env, s, cfg)
+        async (env2, s) => handleAfterAgentThought(env2, s, cfg)
       ),
-      afterShellExecution: logged2(
+      afterShellExecution: guarded2(
+        cfg,
         "afterShellExecution",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterShellExecution(env, s, cfg)
+        async (env2, s) => handleAfterShellExecution(env2, s, cfg)
       ),
-      afterFileEdit: logged2(
+      afterFileEdit: guarded2(
+        cfg,
         "afterFileEdit",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterFileEdit(env, s, cfg)
+        async (env2, s) => handleAfterFileEdit(env2, s, cfg)
       ),
-      sessionStart: logged2(
+      sessionStart: guarded2(
+        cfg,
         "sessionStart",
         "none",
-        async (env, s) => dryRun ? void 0 : handleSessionStart2(env, s, cfg)
+        async (env2, s) => handleSessionStart2(env2, s, cfg)
       ),
-      stop: logged2(
+      stop: guarded2(
+        cfg,
         "stop",
         "none",
-        async (env, s) => dryRun ? void 0 : handleStop2(env, s, cfg)
+        async (env2, s) => handleStop2(env2, s, cfg)
       ),
       // postToolUse / postToolUseFailure carry no payload per the
       // spec (@noPayload). We log them so the OutputChannel tail
       // shows the full lifecycle, but there's nothing to map.
-      postToolUse: logged2("postToolUse", "observe", async () => void 0),
-      postToolUseFailure: logged2("postToolUseFailure", "observe", async () => void 0),
+      postToolUse: guarded2(cfg, "postToolUse", "observe", async () => void 0),
+      postToolUseFailure: guarded2(cfg, "postToolUseFailure", "observe", async () => void 0),
       // Tab-driven + lifecycle + subagent coverage.
-      beforeTabFileRead: logged2(
+      beforeTabFileRead: guarded2(
+        cfg,
         "beforeTabFileRead",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeTabFileRead(env, s, cfg)
+        async (env2, s) => handleBeforeTabFileRead(env2, s, cfg)
       ),
-      afterTabFileEdit: logged2(
+      afterTabFileEdit: guarded2(
+        cfg,
         "afterTabFileEdit",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterTabFileEdit(env, s, cfg)
+        async (env2, s) => handleAfterTabFileEdit(env2, s, cfg)
       ),
-      sessionEnd: logged2(
+      sessionEnd: guarded2(
+        cfg,
         "sessionEnd",
         "none",
-        async (env, s) => dryRun ? void 0 : handleSessionEnd2(env, s, cfg)
+        async (env2, s) => handleSessionEnd2(env2, s, cfg)
       ),
-      preCompact: logged2(
+      preCompact: guarded2(
+        cfg,
         "preCompact",
         "observe",
-        async (env, s) => dryRun ? void 0 : handlePreCompact2(env, s, cfg)
+        async (env2, s) => handlePreCompact2(env2, s, cfg)
       ),
-      subagentStart: logged2(
+      subagentStart: guarded2(
+        cfg,
         "subagentStart",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleSubagentStart2(env, s, cfg)
+        async (env2, s) => handleSubagentStart2(env2, s, cfg)
       ),
-      subagentStop: logged2(
+      subagentStop: guarded2(
+        cfg,
         "subagentStop",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleSubagentStop2(env, s, cfg)
+        async (env2, s) => handleSubagentStop2(env2, s, cfg)
       )
     }
   }).run();
 }
-var hookLog2;
+var hookLog2, MAX_STDIN_BYTES2, CURSOR_CONTINUE_EVENTS, CURSOR_PERMISSION_EVENTS;
 var init_hook_handler2 = __esm({
   "ts/src/runtime/cursor/hook-handler.ts"() {
     "use strict";
@@ -10863,6 +10928,16 @@ var init_hook_handler2 = __esm({
     init_subagent2();
     init_observe();
     hookLog2 = makeHookLog("cursor");
+    MAX_STDIN_BYTES2 = 10 * 1024 * 1024;
+    CURSOR_CONTINUE_EVENTS = /* @__PURE__ */ new Set(["beforeSubmitPrompt"]);
+    CURSOR_PERMISSION_EVENTS = /* @__PURE__ */ new Set([
+      "beforeReadFile",
+      "beforeShellExecution",
+      "beforeMCPExecution",
+      "preToolUse",
+      "beforeTabFileRead",
+      "subagentStart"
+    ]);
   }
 });
 

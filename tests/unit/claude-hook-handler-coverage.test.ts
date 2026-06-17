@@ -48,22 +48,23 @@ vi.mock('../../ts/src/runtime/claude-code/config.js', () => ({
         privateKey: process.env.OPENBOX_AGENT_PRIVATE_KEY,
       }
       : undefined,
-    governancePolicy: 'fail_open',
+    governancePolicy: 'fail_closed',
     governanceTimeout: 15,
     sessionDir: '/tmp/openbox-claude-hook-handler-test',
     logFile: null,
     verbose: false,
-    dryRun: process.env.DRY_RUN === 'true',
     hitlEnabled: true,
     hitlPollInterval: 5,
     hitlMaxWait: Number(process.env.HITL_MAX_WAIT ?? 2),
-    approvalMode: process.env.APPROVAL_MODE === 'inline' ? 'inline' : 'remote',
+    approvalMode: process.env.APPROVAL_MODE === 'inline'
+      ? 'inline'
+      : process.env.APPROVAL_MODE === 'defer'
+        ? 'defer'
+        : 'remote',
     taskQueue: 'claude-code-hooks',
     sendStartEvent: true,
+    sendActivityStartEvent: true,
     maxBodySize: null,
-    skipTools: [],
-    skipActivityTypes: [],
-    testDriftResponse: null,
   })),
 }));
 
@@ -84,7 +85,6 @@ beforeEach(() => {
   adapterOptions = undefined;
   coreClientOptions = undefined;
   process.env.OPENBOX_API_KEY = 'obx_test_claude_handler';
-  delete process.env.DRY_RUN;
   delete process.env.APPROVAL_MODE;
   delete process.env.HITL_MAX_WAIT;
   delete process.env.OPENBOX_AGENT_DID;
@@ -96,7 +96,6 @@ afterEach(() => {
   stdinIteratorSpy?.mockRestore?.();
   stdinIteratorSpy = undefined;
   delete process.env.OPENBOX_API_KEY;
-  delete process.env.DRY_RUN;
   delete process.env.APPROVAL_MODE;
   delete process.env.HITL_MAX_WAIT;
   delete process.env.OPENBOX_AGENT_DID;
@@ -171,18 +170,23 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
     ]));
   });
 
-  it('dry-run handlers pass through without calling governance mappers', async () => {
-    process.env.DRY_RUN = 'true';
+  it('decision-capable handler errors return a fail-closed verdict', async () => {
     mockHookStdin();
     const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
 
     await runClaudeHook();
-    const session = { activity: vi.fn(async () => ({ arm: 'block', reason: 'should not run' })) };
-    for (const handler of Object.values(adapterOptions.handlers) as any[]) {
-      await expect(handler(baseEnv, session)).resolves.toBeUndefined();
-    }
-
-    expect(session.activity).not.toHaveBeenCalled();
+    const session = {
+      activity: vi.fn(async () => {
+        throw new Error('mapper failed');
+      }),
+      openActivity: vi.fn(async () => {
+        throw new Error('mapper failed');
+      }),
+    };
+    await expect(adapterOptions.handlers.preToolUse(baseEnv, session)).resolves.toMatchObject({
+      arm: 'block',
+      reason: expect.stringContaining('mapper failed'),
+    });
   });
 
   it('passes signed agent identity through to the Core client', async () => {
@@ -221,13 +225,24 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
       activity: vi.fn(async () => {
         throw new Error('mapper failed');
       }),
+      openActivity: vi.fn(async () => {
+        throw new Error('mapper failed');
+      }),
     };
-    await expect(adapterOptions.handlers.preToolUse(baseEnv, failingSession)).resolves.toBeUndefined();
+    await expect(adapterOptions.handlers.preToolUse(baseEnv, failingSession)).resolves.toMatchObject({
+      arm: 'block',
+      reason: expect.stringContaining('mapper failed'),
+    });
   });
 
-  it('exits fail-open when no API key is configured', async () => {
+  it('writes fail-closed deny output when no API key is configured', async () => {
     delete process.env.OPENBOX_API_KEY;
     mockHookStdin();
+    let stdout = '';
+    const write = vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: any) => {
+      stdout += String(chunk);
+      return true;
+    }) as any);
     const exit = vi.spyOn(process, 'exit').mockImplementation((() => {
       throw new Error('exit');
     }) as never);
@@ -235,5 +250,12 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
 
     await expect(runClaudeHook()).rejects.toThrow('exit');
     expect(exit).toHaveBeenCalledWith(0);
+    expect(JSON.parse(stdout)).toMatchObject({
+      hookSpecificOutput: {
+        permissionDecision: 'deny',
+        permissionDecisionReason: expect.stringContaining('missing OPENBOX_API_KEY'),
+      },
+    });
+    write.mockRestore();
   });
 });

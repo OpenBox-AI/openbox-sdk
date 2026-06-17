@@ -38,13 +38,12 @@ export interface CursorConfig {
   openboxApiKey: string;
   openboxEndpoint: string;
   agentIdentity?: AgentIdentityConfig;
-  governancePolicy: 'fail_open' | 'fail_closed';
+  governancePolicy: 'fail_closed';
   governanceTimeout: number;
   activityType: string;
   sessionDir: string;
   logFile: string | null;
   verbose: boolean;
-  dryRun: boolean;
   hitlEnabled: boolean;
   hitlPollInterval: number;
   hitlMaxWait: number;
@@ -58,8 +57,6 @@ export interface CursorConfig {
   sendStartEvent: boolean;
   sendActivityStartEvent: boolean;
   maxBodySize: number | null;
-  skipActivityTypes: string[];
-  testDriftResponse: string | null;
 }
 
 /** Load config: env vars > config.json > .env > defaults */
@@ -72,9 +69,6 @@ export function loadConfig(): CursorConfig {
     if (envConfig[key] !== undefined) return envConfig[key];
     return fileFallback ?? '';
   };
-
-  const skipRaw = get('SKIP_ACTIVITY_TYPES');
-  const skipList = skipRaw ? skipRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
 
   // OPENBOX_CORE_URL is the canonical runtime target. No environment
   // fallback is baked in; installs must provide explicit service URLs.
@@ -90,13 +84,12 @@ export function loadConfig(): CursorConfig {
       OPENBOX_AGENT_DID: get('OPENBOX_AGENT_DID') || undefined,
       OPENBOX_AGENT_PRIVATE_KEY: get('OPENBOX_AGENT_PRIVATE_KEY') || undefined,
     }),
-    governancePolicy: (get('GOVERNANCE_POLICY', 'fail_closed') as 'fail_open' | 'fail_closed'),
+    governancePolicy: 'fail_closed',
     governanceTimeout: parseInt(get('GOVERNANCE_TIMEOUT', '15'), 10) || 15,
     activityType: get('ACTIVITY_TYPE', 'CursorIDE'),
     sessionDir: get('SESSION_DIR', path.join(CONFIG_DIR, 'sessions')),
     logFile: get('LOG_FILE', path.join(CONFIG_DIR, 'hook.log')) || null,
     verbose: get('VERBOSE') === 'true' || get('VERBOSE') === '1',
-    dryRun: get('DRY_RUN') === 'true' || get('DRY_RUN') === '1',
     hitlEnabled: get('HITL_ENABLED', 'true') !== 'false',
     hitlPollInterval: parseInt(get('HITL_POLL_INTERVAL', '5'), 10) || 5,
     hitlMaxWait: parseInt(get('HITL_MAX_WAIT', '300'), 10) || 300,
@@ -106,8 +99,6 @@ export function loadConfig(): CursorConfig {
     sendStartEvent: get('SEND_START_EVENT', 'true') !== 'false',
     sendActivityStartEvent: get('SEND_ACTIVITY_START_EVENT', 'true') !== 'false',
     maxBodySize: get('MAX_BODY_SIZE') ? (parseInt(get('MAX_BODY_SIZE'), 10) || null) : null,
-    skipActivityTypes: skipList,
-    testDriftResponse: get('TEST_DRIFT_RESPONSE') || null,
   };
 }
 

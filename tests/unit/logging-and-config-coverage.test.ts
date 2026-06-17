@@ -84,12 +84,12 @@ describe('host config readers', () => {
   it('loads JSON keys in original and env-var forms and tolerates bad files', () => {
     const root = tempRoot();
     const file = join(root, 'config.json');
-    writeFileSync(file, JSON.stringify({ openboxApiKey: 'k', dryRun: false }));
+    writeFileSync(file, JSON.stringify({ openboxApiKey: 'k', hitlEnabled: false }));
     expect(loadJsonConfig(file)).toMatchObject({
       OPENBOXAPIKEY: 'k',
       openboxApiKey: 'k',
-      DRYRUN: 'false',
-      dryRun: 'false',
+      HITLENABLED: 'false',
+      hitlEnabled: 'false',
     });
     writeFileSync(file, '{bad');
     expect(loadJsonConfig(file)).toEqual({});

@@ -1,5 +1,5 @@
 // Live variant of cursor-hook.test.ts; same fixtures, but each
-// invocation runs against a real agent (not DRY_RUN) so the handler
+// invocation runs against a real agent, so the handler
 // actually calls core's evaluate endpoint and core writes real spans.
 // Asserts:
 //

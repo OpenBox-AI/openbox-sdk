@@ -54,10 +54,8 @@ export async function handlePermissionRequest(
 ): Promise<WorkflowVerdict | undefined> {
   const toolName = env.tool_name ?? '';
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
-  if ((cfg.skipTools ?? []).includes(toolName)) return undefined;
 
   const activityType = activityTypeForTool(toolName, toolInput);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return undefined;
   const payload = buildPermissionRequestPayload(env, toolName);
   const spanType = spanTypeFor(toolName, toolInput);
   const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? 'db' : null);
@@ -94,7 +92,6 @@ export async function handlePermissionDenied(
   const toolName = env.tool_name ?? '';
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
   const activityType = activityTypeForTool(toolName, toolInput);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return undefined;
   const payload = buildPermissionDeniedPayload(env);
   const verdict = await session.activity(EVENT.START, activityType, {
     input: [stampSource(payload, 'claude-code')],

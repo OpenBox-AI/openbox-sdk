@@ -990,7 +990,7 @@ var EVENT = {
 
 // ts/src/governance/skip-patterns.ts
 import path from "path";
-var SKIP_PATTERNS = [
+var REDACT_PATH_CONTENT_PATTERNS = [
   /\.cursor\//,
   /\.claude\//,
   /\/mcps\//,
@@ -1000,8 +1000,21 @@ var SKIP_PATTERNS = [
   /SERVER_METADATA\.json$/,
   /SKILL\.md$/
 ];
-function isSkipped(filePath) {
-  return SKIP_PATTERNS.some((p) => p.test(filePath));
+function shouldRedactPathContent(filePath) {
+  return REDACT_PATH_CONTENT_PATTERNS.some((p) => p.test(filePath)) || isSensitivePath(filePath);
+}
+var SENSITIVE_PATH_PATTERNS = [
+  /(^|\/)\.env($|[./-])/,
+  /(^|\/)\.env\.[^/]+$/,
+  /(^|\/)(id_rsa|id_dsa|id_ecdsa|id_ed25519)(\.pub)?$/,
+  /(^|\/)(credentials|secrets?|token|tokens)\.(json|ya?ml|toml|ini|env|txt)$/,
+  /(^|\/)(credentials|config)$/,
+  /\.(pem|key|p12|pfx|crt)$/i,
+  /(^|\/)\.aws\/credentials$/,
+  /(^|\/)\.openbox\/tokens$/
+];
+function isSensitivePath(filePath) {
+  return SENSITIVE_PATH_PATTERNS.some((p) => p.test(filePath));
 }
 function isInsideAnyRoot(filePath, roots, cwd) {
   if (!filePath || !roots || roots.length === 0) return false;
@@ -1247,7 +1260,7 @@ function hookEventLabel(hookEvent) {
 export {
   EVENT,
   HOOK_EVENT_LABELS3 as HOOK_EVENT_LABELS,
-  SKIP_PATTERNS,
+  REDACT_PATH_CONTENT_PATTERNS,
   buildLLMCompletionResponseBody,
   buildLLMCompletionSpan,
   buildSpan2 as buildSpan,
@@ -1255,5 +1268,6 @@ export {
   fetchRulesProjection,
   hookEventLabel,
   isInsideAnyRoot,
-  isSkipped
+  isSensitivePath,
+  shouldRedactPathContent
 };

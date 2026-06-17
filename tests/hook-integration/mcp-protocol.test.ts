@@ -25,9 +25,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const OPENBOX = process.env.OPENBOX_CLI ?? 'node';
+const DEFAULT_OPENBOX_ARGS = process.env.OPENBOX_CLI ? [] : [path.resolve(__dirname, '../../dist/cli/index.js')];
 const OPENBOX_ARGS = process.env.OPENBOX_CLI_ARGS
   ? JSON.parse(process.env.OPENBOX_CLI_ARGS) as string[]
-  : [path.resolve(__dirname, '../../dist/cli/index.js')];
+  : DEFAULT_OPENBOX_ARGS;
 const E2E_AGENT_NAME = 'e2e-agent';
 const PROJECT_OPENBOX = path.resolve(process.cwd(), '.openbox');
 

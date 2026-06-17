@@ -96,8 +96,9 @@ declare const EVENT: {
     readonly SIGNAL: "SignalReceived";
 };
 
-declare const SKIP_PATTERNS: readonly RegExp[];
-declare function isSkipped(filePath: string): boolean;
+declare const REDACT_PATH_CONTENT_PATTERNS: readonly RegExp[];
+declare function shouldRedactPathContent(filePath: string): boolean;
+declare function isSensitivePath(filePath: string): boolean;
 /**
  * True when `filePath` lives inside any of the IDE's open
  * workspace folders. Used by the cursor runtime to decide whether
@@ -144,4 +145,4 @@ declare const HOOK_EVENT_LABELS: Record<string, string>;
  */
 declare function hookEventLabel(hookEvent: string | undefined | null): string;
 
-export { type CheckGovernanceOptions, EVENT, type FetchProjectionOpts, HOOK_EVENT_LABELS, type LLMCompletionSpanInput, type ProjectedRule, type RuleSeverity, type RuleTrigger, type RulesProjection, SKIP_PATTERNS, type SpanInput, type SpanType$1 as SpanType, buildLLMCompletionResponseBody, buildLLMCompletionSpan, buildSpan, checkGovernance, fetchRulesProjection, hookEventLabel, isInsideAnyRoot, isSkipped };
+export { type CheckGovernanceOptions, EVENT, type FetchProjectionOpts, HOOK_EVENT_LABELS, type LLMCompletionSpanInput, type ProjectedRule, REDACT_PATH_CONTENT_PATTERNS, type RuleSeverity, type RuleTrigger, type RulesProjection, type SpanInput, type SpanType$1 as SpanType, buildLLMCompletionResponseBody, buildLLMCompletionSpan, buildSpan, checkGovernance, fetchRulesProjection, hookEventLabel, isInsideAnyRoot, isSensitivePath, shouldRedactPathContent };

@@ -10,7 +10,6 @@ import {
 import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
-import { isSkipped } from '../../../governance/skip-patterns.js';
 import { buildSpan, type SpanType } from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import { sideEffects } from '../side-effects.js';
@@ -52,8 +51,8 @@ function spanTypeFor(toolName: string, toolInput: Record<string, unknown>): Span
 /**
  * PreToolUse: agent is about to call a tool. Activity routing comes from
  * @activityRouting; payload field shape comes from @payloadShape; both
- * generated. This file is just the platform shell: skip-pattern check,
- * span build, fire, halt-mark on halt verdict.
+ * generated. This file is just the platform shell: span build, fire,
+ * halt-mark on halt verdict.
  */
 export async function handlePreToolUse(
   env: ClaudeCodeEnvelope,
@@ -62,17 +61,10 @@ export async function handlePreToolUse(
 ): Promise<WorkflowVerdict | undefined> {
   const toolName = env.tool_name ?? '';
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
-  if ((cfg.skipTools ?? []).includes(toolName)) return undefined;
 
   const activityType = activityTypeFor(toolName, toolInput);
   if (!activityType) return undefined;
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return undefined;
-
-  // Skip-pattern guard for the file-touching tools; paths inside
-  // SKIP_PATTERNS (.claude/, .git/, .ssh/, etc.) bypass governance to
-  // avoid PII false-HALTs on IDE metadata.
   const filePath = filePathFor(toolInput) ?? '';
-  if (filePath && isSkipped(filePath)) return undefined;
 
   const payload = buildPreToolUsePayload(env, toolName, sideEffects);
 

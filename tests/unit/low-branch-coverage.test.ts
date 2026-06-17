@@ -163,7 +163,7 @@ describe('low-branch utility coverage', () => {
     const { handleUserPromptSubmit } = await import(
       '../../ts/src/runtime/claude-code/mappers/user-prompt.ts'
     );
-    const cfg = { sessionDir: tempDir(), skipTools: [] } as any;
+    const cfg = { sessionDir: tempDir() } as any;
 
     const emptyPromptSession = recordingSession();
     await expect(
@@ -385,7 +385,7 @@ describe('low-branch utility coverage', () => {
           session_crons: [{ id: 'cron-1', prompt: 'later' }],
         } as any,
         cronSession as any,
-        { ...cfg, governancePolicy: 'fail_open' },
+        { ...cfg, governancePolicy: 'fail_closed' },
       ),
     ).resolves.toMatchObject({ arm: 'allow' });
     expect(cronSession.workflowCompleted).not.toHaveBeenCalled();

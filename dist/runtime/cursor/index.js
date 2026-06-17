@@ -2219,8 +2219,6 @@ function loadConfig() {
     if (envConfig[key] !== void 0) return envConfig[key];
     return fileFallback ?? "";
   };
-  const skipRaw = get("SKIP_ACTIVITY_TYPES");
-  const skipList = skipRaw ? skipRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
   const coreUrl = process.env.OPENBOX_CORE_URL ?? fileConfig.OPENBOX_CORE_URL ?? envConfig.OPENBOX_CORE_URL ?? "";
   return {
     openboxApiKey: get("OPENBOX_API_KEY"),
@@ -2229,13 +2227,12 @@ function loadConfig() {
       OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID") || void 0,
       OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY") || void 0
     }),
-    governancePolicy: get("GOVERNANCE_POLICY", "fail_closed"),
+    governancePolicy: "fail_closed",
     governanceTimeout: parseInt(get("GOVERNANCE_TIMEOUT", "15"), 10) || 15,
     activityType: get("ACTIVITY_TYPE", "CursorIDE"),
     sessionDir: get("SESSION_DIR", path.join(CONFIG_DIR, "sessions")),
     logFile: get("LOG_FILE", path.join(CONFIG_DIR, "hook.log")) || null,
     verbose: get("VERBOSE") === "true" || get("VERBOSE") === "1",
-    dryRun: get("DRY_RUN") === "true" || get("DRY_RUN") === "1",
     hitlEnabled: get("HITL_ENABLED", "true") !== "false",
     hitlPollInterval: parseInt(get("HITL_POLL_INTERVAL", "5"), 10) || 5,
     hitlMaxWait: parseInt(get("HITL_MAX_WAIT", "300"), 10) || 300,
@@ -2244,9 +2241,7 @@ function loadConfig() {
     taskQueue: get("TASK_QUEUE", "cursor-hooks"),
     sendStartEvent: get("SEND_START_EVENT", "true") !== "false",
     sendActivityStartEvent: get("SEND_ACTIVITY_START_EVENT", "true") !== "false",
-    maxBodySize: get("MAX_BODY_SIZE") ? parseInt(get("MAX_BODY_SIZE"), 10) || null : null,
-    skipActivityTypes: skipList,
-    testDriftResponse: get("TEST_DRIFT_RESPONSE") || null
+    maxBodySize: get("MAX_BODY_SIZE") ? parseInt(get("MAX_BODY_SIZE"), 10) || null : null
   };
 }
 var loadConfigFile = () => loadJsonConfig(CONFIG_FILE);
@@ -2977,7 +2972,13 @@ async function handleBeforeShellExecution(env, session, cfg) {
   const claim = claimAction(key);
   if (!claim.won) {
     const decision = await awaitClaimDecision(claim, cfg.hitlMaxWait * 1e3);
-    if (!decision) return void 0;
+    if (!decision) {
+      return {
+        arm: "block",
+        reason: "[OpenBox] no governance decision was published for duplicate Cursor shell hook",
+        riskScore: 1
+      };
+    }
     if (decision.arm === "allow" || decision.arm === "constrain") return void 0;
     if (decision.arm === "halt") markHalted(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
@@ -3009,7 +3010,7 @@ import * as fs7 from "fs";
 
 // ts/src/governance/skip-patterns.ts
 import path7 from "path";
-var SKIP_PATTERNS = [
+var REDACT_PATH_CONTENT_PATTERNS = [
   /\.cursor\//,
   /\.claude\//,
   /\/mcps\//,
@@ -3019,8 +3020,8 @@ var SKIP_PATTERNS = [
   /SERVER_METADATA\.json$/,
   /SKILL\.md$/
 ];
-function isSkipped(filePath) {
-  return SKIP_PATTERNS.some((p) => p.test(filePath));
+function shouldRedactPathContent(filePath) {
+  return REDACT_PATH_CONTENT_PATTERNS.some((p) => p.test(filePath)) || isSensitivePath(filePath);
 }
 var SENSITIVE_PATH_PATTERNS = [
   /(^|\/)\.env($|[./-])/,
@@ -3047,19 +3048,18 @@ function isInsideAnyRoot(filePath, roots, cwd) {
 
 // ts/src/runtime/cursor/side-effects.ts
 var sideEffects = {
-  /** File read for cursor's preToolUse Read mapping. Same skip-pattern
-   *  filter as claude-code; cursor's `beforeReadFile` already inlines
-   *  content into the envelope so this is only used for preToolUse. */
+  /** File read for cursor's preToolUse Read mapping. Metadata and
+   *  secret-like content is redacted while the path/span remains governed. */
   readFile(input) {
     if (typeof input !== "string" || !input) return "";
-    if (isSkipped(input)) return "";
+    if (shouldRedactPathContent(input)) return "[OpenBox redacted file content]";
     try {
       return fs7.existsSync(input) ? fs7.readFileSync(input, "utf-8") : "";
     } catch {
       return "";
     }
   },
-  /** JSON-stringify pass-through (no truncation; cursor's beforeMCPExecution
+  /** JSON-stringify helper (no truncation; cursor's beforeMCPExecution
    *  payload is bounded by the originating tool call, not by
    *  agent-streamed output). */
   stringify(input) {
@@ -3103,8 +3103,9 @@ async function handleBeforeMCPExecution(env, session, cfg) {
 async function handleBeforeReadFile(env, session, cfg) {
   const filePath = env.file_path ?? "";
   if (!filePath) return void 0;
-  if (isSkipped(filePath)) return void 0;
-  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd)) return void 0;
+  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) && !shouldRedactPathContent(filePath)) {
+    return void 0;
+  }
   const key = buildActionKey({
     generation_id: env.generation_id,
     conversation_id: env.conversation_id,
@@ -3114,7 +3115,13 @@ async function handleBeforeReadFile(env, session, cfg) {
   const claim = claimAction(key);
   if (!claim.won) {
     const decision = await awaitClaimDecision(claim, cfg.hitlMaxWait * 1e3);
-    if (!decision) return void 0;
+    if (!decision) {
+      return {
+        arm: "block",
+        reason: "[OpenBox] no governance decision was published for duplicate Cursor file-read hook",
+        riskScore: 1
+      };
+    }
     if (decision.arm === "allow" || decision.arm === "constrain") return void 0;
     if (decision.arm === "halt") markHalted(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
@@ -3138,8 +3145,7 @@ async function handleBeforeReadFile(env, session, cfg) {
 async function handleBeforeTabFileRead(env, session, cfg) {
   const filePath = env.file_path ?? "";
   if (!filePath) return void 0;
-  if (isSkipped(filePath)) return void 0;
-  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) && !isSensitivePath(filePath)) {
+  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) && !shouldRedactPathContent(filePath)) {
     return void 0;
   }
   const payload = buildBeforeTabFileReadPayload(env);
@@ -3161,8 +3167,7 @@ async function handlePreToolUse(env, session, cfg) {
   const toolInput = env.tool_input ?? {};
   const filePath = toolInput.file_path ?? toolInput.filePath ?? "";
   const command = toolInput.command ?? "";
-  if (filePath && isSkipped(filePath)) return void 0;
-  if (filePath && (toolName === "Read" || toolName === "Write") && isInsideAnyRoot(filePath, env.workspace_roots, env.cwd)) {
+  if (filePath && (toolName === "Read" || toolName === "Write") && isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) && !shouldRedactPathContent(filePath)) {
     return void 0;
   }
   const claimKind = toolName === "Shell" ? "shell" : toolName === "Read" ? "read" : toolName === "Write" ? "write" : null;
@@ -3174,7 +3179,13 @@ async function handlePreToolUse(env, session, cfg) {
   })) : null;
   if (claim && !claim.won) {
     const decision = await awaitClaimDecision(claim, cfg.hitlMaxWait * 1e3);
-    if (!decision) return void 0;
+    if (!decision) {
+      return {
+        arm: "block",
+        reason: "[OpenBox] no governance decision was published for duplicate Cursor tool hook",
+        riskScore: 1
+      };
+    }
     if (decision.arm === "allow" || decision.arm === "constrain") return void 0;
     if (decision.arm === "halt") markHalted(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
@@ -3272,6 +3283,7 @@ function handleSubagentStop(_env, _session, _cfg) {
 
 // ts/src/runtime/cursor/hook-handler.ts
 var hookLog = makeHookLog("cursor");
+var MAX_STDIN_BYTES = 10 * 1024 * 1024;
 function logged(event, verdictKind, fn) {
   return async (env, s) => {
     const start = Date.now();
@@ -3296,17 +3308,113 @@ function logged(event, verdictKind, fn) {
     }
   };
 }
+var CURSOR_CONTINUE_EVENTS = /* @__PURE__ */ new Set(["beforeSubmitPrompt"]);
+var CURSOR_PERMISSION_EVENTS = /* @__PURE__ */ new Set([
+  "beforeReadFile",
+  "beforeShellExecution",
+  "beforeMCPExecution",
+  "preToolUse",
+  "beforeTabFileRead",
+  "subagentStart"
+]);
+function failClosedVerdict(reason) {
+  return {
+    arm: "block",
+    reason,
+    riskScore: 1
+  };
+}
+function isDecisionCapable(eventName) {
+  return CURSOR_CONTINUE_EVENTS.has(String(eventName ?? "")) || CURSOR_PERMISSION_EVENTS.has(String(eventName ?? ""));
+}
+function reasonFromError(prefix, err) {
+  const detail = err instanceof Error ? err.message : String(err ?? "");
+  return detail ? `${prefix}: ${detail}` : prefix;
+}
+function guarded(cfg, event, verdictKind, fn) {
+  return logged(event, verdictKind, async (env, session) => {
+    try {
+      return await fn(env, session);
+    } catch (err) {
+      const reason = reasonFromError("OpenBox governance failed while processing Cursor hook", err);
+      if (cfg.verbose) console.error(`[openbox cursor] ${reason}`);
+      if (isDecisionCapable(env.hook_event_name)) return failClosedVerdict(reason);
+      return void 0;
+    }
+  });
+}
+function renderFailClosedHookOutput(env, reason) {
+  const eventName = String(env.hook_event_name ?? "");
+  const message = `[OpenBox] ${reason}`;
+  if (CURSOR_CONTINUE_EVENTS.has(eventName)) {
+    return {
+      continue: false,
+      user_message: message
+    };
+  }
+  if (CURSOR_PERMISSION_EVENTS.has(eventName)) {
+    return {
+      permission: "deny",
+      user_message: message,
+      agent_message: `${message}. Stop and ask the user to fix OpenBox project runtime configuration before retrying.`
+    };
+  }
+  return void 0;
+}
+function writeFailClosedIfPossible(env, reason) {
+  if (!env || !isDecisionCapable(env.hook_event_name)) return;
+  const output = renderFailClosedHookOutput(env, reason);
+  if (output !== void 0) process.stdout.write(JSON.stringify(output));
+}
+function parseEnvelope(raw) {
+  const text = raw.trim();
+  if (!text) return void 0;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return void 0;
+  }
+}
+async function readHookStdin() {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of process.stdin) {
+    const buf = chunk;
+    total += buf.length;
+    if (total > MAX_STDIN_BYTES) {
+      throw new Error(
+        `hook stdin exceeded ${MAX_STDIN_BYTES.toLocaleString()} bytes; refusing to buffer further`
+      );
+    }
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks).toString("utf-8");
+}
 async function runCursorHook() {
   const cfg = loadConfig();
   if (!process.env.OPENBOX_HOME) {
     process.env.OPENBOX_HOME = getConfigDir();
   }
   createLogger("cursor").initLogger(cfg);
-  if (!cfg.openboxApiKey) {
-    if (cfg.verbose) console.error("[openbox cursor] no OPENBOX_API_KEY set, passing through");
+  let raw = "";
+  let env;
+  try {
+    raw = await readHookStdin();
+    env = parseEnvelope(raw);
+  } catch (err) {
+    if (cfg.verbose) console.error(`[openbox cursor] ${reasonFromError("failed to read hook stdin", err)}`);
     process.exit(0);
   }
-  const dryRun = cfg.dryRun;
+  if (!cfg.openboxApiKey) {
+    writeFailClosedIfPossible(env, "missing OPENBOX_API_KEY");
+    if (cfg.verbose) console.error("[openbox cursor] no OPENBOX_API_KEY set; decision-capable hooks fail closed");
+    process.exit(0);
+  }
+  if (!cfg.openboxEndpoint) {
+    writeFailClosedIfPossible(env, "missing OPENBOX_CORE_URL");
+    if (cfg.verbose) console.error("[openbox cursor] no OPENBOX_CORE_URL set; decision-capable hooks fail closed");
+    process.exit(0);
+  }
   const core = new OpenBoxCoreClient({
     apiKey: cfg.openboxApiKey,
     apiUrl: cfg.openboxEndpoint,
@@ -3352,8 +3460,9 @@ async function runCursorHook() {
   ]);
   await createCursorAdapter({
     core,
-    resolveSession: (env) => resolveSession(env, cfg),
+    resolveSession: (env2) => resolveSession(env2, cfg),
     approvalMaxWaitMs,
+    readStdin: async () => raw,
     // When APPROVAL_MODE=inline, the SDK skips its internal poll loop
     // and the adapter renders permission:'ask' so Cursor's native
     // permission dialog pops in the IDE on every require_approval.
@@ -3361,17 +3470,17 @@ async function runCursorHook() {
     // or editor extension can still resolve the backend row, but the
     // hook does not wait.
     inlineApproval: cfg.approvalMode === "inline",
-    onPendingApproval: async (info, env) => {
-      if (OBSERVE_ONLY.has(String(env.hook_event_name ?? ""))) return;
+    onPendingApproval: async (info, env2) => {
+      if (OBSERVE_ONLY.has(String(env2.hook_event_name ?? ""))) return;
       const conn = await ensureSocket();
       if (!conn) return;
       const agentId = await resolveAgentId();
-      const toolSummary = env.tool_name ? `${env.tool_name}(${typeof env.tool_input === "string" ? env.tool_input : JSON.stringify(env.tool_input ?? {})})` : void 0;
-      const summary = env.command ?? env.file_path ?? toolSummary ?? env.prompt ?? "";
+      const toolSummary = env2.tool_name ? `${env2.tool_name}(${typeof env2.tool_input === "string" ? env2.tool_input : JSON.stringify(env2.tool_input ?? {})})` : void 0;
+      const summary = env2.command ?? env2.file_path ?? toolSummary ?? env2.prompt ?? "";
       conn.notifyPending({
         governance_event_id: info.governanceEventId ?? info.approvalId,
         agent_id: agentId ?? "",
-        hook_event_name: String(env.hook_event_name ?? ""),
+        hook_event_name: String(env2.hook_event_name ?? ""),
         source: "cursor",
         summary: summary.slice(0, 200),
         reason: info.reason ?? "",
@@ -3384,8 +3493,8 @@ async function runCursorHook() {
     // exponential-backoff tick (default 500ms-5s). Approving in the
     // extension toast resolves the hook subprocess in O(1 poll RTT)
     // instead of O(poll-cycle).
-    awaitExternalDecision: async (info, env) => {
-      if (OBSERVE_ONLY.has(String(env.hook_event_name ?? ""))) return void 0;
+    awaitExternalDecision: async (info, env2) => {
+      if (OBSERVE_ONLY.has(String(env2.hook_event_name ?? ""))) return void 0;
       const conn = await ensureSocket();
       if (!conn) return void 0;
       const geid = info.governanceEventId ?? info.approvalId;
@@ -3399,101 +3508,119 @@ async function runCursorHook() {
       }
     },
     handlers: {
-      beforeSubmitPrompt: logged(
+      beforeSubmitPrompt: guarded(
+        cfg,
         "beforeSubmitPrompt",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeSubmitPrompt(env, s, cfg)
+        async (env2, s) => handleBeforeSubmitPrompt(env2, s, cfg)
       ),
-      beforeShellExecution: logged(
+      beforeShellExecution: guarded(
+        cfg,
         "beforeShellExecution",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeShellExecution(env, s, cfg)
+        async (env2, s) => handleBeforeShellExecution(env2, s, cfg)
       ),
-      beforeMCPExecution: logged(
+      beforeMCPExecution: guarded(
+        cfg,
         "beforeMCPExecution",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeMCPExecution(env, s, cfg)
+        async (env2, s) => handleBeforeMCPExecution(env2, s, cfg)
       ),
-      beforeReadFile: logged(
+      beforeReadFile: guarded(
+        cfg,
         "beforeReadFile",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeReadFile(env, s, cfg)
+        async (env2, s) => handleBeforeReadFile(env2, s, cfg)
       ),
-      preToolUse: logged(
+      preToolUse: guarded(
+        cfg,
         "preToolUse",
         "permission",
-        async (env, s) => dryRun ? void 0 : handlePreToolUse(env, s, cfg)
+        async (env2, s) => handlePreToolUse(env2, s, cfg)
       ),
-      afterMCPExecution: logged(
+      afterMCPExecution: guarded(
+        cfg,
         "afterMCPExecution",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterMCPExecution(env, s, cfg)
+        async (env2, s) => handleAfterMCPExecution(env2, s, cfg)
       ),
-      afterAgentResponse: logged(
+      afterAgentResponse: guarded(
+        cfg,
         "afterAgentResponse",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterAgentResponse(env, s, cfg)
+        async (env2, s) => handleAfterAgentResponse(env2, s, cfg)
       ),
-      afterAgentThought: logged(
+      afterAgentThought: guarded(
+        cfg,
         "afterAgentThought",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterAgentThought(env, s, cfg)
+        async (env2, s) => handleAfterAgentThought(env2, s, cfg)
       ),
-      afterShellExecution: logged(
+      afterShellExecution: guarded(
+        cfg,
         "afterShellExecution",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterShellExecution(env, s, cfg)
+        async (env2, s) => handleAfterShellExecution(env2, s, cfg)
       ),
-      afterFileEdit: logged(
+      afterFileEdit: guarded(
+        cfg,
         "afterFileEdit",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterFileEdit(env, s, cfg)
+        async (env2, s) => handleAfterFileEdit(env2, s, cfg)
       ),
-      sessionStart: logged(
+      sessionStart: guarded(
+        cfg,
         "sessionStart",
         "none",
-        async (env, s) => dryRun ? void 0 : handleSessionStart(env, s, cfg)
+        async (env2, s) => handleSessionStart(env2, s, cfg)
       ),
-      stop: logged(
+      stop: guarded(
+        cfg,
         "stop",
         "none",
-        async (env, s) => dryRun ? void 0 : handleStop(env, s, cfg)
+        async (env2, s) => handleStop(env2, s, cfg)
       ),
       // postToolUse / postToolUseFailure carry no payload per the
       // spec (@noPayload). We log them so the OutputChannel tail
       // shows the full lifecycle, but there's nothing to map.
-      postToolUse: logged("postToolUse", "observe", async () => void 0),
-      postToolUseFailure: logged("postToolUseFailure", "observe", async () => void 0),
+      postToolUse: guarded(cfg, "postToolUse", "observe", async () => void 0),
+      postToolUseFailure: guarded(cfg, "postToolUseFailure", "observe", async () => void 0),
       // Tab-driven + lifecycle + subagent coverage.
-      beforeTabFileRead: logged(
+      beforeTabFileRead: guarded(
+        cfg,
         "beforeTabFileRead",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeTabFileRead(env, s, cfg)
+        async (env2, s) => handleBeforeTabFileRead(env2, s, cfg)
       ),
-      afterTabFileEdit: logged(
+      afterTabFileEdit: guarded(
+        cfg,
         "afterTabFileEdit",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterTabFileEdit(env, s, cfg)
+        async (env2, s) => handleAfterTabFileEdit(env2, s, cfg)
       ),
-      sessionEnd: logged(
+      sessionEnd: guarded(
+        cfg,
         "sessionEnd",
         "none",
-        async (env, s) => dryRun ? void 0 : handleSessionEnd(env, s, cfg)
+        async (env2, s) => handleSessionEnd(env2, s, cfg)
       ),
-      preCompact: logged(
+      preCompact: guarded(
+        cfg,
         "preCompact",
         "observe",
-        async (env, s) => dryRun ? void 0 : handlePreCompact(env, s, cfg)
+        async (env2, s) => handlePreCompact(env2, s, cfg)
       ),
-      subagentStart: logged(
+      subagentStart: guarded(
+        cfg,
         "subagentStart",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleSubagentStart(env, s, cfg)
+        async (env2, s) => handleSubagentStart(env2, s, cfg)
       ),
-      subagentStop: logged(
+      subagentStop: guarded(
+        cfg,
         "subagentStop",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleSubagentStop(env, s, cfg)
+        async (env2, s) => handleSubagentStop(env2, s, cfg)
       )
     }
   }).run();
@@ -3858,9 +3985,6 @@ function verifyCursorPlugin(options = {}) {
 }
 
 // ts/src/runtime/cursor/install.ts
-function truthy(value) {
-  return value === "true" || value === "1";
-}
 function isPlaceholderKey(value) {
   if (!value) return false;
   return /YOUR_API_KEY|REPLACE_ME|placeholder/i.test(value);
@@ -3897,8 +4021,7 @@ function buildHookRuntimeEnv(cwd = process.cwd()) {
     cliConfigFile: configStorePath(),
     coreUrl,
     apiKey,
-    agentIdentity,
-    dryRun: truthy(get("DRY_RUN"))
+    agentIdentity
   };
 }
 async function checkRuntimeReadiness(cwd, validateRuntime) {
@@ -3906,12 +4029,8 @@ async function checkRuntimeReadiness(cwd, validateRuntime) {
   const details = [
     `config=${runtime.configFile}`,
     `cliConfig=${runtime.cliConfigFile}`,
-    `core=${runtime.coreUrl}`,
-    `dryRun=${runtime.dryRun}`
+    `core=${runtime.coreUrl}`
   ];
-  if (runtime.dryRun) {
-    return { name: "runtime", status: "fail", path: runtime.configFile, detail: `${details.join("; ")}; DRY_RUN=true` };
-  }
   if (!runtime.apiKey) {
     return { name: "runtime", status: "fail", path: runtime.configFile, detail: `${details.join("; ")}; missing OPENBOX_API_KEY` };
   }

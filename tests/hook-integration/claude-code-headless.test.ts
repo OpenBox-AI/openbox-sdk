@@ -32,7 +32,29 @@ import {
   runClaude,
   SHOULD_RUN,
   assertClaudeOnPath,
+  snapshotHookLog,
+  hookLogSince,
 } from './helpers/claude-runner.js';
+
+function isLoopbackUrl(raw: string | undefined): boolean {
+  if (!raw) return true;
+  try {
+    const host = new URL(raw).hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
+const EXPECT_LOCAL_RULES =
+  process.env.OPENBOX_E2E_EXPECT_LOCAL_RULES === '1' ||
+  (
+    process.env.OPENBOX_E2E_EXPECT_LOCAL_RULES !== '0' &&
+    !process.env.OPENBOX_STAGING_API_URL &&
+    !process.env.OPENBOX_STAGING_CORE_URL &&
+    isLoopbackUrl(process.env.OPENBOX_API_URL) &&
+    isLoopbackUrl(process.env.OPENBOX_CORE_URL)
+  );
 
 /** Translate a fixture case into a (prompt, tool) pair claude can
  *  run. Only the cases the claude-code runtime can realistically
@@ -85,7 +107,16 @@ describe.runIf(SHOULD_RUN)('claude-code headless host matrix', () => {
       `${c.name}${skipReason ? ` (${skipReason})` : ''}`,
       () => {
         if (!driver) return;
+        const offset = snapshotHookLog();
         const r = runClaude(driver.prompt, { allowedTool: driver.tool });
+        const events = hookLogSince(offset).map((line) => line.event);
+        expect(events.length, 'no Claude Code hook events were logged').toBeGreaterThan(0);
+        expect(events).toContain(driver.tool ? 'preToolUse' : 'userPromptSubmit');
+
+        if (!EXPECT_LOCAL_RULES) {
+          expect(r.is_error).toBeFalsy();
+          return;
+        }
 
         if (c.expectedOutcome === 'deny') {
           // The hook returned block (or halt); claude refused.

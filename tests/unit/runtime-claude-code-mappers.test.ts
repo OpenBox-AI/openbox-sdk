@@ -6,7 +6,7 @@
 // with what activity type, without needing a live core service.
 //
 // Adapters covered:
-//   - mappers/pre-tool-use    ; tool dispatch + skip-pattern guard
+//   - mappers/pre-tool-use    ; tool dispatch + redacted-path handling
 //   - mappers/post-tool-use   ; COMPLETE event after tool result
 //   - mappers/user-prompt     ; PromptSubmission START
 //   - mappers/permission-request; PERMISSION_REQUEST
@@ -111,7 +111,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     await handleUserPromptSubmit(
       { prompt: 'hi', session_id: 'S' } as any,
       session,
-      { skipTools: [], sessionDir: dir } as any,
+      { sessionDir: dir } as any,
     );
     expect(session.calls.length).toBeGreaterThan(0);
     const goalSignal = session.calls.find(
@@ -137,7 +137,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
     const session = recordingSession();
-    const cfg = { skipTools: [], skipActivityTypes: [], sessionDir: dir } as any;
+    const cfg = { sessionDir: dir } as any;
     const base = {
       session_id: 'S-tool',
       tool_use_id: 'toolu_1',
@@ -177,15 +177,15 @@ describe('runtime/claude-code/mappers; every event handler', () => {
   it('session-start workflowStarted + START activity', async () => {
     const { handleSessionStart, handleSessionEnd } = await import('../../ts/src/runtime/claude-code/mappers/session');
     const session = recordingSession();
-    await handleSessionStart({ session_id: 'S' } as any, session, { skipTools: [], sessionDir: dir } as any);
-    await handleSessionEnd({ session_id: 'S', reason: 'stop' } as any, session, { skipTools: [], sessionDir: dir } as any);
+    await handleSessionStart({ session_id: 'S' } as any, session, { sessionDir: dir } as any);
+    await handleSessionEnd({ session_id: 'S', reason: 'stop' } as any, session, { sessionDir: dir } as any);
     expect(session.calls.some((c: any) => c.method === 'workflowStarted')).toBe(true);
   });
 
   it('session-end short-circuits when resolveSession created a fresh record (phantom session, e.g. `claude update`)', async () => {
     const { handleSessionEnd } = await import('../../ts/src/runtime/claude-code/mappers/session');
     const { resolveSession } = await import('../../ts/src/runtime/claude-code/session-resolver');
-    const cfg = { skipTools: [], sessionDir: dir } as any;
+    const cfg = { sessionDir: dir } as any;
     // Fresh session_id with no prior record on disk → resolveSession
     // creates one and flags the caller. SessionEnd must skip HTTP.
     await resolveSession({ session_id: 'PHANTOM' } as any, cfg);
@@ -197,7 +197,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
   it('session-end runs full flow when prior session record exists', async () => {
     const { handleSessionEnd } = await import('../../ts/src/runtime/claude-code/mappers/session');
     const { resolveSession } = await import('../../ts/src/runtime/claude-code/session-resolver');
-    const cfg = { skipTools: [], sessionDir: dir } as any;
+    const cfg = { sessionDir: dir } as any;
     // Two resolveSession calls; second sees the existing record, so
     // the phantom flag clears and SessionEnd does the full HTTP path.
     await resolveSession({ session_id: 'REAL' } as any, cfg);
@@ -219,7 +219,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
         session_crons: [],
       } as any,
       session,
-      { skipTools: [], sessionDir: dir, governancePolicy: 'fail_open' } as any,
+      { sessionDir: dir, governancePolicy: 'fail_closed' } as any,
     );
     expect(session.calls.some((c: any) => c.method === 'workflowCompleted')).toBe(true);
     const stop = session.calls.find(
@@ -253,7 +253,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
         session_crons: [],
       } as any,
       session,
-      { skipTools: [], sessionDir: dir, governancePolicy: 'fail_open' } as any,
+      { sessionDir: dir, governancePolicy: 'fail_closed' } as any,
     );
     const stop = session.calls.find(
       (c: any) => c.method === 'activity' && c.args[1] === 'ClaudeCodeSession',
@@ -300,7 +300,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
         delta: 'last chunk',
       } as any,
       session,
-      { skipTools: [], sessionDir: dir } as any,
+      { sessionDir: dir } as any,
       {
         activityType: 'ClaudeCodeMessage',
         eventKind: 'ActivityCompleted',
@@ -400,7 +400,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
         delta: 'tail chunk',
       } as any,
       session,
-      { skipTools: [], sessionDir: dir } as any,
+      { sessionDir: dir } as any,
       {
         activityType: 'ClaudeCodeMessage',
         eventKind: 'ActivityCompleted',
@@ -448,7 +448,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
         session_crons: [],
       } as any,
       session,
-      { skipTools: [], sessionDir: dir, governancePolicy: 'fail_open' } as any,
+      { sessionDir: dir, governancePolicy: 'fail_closed' } as any,
     );
     expect(session.calls.some((c: any) => c.method === 'workflowCompleted')).toBe(false);
   });
@@ -462,7 +462,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
         error: 'model endpoint failed',
       } as any,
       session,
-      { skipTools: [], sessionDir: dir } as any,
+      { sessionDir: dir } as any,
     );
     const activity = session.calls.find((c: any) => c.method === 'activity');
     expect(activity?.args[0]).toBe('ActivityCompleted');
@@ -478,7 +478,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     await handlePermissionRequest(
       { tool_name: 'Read', tool_input: { file_path: '/Users/me/x.ts' }, session_id: 'S' } as any,
       session,
-      { skipTools: [], sessionDir: dir } as any,
+      { sessionDir: dir } as any,
     );
     // The mapper's contract: fire exactly one activity for the
     // PERMISSION_REQUEST event. Non-zero is the real assertion.
@@ -494,12 +494,12 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     await handleSubagentStart(
       { agent_type: 'researcher', session_id: 'S' } as any,
       session,
-      { skipTools: [], sessionDir: dir } as any,
+      { sessionDir: dir } as any,
     );
     await handleSubagentStop(
       { agent_type: 'researcher', session_id: 'S', output: 'done' } as any,
       session,
-      { skipTools: [], sessionDir: dir } as any,
+      { sessionDir: dir } as any,
     );
     expect(session.calls.length).toBeGreaterThan(0);
   });
@@ -519,7 +519,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
         ),
       } as any,
       session,
-      { skipTools: [], sessionDir: dir } as any,
+      { sessionDir: dir } as any,
     );
     const stop = session.calls.find(
       (c: any) => c.method === 'activity' && c.args[1] === 'SubAgent:researcher',

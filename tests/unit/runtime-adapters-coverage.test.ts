@@ -1,7 +1,7 @@
 // Coverage-driven tests for ts/src/runtime/claude-code/* and
 // ts/src/runtime/cursor/*. Mappers take a real GovernSession in
 // production; here we duck-type a recording session that captures
-// every call so we can drive every branch (skip-tool, skip-pattern,
+// every call so we can drive every branch (redaction, routing,
 // halt-on-verdict, payload build) without a live backend.
 //
 // Real session-vs-core behavior is covered by e2e.
@@ -82,14 +82,14 @@ describe('runtime/claude-code/config', () => {
     const mod = await import('../../ts/src/runtime/claude-code/config');
     const cfg = mod.loadConfig();
     expect(typeof cfg.governanceTimeout).toBe('number');
-    expect(Array.isArray(cfg.skipTools)).toBe(true);
+    expect(cfg.governancePolicy).toBe('fail_closed');
   });
 });
 
 describe('runtime/claude-code/side-effects', () => {
-  it('readFile returns "" for skip-pattern paths; reads real files; tolerates missing', async () => {
+  it('readFile redacts metadata paths, reads real files, and tolerates missing', async () => {
     const { sideEffects } = await import('../../ts/src/runtime/claude-code/side-effects');
-    expect(sideEffects.readFile!('/foo/.git/HEAD')).toBe('');
+    expect(sideEffects.readFile!('/foo/.git/HEAD')).toBe('[OpenBox redacted file content]');
     expect(sideEffects.readFile!('/var/no/such/file/here')).toBe('');
     expect(sideEffects.readFile!(123 as any)).toBe('');
     const f = join(dir, 'data.txt');
@@ -106,31 +106,32 @@ describe('runtime/claude-code/side-effects', () => {
 });
 
 describe('runtime/claude-code/mappers/pre-tool-use', () => {
-  it('skip-tool short-circuits without firing activity', async () => {
+  it('old skip-tool config does not bypass governance', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const session = recordingSession();
-    const env: any = { tool_name: 'SkipMe', tool_input: {}, session_id: 'S1' };
-    const cfg: any = { skipTools: ['SkipMe'], sessionDir: dir };
+    const env: any = { tool_name: 'TodoWrite', tool_input: { todos: [] }, session_id: 'S1' };
+    const cfg: any = { skipTools: ['TodoWrite'], sessionDir: dir };
     const v = await handlePreToolUse(env, session, cfg);
-    expect(v).toBeUndefined();
-    expect(session.calls.length).toBe(0);
+    expect(v?.arm).toBe('allow');
+    expect(session.calls[0]?.method).toBe('openActivity');
   });
 
-  it('skip-pattern short-circuits on .git/.claude paths', async () => {
+  it('redaction-pattern paths still fire governance activity', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const session = recordingSession();
     const env: any = { tool_name: 'Read', tool_input: { file_path: '/foo/.git/config' }, session_id: 'S2' };
-    const cfg: any = { skipTools: [], sessionDir: dir };
+    const cfg: any = { sessionDir: dir };
     const v = await handlePreToolUse(env, session, cfg);
-    expect(v).toBeUndefined();
-    expect(session.calls.length).toBe(0);
+    expect(v?.arm).toBe('allow');
+    expect(session.calls[0]?.method).toBe('openActivity');
+    expect(session.calls[0]?.args[1]?.input?.[0]?.content).toBe('[OpenBox redacted file content]');
   });
 
   it('routes a known tool to openActivity() with the right activity_type', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const session = recordingSession();
     const env: any = { tool_name: 'Read', tool_input: { file_path: '/Users/me/main.ts' }, session_id: 'S3' };
-    const cfg: any = { skipTools: [], sessionDir: dir };
+    const cfg: any = { sessionDir: dir };
     await handlePreToolUse(env, session, cfg);
     expect(session.calls[0]?.method).toBe('openActivity');
   });
@@ -139,7 +140,7 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const session = recordingSession();
     const env: any = { tool_name: 'mcp__filesystem__read', tool_input: {}, session_id: 'S4' };
-    const cfg: any = { skipTools: [], sessionDir: dir };
+    const cfg: any = { sessionDir: dir };
     await handlePreToolUse(env, session, cfg);
     expect(session.calls.length).toBeGreaterThan(0);
   });
@@ -156,7 +157,7 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
       },
       session_id: 'S4-db-mcp',
     };
-    const cfg: any = { skipTools: [], sessionDir: dir };
+    const cfg: any = { sessionDir: dir };
     await handlePreToolUse(env, session, cfg);
     expect(session.calls[0]?.args[0]).toBe('DatabaseQuery');
     const span = session.calls[0]?.args[1]?.spans?.[0] as Record<string, any>;
@@ -176,7 +177,7 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
       },
       session_id: 'S4-http',
     };
-    const cfg: any = { skipTools: [], sessionDir: dir };
+    const cfg: any = { sessionDir: dir };
     await handlePreToolUse(env, session, cfg);
     const span = session.calls[0]?.args[1]?.spans?.[0] as Record<string, any>;
     expect(span?.semantic_type).toBe('http_post');
@@ -188,7 +189,7 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const session = recordingSession({ arm: 'halt' });
     const env: any = { tool_name: 'Read', tool_input: { file_path: '/Users/me/x.ts' }, session_id: 'halt-session' };
-    const cfg: any = { skipTools: [], sessionDir: dir };
+    const cfg: any = { sessionDir: dir };
     const v = await handlePreToolUse(env, session, cfg);
     expect(v?.arm).toBe('halt');
   });
@@ -199,13 +200,13 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
     const session = recordingSession();
     const env: any = { tool_name: 'Read', tool_input: { file_path: '/Users/me/main.ts' }, tool_response: 'ok', session_id: 'S5' };
-    const cfg: any = { skipTools: [], sessionDir: dir };
+    const cfg: any = { sessionDir: dir };
     await handlePostToolUse(env, session, cfg);
     expect(session.calls[0]?.method).toBe('activity');
     expect(session.calls[0]?.args[2].output).toBe('ok');
   });
 
-  it('skips post-tool completion when the matching pre-tool surface was skipped', async () => {
+  it('old skip-tool config does not bypass post-tool completion', async () => {
     const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
     const session = recordingSession();
     const env: any = {
@@ -215,15 +216,16 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
       session_id: 'S5-skip',
     };
     const cfg: any = { skipTools: ['Read'], sessionDir: dir };
-    await expect(handlePostToolUse(env, session, cfg)).resolves.toBeUndefined();
-    expect(session.calls).toHaveLength(0);
+    await expect(handlePostToolUse(env, session, cfg)).resolves.toMatchObject({ arm: 'allow' });
+    expect(session.calls).toHaveLength(1);
+    expect(session.calls[0]?.method).toBe('activity');
   });
 
   it('routes unknown post-tool events through the generic agent action fallback', async () => {
     const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
     const session = recordingSession();
     const env: any = { tool_name: 'UnknownTool', tool_input: {}, tool_response: 'ok', session_id: 'S5b' };
-    const cfg: any = { skipTools: [], sessionDir: dir };
+    const cfg: any = { sessionDir: dir };
     await expect(handlePostToolUse(env, session, cfg)).resolves.toMatchObject({ arm: 'allow' });
     expect(session.calls).toHaveLength(1);
     expect(session.calls[0]?.args[1]).toBe('AgentAction');
@@ -242,7 +244,7 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     ] as const) {
       const session = recordingSession({ arm: toolName === 'Bash' ? 'halt' : 'allow' });
       const env: any = { tool_name: toolName, tool_input, tool_response: { ok: true }, session_id: `post-${toolName}` };
-      const cfg: any = { skipTools: [], sessionDir: dir };
+      const cfg: any = { sessionDir: dir };
       const verdict = await handlePostToolUse(env, session, cfg);
       expect(verdict?.arm).toBe(toolName === 'Bash' ? 'halt' : 'allow');
       expect(session.calls[0]?.method).toBe('activity');
@@ -261,7 +263,7 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
       tool_response: { ok: true },
       session_id: 'post-http',
     };
-    const cfg: any = { skipTools: [], sessionDir: dir };
+    const cfg: any = { sessionDir: dir };
     await handlePostToolUse(env, session, cfg);
     const span = session.calls[0]?.args[2]?.spans?.[0] as Record<string, any>;
     expect(span?.semantic_type).toBe('http_patch');
@@ -271,13 +273,13 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
 });
 
 describe('runtime/claude-code/mappers/permission-request', () => {
-  it('skip-tool short-circuits permission requests', async () => {
+  it('old skip-tool config does not bypass permission requests', async () => {
     const { handlePermissionRequest } = await import('../../ts/src/runtime/claude-code/mappers/permission-request');
     const session = recordingSession();
-    const env: any = { tool_name: 'SkipMe', tool_input: {}, session_id: 'P1' };
-    const cfg: any = { skipTools: ['SkipMe'], sessionDir: dir };
-    await expect(handlePermissionRequest(env, session, cfg)).resolves.toBeUndefined();
-    expect(session.calls).toHaveLength(0);
+    const env: any = { tool_name: 'TodoWrite', tool_input: { todos: [] }, session_id: 'P1' };
+    const cfg: any = { skipTools: ['TodoWrite'], sessionDir: dir };
+    await expect(handlePermissionRequest(env, session, cfg)).resolves.toMatchObject({ arm: 'allow' });
+    expect(session.calls).toHaveLength(1);
   });
 
   it('covers permission request route variants and halt marking', async () => {
@@ -295,7 +297,7 @@ describe('runtime/claude-code/mappers/permission-request', () => {
     ] as const) {
       const session = recordingSession({ arm: toolName === 'Bash' ? 'halt' : 'allow' });
       const env: any = { tool_name: toolName, tool_input, session_id: `perm-${toolName}` };
-      const cfg: any = { skipTools: [], sessionDir: dir };
+      const cfg: any = { sessionDir: dir };
       const verdict = await handlePermissionRequest(env, session, cfg);
       expect(verdict?.arm).toBe(toolName === 'Bash' ? 'halt' : 'allow');
       expect(session.calls[0]?.method).toBe('activity');
@@ -313,7 +315,7 @@ describe('runtime/claude-code/mappers/permission-request', () => {
       },
       session_id: 'perm-http',
     };
-    const cfg: any = { skipTools: [], sessionDir: dir };
+    const cfg: any = { sessionDir: dir };
     await handlePermissionRequest(env, session, cfg);
     const span = session.calls[0]?.args[2]?.spans?.[0] as Record<string, any>;
     expect(span?.semantic_type).toBe('http_delete');
@@ -332,9 +334,9 @@ describe('runtime/cursor/config', () => {
 });
 
 describe('runtime/cursor/side-effects', () => {
-  it('readFile honors skip patterns', async () => {
+  it('readFile redacts metadata paths', async () => {
     const { sideEffects } = await import('../../ts/src/runtime/cursor/side-effects');
-    expect(sideEffects.readFile!('/foo/.cursor/settings.json')).toBe('');
+    expect(sideEffects.readFile!('/foo/.cursor/settings.json')).toBe('[OpenBox redacted file content]');
     // Real read: missing path returns '' (no throw).
     expect(sideEffects.readFile!('/var/no/such/file/here')).toBe('');
   });
@@ -354,12 +356,11 @@ describe('runtime/cursor/side-effects', () => {
 });
 
 describe('runtime/cursor/mappers/pre-tool-use', () => {
-  it('short-circuits unknown tools, skipped paths, and in-workspace file touches', async () => {
+  it('short-circuits unknown tools and routine in-workspace file touches', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/cursor/mappers/pre-tool-use');
-    const cfg: any = { skipTools: [], sessionDir: dir, hitlMaxWait: 1 };
+    const cfg: any = { sessionDir: dir, hitlMaxWait: 1 };
     for (const env of [
       { tool_name: 'UnknownTool', tool_input: {}, conversation_id: 'C0', generation_id: 'G0' },
-      { tool_name: 'Read', tool_input: { file_path: '/tmp/.git/config' }, conversation_id: 'C1', generation_id: 'G1' },
       {
         tool_name: 'Read',
         tool_input: { file_path: join(dir, 'inside-read.txt') },
@@ -381,6 +382,26 @@ describe('runtime/cursor/mappers/pre-tool-use', () => {
     }
   });
 
+  it('governs metadata paths instead of treating them as routine workspace reads', async () => {
+    const { handlePreToolUse } = await import('../../ts/src/runtime/cursor/mappers/pre-tool-use');
+    const cfg: any = { sessionDir: dir, hitlMaxWait: 1 };
+    const session = recordingSession();
+    const verdict = await handlePreToolUse(
+      {
+        tool_name: 'Read',
+        tool_input: { file_path: join(dir, '.git', 'config') },
+        conversation_id: 'C-redacted',
+        generation_id: 'G-redacted',
+        workspace_roots: [dir],
+      } as any,
+      session,
+      cfg,
+    );
+    expect(verdict?.arm).toBe('allow');
+    expect(session.calls[0]?.method).toBe('activity');
+    expect(session.calls[0]?.args[2]?.input?.[0]?.content).toBe('[OpenBox redacted file content]');
+  });
+
   it('drives the @activityVariant override path without throwing', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/cursor/mappers/pre-tool-use');
     const session = recordingSession();
@@ -390,7 +411,7 @@ describe('runtime/cursor/mappers/pre-tool-use', () => {
       conversation_id: 'C1',
       generation_id: `G-${Date.now()}`,
     };
-    const cfg: any = { skipTools: [], sessionDir: dir, hitlMaxWait: 1 };
+    const cfg: any = { sessionDir: dir, hitlMaxWait: 1 };
     await handlePreToolUse(env, session, cfg);
     expect(session.calls[0]?.method).toBe('activity');
     expect(session.calls[0]?.args[1]).toBe('FileDelete');
@@ -398,7 +419,7 @@ describe('runtime/cursor/mappers/pre-tool-use', () => {
 
   it('routes write tools through activity and marks halt verdicts', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/cursor/mappers/pre-tool-use');
-    const cfg: any = { skipTools: [], sessionDir: dir, hitlMaxWait: 1 };
+    const cfg: any = { sessionDir: dir, hitlMaxWait: 1 };
     const session = recordingSession({ arm: 'halt' });
     const env: any = {
       tool_name: 'Write',
