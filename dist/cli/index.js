@@ -6375,6 +6375,36 @@ function hasLegacyClaudeCodeSettingsHooks(cwd = process.cwd()) {
   const settings = readJson2(path3.join(cwd, ".claude", "settings.json"));
   return JSON.stringify(settings ?? {}).includes("openbox claude-code hook");
 }
+function isLegacyOpenBoxMcpServer(value) {
+  if (!isRecord(value) || value.command !== "openbox") return false;
+  const args = Array.isArray(value.args) ? value.args : [];
+  return args[0] === "mcp" && args[1] === "serve";
+}
+function scrubLegacyOpenBoxProjectMcp(cwd) {
+  const mcpFile = path3.join(cwd, ".mcp.json");
+  const mcp = readJson2(mcpFile);
+  if (!mcp || !isRecord(mcp.mcpServers)) return;
+  if (!isLegacyOpenBoxMcpServer(mcp.mcpServers.openbox)) return;
+  const nextServers = { ...mcp.mcpServers };
+  delete nextServers.openbox;
+  const nextMcp = { ...mcp };
+  if (Object.keys(nextServers).length > 0) {
+    nextMcp.mcpServers = nextServers;
+  } else {
+    delete nextMcp.mcpServers;
+  }
+  if (Object.keys(nextMcp).length === 0) {
+    rmSync2(mcpFile, { force: true });
+    return;
+  }
+  writeJson2(mcpFile, nextMcp);
+}
+function hasLegacyOpenBoxProjectMcp(cwd = process.cwd()) {
+  const mcp = readJson2(path3.join(cwd, ".mcp.json"));
+  return isLegacyOpenBoxMcpServer(
+    isRecord(mcp?.mcpServers) ? mcp.mcpServers.openbox : void 0
+  );
+}
 function writeRuntimeConfigTemplate2(configDir) {
   mkdirSync5(configDir, { recursive: true });
   const file = path3.join(configDir, "config.json");
@@ -6696,6 +6726,7 @@ function installClaudeCodePlugin(options = {}) {
       writeRuntimeConfigTemplate2(claudeCodeRuntimeConfigDir(cwd));
     }
     scrubLegacyClaudeCodeSettingsHooks(cwd);
+    scrubLegacyOpenBoxProjectMcp(cwd);
     return target;
   }
   const out = exportClaudeCodePlugin({
@@ -6707,6 +6738,7 @@ function installClaudeCodePlugin(options = {}) {
     writeRuntimeConfigTemplate2(claudeCodeRuntimeConfigDir(cwd));
   }
   scrubLegacyClaudeCodeSettingsHooks(cwd);
+  scrubLegacyOpenBoxProjectMcp(cwd);
   return out;
 }
 function uninstallClaudeCodePlugin(options = {}) {
@@ -6714,6 +6746,7 @@ function uninstallClaudeCodePlugin(options = {}) {
   const target = assertProjectTarget2(options.target ?? claudeCodePluginTargetDir(cwd), cwd);
   rmSync2(target, { recursive: true, force: true });
   scrubLegacyClaudeCodeSettingsHooks(cwd);
+  scrubLegacyOpenBoxProjectMcp(cwd);
 }
 function checkFile2(name, file) {
   return {
@@ -6814,6 +6847,16 @@ function checkNoLegacySettingsHooks(cwd = process.cwd()) {
     detail: stale ? "remove stale `openbox claude-code hook` project settings entries" : "no legacy project settings hooks"
   };
 }
+function checkNoLegacyProjectMcp(cwd = process.cwd()) {
+  const file = path3.join(cwd, ".mcp.json");
+  const stale = hasLegacyOpenBoxProjectMcp(cwd);
+  return {
+    name: "project-mcp-legacy-openbox",
+    status: stale ? "fail" : "pass",
+    path: file,
+    detail: stale ? "remove stale project `.mcp.json` openbox command entry" : "no legacy project MCP openbox entry"
+  };
+}
 function verifyClaudeCodePlugin(options = {}) {
   const target = safeOutDir2(
     options.target ?? claudeCodePluginTargetDir(options.cwd)
@@ -6841,6 +6884,7 @@ function verifyClaudeCodePlugin(options = {}) {
   checks.push(checkComponentInventory(path3.join(target, "diagnostics", "component-inventory.json")));
   checks.push(checkDirFiles2("plugin-bin", path3.join(target, "bin"), EXPECTED_BIN_FILES));
   checks.push(checkNoLegacySettingsHooks(options.cwd));
+  checks.push(checkNoLegacyProjectMcp(options.cwd));
   return checks;
 }
 var __dirname2, EXPECTED_COMMAND_FILES2, EXPECTED_AGENT_FILES2, EXPECTED_DIAGNOSTIC_FILES, EXPECTED_BIN_FILES, EXPECTED_COMPONENT_NAMES, PLUGIN_CLI_RUNNER, PLUGIN_HOOK_HANDLER, PLUGIN_MCP_SERVER;

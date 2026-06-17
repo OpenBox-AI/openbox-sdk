@@ -2908,9 +2908,23 @@ function safeOutDir2(out) {
   }
   return resolved;
 }
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
 function hasLegacyClaudeCodeSettingsHooks(cwd = process.cwd()) {
   const settings = readJson2(path3.join(cwd, ".claude", "settings.json"));
   return JSON.stringify(settings ?? {}).includes("openbox claude-code hook");
+}
+function isLegacyOpenBoxMcpServer(value) {
+  if (!isRecord(value) || value.command !== "openbox") return false;
+  const args = Array.isArray(value.args) ? value.args : [];
+  return args[0] === "mcp" && args[1] === "serve";
+}
+function hasLegacyOpenBoxProjectMcp(cwd = process.cwd()) {
+  const mcp = readJson2(path3.join(cwd, ".mcp.json"));
+  return isLegacyOpenBoxMcpServer(
+    isRecord(mcp?.mcpServers) ? mcp.mcpServers.openbox : void 0
+  );
 }
 function claudeCodeRuntimeConfigDir(cwd = process.cwd()) {
   return path3.join(cwd, ".claude-hooks");
@@ -3022,6 +3036,16 @@ function checkNoLegacySettingsHooks(cwd = process.cwd()) {
     detail: stale ? "remove stale `openbox claude-code hook` project settings entries" : "no legacy project settings hooks"
   };
 }
+function checkNoLegacyProjectMcp(cwd = process.cwd()) {
+  const file = path3.join(cwd, ".mcp.json");
+  const stale = hasLegacyOpenBoxProjectMcp(cwd);
+  return {
+    name: "project-mcp-legacy-openbox",
+    status: stale ? "fail" : "pass",
+    path: file,
+    detail: stale ? "remove stale project `.mcp.json` openbox command entry" : "no legacy project MCP openbox entry"
+  };
+}
 function verifyClaudeCodePlugin(options = {}) {
   const target = safeOutDir2(
     options.target ?? claudeCodePluginTargetDir(options.cwd)
@@ -3049,6 +3073,7 @@ function verifyClaudeCodePlugin(options = {}) {
   checks.push(checkComponentInventory(path3.join(target, "diagnostics", "component-inventory.json")));
   checks.push(checkDirFiles2("plugin-bin", path3.join(target, "bin"), EXPECTED_BIN_FILES));
   checks.push(checkNoLegacySettingsHooks(options.cwd));
+  checks.push(checkNoLegacyProjectMcp(options.cwd));
   return checks;
 }
 

@@ -257,4 +257,61 @@ describe('claude-code plugin install / uninstall', () => {
     expect(install.status, `install failed: ${install.stderr}`).toBe(0);
     expect(existsSync(settingsPath)).toBe(false);
   });
+
+  it('install removes stale project MCP entry that invokes a global openbox binary', () => {
+    const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-stale-mcp-'));
+    const mcpPath = path.join(project, '.mcp.json');
+    writeFileSync(
+      mcpPath,
+      JSON.stringify(
+        {
+          mcpServers: {
+            openbox: { command: 'openbox', args: ['mcp', 'serve'] },
+            keep: { command: 'node', args: ['keep.mjs'] },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const install = runCli(
+      ['claude-code', 'plugin', 'install', '--scope', 'project', '--cwd', project],
+      project,
+    );
+    expect(install.status, `install failed: ${install.stderr}`).toBe(0);
+
+    const mcp = JSON.parse(readFileSync(mcpPath, 'utf-8')) as {
+      mcpServers?: Record<string, { command?: string; args?: string[] }>;
+    };
+    expect(mcp.mcpServers?.openbox).toBeUndefined();
+    expect(mcp.mcpServers?.keep).toEqual({
+      command: 'node',
+      args: ['keep.mjs'],
+    });
+  });
+
+  it('install deletes a project MCP file that only contained the stale OpenBox entry', () => {
+    const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-stale-mcp-only-'));
+    const mcpPath = path.join(project, '.mcp.json');
+    writeFileSync(
+      mcpPath,
+      JSON.stringify(
+        {
+          mcpServers: {
+            openbox: { command: 'openbox', args: ['mcp', 'serve'] },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const install = runCli(
+      ['claude-code', 'plugin', 'install', '--scope', 'project', '--cwd', project],
+      project,
+    );
+    expect(install.status, `install failed: ${install.stderr}`).toBe(0);
+    expect(existsSync(mcpPath)).toBe(false);
+  });
 });
