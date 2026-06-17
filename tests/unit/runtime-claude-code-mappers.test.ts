@@ -225,6 +225,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     const stop = session.calls.find(
       (c: any) => c.method === 'activity' && c.args[1] === 'ClaudeCodeSession',
     );
+    expect(stop?.args[0]).toBe('ActivityCompleted');
     const span = stop?.args[2]?.spans?.[0];
     expect(span).toMatchObject({
       name: 'openbox.claude-code.assistant_output',
@@ -257,6 +258,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     const stop = session.calls.find(
       (c: any) => c.method === 'activity' && c.args[1] === 'ClaudeCodeSession',
     );
+    expect(stop?.args[0]).toBe('ActivityCompleted');
     const span = stop?.args[2]?.spans?.[0];
     expect(span).toMatchObject({
       module: 'claude-code',

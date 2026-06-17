@@ -9017,7 +9017,7 @@ async function handleSessionStart(env, session, _cfg) {
 async function handleStop(env, session, cfg) {
   let verdict;
   try {
-    verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
+    verdict = await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
       input: [stampSource(buildStopPayload(env), "claude-code")],
       spans: buildClaudeAssistantOutputSpan(env, {
         event: "Stop",

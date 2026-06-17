@@ -90,8 +90,8 @@ export async function handleSessionStart(
 }
 
 /**
- * Stop is decision-capable: we fire an observe activity and forward
- * any non-allow verdict back as `decision-block` (block/halt → keep
+ * Stop is decision-capable: we fire the final assistant-output activity and
+ * forward any non-allow verdict back as `decision-block` (block/halt → keep
  * Claude going with a reason).
  */
 export async function handleStop(
@@ -101,7 +101,7 @@ export async function handleStop(
 ): Promise<WorkflowVerdict | undefined> {
   let verdict: WorkflowVerdict;
   try {
-    verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
+    verdict = await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
       input: [stampSource(buildStopPayload(env), 'claude-code')],
       spans: buildClaudeAssistantOutputSpan(env, {
         event: 'Stop',
