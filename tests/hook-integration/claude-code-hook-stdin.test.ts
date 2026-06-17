@@ -398,6 +398,40 @@ describe('claude-code hook stdin/stdout', () => {
     }
   });
 
+  it('missing OPENBOX_API_KEY fail-closed does not re-block an active Stop retry', () => {
+    const root = planConfigDir({ omitApiKey: true, governancePolicy: 'fail_closed' });
+    const r = callHook(
+      {
+        hook_event_name: 'Stop',
+        session_id: 's-stop-active-retry',
+        stop_hook_active: true,
+      },
+      root,
+      { OPENBOX_API_KEY: '' },
+    );
+    expect(r.status, `Stop active retry failed: ${r.stderr}`).toBe(0);
+    const out = (r.parsed ?? {}) as Record<string, unknown>;
+    expect(out.decision).toBeUndefined();
+  });
+
+  it('unreachable core fail-closed does not re-block an active Stop retry', () => {
+    const root = planConfigDir({ coreUrl: 'http://127.0.0.1:1', governancePolicy: 'fail_closed' });
+    const r = callHook(
+      {
+        hook_event_name: 'Stop',
+        session_id: 's-stop-active-core',
+        stop_hook_active: true,
+        background_tasks: [],
+        session_crons: [],
+      },
+      root,
+      { OPENBOX_CORE_URL: 'http://127.0.0.1:1', GOVERNANCE_TIMEOUT: '1' },
+    );
+    expect(r.status, `Stop active retry failed: ${r.stderr}`).toBe(0);
+    const out = (r.parsed ?? {}) as Record<string, unknown>;
+    expect(out.decision).toBeUndefined();
+  });
+
   it('JSONL hook log captures one record per event', () => {
     const root = planConfigDir({ dryRun: true });
     const logPath = path.join(root, '.claude-hooks', 'log', 'claude-code-hook.jsonl');

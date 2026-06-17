@@ -29,6 +29,25 @@ function hasPendingClaudeWork(env: ClaudeCodeEnvelope): boolean {
   );
 }
 
+function isStopHookRetry(env: ClaudeCodeEnvelope): boolean {
+  return (env as unknown as { stop_hook_active?: unknown }).stop_hook_active === true;
+}
+
+function failClosedStopVerdict(
+  env: ClaudeCodeEnvelope,
+  cfg: ClaudeCodeConfig,
+  reason: string,
+): WorkflowVerdict | undefined {
+  if (cfg.governancePolicy !== 'fail_closed' || isStopHookRetry(env)) {
+    return undefined;
+  }
+  return {
+    arm: 'block',
+    reason,
+    riskScore: 1,
+  };
+}
+
 /**
  * SessionStart: opens the workflow envelope + records the session boundary.
  *
@@ -68,14 +87,11 @@ export async function handleStop(
       }),
     });
   } catch {
-    if (cfg.governancePolicy === 'fail_closed') {
-      return {
-        arm: 'block',
-        reason: 'OpenBox Core was unavailable while governing Claude Code stop',
-        riskScore: 1,
-      };
-    }
-    return undefined;
+    return failClosedStopVerdict(
+      env,
+      cfg,
+      'OpenBox Core was unavailable while governing Claude Code stop',
+    );
   }
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   if (
@@ -84,16 +100,15 @@ export async function handleStop(
   ) {
     try {
       await session.workflowCompleted();
-      clearSession(env.session_id, cfg);
     } catch {
-      if (cfg.governancePolicy === 'fail_closed') {
-        return {
-          arm: 'block',
-          reason: 'OpenBox Core was unavailable while completing Claude Code workflow',
-          riskScore: 1,
-        };
-      }
+      const failClosed = failClosedStopVerdict(
+        env,
+        cfg,
+        'OpenBox Core was unavailable while completing Claude Code workflow',
+      );
+      if (failClosed) return failClosed;
     }
+    clearSession(env.session_id, cfg);
   }
   return verdict;
 }

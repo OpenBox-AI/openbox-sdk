@@ -363,6 +363,19 @@ describe('low-branch utility coverage', () => {
       reason: 'OpenBox Core was unavailable while completing Claude Code workflow',
     });
 
+    await expect(
+      handleStop(
+        {
+          session_id: 'stop-active-retry',
+          stop_hook_active: true,
+          background_tasks: [],
+          session_crons: [],
+        } as any,
+        failingCompletion as any,
+        cfg,
+      ),
+    ).resolves.toMatchObject({ arm: 'allow' });
+
     const cronSession = recordingSession({ arm: 'allow' });
     await expect(
       handleStop(

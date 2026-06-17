@@ -3697,6 +3697,19 @@ function buildClaudeAssistantOutputSpan(env, options) {
 function hasPendingClaudeWork(env) {
   return Array.isArray(env.background_tasks) && env.background_tasks.length > 0 || Array.isArray(env.session_crons) && env.session_crons.length > 0;
 }
+function isStopHookRetry(env) {
+  return env.stop_hook_active === true;
+}
+function failClosedStopVerdict(env, cfg, reason) {
+  if (cfg.governancePolicy !== "fail_closed" || isStopHookRetry(env)) {
+    return void 0;
+  }
+  return {
+    arm: "block",
+    reason,
+    riskScore: 1
+  };
+}
 async function handleSessionStart(env, session, _cfg) {
   await session.workflowStarted();
   await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
@@ -3715,29 +3728,25 @@ async function handleStop(env, session, cfg) {
       })
     });
   } catch {
-    if (cfg.governancePolicy === "fail_closed") {
-      return {
-        arm: "block",
-        reason: "OpenBox Core was unavailable while governing Claude Code stop",
-        riskScore: 1
-      };
-    }
-    return void 0;
+    return failClosedStopVerdict(
+      env,
+      cfg,
+      "OpenBox Core was unavailable while governing Claude Code stop"
+    );
   }
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   if ((verdict.arm === "allow" || verdict.arm === "constrain") && !hasPendingClaudeWork(env)) {
     try {
       await session.workflowCompleted();
-      clearSession(env.session_id, cfg);
     } catch {
-      if (cfg.governancePolicy === "fail_closed") {
-        return {
-          arm: "block",
-          reason: "OpenBox Core was unavailable while completing Claude Code workflow",
-          riskScore: 1
-        };
-      }
+      const failClosed = failClosedStopVerdict(
+        env,
+        cfg,
+        "OpenBox Core was unavailable while completing Claude Code workflow"
+      );
+      if (failClosed) return failClosed;
     }
+    clearSession(env.session_id, cfg);
   }
   return verdict;
 }
@@ -4199,6 +4208,9 @@ function isDecisionCapable(eventName) {
   const surface = decisionSurface(eventName);
   return surface !== "none" && surface !== "worktree-path";
 }
+function isActiveStopRetry(env) {
+  return env?.hook_event_name === "Stop" && env.stop_hook_active === true;
+}
 function reasonFromError(prefix, err) {
   const detail = err instanceof Error ? err.message : String(err ?? "");
   return detail ? `${prefix}: ${detail}` : prefix;
@@ -4211,7 +4223,7 @@ function guarded(cfg, event, verdictKind, fn) {
       const decisionCapable = isDecisionCapable(env.hook_event_name);
       const reason = reasonFromError("OpenBox governance failed while processing Claude Code hook", err);
       if (cfg.verbose) console.error(`[openbox claude-code] ${reason}`);
-      if (decisionCapable && cfg.governancePolicy === "fail_closed") {
+      if (decisionCapable && cfg.governancePolicy === "fail_closed" && !isActiveStopRetry(env)) {
         return failClosedVerdict(reason);
       }
       return void 0;
@@ -4277,6 +4289,7 @@ function renderFailClosedHookOutput(env, reason) {
 }
 function writeFailClosedIfPossible(env, reason) {
   if (!env || !isDecisionCapable(env.hook_event_name)) return;
+  if (isActiveStopRetry(env)) return;
   const output = renderFailClosedHookOutput(env, reason);
   if (output !== void 0) process.stdout.write(JSON.stringify(output));
 }

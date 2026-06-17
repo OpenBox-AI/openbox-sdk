@@ -113,6 +113,13 @@ function isDecisionCapable(eventName: string | undefined): boolean {
   return surface !== 'none' && surface !== 'worktree-path';
 }
 
+function isActiveStopRetry(env: ClaudeCodeEnvelope | undefined): boolean {
+  return (
+    env?.hook_event_name === 'Stop' &&
+    (env as unknown as { stop_hook_active?: unknown }).stop_hook_active === true
+  );
+}
+
 function reasonFromError(prefix: string, err?: unknown): string {
   const detail = err instanceof Error ? err.message : String(err ?? '');
   return detail ? `${prefix}: ${detail}` : prefix;
@@ -131,7 +138,11 @@ function guarded(
       const decisionCapable = isDecisionCapable(env.hook_event_name);
       const reason = reasonFromError('OpenBox governance failed while processing Claude Code hook', err);
       if (cfg.verbose) console.error(`[openbox claude-code] ${reason}`);
-      if (decisionCapable && cfg.governancePolicy === 'fail_closed') {
+      if (
+        decisionCapable &&
+        cfg.governancePolicy === 'fail_closed' &&
+        !isActiveStopRetry(env)
+      ) {
         return failClosedVerdict(reason);
       }
       return undefined;
@@ -199,6 +210,7 @@ function renderFailClosedHookOutput(env: ClaudeCodeEnvelope, reason: string): un
 
 function writeFailClosedIfPossible(env: ClaudeCodeEnvelope | undefined, reason: string): void {
   if (!env || !isDecisionCapable(env.hook_event_name)) return;
+  if (isActiveStopRetry(env)) return;
   const output = renderFailClosedHookOutput(env, reason);
   if (output !== undefined) process.stdout.write(JSON.stringify(output));
 }
