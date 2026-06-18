@@ -76,8 +76,17 @@ export interface CursorEnvelope {
   tool_name?: string;
   tool_input?: unknown;
   tool_output?: unknown;
+  tool_use_id?: string;
+  duration_ms?: number;
+  model?: string;
+  agent_message?: string;
   thought?: string;
   response?: string;
+  output?: string;
+  sandbox?: boolean;
+  error_message?: string;
+  failure_type?: string;
+  is_interrupt?: boolean;
   content?: string;
   result_json?: string;
   workspace_roots?: string[];

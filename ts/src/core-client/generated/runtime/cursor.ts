@@ -304,6 +304,9 @@ export function buildAfterShellExecutionPayload(env: CursorEnvelope): Record<str
 
   return {
       "command": getPath(env, "command"),
+      "output": getPath(env, "output"),
+      "duration_ms": getPath(env, "duration"),
+      "sandbox": getPath(env, "sandbox"),
       "generation_id": getPath(env, "generation_id"),
       "event_category": "agent_observation",
     };
@@ -325,6 +328,37 @@ export function buildAfterMCPExecutionPayload(env: CursorEnvelope, sideEffects: 
       "tool_name": getPath(env, "tool_name"),
       "tool_output": (sideEffects.extractMcpText?.(getPath(env, "result_json")) ?? ''),
       "generation_id": getPath(env, "generation_id"),
+      "event_category": "agent_observation",
+    };
+}
+
+export function buildPostToolUsePayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "tool_output": getPath(env, "tool_output"),
+      "tool_use_id": getPath(env, "tool_use_id"),
+      "cwd": getPath(env, "cwd"),
+      "duration_ms": getPath(env, "duration"),
+      "model": getPath(env, "model"),
+      "event_category": "agent_observation",
+    };
+}
+
+export function buildPostToolUseFailurePayload(env: CursorEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "tool_name": getPath(env, "tool_name"),
+      "tool_input": getPath(env, "tool_input"),
+      "tool_use_id": getPath(env, "tool_use_id"),
+      "cwd": getPath(env, "cwd"),
+      "error_message": getPath(env, "error_message"),
+      "failure_type": getPath(env, "failure_type"),
+      "duration_ms": getPath(env, "duration"),
+      "is_interrupt": getPath(env, "is_interrupt"),
       "event_category": "agent_observation",
     };
 }

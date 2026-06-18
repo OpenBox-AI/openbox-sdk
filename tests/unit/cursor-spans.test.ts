@@ -21,6 +21,10 @@ import {
   handleAfterShellExecution,
   handleAfterFileEdit,
 } from '../../ts/src/runtime/cursor/mappers/observe.js';
+import {
+  handlePostToolUse,
+  handlePostToolUseFailure,
+} from '../../ts/src/runtime/cursor/mappers/tool-completion.js';
 
 interface ActivityCall {
   eventType: string;
@@ -30,7 +34,11 @@ interface ActivityCall {
 
 function makeCapturingSession(captured: ActivityCall[]) {
   return {
-    activity: async (eventType: string, activityType: string, payload: { input: unknown[]; spans?: unknown[] }) => {
+    activity: async (eventType: string, activityType: string, payload: { input?: unknown[]; spans?: unknown[] }) => {
+      captured.push({ eventType, activityType, payload });
+      return { arm: 'allow' as const };
+    },
+    observeActivity: async (eventType: string, activityType: string, payload: { input?: unknown[]; spans?: unknown[] }) => {
       captured.push({ eventType, activityType, payload });
       return { arm: 'allow' as const };
     },
@@ -204,6 +212,86 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     expect(
       JSON.parse(String((span as any).response_body)).choices[0].message.content,
     ).toBe('Cursor answer.');
+  });
+
+  test('postToolUse emits completed tool telemetry when Cursor supplies payload', async () => {
+    const captured: ActivityCall[] = [];
+    await handlePostToolUse(
+      {
+        hook_event_name: 'postToolUse',
+        conversation_id: 'c',
+        tool_name: 'Shell',
+        tool_use_id: 'tool-1',
+        tool_input: { command: 'npm test', cwd: '/repo' },
+        tool_output: '{"exitCode":0,"stdout":"ok"}',
+        cwd: '/repo',
+        model: 'claude-sonnet-4-20250514',
+        duration: 123,
+      } as never,
+      makeCapturingSession(captured) as never,
+      cfg,
+    );
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: 'ShellExecution',
+      payload: {
+        activityId: 'tool-1',
+        durationMs: 123,
+        sessionId: 'c',
+        llmModel: 'claude-sonnet-4-20250514',
+        toolName: 'Shell',
+        toolType: 'shell',
+      },
+    });
+    const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
+    expect(span.semantic_type).toBe('internal');
+    expect(span.attributes?.['shell.command']).toBe('npm test');
+    expect(span.attributes?.['openbox.tool.name']).toBe('Shell');
+    expect(captured[0]?.payload.output).toMatchObject({
+      tool_output: '{"exitCode":0,"stdout":"ok"}',
+      duration_ms: 123,
+      model: 'claude-sonnet-4-20250514',
+      _openbox_source: 'cursor',
+    });
+  });
+
+  test('postToolUseFailure emits failure telemetry when Cursor supplies payload', async () => {
+    const captured: ActivityCall[] = [];
+    await handlePostToolUseFailure(
+      {
+        hook_event_name: 'postToolUseFailure',
+        conversation_id: 'c',
+        tool_name: 'Read',
+        tool_use_id: 'tool-2',
+        tool_input: { file_path: '/secret.txt' },
+        error_message: 'permission denied',
+        failure_type: 'permission_denied',
+        duration: 50,
+      } as never,
+      makeCapturingSession(captured) as never,
+      cfg,
+    );
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: 'FileRead',
+      payload: {
+        activityId: 'tool-2',
+        durationMs: 50,
+        finishReason: 'permission_denied',
+        toolName: 'Read',
+        toolType: 'file_read',
+      },
+    });
+    const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
+    expect(span.semantic_type).toBe('file_read');
+    expect(span.attributes?.['file.path']).toBe('/secret.txt');
+    expect(captured[0]?.payload.output).toMatchObject({
+      error_message: 'permission denied',
+      failure_type: 'permission_denied',
+      _openbox_source: 'cursor',
+    });
   });
 
   test('non-response after* events remain observe-only without backend spans', async () => {

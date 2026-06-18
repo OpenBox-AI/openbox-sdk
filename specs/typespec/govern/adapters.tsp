@@ -776,8 +776,17 @@ model CursorEnvelope {
   tool_name?: string;
   tool_input?: unknown;
   tool_output?: unknown;
+  tool_use_id?: string;
+  duration_ms?: numeric;
+  `model`?: string;
+  agent_message?: string;
   thought?: string;
   response?: string;
+  output?: string;
+  sandbox?: boolean;
+  error_message?: string;
+  failure_type?: string;
+  is_interrupt?: boolean;
   /** beforeReadFile: Cursor inlines the file body in the envelope. */
   content?: string;
   /** afterMCPExecution legacy harness wire field; sometimes JSON-string-encoded. */
@@ -961,6 +970,9 @@ interface CursorAdapter {
   @payloadShape(#{
     default: #{
       command: #{ from: "command" },
+      output: #{ from: "output" },
+      duration_ms: #{ from: "duration" },
+      sandbox: #{ from: "sandbox" },
       generation_id: #{ from: "generation_id" },
       event_category: #{ literal: "agent_observation" },
     },
@@ -997,13 +1009,36 @@ interface CursorAdapter {
   @hookEvent("postToolUse")
   @hookEventLabel("Tool completion")
   @verdictShape("cursor-observe")
-  @noPayload
+  @payloadShape(#{
+    default: #{
+      tool_name: #{ from: "tool_name" },
+      tool_input: #{ from: "tool_input" },
+      tool_output: #{ from: "tool_output" },
+      tool_use_id: #{ from: "tool_use_id" },
+      cwd: #{ from: "cwd" },
+      duration_ms: #{ from: "duration" },
+      `model`: #{ from: "model" },
+      event_category: #{ literal: "agent_observation" },
+    },
+  })
   postToolUse(input: CursorEnvelope): unknown;
 
   @hookEvent("postToolUseFailure")
   @hookEventLabel("Tool failure")
   @verdictShape("cursor-observe")
-  @noPayload
+  @payloadShape(#{
+    default: #{
+      tool_name: #{ from: "tool_name" },
+      tool_input: #{ from: "tool_input" },
+      tool_use_id: #{ from: "tool_use_id" },
+      cwd: #{ from: "cwd" },
+      error_message: #{ from: "error_message" },
+      failure_type: #{ from: "failure_type" },
+      duration_ms: #{ from: "duration" },
+      is_interrupt: #{ from: "is_interrupt" },
+      event_category: #{ literal: "agent_observation" },
+    },
+  })
   postToolUseFailure(input: CursorEnvelope): unknown;
 
   @hookEvent("sessionStart")

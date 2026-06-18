@@ -6,6 +6,10 @@ import { createCursorAdapter } from '../../ts/src/core-client/generated/runtime/
 import { handleBeforeSubmitPrompt } from '../../ts/src/runtime/cursor/mappers/prompt.js';
 import { handleBeforeShellExecution } from '../../ts/src/runtime/cursor/mappers/shell.js';
 import { handleAfterAgentResponse } from '../../ts/src/runtime/cursor/mappers/observe.js';
+import {
+  handlePostToolUse,
+  handlePostToolUseFailure,
+} from '../../ts/src/runtime/cursor/mappers/tool-completion.js';
 
 interface Captured {
   stdout: string[];
@@ -235,6 +239,88 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     });
   });
 
+  test('postToolUse with documented payload → empty object + completed tool telemetry', async () => {
+    const cap = capture();
+    const captured: ActivityCall[] = [];
+    await createCursorAdapter({
+      core: {} as never,
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        postToolUse: (env) =>
+          handlePostToolUse(env, makeCapturingSession(captured) as never, cfg),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({
+          hook_event_name: 'postToolUse',
+          conversation_id: 'c',
+          tool_name: 'Shell',
+          tool_input: { command: 'npm test' },
+          tool_output: '{"exitCode":0,"stdout":"ok"}',
+          tool_use_id: 'tool-1',
+          cwd: '/repo',
+          duration: 42,
+          model: 'claude-sonnet-4-20250514',
+        }),
+      ),
+    }).run();
+
+    expect(JSON.parse(cap.stdout[0])).toEqual({});
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: 'ShellExecution',
+      payload: {
+        activityId: 'tool-1',
+        durationMs: 42,
+        sessionId: 'c',
+        llmModel: 'claude-sonnet-4-20250514',
+        toolName: 'Shell',
+        toolType: 'shell',
+      },
+    });
+  });
+
+  test('postToolUseFailure with documented payload → empty object + failure telemetry', async () => {
+    const cap = capture();
+    const captured: ActivityCall[] = [];
+    await createCursorAdapter({
+      core: {} as never,
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        postToolUseFailure: (env) =>
+          handlePostToolUseFailure(env, makeCapturingSession(captured) as never, cfg),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({
+          hook_event_name: 'postToolUseFailure',
+          conversation_id: 'c',
+          tool_name: 'Shell',
+          tool_input: { command: 'npm test' },
+          tool_use_id: 'tool-2',
+          cwd: '/repo',
+          error_message: 'Command timed out after 30s',
+          failure_type: 'timeout',
+          duration: 5000,
+          is_interrupt: false,
+        }),
+      ),
+    }).run();
+
+    expect(JSON.parse(cap.stdout[0])).toEqual({});
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: 'ShellExecution',
+      payload: {
+        activityId: 'tool-2',
+        durationMs: 5000,
+        finishReason: 'timeout',
+        toolName: 'Shell',
+        toolType: 'shell',
+      },
+    });
+  });
+
   test('real CursorSession sends spans as parent-plus-hook payloads', async () => {
     const promptCap = capture();
     const promptPayloads: CorePayload[] = [];
@@ -373,6 +459,69 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
       attributes: {
         'gen_ai.system': 'cursor',
         'gen_ai.response.model': 'cursor-test-model',
+      },
+    });
+  });
+
+  test('real CursorSession sends postToolUse spans as parent-plus-hook payloads', async () => {
+    const cap = capture();
+    const payloads: CorePayload[] = [];
+    await createCursorAdapter({
+      core: makeAllowingCore(payloads) as never,
+      resolveSession: async () => ({
+        workflowId: 'wf-cursor-tool-contract',
+        runId: 'run-cursor-tool-contract',
+      }),
+      handlers: {
+        postToolUse: (env, session) => handlePostToolUse(env, session, cfg),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({
+          hook_event_name: 'postToolUse',
+          conversation_id: 'c',
+          tool_name: 'Shell',
+          tool_input: { command: 'npm test' },
+          tool_output: '{"exitCode":0,"stdout":"ok"}',
+          tool_use_id: 'tool-contract-1',
+          cwd: '/repo',
+          duration: 42,
+          model: 'claude-sonnet-4-20250514',
+        }),
+      ),
+    }).run();
+
+    expect(JSON.parse(cap.stdout[0])).toEqual({});
+    expect(payloads).toHaveLength(2);
+    const [parent, hook] = payloads;
+    expect(parent).toMatchObject({
+      workflow_id: 'wf-cursor-tool-contract',
+      run_id: 'run-cursor-tool-contract',
+      event_type: 'ActivityCompleted',
+      activity_type: 'ShellExecution',
+      activity_id: 'tool-contract-1',
+      session_id: 'c',
+      llm_model: 'claude-sonnet-4-20250514',
+      tool_name: 'Shell',
+      tool_type: 'shell',
+      duration_ms: 42,
+    });
+    expect(parent.spans).toBeUndefined();
+    expect(parent.hook_trigger).toBeUndefined();
+    expect(hook).toMatchObject({
+      workflow_id: parent.workflow_id,
+      run_id: parent.run_id,
+      event_type: parent.event_type,
+      activity_type: parent.activity_type,
+      activity_id: parent.activity_id,
+      hook_trigger: true,
+      span_count: 1,
+    });
+    expect(hook.spans?.[0]).toMatchObject({
+      semantic_type: 'internal',
+      attributes: {
+        'shell.command': 'npm test',
+        'openbox.tool.name': 'Shell',
       },
     });
   });
