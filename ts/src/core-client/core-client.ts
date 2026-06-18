@@ -215,6 +215,7 @@ export class OpenBoxCoreClient {
       Authorization: `Bearer ${this.config.apiKey}`,
       'User-Agent': `OpenBox-SDK/${OPENBOX_SDK_VERSION}`,
       'X-OpenBox-SDK-Version': OPENBOX_SDK_VERSION,
+      'x-openbox-internal': 'true',
     };
     const body = options?.data !== undefined ? JSON.stringify(options.data) : undefined;
     const signedHeaders = this.config.agentIdentity

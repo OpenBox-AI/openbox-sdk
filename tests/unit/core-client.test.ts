@@ -173,6 +173,15 @@ describe('OpenBoxCoreClient', () => {
       ).toMatch(/^\d+\.\d+\.\d+/);
     });
 
+    it('marks Core calls as internal so governed fetch layers skip recursion', async () => {
+      const client = createClient({ apiKey: 'obx_live_mykey' });
+      fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
+      await client.validateApiKey();
+      expect(fetchMock.mock.calls[0][1].headers['x-openbox-internal']).toBe(
+        'true',
+      );
+    });
+
     it('sets the User-Agent header for Core calls', async () => {
       const client = createClient({ apiKey: 'obx_live_mykey' });
       fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
