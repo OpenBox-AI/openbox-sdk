@@ -1,4 +1,5 @@
 import {
+  createHash,
   generateKeyPairSync,
   verify,
 } from 'node:crypto';
@@ -254,6 +255,26 @@ describe('OpenBoxCoreClient', () => {
           privateKey: identity.privateKey.replace(/=+$/, ''),
         }),
       ).toThrow(/canonical base64 raw 32-byte Ed25519 key/);
+    });
+  });
+
+  describe('requestOperation', () => {
+    it('signs the exact transmitted JSON body for falsy payload values', async () => {
+      const { identity } = makeAgentIdentity();
+      const client = createClient({ agentIdentity: identity });
+      fetchMock.mockResolvedValueOnce(mockResponse(200, { ok: true }));
+
+      await client.requestOperation('POST', '/api/v1/custom-operation', {
+        data: false,
+      });
+
+      const request = fetchMock.mock.calls[0][1] as RequestInit & {
+        headers: Record<string, string>;
+      };
+      expect(request.body).toBe('false');
+      expect(request.headers['X-OpenBox-Body-SHA256']).toBe(
+        createHash('sha256').update('false').digest('hex'),
+      );
     });
   });
 
