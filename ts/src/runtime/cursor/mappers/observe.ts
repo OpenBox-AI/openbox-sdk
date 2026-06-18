@@ -6,7 +6,9 @@ import type {
 import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
 import {
   AFTER_AGENT_RESPONSE_ACTIVITY_TYPE,
+  AFTER_SHELL_EXECUTION_ACTIVITY_TYPE,
   buildAfterAgentResponsePayload,
+  buildAfterShellExecutionPayload,
 } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { clearSession } from '../session-resolver.js';
@@ -15,7 +17,12 @@ import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
 } from '../../../governance/assistant-output.js';
+import {
+  buildSpan,
+  withOpenBoxActivityMetadata,
+} from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
+import { claimCompletionTelemetry } from '../dedup.js';
 
 type ObserveCapableCursorSession = CursorSession & {
   observeActivity?: (
@@ -212,6 +219,11 @@ function cursorModel(env: CursorEnvelope): string | undefined {
   );
 }
 
+function cursorDurationMs(env: CursorEnvelope): number | undefined {
+  const source = env as CursorEnvelope & { duration?: unknown };
+  return numberFrom(source.duration_ms ?? source.duration);
+}
+
 async function observeActivity(
   session: CursorSession,
   eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived',
@@ -279,12 +291,50 @@ export function handleAfterAgentThought(
   return Promise.resolve(undefined);
 }
 
-export function handleAfterShellExecution(
-  _env: CursorEnvelope,
-  _session: CursorSession,
+export async function handleAfterShellExecution(
+  env: CursorEnvelope,
+  session: CursorSession,
   _cfg: CursorConfig,
 ): Promise<undefined> {
-  return Promise.resolve(undefined);
+  const source = env as CursorEnvelope & { output?: unknown; sandbox?: unknown };
+  const command = firstString(env.command);
+  const output = source.output;
+  const durationMs = cursorDurationMs(env);
+  if (!command || (output === undefined && durationMs === undefined)) {
+    return undefined;
+  }
+  if (
+    !claimCompletionTelemetry({
+      generation_id: env.generation_id,
+      conversation_id: env.conversation_id,
+      kind: 'shell',
+      arg: command,
+    })
+  ) {
+    return undefined;
+  }
+
+  const payload = buildAfterShellExecutionPayload(env);
+  await observeActivity(session, EVENT.COMPLETE, AFTER_SHELL_EXECUTION_ACTIVITY_TYPE, {
+    durationMs,
+    input: withOpenBoxActivityMetadata(
+      [stampSource({ command, cwd: env.cwd, event_category: 'agent_action' }, 'cursor')],
+      { toolType: 'shell' },
+    ),
+    output: stampSource(payload, 'cursor'),
+    sessionId: env.conversation_id,
+    toolName: 'Shell',
+    toolType: 'shell',
+    spans: [
+      buildSpan('cursor', 'shell', {
+        command,
+        cwd: env.cwd,
+        tool_name: 'Shell',
+        tool_output: output,
+      }),
+    ],
+  });
+  return undefined;
 }
 
 export function handleAfterFileEdit(

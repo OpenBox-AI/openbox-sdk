@@ -79,6 +79,17 @@ export function buildActionKey(parts: {
   return hashKey(`${ns}:${parts.kind}:${parts.arg}`);
 }
 
+export function claimCompletionTelemetry(parts: {
+  generation_id?: string;
+  conversation_id?: string;
+  kind: 'shell' | 'read' | 'write' | 'mcp';
+  arg?: string;
+}): boolean {
+  const arg = parts.arg?.trim();
+  if (!arg) return true;
+  return claimAction(buildActionKey({ ...parts, arg: `completion:${arg}` })).won;
+}
+
 export interface ActionClaim {
   /** True if this caller won the claim and should run the gate. */
   won: boolean;

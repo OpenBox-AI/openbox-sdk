@@ -5,7 +5,10 @@ import { describe, expect, test } from 'vitest';
 import { createCursorAdapter } from '../../ts/src/core-client/generated/runtime/cursor.js';
 import { handleBeforeSubmitPrompt } from '../../ts/src/runtime/cursor/mappers/prompt.js';
 import { handleBeforeShellExecution } from '../../ts/src/runtime/cursor/mappers/shell.js';
-import { handleAfterAgentResponse } from '../../ts/src/runtime/cursor/mappers/observe.js';
+import {
+  handleAfterAgentResponse,
+  handleAfterShellExecution,
+} from '../../ts/src/runtime/cursor/mappers/observe.js';
 import {
   handlePostToolUse,
   handlePostToolUseFailure,
@@ -242,6 +245,8 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
   test('postToolUse with documented payload → empty object + completed tool telemetry', async () => {
     const cap = capture();
     const captured: ActivityCall[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    const command = `npm test --cursor-contract-post-${suffix}`;
     await createCursorAdapter({
       core: {} as never,
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
@@ -254,8 +259,9 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
         JSON.stringify({
           hook_event_name: 'postToolUse',
           conversation_id: 'c',
+          generation_id: `contract-post-tool-${suffix}`,
           tool_name: 'Shell',
-          tool_input: { command: 'npm test' },
+          tool_input: { command },
           tool_output: '{"exitCode":0,"stdout":"ok"}',
           tool_use_id: 'tool-1',
           cwd: '/repo',
@@ -283,6 +289,8 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
   test('postToolUseFailure with documented payload → empty object + failure telemetry', async () => {
     const cap = capture();
     const captured: ActivityCall[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    const command = `npm test --cursor-contract-failure-${suffix}`;
     await createCursorAdapter({
       core: {} as never,
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
@@ -295,8 +303,9 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
         JSON.stringify({
           hook_event_name: 'postToolUseFailure',
           conversation_id: 'c',
+          generation_id: `contract-post-tool-failure-${suffix}`,
           tool_name: 'Shell',
-          tool_input: { command: 'npm test' },
+          tool_input: { command },
           tool_use_id: 'tool-2',
           cwd: '/repo',
           error_message: 'Command timed out after 30s',
@@ -466,6 +475,8 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
   test('real CursorSession sends postToolUse spans as parent-plus-hook payloads', async () => {
     const cap = capture();
     const payloads: CorePayload[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    const command = `npm test --cursor-real-post-${suffix}`;
     await createCursorAdapter({
       core: makeAllowingCore(payloads) as never,
       resolveSession: async () => ({
@@ -480,8 +491,9 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
         JSON.stringify({
           hook_event_name: 'postToolUse',
           conversation_id: 'c',
+          generation_id: `contract-real-post-tool-${suffix}`,
           tool_name: 'Shell',
-          tool_input: { command: 'npm test' },
+          tool_input: { command },
           tool_output: '{"exitCode":0,"stdout":"ok"}',
           tool_use_id: 'tool-contract-1',
           cwd: '/repo',
@@ -520,7 +532,69 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     expect(hook.spans?.[0]).toMatchObject({
       semantic_type: 'internal',
       attributes: {
-        'shell.command': 'npm test',
+        'shell.command': command,
+        'openbox.tool.name': 'Shell',
+      },
+    });
+  });
+
+  test('real CursorSession sends afterShellExecution spans as parent-plus-hook payloads', async () => {
+    const cap = capture();
+    const payloads: CorePayload[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    const command = `npm run cursor-after-shell-${suffix}`;
+    await createCursorAdapter({
+      core: makeAllowingCore(payloads) as never,
+      resolveSession: async () => ({
+        workflowId: 'wf-cursor-after-shell-contract',
+        runId: 'run-cursor-after-shell-contract',
+      }),
+      handlers: {
+        afterShellExecution: (env, session) => handleAfterShellExecution(env, session, cfg),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({
+          hook_event_name: 'afterShellExecution',
+          conversation_id: 'c',
+          generation_id: `contract-real-after-shell-${suffix}`,
+          command,
+          output: 'ok',
+          duration: 77,
+          cwd: '/repo',
+          sandbox: false,
+        }),
+      ),
+    }).run();
+
+    expect(JSON.parse(cap.stdout[0])).toEqual({});
+    expect(payloads).toHaveLength(2);
+    const [parent, hook] = payloads;
+    expect(parent).toMatchObject({
+      workflow_id: 'wf-cursor-after-shell-contract',
+      run_id: 'run-cursor-after-shell-contract',
+      event_type: 'ActivityCompleted',
+      activity_type: 'ShellExecution',
+      session_id: 'c',
+      tool_name: 'Shell',
+      tool_type: 'shell',
+      duration_ms: 77,
+    });
+    expect(parent.spans).toBeUndefined();
+    expect(parent.hook_trigger).toBeUndefined();
+    expect(hook).toMatchObject({
+      workflow_id: parent.workflow_id,
+      run_id: parent.run_id,
+      event_type: parent.event_type,
+      activity_type: parent.activity_type,
+      activity_id: parent.activity_id,
+      hook_trigger: true,
+      span_count: 1,
+    });
+    expect(hook.spans?.[0]).toMatchObject({
+      semantic_type: 'internal',
+      attributes: {
+        'shell.command': command,
         'openbox.tool.name': 'Shell',
       },
     });

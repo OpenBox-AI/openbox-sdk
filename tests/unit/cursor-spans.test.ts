@@ -216,13 +216,16 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
 
   test('postToolUse emits completed tool telemetry when Cursor supplies payload', async () => {
     const captured: ActivityCall[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    const command = `npm test --cursor-post-unit-${suffix}`;
     await handlePostToolUse(
       {
         hook_event_name: 'postToolUse',
         conversation_id: 'c',
+        generation_id: `post-tool-unit-${suffix}`,
         tool_name: 'Shell',
         tool_use_id: 'tool-1',
-        tool_input: { command: 'npm test', cwd: '/repo' },
+        tool_input: { command, cwd: '/repo' },
         tool_output: '{"exitCode":0,"stdout":"ok"}',
         cwd: '/repo',
         model: 'claude-sonnet-4-20250514',
@@ -246,7 +249,7 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     });
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
     expect(span.semantic_type).toBe('internal');
-    expect(span.attributes?.['shell.command']).toBe('npm test');
+    expect(span.attributes?.['shell.command']).toBe(command);
     expect(span.attributes?.['openbox.tool.name']).toBe('Shell');
     expect(captured[0]?.payload.output).toMatchObject({
       tool_output: '{"exitCode":0,"stdout":"ok"}',
@@ -258,13 +261,16 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
 
   test('postToolUseFailure emits failure telemetry when Cursor supplies payload', async () => {
     const captured: ActivityCall[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    const filePath = `/secret-${suffix}.txt`;
     await handlePostToolUseFailure(
       {
         hook_event_name: 'postToolUseFailure',
         conversation_id: 'c',
+        generation_id: `post-tool-failure-unit-${suffix}`,
         tool_name: 'Read',
         tool_use_id: 'tool-2',
-        tool_input: { file_path: '/secret.txt' },
+        tool_input: { file_path: filePath },
         error_message: 'permission denied',
         failure_type: 'permission_denied',
         duration: 50,
@@ -286,10 +292,52 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     });
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
     expect(span.semantic_type).toBe('file_read');
-    expect(span.attributes?.['file.path']).toBe('/secret.txt');
+    expect(span.attributes?.['file.path']).toBe(filePath);
     expect(captured[0]?.payload.output).toMatchObject({
       error_message: 'permission denied',
       failure_type: 'permission_denied',
+      _openbox_source: 'cursor',
+    });
+  });
+
+  test('afterShellExecution emits completed shell telemetry when Cursor supplies output or duration', async () => {
+    const captured: ActivityCall[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    const command = `npm run cursor-after-shell-${suffix}`;
+    await handleAfterShellExecution(
+      {
+        hook_event_name: 'afterShellExecution',
+        conversation_id: 'c',
+        generation_id: `after-shell-unit-${suffix}`,
+        command,
+        cwd: '/repo',
+        output: 'shell completed',
+        duration: 321,
+        sandbox: false,
+      } as never,
+      makeCapturingSession(captured) as never,
+      cfg,
+    );
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: 'ShellExecution',
+      payload: {
+        durationMs: 321,
+        sessionId: 'c',
+        toolName: 'Shell',
+        toolType: 'shell',
+      },
+    });
+    const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
+    expect(span.semantic_type).toBe('internal');
+    expect(span.attributes?.['shell.command']).toBe(command);
+    expect(span.attributes?.['openbox.tool.name']).toBe('Shell');
+    expect(captured[0]?.payload.output).toMatchObject({
+      command,
+      output: 'shell completed',
+      duration_ms: 321,
+      sandbox: false,
       _openbox_source: 'cursor',
     });
   });

@@ -111,9 +111,9 @@ describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
   });
 
   // Most observe-only events deliberately do not call session.activity.
-  // afterAgentResponse is the exception: it emits an observeActivity
-  // assistant-output event so Core can store completion spans without
-  // blocking an already-completed host action.
+  // Completion payloads are the exceptions: they emit observeActivity
+  // events so Core can store completed spans without blocking an
+  // already-completed host action.
   test('afterAgentResponse emits observe-only LLMCompleted', async () => {
     const captured: CapturedActivity[] = [];
     await handleAfterAgentResponse(
@@ -146,6 +146,27 @@ describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
       cfg,
     );
     expect(captured).toHaveLength(0);
+  });
+  test('afterShellExecution with completion payload emits observe-only ShellExecution', async () => {
+    const captured: CapturedActivity[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    await handleAfterShellExecution(
+      {
+        conversation_id: 'c',
+        generation_id: `activity-type-after-shell-${suffix}`,
+        command: `echo activity-type-${suffix}`,
+        output: 'ok',
+      } as never,
+      makeCapturingSession(captured) as never,
+      cfg,
+    );
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: AFTER_SHELL_EXECUTION_ACTIVITY_TYPE,
+      method: 'observeActivity',
+    });
+    expect(captured[0]?.activityType).toBe('ShellExecution');
   });
   test('afterFileEdit emits no activity', async () => {
     const captured: CapturedActivity[] = [];
