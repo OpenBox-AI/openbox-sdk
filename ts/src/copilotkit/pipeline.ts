@@ -413,9 +413,13 @@ function llmCompletionMetadataFromPayload(payload: unknown): {
       record.model,
       record.model_name,
       record.modelName,
+      record.ls_model_name,
+      record.lsModelName,
       metadata.model,
       metadata.model_name,
       metadata.modelName,
+      metadata.ls_model_name,
+      metadata.lsModelName,
     ) ?? undefined;
   return {
     model,

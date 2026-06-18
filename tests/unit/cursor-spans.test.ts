@@ -143,20 +143,45 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
   test('afterAgentResponse emits completed assistant-output span', async () => {
     const captured: ActivityCall[] = [];
     await handleAfterAgentResponse(
-      { conversation_id: 'c', response: 'r' } as never,
+      {
+        conversation_id: 'c',
+        response: 'r',
+        response_metadata: {
+          ls_model_name: 'gemini-2.5-flash',
+          usage: {
+            input_tokens: 12,
+            output_tokens: 5,
+          },
+        },
+      } as never,
       makeCapturingSession(captured) as never,
       cfg,
     );
     expect(captured).toHaveLength(1);
     expect(captured[0]?.eventType).toBe('ActivityCompleted');
     expect(captured[0]?.activityType).toBe('LLMCompleted');
+    expect(captured[0]?.payload).toMatchObject({
+      llmModel: 'gemini-2.5-flash',
+      inputTokens: 12,
+      outputTokens: 5,
+      totalTokens: 17,
+    });
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
     expect(span).toMatchObject({
       semantic_type: 'llm_completion',
+      model: 'gemini-2.5-flash',
       attributes: {
         'gen_ai.system': 'cursor',
+        'gen_ai.response.model': 'gemini-2.5-flash',
+        'gen_ai.usage.input_tokens': 12,
+        'gen_ai.usage.output_tokens': 5,
         'openbox.cursor.event': 'afterAgentResponse',
       },
+    });
+    expect(JSON.parse(String((span as any).response_body)).usage).toMatchObject({
+      input_tokens: 12,
+      output_tokens: 5,
+      total_tokens: 17,
     });
   });
 

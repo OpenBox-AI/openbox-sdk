@@ -1090,7 +1090,7 @@ describe('CopilotKit OpenBox adapter', () => {
       async () => ({
         content: 'The queue has two governed requests ready.',
         response_metadata: {
-          model_name: 'gpt-4o-mini',
+          ls_model_name: 'gpt-4o-mini',
           tokenUsage: {
             promptTokens: 42,
             completionTokens: 16,

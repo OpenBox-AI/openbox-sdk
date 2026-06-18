@@ -40,6 +40,14 @@ function firstString(...values: unknown[]): string | undefined {
   return undefined;
 }
 
+function firstRecord(...values: unknown[]): Record<string, unknown> {
+  for (const value of values) {
+    const record = recordFrom(value);
+    if (Object.keys(record).length > 0) return record;
+  }
+  return {};
+}
+
 function numberFrom(value: unknown): number | undefined {
   const numeric =
     typeof value === 'number'
@@ -55,7 +63,33 @@ function numberFrom(value: unknown): number | undefined {
 
 function usageFrom(value: unknown) {
   const record = recordFrom(value);
-  const usage = recordFrom(record.usage);
+  const response = recordFrom(record.response);
+  const output = recordFrom(record.output);
+  const message = recordFrom(record.message);
+  const metadata = firstRecord(
+    record.response_metadata,
+    record.responseMetadata,
+    response.response_metadata,
+    response.responseMetadata,
+    output.response_metadata,
+    output.responseMetadata,
+    message.response_metadata,
+    message.responseMetadata,
+  );
+  const usage = firstRecord(
+    record.usage_metadata,
+    record.usageMetadata,
+    record.usage,
+    response.usage_metadata,
+    response.usageMetadata,
+    output.usage_metadata,
+    output.usageMetadata,
+    message.usage_metadata,
+    message.usageMetadata,
+    metadata.usage,
+    metadata.tokenUsage,
+    metadata.token_usage,
+  );
   const normalized = {
     promptTokens: numberFrom(record.prompt_tokens ?? record.promptTokens ?? usage.prompt_tokens),
     completionTokens: numberFrom(
@@ -98,7 +132,29 @@ function cursorAssistantContent(env: CursorEnvelope): string | undefined {
 
 function cursorModel(env: CursorEnvelope): string | undefined {
   const source = env as unknown as Record<string, unknown>;
-  return firstString(source.model, env.subagent_model, recordFrom(source.response).model);
+  const response = recordFrom(source.response);
+  const metadata = firstRecord(
+    source.response_metadata,
+    source.responseMetadata,
+    response.response_metadata,
+    response.responseMetadata,
+  );
+  return firstString(
+    source.model,
+    source.model_name,
+    source.modelName,
+    source.ls_model_name,
+    source.lsModelName,
+    env.subagent_model,
+    response.model,
+    response.model_name,
+    response.modelName,
+    metadata.model,
+    metadata.model_name,
+    metadata.modelName,
+    metadata.ls_model_name,
+    metadata.lsModelName,
+  );
 }
 
 async function observeActivity(
