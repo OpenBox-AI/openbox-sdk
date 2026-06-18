@@ -103,6 +103,97 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(wrapped.hooks?.PreToolUse?.[1]).toBe(userMatcher);
   });
 
+  it('emits prompt submit spans with parent-plus-hook ordering', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    const output = await runHook(hooks, 'UserPromptSubmit', {
+      ...baseInput,
+      hook_event_name: 'UserPromptSubmit',
+      prompt: 'Summarize this repository.',
+    });
+
+    expect(output).toEqual({});
+    const promptEvents = mock.events.filter(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'PromptSubmission',
+    );
+    expect(promptEvents).toHaveLength(2);
+    const [parent, hook] = promptEvents;
+    expect(parent.hook_trigger).toBeUndefined();
+    expect(parent.spans).toBeUndefined();
+    expect(parent.span_count).toBeUndefined();
+    expect(parent.prompt).toBe('Summarize this repository.');
+    expect(parent.activity_input).toEqual([
+      expect.objectContaining({
+        event_category: 'llm_prompt',
+        prompt: 'Summarize this repository.',
+        _openbox_source: 'anthropic-agent-sdk',
+      }),
+    ]);
+    expect(hook.hook_trigger).toBe(true);
+    expect(hook.workflow_id).toBe(parent.workflow_id);
+    expect(hook.run_id).toBe(parent.run_id);
+    expect(hook.activity_id).toBe(parent.activity_id);
+    expect(hook.span_count).toBe(1);
+    expect(hook.spans?.[0]).toMatchObject({
+      module: 'anthropic-agent-sdk',
+      name: 'llm.chat.completion',
+      stage: 'started',
+      semantic_type: 'llm_completion',
+      args: expect.objectContaining({ prompt: 'Summarize this repository.' }),
+    });
+  });
+
+  it('gates prompt expansions with prompt spans', async () => {
+    const mock = createMockCore((payload) =>
+      payload.event_type === 'ActivityStarted' &&
+      payload.activity_type === 'PromptSubmission' &&
+      payload.hook_trigger !== true
+        ? verdict('block', { reason: 'slash expansion not allowed' })
+        : verdict('allow'),
+    );
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    const output = await runHook(hooks, 'UserPromptExpansion', {
+      ...baseInput,
+      hook_event_name: 'UserPromptExpansion',
+      expansion_type: 'slash_command',
+      command_name: 'deploy',
+      command_args: 'production',
+      prompt: 'Deploy production now.',
+    });
+
+    expect(output).toEqual({
+      decision: 'block',
+      reason: '[OpenBox] slash expansion not allowed',
+    });
+    const promptEvents = mock.events.filter(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'PromptSubmission',
+    );
+    expect(promptEvents).toHaveLength(2);
+    const [parent, hook] = promptEvents;
+    expect(parent.activity_input).toEqual([
+      expect.objectContaining({
+        event_category: 'llm_prompt_expansion',
+        command_name: 'deploy',
+        command_args: 'production',
+        prompt: 'Deploy production now.',
+      }),
+    ]);
+    expect(parent.spans).toBeUndefined();
+    expect(hook.hook_trigger).toBe(true);
+    expect(hook.activity_id).toBe(parent.activity_id);
+    expect(hook.spans?.[0]).toMatchObject({
+      module: 'anthropic-agent-sdk',
+      semantic_type: 'llm_completion',
+      args: expect.objectContaining({ prompt: 'Deploy production now.' }),
+    });
+  });
+
   it('maps a constrained PreToolUse verdict to allow plus updated input', async () => {
     const mock = createMockCore((payload) => {
       if (payload.event_type === 'ActivityStarted') {
@@ -175,6 +266,68 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
 
     expect((askOutput as any).hookSpecificOutput.permissionDecision).toBe('ask');
     expect((deferOutput as any).hookSpecificOutput.permissionDecision).toBe('defer');
+  });
+
+  it('maps PermissionDenied verdicts to retry decisions', async () => {
+    const allowMock = createMockCore(() => verdict('allow'));
+    const blockMock = createMockCore((payload) =>
+      payload.event_type === 'ActivityStarted'
+        ? verdict('block', { reason: 'do not retry denied tool' })
+        : verdict('allow'),
+    );
+
+    const allowOutput = await runHook(
+      createOpenBoxAnthropicAgentHooks({ core: allowMock.core }),
+      'PermissionDenied',
+      {
+        ...baseInput,
+        hook_event_name: 'PermissionDenied',
+        tool_name: 'Bash',
+        tool_input: { command: 'npm test' },
+        tool_use_id: 'tool_denied_allow',
+        reason: 'auto mode denied',
+      },
+    );
+    const blockOutput = await runHook(
+      createOpenBoxAnthropicAgentHooks({ core: blockMock.core }),
+      'PermissionDenied',
+      {
+        ...baseInput,
+        hook_event_name: 'PermissionDenied',
+        tool_name: 'Bash',
+        tool_input: { command: 'rm -rf tmp' },
+        tool_use_id: 'tool_denied_block',
+        reason: 'auto mode denied',
+      },
+    );
+
+    expect(allowOutput).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PermissionDenied',
+        retry: true,
+      },
+    });
+    expect(blockOutput).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PermissionDenied',
+        retry: false,
+      },
+    });
+    const permissionEvent = allowMock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'ShellExecution',
+    );
+    expect(permissionEvent?.activity_input).toContainEqual({
+      __openbox: { tool_type: 'shell' },
+    });
+    expect(permissionEvent?.activity_input).toContainEqual(
+      expect.objectContaining({
+        event_category: 'permission_denied',
+        tool_name: 'Bash',
+        reason: 'auto mode denied',
+      }),
+    );
   });
 
   it('pairs PreToolUse and PostToolUse activity ids from the Agent SDK tool id', async () => {

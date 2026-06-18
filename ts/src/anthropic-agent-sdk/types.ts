@@ -14,8 +14,10 @@ export type OpenBoxAnthropicAgentHookEvent = Extract<
   HookEvent,
   | 'SessionStart'
   | 'UserPromptSubmit'
+  | 'UserPromptExpansion'
   | 'PreToolUse'
   | 'PermissionRequest'
+  | 'PermissionDenied'
   | 'PostToolUse'
   | 'PostToolUseFailure'
   | 'PostToolBatch'

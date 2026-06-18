@@ -18,6 +18,7 @@ import {
   brandedReason,
   compactPayload,
   objectRecord,
+  promptSpan,
   redactedRecord,
   redactedValue,
   subagentActivityInput,
@@ -34,8 +35,10 @@ import type {
 const HOOK_EVENTS: OpenBoxAnthropicAgentHookEvent[] = [
   'SessionStart',
   'UserPromptSubmit',
+  'UserPromptExpansion',
   'PreToolUse',
   'PermissionRequest',
+  'PermissionDenied',
   'PostToolUse',
   'PostToolUseFailure',
   'PostToolBatch',
@@ -49,8 +52,10 @@ const HOOK_EVENTS: OpenBoxAnthropicAgentHookEvent[] = [
 
 const DECISION_CAPABLE = new Set<OpenBoxAnthropicAgentHookEvent>([
   'UserPromptSubmit',
+  'UserPromptExpansion',
   'PreToolUse',
   'PermissionRequest',
+  'PermissionDenied',
   'PostToolUse',
   'PostToolUseFailure',
   'PostToolBatch',
@@ -144,10 +149,14 @@ async function handleHook(
       return {};
     case 'UserPromptSubmit':
       return handleUserPromptSubmit(env, deps, sessionId);
+    case 'UserPromptExpansion':
+      return handleUserPromptExpansion(env, deps, sessionId);
     case 'PreToolUse':
       return handlePreToolUse(env, deps, sessionId);
     case 'PermissionRequest':
       return handlePermissionRequest(env, deps, sessionId);
+    case 'PermissionDenied':
+      return handlePermissionDenied(env, deps, sessionId);
     case 'PostToolUse':
       return handlePostToolUse(env, deps, sessionId);
     case 'PostToolUseFailure':
@@ -186,8 +195,25 @@ async function handleUserPromptSubmit(
     input: [compactPayload(env, 'llm_prompt')],
     prompt,
     sessionId,
+    spans: promptSpan(prompt),
   });
   return renderDecisionBlock('UserPromptSubmit', verdict);
+}
+
+async function handleUserPromptExpansion(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+): Promise<HookJSONOutput> {
+  const prompt = stringFrom(env.prompt);
+  if (!prompt) return {};
+  const verdict = await deps.manager.activity(sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.PROMPT, {
+    input: [compactPayload(env, 'llm_prompt_expansion')],
+    prompt,
+    sessionId,
+    spans: promptSpan(prompt),
+  });
+  return renderDecisionBlock('UserPromptExpansion', verdict);
 }
 
 async function handlePreToolUse(
@@ -231,6 +257,23 @@ async function handlePermissionRequest(
     spans: toolSpan(toolName, toolInput),
   });
   return renderPermissionRequest(verdict);
+}
+
+async function handlePermissionDenied(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+): Promise<HookJSONOutput> {
+  const toolName = stringFrom(env.tool_name) ?? 'unknown';
+  const toolInput = objectRecord(env.tool_input);
+  const verdict = await deps.manager.activity(sessionId, EVENT.START, toolActivityType(toolName, toolInput), {
+    input: toolActivityInput(
+      toolName,
+      toolInput,
+      compactPayload({ ...env, tool_name: toolName, tool_input: toolInput }, 'permission_denied'),
+    ),
+  });
+  return renderPermissionDenied(verdict);
 }
 
 async function handlePostToolUse(
@@ -490,7 +533,7 @@ function renderPermissionRequest(verdict: WorkflowVerdict | undefined): HookJSON
 }
 
 function renderDecisionBlock(
-  event: 'UserPromptSubmit' | 'PostToolUse' | 'PostToolBatch',
+  event: 'UserPromptSubmit' | 'UserPromptExpansion' | 'PostToolUse' | 'PostToolBatch',
   verdict: WorkflowVerdict | undefined,
   includeUpdatedToolOutput = false,
 ): HookJSONOutput {
@@ -520,6 +563,16 @@ function renderDecisionBlock(
     return { hookSpecificOutput } as HookJSONOutput;
   }
   return {};
+}
+
+function renderPermissionDenied(verdict: WorkflowVerdict | undefined): HookJSONOutput {
+  const arm = verdict?.arm ?? 'allow';
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PermissionDenied',
+      retry: arm === 'allow' || arm === 'constrain',
+    },
+  };
 }
 
 function renderAdditionalContext(
@@ -562,6 +615,13 @@ function renderFailClosed(event: OpenBoxAnthropicAgentHookEvent, error: unknown)
         hookSpecificOutput: {
           hookEventName: event,
           decision: { behavior: 'deny', message: reason },
+        },
+      };
+    case 'PermissionDenied':
+      return {
+        hookSpecificOutput: {
+          hookEventName: event,
+          retry: false,
         },
       };
     case 'PostToolUseFailure':
