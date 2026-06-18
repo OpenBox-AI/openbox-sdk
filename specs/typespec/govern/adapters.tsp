@@ -1000,6 +1000,7 @@ interface CursorAdapter {
     default: #{
       tool_name: #{ from: "tool_name" },
       tool_output: #{ sideEffect: "extractMcpText", from: "result_json", fallback: "tool_output" },
+      duration_ms: #{ from: "duration" },
       generation_id: #{ from: "generation_id" },
       event_category: #{ literal: "agent_observation" },
     },

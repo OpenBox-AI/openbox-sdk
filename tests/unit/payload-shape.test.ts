@@ -149,6 +149,7 @@ describe('cursor payload builders', () => {
       conversation_id: 'c',
       tool_name: 't',
       result_json: '{"content":[{"type":"text","text":"hi"}]}',
+      duration: 123,
     } as cur.CursorEnvelope;
     const payload = cur.buildAfterMCPExecutionPayload(env, {
       extractMcpText: (raw) => {
@@ -157,6 +158,7 @@ describe('cursor payload builders', () => {
       },
     });
     expect(payload.tool_output).toBe('hi');
+    expect(payload.duration_ms).toBe(123);
   });
 
   test('afterAgentResponse pulls response and sets llm_completion category', () => {

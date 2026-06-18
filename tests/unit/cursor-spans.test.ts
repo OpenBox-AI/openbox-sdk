@@ -342,6 +342,45 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     });
   });
 
+  test('afterMCPExecution emits completed MCP telemetry when Cursor supplies result JSON', async () => {
+    const captured: ActivityCall[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    await handleAfterMCPExecution(
+      {
+        hook_event_name: 'afterMCPExecution',
+        conversation_id: 'c',
+        generation_id: `after-mcp-unit-${suffix}`,
+        tool_name: `openbox.lookup_${suffix}`,
+        tool_input: { query: 'status' },
+        result_json: '{"content":[{"type":"text","text":"mcp completed"}]}',
+        duration: 222,
+      } as never,
+      makeCapturingSession(captured) as never,
+      cfg,
+    );
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: 'MCPToolCall',
+      payload: {
+        durationMs: 222,
+        sessionId: 'c',
+        toolType: 'mcp',
+      },
+    });
+    const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
+    expect(span.semantic_type).toBe('llm_tool_call');
+    expect(span.attributes?.['gen_ai.system']).toBe('mcp');
+    expect(span.attributes?.['openbox.tool.name']).toBe(`openbox.lookup_${suffix}`);
+    expect(span.attributes?.['tool.name']).toBe(`openbox.lookup_${suffix}`);
+    expect(captured[0]?.payload.output).toMatchObject({
+      tool_name: `openbox.lookup_${suffix}`,
+      tool_output: 'mcp completed',
+      duration_ms: 222,
+      _openbox_source: 'cursor',
+    });
+  });
+
   test('non-response after* events remain observe-only without backend spans', async () => {
     const captured: ActivityCall[] = [];
     await handleAfterAgentThought(

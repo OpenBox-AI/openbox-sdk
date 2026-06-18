@@ -186,6 +186,27 @@ describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
     );
     expect(captured).toHaveLength(0);
   });
+  test('afterMCPExecution with completion payload emits observe-only MCPToolCall', async () => {
+    const captured: CapturedActivity[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    await handleAfterMCPExecution(
+      {
+        conversation_id: 'c',
+        generation_id: `activity-type-after-mcp-${suffix}`,
+        tool_name: `fetch_${suffix}`,
+        result_json: '{"content":[{"type":"text","text":"ok"}]}',
+      } as never,
+      makeCapturingSession(captured) as never,
+      cfg,
+    );
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: AFTER_MCPEXECUTION_ACTIVITY_TYPE,
+      method: 'observeActivity',
+    });
+    expect(captured[0]?.activityType).toBe('MCPToolCall');
+  });
 
   // ─── Extended event coverage ───────────────────────────────────────────
   test('beforeTabFileRead fires FileRead', async () => {

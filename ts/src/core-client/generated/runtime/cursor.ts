@@ -327,6 +327,7 @@ export function buildAfterMCPExecutionPayload(env: CursorEnvelope, sideEffects: 
   return {
       "tool_name": getPath(env, "tool_name"),
       "tool_output": (sideEffects.extractMcpText?.(getPath(env, "result_json")) ?? ''),
+      "duration_ms": getPath(env, "duration"),
       "generation_id": getPath(env, "generation_id"),
       "event_category": "agent_observation",
     };

@@ -9,6 +9,7 @@ import {
   handleAfterAgentResponse,
   handleAfterShellExecution,
 } from '../../ts/src/runtime/cursor/mappers/observe.js';
+import { handleAfterMCPExecution } from '../../ts/src/runtime/cursor/mappers/mcp-response.js';
 import {
   handlePostToolUse,
   handlePostToolUseFailure,
@@ -596,6 +597,67 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
       attributes: {
         'shell.command': command,
         'openbox.tool.name': 'Shell',
+      },
+    });
+  });
+
+  test('real CursorSession sends afterMCPExecution spans as parent-plus-hook payloads', async () => {
+    const cap = capture();
+    const payloads: CorePayload[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    const toolName = `openbox.lookup_${suffix}`;
+    await createCursorAdapter({
+      core: makeAllowingCore(payloads) as never,
+      resolveSession: async () => ({
+        workflowId: 'wf-cursor-after-mcp-contract',
+        runId: 'run-cursor-after-mcp-contract',
+      }),
+      handlers: {
+        afterMCPExecution: (env, session) => handleAfterMCPExecution(env, session, cfg),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({
+          hook_event_name: 'afterMCPExecution',
+          conversation_id: 'c',
+          generation_id: `contract-real-after-mcp-${suffix}`,
+          tool_name: toolName,
+          tool_input: { query: 'status' },
+          result_json: '{"content":[{"type":"text","text":"mcp completed"}]}',
+          duration: 88,
+        }),
+      ),
+    }).run();
+
+    expect(JSON.parse(cap.stdout[0])).toEqual({});
+    expect(payloads).toHaveLength(2);
+    const [parent, hook] = payloads;
+    expect(parent).toMatchObject({
+      workflow_id: 'wf-cursor-after-mcp-contract',
+      run_id: 'run-cursor-after-mcp-contract',
+      event_type: 'ActivityCompleted',
+      activity_type: 'MCPToolCall',
+      session_id: 'c',
+      tool_name: toolName,
+      tool_type: 'mcp',
+      duration_ms: 88,
+    });
+    expect(parent.spans).toBeUndefined();
+    expect(parent.hook_trigger).toBeUndefined();
+    expect(hook).toMatchObject({
+      workflow_id: parent.workflow_id,
+      run_id: parent.run_id,
+      event_type: parent.event_type,
+      activity_type: parent.activity_type,
+      activity_id: parent.activity_id,
+      hook_trigger: true,
+      span_count: 1,
+    });
+    expect(hook.spans?.[0]).toMatchObject({
+      semantic_type: 'llm_tool_call',
+      attributes: {
+        'gen_ai.system': 'mcp',
+        'openbox.tool.name': toolName,
       },
     });
   });
