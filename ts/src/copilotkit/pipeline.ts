@@ -133,6 +133,8 @@ export async function governPipelineGate<T>(
     };
     return safePayload(input.payload, input.payload, verdict, ids, false);
   }
+  const promptText =
+    input.kind === 'prompt' ? promptTextFromPayload(input.payload) : undefined;
   let workflowKnown = Boolean(input.workflowId && input.runId);
   try {
     const needsWorkflowStart =
@@ -150,12 +152,20 @@ export async function governPipelineGate<T>(
     }
     workflowKnown = true;
     if (input.kind === 'prompt') {
+      if (shouldSkipPromptGate(input.payload, promptText)) {
+        const verdict: WorkflowVerdict = {
+          arm: 'allow',
+          reason: 'OpenBox skipped an empty prompt governance gate.',
+          riskScore: 0,
+        };
+        return safePayload(input.payload, input.payload, verdict, ids, false);
+      }
       await emitUserPromptSignal(
         adapter,
         { workflowId: ids.workflowId, runId: ids.runId },
         input.workflowType,
         input.taskQueue,
-        promptTextFromPayload(input.payload),
+        promptText,
       );
     }
     const verdict = await evaluateGate(adapter, input, ids);
@@ -333,6 +343,17 @@ async function governHaltedPipelineGate<T>(
     };
     return { ...safePayload(input.payload, input.payload, verdict, ids, false), status: 'error' as const };
   }
+}
+
+function shouldSkipPromptGate(payload: unknown, promptText: string | undefined): boolean {
+  if (typeof payload === 'string') return !payload.trim();
+  if (!payload || typeof payload !== 'object') return false;
+  const record = payload as Record<string, unknown>;
+  if (Array.isArray(record.messages)) return !promptText?.trim();
+  if ('prompt' in record || 'request' in record || 'content' in record) {
+    return !promptText?.trim();
+  }
+  return false;
 }
 
 function promptTextFromPayload(payload: unknown): string | undefined {

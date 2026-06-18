@@ -1404,6 +1404,30 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(mock.events[0].run_id).not.toBe(mock.events[0].workflow_id);
   });
 
+  it('skips empty prompt activity gates after opening the workflow', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const adapter = createOpenBoxCopilotKitAdapter({ core: mock.core as any });
+
+    const result = await adapter.governPrompt({
+      payload: {
+        messages: [
+          { role: 'system', content: 'Use the CRM schema.' },
+          { role: 'tool', content: 'cached lookup' },
+        ],
+      },
+      sessionKey: 'empty-prompt',
+      activityType: 'on_chat_model_start',
+    });
+
+    expect(result.status).toBe('executed');
+    expect(mock.events.map((event) => event.event_type)).toEqual([
+      'WorkflowStarted',
+    ]);
+  });
+
   it('emits the goal-alignment prompt signal for content-shaped prompts', async () => {
     const mock = createMockCore(() => ({
       verdict: 'allow',
