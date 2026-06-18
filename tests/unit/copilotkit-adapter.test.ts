@@ -746,6 +746,113 @@ describe('CopilotKit OpenBox adapter', () => {
     }
   });
 
+  it('treats expired CopilotKit approval status as terminal before allow verdict', async () => {
+    const core = {
+      evaluate: vi.fn(),
+      pollApproval: vi.fn(async () => ({
+        action: 'allow',
+        expired: true,
+        reason: 'approval window expired',
+        approval_expiration_time: '2026-01-01T00:00:30.000Z',
+      })),
+    };
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: core as any,
+      workflowType: 'CopilotKitTestWorkflow',
+      taskQueue: 'langgraph',
+    });
+    const { pollApproval } = await import(
+      '../../ts/src/copilotkit/workflow-session'
+    );
+
+    await expect(
+      pollApproval(adapter, {
+        workflowId: 'workflow-approval',
+        runId: 'run-approval',
+        activityId: 'activity-approval',
+      }),
+    ).resolves.toMatchObject({
+      arm: 'block',
+      reason: 'approval window expired',
+    });
+  });
+
+  it('parses DB-style CopilotKit approval expiration timestamps as UTC', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:10.000Z'));
+      const core = {
+        evaluate: vi.fn(),
+        pollApproval: vi.fn(async () => ({
+          action: 'allow',
+          reason: 'approval should be expired',
+          approval_expiration_time: '2026-01-01 00:00:09',
+        })),
+      };
+      const adapter = createOpenBoxCopilotKitAdapter({
+        core: core as any,
+        workflowType: 'CopilotKitTestWorkflow',
+        taskQueue: 'langgraph',
+      });
+      const { pollApproval } = await import(
+        '../../ts/src/copilotkit/workflow-session'
+      );
+
+      await expect(
+        pollApproval(adapter, {
+          workflowId: 'workflow-approval',
+          runId: 'run-approval',
+          activityId: 'activity-approval',
+        }),
+      ).resolves.toMatchObject({
+        arm: 'block',
+        reason: 'approval should be expired',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('blocks CopilotKit approvals when the server approval deadline elapses', async () => {
+    vi.useFakeTimers();
+    try {
+      const startedAt = new Date('2026-01-01T00:00:00.000Z');
+      vi.setSystemTime(startedAt);
+      const expiresAt = new Date(startedAt.getTime() + 1_000).toISOString();
+      const core = {
+        evaluate: vi.fn(),
+        pollApproval: vi.fn(async () => ({
+          action: 'require_approval',
+          reason: 'approval pending',
+          approval_expiration_time: expiresAt,
+        })),
+      };
+      const adapter = createOpenBoxCopilotKitAdapter({
+        core: core as any,
+        workflowType: 'CopilotKitTestWorkflow',
+        taskQueue: 'langgraph',
+      });
+      const { pollApproval } = await import(
+        '../../ts/src/copilotkit/workflow-session'
+      );
+
+      const result = pollApproval(adapter, {
+        workflowId: 'workflow-approval',
+        runId: 'run-approval',
+        activityId: 'activity-approval',
+      });
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      await expect(result).resolves.toMatchObject({
+        arm: 'block',
+        reason: 'OpenBox approval expired.',
+        approvalExpiresAt: expiresAt,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('fails closed and skips execution when OpenBox blocks activity start', async () => {
     const { events, execute, tool } = createDemoTool((payload) => ({
       verdict: payload.event_type === 'ActivityStarted' ? 'block' : 'allow',

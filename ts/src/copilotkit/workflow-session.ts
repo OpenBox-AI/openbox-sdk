@@ -124,9 +124,28 @@ export async function pollApproval(
       continue;
     }
     const extra = response as typeof response & {
+      expired?: boolean;
       trust_tier?: string | number;
       guardrails_result?: unknown;
     };
+    const serverDeadline = parseApprovalDeadline(response.approval_expiration_time);
+    if (Number.isFinite(serverDeadline)) {
+      deadline = Math.min(deadline, serverDeadline);
+    }
+    if (
+      extra.expired === true ||
+      (Number.isFinite(serverDeadline) && Date.now() >= serverDeadline)
+    ) {
+      return {
+        arm: 'block',
+        reason: response.reason ?? 'OpenBox approval expired.',
+        approvalExpiresAt: response.approval_expiration_time,
+        riskScore: 0,
+        trustTier:
+          typeof extra.trust_tier === 'number' ? extra.trust_tier : undefined,
+        guardrailsResult: mapGuardrailsResult(extra.guardrails_result),
+      };
+    }
     last = {
       arm: normalizeArm(response.action),
       reason: response.reason,
@@ -136,14 +155,20 @@ export async function pollApproval(
         typeof extra.trust_tier === 'number' ? extra.trust_tier : undefined,
       guardrailsResult: mapGuardrailsResult(extra.guardrails_result),
     };
-    const serverDeadline = parseApprovalDeadline(response.approval_expiration_time);
-    if (Number.isFinite(serverDeadline)) {
-      deadline = Math.min(deadline, serverDeadline);
-    }
     if (last && last.arm !== 'require_approval') return last;
     const sleepMs = Math.min(APPROVAL_POLL_INTERVAL_MS, deadline - Date.now());
     if (sleepMs <= 0) break;
     await sleep(sleepMs);
+  }
+  if (Number.isFinite(deadline) && Date.now() >= deadline) {
+    return {
+      arm: 'block',
+      reason: 'OpenBox approval expired.',
+      approvalExpiresAt: last?.approvalExpiresAt,
+      riskScore: last?.riskScore ?? 0,
+      trustTier: last?.trustTier,
+      guardrailsResult: last?.guardrailsResult,
+    };
   }
   return (
     last ?? {
@@ -155,8 +180,13 @@ export async function pollApproval(
 }
 
 function parseApprovalDeadline(value: string | undefined): number {
-  if (!value) return Number.NaN;
-  const deadline = new Date(value).getTime();
+  const trimmed = value?.trim();
+  if (!trimmed) return Number.NaN;
+  const normalized = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T');
+  const withTimezone = /(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(normalized)
+    ? normalized
+    : `${normalized}Z`;
+  const deadline = new Date(withTimezone).getTime();
   return Number.isFinite(deadline) ? deadline : Number.NaN;
 }
 
