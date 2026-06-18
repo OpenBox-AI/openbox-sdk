@@ -149,7 +149,7 @@ function guarded(event: OpenBoxAnthropicAgentHookEvent, deps: HookDeps): HookCal
     try {
       return await handleHook(event, withToolUseId(input, toolUseID), deps);
     } catch (error) {
-      if (!deps.context.failClosed || !DECISION_CAPABLE.has(event)) return {};
+      if (!DECISION_CAPABLE.has(event)) return {};
       return renderFailClosed(event, error);
     }
   };

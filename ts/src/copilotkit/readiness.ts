@@ -42,7 +42,7 @@ export function createOpenBoxReadinessCheck(
         enabled: config.enabled ?? true,
         strict: config.strict ?? true,
         governanceMode: config.governanceMode ?? ('enforce' as const),
-        failClosed: config.failClosed ?? true,
+        failClosed: true,
       };
       const apiUrl = config.apiUrl ?? process.env.OPENBOX_API_URL;
       const apiKey = getApprovalBackendApiKey(config);

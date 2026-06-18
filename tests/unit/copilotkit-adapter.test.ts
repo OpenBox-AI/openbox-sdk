@@ -2016,6 +2016,32 @@ describe('CopilotKit OpenBox adapter', () => {
     ]);
   });
 
+  it('treats failClosed false as a compatibility no-op for governance failures', async () => {
+    const adapter = createOpenBoxCopilotKitAdapter({
+      failClosed: false,
+      core: {
+        evaluate: vi.fn(async () => {
+          throw new Error('core offline');
+        }),
+        pollApproval: vi.fn(),
+      } as any,
+    });
+
+    const result = await adapter.governPrompt({
+      payload: { messages: [{ role: 'user', content: 'Open queue.' }] },
+      workflowId: 'workflow-fail-closed',
+      runId: 'run-fail-closed',
+      sessionKey: 'thread-fail-closed',
+      activityType: 'on_chat_model_start',
+    });
+
+    expect(result.status).toBe('error');
+    expect(result.verdict).toMatchObject({
+      arm: 'block',
+      reason: expect.stringContaining('failed closed'),
+    });
+  });
+
   it('does not start the same runtime workflow twice in one agent process', async () => {
     const events: GovernanceEventPayload[] = [];
     const adapter = createOpenBoxCopilotKitAdapter({

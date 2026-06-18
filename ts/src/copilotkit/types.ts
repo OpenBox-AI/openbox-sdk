@@ -90,6 +90,7 @@ export interface OpenBoxCopilotKitConfig {
   enabled?: boolean;
   strict?: boolean;
   governanceMode?: 'observe' | 'enforce';
+  /** @deprecated Compatibility no-op. Runtime governance failures always fail closed. */
   failClosed?: boolean;
   redactionMode?: 'transformed-only';
   core?: OpenBoxCoreClient;

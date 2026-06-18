@@ -58,6 +58,7 @@ export interface OpenBoxAnthropicAgentSDKConfig {
   workflowType?: string;
   taskQueue?: string;
   approvalMode?: OpenBoxAnthropicApprovalMode;
+  /** @deprecated Compatibility no-op. Decision-capable hooks always fail closed. */
   failClosed?: boolean;
   hookTimeoutSeconds?: number;
   clientName?: string;

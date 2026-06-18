@@ -325,6 +325,32 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect((deferOutput as any).hookSpecificOutput.permissionDecision).toBe('defer');
   });
 
+  it('treats failClosed false as a compatibility no-op for decision-capable hooks', async () => {
+    const core = {
+      evaluate: vi.fn(async () => {
+        throw new Error('core offline');
+      }),
+      pollApproval: vi.fn(),
+    } as unknown as OpenBoxCoreClient;
+    const hooks = createOpenBoxAnthropicAgentHooks({ core, failClosed: false });
+
+    const output = await runHook(hooks, 'PreToolUse', {
+      ...baseInput,
+      tool_name: 'Bash',
+      tool_input: { command: 'npm test' },
+      tool_use_id: 'tool_fail_closed',
+    });
+
+    expect(output).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          '[OpenBox] OpenBox governance failed while processing Anthropic Agent SDK PreToolUse: core offline',
+      },
+    });
+  });
+
   it('maps PermissionDenied verdicts to retry decisions', async () => {
     const allowMock = createMockCore(() => verdict('allow'));
     const blockMock = createMockCore((payload) =>
@@ -515,8 +541,8 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       (event) =>
         event.event_type === 'ActivityStarted' &&
         event.activity_type === 'AgentSpawn' &&
-        event.activity_input?.some(
-          (entry) =>
+        (event.activity_input as unknown[] | undefined)?.some(
+          (entry: unknown) =>
             typeof entry === 'object' &&
             entry !== null &&
             '__openbox' in entry &&
@@ -747,7 +773,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         },
         stop_reason: 'end_turn',
       },
-    ] as SDKMessage[]);
+    ] as unknown as SDKMessage[]);
     const query = vi.fn(() => source);
     const sdk = createOpenBoxAnthropicAgentSDK({
       core: mock.core,
@@ -856,7 +882,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         },
         stop_reason: 'end_turn',
       },
-    ] as SDKMessage[]);
+    ] as unknown as SDKMessage[]);
     const sdk = createOpenBoxAnthropicAgentSDK({
       core: mock.core,
       query: vi.fn(() => source) as any,

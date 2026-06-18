@@ -179,6 +179,7 @@ describe('LLM completion spans', () => {
       model: 'anthropic/claude-opus-4-8',
       usage: { inputTokens: 2, outputTokens: 3 },
     }) as ReturnType<typeof buildLLMCompletionSpan> & {
+      model?: string;
       model_id?: string;
       provider?: string;
       model_provider?: string;

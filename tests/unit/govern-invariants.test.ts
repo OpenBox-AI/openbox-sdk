@@ -1275,7 +1275,10 @@ describe('WorkflowVerdict.guardrailsResult', () => {
       arm: 'block',
       reason: 'PII detected in command',
     });
-    expect(captured?.guardrailsResult?.validationPassed).toBe(false);
+    expect(
+      (captured as unknown as import('../../ts/src/core-client/generated/govern.js').WorkflowVerdict)
+        .guardrailsResult?.validationPassed,
+    ).toBe(false);
     expect(mock.pollApproval).not.toHaveBeenCalled();
   });
 
