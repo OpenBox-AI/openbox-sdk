@@ -569,10 +569,49 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityStarted',
+      'ActivityCompleted',
       'ActivityCompleted',
       'WorkflowCompleted',
     ]);
-    expect(events.filter((event) => event.hook_trigger)).toHaveLength(0);
+    const startedParent = events.find(
+      (event) => event.event_type === 'ActivityStarted' && !event.hook_trigger,
+    );
+    const startedHook = events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.hook_trigger === true &&
+        event.activity_id === startedParent?.activity_id,
+    );
+    const completedParent = events.find(
+      (event) => event.event_type === 'ActivityCompleted' && !event.hook_trigger,
+    );
+    const completedHook = events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.hook_trigger === true &&
+        event.activity_id === completedParent?.activity_id,
+    );
+    expect(startedParent?.spans).toBeUndefined();
+    expect(completedParent?.spans).toBeUndefined();
+    expect(startedHook?.span_count).toBe(1);
+    expect(completedHook?.span_count).toBe(1);
+    expect(startedHook?.spans?.[0]).toMatchObject({
+      stage: 'started',
+      semantic_type: 'llm_tool_call',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'openbox_governed_action',
+        'tool.name': 'openbox_governed_action',
+      }),
+    });
+    expect(completedHook?.spans?.[0]).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'llm_tool_call',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'openbox_governed_action',
+        'tool.name': 'openbox_governed_action',
+      }),
+    });
     expect(events[1]).toMatchObject({
       event_type: 'SignalReceived',
       signal_name: 'user_prompt',
@@ -586,6 +625,59 @@ describe('CopilotKit OpenBox adapter', () => {
           _openbox_source: 'copilotkit',
         }),
       ],
+    });
+  });
+
+  it('records failed governed tool execution as completed tool telemetry before workflow failure', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const adapter = createOpenBoxCopilotKitAdapter({ core: mock.core as any });
+    const tool = createGovernedCopilotTool<DemoInput, DemoArtifact>({
+      adapter,
+      toolName: 'openbox_governed_action',
+      description: 'Test governed action.',
+      execute: async () => {
+        throw new Error('business tool failed');
+      },
+    });
+
+    const result = await tool.execute({
+      action: 'demo_action',
+      request: 'Create a support ticket.',
+    });
+
+    expect(result.status).toBe('error');
+    expect(mock.events.map((event) => event.event_type)).toEqual([
+      'WorkflowStarted',
+      'SignalReceived',
+      'ActivityStarted',
+      'ActivityStarted',
+      'ActivityCompleted',
+      'ActivityCompleted',
+      'WorkflowFailed',
+    ]);
+    const completedParent = mock.events.find(
+      (event) => event.event_type === 'ActivityCompleted' && !event.hook_trigger,
+    );
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.hook_trigger === true &&
+        event.activity_id === completedParent?.activity_id,
+    );
+    expect(completedParent?.activity_output).toEqual({
+      status: 'failed',
+      error: { errorName: 'Error', message: 'business tool failed' },
+    });
+    expect(completedHook?.span_count).toBe(1);
+    expect(completedHook?.spans?.[0]).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'llm_tool_call',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'openbox_governed_action',
+      }),
     });
   });
 
@@ -980,8 +1072,20 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityStarted',
       'WorkflowFailed',
     ]);
+    const startedParent = events.find(
+      (event) => event.event_type === 'ActivityStarted' && !event.hook_trigger,
+    );
+    const startedHook = events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.hook_trigger === true &&
+        event.activity_id === startedParent?.activity_id,
+    );
+    expect(startedParent?.spans).toBeUndefined();
+    expect(startedHook?.span_count).toBe(1);
   });
 
   it('applies output redaction before the artifact is returned', async () => {
@@ -1049,7 +1153,9 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityStarted',
       'WorkflowFailed',
+      'ActivityStarted',
       'ActivityStarted',
       'WorkflowFailed',
     ]);

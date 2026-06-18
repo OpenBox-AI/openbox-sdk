@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_TASK_QUEUE, DEFAULT_WORKFLOW_TYPE } from './constants.js';
-import { nowUnixNano, sessionKeyFromConfig } from './internal-utils.js';
+import {
+  errorOutput,
+  nowUnixNano,
+  sessionKeyFromConfig,
+} from './internal-utils.js';
 import {
   applyCompletedRedaction,
   applyStartedRedaction,
@@ -151,9 +155,7 @@ export function createGovernedCopilotTool<
           session.openActivity(definition.toolName, {
             activityId: ids.activityId,
             input: toolActivityInput(definition, normalizedInput),
-            ...(definition.spanProfile
-              ? { spans: [toolSpan(definition, normalizedInput, 'started')] }
-              : {}),
+            spans: [toolSpan(definition, normalizedInput, 'started')],
           }),
       );
       const started = openedActivity.verdict;
@@ -198,12 +200,38 @@ export function createGovernedCopilotTool<
         normalizedInput,
         started,
       );
-      const artifact = await timings.measure(
-        'tool_execution',
-        'Business action',
-        'tool',
-        () => definition.execute(startedRedaction.input),
-      );
+      let artifact: TArtifact;
+      try {
+        artifact = await timings.measure(
+          'tool_execution',
+          'Business action',
+          'tool',
+          () => definition.execute(startedRedaction.input),
+        );
+      } catch (error) {
+        await timings.measure(
+          'tool_output_gate',
+          'Record failed tool output',
+          'openbox',
+          async () => {
+            try {
+              await openedActivity.complete(
+                {
+                  input: toolActivityInput(definition, startedRedaction.input),
+                  output: failedToolOutputForGovernance(error),
+                  spans: [
+                    toolSpan(definition, startedRedaction.input, 'completed'),
+                  ],
+                },
+                definition.toolName,
+              );
+            } catch {
+              // Preserve the business error. WorkflowFailed below records the terminal state.
+            }
+          },
+        );
+        throw error;
+      }
       const provisional = resultForAllowedVerdict(
         startedRedaction.input,
         ids,
@@ -221,13 +249,9 @@ export function createGovernedCopilotTool<
             {
               input: toolActivityInput(definition, startedRedaction.input),
               output: toolOutputForGovernance(provisional),
-              ...(definition.spanProfile
-                ? {
-                    spans: [
-                      toolSpan(definition, startedRedaction.input, 'completed'),
-                    ],
-                  }
-                : {}),
+              spans: [
+                toolSpan(definition, startedRedaction.input, 'completed'),
+              ],
             },
             definition.toolName,
           ),
@@ -548,9 +572,7 @@ export function createGovernedCopilotTool<
           ).openActivity(definition.toolName, {
             activityId: ids.activityId,
             input: toolActivityInput(definition, input),
-            ...(definition.spanProfile
-              ? { spans: [toolSpan(definition, input, 'started')] }
-              : {}),
+            spans: [toolSpan(definition, input, 'started')],
           }),
       );
       if (isAllowed(verdict.arm)) {
@@ -604,6 +626,13 @@ function toolOutputForGovernance<TArtifact>(
   result: OpenBoxCopilotActionResult<TArtifact>,
 ) {
   return { artifact: result.artifact };
+}
+
+function failedToolOutputForGovernance(error: unknown) {
+  return {
+    status: 'failed',
+    error: errorOutput(error),
+  };
 }
 
 function approvalResumeToolInput<
