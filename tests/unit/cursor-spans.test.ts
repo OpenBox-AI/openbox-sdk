@@ -145,7 +145,9 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     await handleAfterAgentResponse(
       {
         conversation_id: 'c',
-        response: 'r',
+        response: {
+          content: [{ type: 'text', text: 'Cursor answer.' }],
+        },
         response_metadata: {
           ls_model_name: 'gemini-2.5-flash',
           usage: {
@@ -183,6 +185,9 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
       output_tokens: 5,
       total_tokens: 17,
     });
+    expect(
+      JSON.parse(String((span as any).response_body)).choices[0].message.content,
+    ).toBe('Cursor answer.');
   });
 
   test('non-response after* events remain observe-only without backend spans', async () => {

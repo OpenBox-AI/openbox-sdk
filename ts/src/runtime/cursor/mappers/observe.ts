@@ -107,9 +107,11 @@ function usageFrom(value: unknown) {
 }
 
 function messageContent(value: unknown): string | undefined {
+  const direct = textFromContent(value);
+  if (direct) return direct;
   const record = recordFrom(value);
   return firstString(
-    record.content,
+    textFromContent(record.content),
     record.text,
     record.response,
     record.message,
@@ -121,13 +123,30 @@ function messageContent(value: unknown): string | undefined {
 function cursorAssistantContent(env: CursorEnvelope): string | undefined {
   const source = env as unknown as Record<string, unknown>;
   return firstString(
-    env.response,
-    env.content,
+    messageContent(source.response),
+    textFromContent(env.content),
     source.text,
     messageContent(source.message),
     messageContent(source.output),
     messageContent(source.result),
   );
+}
+
+function textFromContent(value: unknown): string | undefined {
+  if (typeof value === 'string') return value.trim() || undefined;
+  if (!Array.isArray(value)) return undefined;
+  const text = value
+    .map((part) => {
+      if (typeof part === 'string') return part;
+      const record = recordFrom(part);
+      return record.type === 'text' && typeof record.text === 'string'
+        ? record.text
+        : '';
+    })
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  return text || undefined;
 }
 
 function cursorModel(env: CursorEnvelope): string | undefined {

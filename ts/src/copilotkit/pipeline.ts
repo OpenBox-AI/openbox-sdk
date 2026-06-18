@@ -706,13 +706,13 @@ function assistantContentFromPayload(payload: unknown): string | undefined {
   if (!payload || typeof payload !== 'object') return undefined;
   const record = payload as Record<string, unknown>;
   for (const key of ['content', 'text', 'summary', 'body']) {
-    const value = record[key];
-    if (typeof value === 'string' && value.trim()) return value;
+    const text = textFromContent(record[key]);
+    if (text) return text;
   }
   const message = record.message;
   if (message && typeof message === 'object') {
-    const content = (message as Record<string, unknown>).content;
-    if (typeof content === 'string' && content.trim()) return content;
+    const text = textFromContent((message as Record<string, unknown>).content);
+    if (text) return text;
   }
   if (Array.isArray(record.messages)) {
     const latestAssistant = [...record.messages]
@@ -727,15 +727,27 @@ function assistantContentFromPayload(payload: unknown): string | undefined {
                 (message as Record<string, unknown>).type ??
                 '',
             ),
-          ) &&
-          typeof (message as Record<string, unknown>).content === 'string',
+          ),
       );
-    if (
-      typeof latestAssistant?.content === 'string' &&
-      latestAssistant.content.trim()
-    ) {
-      return latestAssistant.content;
-    }
+    const text = textFromContent(latestAssistant?.content);
+    if (text) return text;
   }
   return undefined;
+}
+
+function textFromContent(value: unknown): string | undefined {
+  if (typeof value === 'string') return value.trim() || undefined;
+  if (!Array.isArray(value)) return undefined;
+  const text = value
+    .map((part) => {
+      if (typeof part === 'string') return part;
+      const record = recordFrom(part);
+      return record.type === 'text' && typeof record.text === 'string'
+        ? record.text
+        : '';
+    })
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  return text || undefined;
 }

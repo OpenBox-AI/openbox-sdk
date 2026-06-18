@@ -1088,7 +1088,10 @@ describe('CopilotKit OpenBox adapter', () => {
         state: { openboxWorkflowId: 'wf', openboxRunId: 'run' },
       },
       async () => ({
-        content: 'The queue has two governed requests ready.',
+        content: [
+          { type: 'text', text: 'The queue has' },
+          { type: 'text', text: 'two governed requests ready.' },
+        ],
         response_metadata: {
           ls_model_name: 'gpt-4o-mini',
           tokenUsage: {
