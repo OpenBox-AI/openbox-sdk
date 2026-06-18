@@ -41,7 +41,7 @@ function requireUrl(name: 'OPENBOX_API_URL' | 'OPENBOX_CORE_URL', value: string 
   return normalizeServiceUrl(name, value);
 }
 
-function normalizeServiceUrl(name: string, raw: string): string {
+export function normalizeServiceUrl(name: string, raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) throw new Error(`${name} cannot be empty.`);
   const url = new URL(trimmed);

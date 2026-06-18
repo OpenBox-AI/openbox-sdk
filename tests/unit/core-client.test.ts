@@ -84,6 +84,19 @@ describe('OpenBoxCoreClient', () => {
       await client.health();
       expect(fetchMock.mock.calls[0][0]).toBe('https://custom.core.com/');
     });
+
+    it('rejects non-localhost http Core URLs', () => {
+      expect(() =>
+        createClient({ apiUrl: 'http://core.example.com' }),
+      ).toThrow('OPENBOX_CORE_URL must use https:// unless it points at localhost.');
+    });
+
+    it('allows loopback http Core URLs for local development', async () => {
+      const client = createClient({ apiUrl: 'http://127.0.0.1:18081/core/' });
+      fetchMock.mockResolvedValueOnce(mockResponse(200, 'hello', 'text/plain'));
+      await client.health();
+      expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:18081/core/');
+    });
   });
 
   describe('health', () => {

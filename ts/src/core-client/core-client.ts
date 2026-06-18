@@ -1,5 +1,6 @@
 import { createHash, createPrivateKey, randomUUID, sign } from 'node:crypto';
 import { TokenBucket } from '../client/index.js';
+import { normalizeServiceUrl } from '../env/connection.js';
 import { OPENBOX_SDK_VERSION } from '../version.js';
 import { parseApprovalExpirationMs } from './approval-time.js';
 
@@ -333,11 +334,7 @@ export class OpenBoxCoreClient {
 
 function requireCoreUrl(value: string | undefined): string {
   if (!value) throw new Error('OPENBOX_CORE_URL is required. Set the core API URL explicitly.');
-  const url = new URL(value);
-  url.hash = '';
-  url.search = '';
-  url.pathname = url.pathname.replace(/\/+$/, '');
-  return url.toString().replace(/\/$/, '');
+  return normalizeServiceUrl('OPENBOX_CORE_URL', value);
 }
 
 function appendQuery(path: string, params: Record<string, unknown> | undefined): string {
