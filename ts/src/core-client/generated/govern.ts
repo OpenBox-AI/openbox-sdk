@@ -1136,8 +1136,8 @@ export interface GovernedSessionConfig {
   approvalPollIntervalMs?: number;
   /**
    * Cap (ms) on the per-attempt poll interval after backoff. Default: 5000ms.
-   * The actual sleep is also bounded by min(approvalMaxWaitMs, approvalExpiresAt)
-   * so we never overshoot the deadline.
+   * The actual sleep is also bounded by server-supplied approvalExpiresAt
+   * so we never overshoot the server-controlled deadline.
    */
   approvalPollMaxIntervalMs?: number;
   /**
@@ -1151,7 +1151,10 @@ export interface GovernedSessionConfig {
    * thundering-herd when a fleet of agents wait on the same approval.
    */
   approvalPollJitter?: number;
-  /** Maximum total wait (ms) for an approval decision. Default: 60_000ms. */
+  /**
+   * @deprecated Accepted as a compatibility no-op. Approval expiration is
+   * controlled by the server-supplied approvalExpiresAt value.
+   */
   approvalMaxWaitMs?: number;
   /**
    * When true, `runActivity` skips the in-process poll loop on a
@@ -1259,7 +1262,6 @@ export class BaseGovernedSession {
   private readonly approvalPollMaxIntervalMs: number;
   private readonly approvalPollBackoffFactor: number;
   private readonly approvalPollJitter: number;
-  private readonly approvalMaxWaitMs: number;
   private readonly inlineApproval: boolean;
   private opened = false;
   private finalized = false;
@@ -1281,7 +1283,6 @@ export class BaseGovernedSession {
     this.approvalPollMaxIntervalMs = config.approvalPollMaxIntervalMs ?? 5_000;
     this.approvalPollBackoffFactor = config.approvalPollBackoffFactor ?? 1.5;
     this.approvalPollJitter = config.approvalPollJitter ?? 0.25;
-    this.approvalMaxWaitMs = config.approvalMaxWaitMs ?? 60_000;
     this.inlineApproval = config.inlineApproval === true;
     this.autoOpenSuppressed = config.attached === true;
     this.onPendingApproval = config.onPendingApproval;
@@ -1731,8 +1732,10 @@ export class BaseGovernedSession {
     initial: WorkflowVerdict,
   ): Promise<WorkflowVerdict> {
     // ── Polling design notes ──
-    // Bounded by both config max-wait AND the server-supplied
-    // approvalExpiresAt (whichever is sooner) so we never overshoot.
+    // Bounded only by the server-supplied approvalExpiresAt. This
+    // matches the Python LangGraph SDK contract: the server controls
+    // approval expiration and the SDK does not impose a second total
+    // wait deadline.
     // Exponential backoff (× factor each attempt, capped at maxIntervalMs)
     // matches the bimodal latency of approvals (decided in seconds OR
     // minutes) without burning a long sleep when the answer's right there.
@@ -1747,11 +1750,9 @@ export class BaseGovernedSession {
     // and run one confirmatory pollApproval() to fetch the backend's
     // authoritative verdict for this activity_id.
     const approvalId = initial.approvalId ?? activityId;
-    const cfgDeadline = Date.now() + this.approvalMaxWaitMs;
-    const srvDeadline = initial.approvalExpiresAt
+    const deadline = initial.approvalExpiresAt
       ? new Date(initial.approvalExpiresAt).getTime()
       : Number.POSITIVE_INFINITY;
-    const deadline = Math.min(cfgDeadline, srvDeadline);
 
     let externalSignaled = false;
     const externalDecision = this.awaitExternalDecision

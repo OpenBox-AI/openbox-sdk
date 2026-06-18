@@ -422,6 +422,65 @@ describe('idempotent termination', () => {
 });
 
 describe('approval polling bounds', () => {
+  test('polling ignores client max-wait and waits until server decision before server expiry', async () => {
+    const mock = createMockCore('allow');
+    const expiresAt = new Date(Date.now() + 500).toISOString();
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      if (payload.event_type === 'ActivityStarted') {
+        return {
+          governance_event_id: 'evt_test',
+          verdict: 'require_approval',
+          action: 'require_approval',
+          approval_id: 'apr_xxx',
+          approval_expiration_time: expiresAt,
+          risk_score: 0,
+        } as GovernanceVerdictResponse;
+      }
+      return {
+        governance_event_id: 'evt_test',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+      } as GovernanceVerdictResponse;
+    });
+    mock.pollApproval = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: 'apr_xxx',
+        action: 'require_approval',
+        approval_expiration_time: expiresAt,
+      })
+      .mockResolvedValueOnce({
+        id: 'apr_xxx',
+        action: 'require_approval',
+        approval_expiration_time: expiresAt,
+      })
+      .mockResolvedValueOnce({
+        id: 'apr_xxx',
+        action: 'allow',
+        approval_expiration_time: expiresAt,
+        reason: 'approved after old client deadline',
+      });
+
+    await govern(
+      {
+        ...baseConfig(mock),
+        preset: presets.claudeCode,
+        approvalPollIntervalMs: 15,
+        approvalPollBackoffFactor: 1,
+        approvalPollJitter: 0,
+        approvalMaxWaitMs: 20,
+      },
+      async (session) => {
+        const verdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(verdict.arm).toBe('allow');
+        expect(verdict.reason).toBe('approved after old client deadline');
+      },
+    );
+    expect(mock.pollApproval).toHaveBeenCalledTimes(3);
+  });
+
   test('polling stops at server-supplied approvalExpiresAt even if config max-wait is longer', async () => {
     const mock = createMockCore('allow');
     // Override the response with require_approval + a tight expiry.
@@ -527,6 +586,7 @@ describe('approval polling bounds', () => {
           verdict: 'require_approval',
           action: 'require_approval',
           approval_id: 'apr_xxx',
+          approval_expiration_time: new Date(Date.now() + 1_000).toISOString(),
           risk_score: 0,
         } as GovernanceVerdictResponse;
       }
@@ -580,6 +640,7 @@ describe('approval polling bounds', () => {
           verdict: 'require_approval',
           action: 'require_approval',
           approval_id: 'apr_xxx',
+          approval_expiration_time: new Date(Date.now() + 1_000).toISOString(),
           risk_score: 0,
         } as GovernanceVerdictResponse;
       }
@@ -633,6 +694,7 @@ describe('approval polling bounds', () => {
           verdict: 'require_approval',
           action: 'require_approval',
           approval_id: 'apr_xxx',
+          approval_expiration_time: new Date(Date.now() + 800).toISOString(),
           risk_score: 0,
         } as GovernanceVerdictResponse;
       }
