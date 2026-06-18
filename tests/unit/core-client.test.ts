@@ -99,6 +99,41 @@ describe('OpenBoxCoreClient', () => {
     });
   });
 
+  describe('runtime API key validation', () => {
+    it('allows public health checks without a runtime key', async () => {
+      const client = createClient({ apiKey: '' });
+      fetchMock.mockResolvedValueOnce(mockResponse(200, 'hello', 'text/plain'));
+      await expect(client.health()).resolves.toBe('hello');
+    });
+
+    it('rejects missing runtime keys before authenticated Core calls', async () => {
+      const client = createClient({ apiKey: '' });
+
+      await expect(client.validateApiKey()).rejects.toThrow(
+        'OpenBox Core runtime API key is required',
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects org backend keys before authenticated Core calls', async () => {
+      const client = createClient({ apiKey: `obx_key_${'a'.repeat(48)}` });
+
+      await expect(client.validateApiKey()).rejects.toThrow(
+        'not an org/backend key',
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects malformed runtime keys before authenticated Core calls', async () => {
+      const client = createClient({ apiKey: 'not-a-runtime-key' });
+
+      await expect(client.validateApiKey()).rejects.toThrow(
+        'must start with obx_live_ or obx_test_',
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
   describe('health', () => {
     it('returns text response', async () => {
       const client = createClient();

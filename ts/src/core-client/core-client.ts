@@ -201,6 +201,9 @@ export class OpenBoxCoreClient {
     path: string,
     options?: { data?: unknown; retryable?: boolean },
   ): Promise<unknown> {
+    if (path !== '/') {
+      validateCoreRuntimeApiKey(this.config.apiKey);
+    }
     if (this.rateLimiter) {
       await this.rateLimiter.acquire();
     }
@@ -335,6 +338,20 @@ export class OpenBoxCoreClient {
 function requireCoreUrl(value: string | undefined): string {
   if (!value) throw new Error('OPENBOX_CORE_URL is required. Set the core API URL explicitly.');
   return normalizeServiceUrl('OPENBOX_CORE_URL', value);
+}
+
+function validateCoreRuntimeApiKey(value: string): void {
+  if (!value) {
+    throw new Error('OpenBox Core runtime API key is required for authenticated Core calls.');
+  }
+  if (value.startsWith('obx_key_')) {
+    throw new Error(
+      'OpenBox Core requires an agent runtime key (obx_live_* or obx_test_*), not an org/backend key (obx_key_*).',
+    );
+  }
+  if (!/^obx_(live|test)_/.test(value)) {
+    throw new Error('OpenBox Core runtime API key must start with obx_live_ or obx_test_.');
+  }
 }
 
 function appendQuery(path: string, params: Record<string, unknown> | undefined): string {
