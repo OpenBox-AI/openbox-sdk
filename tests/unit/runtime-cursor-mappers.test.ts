@@ -205,6 +205,11 @@ describe('runtime/cursor/mappers; drive every handler', () => {
         call.args[0] === 'ActivityStarted' &&
         call.args[1] === 'PromptSubmission',
     );
+    expect(promptGate?.args[2]).toMatchObject({
+      sessionId: 'C',
+      prompt: 'hi',
+    });
+    expect(promptGate?.args[2].spans).toBeUndefined();
     expect(session.calls.indexOf(promptGate)).toBeGreaterThan(session.calls.indexOf(goalSignal));
     if (typeof shellMod.handleBeforeShellExecution === 'function') {
       await shellMod.handleBeforeShellExecution(

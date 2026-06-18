@@ -18,7 +18,6 @@ import {
   brandedReason,
   compactPayload,
   objectRecord,
-  promptSpan,
   redactedRecord,
   redactedValue,
   subagentActivityInput,
@@ -247,7 +246,6 @@ async function handleUserPromptSubmit(
     input: [compactPayload(env, 'llm_prompt')],
     prompt,
     sessionId,
-    spans: promptSpan(prompt),
   });
   return renderDecisionBlock('UserPromptSubmit', verdict);
 }
@@ -263,7 +261,6 @@ async function handleUserPromptExpansion(
     input: [compactPayload(env, 'llm_prompt_expansion')],
     prompt,
     sessionId,
-    spans: promptSpan(prompt),
   });
   return renderDecisionBlock('UserPromptExpansion', verdict);
 }

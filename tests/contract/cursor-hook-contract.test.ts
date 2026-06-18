@@ -259,7 +259,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     }).run();
 
     expect(JSON.parse(promptCap.stdout[0])).toEqual({ continue: true });
-    expect(promptPayloads).toHaveLength(4);
+    expect(promptPayloads).toHaveLength(3);
     const promptSignals = promptPayloads.filter(
       (payload) =>
         payload.event_type === 'SignalReceived' &&
@@ -274,32 +274,17 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
         payload.event_type === 'ActivityStarted' &&
         payload.activity_type === 'PromptSubmission',
     );
-    expect(promptStarts).toHaveLength(2);
-    const [promptParent, promptHook] = promptStarts;
+    expect(promptStarts).toHaveLength(1);
+    const [promptParent] = promptStarts;
     expect(promptParent).toMatchObject({
       workflow_id: 'wf-cursor-contract',
       run_id: 'run-cursor-contract',
+      session_id: 'c',
+      prompt: 'summarize this file',
     });
     expect(promptParent.hook_trigger).toBeUndefined();
     expect(promptParent.spans).toBeUndefined();
     expect(promptParent.span_count).toBeUndefined();
-    expect(promptHook).toMatchObject({
-      workflow_id: promptParent.workflow_id,
-      run_id: promptParent.run_id,
-      activity_id: promptParent.activity_id,
-      event_type: promptParent.event_type,
-      activity_type: promptParent.activity_type,
-      hook_trigger: true,
-      span_count: 1,
-    });
-    expect(promptHook.spans).toHaveLength(1);
-    expect(promptHook.spans[0]).toMatchObject({
-      semantic_type: 'llm_completion',
-      stage: 'started',
-      attributes: {
-        'gen_ai.system': 'cursor',
-      },
-    });
     const promptCompleted = promptPayloads.find(
       (payload) =>
         payload.event_type === 'ActivityCompleted' &&
@@ -309,8 +294,8 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     expect(promptCompleted?.hook_trigger).toBeUndefined();
     expect(promptCompleted?.spans).toBeUndefined();
     expect(promptCompleted?.span_count).toBeUndefined();
-    expect(promptPayloads.indexOf(promptParent)).toBeLessThan(promptPayloads.indexOf(promptHook));
-    expect(promptPayloads.indexOf(promptHook)).toBeLessThan(promptPayloads.indexOf(promptCompleted!));
+    expect(promptPayloads.indexOf(promptSignals[0]!)).toBeLessThan(promptPayloads.indexOf(promptParent));
+    expect(promptPayloads.indexOf(promptParent)).toBeLessThan(promptPayloads.indexOf(promptCompleted!));
 
     const responseCap = capture();
     const responsePayloads: CorePayload[] = [];

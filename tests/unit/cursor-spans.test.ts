@@ -3,10 +3,11 @@
 // Behavior rules require a backend-readable span shape. The shared
 // governed session is responsible for splitting mapper payloads into
 // the final parent-plus-hook wire contract; this test stays at the
-// mapper boundary and asserts: (a) `spans` is populated before the
-// session layer, (b) the first span carries the right `semantic_type`,
-// and (c) the gate attribute the classifier reads (file.path /
-// shell.command / http.method+url + gen_ai.system) is present.
+// mapper boundary and asserts: (a) prompt gates keep their signal/root
+// telemetry without synthetic prompt spans, (b) tool/output spans are
+// populated before the session layer, and (c) the gate attribute the
+// classifier reads (file.path / shell.command / http.method+url +
+// gen_ai.system) is present.
 
 import { describe, expect, test } from 'vitest';
 import { handleBeforeSubmitPrompt } from '../../ts/src/runtime/cursor/mappers/prompt.js';
@@ -46,19 +47,29 @@ interface SpanShape {
 }
 
 describe('cursor mappers emit spans for behavior-rule matching', () => {
-  test('beforeSubmitPrompt → llm_completion span with gen_ai.system + http.method/url', async () => {
+  test('beforeSubmitPrompt emits prompt telemetry without a synthetic prompt span', async () => {
     const captured: ActivityCall[] = [];
     await handleBeforeSubmitPrompt(
       { conversation_id: 'c', prompt: 'hi' } as never,
       makeCapturingSession(captured) as never,
       cfg,
     );
+    const signal = captured.find((c) => c.eventType === 'SignalReceived');
+    expect(signal?.activityType).toBe('user_prompt');
+    expect(signal?.payload).toMatchObject({
+      signalName: 'user_prompt',
+      signalArgs: 'hi',
+      sessionId: 'c',
+      prompt: 'hi',
+    });
+    expect(signal?.payload.spans).toBeUndefined();
     const main = captured.find((c) => c.eventType === 'ActivityStarted');
-    expect(main?.payload.spans).toHaveLength(1);
-    const span = (main?.payload.spans?.[0] ?? {}) as SpanShape;
-    expect(span.semantic_type).toBe('llm_completion');
-    expect(span.attributes?.['http.method']).toBe('POST');
-    expect(span.attributes?.['gen_ai.system']).toBeDefined();
+    expect(main?.activityType).toBe('PromptSubmission');
+    expect(main?.payload).toMatchObject({
+      sessionId: 'c',
+      prompt: 'hi',
+    });
+    expect(main?.payload.spans).toBeUndefined();
   });
 
   test('beforeReadFile → file_read span with file.path attribute', async () => {

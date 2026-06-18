@@ -139,10 +139,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       sessionId: 'S',
       prompt: 'hi',
     });
-    expect(promptGate?.args[2].spans?.[0]).toMatchObject({
-      semantic_type: 'llm_completion',
-      module: 'claude-code',
-    });
+    expect(promptGate?.args[2].spans).toBeUndefined();
   });
 
   it('pre/post tool hooks pair on tool_use_id and send tool results as activity output', async () => {

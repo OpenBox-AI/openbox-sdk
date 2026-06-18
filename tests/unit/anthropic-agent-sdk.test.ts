@@ -160,7 +160,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     );
   });
 
-  it('emits prompt submit spans with parent-plus-hook ordering', async () => {
+  it('emits prompt submit gate after the goal signal without prompt spans', async () => {
     const mock = createMockCore(() => verdict('allow'));
     const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
 
@@ -198,8 +198,8 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         event.event_type === 'ActivityStarted' &&
         event.activity_type === 'PromptSubmission',
     );
-    expect(promptEvents).toHaveLength(2);
-    const [parent, hook] = promptEvents;
+    expect(promptEvents).toHaveLength(1);
+    const [parent] = promptEvents;
     expect(parent.hook_trigger).toBeUndefined();
     expect(parent.spans).toBeUndefined();
     expect(parent.span_count).toBeUndefined();
@@ -212,21 +212,9 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         _openbox_source: 'anthropic-agent-sdk',
       }),
     ]);
-    expect(hook.hook_trigger).toBe(true);
-    expect(hook.workflow_id).toBe(parent.workflow_id);
-    expect(hook.run_id).toBe(parent.run_id);
-    expect(hook.activity_id).toBe(parent.activity_id);
-    expect(hook.span_count).toBe(1);
-    expect(hook.spans?.[0]).toMatchObject({
-      module: 'anthropic-agent-sdk',
-      name: 'llm.chat.completion',
-      stage: 'started',
-      semantic_type: 'llm_completion',
-      args: expect.objectContaining({ prompt: 'Summarize this repository.' }),
-    });
   });
 
-  it('gates prompt expansions with prompt spans', async () => {
+  it('gates prompt expansions without prompt spans', async () => {
     const mock = createMockCore((payload) =>
       payload.event_type === 'ActivityStarted' &&
       payload.activity_type === 'PromptSubmission' &&
@@ -254,8 +242,8 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         event.event_type === 'ActivityStarted' &&
         event.activity_type === 'PromptSubmission',
     );
-    expect(promptEvents).toHaveLength(2);
-    const [parent, hook] = promptEvents;
+    expect(promptEvents).toHaveLength(1);
+    const [parent] = promptEvents;
     expect(parent.activity_input).toEqual([
       expect.objectContaining({
         event_category: 'llm_prompt_expansion',
@@ -265,13 +253,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       }),
     ]);
     expect(parent.spans).toBeUndefined();
-    expect(hook.hook_trigger).toBe(true);
-    expect(hook.activity_id).toBe(parent.activity_id);
-    expect(hook.spans?.[0]).toMatchObject({
-      module: 'anthropic-agent-sdk',
-      semantic_type: 'llm_completion',
-      args: expect.objectContaining({ prompt: 'Deploy production now.' }),
-    });
+    expect(parent.span_count).toBeUndefined();
   });
 
   it('maps a constrained PreToolUse verdict to allow plus updated input', async () => {

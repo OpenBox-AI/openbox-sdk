@@ -101,14 +101,6 @@ export function toolActivityInput(
   }) as unknown[];
 }
 
-export function promptSpan(prompt: string): SpanData[] {
-  return [
-    buildSpan('anthropic-agent-sdk', 'llm', {
-      prompt,
-    }) as unknown as SpanData,
-  ];
-}
-
 export function subagentActivityInput(
   env: Record<string, unknown>,
   payload: Record<string, unknown>,
