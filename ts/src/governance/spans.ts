@@ -123,6 +123,7 @@ type ObservableSpan = SpanData & {
   model?: string;
   input_tokens?: number;
   output_tokens?: number;
+  total_tokens?: number;
 };
 
 function objectRecord(value: unknown): JsonRecord {
@@ -263,6 +264,7 @@ export function buildLLMCompletionSpan(
   const outputTokens = toPositiveInteger(
     usage?.output_tokens ?? usage?.completion_tokens,
   );
+  const totalTokens = toPositiveInteger(usage?.total_tokens);
   const httpUrl =
     input.providerUrl ??
     source.http_url ??
@@ -291,6 +293,9 @@ export function buildLLMCompletionSpan(
       ...(outputTokens !== undefined
         ? { 'gen_ai.usage.output_tokens': outputTokens }
         : {}),
+      ...(totalTokens !== undefined
+        ? { 'gen_ai.usage.total_tokens': totalTokens }
+        : {}),
       'http.method': 'POST',
       'http.url': httpUrl,
       'openbox.semantic_type': 'llm_completion',
@@ -301,6 +306,7 @@ export function buildLLMCompletionSpan(
     ...(input.model ? { model: input.model } : {}),
     ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
     ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
+    ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),
     http_method: source.http_method ?? 'POST',
     http_url: httpUrl,
     request_body:
@@ -345,6 +351,7 @@ export function buildSpan(
       const outputTokens = toPositiveInteger(
         usage?.output_tokens ?? usage?.completion_tokens,
       );
+      const totalTokens = toPositiveInteger(usage?.total_tokens);
       return {
         ...b,
         name: 'llm.chat.completion',
@@ -361,6 +368,9 @@ export function buildSpan(
           ...(outputTokens !== undefined
             ? { 'gen_ai.usage.output_tokens': outputTokens }
             : {}),
+          ...(totalTokens !== undefined
+            ? { 'gen_ai.usage.total_tokens': totalTokens }
+            : {}),
           'http.method': 'POST',
           'http.url': 'https://api.openai.com/v1/chat/completions',
           'openbox.semantic_type': 'llm_completion',
@@ -369,6 +379,7 @@ export function buildSpan(
         ...(input.model ? { model: input.model } : {}),
         ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
         ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
+        ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),
         function: 'LLMCall',
         module: host,
         args: input,

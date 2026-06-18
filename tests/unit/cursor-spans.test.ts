@@ -176,11 +176,13 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     expect(span).toMatchObject({
       semantic_type: 'llm_completion',
       model: 'gemini-2.5-flash',
+      total_tokens: 17,
       attributes: {
         'gen_ai.system': 'cursor',
         'gen_ai.response.model': 'gemini-2.5-flash',
         'gen_ai.usage.input_tokens': 12,
         'gen_ai.usage.output_tokens': 5,
+        'gen_ai.usage.total_tokens': 17,
         'openbox.cursor.event': 'afterAgentResponse',
       },
     });

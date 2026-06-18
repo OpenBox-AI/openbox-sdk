@@ -120,17 +120,43 @@ describe('LLM completion spans', () => {
       model?: string;
       input_tokens?: number;
       output_tokens?: number;
+      total_tokens?: number;
     };
     expect(observed.model).toBe('gpt-4o-mini');
     expect(observed.input_tokens).toBe(120);
     expect(observed.output_tokens).toBe(35);
+    expect(observed.total_tokens).toBe(155);
     expect(span.attributes).toMatchObject({
       'gen_ai.request.model': 'gpt-4o-mini',
       'gen_ai.response.model': 'gpt-4o-mini',
       'gen_ai.usage.input_tokens': 120,
       'gen_ai.usage.output_tokens': 35,
+      'gen_ai.usage.total_tokens': 155,
       'openbox.semantic_type': 'llm_completion',
       'openbox.span_type': 'function',
+    });
+  });
+
+  test('generic LLM spans expose derived total tokens for backend metrics', () => {
+    const span = buildSpan('cursor', 'llm', {
+      model: 'gemini-2.5-flash',
+      usage: {
+        inputTokens: 11,
+        outputTokens: 7,
+      },
+    });
+
+    expect(span).toMatchObject({
+      semantic_type: 'llm_completion',
+      model: 'gemini-2.5-flash',
+      input_tokens: 11,
+      output_tokens: 7,
+      total_tokens: 18,
+      attributes: {
+        'gen_ai.usage.input_tokens': 11,
+        'gen_ai.usage.output_tokens': 7,
+        'gen_ai.usage.total_tokens': 18,
+      },
     });
   });
 
