@@ -163,6 +163,11 @@ function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
     usage.completionTokens ?? usage.outputTokens,
   );
   const totalTokens = toPositiveInteger(usage.totalTokens);
+  const derivedTotalTokens =
+    totalTokens ??
+    (promptTokens !== undefined || completionTokens !== undefined
+      ? (promptTokens ?? 0) + (completionTokens ?? 0)
+      : undefined);
   const normalized: JsonRecord = {};
   if (promptTokens !== undefined) {
     normalized.prompt_tokens = promptTokens;
@@ -172,7 +177,7 @@ function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
     normalized.completion_tokens = completionTokens;
     normalized.output_tokens = completionTokens;
   }
-  if (totalTokens !== undefined) normalized.total_tokens = totalTokens;
+  if (derivedTotalTokens !== undefined) normalized.total_tokens = derivedTotalTokens;
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 

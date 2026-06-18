@@ -46,6 +46,16 @@ function outputTokens(usage: LLMTokenUsage | undefined): number | undefined {
   return usage?.outputTokens ?? usage?.completionTokens;
 }
 
+function totalTokens(usage: LLMTokenUsage | undefined): number | undefined {
+  if (!usage) return undefined;
+  if (usage.totalTokens !== undefined) return usage.totalTokens;
+  const input = inputTokens(usage);
+  const output = outputTokens(usage);
+  return input !== undefined || output !== undefined
+    ? (input ?? 0) + (output ?? 0)
+    : undefined;
+}
+
 function defaultAssistantSpanName(source: string): string {
   return `openbox.${source}.assistant_output`;
 }
@@ -58,7 +68,7 @@ export function assistantOutputTelemetryFields(
     llmModel: input.model,
     inputTokens: inputTokens(input.usage),
     outputTokens: outputTokens(input.usage),
-    totalTokens: input.usage?.totalTokens,
+    totalTokens: totalTokens(input.usage),
     completion: firstText(input.content),
   };
 }
@@ -91,4 +101,3 @@ export function buildAssistantOutputSpan(
     }),
   ];
 }
-

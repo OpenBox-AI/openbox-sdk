@@ -94,7 +94,6 @@ describe('LLM completion spans', () => {
       usage: {
         promptTokens: 120,
         completionTokens: 35,
-        totalTokens: 155,
       },
     });
 

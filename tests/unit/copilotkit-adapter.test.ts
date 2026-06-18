@@ -1094,7 +1094,6 @@ describe('CopilotKit OpenBox adapter', () => {
           tokenUsage: {
             promptTokens: 42,
             completionTokens: 16,
-            totalTokens: 58,
           },
         },
       }),
