@@ -4,7 +4,13 @@
     "rootDir": ".",
     "outDir": "dist",
     "noEmit": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "paths": {
+      "@openbox-ai/openbox-sdk/anthropic-agent-sdk": [
+        "ts/src/anthropic-agent-sdk/index.ts"
+      ]
+    }
   },
   "include": ["ts/src/**/*", "codegen/**/src/**/*", "tests/**/*"],
   "exclude": [

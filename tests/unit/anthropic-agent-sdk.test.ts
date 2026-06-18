@@ -114,6 +114,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
             validation_passed: true,
             reasons: [],
             results: [],
+            raw_logs: {},
           },
         });
       }
@@ -222,6 +223,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
             validation_passed: true,
             reasons: [],
             results: [],
+            raw_logs: {},
           },
         });
       }
