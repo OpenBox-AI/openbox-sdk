@@ -270,6 +270,31 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     expect(span?.http_method).toBe('PATCH');
     expect(span?.http_url).toBe('https://example.test/complete');
   });
+
+  it('emits spans for failed tool completions', async () => {
+    const { handlePostToolUseFailure } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
+    const session = recordingSession();
+    const env: any = {
+      tool_name: 'Bash',
+      tool_input: { command: 'npm test', cwd: dir },
+      error: 'exit 1',
+      session_id: 'post-failure-shell',
+    };
+    const cfg: any = { sessionDir: dir };
+    await handlePostToolUseFailure(env, session, cfg);
+    const payload = session.calls[0]?.args[2];
+    const span = payload?.spans?.[0] as Record<string, any>;
+    expect(payload.toolName).toBe('Bash');
+    expect(payload.toolType).toBe('shell');
+    expect(span).toMatchObject({
+      name: 'ShellExecution',
+      semantic_type: 'internal',
+      attributes: expect.objectContaining({
+        'shell.command': 'npm test',
+        'openbox.tool.name': 'Bash',
+      }),
+    });
+  });
 });
 
 describe('runtime/claude-code/mappers/permission-request', () => {
@@ -321,6 +346,32 @@ describe('runtime/claude-code/mappers/permission-request', () => {
     expect(span?.semantic_type).toBe('http_delete');
     expect(span?.http_method).toBe('DELETE');
     expect(span?.http_url).toBe('https://example.test/permission');
+  });
+
+  it('emits spans for permission-denied tool telemetry', async () => {
+    const { handlePermissionDenied } = await import('../../ts/src/runtime/claude-code/mappers/permission-request');
+    const session = recordingSession();
+    const env: any = {
+      tool_name: 'Bash',
+      tool_input: { command: 'npm test', cwd: dir },
+      reason: 'auto mode denied',
+      session_id: 'permission-denied-shell',
+    };
+    const cfg: any = { sessionDir: dir };
+    await handlePermissionDenied(env, session, cfg);
+    const payload = session.calls[0]?.args[2];
+    const span = payload?.spans?.[0] as Record<string, any>;
+    expect(payload.sessionId).toBe('permission-denied-shell');
+    expect(payload.toolName).toBe('Bash');
+    expect(payload.toolType).toBe('shell');
+    expect(span).toMatchObject({
+      name: 'ShellExecution',
+      semantic_type: 'internal',
+      attributes: expect.objectContaining({
+        'shell.command': 'npm test',
+        'openbox.tool.name': 'Bash',
+      }),
+    });
   });
 });
 

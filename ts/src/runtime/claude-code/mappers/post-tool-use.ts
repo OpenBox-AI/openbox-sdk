@@ -136,6 +136,23 @@ export async function handlePostToolUseFailure(
   const startedPayload = buildPreToolUsePayload(env, toolName, sideEffects);
   const spanType = spanTypeFor(toolName, toolInput);
   const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? 'db' : null);
+  const spans = effectiveSpanType
+    ? [
+        buildSpan('claude-code', effectiveSpanType, {
+          file_path: filePath || undefined,
+          command: toolInput.command as string | undefined,
+          cwd: toolInput.cwd as string | undefined,
+          tool_name: toolName,
+          tool_input: toolInput,
+          tool_output: payload,
+          url: httpTargetFor(toolInput),
+          method: httpMethodFor(toolInput),
+          db_system: dbSystemFor(toolName, toolInput),
+          db_operation: dbOperationFor(toolInput),
+          db_statement: dbStatementFor(toolInput),
+        }),
+      ]
+    : undefined;
   const durationMs = durationMsFor(env);
   const verdict = await session.activity(EVENT.COMPLETE, activityType, {
     activityId: pending?.activityId,
@@ -150,6 +167,7 @@ export async function handlePostToolUseFailure(
     sessionId: env.session_id,
     toolName,
     toolType: effectiveSpanType ?? undefined,
+    spans,
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;
