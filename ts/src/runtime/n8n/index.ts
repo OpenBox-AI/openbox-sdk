@@ -15,6 +15,13 @@ export interface N8nUserPromptSignalOptions {
   sessionId?: string;
 }
 
+export interface N8nNodePreExecutePayloadInput {
+  input?: Record<string, unknown>;
+  nodeName?: string;
+  sessionId?: string;
+  prompt?: string;
+}
+
 export interface N8nLlmCompletionPayloadInput {
   text: string;
   model?: string;
@@ -33,6 +40,8 @@ export interface N8nLlmCompletionPayloadInput {
 }
 
 type SignalCapableN8nSession = Pick<N8nSession, 'activity'>;
+type NodePreExecuteCapableN8nSession = Pick<N8nSession, 'nodePreExecute'>;
+type NodePostExecuteCapableN8nSession = Pick<N8nSession, 'nodePostExecute'>;
 
 function cleanRecord(value: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(
@@ -63,6 +72,34 @@ export async function emitN8nUserPromptSignal(
     sessionId: options.sessionId,
     prompt: signalArgs,
   });
+}
+
+export function buildN8nNodePreExecutePayload(
+  input: N8nNodePreExecutePayloadInput,
+): GovernedPayload {
+  const prompt = input.prompt?.trim();
+  return {
+    input: [
+      stampSource(
+        cleanRecord({
+          ...(input.input ?? {}),
+          event_category: 'node_pre_execute',
+          node_name: input.nodeName,
+          prompt,
+        }),
+        'n8n',
+      ),
+    ],
+    sessionId: input.sessionId,
+    prompt,
+  };
+}
+
+export async function emitN8nNodePreExecute(
+  session: NodePreExecuteCapableN8nSession,
+  input: N8nNodePreExecutePayloadInput,
+): Promise<WorkflowVerdict> {
+  return session.nodePreExecute(buildN8nNodePreExecutePayload(input));
 }
 
 export function buildN8nLlmCompletionPayload(
@@ -107,4 +144,11 @@ export function buildN8nLlmCompletionPayload(
       }),
     }),
   };
+}
+
+export async function emitN8nLlmCompletion(
+  session: NodePostExecuteCapableN8nSession,
+  input: N8nLlmCompletionPayloadInput,
+): Promise<WorkflowVerdict> {
+  return session.nodePostExecute(buildN8nLlmCompletionPayload(input));
 }

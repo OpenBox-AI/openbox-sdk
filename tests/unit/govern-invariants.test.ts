@@ -30,7 +30,10 @@ import {
   buildLLMCompletionSpan,
   buildSpan,
 } from '../../ts/src/governance/spans.js';
-import { buildN8nLlmCompletionPayload } from '../../ts/src/runtime/n8n/index.js';
+import {
+  emitN8nLlmCompletion,
+  emitN8nNodePreExecute,
+} from '../../ts/src/runtime/n8n/index.js';
 
 interface MockCore {
   events: GovernanceEventPayload[];
@@ -282,26 +285,53 @@ describe('activity pairing', () => {
     expect(completed?.span_count).toBeUndefined();
   });
 
-  test('n8n nodePostExecute sends parent model usage and hook completion span', async () => {
+  test('n8n runtime helpers send node lifecycle events and hook completion spans', async () => {
     const mock = createMockCore('allow');
     await govern(
       { ...baseConfig(mock), preset: presets.n8n },
       async (session) => {
-        await session.nodePostExecute({
-          ...buildN8nLlmCompletionPayload({
-            text: 'Draft ready.',
-            model: 'gpt-4o-mini',
-            usage: {
-              promptTokens: 18,
-              completionTokens: 7,
-              totalTokens: 25,
-            },
-            nodeName: 'Governed LLM Draft',
-            provider: 'openrouter',
-          }),
+        await emitN8nNodePreExecute(session, {
+          input: { chatInput: 'Draft release note.' },
+          nodeName: 'Governed LLM Draft',
+          sessionId: 'n8n-chat-1',
+          prompt: 'Draft release note.',
+        });
+        await emitN8nLlmCompletion(session, {
+          text: 'Draft ready.',
+          model: 'gpt-4o-mini',
+          usage: {
+            promptTokens: 18,
+            completionTokens: 7,
+            totalTokens: 25,
+          },
+          nodeName: 'Governed LLM Draft',
+          provider: 'openrouter',
+          sessionId: 'n8n-chat-1',
         });
       },
     );
+
+    const started = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'node-pre-execute',
+    );
+    expect(started).toMatchObject({
+      session_id: 'n8n-chat-1',
+      prompt: 'Draft release note.',
+      activity_input: [
+        expect.objectContaining({
+          chatInput: 'Draft release note.',
+          event_category: 'node_pre_execute',
+          node_name: 'Governed LLM Draft',
+          prompt: 'Draft release note.',
+          _openbox_source: 'n8n',
+        }),
+      ],
+    });
+    expect(started?.hook_trigger).toBeUndefined();
+    expect(started?.spans).toBeUndefined();
+    expect(started?.span_count).toBeUndefined();
 
     const completedEvents = mock.events.filter(
       (event) =>
@@ -320,6 +350,7 @@ describe('activity pairing', () => {
       total_tokens: 25,
       has_tool_calls: false,
       completion: 'Draft ready.',
+      session_id: 'n8n-chat-1',
     });
     expect(completedHook.hook_trigger).toBe(true);
     expect(completedHook.event_type).toBe(completedParent.event_type);
