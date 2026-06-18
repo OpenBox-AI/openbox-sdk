@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { SpanData } from '../../ts/src/core-client/index.js';
+import { assistantOutputTelemetryFields } from '../../ts/src/governance/assistant-output.js';
 import {
   buildLLMCompletionResponseBody,
   buildLLMCompletionSpan,
@@ -170,6 +171,29 @@ describe('LLM completion spans', () => {
         'openbox.model.id': 'gemini-2.5-flash',
         'openbox.model.provider': 'google',
       },
+    });
+  });
+
+  test('assistant output parent telemetry accepts provider snake_case usage', () => {
+    expect(
+      assistantOutputTelemetryFields({
+        source: 'n8n',
+        content: 'The workflow completed.',
+        model: 'gemini-2.5-flash',
+        usage: {
+          input_tokens: 11,
+          output_tokens: 7,
+          total_tokens: 18,
+        },
+        hasToolCalls: true,
+      }),
+    ).toMatchObject({
+      llmModel: 'gemini-2.5-flash',
+      inputTokens: 11,
+      outputTokens: 7,
+      totalTokens: 18,
+      hasToolCalls: true,
+      completion: 'The workflow completed.',
     });
   });
 

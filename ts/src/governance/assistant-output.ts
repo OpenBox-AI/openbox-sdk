@@ -47,16 +47,27 @@ function firstText(...values: Array<unknown>): string | undefined {
 }
 
 function inputTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  return usage?.inputTokens ?? usage?.promptTokens;
+  return (
+    usage?.promptTokens ??
+    usage?.prompt_tokens ??
+    usage?.inputTokens ??
+    usage?.input_tokens
+  );
 }
 
 function outputTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  return usage?.outputTokens ?? usage?.completionTokens;
+  return (
+    usage?.completionTokens ??
+    usage?.completion_tokens ??
+    usage?.outputTokens ??
+    usage?.output_tokens
+  );
 }
 
 function totalTokens(usage: LLMTokenUsage | undefined): number | undefined {
   if (!usage) return undefined;
   if (usage.totalTokens !== undefined) return usage.totalTokens;
+  if (usage.total_tokens !== undefined) return usage.total_tokens;
   const input = inputTokens(usage);
   const output = outputTokens(usage);
   return input !== undefined || output !== undefined
