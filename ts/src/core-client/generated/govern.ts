@@ -28,6 +28,11 @@ export interface WorkflowVerdict {
   reason?: string;
   riskScore: number;
   trustTier?: number;
+  policyId?: string;
+  behavioralViolations?: string[];
+  constraints?: string[];
+  metadata?: Record<string, unknown>;
+  fallbackUsed?: boolean;
   guardrailsResult?: GuardrailsVerdict;
   activityId?: string;
   ageResult?: GovernanceVerdictResponse['age_result'];
@@ -2843,6 +2848,11 @@ function mapVerdict(response: GovernanceVerdictResponse): WorkflowVerdict {
     reason: response.reason ?? (guardrailsFailed ? guardrailFailureReason(guardrailsResult) : undefined),
     riskScore: response.risk_score ?? 0,
     trustTier: response.trust_tier ?? undefined,
+    policyId: response.policy_id,
+    behavioralViolations: response.behavioral_violations,
+    constraints: response.constraints,
+    metadata: response.metadata,
+    fallbackUsed: response.fallback_used,
     guardrailsResult,
     ageResult: response.age_result,
   };

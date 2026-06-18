@@ -408,6 +408,11 @@ export function verdictMetadata(
   return {
     riskScore: verdict?.riskScore,
     trustTier: verdict?.trustTier,
+    policyId: verdict?.policyId,
+    behavioralViolations: verdict?.behavioralViolations,
+    constraints: verdict?.constraints,
+    metadata: verdict?.metadata,
+    fallbackUsed: verdict?.fallbackUsed,
     guardrailsResult: verdict?.guardrailsResult,
     ageResult: ageResultFromVerdict(verdict),
     redactionSummary,
@@ -422,6 +427,11 @@ export function mergedVerdictMetadata(
   return {
     riskScore: verdict.riskScore ?? result.riskScore,
     trustTier: verdict.trustTier ?? result.trustTier,
+    policyId: verdict.policyId ?? result.policyId,
+    behavioralViolations: verdict.behavioralViolations ?? result.behavioralViolations,
+    constraints: verdict.constraints ?? result.constraints,
+    metadata: verdict.metadata ?? result.metadata,
+    fallbackUsed: verdict.fallbackUsed ?? result.fallbackUsed,
     guardrailsResult: verdict.guardrailsResult ?? result.guardrailsResult,
     ageResult: ageResultFromVerdict(verdict) ?? result.ageResult,
     redactionSummary: redactionSummary || result.redactionSummary,

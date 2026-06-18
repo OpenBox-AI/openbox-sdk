@@ -71,6 +71,11 @@ export interface OpenBoxCopilotActionResult<TArtifact = unknown> {
   message: string;
   riskScore?: number;
   trustTier?: string | number;
+  policyId?: WorkflowVerdict['policyId'];
+  behavioralViolations?: WorkflowVerdict['behavioralViolations'];
+  constraints?: WorkflowVerdict['constraints'];
+  metadata?: WorkflowVerdict['metadata'];
+  fallbackUsed?: WorkflowVerdict['fallbackUsed'];
   guardrailsResult?: WorkflowVerdict['guardrailsResult'];
   ageResult?: AGEResult;
   redactionSummary?: string;

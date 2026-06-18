@@ -354,6 +354,21 @@ model WorkflowVerdict {
   /** Agent trust tier (1-4) at the moment of evaluation. */
   trustTier?: int32;
 
+  /** OPA/behavior policy id that produced this verdict, when Core returns one. */
+  policyId?: string;
+
+  /** Behavior-rule names that triggered during evaluation. */
+  behavioralViolations?: string[];
+
+  /** Set on `constrain`; enforcement hints for transformed output. */
+  constraints?: string[];
+
+  /** Free-form Core metadata attached to the verdict. */
+  metadata?: Record<unknown>;
+
+  /** True when Core used a fallback evaluation path. */
+  fallbackUsed?: boolean;
+
   /**
    * Guardrails outcome; populated when a guardrail fired (PII/safety/
    * content checks). `redactedInput` is the safe payload to forward

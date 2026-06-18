@@ -42,7 +42,7 @@ interface MockCore {
 }
 
 function createMockCore(
-  verdictArm: 'allow' | 'block' | 'require_approval' = 'allow',
+  verdictArm: 'allow' | 'constrain' | 'block' | 'halt' | 'require_approval' = 'allow',
   overrides: Partial<GovernanceVerdictResponse> = {},
 ): MockCore {
   const events: GovernanceEventPayload[] = [];
@@ -1246,6 +1246,38 @@ describe('govern.attach (cross-process / harness-owned lifecycle)', () => {
 });
 
 describe('WorkflowVerdict.guardrailsResult', () => {
+  test('preserves Core policy, behavior-rule, constraint, and metadata fields', async () => {
+    const mock = createMockCore('constrain', {
+      policy_id: 'policy-123',
+      behavioral_violations: ['sensitive-shell-rule'],
+      constraints: ['redact command before display'],
+      metadata: { evaluator: 'opa', rule: 'shell' },
+      fallback_used: true,
+      trust_tier: 3,
+      reason: 'Constrained by behavior rule',
+    });
+    type WV = import('../../ts/src/core-client/generated/govern.js').WorkflowVerdict;
+    let captured: WV | null = null;
+
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        captured = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+      },
+    );
+
+    expect(captured).toMatchObject({
+      arm: 'constrain',
+      policyId: 'policy-123',
+      behavioralViolations: ['sensitive-shell-rule'],
+      constraints: ['redact command before display'],
+      metadata: { evaluator: 'opa', rule: 'shell' },
+      fallbackUsed: true,
+      trustTier: 3,
+      reason: 'Constrained by behavior rule',
+    });
+  });
+
   test('populated from wire response.guardrails_result', async () => {
     const mock = createMockCore('allow');
     mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {

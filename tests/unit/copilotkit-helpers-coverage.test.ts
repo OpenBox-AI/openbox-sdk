@@ -273,6 +273,11 @@ describe('copilotkit helper coverage', () => {
       reason: 'allowed',
       riskScore: 0.1,
       trustTier: 2,
+      policyId: 'policy-abc',
+      behavioralViolations: ['rule-a'],
+      constraints: ['mask field'],
+      metadata: { evaluator: 'opa' },
+      fallbackUsed: false,
     });
     const constrainedBySummary = resultForAllowedVerdict(
       input,
@@ -287,6 +292,11 @@ describe('copilotkit helper coverage', () => {
       verdict: 'constrain',
       riskScore: 0.1,
       trustTier: 2,
+      policyId: 'policy-abc',
+      behavioralViolations: ['rule-a'],
+      constraints: ['mask field'],
+      metadata: { evaluator: 'opa' },
+      fallbackUsed: false,
       redactionSummary: 'redacted field',
     });
     expect(
@@ -356,7 +366,13 @@ describe('copilotkit helper coverage', () => {
     expect(verdictMetadata(undefined)).toEqual({
       riskScore: undefined,
       trustTier: undefined,
+      policyId: undefined,
+      behavioralViolations: undefined,
+      constraints: undefined,
+      metadata: undefined,
+      fallbackUsed: undefined,
       guardrailsResult: undefined,
+      ageResult: undefined,
       redactionSummary: undefined,
     });
     expect(
@@ -364,6 +380,11 @@ describe('copilotkit helper coverage', () => {
         {
           riskScore: 0.4,
           trustTier: 'silver',
+          policyId: 'policy-existing',
+          behavioralViolations: ['existing-rule'],
+          constraints: ['existing-constraint'],
+          metadata: { existing: true },
+          fallbackUsed: true,
           guardrailsResult: { inputType: 'activity_input' },
           redactionSummary: 'existing',
         } as any,
@@ -372,6 +393,11 @@ describe('copilotkit helper coverage', () => {
     ).toMatchObject({
       riskScore: 0.4,
       trustTier: 'silver',
+      policyId: 'policy-existing',
+      behavioralViolations: ['existing-rule'],
+      constraints: ['existing-constraint'],
+      metadata: { existing: true },
+      fallbackUsed: true,
       guardrailsResult: { inputType: 'activity_input' },
       redactionSummary: 'existing',
     });
