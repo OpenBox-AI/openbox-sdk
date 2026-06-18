@@ -314,6 +314,7 @@ export function createOpenBoxLangChainMiddleware({
           sessionKey: key,
           workflowId: gateIds.workflowId,
           runId: gateIds.runId,
+          activityId: inputGate.activityId,
           activityType: toolActivityTypeFromRequest(request),
         });
         if (shouldStopForGate(outputGate, governanceMode)) {

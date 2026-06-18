@@ -20,6 +20,7 @@ import * as corePublic from '../../ts/src/core-client/index.js';
 
 const PRESET_TO_CAMEL: Record<string, keyof typeof presets> = {
   airflow: 'airflow',
+  'anthropic-agent-sdk': 'anthropicAgentSdk',
   argocd: 'argocd',
   autogen: 'autogen',
   'claude-code': 'claudeCode',

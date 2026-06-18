@@ -8,16 +8,108 @@ import {
 import type { WorkflowVerdict } from '@openbox-ai/openbox-sdk';
 
 type OpenBoxSdk = typeof import('@openbox-ai/openbox-sdk');
+interface LLMTokenUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
+interface OpenBoxGovernanceSdk {
+  buildLLMCompletionSpan(input: {
+    content: string;
+    name?: string;
+    kind?: string;
+    system?: string;
+    model?: string;
+    usage?: LLMTokenUsage;
+    requestBody?: unknown;
+    responseBody?: unknown;
+    providerUrl?: string;
+    startTime?: number;
+    endTime?: number;
+    durationNs?: number;
+    attributes?: Record<string, unknown>;
+  }): Record<string, unknown>;
+}
 
 const importModule = new Function('specifier', 'return import(specifier)') as (
   specifier: string,
-) => Promise<OpenBoxSdk>;
+) => Promise<OpenBoxSdk | OpenBoxGovernanceSdk>;
 
 let openboxSdkPromise: Promise<OpenBoxSdk> | undefined;
+let openboxGovernancePromise: Promise<OpenBoxGovernanceSdk> | undefined;
 
 function loadOpenBoxSdk(): Promise<OpenBoxSdk> {
-  openboxSdkPromise ??= importModule('@openbox-ai/openbox-sdk');
+  openboxSdkPromise ??= importModule('@openbox-ai/openbox-sdk') as Promise<OpenBoxSdk>;
   return openboxSdkPromise;
+}
+
+function loadOpenBoxGovernanceSdk(): Promise<OpenBoxGovernanceSdk> {
+  openboxGovernancePromise ??= importModule(
+    '@openbox-ai/openbox-sdk/governance',
+  ) as Promise<OpenBoxGovernanceSdk>;
+  return openboxGovernancePromise;
+}
+
+interface LlmCallResult {
+  text: string;
+  model: string;
+  usage?: LLMTokenUsage;
+  requestBody: unknown;
+  responseBody: unknown;
+  providerUrl: string;
+  actualProviderUrl: string;
+  startTime: number;
+  endTime: number;
+  durationNs: number;
+}
+
+function recordFrom(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function numberFrom(value: unknown): number | undefined {
+  const numeric =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+        ? Number(value)
+        : undefined;
+  if (numeric === undefined || !Number.isFinite(numeric) || numeric < 0) return undefined;
+  return Math.trunc(numeric);
+}
+
+function usageFromOpenAiCompatible(response: unknown): LLMTokenUsage | undefined {
+  const usage = recordFrom(recordFrom(response).usage);
+  return compactUsage({
+    promptTokens: numberFrom(usage.prompt_tokens ?? usage.input_tokens),
+    completionTokens: numberFrom(usage.completion_tokens ?? usage.output_tokens),
+    totalTokens: numberFrom(usage.total_tokens),
+  });
+}
+
+function usageFromOllama(response: unknown): LLMTokenUsage | undefined {
+  const record = recordFrom(response);
+  const promptTokens = numberFrom(record.prompt_eval_count);
+  const completionTokens = numberFrom(record.eval_count);
+  return compactUsage({
+    promptTokens,
+    completionTokens,
+    totalTokens:
+      promptTokens !== undefined && completionTokens !== undefined
+        ? promptTokens + completionTokens
+        : undefined,
+  });
+}
+
+function compactUsage(usage: LLMTokenUsage): LLMTokenUsage | undefined {
+  return Object.values(usage).some((value) => value !== undefined)
+    ? usage
+    : undefined;
 }
 
 function errorMessage(error: unknown): string {
@@ -231,7 +323,7 @@ export class OpenboxLlm implements INodeType {
     const helpers = this.helpers;
     const node = this.getNode();
 
-    const callLlm = async (prompt: string): Promise<string> => {
+    const callLlm = async (prompt: string): Promise<LlmCallResult> => {
       if (llmProvider === 'openrouter') {
         if (!openRouterApiKey) {
           throw new NodeOperationError(
@@ -241,23 +333,27 @@ export class OpenboxLlm implements INodeType {
         }
 
         const baseUrl = openRouterBaseUrl.replace(/\/+$/, '');
+        const actualProviderUrl = `${baseUrl}/chat/completions`;
+        const requestBody = {
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt },
+          ],
+        };
+        const startTime = Date.now();
         const res = await helpers.httpRequest({
           method: 'POST',
-          url: `${baseUrl}/chat/completions`,
+          url: actualProviderUrl,
           headers: {
             Authorization: `Bearer ${openRouterApiKey}`,
             'Content-Type': 'application/json',
             'HTTP-Referer': process.env.N8N_EDITOR_BASE_URL ?? 'https://n8n.example.test/ob/n8n/',
             'X-Title': 'OpenBox n8n demo',
           },
-          body: {
-            model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: prompt },
-            ],
-          },
+          body: requestBody,
         });
+        const endTime = Date.now();
         const choice = (res as any).choices?.[0];
         const message = choice?.message ?? {};
         const text =
@@ -276,15 +372,52 @@ export class OpenboxLlm implements INodeType {
             'LLM provider returned no message content or reasoning text',
           );
         }
-        return text as string;
+        const responseRecord = recordFrom(res);
+        return {
+          text: text as string,
+          model:
+            typeof responseRecord.model === 'string' && responseRecord.model.trim()
+              ? responseRecord.model
+              : model,
+          usage: usageFromOpenAiCompatible(res),
+          requestBody,
+          responseBody: res,
+          // Core currently recognizes OpenAI-compatible telemetry by URL.
+          providerUrl: 'https://api.openai.com/v1/chat/completions',
+          actualProviderUrl,
+          startTime,
+          endTime,
+          durationNs: Math.max(0, endTime - startTime) * 1_000_000,
+        };
       }
 
+      const actualProviderUrl = `http://${ollamaHost}/api/generate`;
+      const requestBody = { model, system: systemPrompt, prompt, stream: false };
+      const startTime = Date.now();
       const res = await helpers.httpRequest({
         method: 'POST',
-        url: `http://${ollamaHost}/api/generate`,
-        body: { model, system: systemPrompt, prompt, stream: false },
+        url: actualProviderUrl,
+        body: requestBody,
       });
-      return ((res as any).response ?? JSON.stringify(res)) as string;
+      const endTime = Date.now();
+      const text = ((res as any).response ?? JSON.stringify(res)) as string;
+      const responseRecord = recordFrom(res);
+      return {
+        text,
+        model:
+          typeof responseRecord.model === 'string' && responseRecord.model.trim()
+            ? responseRecord.model
+            : model,
+        usage: usageFromOllama(res),
+        requestBody,
+        responseBody: res,
+        // Keep this OpenAI-shaped so Core's current model extractor records usage.
+        providerUrl: 'https://api.openai.com/v1/chat/completions',
+        actualProviderUrl,
+        startTime,
+        endTime,
+        durationNs: Math.max(0, endTime - startTime) * 1_000_000,
+      };
     };
 
     if (!apiEndpoint || !apiKey) {
@@ -295,6 +428,7 @@ export class OpenboxLlm implements INodeType {
     }
 
     const { OpenBoxCoreClient, govern, presets } = await loadOpenBoxSdk();
+    const { buildLLMCompletionSpan } = await loadOpenBoxGovernanceSdk();
     const core = new OpenBoxCoreClient({ apiUrl: apiEndpoint, apiKey });
 
     const isAllowed = (verdict: WorkflowVerdict): boolean =>
@@ -385,9 +519,11 @@ export class OpenboxLlm implements INodeType {
         }
 
         let text: string;
+        let llmCall: LlmCallResult | undefined;
         let providerFallback: { enabled: boolean; reason?: string } = { enabled: false };
         try {
-          text = await callLlm(promptToUse);
+          llmCall = await callLlm(promptToUse);
+          text = llmCall.text;
         } catch (error) {
           if (fallbackEnabled) {
             providerFallback = { enabled: true, reason: errorMessage(error) };
@@ -403,6 +539,30 @@ export class OpenboxLlm implements INodeType {
           post = await session.nodePostExecute({
             input: [{ chatInput: promptToUse }],
             output: { text },
+            spans: llmCall
+              ? [
+                  buildLLMCompletionSpan({
+                    content: text,
+                    name: 'openbox.n8n.llm_completion',
+                    kind: 'llm',
+                    system: 'n8n',
+                    model: llmCall.model,
+                    usage: llmCall.usage,
+                    requestBody: llmCall.requestBody,
+                    responseBody: llmCall.responseBody,
+                    providerUrl: llmCall.providerUrl,
+                    startTime: llmCall.startTime,
+                    endTime: llmCall.endTime,
+                    durationNs: llmCall.durationNs,
+                    attributes: {
+                      'gen_ai.system': 'n8n',
+                      'openbox.n8n.node_name': node.name,
+                      'openbox.provider': llmProvider,
+                      'openbox.provider.url': llmCall.actualProviderUrl,
+                    },
+                  }),
+                ]
+              : [],
           });
         } catch (error) {
           postSkipped = errorMessage(error);
@@ -428,6 +588,8 @@ export class OpenboxLlm implements INodeType {
             workflowId: session.workflowId,
             runId: session.runId,
             nodeName: node.name,
+            model: llmCall?.model,
+            usage: llmCall?.usage,
             providerFallback: providerFallback.enabled,
             providerFallbackReason: providerFallback.reason,
             postSkipped,

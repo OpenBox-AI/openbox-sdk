@@ -1,0 +1,307 @@
+import type { SDKAssistantMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { SpanData, WorkflowVerdict } from '../core-client/index.js';
+import { stampSource } from '../approvals/source.js';
+import {
+  buildLLMCompletionSpan,
+  buildSpan,
+  type LLMTokenUsage,
+  type SpanType,
+} from '../governance/spans.js';
+
+export const ANTHROPIC_AGENT_ACTIVITY_TYPES = {
+  PROMPT: 'PromptSubmission',
+  TOOL_INPUT: 'PreToolUse',
+  TOOL_OUTPUT: 'PostToolUse',
+  TOOL_BATCH: 'PostToolBatch',
+  TOOL_FAILURE: 'PostToolUseFailure',
+  PERMISSION: 'PermissionRequest',
+  SESSION: 'AnthropicAgentSDKSession',
+  ASSISTANT_OUTPUT: 'LLMCompleted',
+  SUBAGENT: 'AgentSpawn',
+  COMPACT: 'PreCompact',
+  MESSAGE: 'AnthropicAgentSDKMessage',
+  USAGE_SIGNAL: 'anthropic_agent_sdk_usage',
+  GOAL_SIGNAL: 'user_prompt',
+} as const;
+
+export function objectRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+export function compactPayload(
+  input: Record<string, unknown>,
+  eventCategory: string,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = { event_category: eventCategory };
+  for (const [key, value] of Object.entries(input)) {
+    if (value !== undefined) payload[key] = value;
+  }
+  return stampSource(payload, 'anthropic-agent-sdk');
+}
+
+export function toolActivityType(toolName: string, toolInput: Record<string, unknown>): string {
+  if (toolName === 'Read' || toolName === 'NotebookRead' || toolName === 'Glob' || toolName === 'Grep') return 'FileRead';
+  if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') return 'FileEdit';
+  if (toolName === 'Delete') return 'FileDelete';
+  if (toolName === 'Bash' || toolName === 'PowerShell' || toolName === 'Monitor') return 'ShellExecution';
+  if (toolName === 'WebFetch' || toolName === 'WebSearch') return 'HTTPRequest';
+  if (isDatabaseMcpTool(toolName, toolInput)) return 'DatabaseQuery';
+  if (toolName.startsWith('mcp__')) return 'MCPToolCall';
+  if (toolName === 'Agent' || toolName === 'Task') return 'AgentSpawn';
+  return 'AgentAction';
+}
+
+export function toolSpan(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+  toolOutput?: unknown,
+): SpanData[] | undefined {
+  const spanType = spanTypeFor(toolName, toolInput);
+  if (!spanType) return undefined;
+  return [
+    buildSpan('anthropic-agent-sdk', spanType, {
+      file_path: filePathFor(toolInput),
+      command: stringFrom(toolInput.command),
+      cwd: stringFrom(toolInput.cwd),
+      tool_name: toolName,
+      tool_input: toolInput,
+      tool_output: toolOutput,
+      url: httpTargetFor(toolInput),
+      method: httpMethodFor(toolInput),
+      db_system: dbSystemFor(toolName, toolInput),
+      db_operation: dbOperationFor(toolInput),
+      db_statement: dbStatementFor(toolInput),
+    }) as unknown as SpanData,
+  ];
+}
+
+export function promptSpan(prompt: string): SpanData[] {
+  return [
+    buildSpan('anthropic-agent-sdk', 'llm', {
+      prompt,
+      model: undefined,
+    }) as unknown as SpanData,
+  ];
+}
+
+export function assistantOutputSpan(
+  input: {
+    content?: string;
+    model?: string;
+    usage?: LLMTokenUsage;
+    sessionId?: string;
+    event?: string;
+  },
+): SpanData[] | undefined {
+  if (!input.content && !input.usage) return undefined;
+  return [
+    buildLLMCompletionSpan({
+      content: input.content ?? '',
+      span: { module: 'anthropic-agent-sdk' },
+      name: 'openbox.anthropic-agent-sdk.assistant_output',
+      kind: 'llm',
+      system: 'anthropic-agent-sdk',
+      model: input.model,
+      usage: input.usage,
+      providerUrl: 'https://api.anthropic.com/v1/messages',
+      attributes: {
+        'gen_ai.system': 'anthropic-agent-sdk',
+        'openbox.anthropic_agent_sdk.event': input.event ?? 'assistant',
+      },
+      data: {
+        source: 'anthropic-agent-sdk',
+        event: input.event ?? 'assistant',
+        session_id: input.sessionId,
+      },
+    }),
+  ];
+}
+
+export function assistantContentAndUsage(
+  message: SDKAssistantMessage,
+): { content?: string; model?: string; usage?: LLMTokenUsage } {
+  const apiMessage = message.message as unknown as {
+    content?: unknown;
+    model?: string;
+    usage?: unknown;
+  };
+  return {
+    content: textFromContent(apiMessage.content),
+    model: apiMessage.model,
+    usage: usageFrom(apiMessage.usage),
+  };
+}
+
+export function usagePayloadFromResult(
+  message: SDKResultMessage,
+): Record<string, unknown> {
+  return stampSource({
+    event_category: 'llm_usage',
+    total_cost_usd: message.total_cost_usd,
+    usage: message.usage,
+    modelUsage: message.modelUsage,
+    duration_ms: message.duration_ms,
+    duration_api_ms: message.duration_api_ms,
+    num_turns: message.num_turns,
+    permission_denials: message.permission_denials,
+    stop_reason: message.stop_reason,
+    subtype: message.subtype,
+  }, 'anthropic-agent-sdk');
+}
+
+export function resultAssistantOutput(
+  message: SDKResultMessage,
+): { content?: string; usage?: LLMTokenUsage } {
+  return {
+    content: message.subtype === 'success' ? message.result : undefined,
+    usage: usageFrom(message.usage),
+  };
+}
+
+export function brandedReason(verdict?: WorkflowVerdict): string {
+  const raw = verdict?.reason ?? '';
+  const sanitized = raw.replace(/[\u2014\u2013]/g, ' - ').replace(/ {2,}/g, ' ').trim();
+  if (!sanitized) return '';
+  return sanitized.startsWith('[OpenBox]') ? sanitized : `[OpenBox] ${sanitized}`;
+}
+
+export function redactedRecord(verdict?: WorkflowVerdict): Record<string, unknown> | undefined {
+  const redacted = verdict?.guardrailsResult?.redactedInput;
+  return redacted && typeof redacted === 'object' && !Array.isArray(redacted)
+    ? (redacted as Record<string, unknown>)
+    : undefined;
+}
+
+export function redactedValue(verdict?: WorkflowVerdict): unknown {
+  return verdict?.guardrailsResult?.redactedInput;
+}
+
+function spanTypeFor(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+): SpanType | null {
+  if (toolName === 'Read' || toolName === 'NotebookRead' || toolName === 'Glob' || toolName === 'Grep') return 'file_read';
+  if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') return 'file_write';
+  if (toolName === 'Delete') return 'file_delete';
+  if (toolName === 'Bash' || toolName === 'PowerShell' || toolName === 'Monitor') return 'shell';
+  if (toolName === 'WebFetch' || toolName === 'WebSearch') return 'http';
+  if (isDatabaseMcpTool(toolName, toolInput)) return 'db';
+  if (toolName.startsWith('mcp__')) return 'mcp';
+  return null;
+}
+
+function textFromContent(value: unknown): string | undefined {
+  if (typeof value === 'string') return value.trim() || undefined;
+  if (!Array.isArray(value)) return undefined;
+  const text = value
+    .map((part) => {
+      if (typeof part === 'string') return part;
+      const record = objectRecord(part);
+      return typeof record.text === 'string' ? record.text : '';
+    })
+    .join('')
+    .trim();
+  return text || undefined;
+}
+
+function usageFrom(value: unknown): LLMTokenUsage | undefined {
+  const record = objectRecord(value);
+  const usage: LLMTokenUsage = {
+    promptTokens: positiveInteger(record.input_tokens ?? record.prompt_tokens),
+    completionTokens: positiveInteger(record.output_tokens ?? record.completion_tokens),
+    inputTokens: positiveInteger(record.input_tokens),
+    outputTokens: positiveInteger(record.output_tokens),
+    totalTokens: positiveInteger(record.total_tokens),
+  };
+  return Object.values(usage).some((entry) => entry !== undefined)
+    ? usage
+    : undefined;
+}
+
+function positiveInteger(value: unknown): number | undefined {
+  const numberValue =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+        ? Number(value)
+        : undefined;
+  if (numberValue === undefined || !Number.isFinite(numberValue) || numberValue <= 0) return undefined;
+  return Math.trunc(numberValue);
+}
+
+function stringFrom(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    const stringValue = stringFrom(value);
+    if (stringValue) return stringValue;
+  }
+  return undefined;
+}
+
+function filePathFor(toolInput: Record<string, unknown>): string | undefined {
+  return firstString(
+    toolInput.file_path,
+    toolInput.filePath,
+    toolInput.path,
+    toolInput.notebook_path,
+  );
+}
+
+function httpTargetFor(toolInput: Record<string, unknown>): string | undefined {
+  return firstString(toolInput.url, toolInput.uri, toolInput.href, toolInput.query);
+}
+
+function httpMethodFor(toolInput: Record<string, unknown>): string {
+  return firstString(toolInput.method, toolInput.http_method, toolInput.httpMethod)?.toUpperCase() ?? 'GET';
+}
+
+function dbStatementFor(toolInput: Record<string, unknown>): string | undefined {
+  return firstString(
+    toolInput.db_statement,
+    toolInput.dbStatement,
+    toolInput.statement,
+    toolInput.sql,
+    toolInput.query,
+  );
+}
+
+function dbSystemFor(toolName: string, toolInput: Record<string, unknown>): string {
+  const explicit = firstString(
+    toolInput.db_system,
+    toolInput.dbSystem,
+    toolInput.system,
+    toolInput.database_system,
+  );
+  if (explicit) return explicit;
+  const lowerName = toolName.toLowerCase();
+  if (lowerName.includes('sqlite')) return 'sqlite';
+  if (lowerName.includes('mysql')) return 'mysql';
+  if (lowerName.includes('postgres')) return 'postgresql';
+  return 'postgresql';
+}
+
+function dbOperationFor(toolInput: Record<string, unknown>): string {
+  return firstString(toolInput.db_operation, toolInput.dbOperation, toolInput.operation)?.toUpperCase() ?? 'QUERY';
+}
+
+function isDatabaseMcpTool(toolName: string, toolInput: Record<string, unknown>): boolean {
+  if (!toolName.startsWith('mcp__')) return false;
+  const lowerName = toolName.toLowerCase();
+  const nameLooksDatabase =
+    lowerName.includes('db') ||
+    lowerName.includes('sql') ||
+    lowerName.includes('database') ||
+    lowerName.includes('postgres') ||
+    lowerName.includes('mysql') ||
+    lowerName.includes('sqlite');
+  if (!nameLooksDatabase) return false;
+  return Boolean(dbStatementFor(toolInput)) ||
+    lowerName.includes('query') ||
+    lowerName.includes('execute') ||
+    lowerName.includes('select');
+}
