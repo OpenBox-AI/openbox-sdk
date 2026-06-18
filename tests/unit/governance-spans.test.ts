@@ -149,8 +149,8 @@ describe('LLM completion spans', () => {
     const span = buildSpan('cursor', 'llm', {
       model: 'gemini-2.5-flash',
       usage: {
-        inputTokens: 11,
-        outputTokens: 7,
+        input_tokens: 11,
+        output_tokens: 7,
       },
     });
 

@@ -111,6 +111,11 @@ export interface LLMTokenUsage {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
 }
 
 type JsonRecord = Record<string, unknown>;
@@ -167,12 +172,15 @@ function toPositiveInteger(value: unknown): number | undefined {
 function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
   if (!usage) return undefined;
   const promptTokens = toPositiveInteger(
-    usage.promptTokens ?? usage.inputTokens,
+    usage.promptTokens ?? usage.prompt_tokens ?? usage.inputTokens ?? usage.input_tokens,
   );
   const completionTokens = toPositiveInteger(
-    usage.completionTokens ?? usage.outputTokens,
+    usage.completionTokens ??
+      usage.completion_tokens ??
+      usage.outputTokens ??
+      usage.output_tokens,
   );
-  const totalTokens = toPositiveInteger(usage.totalTokens);
+  const totalTokens = toPositiveInteger(usage.totalTokens ?? usage.total_tokens);
   const derivedTotalTokens =
     totalTokens ??
     (promptTokens !== undefined || completionTokens !== undefined
