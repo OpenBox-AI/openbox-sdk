@@ -21,6 +21,7 @@ export interface AssistantOutputTelemetryInput {
   content?: string;
   sessionId?: string;
   model?: string;
+  provider?: string;
   usage?: LLMTokenUsage;
   name?: string;
   kind?: string;
@@ -94,6 +95,7 @@ export function buildAssistantOutputSpan(
       kind: input.kind ?? 'llm',
       system: input.source,
       model: input.model,
+      provider: input.provider,
       usage: input.usage,
       requestBody: input.requestBody,
       responseBody: input.responseBody,

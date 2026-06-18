@@ -1244,6 +1244,7 @@ describe('CopilotKit OpenBox adapter', () => {
         },
         response_metadata: {
           ls_model_name: 'gpt-4o-mini',
+          ls_provider: 'openai',
           tokenUsage: {
             promptTokens: 42,
             completionTokens: 16,
@@ -1280,8 +1281,14 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(span).toMatchObject({
       stage: 'completed',
       semantic_type: 'llm_completion',
+      model: 'gpt-4o-mini',
+      model_id: 'gpt-4o-mini',
+      provider: 'openai',
+      model_provider: 'openai',
       attributes: {
         'gen_ai.system': 'copilotkit',
+        'openbox.model.id': 'gpt-4o-mini',
+        'openbox.model.provider': 'openai',
         'http.method': 'POST',
         'http.url': 'https://api.openai.com/v1/chat/completions',
       },

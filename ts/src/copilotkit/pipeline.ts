@@ -409,6 +409,7 @@ function activityTypeForGate(
 
 function llmCompletionMetadataFromPayload(payload: unknown): {
   model?: string;
+  provider?: string;
   usage?: LLMTokenUsage;
   requestBody?: unknown;
   responseBody?: unknown;
@@ -442,22 +443,21 @@ function llmCompletionMetadataFromPayload(payload: unknown): {
       metadata.ls_model_name,
       metadata.lsModelName,
     ) ?? undefined;
+  const provider = firstString(
+    metadata.ls_provider,
+    metadata.provider,
+    record.provider,
+    record.model_provider,
+  );
   return {
     model,
+    provider,
     usage: usageFrom(usageMetadata),
     requestBody:
       record.request_body ?? record.requestBody ?? metadata.request_body,
     responseBody:
       record.response_body ?? record.responseBody ?? metadata.response_body,
-    providerUrl: providerUrlFor(
-      firstString(
-        metadata.ls_provider,
-        metadata.provider,
-        record.provider,
-        record.model_provider,
-      ),
-      model,
-    ),
+    providerUrl: providerUrlFor(provider, model),
   };
 }
 

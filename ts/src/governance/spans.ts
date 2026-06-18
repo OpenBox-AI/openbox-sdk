@@ -93,6 +93,7 @@ export interface LLMCompletionSpanInput {
   kind?: string;
   system?: string;
   model?: string;
+  provider?: string;
   usage?: LLMTokenUsage;
   requestBody?: unknown;
   responseBody?: unknown;
@@ -121,6 +122,9 @@ export interface OpenBoxActivityMetadataInput {
 type ObservableSpan = SpanData & {
   span_type?: string;
   model?: string;
+  model_id?: string;
+  provider?: string;
+  model_provider?: string;
   input_tokens?: number;
   output_tokens?: number;
   total_tokens?: number;
@@ -185,6 +189,87 @@ function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
   }
   if (derivedTotalTokens !== undefined) normalized.total_tokens = derivedTotalTokens;
   return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function firstTrimmed(...values: Array<unknown>): string | undefined {
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
+}
+
+function normalizeProvider(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized.includes('openai')) return 'openai';
+  if (normalized.includes('anthropic')) return 'anthropic';
+  if (normalized.includes('google') || normalized.includes('gemini')) return 'google';
+  return normalized;
+}
+
+function parseModelIdentifier(value: string | undefined): {
+  modelId?: string;
+  provider?: string;
+} {
+  const trimmed = value?.trim();
+  if (!trimmed) return {};
+  const slashParts = trimmed.split('/');
+  if (slashParts.length >= 2) {
+    const possibleProvider = normalizeProvider(slashParts[0]);
+    const modelPart = slashParts.slice(1).join('/').trim();
+    if (possibleProvider && modelPart) {
+      return { modelId: modelPart, provider: possibleProvider };
+    }
+  }
+  return { modelId: trimmed };
+}
+
+function inferProviderFromModelId(modelId: string | undefined): string | undefined {
+  const normalized = modelId?.toLowerCase();
+  if (!normalized) return undefined;
+  if (
+    normalized.startsWith('gpt-') ||
+    normalized.startsWith('o1') ||
+    normalized.startsWith('o3') ||
+    normalized.startsWith('o4')
+  ) {
+    return 'openai';
+  }
+  if (normalized.startsWith('claude-')) return 'anthropic';
+  if (normalized.startsWith('gemini')) return 'google';
+  return undefined;
+}
+
+function inferProviderFromUrl(url: string | undefined): string | undefined {
+  const normalized = url?.toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized.includes('api.openai.com')) return 'openai';
+  if (normalized.includes('api.anthropic.com')) return 'anthropic';
+  if (normalized.includes('generativelanguage.googleapis.com')) return 'google';
+  return undefined;
+}
+
+function modelTelemetryFields(
+  model: string | undefined,
+  explicitProvider: string | undefined,
+  providerUrl: string | undefined,
+): {
+  modelId?: string;
+  provider?: string;
+} {
+  const parsed = parseModelIdentifier(model);
+  const provider =
+    normalizeProvider(explicitProvider) ??
+    parsed.provider ??
+    inferProviderFromModelId(parsed.modelId) ??
+    inferProviderFromUrl(providerUrl);
+  return {
+    modelId: firstTrimmed(parsed.modelId),
+    provider,
+  };
 }
 
 function toolNameAttributes(input: SpanInput): JsonRecord {
@@ -271,6 +356,7 @@ export function buildLLMCompletionSpan(
     (typeof source.attributes?.['http.url'] === 'string'
       ? source.attributes['http.url']
       : 'https://api.openai.com/v1/chat/completions');
+  const modelTelemetry = modelTelemetryFields(input.model, input.provider, httpUrl);
   return {
     ...source,
     span_id: source.span_id ?? hex(16),
@@ -287,6 +373,8 @@ export function buildLLMCompletionSpan(
       'gen_ai.system': input.system ?? 'openbox-sdk',
       ...(input.model ? { 'gen_ai.request.model': input.model } : {}),
       ...(input.model ? { 'gen_ai.response.model': input.model } : {}),
+      ...(modelTelemetry.modelId ? { 'openbox.model.id': modelTelemetry.modelId } : {}),
+      ...(modelTelemetry.provider ? { 'openbox.model.provider': modelTelemetry.provider } : {}),
       ...(inputTokens !== undefined
         ? { 'gen_ai.usage.input_tokens': inputTokens }
         : {}),
@@ -304,6 +392,10 @@ export function buildLLMCompletionSpan(
       ...(input.attributes ?? {}),
     },
     ...(input.model ? { model: input.model } : {}),
+    ...(modelTelemetry.modelId ? { model_id: modelTelemetry.modelId } : {}),
+    ...(modelTelemetry.provider
+      ? { provider: modelTelemetry.provider, model_provider: modelTelemetry.provider }
+      : {}),
     ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
     ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
     ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),
@@ -352,6 +444,7 @@ export function buildSpan(
         usage?.output_tokens ?? usage?.completion_tokens,
       );
       const totalTokens = toPositiveInteger(usage?.total_tokens);
+      const modelTelemetry = modelTelemetryFields(input.model, undefined, undefined);
       return {
         ...b,
         name: 'llm.chat.completion',
@@ -362,6 +455,12 @@ export function buildSpan(
           'gen_ai.system': host,
           ...(input.model ? { 'gen_ai.request.model': input.model } : {}),
           ...(input.model ? { 'gen_ai.response.model': input.model } : {}),
+          ...(modelTelemetry.modelId
+            ? { 'openbox.model.id': modelTelemetry.modelId }
+            : {}),
+          ...(modelTelemetry.provider
+            ? { 'openbox.model.provider': modelTelemetry.provider }
+            : {}),
           ...(inputTokens !== undefined
             ? { 'gen_ai.usage.input_tokens': inputTokens }
             : {}),
@@ -377,6 +476,10 @@ export function buildSpan(
           'openbox.span_type': 'function',
         },
         ...(input.model ? { model: input.model } : {}),
+        ...(modelTelemetry.modelId ? { model_id: modelTelemetry.modelId } : {}),
+        ...(modelTelemetry.provider
+          ? { provider: modelTelemetry.provider, model_provider: modelTelemetry.provider }
+          : {}),
         ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
         ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
         ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),

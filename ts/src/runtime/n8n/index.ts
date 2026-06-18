@@ -85,6 +85,7 @@ export function buildN8nLlmCompletionPayload(
       content,
       name: 'openbox.n8n.assistant_output',
       model: input.model,
+      provider: input.provider,
       usage: input.usage,
       hasToolCalls: input.hasToolCalls ?? false,
       requestBody: input.requestBody,

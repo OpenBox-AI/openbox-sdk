@@ -118,17 +118,25 @@ describe('LLM completion spans', () => {
     expect(span.http_method).toBe('POST');
     const observed = span as typeof span & {
       model?: string;
+      model_id?: string;
+      provider?: string;
+      model_provider?: string;
       input_tokens?: number;
       output_tokens?: number;
       total_tokens?: number;
     };
     expect(observed.model).toBe('gpt-4o-mini');
+    expect(observed.model_id).toBe('gpt-4o-mini');
+    expect(observed.provider).toBe('openai');
+    expect(observed.model_provider).toBe('openai');
     expect(observed.input_tokens).toBe(120);
     expect(observed.output_tokens).toBe(35);
     expect(observed.total_tokens).toBe(155);
     expect(span.attributes).toMatchObject({
       'gen_ai.request.model': 'gpt-4o-mini',
       'gen_ai.response.model': 'gpt-4o-mini',
+      'openbox.model.id': 'gpt-4o-mini',
+      'openbox.model.provider': 'openai',
       'gen_ai.usage.input_tokens': 120,
       'gen_ai.usage.output_tokens': 35,
       'gen_ai.usage.total_tokens': 155,
@@ -149,6 +157,9 @@ describe('LLM completion spans', () => {
     expect(span).toMatchObject({
       semantic_type: 'llm_completion',
       model: 'gemini-2.5-flash',
+      model_id: 'gemini-2.5-flash',
+      provider: 'google',
+      model_provider: 'google',
       input_tokens: 11,
       output_tokens: 7,
       total_tokens: 18,
@@ -156,7 +167,30 @@ describe('LLM completion spans', () => {
         'gen_ai.usage.input_tokens': 11,
         'gen_ai.usage.output_tokens': 7,
         'gen_ai.usage.total_tokens': 18,
+        'openbox.model.id': 'gemini-2.5-flash',
+        'openbox.model.provider': 'google',
       },
+    });
+  });
+
+  test('provider-prefixed model names expose model_id without changing model', () => {
+    const span = buildLLMCompletionSpan({
+      content: 'done',
+      model: 'anthropic/claude-opus-4-8',
+      usage: { inputTokens: 2, outputTokens: 3 },
+    }) as ReturnType<typeof buildLLMCompletionSpan> & {
+      model_id?: string;
+      provider?: string;
+      model_provider?: string;
+    };
+
+    expect(span.model).toBe('anthropic/claude-opus-4-8');
+    expect(span.model_id).toBe('claude-opus-4-8');
+    expect(span.provider).toBe('anthropic');
+    expect(span.model_provider).toBe('anthropic');
+    expect(span.attributes).toMatchObject({
+      'openbox.model.id': 'claude-opus-4-8',
+      'openbox.model.provider': 'anthropic',
     });
   });
 
