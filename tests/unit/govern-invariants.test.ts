@@ -318,6 +318,7 @@ describe('activity pairing', () => {
       input_tokens: 18,
       output_tokens: 7,
       total_tokens: 25,
+      has_tool_calls: false,
       completion: 'Draft ready.',
     });
     expect(completedHook.hook_trigger).toBe(true);

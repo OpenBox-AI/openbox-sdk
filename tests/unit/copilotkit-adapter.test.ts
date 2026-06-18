@@ -1092,6 +1092,9 @@ describe('CopilotKit OpenBox adapter', () => {
           { type: 'text', text: 'The queue has' },
           { type: 'text', text: 'two governed requests ready.' },
         ],
+        additional_kwargs: {
+          tool_calls: [{ id: 'call-1', name: 'lookup_queue' }],
+        },
         response_metadata: {
           ls_model_name: 'gpt-4o-mini',
           tokenUsage: {
@@ -1119,6 +1122,7 @@ describe('CopilotKit OpenBox adapter', () => {
       input_tokens: 42,
       output_tokens: 16,
       total_tokens: 58,
+      has_tool_calls: true,
       completion: 'The queue has two governed requests ready.',
     });
     expect(completedParent?.spans).toBeUndefined();

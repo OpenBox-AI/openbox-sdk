@@ -35,6 +35,7 @@ export function buildClaudeAssistantOutputSpan(
     name: 'openbox.claude-code.assistant_output',
     model: transcript?.model,
     usage: transcript?.usage,
+    hasToolCalls: transcript?.hasToolCalls ?? false,
     providerUrl: 'https://api.anthropic.com/v1/messages',
     attributes: {
       'openbox.claude_code.event': options.event,
@@ -56,7 +57,13 @@ export function claudeAssistantTelemetryFields(
   } = {},
 ): Pick<
   GovernedPayload,
-  'sessionId' | 'llmModel' | 'inputTokens' | 'outputTokens' | 'totalTokens' | 'completion'
+  | 'sessionId'
+  | 'llmModel'
+  | 'inputTokens'
+  | 'outputTokens'
+  | 'totalTokens'
+  | 'hasToolCalls'
+  | 'completion'
 > {
   const transcript = readLatestAssistantTurn(env);
   const content = options.preferTranscriptContent
@@ -70,6 +77,7 @@ export function claudeAssistantTelemetryFields(
       content,
       model: transcript?.model,
       usage,
+      hasToolCalls: transcript?.hasToolCalls ?? false,
     }),
   };
 }

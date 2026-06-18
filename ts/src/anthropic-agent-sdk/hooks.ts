@@ -316,6 +316,7 @@ async function handleStop(
     content,
     model: latest?.model,
     usage: latest?.usage,
+    hasToolCalls: latest?.hasToolCalls ?? false,
     sessionId,
     event: 'Stop',
   };

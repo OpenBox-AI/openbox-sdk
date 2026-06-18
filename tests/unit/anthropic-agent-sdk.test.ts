@@ -320,6 +320,29 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
   });
 
   it('delegates Agent SDK query methods and emits result usage telemetry', async () => {
+    const { assistantContentAndUsage } = await import(
+      '../../ts/src/anthropic-agent-sdk/payloads'
+    );
+    expect(
+      assistantContentAndUsage({
+        type: 'assistant',
+        session_id: 'sess_query',
+        message: {
+          model: 'claude-sonnet-4-5',
+          content: [
+            { type: 'text', text: 'Working' },
+            { type: 'text', text: 'now.' },
+            { type: 'tool_use', id: 'toolu_1', name: 'Read', input: {} },
+          ],
+          usage: { input_tokens: 10, output_tokens: 4 },
+        },
+      } as SDKMessage as never),
+    ).toMatchObject({
+      content: 'Working now.',
+      model: 'claude-sonnet-4-5',
+      hasToolCalls: true,
+    });
+
     const mock = createMockCore(() => verdict('allow'));
     const source = createMockQuery([
       {
@@ -398,6 +421,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       llm_model: 'claude-sonnet-4-5',
       input_tokens: 10,
       output_tokens: 5,
+      has_tool_calls: false,
       completion: 'Done.',
     });
     expect(assistantHook.hook_trigger).toBe(true);

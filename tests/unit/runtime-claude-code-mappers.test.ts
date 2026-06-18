@@ -396,7 +396,10 @@ describe('runtime/claude-code/mappers; every event handler', () => {
           id: 'msg_final',
           role: 'assistant',
           model: 'claude-opus-4-8',
-          content: [{ type: 'text', text: 'final canonical answer' }],
+          content: [
+            { type: 'text', text: 'final canonical' },
+            { type: 'text', text: 'answer' },
+          ],
           usage: {
             input_tokens: 2,
             output_tokens: 591,
@@ -429,6 +432,9 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       model: 'claude-opus-4-8',
       input_tokens: 3140,
       output_tokens: 949,
+    });
+    expect(message?.args[2]).toMatchObject({
+      hasToolCalls: true,
     });
     expect(assistantContentFromSpan(message?.args[2]?.spans?.[0])).toBe(
       'final canonical answer',

@@ -7,7 +7,13 @@ import {
 
 type AssistantTelemetryFields = Pick<
   GovernedPayload,
-  'sessionId' | 'llmModel' | 'inputTokens' | 'outputTokens' | 'totalTokens' | 'completion'
+  | 'sessionId'
+  | 'llmModel'
+  | 'inputTokens'
+  | 'outputTokens'
+  | 'totalTokens'
+  | 'hasToolCalls'
+  | 'completion'
 >;
 
 export interface AssistantOutputTelemetryInput {
@@ -24,6 +30,7 @@ export interface AssistantOutputTelemetryInput {
   startTime?: number;
   endTime?: number;
   durationNs?: number;
+  hasToolCalls?: boolean;
   span?: LLMCompletionSpanInput['span'];
   attributes?: Record<string, unknown>;
   data?: unknown;
@@ -69,6 +76,7 @@ export function assistantOutputTelemetryFields(
     inputTokens: inputTokens(input.usage),
     outputTokens: outputTokens(input.usage),
     totalTokens: totalTokens(input.usage),
+    hasToolCalls: input.hasToolCalls,
     completion: firstText(input.content),
   };
 }

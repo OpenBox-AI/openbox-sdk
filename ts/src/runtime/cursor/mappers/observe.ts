@@ -149,6 +149,42 @@ function textFromContent(value: unknown): string | undefined {
   return text || undefined;
 }
 
+function hasToolCallsFrom(value: unknown): boolean {
+  return hasToolCallBlocks(recordFrom(value));
+}
+
+function hasToolCallBlocks(record: Record<string, unknown>): boolean {
+  if (arrayHasEntries(record.tool_calls) || arrayHasEntries(record.toolCalls)) {
+    return true;
+  }
+  if (contentHasToolUse(record.content)) return true;
+  const additional = recordFrom(record.additional_kwargs ?? record.additionalKwargs);
+  if (
+    arrayHasEntries(additional.tool_calls) ||
+    arrayHasEntries(additional.toolCalls)
+  ) {
+    return true;
+  }
+  for (const key of ['response', 'message', 'output', 'result']) {
+    const nested = recordFrom(record[key]);
+    if (Object.keys(nested).length > 0 && hasToolCallBlocks(nested)) return true;
+  }
+  return false;
+}
+
+function arrayHasEntries(value: unknown): boolean {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function contentHasToolUse(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.some((part) => {
+    const record = recordFrom(part);
+    const type = typeof record.type === 'string' ? record.type : '';
+    return type === 'tool_use' || type === 'tool_call' || type === 'function_call';
+  });
+}
+
 function cursorModel(env: CursorEnvelope): string | undefined {
   const source = env as unknown as Record<string, unknown>;
   const response = recordFrom(source.response);
@@ -207,6 +243,7 @@ export async function handleAfterAgentResponse(
     content,
     model,
     usage,
+    hasToolCalls: hasToolCallsFrom(source),
   });
   await observeActivity(session, EVENT.COMPLETE, AFTER_AGENT_RESPONSE_ACTIVITY_TYPE, {
     input: [stampSource(payload, 'cursor')],
@@ -218,6 +255,7 @@ export async function handleAfterAgentResponse(
       name: 'openbox.cursor.assistant_output',
       model,
       usage,
+      hasToolCalls: hasToolCallsFrom(source),
       providerUrl: 'https://api.openai.com/v1/chat/completions',
       attributes: {
         'openbox.cursor.event': 'afterAgentResponse',

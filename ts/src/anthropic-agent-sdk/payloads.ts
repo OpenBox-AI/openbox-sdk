@@ -120,6 +120,7 @@ export function assistantOutputSpan(
     usage?: LLMTokenUsage;
     sessionId?: string;
     event?: string;
+    hasToolCalls?: boolean;
   },
 ): SpanData[] | undefined {
   return buildAssistantOutputSpan({
@@ -129,6 +130,7 @@ export function assistantOutputSpan(
     name: 'openbox.anthropic-agent-sdk.assistant_output',
     model: input.model,
     usage: input.usage,
+    hasToolCalls: input.hasToolCalls ?? false,
     providerUrl: 'https://api.anthropic.com/v1/messages',
     attributes: {
       'openbox.anthropic_agent_sdk.event': input.event ?? 'assistant',
@@ -147,10 +149,17 @@ export function assistantOutputTelemetry(
     model?: string;
     usage?: LLMTokenUsage;
     sessionId?: string;
+    hasToolCalls?: boolean;
   },
 ): Pick<
   GovernedPayload,
-  'sessionId' | 'llmModel' | 'inputTokens' | 'outputTokens' | 'totalTokens' | 'completion'
+  | 'sessionId'
+  | 'llmModel'
+  | 'inputTokens'
+  | 'outputTokens'
+  | 'totalTokens'
+  | 'hasToolCalls'
+  | 'completion'
 > {
   return assistantOutputTelemetryFields({
     source: 'anthropic-agent-sdk',
@@ -158,12 +167,18 @@ export function assistantOutputTelemetry(
     content: input.content,
     model: input.model,
     usage: input.usage,
+    hasToolCalls: input.hasToolCalls ?? false,
   });
 }
 
 export function assistantContentAndUsage(
   message: SDKAssistantMessage,
-): { content?: string; model?: string; usage?: LLMTokenUsage } {
+): {
+  content?: string;
+  model?: string;
+  usage?: LLMTokenUsage;
+  hasToolCalls?: boolean;
+} {
   const apiMessage = message.message as unknown as {
     content?: unknown;
     model?: string;
@@ -173,6 +188,7 @@ export function assistantContentAndUsage(
     content: textFromContent(apiMessage.content),
     model: apiMessage.model,
     usage: usageFrom(apiMessage.usage),
+    hasToolCalls: hasToolCallsFromContent(apiMessage.content),
   };
 }
 
@@ -195,11 +211,17 @@ export function usagePayloadFromResult(
 
 export function resultAssistantOutput(
   message: SDKResultMessage,
-): { content?: string; model?: string; usage?: LLMTokenUsage } {
+): {
+  content?: string;
+  model?: string;
+  usage?: LLMTokenUsage;
+  hasToolCalls?: boolean;
+} {
   return {
     content: message.subtype === 'success' ? message.result : undefined,
     model: singleResultModel(message.modelUsage),
     usage: usageFrom(message.usage),
+    hasToolCalls: false,
   };
 }
 
@@ -259,9 +281,18 @@ function textFromContent(value: unknown): string | undefined {
       const record = objectRecord(part);
       return typeof record.text === 'string' ? record.text : '';
     })
-    .join('')
+    .join(' ')
     .trim();
   return text || undefined;
+}
+
+function hasToolCallsFromContent(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.some((part) => {
+    const record = objectRecord(part);
+    const type = typeof record.type === 'string' ? record.type : '';
+    return type === 'tool_use' || type === 'tool_call' || type === 'function_call';
+  });
 }
 
 function usageFrom(value: unknown): LLMTokenUsage | undefined {

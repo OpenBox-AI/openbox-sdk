@@ -147,6 +147,9 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
         conversation_id: 'c',
         response: {
           content: [{ type: 'text', text: 'Cursor answer.' }],
+          additional_kwargs: {
+            tool_calls: [{ id: 'call-1', name: 'read_file' }],
+          },
         },
         response_metadata: {
           ls_model_name: 'gemini-2.5-flash',
@@ -167,6 +170,7 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
       inputTokens: 12,
       outputTokens: 5,
       totalTokens: 17,
+      hasToolCalls: true,
     });
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
     expect(span).toMatchObject({

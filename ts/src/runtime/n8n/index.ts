@@ -29,6 +29,7 @@ export interface N8nLlmCompletionPayloadInput {
   startTime?: number;
   endTime?: number;
   durationNs?: number;
+  hasToolCalls?: boolean;
 }
 
 type SignalCapableN8nSession = Pick<N8nSession, 'activity'>;
@@ -74,6 +75,7 @@ export function buildN8nLlmCompletionPayload(
     content,
     model: input.model,
     usage: input.usage,
+    hasToolCalls: input.hasToolCalls ?? false,
   });
   return {
     output: { text: input.text },
@@ -84,6 +86,7 @@ export function buildN8nLlmCompletionPayload(
       name: 'openbox.n8n.assistant_output',
       model: input.model,
       usage: input.usage,
+      hasToolCalls: input.hasToolCalls ?? false,
       requestBody: input.requestBody,
       responseBody: input.responseBody,
       providerUrl: input.providerUrl,
@@ -104,4 +107,3 @@ export function buildN8nLlmCompletionPayload(
     }),
   };
 }
-

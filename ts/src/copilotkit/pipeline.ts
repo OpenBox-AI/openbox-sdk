@@ -522,6 +522,7 @@ function telemetryForGate(
         content: assistantContentFromPayload(payload),
         model: metadata.model,
         usage: metadata.usage,
+        hasToolCalls: hasToolCallsFromPayload(payload),
       }),
       sessionId,
     };
@@ -609,6 +610,7 @@ function spansForGate(
         span: pipelineSpan(kind, 'llm.chat.completion', payload),
         name: 'openbox.copilotkit.assistant_output',
         attributes: { 'gen_ai.system': 'copilotkit' },
+        hasToolCalls: hasToolCallsFromPayload(payload),
         ...llmCompletionMetadataFromPayload(payload),
       }) ?? [];
     }
@@ -733,6 +735,43 @@ function assistantContentFromPayload(payload: unknown): string | undefined {
     if (text) return text;
   }
   return undefined;
+}
+
+function hasToolCallsFromPayload(payload: unknown): boolean {
+  return hasToolCallBlocks(recordFrom(payload));
+}
+
+function hasToolCallBlocks(record: Record<string, unknown>): boolean {
+  if (arrayHasEntries(record.tool_calls) || arrayHasEntries(record.toolCalls)) {
+    return true;
+  }
+  if (contentHasToolUse(record.content)) return true;
+  const additional = recordFrom(record.additional_kwargs ?? record.additionalKwargs);
+  if (
+    arrayHasEntries(additional.tool_calls) ||
+    arrayHasEntries(additional.toolCalls)
+  ) {
+    return true;
+  }
+  const message = recordFrom(record.message);
+  if (Object.keys(message).length > 0 && hasToolCallBlocks(message)) return true;
+  if (Array.isArray(record.messages)) {
+    return record.messages.some((entry) => hasToolCallBlocks(recordFrom(entry)));
+  }
+  return false;
+}
+
+function arrayHasEntries(value: unknown): boolean {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function contentHasToolUse(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.some((part) => {
+    const record = recordFrom(part);
+    const type = typeof record.type === 'string' ? record.type : '';
+    return type === 'tool_use' || type === 'tool_call' || type === 'function_call';
+  });
 }
 
 function textFromContent(value: unknown): string | undefined {

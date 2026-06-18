@@ -23,11 +23,7 @@ interface ManagedSession {
   session: AnthropicAgentSdkSession;
   started: boolean;
   terminal: boolean;
-  latestAssistant?: {
-    content?: string;
-    model?: string;
-    usage?: ReturnType<typeof assistantContentAndUsage>['usage'];
-  };
+  latestAssistant?: ReturnType<typeof assistantContentAndUsage>;
 }
 
 type OpenedActivity = Awaited<
@@ -133,6 +129,7 @@ export class AnthropicAgentSessionManager {
       content: assistant.content,
       model: assistant.model,
       usage: assistant.usage,
+      hasToolCalls: assistant.hasToolCalls,
       sessionId: message.session_id,
       event: 'result',
     };
@@ -140,6 +137,7 @@ export class AnthropicAgentSessionManager {
       content: assistantEvent.content,
       model: assistantEvent.model,
       usage: assistantEvent.usage,
+      hasToolCalls: assistantEvent.hasToolCalls,
       sessionId: assistantEvent.sessionId,
       event: assistantEvent.event,
     });
