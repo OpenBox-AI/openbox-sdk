@@ -540,7 +540,7 @@ interface AnthropicAgentSDKPreset {
 
 @preset("cursor")
 interface CursorPreset {
-  @maps_to("ActivityStarted", "beforeSubmitPrompt")
+  @maps_to("ActivityStarted", "PromptSubmission")
   beforeSubmitPrompt(payload: GovernedPayload): WorkflowVerdict;
 
   @maps_to("ActivityStarted", "preToolUse")
@@ -549,28 +549,28 @@ interface CursorPreset {
   @maps_to("ActivityCompleted", "postToolUse")
   postToolUse(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityStarted", "beforeShellExecution")
+  @maps_to("ActivityStarted", "ShellExecution")
   beforeShellExecution(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityCompleted", "afterShellExecution")
+  @maps_to("ActivityCompleted", "ShellExecution")
   afterShellExecution(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityStarted", "beforeMCPExecution")
+  @maps_to("ActivityStarted", "MCPToolCall")
   beforeMCPExecution(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityCompleted", "afterMCPExecution")
+  @maps_to("ActivityCompleted", "MCPToolCall")
   afterMCPExecution(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityStarted", "beforeReadFile")
+  @maps_to("ActivityStarted", "FileRead")
   beforeReadFile(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityCompleted", "afterFileEdit")
+  @maps_to("ActivityCompleted", "FileEdit")
   afterFileEdit(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityCompleted", "afterAgentResponse")
+  @maps_to("ActivityCompleted", "LLMCompleted")
   afterAgentResponse(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityCompleted", "afterAgentThought")
+  @maps_to("ActivityCompleted", "LLMCompleted")
   afterAgentThought(payload: GovernedPayload): WorkflowVerdict;
 }
 

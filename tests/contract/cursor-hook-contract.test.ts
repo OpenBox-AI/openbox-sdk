@@ -37,6 +37,8 @@ interface ActivityCall {
   payload: unknown;
 }
 
+type CorePayload = Record<string, any>;
+
 function makeCapturingSession(
   captured: ActivityCall[],
   arm: Arm = 'allow',
@@ -53,6 +55,20 @@ function makeCapturingSession(
     },
     workflowStarted: async () => undefined,
     workflowCompleted: async () => undefined,
+  };
+}
+
+function makeAllowingCore(captured: CorePayload[]) {
+  return {
+    evaluate: async (payload: CorePayload) => {
+      captured.push(payload);
+      return {
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+        reason: 'allow',
+      };
+    },
   };
 }
 
@@ -215,6 +231,163 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
       attributes: {
         'gen_ai.system': 'cursor',
         'openbox.cursor.event': 'afterAgentResponse',
+      },
+    });
+  });
+
+  test('real CursorSession sends spans as parent-plus-hook payloads', async () => {
+    const promptCap = capture();
+    const promptPayloads: CorePayload[] = [];
+    await createCursorAdapter({
+      core: makeAllowingCore(promptPayloads) as never,
+      resolveSession: async () => ({
+        workflowId: 'wf-cursor-contract',
+        runId: 'run-cursor-contract',
+      }),
+      handlers: {
+        beforeSubmitPrompt: (env, session) => handleBeforeSubmitPrompt(env, session, cfg),
+      },
+      ...adapterIO(
+        promptCap,
+        JSON.stringify({
+          hook_event_name: 'beforeSubmitPrompt',
+          conversation_id: 'c',
+          generation_id: 'contract-real-session-prompt',
+          prompt: 'summarize this file',
+        }),
+      ),
+    }).run();
+
+    expect(JSON.parse(promptCap.stdout[0])).toEqual({ continue: true });
+    expect(promptPayloads).toHaveLength(4);
+    const promptSignals = promptPayloads.filter(
+      (payload) =>
+        payload.event_type === 'SignalReceived' &&
+        payload.activity_type === 'user_prompt',
+    );
+    expect(promptSignals).toHaveLength(1);
+    expect(promptSignals[0]?.hook_trigger).toBeUndefined();
+    expect(promptSignals[0]?.spans).toBeUndefined();
+    expect(promptSignals[0]?.span_count).toBeUndefined();
+    const promptStarts = promptPayloads.filter(
+      (payload) =>
+        payload.event_type === 'ActivityStarted' &&
+        payload.activity_type === 'PromptSubmission',
+    );
+    expect(promptStarts).toHaveLength(2);
+    const [promptParent, promptHook] = promptStarts;
+    expect(promptParent).toMatchObject({
+      workflow_id: 'wf-cursor-contract',
+      run_id: 'run-cursor-contract',
+    });
+    expect(promptParent.hook_trigger).toBeUndefined();
+    expect(promptParent.spans).toBeUndefined();
+    expect(promptParent.span_count).toBeUndefined();
+    expect(promptHook).toMatchObject({
+      workflow_id: promptParent.workflow_id,
+      run_id: promptParent.run_id,
+      activity_id: promptParent.activity_id,
+      event_type: promptParent.event_type,
+      activity_type: promptParent.activity_type,
+      hook_trigger: true,
+      span_count: 1,
+    });
+    expect(promptHook.spans).toHaveLength(1);
+    expect(promptHook.spans[0]).toMatchObject({
+      semantic_type: 'llm_completion',
+      stage: 'started',
+      attributes: {
+        'gen_ai.system': 'cursor',
+      },
+    });
+    const promptCompleted = promptPayloads.find(
+      (payload) =>
+        payload.event_type === 'ActivityCompleted' &&
+        payload.activity_type === 'PromptSubmission',
+    );
+    expect(promptCompleted?.activity_id).toBe(promptParent.activity_id);
+    expect(promptCompleted?.hook_trigger).toBeUndefined();
+    expect(promptCompleted?.spans).toBeUndefined();
+    expect(promptCompleted?.span_count).toBeUndefined();
+    expect(promptPayloads.indexOf(promptParent)).toBeLessThan(promptPayloads.indexOf(promptHook));
+    expect(promptPayloads.indexOf(promptHook)).toBeLessThan(promptPayloads.indexOf(promptCompleted!));
+
+    const responseCap = capture();
+    const responsePayloads: CorePayload[] = [];
+    await createCursorAdapter({
+      core: makeAllowingCore(responsePayloads) as never,
+      resolveSession: async () => ({
+        workflowId: 'wf-cursor-contract',
+        runId: 'run-cursor-contract',
+      }),
+      handlers: {
+        afterAgentResponse: (env, session) => handleAfterAgentResponse(env, session, cfg),
+      },
+      ...adapterIO(
+        responseCap,
+        JSON.stringify({
+          hook_event_name: 'afterAgentResponse',
+          conversation_id: 'c',
+          generation_id: 'contract-real-session-response',
+          response: {
+            content: [{ type: 'text', text: 'Cursor answer.' }],
+            usage_metadata: {
+              input_tokens: 3,
+              output_tokens: 2,
+            },
+            model: 'cursor-test-model',
+          },
+        }),
+      ),
+    }).run();
+
+    expect(JSON.parse(responseCap.stdout[0])).toEqual({});
+    expect(responsePayloads).toHaveLength(2);
+    expect(responsePayloads[0]).toMatchObject({
+      event_type: 'ActivityCompleted',
+      activity_type: 'LLMCompleted',
+    });
+    expect(responsePayloads[1]).toMatchObject({
+      event_type: 'ActivityCompleted',
+      activity_type: 'LLMCompleted',
+      hook_trigger: true,
+    });
+    const responseCompletes = responsePayloads.filter(
+      (payload) =>
+        payload.event_type === 'ActivityCompleted' &&
+        payload.activity_type === 'LLMCompleted',
+    );
+    expect(responseCompletes).toHaveLength(2);
+    const [responseParent, responseHook] = responseCompletes;
+    expect(responseParent).toMatchObject({
+      workflow_id: 'wf-cursor-contract',
+      run_id: 'run-cursor-contract',
+      llm_model: 'cursor-test-model',
+      input_tokens: 3,
+      output_tokens: 2,
+      total_tokens: 5,
+    });
+    expect(responseParent.hook_trigger).toBeUndefined();
+    expect(responseParent.spans).toBeUndefined();
+    expect(responseParent.span_count).toBeUndefined();
+    expect(responseHook).toMatchObject({
+      workflow_id: responseParent.workflow_id,
+      run_id: responseParent.run_id,
+      activity_id: responseParent.activity_id,
+      event_type: responseParent.event_type,
+      activity_type: responseParent.activity_type,
+      hook_trigger: true,
+      span_count: 1,
+    });
+    expect(responseHook.spans?.[0]).toMatchObject({
+      name: 'openbox.cursor.assistant_output',
+      semantic_type: 'llm_completion',
+      stage: 'completed',
+      model: 'cursor-test-model',
+      total_tokens: 5,
+      attributes: {
+        'gen_ai.system': 'cursor',
+        'gen_ai.response.model': 'cursor-test-model',
       },
     });
   });

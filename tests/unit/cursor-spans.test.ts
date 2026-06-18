@@ -1,13 +1,12 @@
-// Spans-on-the-wire drift guard.
+// Cursor mapper span-shape drift guard.
 //
-// Behavior rules require spans in the evaluate payload (per
-// `skill/references/span-reference.md`); without them, the backend
-// classifier has nothing to read and every rule silently no-ops.
-// This test invokes each cursor mapper with a capturing mock session
-// and asserts: (a) `spans` is populated, (b) the first span carries
-// the right `semantic_type`, and (c) the gate attribute the classifier
-// reads (file.path / shell.command / http.method+url + gen_ai.system)
-// is present.
+// Behavior rules require a backend-readable span shape. The shared
+// governed session is responsible for splitting mapper payloads into
+// the final parent-plus-hook wire contract; this test stays at the
+// mapper boundary and asserts: (a) `spans` is populated before the
+// session layer, (b) the first span carries the right `semantic_type`,
+// and (c) the gate attribute the classifier reads (file.path /
+// shell.command / http.method+url + gen_ai.system) is present.
 
 import { describe, expect, test } from 'vitest';
 import { handleBeforeSubmitPrompt } from '../../ts/src/runtime/cursor/mappers/prompt.js';
