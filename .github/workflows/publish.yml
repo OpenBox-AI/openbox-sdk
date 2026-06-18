@@ -29,6 +29,7 @@ env:
 jobs:
   release-governance:
     name: Release Governance
+    if: github.event_name != 'workflow_dispatch' || github.ref_type == 'tag' || github.ref_name == 'main'
     runs-on: ubuntu-latest
 
     steps:
