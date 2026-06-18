@@ -61,7 +61,7 @@ Cursor installs a local plugin at:
 ```
 
 Claude Code installs project-local OpenBox assets under the target
-project. The install flow must not write global host config or direct
+project. The install flow must not write host-level config or direct
 Claude settings.
 
 ## Runtime Entrypoints

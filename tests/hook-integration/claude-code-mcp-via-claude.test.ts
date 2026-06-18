@@ -30,8 +30,9 @@ import {
   hookLogSince,
   snapshotHookLog,
 } from './helpers/claude-runner.js';
+import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
 
-const OPENBOX = process.env.OPENBOX_CLI ?? path.resolve(import.meta.dirname, '../../dist/cli/index.js');
+const OPENBOX = requireOpenBoxCli();
 const PROJECT_OPENBOX = path.resolve(process.cwd(), '.openbox');
 const REAL_DB_MCP = path.resolve(import.meta.dirname, 'fixtures/real-db-mcp-server.mjs');
 const DEFAULT_API_URL = 'http://127.0.0.1:3000';

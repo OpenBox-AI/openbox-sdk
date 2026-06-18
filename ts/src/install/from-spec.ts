@@ -54,7 +54,7 @@ export interface HookSpec {
 }
 
 export interface InstallOptions {
-  /** Scope of the install. Defaults to `project`; no global host install is supported. */
+  /** Scope of the install. Defaults to `project`; host-level installs are not supported. */
   scope?: InstallScope;
   /** Project root used for the install. Defaults to `process.cwd()`. */
   cwd?: string;

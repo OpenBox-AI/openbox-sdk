@@ -84,7 +84,7 @@ Do not recommend old generated CRUD command groups such as `openbox agent`, `ope
 
 ## Project-Local Host Installs
 
-Host setup is project-scoped. Do not write global Cursor or Claude Code config by default.
+Host setup is project-scoped. Do not write host-level Cursor or Claude Code config by default.
 
 ```sh
 openbox install cursor --cwd <project>

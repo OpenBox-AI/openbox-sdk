@@ -1,15 +1,11 @@
-// Spawn the built openbox binary as a subprocess, capture stdout / stderr /
+// Spawn the openbox CLI as a subprocess, capture stdout / stderr /
 // exit code. Used by e2e tests to drive the real CLI end-to-end against a
 // local or remote backend (whichever $OPENBOX_API_URL points at).
 
 import { spawnSync } from 'child_process';
-import { resolve } from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { requireOpenBoxCli } from '../../helpers/openbox-cli.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const CLI_BIN = resolve(__dirname, '../../../dist/cli/index.js');
+const CLI_BIN = requireOpenBoxCli();
 
 export type CliResult = {
   status: number;
@@ -26,7 +22,7 @@ export type CliResult = {
  * argv → parse → action → HTTP roundtrip.
  */
 export function runCli(args: string[], env: NodeJS.ProcessEnv = {}): CliResult {
-  const res = spawnSync('node', [CLI_BIN, ...args], {
+  const res = spawnSync(CLI_BIN, args, {
     encoding: 'utf-8',
     env: { ...process.env, ...env },
   });

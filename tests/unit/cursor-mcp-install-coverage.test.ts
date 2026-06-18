@@ -205,10 +205,10 @@ describe('install/from-spec; MCP entry helpers', () => {
     installMcpEntry(
       HOOK_SPEC,
       'openbox',
-      { command: 'node', args: ['dist/cli/index.js', 'mcp', 'serve'] },
+      { command: 'openbox-dev', args: ['mcp', 'serve'] },
       { scope: 'project', cwd },
     );
-    expect(readJson(first).mcpServers.openbox.command).toBe('node');
+    expect(readJson(first).mcpServers.openbox.command).toBe('openbox-dev');
 
     expect(uninstallMcpEntry(HOOK_SPEC, 'missing', { scope: 'project', cwd })).toBe(first);
     uninstallMcpEntry(HOOK_SPEC, 'openbox', { scope: 'project', cwd });

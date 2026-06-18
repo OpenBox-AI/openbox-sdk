@@ -10,12 +10,9 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
 
-const DIST_CLI = path.resolve(import.meta.dirname, '../../dist/cli/index.js');
-const OPENBOX =
-  process.env.OPENBOX_CLI && existsSync(process.env.OPENBOX_CLI)
-    ? process.env.OPENBOX_CLI
-    : DIST_CLI;
+const OPENBOX = requireOpenBoxCli();
 
 function runCli(args: string[], cwd: string): { status: number | null; stdout: string; stderr: string } {
   const r = spawnSync(OPENBOX, args, {

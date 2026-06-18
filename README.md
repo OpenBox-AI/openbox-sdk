@@ -5,7 +5,7 @@ TypeScript SDK for integrating applications and agent runtimes with OpenBox.
 The SDK is API-first. It provides typed clients for OpenBox Core and Backend,
 workflow governance helpers, generated types, and optional runtime adapters.
 It should stay generic: no app-specific business logic, demo data, or hidden
-fallback behavior belongs in the package.
+compatibility behavior belongs in the package.
 
 ## Install
 
@@ -75,6 +75,8 @@ npm run build
 npx tsc --noEmit -p tsconfig.build.json
 npm run test:unit
 npm run test:contract
+npm run test:hook-integration
+npm run test:e2e
 npm run check:generated-drift
 npm run lint:generated-banners
 ```

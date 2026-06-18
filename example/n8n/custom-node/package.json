@@ -13,7 +13,7 @@
     "smoke:load": "node -e \"require('./dist/OpenboxLlm.node.js'); console.log('node-load-ok')\""
   },
   "dependencies": {
-    "@openbox-ai/openbox-sdk": "file:../../.."
+    "@openbox-ai/openbox-sdk": "0.1.1"
   },
   "peerDependencies": {
     "n8n-workflow": ">=1.0.0"

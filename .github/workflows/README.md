@@ -9,7 +9,6 @@
 | `pr-security.yml` | push to `main`/`develop`, PR to `main`/`develop`, `workflow_dispatch` | Trivy filesystem scan and Gitleaks secret scan with SARIF artifacts |
 | `test.yml` | push to `main`/`develop`, PR to `main`/`develop`, `workflow_dispatch` | TypeScript compile, lint, generated spec/type checks, Vitest unit, contract, and hook integration tests |
 | `spec-drift.yml` | `workflow_dispatch` only | Reports drift between this repo's TypeSpec and the live deployments plus the upstream service repositories. PR and scheduled triggers are commented out until the secrets and first run validate clean |
-| `release-branch.yml` | `v*` tag push, `workflow_dispatch` from `main` only | Builds and creates a `release-v*` branch with committed `dist/` so consumers can install from `github:OpenBox-AI/openbox-sdk#release-v*` without running `prepare` |
 
 ## Required repo secrets
 
@@ -35,7 +34,6 @@ Via `gh`:
 ```bash
 gh workflow run test.yml          --ref main
 gh workflow run spec-drift.yml    --ref main
-gh workflow run release-branch.yml --ref main -f tag=v1.2.3
 ```
 
 ## How to enable a dispatch-only workflow on push/PR

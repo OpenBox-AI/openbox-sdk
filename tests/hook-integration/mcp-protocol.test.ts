@@ -23,9 +23,10 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
 
-const OPENBOX = process.env.OPENBOX_CLI ?? 'node';
-const DEFAULT_OPENBOX_ARGS = process.env.OPENBOX_CLI ? [] : [path.resolve(__dirname, '../../dist/cli/index.js')];
+const OPENBOX = requireOpenBoxCli();
+const DEFAULT_OPENBOX_ARGS: string[] = [];
 const OPENBOX_ARGS = process.env.OPENBOX_CLI_ARGS
   ? JSON.parse(process.env.OPENBOX_CLI_ARGS) as string[]
   : DEFAULT_OPENBOX_ARGS;
