@@ -9,7 +9,7 @@ on:
       - synchronize
       - ready_for_review
   push:
-    branches: [main, develop]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
