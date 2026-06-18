@@ -204,6 +204,26 @@ describe('createClaudeCodeAdapter', () => {
     expect(out.reason).toBe('[OpenBox] output contains secret');
   });
 
+  test('decision-block require_approval → {decision:"block", approval pending reason}', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        postToolUse: async () => verdict('require_approval', 'review output'),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({ ...baseEnv, hook_event_name: 'PostToolUse' }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.decision).toBe('block');
+    expect(out.reason).toBe(
+      '[OpenBox] approval pending: review output. Approve in OpenBox, then ask the agent to retry.',
+    );
+  });
+
   test('decision-block constrain → hookSpecificOutput.additionalContext + updatedToolOutput', async () => {
     const cap = capture();
     await createClaudeCodeAdapter({

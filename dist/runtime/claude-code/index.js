@@ -2074,6 +2074,13 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
           reason: reason || "[OpenBox] blocked by policy"
         };
       }
+      if (arm === "require_approval") {
+        const approvalReason = reason.replace(/^\[OpenBox\] /, "").trim();
+        return {
+          decision: "block",
+          reason: "[OpenBox] approval pending" + (approvalReason ? ": " + approvalReason : "") + ". Approve in OpenBox, then ask the agent to retry."
+        };
+      }
       if (arm === "constrain" && reason) {
         const hookSpecificOutput = {
           hookEventName: env.hook_event_name ?? "ClaudeCode",
@@ -3886,8 +3893,9 @@ async function handleStopFailure(env, session, cfg) {
     await session.workflowFailed(
       new Error(String(env.error ?? env.reason ?? "Claude Code StopFailure"))
     );
-    clearSession(env.session_id, cfg);
   } catch {
+  } finally {
+    clearSession(env.session_id, cfg);
   }
   return void 0;
 }

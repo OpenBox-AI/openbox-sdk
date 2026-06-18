@@ -195,9 +195,10 @@ export async function handleStopFailure(
     await session.workflowFailed(
       new Error(String(env.error ?? env.reason ?? 'Claude Code StopFailure')),
     );
-    clearSession(env.session_id, cfg);
   } catch {
     // best-effort terminal telemetry; StopFailure cannot safely block Claude Code.
+  } finally {
+    clearSession(env.session_id, cfg);
   }
   return undefined;
 }

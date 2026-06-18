@@ -472,6 +472,32 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     expect(String(failed?.args[0]?.message)).toContain('model endpoint failed');
   });
 
+  it('stop-failure clears local session state even when workflowFailed telemetry fails', async () => {
+    const { handleStopFailure } = await import('../../ts/src/runtime/claude-code/mappers/session');
+    const { resolveSession } = await import('../../ts/src/runtime/claude-code/session-resolver');
+    const cfg = { sessionDir: dir } as any;
+    await resolveSession({ session_id: 'STOP-FAIL-CLEAR' } as any, cfg);
+    const sessionFile = join(dir, 'STOP-FAIL-CLEAR.json');
+    expect(existsSync(sessionFile)).toBe(true);
+    const session = {
+      ...recordingSession(),
+      async workflowFailed() {
+        throw new Error('terminal telemetry failed');
+      },
+    };
+
+    await handleStopFailure(
+      {
+        session_id: 'STOP-FAIL-CLEAR',
+        error: 'model endpoint failed',
+      } as any,
+      session,
+      cfg,
+    );
+
+    expect(existsSync(sessionFile)).toBe(false);
+  });
+
   it('permission-request fires START activity', async () => {
     const { handlePermissionRequest } = await import('../../ts/src/runtime/claude-code/mappers/permission-request');
     const session = recordingSession();
