@@ -339,6 +339,7 @@ async function handlePermissionDenied(
       toolInput,
       compactPayload({ ...env, tool_name: toolName, tool_input: toolInput }, 'permission_denied'),
     ),
+    spans: toolSpan(toolName, toolInput, env.reason),
   });
   return renderPermissionDenied(verdict);
 }

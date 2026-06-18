@@ -416,6 +416,34 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         reason: 'auto mode denied',
       }),
     );
+    expect(permissionEvent?.hook_trigger).toBeUndefined();
+    expect(permissionEvent?.spans).toBeUndefined();
+    expect(permissionEvent?.span_count).toBeUndefined();
+    const permissionHook = allowMock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'ShellExecution' &&
+        event.hook_trigger === true,
+    );
+    expect(permissionHook).toMatchObject({
+      event_type: permissionEvent?.event_type,
+      workflow_id: permissionEvent?.workflow_id,
+      run_id: permissionEvent?.run_id,
+      activity_id: permissionEvent?.activity_id,
+      activity_type: permissionEvent?.activity_type,
+      hook_trigger: true,
+      span_count: 1,
+    });
+    expect(permissionHook?.spans?.[0]).toMatchObject({
+      name: 'ShellExecution',
+      semantic_type: 'internal',
+      module: 'anthropic-agent-sdk',
+      attributes: expect.objectContaining({
+        'shell.command': 'npm test',
+        'openbox.tool.name': 'Bash',
+        'tool.name': 'Bash',
+      }),
+    });
   });
 
   it('maps task, config, and elicitation verdicts to Agent SDK outputs', async () => {
