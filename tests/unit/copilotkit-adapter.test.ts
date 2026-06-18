@@ -1824,16 +1824,7 @@ describe('CopilotKit OpenBox adapter', () => {
               redacted_input: {
                 messages: [{ content: 'Show [REDACTED_EMAIL].' }],
               },
-              results: [
-                {
-                  results: [
-                    {
-                      field: 'input.messages.0.content',
-                      status: 'transformed',
-                    },
-                  ],
-                },
-              ],
+              results: [],
             }
           : undefined,
     }));

@@ -234,6 +234,18 @@ describe('guardrail redaction helpers', () => {
     ).toBe(true);
   });
 
+  it('treats a Core redaction payload as authoritative without field rows', () => {
+    expect(
+      hasGuardrailRedaction({
+        inputType: 'activity_input',
+        redactedInput: [{ prompt: '[REDACTED]' }],
+        validationPassed: true,
+        reasons: [],
+        fieldResults: [],
+      }),
+    ).toBe(true);
+  });
+
   it('does not count redacted status without a payload as an applied redaction', () => {
     expect(
       hasGuardrailRedaction({

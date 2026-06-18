@@ -147,9 +147,11 @@ function unwrapActivityOutputRedaction(redactedInput: unknown, originalOutput: u
 
 export function hasGuardrailRedaction(guardrails: GuardrailsVerdict | undefined): boolean {
   return Boolean(
-    guardrails?.redactedInput !== null &&
-      guardrails?.redactedInput !== undefined &&
-      guardrails.fieldResults?.some((field) => isRedactedStatus(field.status)),
+    guardrails &&
+      (guardrails.inputType === 'activity_input' ||
+        guardrails.inputType === 'activity_output') &&
+      guardrails.redactedInput !== null &&
+      guardrails.redactedInput !== undefined,
   );
 }
 
