@@ -4,6 +4,7 @@ const state = vi.hoisted(() => ({
   recalls: new Map<string, { runtimeKey: string }>(),
   constructed: [] as Array<{ apiUrl: string; apiKey: string }>,
   payloads: [] as any[],
+  responses: [] as any[],
 }));
 
 vi.mock('../../ts/src/file-tokens/agent-keys.js', () => ({
@@ -18,6 +19,8 @@ vi.mock('../../ts/src/core-client/index.js', () => ({
 
     async evaluate(payload: any) {
       state.payloads.push(payload);
+      const response = state.responses.shift();
+      if (response) return response;
       return {
         verdict: 'allow',
         action: 'allow',
@@ -36,6 +39,7 @@ beforeEach(() => {
   state.recalls.clear();
   state.constructed.length = 0;
   state.payloads.length = 0;
+  state.responses.length = 0;
   delete process.env.OPENBOX_API_KEY;
   delete process.env.OPENBOX_CORE_URL;
 });
@@ -84,6 +88,51 @@ describe('governance/check', () => {
       name: 'file.write',
       semantic_type: 'file_write',
       file_path: '/tmp/a.txt',
+    });
+  });
+
+  it('still emits the hook span when the parent verdict blocks', async () => {
+    state.responses.push(
+      { verdict: 'block', action: 'block', reason: 'parent blocked' },
+      { verdict: 'allow', action: 'allow', reason: 'hook persisted' },
+    );
+    const { checkGovernance } = await import('../../ts/src/governance/check.ts');
+
+    const result = await checkGovernance({
+      agentId: 'agent-1',
+      spanType: 'mcp',
+      activityInput: { tool_name: 'danger_tool', tool_input: { id: 1 } },
+      apiKey: runtimeKey('test'),
+      coreUrl: 'https://core.dev.test/ob',
+    });
+
+    expect(result).toMatchObject({
+      verdict: 'block',
+      reason: 'parent blocked',
+    });
+    expect(state.payloads).toHaveLength(2);
+    expect(state.payloads[0]).toMatchObject({
+      event_type: 'ActivityStarted',
+      activity_type: 'MCPToolCall',
+      hook_trigger: undefined,
+      spans: undefined,
+      span_count: undefined,
+    });
+    expect(state.payloads[1]).toMatchObject({
+      event_type: 'ActivityStarted',
+      activity_type: 'MCPToolCall',
+      hook_trigger: true,
+      span_count: 1,
+    });
+    expect(state.payloads[1].workflow_id).toBe(state.payloads[0].workflow_id);
+    expect(state.payloads[1].run_id).toBe(state.payloads[0].run_id);
+    expect(state.payloads[1].activity_id).toBe(state.payloads[0].activity_id);
+    expect(state.payloads[1].spans[0]).toMatchObject({
+      semantic_type: 'llm_tool_call',
+      attributes: {
+        'openbox.tool.name': 'danger_tool',
+        'tool.name': 'danger_tool',
+      },
     });
   });
 

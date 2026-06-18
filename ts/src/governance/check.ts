@@ -138,8 +138,8 @@ export async function checkGovernance(
   const parentVerdict = await client.evaluate(
     parentPayload as unknown as Parameters<typeof client.evaluate>[0],
   );
-  if (!isAllowishVerdict(parentVerdict)) {
-    return parentVerdict;
-  }
-  return client.evaluate(payload as unknown as Parameters<typeof client.evaluate>[0]);
+  const hookVerdict = await client.evaluate(
+    payload as unknown as Parameters<typeof client.evaluate>[0],
+  );
+  return isAllowishVerdict(parentVerdict) ? hookVerdict : parentVerdict;
 }
