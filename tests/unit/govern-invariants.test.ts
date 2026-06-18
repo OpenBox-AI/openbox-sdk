@@ -298,6 +298,8 @@ describe('activity pairing', () => {
         });
         await emitN8nLlmCompletion(session, {
           text: 'Draft ready.',
+          input: { chatInput: 'Draft release note.' },
+          prompt: 'Draft release note.',
           model: 'gpt-4o-mini',
           usage: {
             promptTokens: 18,
@@ -310,6 +312,28 @@ describe('activity pairing', () => {
         });
       },
     );
+
+    const signal = mock.events.find(
+      (event) =>
+        event.event_type === 'SignalReceived' &&
+        event.activity_type === 'user_prompt',
+    );
+    expect(signal).toMatchObject({
+      session_id: 'n8n-chat-1',
+      signal_name: 'user_prompt',
+      signal_args: 'Draft release note.',
+      activity_input: [
+        expect.objectContaining({
+          prompt: 'Draft release note.',
+          event_category: 'agent_goal',
+          node_name: 'Governed LLM Draft',
+          _openbox_source: 'n8n',
+        }),
+      ],
+    });
+    expect(signal?.hook_trigger).toBeUndefined();
+    expect(signal?.spans).toBeUndefined();
+    expect(signal?.span_count).toBeUndefined();
 
     const started = mock.events.find(
       (event) =>
@@ -332,6 +356,7 @@ describe('activity pairing', () => {
     expect(started?.hook_trigger).toBeUndefined();
     expect(started?.spans).toBeUndefined();
     expect(started?.span_count).toBeUndefined();
+    expect(mock.events.indexOf(signal!)).toBeLessThan(mock.events.indexOf(started!));
 
     const completedEvents = mock.events.filter(
       (event) =>
@@ -351,6 +376,16 @@ describe('activity pairing', () => {
       has_tool_calls: false,
       completion: 'Draft ready.',
       session_id: 'n8n-chat-1',
+      prompt: 'Draft release note.',
+      activity_input: [
+        expect.objectContaining({
+          chatInput: 'Draft release note.',
+          event_category: 'node_post_execute',
+          node_name: 'Governed LLM Draft',
+          prompt: 'Draft release note.',
+          _openbox_source: 'n8n',
+        }),
+      ],
     });
     expect(completedHook.hook_trigger).toBe(true);
     expect(completedHook.event_type).toBe(completedParent.event_type);

@@ -17,32 +17,44 @@ interface LLMTokenUsage {
 }
 
 interface OpenBoxN8nRuntimeSdk {
-  emitN8nUserPromptSignal(
+  emitN8nNodePreExecute(
     session: {
       activity(
         eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived',
         activityType: string,
         payload: unknown,
       ): Promise<WorkflowVerdict>;
+      nodePreExecute(payload: unknown): Promise<WorkflowVerdict>;
     },
-    prompt: string | undefined,
-    options?: { nodeName?: string; sessionId?: string },
-  ): Promise<WorkflowVerdict | undefined>;
-  buildN8nLlmCompletionPayload(input: {
-    text: string;
-    model?: string;
-    usage?: LLMTokenUsage;
-    requestBody?: unknown;
-    responseBody?: unknown;
-    providerUrl?: string;
-    actualProviderUrl?: string;
-    provider?: string;
-    nodeName?: string;
-    sessionId?: string;
-    startTime?: number;
-    endTime?: number;
-    durationNs?: number;
-  }): Record<string, unknown>;
+    input: {
+      input?: Record<string, unknown>;
+      nodeName?: string;
+      sessionId?: string;
+      prompt?: string;
+    },
+  ): Promise<WorkflowVerdict>;
+  emitN8nLlmCompletion(
+    session: {
+      nodePostExecute(payload: unknown): Promise<WorkflowVerdict>;
+    },
+    input: {
+      text: string;
+      input?: Record<string, unknown>;
+      prompt?: string;
+      model?: string;
+      usage?: LLMTokenUsage;
+      requestBody?: unknown;
+      responseBody?: unknown;
+      providerUrl?: string;
+      actualProviderUrl?: string;
+      provider?: string;
+      nodeName?: string;
+      sessionId?: string;
+      startTime?: number;
+      endTime?: number;
+      durationNs?: number;
+    },
+  ): Promise<WorkflowVerdict>;
 }
 
 const importModule = new Function('specifier', 'return import(specifier)') as (
@@ -436,8 +448,8 @@ export class OpenboxLlm implements INodeType {
 
     const { OpenBoxCoreClient, govern, presets } = await loadOpenBoxSdk();
     const {
-      buildN8nLlmCompletionPayload,
-      emitN8nUserPromptSignal,
+      emitN8nLlmCompletion,
+      emitN8nNodePreExecute,
     } = await loadOpenBoxN8nRuntimeSdk();
     const core = new OpenBoxCoreClient({ apiUrl: apiEndpoint, apiKey });
 
@@ -502,11 +514,11 @@ export class OpenboxLlm implements INodeType {
     const result = await govern(
       { core, preset: presets.n8n, workflowType: 'N8nChatWorkflow', taskQueue: 'n8n' },
       async (session) => {
-        await emitN8nUserPromptSignal(session, userMessage, {
+        const pre = await emitN8nNodePreExecute(session, {
+          input: { chatInput: userMessage },
           nodeName: node.name,
-        }).catch(() => undefined);
-
-        const pre = await session.nodePreExecute({ input: [{ chatInput: userMessage }] });
+          prompt: userMessage,
+        });
         if (!isAllowed(pre)) {
           return blockedResult(pre, 'input', session, pre);
         }
@@ -546,22 +558,21 @@ export class OpenboxLlm implements INodeType {
         let postSkipped: string | undefined;
         let post: WorkflowVerdict;
         try {
-          post = await session.nodePostExecute({
-            input: [{ chatInput: promptToUse }],
-            ...buildN8nLlmCompletionPayload({
-              text,
-              model: llmCall?.model,
-              usage: llmCall?.usage,
-              requestBody: llmCall?.requestBody,
-              responseBody: llmCall?.responseBody,
-              providerUrl: llmCall?.providerUrl,
-              actualProviderUrl: llmCall?.actualProviderUrl,
-              provider: llmCall ? llmProvider : 'fallback',
-              nodeName: node.name,
-              startTime: llmCall?.startTime,
-              endTime: llmCall?.endTime,
-              durationNs: llmCall?.durationNs,
-            }),
+          post = await emitN8nLlmCompletion(session, {
+            text,
+            input: { chatInput: promptToUse },
+            prompt: promptToUse,
+            model: llmCall?.model,
+            usage: llmCall?.usage,
+            requestBody: llmCall?.requestBody,
+            responseBody: llmCall?.responseBody,
+            providerUrl: llmCall?.providerUrl,
+            actualProviderUrl: llmCall?.actualProviderUrl,
+            provider: llmCall ? llmProvider : 'fallback',
+            nodeName: node.name,
+            startTime: llmCall?.startTime,
+            endTime: llmCall?.endTime,
+            durationNs: llmCall?.durationNs,
           });
         } catch (error) {
           postSkipped = errorMessage(error);

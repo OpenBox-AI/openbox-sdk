@@ -24,6 +24,8 @@ export interface N8nNodePreExecutePayloadInput {
 
 export interface N8nLlmCompletionPayloadInput {
   text: string;
+  input?: Record<string, unknown>;
+  prompt?: string;
   model?: string;
   usage?: LLMTokenUsage;
   requestBody?: unknown;
@@ -40,7 +42,7 @@ export interface N8nLlmCompletionPayloadInput {
 }
 
 type SignalCapableN8nSession = Pick<N8nSession, 'activity'>;
-type NodePreExecuteCapableN8nSession = Pick<N8nSession, 'nodePreExecute'>;
+type NodePreExecuteCapableN8nSession = Pick<N8nSession, 'activity' | 'nodePreExecute'>;
 type NodePostExecuteCapableN8nSession = Pick<N8nSession, 'nodePostExecute'>;
 
 function cleanRecord(value: Record<string, unknown>): Record<string, unknown> {
@@ -99,6 +101,10 @@ export async function emitN8nNodePreExecute(
   session: NodePreExecuteCapableN8nSession,
   input: N8nNodePreExecutePayloadInput,
 ): Promise<WorkflowVerdict> {
+  await emitN8nUserPromptSignal(session, input.prompt, {
+    nodeName: input.nodeName,
+    sessionId: input.sessionId,
+  }).catch(() => undefined);
   return session.nodePreExecute(buildN8nNodePreExecutePayload(input));
 }
 
@@ -106,6 +112,19 @@ export function buildN8nLlmCompletionPayload(
   input: N8nLlmCompletionPayloadInput,
 ): GovernedPayload {
   const content = input.text.trim();
+  const prompt = input.prompt?.trim();
+  const hasActivityInput =
+    input.input !== undefined ||
+    prompt !== undefined ||
+    input.nodeName !== undefined;
+  const activityInput = hasActivityInput
+    ? cleanRecord({
+        ...(input.input ?? {}),
+        event_category: 'node_post_execute',
+        node_name: input.nodeName,
+        prompt,
+      })
+    : undefined;
   const telemetry = assistantOutputTelemetryFields({
     source: 'n8n',
     sessionId: input.sessionId,
@@ -115,7 +134,11 @@ export function buildN8nLlmCompletionPayload(
     hasToolCalls: input.hasToolCalls ?? false,
   });
   return {
+    ...(activityInput && Object.keys(activityInput).length > 0
+      ? { input: [stampSource(activityInput, 'n8n')] }
+      : {}),
     output: { text: input.text },
+    prompt,
     ...telemetry,
     spans: buildAssistantOutputSpan({
       source: 'n8n',

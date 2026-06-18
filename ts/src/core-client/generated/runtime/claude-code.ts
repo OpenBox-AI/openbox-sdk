@@ -1484,5 +1484,3 @@ function renderVerdictOutput(
       return undefined;
   }
 }
-
-

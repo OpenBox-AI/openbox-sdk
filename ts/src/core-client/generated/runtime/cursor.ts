@@ -985,7 +985,7 @@ function renderVerdictOutput(
         const r = reason.replace(/^\[OpenBox\] /, '').trim();
         // Reaching this branch means Core still reports
         // require_approval, or the server-side approval window expired.
-        // Cursor blocks this tool attempt; the user can approve and retry.
+        // The host blocks this tool attempt; the user can approve and retry.
         return {
           permission: 'deny',
           user_message:
@@ -1061,5 +1061,3 @@ function renderVerdictOutput(
       return undefined;
   }
 }
-
-

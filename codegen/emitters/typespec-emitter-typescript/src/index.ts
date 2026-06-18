@@ -94,6 +94,8 @@ export async function $onEmit(context: EmitContext): Promise<void> {
     resolvePath(repoRoot, 'ts', 'src', 'cli', 'generated', 'cli-maturity.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'govern.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'core-types.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'claude-code.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'cursor.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'env', 'generated', 'env-bindings.ts'),
   ]);
 }
@@ -1551,12 +1553,8 @@ export interface ${configIface} {
   /** Override exit (test injection). Default: process.exit. */
   exit?: (code: number) => never;
   /**
-   * Cap (ms) on how long the SDK polls a require_approval verdict
-   * before giving up. The actual wait is min(this, server-side
-   * approvalExpiresAt). Hook subprocesses have a finite lifetime
-   * imposed by the host IDE; set this slightly under that ceiling so
-   * the poll resolves before the host kills the process. Default: SDK
-   * default (60s).
+   * @deprecated Compatibility no-op. Approval expiration is controlled
+   * by the server-supplied approvalExpiresAt value.
    */
   approvalMaxWaitMs?: number;
   /**
@@ -2085,11 +2083,9 @@ function renderVerdictOutput(
       if (arm === 'allow' || arm === 'constrain') return { permission: 'allow' };
       if (arm === 'require_approval') {
         const r = reason.replace(/^\\[OpenBox\\] /, '').trim();
-        // The hook has already polled for the configured deadline
-        // (default 60s; Cursor's hook subprocess timeout; tunable up
-        // to ~1hr per hooks.json[event].timeout + hitlMaxWait).
-        // Reaching this branch means no decision came through in time.
-        // Cursor will block this tool attempt.
+        // Reaching this branch means Core still reports
+        // require_approval, or the server-side approval window expired.
+        // The host blocks this tool attempt; the user can approve and retry.
         return {
           permission: 'deny',
           user_message:
@@ -2187,6 +2183,7 @@ function randomUUID(): string {
 }
 
 import type { OpenBoxCoreClient } from '../core-client.js';
+import { parseApprovalExpirationMs } from '../approval-time.js';
 import type {
   GovernanceEventPayload,
   GovernanceVerdictResponse,
@@ -2251,8 +2248,8 @@ export interface GovernedSessionConfig {
   approvalPollIntervalMs?: number;
   /**
    * Cap (ms) on the per-attempt poll interval after backoff. Default: 5000ms.
-   * The actual sleep is also bounded by min(approvalMaxWaitMs, approvalExpiresAt)
-   * so we never overshoot the deadline.
+   * The actual sleep is also bounded by server-supplied approvalExpiresAt
+   * so we never overshoot the server-controlled deadline.
    */
   approvalPollMaxIntervalMs?: number;
   /**
@@ -2266,7 +2263,10 @@ export interface GovernedSessionConfig {
    * thundering-herd when a fleet of agents wait on the same approval.
    */
   approvalPollJitter?: number;
-  /** Maximum total wait (ms) for an approval decision. Default: 60_000ms. */
+  /**
+   * @deprecated Accepted as a compatibility no-op. Approval expiration is
+   * controlled by the server-supplied approvalExpiresAt value.
+   */
   approvalMaxWaitMs?: number;
   /**
    * When true, \`runActivity\` skips the in-process poll loop on a
@@ -2374,7 +2374,6 @@ export class BaseGovernedSession {
   private readonly approvalPollMaxIntervalMs: number;
   private readonly approvalPollBackoffFactor: number;
   private readonly approvalPollJitter: number;
-  private readonly approvalMaxWaitMs: number;
   private readonly inlineApproval: boolean;
   private opened = false;
   private finalized = false;
@@ -2396,7 +2395,6 @@ export class BaseGovernedSession {
     this.approvalPollMaxIntervalMs = config.approvalPollMaxIntervalMs ?? 5_000;
     this.approvalPollBackoffFactor = config.approvalPollBackoffFactor ?? 1.5;
     this.approvalPollJitter = config.approvalPollJitter ?? 0.25;
-    this.approvalMaxWaitMs = config.approvalMaxWaitMs ?? 60_000;
     this.inlineApproval = config.inlineApproval === true;
     this.autoOpenSuppressed = config.attached === true;
     this.onPendingApproval = config.onPendingApproval;
@@ -2672,7 +2670,8 @@ export class BaseGovernedSession {
           this.activityStartsMs.delete(activityId);
           // Pre-stage block; never emit ActivityCompleted, but if the
           // gate said require_approval, poll for the approval decision.
-           // pollApproval keys on workflow_id + run_id + activity_id;           // approval_id is informational. Some backends omit it from
+          // pollApproval keys on workflow_id + run_id + activity_id;
+          // approval_id is informational. Some backends omit it from
           // /governance/evaluate responses (only return governance_event_id);
           // gating on approvalId there silently skips polling and the
           // user sees an instant "approval pending" message that never
@@ -2845,8 +2844,10 @@ export class BaseGovernedSession {
     initial: ${verdictModelName},
   ): Promise<${verdictModelName}> {
     // ── Polling design notes ──
-    // Bounded by both config max-wait AND the server-supplied
-    // approvalExpiresAt (whichever is sooner) so we never overshoot.
+    // Bounded only by the server-supplied approvalExpiresAt. This
+    // matches the Python LangGraph SDK contract: the server controls
+    // approval expiration and the SDK does not impose a second total
+    // wait deadline.
     // Exponential backoff (× factor each attempt, capped at maxIntervalMs)
     // matches the bimodal latency of approvals (decided in seconds OR
     // minutes) without burning a long sleep when the answer's right there.
@@ -2861,11 +2862,9 @@ export class BaseGovernedSession {
     // and run one confirmatory pollApproval() to fetch the backend's
     // authoritative verdict for this activity_id.
     const approvalId = initial.approvalId ?? activityId;
-    const cfgDeadline = Date.now() + this.approvalMaxWaitMs;
-    const srvDeadline = initial.approvalExpiresAt
-      ? new Date(initial.approvalExpiresAt).getTime()
-      : Number.POSITIVE_INFINITY;
-    const deadline = Math.min(cfgDeadline, srvDeadline);
+    let deadline =
+      parseApprovalExpirationMs(initial.approvalExpiresAt) ??
+      Number.POSITIVE_INFINITY;
 
     let externalSignaled = false;
     const externalDecision = this.awaitExternalDecision
@@ -2896,14 +2895,51 @@ export class BaseGovernedSession {
       } else {
         await sleep(sleepMs);
       }
-      const status = await this.core.pollApproval({
-        workflow_id: this.workflowId,
-        run_id: this.runId,
-        activity_id: activityId,
-      });
-      if (status.action && status.action !== 'require_approval') {
+      let status: Awaited<ReturnType<OpenBoxCoreClient['pollApproval']>>;
+      try {
+        status = await this.core.pollApproval({
+          workflow_id: this.workflowId,
+          run_id: this.runId,
+          activity_id: activityId,
+        });
+      } catch {
+        nextInterval = externalSignaled
+          ? this.approvalPollIntervalMs
+          : Math.min(
+              nextInterval * this.approvalPollBackoffFactor,
+              this.approvalPollMaxIntervalMs,
+            );
+        continue;
+      }
+      const statusWithExpiry = status as typeof status & { expired?: boolean };
+      const statusDeadline = parseApprovalExpirationMs(
+        status.approval_expiration_time,
+      );
+      if (statusDeadline !== undefined) {
+        deadline = Math.min(deadline, statusDeadline);
+      }
+      if (
+        statusWithExpiry.expired === true ||
+        (statusDeadline !== undefined && Date.now() >= statusDeadline)
+      ) {
         return {
-          arm: normalizeArm(status.action),
+          arm: 'block',
+          approvalId: initial.approvalId,
+          governanceEventId: initial.governanceEventId,
+          approvalExpiresAt: status.approval_expiration_time,
+          reason: status.reason ?? \`Approval expired for \${activityType}\`,
+          riskScore: initial.riskScore,
+          trustTier: initial.trustTier,
+        };
+      }
+      const approvalArm = (status as typeof status & {
+        verdict?: string | number;
+      }).verdict ?? status.action;
+      const normalizedApprovalArm =
+        approvalArm === undefined ? undefined : normalizeArm(approvalArm);
+      if (normalizedApprovalArm && normalizedApprovalArm !== 'require_approval') {
+        return {
+          arm: normalizedApprovalArm,
           approvalId: initial.approvalId,
           governanceEventId: initial.governanceEventId,
           approvalExpiresAt: status.approval_expiration_time,
@@ -2921,6 +2957,13 @@ export class BaseGovernedSession {
             nextInterval * this.approvalPollBackoffFactor,
             this.approvalPollMaxIntervalMs,
           );
+    }
+    if (Number.isFinite(deadline) && Date.now() >= deadline) {
+      return {
+        ...initial,
+        arm: 'block',
+        reason: initial.reason ?? \`Approval expired for \${activityType}\`,
+      };
     }
     return initial;
   }
@@ -3204,8 +3247,17 @@ export namespace govern {
 /** Verdict-mapping helpers shared across all preset session classes. */
 function emitVerdictHelpers(verdictModelName: string): string {
   return `function mapVerdict(response: GovernanceVerdictResponse): ${verdictModelName} {
+  const wireArm = normalizeArm(response.verdict ?? response.action ?? 'allow');
+  const guardrailsResult = mapGuardrailsResult(response.guardrails_result);
+  const guardrailsFailed = guardrailsResult?.validationPassed === false;
+  const arm =
+    wireArm === 'halt' || wireArm === 'block'
+      ? wireArm
+      : guardrailsFailed
+        ? 'block'
+        : wireArm;
   return {
-    arm: normalizeArm(response.verdict ?? response.action ?? 'allow'),
+    arm,
     approvalId: response.approval_id,
     // Cross-reference key for matching this verdict against the
     // backend's persisted Approval row (whose \`event_id\` field equals
@@ -3215,12 +3267,34 @@ function emitVerdictHelpers(verdictModelName: string): string {
     // the dashboard's pending-approvals list.
     governanceEventId: (response as { governance_event_id?: string }).governance_event_id,
     approvalExpiresAt: response.approval_expiration_time,
-    reason: response.reason,
+    reason: response.reason ?? (guardrailsFailed ? guardrailFailureReason(guardrailsResult) : undefined),
     riskScore: response.risk_score ?? 0,
     trustTier: response.trust_tier ?? undefined,
-    guardrailsResult: mapGuardrailsResult(response.guardrails_result),
+    guardrailsResult,
     ageResult: response.age_result,
   };
+}
+
+function guardrailFailureReason(result: GuardrailsVerdict | undefined): string {
+  if (!result) return 'Guardrails validation failed';
+  const reasons = result.reasons
+    .map((reason) => cleanGuardrailReason(reason.reason))
+    .filter((reason) => reason.length > 0);
+  if (reasons.length > 0) {
+    return result.inputType === 'activity_output' ? reasons.join('; ') : reasons[0];
+  }
+  return result.inputType === 'activity_output'
+    ? 'Guardrails output validation failed'
+    : 'Guardrails validation failed';
+}
+
+function cleanGuardrailReason(reason: string): string {
+  const withoutQuestion = reason.replace(/\\n?-\\s*Question:\\s*\\[Session context\\][^\\n]*\\n?/g, '');
+  for (const marker of ['\\n\\nThought:', '\\n\\nThought', '\\nThought:', '\\nThought']) {
+    const index = withoutQuestion.indexOf(marker);
+    if (index >= 0) return withoutQuestion.slice(0, index).trimEnd();
+  }
+  return withoutQuestion.trimEnd();
 }
 
 function mapGuardrailsResult(
