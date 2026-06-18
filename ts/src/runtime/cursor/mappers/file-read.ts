@@ -13,7 +13,10 @@ import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
 import { buildSpan } from '../../../governance/spans.js';
-import { isInsideAnyRoot, isSensitivePath, isSkipped } from '../../../governance/skip-patterns.js';
+import {
+  isInsideAnyRoot,
+  shouldRedactPathContent,
+} from '../../../governance/skip-patterns.js';
 import {
   buildActionKey,
   claimAction,
@@ -36,12 +39,16 @@ export async function handleBeforeReadFile(
 ): Promise<WorkflowVerdict | undefined> {
   const filePath = env.file_path ?? '';
   if (!filePath) return undefined;
-  if (isSkipped(filePath)) return undefined;
   // In-workspace reads are routine agent activity (source files,
   // package.json, configs). Skip evaluate so the user's `file_read`
-  // approval rule fires only for reads OUTSIDE the project; the
-  // actual security boundary the user cares about.
-  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd)) return undefined;
+  // approval rule fires only for reads outside the project. Metadata
+  // and secret-like paths are still governed by path/span data.
+  if (
+    isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) &&
+    !shouldRedactPathContent(filePath)
+  ) {
+    return undefined;
+  }
 
   const key = buildActionKey({
     generation_id: env.generation_id,
@@ -52,7 +59,13 @@ export async function handleBeforeReadFile(
   const claim = claimAction(key);
   if (!claim.won) {
     const decision = await awaitClaimDecision(claim, cfg.hitlMaxWait * 1000);
-    if (!decision) return undefined;
+    if (!decision) {
+      return {
+        arm: 'block',
+        reason: '[OpenBox] no governance decision was published for duplicate Cursor file-read hook',
+        riskScore: 1,
+      };
+    }
     if (decision.arm === 'allow' || decision.arm === 'constrain') return undefined;
     if (decision.arm === 'halt') markHalted(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
@@ -83,10 +96,8 @@ export async function handleBeforeReadFile(
  * + activity type so behavior rules written against agent file_reads
  * also catch tab-driven reads of sensitive paths.
  *
- * Routine in-workspace source reads are skipped, but sensitive
- * in-workspace paths stay governed because tab-opening `.env`,
- * token, credential, or key material is materially different from
- * opening package/source files.
+   * Routine in-workspace source reads are skipped, but metadata and
+   * secret-like in-workspace paths stay governed.
  */
 export async function handleBeforeTabFileRead(
   env: CursorEnvelope,
@@ -95,8 +106,10 @@ export async function handleBeforeTabFileRead(
 ): Promise<WorkflowVerdict | undefined> {
   const filePath = env.file_path ?? '';
   if (!filePath) return undefined;
-  if (isSkipped(filePath)) return undefined;
-  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) && !isSensitivePath(filePath)) {
+  if (
+    isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) &&
+    !shouldRedactPathContent(filePath)
+  ) {
     return undefined;
   }
 

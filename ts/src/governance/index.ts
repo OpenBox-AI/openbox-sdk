@@ -10,9 +10,9 @@
 //     to match behavior rules.
 //   * `EVENT` enumerates the canonical workflow event names
 //     (`ActivityStarted`, `ActivityCompleted`, `SignalReceived`).
-//   * `SKIP_PATTERNS`, `isSkipped`, and `isInsideAnyRoot` identify
-//     IDE metadata paths (`.git`, `.claude`, `.ssh`, etc.) that
-//     should bypass governance.
+//   * `REDACT_PATH_CONTENT_PATTERNS`, `shouldRedactPathContent`, and
+//     `isInsideAnyRoot` identify IDE metadata / secret paths whose raw
+//     content should stay out of governance payloads.
 //   * `fetchRulesProjection` returns a Cursor-compatible projection
 //     of an agent's behavior rules.
 //   * `hookEventLabel` / `HOOK_EVENT_LABELS` map hook event names to
@@ -32,8 +32,9 @@ export {
 } from './spans.js';
 export { EVENT } from './events.js';
 export {
-  SKIP_PATTERNS,
-  isSkipped,
+  REDACT_PATH_CONTENT_PATTERNS,
+  shouldRedactPathContent,
+  isSensitivePath,
   isInsideAnyRoot,
 } from './skip-patterns.js';
 export {

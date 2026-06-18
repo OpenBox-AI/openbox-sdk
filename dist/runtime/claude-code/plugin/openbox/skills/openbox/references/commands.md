@@ -10,12 +10,11 @@ operation id.
 | Command | Purpose |
 |---|---|
 | `openbox auth` | Store, clear, and inspect backend X-API-Key state |
-| `openbox connect` | Configure a stack URL and backend key |
+| `openbox connect` | Configure explicit API/Core URLs and backend key |
 | `openbox config` | Read/write shared local OpenBox config |
 | `openbox api` | Spec-driven Backend/Core operation caller |
 | `openbox health` | Lightweight service reachability |
 | `openbox doctor` | Local install/runtime diagnosis |
-| `openbox versions` | Print SDK/runtime version information |
 | `openbox install` | Project-local host install |
 | `openbox uninstall` | Remove project-local host install |
 | `openbox cursor` | Cursor plugin export/doctor/hook runtime |
@@ -52,6 +51,7 @@ openbox install cursor --cwd <project>
 openbox install claude-code --cwd <project>
 openbox uninstall cursor --cwd <project>
 openbox uninstall claude-code --cwd <project>
+openbox claude-code doctor --cwd <project> --surface-only --json
 ```
 
 Cursor installs a local plugin at:
@@ -61,8 +61,8 @@ Cursor installs a local plugin at:
 ```
 
 Claude Code installs project-local OpenBox assets under the target
-project. The install flow should not write global host config unless a
-future command explicitly says so.
+project. The install flow must not write global host config or direct
+Claude settings.
 
 ## Runtime Entrypoints
 

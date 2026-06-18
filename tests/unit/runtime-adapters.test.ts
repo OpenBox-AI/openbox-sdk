@@ -63,10 +63,15 @@ function adapterIO(cap: CapturedAdapter, stdin: string) {
   };
 }
 
-const verdict = (arm: WorkflowVerdict['arm'], reason?: string): WorkflowVerdict => ({
+const verdict = (
+  arm: WorkflowVerdict['arm'],
+  reason?: string,
+  extra: Partial<WorkflowVerdict> = {},
+): WorkflowVerdict => ({
   arm,
   reason,
   riskScore: 0,
+  ...extra,
 });
 
 // ─── claude-code adapter ───────────────────────────────────────────────────
@@ -126,6 +131,30 @@ describe('createClaudeCodeAdapter', () => {
     expect(out.hookSpecificOutput.permissionDecision).toBe('ask');
   });
 
+  test('permission-decision constrain → allow + updatedInput + additionalContext', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        preToolUse: async () => verdict('constrain', 'redacted command', {
+          guardrailsResult: {
+            inputType: 'activity_input',
+            redactedInput: { command: 'echo [redacted]' },
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [],
+          },
+        }),
+      },
+      ...adapterIO(cap, JSON.stringify(baseEnv)),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.hookSpecificOutput.permissionDecision).toBe('allow');
+    expect(out.hookSpecificOutput.updatedInput).toEqual({ command: 'echo [redacted]' });
+    expect(out.hookSpecificOutput.additionalContext).toBe('[OpenBox] redacted command');
+  });
+
   test('permission-decision require_approval + deferApproval → permissionDecision:"defer"', async () => {
     const cap = capture();
     await createClaudeCodeAdapter({
@@ -175,6 +204,53 @@ describe('createClaudeCodeAdapter', () => {
     expect(out.reason).toBe('[OpenBox] output contains secret');
   });
 
+  test('decision-block require_approval → {decision:"block", approval pending reason}', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        postToolUse: async () => verdict('require_approval', 'review output'),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({ ...baseEnv, hook_event_name: 'PostToolUse' }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.decision).toBe('block');
+    expect(out.reason).toBe(
+      '[OpenBox] approval pending: review output. Approve in OpenBox, then ask the agent to retry.',
+    );
+  });
+
+  test('decision-block constrain → hookSpecificOutput.additionalContext + updatedToolOutput', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        postToolUse: async () => verdict('constrain', 'tool output redacted', {
+          guardrailsResult: {
+            inputType: 'activity_output',
+            redactedInput: { stdout: '[redacted]', stderr: '', interrupted: false, isImage: false },
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [],
+          },
+        }),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({ ...baseEnv, hook_event_name: 'PostToolUse' }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.hookSpecificOutput.hookEventName).toBe('PostToolUse');
+    expect(out.hookSpecificOutput.additionalContext).toBe('[OpenBox] tool output redacted');
+    expect(out.hookSpecificOutput.updatedToolOutput.stdout).toBe('[redacted]');
+  });
+
   test('permission-request allow → decision.behavior:"allow"', async () => {
     const cap = capture();
     await createClaudeCodeAdapter({
@@ -191,6 +267,32 @@ describe('createClaudeCodeAdapter', () => {
     const out = JSON.parse(cap.stdout[0]);
     expect(out.hookSpecificOutput.hookEventName).toBe('PermissionRequest');
     expect(out.hookSpecificOutput.decision.behavior).toBe('allow');
+  });
+
+  test('permission-request constrain → allow + updatedInput', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        permissionRequest: async () => verdict('constrain', undefined, {
+          guardrailsResult: {
+            inputType: 'activity_input',
+            redactedInput: { command: 'npm test' },
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [],
+          },
+        }),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({ ...baseEnv, hook_event_name: 'PermissionRequest' }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.hookSpecificOutput.decision.behavior).toBe('allow');
+    expect(out.hookSpecificOutput.decision.updatedInput).toEqual({ command: 'npm test' });
   });
 
   test('permission-denied-retry allow → retry:true', async () => {
@@ -248,6 +350,26 @@ describe('createClaudeCodeAdapter', () => {
     );
   });
 
+  test('additional-context constrain → hookSpecificOutput.additionalContext', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        postToolUseFailure: async () => verdict('constrain', 'try npm test -- --runInBand'),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({ ...baseEnv, hook_event_name: 'PostToolUseFailure' }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.hookSpecificOutput.hookEventName).toBe('PostToolUseFailure');
+    expect(out.hookSpecificOutput.additionalContext).toBe(
+      '[OpenBox] try npm test -- --runInBand',
+    );
+  });
+
   test('continue-block block → continue:false + stopReason', async () => {
     const cap = capture();
     await createClaudeCodeAdapter({
@@ -283,6 +405,33 @@ describe('createClaudeCodeAdapter', () => {
     expect(out.hookSpecificOutput.hookEventName).toBe('Elicitation');
     expect(out.hookSpecificOutput.action).toBe('decline');
     expect(out.hookSpecificOutput.content).toEqual({});
+  });
+
+  test('elicitation-response constrain → accept redacted content', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        elicitationResult: async () => verdict('constrain', 'redacted answer', {
+          guardrailsResult: {
+            inputType: 'activity_input',
+            redactedInput: { answer: '[redacted]' },
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [],
+          },
+        }),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({ ...baseEnv, hook_event_name: 'ElicitationResult' }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.hookSpecificOutput.hookEventName).toBe('ElicitationResult');
+    expect(out.hookSpecificOutput.action).toBe('accept');
+    expect(out.hookSpecificOutput.content).toEqual({ answer: '[redacted]' });
   });
 
   test('elicitation-response halt → cancel', async () => {

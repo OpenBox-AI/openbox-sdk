@@ -65,7 +65,12 @@ describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
   test('beforeReadFile fires FileRead', async () => {
     const captured: CapturedActivity[] = [];
     await handleBeforeReadFile(
-      { conversation_id: 'c', file_path: '/tmp/x.txt', content: 'data' } as never,
+      {
+        conversation_id: 'c',
+        generation_id: 'activity-type-read-' + Math.random().toString(36).slice(2),
+        file_path: '/tmp/x.txt',
+        content: 'data',
+      } as never,
       makeCapturingSession(captured) as never,
       cfg,
     );
@@ -76,7 +81,11 @@ describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
   test('beforeShellExecution fires ShellExecution', async () => {
     const captured: CapturedActivity[] = [];
     await handleBeforeShellExecution(
-      { conversation_id: 'c', command: 'ls' } as never,
+      {
+        conversation_id: 'c',
+        generation_id: 'activity-type-shell-' + Math.random().toString(36).slice(2),
+        command: 'ls',
+      } as never,
       makeCapturingSession(captured) as never,
       cfg,
     );

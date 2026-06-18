@@ -1,18 +1,20 @@
 // Hook event coverage for the claude-code runtime adapter.
 //
 // One claude session emits a fixed sequence of hook events:
-// sessionStart, userPromptSubmit, preToolUse, postToolUse, stop,
-// sessionEnd. Each one is dispatched through `logged()` in
+// sessionStart, userPromptSubmit, preToolUse, postToolUse, stop.
+// SessionEnd remains handler-supported but is not installed by default
+// because shutdown hooks can be cancelled before network telemetry
+// reliably completes. Each default event is dispatched through `logged()` in
 // `runtime/claude-code/hook-handler.ts`, which appends a JSONL
-// entry to `~/.openbox/log/claude-code-hook.jsonl`.
+// entry to `<project>/.claude-hooks/log/claude-code-hook.jsonl`.
 //
 // This test snapshots the log size before the session, runs one
 // allowed action (so no event short-circuits on a deny), then
 // asserts every expected event appeared in the appended slice
 // with sane took_ms bounds and no error string.
 //
-// Skipped unless `OPENBOX_E2E_LIVE=1` and the project-scope test
-// workspace is configured. See claude-code-headless.test.ts for
+// Skipped unless `OPENBOX_E2E_LIVE=1` and the project-scope plugin
+// test workspace is configured. See claude-code-headless.test.ts for
 // the workspace prerequisites.
 
 import { describe, expect, it, beforeAll } from 'vitest';
@@ -33,9 +35,9 @@ import {
 //
 // The events we care about are the ones the runtime adapter logs
 // regardless of verdict: sessionStart, userPromptSubmit,
-// preToolUse / postToolUse if a tool fires, stop, sessionEnd.
+// preToolUse / postToolUse if a tool fires, stop.
 
-const REQUIRED_EVENTS = ['sessionStart', 'userPromptSubmit', 'stop', 'sessionEnd'];
+const REQUIRED_EVENTS = ['sessionStart', 'userPromptSubmit', 'stop'];
 
 describe.runIf(SHOULD_RUN)('claude-code hook events', () => {
   beforeAll(() => {
@@ -86,7 +88,7 @@ describe.runIf(SHOULD_RUN)('claude-code hook events', () => {
     // typically retries a denied tool a few times before giving
     // up, which is why the timeout matches the headless matrix
     // ceiling rather than the short block-verdict roundtrip.
-    runClaude('Run shell: echo hook-event-test', {
+    runClaude('Use the Bash tool to run exactly: echo hook-event-test', {
       allowedTool: 'Bash',
       timeoutMs: 45_000,
     });

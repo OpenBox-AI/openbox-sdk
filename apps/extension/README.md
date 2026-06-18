@@ -18,34 +18,22 @@ reject without leaving your code.
 
 ## Install
 
-The fastest path is the OpenBox CLI:
+Build a VSIX from this workspace and install it into your editor:
 
 ```sh
-curl -fsSL https://openbox.ai/install.sh | sh
-openbox auth set-api-key
-openbox install extension
+cd apps/extension
+npm install
+npm run package
+cursor --install-extension ./openbox-*.vsix
+# or:
+code --install-extension ./openbox-*.vsix
 ```
 
 You'll be prompted to paste an API key. Generate one in the
 [OpenBox dashboard](https://openbox.ai) under
 `Organization > API Keys`.
 
-`openbox install extension` finds VS Code and Cursor automatically
-and installs the bundled extension into both.
-
-### Manual install
-
-If you'd rather not use the CLI, grab `openbox-x.y.z.vsix` from the
-[Releases page](https://github.com/OpenBox-AI/openbox-sdk/releases)
-and install it through your editor's extensions panel
-(`Extensions > ... > Install from VSIX`), or via the command line:
-
-```sh
-cursor --install-extension openbox-0.1.0.vsix
-code   --install-extension openbox-0.1.0.vsix
-```
-
-You'll still need to set an API key. Open the command palette
+Set the key from the command palette
 (`Cmd-Shift-P`) and run **OpenBox: Set API Key**, or use the CLI's
 `openbox auth set-api-key`.
 
@@ -73,14 +61,12 @@ which policy to consult.
 
 ## Build from source
 
-Contributors only:
+For local development:
 
 ```sh
 cd apps/extension
 npm install
-npm run build
-npm run package
-cursor --install-extension openbox-0.1.0.vsix
+npm run watch
 ```
 
 `npm run build:dev` produces a debug build with extra commands

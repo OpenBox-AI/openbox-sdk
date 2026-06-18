@@ -18,15 +18,25 @@ export interface ClaudeCodeSurfaceMatrixEntry {
   notes: string;
 }
 
+export interface ClaudeCodeSdkCapabilityMatrixEntry {
+  capability: string;
+  sdkSurface: string;
+  claudeCodeTreatment: ClaudeCodeGovernanceStatus;
+  coverage: string;
+  tests: readonly string[];
+}
+
 export const CLAUDE_CODE_GOVERNANCE_AUDIT = {
-  capturedAt: '2026-06-15',
-  installedClaudeCodeVersion: '2.1.177 (Claude Code)',
+  capturedAt: '2026-06-17',
+  installedClaudeCodeVersion: '2.1.179 (Claude Code)',
   officialDocs: [
     'https://code.claude.com/docs/en/hooks',
     'https://code.claude.com/docs/en/plugins-reference',
     'https://code.claude.com/docs/en/plugins',
     'https://code.claude.com/docs/en/mcp',
     'https://code.claude.com/docs/en/skills',
+    'https://code.claude.com/docs/en/commands',
+    'https://code.claude.com/docs/en/agents',
     'https://code.claude.com/docs/en/settings',
     'https://code.claude.com/docs/en/tools-reference',
     'https://code.claude.com/docs/en/channels',
@@ -54,14 +64,14 @@ export const CLAUDE_CODE_HOOK_MATRIX: readonly ClaudeCodeHookMatrixEntry[] = [
   { event: 'PreToolUse', status: 'implement_now', defaultInstall: true, decisionSurface: 'permission-decision', notes: 'Primary pre-action tool gate.' },
   { event: 'PermissionRequest', status: 'implement_now', defaultInstall: true, decisionSurface: 'permission-request', notes: 'Native Claude permission prompt gate.' },
   { event: 'PermissionDenied', status: 'implement_now', defaultInstall: true, decisionSurface: 'permission-denied-retry', notes: 'Can request retry after auto-mode denial.' },
-  { event: 'PostToolUse', status: 'implement_now', defaultInstall: true, decisionSurface: 'decision-block', notes: 'Tool output governance.' },
-  { event: 'PostToolUseFailure', status: 'implement_now', defaultInstall: true, decisionSurface: 'additional-context', notes: 'Feeds policy context after failed tool calls.' },
-  { event: 'PostToolBatch', status: 'implement_now', defaultInstall: true, decisionSurface: 'decision-block', notes: 'Parallel tool batch gate before next model call.' },
+  { event: 'PostToolUse', status: 'implement_now', defaultInstall: true, decisionSurface: 'decision-block', notes: 'Tool output governance, including non-error feedback and redacted output on constrain.' },
+  { event: 'PostToolUseFailure', status: 'implement_now', defaultInstall: true, decisionSurface: 'additional-context', notes: 'Feeds policy context after failed tool calls, including constrain feedback.' },
+  { event: 'PostToolBatch', status: 'implement_now', defaultInstall: true, decisionSurface: 'decision-block', notes: 'Parallel tool batch gate before next model call, including additional context on constrain.' },
   { event: 'SubagentStart', status: 'observe_only', defaultInstall: true, decisionSurface: 'none', notes: 'Subagent lifecycle start telemetry.' },
-  { event: 'SubagentStop', status: 'implement_now', defaultInstall: true, decisionSurface: 'decision-block', notes: 'Subagent completion gate.' },
+  { event: 'SubagentStop', status: 'implement_now', defaultInstall: true, decisionSurface: 'decision-block', notes: 'Subagent completion gate, including non-error feedback on constrain.' },
   { event: 'TaskCreated', status: 'implement_now', defaultInstall: true, decisionSurface: 'continue-block', notes: 'Agent-team task creation criteria.' },
   { event: 'TaskCompleted', status: 'implement_now', defaultInstall: true, decisionSurface: 'continue-block', notes: 'Agent-team task completion criteria.' },
-  { event: 'Stop', status: 'implement_now', defaultInstall: true, decisionSurface: 'decision-block', notes: 'Final assistant-output/session-stop gate.' },
+  { event: 'Stop', status: 'implement_now', defaultInstall: true, decisionSurface: 'decision-block', notes: 'Final assistant-output/session-stop gate, including non-error feedback on constrain.' },
   { event: 'StopFailure', status: 'observe_only', defaultInstall: true, decisionSurface: 'none', notes: 'API/session failure telemetry.' },
   { event: 'TeammateIdle', status: 'implement_now', defaultInstall: true, decisionSurface: 'continue-block', notes: 'Agent-team idle/completion enforcement.' },
   { event: 'Notification', status: 'observe_only', defaultInstall: true, decisionSurface: 'none', notes: 'Notification telemetry.' },
@@ -72,7 +82,7 @@ export const CLAUDE_CODE_HOOK_MATRIX: readonly ClaudeCodeHookMatrixEntry[] = [
   { event: 'WorktreeRemove', status: 'observe_only', defaultInstall: true, decisionSurface: 'none', notes: 'Worktree removal telemetry.' },
   { event: 'PreCompact', status: 'implement_now', defaultInstall: true, decisionSurface: 'decision-block', notes: 'Blocks unsafe compaction requests before context rewrite.' },
   { event: 'PostCompact', status: 'observe_only', defaultInstall: true, decisionSurface: 'none', notes: 'Compaction summary telemetry.' },
-  { event: 'SessionEnd', status: 'observe_only', defaultInstall: true, decisionSurface: 'none', notes: 'Closes OpenBox workflow/session lifecycle.' },
+  { event: 'SessionEnd', status: 'diagnose_only', defaultInstall: false, decisionSurface: 'none', notes: 'Supported by the handler but not default-installed because shutdown hooks can be cancelled before network telemetry reliably completes; Stop is the governed final hook.' },
   { event: 'Elicitation', status: 'implement_now', defaultInstall: true, decisionSurface: 'elicitation-response', notes: 'MCP user-input request governance.' },
   { event: 'ElicitationResult', status: 'implement_now', defaultInstall: true, decisionSurface: 'elicitation-response', notes: 'MCP elicitation response governance.' },
 ] as const;
@@ -86,10 +96,118 @@ export const CLAUDE_CODE_SURFACE_MATRIX: readonly ClaudeCodeSurfaceMatrixEntry[]
   { surface: 'plugin settings', status: 'diagnose_only', notes: 'Only agent/subagentStatusLine are currently supported by Claude Code plugin settings.' },
   { surface: 'monitors', status: 'diagnose_only', notes: 'Documented as opt-in because monitors run unsandboxed and project-scope plugins do not load them.' },
   { surface: 'LSP', status: 'explicit_out_of_scope', notes: 'No OpenBox language server exists; official LSP plugins should be installed separately.' },
-  { surface: 'bin', status: 'diagnose_only', notes: 'OpenBox relies on the installed openbox binary; doctor reports command resolution.' },
+  { surface: 'bin', status: 'implement_now', notes: 'Plugin ships a project-local Node runner for hooks, MCP, and diagnostics; no global OpenBox binary is required.' },
   { surface: 'managed settings', status: 'diagnose_only', notes: 'Enterprise policy belongs to managed Claude Code deployment, not SDK mutation.' },
   { surface: 'channels', status: 'diagnose_only', notes: 'Research preview MCP push channel surface; standard MCP remains the connector path.' },
   { surface: 'built-in tool permissions', status: 'implement_now', notes: 'PreToolUse/PermissionRequest routing covers current built-in tool names and dynamic mcp__ tools.' },
+] as const;
+
+export const CLAUDE_CODE_SDK_CAPABILITY_MATRIX: readonly ClaudeCodeSdkCapabilityMatrixEntry[] = [
+  {
+    capability: 'workflow lifecycle start',
+    sdkSurface: 'BaseGovernedSession.workflowStarted() / WorkflowStarted',
+    claudeCodeTreatment: 'implement_now',
+    coverage: 'SessionStart opens the workflow and records the Claude session boundary.',
+    tests: ['tests/unit/runtime-claude-code-mappers.test.ts', 'tests/hook-integration/claude-code-hook-events.test.ts'],
+  },
+  {
+    capability: 'workflow lifecycle complete',
+    sdkSurface: 'BaseGovernedSession.workflowCompleted() / WorkflowCompleted',
+    claudeCodeTreatment: 'implement_now',
+    coverage: 'Stop completes workflows with no background tasks; SessionEnd remains opt-in shutdown telemetry.',
+    tests: ['tests/unit/runtime-claude-code-mappers.test.ts', 'tests/hook-integration/claude-code-hook-stdin.test.ts'],
+  },
+  {
+    capability: 'workflow lifecycle failure',
+    sdkSurface: 'BaseGovernedSession.workflowFailed() / WorkflowFailed',
+    claudeCodeTreatment: 'implement_now',
+    coverage: 'StopFailure emits observe telemetry and then records WorkflowFailed best-effort.',
+    tests: ['tests/unit/runtime-claude-code-mappers.test.ts', 'tests/hook-integration/claude-code-hook-stdin.test.ts'],
+  },
+  {
+    capability: 'split-stage activity governance',
+    sdkSurface: 'BaseGovernedSession.openActivity().complete()',
+    claudeCodeTreatment: 'implement_now',
+    coverage: 'PreToolUse opens a stable activity and PostToolUse/PostToolUseFailure closes it with output/duration.',
+    tests: ['tests/unit/runtime-claude-code-mappers.test.ts', 'tests/unit/payload-shape.test.ts'],
+  },
+  {
+    capability: 'single-stage activity gates',
+    sdkSurface: 'BaseGovernedSession.activity(ActivityStarted|ActivityCompleted)',
+    claudeCodeTreatment: 'implement_now',
+    coverage: 'Prompts, permission requests, compaction, config changes, tasks, final output, subagents, and MCP elicitation map to activity gates.',
+    tests: ['tests/unit/claude-hook-handler-coverage.test.ts', 'tests/hook-integration/claude-code-hook-stdin.test.ts'],
+  },
+  {
+    capability: 'goal and signal telemetry',
+    sdkSurface: 'BaseGovernedSession.activity(SignalReceived)',
+    claudeCodeTreatment: 'implement_now',
+    coverage: 'UserPromptSubmit emits SignalReceived(user_prompt) with the prompt and an LLM span before the prompt gate.',
+    tests: ['tests/unit/runtime-claude-code-mappers.test.ts', 'tests/unit/payload-shape.test.ts'],
+  },
+  {
+    capability: 'approval lifecycle',
+    sdkSurface: 'WorkflowVerdict.arm=require_approval, pollApproval, inline/defer approval modes',
+    claudeCodeTreatment: 'implement_now',
+    coverage: 'Claude hook rendering supports remote polling, inline ask, defer, and fail-closed deny/block shapes for decision-capable hooks.',
+    tests: ['tests/hook-integration/claude-code-hook-stdin.test.ts', 'tests/unit/runtime-adapters-coverage.test.ts'],
+  },
+  {
+    capability: 'guardrail transforms and constrain verdicts',
+    sdkSurface: 'WorkflowVerdict.arm=constrain, guardrailsResult.redactedInput, updated output rendering',
+    claudeCodeTreatment: 'implement_now',
+    coverage: 'Claude verdict renderer preserves allow+updatedInput, additionalContext, updatedToolOutput, and elicitation accept content where Claude supports mutation.',
+    tests: ['tests/unit/runtime-adapters-coverage.test.ts', 'tests/unit/payload-shape.test.ts'],
+  },
+  {
+    capability: 'halt/block session state',
+    sdkSurface: 'WorkflowVerdict.arm=block|halt, session halted cache',
+    claudeCodeTreatment: 'implement_now',
+    coverage: 'Decision-capable hooks return Claude-native block/deny/continue=false responses and mark halted sessions for later hooks.',
+    tests: ['tests/hook-integration/claude-code-hook-stdin.test.ts', 'tests/unit/runtime-claude-code-mappers.test.ts'],
+  },
+  {
+    capability: 'behavior-rule spans and hook-trigger evaluation',
+    sdkSurface: 'GovernedPayload.spans, hook_trigger re-evaluation',
+    claudeCodeTreatment: 'implement_now',
+    coverage: 'Prompt, shell, file, HTTP, and MCP tool paths attach spans so behavior rules can match the same shapes used by other SDK adapters.',
+    tests: ['tests/hook-integration/claude-code-span-content.test.ts', 'tests/unit/runtime-claude-code-mappers.test.ts'],
+  },
+  {
+    capability: 'MCP connector and governance tools',
+    sdkSurface: '@openbox-ai/openbox-sdk/runtime/mcp',
+    claudeCodeTreatment: 'implement_now',
+    coverage: 'Plugin .mcp.json points at the bundled project-local Node runner for mcp serve; MCP exposes status, doctor, approvals, agent/rule/policy reads, and check_governance.',
+    tests: ['tests/unit/mcp-server-coverage.test.ts', 'tests/hook-integration/mcp-protocol.test.ts'],
+  },
+  {
+    capability: 'plugin packaging and diagnostics',
+    sdkSurface: '@openbox-ai/openbox-sdk/runtime/claude-code plugin helpers',
+    claudeCodeTreatment: 'implement_now',
+    coverage: 'Export/install packages skill, commands, agent, hooks, MCP, diagnostics, project-local bin runner/doctor shim, and explicit settings/monitor/LSP inventory.',
+    tests: ['tests/unit/claude-code-plugin.test.ts', 'tests/hook-integration/claude-code-install.test.ts'],
+  },
+  {
+    capability: 'project-scoped runtime configuration',
+    sdkSurface: 'Claude .claude-hooks config loader and plugin install',
+    claudeCodeTreatment: 'implement_now',
+    coverage: 'Claude hooks read only project .claude-hooks config/env plus process env; no global Claude config is mutated.',
+    tests: ['tests/hook-integration/claude-code-install.test.ts', 'tests/unit/logging-and-config-coverage.test.ts'],
+  },
+  {
+    capability: 'CopilotKit-specific UI/runtime wrappers',
+    sdkSurface: '@openbox-ai/openbox-sdk/copilotkit and /copilotkit/react',
+    claudeCodeTreatment: 'explicit_out_of_scope',
+    coverage: 'Claude Code does not embed CopilotKit UI wrappers; it maps the same governance primitives through hooks and MCP instead.',
+    tests: ['tests/unit/copilotkit-pure-coverage.test.ts', 'tests/unit/runtime-claude-code-mappers.test.ts'],
+  },
+  {
+    capability: 'non-Claude presets',
+    sdkSurface: 'PRESET_MANIFEST presets for LangChain, Cursor, n8n, Temporal, etc.',
+    claudeCodeTreatment: 'diagnose_only',
+    coverage: 'SDK-wide presets are audited as broader SDK capability, but Claude Code only implements host-reachable Claude events.',
+    tests: ['tests/unit/claude-code-governance-matrix.test.ts'],
+  },
 ] as const;
 
 export function defaultClaudeCodeHookEvents(): string[] {
@@ -119,5 +237,6 @@ export function claudeCodeGovernanceSummary(): Record<string, unknown> {
     optInHooks: optInClaudeCodeHookEvents(),
     byStatus,
     surfaces: CLAUDE_CODE_SURFACE_MATRIX,
+    sdkCapabilities: CLAUDE_CODE_SDK_CAPABILITY_MATRIX,
   };
 }

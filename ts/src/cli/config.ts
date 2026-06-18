@@ -4,6 +4,7 @@ import { OpenBoxCoreClient } from '../core-client/index.js';
 import {
   FeatureMap,
   serializeTokenStore,
+  resolveAgentIdentity,
   resolveConnection,
   validateApiKeyFormat as generatedValidateApiKey,
 } from '../env/index.js';
@@ -54,12 +55,10 @@ function saveFeatures(features: FeatureMap) {
 }
 
 // Honors OPENBOX_TIMEOUT_MS so users can stretch the per-request timeout
-// for slow operations (staging core's verdict-2 evaluate workflow blocks
-// for the rule's approval-timeout window before returning, easily 60s+).
-// Falsy / non-finite values fall through to the SDK default (35_000),
-// which sits 5s above core's 30s WorkflowExecutionTimeout so a
-// workflow timeout surfaces as the server's 500 instead of an
-// AbortController cancel.
+// for slow governance or approval flows. Falsy / non-finite values fall
+// through to the SDK default (35_000), which sits 5s above core's 30s
+// WorkflowExecutionTimeout so a workflow timeout surfaces as the
+// server's 500 instead of an AbortController cancel.
 function resolveTimeoutMs(): number | undefined {
   const raw = process.env.OPENBOX_TIMEOUT_MS;
   if (!raw) return undefined;
@@ -75,7 +74,7 @@ function getClient(): OpenBoxClient {
     error('no X-API-Key configured', {
       help:
         'mint a key in the dashboard FE (Organization → API Keys), then:\n' +
-        '  openbox connect <stack-url> --api-key <key>\n' +
+        '  openbox connect --api-url <url> --core-url <url> --api-key <key>\n' +
         'or save a key for the active connection with:\n' +
         '  openbox auth set-api-key\n' +
         'or set OPENBOX_BACKEND_API_KEY=<key> in the environment',
@@ -128,6 +127,7 @@ function getCoreClient(): OpenBoxCoreClient {
   return new OpenBoxCoreClient({
     apiUrl: coreUrl,
     apiKey,
+    agentIdentity: resolveAgentIdentity(),
     timeoutMs: resolveTimeoutMs(),
   });
 }

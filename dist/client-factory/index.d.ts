@@ -1,6 +1,6 @@
-import { b as OpenBoxClient } from '../client-D20fgzve.js';
+import { b as OpenBoxClient } from '../client-C43Hkmge.js';
 import '../responses-C2s9PwZF.js';
-import '../env-bindings--BxVwc6f.js';
+import '../env-bindings-CCaolEHB.js';
 
 interface ConsumerClientOptions {
     /** Explicit endpoint overrides for endpoint-first/self-hosted consumers. */
@@ -8,7 +8,6 @@ interface ConsumerClientOptions {
     coreUrl?: string;
     authUrl?: string;
     platformUrl?: string;
-    stackUrl?: string;
     /**
      * Returns the X-API-Key. May be sync or async. Return
      * undefined / empty string to signal "no key configured"; the

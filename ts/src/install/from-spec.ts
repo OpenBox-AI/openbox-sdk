@@ -153,13 +153,10 @@ function dropExampleConfig(configDir: string): void {
   const file = path.join(configDir, 'config.json');
   if (fs.existsSync(file)) return;
   const example = {
-    OPENBOX_API_KEY: 'obx_live_YOUR_API_KEY_HERE',
-    OPENBOX_CORE_URL: 'https://core.example/ob',
-    GOVERNANCE_POLICY: 'fail_open',
+    GOVERNANCE_POLICY: 'fail_closed',
     HITL_ENABLED: true,
     HITL_MAX_WAIT: 300,
     VERBOSE: false,
-    DRY_RUN: true,
   };
   // Mode 0o600: this template is where the user pastes their API
   // key, so treat it as sensitive from creation rather than relying
@@ -168,7 +165,7 @@ function dropExampleConfig(configDir: string): void {
   // eslint-disable-next-line no-console
   console.log(`Created example config at ${file}`);
   // eslint-disable-next-line no-console
-  console.log('  -> Set OPENBOX_API_KEY and DRY_RUN=false to enable governance');
+  console.log('  -> Set OPENBOX_API_KEY and OPENBOX_CORE_URL to enable governance');
 }
 
 export function installAdapter(spec: HookSpec, options: InstallOptions = {}): void {

@@ -5,7 +5,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ],
             "timeout": 86400
           }
         ]
@@ -16,7 +21,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -26,7 +36,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -36,7 +51,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -46,7 +66,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ],
             "timeout": 86400
           }
         ]
@@ -57,7 +82,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ],
             "timeout": 86400
           }
         ]
@@ -68,7 +98,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ],
             "timeout": 86400
           }
         ]
@@ -79,7 +114,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -89,7 +129,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -99,7 +144,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -109,7 +159,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -119,7 +174,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -129,17 +189,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -149,7 +204,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -159,7 +219,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -169,7 +234,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -179,7 +249,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -189,7 +264,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -199,7 +279,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -209,7 +294,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -219,7 +309,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -229,7 +324,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -239,7 +339,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -249,7 +354,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -259,7 +369,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -269,7 +384,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }
@@ -279,7 +399,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ],
             "timeout": 86400
           }
         ]
@@ -290,7 +415,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "openbox claude-code hook"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs",
+              "claude-code",
+              "hook"
+            ]
           }
         ]
       }

@@ -22,7 +22,7 @@ tool/action has its own `activity_id`.
 
 ## SDK First
 
-Use `openbox-sdk/core-client` sessions for application code:
+Use `@openbox-ai/openbox-sdk/core-client` sessions for application code:
 
 ```ts
 await govern({ core, preset: presets.custom }, async (session) => {
@@ -36,7 +36,14 @@ Use the CLI only for smoke tests:
 ```sh
 OPENBOX_API_KEY=$RUNTIME_KEY openbox api core evaluateGovernance --body @event.json
 OPENBOX_API_KEY=$RUNTIME_KEY openbox api core pollApproval --body @approval-poll.json
-OPENBOX_API_KEY=$RUNTIME_KEY openbox api core decideApproval --body @approval-decision.json
+```
+
+Approval decisions are a backend/MCP action, not a Core operation:
+
+```sh
+OPENBOX_BACKEND_API_KEY=$BACKEND_KEY openbox api backend AgentController_decideApproval \
+  --params '{"agentId":"...","eventId":"..."}' \
+  --body '{"action":"approve"}'
 ```
 
 Do not bypass Core by calling backend policy objects directly during

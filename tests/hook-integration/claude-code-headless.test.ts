@@ -1,7 +1,7 @@
 // Headless end-to-end matrix for the claude-code runtime adapter.
 //
-// Spawns `claude -p ...` inside a project-scope-installed test
-// workspace and asserts that each rule planted by the local
+// Spawns `claude -p ...` with the project-scope OpenBox plugin loaded
+// through `--plugin-dir` and asserts that each rule planted by the local
 // bootstrap fires through the hook subprocess. Mirrors the cursor
 // wdio suite's verdict matrix (sourced from the same shared
 // fixture under `fixtures/verdict-matrix.ts`) so adding a host
@@ -10,16 +10,18 @@
 // Skipped unless:
 //   - `OPENBOX_E2E_LIVE=1`
 //   - the local stack is reachable
-//   - the test workspace `~/workspace/openbox-claude-test/` is
-//     present and configured
+//   - the test workspace `~/workspace/openbox-claude-test/` contains
+//     `.claude/skills/openbox` and `.claude-hooks/config.json`
 //
 // Set up the workspace once with:
 //
-//   openbox claude-code install --scope project \
+//   openbox claude-code plugin install --scope project \
 //     --cwd ~/workspace/openbox-claude-test
 //
 // then edit `<cwd>/.claude-hooks/config.json` to point at the
-// local stack with a runtime key.
+// target Core with a runtime key. The helper passes `OPENBOX_CLI`
+// to this checkout's `dist/cli/index.js`, so no global `openbox`
+// command is required.
 
 import { describe, expect, it, beforeAll } from 'vitest';
 import {
@@ -30,7 +32,29 @@ import {
   runClaude,
   SHOULD_RUN,
   assertClaudeOnPath,
+  snapshotHookLog,
+  hookLogSince,
 } from './helpers/claude-runner.js';
+
+function isLoopbackUrl(raw: string | undefined): boolean {
+  if (!raw) return true;
+  try {
+    const host = new URL(raw).hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
+const EXPECT_LOCAL_RULES =
+  process.env.OPENBOX_E2E_EXPECT_LOCAL_RULES === '1' ||
+  (
+    process.env.OPENBOX_E2E_EXPECT_LOCAL_RULES !== '0' &&
+    !process.env.OPENBOX_STAGING_API_URL &&
+    !process.env.OPENBOX_STAGING_CORE_URL &&
+    isLoopbackUrl(process.env.OPENBOX_API_URL) &&
+    isLoopbackUrl(process.env.OPENBOX_CORE_URL)
+  );
 
 /** Translate a fixture case into a (prompt, tool) pair claude can
  *  run. Only the cases the claude-code runtime can realistically
@@ -38,10 +62,11 @@ import {
 function prompt(c: VerdictMatrixCase): { prompt: string; tool: string } | null {
   switch (c.spanType) {
     case 'shell':
-      return { prompt: 'Run shell: echo hello', tool: 'Bash' };
+      return { prompt: 'Use the Bash tool to run exactly: echo hello', tool: 'Bash' };
     case 'file_write':
+      const writePath = `/tmp/openbox-claude-write-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`;
       return {
-        prompt: `Use the Write tool to create ${c.activityInput.file_path} with content 'hello'`,
+        prompt: `Use only the Write tool to create the new file ${writePath} with content 'hello'. The file does not exist; do not read it first.`,
         tool: 'Write',
       };
     case 'file_read':
@@ -49,6 +74,15 @@ function prompt(c: VerdictMatrixCase): { prompt: string; tool: string } | null {
         prompt: 'Read /etc/hostname using the Read tool',
         tool: 'Read',
       };
+    case 'http': {
+      const url = typeof c.activityInput.url === 'string'
+        ? c.activityInput.url
+        : 'https://example.com/blocked';
+      return {
+        prompt: `Use only the WebFetch tool to fetch ${url}. Do not use Bash or WebSearch.`,
+        tool: 'WebFetch',
+      };
+    }
     case 'llm':
       // The userPromptSubmit hook fires on every prompt, so any
       // benign prompt exercises the llm rule. No tool is needed.
@@ -73,7 +107,16 @@ describe.runIf(SHOULD_RUN)('claude-code headless host matrix', () => {
       `${c.name}${skipReason ? ` (${skipReason})` : ''}`,
       () => {
         if (!driver) return;
+        const offset = snapshotHookLog();
         const r = runClaude(driver.prompt, { allowedTool: driver.tool });
+        const events = hookLogSince(offset).map((line) => line.event);
+        expect(events.length, 'no Claude Code hook events were logged').toBeGreaterThan(0);
+        expect(events).toContain(driver.tool ? 'preToolUse' : 'userPromptSubmit');
+
+        if (!EXPECT_LOCAL_RULES) {
+          expect(r.is_error).toBeFalsy();
+          return;
+        }
 
         if (c.expectedOutcome === 'deny') {
           // The hook returned block (or halt); claude refused.

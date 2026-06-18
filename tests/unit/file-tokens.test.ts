@@ -35,6 +35,15 @@ async function loadModule() {
 }
 
 describe('file-tokens', () => {
+  it('loadApiKey does not create the OpenBox data directory when no token exists', async () => {
+    const mod = await loadModule();
+    fs.rmSync(fakeHome, { recursive: true, force: true });
+
+    expect(mod.loadApiKey()).toBeUndefined();
+
+    expect(fs.existsSync(fakeHome)).toBe(false);
+  });
+
   it('saveApiKey then loadApiKey round-trips', async () => {
     const mod = await loadModule();
     expect(mod.loadApiKey()).toBeUndefined();
@@ -79,7 +88,7 @@ describe('file-tokens', () => {
     expect(mod.hasApiKey()).toBe(true);
   });
 
-  it('cwd .tokens file wins over the user-data path', async () => {
+  it('cwd .tokens file wins over the project .openbox token path', async () => {
     const mod = await loadModule();
     mod.saveApiKey('home_value');
     fs.writeFileSync(path.join(fakeCwd, '.tokens'), 'API_KEY=cwd_value\nUPDATED_AT=2026-01-01T00:00:00Z\n');

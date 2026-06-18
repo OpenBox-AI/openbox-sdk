@@ -158,12 +158,11 @@ export class OpenBoxCoreClient {
     // No retries on evaluate: each attempt the SDK constructs creates a
     // fresh workflow on Temporal (workflow_id is set by the caller in
     // the payload, but a 5xx-then-retry pattern still racks up wasted
-    // attempts on the server). More importantly, when staging core's
-    // grpc deadline (10s) fires and returns 500, retrying just amplifies
-    // the same outage from a 10s user-visible delay into ~44s while
-    // burning extra workflow slots. Single shot; surface the 500
-    // immediately so the caller can decide whether to retry with
-    // full context, such as a fresh workflow_id.
+    // attempts on the server). When core returns a 5xx after an
+    // upstream deadline, retrying just amplifies the outage while
+    // burning extra workflow slots. Single shot; surface the error
+    // immediately so the caller can decide whether to retry with full
+    // context, such as a fresh workflow_id.
     const versionedPayload =
       payload.sdk_version && payload.sdk_version !== ''
         ? payload

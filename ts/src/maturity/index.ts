@@ -1,8 +1,7 @@
 // Public sub-path: `import { ... } from '@openbox-ai/openbox-sdk/maturity'`.
 //
-// Optional maturity helpers. The lean CLI defaults active commands to
-// stable; generated tables are retained only for future explicitly
-// declared features.
+// Optional maturity helpers. The lean CLI exposes only active commands;
+// generated tables are retained for consumers that build their own UI.
 //
 // Two levels:
 //   * Maturity (whole-command); `isMaturityVisible(target)` + the
@@ -10,11 +9,6 @@
 //   * Feature flags (within-command experimental branches) .
 //     `isFeatureEnabled(name)` + the FEATURE_MATURITY registry.
 //
-// CLI-specific glue (Commander integration, --experimental flag
-// handler, --feature flag handler) lives in `cli/maturity.ts` and
-// `cli/features.ts`.
-
-import { ENV_VAR_BINDINGS } from '../env/generated/env-bindings.js';
 import { COMMAND_MATURITY, type Maturity } from '../cli/generated/cli-maturity.js';
 import { FEATURE_MATURITY } from '../cli/generated/cli-features.js';
 
@@ -30,19 +24,14 @@ const LEVEL: Record<Maturity, number> = {
 let consumerOverride: Maturity | null = null;
 const explicitlyEnabled = new Set<string>();
 
-/** Programmatic override for the current maturity level. The CLI sets
- *  this from the top-level `--experimental` flag; library consumers
- *  can set it themselves to surface experimental commands in their UI. */
+/** Programmatic override for the current maturity level. */
 export function setMaturityLevel(level: Maturity | null): void {
   consumerOverride = level;
 }
 
-/** Resolve the current maturity level. Override > env > default 'stable'. */
+/** Resolve the current maturity level. Override > default 'stable'. */
 export function currentMaturityLevel(): Maturity {
   if (consumerOverride) return consumerOverride;
-  const envName = ENV_VAR_BINDINGS.experimentalLevel.name;
-  const env = (process.env[envName] ?? '').toLowerCase();
-  if (env === 'experimental' || env === 'beta' || env === 'stable') return env;
   return 'stable';
 }
 
@@ -61,8 +50,7 @@ export function maturityOf(path: string): Maturity {
 
 // ─── Feature flags ────────────────────────────────────────────────────
 
-/** Programmatic feature opt-in. CLI sets these from `--feature
- *  <name...>`; library consumers can pre-enable specific features. */
+/** Programmatic feature opt-in. */
 export function enableFeature(name: string): void {
   if (name) explicitlyEnabled.add(name);
 }
@@ -75,17 +63,10 @@ export function enableFeatures(names: string[] | undefined): void {
   }
 }
 
-function envFeatures(): Set<string> {
-  const envName = ENV_VAR_BINDINGS.features.name;
-  const raw = (process.env[envName] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-  return new Set(raw);
-}
-
 /**
  * True if `name` is enabled. Resolution order:
  *   1. Explicitly enabled via `enableFeature(name)`.
- *   2. Listed in OPENBOX_FEATURES env var (comma-separated).
- *   3. Maturity bridge: feature is registered in FEATURE_MATURITY at
+ *   2. Maturity bridge: feature is registered in FEATURE_MATURITY at
  *      a level the current maturity level subsumes.
  *
  * Example:
@@ -93,7 +74,6 @@ function envFeatures(): Set<string> {
  */
 export function isFeatureEnabled(name: string): boolean {
   if (explicitlyEnabled.has(name)) return true;
-  if (envFeatures().has(name)) return true;
   const declared = FEATURE_MATURITY[name];
   if (declared && isMaturityVisible(declared)) return true;
   return false;

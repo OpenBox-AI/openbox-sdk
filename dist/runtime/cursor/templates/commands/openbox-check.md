@@ -1,12 +1,9 @@
 ---
 name: openbox-check
-description: Evaluate a hypothetical agent action against OPA without executing it. (uses experimental commands)
+description: Evaluate a hypothetical agent action against OpenBox governance without executing it.
 ---
 
 # Dry-run governance check
-
-`core` subcommands are gated behind `--experimental`. Always
-include the flag in invocations.
 
 Ask the user (one sentence) which action they want to evaluate -
 a shell command, a file write, a network call - and which agent
@@ -40,8 +37,7 @@ The MCP server resolves cached runtime keys internally. Never print a
 runtime key, paste it into chat, or include it in the final response.
 Do not fall back to shell unless the user explicitly asks you to.
 
-Report the verdict (`allow` / `require_approval` / `deny` /
-`block`) and the matched rule id. If `require_approval`, mention
-they can decide via `/openbox-pending` once it surfaces.
+Report the returned verdict and the matched rule id when present. If
+the verdict requires approval, mention `/openbox-pending`.
 
 Don't mention environment names in your output.

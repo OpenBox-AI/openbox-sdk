@@ -19,7 +19,7 @@
 //
 //   OPENBOX_API_URL          ← override OR http://localhost:3000
 //   OPENBOX_CORE_URL         ← override OR http://localhost:8086
-//   OPENBOX_BACKEND_API_KEY  ← override OR API_KEY from ~/.openbox/tokens
+//   OPENBOX_BACKEND_API_KEY  ← override OR API_KEY from .openbox/tokens
 //   OPENBOX_API_KEY          ← override OR OPENBOX_E2E_RUNTIME_KEY
 //   OPENBOX_E2E_AGENT_ID     ← override OR e2e-agent cache OR bootstrap
 //   OPENBOX_E2E_RUNTIME_KEY  ← override OR e2e-agent cache OR bootstrap
@@ -39,7 +39,6 @@
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { ensureLiveVerdictMatrix } from './live-bootstrap.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -62,7 +61,7 @@ function isLocalUrl(raw: string | undefined): boolean {
 
 // ─── credential auto-load ────────────────────────────────────────────
 //
-// Pull the e2e-agent's runtime key from ~/.openbox/agent-keys (the
+// Pull the e2e-agent's runtime key from project `.openbox/agent-keys` (the
 // canonical store openbox-local's bootstrap writes to). Same pattern
 // as tests/setup-creds.ts; lets `npm run test:e2e-extension` Just Work
 // after `cd ~/workspace/openbox-local && npm run bootstrap`.
@@ -81,7 +80,7 @@ const allowLocalCredentialFallback =
   (!explicitApiUrl && !explicitCoreUrl);
 
 if (allowLocalCredentialFallback && (!process.env.OPENBOX_E2E_AGENT_ID || !process.env.OPENBOX_E2E_RUNTIME_KEY)) {
-  const keysFile = resolve(homedir(), '.openbox', 'agent-keys');
+  const keysFile = resolve(ROOT, '.openbox', 'agent-keys');
   if (existsSync(keysFile)) {
     try {
       const cache = JSON.parse(readFileSync(keysFile, 'utf-8')) as Record<
@@ -109,7 +108,7 @@ process.env.OPENBOX_E2E_EXPECT_ORG_ID = process.env.OPENBOX_E2E_EXPECT_ORG_ID ??
 if (allowLocalCredentialFallback && !process.env.OPENBOX_BACKEND_API_KEY) {
   for (const tokenFile of [
     resolve(ROOT, '.tokens'),
-    resolve(homedir(), '.openbox', 'tokens'),
+    resolve(ROOT, '.openbox', 'tokens'),
   ]) {
     if (!existsSync(tokenFile)) continue;
     const lines = readFileSync(tokenFile, 'utf-8').split('\n');

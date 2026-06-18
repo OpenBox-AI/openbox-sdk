@@ -7,9 +7,9 @@
 // shape, last-write-wins, prefix validation, missing-file safety.
 
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { mkdtempSync, existsSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, existsSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const sandbox = mkdtempSync(join(tmpdir(), 'openbox-agent-keys-'));
 const originalHome = process.env.OPENBOX_HOME;
@@ -33,6 +33,14 @@ beforeEach(() => {
 });
 
 describe('agent-keys-store', () => {
+  it('missing-store reads do not create the OpenBox data directory', () => {
+    rmSync(sandbox, { recursive: true, force: true });
+
+    expect(recallAgentKey('any-id')).toBeNull();
+
+    expect(existsSync(sandbox)).toBe(false);
+  });
+
   it('round-trips a recorded key', () => {
     recordAgentKey('agent-1', 'obx_live_aaaaaaaaaaaa', 'My Agent');
     const rec = recallAgentKey('agent-1');
@@ -93,6 +101,7 @@ describe('agent-keys-store', () => {
   });
 
   it('tolerates a corrupt store file (returns empty, does not throw)', () => {
+    mkdirSync(dirname(agentKeysPath()), { recursive: true });
     writeFileSync(agentKeysPath(), 'not valid json {{{', { mode: 0o600 });
     expect(recallAgentKey('anything')).toBeNull();
     // A subsequent record must still succeed and overwrite the

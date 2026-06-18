@@ -23,20 +23,21 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 
 const OPENBOX = process.env.OPENBOX_CLI ?? 'node';
+const DEFAULT_OPENBOX_ARGS = process.env.OPENBOX_CLI ? [] : [path.resolve(__dirname, '../../dist/cli/index.js')];
 const OPENBOX_ARGS = process.env.OPENBOX_CLI_ARGS
   ? JSON.parse(process.env.OPENBOX_CLI_ARGS) as string[]
-  : [path.resolve(__dirname, '../../dist/cli/index.js')];
+  : DEFAULT_OPENBOX_ARGS;
 const E2E_AGENT_NAME = 'e2e-agent';
+const PROJECT_OPENBOX = path.resolve(process.cwd(), '.openbox');
 
 /** Locate the org X-API-Key (`obx_key_*`) the MCP server needs to
  *  reach the backend. Falls back to undefined; the whole suite is
  *  skipped when missing. */
 function resolveOrgApiKey(): string | undefined {
   if (process.env.OPENBOX_BACKEND_API_KEY) return process.env.OPENBOX_BACKEND_API_KEY;
-  const tokens = path.join(os.homedir(), '.openbox', 'tokens');
+  const tokens = path.join(PROJECT_OPENBOX, 'tokens');
   if (!existsSync(tokens)) return undefined;
   const text = readFileSync(tokens, 'utf-8');
   const match = text.match(/obx_key_[a-z0-9]+/i);
@@ -115,7 +116,7 @@ class McpClient {
 
 function resolveAgentId(): string | undefined {
   if (process.env.OPENBOX_E2E_AGENT_ID) return process.env.OPENBOX_E2E_AGENT_ID;
-  const keysFile = path.join(os.homedir(), '.openbox', 'agent-keys');
+  const keysFile = path.join(PROJECT_OPENBOX, 'agent-keys');
   if (!existsSync(keysFile)) return undefined;
   try {
     const cache = JSON.parse(readFileSync(keysFile, 'utf-8')) as Record<
@@ -131,7 +132,7 @@ function resolveAgentId(): string | undefined {
 function hasCachedRuntimeKey(agentId: string | undefined): boolean {
   if (process.env.OPENBOX_E2E_RUNTIME_KEY || process.env.OPENBOX_API_KEY) return true;
   if (!agentId) return false;
-  const keysFile = path.join(os.homedir(), '.openbox', 'agent-keys');
+  const keysFile = path.join(PROJECT_OPENBOX, 'agent-keys');
   if (!existsSync(keysFile)) return false;
   try {
     const cache = JSON.parse(readFileSync(keysFile, 'utf-8')) as Record<
@@ -153,7 +154,7 @@ describe.runIf(SHOULD_RUN)('openbox MCP server protocol', () => {
 
   beforeAll(async () => {
     // The MCP server needs explicit URLs plus an org X-API-Key to
-    // reach the backend. The org key comes from `~/.openbox/tokens`. Both are required
+    // reach the backend. The org key comes from project `.openbox/tokens`. Both are required
     // or the server exits with a credentials error before
     // initialize completes.
     client = new McpClient(

@@ -2,6 +2,7 @@ import {
   OpenBoxCoreClient,
   type AgentIdentityConfig,
 } from '../core-client/core-client.js';
+import { resolveAgentIdentity } from '../env/agent-identity.js';
 import {
   OPENBOX_BACKEND_API_KEY_PATTERN,
   OPENBOX_RUNTIME_KEY_PATTERN,
@@ -70,13 +71,11 @@ export function getAgentIdentity(
   config: OpenBoxCopilotKitConfig,
 ): AgentIdentityConfig | undefined {
   if (config.agentIdentity) return config.agentIdentity;
-  const did = process.env.OPENBOX_AGENT_DID;
-  const privateKey = process.env.OPENBOX_AGENT_PRIVATE_KEY;
-  if (!did && !privateKey) return undefined;
-  if (!did || !privateKey) {
+  try {
+    return resolveAgentIdentity();
+  } catch {
     throw new OpenBoxCopilotKitError(
       'OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY.',
     );
   }
-  return { did, privateKey };
 }

@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
-import { tmpdir, homedir } from 'node:os';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   runClaude,
@@ -21,7 +21,7 @@ import {
   assertClaudeOnPath,
 } from './helpers/claude-runner.js';
 
-const OPENBOX = process.env.OPENBOX_CLI ?? 'openbox';
+const OPENBOX = process.env.OPENBOX_CLI ?? path.resolve(import.meta.dirname, '../../dist/cli/index.js');
 
 function planConfigDir(): string {
   const root = mkdtempSync(path.join(tmpdir(), 'obx-cc-subagent-'));
@@ -32,9 +32,9 @@ function planConfigDir(): string {
     JSON.stringify({
       OPENBOX_API_KEY: 'obx_test_0000000000000000000000000000000000000000000000',
       OPENBOX_CORE_URL: 'http://127.0.0.1:1',
-      GOVERNANCE_POLICY: 'fail_open',
+      GOVERNANCE_POLICY: 'fail_closed',
       HITL_ENABLED: false,
-      DRY_RUN: true,
+      GOVERNANCE_TIMEOUT: 1,
     }),
   );
   return root;
@@ -56,7 +56,7 @@ function callHook(envelope: Record<string, unknown>, cwd: string): {
 describe('claude-code subagent events', () => {
   it('SubagentStart and SubagentStop dispatch and log a record each', () => {
     const root = planConfigDir();
-    const logPath = path.join(homedir(), '.openbox', 'log', 'claude-code-hook.jsonl');
+    const logPath = path.join(root, '.claude-hooks', 'log', 'claude-code-hook.jsonl');
     const before = existsSync(logPath) ? readFileSync(logPath, 'utf-8').length : 0;
 
     const baseEnv = {

@@ -1,10 +1,10 @@
 // Cursor dedup contract: one logical action can emit multiple hook events, but
 // only one mapper may evaluate governance while sibling hooks mirror the result.
 
-import { describe, expect, test, beforeEach } from 'vitest';
+import { describe, expect, test, beforeEach, afterAll } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
+import { tmpdir } from 'node:os';
 import { handleBeforeShellExecution } from '../../ts/src/runtime/cursor/mappers/shell.ts';
 import { handleBeforeReadFile } from '../../ts/src/runtime/cursor/mappers/file-read.ts';
 import { handlePreToolUse } from '../../ts/src/runtime/cursor/mappers/pre-tool-use.ts';
@@ -16,7 +16,13 @@ import {
   isFileDeleteCommand,
 } from '../../ts/src/runtime/cursor/dedup.ts';
 
-const DEDUP_DIR = path.join(os.homedir(), '.openbox', 'run', 'dedup');
+const oldOpenboxHome = process.env.OPENBOX_HOME;
+const openboxHome = fs.mkdtempSync(path.join(tmpdir(), 'openbox-cursor-dedup-'));
+process.env.OPENBOX_HOME = openboxHome;
+
+function dedupDir(): string {
+  return path.join(openboxHome, 'run', 'dedup');
+}
 
 interface ActivityCall {
   eventType: string;
@@ -44,16 +50,22 @@ function uniqueGenId(): string {
 }
 
 function clearLockForKey(key: string): void {
-  try { fs.unlinkSync(path.join(DEDUP_DIR, key)); } catch { /* ignore */ }
+  try { fs.unlinkSync(path.join(dedupDir(), key)); } catch { /* ignore */ }
 }
 
 describe('per-action dedup across hook subprocesses', () => {
+  afterAll(() => {
+    if (oldOpenboxHome === undefined) delete process.env.OPENBOX_HOME;
+    else process.env.OPENBOX_HOME = oldOpenboxHome;
+    fs.rmSync(openboxHome, { recursive: true, force: true });
+  });
+
   beforeEach(() => {
     // Cleanly drop any leftover lock from previous tests in the same
     // file (the runner shares the home dir).
     try {
-      for (const f of fs.readdirSync(DEDUP_DIR)) {
-        if (f.length === 16) fs.unlinkSync(path.join(DEDUP_DIR, f));
+      for (const f of fs.readdirSync(dedupDir())) {
+        if (f.length === 16) fs.unlinkSync(path.join(dedupDir(), f));
       }
     } catch { /* dir may not exist yet */ }
   });
@@ -185,12 +197,12 @@ describe('per-action dedup across hook subprocesses', () => {
     expect(captured).toHaveLength(2);
   });
 
-  test('loser fails open if winner never publishes (deadline elapses)', async () => {
+  test('loser fails closed if winner never publishes (deadline elapses)', async () => {
     const generation_id = uniqueGenId();
     const command = 'echo orphan-claim';
     // Hand-write a lock with no decision; simulates a winner that
     // crashed before publishing. The loser should poll until cfg's
-    // hitlMaxWait (set to 2s here) and then fail open (undefined).
+    // hitlMaxWait (set to 2s here) and then fail closed.
     const key = buildActionKey({ generation_id, kind: 'shell', arg: command });
     expect(claimAction(key).won).toBe(true);
 
@@ -202,7 +214,10 @@ describe('per-action dedup across hook subprocesses', () => {
     );
     const elapsed = Date.now() - t0;
 
-    expect(verdict).toBeUndefined(); // fail open
+    expect(verdict).toMatchObject({
+      arm: 'block',
+      reason: expect.stringContaining('no governance decision was published'),
+    });
     expect(elapsed).toBeGreaterThanOrEqual(1500); // waited at least
     expect(elapsed).toBeLessThan(4000); // bounded by hitlMaxWait*1000
   });

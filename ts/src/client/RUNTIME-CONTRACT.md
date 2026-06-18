@@ -22,11 +22,11 @@ the hand-written code is just *how those shapes get on the wire*.
 
 | Behavior | Why hand-written |
 |---|---|
-| `fetch()` invocation | Each language has its own HTTP client. JS and TS use `fetch`, Rust uses `reqwest`, Python uses `requests` or `httpx`, Go uses `net/http`. The shape of the request and the parsing of the response are spec-driven; the call itself is not |
-| Retry with backoff | `setTimeout`, `Promise.race`, and `AbortController` are JS-specific. Rust uses `tokio::time::sleep`, Python uses `asyncio.sleep` |
+| `fetch()` invocation | Each SDK target owns its HTTP client. TypeScript uses `fetch`; any future target should keep request and response shapes spec-driven while implementing the platform call locally |
+| Retry with backoff | `setTimeout`, `Promise.race`, and `AbortController` are JS-specific. Future targets should use their own scheduling primitives while preserving the retry contract |
 | Rate limiting via token bucket | Pure algorithm, but concurrency primitives differ per language |
 | CSRF token round-trip | Browser-cookie semantics plus the `XSRF-TOKEN` cookie and the `X-XSRF-TOKEN` header. The *protocol* is stable; the *implementation* uses platform cookie APIs |
-| JWT refresh callback `onTokenRefresh` | TS uses a callback pattern. Rust would use a channel, Python a Future, Go a chan |
+| JWT refresh callback `onTokenRefresh` | TypeScript uses a callback pattern. Future targets can expose equivalent token-rotation hooks in their platform-native style |
 | Per-OS path resolution `resolveOsPath` | `os.homedir()`, `process.platform`, `%APPDATA%`, and `XDG_DATA_HOME` are platform APIs. The contract is in the spec via `OsPathResolver` and `OsPathScope`; the implementation and per-OS output are locked by `tests/unit/os-paths.test.ts` mocking `process.platform` for Linux, macOS, and Windows |
 
 ## What the contract MUST guarantee
@@ -57,16 +57,13 @@ the test fails:
 
 ## Per-OS path contract
 
-`tests/unit/os-paths.test.ts` pins down `resolveOsPath` for all three
-host platforms by mocking `process.platform` and the relevant env
-vars. Any reimplementation must produce:
+`tests/unit/os-paths.test.ts` pins down `resolveOsPath` as
+project-local by default. Any reimplementation must produce:
 
 | Platform | `resolveOsPath('tokens')` |
 |---|---|
-| Linux | `$XDG_DATA_HOME/openbox/tokens` if set, else `~/.openbox/tokens` |
-| macOS | `~/.openbox/tokens`. Deliberately not `~/Library/Application Support/...` |
-| Windows | `%APPDATA%\openbox\tokens` if set, else `~\AppData\Roaming\openbox\tokens` |
-| any | `$OPENBOX_HOME/tokens` always wins. Used by CI and sandboxes |
+| any | `<cwd>/.openbox/tokens` |
+| any with `OPENBOX_HOME` | `$OPENBOX_HOME/tokens` |
 
 ## Reproducibility
 

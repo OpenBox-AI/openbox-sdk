@@ -1,5 +1,5 @@
 // Decorator implementations for typespec-env. These attach
-// metadata to TypeSpec semantic-model nodes; per-language emitters at
+// metadata to TypeSpec semantic-model nodes; per-target emitters at
 // codegen/emitters/<lang>/ read the metadata to drive code generation.
 //
 // Importable directly by emitters via `typespec-env/decorators`

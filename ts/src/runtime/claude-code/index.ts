@@ -9,9 +9,10 @@
 //     top of the OpenBox SDK.
 //
 //  2. Platform integration; the OpenBox SDK's own pre-built integration
-//     for Claude Code. Used by `openbox claude-code {install,hook}`. The
-//     entry points (runHook, install, uninstall) are exposed for
-//     contributors but the primary surface is the CLI.
+//     for Claude Code. Used by `openbox claude-code hook` and
+//     `openbox claude-code plugin ...`. The
+//     entry points (runHook, plugin install, plugin uninstall, doctor)
+//     are exposed for contributors but the primary surface is the CLI.
 //
 // Most consumers want #1. #2 is here for parity with the standalone
 // platform repo before it was merged in.
@@ -45,14 +46,24 @@ export {
 export {
   CLAUDE_CODE_GOVERNANCE_AUDIT,
   CLAUDE_CODE_HOOK_MATRIX,
+  CLAUDE_CODE_SDK_CAPABILITY_MATRIX,
   CLAUDE_CODE_SURFACE_MATRIX,
   claudeCodeGovernanceSummary,
   defaultClaudeCodeHookEvents,
   optInClaudeCodeHookEvents,
   type ClaudeCodeGovernanceStatus,
   type ClaudeCodeHookMatrixEntry,
+  type ClaudeCodeSdkCapabilityMatrixEntry,
   type ClaudeCodeSurfaceMatrixEntry,
 } from './governance-matrix.js';
+export {
+  claudeCodeRuntimeDiagnostics,
+  summarizeClaudeCodeChecks,
+  verifyClaudeCodeInstall,
+  type ClaudeCodeInstallCheck,
+  type ClaudeCodeInstallCheckStatus,
+  type VerifyClaudeCodeInstallOptions,
+} from './doctor.js';
 
 import { makeHookLog } from '../../logging/hook-log.js';
 /** Path of the JSONL log written by the claude-code hook subprocess.

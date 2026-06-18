@@ -682,7 +682,7 @@ function makeResolved(): MockApproval[] {
     {
       id: 'hist-cert-exp', agent_id: 'agent-secops', activity_type: 'certificate_renewal', verdict: 2,
       input: [{
-        domain: 'api-staging.openbox.ai', issuer: "Let's Encrypt", expires_at: '2026-04-19T00:00:00Z',
+        domain: 'api-staging.example.test', issuer: "Let's Encrypt", expires_at: '2026-04-19T00:00:00Z',
         auto_renew_failed_attempts: 3,
       }],
       reason: 'Auto-renew failed 3x on stale TXT challenge; approval window expired during the long Easter weekend on-call rotation.',

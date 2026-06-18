@@ -3,12 +3,10 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import type { CommanderError } from 'commander';
-import { loadFeatures, loadPermissions } from './config.js';
+import { loadPermissions } from './config.js';
 import { applyEnvSource } from './env-source.js';
 import {
-  COMMAND_FEATURES,
   COMMAND_PERMISSIONS,
-  missingFeatures,
   missingPermissions,
 } from './permissions.js';
 import { registerAuthCommands } from './commands/auth.js';
@@ -22,10 +20,6 @@ import { registerCursorCommands } from './commands/cursor.js';
 import { registerInstallCommands } from './commands/install.js';
 import { registerDoctorCommand } from './commands/doctor.js';
 import { registerVerifyCommand } from './commands/verify.js';
-import { registerVersionsCommand } from './commands/versions.js';
-import { gateCommands, setMaturityOverride } from './maturity.js';
-import { COMMAND_MATURITY } from './generated/cli-maturity.js';
-import { setExplicitFeatures } from './features.js';
 import { EXIT, bailWith } from './exit-codes.js';
 import { error } from './output.js';
 import { reportAndExit } from '../validators/index.js';
@@ -72,16 +66,11 @@ function packageVersion(): string {
  *  Stops at the first token that doesn't match a registered subcommand
  *  so an unknown verb doesn't poison the path. */
 function deepestRegisteredPath(): string | null {
-  const VALUE_FLAGS = new Set(['--feature']);
   const argv = activeArgv.slice(2);
-  // Strip global value-flags + value, and bail at the first flag.
+  // Strip global flags, and bail at the first flag.
   const positionals: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (VALUE_FLAGS.has(a)) {
-      i++;
-      continue;
-    }
     if (a.startsWith('-')) break;
     positionals.push(a);
   }
@@ -108,7 +97,11 @@ function emitCommanderError(err: CommanderError): void {
       // "too many arguments for 'install'. Expected 0 arguments but got 1."
       // Most often the user thought a positional was a subcommand.
       const cmd = m.match(/for '([^']+)'/)?.[1];
-      const positionals = activeArgv.slice(2).filter((a) => !a.startsWith('-'));
+      const positionals: string[] = [];
+      for (const arg of activeArgv.slice(2)) {
+        if (arg.startsWith('-')) break;
+        positionals.push(arg);
+      }
       const extra = positionals[positionals.length - 1];
       if (cmd && extra && extra !== cmd) {
         error(`'${extra}' is not a subcommand of '${cmd}'`, {
@@ -200,14 +193,6 @@ program
   .description('openbox-sdk')
   .version(packageVersion())
   .option(
-    '--experimental',
-    'Reveal experimental subcommands. Equivalent to OPENBOX_EXPERIMENTAL_LEVEL=experimental. Coarse gate; controls whole subcommands.',
-  )
-  .option(
-    '--feature <name...>',
-    'Enable specific experimental feature flags inside stable commands. Equivalent to OPENBOX_FEATURES=name1,name2. Fine gate; controls code paths.',
-  )
-  .option(
     '-y, --yes',
     'Assume yes on confirmation prompts. Implied by CI=1, OPENBOX_NONINTERACTIVE=1, or non-TTY stdin.',
   )
@@ -229,27 +214,12 @@ program
   )
   .hook('preAction', (thisCommand, actionCommand) => {
     const commandPath = buildCommandKey(actionCommand);
-    applyEnvSource();
-
-    // 1. Feature-flag check, mirroring `@RequireFeature` on the backend.
-    const requiredFeatures = COMMAND_FEATURES[commandPath];
-    if (requiredFeatures && requiredFeatures.length > 0) {
-      const features = loadFeatures();
-      if (Object.keys(features).length > 0) {
-        const missingF = missingFeatures(requiredFeatures, features);
-        if (missingF.length > 0) {
-          error(
-            `feature disabled for \`openbox ${commandPath}\`: ${missingF.join(', ')}`,
-            {
-              help: `ask your admin to enable the feature for the active OpenBox connection`,
-            },
-          );
-          bailWith(EXIT.FEATURE_DISABLED);
-        }
-      }
+    const projectScopedHook = commandPath === 'claude-code hook';
+    if (!projectScopedHook) {
+      applyEnvSource();
     }
 
-    // 2. Permission check (granular Keycloak role permissions).
+    // Permission check (granular Keycloak role permissions).
     const required = COMMAND_PERMISSIONS[commandPath];
     if (!required || required.length === 0) return;
     const have = loadPermissions();
@@ -288,7 +258,6 @@ registerCursorCommands(program);
 registerInstallCommands(program);
 registerDoctorCommand(program);
 registerVerifyCommand(program);
-registerVersionsCommand(program);
 
 function isCliEntrypoint(): boolean {
   const entrypoint = process.argv[1];
@@ -304,43 +273,33 @@ function isCliEntrypoint(): boolean {
 function configureCommandTree(argv: string[]): void {
   if (commandTreeConfigured) return;
 
-  // Pre-scan global flags BEFORE gating + parse; commander's --help is
-  // printed during parseAsync, by which time the command tree has to
-  // already reflect the user's --experimental / --feature opt-ins.
-  const envMaturity = process.env.OPENBOX_EXPERIMENTAL_LEVEL?.toLowerCase();
-  if (
-    envMaturity === 'experimental' ||
-    envMaturity === 'beta' ||
-    envMaturity === 'stable'
-  ) {
-    setMaturityOverride(envMaturity);
-  }
-  if (argv.includes('--experimental')) setMaturityOverride('experimental');
-  const features: string[] = [];
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--feature' && i + 1 < argv.length)
-      features.push(argv[i + 1]);
-  }
-  if (features.length) setExplicitFeatures(features);
+  void argv;
 
-  // Walk the registered command tree and remove anything not visible at
-  // the current maturity level. Mark visible-but-non-stable commands
-  // with [experimental] / [beta] in their description so users can see
-  // the maturity at a glance without further filtering.
-  gateCommands(program);
-
-  // Apply uniform error handling across the (now-final) command tree.
-  // Must run AFTER gateCommands so subcommands removed by maturity
-  // gating don't get touched. exitOverride and configureOutput are
-  // per-command, not inherited; we walk the tree once.
+  // Apply uniform error handling across the command tree. exitOverride
+  // and configureOutput are per-command, not inherited; we walk once.
   applyUniformErrorHandling(program);
   commandTreeConfigured = true;
+}
+
+function rejectRemovedGlobalFlags(argv: string[]): void {
+  const removed = argv
+    .slice(2)
+    .find((arg) =>
+      arg === '--experimental' ||
+      arg.startsWith('--experimental=') ||
+      arg === '--feature' ||
+      arg.startsWith('--feature='),
+    );
+  if (!removed) return;
+  error(`unknown option \`${removed}\``, { help: 'see `openbox --help`' });
+  bailWith(EXIT.USAGE);
 }
 
 export async function runOpenBoxCli(
   argv: string[] = process.argv,
 ): Promise<void> {
   activeArgv = argv;
+  rejectRemovedGlobalFlags(argv);
   configureCommandTree(argv);
 
   // `openbox` (no args) defaults to printing help instead of silently

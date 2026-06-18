@@ -327,15 +327,11 @@ var BaseGovernedSession = class {
   async emitWithSpanHook(event) {
     const hasActivitySpans = (event.event_type === "ActivityStarted" || event.event_type === "ActivityCompleted") && Array.isArray(event.spans) && event.spans.some(isPersistableHookSpan);
     if (!hasActivitySpans) return this.emit(event);
-    const baseVerdict = await this.emit({ ...event, spans: void 0 });
-    if (baseVerdict.arm !== "allow" && baseVerdict.arm !== "constrain") {
-      return baseVerdict;
-    }
-    const hookVerdict = await this.emit({
+    return await this.emit({
       ...event,
+      attempt: event.attempt ?? 1,
       hook_trigger: true
     });
-    return stricterVerdict(baseVerdict, hookVerdict);
   }
   async emit(event) {
     const payload = {
@@ -1116,6 +1112,21 @@ function normalizeGuardrailFieldStatus(value) {
   }
 }
 function normalizeArm(value) {
+  if (typeof value === "number") {
+    switch (value) {
+      case 1:
+        return "constrain";
+      case 2:
+        return "require_approval";
+      case 3:
+        return "block";
+      case 4:
+        return "halt";
+      case 0:
+      default:
+        return "allow";
+    }
+  }
   switch (value) {
     case "allow":
     case "continue":
@@ -1134,24 +1145,6 @@ function normalizeArm(value) {
       return "allow";
   }
 }
-function verdictRank(arm) {
-  switch (arm) {
-    case "halt":
-      return 4;
-    case "block":
-      return 3;
-    case "require_approval":
-      return 2;
-    case "constrain":
-      return 1;
-    case "allow":
-    default:
-      return 0;
-  }
-}
-function stricterVerdict(base2, hook) {
-  return verdictRank(hook.arm) >= verdictRank(base2.arm) ? hook : base2;
-}
 function isPersistableHookSpan(span) {
   if (!span || typeof span !== "object") return false;
   const record = span;
@@ -1159,7 +1152,7 @@ function isPersistableHookSpan(span) {
     return true;
   }
   const attributes = record.attributes && typeof record.attributes === "object" ? record.attributes : {};
-  return typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
+  return typeof record.db_statement === "string" || typeof record.db_operation === "string" || typeof record.db_system === "string" || typeof attributes["db.statement"] === "string" || typeof attributes["db.operation"] === "string" || typeof attributes["db.system"] === "string" || typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
 }
 function errorInfoFrom(value) {
   if (value == null) return void 0;
@@ -1169,7 +1162,7 @@ function errorInfoFrom(value) {
   return { type: typeof value, message: String(value) };
 }
 function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve2) => setTimeout(resolve2, ms));
 }
 function applyJitter(baseMs, fraction) {
   const f = Math.max(0, Math.min(1, fraction));
@@ -1630,6 +1623,16 @@ function brand(raw) {
   if (!sanitized) return "";
   return sanitized.startsWith("[OpenBox]") ? sanitized : "[OpenBox] " + sanitized;
 }
+function redactedInput(v) {
+  return v?.guardrailsResult?.redactedInput;
+}
+function objectRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return void 0;
+  return value;
+}
+function addIfDefined(target, key, value) {
+  if (value !== void 0) target[key] = value;
+}
 function renderVerdictOutput(shape, v, env, deferApproval = false) {
   const arm = v?.arm ?? "allow";
   const reason = brand(v?.reason ?? "");
@@ -1637,11 +1640,16 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
     case "permission-decision": {
       const eventName = env.hook_event_name ?? "PreToolUse";
       if (arm === "allow" || arm === "constrain") {
+        const hookSpecificOutput = {
+          hookEventName: eventName,
+          permissionDecision: "allow"
+        };
+        if (arm === "constrain") {
+          addIfDefined(hookSpecificOutput, "updatedInput", objectRecord(redactedInput(v)));
+          if (reason) hookSpecificOutput.additionalContext = reason;
+        }
         return {
-          hookSpecificOutput: {
-            hookEventName: eventName,
-            permissionDecision: "allow"
-          }
+          hookSpecificOutput
         };
       }
       if (arm === "require_approval") {
@@ -1668,15 +1676,34 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
           reason: reason || "[OpenBox] blocked by policy"
         };
       }
+      if (arm === "require_approval") {
+        const approvalReason = reason.replace(/^\[OpenBox\] /, "").trim();
+        return {
+          decision: "block",
+          reason: "[OpenBox] approval pending" + (approvalReason ? ": " + approvalReason : "") + ". Approve in OpenBox, then ask the agent to retry."
+        };
+      }
+      if (arm === "constrain" && reason) {
+        const hookSpecificOutput = {
+          hookEventName: env.hook_event_name ?? "ClaudeCode",
+          additionalContext: reason
+        };
+        addIfDefined(hookSpecificOutput, "updatedToolOutput", redactedInput(v));
+        return { hookSpecificOutput };
+      }
       return {};
     }
     case "permission-request": {
       const eventName = env.hook_event_name ?? "PermissionRequest";
       if (arm === "allow" || arm === "constrain") {
+        const decision = { behavior: "allow" };
+        if (arm === "constrain") {
+          addIfDefined(decision, "updatedInput", objectRecord(redactedInput(v)));
+        }
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            decision: { behavior: "allow" }
+            decision
           }
         };
       }
@@ -1709,7 +1736,16 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
     }
     case "elicitation-response": {
       const eventName = env.hook_event_name ?? "Elicitation";
-      if (arm === "allow" || arm === "constrain") return {};
+      if (arm === "allow") return {};
+      if (arm === "constrain") {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            action: "accept",
+            content: redactedInput(v) ?? env.response ?? env.content ?? {}
+          }
+        };
+      }
       return {
         hookSpecificOutput: {
           hookEventName: eventName,
@@ -1726,7 +1762,7 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
       };
     }
     case "additional-context": {
-      if (arm === "allow" || arm === "constrain") return {};
+      if (arm === "allow") return {};
       return {
         hookSpecificOutput: {
           hookEventName: env.hook_event_name ?? "PostToolUseFailure",
@@ -1800,10 +1836,7 @@ var ENV_VAR_BINDINGS = {
   coreUrl: { "name": "OPENBOX_CORE_URL" },
   platformUrl: { "name": "OPENBOX_PLATFORM_URL" },
   authUrl: { "name": "OPENBOX_AUTH_URL" },
-  stackUrl: { "name": "OPENBOX_STACK_URL" },
-  apiKey: { "name": "OPENBOX_API_KEY" },
-  experimentalLevel: { "name": "OPENBOX_EXPERIMENTAL_LEVEL" },
-  features: { "name": "OPENBOX_FEATURES" }
+  apiKey: { "name": "OPENBOX_API_KEY" }
 };
 var API_KEY_PATTERN = /^obx_(?:live|test)_[0-9a-f]{48}$/;
 function validateApiKeyFormat(value) {
@@ -1814,52 +1847,23 @@ function validateApiKeyFormat(value) {
 }
 
 // ts/src/env/connection.ts
-function normalizeStackUrl(raw) {
-  const trimmed = raw.trim();
-  if (!trimmed) throw new Error("OpenBox stack URL cannot be empty.");
-  const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  const url = new URL(withProtocol);
-  if (url.protocol !== "https:" && !isLoopbackHost(url.hostname)) {
-    throw new Error("OpenBox stack URL must use https:// unless it points at localhost.");
-  }
-  url.hash = "";
-  url.search = "";
-  url.pathname = url.pathname.replace(/\/+$/, "");
-  return url.toString().replace(/\/$/, "");
-}
-function endpointsFromStackUrl(raw) {
-  const stackUrl = normalizeStackUrl(raw);
-  const url = new URL(stackUrl);
-  const rootHost = url.hostname.replace(/^(api|core|auth)\./, "");
-  const origin = `${url.protocol}//`;
-  return {
-    apiUrl: `${origin}api.${rootHost}/ob`,
-    coreUrl: `${origin}core.${rootHost}/ob`,
-    authUrl: `${origin}auth.${rootHost}/ob`,
-    platformUrl: stackUrl
-  };
-}
 var resolveConnection = (opts = {}) => {
-  const stackUrl = opts.stackUrl ?? process.env[ENV_VAR_BINDINGS.stackUrl.name];
-  const stackEndpoints = stackUrl ? endpointsFromStackUrl(stackUrl) : void 0;
   const apiUrl = requireUrl(
     "OPENBOX_API_URL",
-    opts.apiUrl ?? process.env[ENV_VAR_BINDINGS.apiUrl.name] ?? stackEndpoints?.apiUrl
+    opts.apiUrl ?? process.env[ENV_VAR_BINDINGS.apiUrl.name]
   );
   const coreUrl = requireUrl(
     "OPENBOX_CORE_URL",
-    opts.coreUrl ?? process.env[ENV_VAR_BINDINGS.coreUrl.name] ?? stackEndpoints?.coreUrl
+    opts.coreUrl ?? process.env[ENV_VAR_BINDINGS.coreUrl.name]
   );
-  const platformUrl = opts.platformUrl ?? process.env[ENV_VAR_BINDINGS.platformUrl.name] ?? stackEndpoints?.platformUrl;
-  const authUrl = opts.authUrl ?? process.env[ENV_VAR_BINDINGS.authUrl.name] ?? stackEndpoints?.authUrl;
+  const platformUrl = opts.platformUrl ?? process.env[ENV_VAR_BINDINGS.platformUrl.name];
+  const authUrl = opts.authUrl ?? process.env[ENV_VAR_BINDINGS.authUrl.name];
   return {
     apiUrl,
     coreUrl,
     platformUrl,
     authUrl,
-    stackUrl,
-    displayName: opts.displayName ?? process.env.OPENBOX_STACK_NAME,
-    source: stackUrl && !opts.apiUrl && !opts.coreUrl ? "stack-url" : "explicit"
+    source: "explicit"
   };
 };
 function requireUrl(name, value) {
@@ -1882,6 +1886,19 @@ function isLoopbackHost(host) {
   return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
 }
 
+// ts/src/env/agent-identity.ts
+function resolveAgentIdentity(source = process.env) {
+  const did = source.OPENBOX_AGENT_DID;
+  const privateKey = source.OPENBOX_AGENT_PRIVATE_KEY;
+  if (!did && !privateKey) return void 0;
+  if (!did || !privateKey) {
+    throw new Error(
+      "OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY."
+    );
+  }
+  return { did, privateKey };
+}
+
 // ts/src/client/rate-limiter.ts
 var TokenBucket = class {
   tokens;
@@ -1902,11 +1919,11 @@ var TokenBucket = class {
       return;
     }
     const waitMs = (1 - this.tokens) / this.refillRate;
-    return new Promise((resolve) => {
+    return new Promise((resolve2) => {
       setTimeout(() => {
         this.refill();
         this.tokens -= 1;
-        resolve();
+        resolve2();
       }, waitMs);
     });
   }
@@ -2209,19 +2226,20 @@ function loadConfig() {
     if (envConfig[key] !== void 0) return envConfig[key];
     return fileFallback ?? "";
   };
-  const skipRaw = get("SKIP_ACTIVITY_TYPES");
-  const skipList = skipRaw ? skipRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
   const coreUrl = process.env.OPENBOX_CORE_URL ?? fileConfig.OPENBOX_CORE_URL ?? envConfig.OPENBOX_CORE_URL ?? "";
   return {
     openboxApiKey: get("OPENBOX_API_KEY"),
     openboxEndpoint: coreUrl,
-    governancePolicy: get("GOVERNANCE_POLICY", "fail_open"),
+    agentIdentity: resolveAgentIdentity({
+      OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID") || void 0,
+      OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY") || void 0
+    }),
+    governancePolicy: "fail_closed",
     governanceTimeout: parseInt(get("GOVERNANCE_TIMEOUT", "15"), 10) || 15,
     activityType: get("ACTIVITY_TYPE", "CursorIDE"),
     sessionDir: get("SESSION_DIR", path.join(CONFIG_DIR, "sessions")),
     logFile: get("LOG_FILE", path.join(CONFIG_DIR, "hook.log")) || null,
     verbose: get("VERBOSE") === "true" || get("VERBOSE") === "1",
-    dryRun: get("DRY_RUN") === "true" || get("DRY_RUN") === "1",
     hitlEnabled: get("HITL_ENABLED", "true") !== "false",
     hitlPollInterval: parseInt(get("HITL_POLL_INTERVAL", "5"), 10) || 5,
     hitlMaxWait: parseInt(get("HITL_MAX_WAIT", "300"), 10) || 300,
@@ -2230,75 +2248,13 @@ function loadConfig() {
     taskQueue: get("TASK_QUEUE", "cursor-hooks"),
     sendStartEvent: get("SEND_START_EVENT", "true") !== "false",
     sendActivityStartEvent: get("SEND_ACTIVITY_START_EVENT", "true") !== "false",
-    maxBodySize: get("MAX_BODY_SIZE") ? parseInt(get("MAX_BODY_SIZE"), 10) || null : null,
-    skipActivityTypes: skipList,
-    testDriftResponse: get("TEST_DRIFT_RESPONSE") || null
+    maxBodySize: get("MAX_BODY_SIZE") ? parseInt(get("MAX_BODY_SIZE"), 10) || null : null
   };
 }
 var loadConfigFile = () => loadJsonConfig(CONFIG_FILE);
 var loadEnvFile = () => loadDotenv(ENV_FILE);
-
-// ts/src/config/store.ts
-import { existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, writeFileSync } from "fs";
-import { dirname } from "path";
-
-// ts/src/env/os-paths.ts
-import { homedir } from "os";
-import { join } from "path";
-function openboxDataRoot() {
-  const override = process.env.OPENBOX_HOME;
-  if (override) return override;
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA ?? join(homedir(), "AppData", "Roaming");
-    return join(appData, "openbox");
-  }
-  if (process.platform === "linux") {
-    const xdg = process.env.XDG_DATA_HOME;
-    if (xdg) return join(xdg, "openbox");
-  }
-  return join(homedir(), ".openbox");
-}
-var resolveOsPath = (scope) => {
-  return join(openboxDataRoot(), scope);
-};
-
-// ts/src/config/store.ts
-function getPath2() {
-  const path10 = resolveOsPath("config");
-  const dir = dirname(path10);
-  if (!existsSync2(dir)) mkdirSync(dir, { recursive: true });
-  return path10;
-}
-function read() {
-  const path10 = getPath2();
-  if (!existsSync2(path10)) return {};
-  const out = {};
-  for (const line of readFileSync2(path10, "utf-8").split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq < 0) continue;
-    const key = trimmed.slice(0, eq).trim();
-    const value = trimmed.slice(eq + 1).trim();
-    if (key && !key.includes(".")) out[key] = value;
-  }
-  return out;
-}
-function listConfig() {
-  return read();
-}
-function configStorePath() {
-  return getPath2();
-}
-function applyConfigToProcessEnv() {
-  for (const [key, value] of Object.entries(listConfig())) {
-    if (process.env[key] === void 0) process.env[key] = value;
-  }
-}
-
-// ts/src/cli/env-source.ts
-function applyEnvSource() {
-  applyConfigToProcessEnv();
+function getConfigDir() {
+  return CONFIG_DIR;
 }
 
 // ts/src/logging/logger.ts
@@ -2438,6 +2394,19 @@ function clearSession(conversationId, cfg) {
 // ts/src/logging/hook-log.ts
 import * as fs5 from "fs";
 import * as path4 from "path";
+
+// ts/src/env/os-paths.ts
+import { join, resolve } from "path";
+function openboxDataRoot() {
+  const override = process.env.OPENBOX_HOME;
+  if (override) return resolve(override);
+  return resolve(process.cwd(), ".openbox");
+}
+var resolveOsPath = (scope) => {
+  return join(openboxDataRoot(), scope);
+};
+
+// ts/src/logging/hook-log.ts
 function logDir() {
   return path4.join(openboxDataRoot(), "log");
 }
@@ -2478,21 +2447,18 @@ function makeHookLog(host) {
 // ts/src/approvals/socket-client.ts
 import * as net from "net";
 import * as path5 from "path";
-import * as os from "os";
-var APPROVAL_SOCKET_PATH = path5.join(
-  os.homedir(),
-  ".openbox",
-  "run",
-  "openbox.sock"
-);
-function connectApprovalSocket(socketPath = APPROVAL_SOCKET_PATH) {
-  return new Promise((resolve) => {
+function defaultApprovalSocketPath() {
+  return path5.join(openboxDataRoot(), "run", "openbox.sock");
+}
+var APPROVAL_SOCKET_PATH = defaultApprovalSocketPath();
+function connectApprovalSocket(socketPath = defaultApprovalSocketPath()) {
+  return new Promise((resolve2) => {
     const socket = net.createConnection({ path: socketPath });
     let settled = false;
     const onConnect = () => {
       if (settled) return;
       settled = true;
-      resolve(buildHandle(socket));
+      resolve2(buildHandle(socket));
     };
     const onError = () => {
       if (settled) return;
@@ -2501,7 +2467,7 @@ function connectApprovalSocket(socketPath = APPROVAL_SOCKET_PATH) {
         socket.destroy();
       } catch {
       }
-      resolve(null);
+      resolve2(null);
     };
     socket.once("connect", onConnect);
     socket.once("error", onError);
@@ -2512,7 +2478,7 @@ function connectApprovalSocket(socketPath = APPROVAL_SOCKET_PATH) {
         socket.destroy();
       } catch {
       }
-      resolve(null);
+      resolve2(null);
     }, 200);
   });
 }
@@ -2561,19 +2527,19 @@ function buildHandle(socket) {
       } catch {
       }
     },
-    awaitDecision: (geid, deadlineMs) => new Promise((resolve) => {
+    awaitDecision: (geid, deadlineMs) => new Promise((resolve2) => {
       const list = listenersByGeid.get(geid) ?? [];
-      list.push(resolve);
+      list.push(resolve2);
       listenersByGeid.set(geid, list);
       if (deadlineMs > 0) {
         setTimeout(() => {
           const cur = listenersByGeid.get(geid);
           if (!cur) return;
-          const idx = cur.indexOf(resolve);
+          const idx = cur.indexOf(resolve2);
           if (idx === -1) return;
           cur.splice(idx, 1);
           if (cur.length === 0) listenersByGeid.delete(geid);
-          resolve({ kind: "timeout" });
+          resolve2({ kind: "timeout" });
         }, deadlineMs);
       }
     }),
@@ -2591,21 +2557,6 @@ var EVENT = {
   START: "ActivityStarted",
   COMPLETE: "ActivityCompleted",
   SIGNAL: "SignalReceived"
-};
-
-// ts/src/runtime/cursor/activity-types.ts
-var ACTIVITY_TYPES = {
-  PROMPT: "llm_prompt",
-  COMPLETION: "llm_completion",
-  FILE_READ: "file_read",
-  FILE_WRITE: "file_write",
-  AGENT_ACTION: "agent_action",
-  AGENT_OBSERVATION: "agent_observation",
-  AGENT_DECISION: "agent_decision",
-  AGENT_GOAL: "agent_goal",
-  API_CALL: "api_call",
-  WORKFLOW_START: "workflow_start",
-  WORKFLOW_COMPLETE: "workflow_complete"
 };
 
 // ts/src/governance/spans.ts
@@ -2631,10 +2582,44 @@ function base() {
     error: null
   };
 }
+function toPositiveInteger(value) {
+  const numberValue = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : void 0;
+  if (numberValue === void 0 || !Number.isFinite(numberValue) || numberValue <= 0)
+    return void 0;
+  return Math.trunc(numberValue);
+}
+function normalizeUsage(usage) {
+  if (!usage) return void 0;
+  const promptTokens = toPositiveInteger(
+    usage.promptTokens ?? usage.inputTokens
+  );
+  const completionTokens = toPositiveInteger(
+    usage.completionTokens ?? usage.outputTokens
+  );
+  const totalTokens = toPositiveInteger(usage.totalTokens);
+  const normalized = {};
+  if (promptTokens !== void 0) {
+    normalized.prompt_tokens = promptTokens;
+    normalized.input_tokens = promptTokens;
+  }
+  if (completionTokens !== void 0) {
+    normalized.completion_tokens = completionTokens;
+    normalized.output_tokens = completionTokens;
+  }
+  if (totalTokens !== void 0) normalized.total_tokens = totalTokens;
+  return Object.keys(normalized).length > 0 ? normalized : void 0;
+}
 function buildSpan(host, type, input) {
   const b = base();
   switch (type) {
     case "llm":
+      const usage = normalizeUsage(input.usage);
+      const inputTokens = toPositiveInteger(
+        usage?.input_tokens ?? usage?.prompt_tokens
+      );
+      const outputTokens = toPositiveInteger(
+        usage?.output_tokens ?? usage?.completion_tokens
+      );
       return {
         ...b,
         name: "llm.chat.completion",
@@ -2643,11 +2628,18 @@ function buildSpan(host, type, input) {
         semantic_type: "llm_completion",
         attributes: {
           "gen_ai.system": host,
+          ...input.model ? { "gen_ai.request.model": input.model } : {},
+          ...input.model ? { "gen_ai.response.model": input.model } : {},
+          ...inputTokens !== void 0 ? { "gen_ai.usage.input_tokens": inputTokens } : {},
+          ...outputTokens !== void 0 ? { "gen_ai.usage.output_tokens": outputTokens } : {},
           "http.method": "POST",
           "http.url": "https://api.openai.com/v1/chat/completions",
           "openbox.semantic_type": "llm_completion",
           "openbox.span_type": "function"
         },
+        ...input.model ? { model: input.model } : {},
+        ...inputTokens !== void 0 ? { input_tokens: inputTokens } : {},
+        ...outputTokens !== void 0 ? { output_tokens: outputTokens } : {},
         function: "LLMCall",
         module: host,
         args: input,
@@ -2783,7 +2775,7 @@ function buildSpan(host, type, input) {
       const dbStatement = input.db_statement ?? `${dbOperation} statement`;
       return {
         ...b,
-        name: `${dbOperation} ${dbStatement.split(" ").slice(0, 3).join(" ")}`,
+        name: dbOperation,
         span_type: "database",
         hook_type: "db_query",
         semantic_type: `database_${dbOperation.toLowerCase()}`,
@@ -2819,8 +2811,11 @@ function stampSource(payload, host) {
 async function handleBeforeSubmitPrompt(env, session, cfg) {
   const prompt = (env.prompt ?? "").trim();
   if (!prompt) return void 0;
-  void session.activity(EVENT.SIGNAL, ACTIVITY_TYPES.AGENT_GOAL, {
-    input: [stampSource({ goal: prompt, event_category: "agent_goal" }, "cursor")]
+  void session.activity(EVENT.SIGNAL, "user_prompt", {
+    input: [stampSource({ prompt, event_category: "agent_goal" }, "cursor")],
+    signalName: "user_prompt",
+    signalArgs: prompt,
+    spans: [buildSpan("cursor", "llm", { prompt })]
   }).catch(() => void 0);
   const payload = buildBeforeSubmitPromptPayload(env);
   const span = buildSpan("cursor", "llm", { prompt });
@@ -2836,28 +2831,29 @@ async function handleBeforeSubmitPrompt(env, session, cfg) {
 // ts/src/runtime/cursor/dedup.ts
 import * as fs6 from "fs";
 import * as path6 from "path";
-import * as os2 from "os";
 import * as crypto from "crypto";
-var DEDUP_DIR = path6.join(os2.homedir(), ".openbox", "run", "dedup");
 var TTL_MS = 60 * 60 * 1e3;
 var POLL_INTERVAL_MS = 100;
 var DEFAULT_AWAIT_TIMEOUT_MS = 60 * 60 * 1e3;
+function dedupDir() {
+  return path6.join(openboxDataRoot(), "run", "dedup");
+}
 function ensureDir2() {
   try {
-    fs6.mkdirSync(DEDUP_DIR, { recursive: true, mode: 448 });
+    fs6.mkdirSync(dedupDir(), { recursive: true, mode: 448 });
   } catch {
   }
 }
 function reapStale() {
   let entries;
   try {
-    entries = fs6.readdirSync(DEDUP_DIR);
+    entries = fs6.readdirSync(dedupDir());
   } catch {
     return;
   }
   const cutoff = Date.now() - TTL_MS;
   for (const name of entries) {
-    const p = path6.join(DEDUP_DIR, name);
+    const p = path6.join(dedupDir(), name);
     try {
       const st = fs6.statSync(p);
       if (st.mtimeMs < cutoff) fs6.unlinkSync(p);
@@ -2875,7 +2871,7 @@ function buildActionKey(parts) {
 function claimAction(key) {
   ensureDir2();
   reapStale();
-  const lockPath = path6.join(DEDUP_DIR, key);
+  const lockPath = path6.join(dedupDir(), key);
   try {
     const fd = fs6.openSync(lockPath, "wx", 384);
     try {
@@ -2983,7 +2979,13 @@ async function handleBeforeShellExecution(env, session, cfg) {
   const claim = claimAction(key);
   if (!claim.won) {
     const decision = await awaitClaimDecision(claim, cfg.hitlMaxWait * 1e3);
-    if (!decision) return void 0;
+    if (!decision) {
+      return {
+        arm: "block",
+        reason: "[OpenBox] no governance decision was published for duplicate Cursor shell hook",
+        riskScore: 1
+      };
+    }
     if (decision.arm === "allow" || decision.arm === "constrain") return void 0;
     if (decision.arm === "halt") markHalted(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
@@ -3015,7 +3017,7 @@ import * as fs7 from "fs";
 
 // ts/src/governance/skip-patterns.ts
 import path7 from "path";
-var SKIP_PATTERNS = [
+var REDACT_PATH_CONTENT_PATTERNS = [
   /\.cursor\//,
   /\.claude\//,
   /\/mcps\//,
@@ -3025,8 +3027,8 @@ var SKIP_PATTERNS = [
   /SERVER_METADATA\.json$/,
   /SKILL\.md$/
 ];
-function isSkipped(filePath) {
-  return SKIP_PATTERNS.some((p) => p.test(filePath));
+function shouldRedactPathContent(filePath) {
+  return REDACT_PATH_CONTENT_PATTERNS.some((p) => p.test(filePath)) || isSensitivePath(filePath);
 }
 var SENSITIVE_PATH_PATTERNS = [
   /(^|\/)\.env($|[./-])/,
@@ -3053,19 +3055,18 @@ function isInsideAnyRoot(filePath, roots, cwd) {
 
 // ts/src/runtime/cursor/side-effects.ts
 var sideEffects = {
-  /** File read for cursor's preToolUse Read mapping. Same skip-pattern
-   *  filter as claude-code; cursor's `beforeReadFile` already inlines
-   *  content into the envelope so this is only used for preToolUse. */
+  /** File read for cursor's preToolUse Read mapping. Metadata and
+   *  secret-like content is redacted while the path/span remains governed. */
   readFile(input) {
     if (typeof input !== "string" || !input) return "";
-    if (isSkipped(input)) return "";
+    if (shouldRedactPathContent(input)) return "[OpenBox redacted file content]";
     try {
       return fs7.existsSync(input) ? fs7.readFileSync(input, "utf-8") : "";
     } catch {
       return "";
     }
   },
-  /** JSON-stringify pass-through (no truncation; cursor's beforeMCPExecution
+  /** JSON-stringify helper (no truncation; cursor's beforeMCPExecution
    *  payload is bounded by the originating tool call, not by
    *  agent-streamed output). */
   stringify(input) {
@@ -3109,8 +3110,9 @@ async function handleBeforeMCPExecution(env, session, cfg) {
 async function handleBeforeReadFile(env, session, cfg) {
   const filePath = env.file_path ?? "";
   if (!filePath) return void 0;
-  if (isSkipped(filePath)) return void 0;
-  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd)) return void 0;
+  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) && !shouldRedactPathContent(filePath)) {
+    return void 0;
+  }
   const key = buildActionKey({
     generation_id: env.generation_id,
     conversation_id: env.conversation_id,
@@ -3120,7 +3122,13 @@ async function handleBeforeReadFile(env, session, cfg) {
   const claim = claimAction(key);
   if (!claim.won) {
     const decision = await awaitClaimDecision(claim, cfg.hitlMaxWait * 1e3);
-    if (!decision) return void 0;
+    if (!decision) {
+      return {
+        arm: "block",
+        reason: "[OpenBox] no governance decision was published for duplicate Cursor file-read hook",
+        riskScore: 1
+      };
+    }
     if (decision.arm === "allow" || decision.arm === "constrain") return void 0;
     if (decision.arm === "halt") markHalted(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
@@ -3144,8 +3152,7 @@ async function handleBeforeReadFile(env, session, cfg) {
 async function handleBeforeTabFileRead(env, session, cfg) {
   const filePath = env.file_path ?? "";
   if (!filePath) return void 0;
-  if (isSkipped(filePath)) return void 0;
-  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) && !isSensitivePath(filePath)) {
+  if (isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) && !shouldRedactPathContent(filePath)) {
     return void 0;
   }
   const payload = buildBeforeTabFileReadPayload(env);
@@ -3167,8 +3174,7 @@ async function handlePreToolUse(env, session, cfg) {
   const toolInput = env.tool_input ?? {};
   const filePath = toolInput.file_path ?? toolInput.filePath ?? "";
   const command = toolInput.command ?? "";
-  if (filePath && isSkipped(filePath)) return void 0;
-  if (filePath && (toolName === "Read" || toolName === "Write") && isInsideAnyRoot(filePath, env.workspace_roots, env.cwd)) {
+  if (filePath && (toolName === "Read" || toolName === "Write") && isInsideAnyRoot(filePath, env.workspace_roots, env.cwd) && !shouldRedactPathContent(filePath)) {
     return void 0;
   }
   const claimKind = toolName === "Shell" ? "shell" : toolName === "Read" ? "read" : toolName === "Write" ? "write" : null;
@@ -3180,7 +3186,13 @@ async function handlePreToolUse(env, session, cfg) {
   })) : null;
   if (claim && !claim.won) {
     const decision = await awaitClaimDecision(claim, cfg.hitlMaxWait * 1e3);
-    if (!decision) return void 0;
+    if (!decision) {
+      return {
+        arm: "block",
+        reason: "[OpenBox] no governance decision was published for duplicate Cursor tool hook",
+        riskScore: 1
+      };
+    }
     if (decision.arm === "allow" || decision.arm === "constrain") return void 0;
     if (decision.arm === "halt") markHalted(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
@@ -3278,6 +3290,7 @@ function handleSubagentStop(_env, _session, _cfg) {
 
 // ts/src/runtime/cursor/hook-handler.ts
 var hookLog = makeHookLog("cursor");
+var MAX_STDIN_BYTES = 10 * 1024 * 1024;
 function logged(event, verdictKind, fn) {
   return async (env, s) => {
     const start = Date.now();
@@ -3302,18 +3315,117 @@ function logged(event, verdictKind, fn) {
     }
   };
 }
+var CURSOR_CONTINUE_EVENTS = /* @__PURE__ */ new Set(["beforeSubmitPrompt"]);
+var CURSOR_PERMISSION_EVENTS = /* @__PURE__ */ new Set([
+  "beforeReadFile",
+  "beforeShellExecution",
+  "beforeMCPExecution",
+  "preToolUse",
+  "beforeTabFileRead",
+  "subagentStart"
+]);
+function failClosedVerdict(reason) {
+  return {
+    arm: "block",
+    reason,
+    riskScore: 1
+  };
+}
+function isDecisionCapable(eventName) {
+  return CURSOR_CONTINUE_EVENTS.has(String(eventName ?? "")) || CURSOR_PERMISSION_EVENTS.has(String(eventName ?? ""));
+}
+function reasonFromError(prefix, err) {
+  const detail = err instanceof Error ? err.message : String(err ?? "");
+  return detail ? `${prefix}: ${detail}` : prefix;
+}
+function guarded(cfg, event, verdictKind, fn) {
+  return logged(event, verdictKind, async (env, session) => {
+    try {
+      return await fn(env, session);
+    } catch (err) {
+      const reason = reasonFromError("OpenBox governance failed while processing Cursor hook", err);
+      if (cfg.verbose) console.error(`[openbox cursor] ${reason}`);
+      if (isDecisionCapable(env.hook_event_name)) return failClosedVerdict(reason);
+      return void 0;
+    }
+  });
+}
+function renderFailClosedHookOutput(env, reason) {
+  const eventName = String(env.hook_event_name ?? "");
+  const message = `[OpenBox] ${reason}`;
+  if (CURSOR_CONTINUE_EVENTS.has(eventName)) {
+    return {
+      continue: false,
+      user_message: message
+    };
+  }
+  if (CURSOR_PERMISSION_EVENTS.has(eventName)) {
+    return {
+      permission: "deny",
+      user_message: message,
+      agent_message: `${message}. Stop and ask the user to fix OpenBox project runtime configuration before retrying.`
+    };
+  }
+  return void 0;
+}
+function writeFailClosedIfPossible(env, reason) {
+  if (!env || !isDecisionCapable(env.hook_event_name)) return;
+  const output = renderFailClosedHookOutput(env, reason);
+  if (output !== void 0) process.stdout.write(JSON.stringify(output));
+}
+function parseEnvelope(raw) {
+  const text = raw.trim();
+  if (!text) return void 0;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return void 0;
+  }
+}
+async function readHookStdin() {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of process.stdin) {
+    const buf = chunk;
+    total += buf.length;
+    if (total > MAX_STDIN_BYTES) {
+      throw new Error(
+        `hook stdin exceeded ${MAX_STDIN_BYTES.toLocaleString()} bytes; refusing to buffer further`
+      );
+    }
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks).toString("utf-8");
+}
 async function runCursorHook() {
-  applyEnvSource();
   const cfg = loadConfig();
+  if (!process.env.OPENBOX_HOME) {
+    process.env.OPENBOX_HOME = getConfigDir();
+  }
   createLogger("cursor").initLogger(cfg);
-  if (!cfg.openboxApiKey) {
-    if (cfg.verbose) console.error("[openbox cursor] no OPENBOX_API_KEY set, passing through");
+  let raw = "";
+  let env;
+  try {
+    raw = await readHookStdin();
+    env = parseEnvelope(raw);
+  } catch (err) {
+    if (cfg.verbose) console.error(`[openbox cursor] ${reasonFromError("failed to read hook stdin", err)}`);
     process.exit(0);
   }
-  const dryRun = cfg.dryRun;
+  if (!cfg.openboxApiKey) {
+    writeFailClosedIfPossible(env, "missing OPENBOX_API_KEY");
+    if (cfg.verbose) console.error("[openbox cursor] no OPENBOX_API_KEY set; decision-capable hooks fail closed");
+    process.exit(0);
+  }
+  if (!cfg.openboxEndpoint) {
+    writeFailClosedIfPossible(env, "missing OPENBOX_CORE_URL");
+    if (cfg.verbose) console.error("[openbox cursor] no OPENBOX_CORE_URL set; decision-capable hooks fail closed");
+    process.exit(0);
+  }
   const core = new OpenBoxCoreClient({
     apiKey: cfg.openboxApiKey,
     apiUrl: cfg.openboxEndpoint,
+    agentIdentity: cfg.agentIdentity,
     timeoutMs: cfg.governanceTimeout * 1e3
   });
   const approvalMaxWaitMs = Math.min(
@@ -3355,8 +3467,9 @@ async function runCursorHook() {
   ]);
   await createCursorAdapter({
     core,
-    resolveSession: (env) => resolveSession(env, cfg),
+    resolveSession: (env2) => resolveSession(env2, cfg),
     approvalMaxWaitMs,
+    readStdin: async () => raw,
     // When APPROVAL_MODE=inline, the SDK skips its internal poll loop
     // and the adapter renders permission:'ask' so Cursor's native
     // permission dialog pops in the IDE on every require_approval.
@@ -3364,17 +3477,17 @@ async function runCursorHook() {
     // or editor extension can still resolve the backend row, but the
     // hook does not wait.
     inlineApproval: cfg.approvalMode === "inline",
-    onPendingApproval: async (info, env) => {
-      if (OBSERVE_ONLY.has(String(env.hook_event_name ?? ""))) return;
+    onPendingApproval: async (info, env2) => {
+      if (OBSERVE_ONLY.has(String(env2.hook_event_name ?? ""))) return;
       const conn = await ensureSocket();
       if (!conn) return;
       const agentId = await resolveAgentId();
-      const toolSummary = env.tool_name ? `${env.tool_name}(${typeof env.tool_input === "string" ? env.tool_input : JSON.stringify(env.tool_input ?? {})})` : void 0;
-      const summary = env.command ?? env.file_path ?? toolSummary ?? env.prompt ?? "";
+      const toolSummary = env2.tool_name ? `${env2.tool_name}(${typeof env2.tool_input === "string" ? env2.tool_input : JSON.stringify(env2.tool_input ?? {})})` : void 0;
+      const summary = env2.command ?? env2.file_path ?? toolSummary ?? env2.prompt ?? "";
       conn.notifyPending({
         governance_event_id: info.governanceEventId ?? info.approvalId,
         agent_id: agentId ?? "",
-        hook_event_name: String(env.hook_event_name ?? ""),
+        hook_event_name: String(env2.hook_event_name ?? ""),
         source: "cursor",
         summary: summary.slice(0, 200),
         reason: info.reason ?? "",
@@ -3387,8 +3500,8 @@ async function runCursorHook() {
     // exponential-backoff tick (default 500ms-5s). Approving in the
     // extension toast resolves the hook subprocess in O(1 poll RTT)
     // instead of O(poll-cycle).
-    awaitExternalDecision: async (info, env) => {
-      if (OBSERVE_ONLY.has(String(env.hook_event_name ?? ""))) return void 0;
+    awaitExternalDecision: async (info, env2) => {
+      if (OBSERVE_ONLY.has(String(env2.hook_event_name ?? ""))) return void 0;
       const conn = await ensureSocket();
       if (!conn) return void 0;
       const geid = info.governanceEventId ?? info.approvalId;
@@ -3402,110 +3515,154 @@ async function runCursorHook() {
       }
     },
     handlers: {
-      beforeSubmitPrompt: logged(
+      beforeSubmitPrompt: guarded(
+        cfg,
         "beforeSubmitPrompt",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeSubmitPrompt(env, s, cfg)
+        async (env2, s) => handleBeforeSubmitPrompt(env2, s, cfg)
       ),
-      beforeShellExecution: logged(
+      beforeShellExecution: guarded(
+        cfg,
         "beforeShellExecution",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeShellExecution(env, s, cfg)
+        async (env2, s) => handleBeforeShellExecution(env2, s, cfg)
       ),
-      beforeMCPExecution: logged(
+      beforeMCPExecution: guarded(
+        cfg,
         "beforeMCPExecution",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeMCPExecution(env, s, cfg)
+        async (env2, s) => handleBeforeMCPExecution(env2, s, cfg)
       ),
-      beforeReadFile: logged(
+      beforeReadFile: guarded(
+        cfg,
         "beforeReadFile",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeReadFile(env, s, cfg)
+        async (env2, s) => handleBeforeReadFile(env2, s, cfg)
       ),
-      preToolUse: logged(
+      preToolUse: guarded(
+        cfg,
         "preToolUse",
         "permission",
-        async (env, s) => dryRun ? void 0 : handlePreToolUse(env, s, cfg)
+        async (env2, s) => handlePreToolUse(env2, s, cfg)
       ),
-      afterMCPExecution: logged(
+      afterMCPExecution: guarded(
+        cfg,
         "afterMCPExecution",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterMCPExecution(env, s, cfg)
+        async (env2, s) => handleAfterMCPExecution(env2, s, cfg)
       ),
-      afterAgentResponse: logged(
+      afterAgentResponse: guarded(
+        cfg,
         "afterAgentResponse",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterAgentResponse(env, s, cfg)
+        async (env2, s) => handleAfterAgentResponse(env2, s, cfg)
       ),
-      afterAgentThought: logged(
+      afterAgentThought: guarded(
+        cfg,
         "afterAgentThought",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterAgentThought(env, s, cfg)
+        async (env2, s) => handleAfterAgentThought(env2, s, cfg)
       ),
-      afterShellExecution: logged(
+      afterShellExecution: guarded(
+        cfg,
         "afterShellExecution",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterShellExecution(env, s, cfg)
+        async (env2, s) => handleAfterShellExecution(env2, s, cfg)
       ),
-      afterFileEdit: logged(
+      afterFileEdit: guarded(
+        cfg,
         "afterFileEdit",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterFileEdit(env, s, cfg)
+        async (env2, s) => handleAfterFileEdit(env2, s, cfg)
       ),
-      sessionStart: logged(
+      sessionStart: guarded(
+        cfg,
         "sessionStart",
         "none",
-        async (env, s) => dryRun ? void 0 : handleSessionStart(env, s, cfg)
+        async (env2, s) => handleSessionStart(env2, s, cfg)
       ),
-      stop: logged(
+      stop: guarded(
+        cfg,
         "stop",
         "none",
-        async (env, s) => dryRun ? void 0 : handleStop(env, s, cfg)
+        async (env2, s) => handleStop(env2, s, cfg)
       ),
       // postToolUse / postToolUseFailure carry no payload per the
       // spec (@noPayload). We log them so the OutputChannel tail
       // shows the full lifecycle, but there's nothing to map.
-      postToolUse: logged("postToolUse", "observe", async () => void 0),
-      postToolUseFailure: logged("postToolUseFailure", "observe", async () => void 0),
+      postToolUse: guarded(cfg, "postToolUse", "observe", async () => void 0),
+      postToolUseFailure: guarded(cfg, "postToolUseFailure", "observe", async () => void 0),
       // Tab-driven + lifecycle + subagent coverage.
-      beforeTabFileRead: logged(
+      beforeTabFileRead: guarded(
+        cfg,
         "beforeTabFileRead",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleBeforeTabFileRead(env, s, cfg)
+        async (env2, s) => handleBeforeTabFileRead(env2, s, cfg)
       ),
-      afterTabFileEdit: logged(
+      afterTabFileEdit: guarded(
+        cfg,
         "afterTabFileEdit",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleAfterTabFileEdit(env, s, cfg)
+        async (env2, s) => handleAfterTabFileEdit(env2, s, cfg)
       ),
-      sessionEnd: logged(
+      sessionEnd: guarded(
+        cfg,
         "sessionEnd",
         "none",
-        async (env, s) => dryRun ? void 0 : handleSessionEnd(env, s, cfg)
+        async (env2, s) => handleSessionEnd(env2, s, cfg)
       ),
-      preCompact: logged(
+      preCompact: guarded(
+        cfg,
         "preCompact",
         "observe",
-        async (env, s) => dryRun ? void 0 : handlePreCompact(env, s, cfg)
+        async (env2, s) => handlePreCompact(env2, s, cfg)
       ),
-      subagentStart: logged(
+      subagentStart: guarded(
+        cfg,
         "subagentStart",
         "permission",
-        async (env, s) => dryRun ? void 0 : handleSubagentStart(env, s, cfg)
+        async (env2, s) => handleSubagentStart(env2, s, cfg)
       ),
-      subagentStop: logged(
+      subagentStop: guarded(
+        cfg,
         "subagentStop",
         "observe",
-        async (env, s) => dryRun ? void 0 : handleSubagentStop(env, s, cfg)
+        async (env2, s) => handleSubagentStop(env2, s, cfg)
       )
     }
   }).run();
 }
 
 // ts/src/runtime/cursor/install.ts
-import fs8 from "fs";
-import os4 from "os";
 import path9 from "path";
+
+// ts/src/config/store.ts
+import { existsSync as existsSync4, mkdirSync as mkdirSync3, readFileSync as readFileSync4, writeFileSync as writeFileSync2 } from "fs";
+var CONFIG_KEY = /^[A-Z][A-Z0-9_]*$/;
+function getPath2() {
+  return resolveOsPath("config");
+}
+function read() {
+  const path10 = getPath2();
+  if (!existsSync4(path10)) return {};
+  const out = {};
+  for (const line of readFileSync4(path10, "utf-8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq < 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    const value = trimmed.slice(eq + 1).trim();
+    if (CONFIG_KEY.test(key)) out[key] = value;
+  }
+  return out;
+}
+function listConfig() {
+  return read();
+}
+function configStorePath() {
+  return getPath2();
+}
 
 // ts/src/runtime/cursor/plugin.ts
 import {
@@ -3519,7 +3676,7 @@ import {
   symlinkSync,
   writeFileSync as writeFileSync3
 } from "fs";
-import os3 from "os";
+import os from "os";
 import path8 from "path";
 import { fileURLToPath } from "url";
 var __dirname = path8.dirname(fileURLToPath(import.meta.url));
@@ -3589,7 +3746,7 @@ function findSkillDir() {
 function safeOutDir(out) {
   const resolved = path8.resolve(out);
   const root = path8.parse(resolved).root;
-  if (resolved === root || resolved === os3.homedir()) {
+  if (resolved === root || resolved === os.homedir()) {
     throw new Error(`Refusing to overwrite unsafe plugin output path: ${resolved}`);
   }
   return resolved;
@@ -3612,13 +3769,10 @@ function writeRuntimeConfigTemplate(configDir) {
   const file = path8.join(configDir, "config.json");
   if (existsSync5(file)) return;
   const example = {
-    OPENBOX_API_KEY: "obx_live_YOUR_API_KEY_HERE",
-    OPENBOX_CORE_URL: "https://core.example/ob",
-    GOVERNANCE_POLICY: "fail_open",
+    GOVERNANCE_POLICY: "fail_closed",
     HITL_ENABLED: true,
     HITL_MAX_WAIT: 300,
-    VERBOSE: false,
-    DRY_RUN: true
+    VERBOSE: false
   };
   writeFileSync3(file, JSON.stringify(example, null, 2) + "\n", {
     mode: 384,
@@ -3838,64 +3992,6 @@ function verifyCursorPlugin(options = {}) {
 }
 
 // ts/src/runtime/cursor/install.ts
-function readJson2(file) {
-  try {
-    return JSON.parse(fs8.readFileSync(file, "utf-8"));
-  } catch {
-    return void 0;
-  }
-}
-function userCursorPath(...parts) {
-  return path9.join(os4.homedir(), ".cursor", ...parts);
-}
-function expectedExtensionVersion() {
-  const candidates = [
-    path9.resolve(process.cwd(), "apps/extension/package.json"),
-    path9.resolve("apps/extension/package.json")
-  ];
-  for (const file of candidates) {
-    const pkg = readJson2(file);
-    const version = pkg?.version;
-    if (typeof version === "string" && version) return version;
-  }
-  return void 0;
-}
-function checkExtensionInstall() {
-  if (process.env.OPENBOX_SKIP_EXTENSION === "1") {
-    return { name: "extension", status: "skip", detail: "OPENBOX_SKIP_EXTENSION=1" };
-  }
-  const dir = userCursorPath("extensions");
-  if (!fs8.existsSync(dir)) {
-    return { name: "extension", status: "fail", path: dir, detail: "directory missing" };
-  }
-  const entries = fs8.readdirSync(dir).filter((entry) => /^openbox\.openbox[-.]/.test(entry) || /^openbox[-.]/.test(entry));
-  if (entries.length === 0) {
-    return { name: "extension", status: "fail", path: dir, detail: "OpenBox extension missing" };
-  }
-  const expected = expectedExtensionVersion();
-  for (const entry of entries) {
-    const pkgFile = path9.join(dir, entry, "package.json");
-    const pkg = readJson2(pkgFile);
-    const actual = typeof pkg?.version === "string" ? pkg.version : void 0;
-    if (!expected || actual === expected) {
-      return {
-        name: "extension",
-        status: "pass",
-        path: pkgFile,
-        detail: `installed${actual ? ` ${actual}` : ""}; reload Cursor to verify loaded code`
-      };
-    }
-  }
-  return {
-    name: "extension",
-    status: "fail",
-    path: dir,
-    detail: expected ? `installed version does not match expected ${expected}` : "package version unreadable"
-  };
-}
-function truthy(value) {
-  return value === "true" || value === "1";
-}
 function isPlaceholderKey(value) {
   if (!value) return false;
   return /YOUR_API_KEY|REPLACE_ME|placeholder/i.test(value);
@@ -3922,13 +4018,17 @@ function buildHookRuntimeEnv(cwd = process.cwd()) {
   });
   const coreUrl = connection.coreUrl;
   const apiKey = get("OPENBOX_API_KEY") ?? "";
+  const agentIdentity = resolveAgentIdentity({
+    OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID"),
+    OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY")
+  });
   return {
     configFile,
     envFile,
     cliConfigFile: configStorePath(),
     coreUrl,
     apiKey,
-    dryRun: truthy(get("DRY_RUN"))
+    agentIdentity
   };
 }
 async function checkRuntimeReadiness(cwd, validateRuntime) {
@@ -3936,12 +4036,8 @@ async function checkRuntimeReadiness(cwd, validateRuntime) {
   const details = [
     `config=${runtime.configFile}`,
     `cliConfig=${runtime.cliConfigFile}`,
-    `core=${runtime.coreUrl}`,
-    `dryRun=${runtime.dryRun}`
+    `core=${runtime.coreUrl}`
   ];
-  if (runtime.dryRun) {
-    return { name: "runtime", status: "fail", path: runtime.configFile, detail: `${details.join("; ")}; DRY_RUN=true` };
-  }
   if (!runtime.apiKey) {
     return { name: "runtime", status: "fail", path: runtime.configFile, detail: `${details.join("; ")}; missing OPENBOX_API_KEY` };
   }
@@ -3959,6 +4055,7 @@ async function checkRuntimeReadiness(cwd, validateRuntime) {
     const core = new OpenBoxCoreClient({
       apiKey: runtime.apiKey,
       apiUrl: runtime.coreUrl,
+      agentIdentity: runtime.agentIdentity,
       timeoutMs: 5e3
     });
     const validation = await core.validateApiKey();
@@ -3977,7 +4074,6 @@ function verifyCursorInstall(opts = {}) {
   const checks = [
     ...verifyCursorPlugin({ cwd: opts.cwd, target: opts.pluginTarget })
   ];
-  if (opts.includeExtension) checks.push(checkExtensionInstall());
   if (opts.includeRuntime || opts.validateRuntime) {
     return checkRuntimeReadiness(opts.cwd, Boolean(opts.validateRuntime)).then((runtime) => [...checks, runtime]);
   }

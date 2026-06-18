@@ -7,12 +7,14 @@ export interface ClaudeCodeEnvelope {
   tool_input?: unknown;
   tool_output?: unknown;
   tool_use_id?: string;
+  duration_ms?: number;
   cwd?: string;
   transcript_path?: string;
   prompt?: string;
   model?: string;
   agent_id?: string;
   agent_type?: string;
+  agent_transcript_path?: string;
   permission_mode?: string;
   permission_suggestions?: unknown;
   trigger?: string;
@@ -26,8 +28,15 @@ export interface ClaudeCodeEnvelope {
   command_args?: string;
   expanded_prompt?: string;
   message?: string;
+  title?: string;
+  notification_type?: string;
   display_content?: string;
   displayContent?: string;
+  turn_id?: string;
+  message_id?: string;
+  index?: number;
+  final?: boolean;
+  delta?: string;
   tool_response?: unknown;
   tool_calls?: unknown;
   error?: string;
@@ -50,6 +59,7 @@ export interface ClaudeCodeEnvelope {
   last_assistant_message?: string;
   background_tasks?: unknown;
   session_crons?: unknown;
+  stop_hook_active?: boolean;
   custom_instructions?: string;
   compact_summary?: string;
   compact?: unknown;

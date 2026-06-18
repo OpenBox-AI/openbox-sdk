@@ -119,7 +119,8 @@ export function buildMcpGovernanceSpan(
       };
     }
     case 'db': {
-      const dbOp = ((input.operation as string) || 'SELECT').toUpperCase();
+      const statement = (input.statement as string) || (input.query as string) || '';
+      const dbOp = ((input.operation as string) || 'QUERY').toUpperCase();
       return {
         ...base,
         name: `${dbOp}`,
@@ -134,7 +135,7 @@ export function buildMcpGovernanceSpan(
         },
         db_system: input.system || 'postgresql',
         db_operation: dbOp,
-        db_statement: input.statement || '',
+        db_statement: statement,
       };
     }
     case 'mcp':

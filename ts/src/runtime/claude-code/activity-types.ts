@@ -20,6 +20,7 @@ export const ACTIVITY_TYPES = {
   FILE_DELETE: 'FileDelete',
   SHELL: 'ShellExecution',
   HTTP_REQUEST: 'HTTPRequest',
+  DB_QUERY: 'DatabaseQuery',
   MCP_CALL: 'MCPToolCall',
   AGENT_SPAWN: 'AgentSpawn',
   AGENT_ACTION: 'AgentAction',

@@ -18,12 +18,12 @@ afterEach(() => {
 });
 
 describe('governance/skip-patterns', () => {
-  it('SKIP_PATTERNS hides editor + secret + dependency dirs', async () => {
+  it('redaction patterns identify editor, secret, and dependency paths', async () => {
     const {
-      SKIP_PATTERNS,
+      REDACT_PATH_CONTENT_PATTERNS,
       isInsideAnyRoot,
       isSensitivePath,
-      isSkipped,
+      shouldRedactPathContent,
     } = await import('../../ts/src/governance/skip-patterns');
     const cases: [string, boolean][] = [
       ['/foo/.cursor/settings.json', true],
@@ -37,9 +37,9 @@ describe('governance/skip-patterns', () => {
       ['/Users/me/source/main.ts', false],
     ];
     for (const [p, expected] of cases) {
-      const matched = SKIP_PATTERNS.some((re) => re.test(p));
+      const matched = REDACT_PATH_CONTENT_PATTERNS.some((re) => re.test(p));
       expect(matched, `${p} → expected matched=${expected}`).toBe(expected);
-      expect(isSkipped(p)).toBe(expected);
+      expect(shouldRedactPathContent(p)).toBe(expected);
     }
     expect(isSensitivePath('/repo/.env')).toBe(true);
     expect(isSensitivePath('/repo/.env.local')).toBe(true);
@@ -50,6 +50,7 @@ describe('governance/skip-patterns', () => {
     expect(isSensitivePath('/repo/.aws/credentials')).toBe(true);
     expect(isSensitivePath('/home/me/.openbox/tokens')).toBe(true);
     expect(isSensitivePath('/repo/src/index.ts')).toBe(false);
+    expect(shouldRedactPathContent('/repo/.env')).toBe(true);
 
     expect(isInsideAnyRoot(undefined, ['/repo'])).toBe(false);
     expect(isInsideAnyRoot('/repo/file.ts', undefined)).toBe(false);
@@ -169,6 +170,12 @@ describe('install/from-spec', () => {
     const json = JSON.parse(readFileSync(target, 'utf-8'));
     expect(json.hooks).toBeDefined();
     expect(JSON.stringify(json.hooks)).toContain('openbox claude-code hook');
+    expect(JSON.parse(readFileSync(join(dir, '.claude-hooks', 'config.json'), 'utf-8'))).toEqual({
+      GOVERNANCE_POLICY: 'fail_closed',
+      HITL_ENABLED: true,
+      HITL_MAX_WAIT: 300,
+      VERBOSE: false,
+    });
 
     uninstallAdapter(spec, { cwd: dir });
     const after = JSON.parse(readFileSync(target, 'utf-8'));

@@ -1,7 +1,7 @@
 // Drift lock for OS / platform awareness.
 //
-//  - No `process.env.HOME` reads in `ts/src/`; use `os.homedir()` so
-//    Windows (where HOME is unset; USERPROFILE is the equivalent) works.
+//  - No `process.env.HOME` reads in `ts/src/`; shared OpenBox
+//    persistence defaults to project-local paths, not user home.
 //  - No hardcoded user paths; `/Users/...`, `/home/...`, `\\Users\\...`.
 //  - Sensitive file writes (token store, session store, install-time
 //    template configs) MUST set mode 0o600 so a shared Unix box doesn't
@@ -24,7 +24,7 @@ function listSourceFiles(root: string): string[] {
 }
 
 describe('platform / OS awareness contract', () => {
-  it('no source file reads process.env.HOME (use os.homedir() instead)', () => {
+  it('no source file reads process.env.HOME', () => {
     const files = listSourceFiles(SRC_ROOT);
     const offenders: string[] = [];
     // env-bindings.ts is generated and reads bound env vars; if HOME is
@@ -49,6 +49,23 @@ describe('platform / OS awareness contract', () => {
     for (const file of files) {
       const src = readFileSync(file, 'utf-8');
       for (const re of PATTERNS) {
+        const m = src.match(re);
+        if (m) {
+          offenders.push({ file, sample: m[0] });
+          break;
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('no source file references a home-level OpenBox data root', () => {
+    const files = listSourceFiles(SRC_ROOT);
+    const offenders: { file: string; sample: string }[] = [];
+    const patterns = [/~\/\.openbox/, /homedir\(\)[\s\S]{0,120}\.openbox/];
+    for (const file of files) {
+      const src = readFileSync(file, 'utf-8');
+      for (const re of patterns) {
         const m = src.match(re);
         if (m) {
           offenders.push({ file, sample: m[0] });

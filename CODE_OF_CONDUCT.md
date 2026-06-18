@@ -8,7 +8,7 @@ This project adopts the
 Be respectful. Disagree on ideas, not people. Assume good faith. If you
 see behavior that breaks this, report it via GitHub's
 ["Report content"](https://docs.github.com/en/communities/maintaining-your-safety-on-github/reporting-abuse-or-spam)
-flow or email a maintainer listed in `package.json`.
+flow.
 
 ## Enforcement
 

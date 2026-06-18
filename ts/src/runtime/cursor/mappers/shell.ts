@@ -53,7 +53,13 @@ export async function handleBeforeShellExecution(
   const claim = claimAction(key);
   if (!claim.won) {
     const decision = await awaitClaimDecision(claim, cfg.hitlMaxWait * 1000);
-    if (!decision) return undefined; // timeout; fail open
+    if (!decision) {
+      return {
+        arm: 'block',
+        reason: '[OpenBox] no governance decision was published for duplicate Cursor shell hook',
+        riskScore: 1,
+      };
+    }
     if (decision.arm === 'allow' || decision.arm === 'constrain') return undefined;
     if (decision.arm === 'halt') markHalted(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };

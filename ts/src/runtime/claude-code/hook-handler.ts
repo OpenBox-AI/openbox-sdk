@@ -1,9 +1,9 @@
-// Hook handler; invoked by `openbox claude-code hook` from Claude
-// Code's hooks.json config. Reads stdin, dispatches via the spec-driven
+// Hook handler; invoked by the Claude Code plugin runner, which calls
+// `openbox claude-code hook` through a project-local SDK CLI. Reads
+// stdin, dispatches via the spec-driven
 // claude-code adapter, returns appropriate stdout per hook event,
-// exits 0. Decision-capable hooks honor GOVERNANCE_POLICY:
-// fail_open writes Claude's default allow shape on runtime failure;
-// fail_closed writes the corresponding block/deny shape.
+// exits 0. Decision-capable hooks fail closed with the corresponding
+// block/deny shape when runtime configuration or Core evaluation fails.
 import {
   createClaudeCodeAdapter,
   type ClaudeCodeAdapterHandlers,
@@ -14,8 +14,7 @@ import type {
   WorkflowVerdict,
 } from '../../core-client/index.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
-import { loadConfig } from './config.js';
-import { applyEnvSource } from '../../cli/env-source.js';
+import { getConfigDir, loadConfig } from './config.js';
 import { createLogger } from '../../logging/logger.js';
 import { resolveSession } from './session-resolver.js';
 import { makeHookLog } from '../../logging/hook-log.js';
@@ -50,6 +49,7 @@ import {
   handleTeammateIdle,
 } from './mappers/subagent.js';
 import {
+  handleMessageDisplay,
   handleGenericClaudeEvent,
   observeGenericClaudeEvent,
 } from './mappers/generic.js';
@@ -112,6 +112,13 @@ function isDecisionCapable(eventName: string | undefined): boolean {
   return surface !== 'none' && surface !== 'worktree-path';
 }
 
+function isActiveStopRetry(env: ClaudeCodeEnvelope | undefined): boolean {
+  return (
+    env?.hook_event_name === 'Stop' &&
+    (env as unknown as { stop_hook_active?: unknown }).stop_hook_active === true
+  );
+}
+
 function reasonFromError(prefix: string, err?: unknown): string {
   const detail = err instanceof Error ? err.message : String(err ?? '');
   return detail ? `${prefix}: ${detail}` : prefix;
@@ -130,7 +137,7 @@ function guarded(
       const decisionCapable = isDecisionCapable(env.hook_event_name);
       const reason = reasonFromError('OpenBox governance failed while processing Claude Code hook', err);
       if (cfg.verbose) console.error(`[openbox claude-code] ${reason}`);
-      if (decisionCapable && cfg.governancePolicy === 'fail_closed') {
+      if (decisionCapable && !isActiveStopRetry(env)) {
         return failClosedVerdict(reason);
       }
       return undefined;
@@ -198,6 +205,7 @@ function renderFailClosedHookOutput(env: ClaudeCodeEnvelope, reason: string): un
 
 function writeFailClosedIfPossible(env: ClaudeCodeEnvelope | undefined, reason: string): void {
   if (!env || !isDecisionCapable(env.hook_event_name)) return;
+  if (isActiveStopRetry(env)) return;
   const output = renderFailClosedHookOutput(env, reason);
   if (output !== undefined) process.stdout.write(JSON.stringify(output));
 }
@@ -229,12 +237,14 @@ async function readHookStdin(): Promise<string> {
 }
 
 export async function runClaudeHook(): Promise<void> {
-  // Single-source env resolution. Same call CLI / MCP / cursor hook
-  // make so every OpenBox process on this machine converges on the
-  // active env from ~/.openbox/config.
-  applyEnvSource();
-
   const cfg = loadConfig();
+  // Claude Code governance is project-scoped. Keep hook-owned
+  // auxiliary state such as JSONL logs under the resolved
+  // `.claude-hooks/` tree unless the caller intentionally overrides
+  // OPENBOX_HOME for tests or an alternate project-local location.
+  if (!process.env.OPENBOX_HOME) {
+    process.env.OPENBOX_HOME = getConfigDir();
+  }
   createLogger('claude-code').initLogger(cfg);
 
   let raw = '';
@@ -247,32 +257,23 @@ export async function runClaudeHook(): Promise<void> {
     process.exit(0);
   }
 
-  // Pass-through if not configured. The adapter would still be willing to
-  // run but with no API key or Core URL the client can't call /evaluate.
-  // Under fail_closed, emit the event-appropriate deny/block shape for
-  // decision-capable hooks.
+  // Without a runtime key or Core URL the client cannot call /evaluate.
+  // Decision-capable hooks deny/block; observe-only hooks pass through.
   if (!cfg.openboxApiKey) {
-    if (cfg.governancePolicy === 'fail_closed') {
-      writeFailClosedIfPossible(env, 'missing OPENBOX_API_KEY');
-    }
-    if (cfg.verbose) console.error('[openbox claude-code] no OPENBOX_API_KEY set, passing through');
+    writeFailClosedIfPossible(env, 'missing OPENBOX_API_KEY');
+    if (cfg.verbose) console.error('[openbox claude-code] no OPENBOX_API_KEY set; decision-capable hooks fail closed');
     process.exit(0);
   }
   if (!cfg.openboxEndpoint) {
-    if (cfg.governancePolicy === 'fail_closed') {
-      writeFailClosedIfPossible(env, 'missing OPENBOX_CORE_URL');
-    }
-    if (cfg.verbose) console.error('[openbox claude-code] no OPENBOX_CORE_URL set, passing through');
+    writeFailClosedIfPossible(env, 'missing OPENBOX_CORE_URL');
+    if (cfg.verbose) console.error('[openbox claude-code] no OPENBOX_CORE_URL set; decision-capable hooks fail closed');
     process.exit(0);
   }
-
-  // Dry-run: handlers immediately return undefined (= allow / no decision).
-  // The adapter still writes the right stdout shape per @verdictShape.
-  const dryRun = cfg.dryRun;
 
   const core = new OpenBoxCoreClient({
     apiKey: cfg.openboxApiKey,
     apiUrl: cfg.openboxEndpoint,
+    agentIdentity: cfg.agentIdentity,
     timeoutMs: cfg.governanceTimeout * 1000,
   });
 
@@ -288,97 +289,97 @@ export async function runClaudeHook(): Promise<void> {
 
   const handlers: ClaudeCodeAdapterHandlers = {
     setup: guarded(cfg, 'setup', 'observe',
-      async (env, s) => dryRun ? undefined : handleSetup(env, s, cfg)),
+      async (env, s) => handleSetup(env, s, cfg)),
     sessionStart: guarded(cfg, 'sessionStart', 'none',
-      async (env, s) => dryRun ? undefined : handleSessionStart(env, s, cfg)),
+      async (env, s) => handleSessionStart(env, s, cfg)),
     instructionsLoaded: guarded(cfg, 'instructionsLoaded', 'observe',
-      async (env, s) => dryRun ? undefined : observeGenericClaudeEvent(env, s, cfg, {
+      async (env, s) => observeGenericClaudeEvent(env, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.START,
         eventCategory: 'agent_observation',
       })),
     userPromptSubmit: guarded(cfg, 'userPromptSubmit', 'permission',
-      async (env, s) => dryRun ? undefined : handleUserPromptSubmit(env, s, cfg)),
+      async (env, s) => handleUserPromptSubmit(env, s, cfg)),
     userPromptExpansion: guarded(cfg, 'userPromptExpansion', 'permission',
-      async (env, s) => dryRun ? undefined : handleUserPromptExpansion(env, s, cfg)),
+      async (env, s) => handleUserPromptExpansion(env, s, cfg)),
     messageDisplay: guarded(cfg, 'messageDisplay', 'observe',
-      async (env, s) => dryRun ? undefined : observeGenericClaudeEvent(env, s, cfg, {
+      async (env, s) => handleMessageDisplay(env, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.COMPLETE,
         eventCategory: 'llm_output',
       })),
     preToolUse: guarded(cfg, 'preToolUse', 'permission',
-      async (env, s) => dryRun ? undefined : handlePreToolUse(env, s, cfg)),
+      async (env, s) => handlePreToolUse(env, s, cfg)),
     permissionRequest: guarded(cfg, 'permissionRequest', 'permission',
-      async (env, s) => dryRun ? undefined : handlePermissionRequest(env, s, cfg)),
+      async (env, s) => handlePermissionRequest(env, s, cfg)),
     permissionDenied: guarded(cfg, 'permissionDenied', 'permission',
-      async (env, s) => dryRun ? undefined : handlePermissionDenied(env, s, cfg)),
+      async (env, s) => handlePermissionDenied(env, s, cfg)),
     postToolUse: guarded(cfg, 'postToolUse', 'permission',
-      async (env, s) => dryRun ? undefined : handlePostToolUse(env, s, cfg)),
+      async (env, s) => handlePostToolUse(env, s, cfg)),
     postToolUseFailure: guarded(cfg, 'postToolUseFailure', 'permission',
-      async (env, s) => dryRun ? undefined : handlePostToolUseFailure(env, s, cfg)),
+      async (env, s) => handlePostToolUseFailure(env, s, cfg)),
     postToolBatch: guarded(cfg, 'postToolBatch', 'permission',
-      async (env, s) => dryRun ? undefined : handlePostToolBatch(env, s, cfg)),
+      async (env, s) => handlePostToolBatch(env, s, cfg)),
     subagentStart: guarded(cfg, 'subagentStart', 'observe',
-      async (env, s) => dryRun ? undefined : handleSubagentStart(env, s, cfg)),
+      async (env, s) => handleSubagentStart(env, s, cfg)),
     subagentStop: guarded(cfg, 'subagentStop', 'permission',
-      async (env, s) => dryRun ? undefined : handleSubagentStop(env, s, cfg)),
+      async (env, s) => handleSubagentStop(env, s, cfg)),
     taskCreated: guarded(cfg, 'taskCreated', 'permission',
-      async (env, s) => dryRun ? undefined : handleTaskCreated(env, s, cfg)),
+      async (env, s) => handleTaskCreated(env, s, cfg)),
     taskCompleted: guarded(cfg, 'taskCompleted', 'permission',
-      async (env, s) => dryRun ? undefined : handleTaskCompleted(env, s, cfg)),
+      async (env, s) => handleTaskCompleted(env, s, cfg)),
     stop: guarded(cfg, 'stop', 'permission',
-      async (env, s) => dryRun ? undefined : handleStop(env, s, cfg)),
+      async (env, s) => handleStop(env, s, cfg)),
     stopFailure: guarded(cfg, 'stopFailure', 'observe',
-      async (env, s) => dryRun ? undefined : handleStopFailure(env, s, cfg)),
+      async (env, s) => handleStopFailure(env, s, cfg)),
     teammateIdle: guarded(cfg, 'teammateIdle', 'permission',
-      async (env, s) => dryRun ? undefined : handleTeammateIdle(env, s, cfg)),
+      async (env, s) => handleTeammateIdle(env, s, cfg)),
     notification: guarded(cfg, 'notification', 'observe',
-      async (env, s) => dryRun ? undefined : observeGenericClaudeEvent(env, s, cfg, {
+      async (env, s) => observeGenericClaudeEvent(env, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.SIGNAL,
         eventCategory: 'agent_notification',
       })),
     configChange: guarded(cfg, 'configChange', 'permission',
-      async (env, s) => dryRun ? undefined : handleGenericClaudeEvent(env, s, cfg, {
+      async (env, s) => handleGenericClaudeEvent(env, s, cfg, {
         activityType: ACTIVITY_TYPES.CONFIG_CHANGE,
         eventKind: EVENT.START,
         eventCategory: 'config_change',
         decisionCapable: true,
       })),
     cwdChanged: guarded(cfg, 'cwdChanged', 'observe',
-      async (env, s) => dryRun ? undefined : observeGenericClaudeEvent(env, s, cfg, {
+      async (env, s) => observeGenericClaudeEvent(env, s, cfg, {
         activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
         eventKind: EVENT.SIGNAL,
         eventCategory: 'cwd_changed',
       })),
     fileChanged: guarded(cfg, 'fileChanged', 'observe',
-      async (env, s) => dryRun ? undefined : observeGenericClaudeEvent(env, s, cfg, {
+      async (env, s) => observeGenericClaudeEvent(env, s, cfg, {
         activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
         eventKind: EVENT.SIGNAL,
         eventCategory: 'file_changed',
       })),
     worktreeRemove: guarded(cfg, 'worktreeRemove', 'observe',
-      async (env, s) => dryRun ? undefined : observeGenericClaudeEvent(env, s, cfg, {
+      async (env, s) => observeGenericClaudeEvent(env, s, cfg, {
         activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
         eventKind: EVENT.COMPLETE,
         eventCategory: 'worktree_remove',
       })),
     preCompact: guarded(cfg, 'preCompact', 'permission',
-      async (env, s) => dryRun ? undefined : handlePreCompact(env, s, cfg)),
+      async (env, s) => handlePreCompact(env, s, cfg)),
     postCompact: guarded(cfg, 'postCompact', 'observe',
-      async (env, s) => dryRun ? undefined : handlePostCompact(env, s, cfg)),
+      async (env, s) => handlePostCompact(env, s, cfg)),
     sessionEnd: guarded(cfg, 'sessionEnd', 'none',
-      async (env, s) => dryRun ? undefined : handleSessionEnd(env, s, cfg)),
+      async (env, s) => handleSessionEnd(env, s, cfg)),
     elicitation: guarded(cfg, 'elicitation', 'permission',
-      async (env, s) => dryRun ? undefined : handleGenericClaudeEvent(env, s, cfg, {
+      async (env, s) => handleGenericClaudeEvent(env, s, cfg, {
         activityType: ACTIVITY_TYPES.MCP_ELICITATION,
         eventKind: EVENT.START,
         eventCategory: 'mcp_elicitation',
         decisionCapable: true,
       })),
     elicitationResult: guarded(cfg, 'elicitationResult', 'permission',
-      async (env, s) => dryRun ? undefined : handleGenericClaudeEvent(env, s, cfg, {
+      async (env, s) => handleGenericClaudeEvent(env, s, cfg, {
         activityType: ACTIVITY_TYPES.MCP_ELICITATION,
         eventKind: EVENT.COMPLETE,
         eventCategory: 'mcp_elicitation_result',

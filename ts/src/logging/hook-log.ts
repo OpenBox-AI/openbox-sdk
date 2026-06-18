@@ -9,8 +9,9 @@
 // backend via the `X-Openbox-Client` header.
 //
 // The writer is parameterized by host name (for example `cursor`
-// or `claude-code`) so each adapter writes to its own file under
-// `~/.openbox/log/<host>-hook.jsonl`.
+// or `claude-code`) so each adapter writes to its own file under the
+// active OpenBox data root. Claude Code sets that root to the resolved
+// project `.claude-hooks/` directory before recording hook events.
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';

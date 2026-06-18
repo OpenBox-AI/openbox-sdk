@@ -1,95 +1,5 @@
-import { G as GovernanceEventPayload, h as GovernanceVerdictResponse, A as ApprovalStatusRequest, a as ApprovalStatusResponse } from './core-types-Dxgkbox0.js';
-
-interface BehavioralResult {
-    current_state?: string | null;
-    next_state?: string | null;
-    on_reject?: number;
-    on_timeout?: number;
-    pattern_name?: string | null;
-    reason?: string;
-    rule_id?: string | null;
-    timeout_minutes?: number;
-    verdict?: number;
-    would_violate?: boolean;
-}
-interface CoreClientConfig {
-    /** Base URL of the Core API. Defaults to OPENBOX_CORE_URL. */
-    apiUrl?: string;
-    /** Agent API key (obx_live_* or obx_test_*) */
-    apiKey: string;
-    /**
-     * Optional one-time agent identity returned by Backend `createAgent`
-     * / identity rotation. Core requires these signed DID headers when
-     * the agent has `signing_required=true`.
-     */
-    agentIdentity?: AgentIdentityConfig;
-    /** Request timeout in milliseconds. Default: 35000.
-     *  Sits slightly above core's 30s WorkflowExecutionTimeout so when a
-     *  workflow hits the server-side deadline, the client waits long
-     *  enough to receive the 500 + actual error message instead of
-     *  AbortController-cancelling first and surfacing an opaque
-     *  "operation aborted". 5s margin covers handler+marshal overhead. */
-    timeoutMs?: number;
-    /** Retry configuration */
-    retry?: {
-        maxRetries?: number;
-        initialDelayMs?: number;
-        maxDelayMs?: number;
-    };
-    /** Client-side rate limiting */
-    rateLimit?: {
-        requestsPerSecond: number;
-        burst?: number;
-    };
-}
-interface AgentIdentityConfig {
-    did: string;
-    /** Raw Ed25519 private key bytes, base64 encoded. */
-    privateKey: string;
-}
-declare class CoreApiError extends Error {
-    readonly status: number;
-    readonly body: unknown;
-    constructor(message: string, status: number, body: unknown);
-}
-declare class OpenBoxCoreClient {
-    private baseUrl;
-    private config;
-    private rateLimiter;
-    constructor(config: CoreClientConfig);
-    /**
-     * Dynamic operation request used by compact API-first tooling.
-     * Generated methods remain the preferred typed surface; this method
-     * exists for operationId-driven callers that already resolved a
-     * generated endpoint manifest entry.
-     */
-    requestOperation(method: string, path: string, options?: {
-        params?: Record<string, unknown>;
-        data?: unknown;
-    }): Promise<unknown>;
-    health(): Promise<string>;
-    validateApiKey(): Promise<unknown>;
-    evaluate(payload: GovernanceEventPayload): Promise<GovernanceVerdictResponse>;
-    pollApproval(request: ApprovalStatusRequest): Promise<ApprovalStatusResponse>;
-    private static readonly RETRYABLE_STATUSES;
-    private request;
-    /** Single-attempt fetch with the same per-request abort/timeout shape
-     *  as one iteration of executeWithRetry. Used by endpoints that opt
-     *  out of retries (evaluate). Network errors / timeouts surface as
-     *  exceptions for reportAndExit; HTTP 5xx come back as Response so
-     *  the caller can wrap them as CoreApiError. */
-    private executeOnce;
-    private executeWithRetry;
-    private calculateBackoff;
-}
-declare function signAgentIdentityRequest(input: {
-    identity: AgentIdentityConfig;
-    method: string;
-    path: string;
-    body?: string;
-    timestamp?: string;
-    nonce?: string;
-}): Record<string, string>;
+import { O as OpenBoxCoreClient } from './core-client-BaOdHXQU.js';
+import { h as GovernanceVerdictResponse } from './core-types-Dxgkbox0.js';
 
 type CanonicalEventType = "WorkflowStarted" | "WorkflowCompleted" | "WorkflowFailed" | "ActivityStarted" | "ActivityCompleted" | "SignalReceived";
 type ActivityStage = "pre" | "post";
@@ -1427,4 +1337,4 @@ declare namespace govern {
     const attach: typeof governAttach;
 }
 
-export { type ActivityStage as A, BaseGovernedSession as B, type CanonicalEventType as C, DefaultSession as D, type GuardrailsVerdict as E, LanggraphSession as F, type GovernedPayload as G, LlamaindexSession as H, ModernTreasurySession as I, PagerdutySession as J, PydanticAiSession as K, LangchainSession as L, MastraSession as M, N8nSession as N, OpenBoxCoreClient as O, PRESET_MANIFEST as P, SemanticKernelSession as Q, VercelAiSession as R, SessionAlreadyTerminatedError as S, TemporalSession as T, signAgentIdentityRequest as U, type VerdictArm as V, type WorkflowVerdict as W, type CanonicalVerdict as a, CoreApiError as b, type CoreClientConfig as c, type GovernedSessionConfig as d, type PresetCtor as e, type PresetName as f, type Presets as g, govern as h, type AgentIdentityConfig as i, AirflowSession as j, ArgocdSession as k, AutogenSession as l, type BehavioralResult as m, CANONICAL_ACTIVITY_LABELS as n, CANONICAL_ACTIVITY_TYPES as o, presets as p, CANONICAL_EVENT_TYPES as q, ClaudeCodeSession as r, ClineSession as s, CodexSession as t, CopilotSession as u, CrewaiSession as v, CursorSession as w, CustomSession as x, type GuardrailFieldVerdict as y, type GuardrailReasonRef as z };
+export { type ActivityStage as A, BaseGovernedSession as B, type CanonicalEventType as C, DefaultSession as D, PagerdutySession as E, PydanticAiSession as F, type GovernedPayload as G, SemanticKernelSession as H, VercelAiSession as I, LangchainSession as L, MastraSession as M, N8nSession as N, PRESET_MANIFEST as P, SessionAlreadyTerminatedError as S, TemporalSession as T, type VerdictArm as V, type WorkflowVerdict as W, type CanonicalVerdict as a, type GovernedSessionConfig as b, type PresetCtor as c, type PresetName as d, type Presets as e, AirflowSession as f, govern as g, ArgocdSession as h, AutogenSession as i, CANONICAL_ACTIVITY_LABELS as j, CANONICAL_ACTIVITY_TYPES as k, CANONICAL_EVENT_TYPES as l, ClaudeCodeSession as m, ClineSession as n, CodexSession as o, presets as p, CopilotSession as q, CrewaiSession as r, CursorSession as s, CustomSession as t, type GuardrailFieldVerdict as u, type GuardrailReasonRef as v, type GuardrailsVerdict as w, LanggraphSession as x, LlamaindexSession as y, ModernTreasurySession as z };

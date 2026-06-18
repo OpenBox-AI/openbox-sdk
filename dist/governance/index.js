@@ -7,60 +7,28 @@ var ENV_VAR_BINDINGS = {
   coreUrl: { "name": "OPENBOX_CORE_URL" },
   platformUrl: { "name": "OPENBOX_PLATFORM_URL" },
   authUrl: { "name": "OPENBOX_AUTH_URL" },
-  stackUrl: { "name": "OPENBOX_STACK_URL" },
-  apiKey: { "name": "OPENBOX_API_KEY" },
-  experimentalLevel: { "name": "OPENBOX_EXPERIMENTAL_LEVEL" },
-  features: { "name": "OPENBOX_FEATURES" }
+  apiKey: { "name": "OPENBOX_API_KEY" }
 };
 var CLIENT_VARIANT_PATTERN = /^[A-Za-z0-9._+-]+$/;
 
 // ts/src/env/connection.ts
-function normalizeStackUrl(raw) {
-  const trimmed = raw.trim();
-  if (!trimmed) throw new Error("OpenBox stack URL cannot be empty.");
-  const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  const url = new URL(withProtocol);
-  if (url.protocol !== "https:" && !isLoopbackHost(url.hostname)) {
-    throw new Error("OpenBox stack URL must use https:// unless it points at localhost.");
-  }
-  url.hash = "";
-  url.search = "";
-  url.pathname = url.pathname.replace(/\/+$/, "");
-  return url.toString().replace(/\/$/, "");
-}
-function endpointsFromStackUrl(raw) {
-  const stackUrl = normalizeStackUrl(raw);
-  const url = new URL(stackUrl);
-  const rootHost = url.hostname.replace(/^(api|core|auth)\./, "");
-  const origin = `${url.protocol}//`;
-  return {
-    apiUrl: `${origin}api.${rootHost}/ob`,
-    coreUrl: `${origin}core.${rootHost}/ob`,
-    authUrl: `${origin}auth.${rootHost}/ob`,
-    platformUrl: stackUrl
-  };
-}
 var resolveConnection = (opts = {}) => {
-  const stackUrl = opts.stackUrl ?? process.env[ENV_VAR_BINDINGS.stackUrl.name];
-  const stackEndpoints = stackUrl ? endpointsFromStackUrl(stackUrl) : void 0;
   const apiUrl = requireUrl(
     "OPENBOX_API_URL",
-    opts.apiUrl ?? process.env[ENV_VAR_BINDINGS.apiUrl.name] ?? stackEndpoints?.apiUrl
+    opts.apiUrl ?? process.env[ENV_VAR_BINDINGS.apiUrl.name]
   );
   const coreUrl = requireUrl(
     "OPENBOX_CORE_URL",
-    opts.coreUrl ?? process.env[ENV_VAR_BINDINGS.coreUrl.name] ?? stackEndpoints?.coreUrl
+    opts.coreUrl ?? process.env[ENV_VAR_BINDINGS.coreUrl.name]
   );
-  const platformUrl = opts.platformUrl ?? process.env[ENV_VAR_BINDINGS.platformUrl.name] ?? stackEndpoints?.platformUrl;
-  const authUrl = opts.authUrl ?? process.env[ENV_VAR_BINDINGS.authUrl.name] ?? stackEndpoints?.authUrl;
+  const platformUrl = opts.platformUrl ?? process.env[ENV_VAR_BINDINGS.platformUrl.name];
+  const authUrl = opts.authUrl ?? process.env[ENV_VAR_BINDINGS.authUrl.name];
   return {
     apiUrl,
     coreUrl,
     platformUrl,
     authUrl,
-    stackUrl,
-    displayName: opts.displayName ?? process.env.OPENBOX_STACK_NAME,
-    source: stackUrl && !opts.apiUrl && !opts.coreUrl ? "stack-url" : "explicit"
+    source: "explicit"
   };
 };
 function requireUrl(name, value) {
@@ -136,6 +104,19 @@ function buildAuthHeader(creds) {
   return {};
 }
 
+// ts/src/env/agent-identity.ts
+function resolveAgentIdentity(source = process.env) {
+  const did = source.OPENBOX_AGENT_DID;
+  const privateKey = source.OPENBOX_AGENT_PRIVATE_KEY;
+  if (!did && !privateKey) return void 0;
+  if (!did || !privateKey) {
+    throw new Error(
+      "OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY."
+    );
+  }
+  return { did, privateKey };
+}
+
 // ts/src/client/rate-limiter.ts
 var TokenBucket = class {
   tokens;
@@ -156,11 +137,11 @@ var TokenBucket = class {
       return;
     }
     const waitMs = (1 - this.tokens) / this.refillRate;
-    return new Promise((resolve2) => {
+    return new Promise((resolve3) => {
       setTimeout(() => {
         this.refill();
         this.tokens -= 1;
-        resolve2();
+        resolve3();
       }, waitMs);
     });
   }
@@ -424,23 +405,13 @@ function governAttach(config) {
 
 // ts/src/file-tokens/agent-keys.ts
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { dirname } from "path";
 
 // ts/src/env/os-paths.ts
-import { homedir } from "os";
-import { join } from "path";
+import { join, resolve } from "path";
 function openboxDataRoot() {
   const override = process.env.OPENBOX_HOME;
-  if (override) return override;
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA ?? join(homedir(), "AppData", "Roaming");
-    return join(appData, "openbox");
-  }
-  if (process.platform === "linux") {
-    const xdg = process.env.XDG_DATA_HOME;
-    if (xdg) return join(xdg, "openbox");
-  }
-  return join(homedir(), ".openbox");
+  if (override) return resolve(override);
+  return resolve(process.cwd(), ".openbox");
 }
 var resolveOsPath = (scope) => {
   return join(openboxDataRoot(), scope);
@@ -448,10 +419,7 @@ var resolveOsPath = (scope) => {
 
 // ts/src/file-tokens/agent-keys.ts
 function getPath() {
-  const path3 = resolveOsPath("agent-keys");
-  const dir = dirname(path3);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  return path3;
+  return resolveOsPath("agent-keys");
 }
 function read() {
   const path3 = getPath();
@@ -592,7 +560,8 @@ function buildSpan(spanType, input) {
       };
     }
     case "db": {
-      const dbOp = (input.operation || "SELECT").toUpperCase();
+      const statement = input.statement || input.query || "";
+      const dbOp = (input.operation || "QUERY").toUpperCase();
       return {
         ...base2,
         name: dbOp,
@@ -607,7 +576,7 @@ function buildSpan(spanType, input) {
         },
         db_system: input.system || "postgresql",
         db_operation: dbOp,
-        db_statement: input.statement || ""
+        db_statement: statement
       };
     }
     case "mcp":
@@ -677,7 +646,11 @@ async function checkGovernance(opts) {
     span_count: 1,
     attempt: 1
   };
-  const client = new OpenBoxCoreClient({ apiUrl: coreUrl, apiKey });
+  const client = new OpenBoxCoreClient({
+    apiUrl: coreUrl,
+    apiKey,
+    agentIdentity: resolveAgentIdentity()
+  });
   return client.evaluate(payload);
 }
 
@@ -820,6 +793,13 @@ function buildSpan2(host, type, input) {
   const b = base();
   switch (type) {
     case "llm":
+      const usage = normalizeUsage(input.usage);
+      const inputTokens = toPositiveInteger(
+        usage?.input_tokens ?? usage?.prompt_tokens
+      );
+      const outputTokens = toPositiveInteger(
+        usage?.output_tokens ?? usage?.completion_tokens
+      );
       return {
         ...b,
         name: "llm.chat.completion",
@@ -828,11 +808,18 @@ function buildSpan2(host, type, input) {
         semantic_type: "llm_completion",
         attributes: {
           "gen_ai.system": host,
+          ...input.model ? { "gen_ai.request.model": input.model } : {},
+          ...input.model ? { "gen_ai.response.model": input.model } : {},
+          ...inputTokens !== void 0 ? { "gen_ai.usage.input_tokens": inputTokens } : {},
+          ...outputTokens !== void 0 ? { "gen_ai.usage.output_tokens": outputTokens } : {},
           "http.method": "POST",
           "http.url": "https://api.openai.com/v1/chat/completions",
           "openbox.semantic_type": "llm_completion",
           "openbox.span_type": "function"
         },
+        ...input.model ? { model: input.model } : {},
+        ...inputTokens !== void 0 ? { input_tokens: inputTokens } : {},
+        ...outputTokens !== void 0 ? { output_tokens: outputTokens } : {},
         function: "LLMCall",
         module: host,
         args: input,
@@ -968,7 +955,7 @@ function buildSpan2(host, type, input) {
       const dbStatement = input.db_statement ?? `${dbOperation} statement`;
       return {
         ...b,
-        name: `${dbOperation} ${dbStatement.split(" ").slice(0, 3).join(" ")}`,
+        name: dbOperation,
         span_type: "database",
         hook_type: "db_query",
         semantic_type: `database_${dbOperation.toLowerCase()}`,
@@ -1003,7 +990,7 @@ var EVENT = {
 
 // ts/src/governance/skip-patterns.ts
 import path from "path";
-var SKIP_PATTERNS = [
+var REDACT_PATH_CONTENT_PATTERNS = [
   /\.cursor\//,
   /\.claude\//,
   /\/mcps\//,
@@ -1013,8 +1000,21 @@ var SKIP_PATTERNS = [
   /SERVER_METADATA\.json$/,
   /SKILL\.md$/
 ];
-function isSkipped(filePath) {
-  return SKIP_PATTERNS.some((p) => p.test(filePath));
+function shouldRedactPathContent(filePath) {
+  return REDACT_PATH_CONTENT_PATTERNS.some((p) => p.test(filePath)) || isSensitivePath(filePath);
+}
+var SENSITIVE_PATH_PATTERNS = [
+  /(^|\/)\.env($|[./-])/,
+  /(^|\/)\.env\.[^/]+$/,
+  /(^|\/)(id_rsa|id_dsa|id_ecdsa|id_ed25519)(\.pub)?$/,
+  /(^|\/)(credentials|secrets?|token|tokens)\.(json|ya?ml|toml|ini|env|txt)$/,
+  /(^|\/)(credentials|config)$/,
+  /\.(pem|key|p12|pfx|crt)$/i,
+  /(^|\/)\.aws\/credentials$/,
+  /(^|\/)\.openbox\/tokens$/
+];
+function isSensitivePath(filePath) {
+  return SENSITIVE_PATH_PATTERNS.some((p) => p.test(filePath));
 }
 function isInsideAnyRoot(filePath, roots, cwd) {
   if (!filePath || !roots || roots.length === 0) return false;
@@ -1260,7 +1260,7 @@ function hookEventLabel(hookEvent) {
 export {
   EVENT,
   HOOK_EVENT_LABELS3 as HOOK_EVENT_LABELS,
-  SKIP_PATTERNS,
+  REDACT_PATH_CONTENT_PATTERNS,
   buildLLMCompletionResponseBody,
   buildLLMCompletionSpan,
   buildSpan2 as buildSpan,
@@ -1268,5 +1268,6 @@ export {
   fetchRulesProjection,
   hookEventLabel,
   isInsideAnyRoot,
-  isSkipped
+  isSensitivePath,
+  shouldRedactPathContent
 };

@@ -6,24 +6,25 @@
 //      and still exit 0).
 //   2. Stdout is parseable JSON for `before*`/`preToolUse`/`after*`
 //      events; sessionStart/stop emit nothing per the spec.
-//   3. The JSONL log line at ~/.openbox/log/cursor-hook.jsonl has a
+//   3. The JSONL log line at <project>/.cursor-hooks/log/cursor-hook.jsonl has a
 //      matching record (event name + verdict_kind).
 //
-// Auth: each invocation runs without OPENBOX_API_KEY so the handler
-// short-circuits at "no key, passing through"; exactly the
-// pass-through path Cursor sees on a host with no agent set up. To
-// exercise the verdict path with a real agent, wire OPENBOX_API_KEY
-// to an agent's runtime key in a follow-up suite.
+// Auth: each invocation uses a syntactically valid test runtime key and an
+// unreachable Core URL. Permission-capable events must fail closed and
+// observe-only events must still log without crashing. Real Core persistence
+// is covered by the live suites.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { existsSync, readFileSync, statSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ENVELOPES, type EventName, OBSERVE_EVENTS, PERMISSION_EVENTS } from './fixtures/envelopes';
 
 const CLI = resolve(__dirname, '../../dist/cli/index.js');
-const LOG = join(homedir(), '.openbox', 'log', 'cursor-hook.jsonl');
+const HOOK_ROOT = mkdtempSync(join(tmpdir(), 'openbox-cursor-hook-'));
+const HOOK_HOME = join(HOOK_ROOT, '.cursor-hooks');
+const LOG = join(HOOK_HOME, 'log', 'cursor-hook.jsonl');
 
 interface HookOutcome {
   status: number | null;
@@ -34,15 +35,14 @@ interface HookOutcome {
 function runHook(envelope: Record<string, unknown>): HookOutcome {
   const result = spawnSync('node', [CLI, 'cursor', 'hook'], {
     input: JSON.stringify(envelope),
+    cwd: HOOK_ROOT,
     env: {
       ...process.env,
-      // Need a non-empty key so the handler doesn't take the
-      // pre-dispatch short-circuit; DRY_RUN=1 makes each per-event
-      // handler return undefined without calling core. The `logged()`
-      // wrapper still runs and records the JSONL line, which is what
-      // the test asserts.
       OPENBOX_API_KEY: 'obx_test_' + 'x'.repeat(48),
-      DRY_RUN: '1',
+      OPENBOX_CORE_URL: 'http://127.0.0.1:1',
+      GOVERNANCE_TIMEOUT: '1',
+      OPENBOX_HOME: HOOK_HOME,
+      HITL_ENABLED: 'false',
     },
     encoding: 'utf-8',
     timeout: 15_000,
@@ -80,8 +80,12 @@ beforeAll(() => {
     );
   }
   // Ensure log dir exists so readLogTail works on first iteration.
-  mkdirSync(join(homedir(), '.openbox', 'log'), { recursive: true });
+  mkdirSync(join(HOOK_HOME, 'log'), { recursive: true });
   if (!existsSync(LOG)) writeFileSync(LOG, '');
+});
+
+afterAll(() => {
+  rmSync(HOOK_ROOT, { recursive: true, force: true });
 });
 
 describe('cursor hook handler; every event', () => {
@@ -123,7 +127,7 @@ describe('cursor hook handler; every event', () => {
     expect(out.status).toBe(0);
   });
 
-  it('unknown hook_event_name is a soft pass-through', () => {
+  it('unknown hook_event_name is a soft no-decision event', () => {
     const out = runHook({
       hook_event_name: 'somethingNobodyDeclared',
       conversation_id: 'x',

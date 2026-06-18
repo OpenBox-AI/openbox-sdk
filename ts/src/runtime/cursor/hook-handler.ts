@@ -1,12 +1,16 @@
 // Hook handler; invoked by `openbox cursor hook` from Cursor's
 // hooks.json config. Reads stdin, dispatches via the spec-driven
 // cursor adapter, returns the appropriate stdout per hook event
-// (cursor-permission for before*, cursor-observe for after*), exits 0
-// fail-open.
-import { createCursorAdapter } from '../../core-client/generated/runtime/cursor.js';
-import { OpenBoxCoreClient } from '../../core-client/index.js';
-import { loadConfig } from './config.js';
-import { applyEnvSource } from '../../cli/env-source.js';
+// (cursor-permission for before*, cursor-observe for after*), exits 0.
+import {
+  createCursorAdapter,
+  type CursorEnvelope,
+} from '../../core-client/generated/runtime/cursor.js';
+import {
+  OpenBoxCoreClient,
+  type WorkflowVerdict,
+} from '../../core-client/index.js';
+import { getConfigDir, loadConfig } from './config.js';
 import { createLogger } from '../../logging/logger.js';
 import { resolveSession } from './session-resolver.js';
 import { makeHookLog } from '../../logging/hook-log.js';
@@ -32,6 +36,8 @@ import {
   handleStop,
   handleSubagentStop,
 } from './mappers/observe.js';
+
+const MAX_STDIN_BYTES = 10 * 1024 * 1024;
 
 /** Wrap a per-event handler with a JSONL log line for the
  *  OutputChannel tail. Records timing, dispatch outcome (verdict
@@ -69,29 +75,138 @@ function logged<E, S, R>(
   };
 }
 
-export async function runCursorHook(): Promise<void> {
-  // Single-source env resolution. Layers ~/.openbox/config into
-  // process.env BEFORE loadConfig reads it, so a user who switched
-  // env via the extension (or `openbox config set --global`) sees
-  // their hook fire against the matching env automatically. Without
-  // this, the hook would use whatever was snapshotted into
-  // project .cursor-hooks/config.json at install time; so an env switch
-  // wouldn't propagate to already-installed hooks.
-  applyEnvSource();
+type HandlerResult = Promise<WorkflowVerdict | undefined | void>;
+type HookHandler = (env: CursorEnvelope, session: any) => HandlerResult;
 
+const CURSOR_CONTINUE_EVENTS = new Set(['beforeSubmitPrompt']);
+const CURSOR_PERMISSION_EVENTS = new Set([
+  'beforeReadFile',
+  'beforeShellExecution',
+  'beforeMCPExecution',
+  'preToolUse',
+  'beforeTabFileRead',
+  'subagentStart',
+]);
+
+function failClosedVerdict(reason: string): WorkflowVerdict {
+  return {
+    arm: 'block',
+    reason,
+    riskScore: 1,
+  };
+}
+
+function isDecisionCapable(eventName: string | undefined): boolean {
+  return CURSOR_CONTINUE_EVENTS.has(String(eventName ?? '')) ||
+    CURSOR_PERMISSION_EVENTS.has(String(eventName ?? ''));
+}
+
+function reasonFromError(prefix: string, err?: unknown): string {
+  const detail = err instanceof Error ? err.message : String(err ?? '');
+  return detail ? `${prefix}: ${detail}` : prefix;
+}
+
+function guarded(
+  cfg: ReturnType<typeof loadConfig>,
+  event: string,
+  verdictKind: 'permission' | 'observe' | 'none',
+  fn: HookHandler,
+): HookHandler {
+  return logged(event, verdictKind, async (env, session) => {
+    try {
+      return await fn(env, session);
+    } catch (err) {
+      const reason = reasonFromError('OpenBox governance failed while processing Cursor hook', err);
+      if (cfg.verbose) console.error(`[openbox cursor] ${reason}`);
+      if (isDecisionCapable(env.hook_event_name)) return failClosedVerdict(reason);
+      return undefined;
+    }
+  });
+}
+
+function renderFailClosedHookOutput(env: CursorEnvelope, reason: string): unknown {
+  const eventName = String(env.hook_event_name ?? '');
+  const message = `[OpenBox] ${reason}`;
+  if (CURSOR_CONTINUE_EVENTS.has(eventName)) {
+    return {
+      continue: false,
+      user_message: message,
+    };
+  }
+  if (CURSOR_PERMISSION_EVENTS.has(eventName)) {
+    return {
+      permission: 'deny',
+      user_message: message,
+      agent_message: `${message}. Stop and ask the user to fix OpenBox project runtime configuration before retrying.`,
+    };
+  }
+  return undefined;
+}
+
+function writeFailClosedIfPossible(env: CursorEnvelope | undefined, reason: string): void {
+  if (!env || !isDecisionCapable(env.hook_event_name)) return;
+  const output = renderFailClosedHookOutput(env, reason);
+  if (output !== undefined) process.stdout.write(JSON.stringify(output));
+}
+
+function parseEnvelope(raw: string): CursorEnvelope | undefined {
+  const text = raw.trim();
+  if (!text) return undefined;
+  try {
+    return JSON.parse(text) as CursorEnvelope;
+  } catch {
+    return undefined;
+  }
+}
+
+async function readHookStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of process.stdin) {
+    const buf = chunk as Buffer;
+    total += buf.length;
+    if (total > MAX_STDIN_BYTES) {
+      throw new Error(
+        `hook stdin exceeded ${MAX_STDIN_BYTES.toLocaleString()} bytes; refusing to buffer further`,
+      );
+    }
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks).toString('utf-8');
+}
+
+export async function runCursorHook(): Promise<void> {
   const cfg = loadConfig();
+  if (!process.env.OPENBOX_HOME) {
+    process.env.OPENBOX_HOME = getConfigDir();
+  }
   createLogger('cursor').initLogger(cfg);
 
-  if (!cfg.openboxApiKey) {
-    if (cfg.verbose) console.error('[openbox cursor] no OPENBOX_API_KEY set, passing through');
+  let raw = '';
+  let env: CursorEnvelope | undefined;
+  try {
+    raw = await readHookStdin();
+    env = parseEnvelope(raw);
+  } catch (err) {
+    if (cfg.verbose) console.error(`[openbox cursor] ${reasonFromError('failed to read hook stdin', err)}`);
     process.exit(0);
   }
 
-  const dryRun = cfg.dryRun;
+  if (!cfg.openboxApiKey) {
+    writeFailClosedIfPossible(env, 'missing OPENBOX_API_KEY');
+    if (cfg.verbose) console.error('[openbox cursor] no OPENBOX_API_KEY set; decision-capable hooks fail closed');
+    process.exit(0);
+  }
+  if (!cfg.openboxEndpoint) {
+    writeFailClosedIfPossible(env, 'missing OPENBOX_CORE_URL');
+    if (cfg.verbose) console.error('[openbox cursor] no OPENBOX_CORE_URL set; decision-capable hooks fail closed');
+    process.exit(0);
+  }
 
   const core = new OpenBoxCoreClient({
     apiKey: cfg.openboxApiKey,
     apiUrl: cfg.openboxEndpoint,
+    agentIdentity: cfg.agentIdentity,
     timeoutMs: cfg.governanceTimeout * 1000,
   });
 
@@ -159,6 +274,7 @@ export async function runCursorHook(): Promise<void> {
     core,
     resolveSession: (env) => resolveSession(env, cfg),
     approvalMaxWaitMs,
+    readStdin: async () => raw,
     // When APPROVAL_MODE=inline, the SDK skips its internal poll loop
     // and the adapter renders permission:'ask' so Cursor's native
     // permission dialog pops in the IDE on every require_approval.
@@ -211,48 +327,48 @@ export async function runCursorHook(): Promise<void> {
       }
     },
     handlers: {
-      beforeSubmitPrompt: logged('beforeSubmitPrompt', 'permission',
-        async (env, s) => dryRun ? undefined : handleBeforeSubmitPrompt(env, s, cfg)),
-      beforeShellExecution: logged('beforeShellExecution', 'permission',
-        async (env, s) => dryRun ? undefined : handleBeforeShellExecution(env, s, cfg)),
-      beforeMCPExecution: logged('beforeMCPExecution', 'permission',
-        async (env, s) => dryRun ? undefined : handleBeforeMCPExecution(env, s, cfg)),
-      beforeReadFile: logged('beforeReadFile', 'permission',
-        async (env, s) => dryRun ? undefined : handleBeforeReadFile(env, s, cfg)),
-      preToolUse: logged('preToolUse', 'permission',
-        async (env, s) => dryRun ? undefined : handlePreToolUse(env, s, cfg)),
-      afterMCPExecution: logged('afterMCPExecution', 'observe',
-        async (env, s) => dryRun ? undefined : handleAfterMCPExecution(env, s, cfg)),
-      afterAgentResponse: logged('afterAgentResponse', 'observe',
-        async (env, s) => dryRun ? undefined : handleAfterAgentResponse(env, s, cfg)),
-      afterAgentThought: logged('afterAgentThought', 'observe',
-        async (env, s) => dryRun ? undefined : handleAfterAgentThought(env, s, cfg)),
-      afterShellExecution: logged('afterShellExecution', 'observe',
-        async (env, s) => dryRun ? undefined : handleAfterShellExecution(env, s, cfg)),
-      afterFileEdit: logged('afterFileEdit', 'observe',
-        async (env, s) => dryRun ? undefined : handleAfterFileEdit(env, s, cfg)),
-      sessionStart: logged('sessionStart', 'none',
-        async (env, s) => dryRun ? undefined : handleSessionStart(env, s, cfg)),
-      stop: logged('stop', 'none',
-        async (env, s) => dryRun ? undefined : handleStop(env, s, cfg)),
+      beforeSubmitPrompt: guarded(cfg, 'beforeSubmitPrompt', 'permission',
+        async (env, s) => handleBeforeSubmitPrompt(env, s, cfg)),
+      beforeShellExecution: guarded(cfg, 'beforeShellExecution', 'permission',
+        async (env, s) => handleBeforeShellExecution(env, s, cfg)),
+      beforeMCPExecution: guarded(cfg, 'beforeMCPExecution', 'permission',
+        async (env, s) => handleBeforeMCPExecution(env, s, cfg)),
+      beforeReadFile: guarded(cfg, 'beforeReadFile', 'permission',
+        async (env, s) => handleBeforeReadFile(env, s, cfg)),
+      preToolUse: guarded(cfg, 'preToolUse', 'permission',
+        async (env, s) => handlePreToolUse(env, s, cfg)),
+      afterMCPExecution: guarded(cfg, 'afterMCPExecution', 'observe',
+        async (env, s) => handleAfterMCPExecution(env, s, cfg)),
+      afterAgentResponse: guarded(cfg, 'afterAgentResponse', 'observe',
+        async (env, s) => handleAfterAgentResponse(env, s, cfg)),
+      afterAgentThought: guarded(cfg, 'afterAgentThought', 'observe',
+        async (env, s) => handleAfterAgentThought(env, s, cfg)),
+      afterShellExecution: guarded(cfg, 'afterShellExecution', 'observe',
+        async (env, s) => handleAfterShellExecution(env, s, cfg)),
+      afterFileEdit: guarded(cfg, 'afterFileEdit', 'observe',
+        async (env, s) => handleAfterFileEdit(env, s, cfg)),
+      sessionStart: guarded(cfg, 'sessionStart', 'none',
+        async (env, s) => handleSessionStart(env, s, cfg)),
+      stop: guarded(cfg, 'stop', 'none',
+        async (env, s) => handleStop(env, s, cfg)),
       // postToolUse / postToolUseFailure carry no payload per the
       // spec (@noPayload). We log them so the OutputChannel tail
       // shows the full lifecycle, but there's nothing to map.
-      postToolUse: logged('postToolUse', 'observe', async () => undefined),
-      postToolUseFailure: logged('postToolUseFailure', 'observe', async () => undefined),
+      postToolUse: guarded(cfg, 'postToolUse', 'observe', async () => undefined),
+      postToolUseFailure: guarded(cfg, 'postToolUseFailure', 'observe', async () => undefined),
       // Tab-driven + lifecycle + subagent coverage.
-      beforeTabFileRead: logged('beforeTabFileRead', 'permission',
-        async (env, s) => dryRun ? undefined : handleBeforeTabFileRead(env, s, cfg)),
-      afterTabFileEdit: logged('afterTabFileEdit', 'observe',
-        async (env, s) => dryRun ? undefined : handleAfterTabFileEdit(env, s, cfg)),
-      sessionEnd: logged('sessionEnd', 'none',
-        async (env, s) => dryRun ? undefined : handleSessionEnd(env, s, cfg)),
-      preCompact: logged('preCompact', 'observe',
-        async (env, s) => dryRun ? undefined : handlePreCompact(env, s, cfg)),
-      subagentStart: logged('subagentStart', 'permission',
-        async (env, s) => dryRun ? undefined : handleSubagentStart(env, s, cfg)),
-      subagentStop: logged('subagentStop', 'observe',
-        async (env, s) => dryRun ? undefined : handleSubagentStop(env, s, cfg)),
+      beforeTabFileRead: guarded(cfg, 'beforeTabFileRead', 'permission',
+        async (env, s) => handleBeforeTabFileRead(env, s, cfg)),
+      afterTabFileEdit: guarded(cfg, 'afterTabFileEdit', 'observe',
+        async (env, s) => handleAfterTabFileEdit(env, s, cfg)),
+      sessionEnd: guarded(cfg, 'sessionEnd', 'none',
+        async (env, s) => handleSessionEnd(env, s, cfg)),
+      preCompact: guarded(cfg, 'preCompact', 'observe',
+        async (env, s) => handlePreCompact(env, s, cfg)),
+      subagentStart: guarded(cfg, 'subagentStart', 'permission',
+        async (env, s) => handleSubagentStart(env, s, cfg)),
+      subagentStop: guarded(cfg, 'subagentStop', 'observe',
+        async (env, s) => handleSubagentStop(env, s, cfg)),
     },
   }).run();
 }

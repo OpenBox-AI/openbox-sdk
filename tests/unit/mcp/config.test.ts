@@ -37,11 +37,6 @@ describe('readTokens', () => {
     expect(tokens.apiKey).toBe('obx_key_test');
   });
 
-  it('ignores legacy env-prefixed token entries', () => {
-    writeFileSync(tokensPath, 'production.API_KEY=legacy\n');
-    expect(() => readTokens({ tokensPath })).toThrow(/No API_KEY/);
-  });
-
   it('throws when the tokens file does not exist', () => {
     expect(() => readTokens({ tokensPath: join(tmpDir, 'does-not-exist') })).toThrow(/No tokens at/);
   });

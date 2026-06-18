@@ -1,9 +1,9 @@
 // CLI helpers, public-library entry points, and thin command-wrapper
 // registrations. Covers every module that doesn't justify a dedicated
 // per-module test file but still needs behavioral assertions:
-//   - Constant exports (SKIP_PATTERNS, ACTIVITY_TYPES, COMMAND_PERMISSIONS)
+//   - Constant exports (redaction patterns, ACTIVITY_TYPES, COMMAND_PERMISSIONS)
 //   - Public library helpers (output, colors, exit-codes, non-interactive,
-//     maturity, features); call each export with a real argument and
+//     maturity); call each export with a real argument and
 //     assert observable behavior, not just module shape.
 //   - Stable command wrappers (mcp, claude-code, cursor, skill,
 //     install); register against a fresh Commander and assert
@@ -16,13 +16,14 @@ import { describe, it, expect } from 'vitest';
 import { Command } from 'commander';
 
 describe('thin exports', () => {
-  it('governance/skip-patterns exports SKIP_PATTERNS', async () => {
-    const { SKIP_PATTERNS } = await import('../../ts/src/governance/skip-patterns');
-    expect(Array.isArray(SKIP_PATTERNS)).toBe(true);
-    expect(SKIP_PATTERNS.length).toBeGreaterThan(0);
-    expect(SKIP_PATTERNS.every((p) => p instanceof RegExp)).toBe(true);
-    // Spot-check: cursor / claude internals must skip.
-    expect(SKIP_PATTERNS.some((re) => re.test('/.cursor/foo'))).toBe(true);
+  it('governance/skip-patterns exports redaction patterns', async () => {
+    const { REDACT_PATH_CONTENT_PATTERNS, shouldRedactPathContent } = await import(
+      '../../ts/src/governance/skip-patterns'
+    );
+    expect(Array.isArray(REDACT_PATH_CONTENT_PATTERNS)).toBe(true);
+    expect(REDACT_PATH_CONTENT_PATTERNS.length).toBeGreaterThan(0);
+    expect(REDACT_PATH_CONTENT_PATTERNS.every((p) => p instanceof RegExp)).toBe(true);
+    expect(shouldRedactPathContent('/.cursor/foo')).toBe(true);
   });
 
   it('runtime/claude-code/activity-types exports the canonical map', async () => {
@@ -38,23 +39,12 @@ describe('thin exports', () => {
   });
 
   it('cli/permissions exports COMMAND_PERMISSIONS + missingPermissions', async () => {
-    const { COMMAND_PERMISSIONS, missingPermissions, missingFeatures } = await import(
+    const { COMMAND_PERMISSIONS, missingPermissions } = await import(
       '../../ts/src/cli/permissions'
     );
     expect(typeof COMMAND_PERMISSIONS).toBe('object');
     expect(missingPermissions(['create:agent'], ['create:agent', 'read:agent'])).toEqual([]);
     expect(missingPermissions(['create:agent'], ['read:agent'])).toEqual(['create:agent']);
-    expect(missingFeatures(['webhooks'], { webhooks: true })).toEqual([]);
-    expect(missingFeatures(['webhooks'], { webhooks: false })).toEqual(['webhooks']);
-  });
-
-  it('cli/features integration helpers wire to the public maturity gate', async () => {
-    const mod = await import('../../ts/src/cli/features');
-    expect(typeof mod.setExplicitFeatures).toBe('function');
-    // setExplicitFeatures forwards to enableFeatures; call it twice
-    // to exercise both branches (empty + non-empty).
-    mod.setExplicitFeatures([]);
-    mod.setExplicitFeatures(['some.feature']);
   });
 });
 
@@ -71,13 +61,13 @@ describe('command-group wrappers register subcommands', () => {
     // claude-code and cursor retain their runtime verbs. Both expose
     // plugin export/install helpers; one-command setup lives at
     // `openbox install <host>`.
-    { name: 'claude-code', mod: '../../ts/src/cli/commands/claude-code', register: 'registerClaudeCodeCommands', verbs: ['hook', 'plugin', 'install', 'uninstall'] },
+    { name: 'claude-code', mod: '../../ts/src/cli/commands/claude-code', register: 'registerClaudeCodeCommands', verbs: ['hook', 'plugin', 'doctor'], absent: ['install', 'uninstall'] },
     {
       name: 'cursor',
       mod: '../../ts/src/cli/commands/cursor',
       register: 'registerCursorCommands',
-      verbs: ['hook', 'plugin', 'install', 'uninstall', 'doctor'],
-      absent: ['harden', 'unharden', 'sync-rules'],
+      verbs: ['hook', 'plugin', 'doctor'],
+      absent: ['install', 'uninstall', 'harden', 'unharden', 'sync-rules'],
     },
     { name: 'skill', mod: '../../ts/src/cli/commands/skill', register: 'registerSkillCommands', verbs: ['path'] },
     { name: 'install', mod: '../../ts/src/cli/commands/install', register: 'registerInstallCommands', verbs: ['cursor', 'claude-code'] },
@@ -291,13 +281,4 @@ describe('public library entry points', () => {
     mod.setMaturityLevel(null);
   });
 
-  it('cli/maturity gateCommands prunes and tags the tree', async () => {
-    const { gateCommands } = await import('../../ts/src/cli/maturity');
-    const program = new Command();
-    program.command('agent').description('Agent management').command('list');
-    program.command('made-up-experimental').description('not real');
-    // Just exercise the walk; we don't depend on a specific result.
-    gateCommands(program);
-    expect(typeof gateCommands).toBe('function');
-  });
 });

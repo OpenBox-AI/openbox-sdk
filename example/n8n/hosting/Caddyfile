@@ -1,4 +1,4 @@
-{$N8N_HOST:ipsum.lat} {
+{$N8N_HOST:example.test} {
 	encode zstd gzip
 
 	header {

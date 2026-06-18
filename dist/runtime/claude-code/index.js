@@ -327,15 +327,11 @@ var BaseGovernedSession = class {
   async emitWithSpanHook(event) {
     const hasActivitySpans = (event.event_type === "ActivityStarted" || event.event_type === "ActivityCompleted") && Array.isArray(event.spans) && event.spans.some(isPersistableHookSpan);
     if (!hasActivitySpans) return this.emit(event);
-    const baseVerdict = await this.emit({ ...event, spans: void 0 });
-    if (baseVerdict.arm !== "allow" && baseVerdict.arm !== "constrain") {
-      return baseVerdict;
-    }
-    const hookVerdict = await this.emit({
+    return await this.emit({
       ...event,
+      attempt: event.attempt ?? 1,
       hook_trigger: true
     });
-    return stricterVerdict(baseVerdict, hookVerdict);
   }
   async emit(event) {
     const payload = {
@@ -1116,6 +1112,21 @@ function normalizeGuardrailFieldStatus(value) {
   }
 }
 function normalizeArm(value) {
+  if (typeof value === "number") {
+    switch (value) {
+      case 1:
+        return "constrain";
+      case 2:
+        return "require_approval";
+      case 3:
+        return "block";
+      case 4:
+        return "halt";
+      case 0:
+      default:
+        return "allow";
+    }
+  }
   switch (value) {
     case "allow":
     case "continue":
@@ -1134,24 +1145,6 @@ function normalizeArm(value) {
       return "allow";
   }
 }
-function verdictRank(arm) {
-  switch (arm) {
-    case "halt":
-      return 4;
-    case "block":
-      return 3;
-    case "require_approval":
-      return 2;
-    case "constrain":
-      return 1;
-    case "allow":
-    default:
-      return 0;
-  }
-}
-function stricterVerdict(base2, hook) {
-  return verdictRank(hook.arm) >= verdictRank(base2.arm) ? hook : base2;
-}
 function isPersistableHookSpan(span) {
   if (!span || typeof span !== "object") return false;
   const record = span;
@@ -1159,7 +1152,7 @@ function isPersistableHookSpan(span) {
     return true;
   }
   const attributes = record.attributes && typeof record.attributes === "object" ? record.attributes : {};
-  return typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
+  return typeof record.db_statement === "string" || typeof record.db_operation === "string" || typeof record.db_system === "string" || typeof attributes["db.statement"] === "string" || typeof attributes["db.operation"] === "string" || typeof attributes["db.system"] === "string" || typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
 }
 function errorInfoFrom(value) {
   if (value == null) return void 0;
@@ -1169,7 +1162,7 @@ function errorInfoFrom(value) {
   return { type: typeof value, message: String(value) };
 }
 function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve2) => setTimeout(resolve2, ms));
 }
 function applyJitter(baseMs, fraction) {
   const f = Math.max(0, Math.min(1, fraction));
@@ -1305,7 +1298,9 @@ var HOOK_SPEC = {
       "name": "SessionStart"
     },
     {
-      "name": "SessionEnd"
+      "name": "SessionEnd",
+      "timeout": 86400,
+      "installDefault": false
     },
     {
       "name": "SubagentStart"
@@ -1355,10 +1350,10 @@ var HOOK_SPEC = {
     }
   ]
 };
-function getPath(env, path8) {
+function getPath(env, path10) {
   if (env == null || typeof env !== "object") return void 0;
   let cur = env;
-  for (const seg of path8.split(".")) {
+  for (const seg of path10.split(".")) {
     if (cur == null || typeof cur !== "object") return void 0;
     cur = cur[seg];
   }
@@ -1485,7 +1480,7 @@ function buildPreToolUsePayload(env, toolName, sideEffects2 = {}) {
 function buildPostToolUsePayload(env, sideEffects2 = {}) {
   return {
     "tool_name": getPath(env, "tool_name"),
-    "output": sideEffects2.stringifyTruncate?.(getPath(env, "tool_output")) ?? "",
+    "output": sideEffects2.stringifyTruncate?.(getPath(env, "tool_response")) ?? "",
     "event_category": "agent_observation"
   };
 }
@@ -1672,6 +1667,7 @@ function buildTaskCompletedPayload(env) {
 function buildStopPayload(env) {
   return {
     "cwd": getPath(env, "cwd"),
+    "stop_hook_active": getPath(env, "stop_hook_active"),
     "last_assistant_message": getPath(env, "last_assistant_message"),
     "background_tasks": getPath(env, "background_tasks"),
     "session_crons": getPath(env, "session_crons"),
@@ -2025,6 +2021,16 @@ function brand(raw) {
   if (!sanitized) return "";
   return sanitized.startsWith("[OpenBox]") ? sanitized : "[OpenBox] " + sanitized;
 }
+function redactedInput(v) {
+  return v?.guardrailsResult?.redactedInput;
+}
+function objectRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return void 0;
+  return value;
+}
+function addIfDefined(target, key, value) {
+  if (value !== void 0) target[key] = value;
+}
 function renderVerdictOutput(shape, v, env, deferApproval = false) {
   const arm = v?.arm ?? "allow";
   const reason = brand(v?.reason ?? "");
@@ -2032,11 +2038,16 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
     case "permission-decision": {
       const eventName = env.hook_event_name ?? "PreToolUse";
       if (arm === "allow" || arm === "constrain") {
+        const hookSpecificOutput = {
+          hookEventName: eventName,
+          permissionDecision: "allow"
+        };
+        if (arm === "constrain") {
+          addIfDefined(hookSpecificOutput, "updatedInput", objectRecord(redactedInput(v)));
+          if (reason) hookSpecificOutput.additionalContext = reason;
+        }
         return {
-          hookSpecificOutput: {
-            hookEventName: eventName,
-            permissionDecision: "allow"
-          }
+          hookSpecificOutput
         };
       }
       if (arm === "require_approval") {
@@ -2063,15 +2074,34 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
           reason: reason || "[OpenBox] blocked by policy"
         };
       }
+      if (arm === "require_approval") {
+        const approvalReason = reason.replace(/^\[OpenBox\] /, "").trim();
+        return {
+          decision: "block",
+          reason: "[OpenBox] approval pending" + (approvalReason ? ": " + approvalReason : "") + ". Approve in OpenBox, then ask the agent to retry."
+        };
+      }
+      if (arm === "constrain" && reason) {
+        const hookSpecificOutput = {
+          hookEventName: env.hook_event_name ?? "ClaudeCode",
+          additionalContext: reason
+        };
+        addIfDefined(hookSpecificOutput, "updatedToolOutput", redactedInput(v));
+        return { hookSpecificOutput };
+      }
       return {};
     }
     case "permission-request": {
       const eventName = env.hook_event_name ?? "PermissionRequest";
       if (arm === "allow" || arm === "constrain") {
+        const decision = { behavior: "allow" };
+        if (arm === "constrain") {
+          addIfDefined(decision, "updatedInput", objectRecord(redactedInput(v)));
+        }
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            decision: { behavior: "allow" }
+            decision
           }
         };
       }
@@ -2104,7 +2134,16 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
     }
     case "elicitation-response": {
       const eventName = env.hook_event_name ?? "Elicitation";
-      if (arm === "allow" || arm === "constrain") return {};
+      if (arm === "allow") return {};
+      if (arm === "constrain") {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            action: "accept",
+            content: redactedInput(v) ?? env.response ?? env.content ?? {}
+          }
+        };
+      }
       return {
         hookSpecificOutput: {
           hookEventName: eventName,
@@ -2121,7 +2160,7 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
       };
     }
     case "additional-context": {
-      if (arm === "allow" || arm === "constrain") return {};
+      if (arm === "allow") return {};
       return {
         hookSpecificOutput: {
           hookEventName: env.hook_event_name ?? "PostToolUseFailure",
@@ -2189,6 +2228,28 @@ function renderVerdictOutput(shape, v, env, deferApproval = false) {
 // ts/src/core-client/core-client.ts
 import { createHash, createPrivateKey, randomUUID as randomUUID2, sign } from "crypto";
 
+// ts/src/env/generated/env-bindings.ts
+var API_KEY_PATTERN = /^obx_(?:live|test)_[0-9a-f]{48}$/;
+function validateApiKeyFormat(value) {
+  if (!API_KEY_PATTERN.test(value)) {
+    return "OPENBOX_API_KEY must match obx_(live|test)_<48hex>";
+  }
+  return true;
+}
+
+// ts/src/env/agent-identity.ts
+function resolveAgentIdentity(source = process.env) {
+  const did = source.OPENBOX_AGENT_DID;
+  const privateKey = source.OPENBOX_AGENT_PRIVATE_KEY;
+  if (!did && !privateKey) return void 0;
+  if (!did || !privateKey) {
+    throw new Error(
+      "OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY."
+    );
+  }
+  return { did, privateKey };
+}
+
 // ts/src/client/rate-limiter.ts
 var TokenBucket = class {
   tokens;
@@ -2209,11 +2270,11 @@ var TokenBucket = class {
       return;
     }
     const waitMs = (1 - this.tokens) / this.refillRate;
-    return new Promise((resolve) => {
+    return new Promise((resolve2) => {
       setTimeout(() => {
         this.refill();
         this.tokens -= 1;
-        resolve();
+        resolve2();
       }, waitMs);
     });
   }
@@ -2262,8 +2323,8 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
    * exists for operationId-driven callers that already resolved a
    * generated endpoint manifest entry.
    */
-  async requestOperation(method, path8, options) {
-    const renderedPath = appendQuery(path8, options?.params);
+  async requestOperation(method, path10, options) {
+    const renderedPath = appendQuery(path10, options?.params);
     return this.request(method, renderedPath, { data: options?.data });
   }
   async health() {
@@ -2288,11 +2349,11 @@ var OpenBoxCoreClient = class _OpenBoxCoreClient {
   // Private helpers
   // =========================================================================
   static RETRYABLE_STATUSES = /* @__PURE__ */ new Set([429, 500, 502, 503, 504]);
-  async request(method, path8, options) {
+  async request(method, path10, options) {
     if (this.rateLimiter) {
       await this.rateLimiter.acquire();
     }
-    const url = `${this.baseUrl}${path8}`;
+    const url = `${this.baseUrl}${path10}`;
     const timeoutMs = this.config.timeoutMs ?? 35e3;
     const baseHeaders = {
       "Content-Type": "application/json",
@@ -2397,8 +2458,8 @@ function requireCoreUrl(value) {
   url.pathname = url.pathname.replace(/\/+$/, "");
   return url.toString().replace(/\/$/, "");
 }
-function appendQuery(path8, params) {
-  if (!params) return path8;
+function appendQuery(path10, params) {
+  if (!params) return path10;
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value === void 0 || value === null) continue;
@@ -2411,8 +2472,8 @@ function appendQuery(path8, params) {
     }
   }
   const query = search.toString();
-  if (!query) return path8;
-  return `${path8}${path8.includes("?") ? "&" : "?"}${query}`;
+  if (!query) return path10;
+  return `${path10}${path10.includes("?") ? "&" : "?"}${query}`;
 }
 var ED25519_PKCS8_PREFIX = Buffer.from("302e020100300506032b657004220420", "hex");
 function signAgentIdentityRequest(input) {
@@ -2516,20 +2577,19 @@ function loadConfig() {
     if (envConfig[key] !== void 0) return envConfig[key];
     return fileFallback ?? "";
   };
-  const skipToolsRaw = get("SKIP_TOOLS", "Glob,Grep");
-  const skipTools = skipToolsRaw ? skipToolsRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
-  const skipActivityRaw = get("SKIP_ACTIVITY_TYPES");
-  const skipActivityTypes = skipActivityRaw ? skipActivityRaw.split(",").map((s) => s.trim()).filter(Boolean) : [];
   const coreUrl = process.env.OPENBOX_CORE_URL ?? fileConfig.OPENBOX_CORE_URL ?? envConfig.OPENBOX_CORE_URL ?? "";
   return {
     openboxApiKey: get("OPENBOX_API_KEY"),
     openboxEndpoint: coreUrl,
-    governancePolicy: get("GOVERNANCE_POLICY", "fail_open"),
+    agentIdentity: resolveAgentIdentity({
+      OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID") || void 0,
+      OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY") || void 0
+    }),
+    governancePolicy: "fail_closed",
     governanceTimeout: parseInt(get("GOVERNANCE_TIMEOUT", "15"), 10) || 15,
     sessionDir: get("SESSION_DIR", path.join(CONFIG_DIR, "sessions")),
     logFile: get("LOG_FILE", path.join(CONFIG_DIR, "hook.log")) || null,
     verbose: get("VERBOSE") === "true" || get("VERBOSE") === "1",
-    dryRun: get("DRY_RUN") === "true" || get("DRY_RUN") === "1",
     hitlEnabled: get("HITL_ENABLED", "true") !== "false",
     hitlPollInterval: parseInt(get("HITL_POLL_INTERVAL", "5"), 10) || 5,
     hitlMaxWait: parseInt(get("HITL_MAX_WAIT", "300"), 10) || 300,
@@ -2537,77 +2597,18 @@ function loadConfig() {
     taskQueue: get("TASK_QUEUE", "claude-code"),
     sendStartEvent: get("SEND_START_EVENT", "true") !== "false",
     sendActivityStartEvent: get("SEND_ACTIVITY_START_EVENT", "true") !== "false",
-    maxBodySize: get("MAX_BODY_SIZE") ? parseInt(get("MAX_BODY_SIZE"), 10) || null : null,
-    skipTools,
-    skipActivityTypes
+    maxBodySize: get("MAX_BODY_SIZE") ? parseInt(get("MAX_BODY_SIZE"), 10) || null : null
   };
 }
 var loadConfigFile = () => loadJsonConfig(CONFIG_FILE);
 var loadEnvFile = () => loadDotenv(ENV_FILE);
+function getConfigDir() {
+  return CONFIG_DIR;
+}
 function parseApprovalMode(value) {
   const mode = value.toLowerCase();
   if (mode === "inline" || mode === "defer") return mode;
   return "remote";
-}
-
-// ts/src/config/store.ts
-import { existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, writeFileSync } from "fs";
-import { dirname } from "path";
-
-// ts/src/env/os-paths.ts
-import { homedir } from "os";
-import { join } from "path";
-function openboxDataRoot() {
-  const override = process.env.OPENBOX_HOME;
-  if (override) return override;
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA ?? join(homedir(), "AppData", "Roaming");
-    return join(appData, "openbox");
-  }
-  if (process.platform === "linux") {
-    const xdg = process.env.XDG_DATA_HOME;
-    if (xdg) return join(xdg, "openbox");
-  }
-  return join(homedir(), ".openbox");
-}
-var resolveOsPath = (scope) => {
-  return join(openboxDataRoot(), scope);
-};
-
-// ts/src/config/store.ts
-function getPath2() {
-  const path8 = resolveOsPath("config");
-  const dir = dirname(path8);
-  if (!existsSync2(dir)) mkdirSync(dir, { recursive: true });
-  return path8;
-}
-function read() {
-  const path8 = getPath2();
-  if (!existsSync2(path8)) return {};
-  const out = {};
-  for (const line of readFileSync2(path8, "utf-8").split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq < 0) continue;
-    const key = trimmed.slice(0, eq).trim();
-    const value = trimmed.slice(eq + 1).trim();
-    if (key && !key.includes(".")) out[key] = value;
-  }
-  return out;
-}
-function listConfig() {
-  return read();
-}
-function applyConfigToProcessEnv() {
-  for (const [key, value] of Object.entries(listConfig())) {
-    if (process.env[key] === void 0) process.env[key] = value;
-  }
-}
-
-// ts/src/cli/env-source.ts
-function applyEnvSource() {
-  applyConfigToProcessEnv();
 }
 
 // ts/src/logging/logger.ts
@@ -2762,6 +2763,16 @@ function clearSession(sessionId, cfg) {
 // ts/src/logging/hook-log.ts
 import * as fs5 from "fs";
 import * as path4 from "path";
+
+// ts/src/env/os-paths.ts
+import { join, resolve } from "path";
+function openboxDataRoot() {
+  const override = process.env.OPENBOX_HOME;
+  if (override) return resolve(override);
+  return resolve(process.cwd(), ".openbox");
+}
+
+// ts/src/logging/hook-log.ts
 function logDir() {
   return path4.join(openboxDataRoot(), "log");
 }
@@ -2814,6 +2825,7 @@ var ACTIVITY_TYPES = {
   FILE_DELETE: "FileDelete",
   SHELL: "ShellExecution",
   HTTP_REQUEST: "HTTPRequest",
+  DB_QUERY: "DatabaseQuery",
   MCP_CALL: "MCPToolCall",
   AGENT_SPAWN: "AgentSpawn",
   AGENT_ACTION: "AgentAction",
@@ -2824,22 +2836,6 @@ var ACTIVITY_TYPES = {
   TASK: "ClaudeCodeTask",
   MESSAGE: "ClaudeCodeMessage"
 };
-
-// ts/src/governance/skip-patterns.ts
-import path5 from "path";
-var SKIP_PATTERNS = [
-  /\.cursor\//,
-  /\.claude\//,
-  /\/mcps\//,
-  /\/node_modules\//,
-  /\.git\//,
-  /INSTRUCTIONS\.md$/,
-  /SERVER_METADATA\.json$/,
-  /SKILL\.md$/
-];
-function isSkipped(filePath) {
-  return SKIP_PATTERNS.some((p) => p.test(filePath));
-}
 
 // ts/src/governance/spans.ts
 function hex(len) {
@@ -2864,10 +2860,129 @@ function base() {
     error: null
   };
 }
+function objectRecord2(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function parseJsonRecord(value) {
+  if (typeof value === "string") {
+    try {
+      return objectRecord2(JSON.parse(value));
+    } catch {
+      return {};
+    }
+  }
+  return objectRecord2(value);
+}
+function stringifyBody(value) {
+  if (value === void 0) return void 0;
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+function toPositiveInteger(value) {
+  const numberValue = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : void 0;
+  if (numberValue === void 0 || !Number.isFinite(numberValue) || numberValue <= 0)
+    return void 0;
+  return Math.trunc(numberValue);
+}
+function normalizeUsage(usage) {
+  if (!usage) return void 0;
+  const promptTokens = toPositiveInteger(
+    usage.promptTokens ?? usage.inputTokens
+  );
+  const completionTokens = toPositiveInteger(
+    usage.completionTokens ?? usage.outputTokens
+  );
+  const totalTokens = toPositiveInteger(usage.totalTokens);
+  const normalized = {};
+  if (promptTokens !== void 0) {
+    normalized.prompt_tokens = promptTokens;
+    normalized.input_tokens = promptTokens;
+  }
+  if (completionTokens !== void 0) {
+    normalized.completion_tokens = completionTokens;
+    normalized.output_tokens = completionTokens;
+  }
+  if (totalTokens !== void 0) normalized.total_tokens = totalTokens;
+  return Object.keys(normalized).length > 0 ? normalized : void 0;
+}
+function buildLLMCompletionResponseBody(content, metadata = {}) {
+  const body = parseJsonRecord(metadata.responseBody);
+  if (!Array.isArray(body.choices)) {
+    body.choices = [
+      {
+        message: { content }
+      }
+    ];
+  }
+  if (metadata.model && typeof body.model !== "string") {
+    body.model = metadata.model;
+  }
+  const usage = normalizeUsage(metadata.usage);
+  if (usage && Object.keys(objectRecord2(body.usage)).length === 0) {
+    body.usage = usage;
+  }
+  return JSON.stringify(body);
+}
+function buildLLMCompletionSpan(input) {
+  const now = Date.now();
+  const source = input.span ?? {};
+  const usage = normalizeUsage(input.usage);
+  const inputTokens = toPositiveInteger(
+    usage?.input_tokens ?? usage?.prompt_tokens
+  );
+  const outputTokens = toPositiveInteger(
+    usage?.output_tokens ?? usage?.completion_tokens
+  );
+  const httpUrl = input.providerUrl ?? source.http_url ?? (typeof source.attributes?.["http.url"] === "string" ? source.attributes["http.url"] : "https://api.openai.com/v1/chat/completions");
+  return {
+    ...source,
+    span_id: source.span_id ?? hex(16),
+    trace_id: source.trace_id ?? hex(32),
+    name: input.name ?? source.name ?? "llm.chat.completion",
+    kind: input.kind ?? source.kind ?? "CLIENT",
+    start_time: input.startTime ?? source.start_time ?? now,
+    end_time: input.endTime ?? source.end_time ?? now,
+    duration_ns: input.durationNs ?? source.duration_ns ?? 0,
+    span_type: "function",
+    stage: "completed",
+    semantic_type: "llm_completion",
+    attributes: {
+      "gen_ai.system": input.system ?? "openbox-sdk",
+      ...input.model ? { "gen_ai.request.model": input.model } : {},
+      ...input.model ? { "gen_ai.response.model": input.model } : {},
+      ...inputTokens !== void 0 ? { "gen_ai.usage.input_tokens": inputTokens } : {},
+      ...outputTokens !== void 0 ? { "gen_ai.usage.output_tokens": outputTokens } : {},
+      "http.method": "POST",
+      "http.url": httpUrl,
+      "openbox.semantic_type": "llm_completion",
+      "openbox.span_type": "function",
+      ...source.attributes ?? {},
+      ...input.attributes ?? {}
+    },
+    ...input.model ? { model: input.model } : {},
+    ...inputTokens !== void 0 ? { input_tokens: inputTokens } : {},
+    ...outputTokens !== void 0 ? { output_tokens: outputTokens } : {},
+    http_method: source.http_method ?? "POST",
+    http_url: httpUrl,
+    request_body: stringifyBody(input.requestBody) ?? source.request_body ?? void 0,
+    data: input.data ?? source.data,
+    response_body: buildLLMCompletionResponseBody(input.content, {
+      model: input.model,
+      usage: input.usage,
+      responseBody: input.responseBody ?? source.response_body
+    })
+  };
+}
 function buildSpan(host, type, input) {
   const b = base();
   switch (type) {
     case "llm":
+      const usage = normalizeUsage(input.usage);
+      const inputTokens = toPositiveInteger(
+        usage?.input_tokens ?? usage?.prompt_tokens
+      );
+      const outputTokens = toPositiveInteger(
+        usage?.output_tokens ?? usage?.completion_tokens
+      );
       return {
         ...b,
         name: "llm.chat.completion",
@@ -2876,11 +2991,18 @@ function buildSpan(host, type, input) {
         semantic_type: "llm_completion",
         attributes: {
           "gen_ai.system": host,
+          ...input.model ? { "gen_ai.request.model": input.model } : {},
+          ...input.model ? { "gen_ai.response.model": input.model } : {},
+          ...inputTokens !== void 0 ? { "gen_ai.usage.input_tokens": inputTokens } : {},
+          ...outputTokens !== void 0 ? { "gen_ai.usage.output_tokens": outputTokens } : {},
           "http.method": "POST",
           "http.url": "https://api.openai.com/v1/chat/completions",
           "openbox.semantic_type": "llm_completion",
           "openbox.span_type": "function"
         },
+        ...input.model ? { model: input.model } : {},
+        ...inputTokens !== void 0 ? { input_tokens: inputTokens } : {},
+        ...outputTokens !== void 0 ? { output_tokens: outputTokens } : {},
         function: "LLMCall",
         module: host,
         args: input,
@@ -3016,7 +3138,7 @@ function buildSpan(host, type, input) {
       const dbStatement = input.db_statement ?? `${dbOperation} statement`;
       return {
         ...b,
-        name: `${dbOperation} ${dbStatement.split(" ").slice(0, 3).join(" ")}`,
+        name: dbOperation,
         span_type: "database",
         hook_type: "db_query",
         semantic_type: `database_${dbOperation.toLowerCase()}`,
@@ -3050,14 +3172,44 @@ function stampSource(payload, host) {
 
 // ts/src/runtime/claude-code/side-effects.ts
 import * as fs6 from "fs";
+
+// ts/src/governance/skip-patterns.ts
+import path5 from "path";
+var REDACT_PATH_CONTENT_PATTERNS = [
+  /\.cursor\//,
+  /\.claude\//,
+  /\/mcps\//,
+  /\/node_modules\//,
+  /\.git\//,
+  /INSTRUCTIONS\.md$/,
+  /SERVER_METADATA\.json$/,
+  /SKILL\.md$/
+];
+function shouldRedactPathContent(filePath) {
+  return REDACT_PATH_CONTENT_PATTERNS.some((p) => p.test(filePath)) || isSensitivePath(filePath);
+}
+var SENSITIVE_PATH_PATTERNS = [
+  /(^|\/)\.env($|[./-])/,
+  /(^|\/)\.env\.[^/]+$/,
+  /(^|\/)(id_rsa|id_dsa|id_ecdsa|id_ed25519)(\.pub)?$/,
+  /(^|\/)(credentials|secrets?|token|tokens)\.(json|ya?ml|toml|ini|env|txt)$/,
+  /(^|\/)(credentials|config)$/,
+  /\.(pem|key|p12|pfx|crt)$/i,
+  /(^|\/)\.aws\/credentials$/,
+  /(^|\/)\.openbox\/tokens$/
+];
+function isSensitivePath(filePath) {
+  return SENSITIVE_PATH_PATTERNS.some((p) => p.test(filePath));
+}
+
+// ts/src/runtime/claude-code/side-effects.ts
 var TRUNCATE_LIMIT = 5e3;
 var sideEffects = {
-  /** Read the file at the given path; returns '' on missing/unreadable
-   *  files and on paths the SKIP_PATTERNS list flags as IDE/secret
-   *  internals so PII scanning can't false-HALT on metadata reads. */
+  /** Read the file at the given path unless the path is metadata or
+   *  secret-like. Redacted files are still governed by path/span data. */
   readFile(input) {
     if (typeof input !== "string" || !input) return "";
-    if (isSkipped(input)) return "";
+    if (shouldRedactPathContent(input)) return "[OpenBox redacted file content]";
     try {
       return fs6.existsSync(input) ? fs6.readFileSync(input, "utf-8") : "";
     } catch {
@@ -3073,89 +3225,239 @@ var sideEffects = {
   }
 };
 
+// ts/src/runtime/claude-code/tool-activity-store.ts
+import { createHash as createHash2 } from "crypto";
+import path6 from "path";
+var stores2 = /* @__PURE__ */ new WeakMap();
+function storeFor(cfg) {
+  let store = stores2.get(cfg);
+  if (!store) {
+    store = new SessionStore(path6.join(cfg.sessionDir, "tool-activities"));
+    stores2.set(cfg, store);
+  }
+  return store;
+}
+function stableStringify(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  const obj = value;
+  return `{${Object.keys(obj).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(obj[key])}`).join(",")}}`;
+}
+function toolActivityKey(env) {
+  if (env.tool_use_id) {
+    return `${env.session_id}:${env.tool_use_id}`;
+  }
+  const digest = createHash2("sha256").update(env.session_id).update("\0").update(env.tool_name ?? "").update("\0").update(stableStringify(env.tool_input ?? null)).digest("hex").slice(0, 32);
+  return `${env.session_id}:${digest}`;
+}
+function rememberToolActivity(env, cfg, activity) {
+  storeFor(cfg).save(toolActivityKey(env), { ...activity });
+}
+function takeToolActivity(env, cfg) {
+  const key = toolActivityKey(env);
+  const store = storeFor(cfg);
+  const record = store.load(key);
+  store.delete(key);
+  if (!record || typeof record.activityId !== "string" || typeof record.activityType !== "string" || typeof record.startTime !== "number") {
+    return null;
+  }
+  return {
+    activityId: record.activityId,
+    activityType: record.activityType,
+    startTime: record.startTime
+  };
+}
+
+// ts/src/runtime/claude-code/mappers/tool-input.ts
+function firstString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return void 0;
+}
+function filePathFor(toolInput) {
+  return firstString(
+    toolInput.file_path,
+    toolInput.filePath,
+    toolInput.path,
+    toolInput.notebook_path
+  );
+}
+function httpTargetFor(toolInput) {
+  return firstString(
+    toolInput.url,
+    toolInput.uri,
+    toolInput.href,
+    toolInput.query
+  );
+}
+function httpMethodFor(toolInput) {
+  return firstString(
+    toolInput.method,
+    toolInput.http_method,
+    toolInput.httpMethod
+  )?.toUpperCase() ?? "GET";
+}
+function dbStatementFor(toolInput) {
+  return firstString(
+    toolInput.db_statement,
+    toolInput.dbStatement,
+    toolInput.statement,
+    toolInput.sql,
+    toolInput.query
+  );
+}
+function dbSystemFor(toolName, toolInput) {
+  const explicit = firstString(
+    toolInput.db_system,
+    toolInput.dbSystem,
+    toolInput.system,
+    toolInput.database_system
+  );
+  if (explicit) return explicit;
+  const lowerName = toolName.toLowerCase();
+  if (lowerName.includes("sqlite")) return "sqlite";
+  if (lowerName.includes("mysql")) return "mysql";
+  if (lowerName.includes("postgres")) return "postgresql";
+  return "postgresql";
+}
+function dbOperationFor(toolInput) {
+  const explicit = firstString(
+    toolInput.db_operation,
+    toolInput.dbOperation,
+    toolInput.operation
+  );
+  if (explicit) return explicit.toUpperCase();
+  if (dbStatementFor(toolInput)) return "QUERY";
+  return "QUERY";
+}
+function isDatabaseMcpTool(toolName, toolInput) {
+  if (!toolName.startsWith("mcp__")) return false;
+  const lowerName = toolName.toLowerCase();
+  const nameLooksDatabase = lowerName.includes("db") || lowerName.includes("sql") || lowerName.includes("database") || lowerName.includes("postgres") || lowerName.includes("mysql") || lowerName.includes("sqlite");
+  if (!nameLooksDatabase) return false;
+  return Boolean(dbStatementFor(toolInput)) || lowerName.includes("query") || lowerName.includes("execute") || lowerName.includes("select");
+}
+
 // ts/src/runtime/claude-code/mappers/pre-tool-use.ts
-function activityTypeFor(toolName) {
+function activityTypeFor(toolName, toolInput) {
   const direct = PRE_TOOL_USE_ROUTING[toolName];
   if (direct) return direct;
+  if (isDatabaseMcpTool(toolName, toolInput)) return ACTIVITY_TYPES.DB_QUERY;
   if (toolName.startsWith("mcp__")) return ACTIVITY_TYPES.MCP_CALL;
   return ACTIVITY_TYPES.AGENT_ACTION;
 }
-function spanTypeFor(toolName) {
+function spanTypeFor(toolName, toolInput) {
   if (toolName === "Read" || toolName === "NotebookRead" || toolName === "Glob" || toolName === "Grep") return "file_read";
   if (toolName === "Write" || toolName === "Edit" || toolName === "MultiEdit" || toolName === "NotebookEdit") return "file_write";
   if (toolName === "Delete") return "file_delete";
   if (toolName === "Bash" || toolName === "PowerShell") return "shell";
   if (toolName === "WebFetch" || toolName === "WebSearch") return "http";
+  if (isDatabaseMcpTool(toolName, toolInput)) return "db";
   if (toolName.startsWith("mcp__")) return "mcp";
   return null;
 }
 async function handlePreToolUse(env, session, cfg) {
   const toolName = env.tool_name ?? "";
   const toolInput = env.tool_input ?? {};
-  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
-  const activityType = activityTypeFor(toolName);
+  const activityType = activityTypeFor(toolName, toolInput);
   if (!activityType) return void 0;
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
-  const filePath = toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path ?? "";
-  if (filePath && isSkipped(filePath)) return void 0;
+  const filePath = filePathFor(toolInput) ?? "";
   const payload = buildPreToolUsePayload(env, toolName, sideEffects);
-  const spanType = spanTypeFor(toolName);
-  const spans = spanType ? [
-    buildSpan("claude-code", spanType, {
+  const spanType = spanTypeFor(toolName, toolInput);
+  const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? "db" : null);
+  const spans = effectiveSpanType ? [
+    buildSpan("claude-code", effectiveSpanType, {
       file_path: filePath || void 0,
       command: toolInput.command || void 0,
       cwd: toolInput.cwd || void 0,
       tool_name: toolName,
       tool_input: toolInput,
-      url: toolInput.url || toolInput.query || void 0,
-      method: "GET"
+      url: httpTargetFor(toolInput),
+      method: httpMethodFor(toolInput),
+      db_system: dbSystemFor(toolName, toolInput),
+      db_operation: dbOperationFor(toolInput),
+      db_statement: dbStatementFor(toolInput)
     })
   ] : void 0;
-  const verdict = await session.activity(EVENT.START, activityType, {
+  const startTime = Date.now();
+  const opened = await session.openActivity(activityType, {
     input: [stampSource(payload, "claude-code")],
+    startTime,
     spans
   });
+  const verdict = opened.verdict;
+  if (verdict.arm === "allow" || verdict.arm === "constrain" || verdict.arm === "require_approval") {
+    rememberToolActivity(env, cfg, {
+      activityId: opened.activityId,
+      activityType,
+      startTime
+    });
+  }
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   return verdict;
 }
 
 // ts/src/runtime/claude-code/mappers/post-tool-use.ts
-function activityTypeFor2(toolName) {
+function activityTypeFor2(toolName, toolInput) {
   const direct = POST_TOOL_USE_ROUTING[toolName];
   if (direct) return direct;
+  if (isDatabaseMcpTool(toolName, toolInput)) return ACTIVITY_TYPES.DB_QUERY;
   if (toolName.startsWith("mcp__")) return ACTIVITY_TYPES.MCP_CALL;
   return ACTIVITY_TYPES.AGENT_ACTION;
 }
-function spanTypeFor2(toolName) {
+function spanTypeFor2(toolName, toolInput) {
   if (toolName === "Read" || toolName === "NotebookRead" || toolName === "Glob" || toolName === "Grep") return "file_read";
   if (toolName === "Write" || toolName === "Edit" || toolName === "MultiEdit" || toolName === "NotebookEdit") return "file_write";
   if (toolName === "Delete") return "file_delete";
   if (toolName === "Bash" || toolName === "PowerShell") return "shell";
   if (toolName === "WebFetch" || toolName === "WebSearch") return "http";
+  if (isDatabaseMcpTool(toolName, toolInput)) return "db";
   if (toolName.startsWith("mcp__")) return "mcp";
   return null;
 }
+function durationMsFor(env) {
+  const durationMs = env.duration_ms;
+  return typeof durationMs === "number" && Number.isFinite(durationMs) ? durationMs : void 0;
+}
+function outputFor(env, payload) {
+  return env.tool_response ?? env.tool_output ?? payload.output;
+}
 async function handlePostToolUse(env, session, cfg) {
   const toolName = env.tool_name ?? "";
-  const activityType = activityTypeFor2(toolName);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const toolInput = env.tool_input ?? {};
-  const toolResponse = env.tool_response;
+  const activityType = activityTypeFor2(toolName, toolInput);
+  const filePath = filePathFor(toolInput) ?? "";
+  const pending = takeToolActivity(env, cfg);
+  const toolResponse = outputFor(env, {});
   const payload = buildPostToolUsePayload(env, sideEffects);
-  const spanType = spanTypeFor2(toolName);
-  const spans = spanType ? [
-    buildSpan("claude-code", spanType, {
+  const startedPayload = buildPreToolUsePayload(env, toolName, sideEffects);
+  const spanType = spanTypeFor2(toolName, toolInput);
+  const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? "db" : null);
+  const spans = effectiveSpanType ? [
+    buildSpan("claude-code", effectiveSpanType, {
       file_path: toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path,
       command: toolInput.command,
       cwd: toolInput.cwd,
       tool_name: toolName,
       tool_output: toolResponse,
-      url: toolInput.url || toolInput.query || void 0,
-      method: "GET"
+      url: httpTargetFor(toolInput),
+      method: httpMethodFor(toolInput),
+      db_system: dbSystemFor(toolName, toolInput),
+      db_operation: dbOperationFor(toolInput),
+      db_statement: dbStatementFor(toolInput)
     })
   ] : void 0;
+  const durationMs = durationMsFor(env);
   const verdict = await session.activity(EVENT.COMPLETE, activityType, {
-    input: [stampSource(payload, "claude-code")],
+    activityId: pending?.activityId,
+    startTime: pending?.startTime,
+    endTime: pending && durationMs !== void 0 ? pending.startTime + durationMs : void 0,
+    durationMs,
+    input: [stampSource(startedPayload, "claude-code")],
+    output: outputFor(env, payload),
     spans
   });
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
@@ -3163,11 +3465,20 @@ async function handlePostToolUse(env, session, cfg) {
 }
 async function handlePostToolUseFailure(env, session, cfg) {
   const toolName = env.tool_name ?? "";
-  const activityType = activityTypeFor2(toolName);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
+  const toolInput = env.tool_input ?? {};
+  const activityType = activityTypeFor2(toolName, toolInput);
+  const filePath = filePathFor(toolInput) ?? "";
+  const pending = takeToolActivity(env, cfg);
   const payload = buildPostToolUseFailurePayload(env);
+  const startedPayload = buildPreToolUsePayload(env, toolName, sideEffects);
+  const durationMs = durationMsFor(env);
   const verdict = await session.activity(EVENT.COMPLETE, activityType, {
-    input: [stampSource(payload, "claude-code")]
+    activityId: pending?.activityId,
+    startTime: pending?.startTime,
+    endTime: pending && durationMs !== void 0 ? pending.startTime + durationMs : void 0,
+    durationMs,
+    input: [stampSource(startedPayload, "claude-code")],
+    output: stampSource(payload, "claude-code")
   });
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   return verdict;
@@ -3175,7 +3486,8 @@ async function handlePostToolUseFailure(env, session, cfg) {
 async function handlePostToolBatch(env, session, cfg) {
   const payload = buildPostToolBatchPayload(env, sideEffects);
   const verdict = await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.AGENT_ACTION, {
-    input: [stampSource(payload, "claude-code")]
+    input: [stampSource(payload, "claude-code")],
+    output: stampSource(payload, "claude-code")
   });
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   return verdict;
@@ -3185,8 +3497,11 @@ async function handlePostToolBatch(env, session, cfg) {
 async function handleUserPromptSubmit(env, session, cfg) {
   const prompt = (env.prompt ?? "").trim();
   if (!prompt) return void 0;
-  void session.activity(EVENT.SIGNAL, "goal", {
-    input: [stampSource({ goal: prompt, event_category: "agent_goal" }, "claude-code")]
+  void session.activity(EVENT.SIGNAL, "user_prompt", {
+    input: [stampSource({ prompt, event_category: "agent_goal" }, "claude-code")],
+    signalName: "user_prompt",
+    signalArgs: prompt,
+    spans: [buildSpan("claude-code", "llm", { prompt })]
   }).catch(() => void 0);
   const payload = buildUserPromptSubmitPayload(env);
   const span = buildSpan("claude-code", "llm", { prompt });
@@ -3211,38 +3526,43 @@ async function handleUserPromptExpansion(env, session, cfg) {
 }
 
 // ts/src/runtime/claude-code/mappers/permission-request.ts
-function activityTypeForTool(toolName) {
+function activityTypeForTool(toolName, toolInput) {
   const direct = PERMISSION_REQUEST_ROUTING[toolName];
   if (direct) return direct;
+  if (isDatabaseMcpTool(toolName, toolInput)) return ACTIVITY_TYPES.DB_QUERY;
   if (toolName.startsWith("mcp__")) return ACTIVITY_TYPES.MCP_CALL;
   return ACTIVITY_TYPES.AGENT_ACTION;
 }
-function spanTypeFor3(toolName) {
+function spanTypeFor3(toolName, toolInput) {
   if (toolName === "Read" || toolName === "NotebookRead" || toolName === "Glob" || toolName === "Grep") return "file_read";
   if (toolName === "Write" || toolName === "Edit" || toolName === "MultiEdit" || toolName === "NotebookEdit") return "file_write";
   if (toolName === "Delete") return "file_delete";
   if (toolName === "Bash" || toolName === "PowerShell") return "shell";
   if (toolName === "WebFetch" || toolName === "WebSearch") return "http";
+  if (isDatabaseMcpTool(toolName, toolInput)) return "db";
   if (toolName.startsWith("mcp__")) return "mcp";
   return null;
 }
 async function handlePermissionRequest(env, session, cfg) {
   const toolName = env.tool_name ?? "";
-  if ((cfg.skipTools ?? []).includes(toolName)) return void 0;
-  const activityType = activityTypeForTool(toolName);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
   const toolInput = env.tool_input ?? {};
+  const activityType = activityTypeForTool(toolName, toolInput);
   const payload = buildPermissionRequestPayload(env, toolName);
-  const spanType = spanTypeFor3(toolName);
-  const spans = spanType ? [
-    buildSpan("claude-code", spanType, {
-      file_path: toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path,
+  const spanType = spanTypeFor3(toolName, toolInput);
+  const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? "db" : null);
+  const filePath = filePathFor(toolInput);
+  const spans = effectiveSpanType ? [
+    buildSpan("claude-code", effectiveSpanType, {
+      file_path: filePath,
       command: toolInput.command,
       cwd: toolInput.cwd,
       tool_name: toolName,
       tool_input: toolInput,
-      url: toolInput.url || toolInput.query || void 0,
-      method: "GET"
+      url: httpTargetFor(toolInput),
+      method: httpMethodFor(toolInput),
+      db_system: dbSystemFor(toolName, toolInput),
+      db_operation: dbOperationFor(toolInput),
+      db_statement: dbStatementFor(toolInput)
     })
   ] : void 0;
   const verdict = await session.activity(EVENT.START, activityType, {
@@ -3254,8 +3574,8 @@ async function handlePermissionRequest(env, session, cfg) {
 }
 async function handlePermissionDenied(env, session, cfg) {
   const toolName = env.tool_name ?? "";
-  const activityType = activityTypeForTool(toolName);
-  if ((cfg.skipActivityTypes ?? []).includes(activityType)) return void 0;
+  const toolInput = env.tool_input ?? {};
+  const activityType = activityTypeForTool(toolName, toolInput);
   const payload = buildPermissionDeniedPayload(env);
   const verdict = await session.activity(EVENT.START, activityType, {
     input: [stampSource(payload, "claude-code")]
@@ -3264,7 +3584,238 @@ async function handlePermissionDenied(env, session, cfg) {
   return verdict;
 }
 
+// ts/src/runtime/claude-code/transcript-usage.ts
+import fs7 from "fs";
+import path7 from "path";
+var MAX_TRANSCRIPT_TAIL_BYTES = 1024 * 1024;
+function toPositiveInteger2(value) {
+  const numberValue = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : void 0;
+  if (numberValue === void 0 || !Number.isFinite(numberValue) || numberValue <= 0)
+    return void 0;
+  return Math.trunc(numberValue);
+}
+function normalizeClaudeUsage(value) {
+  if (value === null || typeof value !== "object") return void 0;
+  const usage = value;
+  const normalized = {
+    inputTokens: toPositiveInteger2(usage.input_tokens),
+    outputTokens: toPositiveInteger2(usage.output_tokens),
+    totalTokens: toPositiveInteger2(usage.total_tokens)
+  };
+  return Object.values(normalized).some((entry) => entry !== void 0) ? normalized : void 0;
+}
+function sumTokenField(left, right) {
+  if (left === void 0) return right;
+  if (right === void 0) return left;
+  return left + right;
+}
+function withDerivedTotal(usage) {
+  const input = usage.inputTokens ?? usage.promptTokens;
+  const output = usage.outputTokens ?? usage.completionTokens;
+  if (input === void 0 && output === void 0) return usage;
+  const calculatedTotal = (input ?? 0) + (output ?? 0);
+  if (usage.totalTokens !== void 0 && usage.totalTokens >= calculatedTotal) {
+    return usage;
+  }
+  return {
+    ...usage,
+    totalTokens: calculatedTotal
+  };
+}
+function combineUsage(left, right) {
+  if (!left) return right;
+  if (!right) return left;
+  return {
+    promptTokens: sumTokenField(left.promptTokens, right.promptTokens),
+    completionTokens: sumTokenField(
+      left.completionTokens,
+      right.completionTokens
+    ),
+    inputTokens: sumTokenField(left.inputTokens, right.inputTokens),
+    outputTokens: sumTokenField(left.outputTokens, right.outputTokens),
+    totalTokens: sumTokenField(left.totalTokens, right.totalTokens)
+  };
+}
+function transcriptRecordId(record, index) {
+  const messageId = record.message?.id;
+  if (typeof messageId === "string" && messageId.trim()) {
+    return `message:${messageId}`;
+  }
+  const uuid = record.uuid;
+  if (typeof uuid === "string" && uuid.trim()) return `uuid:${uuid}`;
+  return `line:${index}`;
+}
+function textFromClaudeContent(value) {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || void 0;
+  }
+  if (Array.isArray(value)) {
+    const text = value.map((item) => {
+      if (typeof item === "string") return item;
+      if (item === null || typeof item !== "object") return "";
+      const record = item;
+      if (typeof record.text === "string") return record.text;
+      if (typeof record.content === "string") return record.content;
+      return "";
+    }).filter(Boolean).join("");
+    const trimmed = text.trim();
+    return trimmed || void 0;
+  }
+  if (value !== null && typeof value === "object") {
+    const record = value;
+    return textFromClaudeContent(record.text ?? record.content);
+  }
+  return void 0;
+}
+function isSafeTranscriptPath(filePath) {
+  return path7.isAbsolute(filePath) && filePath.endsWith(".jsonl") && !filePath.includes("\0");
+}
+function readTranscriptTail(filePath) {
+  if (!isSafeTranscriptPath(filePath)) return void 0;
+  let fd;
+  try {
+    const stat = fs7.statSync(filePath);
+    if (!stat.isFile()) return void 0;
+    const length = Math.min(stat.size, MAX_TRANSCRIPT_TAIL_BYTES);
+    const offset = Math.max(0, stat.size - length);
+    const buffer = Buffer.alloc(length);
+    fd = fs7.openSync(filePath, "r");
+    fs7.readSync(fd, buffer, 0, length, offset);
+    return buffer.toString("utf-8");
+  } catch {
+    return void 0;
+  } finally {
+    if (fd !== void 0) {
+      try {
+        fs7.closeSync(fd);
+      } catch {
+      }
+    }
+  }
+}
+function readLatestAssistantTurn(env) {
+  const transcriptPath = env.agent_transcript_path ?? env.transcript_path;
+  if (!transcriptPath) return void 0;
+  const text = readTranscriptTail(transcriptPath);
+  if (!text) return void 0;
+  const lines = text.split("\n").filter(Boolean);
+  const assistantRecords = /* @__PURE__ */ new Map();
+  let latestModel;
+  let latestContent;
+  for (const [index, line] of lines.entries()) {
+    const jsonStart = line.indexOf("{");
+    if (jsonStart < 0) continue;
+    try {
+      const record = JSON.parse(line.slice(jsonStart));
+      if (record.type !== "assistant" && record.message?.role !== "assistant") {
+        continue;
+      }
+      const usage = normalizeClaudeUsage(record.message?.usage);
+      const content = textFromClaudeContent(record.message?.content);
+      if (!usage && !content) continue;
+      const id = transcriptRecordId(record, index);
+      const previous = assistantRecords.get(id);
+      const model = record.message?.model ?? previous?.model;
+      assistantRecords.set(id, {
+        model,
+        usage: usage ?? previous?.usage,
+        content: content ?? previous?.content
+      });
+      if (record.message?.model) latestModel = record.message.model;
+      if (content) latestContent = content;
+    } catch {
+      continue;
+    }
+  }
+  let aggregatedUsage;
+  for (const record of assistantRecords.values()) {
+    aggregatedUsage = combineUsage(aggregatedUsage, record.usage);
+  }
+  aggregatedUsage = aggregatedUsage ? withDerivedTotal(aggregatedUsage) : void 0;
+  if (!aggregatedUsage && !latestContent) return void 0;
+  return {
+    model: latestModel,
+    usage: aggregatedUsage,
+    content: latestContent
+  };
+}
+function readLatestAssistantUsage(env) {
+  const turn = readLatestAssistantTurn(env);
+  return turn?.usage ? { model: turn.model, usage: turn.usage, content: turn.content } : void 0;
+}
+
+// ts/src/runtime/claude-code/mappers/assistant-output.ts
+function firstText(...values) {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+  return void 0;
+}
+function buildClaudeAssistantOutputSpan(env, options) {
+  const transcript = readLatestAssistantTurn(env);
+  const content = options.preferTranscriptContent ? firstText(transcript?.content, options.fallbackText) : firstText(options.fallbackText, transcript?.content);
+  if (!content && !transcript?.usage) return void 0;
+  return [
+    buildLLMCompletionSpan({
+      content: content ?? "",
+      span: { module: "claude-code" },
+      name: "openbox.claude-code.assistant_output",
+      kind: "llm",
+      system: "claude-code",
+      model: transcript?.model,
+      usage: transcript?.usage,
+      providerUrl: "https://api.anthropic.com/v1/messages",
+      attributes: {
+        "gen_ai.system": "claude-code",
+        "openbox.claude_code.event": options.event
+      },
+      data: {
+        source: "claude-code",
+        event: options.event,
+        session_id: env.session_id,
+        hook_event_name: env.hook_event_name
+      }
+    })
+  ];
+}
+
 // ts/src/runtime/claude-code/mappers/session.ts
+function hasPendingClaudeWork(env) {
+  return Array.isArray(env.background_tasks) && env.background_tasks.length > 0 || Array.isArray(env.session_crons) && env.session_crons.length > 0;
+}
+function isStopHookRetry(env) {
+  return env.stop_hook_active === true;
+}
+function failClosedStopVerdict(env, _cfg, reason) {
+  if (isStopHookRetry(env)) {
+    return void 0;
+  }
+  return {
+    arm: "block",
+    reason,
+    riskScore: 1
+  };
+}
+async function emitClaudeUsageSignal(env, session) {
+  const usage = readLatestAssistantUsage(env);
+  if (!usage?.usage) return;
+  try {
+    const usagePayload = stampSource({
+      event_category: "llm_usage",
+      model: usage.model,
+      usage: usage.usage
+    }, "claude-code");
+    await session.activity(EVENT.SIGNAL, "claude_usage", {
+      input: [usagePayload],
+      signalName: "claude_usage",
+      signalArgs: [usagePayload]
+    });
+  } catch {
+  }
+}
 async function handleSessionStart(env, session, _cfg) {
   await session.workflowStarted();
   await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
@@ -3275,20 +3826,35 @@ async function handleSessionStart(env, session, _cfg) {
 async function handleStop(env, session, cfg) {
   let verdict;
   try {
-    verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
-      input: [stampSource(buildStopPayload(env), "claude-code")]
+    verdict = await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
+      input: [stampSource(buildStopPayload(env), "claude-code")],
+      spans: buildClaudeAssistantOutputSpan(env, {
+        event: "Stop",
+        fallbackText: env.last_assistant_message
+      })
     });
   } catch {
-    if (cfg.governancePolicy === "fail_closed") {
-      return {
-        arm: "block",
-        reason: "OpenBox Core was unavailable while governing Claude Code stop",
-        riskScore: 1
-      };
-    }
-    return void 0;
+    return failClosedStopVerdict(
+      env,
+      cfg,
+      "OpenBox Core was unavailable while governing Claude Code stop"
+    );
   }
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
+  await emitClaudeUsageSignal(env, session);
+  if ((verdict.arm === "allow" || verdict.arm === "constrain") && !hasPendingClaudeWork(env)) {
+    try {
+      await session.workflowCompleted();
+    } catch {
+      const failClosed = failClosedStopVerdict(
+        env,
+        cfg,
+        "OpenBox Core was unavailable while completing Claude Code workflow"
+      );
+      if (failClosed) return failClosed;
+    }
+    clearSession(env.session_id, cfg);
+  }
   return verdict;
 }
 async function handleSetup(env, session, _cfg) {
@@ -3316,12 +3882,20 @@ async function handlePostCompact(env, session, _cfg) {
   }
   return void 0;
 }
-async function handleStopFailure(env, session, _cfg) {
+async function handleStopFailure(env, session, cfg) {
   try {
     await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
       input: [stampSource(buildStopFailurePayload(env), "claude-code")]
     });
   } catch {
+  }
+  try {
+    await session.workflowFailed(
+      new Error(String(env.error ?? env.reason ?? "Claude Code StopFailure"))
+    );
+  } catch {
+  } finally {
+    clearSession(env.session_id, cfg);
   }
   return void 0;
 }
@@ -3359,7 +3933,11 @@ async function handleSubagentStart(env, session, _cfg) {
 }
 async function handleSubagentStop(env, session, cfg) {
   const verdict = await session.activity(EVENT.COMPLETE, subAgentActivityType(env), {
-    input: [stampSource(buildSubagentStopPayload(env), "claude-code")]
+    input: [stampSource(buildSubagentStopPayload(env), "claude-code")],
+    spans: buildClaudeAssistantOutputSpan(env, {
+      event: "SubagentStop",
+      fallbackText: env.last_assistant_message
+    })
   });
   if (verdict.arm === "halt") markHalted(env.session_id, cfg);
   return verdict;
@@ -3459,17 +4037,51 @@ async function observeGenericClaudeEvent(env, session, cfg, options) {
   }
   return void 0;
 }
+async function handleMessageDisplay(env, session, cfg, options) {
+  const usage = env.final === true ? readLatestAssistantUsage(env) : void 0;
+  const text = env.delta ?? env.display_content ?? env.displayContent ?? env.message ?? "";
+  try {
+    await session.activity(options.eventKind ?? EVENT.COMPLETE, options.activityType, {
+      input: [stampSource(compactPayload(env, options.eventCategory), "claude-code")],
+      output: stampSource({ text, event_category: options.eventCategory }, "claude-code"),
+      spans: env.final === true ? buildClaudeAssistantOutputSpan(env, {
+        event: "MessageDisplay",
+        fallbackText: text,
+        preferTranscriptContent: true
+      }) : void 0
+    });
+  } catch {
+  }
+  if (usage && env.final === true) {
+    try {
+      const usagePayload = stampSource({
+        event_category: "llm_usage",
+        model: usage.model,
+        usage: usage.usage
+      }, "claude-code");
+      await session.activity(EVENT.SIGNAL, "claude_usage", {
+        input: [usagePayload],
+        signalName: "claude_usage",
+        signalArgs: [usagePayload]
+      });
+    } catch {
+    }
+  }
+  return void 0;
+}
 
 // ts/src/runtime/claude-code/governance-matrix.ts
 var CLAUDE_CODE_GOVERNANCE_AUDIT = {
-  capturedAt: "2026-06-15",
-  installedClaudeCodeVersion: "2.1.177 (Claude Code)",
+  capturedAt: "2026-06-17",
+  installedClaudeCodeVersion: "2.1.179 (Claude Code)",
   officialDocs: [
     "https://code.claude.com/docs/en/hooks",
     "https://code.claude.com/docs/en/plugins-reference",
     "https://code.claude.com/docs/en/plugins",
     "https://code.claude.com/docs/en/mcp",
     "https://code.claude.com/docs/en/skills",
+    "https://code.claude.com/docs/en/commands",
+    "https://code.claude.com/docs/en/agents",
     "https://code.claude.com/docs/en/settings",
     "https://code.claude.com/docs/en/tools-reference",
     "https://code.claude.com/docs/en/channels",
@@ -3496,14 +4108,14 @@ var CLAUDE_CODE_HOOK_MATRIX = [
   { event: "PreToolUse", status: "implement_now", defaultInstall: true, decisionSurface: "permission-decision", notes: "Primary pre-action tool gate." },
   { event: "PermissionRequest", status: "implement_now", defaultInstall: true, decisionSurface: "permission-request", notes: "Native Claude permission prompt gate." },
   { event: "PermissionDenied", status: "implement_now", defaultInstall: true, decisionSurface: "permission-denied-retry", notes: "Can request retry after auto-mode denial." },
-  { event: "PostToolUse", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Tool output governance." },
-  { event: "PostToolUseFailure", status: "implement_now", defaultInstall: true, decisionSurface: "additional-context", notes: "Feeds policy context after failed tool calls." },
-  { event: "PostToolBatch", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Parallel tool batch gate before next model call." },
+  { event: "PostToolUse", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Tool output governance, including non-error feedback and redacted output on constrain." },
+  { event: "PostToolUseFailure", status: "implement_now", defaultInstall: true, decisionSurface: "additional-context", notes: "Feeds policy context after failed tool calls, including constrain feedback." },
+  { event: "PostToolBatch", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Parallel tool batch gate before next model call, including additional context on constrain." },
   { event: "SubagentStart", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Subagent lifecycle start telemetry." },
-  { event: "SubagentStop", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Subagent completion gate." },
+  { event: "SubagentStop", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Subagent completion gate, including non-error feedback on constrain." },
   { event: "TaskCreated", status: "implement_now", defaultInstall: true, decisionSurface: "continue-block", notes: "Agent-team task creation criteria." },
   { event: "TaskCompleted", status: "implement_now", defaultInstall: true, decisionSurface: "continue-block", notes: "Agent-team task completion criteria." },
-  { event: "Stop", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Final assistant-output/session-stop gate." },
+  { event: "Stop", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Final assistant-output/session-stop gate, including non-error feedback on constrain." },
   { event: "StopFailure", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "API/session failure telemetry." },
   { event: "TeammateIdle", status: "implement_now", defaultInstall: true, decisionSurface: "continue-block", notes: "Agent-team idle/completion enforcement." },
   { event: "Notification", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Notification telemetry." },
@@ -3514,7 +4126,7 @@ var CLAUDE_CODE_HOOK_MATRIX = [
   { event: "WorktreeRemove", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Worktree removal telemetry." },
   { event: "PreCompact", status: "implement_now", defaultInstall: true, decisionSurface: "decision-block", notes: "Blocks unsafe compaction requests before context rewrite." },
   { event: "PostCompact", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Compaction summary telemetry." },
-  { event: "SessionEnd", status: "observe_only", defaultInstall: true, decisionSurface: "none", notes: "Closes OpenBox workflow/session lifecycle." },
+  { event: "SessionEnd", status: "diagnose_only", defaultInstall: false, decisionSurface: "none", notes: "Supported by the handler but not default-installed because shutdown hooks can be cancelled before network telemetry reliably completes; Stop is the governed final hook." },
   { event: "Elicitation", status: "implement_now", defaultInstall: true, decisionSurface: "elicitation-response", notes: "MCP user-input request governance." },
   { event: "ElicitationResult", status: "implement_now", defaultInstall: true, decisionSurface: "elicitation-response", notes: "MCP elicitation response governance." }
 ];
@@ -3527,10 +4139,117 @@ var CLAUDE_CODE_SURFACE_MATRIX = [
   { surface: "plugin settings", status: "diagnose_only", notes: "Only agent/subagentStatusLine are currently supported by Claude Code plugin settings." },
   { surface: "monitors", status: "diagnose_only", notes: "Documented as opt-in because monitors run unsandboxed and project-scope plugins do not load them." },
   { surface: "LSP", status: "explicit_out_of_scope", notes: "No OpenBox language server exists; official LSP plugins should be installed separately." },
-  { surface: "bin", status: "diagnose_only", notes: "OpenBox relies on the installed openbox binary; doctor reports command resolution." },
+  { surface: "bin", status: "implement_now", notes: "Plugin ships a project-local Node runner for hooks, MCP, and diagnostics; no global OpenBox binary is required." },
   { surface: "managed settings", status: "diagnose_only", notes: "Enterprise policy belongs to managed Claude Code deployment, not SDK mutation." },
   { surface: "channels", status: "diagnose_only", notes: "Research preview MCP push channel surface; standard MCP remains the connector path." },
   { surface: "built-in tool permissions", status: "implement_now", notes: "PreToolUse/PermissionRequest routing covers current built-in tool names and dynamic mcp__ tools." }
+];
+var CLAUDE_CODE_SDK_CAPABILITY_MATRIX = [
+  {
+    capability: "workflow lifecycle start",
+    sdkSurface: "BaseGovernedSession.workflowStarted() / WorkflowStarted",
+    claudeCodeTreatment: "implement_now",
+    coverage: "SessionStart opens the workflow and records the Claude session boundary.",
+    tests: ["tests/unit/runtime-claude-code-mappers.test.ts", "tests/hook-integration/claude-code-hook-events.test.ts"]
+  },
+  {
+    capability: "workflow lifecycle complete",
+    sdkSurface: "BaseGovernedSession.workflowCompleted() / WorkflowCompleted",
+    claudeCodeTreatment: "implement_now",
+    coverage: "Stop completes workflows with no background tasks; SessionEnd remains opt-in shutdown telemetry.",
+    tests: ["tests/unit/runtime-claude-code-mappers.test.ts", "tests/hook-integration/claude-code-hook-stdin.test.ts"]
+  },
+  {
+    capability: "workflow lifecycle failure",
+    sdkSurface: "BaseGovernedSession.workflowFailed() / WorkflowFailed",
+    claudeCodeTreatment: "implement_now",
+    coverage: "StopFailure emits observe telemetry and then records WorkflowFailed best-effort.",
+    tests: ["tests/unit/runtime-claude-code-mappers.test.ts", "tests/hook-integration/claude-code-hook-stdin.test.ts"]
+  },
+  {
+    capability: "split-stage activity governance",
+    sdkSurface: "BaseGovernedSession.openActivity().complete()",
+    claudeCodeTreatment: "implement_now",
+    coverage: "PreToolUse opens a stable activity and PostToolUse/PostToolUseFailure closes it with output/duration.",
+    tests: ["tests/unit/runtime-claude-code-mappers.test.ts", "tests/unit/payload-shape.test.ts"]
+  },
+  {
+    capability: "single-stage activity gates",
+    sdkSurface: "BaseGovernedSession.activity(ActivityStarted|ActivityCompleted)",
+    claudeCodeTreatment: "implement_now",
+    coverage: "Prompts, permission requests, compaction, config changes, tasks, final output, subagents, and MCP elicitation map to activity gates.",
+    tests: ["tests/unit/claude-hook-handler-coverage.test.ts", "tests/hook-integration/claude-code-hook-stdin.test.ts"]
+  },
+  {
+    capability: "goal and signal telemetry",
+    sdkSurface: "BaseGovernedSession.activity(SignalReceived)",
+    claudeCodeTreatment: "implement_now",
+    coverage: "UserPromptSubmit emits SignalReceived(user_prompt) with the prompt and an LLM span before the prompt gate.",
+    tests: ["tests/unit/runtime-claude-code-mappers.test.ts", "tests/unit/payload-shape.test.ts"]
+  },
+  {
+    capability: "approval lifecycle",
+    sdkSurface: "WorkflowVerdict.arm=require_approval, pollApproval, inline/defer approval modes",
+    claudeCodeTreatment: "implement_now",
+    coverage: "Claude hook rendering supports remote polling, inline ask, defer, and fail-closed deny/block shapes for decision-capable hooks.",
+    tests: ["tests/hook-integration/claude-code-hook-stdin.test.ts", "tests/unit/runtime-adapters-coverage.test.ts"]
+  },
+  {
+    capability: "guardrail transforms and constrain verdicts",
+    sdkSurface: "WorkflowVerdict.arm=constrain, guardrailsResult.redactedInput, updated output rendering",
+    claudeCodeTreatment: "implement_now",
+    coverage: "Claude verdict renderer preserves allow+updatedInput, additionalContext, updatedToolOutput, and elicitation accept content where Claude supports mutation.",
+    tests: ["tests/unit/runtime-adapters-coverage.test.ts", "tests/unit/payload-shape.test.ts"]
+  },
+  {
+    capability: "halt/block session state",
+    sdkSurface: "WorkflowVerdict.arm=block|halt, session halted cache",
+    claudeCodeTreatment: "implement_now",
+    coverage: "Decision-capable hooks return Claude-native block/deny/continue=false responses and mark halted sessions for later hooks.",
+    tests: ["tests/hook-integration/claude-code-hook-stdin.test.ts", "tests/unit/runtime-claude-code-mappers.test.ts"]
+  },
+  {
+    capability: "behavior-rule spans and hook-trigger evaluation",
+    sdkSurface: "GovernedPayload.spans, hook_trigger re-evaluation",
+    claudeCodeTreatment: "implement_now",
+    coverage: "Prompt, shell, file, HTTP, and MCP tool paths attach spans so behavior rules can match the same shapes used by other SDK adapters.",
+    tests: ["tests/hook-integration/claude-code-span-content.test.ts", "tests/unit/runtime-claude-code-mappers.test.ts"]
+  },
+  {
+    capability: "MCP connector and governance tools",
+    sdkSurface: "@openbox-ai/openbox-sdk/runtime/mcp",
+    claudeCodeTreatment: "implement_now",
+    coverage: "Plugin .mcp.json points at the bundled project-local Node runner for mcp serve; MCP exposes status, doctor, approvals, agent/rule/policy reads, and check_governance.",
+    tests: ["tests/unit/mcp-server-coverage.test.ts", "tests/hook-integration/mcp-protocol.test.ts"]
+  },
+  {
+    capability: "plugin packaging and diagnostics",
+    sdkSurface: "@openbox-ai/openbox-sdk/runtime/claude-code plugin helpers",
+    claudeCodeTreatment: "implement_now",
+    coverage: "Export/install packages skill, commands, agent, hooks, MCP, diagnostics, project-local bin runner/doctor shim, and explicit settings/monitor/LSP inventory.",
+    tests: ["tests/unit/claude-code-plugin.test.ts", "tests/hook-integration/claude-code-install.test.ts"]
+  },
+  {
+    capability: "project-scoped runtime configuration",
+    sdkSurface: "Claude .claude-hooks config loader and plugin install",
+    claudeCodeTreatment: "implement_now",
+    coverage: "Claude hooks read only project .claude-hooks config/env plus process env; no global Claude config is mutated.",
+    tests: ["tests/hook-integration/claude-code-install.test.ts", "tests/unit/logging-and-config-coverage.test.ts"]
+  },
+  {
+    capability: "CopilotKit-specific UI/runtime wrappers",
+    sdkSurface: "@openbox-ai/openbox-sdk/copilotkit and /copilotkit/react",
+    claudeCodeTreatment: "explicit_out_of_scope",
+    coverage: "Claude Code does not embed CopilotKit UI wrappers; it maps the same governance primitives through hooks and MCP instead.",
+    tests: ["tests/unit/copilotkit-pure-coverage.test.ts", "tests/unit/runtime-claude-code-mappers.test.ts"]
+  },
+  {
+    capability: "non-Claude presets",
+    sdkSurface: "PRESET_MANIFEST presets for LangChain, Cursor, n8n, Temporal, etc.",
+    claudeCodeTreatment: "diagnose_only",
+    coverage: "SDK-wide presets are audited as broader SDK capability, but Claude Code only implements host-reachable Claude events.",
+    tests: ["tests/unit/claude-code-governance-matrix.test.ts"]
+  }
 ];
 function defaultClaudeCodeHookEvents() {
   return CLAUDE_CODE_HOOK_MATRIX.filter((entry) => entry.defaultInstall && entry.status !== "diagnose_only" && entry.status !== "explicit_out_of_scope").map((entry) => entry.event);
@@ -3552,7 +4271,8 @@ function claudeCodeGovernanceSummary() {
     defaultHookCount: defaultClaudeCodeHookEvents().length,
     optInHooks: optInClaudeCodeHookEvents(),
     byStatus,
-    surfaces: CLAUDE_CODE_SURFACE_MATRIX
+    surfaces: CLAUDE_CODE_SURFACE_MATRIX,
+    sdkCapabilities: CLAUDE_CODE_SDK_CAPABILITY_MATRIX
   };
 }
 
@@ -3597,6 +4317,9 @@ function isDecisionCapable(eventName) {
   const surface = decisionSurface(eventName);
   return surface !== "none" && surface !== "worktree-path";
 }
+function isActiveStopRetry(env) {
+  return env?.hook_event_name === "Stop" && env.stop_hook_active === true;
+}
 function reasonFromError(prefix, err) {
   const detail = err instanceof Error ? err.message : String(err ?? "");
   return detail ? `${prefix}: ${detail}` : prefix;
@@ -3609,7 +4332,7 @@ function guarded(cfg, event, verdictKind, fn) {
       const decisionCapable = isDecisionCapable(env.hook_event_name);
       const reason = reasonFromError("OpenBox governance failed while processing Claude Code hook", err);
       if (cfg.verbose) console.error(`[openbox claude-code] ${reason}`);
-      if (decisionCapable && cfg.governancePolicy === "fail_closed") {
+      if (decisionCapable && !isActiveStopRetry(env)) {
         return failClosedVerdict(reason);
       }
       return void 0;
@@ -3675,6 +4398,7 @@ function renderFailClosedHookOutput(env, reason) {
 }
 function writeFailClosedIfPossible(env, reason) {
   if (!env || !isDecisionCapable(env.hook_event_name)) return;
+  if (isActiveStopRetry(env)) return;
   const output = renderFailClosedHookOutput(env, reason);
   if (output !== void 0) process.stdout.write(JSON.stringify(output));
 }
@@ -3703,8 +4427,10 @@ async function readHookStdin() {
   return Buffer.concat(chunks).toString("utf-8");
 }
 async function runClaudeHook() {
-  applyEnvSource();
   const cfg = loadConfig();
+  if (!process.env.OPENBOX_HOME) {
+    process.env.OPENBOX_HOME = getConfigDir();
+  }
   createLogger("claude-code").initLogger(cfg);
   let raw = "";
   let env;
@@ -3716,23 +4442,19 @@ async function runClaudeHook() {
     process.exit(0);
   }
   if (!cfg.openboxApiKey) {
-    if (cfg.governancePolicy === "fail_closed") {
-      writeFailClosedIfPossible(env, "missing OPENBOX_API_KEY");
-    }
-    if (cfg.verbose) console.error("[openbox claude-code] no OPENBOX_API_KEY set, passing through");
+    writeFailClosedIfPossible(env, "missing OPENBOX_API_KEY");
+    if (cfg.verbose) console.error("[openbox claude-code] no OPENBOX_API_KEY set; decision-capable hooks fail closed");
     process.exit(0);
   }
   if (!cfg.openboxEndpoint) {
-    if (cfg.governancePolicy === "fail_closed") {
-      writeFailClosedIfPossible(env, "missing OPENBOX_CORE_URL");
-    }
-    if (cfg.verbose) console.error("[openbox claude-code] no OPENBOX_CORE_URL set, passing through");
+    writeFailClosedIfPossible(env, "missing OPENBOX_CORE_URL");
+    if (cfg.verbose) console.error("[openbox claude-code] no OPENBOX_CORE_URL set; decision-capable hooks fail closed");
     process.exit(0);
   }
-  const dryRun = cfg.dryRun;
   const core = new OpenBoxCoreClient({
     apiKey: cfg.openboxApiKey,
     apiUrl: cfg.openboxEndpoint,
+    agentIdentity: cfg.agentIdentity,
     timeoutMs: cfg.governanceTimeout * 1e3
   });
   const approvalMaxWaitMs = Math.min(
@@ -3744,19 +4466,19 @@ async function runClaudeHook() {
       cfg,
       "setup",
       "observe",
-      async (env2, s) => dryRun ? void 0 : handleSetup(env2, s, cfg)
+      async (env2, s) => handleSetup(env2, s, cfg)
     ),
     sessionStart: guarded(
       cfg,
       "sessionStart",
       "none",
-      async (env2, s) => dryRun ? void 0 : handleSessionStart(env2, s, cfg)
+      async (env2, s) => handleSessionStart(env2, s, cfg)
     ),
     instructionsLoaded: guarded(
       cfg,
       "instructionsLoaded",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.START,
         eventCategory: "agent_observation"
@@ -3766,19 +4488,19 @@ async function runClaudeHook() {
       cfg,
       "userPromptSubmit",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleUserPromptSubmit(env2, s, cfg)
+      async (env2, s) => handleUserPromptSubmit(env2, s, cfg)
     ),
     userPromptExpansion: guarded(
       cfg,
       "userPromptExpansion",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleUserPromptExpansion(env2, s, cfg)
+      async (env2, s) => handleUserPromptExpansion(env2, s, cfg)
     ),
     messageDisplay: guarded(
       cfg,
       "messageDisplay",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => handleMessageDisplay(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.COMPLETE,
         eventCategory: "llm_output"
@@ -3788,85 +4510,85 @@ async function runClaudeHook() {
       cfg,
       "preToolUse",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePreToolUse(env2, s, cfg)
+      async (env2, s) => handlePreToolUse(env2, s, cfg)
     ),
     permissionRequest: guarded(
       cfg,
       "permissionRequest",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePermissionRequest(env2, s, cfg)
+      async (env2, s) => handlePermissionRequest(env2, s, cfg)
     ),
     permissionDenied: guarded(
       cfg,
       "permissionDenied",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePermissionDenied(env2, s, cfg)
+      async (env2, s) => handlePermissionDenied(env2, s, cfg)
     ),
     postToolUse: guarded(
       cfg,
       "postToolUse",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePostToolUse(env2, s, cfg)
+      async (env2, s) => handlePostToolUse(env2, s, cfg)
     ),
     postToolUseFailure: guarded(
       cfg,
       "postToolUseFailure",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePostToolUseFailure(env2, s, cfg)
+      async (env2, s) => handlePostToolUseFailure(env2, s, cfg)
     ),
     postToolBatch: guarded(
       cfg,
       "postToolBatch",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePostToolBatch(env2, s, cfg)
+      async (env2, s) => handlePostToolBatch(env2, s, cfg)
     ),
     subagentStart: guarded(
       cfg,
       "subagentStart",
       "observe",
-      async (env2, s) => dryRun ? void 0 : handleSubagentStart(env2, s, cfg)
+      async (env2, s) => handleSubagentStart(env2, s, cfg)
     ),
     subagentStop: guarded(
       cfg,
       "subagentStop",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleSubagentStop(env2, s, cfg)
+      async (env2, s) => handleSubagentStop(env2, s, cfg)
     ),
     taskCreated: guarded(
       cfg,
       "taskCreated",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleTaskCreated(env2, s, cfg)
+      async (env2, s) => handleTaskCreated(env2, s, cfg)
     ),
     taskCompleted: guarded(
       cfg,
       "taskCompleted",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleTaskCompleted(env2, s, cfg)
+      async (env2, s) => handleTaskCompleted(env2, s, cfg)
     ),
     stop: guarded(
       cfg,
       "stop",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleStop(env2, s, cfg)
+      async (env2, s) => handleStop(env2, s, cfg)
     ),
     stopFailure: guarded(
       cfg,
       "stopFailure",
       "observe",
-      async (env2, s) => dryRun ? void 0 : handleStopFailure(env2, s, cfg)
+      async (env2, s) => handleStopFailure(env2, s, cfg)
     ),
     teammateIdle: guarded(
       cfg,
       "teammateIdle",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleTeammateIdle(env2, s, cfg)
+      async (env2, s) => handleTeammateIdle(env2, s, cfg)
     ),
     notification: guarded(
       cfg,
       "notification",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MESSAGE,
         eventKind: EVENT.SIGNAL,
         eventCategory: "agent_notification"
@@ -3876,7 +4598,7 @@ async function runClaudeHook() {
       cfg,
       "configChange",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => handleGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.CONFIG_CHANGE,
         eventKind: EVENT.START,
         eventCategory: "config_change",
@@ -3887,7 +4609,7 @@ async function runClaudeHook() {
       cfg,
       "cwdChanged",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
         eventKind: EVENT.SIGNAL,
         eventCategory: "cwd_changed"
@@ -3897,7 +4619,7 @@ async function runClaudeHook() {
       cfg,
       "fileChanged",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
         eventKind: EVENT.SIGNAL,
         eventCategory: "file_changed"
@@ -3907,7 +4629,7 @@ async function runClaudeHook() {
       cfg,
       "worktreeRemove",
       "observe",
-      async (env2, s) => dryRun ? void 0 : observeGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => observeGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,
         eventKind: EVENT.COMPLETE,
         eventCategory: "worktree_remove"
@@ -3917,25 +4639,25 @@ async function runClaudeHook() {
       cfg,
       "preCompact",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handlePreCompact(env2, s, cfg)
+      async (env2, s) => handlePreCompact(env2, s, cfg)
     ),
     postCompact: guarded(
       cfg,
       "postCompact",
       "observe",
-      async (env2, s) => dryRun ? void 0 : handlePostCompact(env2, s, cfg)
+      async (env2, s) => handlePostCompact(env2, s, cfg)
     ),
     sessionEnd: guarded(
       cfg,
       "sessionEnd",
       "none",
-      async (env2, s) => dryRun ? void 0 : handleSessionEnd(env2, s, cfg)
+      async (env2, s) => handleSessionEnd(env2, s, cfg)
     ),
     elicitation: guarded(
       cfg,
       "elicitation",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => handleGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MCP_ELICITATION,
         eventKind: EVENT.START,
         eventCategory: "mcp_elicitation",
@@ -3946,7 +4668,7 @@ async function runClaudeHook() {
       cfg,
       "elicitationResult",
       "permission",
-      async (env2, s) => dryRun ? void 0 : handleGenericClaudeEvent(env2, s, cfg, {
+      async (env2, s) => handleGenericClaudeEvent(env2, s, cfg, {
         activityType: ACTIVITY_TYPES.MCP_ELICITATION,
         eventKind: EVENT.COMPLETE,
         eventCategory: "mcp_elicitation_result",
@@ -3971,167 +4693,23 @@ async function runClaudeHook() {
   }).run();
 }
 
-// ts/src/install/from-spec.ts
-import fs7 from "fs";
-import path6 from "path";
-function resolveInstallPaths(spec, options = {}) {
-  const scope = options.scope ?? "project";
-  const cwd = options.cwd ?? process.cwd();
-  if (scope !== "project") {
-    throw new Error(`scope \`${scope}\` is not supported; expected project`);
-  }
-  if (spec.style === "claude-array") {
-    return {
-      scope,
-      hooksFile: path6.join(cwd, ".claude", "settings.json"),
-      configDir: path6.join(cwd, ".claude-hooks"),
-      mcpFile: path6.join(cwd, ".mcp.json"),
-      mcpKey: "mcpServers"
-    };
-  }
-  return {
-    scope,
-    hooksFile: path6.join(cwd, ".cursor", "hooks.json"),
-    configDir: path6.join(cwd, ".cursor-hooks"),
-    mcpFile: path6.join(cwd, ".cursor", "mcp.json"),
-    mcpKey: "mcpServers"
-  };
-}
-function loadJson(file) {
-  try {
-    if (fs7.existsSync(file)) {
-      return JSON.parse(fs7.readFileSync(file, "utf-8"));
-    }
-  } catch {
-  }
-  return {};
-}
-function saveJson(file, value) {
-  fs7.mkdirSync(path6.dirname(file), { recursive: true });
-  fs7.writeFileSync(file, JSON.stringify(value, null, 2) + "\n", "utf-8");
-}
-function ruleIsOpenBox(rule, command) {
-  return rule.hooks?.some(
-    (h) => h.command === command || h.command?.includes("openbox claude-code") || h.command?.includes("openbox cursor")
-  ) ?? false;
-}
-function isCursorOpenBoxHook(value, command) {
-  if (!value) return false;
-  if (Array.isArray(value)) {
-    return value.some((e) => isCursorOpenBoxHook(e, command));
-  }
-  if (typeof value !== "object") return false;
-  const cmd = value.command;
-  return cmd === command || cmd?.includes("openbox cursor") === true;
-}
-function dropExampleConfig(configDir) {
-  fs7.mkdirSync(configDir, { recursive: true });
-  const file = path6.join(configDir, "config.json");
-  if (fs7.existsSync(file)) return;
-  const example = {
-    OPENBOX_API_KEY: "obx_live_YOUR_API_KEY_HERE",
-    OPENBOX_CORE_URL: "https://core.example/ob",
-    GOVERNANCE_POLICY: "fail_open",
-    HITL_ENABLED: true,
-    HITL_MAX_WAIT: 300,
-    VERBOSE: false,
-    DRY_RUN: true
-  };
-  fs7.writeFileSync(file, JSON.stringify(example, null, 2) + "\n", { mode: 384, encoding: "utf-8" });
-  console.log(`Created example config at ${file}`);
-  console.log("  -> Set OPENBOX_API_KEY and DRY_RUN=false to enable governance");
-}
-function installAdapter(spec, options = {}) {
-  const paths = resolveInstallPaths(spec, options);
-  const settings = loadJson(paths.hooksFile);
-  if (spec.style === "claude-array") {
-    let hooksBlock = settings[spec.key];
-    if (!hooksBlock) {
-      hooksBlock = {};
-      settings[spec.key] = hooksBlock;
-    }
-    for (const evt of spec.events.filter((event) => event.installDefault !== false)) {
-      if (!hooksBlock[evt.name]) hooksBlock[evt.name] = [];
-      hooksBlock[evt.name] = hooksBlock[evt.name].filter((r) => !ruleIsOpenBox(r, spec.command));
-      const inner = { type: "command", command: spec.command };
-      if (evt.timeout) inner.timeout = evt.timeout;
-      hooksBlock[evt.name].push({ hooks: [inner] });
-    }
-  } else {
-    let hooksBlock = settings[spec.key];
-    if (!hooksBlock) {
-      hooksBlock = {};
-      settings[spec.key] = hooksBlock;
-    }
-    for (const evt of spec.events.filter((event) => event.installDefault !== false)) {
-      const entry = { command: spec.command };
-      if (evt.timeout) entry.timeout = evt.timeout;
-      if (evt.matcher) entry.matcher = evt.matcher;
-      hooksBlock[evt.name] = [entry];
-    }
-  }
-  saveJson(paths.hooksFile, settings);
-  console.log(`Installed OpenBox hooks (${paths.scope}) into ${paths.hooksFile}`);
-  console.log(`Hook events: ${spec.events.filter((event) => event.installDefault !== false).map((e) => e.name).join(", ")}`);
-  dropExampleConfig(paths.configDir);
-}
-function uninstallAdapter(spec, options = {}) {
-  const paths = resolveInstallPaths(spec, options);
-  const settings = loadJson(paths.hooksFile);
-  const hooksBlock = settings[spec.key];
-  if (!hooksBlock || typeof hooksBlock !== "object") {
-    console.log(`No hooks configured at ${paths.hooksFile}. Nothing to uninstall.`);
-    return;
-  }
-  let removed = 0;
-  if (spec.style === "claude-array") {
-    const block = hooksBlock;
-    for (const evt of Object.keys(block)) {
-      const before = block[evt].length;
-      block[evt] = block[evt].filter((r) => !ruleIsOpenBox(r, spec.command));
-      removed += before - block[evt].length;
-      if (block[evt].length === 0) delete block[evt];
-    }
-    if (Object.keys(block).length === 0) delete settings[spec.key];
-  } else {
-    const block = hooksBlock;
-    for (const evt of spec.events) {
-      if (isCursorOpenBoxHook(block[evt.name], spec.command)) {
-        delete block[evt.name];
-        removed += 1;
-      }
-    }
-    if (Object.keys(block).length === 0) delete settings[spec.key];
-  }
-  saveJson(paths.hooksFile, settings);
-  console.log(`Removed ${removed} OpenBox hook(s) from ${paths.hooksFile}`);
-}
-
-// ts/src/runtime/claude-code/install.ts
-function installClaudeCode(opts = {}) {
-  installAdapter(HOOK_SPEC, opts);
-}
-function uninstallClaudeCode(opts = {}) {
-  uninstallAdapter(HOOK_SPEC, opts);
-}
-
 // ts/src/runtime/claude-code/plugin.ts
 import {
   chmodSync,
   cpSync,
-  existsSync as existsSync5,
+  existsSync as existsSync4,
   lstatSync,
-  mkdirSync as mkdirSync3,
-  readFileSync as readFileSync4,
+  mkdirSync as mkdirSync2,
+  readFileSync as readFileSync3,
   readdirSync,
   rmSync,
   symlinkSync,
-  writeFileSync as writeFileSync2
+  writeFileSync
 } from "fs";
 import os from "os";
-import path7 from "path";
+import path8 from "path";
 import { fileURLToPath } from "url";
-var __dirname = path7.dirname(fileURLToPath(import.meta.url));
+var __dirname = path8.dirname(fileURLToPath(import.meta.url));
 var EXPECTED_COMMAND_FILES = [
   "openbox-check.md",
   "openbox-doctor.md",
@@ -4145,23 +4723,45 @@ var EXPECTED_DIAGNOSTIC_FILES = [
   "claude-code-governance.json",
   "monitors.opt-in.json"
 ];
-var EXPECTED_BIN_FILES = ["openbox-plugin-doctor"];
+var EXPECTED_BIN_FILES = ["openbox-cli.mjs", "openbox-plugin-doctor"];
+var EXPECTED_COMPONENT_NAMES = [
+  "skill",
+  "commands",
+  "agent",
+  "hooks",
+  "mcp",
+  "diagnostics",
+  "bin",
+  "settings",
+  "monitors",
+  "lsp"
+];
+var PLUGIN_CLI_RUNNER = "bin/openbox-cli.mjs";
+var PLUGIN_HOOK_HANDLER = {
+  type: "command",
+  command: "node",
+  args: [`\${CLAUDE_PLUGIN_ROOT}/${PLUGIN_CLI_RUNNER}`, "claude-code", "hook"]
+};
+var PLUGIN_MCP_SERVER = {
+  command: "node",
+  args: [`\${CLAUDE_PLUGIN_ROOT}/${PLUGIN_CLI_RUNNER}`, "mcp", "serve"]
+};
 function claudeCodePluginTargetDir(cwd = process.cwd()) {
-  return path7.join(cwd, ".claude", "skills", "openbox");
+  return path8.join(cwd, ".claude", "skills", "openbox");
 }
 function readJson(file) {
   try {
-    return JSON.parse(readFileSync4(file, "utf-8"));
+    return JSON.parse(readFileSync3(file, "utf-8"));
   } catch {
     return void 0;
   }
 }
 function packageVersion() {
   const candidates = [
-    path7.resolve(__dirname, "../../package.json"),
-    path7.resolve(__dirname, "../../../package.json"),
-    path7.resolve(__dirname, "../../../../package.json"),
-    path7.resolve(process.cwd(), "package.json")
+    path8.resolve(__dirname, "../../package.json"),
+    path8.resolve(__dirname, "../../../package.json"),
+    path8.resolve(__dirname, "../../../../package.json"),
+    path8.resolve(process.cwd(), "package.json")
   ];
   for (const candidate of candidates) {
     const pkg = readJson(candidate);
@@ -4173,7 +4773,7 @@ function packageVersion() {
 }
 function findExistingDir(label, candidates) {
   for (const candidate of candidates) {
-    if (existsSync5(candidate)) return candidate;
+    if (existsSync4(candidate)) return candidate;
   }
   throw new Error(
     `Could not find ${label} in any of:
@@ -4182,24 +4782,24 @@ ${candidates.map((c) => `  - ${c}`).join("\n")}`
 }
 function findTemplateDir(kind) {
   return findExistingDir(`Claude Code template directory '${kind}'`, [
-    path7.resolve(__dirname, "templates", kind),
-    path7.resolve(__dirname, "../runtime/claude-code/templates", kind),
-    path7.resolve(__dirname, "../../ts/src/runtime/claude-code/templates", kind),
-    path7.resolve(__dirname, "../../../ts/src/runtime/claude-code/templates", kind),
-    path7.resolve(process.cwd(), "ts/src/runtime/claude-code/templates", kind)
+    path8.resolve(__dirname, "templates", kind),
+    path8.resolve(__dirname, "../runtime/claude-code/templates", kind),
+    path8.resolve(__dirname, "../../ts/src/runtime/claude-code/templates", kind),
+    path8.resolve(__dirname, "../../../ts/src/runtime/claude-code/templates", kind),
+    path8.resolve(process.cwd(), "ts/src/runtime/claude-code/templates", kind)
   ]);
 }
 function findSkillDir() {
   return findExistingDir("OpenBox skill directory", [
-    path7.resolve(__dirname, "../../skill"),
-    path7.resolve(__dirname, "../../../skill"),
-    path7.resolve(__dirname, "../../../../skill"),
-    path7.resolve(process.cwd(), "skill")
+    path8.resolve(__dirname, "../../skill"),
+    path8.resolve(__dirname, "../../../skill"),
+    path8.resolve(__dirname, "../../../../skill"),
+    path8.resolve(process.cwd(), "skill")
   ]);
 }
 function safeOutDir(out) {
-  const resolved = path7.resolve(out);
-  const root = path7.parse(resolved).root;
+  const resolved = path8.resolve(out);
+  const root = path8.parse(resolved).root;
   if (resolved === root || resolved === os.homedir()) {
     throw new Error(`Refusing to overwrite unsafe Claude Code plugin path: ${resolved}`);
   }
@@ -4207,37 +4807,116 @@ function safeOutDir(out) {
 }
 function assertProjectTarget(target, cwd) {
   const resolvedTarget = safeOutDir(target);
-  const resolvedProject = path7.resolve(cwd);
-  const rel = path7.relative(resolvedProject, resolvedTarget);
-  if (rel.startsWith("..") || path7.isAbsolute(rel)) {
+  const resolvedProject = path8.resolve(cwd);
+  const rel = path8.relative(resolvedProject, resolvedTarget);
+  if (rel.startsWith("..") || path8.isAbsolute(rel)) {
     throw new Error(`Claude Code plugin install target must be inside the project: ${resolvedProject}`);
   }
   return resolvedTarget;
 }
 function writeJson(file, value) {
-  mkdirSync3(path7.dirname(file), { recursive: true });
-  writeFileSync2(file, JSON.stringify(value, null, 2) + "\n", "utf-8");
+  mkdirSync2(path8.dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify(value, null, 2) + "\n", "utf-8");
+}
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function isLegacyClaudeCodeHook(value) {
+  return isRecord(value) && typeof value.command === "string" && /\bopenbox\s+claude-code\s+hook\b/.test(value.command);
+}
+function scrubLegacyClaudeCodeSettingsHooks(cwd) {
+  const settingsFile = path8.join(cwd, ".claude", "settings.json");
+  const settings = readJson(settingsFile);
+  if (!settings || !isRecord(settings.hooks)) return;
+  let changed = false;
+  const nextHooks = {};
+  for (const [eventName, entries] of Object.entries(settings.hooks)) {
+    if (!Array.isArray(entries)) {
+      nextHooks[eventName] = entries;
+      continue;
+    }
+    const nextEntries = entries.map((entry) => {
+      if (!isRecord(entry)) return entry;
+      if (isLegacyClaudeCodeHook(entry)) {
+        changed = true;
+        return void 0;
+      }
+      if (!Array.isArray(entry.hooks)) return entry;
+      const nextInnerHooks = entry.hooks.filter((hook) => !isLegacyClaudeCodeHook(hook));
+      if (nextInnerHooks.length !== entry.hooks.length) changed = true;
+      if (nextInnerHooks.length === 0) return void 0;
+      return { ...entry, hooks: nextInnerHooks };
+    }).filter((entry) => entry !== void 0);
+    if (nextEntries.length === 0) {
+      changed = true;
+      continue;
+    }
+    nextHooks[eventName] = nextEntries;
+  }
+  if (!changed) return;
+  const nextSettings = { ...settings };
+  if (Object.keys(nextHooks).length > 0) {
+    nextSettings.hooks = nextHooks;
+  } else {
+    delete nextSettings.hooks;
+  }
+  if (Object.keys(nextSettings).length === 0) {
+    rmSync(settingsFile, { force: true });
+    return;
+  }
+  writeJson(settingsFile, nextSettings);
+}
+function hasLegacyClaudeCodeSettingsHooks(cwd = process.cwd()) {
+  const settings = readJson(path8.join(cwd, ".claude", "settings.json"));
+  return JSON.stringify(settings ?? {}).includes("openbox claude-code hook");
+}
+function isLegacyOpenBoxMcpServer(value) {
+  if (!isRecord(value) || value.command !== "openbox") return false;
+  const args = Array.isArray(value.args) ? value.args : [];
+  return args[0] === "mcp" && args[1] === "serve";
+}
+function scrubLegacyOpenBoxProjectMcp(cwd) {
+  const mcpFile = path8.join(cwd, ".mcp.json");
+  const mcp = readJson(mcpFile);
+  if (!mcp || !isRecord(mcp.mcpServers)) return;
+  if (!isLegacyOpenBoxMcpServer(mcp.mcpServers.openbox)) return;
+  const nextServers = { ...mcp.mcpServers };
+  delete nextServers.openbox;
+  const nextMcp = { ...mcp };
+  if (Object.keys(nextServers).length > 0) {
+    nextMcp.mcpServers = nextServers;
+  } else {
+    delete nextMcp.mcpServers;
+  }
+  if (Object.keys(nextMcp).length === 0) {
+    rmSync(mcpFile, { force: true });
+    return;
+  }
+  writeJson(mcpFile, nextMcp);
+}
+function hasLegacyOpenBoxProjectMcp(cwd = process.cwd()) {
+  const mcp = readJson(path8.join(cwd, ".mcp.json"));
+  return isLegacyOpenBoxMcpServer(
+    isRecord(mcp?.mcpServers) ? mcp.mcpServers.openbox : void 0
+  );
 }
 function writeRuntimeConfigTemplate(configDir) {
-  mkdirSync3(configDir, { recursive: true });
-  const file = path7.join(configDir, "config.json");
-  if (existsSync5(file)) return;
+  mkdirSync2(configDir, { recursive: true });
+  const file = path8.join(configDir, "config.json");
+  if (existsSync4(file)) return;
   const example = {
-    OPENBOX_API_KEY: "obx_live_YOUR_API_KEY_HERE",
-    OPENBOX_CORE_URL: "https://core.example/ob",
-    GOVERNANCE_POLICY: "fail_open",
+    GOVERNANCE_POLICY: "fail_closed",
     HITL_ENABLED: true,
     HITL_MAX_WAIT: 300,
-    VERBOSE: false,
-    DRY_RUN: true
+    VERBOSE: false
   };
-  writeFileSync2(file, JSON.stringify(example, null, 2) + "\n", {
+  writeFileSync(file, JSON.stringify(example, null, 2) + "\n", {
     mode: 384,
     encoding: "utf-8"
   });
 }
 function claudeCodeRuntimeConfigDir(cwd = process.cwd()) {
-  return path7.join(cwd, ".claude-hooks");
+  return path8.join(cwd, ".claude-hooks");
 }
 function hookEvents(includeOptInHooks = false) {
   const defaultEvents = new Set(defaultClaudeCodeHookEvents());
@@ -4251,8 +4930,7 @@ function claudeHooksJson(matchers, includeOptInHooks = false) {
   const hooks = {};
   for (const event of hookEvents(includeOptInHooks)) {
     const hook = {
-      type: "command",
-      command: HOOK_SPEC.command
+      ...PLUGIN_HOOK_HANDLER
     };
     if (event.timeout !== void 0) hook.timeout = event.timeout;
     const entry = {
@@ -4267,10 +4945,7 @@ function claudeHooksJson(matchers, includeOptInHooks = false) {
 function mcpJson() {
   return {
     mcpServers: {
-      openbox: {
-        command: "openbox",
-        args: ["mcp", "serve"]
-      }
+      openbox: { ...PLUGIN_MCP_SERVER }
     }
   };
 }
@@ -4304,7 +4979,13 @@ function componentInventory(version) {
       mcp: {
         status: "installed",
         path: ".mcp.json",
-        command: "openbox mcp serve"
+        command: "node ${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs mcp serve"
+      },
+      settings: {
+        status: "diagnose_only",
+        path: "settings.json",
+        emitted: false,
+        notes: "OpenBox does not emit plugin settings; agent/subagentStatusLine and strictPluginOnlyCustomization remain deployment policy diagnostics."
       },
       diagnostics: {
         status: "installed",
@@ -4314,7 +4995,8 @@ function componentInventory(version) {
       bin: {
         status: "installed",
         path: "bin/openbox-plugin-doctor",
-        command: "openbox claude-code doctor"
+        files: [...EXPECTED_BIN_FILES],
+        command: "node ${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs claude-code doctor"
       },
       monitors: {
         status: "opt_in_metadata",
@@ -4338,32 +5020,96 @@ function governanceDiagnostic(version) {
     defaultHookEvents: defaultClaudeCodeHookEvents(),
     optInHookEvents: optInClaudeCodeHookEvents(),
     generatedHookSpecEvents: HOOK_SPEC.events.map((event) => event.name),
-    surfaces: CLAUDE_CODE_SURFACE_MATRIX
+    surfaces: CLAUDE_CODE_SURFACE_MATRIX,
+    sdkCapabilities: CLAUDE_CODE_SDK_CAPABILITY_MATRIX
   };
 }
 function optInMonitorMetadata() {
   return [
     {
       name: "openbox-status",
-      command: "openbox status --json",
+      command: 'node "${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs" status --json',
       description: "OpenBox runtime status and approval readiness notifications.",
       when: "on-skill-invoke:openbox",
       activeByDefault: false
     }
   ];
 }
+function writePluginCliRunner(file) {
+  mkdirSync2(path8.dirname(file), { recursive: true });
+  writeFileSync(
+    file,
+    [
+      "#!/usr/bin/env node",
+      "import { existsSync } from 'node:fs';",
+      "import path from 'node:path';",
+      "import { spawnSync } from 'node:child_process';",
+      "",
+      "const args = process.argv.slice(2);",
+      "",
+      "function candidateFromEnv() {",
+      "  const value = process.env.OPENBOX_CLI;",
+      "  if (!value) return undefined;",
+      "  const resolved = path.resolve(value);",
+      "  return existsSync(resolved) ? resolved : undefined;",
+      "}",
+      "",
+      "function projectRoots() {",
+      "  const roots = [];",
+      "  if (process.env.CLAUDE_PROJECT_DIR) roots.push(process.env.CLAUDE_PROJECT_DIR);",
+      "  roots.push(process.cwd());",
+      "  const out = [];",
+      "  for (const root of roots) {",
+      "    let cur = path.resolve(root);",
+      "    for (let i = 0; i < 8; i += 1) {",
+      "      if (!out.includes(cur)) out.push(cur);",
+      "      const parent = path.dirname(cur);",
+      "      if (parent === cur) break;",
+      "      cur = parent;",
+      "    }",
+      "  }",
+      "  return out;",
+      "}",
+      "",
+      "function candidateFromProjectNodeModules() {",
+      "  for (const root of projectRoots()) {",
+      "    const candidate = path.join(root, 'node_modules', '@openbox-ai', 'openbox-sdk', 'dist', 'cli', 'index.js');",
+      "    if (existsSync(candidate)) return candidate;",
+      "  }",
+      "  return undefined;",
+      "}",
+      "",
+      "const cli = candidateFromEnv() ?? candidateFromProjectNodeModules();",
+      "if (!cli) {",
+      "  console.error('OpenBox SDK CLI not found for project-scoped Claude Code plugin. Set OPENBOX_CLI to this project\\'s SDK dist/cli/index.js, or install @openbox-ai/openbox-sdk in the project.');",
+      "  process.exit(127);",
+      "}",
+      "",
+      "const result = spawnSync(process.execPath, [cli, ...args], {",
+      "  stdio: 'inherit',",
+      "  env: process.env,",
+      "});",
+      "",
+      "if (result.error) {",
+      "  console.error(result.error.message);",
+      "  process.exit(127);",
+      "}",
+      "process.exit(result.status ?? 1);",
+      ""
+    ].join("\n"),
+    "utf-8"
+  );
+  chmodSync(file, 493);
+}
 function writePluginDoctorShim(file) {
-  mkdirSync3(path7.dirname(file), { recursive: true });
-  writeFileSync2(
+  mkdirSync2(path8.dirname(file), { recursive: true });
+  writeFileSync(
     file,
     [
       "#!/usr/bin/env sh",
       "set -eu",
-      "if command -v openbox >/dev/null 2>&1; then",
-      '  exec openbox claude-code doctor "$@"',
-      "fi",
-      'echo "openbox executable was not found on PATH" >&2',
-      "exit 127",
+      'DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"',
+      'exec node "$DIR/openbox-cli.mjs" claude-code doctor "$@"',
       ""
     ].join("\n"),
     "utf-8"
@@ -4430,30 +5176,31 @@ function marketplaceManifest(version) {
 }
 function copyDir(src, dst) {
   rmSync(dst, { recursive: true, force: true });
-  mkdirSync3(path7.dirname(dst), { recursive: true });
+  mkdirSync2(path8.dirname(dst), { recursive: true });
   cpSync(src, dst, { recursive: true });
 }
 function exportClaudeCodePlugin(options) {
   const out = safeOutDir(options.out);
-  if (existsSync5(out)) {
+  if (existsSync4(out)) {
     if (options.force === false) {
       throw new Error(`Claude Code plugin output already exists: ${out}`);
     }
     rmSync(out, { recursive: true, force: true });
   }
-  mkdirSync3(out, { recursive: true });
+  mkdirSync2(out, { recursive: true });
   const version = packageVersion();
-  writeJson(path7.join(out, ".claude-plugin", "plugin.json"), pluginManifest(version));
-  writeJson(path7.join(out, ".claude-plugin", "marketplace.json"), marketplaceManifest(version));
-  copyDir(findSkillDir(), path7.join(out, "skills", "openbox"));
-  copyDir(findTemplateDir("commands"), path7.join(out, "commands"));
-  copyDir(findTemplateDir("agents"), path7.join(out, "agents"));
-  writeJson(path7.join(out, "hooks", "hooks.json"), claudeHooksJson(options.matchers, options.includeOptInHooks));
-  writeJson(path7.join(out, ".mcp.json"), mcpJson());
-  writeJson(path7.join(out, "diagnostics", "component-inventory.json"), componentInventory(version));
-  writeJson(path7.join(out, "diagnostics", "claude-code-governance.json"), governanceDiagnostic(version));
-  writeJson(path7.join(out, "diagnostics", "monitors.opt-in.json"), optInMonitorMetadata());
-  writePluginDoctorShim(path7.join(out, "bin", "openbox-plugin-doctor"));
+  writeJson(path8.join(out, ".claude-plugin", "plugin.json"), pluginManifest(version));
+  writeJson(path8.join(out, ".claude-plugin", "marketplace.json"), marketplaceManifest(version));
+  copyDir(findSkillDir(), path8.join(out, "skills", "openbox"));
+  copyDir(findTemplateDir("commands"), path8.join(out, "commands"));
+  copyDir(findTemplateDir("agents"), path8.join(out, "agents"));
+  writeJson(path8.join(out, "hooks", "hooks.json"), claudeHooksJson(options.matchers, options.includeOptInHooks));
+  writeJson(path8.join(out, ".mcp.json"), mcpJson());
+  writeJson(path8.join(out, "diagnostics", "component-inventory.json"), componentInventory(version));
+  writeJson(path8.join(out, "diagnostics", "claude-code-governance.json"), governanceDiagnostic(version));
+  writeJson(path8.join(out, "diagnostics", "monitors.opt-in.json"), optInMonitorMetadata());
+  writePluginCliRunner(path8.join(out, PLUGIN_CLI_RUNNER));
+  writePluginDoctorShim(path8.join(out, "bin", "openbox-plugin-doctor"));
   return out;
 }
 function installClaudeCodePlugin(options = {}) {
@@ -4461,15 +5208,17 @@ function installClaudeCodePlugin(options = {}) {
   const target = assertProjectTarget(options.target ?? claudeCodePluginTargetDir(cwd), cwd);
   if (options.symlink) {
     const source = safeOutDir(options.symlink);
-    if (!existsSync5(source)) {
+    if (!existsSync4(source)) {
       throw new Error(`Claude Code plugin symlink source does not exist: ${source}`);
     }
     rmSync(target, { recursive: true, force: true });
-    mkdirSync3(path7.dirname(target), { recursive: true });
+    mkdirSync2(path8.dirname(target), { recursive: true });
     symlinkSync(source, target, "dir");
     if (!options.skipRuntimeConfig) {
       writeRuntimeConfigTemplate(claudeCodeRuntimeConfigDir(cwd));
     }
+    scrubLegacyClaudeCodeSettingsHooks(cwd);
+    scrubLegacyOpenBoxProjectMcp(cwd);
     return target;
   }
   const out = exportClaudeCodePlugin({
@@ -4480,23 +5229,27 @@ function installClaudeCodePlugin(options = {}) {
   if (!options.skipRuntimeConfig) {
     writeRuntimeConfigTemplate(claudeCodeRuntimeConfigDir(cwd));
   }
+  scrubLegacyClaudeCodeSettingsHooks(cwd);
+  scrubLegacyOpenBoxProjectMcp(cwd);
   return out;
 }
 function uninstallClaudeCodePlugin(options = {}) {
   const cwd = options.cwd ?? process.cwd();
   const target = assertProjectTarget(options.target ?? claudeCodePluginTargetDir(cwd), cwd);
   rmSync(target, { recursive: true, force: true });
+  scrubLegacyClaudeCodeSettingsHooks(cwd);
+  scrubLegacyOpenBoxProjectMcp(cwd);
 }
 function checkFile(name, file) {
   return {
     name,
-    status: existsSync5(file) ? "pass" : "fail",
+    status: existsSync4(file) ? "pass" : "fail",
     path: file,
-    detail: existsSync5(file) ? "present" : "missing"
+    detail: existsSync4(file) ? "present" : "missing"
   };
 }
 function checkDirFiles(name, dir, expected) {
-  if (!existsSync5(dir)) {
+  if (!existsSync4(dir)) {
     return { name, status: "fail", path: dir, detail: "directory missing" };
   }
   const present = new Set(readdirSync(dir).filter((file) => expected.includes(file)));
@@ -4508,14 +5261,14 @@ function checkDirFiles(name, dir, expected) {
     detail: missing.length === 0 ? `${expected.length} file(s)` : `missing: ${missing.join(", ")}`
   };
 }
-function checkHooks(file) {
+function checkHooks(file, includeOptInHooks = false) {
   const hooksJson = readJson(file);
   const hooks = hooksJson?.[HOOK_SPEC.key];
   const problems = [];
   if (!hooks || typeof hooks !== "object") {
     problems.push("hooks block missing");
   } else {
-    for (const event of hookEvents(false)) {
+    for (const event of hookEvents(includeOptInHooks)) {
       const value = hooks[event.name];
       if (!Array.isArray(value) || value.length === 0) {
         problems.push(`${event.name}: missing array entry`);
@@ -4526,8 +5279,11 @@ function checkHooks(file) {
       if (hook?.type !== "command") {
         problems.push(`${event.name}: hook type drift`);
       }
-      if (hook?.command !== HOOK_SPEC.command) {
+      if (hook?.command !== PLUGIN_HOOK_HANDLER.command) {
         problems.push(`${event.name}: command drift`);
+      }
+      if (JSON.stringify(hook?.args) !== JSON.stringify(PLUGIN_HOOK_HANDLER.args)) {
+        problems.push(`${event.name}: args drift`);
       }
       if (event.timeout !== void 0 && hook?.timeout !== event.timeout) {
         problems.push(`${event.name}: timeout ${String(hook?.timeout)} != ${event.timeout}`);
@@ -4539,7 +5295,7 @@ function checkHooks(file) {
       }
     }
     for (const entry of CLAUDE_CODE_HOOK_MATRIX.filter((item) => !item.defaultInstall)) {
-      if (hooks[entry.event]) {
+      if (!includeOptInHooks && hooks[entry.event]) {
         problems.push(`${entry.event}: opt-in event installed by default`);
       }
     }
@@ -4548,18 +5304,49 @@ function checkHooks(file) {
     name: "plugin-hooks",
     status: problems.length === 0 ? "pass" : "fail",
     path: file,
-    detail: problems.length === 0 ? `${hookEvents(false).length} default event(s)` : problems.join("; ")
+    detail: problems.length === 0 ? `${hookEvents(includeOptInHooks).length} event(s)` : problems.join("; ")
   };
 }
 function checkMcp(file) {
   const json = readJson(file);
   const openbox = json?.mcpServers?.openbox;
-  const ok = openbox?.command === "openbox" && Array.isArray(openbox.args) && openbox.args[0] === "mcp" && openbox.args[1] === "serve";
+  const ok = openbox?.command === PLUGIN_MCP_SERVER.command && Array.isArray(openbox.args) && JSON.stringify(openbox.args) === JSON.stringify(PLUGIN_MCP_SERVER.args);
   return {
     name: "plugin-mcp",
     status: ok ? "pass" : "fail",
     path: file,
-    detail: ok ? "openbox mcp serve" : "openbox server entry missing or malformed"
+    detail: ok ? "node bin/openbox-cli.mjs mcp serve" : "openbox server entry missing or malformed"
+  };
+}
+function checkComponentInventory(file) {
+  const json = readJson(file);
+  const components = json?.components;
+  const missing = EXPECTED_COMPONENT_NAMES.filter((name) => !components?.[name]);
+  return {
+    name: "plugin-component-inventory",
+    status: missing.length === 0 ? "pass" : "fail",
+    path: file,
+    detail: missing.length === 0 ? `${EXPECTED_COMPONENT_NAMES.length} component(s)` : `missing: ${missing.join(", ")}`
+  };
+}
+function checkNoLegacySettingsHooks(cwd = process.cwd()) {
+  const file = path8.join(cwd, ".claude", "settings.json");
+  const stale = hasLegacyClaudeCodeSettingsHooks(cwd);
+  return {
+    name: "project-settings-legacy-hooks",
+    status: stale ? "fail" : "pass",
+    path: file,
+    detail: stale ? "remove stale `openbox claude-code hook` project settings entries" : "no legacy project settings hooks"
+  };
+}
+function checkNoLegacyProjectMcp(cwd = process.cwd()) {
+  const file = path8.join(cwd, ".mcp.json");
+  const stale = hasLegacyOpenBoxProjectMcp(cwd);
+  return {
+    name: "project-mcp-legacy-openbox",
+    status: stale ? "fail" : "pass",
+    path: file,
+    detail: stale ? "remove stale project `.mcp.json` openbox command entry" : "no legacy project MCP openbox entry"
   };
 }
 function verifyClaudeCodePlugin(options = {}) {
@@ -4567,7 +5354,7 @@ function verifyClaudeCodePlugin(options = {}) {
     options.target ?? claudeCodePluginTargetDir(options.cwd)
   );
   const checks = [];
-  if (existsSync5(target)) {
+  if (existsSync4(target)) {
     const stat = lstatSync(target);
     checks.push({
       name: "plugin",
@@ -4578,15 +5365,192 @@ function verifyClaudeCodePlugin(options = {}) {
   } else {
     checks.push({ name: "plugin", status: "fail", path: target, detail: "missing" });
   }
-  checks.push(checkFile("plugin-manifest", path7.join(target, ".claude-plugin", "plugin.json")));
-  checks.push(checkFile("plugin-marketplace", path7.join(target, ".claude-plugin", "marketplace.json")));
-  checks.push(checkFile("plugin-skill", path7.join(target, "skills", "openbox", "SKILL.md")));
-  checks.push(checkDirFiles("plugin-commands", path7.join(target, "commands"), EXPECTED_COMMAND_FILES));
-  checks.push(checkDirFiles("plugin-agents", path7.join(target, "agents"), EXPECTED_AGENT_FILES));
-  checks.push(checkHooks(path7.join(target, "hooks", "hooks.json")));
-  checks.push(checkMcp(path7.join(target, ".mcp.json")));
-  checks.push(checkDirFiles("plugin-diagnostics", path7.join(target, "diagnostics"), EXPECTED_DIAGNOSTIC_FILES));
-  checks.push(checkDirFiles("plugin-bin", path7.join(target, "bin"), EXPECTED_BIN_FILES));
+  checks.push(checkFile("plugin-manifest", path8.join(target, ".claude-plugin", "plugin.json")));
+  checks.push(checkFile("plugin-marketplace", path8.join(target, ".claude-plugin", "marketplace.json")));
+  checks.push(checkFile("plugin-skill", path8.join(target, "skills", "openbox", "SKILL.md")));
+  checks.push(checkDirFiles("plugin-commands", path8.join(target, "commands"), EXPECTED_COMMAND_FILES));
+  checks.push(checkDirFiles("plugin-agents", path8.join(target, "agents"), EXPECTED_AGENT_FILES));
+  checks.push(checkHooks(path8.join(target, "hooks", "hooks.json"), options.includeOptInHooks));
+  checks.push(checkMcp(path8.join(target, ".mcp.json")));
+  checks.push(checkDirFiles("plugin-diagnostics", path8.join(target, "diagnostics"), EXPECTED_DIAGNOSTIC_FILES));
+  checks.push(checkComponentInventory(path8.join(target, "diagnostics", "component-inventory.json")));
+  checks.push(checkDirFiles("plugin-bin", path8.join(target, "bin"), EXPECTED_BIN_FILES));
+  checks.push(checkNoLegacySettingsHooks(options.cwd));
+  checks.push(checkNoLegacyProjectMcp(options.cwd));
+  return checks;
+}
+
+// ts/src/runtime/claude-code/install.ts
+function installClaudeCode(opts = {}) {
+  installClaudeCodePlugin({ scope: opts.scope, cwd: opts.cwd });
+}
+function uninstallClaudeCode(opts = {}) {
+  uninstallClaudeCodePlugin({ scope: opts.scope, cwd: opts.cwd });
+}
+
+// ts/src/runtime/claude-code/doctor.ts
+import { existsSync as existsSync5 } from "fs";
+import path9 from "path";
+function isPlaceholderKey(value) {
+  if (!value) return false;
+  return /YOUR_API_KEY|REPLACE_ME|placeholder/i.test(value);
+}
+function parseApprovalMode2(value) {
+  const mode = (value ?? "remote").toLowerCase();
+  if (mode === "inline" || mode === "defer") return mode;
+  return "remote";
+}
+function buildProjectRuntimeEnv(cwd = process.cwd()) {
+  const configDir = claudeCodeRuntimeConfigDir(cwd);
+  const configFile = path9.join(configDir, "config.json");
+  const envFile = path9.join(configDir, ".env");
+  const fileConfig = loadJsonConfig(configFile);
+  const envConfig = loadDotenv(envFile);
+  const get = (key) => process.env[key] ?? fileConfig[key] ?? envConfig[key];
+  const agentIdentity = resolveAgentIdentity({
+    OPENBOX_AGENT_DID: get("OPENBOX_AGENT_DID"),
+    OPENBOX_AGENT_PRIVATE_KEY: get("OPENBOX_AGENT_PRIVATE_KEY")
+  });
+  return {
+    configDir,
+    configFile,
+    envFile,
+    projectConfigPresent: existsSync5(configFile),
+    projectEnvPresent: existsSync5(envFile),
+    coreUrl: get("OPENBOX_CORE_URL") ?? "",
+    apiKey: get("OPENBOX_API_KEY") ?? "",
+    governancePolicy: "fail_closed",
+    approvalMode: parseApprovalMode2(get("APPROVAL_MODE")),
+    agentIdentity
+  };
+}
+function claudeCodeRuntimeDiagnostics(cwd = process.cwd()) {
+  const runtime = buildProjectRuntimeEnv(cwd);
+  return {
+    configDir: runtime.configDir,
+    configFile: runtime.configFile,
+    envFile: runtime.envFile,
+    projectScoped: true,
+    runtimeEnv: {
+      projectConfigPresent: runtime.projectConfigPresent,
+      projectEnvPresent: runtime.projectEnvPresent,
+      runtimeApiKeyPresent: Boolean(runtime.apiKey),
+      runtimeApiKeyPlaceholder: isPlaceholderKey(runtime.apiKey),
+      coreUrlPresent: Boolean(runtime.coreUrl),
+      agentIdentityPresent: Boolean(runtime.agentIdentity)
+    },
+    failMode: runtime.governancePolicy,
+    approvalMode: runtime.approvalMode,
+    unsupportedOrOptInSurfaces: {
+      worktreeCreate: "explicit_out_of_scope_replaces_default_git_behavior",
+      sessionEnd: "opt_in_shutdown_telemetry",
+      monitors: "opt_in_unsandboxed_not_project_scope",
+      lsp: "out_of_scope_no_openbox_language_server",
+      managedSettings: "enterprise_diagnose_only",
+      channels: "diagnose_only_research_preview"
+    }
+  };
+}
+async function checkRuntimeReadiness(cwd, validateRuntime) {
+  const runtime = buildProjectRuntimeEnv(cwd);
+  const details = [
+    `config=${runtime.configFile}`,
+    `core=${runtime.coreUrl || "(missing)"}`,
+    `failMode=${runtime.governancePolicy}`,
+    `approvalMode=${runtime.approvalMode}`
+  ];
+  if (!runtime.coreUrl) {
+    return {
+      name: "runtime",
+      status: "fail",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; missing OPENBOX_CORE_URL`
+    };
+  }
+  if (!runtime.apiKey) {
+    return {
+      name: "runtime",
+      status: "fail",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; missing OPENBOX_API_KEY`
+    };
+  }
+  if (isPlaceholderKey(runtime.apiKey)) {
+    return {
+      name: "runtime",
+      status: "fail",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; placeholder OPENBOX_API_KEY`
+    };
+  }
+  const format = validateApiKeyFormat(runtime.apiKey);
+  if (format !== true) {
+    return {
+      name: "runtime",
+      status: "fail",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; invalid OPENBOX_API_KEY format: ${format}`
+    };
+  }
+  if (!validateRuntime) {
+    return {
+      name: "runtime",
+      status: "pass",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; key=format-ok`
+    };
+  }
+  try {
+    const core = new OpenBoxCoreClient({
+      apiKey: runtime.apiKey,
+      apiUrl: runtime.coreUrl,
+      agentIdentity: runtime.agentIdentity,
+      timeoutMs: 5e3
+    });
+    const validation = await core.validateApiKey();
+    const agent = validation?.agent_id ? `; agent=${validation.agent_id}` : "";
+    return {
+      name: "runtime",
+      status: "pass",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; key=validated${agent}`
+    };
+  } catch (err) {
+    return {
+      name: "runtime",
+      status: "fail",
+      path: runtime.configFile,
+      detail: `${details.join("; ")}; core validation failed: ${String(err?.message ?? err)}`
+    };
+  }
+}
+function summarizeClaudeCodeChecks(checks) {
+  return checks.reduce(
+    (acc, check) => {
+      acc[check.status] += 1;
+      return acc;
+    },
+    { pass: 0, skip: 0, fail: 0 }
+  );
+}
+function verifyClaudeCodeInstall(opts = {}) {
+  const target = opts.pluginTarget ?? opts.target ?? claudeCodePluginTargetDir(opts.cwd);
+  const checks = verifyClaudeCodePlugin({
+    cwd: opts.cwd,
+    target,
+    includeOptInHooks: opts.includeOptInHooks
+  }).map((check) => ({
+    name: check.name,
+    status: check.status,
+    path: check.path,
+    detail: check.detail
+  }));
+  if (opts.includeRuntime || opts.validateRuntime) {
+    return checkRuntimeReadiness(opts.cwd, Boolean(opts.validateRuntime)).then((runtime) => [
+      ...checks,
+      runtime
+    ]);
+  }
   return checks;
 }
 
@@ -4595,11 +5559,13 @@ var HOOK_LOG_PATH = makeHookLog("claude-code").path;
 export {
   CLAUDE_CODE_GOVERNANCE_AUDIT,
   CLAUDE_CODE_HOOK_MATRIX,
+  CLAUDE_CODE_SDK_CAPABILITY_MATRIX,
   CLAUDE_CODE_SURFACE_MATRIX,
   HOOK_LOG_PATH,
   claudeCodeGovernanceSummary,
   claudeCodePluginTargetDir,
   claudeCodeRuntimeConfigDir,
+  claudeCodeRuntimeDiagnostics,
   createClaudeCodeAdapter,
   defaultClaudeCodeHookEvents,
   exportClaudeCodePlugin,
@@ -4607,7 +5573,9 @@ export {
   installClaudeCodePlugin,
   optInClaudeCodeHookEvents,
   runClaudeHook,
+  summarizeClaudeCodeChecks,
   uninstallClaudeCode,
   uninstallClaudeCodePlugin,
+  verifyClaudeCodeInstall,
   verifyClaudeCodePlugin
 };

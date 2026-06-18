@@ -14,7 +14,7 @@
 // `X-API-Key`), Core is the agent runtime (per-agent runtime key
 // over Bearer auth). Mobile is the only sanctioned JWT consumer for
 // the backend; every other surface (CLI, MCP, IDE extension, hooks)
-// reads the X-API-Key from ~/.openbox/tokens, so SDK e2e dogfoods
+// reads the X-API-Key from project-local token stores, so SDK e2e dogfoods
 // the same path.
 //
 // Unit tests deliberately do NOT load this file: file-tokens'
@@ -25,21 +25,43 @@
 
 import { resolve } from 'path';
 import { readFileSync, existsSync } from 'fs';
-import { homedir } from 'os';
 import { parseTokenStore } from '../ts/src/env/index';
 
-const DEFAULT_API_URL = 'http://localhost:3000';
-const DEFAULT_CORE_URL = 'http://localhost:8086';
+const DEFAULT_API_URL = 'http://127.0.0.1:3000';
+const DEFAULT_CORE_URL = 'http://127.0.0.1:8086';
 const UNIT_DEFAULT_API_URL = 'http://localhost:18080';
 const UNIT_DEFAULT_CORE_URL = 'http://localhost:18081';
 const E2E_AGENT_NAME = 'e2e-agent';
 const RUNTIME_KEY_PREFIX = /^obx_(test|live)_/;
 const BACKEND_KEY_PREFIX = /^obx_key_/;
+const PROJECT_ROOT = resolve(__dirname, '..');
 
 interface AgentKeyRecord {
   agentId: string;
   agentName: string;
   runtimeKey: string;
+}
+
+function readProjectRuntimeKey(): string | undefined {
+  const keysFile = resolve(PROJECT_ROOT, '.openbox', 'agent-keys');
+  if (!existsSync(keysFile)) return undefined;
+
+  const cache: Record<string, AgentKeyRecord> = JSON.parse(
+    readFileSync(keysFile, 'utf-8'),
+  );
+  const entry = Object.values(cache).find((r) => r.agentName === E2E_AGENT_NAME);
+  return entry?.runtimeKey && RUNTIME_KEY_PREFIX.test(entry.runtimeKey)
+    ? entry.runtimeKey
+    : undefined;
+}
+
+function isLocalCoreUrl(): boolean {
+  try {
+    const url = new URL(process.env.OPENBOX_CORE_URL || DEFAULT_CORE_URL);
+    return ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+  } catch {
+    return false;
+  }
 }
 
 function populateUrls(): void {
@@ -56,18 +78,6 @@ function populateUrls(): void {
   }
   if (!process.env.OPENBOX_CORE_URL || process.env.OPENBOX_CORE_URL === UNIT_DEFAULT_CORE_URL) {
     process.env.OPENBOX_CORE_URL = DEFAULT_CORE_URL;
-  }
-}
-
-function unlockExperimentalCli(): void {
-  // The cli-commands suite shells out to the openbox binary as a
-  // subprocess. The CLI gates org / team / behavior / etc. behind
-  // --experimental to prevent accidental use; e2e is exactly the
-  // case the gate is designed to allow. Unlock at the parent-process
-  // level so spawned subprocesses inherit the level rather than
-  // threading --experimental through every runCli call.
-  if (!process.env.OPENBOX_EXPERIMENTAL_LEVEL) {
-    process.env.OPENBOX_EXPERIMENTAL_LEVEL = 'experimental';
   }
 }
 
@@ -88,8 +98,8 @@ function loadBackendKey(): void {
   }
 
   const candidates = [
-    resolve(homedir(), '.openbox', 'tokens'),
-    resolve(__dirname, '..', '.tokens'),
+    resolve(PROJECT_ROOT, '.tokens'),
+    resolve(PROJECT_ROOT, '.openbox', 'tokens'),
   ];
   const tokensPath = candidates.find((p) => existsSync(p));
   if (!tokensPath) return;
@@ -103,8 +113,18 @@ function loadBackendKey(): void {
 function loadCoreRuntimeKey(): void {
   // Same shape-validation pattern: an OPENBOX_API_KEY that doesn't
   // start with obx_test_/obx_live_ is not a Core runtime key and
-  // would 401. Overwrite from the agent-keys cache.
+  // would 401. For the local stack, prefer the project-local cache
+  // over any inherited shell key so e2e runs do not accidentally hit
+  // stale global credentials.
+  const projectRuntimeKey = readProjectRuntimeKey();
+  if (projectRuntimeKey && isLocalCoreUrl()) {
+    process.env.OPENBOX_API_KEY = projectRuntimeKey;
+    delete process.env.OPENBOX_API_KEY_OVERRIDE;
+    return;
+  }
+
   const existing =
+    process.env.OPENBOX_E2E_RUNTIME_KEY ||
     process.env.OPENBOX_API_KEY ||
     process.env.OPENBOX_API_KEY_OVERRIDE;
   if (existing && RUNTIME_KEY_PREFIX.test(existing)) {
@@ -116,16 +136,7 @@ function loadCoreRuntimeKey(): void {
     delete process.env.OPENBOX_API_KEY_OVERRIDE;
   }
 
-  const keysFile = resolve(homedir(), '.openbox', 'agent-keys');
-  if (!existsSync(keysFile)) return;
-
-  const cache: Record<string, AgentKeyRecord> = JSON.parse(
-    readFileSync(keysFile, 'utf-8'),
-  );
-  const entry = Object.values(cache).find((r) => r.agentName === E2E_AGENT_NAME);
-  if (entry?.runtimeKey) {
-    process.env.OPENBOX_API_KEY = entry.runtimeKey;
-  }
+  if (projectRuntimeKey) process.env.OPENBOX_API_KEY = projectRuntimeKey;
 }
 
 async function populateOrgId(): Promise<void> {
@@ -153,7 +164,6 @@ async function populateOrgId(): Promise<void> {
 }
 
 populateUrls();
-unlockExperimentalCli();
 loadBackendKey();
 loadCoreRuntimeKey();
 await populateOrgId();

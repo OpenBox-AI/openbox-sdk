@@ -2,7 +2,7 @@
 
 Mirror of `runtime/claude-code/` for [Cursor IDE](https://cursor.com).
 Same two surfaces: `createCursorAdapter` (spec-emitted) +
-`openbox cursor {install,hook}` (platform integration).
+`openbox cursor hook` plus `openbox cursor plugin ...` (platform integration).
 
 ## Differences from claude-code
 

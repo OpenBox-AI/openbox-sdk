@@ -1,7 +1,7 @@
 export { D as DateRangeKey, E as EMPTY_FILTERS, F as FilterState, S as SummaryLookups, a as applyClientFilters, d as dateRangeBounds, h as hasActiveFilters, s as summarizeFilters } from '../filters-DvdU2K2C.js';
-import { b as OpenBoxClient } from '../client-D20fgzve.js';
+import { b as OpenBoxClient } from '../client-C43Hkmge.js';
 import { c as Approval } from '../responses-C2s9PwZF.js';
-import '../env-bindings--BxVwc6f.js';
+import '../env-bindings-CCaolEHB.js';
 
 declare function verdictLabel(v: number | undefined | null): string | undefined;
 declare const UPPERCASE_WORDS: Set<string>;
@@ -38,6 +38,7 @@ declare function tierBg(tier?: number | null): string;
 declare function timeAgo(createdAt?: string | null): string;
 declare function timeRemaining(expiresAt?: string | null): string;
 
+declare function defaultApprovalSocketPath(): string;
 declare const APPROVAL_SOCKET_PATH: string;
 interface PendingNotification {
     governance_event_id: string;
@@ -103,7 +104,7 @@ interface ApprovalServerConnection {
 }
 interface ApprovalSocketServerOptions {
     /** Override socket path. Defaults to
-     *  `~/.openbox/run/openbox.sock`. */
+     *  `<project>/.openbox/run/openbox.sock`. */
     socketPath?: string;
     /** Diagnostic logger for non-fatal I/O errors. */
     log?: (line: string) => void;
@@ -187,4 +188,4 @@ type ApprovalSource = string;
  */
 declare function approvalSource(a: Approval): ApprovalSource | undefined;
 
-export { APPROVAL_SOCKET_PATH, type ApprovalBucket, type ApprovalIdentityHint, ApprovalIdentityNotFoundError, type ApprovalPendingMessage, type ApprovalServerConnection, ApprovalSocketServer, type ApprovalSocketServerHandlers, type ApprovalSocketServerOptions, type ApprovalSource, type PendingNotification, type ResolvedApprovalIdentity, type SectionStatus, type SocketResult, UPPERCASE_WORDS, approvalSource, connectApprovalSocket, decideApproval, formatLabel, resolveApprovalIdentity, statusOf, summarizeInput, tierBg, tierColor, timeAgo, timeRemaining, verdictLabel };
+export { APPROVAL_SOCKET_PATH, type ApprovalBucket, type ApprovalIdentityHint, ApprovalIdentityNotFoundError, type ApprovalPendingMessage, type ApprovalServerConnection, ApprovalSocketServer, type ApprovalSocketServerHandlers, type ApprovalSocketServerOptions, type ApprovalSource, type PendingNotification, type ResolvedApprovalIdentity, type SectionStatus, type SocketResult, UPPERCASE_WORDS, approvalSource, connectApprovalSocket, decideApproval, defaultApprovalSocketPath, formatLabel, resolveApprovalIdentity, statusOf, summarizeInput, tierBg, tierColor, timeAgo, timeRemaining, verdictLabel };

@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { EXIT, bailWith } from '../exit-codes.js';
-import { error, output, success } from '../output.js';
+import { isMachineMode } from '../non-interactive.js';
+import { error, output, row, success, summary } from '../output.js';
 
 function collectPair(value: string, prior: string[]): string[] {
   return [...prior, value];
@@ -32,8 +33,8 @@ function parsePluginScope(value: string | undefined): 'project' {
  *
  *    hook        stdin to governance to stdout, invoked by Claude
  *                Code per hook event.
- *    install     install the project-local Claude Code plugin.
- *    uninstall   remove the project-local Claude Code plugin.
+ *    plugin      export/install/remove the project-local Claude Code plugin.
+ *    doctor      verify project-local Claude Code readiness.
  */
 export function registerClaudeCodeCommands(program: Command) {
   const claude = program.command('claude-code').description('Claude Code integration');
@@ -66,7 +67,7 @@ export function registerClaudeCodeCommands(program: Command) {
       collectPair,
       [],
     )
-    .option('--include-opt-in-hooks', 'Also install opt-in/invasive hook events such as WorktreeCreate')
+    .option('--include-opt-in-hooks', 'Also install opt-in hook events such as SessionEnd; WorktreeCreate remains diagnostic-only')
     .action(async (opts: { out: string; matcher: string[]; includeOptInHooks?: boolean }) => {
       const { exportClaudeCodePlugin, verifyClaudeCodePlugin } = await import(
         '../../runtime/claude-code/index.js'
@@ -76,7 +77,10 @@ export function registerClaudeCodeCommands(program: Command) {
         matchers: parseMatcherPairs(opts.matcher),
         includeOptInHooks: opts.includeOptInHooks,
       });
-      const checks = verifyClaudeCodePlugin({ target: out });
+      const checks = verifyClaudeCodePlugin({
+        target: out,
+        includeOptInHooks: opts.includeOptInHooks,
+      });
       const failed = checks.filter((check) => check.status === 'fail');
       if (failed.length > 0) {
         output({ out, checks });
@@ -98,7 +102,7 @@ export function registerClaudeCodeCommands(program: Command) {
       collectPair,
       [],
     )
-    .option('--include-opt-in-hooks', 'Also install opt-in/invasive hook events such as WorktreeCreate')
+    .option('--include-opt-in-hooks', 'Also install opt-in hook events such as SessionEnd; WorktreeCreate remains diagnostic-only')
     .action(
       async (opts: {
         scope?: string;
@@ -138,56 +142,58 @@ export function registerClaudeCodeCommands(program: Command) {
     });
 
   claude
-    .command('install')
-    .description('Alias for `openbox claude-code plugin install`')
-    .option('--scope <scope>', 'project only', 'project')
-    .option('--cwd <dir>', 'Project root for --scope project')
-    .option('--target <dir>', 'Explicit Claude Code plugin target directory')
-    .option('--symlink <dir>', 'Symlink an already-exported plugin folder into Claude Code')
-    .option(
-      '--matcher <pair>',
-      "Hook matcher pair `<event>=<regex>` copied into hooks/hooks.json. Repeatable.",
-      collectPair,
-      [],
-    )
-    .option('--include-opt-in-hooks', 'Also install opt-in/invasive hook events such as WorktreeCreate')
-    .action(
-      async (opts: {
-        scope?: string;
-        cwd?: string;
-        target?: string;
-        symlink?: string;
-        matcher: string[];
-        includeOptInHooks?: boolean;
-      }) => {
-        const { installClaudeCodePlugin } = await import('../../runtime/claude-code/index.js');
-        const target = installClaudeCodePlugin({
-          scope: parsePluginScope(opts.scope),
-          cwd: opts.cwd,
-          target: opts.target,
-          symlink: opts.symlink,
-          matchers: parseMatcherPairs(opts.matcher),
-          includeOptInHooks: opts.includeOptInHooks,
-        });
-        success(`installed Claude Code plugin at ${target}`);
-      },
-    );
-
-  claude
-    .command('uninstall')
-    .description('Alias for `openbox claude-code plugin uninstall`')
-    .option('--scope <scope>', 'project only', 'project')
-    .option('--cwd <dir>', 'Project root for --scope project')
-    .option('--target <dir>', 'Explicit Claude Code plugin target directory')
-    .action(
-      async (opts: { scope?: string; cwd?: string; target?: string }) => {
-        const { uninstallClaudeCodePlugin } = await import('../../runtime/claude-code/index.js');
-        uninstallClaudeCodePlugin({
-          scope: parsePluginScope(opts.scope),
-          cwd: opts.cwd,
-          target: opts.target,
-        });
-        success('removed Claude Code plugin');
-      },
-    );
+    .command('doctor')
+    .description('Verify the installed Claude Code surface and hook runtime readiness')
+    .option('--cwd <dir>', 'Project root for project-local install')
+    .option('--plugin-target <dir>', 'Claude Code project-local plugin target directory')
+    .option('--surface-only', 'Check installed files only; skip runtime key/core validation', false)
+    .option('--no-core-validate', 'Check runtime config and key format without calling core')
+    .option('--include-opt-in-hooks', 'Validate an installation that intentionally includes opt-in hooks')
+    .option('--json', 'Emit machine-readable JSON', false)
+    .action(async (opts: {
+      cwd?: string;
+      pluginTarget?: string;
+      surfaceOnly?: boolean;
+      coreValidate?: boolean;
+      includeOptInHooks?: boolean;
+      json?: boolean;
+    }) => {
+      const {
+        claudeCodeGovernanceSummary,
+        claudeCodeRuntimeDiagnostics,
+        summarizeClaudeCodeChecks,
+        verifyClaudeCodeInstall,
+      } = await import('../../runtime/claude-code/index.js');
+      const checks = await Promise.resolve(
+        opts.surfaceOnly
+          ? verifyClaudeCodeInstall({
+              cwd: opts.cwd,
+              pluginTarget: opts.pluginTarget,
+              includeOptInHooks: opts.includeOptInHooks,
+            })
+          : verifyClaudeCodeInstall({
+              cwd: opts.cwd,
+              pluginTarget: opts.pluginTarget,
+              includeOptInHooks: opts.includeOptInHooks,
+              includeRuntime: true,
+              validateRuntime: opts.coreValidate !== false,
+            }),
+      );
+      const counts = summarizeClaudeCodeChecks(checks);
+      const payload = {
+        checks,
+        summary: counts,
+        runtimeReadiness: claudeCodeRuntimeDiagnostics(opts.cwd),
+        claudeCodeGovernance: claudeCodeGovernanceSummary(),
+      };
+      if (opts.json || isMachineMode()) {
+        output(payload);
+      } else {
+        for (const c of checks) {
+          row(c.name, c.status, c.detail ? `${c.detail}${c.path ? ` (${c.path})` : ''}` : c.path);
+        }
+        summary(counts);
+      }
+      if (counts.fail > 0) bailWith(EXIT.GENERIC);
+    });
 }

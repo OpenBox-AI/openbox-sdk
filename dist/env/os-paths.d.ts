@@ -1,9 +1,11 @@
-import { b as OsPathResolver } from '../env-bindings--BxVwc6f.js';
-export { c as OsPathScope } from '../env-bindings--BxVwc6f.js';
+import { b as OsPathResolver } from '../env-bindings-CCaolEHB.js';
+export { c as OsPathScope } from '../env-bindings-CCaolEHB.js';
 
 /**
- * Returns the openbox user-data root for the current platform. Honors
- * `OPENBOX_HOME` as a hard override (testing, CI, sandboxes).
+ * Returns the OpenBox data root. Defaults to the current project's
+ * `.openbox/` directory. Honors `OPENBOX_HOME` as a hard override
+ * for tests, CI, sandboxes, or callers that intentionally need an
+ * external data root.
  */
 declare function openboxDataRoot(): string;
 /**

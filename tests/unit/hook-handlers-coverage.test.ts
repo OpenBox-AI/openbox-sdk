@@ -69,9 +69,9 @@ afterEach(() => {
 });
 
 describe('runtime/claude-code/hook-handler', () => {
-  it('exits 0 cleanly when OPENBOX_API_KEY is unset (pass-through)', async () => {
+  it('denies decision-capable hooks when OPENBOX_API_KEY is unset', async () => {
     const before = process.env.OPENBOX_API_KEY;
-    delete process.env.OPENBOX_API_KEY;
+    process.env.OPENBOX_API_KEY = '';
     try {
       const r = await runWithStdin(
         { hook_event_name: 'PreToolUse', session_id: 'S', tool_name: 'Read', tool_input: {} },
@@ -81,18 +81,22 @@ describe('runtime/claude-code/hook-handler', () => {
         },
       );
       expect(r.exitCode).toBe(0);
+      expect(JSON.parse(r.stdout)).toMatchObject({
+        hookSpecificOutput: {
+          permissionDecision: 'deny',
+          permissionDecisionReason: expect.stringContaining('missing OPENBOX_API_KEY'),
+        },
+      });
     } finally {
       if (before !== undefined) process.env.OPENBOX_API_KEY = before;
     }
   });
 
-  it('runs the dispatch loop end-to-end when API key is set + DRY_RUN=true', async () => {
+  it('runs the dispatch loop end-to-end when API key and Core URL are set', async () => {
     const beforeKey = process.env.OPENBOX_API_KEY;
     const beforeCore = process.env.OPENBOX_CORE_URL;
-    const beforeDry = process.env.DRY_RUN;
     process.env.OPENBOX_API_KEY = 'obx_live_test';
     process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
-    process.env.DRY_RUN = 'true';
     try {
       const r = await runWithStdin(
         { hook_event_name: 'PreToolUse', session_id: 'S', tool_name: 'Read', tool_input: { file_path: '/tmp/x' } },
@@ -101,11 +105,10 @@ describe('runtime/claude-code/hook-handler', () => {
           await runClaudeHook();
         },
       );
-      // DRY_RUN handlers return undefined → adapter writes the
-      // protocol's no-decision shape, then exits cleanly (0) or
-      // returns. Either is success. The strong assertion is the
-      // protocol contract: anything emitted to stdout MUST parse as
-      // JSON (claude-code reads stdout as the verdict envelope).
+      // The fetch stub above supplies an allow verdict. The strong
+      // assertion is the protocol contract: anything emitted to stdout
+      // MUST parse as JSON (claude-code reads stdout as the verdict
+      // envelope).
       expect(r.exitCode === undefined || r.exitCode === 0).toBe(true);
       if (r.stdout.length > 0) {
         expect(() => JSON.parse(r.stdout)).not.toThrow();
@@ -115,16 +118,14 @@ describe('runtime/claude-code/hook-handler', () => {
       else delete process.env.OPENBOX_API_KEY;
       if (beforeCore !== undefined) process.env.OPENBOX_CORE_URL = beforeCore;
       else delete process.env.OPENBOX_CORE_URL;
-      if (beforeDry !== undefined) process.env.DRY_RUN = beforeDry;
-      else delete process.env.DRY_RUN;
     }
   });
 });
 
 describe('runtime/cursor/hook-handler', () => {
-  it('exits 0 cleanly when OPENBOX_API_KEY is unset', async () => {
+  it('denies decision-capable hooks when OPENBOX_API_KEY is unset', async () => {
     const before = process.env.OPENBOX_API_KEY;
-    delete process.env.OPENBOX_API_KEY;
+    process.env.OPENBOX_API_KEY = '';
     try {
       const r = await runWithStdin(
         { hook_event_name: 'beforeShellExecution', conversation_id: 'C', command: 'ls' },
@@ -134,18 +135,21 @@ describe('runtime/cursor/hook-handler', () => {
         },
       );
       expect(r.exitCode).toBe(0);
+      expect(JSON.parse(r.stdout)).toMatchObject({
+        permission: 'deny',
+        user_message: expect.stringContaining('missing OPENBOX_API_KEY'),
+      });
     } finally {
       if (before !== undefined) process.env.OPENBOX_API_KEY = before;
+      else delete process.env.OPENBOX_API_KEY;
     }
   });
 
-  it('drives the dispatch loop with API key + DRY_RUN', async () => {
+  it('drives the dispatch loop with API key and Core URL', async () => {
     const beforeKey = process.env.OPENBOX_API_KEY;
     const beforeCore = process.env.OPENBOX_CORE_URL;
-    const beforeDry = process.env.DRY_RUN;
     process.env.OPENBOX_API_KEY = 'obx_live_test';
     process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
-    process.env.DRY_RUN = 'true';
     try {
       const r = await runWithStdin(
         { hook_event_name: 'beforeShellExecution', conversation_id: 'C', command: 'ls' },
@@ -154,9 +158,8 @@ describe('runtime/cursor/hook-handler', () => {
           await runCursorHook();
         },
       );
-      // Same protocol contract as claude-code; DRY_RUN takes the
-      // adapter all the way through dispatch + emit; clean dispatch
-      // means exit 0 or no exit; anything else is a regression.
+      // Same protocol contract as claude-code: clean dispatch means
+      // exit 0 or no explicit exit; anything else is a regression.
       expect(r.exitCode === undefined || r.exitCode === 0).toBe(true);
       if (r.stdout.length > 0) {
         expect(() => JSON.parse(r.stdout)).not.toThrow();
@@ -166,8 +169,6 @@ describe('runtime/cursor/hook-handler', () => {
       else delete process.env.OPENBOX_API_KEY;
       if (beforeCore !== undefined) process.env.OPENBOX_CORE_URL = beforeCore;
       else delete process.env.OPENBOX_CORE_URL;
-      if (beforeDry !== undefined) process.env.DRY_RUN = beforeDry;
-      else delete process.env.DRY_RUN;
     }
   });
 });

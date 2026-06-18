@@ -4,8 +4,8 @@
 // the hook on stdin and asserts the stdout JSON matches the
 // shape claude-code expects per @verdictShape. Faster than the
 // end-to-end matrix (no model latency) and covers paths claude
-// cannot easily drive: dryRun, skipTools, skipActivityTypes,
-// permissionRequest, subagent events, exact stdout shape.
+// cannot easily drive: permissionRequest, subagent events, stale
+// config knobs, and exact stdout shape.
 //
 // The hook honors a config-dir override through the walk-up
 // resolver: we plant a `.claude-hooks/config.json` in a temp
@@ -13,34 +13,32 @@
 // so each case has its own isolated project config without touching
 // user-level hook config.
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
-import { tmpdir, homedir } from 'node:os';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { HOOK_SPEC } from '../../ts/src/core-client/generated/runtime/claude-code.js';
 
-const OPENBOX = process.env.OPENBOX_CLI ?? 'openbox';
+const OPENBOX = process.env.OPENBOX_CLI ?? path.resolve(import.meta.dirname, '../../dist/cli/index.js');
+const TEST_KEY = 'obx_test_0000000000000000000000000000000000000000000000';
+const DEAD_CORE = 'http://127.0.0.1:1';
 
 interface ConfigOverrides {
-  /** When set, the synthetic config writes DRY_RUN=true so the
-   *  hook returns undefined (default allow) without calling the
-   *  backend. */
-  dryRun?: boolean;
-  /** SKIP_TOOLS list; tool_name values in this list cause the hook
-   *  to return early. */
+  /** Stale SKIP_TOOLS list retained by old project configs. */
   skipTools?: string[];
-  /** SKIP_ACTIVITY_TYPES list; activity types in this list cause
-   *  the hook to skip. */
+  /** Stale SKIP_ACTIVITY_TYPES list retained by old project configs. */
   skipActivityTypes?: string[];
-  /** Pin GOVERNANCE_POLICY; defaults to fail_open. */
+  /** Stale GOVERNANCE_POLICY value; runtime normalizes to fail_closed. */
   governancePolicy?: 'fail_open' | 'fail_closed';
+  /** Runtime key. Defaults to a syntactically valid test key. */
+  apiKey?: string;
   /** Override the core URL; the dead-port pattern exercises
-   *  fail-open. */
+   *  fail-closed. */
   coreUrl?: string;
   /** Verbose log toggle. */
   verbose?: boolean;
-  /** Omit OPENBOX_API_KEY to exercise fail-open / fail-closed runtime readiness paths. */
+  /** Omit OPENBOX_API_KEY to exercise runtime readiness paths. */
   omitApiKey?: boolean;
 }
 
@@ -56,18 +54,14 @@ function planConfigDir(opts: ConfigOverrides): string {
   const configDir = path.join(root, '.claude-hooks');
   mkdirSync(configDir, { recursive: true });
   const cfg: Record<string, unknown> = {
-    OPENBOX_CORE_URL: opts.coreUrl ?? 'http://127.0.0.1:1',
-    GOVERNANCE_POLICY: opts.governancePolicy ?? 'fail_open',
+    OPENBOX_CORE_URL: opts.coreUrl ?? DEAD_CORE,
+    GOVERNANCE_POLICY: opts.governancePolicy ?? 'fail_closed',
     GOVERNANCE_TIMEOUT: 1,
     HITL_ENABLED: false,
-    DRY_RUN: opts.dryRun ?? false,
     VERBOSE: opts.verbose ?? false,
   };
   if (!opts.omitApiKey) {
-    // No real key: with the dryRun path we never hit the backend.
-    // For the fail-open path the API key still has to validate
-    // shape, so we use a syntactically-correct test key.
-    cfg.OPENBOX_API_KEY = 'obx_test_0000000000000000000000000000000000000000000000';
+    cfg.OPENBOX_API_KEY = opts.apiKey ?? TEST_KEY;
   }
   if (opts.skipTools) cfg.SKIP_TOOLS = opts.skipTools.join(',');
   if (opts.skipActivityTypes) cfg.SKIP_ACTIVITY_TYPES = opts.skipActivityTypes.join(',');
@@ -105,91 +99,11 @@ function callHook(
 }
 
 describe('claude-code hook stdin/stdout', () => {
-  it('PreToolUse default-allow returns the permission-decision allow shape', () => {
-    const root = planConfigDir({ dryRun: true });
-    const r = callHook(
-      {
-        hook_event_name: 'PreToolUse',
-        session_id: 's-1',
-        tool_name: 'Read',
-        tool_input: { file_path: '/etc/hostname' },
-      },
-      root,
-    );
-    expect(r.status, `exit=${r.status} stderr=${r.stderr}`).toBe(0);
-    const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string; hookEventName?: string } };
-    expect(out?.hookSpecificOutput?.hookEventName).toBe('PreToolUse');
-    expect(out?.hookSpecificOutput?.permissionDecision).toBe('allow');
-  });
-
-  it('UserPromptSubmit on dryRun emits the decision-block allow shape (empty)', () => {
-    const root = planConfigDir({ dryRun: true });
-    const r = callHook(
-      {
-        hook_event_name: 'UserPromptSubmit',
-        session_id: 's-2',
-        prompt: 'test',
-      },
-      root,
-    );
-    expect(r.status).toBe(0);
-    // UserPromptSubmit dispatches through `decision-block`; on
-    // allow / constrain / require_approval that shape is `{}`.
-    // claude treats `{}` and empty stdout interchangeably; both
-    // pass-through.
-    const out = (r.parsed ?? {}) as Record<string, unknown>;
-    expect(out.decision).toBeUndefined();
-  });
-
-  it('PostToolUse on dryRun emits no decision payload (observe-only event)', () => {
-    const root = planConfigDir({ dryRun: true });
-    const r = callHook(
-      {
-        hook_event_name: 'PostToolUse',
-        session_id: 's-3',
-        tool_name: 'Read',
-        tool_input: { file_path: '/etc/hostname' },
-        tool_output: 'hostname-contents',
-      },
-      root,
-    );
-    expect(r.status).toBe(0);
-    // PostToolUse emits decision-block shape; on allow this is `{}`.
-    // The spec says claude treats empty stdout the same way; either
-    // is correct.
-    const out = r.parsed as Record<string, unknown> | undefined;
-    if (out && Object.keys(out).length > 0) {
-      // decision-block allow shape carries no `decision` field.
-      expect(out.decision).toBeUndefined();
-    }
-  });
-
-  it('PermissionRequest returns the permission-request allow shape on dryRun', () => {
-    const root = planConfigDir({ dryRun: true });
-    const r = callHook(
-      {
-        hook_event_name: 'PermissionRequest',
-        session_id: 's-4',
-        tool_name: 'Read',
-        tool_input: { file_path: '/etc/hostname' },
-      },
-      root,
-    );
-    expect(r.status).toBe(0);
-    const out = r.parsed as {
-      hookSpecificOutput?: { decision?: { behavior?: string }; hookEventName?: string };
-    };
-    // PermissionRequest is mapped to permission-request shape with
-    // `decision: { behavior: 'allow' }` on allow / constrain.
-    expect(out?.hookSpecificOutput?.hookEventName).toBe('PermissionRequest');
-    expect(out?.hookSpecificOutput?.decision?.behavior).toBe('allow');
-  });
-
-  it('every spec-defined hook event dispatches cleanly under dryRun', () => {
+  it('every spec-defined hook event dispatches cleanly under fail-closed Core outage', () => {
     // Covers the full generated HOOK_SPEC inventory. WorktreeCreate
     // is intentionally absent from HOOK_SPEC because it is opt-in and
     // replaces Claude Code's default worktree creation behavior.
-    const root = planConfigDir({ dryRun: true });
+    const root = planConfigDir({ coreUrl: DEAD_CORE });
     for (const { name: event } of HOOK_SPEC.events) {
       const r = callHook(
         {
@@ -213,12 +127,12 @@ describe('claude-code hook stdin/stdout', () => {
     }
   });
 
-  it('permission_mode rides through the envelope without breaking the verdict shape', () => {
+  it('permission_mode rides through the envelope and still fails closed', () => {
     // Claude carries `permission_mode` (plan, default, etc.) on
     // every envelope. The adapter passes it through to the activity
     // payload; the hook must keep returning a sane verdict shape
     // regardless of the mode value.
-    const root = planConfigDir({ dryRun: true });
+    const root = planConfigDir({ coreUrl: DEAD_CORE });
     for (const mode of ['default', 'plan', 'acceptEdits', 'bypassPermissions']) {
       const r = callHook(
         {
@@ -232,7 +146,7 @@ describe('claude-code hook stdin/stdout', () => {
       );
       expect(r.status, `permission_mode=${mode} failed: ${r.stderr}`).toBe(0);
       const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string } };
-      expect(out?.hookSpecificOutput?.permissionDecision).toBe('allow');
+      expect(out?.hookSpecificOutput?.permissionDecision).toBe('deny');
     }
   });
 
@@ -240,12 +154,12 @@ describe('claude-code hook stdin/stdout', () => {
     // Note: the per-event verbose log (`<configDir>/hook.log`) is
     // not currently wired; the adapter calls `createLogger().initLogger`
     // but never calls `log()`. The only on-disk log today is the
-    // JSONL hook log at `~/.openbox/log/claude-code-hook.jsonl`,
+    // JSONL hook log at `<project>/.claude-hooks/log/claude-code-hook.jsonl`,
     // which is covered separately. If a future PR wires the
     // human-readable log, this test should grow assertions on
     // <configDir>/hook.log; for now we only assert that VERBOSE
     // does not regress the verdict path.
-    const root = planConfigDir({ dryRun: true, verbose: true });
+    const root = planConfigDir({ verbose: true, coreUrl: DEAD_CORE });
     const r = callHook(
       {
         hook_event_name: 'PreToolUse',
@@ -257,11 +171,11 @@ describe('claude-code hook stdin/stdout', () => {
     );
     expect(r.status).toBe(0);
     const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string } };
-    expect(out?.hookSpecificOutput?.permissionDecision).toBe('allow');
+    expect(out?.hookSpecificOutput?.permissionDecision).toBe('deny');
   });
 
-  it('skipTools causes the hook to bypass governance for the named tool', () => {
-    const root = planConfigDir({ skipTools: ['TodoWrite'] });
+  it('stale skipTools config does not bypass governance for the named tool', () => {
+    const root = planConfigDir({ skipTools: ['TodoWrite'], coreUrl: DEAD_CORE });
     const r = callHook(
       {
         hook_event_name: 'PreToolUse',
@@ -272,16 +186,12 @@ describe('claude-code hook stdin/stdout', () => {
       root,
     );
     expect(r.status).toBe(0);
-    // The hook returns the default-allow shape; we accept either
-    // an explicit allow or an empty stdout (both equivalent to claude).
-    if (r.parsed) {
-      const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string } };
-      const decision = out?.hookSpecificOutput?.permissionDecision;
-      expect(decision === undefined || decision === 'allow').toBe(true);
-    }
+    const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string } };
+    expect(out.hookSpecificOutput?.permissionDecision).toBe('deny');
+    expect(out.hookSpecificOutput?.permissionDecisionReason).toContain('[OpenBox]');
   });
 
-  it('fail-open with unreachable core returns default-allow shape, not an error', () => {
+  it('stale fail_open with unreachable core still denies decision-capable PreToolUse', () => {
     const root = planConfigDir({ coreUrl: 'http://127.0.0.1:1', governancePolicy: 'fail_open' });
     const r = callHook(
       {
@@ -294,13 +204,9 @@ describe('claude-code hook stdin/stdout', () => {
       { OPENBOX_CORE_URL: 'http://127.0.0.1:1', GOVERNANCE_TIMEOUT: '1' },
     );
     expect(r.status, `exit=${r.status} stderr=${r.stderr}`).toBe(0);
-    // The hook must not surface a deny on a transport error under
-    // fail_open; the worst it should emit is empty stdout (default
-    // allow on claude's side).
-    if (r.parsed) {
-      const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string } };
-      expect(out?.hookSpecificOutput?.permissionDecision).not.toBe('deny');
-    }
+    const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string } };
+    expect(out.hookSpecificOutput?.permissionDecision).toBe('deny');
+    expect(out.hookSpecificOutput?.permissionDecisionReason).toContain('[OpenBox]');
   });
 
   it('fail-closed with unreachable core denies decision-capable PreToolUse', () => {
@@ -321,7 +227,7 @@ describe('claude-code hook stdin/stdout', () => {
     expect(out.hookSpecificOutput?.permissionDecisionReason).toContain('[OpenBox]');
   });
 
-  it('missing OPENBOX_API_KEY short-circuits with no stdout (pass-through)', () => {
+  it('missing OPENBOX_API_KEY denies decision-capable hooks even with stale fail_open', () => {
     const root = planConfigDir({ omitApiKey: true, governancePolicy: 'fail_open' });
     const r = callHook(
       {
@@ -333,10 +239,10 @@ describe('claude-code hook stdin/stdout', () => {
       root,
       { OPENBOX_API_KEY: '' },
     );
-    // The hook exits 0 (no key path) without writing a decision
-    // to stdout; claude treats absent stdout as default allow.
     expect(r.status).toBe(0);
-    expect(r.stdout.trim()).toBe('');
+    const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string } };
+    expect(out.hookSpecificOutput?.permissionDecision).toBe('deny');
+    expect(out.hookSpecificOutput?.permissionDecisionReason).toContain('missing OPENBOX_API_KEY');
   });
 
   it('missing OPENBOX_API_KEY fail-closed writes each decision-capable deny/block shape', () => {
@@ -398,9 +304,43 @@ describe('claude-code hook stdin/stdout', () => {
     }
   });
 
+  it('missing OPENBOX_API_KEY fail-closed does not re-block an active Stop retry', () => {
+    const root = planConfigDir({ omitApiKey: true, governancePolicy: 'fail_closed' });
+    const r = callHook(
+      {
+        hook_event_name: 'Stop',
+        session_id: 's-stop-active-retry',
+        stop_hook_active: true,
+      },
+      root,
+      { OPENBOX_API_KEY: '' },
+    );
+    expect(r.status, `Stop active retry failed: ${r.stderr}`).toBe(0);
+    const out = (r.parsed ?? {}) as Record<string, unknown>;
+    expect(out.decision).toBeUndefined();
+  });
+
+  it('unreachable core fail-closed does not re-block an active Stop retry', () => {
+    const root = planConfigDir({ coreUrl: 'http://127.0.0.1:1', governancePolicy: 'fail_closed' });
+    const r = callHook(
+      {
+        hook_event_name: 'Stop',
+        session_id: 's-stop-active-core',
+        stop_hook_active: true,
+        background_tasks: [],
+        session_crons: [],
+      },
+      root,
+      { OPENBOX_CORE_URL: 'http://127.0.0.1:1', GOVERNANCE_TIMEOUT: '1' },
+    );
+    expect(r.status, `Stop active retry failed: ${r.stderr}`).toBe(0);
+    const out = (r.parsed ?? {}) as Record<string, unknown>;
+    expect(out.decision).toBeUndefined();
+  });
+
   it('JSONL hook log captures one record per event', () => {
-    const root = planConfigDir({ dryRun: true });
-    const logPath = path.join(homedir(), '.openbox', 'log', 'claude-code-hook.jsonl');
+    const root = planConfigDir({ coreUrl: DEAD_CORE });
+    const logPath = path.join(root, '.claude-hooks', 'log', 'claude-code-hook.jsonl');
     const before = existsSync(logPath) ? readFileSync(logPath, 'utf-8').length : 0;
 
     const events = ['PreToolUse', 'PostToolUse', 'SessionStart', 'SessionEnd', 'Stop'];
@@ -426,4 +366,5 @@ describe('claude-code hook stdin/stdout', () => {
       expect(lines.some((l) => l.event === event), `log missing ${event}`).toBe(true);
     }
   });
+
 });

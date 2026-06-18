@@ -42,6 +42,7 @@ interface TraceRecord {
     files: FileTrace[];
     metadata?: Record<string, unknown>;
 }
+declare function defaultTraceLogPath(): string;
 /** Hash inserted content with sha256; deterministic for
  *  position-independent tracking per the spec's `content_hash`
  *  field. Hex-encoded; no truncation. */
@@ -88,4 +89,4 @@ declare function readTraceLog(opts?: {
 declare const TRACE_LOG_PATH: string;
 declare const TRACE_SPEC_VERSION = "0.1.0";
 
-export { type BuildRecordArgs, type Contributor, type ContributorType, type Conversation, type FileTrace, type Range, type RelatedResource, TRACE_LOG_PATH, TRACE_SPEC_VERSION, type Tool, type TraceRecord, type Vcs, type VcsType, buildRecord, hashContent, readTraceLog, writeTraceRecord };
+export { type BuildRecordArgs, type Contributor, type ContributorType, type Conversation, type FileTrace, type Range, type RelatedResource, TRACE_LOG_PATH, TRACE_SPEC_VERSION, type Tool, type TraceRecord, type Vcs, type VcsType, buildRecord, defaultTraceLogPath, hashContent, readTraceLog, writeTraceRecord };

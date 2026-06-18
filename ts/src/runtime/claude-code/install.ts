@@ -1,20 +1,18 @@
-// Installer for Claude Code hooks. Spec-driven: target file path,
-// JSON key, per-event timeouts, and the hook command all come from
-// `HOOK_SPEC` (generated from `@hookTarget` in
-// `adapters.tsp`). All JSON-merge work lives in
-// `install/from-spec.ts`.
+// Compatibility wrappers for older SDK consumers that called
+// `installClaudeCode()` directly. Claude Code governance now installs
+// through the native project-local plugin surface, not by writing
+// project `.claude/settings.json` directly.
 
-import { HOOK_SPEC } from '../../core-client/generated/runtime/claude-code.js';
+import type { InstallOptions } from '../../install/from-spec.js';
 import {
-  installAdapter,
-  uninstallAdapter,
-  type InstallOptions,
-} from '../../install/from-spec.js';
+  installClaudeCodePlugin,
+  uninstallClaudeCodePlugin,
+} from './plugin.js';
 
 export function installClaudeCode(opts: InstallOptions = {}): void {
-  installAdapter(HOOK_SPEC, opts);
+  installClaudeCodePlugin({ scope: opts.scope, cwd: opts.cwd });
 }
 
 export function uninstallClaudeCode(opts: InstallOptions = {}): void {
-  uninstallAdapter(HOOK_SPEC, opts);
+  uninstallClaudeCodePlugin({ scope: opts.scope, cwd: opts.cwd });
 }

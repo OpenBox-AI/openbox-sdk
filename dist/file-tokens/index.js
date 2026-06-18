@@ -1,6 +1,6 @@
 // ts/src/file-tokens/index.ts
 import { existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2 } from "fs";
-import { dirname as dirname2, resolve } from "path";
+import { dirname as dirname2, resolve as resolve2 } from "path";
 
 // ts/src/env/token-codec.ts
 function applyField(entry, field, value) {
@@ -52,20 +52,11 @@ var serializeTokenStore = (store) => {
 };
 
 // ts/src/env/os-paths.ts
-import { homedir } from "os";
-import { join } from "path";
+import { join, resolve } from "path";
 function openboxDataRoot() {
   const override = process.env.OPENBOX_HOME;
-  if (override) return override;
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA ?? join(homedir(), "AppData", "Roaming");
-    return join(appData, "openbox");
-  }
-  if (process.platform === "linux") {
-    const xdg = process.env.XDG_DATA_HOME;
-    if (xdg) return join(xdg, "openbox");
-  }
-  return join(homedir(), ".openbox");
+  if (override) return resolve(override);
+  return resolve(process.cwd(), ".openbox");
 }
 var resolveOsPath = (scope) => {
   return join(openboxDataRoot(), scope);
@@ -75,10 +66,7 @@ var resolveOsPath = (scope) => {
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
 function getPath() {
-  const path = resolveOsPath("agent-keys");
-  const dir = dirname(path);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  return path;
+  return resolveOsPath("agent-keys");
 }
 function read() {
   const path = getPath();
@@ -91,7 +79,10 @@ function read() {
   }
 }
 function write(store) {
-  writeFileSync(getPath(), JSON.stringify(store, null, 2) + "\n", { mode: 384 });
+  const path = getPath();
+  const dir = dirname(path);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(path, JSON.stringify(store, null, 2) + "\n", { mode: 384 });
 }
 function recordAgentKey(agentId, runtimeKey, agentName) {
   if (!agentId || !runtimeKey) return;
@@ -114,12 +105,9 @@ function agentKeysPath() {
 
 // ts/src/file-tokens/index.ts
 function getTokenPath() {
-  const projectTokens = resolve(process.cwd(), ".tokens");
+  const projectTokens = resolve2(process.cwd(), ".tokens");
   if (existsSync2(projectTokens)) return projectTokens;
-  const path = resolveOsPath("tokens");
-  const dir = dirname2(path);
-  if (!existsSync2(dir)) mkdirSync2(dir, { recursive: true });
-  return path;
+  return resolveOsPath("tokens");
 }
 function readTokenStore() {
   const path = getTokenPath();
@@ -137,6 +125,8 @@ function saveApiKey(apiKey) {
     features: _features,
     ...storeWithoutPrincipalMetadata
   } = store;
+  const dir = dirname2(path);
+  if (!existsSync2(dir)) mkdirSync2(dir, { recursive: true });
   writeFileSync2(
     path,
     serializeTokenStore({
@@ -152,6 +142,8 @@ function clearApiKey() {
   const store = readTokenStore();
   if (!store.apiKey) return false;
   const { apiKey: _apiKey, ...next } = store;
+  const dir = dirname2(path);
+  if (!existsSync2(dir)) mkdirSync2(dir, { recursive: true });
   writeFileSync2(path, serializeTokenStore(next), { mode: 384 });
   return true;
 }

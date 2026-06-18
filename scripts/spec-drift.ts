@@ -1,7 +1,7 @@
 #!/usr/bin/env -S node --experimental-strip-types
 // Spec-drift detector. Compares specs/typespec/ (compiled to
 // specs/generated/openapi3/Openbox{Backend,Core}.json) against:
-//   - prod/staging deployed swagger endpoints (via curl)
+//   - prod/staging deployed OpenAPI endpoints (via curl)
 //   - upstream OpenBox-AI/openbox-{backend,core}@<branch> via gh CLI
 //     (path-only; both repos lack runtime openapi export today)
 //
@@ -10,7 +10,7 @@
 //     Resolves the upstream OpenAPI for the (tier, service) pair and
 //     writes it to /tmp/upstream-<service>-<tier>.json. Tier+service
 //     combinations that do not exist emit a "skip" marker file. Core
-//     has no swagger anywhere, so prod and staging are unsupported.
+//     has no deployed OpenAPI endpoint, so prod and staging are unsupported.
 //
 //   diff --tier <...> --service <...>
 //     Reads the fetched upstream + the local TypeSpec emit, produces a
@@ -40,10 +40,10 @@ else if (cmd === 'diff') doDiff(args.service, args.tier);
 function doFetch(service, tier) {
   const out = `/tmp/upstream-${service}-${tier}.json`;
 
-  // Core has no swagger endpoint anywhere; prod/staging tiers skip,
+  // Core has no deployed OpenAPI endpoint; prod/staging tiers skip,
   // develop/main go through the upstream path-regex parser.
   if (service === 'core' && (tier === 'prod' || tier === 'staging')) {
-    return writeSkip(out, `core does not expose a swagger endpoint on ${tier}`);
+    return writeSkip(out, `core does not expose a deployed OpenAPI endpoint on ${tier}`);
   }
 
   if (tier === 'prod') {
@@ -51,7 +51,7 @@ function doFetch(service, tier) {
       service === 'backend'
         ? 'https://api.openbox.ai/api/docs-json'
         : null; // unreachable; guarded above
-    fetchSwagger(url, out);
+    fetchOpenApi(url, out);
     return;
   }
 
@@ -60,7 +60,7 @@ function doFetch(service, tier) {
     if (!base) {
       return writeSkip(out, 'OPENBOX_STAGING_API_URL not set in env');
     }
-    fetchSwagger(`${base.replace(/\/$/, '')}/api/docs-json`, out);
+    fetchOpenApi(`${base.replace(/\/$/, '')}/api/docs-json`, out);
     return;
   }
 
@@ -74,7 +74,7 @@ function doFetch(service, tier) {
   }
 }
 
-function fetchSwagger(url, outPath) {
+function fetchOpenApi(url, outPath) {
   try {
     const body = execSync(`curl -fsS "${url}"`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     JSON.parse(body); // sanity

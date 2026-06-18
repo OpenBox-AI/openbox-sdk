@@ -36,6 +36,23 @@ describe('buildSpan content per SpanType', () => {
     expect(attrs['http.url']).toContain('openai.com');
   });
 
+  it('llm spans preserve Claude input/output token usage when provided', () => {
+    const span = buildSpan('claude-code', 'llm', {
+      prompt: 'hi',
+      model: 'claude-opus-4-8',
+      usage: {
+        inputTokens: 123,
+        outputTokens: 45,
+      },
+    });
+    expect(span.input_tokens).toBe(123);
+    expect(span.output_tokens).toBe(45);
+    expect(span.model).toBe('claude-opus-4-8');
+    const attrs = span.attributes as Record<string, unknown>;
+    expect(attrs['gen_ai.usage.input_tokens']).toBe(123);
+    expect(attrs['gen_ai.usage.output_tokens']).toBe(45);
+  });
+
   it('file_read spans carry file.path + file.operation=read + module=host', () => {
     const span = buildSpan('claude-code', 'file_read', { file_path: '/etc/hostname' });
     expect(span.semantic_type).toBe('file_read');

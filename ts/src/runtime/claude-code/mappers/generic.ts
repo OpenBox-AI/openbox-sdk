@@ -7,6 +7,8 @@ import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
+import { buildClaudeAssistantOutputSpan } from './assistant-output.js';
+import { readLatestAssistantUsage } from '../transcript-usage.js';
 
 type GenericEventKind = typeof EVENT.START | typeof EVENT.COMPLETE | typeof EVENT.SIGNAL;
 
@@ -100,6 +102,53 @@ export async function observeGenericClaudeEvent(
     });
   } catch {
     // Observe-only hooks must not disturb Claude Code.
+  }
+  return undefined;
+}
+
+export async function handleMessageDisplay(
+  env: ClaudeCodeEnvelope,
+  session: ClaudeCodeSession,
+  cfg: ClaudeCodeConfig,
+  options: GenericEventOptions,
+): Promise<undefined> {
+  const usage = env.final === true ? readLatestAssistantUsage(env) : undefined;
+  const text =
+    env.delta ??
+    env.display_content ??
+    env.displayContent ??
+    env.message ??
+    '';
+  try {
+    await session.activity(options.eventKind ?? EVENT.COMPLETE, options.activityType, {
+      input: [stampSource(compactPayload(env, options.eventCategory), 'claude-code')],
+      output: stampSource({ text, event_category: options.eventCategory }, 'claude-code'),
+      spans: env.final === true
+        ? buildClaudeAssistantOutputSpan(env, {
+            event: 'MessageDisplay',
+            fallbackText: text,
+            preferTranscriptContent: true,
+          })
+        : undefined,
+    });
+  } catch {
+    // MessageDisplay is observe-only; never disturb Claude Code output.
+  }
+  if (usage && env.final === true) {
+    try {
+      const usagePayload = stampSource({
+        event_category: 'llm_usage',
+        model: usage.model,
+        usage: usage.usage,
+      }, 'claude-code');
+      await session.activity(EVENT.SIGNAL, 'claude_usage', {
+        input: [usagePayload],
+        signalName: 'claude_usage',
+        signalArgs: [usagePayload],
+      });
+    } catch {
+      // best-effort usage side channel
+    }
   }
   return undefined;
 }

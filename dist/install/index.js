@@ -56,17 +56,14 @@ function dropExampleConfig(configDir) {
   const file = path.join(configDir, "config.json");
   if (fs.existsSync(file)) return;
   const example = {
-    OPENBOX_API_KEY: "obx_live_YOUR_API_KEY_HERE",
-    OPENBOX_CORE_URL: "https://core.example/ob",
-    GOVERNANCE_POLICY: "fail_open",
+    GOVERNANCE_POLICY: "fail_closed",
     HITL_ENABLED: true,
     HITL_MAX_WAIT: 300,
-    VERBOSE: false,
-    DRY_RUN: true
+    VERBOSE: false
   };
   fs.writeFileSync(file, JSON.stringify(example, null, 2) + "\n", { mode: 384, encoding: "utf-8" });
   console.log(`Created example config at ${file}`);
-  console.log("  -> Set OPENBOX_API_KEY and DRY_RUN=false to enable governance");
+  console.log("  -> Set OPENBOX_API_KEY and OPENBOX_CORE_URL to enable governance");
 }
 function installAdapter(spec, options = {}) {
   const paths = resolveInstallPaths(spec, options);

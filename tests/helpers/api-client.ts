@@ -115,7 +115,7 @@ async function viaSdk<T>(call: () => Promise<T>): Promise<{ data: any; status: n
 /** Backend API client. Routes through OpenBoxClient so tests dogfood
  *  the SDK transport layer end-to-end. Uses X-API-Key auth: every
  *  non-mobile surface (CLI, MCP, IDE extension, MCP server, hooks)
- *  consumes the org X-API-Key from `~/.openbox/tokens`, so the SDK's
+ *  consumes the org X-API-Key from project-local token stores, so the SDK's
  *  own e2e tests do too. JWT auth is the mobile-only path; SDK tests
  *  must not depend on a session token to run. */
 export function getBackendClient(): HttpClient {
@@ -124,7 +124,7 @@ export function getBackendClient(): HttpClient {
   if (!apiKey) {
     throw new Error(
       'No OPENBOX_BACKEND_API_KEY found. Set the backend X-API-Key, ' +
-        'e.g. `export OPENBOX_BACKEND_API_KEY=$(grep ^API_KEY= ~/.openbox/tokens | cut -d= -f2)`; ' +
+        'e.g. `export OPENBOX_BACKEND_API_KEY=$(grep ^API_KEY= .openbox/tokens | cut -d= -f2)`; ' +
         "or let tests/setup-creds.ts populate it from your tokens file.",
     );
   }

@@ -20,6 +20,56 @@ import {
 } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
+import { buildClaudeAssistantOutputSpan } from './assistant-output.js';
+import { readLatestAssistantUsage } from '../transcript-usage.js';
+
+function hasPendingClaudeWork(env: ClaudeCodeEnvelope): boolean {
+  return (
+    (Array.isArray(env.background_tasks) && env.background_tasks.length > 0) ||
+    (Array.isArray(env.session_crons) && env.session_crons.length > 0)
+  );
+}
+
+function isStopHookRetry(env: ClaudeCodeEnvelope): boolean {
+  return (env as unknown as { stop_hook_active?: unknown }).stop_hook_active === true;
+}
+
+function failClosedStopVerdict(
+  env: ClaudeCodeEnvelope,
+  _cfg: ClaudeCodeConfig,
+  reason: string,
+): WorkflowVerdict | undefined {
+  if (isStopHookRetry(env)) {
+    return undefined;
+  }
+  return {
+    arm: 'block',
+    reason,
+    riskScore: 1,
+  };
+}
+
+async function emitClaudeUsageSignal(
+  env: ClaudeCodeEnvelope,
+  session: ClaudeCodeSession,
+): Promise<void> {
+  const usage = readLatestAssistantUsage(env);
+  if (!usage?.usage) return;
+  try {
+    const usagePayload = stampSource({
+      event_category: 'llm_usage',
+      model: usage.model,
+      usage: usage.usage,
+    }, 'claude-code');
+    await session.activity(EVENT.SIGNAL, 'claude_usage', {
+      input: [usagePayload],
+      signalName: 'claude_usage',
+      signalArgs: [usagePayload],
+    });
+  } catch {
+    // best-effort usage side channel; the Stop gate verdict is authoritative.
+  }
+}
 
 /**
  * SessionStart: opens the workflow envelope + records the session boundary.
@@ -41,8 +91,8 @@ export async function handleSessionStart(
 }
 
 /**
- * Stop is decision-capable: we fire an observe activity and forward
- * any non-allow verdict back as `decision-block` (block/halt → keep
+ * Stop is decision-capable: we fire the final assistant-output activity and
+ * forward any non-allow verdict back as `decision-block` (block/halt → keep
  * Claude going with a reason).
  */
 export async function handleStop(
@@ -52,20 +102,38 @@ export async function handleStop(
 ): Promise<WorkflowVerdict | undefined> {
   let verdict: WorkflowVerdict;
   try {
-    verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
+    verdict = await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
       input: [stampSource(buildStopPayload(env), 'claude-code')],
+      spans: buildClaudeAssistantOutputSpan(env, {
+        event: 'Stop',
+        fallbackText: env.last_assistant_message,
+      }),
     });
   } catch {
-    if (cfg.governancePolicy === 'fail_closed') {
-      return {
-        arm: 'block',
-        reason: 'OpenBox Core was unavailable while governing Claude Code stop',
-        riskScore: 1,
-      };
-    }
-    return undefined;
+    return failClosedStopVerdict(
+      env,
+      cfg,
+      'OpenBox Core was unavailable while governing Claude Code stop',
+    );
   }
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
+  await emitClaudeUsageSignal(env, session);
+  if (
+    (verdict.arm === 'allow' || verdict.arm === 'constrain') &&
+    !hasPendingClaudeWork(env)
+  ) {
+    try {
+      await session.workflowCompleted();
+    } catch {
+      const failClosed = failClosedStopVerdict(
+        env,
+        cfg,
+        'OpenBox Core was unavailable while completing Claude Code workflow',
+      );
+      if (failClosed) return failClosed;
+    }
+    clearSession(env.session_id, cfg);
+  }
   return verdict;
 }
 
@@ -114,7 +182,7 @@ export async function handlePostCompact(
 export async function handleStopFailure(
   env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
-  _cfg: ClaudeCodeConfig,
+  cfg: ClaudeCodeConfig,
 ): Promise<undefined> {
   try {
     await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
@@ -122,6 +190,15 @@ export async function handleStopFailure(
     });
   } catch {
     // best-effort
+  }
+  try {
+    await session.workflowFailed(
+      new Error(String(env.error ?? env.reason ?? 'Claude Code StopFailure')),
+    );
+  } catch {
+    // best-effort terminal telemetry; StopFailure cannot safely block Claude Code.
+  } finally {
+    clearSession(env.session_id, cfg);
   }
   return undefined;
 }

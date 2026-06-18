@@ -301,6 +301,19 @@ function buildAuthHeader(creds) {
   return {};
 }
 
+// ts/src/env/agent-identity.ts
+function resolveAgentIdentity(source = process.env) {
+  const did = source.OPENBOX_AGENT_DID;
+  const privateKey = source.OPENBOX_AGENT_PRIVATE_KEY;
+  if (!did && !privateKey) return void 0;
+  if (!did || !privateKey) {
+    throw new Error(
+      "OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY."
+    );
+  }
+  return { did, privateKey };
+}
+
 // ts/src/client/rate-limiter.ts
 var TokenBucket = class {
   tokens;
@@ -321,11 +334,11 @@ var TokenBucket = class {
       return;
     }
     const waitMs = (1 - this.tokens) / this.refillRate;
-    return new Promise((resolve) => {
+    return new Promise((resolve2) => {
       setTimeout(() => {
         this.refill();
         this.tokens -= 1;
-        resolve();
+        resolve2();
       }, waitMs);
     });
   }
@@ -1838,7 +1851,7 @@ var OpenBoxClient = class _OpenBoxClient extends OpenBoxClientWrapperBase {
     return Math.min(exponential + jitter, maxDelay);
   }
   sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise((resolve2) => setTimeout(resolve2, ms));
   }
   // -------------------------------------------------------------------------
   // Core request pipeline
@@ -2530,15 +2543,11 @@ var BaseGovernedSession = class {
   async emitWithSpanHook(event) {
     const hasActivitySpans = (event.event_type === "ActivityStarted" || event.event_type === "ActivityCompleted") && Array.isArray(event.spans) && event.spans.some(isPersistableHookSpan);
     if (!hasActivitySpans) return this.emit(event);
-    const baseVerdict = await this.emit({ ...event, spans: void 0 });
-    if (baseVerdict.arm !== "allow" && baseVerdict.arm !== "constrain") {
-      return baseVerdict;
-    }
-    const hookVerdict = await this.emit({
+    return await this.emit({
       ...event,
+      attempt: event.attempt ?? 1,
       hook_trigger: true
     });
-    return stricterVerdict(baseVerdict, hookVerdict);
   }
   async emit(event) {
     const payload = {
@@ -3319,6 +3328,21 @@ function normalizeGuardrailFieldStatus(value) {
   }
 }
 function normalizeArm(value) {
+  if (typeof value === "number") {
+    switch (value) {
+      case 1:
+        return "constrain";
+      case 2:
+        return "require_approval";
+      case 3:
+        return "block";
+      case 4:
+        return "halt";
+      case 0:
+      default:
+        return "allow";
+    }
+  }
   switch (value) {
     case "allow":
     case "continue":
@@ -3337,24 +3361,6 @@ function normalizeArm(value) {
       return "allow";
   }
 }
-function verdictRank(arm) {
-  switch (arm) {
-    case "halt":
-      return 4;
-    case "block":
-      return 3;
-    case "require_approval":
-      return 2;
-    case "constrain":
-      return 1;
-    case "allow":
-    default:
-      return 0;
-  }
-}
-function stricterVerdict(base, hook) {
-  return verdictRank(hook.arm) >= verdictRank(base.arm) ? hook : base;
-}
 function isPersistableHookSpan(span) {
   if (!span || typeof span !== "object") return false;
   const record = span;
@@ -3362,7 +3368,7 @@ function isPersistableHookSpan(span) {
     return true;
   }
   const attributes = record.attributes && typeof record.attributes === "object" ? record.attributes : {};
-  return typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
+  return typeof record.db_statement === "string" || typeof record.db_operation === "string" || typeof record.db_system === "string" || typeof attributes["db.statement"] === "string" || typeof attributes["db.operation"] === "string" || typeof attributes["db.system"] === "string" || typeof attributes["openbox.tool.name"] === "string" || typeof attributes["tool.name"] === "string" || typeof attributes.tool_name === "string" || typeof attributes["gen_ai.system"] === "string";
 }
 function errorInfoFrom(value) {
   if (value == null) return void 0;
@@ -3372,7 +3378,7 @@ function errorInfoFrom(value) {
   return { type: typeof value, message: String(value) };
 }
 function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve2) => setTimeout(resolve2, ms));
 }
 function applyJitter(baseMs, fraction) {
   const f = Math.max(0, Math.min(1, fraction));
@@ -3916,7 +3922,7 @@ async function pollApproval(adapter, ids) {
       guardrailsResult: mapGuardrailsResult2(extra.guardrails_result)
     };
     if (last && last.arm !== "require_approval") return last;
-    await new Promise((resolve) => setTimeout(resolve, 750));
+    await new Promise((resolve2) => setTimeout(resolve2, 750));
   }
   return last ?? {
     arm: "require_approval",
@@ -4018,7 +4024,7 @@ async function bestEffortTerminalEvent(fn) {
     return await Promise.race([
       terminalEvent,
       new Promise(
-        (resolve) => setTimeout(() => resolve(void 0), TERMINAL_EVENT_TIMEOUT_MS)
+        (resolve2) => setTimeout(() => resolve2(void 0), TERMINAL_EVENT_TIMEOUT_MS)
       )
     ]);
   } catch {
@@ -4817,35 +4823,37 @@ function createCoreClientResolver(config) {
 }
 function getAgentIdentity(config) {
   if (config.agentIdentity) return config.agentIdentity;
-  const did = process.env.OPENBOX_AGENT_DID;
-  const privateKey = process.env.OPENBOX_AGENT_PRIVATE_KEY;
-  if (!did && !privateKey) return void 0;
-  if (!did || !privateKey) {
+  try {
+    return resolveAgentIdentity();
+  } catch {
     throw new OpenBoxCopilotKitError(
       "OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY."
     );
   }
-  return { did, privateKey };
 }
 
 // ts/src/approvals/socket-client.ts
 import * as net from "net";
 import * as path from "path";
-import * as os from "os";
-var APPROVAL_SOCKET_PATH = path.join(
-  os.homedir(),
-  ".openbox",
-  "run",
-  "openbox.sock"
-);
+
+// ts/src/env/os-paths.ts
+import { join, resolve } from "path";
+function openboxDataRoot() {
+  const override = process.env.OPENBOX_HOME;
+  if (override) return resolve(override);
+  return resolve(process.cwd(), ".openbox");
+}
+
+// ts/src/approvals/socket-client.ts
+function defaultApprovalSocketPath() {
+  return path.join(openboxDataRoot(), "run", "openbox.sock");
+}
+var APPROVAL_SOCKET_PATH = defaultApprovalSocketPath();
 
 // ts/src/approvals/socket-server.ts
 import * as net2 from "net";
 import * as fs from "fs";
 import * as path2 from "path";
-import * as os2 from "os";
-var RUN_DIR = path2.join(os2.homedir(), ".openbox", "run");
-var SOCKET_PATH = path2.join(RUN_DIR, "openbox.sock");
 
 // ts/src/approvals/resolve.ts
 var APPROVAL_LOOKUP_PAGE_SIZE = 100;

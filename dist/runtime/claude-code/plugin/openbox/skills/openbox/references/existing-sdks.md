@@ -18,24 +18,24 @@ decision display.
 
 ## TypeScript SDK
 
-Use `openbox-sdk` as the API-first reference SDK.
+Use `@openbox-ai/openbox-sdk` as the API-first reference SDK.
 
 | Import | Purpose |
 |---|---|
-| `openbox-sdk/client` | Backend management client |
-| `openbox-sdk/core-client` | Core governance client and sessions |
-| `openbox-sdk/copilotkit` | CopilotKit runtime adapter |
-| `openbox-sdk/copilotkit/react` | CopilotKit React hooks/renderers |
-| `openbox-sdk/runtime/mcp` | MCP runtime |
-| `openbox-sdk/runtime/cursor` | Cursor runtime |
-| `openbox-sdk/runtime/claude-code` | Claude Code runtime |
+| `@openbox-ai/openbox-sdk/client` | Backend management client |
+| `@openbox-ai/openbox-sdk/core-client` | Core governance client and sessions |
+| `@openbox-ai/openbox-sdk/copilotkit` | CopilotKit runtime adapter |
+| `@openbox-ai/openbox-sdk/copilotkit/react` | CopilotKit React hooks/renderers |
+| `@openbox-ai/openbox-sdk/runtime/mcp` | MCP runtime |
+| `@openbox-ai/openbox-sdk/runtime/cursor` | Cursor runtime |
+| `@openbox-ai/openbox-sdk/runtime/claude-code` | Claude Code runtime |
 
 ## Custom Agent Runtime
 
 Use Core sessions:
 
 ```ts
-import { OpenBoxCoreClient, govern, presets } from 'openbox-sdk/core-client';
+import { OpenBoxCoreClient, govern, presets } from '@openbox-ai/openbox-sdk/core-client';
 
 const core = new OpenBoxCoreClient({
   apiUrl: process.env.OPENBOX_CORE_URL,
@@ -49,7 +49,8 @@ await govern({ core, preset: presets.custom }, async (session) => {
 
 ## Other Language SDKs
 
-Other language SDKs should live on their own branch/package track until
-their generator, build, tests, and docs are release-ready. Do not treat
-Rust/Python/Go source as part of the TypeScript SDK mainline unless the
-branch has been explicitly approved for merge.
+Do not present Python, Rust, Go, Autogen, or Haystack integrations as
+released OpenBox packages from this mainline repo. For those stacks,
+state that the TypeScript SDK is the current reference implementation
+and use the Backend/Core API payloads or a small custom client until a
+language package has its own release, generator, tests, and docs.

@@ -1905,10 +1905,23 @@ function brand(raw: string): string {
   return sanitized.startsWith('[OpenBox]') ? sanitized : '[OpenBox] ' + sanitized;
 }
 
+function redactedInput(v: WorkflowVerdict | undefined): unknown {
+  return v?.guardrailsResult?.redactedInput;
+}
+
+function objectRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  return value as Record<string, unknown>;
+}
+
+function addIfDefined(target: Record<string, unknown>, key: string, value: unknown): void {
+  if (value !== undefined) target[key] = value;
+}
+
 function renderVerdictOutput(
   shape: Shape,
   v: WorkflowVerdict | undefined,
-  env: { hook_event_name?: string },
+  env: { hook_event_name?: string; content?: unknown; response?: unknown },
   deferApproval = false,
 ): unknown {
   const arm = v?.arm ?? 'allow';
@@ -1917,11 +1930,16 @@ function renderVerdictOutput(
     case 'permission-decision': {
       const eventName = env.hook_event_name ?? 'PreToolUse';
       if (arm === 'allow' || arm === 'constrain') {
+        const hookSpecificOutput: Record<string, unknown> = {
+          hookEventName: eventName,
+          permissionDecision: 'allow',
+        };
+        if (arm === 'constrain') {
+          addIfDefined(hookSpecificOutput, 'updatedInput', objectRecord(redactedInput(v)));
+          if (reason) hookSpecificOutput.additionalContext = reason;
+        }
         return {
-          hookSpecificOutput: {
-            hookEventName: eventName,
-            permissionDecision: 'allow',
-          },
+          hookSpecificOutput,
         };
       }
       if (arm === 'require_approval') {
@@ -1949,15 +1967,37 @@ function renderVerdictOutput(
           reason: reason || '[OpenBox] blocked by policy',
         };
       }
+      if (arm === 'require_approval') {
+        const approvalReason = reason.replace(/^\\[OpenBox\\] /, '').trim();
+        return {
+          decision: 'block',
+          reason:
+            '[OpenBox] approval pending' +
+            (approvalReason ? ': ' + approvalReason : '') +
+            '. Approve in OpenBox, then ask the agent to retry.',
+        };
+      }
+      if (arm === 'constrain' && reason) {
+        const hookSpecificOutput: Record<string, unknown> = {
+          hookEventName: env.hook_event_name ?? 'ClaudeCode',
+          additionalContext: reason,
+        };
+        addIfDefined(hookSpecificOutput, 'updatedToolOutput', redactedInput(v));
+        return { hookSpecificOutput };
+      }
       return {};
     }
     case 'permission-request': {
       const eventName = env.hook_event_name ?? 'PermissionRequest';
       if (arm === 'allow' || arm === 'constrain') {
+        const decision: Record<string, unknown> = { behavior: 'allow' };
+        if (arm === 'constrain') {
+          addIfDefined(decision, 'updatedInput', objectRecord(redactedInput(v)));
+        }
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
-            decision: { behavior: 'allow' },
+            decision,
           },
         };
       }
@@ -1990,7 +2030,16 @@ function renderVerdictOutput(
     }
     case 'elicitation-response': {
       const eventName = env.hook_event_name ?? 'Elicitation';
-      if (arm === 'allow' || arm === 'constrain') return {};
+      if (arm === 'allow') return {};
+      if (arm === 'constrain') {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            action: 'accept',
+            content: redactedInput(v) ?? env.response ?? env.content ?? {},
+          },
+        };
+      }
       return {
         hookSpecificOutput: {
           hookEventName: eventName,
@@ -2007,7 +2056,7 @@ function renderVerdictOutput(
       };
     }
     case 'additional-context': {
-      if (arm === 'allow' || arm === 'constrain') return {};
+      if (arm === 'allow') return {};
       return {
         hookSpecificOutput: {
           hookEventName: env.hook_event_name ?? 'PostToolUseFailure',
@@ -2652,7 +2701,7 @@ export class BaseGovernedSession {
   private async emitWithSpanHook(
     event: Pick<
       GovernanceEventPayload,
-      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms'
+      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms'
     >,
   ): Promise<${verdictModelName}> {
     const hasActivitySpans =
@@ -2662,22 +2711,17 @@ export class BaseGovernedSession {
       event.spans.some(isPersistableHookSpan);
     if (!hasActivitySpans) return this.emit(event);
 
-    const baseVerdict = await this.emit({ ...event, spans: undefined });
-    if (baseVerdict.arm !== 'allow' && baseVerdict.arm !== 'constrain') {
-      return baseVerdict;
-    }
-
-    const hookVerdict = await this.emit({
+    return await this.emit({
       ...event,
+      attempt: event.attempt ?? 1,
       hook_trigger: true,
     } as typeof event & { hook_trigger: true });
-    return stricterVerdict(baseVerdict, hookVerdict);
   }
 
   private async emit(
     event: Pick<
       GovernanceEventPayload,
-      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms'
+      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms'
     > & { hook_trigger?: boolean },
   ): Promise<${verdictModelName}> {
     const payload = {
@@ -3117,7 +3161,22 @@ function normalizeGuardrailFieldStatus(value: string | undefined): 'allowed' | '
   }
 }
 
-function normalizeArm(value: string): VerdictArm {
+function normalizeArm(value: string | number | undefined): VerdictArm {
+  if (typeof value === 'number') {
+    switch (value) {
+      case 1:
+        return 'constrain';
+      case 2:
+        return 'require_approval';
+      case 3:
+        return 'block';
+      case 4:
+        return 'halt';
+      case 0:
+      default:
+        return 'allow';
+    }
+  }
   switch (value) {
     case 'allow':
     case 'continue':
@@ -3171,6 +3230,12 @@ function isPersistableHookSpan(span: unknown): boolean {
       ? (record.attributes as Record<string, unknown>)
       : {};
   return (
+    typeof record.db_statement === 'string' ||
+    typeof record.db_operation === 'string' ||
+    typeof record.db_system === 'string' ||
+    typeof attributes['db.statement'] === 'string' ||
+    typeof attributes['db.operation'] === 'string' ||
+    typeof attributes['db.system'] === 'string' ||
     typeof attributes['openbox.tool.name'] === 'string' ||
     typeof attributes['tool.name'] === 'string' ||
     typeof attributes.tool_name === 'string' ||

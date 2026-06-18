@@ -22,7 +22,6 @@ export const ACTIVITY_TYPES = {
   AGENT_ACTION: 'agent_action',
   AGENT_OBSERVATION: 'agent_observation',
   AGENT_DECISION: 'agent_decision',
-  AGENT_GOAL: 'agent_goal',
   API_CALL: 'api_call',
   WORKFLOW_START: 'workflow_start',
   WORKFLOW_COMPLETE: 'workflow_complete',

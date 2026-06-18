@@ -11,17 +11,8 @@ declare const ENV_VAR_BINDINGS: {
     readonly authUrl: {
         readonly name: "OPENBOX_AUTH_URL";
     };
-    readonly stackUrl: {
-        readonly name: "OPENBOX_STACK_URL";
-    };
     readonly apiKey: {
         readonly name: "OPENBOX_API_KEY";
-    };
-    readonly experimentalLevel: {
-        readonly name: "OPENBOX_EXPERIMENTAL_LEVEL";
-    };
-    readonly features: {
-        readonly name: "OPENBOX_FEATURES";
     };
 };
 declare function validateApiKeyFormat(value: string): true | string;
@@ -31,7 +22,6 @@ interface RuntimeConfig {
     coreUrl: string;
     platformUrl?: string;
     authUrl?: string;
-    stackUrl?: string;
 }
 interface Credentials {
     path: string;

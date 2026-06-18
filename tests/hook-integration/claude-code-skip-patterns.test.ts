@@ -1,19 +1,14 @@
-// Skip-pattern bypass for the claude-code runtime adapter.
+// Redaction-pattern governance for the claude-code runtime adapter.
 //
-// `ts/src/governance/skip-patterns.ts` defines the set of paths
-// the runtime bypasses governance on: `.claude/`, `.git/`,
-// `node_modules/`, IDE metadata files. The handler returns early
-// for any file_path matching one of those regexes, which means
-// the deny / require_approval rules for file_read should NOT
-// fire against `.git/HEAD` even though they fire for
-// `/etc/hostname`.
+// `ts/src/governance/skip-patterns.ts` defines paths whose raw file
+// contents are redacted from hook payloads: `.claude/`, `.git/`,
+// `node_modules/`, IDE metadata files. Those paths must still emit
+// governance events with path/span context.
 //
 // This test reads `.git/HEAD` (created in the test workspace
 // during install) and asserts:
-//   - claude is not denied (the e2e-approve-read rule does not
-//     trigger);
-//   - the hook log shows preToolUse running but no activity
-//     evaluation took place.
+//   - claude reports the governed Read permission denial / approval timeout;
+//   - `.git/HEAD` no longer bypasses the file_read guardrail path.
 //
 // Skipped unless OPENBOX_E2E_LIVE=1 and the project-scope test
 // workspace is configured.
@@ -26,9 +21,31 @@ import {
   WORKSPACE,
   SHOULD_RUN,
   assertClaudeOnPath,
+  snapshotHookLog,
+  hookLogSince,
 } from './helpers/claude-runner.js';
 
-describe.runIf(SHOULD_RUN)('claude-code skip patterns', () => {
+function isLoopbackUrl(raw: string | undefined): boolean {
+  if (!raw) return true;
+  try {
+    const host = new URL(raw).hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
+const EXPECT_LOCAL_RULES =
+  process.env.OPENBOX_E2E_EXPECT_LOCAL_RULES === '1' ||
+  (
+    process.env.OPENBOX_E2E_EXPECT_LOCAL_RULES !== '0' &&
+    !process.env.OPENBOX_STAGING_API_URL &&
+    !process.env.OPENBOX_STAGING_CORE_URL &&
+    isLoopbackUrl(process.env.OPENBOX_API_URL) &&
+    isLoopbackUrl(process.env.OPENBOX_CORE_URL)
+  );
+
+describe.runIf(SHOULD_RUN)('claude-code redaction patterns', () => {
   beforeAll(() => {
     assertClaudeOnPath();
     // Make sure the workspace has a `.git/HEAD` to read. Most
@@ -40,19 +57,20 @@ describe.runIf(SHOULD_RUN)('claude-code skip patterns', () => {
     if (!existsSync(head)) writeFileSync(head, 'ref: refs/heads/main\n');
   });
 
-  it('reading .git/HEAD bypasses governance (no deny, no require_approval)', () => {
-    // Absolute path so claude does not look up the cwd; the
-    // SKIP_PATTERNS regex `/\.git\//` matches anywhere in the
-    // path, so an absolute path inside WORKSPACE still bypasses.
+  it('reading .git/HEAD is governed with redacted content', () => {
     const headPath = path.join(WORKSPACE, '.git', 'HEAD');
+    const offset = snapshotHookLog();
     const r = runClaude(`Read ${headPath} using the Read tool`, {
       allowedTool: 'Read',
       timeoutMs: 45_000,
     });
-    // The path matches SKIP_PATTERNS so the hook returns early
-    // and the e2e-approve-read rule never fires. claude
-    // completes the read.
-    expect(r.permission_denials ?? []).toEqual([]);
-    expect(r.is_error).toBeFalsy();
+    const events = hookLogSince(offset).map((line) => line.event);
+    expect(events).toContain('preToolUse');
+    if (!EXPECT_LOCAL_RULES) {
+      expect(r.is_error).toBeFalsy();
+      return;
+    }
+    const denied = r.permission_denials?.some((d) => d.tool_name === 'Read');
+    expect(denied).toBe(true);
   }, 60_000);
 });

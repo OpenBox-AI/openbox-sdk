@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   resolveConnection,
-  endpointsFromStackUrl,
   parseTokenStore,
   serializeTokenStore,
   resolveClientName,
@@ -13,8 +12,6 @@ describe('@openbox-ai/openbox-sdk/env URL resolution', () => {
     OPENBOX_CORE_URL: process.env.OPENBOX_CORE_URL,
     OPENBOX_PLATFORM_URL: process.env.OPENBOX_PLATFORM_URL,
     OPENBOX_AUTH_URL: process.env.OPENBOX_AUTH_URL,
-    OPENBOX_STACK_URL: process.env.OPENBOX_STACK_URL,
-    OPENBOX_STACK_NAME: process.env.OPENBOX_STACK_NAME,
   };
 
   beforeEach(() => {
@@ -22,8 +19,6 @@ describe('@openbox-ai/openbox-sdk/env URL resolution', () => {
     delete process.env.OPENBOX_CORE_URL;
     delete process.env.OPENBOX_PLATFORM_URL;
     delete process.env.OPENBOX_AUTH_URL;
-    delete process.env.OPENBOX_STACK_URL;
-    delete process.env.OPENBOX_STACK_NAME;
   });
 
   afterEach(() => {
@@ -33,50 +28,27 @@ describe('@openbox-ai/openbox-sdk/env URL resolution', () => {
     }
   });
 
-  it('derives service endpoints from a stack URL', () => {
-    expect(endpointsFromStackUrl('https://ipsum.lat')).toEqual({
-      apiUrl: 'https://api.ipsum.lat/ob',
-      coreUrl: 'https://core.ipsum.lat/ob',
-      authUrl: 'https://auth.ipsum.lat/ob',
-      platformUrl: 'https://ipsum.lat',
-    });
-    expect(endpointsFromStackUrl('api.ipsum.lat/path/?q=1#frag')).toEqual({
-      apiUrl: 'https://api.ipsum.lat/ob',
-      coreUrl: 'https://core.ipsum.lat/ob',
-      authUrl: 'https://auth.ipsum.lat/ob',
-      platformUrl: 'https://api.ipsum.lat/path',
-    });
-  });
-
   it('uses explicit API and core URLs without an environment selector', () => {
-    process.env.OPENBOX_API_URL = 'https://api.ipsum.lat/ob';
-    process.env.OPENBOX_CORE_URL = 'https://core.ipsum.lat/ob';
-    process.env.OPENBOX_PLATFORM_URL = 'https://app.ipsum.lat/';
-    process.env.OPENBOX_AUTH_URL = 'https://auth.ipsum.lat/';
-    process.env.OPENBOX_STACK_NAME = 'staging';
+    process.env.OPENBOX_API_URL = 'https://api.example.test';
+    process.env.OPENBOX_CORE_URL = 'https://core.example.test';
+    process.env.OPENBOX_PLATFORM_URL = 'https://n8n.example.test/';
+    process.env.OPENBOX_AUTH_URL = 'https://auth.example.test/';
     const connection = resolveConnection();
     expect(connection.source).toBe('explicit');
-    expect(connection.apiUrl).toBe('https://api.ipsum.lat/ob');
-    expect(connection.coreUrl).toBe('https://core.ipsum.lat/ob');
-    expect(connection.platformUrl).toBe('https://app.ipsum.lat/');
-    expect(connection.authUrl).toBe('https://auth.ipsum.lat/');
-    expect(connection.displayName).toBe('staging');
+    expect(connection.apiUrl).toBe('https://api.example.test');
+    expect(connection.coreUrl).toBe('https://core.example.test');
+    expect(connection.platformUrl).toBe('https://n8n.example.test/');
+    expect(connection.authUrl).toBe('https://auth.example.test/');
   });
 
-  it('derives stack connections and lets explicit URLs override stack endpoints', () => {
-    process.env.OPENBOX_STACK_URL = 'localhost:3000/base/';
-    const stack = resolveConnection();
-    expect(stack.source).toBe('stack-url');
-    expect(stack.apiUrl).toBe('https://api.localhost/ob');
-    expect(stack.platformUrl).toBe('https://localhost:3000/base');
-
+  it('uses explicit option URLs over process env URLs', () => {
+    process.env.OPENBOX_API_URL = 'https://api.example.test';
+    process.env.OPENBOX_CORE_URL = 'https://core.example.test';
     const explicit = resolveConnection({
-      stackUrl: 'https://ipsum.lat',
       apiUrl: 'http://localhost:8080/api/',
       coreUrl: 'http://127.0.0.1:8086/core/',
       platformUrl: 'http://localhost:3000',
       authUrl: 'http://localhost:3001',
-      displayName: 'local',
     });
     expect(explicit).toMatchObject({
       source: 'explicit',
@@ -84,30 +56,25 @@ describe('@openbox-ai/openbox-sdk/env URL resolution', () => {
       coreUrl: 'http://127.0.0.1:8086/core',
       platformUrl: 'http://localhost:3000',
       authUrl: 'http://localhost:3001',
-      displayName: 'local',
     });
   });
 
   it('rejects empty and insecure service URLs outside loopback hosts', () => {
-    expect(() => endpointsFromStackUrl('')).toThrow('stack URL cannot be empty');
-    expect(() => endpointsFromStackUrl('http://ipsum.lat')).toThrow(
-      'must use https://',
-    );
     expect(() =>
       resolveConnection({
         apiUrl: '   ',
-        coreUrl: 'https://core.ipsum.lat',
+        coreUrl: 'https://core.example.test',
       }),
     ).toThrow('OPENBOX_API_URL cannot be empty');
     expect(() =>
       resolveConnection({
-        apiUrl: 'http://api.ipsum.lat',
-        coreUrl: 'https://core.ipsum.lat',
+        apiUrl: 'http://api.example.test',
+        coreUrl: 'https://core.example.test',
       }),
     ).toThrow('OPENBOX_API_URL must use https://');
   });
 
-  it('requires API and core URLs when no stack URL is present', () => {
+  it('requires API and core URLs', () => {
     expect(() => resolveConnection()).toThrow(/OPENBOX_API_URL is required/);
   });
 });
@@ -122,12 +89,6 @@ describe('@openbox-ai/openbox-sdk/env token-codec', () => {
     expect(store.apiKey).toBe('obx_key_test');
     expect(store.permissions).toEqual(['Admin', 'create:agent']);
     expect(store.features).toEqual({ webhooks: true, sso: false, badpair: false });
-  });
-
-  it('ignores legacy dotted env-scoped lines', () => {
-    const store = parseTokenStore('production.API_KEY=legacy\nAPI_KEY=current\n');
-    expect(store.apiKey).toBe('current');
-    expect(Object.keys(store)).toEqual(['apiKey']);
   });
 
   it('round-trips through serialize', () => {

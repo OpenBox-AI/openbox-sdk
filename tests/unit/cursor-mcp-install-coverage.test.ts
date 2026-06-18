@@ -50,6 +50,12 @@ describe('runtime/cursor/install; source-level verification', () => {
     expect(fs.existsSync(path.join(home, '.cursor', 'hooks.json'))).toBe(false);
     expect(fs.existsSync(path.join(home, '.cursor', 'mcp.json'))).toBe(false);
     expect(fs.existsSync(path.join(cwd, '.cursor-hooks', 'config.json'))).toBe(true);
+    expect(readJson(path.join(cwd, '.cursor-hooks', 'config.json'))).toEqual({
+      GOVERNANCE_POLICY: 'fail_closed',
+      HITL_ENABLED: true,
+      HITL_MAX_WAIT: 300,
+      VERBOSE: false,
+    });
 
     expect(verifyCursorInstall({ cwd }).map((c) => [c.name, c.status])).toEqual([
       ['plugin', 'pass'],
@@ -84,13 +90,6 @@ describe('runtime/cursor/install; source-level verification', () => {
     });
     checks = await verifyCursorInstall({ cwd, includeRuntime: true });
     expect(checks.find((c) => c.name === 'runtime')?.detail).toContain('invalid OPENBOX_API_KEY format');
-
-    writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {
-      OPENBOX_API_KEY: `obx_test_${'a'.repeat(48)}`,
-      DRY_RUN: true,
-    });
-    checks = await verifyCursorInstall({ cwd, includeRuntime: true });
-    expect(checks.find((c) => c.name === 'runtime')?.detail).toContain('DRY_RUN=true');
 
     writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {
       OPENBOX_API_KEY: `obx_test_${'a'.repeat(48)}`,

@@ -2,7 +2,7 @@
 //
 // Tooling helpers useful for testing governance integrations end-to-end
 // without standing up a full agent run. Currently exports the
-// span-builder used by `core evaluate --type` plus consumers building
+// span-builder used by consumers building
 // their own governance smoke tests.
 export {
   buildTestPayload,

@@ -14,20 +14,13 @@ dist-pack
 ts/*/src/**/*.d.ts
 ts/*/src/**/*.d.ts.map
 # TypeSpec emitter outputs. Reproducible from `npx tsp compile specs/typespec`.
-# The codegen pipeline will swap consumers (rust/build.rs, openapi-typescript) over to read
-# from here, at which point we will start committing the emitted artifacts so
-# downstream builds don't need TypeSpec installed. Until then they stay
-# untracked verification output.
+# These stay untracked verification output; committed generated code lives under
+# `ts/src/**/generated/` and `dist/`.
 /specs/generated/openapi3/
 /specs/generated/json-schema/
 # Local auth state; never commit.
 .tokens
+.openbox/
 .env
 .env.local
 .infisical.json
-# Rust workspace build artifacts. Generated codegen output lives in
-# target/ and is rebuilt by rust/build.rs each cargo build; never
-# checked in. Cargo.lock at the workspace root is excluded because this
-# is a library (consumer apps own the lockfile).
-/target
-/Cargo.lock

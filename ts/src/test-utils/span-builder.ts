@@ -8,9 +8,9 @@ function hex(len: number): string {
   return Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join('');
 }
 
-/** Single source of truth for `core evaluate --type` vocabulary.
- *  The validator + CLI help text both read from this; adding a new
- *  shorthand is one entry here + one branch in `buildSpan` below. */
+/** Single source of truth for governance smoke-test span vocabulary.
+ *  Adding a new shorthand is one entry here + one branch in `buildSpan`
+ *  below. */
 export const SPAN_TYPES = [
   'llm',
   'file_read',

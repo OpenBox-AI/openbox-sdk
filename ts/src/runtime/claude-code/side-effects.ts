@@ -5,18 +5,17 @@
 // as a missing key and the type system flags it.
 
 import * as fs from 'node:fs';
-import { isSkipped } from '../../governance/skip-patterns.js';
+import { shouldRedactPathContent } from '../../governance/skip-patterns.js';
 import type { ClaudeCodeSideEffects } from '../../core-client/generated/runtime/claude-code.js';
 
 const TRUNCATE_LIMIT = 5000;
 
 export const sideEffects: ClaudeCodeSideEffects = {
-  /** Read the file at the given path; returns '' on missing/unreadable
-   *  files and on paths the SKIP_PATTERNS list flags as IDE/secret
-   *  internals so PII scanning can't false-HALT on metadata reads. */
+  /** Read the file at the given path unless the path is metadata or
+   *  secret-like. Redacted files are still governed by path/span data. */
   readFile(input: unknown): string {
     if (typeof input !== 'string' || !input) return '';
-    if (isSkipped(input)) return '';
+    if (shouldRedactPathContent(input)) return '[OpenBox redacted file content]';
     try {
       return fs.existsSync(input) ? fs.readFileSync(input, 'utf-8') : '';
     } catch {

@@ -302,7 +302,6 @@ describe('runtime configs; file-based config.json paths', () => {
         OPENBOX_API_KEY: 'obx_test_filebased' + 'x'.repeat(40),
         OPENBOX_CORE_URL: 'http://localhost:9999',
         VERBOSE: true,
-        DRY_RUN: true,
       }),
     );
     // Steer the adapter's config dir at our sandbox by loading it

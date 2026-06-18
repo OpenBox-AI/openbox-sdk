@@ -2,7 +2,7 @@
 // assert that every custom decorator we ship attaches the state it
 // claims to. If the decorator wiring breaks (state-key drift,
 // mis-registered namespace, missing tsp-index re-export), this test
-// catches it without needing the per-language emitters to be in place.
+// catches it without needing every target emitter to be in place.
 
 import { compile, NodeHost, resolvePath } from '@typespec/compiler';
 import { execFileSync } from 'node:child_process';
@@ -148,7 +148,6 @@ describe('typespec-env', () => {
     expect(getEnvVar(program, prop(config, 'coreUrl'))?.name).toBe('OPENBOX_CORE_URL');
     expect(getEnvVar(program, prop(config, 'platformUrl'))?.name).toBe('OPENBOX_PLATFORM_URL');
     expect(getEnvVar(program, prop(config, 'authUrl'))?.name).toBe('OPENBOX_AUTH_URL');
-    expect(getEnvVar(program, prop(config, 'stackUrl'))?.name).toBe('OPENBOX_STACK_URL');
   });
 
   test('@token_format attaches the regex literally', () => {

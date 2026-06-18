@@ -5,9 +5,9 @@ import {
   INodeTypeDescription,
   NodeOperationError,
 } from 'n8n-workflow';
-import type { WorkflowVerdict } from 'openbox-sdk';
+import type { WorkflowVerdict } from '@openbox-ai/openbox-sdk';
 
-type OpenBoxSdk = typeof import('openbox-sdk');
+type OpenBoxSdk = typeof import('@openbox-ai/openbox-sdk');
 
 const importModule = new Function('specifier', 'return import(specifier)') as (
   specifier: string,
@@ -16,7 +16,7 @@ const importModule = new Function('specifier', 'return import(specifier)') as (
 let openboxSdkPromise: Promise<OpenBoxSdk> | undefined;
 
 function loadOpenBoxSdk(): Promise<OpenBoxSdk> {
-  openboxSdkPromise ??= importModule('openbox-sdk');
+  openboxSdkPromise ??= importModule('@openbox-ai/openbox-sdk');
   return openboxSdkPromise;
 }
 
@@ -247,7 +247,7 @@ export class OpenboxLlm implements INodeType {
           headers: {
             Authorization: `Bearer ${openRouterApiKey}`,
             'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.N8N_EDITOR_BASE_URL ?? 'https://app.ipsum.lat/ob/n8n/',
+            'HTTP-Referer': process.env.N8N_EDITOR_BASE_URL ?? 'https://n8n.example.test/ob/n8n/',
             'X-Title': 'OpenBox n8n demo',
           },
           body: {

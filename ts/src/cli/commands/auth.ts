@@ -16,7 +16,7 @@ import { isNonInteractive } from '../non-interactive.js';
 import { output, error, info, success } from '../output.js';
 
 export function registerAuthCommands(program: Command) {
-  const auth = program.command('auth').description('Manage the local X-API-Key store for backend auth');
+  const auth = program.command('auth').description('Manage the project-local X-API-Key store for backend auth');
 
   auth
     .command('set-api-key')

@@ -1,7 +1,4 @@
 #!/usr/bin/env sh
 set -eu
-if command -v openbox >/dev/null 2>&1; then
-  exec openbox claude-code doctor "$@"
-fi
-echo "openbox executable was not found on PATH" >&2
-exit 127
+DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+exec node "$DIR/openbox-cli.mjs" claude-code doctor "$@"
