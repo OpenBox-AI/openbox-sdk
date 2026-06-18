@@ -1,5 +1,6 @@
 import {
   OpenBoxCoreClient,
+  validateAgentIdentityConfig,
   type AgentIdentityConfig,
 } from '../core-client/core-client.js';
 import { resolveAgentIdentity } from '../env/agent-identity.js';
@@ -70,7 +71,7 @@ export function createCoreClientResolver(config: OpenBoxCopilotKitConfig) {
 export function getAgentIdentity(
   config: OpenBoxCopilotKitConfig,
 ): AgentIdentityConfig | undefined {
-  if (config.agentIdentity) return config.agentIdentity;
+  if (config.agentIdentity) return validateAgentIdentityConfig(config.agentIdentity);
   try {
     return resolveAgentIdentity();
   } catch {

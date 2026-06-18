@@ -88,6 +88,9 @@ export interface AgentIdentityConfig {
   privateKey: string;
 }
 
+const AGENT_DID_PATTERN =
+  /^did:aip:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ---------------------------------------------------------------------------
 // Error wrapper
 // ---------------------------------------------------------------------------
@@ -114,7 +117,12 @@ export class OpenBoxCoreClient {
   private rateLimiter: TokenBucket | null = null;
 
   constructor(config: CoreClientConfig) {
-    this.config = { ...config };
+    this.config = {
+      ...config,
+      agentIdentity: config.agentIdentity
+        ? validateAgentIdentityConfig(config.agentIdentity)
+        : undefined,
+    };
     this.baseUrl = requireCoreUrl(this.config.apiUrl ?? process.env.OPENBOX_CORE_URL);
     if (config.rateLimit) {
       this.rateLimiter = new TokenBucket(
@@ -349,6 +357,18 @@ function appendQuery(path: string, params: Record<string, unknown> | undefined):
 
 const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
 
+export function validateAgentIdentityConfig(
+  identity: AgentIdentityConfig,
+): AgentIdentityConfig {
+  const did = identity.did.trim();
+  const privateKey = identity.privateKey.trim();
+  if (!AGENT_DID_PATTERN.test(did)) {
+    throw new Error("Invalid OpenBox agent DID. Expected format 'did:aip:<uuid>'.");
+  }
+  decodeRawEd25519Seed(privateKey);
+  return { did, privateKey };
+}
+
 export function signAgentIdentityRequest(input: {
   identity: AgentIdentityConfig;
   method: string;
@@ -357,6 +377,7 @@ export function signAgentIdentityRequest(input: {
   timestamp?: string;
   nonce?: string;
 }): Record<string, string> {
+  const identity = validateAgentIdentityConfig(input.identity);
   const timestamp = input.timestamp ?? new Date().toISOString();
   const nonce = input.nonce ?? randomUUID();
   const bodySha256 = createHash('sha256').update(input.body ?? '').digest('hex');
@@ -367,10 +388,10 @@ export function signAgentIdentityRequest(input: {
     nonce,
     bodySha256,
   ].join('\n');
-  const privateKey = ed25519PrivateKeyFromRawBase64(input.identity.privateKey);
+  const privateKey = ed25519PrivateKeyFromRawBase64(identity.privateKey);
   const signature = sign(null, Buffer.from(canonical), privateKey).toString('base64');
   return {
-    'X-OpenBox-Agent-DID': input.identity.did,
+    'X-OpenBox-Agent-DID': identity.did,
     'X-OpenBox-Agent-Timestamp': timestamp,
     'X-OpenBox-Agent-Nonce': nonce,
     'X-OpenBox-Body-SHA256': bodySha256,
@@ -379,13 +400,21 @@ export function signAgentIdentityRequest(input: {
 }
 
 function ed25519PrivateKeyFromRawBase64(rawBase64: string) {
-  const raw = Buffer.from(rawBase64, 'base64');
-  if (raw.length !== 32) {
-    throw new Error('agent identity privateKey must be a base64-encoded 32-byte Ed25519 key');
-  }
+  const raw = decodeRawEd25519Seed(rawBase64);
   return createPrivateKey({
     key: Buffer.concat([ED25519_PKCS8_PREFIX, raw]),
     format: 'der',
     type: 'pkcs8',
   });
+}
+
+function decodeRawEd25519Seed(rawBase64: string): Buffer {
+  const privateKey = rawBase64.trim();
+  const raw = Buffer.from(privateKey, 'base64');
+  if (raw.length !== 32 || raw.toString('base64') !== privateKey) {
+    throw new Error(
+      'Invalid OpenBox agent private key. Expected a canonical base64 raw 32-byte Ed25519 key.',
+    );
+  }
+  return raw;
 }

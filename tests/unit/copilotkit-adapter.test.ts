@@ -303,14 +303,14 @@ describe('CopilotKit OpenBox adapter', () => {
     };
     process.env.OPENBOX_API_KEY = 'obx_test_runtime';
     process.env.OPENBOX_CORE_URL = 'http://127.0.0.1:8086';
-    process.env.OPENBOX_AGENT_DID = 'did:openbox:agent:test';
-    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'a'.repeat(44);
+    process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
 
     try {
       const client = createOpenBoxCopilotKitAdapter().getCoreClient() as any;
       expect(client.config.agentIdentity).toEqual({
-        did: 'did:openbox:agent:test',
-        privateKey: 'a'.repeat(44),
+        did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+        privateKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
       });
     } finally {
       restoreEnv(previous);
@@ -337,7 +337,7 @@ describe('CopilotKit OpenBox adapter', () => {
     };
     process.env.OPENBOX_API_KEY = 'obx_test_runtime';
     process.env.OPENBOX_CORE_URL = 'http://127.0.0.1:8086';
-    process.env.OPENBOX_AGENT_DID = 'did:openbox:agent:test';
+    process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
     delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
 
     try {

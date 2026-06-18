@@ -1,4 +1,7 @@
-import type { AgentIdentityConfig } from '../core-client/index.js';
+import {
+  validateAgentIdentityConfig,
+  type AgentIdentityConfig,
+} from '../core-client/index.js';
 
 export interface AgentIdentitySource {
   OPENBOX_AGENT_DID?: string;
@@ -22,5 +25,5 @@ export function resolveAgentIdentity(
       'OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY.',
     );
   }
-  return { did, privateKey };
+  return validateAgentIdentityConfig({ did, privateKey });
 }

@@ -7,6 +7,7 @@ import {
   OpenBoxCoreClient,
   CoreApiError,
   signAgentIdentityRequest,
+  validateAgentIdentityConfig,
 } from '../../ts/src/core-client/core-client.js';
 
 const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
@@ -172,11 +173,30 @@ describe('OpenBoxCoreClient', () => {
     it('rejects malformed raw private keys before making a request', () => {
       expect(() =>
         signAgentIdentityRequest({
-          identity: { did: 'did:aip:test', privateKey: Buffer.from('bad').toString('base64') },
+          identity: {
+            did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+            privateKey: Buffer.from('bad').toString('base64'),
+          },
           method: 'GET',
           path: '/',
         }),
       ).toThrow(/32-byte Ed25519 key/);
+    });
+
+    it('rejects invalid DID and non-canonical private-key encodings', () => {
+      const { identity } = makeAgentIdentity();
+      expect(() =>
+        validateAgentIdentityConfig({
+          ...identity,
+          did: 'did:aip:not-a-uuid',
+        }),
+      ).toThrow(/did:aip:<uuid>/);
+      expect(() =>
+        validateAgentIdentityConfig({
+          ...identity,
+          privateKey: identity.privateKey.replace(/=+$/, ''),
+        }),
+      ).toThrow(/canonical base64 raw 32-byte Ed25519 key/);
     });
   });
 

@@ -46,8 +46,8 @@ describe('CopilotKit pure utility coverage', () => {
       {
         OPENBOX_API_KEY: 'obx_test_from_env',
         OPENBOX_BACKEND_API_KEY: 'obx_key_from_env',
-        OPENBOX_AGENT_DID: 'did:openbox:agent:env',
-        OPENBOX_AGENT_PRIVATE_KEY: 'private-env',
+        OPENBOX_AGENT_DID: 'did:aip:550e8400-e29b-41d4-a716-446655440001',
+        OPENBOX_AGENT_PRIVATE_KEY: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
       },
       () => {
         expect(getRuntimeApiKey({})).toBe('obx_test_from_env');
@@ -59,19 +59,19 @@ describe('CopilotKit pure utility coverage', () => {
           'obx_key_explicit',
         );
         expect(getAgentIdentity({})).toEqual({
-          did: 'did:openbox:agent:env',
-          privateKey: 'private-env',
+          did: 'did:aip:550e8400-e29b-41d4-a716-446655440001',
+          privateKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
         });
         expect(
           getAgentIdentity({
             agentIdentity: {
-              did: 'did:openbox:agent:explicit',
-              privateKey: 'private-explicit',
+              did: 'did:aip:550e8400-e29b-41d4-a716-446655440002',
+              privateKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
             },
           }),
         ).toEqual({
-          did: 'did:openbox:agent:explicit',
-          privateKey: 'private-explicit',
+          did: 'did:aip:550e8400-e29b-41d4-a716-446655440002',
+          privateKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
         });
       },
     );
@@ -125,8 +125,8 @@ describe('CopilotKit pure utility coverage', () => {
         const second = resolver();
         expect(second).toBe(first);
 
-        process.env.OPENBOX_AGENT_DID = 'did:openbox:agent:new';
-        process.env.OPENBOX_AGENT_PRIVATE_KEY = 'private-new';
+        process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440003';
+        process.env.OPENBOX_AGENT_PRIVATE_KEY = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
         const third = resolver();
         expect(third).not.toBe(first);
       },

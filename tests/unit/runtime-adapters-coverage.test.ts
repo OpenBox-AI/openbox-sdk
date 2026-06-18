@@ -61,16 +61,16 @@ describe('runtime/claude-code/config', () => {
   it('loadConfig pulls API key + endpoint from env', async () => {
     process.env.OPENBOX_API_KEY = 'obx_live_test_x';
     process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
-    process.env.OPENBOX_AGENT_DID = 'did:openbox:agent:test';
-    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'a'.repeat(44);
+    process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
     // Force re-import so config picks up our env state at module-load time.
     const mod = await import('../../ts/src/runtime/claude-code/config');
     const cfg = mod.loadConfig();
     expect(cfg.openboxApiKey).toBe('obx_live_test_x');
     expect(cfg.openboxEndpoint).toBe('http://localhost:8086');
     expect(cfg.agentIdentity).toEqual({
-      did: 'did:openbox:agent:test',
-      privateKey: 'a'.repeat(44),
+      did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+      privateKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
     });
     delete process.env.OPENBOX_API_KEY;
     delete process.env.OPENBOX_CORE_URL;
