@@ -40,8 +40,6 @@ export function createOpenBoxLangChainMiddleware({
   taskQueue,
   selfGovernedToolNames,
   strict,
-  governanceMode,
-  failClosed,
 }: {
   adapter: OpenBoxCopilotKitAdapter;
   deps: OpenBoxCopilotLangChainMiddlewareDeps;
@@ -49,8 +47,6 @@ export function createOpenBoxLangChainMiddleware({
   taskQueue: string;
   selfGovernedToolNames: Set<string>;
   strict: boolean;
-  governanceMode: 'observe' | 'enforce';
-  failClosed: boolean;
 }) {
   const workflowKey = (...candidates: unknown[]) => {
     for (const candidate of candidates) {
@@ -219,7 +215,7 @@ export function createOpenBoxLangChainMiddleware({
           runId: gateIds.runId,
           activityType: 'on_chat_model_start',
         });
-        if (shouldStopForGate(promptGate, governanceMode)) {
+        if (shouldStopForGate(promptGate)) {
           return new deps.AIMessage({
             content: JSON.stringify(
               adapter.toOpenBoxCopilotResult(promptGate.verdict, promptGate),
@@ -255,7 +251,7 @@ export function createOpenBoxLangChainMiddleware({
           runId: gateIds.runId,
           activityType: 'on_llm_end',
         });
-        if (shouldStopForGate(responseGate, governanceMode)) {
+        if (shouldStopForGate(responseGate)) {
           return new deps.AIMessage({
             content: JSON.stringify(
               adapter.toOpenBoxCopilotResult(
@@ -271,7 +267,6 @@ export function createOpenBoxLangChainMiddleware({
           (session as any).onLlmError({ output: errorOutput(error) }),
         );
         await swallow(() => session.workflowFailed(error));
-        if (!failClosed) throw error;
         throw error;
       }
     },
@@ -301,7 +296,7 @@ export function createOpenBoxLangChainMiddleware({
         runId: gateIds.runId,
         activityType: toolActivityTypeFromRequest(request),
       });
-      if (shouldStopForGate(inputGate, governanceMode)) {
+      if (shouldStopForGate(inputGate)) {
         return JSON.stringify(
           adapter.toOpenBoxCopilotResult(inputGate.verdict, inputGate),
         );
@@ -317,7 +312,7 @@ export function createOpenBoxLangChainMiddleware({
           activityId: inputGate.activityId,
           activityType: toolActivityTypeFromRequest(request),
         });
-        if (shouldStopForGate(outputGate, governanceMode)) {
+        if (shouldStopForGate(outputGate)) {
           return JSON.stringify(
             adapter.toOpenBoxCopilotResult(outputGate.verdict, outputGate),
           );
@@ -372,7 +367,7 @@ export function createOpenBoxLangChainMiddleware({
         runId,
         activityType: 'on_agent_finish',
       });
-      if (shouldStopForGate(finishGate, governanceMode) && strict) {
+      if (shouldStopForGate(finishGate) && strict) {
         await swallow(() =>
           finishStoppedWorkflow(
             adapter,

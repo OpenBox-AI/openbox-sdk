@@ -30,7 +30,7 @@ interface ConfigOverrides {
   skipTools?: string[];
   /** Stale SKIP_ACTIVITY_TYPES list retained by old project configs. */
   skipActivityTypes?: string[];
-  /** Stale fail-open value; runtime normalizes to fail_closed. */
+  /** Stale permissive value; runtime normalizes to fail_closed. */
   governancePolicy?: 'fail_open' | 'fail_closed';
   /** Runtime key. Defaults to a syntactically valid test key. */
   apiKey?: string;
@@ -192,7 +192,7 @@ describe('claude-code hook stdin/stdout', () => {
     expect(out.hookSpecificOutput?.permissionDecisionReason).toContain('[OpenBox]');
   });
 
-  it('stale fail_open with unreachable core still denies decision-capable PreToolUse', () => {
+  it('stale permissive policy with unreachable core still denies decision-capable PreToolUse', () => {
     const root = planConfigDir({ coreUrl: 'http://127.0.0.1:1', governancePolicy: 'fail_open' });
     const r = callHook(
       {
@@ -228,7 +228,7 @@ describe('claude-code hook stdin/stdout', () => {
     expect(out.hookSpecificOutput?.permissionDecisionReason).toContain('[OpenBox]');
   });
 
-  it('missing OPENBOX_API_KEY denies decision-capable hooks even with stale fail_open', () => {
+  it('missing OPENBOX_API_KEY denies decision-capable hooks even with stale permissive policy', () => {
     const root = planConfigDir({ omitApiKey: true, governancePolicy: 'fail_open' });
     const r = callHook(
       {

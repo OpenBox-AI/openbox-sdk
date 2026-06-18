@@ -284,7 +284,7 @@
         "openbox.preWriteGate.active": {
           "type": "boolean",
           "default": false,
-          "description": "When true, every save calls check_governance(file_write) for the configured agent. `allow` lets the save proceed; `require_approval` blocks the save with a modal until decided; `block` or `halt` cancels the save with a notification. Network deadline is 4s under VS Code's ~5s save timeout; on timeout or network failure the gate fails open unless openbox.failClosed is set. Requires openbox.agentId."
+          "description": "When true, every save calls check_governance(file_write) for the configured agent. `allow` lets the save proceed; `require_approval` blocks the save with a modal until decided; `block` or `halt` cancels the save with a notification. Network deadline is 4s under VS Code's ~5s save timeout; on timeout or network failure the gate cancels the action fail-closed. Requires openbox.agentId."
         },
         "openbox.tabObserver.active": {
           "type": "boolean",
@@ -295,11 +295,6 @@
           "type": "boolean",
           "default": false,
           "description": "When true, intercepts onWillCreateFiles / onWillDeleteFiles / onWillRenameFiles and evaluates each via check_governance. Catches Composer multi-file creates and AI-driven file ops that don't route through the agent's Write tool. Requires openbox.agentId."
-        },
-        "openbox.failClosed": {
-          "type": "boolean",
-          "default": false,
-          "description": "When true, active policy checks cancel the action if OpenBox cannot be reached. Default false so transient network issues do not block the developer."
         },
         "openbox.strictSourceFilter": {
           "type": "boolean",

@@ -5,9 +5,8 @@
 //   "require_approval" → block until the approval is decided externally
 //   "deny"             → cancel the action with a reason
 //
-// Network errors / timeouts return `unknown`; the caller decides
-// whether `unknown` should fail open or closed (controlled by the
-// openbox.failClosed setting).
+// Network errors / timeouts return `unknown`; active gates fold unknown to
+// deny so unavailable governance fails closed.
 
 import * as vscode from 'vscode';
 import { checkGovernance, type SpanType } from '@openbox-ai/openbox-sdk/governance';
@@ -107,16 +106,12 @@ export class GovernanceClient {
     }
   }
 
-  /** Apply fail-open vs fail-closed per workspace config. Returns the
-   *  effective outcome treating `unknown` as either `allow` or `deny`. */
+  /** Return the effective outcome, treating `unknown` as `deny`. */
   applyFailMode(result: GovernanceResult): GovernanceResult {
     if (result.outcome !== 'unknown') return result;
-    const failClosed = vscode.workspace
-      .getConfiguration('openbox')
-      .get<boolean>('failClosed', false);
     return {
       ...result,
-      outcome: failClosed ? 'deny' : 'allow',
+      outcome: 'deny',
       reason: result.reason ?? `Governance check failed: ${result.error ?? 'unknown error'}`,
     };
   }

@@ -111,8 +111,6 @@ export async function governPipelineGate<T>(
       Extract<OpenBoxCopilotSessionState, { status: 'halted' }>
     >;
     strict: boolean;
-    governanceMode: 'observe' | 'enforce';
-    failClosed: boolean;
     redactionMode: 'transformed-only';
     ensureWorkflowStarted?: boolean;
   },
@@ -238,8 +236,6 @@ async function governHaltedPipelineGate<T>(
       string,
       Extract<OpenBoxCopilotSessionState, { status: 'halted' }>
     >;
-    failClosed: boolean;
-    governanceMode: 'observe' | 'enforce';
   },
   ids: { workflowId: string; runId: string; activityId: string },
   key: string,

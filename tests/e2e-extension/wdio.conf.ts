@@ -291,7 +291,6 @@ const userSettings: Record<string, unknown> = {
   'openbox.tabObserver.enabled': true,
   'openbox.tabObserver.active': true,
   'openbox.fileOpGate.enabled': true,
-  'openbox.failClosed': false,
 };
 
 export const config = {
