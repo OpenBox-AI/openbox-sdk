@@ -1821,9 +1821,14 @@ export class BaseGovernedSession {
           trustTier: initial.trustTier,
         };
       }
-      if (status.action && status.action !== 'require_approval') {
+      const approvalArm = (status as typeof status & {
+        verdict?: string | number;
+      }).verdict ?? status.action;
+      const normalizedApprovalArm =
+        approvalArm === undefined ? undefined : normalizeArm(approvalArm);
+      if (normalizedApprovalArm && normalizedApprovalArm !== 'require_approval') {
         return {
-          arm: normalizeArm(status.action),
+          arm: normalizedApprovalArm,
           approvalId: initial.approvalId,
           governanceEventId: initial.governanceEventId,
           approvalExpiresAt: status.approval_expiration_time,

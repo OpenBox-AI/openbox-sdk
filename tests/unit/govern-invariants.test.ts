@@ -678,6 +678,50 @@ describe('approval polling bounds', () => {
     expect(mock.pollApproval).toHaveBeenCalledTimes(2);
   });
 
+  test('polling accepts verdict-only approval responses', async () => {
+    const mock = createMockCore('allow');
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      if (payload.event_type === 'ActivityStarted') {
+        return {
+          governance_event_id: 'evt_test',
+          verdict: 'require_approval',
+          action: 'require_approval',
+          approval_id: 'apr_xxx',
+          approval_expiration_time: new Date(Date.now() + 1_000).toISOString(),
+          risk_score: 0,
+        } as GovernanceVerdictResponse;
+      }
+      return {
+        governance_event_id: 'evt_test',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+      } as GovernanceVerdictResponse;
+    });
+    mock.pollApproval = vi.fn(async () => ({
+      id: 'apr_xxx',
+      verdict: 'allow',
+      reason: 'approved via verdict field',
+    } as never));
+
+    await govern(
+      {
+        ...baseConfig(mock),
+        preset: presets.claudeCode,
+        approvalPollIntervalMs: 10,
+        approvalPollJitter: 0,
+        approvalMaxWaitMs: 1_000,
+      },
+      async (session) => {
+        const verdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(verdict.arm).toBe('allow');
+        expect(verdict.reason).toBe('approved via verdict field');
+      },
+    );
+    expect(mock.pollApproval).toHaveBeenCalledTimes(1);
+  });
+
   test('exponential backoff: poll intervals grow toward the cap', async () => {
     // Set up a require_approval that never resolves so we get many poll
     // attempts. Capture the gap between successive pollApproval() calls.
