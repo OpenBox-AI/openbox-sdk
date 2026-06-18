@@ -652,7 +652,7 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completionHook?.span_count).toBe(1);
   });
 
-  it('polls CopilotKit approvals until the server approval expiration', async () => {
+  it('retries CopilotKit poll failures until the server approval expiration', async () => {
     vi.useFakeTimers();
     try {
       const startedAt = new Date('2026-01-01T00:00:00.000Z');
@@ -660,9 +660,14 @@ describe('CopilotKit OpenBox adapter', () => {
       const expiresAt = new Date(
         startedAt.getTime() + 60_000,
       ).toISOString();
+      let pollAttempts = 0;
       const core = {
         evaluate: vi.fn(),
         pollApproval: vi.fn(async () => {
+          pollAttempts += 1;
+          if (pollAttempts === 1) {
+            throw new Error('temporary poll outage');
+          }
           const approved = Date.now() - startedAt.getTime() >= 10_500;
           return {
             action: approved ? 'allow' : 'require_approval',

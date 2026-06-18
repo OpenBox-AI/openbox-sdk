@@ -1557,7 +1557,8 @@ export class BaseGovernedSession {
           this.activityStartsMs.delete(activityId);
           // Pre-stage block; never emit ActivityCompleted, but if the
           // gate said require_approval, poll for the approval decision.
-           // pollApproval keys on workflow_id + run_id + activity_id;           // approval_id is informational. Some backends omit it from
+          // pollApproval keys on workflow_id + run_id + activity_id;
+          // approval_id is informational. Some backends omit it from
           // /governance/evaluate responses (only return governance_event_id);
           // gating on approvalId there silently skips polling and the
           // user sees an instant "approval pending" message that never
@@ -1781,11 +1782,22 @@ export class BaseGovernedSession {
       } else {
         await sleep(sleepMs);
       }
-      const status = await this.core.pollApproval({
-        workflow_id: this.workflowId,
-        run_id: this.runId,
-        activity_id: activityId,
-      });
+      let status: Awaited<ReturnType<OpenBoxCoreClient['pollApproval']>>;
+      try {
+        status = await this.core.pollApproval({
+          workflow_id: this.workflowId,
+          run_id: this.runId,
+          activity_id: activityId,
+        });
+      } catch {
+        nextInterval = externalSignaled
+          ? this.approvalPollIntervalMs
+          : Math.min(
+              nextInterval * this.approvalPollBackoffFactor,
+              this.approvalPollMaxIntervalMs,
+            );
+        continue;
+      }
       if (status.action && status.action !== 'require_approval') {
         return {
           arm: normalizeArm(status.action),

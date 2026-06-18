@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import {
+  type OpenBoxCoreClient,
   type SpanData,
 } from '../core-client/core-client.js';
 import {
@@ -111,11 +112,20 @@ export async function pollApproval(
   let deadline = Number.POSITIVE_INFINITY;
   let last: WorkflowVerdict | undefined;
   while (Date.now() < deadline) {
-    const response = await adapter.getCoreClient().pollApproval({
-      workflow_id: ids.workflowId,
-      run_id: ids.runId,
-      activity_id: ids.activityId,
-    });
+    let response: Awaited<ReturnType<OpenBoxCoreClient['pollApproval']>> | undefined;
+    try {
+      response = await adapter.getCoreClient().pollApproval({
+        workflow_id: ids.workflowId,
+        run_id: ids.runId,
+        activity_id: ids.activityId,
+      });
+    } catch {
+      deadline = Math.min(deadline, fallbackDeadline);
+      const sleepMs = Math.min(APPROVAL_POLL_INTERVAL_MS, deadline - Date.now());
+      if (sleepMs <= 0) break;
+      await sleep(sleepMs);
+      continue;
+    }
     const extra = response as typeof response & {
       trust_tier?: string | number;
       guardrails_result?: unknown;
