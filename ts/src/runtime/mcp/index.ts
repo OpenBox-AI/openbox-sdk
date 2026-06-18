@@ -377,10 +377,10 @@ async function coreEvaluate(
   const parentVerdict = await client.evaluate(
     parentPayload as unknown as Parameters<typeof client.evaluate>[0],
   );
-  if (!isAllowishVerdict(parentVerdict)) {
-    return parentVerdict;
-  }
-  return await client.evaluate(payload as unknown as Parameters<typeof client.evaluate>[0]);
+  const hookVerdict = await client.evaluate(
+    payload as unknown as Parameters<typeof client.evaluate>[0],
+  );
+  return isAllowishVerdict(parentVerdict) ? hookVerdict : parentVerdict;
 }
 
 async function resolveApiKey(agentId: string | undefined): Promise<string> {

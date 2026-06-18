@@ -469,4 +469,67 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       expect(bodies.join('\n')).toContain('"source":"cursor-mcp"');
     });
   });
+
+  it('check_governance still emits the hook span when the parent verdict blocks', async () => {
+    await withMcpEnv(async () => {
+      const bodies: string[] = [];
+      vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+        if (String(url).includes('/api/v1/governance/evaluate')) {
+          bodies.push(String(init?.body ?? ''));
+          const verdict =
+            bodies.length === 1
+              ? { verdict: 'block', action: 'block', reason: 'parent blocked' }
+              : { verdict: 'allow', action: 'allow', reason: 'hook persisted' };
+          return new Response(JSON.stringify(verdict), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ status: 200, data: { data: [] } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      });
+      const { runMcpServer } = await import('../../ts/src/runtime/mcp');
+      await runMcpServer();
+      const tool = captured.find((t) => t.name === 'check_governance')!;
+      const out = await tool.cb({
+        agent_id: 'agent-1',
+        span_type: 'mcp',
+        activity_input: { tool_name: 'danger_tool', tool_input: { id: 1 } },
+      });
+
+      const parsed = JSON.parse(out.content[0].text);
+      expect(parsed).toMatchObject({
+        verdict: 'block',
+        reason: 'parent blocked',
+      });
+      expect(bodies).toHaveLength(2);
+      const parent = JSON.parse(bodies[0]);
+      const hook = JSON.parse(bodies[1]);
+      expect(parent).toMatchObject({
+        event_type: 'ActivityStarted',
+        activity_type: 'MCPToolCall',
+      });
+      expect(parent.hook_trigger).toBeUndefined();
+      expect(parent.spans).toBeUndefined();
+      expect(parent.span_count).toBeUndefined();
+      expect(hook).toMatchObject({
+        event_type: 'ActivityStarted',
+        activity_type: 'MCPToolCall',
+        hook_trigger: true,
+        span_count: 1,
+      });
+      expect(hook.workflow_id).toBe(parent.workflow_id);
+      expect(hook.run_id).toBe(parent.run_id);
+      expect(hook.activity_id).toBe(parent.activity_id);
+      expect(hook.spans[0]).toMatchObject({
+        semantic_type: 'llm_tool_call',
+        attributes: {
+          'openbox.tool.name': 'danger_tool',
+          'tool.name': 'danger_tool',
+        },
+      });
+    });
+  });
 });
