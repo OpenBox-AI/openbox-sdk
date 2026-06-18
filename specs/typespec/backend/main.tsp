@@ -245,16 +245,16 @@ model CreateGuardrailDto {
   processing_stage: string;
 
   /** Parameters for the guardrail */
-  params?: {};
+  params?: Record<unknown>;
 
   /** Settings for the guardrail */
-  settings?: {};
+  settings?: Record<unknown>;
 
   /** Controls whether violations affect trust score and severity. none = excluded from trust evaluation. */
   trust_impact?: "none" | "low" | "medium" | "high" = "none";
 
   /** Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
-  trust_threshold?: {};
+  trust_threshold?: numeric | null;
 }
 
 model UpdateGuardrailDto {
@@ -274,16 +274,16 @@ model UpdateGuardrailDto {
   is_active?: boolean;
 
   /** Parameters for the guardrail */
-  params?: {};
+  params?: Record<unknown>;
 
   /** Settings for the guardrail */
-  settings?: {};
+  settings?: Record<unknown>;
 
   /** Controls whether violations affect trust score and severity. none = excluded from trust evaluation. */
   trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default. */
-  trust_threshold?: {};
+  trust_threshold?: numeric | null;
 }
 
 model ReorderGuardrailDto {
@@ -496,9 +496,9 @@ model UpdateBehavioralRuleDto {
 
 model TestGuardrailDto {
   guardrail_type?: string;
-  params?: {};
-  settings?: {};
-  logs?: {};
+  params?: Record<unknown>;
+  settings?: Record<unknown>;
+  logs?: Record<unknown>;
 }
 
 model EvaluateRegoDto {

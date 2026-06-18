@@ -2257,9 +2257,13 @@ export interface components {
             /** @description Processing stage of the guardrail */
             processing_stage: string;
             /** @description Parameters for the guardrail */
-            params?: Record<string, never>;
+            params?: {
+                [key: string]: unknown;
+            };
             /** @description Settings for the guardrail */
-            settings?: Record<string, never>;
+            settings?: {
+                [key: string]: unknown;
+            };
             /**
              * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
              * @default none
@@ -2267,7 +2271,7 @@ export interface components {
              */
             trust_impact: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
-            trust_threshold?: Record<string, never>;
+            trust_threshold?: number | null;
         };
         CreateOrganizationDto: {
             orgName?: string;
@@ -2830,9 +2834,15 @@ export interface components {
         };
         TestGuardrailDto: {
             guardrail_type?: string;
-            params?: Record<string, never>;
-            settings?: Record<string, never>;
-            logs?: Record<string, never>;
+            params?: {
+                [key: string]: unknown;
+            };
+            settings?: {
+                [key: string]: unknown;
+            };
+            logs?: {
+                [key: string]: unknown;
+            };
         };
         /**
          * @description OAuth-style token pair returned by `/auth/login` and the refresh endpoint.
@@ -3011,16 +3021,20 @@ export interface components {
             /** @description Active status of the guardrail */
             is_active?: boolean;
             /** @description Parameters for the guardrail */
-            params?: Record<string, never>;
+            params?: {
+                [key: string]: unknown;
+            };
             /** @description Settings for the guardrail */
-            settings?: Record<string, never>;
+            settings?: {
+                [key: string]: unknown;
+            };
             /**
              * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
              * @enum {string}
              */
             trust_impact?: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default. */
-            trust_threshold?: Record<string, never>;
+            trust_threshold?: number | null;
         };
         UpdateMemberDto: {
             /** @description Role ID */

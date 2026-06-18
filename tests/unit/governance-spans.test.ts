@@ -151,6 +151,21 @@ describe('LLM completion spans', () => {
     });
   });
 
+  test('non-MCP tool spans expose platform tool telemetry fields when supplied', () => {
+    const span = buildSpan('cursor', 'shell', {
+      tool_name: 'Shell',
+      command: 'npm test',
+    });
+
+    expect(span.semantic_type).toBe('internal');
+    expect(span.attributes).toMatchObject({
+      'shell.command': 'npm test',
+      'openbox.tool.name': 'Shell',
+      'tool.name': 'Shell',
+      tool_name: 'Shell',
+    });
+  });
+
   test('does not pretend arbitrary result JSON is goal-alignment content', () => {
     const span: SpanData = {
       span_id: 'span-1',

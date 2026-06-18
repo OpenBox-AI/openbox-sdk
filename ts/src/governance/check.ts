@@ -46,6 +46,17 @@ function hex(len: number): string {
   return Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join('');
 }
 
+function toolNameAttributes(input: Record<string, unknown>): Record<string, unknown> {
+  const raw = input.tool_name ?? input.tool;
+  const toolName = typeof raw === 'string' ? raw.trim() : '';
+  if (!toolName) return {};
+  return {
+    'openbox.tool.name': toolName,
+    'tool.name': toolName,
+    tool_name: toolName,
+  };
+}
+
 function buildSpan(spanType: SpanType, input: Record<string, unknown>): Record<string, unknown> {
   const base = {
     span_id: hex(16),
@@ -92,6 +103,7 @@ function buildSpan(spanType: SpanType, input: Record<string, unknown>): Record<s
         attributes: {
           'file.path': input.file_path || '',
           'file.operation': 'read',
+          ...toolNameAttributes(input),
           'openbox.semantic_type': 'file_read',
           'openbox.span_type': 'file_io',
         },
@@ -110,6 +122,7 @@ function buildSpan(spanType: SpanType, input: Record<string, unknown>): Record<s
         attributes: {
           'file.path': input.file_path || '',
           'file.operation': 'write',
+          ...toolNameAttributes(input),
           'openbox.semantic_type': 'file_write',
           'openbox.span_type': 'file_io',
         },
@@ -128,6 +141,7 @@ function buildSpan(spanType: SpanType, input: Record<string, unknown>): Record<s
         attributes: {
           'shell.command': input.command || '',
           'shell.cwd': input.cwd || '',
+          ...toolNameAttributes(input),
           'openbox.semantic_type': 'internal',
           'openbox.span_type': 'function',
         },
@@ -148,6 +162,7 @@ function buildSpan(spanType: SpanType, input: Record<string, unknown>): Record<s
         attributes: {
           'http.method': method,
           'http.url': url,
+          ...toolNameAttributes(input),
           'openbox.semantic_type': `http_${method.toLowerCase()}`,
           'openbox.span_type': 'http',
         },
@@ -169,6 +184,7 @@ function buildSpan(spanType: SpanType, input: Record<string, unknown>): Record<s
         attributes: {
           'db.system': input.system || 'postgresql',
           'db.operation': dbOp,
+          ...toolNameAttributes(input),
           'openbox.semantic_type': `database_${dbOp.toLowerCase()}`,
           'openbox.span_type': 'database',
         },
@@ -236,6 +252,11 @@ function resolveCoreUrl(coreUrlOverride?: string): string {
   return resolveConnection().coreUrl;
 }
 
+function isAllowishVerdict(response: GovernanceVerdictResponse): boolean {
+  const arm: unknown = response.verdict ?? response.action;
+  return arm === 'allow' || arm === 'constrain' || arm === 0 || arm === 1;
+}
+
 /**
  * Evaluate an action against an agent's governance rules.
  *
@@ -276,5 +297,17 @@ export async function checkGovernance(
     apiKey,
     agentIdentity: resolveAgentIdentity(),
   });
+  const parentPayload = {
+    ...payload,
+    hook_trigger: undefined,
+    spans: undefined,
+    span_count: undefined,
+  };
+  const parentVerdict = await client.evaluate(
+    parentPayload as unknown as Parameters<typeof client.evaluate>[0],
+  );
+  if (!isAllowishVerdict(parentVerdict)) {
+    return parentVerdict;
+  }
   return client.evaluate(payload as unknown as Parameters<typeof client.evaluate>[0]);
 }

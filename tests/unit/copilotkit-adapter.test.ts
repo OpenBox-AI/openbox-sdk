@@ -621,20 +621,35 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(result.executed).toBe(true);
     expect(result.verdict).toBe('allow');
     expect(result.reason).toBe('OpenBox approval was granted.');
-    const activityInputJson = JSON.stringify(events[0].activity_input);
+    const completionParent = events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.hook_trigger !== true,
+    );
+    const completionHook = events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.hook_trigger === true &&
+        event.activity_id === completionParent?.activity_id,
+    );
+    const activityInputJson = JSON.stringify(completionParent?.activity_input);
     const spanDataJson = JSON.stringify(
-      (events[0].spans ?? []).map((span) => span.data ?? {}),
+      (completionHook?.spans ?? []).map((span) => span.data ?? {}),
     );
     expect(activityInputJson).not.toContain('"amountUsd"');
     expect(activityInputJson).not.toContain('Issue a service credit');
     expect(spanDataJson).not.toContain('"amountUsd"');
     expect(spanDataJson).not.toContain('Issue a service credit');
-    expect(JSON.stringify(events[0].activity_output)).toContain('7,500');
+    expect(JSON.stringify(completionParent?.activity_output)).toContain('7,500');
     expect(events.map((event) => event.event_type)).toEqual([
+      'ActivityCompleted',
       'ActivityCompleted',
       'WorkflowCompleted',
     ]);
-    expect(events[0].hook_trigger).toBe(true);
+    expect(completionParent?.hook_trigger).toBeUndefined();
+    expect(completionParent?.spans).toBeUndefined();
+    expect(completionHook?.hook_trigger).toBe(true);
+    expect(completionHook?.span_count).toBe(1);
   });
 
   it('fails closed and skips execution when OpenBox blocks activity start', async () => {
@@ -1031,12 +1046,27 @@ describe('CopilotKit OpenBox adapter', () => {
       }),
     );
 
+    const completedParent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'on_llm_end' &&
+        event.hook_trigger !== true,
+    );
     const completed = mock.events.find(
       (event) =>
         event.event_type === 'ActivityCompleted' &&
         event.activity_type === 'on_llm_end' &&
         event.hook_trigger,
     );
+    expect(completedParent).toMatchObject({
+      llm_model: 'gpt-4o-mini',
+      input_tokens: 42,
+      output_tokens: 16,
+      total_tokens: 58,
+      completion: 'The queue has two governed requests ready.',
+    });
+    expect(completedParent?.spans).toBeUndefined();
+    expect(completedParent?.span_count).toBeUndefined();
     expect(completed?.status).toBe('completed');
     expect(completed?.span_count).toBe(1);
     const span = completed?.spans?.[0] as Record<string, any> | undefined;
@@ -1096,18 +1126,46 @@ describe('CopilotKit OpenBox adapter', () => {
       async () => ({ ok: true, accountTier: 'enterprise' }),
     );
 
+    const startedParent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'crm_lookup' &&
+        event.hook_trigger !== true,
+    );
     const started = mock.events.find(
       (event) =>
         event.event_type === 'ActivityStarted' &&
-        event.activity_type === 'crm_lookup',
+        event.activity_type === 'crm_lookup' &&
+        event.hook_trigger === true &&
+        event.activity_id === startedParent?.activity_id,
+    );
+    const completedParent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'crm_lookup' &&
+        event.hook_trigger !== true &&
+        event.activity_id === startedParent?.activity_id,
     );
     const completed = mock.events.find(
       (event) =>
         event.event_type === 'ActivityCompleted' &&
         event.activity_type === 'crm_lookup' &&
-        event.activity_id === started?.activity_id,
+        event.hook_trigger === true &&
+        event.activity_id === startedParent?.activity_id,
     );
 
+    expect(startedParent?.hook_trigger).toBeUndefined();
+    expect(startedParent?.spans).toBeUndefined();
+    expect(startedParent).toMatchObject({
+      tool_name: 'crm_lookup',
+      tool_type: 'custom',
+    });
+    expect(completedParent?.hook_trigger).toBeUndefined();
+    expect(completedParent?.spans).toBeUndefined();
+    expect(completedParent).toMatchObject({
+      tool_name: 'crm_lookup',
+      tool_type: 'custom',
+    });
     expect(started?.hook_trigger).toBe(true);
     expect(completed?.hook_trigger).toBe(true);
     expect(started?.span_count).toBe(1);
@@ -1882,7 +1940,11 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(second.status).toBe('halted');
     expect(
       mock.events
-        .filter((event) => event.event_type === 'ActivityStarted')
+        .filter(
+          (event) =>
+            event.event_type === 'ActivityStarted' &&
+            event.hook_trigger !== true,
+        )
         .map((event) => event.activity_type),
     ).toEqual(['UserPromptSubmit', 'safe_tool']);
   });

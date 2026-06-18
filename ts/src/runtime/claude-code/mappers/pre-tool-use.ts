@@ -94,6 +94,9 @@ export async function handlePreToolUse(
   const startTime = Date.now();
   const opened = await session.openActivity(activityType, {
     input: [stampSource(payload, 'claude-code')],
+    sessionId: env.session_id,
+    toolName,
+    toolType: effectiveSpanType ?? undefined,
     startTime,
     spans,
   });

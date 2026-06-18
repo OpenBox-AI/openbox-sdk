@@ -72,7 +72,10 @@ export async function handleBeforeReadFile(
   }
 
   const payload = buildBeforeReadFilePayload(env);
-  const span = buildSpan('cursor', 'file_read', { file_path: filePath });
+  const span = buildSpan('cursor', 'file_read', {
+    file_path: filePath,
+    tool_name: 'Read',
+  });
   try {
     const verdict = await session.activity(
       EVENT.START,
@@ -114,7 +117,10 @@ export async function handleBeforeTabFileRead(
   }
 
   const payload = buildBeforeTabFileReadPayload(env);
-  const span = buildSpan('cursor', 'file_read', { file_path: filePath });
+  const span = buildSpan('cursor', 'file_read', {
+    file_path: filePath,
+    tool_name: 'TabRead',
+  });
   const verdict = await session.activity(
     EVENT.START,
     BEFORE_TAB_FILE_READ_ACTIVITY_TYPE,

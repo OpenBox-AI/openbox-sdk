@@ -1,5 +1,6 @@
-import type { SpanData } from '../../../core-client/index.js';
+import type { GovernedPayload, SpanData } from '../../../core-client/index.js';
 import type { ClaudeCodeEnvelope } from '../../../core-client/generated/runtime/claude-code.js';
+import type { LLMTokenUsage } from '../../../governance/spans.js';
 import { buildLLMCompletionSpan } from '../../../governance/spans.js';
 import { readLatestAssistantTurn } from '../transcript-usage.js';
 
@@ -47,4 +48,37 @@ export function buildClaudeAssistantOutputSpan(
       },
     }),
   ];
+}
+
+function inputTokens(usage: LLMTokenUsage | undefined): number | undefined {
+  return usage?.inputTokens ?? usage?.promptTokens;
+}
+
+function outputTokens(usage: LLMTokenUsage | undefined): number | undefined {
+  return usage?.outputTokens ?? usage?.completionTokens;
+}
+
+export function claudeAssistantTelemetryFields(
+  env: ClaudeCodeEnvelope,
+  options: {
+    fallbackText?: string;
+    preferTranscriptContent?: boolean;
+  } = {},
+): Pick<
+  GovernedPayload,
+  'sessionId' | 'llmModel' | 'inputTokens' | 'outputTokens' | 'totalTokens' | 'completion'
+> {
+  const transcript = readLatestAssistantTurn(env);
+  const content = options.preferTranscriptContent
+    ? firstText(transcript?.content, options.fallbackText)
+    : firstText(options.fallbackText, transcript?.content);
+  const usage = transcript?.usage;
+  return {
+    sessionId: env.session_id,
+    llmModel: transcript?.model,
+    inputTokens: inputTokens(usage),
+    outputTokens: outputTokens(usage),
+    totalTokens: usage?.totalTokens,
+    completion: content,
+  };
 }

@@ -32,13 +32,17 @@ export async function handleUserPromptSubmit(
     input: [stampSource({ prompt, event_category: 'agent_goal' }, 'claude-code')],
     signalName: 'user_prompt',
     signalArgs: prompt,
-    spans: [buildSpan('claude-code', 'llm', { prompt })],
+    sessionId: env.session_id,
+    prompt,
   }).catch(() => undefined);
 
   const payload = buildUserPromptSubmitPayload(env);
   const span = buildSpan('claude-code', 'llm', { prompt });
   const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, {
     input: [stampSource(payload, 'claude-code')],
+    sessionId: env.session_id,
+    llmModel: env.model,
+    prompt,
     spans: [span],
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
@@ -56,6 +60,9 @@ export async function handleUserPromptExpansion(
   const span = buildSpan('claude-code', 'llm', { prompt });
   const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, {
     input: [stampSource(payload, 'claude-code')],
+    sessionId: env.session_id,
+    llmModel: env.model,
+    prompt,
     spans: [span],
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);

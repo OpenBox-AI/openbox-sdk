@@ -1,7 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import {
-  type GovernanceEventPayload,
-  type GovernanceVerdictResponse,
   type SpanData,
 } from '../core-client/core-client.js';
 import {
@@ -224,23 +222,13 @@ export async function emitActivityHookSpanUpdate(
   output: unknown,
   spans: SpanData[],
 ): Promise<WorkflowVerdict> {
-  const response = await adapter.getCoreClient().evaluate({
-    source: 'workflow-telemetry',
-    event_type: 'ActivityCompleted',
-    workflow_id: ids.workflowId,
-    run_id: ids.runId,
-    workflow_type: workflowType,
-    task_queue: taskQueue as GovernanceEventPayload['task_queue'],
-    timestamp: new Date().toISOString(),
-    activity_id: ids.activityId,
-    ...(activityType ? { activity_type: activityType } : {}),
-    status: 'completed',
-    activity_output: output,
-    hook_trigger: true,
+  return createWorkflowSession(adapter, ids, workflowType, taskQueue, {
+    attached: true,
+  }).activity('ActivityCompleted', activityType ?? 'assistant_output', {
+    activityId: ids.activityId,
+    output,
     spans,
-    span_count: spans.length,
   });
-  return mapCoreVerdict(response);
 }
 
 export async function failWorkflow(
@@ -258,22 +246,6 @@ export async function failWorkflow(
       taskQueue,
     ).workflowFailed(typeof reason === 'string' ? new Error(reason) : reason),
   );
-}
-
-function mapCoreVerdict(
-  response: GovernanceVerdictResponse,
-): WorkflowVerdict & { ageResult?: GovernanceVerdictResponse['age_result'] } {
-  return {
-    arm: normalizeArm(response.verdict ?? response.action ?? 'allow'),
-    approvalId: response.approval_id,
-    governanceEventId: response.governance_event_id,
-    approvalExpiresAt: response.approval_expiration_time,
-    reason: response.reason,
-    riskScore: response.risk_score ?? 0,
-    trustTier: response.trust_tier ?? undefined,
-    guardrailsResult: mapGuardrailsResult(response.guardrails_result),
-    ageResult: response.age_result,
-  };
 }
 
 async function bestEffortTerminalEvent(

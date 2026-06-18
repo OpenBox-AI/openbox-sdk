@@ -3,6 +3,17 @@ function hex(len: number): string {
   return Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join('');
 }
 
+function toolNameAttributes(input: Record<string, unknown>): Record<string, unknown> {
+  const raw = input.tool_name ?? input.tool;
+  const toolName = typeof raw === 'string' ? raw.trim() : '';
+  if (!toolName) return {};
+  return {
+    'openbox.tool.name': toolName,
+    'tool.name': toolName,
+    tool_name: toolName,
+  };
+}
+
 export function buildMcpGovernanceSpan(
   spanType: string,
   input: Record<string, unknown>,
@@ -53,6 +64,7 @@ export function buildMcpGovernanceSpan(
         attributes: {
           'file.path': input.file_path || '',
           'file.operation': 'read',
+          ...toolNameAttributes(input),
           'openbox.semantic_type': 'file_read',
           'openbox.span_type': 'file_io',
         },
@@ -71,6 +83,7 @@ export function buildMcpGovernanceSpan(
         attributes: {
           'file.path': input.file_path || '',
           'file.operation': 'write',
+          ...toolNameAttributes(input),
           'openbox.semantic_type': 'file_write',
           'openbox.span_type': 'file_io',
         },
@@ -89,6 +102,7 @@ export function buildMcpGovernanceSpan(
         attributes: {
           'shell.command': input.command || '',
           'shell.cwd': input.cwd || '',
+          ...toolNameAttributes(input),
           'openbox.semantic_type': 'internal',
           'openbox.span_type': 'function',
         },
@@ -109,6 +123,7 @@ export function buildMcpGovernanceSpan(
         attributes: {
           'http.method': method,
           'http.url': url,
+          ...toolNameAttributes(input),
           'openbox.semantic_type': `http_${method.toLowerCase()}`,
           'openbox.span_type': 'http',
         },
@@ -130,6 +145,7 @@ export function buildMcpGovernanceSpan(
         attributes: {
           'db.system': input.system || 'postgresql',
           'db.operation': dbOp,
+          ...toolNameAttributes(input),
           'openbox.semantic_type': `database_${dbOp.toLowerCase()}`,
           'openbox.span_type': 'database',
         },
@@ -176,8 +192,8 @@ export function buildMcpGovernanceSpan(
   }
 }
 
-// Canonical activity_type values the skill emits. Must match what guardrail
-// settings.activities[].activity_type specifies; no match, no fire.
+// Canonical activity_type values the skill emits for observability and
+// approvals. Guardrails no longer filter by settings.activities[].activity_type.
 export const MCP_ACTIVITY_TYPE_MAP: Record<string, string> = {
   llm: 'PromptSubmission',
   file_read: 'FileRead',

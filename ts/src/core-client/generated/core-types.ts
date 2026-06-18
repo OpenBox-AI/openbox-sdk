@@ -31,6 +31,18 @@ export interface GovernanceEventPayload {
   attempt?: number;
   activity_input?: unknown[] | {  };
   activity_output?: unknown;
+  session_id?: string;
+  llm_model?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  has_tool_calls?: boolean;
+  finish_reason?: string;
+  prompt?: string;
+  completion?: string;
+  tool_name?: string;
+  tool_type?: string;
+  parent_run_id?: string;
   signal_name?: string;
   signal_args?: unknown;
   start_time?: number;

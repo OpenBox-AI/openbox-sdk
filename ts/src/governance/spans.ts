@@ -172,6 +172,16 @@ function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
+function toolNameAttributes(input: SpanInput): JsonRecord {
+  const toolName = input.tool_name?.trim();
+  if (!toolName) return {};
+  return {
+    'openbox.tool.name': toolName,
+    'tool.name': toolName,
+    tool_name: toolName,
+  };
+}
+
 export function buildLLMCompletionResponseBody(
   content: string,
   metadata: {
@@ -332,6 +342,7 @@ export function buildSpan(
         attributes: {
           'file.path': input.file_path ?? '',
           'file.operation': 'read',
+          ...toolNameAttributes(input),
           'openbox.semantic_type': 'file_read',
           'openbox.span_type': 'file_io',
         },
@@ -351,6 +362,7 @@ export function buildSpan(
         attributes: {
           'file.path': input.file_path ?? '',
           'file.operation': 'write',
+          ...toolNameAttributes(input),
           'openbox.semantic_type': 'file_write',
           'openbox.span_type': 'file_io',
         },
@@ -370,6 +382,7 @@ export function buildSpan(
         attributes: {
           'file.path': input.file_path ?? '',
           'file.operation': 'delete',
+          ...toolNameAttributes(input),
           'openbox.semantic_type': 'file_delete',
           'openbox.span_type': 'file_io',
         },
@@ -391,6 +404,7 @@ export function buildSpan(
         attributes: {
           'shell.command': input.command ?? '',
           'shell.cwd': input.cwd ?? '',
+          ...toolNameAttributes(input),
           'openbox.semantic_type': 'internal',
           'openbox.span_type': 'function',
         },
@@ -438,6 +452,7 @@ export function buildSpan(
         attributes: {
           'http.method': method,
           'http.url': url,
+          ...toolNameAttributes(input),
           'openbox.semantic_type': `http_${method.toLowerCase()}`,
           'openbox.span_type': 'http',
         },
@@ -467,6 +482,7 @@ export function buildSpan(
           'db.system': dbSystem,
           'db.operation': dbOperation,
           'db.statement': dbStatement,
+          ...toolNameAttributes(input),
           'openbox.semantic_type': `database_${dbOperation.toLowerCase()}`,
           'openbox.span_type': 'database',
         },

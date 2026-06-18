@@ -26,7 +26,10 @@ import {
   presets,
   SessionAlreadyTerminatedError,
 } from '../../ts/src/core-client/generated/govern.js';
-import { buildLLMCompletionSpan } from '../../ts/src/governance/spans.js';
+import {
+  buildLLMCompletionSpan,
+  buildSpan,
+} from '../../ts/src/governance/spans.js';
 
 interface MockCore {
   events: GovernanceEventPayload[];
@@ -183,6 +186,99 @@ describe('activity pairing', () => {
     const signalEvents = mock.events.filter((e) => e.event_type === 'SignalReceived');
     expect(signalEvents).toHaveLength(1);
     expect(signalEvents[0].activity_type).toBe('interrupt');
+    expect(signalEvents[0].hook_trigger).toBeUndefined();
+    expect(signalEvents[0].spans).toBeUndefined();
+    expect(signalEvents[0].span_count).toBeUndefined();
+  });
+
+  test('ActivityStarted spans are emitted as parent plus per-span hook re-evaluations', async () => {
+    const mock = createMockCore('allow');
+    const shellSpan = buildSpan('claude-code', 'shell', {
+      command: 'npm test',
+      tool_name: 'Bash',
+    });
+    const mcpSpan = buildSpan('claude-code', 'mcp', {
+      tool_name: 'mcp__filesystem__read',
+      tool_input: { path: 'README.md' },
+    });
+
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        await session.preToolUse({
+          input: [{ tool: 'Bash', cmd: 'npm test' }],
+          spans: [shellSpan, mcpSpan] as never,
+        });
+      },
+    );
+
+    const startedEvents = mock.events.filter(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'PreToolUse',
+    );
+    expect(startedEvents).toHaveLength(3);
+    const [parent, firstHook, secondHook] = startedEvents;
+    expect(parent.hook_trigger).toBeUndefined();
+    expect(parent.spans).toBeUndefined();
+    expect(parent.span_count).toBeUndefined();
+    for (const hook of [firstHook, secondHook]) {
+      expect(hook.hook_trigger).toBe(true);
+      expect(hook.event_type).toBe(parent.event_type);
+      expect(hook.workflow_id).toBe(parent.workflow_id);
+      expect(hook.run_id).toBe(parent.run_id);
+      expect(hook.activity_id).toBe(parent.activity_id);
+      expect(hook.activity_type).toBe(parent.activity_type);
+      expect(hook.span_count).toBe(1);
+      expect(hook.spans).toHaveLength(1);
+    }
+    expect(firstHook.spans?.[0]).toMatchObject({
+      semantic_type: 'internal',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'Bash',
+      }),
+    });
+    expect(secondHook.spans?.[0]).toMatchObject({
+      semantic_type: 'llm_tool_call',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'mcp__filesystem__read',
+      }),
+    });
+  });
+
+  test('ActivityCompleted sends LangGraph-style model usage on the parent event', async () => {
+    const mock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(mock), preset: presets.langchain },
+      async (session) => {
+        await session.onLlmEnd({
+          output: { content: 'done' },
+          sessionId: 'chat-1',
+          llmModel: 'claude-opus-4-8',
+          inputTokens: 123,
+          outputTokens: 45,
+          totalTokens: 168,
+          completion: 'done',
+        });
+      },
+    );
+
+    const completed = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'on_llm_end',
+    );
+    expect(completed).toMatchObject({
+      session_id: 'chat-1',
+      llm_model: 'claude-opus-4-8',
+      input_tokens: 123,
+      output_tokens: 45,
+      total_tokens: 168,
+      completion: 'done',
+    });
+    expect(completed?.hook_trigger).toBeUndefined();
+    expect(completed?.spans).toBeUndefined();
+    expect(completed?.span_count).toBeUndefined();
   });
 
   test('n8n nodePostExecute sends model usage on ActivityCompleted span', async () => {
@@ -208,14 +304,24 @@ describe('activity pairing', () => {
       },
     );
 
-    const completed = mock.events.find(
+    const completedEvents = mock.events.filter(
       (event) =>
         event.event_type === 'ActivityCompleted' &&
         event.activity_type === 'node-post-execute',
     );
-    expect(completed?.hook_trigger).toBe(true);
-    expect(completed?.span_count).toBe(1);
-    const span = completed?.spans?.[0] as Record<string, unknown> | undefined;
+    expect(completedEvents).toHaveLength(2);
+    const [completedParent, completedHook] = completedEvents;
+    expect(completedParent.hook_trigger).toBeUndefined();
+    expect(completedParent.spans).toBeUndefined();
+    expect(completedParent.span_count).toBeUndefined();
+    expect(completedHook.hook_trigger).toBe(true);
+    expect(completedHook.event_type).toBe(completedParent.event_type);
+    expect(completedHook.workflow_id).toBe(completedParent.workflow_id);
+    expect(completedHook.run_id).toBe(completedParent.run_id);
+    expect(completedHook.activity_id).toBe(completedParent.activity_id);
+    expect(completedHook.activity_type).toBe(completedParent.activity_type);
+    expect(completedHook.span_count).toBe(1);
+    const span = completedHook.spans?.[0] as Record<string, unknown> | undefined;
     expect(span).toMatchObject({
       stage: 'completed',
       semantic_type: 'llm_completion',

@@ -7,7 +7,10 @@ import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
-import { buildClaudeAssistantOutputSpan } from './assistant-output.js';
+import {
+  buildClaudeAssistantOutputSpan,
+  claudeAssistantTelemetryFields,
+} from './assistant-output.js';
 import { readLatestAssistantUsage } from '../transcript-usage.js';
 
 type GenericEventKind = typeof EVENT.START | typeof EVENT.COMPLETE | typeof EVENT.SIGNAL;
@@ -123,6 +126,12 @@ export async function handleMessageDisplay(
     await session.activity(options.eventKind ?? EVENT.COMPLETE, options.activityType, {
       input: [stampSource(compactPayload(env, options.eventCategory), 'claude-code')],
       output: stampSource({ text, event_category: options.eventCategory }, 'claude-code'),
+      ...(env.final === true
+        ? claudeAssistantTelemetryFields(env, {
+            fallbackText: text,
+            preferTranscriptContent: true,
+          })
+        : {}),
       spans: env.final === true
         ? buildClaudeAssistantOutputSpan(env, {
             event: 'MessageDisplay',

@@ -62,7 +62,9 @@ describe('validators branch coverage', () => {
     expect(() => validateGuardrailParams('5', { regex: '(drop|truncate)\\s+table' })).not.toThrow();
   });
 
-  it('activity config validates stage-specific paths and canonical warnings', () => {
+  it('activity config accepts legacy bindings as optional no-op settings', () => {
+    expect(() => validateActivitiesConfig(undefined, '0')).not.toThrow();
+    expect(() => validateActivitiesConfig([], '0')).not.toThrow();
     expect(() =>
       validateActivitiesConfig(
         [{ activity_type: 'PromptSubmission', fields_to_check: ['input.0.prompt'] }],
@@ -75,20 +77,19 @@ describe('validators branch coverage', () => {
         '1',
       ),
     ).not.toThrow();
-    expect(() => validateActivitiesConfig([], '0')).toThrow(ValidationError);
-    expect(() => validateActivitiesConfig([{ fields_to_check: ['input.x'] }], '0')).toThrow(ValidationError);
+    expect(() => validateActivitiesConfig([{ fields_to_check: ['input.x'] }], '0')).not.toThrow();
     expect(() =>
       validateActivitiesConfig(
         [{ activity_type: 'PromptSubmission', fields_to_check: [] }],
         '0',
       ),
-    ).toThrow(ValidationError);
+    ).not.toThrow();
     expect(() =>
       validateActivitiesConfig(
         [{ activity_type: 'PromptSubmission', fields_to_check: ['output.text'] }],
         '0',
       ),
-    ).toThrow(ValidationError);
+    ).not.toThrow();
     expect(() =>
       validateActivitiesConfig(
         [{ activity_type: 'CustomActivity', fields_to_check: ['input.text'] }],

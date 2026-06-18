@@ -35,6 +35,18 @@ export interface WorkflowVerdict {
 export interface GovernedPayload {
   input?: unknown[];
   output?: unknown;
+  sessionId?: string;
+  llmModel?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  hasToolCalls?: boolean;
+  finishReason?: string;
+  prompt?: string;
+  completion?: string;
+  toolName?: string;
+  toolType?: string;
+  parentRunId?: string;
   activityId?: string;
   startTime?: number;
   endTime?: number;
@@ -1065,6 +1077,39 @@ import type {
   GovernanceVerdictResponse,
 } from './core-types.js';
 
+type TelemetryEventFields = Pick<
+  GovernanceEventPayload,
+  | 'session_id'
+  | 'llm_model'
+  | 'input_tokens'
+  | 'output_tokens'
+  | 'total_tokens'
+  | 'has_tool_calls'
+  | 'finish_reason'
+  | 'prompt'
+  | 'completion'
+  | 'tool_name'
+  | 'tool_type'
+  | 'parent_run_id'
+>;
+
+function telemetryEventFields(payload: GovernedPayload): Partial<TelemetryEventFields> {
+  return {
+    session_id: payload.sessionId,
+    llm_model: payload.llmModel,
+    input_tokens: payload.inputTokens,
+    output_tokens: payload.outputTokens,
+    total_tokens: payload.totalTokens,
+    has_tool_calls: payload.hasToolCalls,
+    finish_reason: payload.finishReason,
+    prompt: payload.prompt,
+    completion: payload.completion,
+    tool_name: payload.toolName,
+    tool_type: payload.toolType,
+    parent_run_id: payload.parentRunId,
+  };
+}
+
 /**
  * Construction options for any preset Session class. The `core` client
  * is the authenticated transport; the other fields define this workflow
@@ -1376,6 +1421,7 @@ export class BaseGovernedSession {
         activity_input: payload.input,
         start_time: startTime,
         spans: payload.spans as unknown as GovernanceEventPayload['spans'],
+        ...telemetryEventFields(payload),
       });
       verdict.activityId = activityId;
       if (verdict.arm !== 'allow' && verdict.arm !== 'constrain') {
@@ -1427,7 +1473,7 @@ export class BaseGovernedSession {
           activity_input: payload.input,
           signal_name: payload.signalName,
           signal_args: payload.signalArgs,
-          spans: payload.spans as unknown as GovernanceEventPayload['spans'],
+          ...telemetryEventFields(payload),
         });
         signalVerdict.activityId = activityId;
         return signalVerdict;
@@ -1442,6 +1488,7 @@ export class BaseGovernedSession {
           activity_input: payload.input,
           start_time: startTime,
           spans: payload.spans as unknown as GovernanceEventPayload['spans'],
+          ...telemetryEventFields(payload),
         });
         startedVerdict.activityId = activityId;
         if (startedVerdict.arm === 'constrain') {
@@ -1450,7 +1497,7 @@ export class BaseGovernedSession {
           // The started verdict (carrying the guardrails transform) is
           // returned; the paired completion is lifecycle bookkeeping.
           try {
-            await this.emitCompleted(activityId, activityType, payload);
+            await this.emitCompleted(activityId, activityType, { ...payload, spans: undefined });
           } catch { /* pairing must not mask the constrain verdict */ }
           return startedVerdict;
         }
@@ -1505,7 +1552,7 @@ export class BaseGovernedSession {
         }
         // Allow → emit the matching ActivityCompleted with the payload's
         // output (or undefined if the user only has input at start time).
-        return this.emitCompleted(activityId, activityType, payload);
+        return this.emitCompleted(activityId, activityType, { ...payload, spans: undefined });
       }
 
       // eventType === 'ActivityCompleted'; post-stage gate.
@@ -1536,6 +1583,7 @@ export class BaseGovernedSession {
       end_time: endTime,
       duration_ms: durationMs,
       spans: payload.spans as unknown as GovernanceEventPayload['spans'],
+      ...telemetryEventFields(payload),
     });
     this.activityStartsMs.delete(activityId);
     completedVerdict.activityId = activityId;
@@ -1575,7 +1623,7 @@ export class BaseGovernedSession {
   private async emitWithSpanHook(
     event: Pick<
       GovernanceEventPayload,
-      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms'
+      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms' | keyof TelemetryEventFields
     >,
   ): Promise<WorkflowVerdict> {
     const hasActivitySpans =
@@ -1583,19 +1631,30 @@ export class BaseGovernedSession {
         event.event_type === 'ActivityCompleted') &&
       Array.isArray(event.spans) &&
       event.spans.some(isPersistableHookSpan);
-    if (!hasActivitySpans) return this.emit(event);
+    const parentEvent = { ...event, spans: undefined } as typeof event;
+    const parentVerdict = await this.emit(parentEvent);
+    if (!hasActivitySpans) return parentVerdict;
 
-    return await this.emit({
-      ...event,
-      attempt: event.attempt ?? 1,
-      hook_trigger: true,
-    } as typeof event & { hook_trigger: true });
+    let hookVerdict = parentVerdict;
+    const persistableSpans = (event.spans ?? []).filter(isPersistableHookSpan);
+    for (const span of persistableSpans) {
+      hookVerdict = await this.emit({
+        ...parentEvent,
+        attempt: event.attempt ?? 1,
+        hook_trigger: true,
+        spans: [span],
+      } as typeof event & { hook_trigger: true });
+    }
+    if (parentVerdict.arm !== 'allow' && parentVerdict.arm !== 'constrain') {
+      return parentVerdict;
+    }
+    return hookVerdict;
   }
 
   private async emit(
     event: Pick<
       GovernanceEventPayload,
-      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms'
+      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms' | keyof TelemetryEventFields
     > & { hook_trigger?: boolean },
   ): Promise<WorkflowVerdict> {
     const payload = {

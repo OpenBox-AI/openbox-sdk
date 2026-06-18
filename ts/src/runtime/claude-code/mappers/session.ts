@@ -20,7 +20,10 @@ import {
 } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
-import { buildClaudeAssistantOutputSpan } from './assistant-output.js';
+import {
+  buildClaudeAssistantOutputSpan,
+  claudeAssistantTelemetryFields,
+} from './assistant-output.js';
 import { readLatestAssistantUsage } from '../transcript-usage.js';
 
 function hasPendingClaudeWork(env: ClaudeCodeEnvelope): boolean {
@@ -104,6 +107,9 @@ export async function handleStop(
   try {
     verdict = await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
       input: [stampSource(buildStopPayload(env), 'claude-code')],
+      ...claudeAssistantTelemetryFields(env, {
+        fallbackText: env.last_assistant_message,
+      }),
       spans: buildClaudeAssistantOutputSpan(env, {
         event: 'Stop',
         fallbackText: env.last_assistant_message,

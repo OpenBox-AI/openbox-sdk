@@ -112,6 +112,7 @@ export async function handlePreToolUse(
     file_path: filePath || undefined,
     command: (toolInput.command as string) || undefined,
     cwd: (toolInput.cwd as string) || (env.cwd as string) || undefined,
+    tool_name: toolName,
   });
 
   try {

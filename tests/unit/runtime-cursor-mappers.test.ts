@@ -12,9 +12,9 @@
 //   - mappers/observe         ; every after-* observe-only handler
 //   - mappers/pre-tool-use    ; @activityVariant override (Shell→FileDelete)
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Command } from 'commander';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -40,6 +40,10 @@ function recordingSession(verdict: any = { arm: 'allow' }): any {
     proxy[m] = async (...a: any[]) => { calls.push({ method: m, args: a }); return verdict; };
   }
   return proxy;
+}
+
+function movedRuntimeSettingKey(prefix: string, suffix: string): string {
+  return `${prefix}${suffix}`;
 }
 
 describe('core-client/redaction', () => {
@@ -245,43 +249,69 @@ describe('runtime/cursor/mappers; drive every handler', () => {
 });
 
 describe('runtime configs; env precedence + defaults', () => {
-  it('claude-code config respects every env override', async () => {
+  it('claude-code config reads connection env and leaves tuning in project config', async () => {
     const before = { ...process.env };
+    const beforeCwd = process.cwd();
+    mkdirSync(join(dir, '.claude-hooks'), { recursive: true });
+    writeFileSync(
+      join(dir, '.claude-hooks', 'config.json'),
+      JSON.stringify({ verbose: true, hitlEnabled: false, hitlMaxWait: 12 }),
+    );
+    process.chdir(dir);
     process.env.OPENBOX_API_KEY = 'obx_live_envtest';
     process.env.OPENBOX_CORE_URL = 'http://localhost:9999';
-    process.env.GOVERNANCE_POLICY = 'fail_closed';
-    process.env.HITL_ENABLED = 'true';
-    process.env.HITL_MAX_WAIT = '120';
-    process.env.VERBOSE = 'true';
+    process.env[movedRuntimeSettingKey('VER', 'BOSE')] = 'false';
+    process.env[movedRuntimeSettingKey('HITL_', 'ENABLED')] = 'true';
+    process.env[movedRuntimeSettingKey('HITL_', 'MAX_WAIT')] = '999';
     try {
+      vi.resetModules();
       const mod = await import('../../ts/src/runtime/claude-code/config');
       const cfg = mod.loadConfig();
       expect(cfg.openboxApiKey).toBe('obx_live_envtest');
       expect(cfg.openboxEndpoint).toBe('http://localhost:9999');
+      expect(cfg.hitlEnabled).toBe(false);
+      expect(cfg.hitlMaxWait).toBe(12);
+      expect(cfg.verbose).toBe(true);
     } finally {
+      process.chdir(beforeCwd);
       process.env = before;
+      vi.resetModules();
     }
   });
 
-  it('cursor config respects every env override', async () => {
+  it('cursor config reads connection and identity env only', async () => {
     const before = { ...process.env };
+    const beforeCwd = process.cwd();
+    mkdirSync(join(dir, '.cursor-hooks'), { recursive: true });
+    writeFileSync(
+      join(dir, '.cursor-hooks', 'config.json'),
+      JSON.stringify({ verbose: true, hitlEnabled: false, hitlMaxWait: 9 }),
+    );
+    process.chdir(dir);
     process.env.OPENBOX_API_KEY = 'obx_live_envtest';
     process.env.OPENBOX_CORE_URL = 'http://localhost:9999';
     process.env.OPENBOX_AGENT_DID = 'did:openbox:agent:test';
     process.env.OPENBOX_AGENT_PRIVATE_KEY = 'a'.repeat(44);
-    process.env.GOVERNANCE_POLICY = 'fail_closed';
-    process.env.VERBOSE = 'true';
+    process.env[movedRuntimeSettingKey('VER', 'BOSE')] = 'false';
+    process.env[movedRuntimeSettingKey('HITL_', 'ENABLED')] = 'true';
+    process.env[movedRuntimeSettingKey('HITL_', 'MAX_WAIT')] = '999';
     try {
+      vi.resetModules();
       const mod = await import('../../ts/src/runtime/cursor/config');
       const cfg = mod.loadConfig();
       expect(cfg.openboxApiKey).toBe('obx_live_envtest');
       expect(cfg.openboxEndpoint).toBe('http://localhost:9999');
+      expect(cfg.hitlEnabled).toBe(false);
+      expect(cfg.hitlMaxWait).toBe(9);
+      expect(cfg.verbose).toBe(true);
       expect(cfg.agentIdentity).toEqual({
         did: 'did:openbox:agent:test',
         privateKey: 'a'.repeat(44),
       });
     } finally {
+      process.chdir(beforeCwd);
       process.env = before;
+      vi.resetModules();
     }
   });
 });

@@ -15,7 +15,11 @@ import { z } from "zod";
 import * as fs from "fs";
 import * as path from "path";
 import { OpenBoxClient } from "../../client/index.js";
-import { OpenBoxCoreClient, type AgentIdentityConfig } from "../../core-client/index.js";
+import {
+  OpenBoxCoreClient,
+  type AgentIdentityConfig,
+  type GovernanceVerdictResponse,
+} from "../../core-client/index.js";
 import { loadApiKey } from "../../file-tokens/index.js";
 import { listConfig } from "../../config/index.js";
 import { setMcpClientName } from "./config.js";
@@ -58,7 +62,7 @@ export async function runMcpServer(): Promise<void> {
       runtimeApiKey,
       agentIdentity,
       governancePolicy: "fail_closed",
-      approvalMode: process.env.APPROVAL_MODE ?? config.APPROVAL_MODE ?? "remote",
+      approvalMode: "remote",
     };
   }
 
@@ -321,6 +325,11 @@ server.tool("get_trust_score", "Get an agent's current trust score and tier", {
   return { content: [{ type: "text", text: JSON.stringify(ts, null, 2) }] };
 });
 
+function isAllowishVerdict(response: GovernanceVerdictResponse): boolean {
+  const arm: unknown = response.verdict ?? response.action;
+  return arm === "allow" || arm === "constrain" || arm === 0 || arm === 1;
+}
+
 async function coreEvaluate(
   apiKey: string,
   spanType: string,
@@ -358,6 +367,18 @@ async function coreEvaluate(
     apiKey,
     agentIdentity,
   });
+  const parentPayload = {
+    ...payload,
+    hook_trigger: undefined,
+    spans: undefined,
+    span_count: undefined,
+  };
+  const parentVerdict = await client.evaluate(
+    parentPayload as unknown as Parameters<typeof client.evaluate>[0],
+  );
+  if (!isAllowishVerdict(parentVerdict)) {
+    return parentVerdict;
+  }
   return await client.evaluate(payload as unknown as Parameters<typeof client.evaluate>[0]);
 }
 
@@ -418,7 +439,7 @@ server.tool("check_governance", "Evaluate an action against governance rules. Th
 // Skill references; one per topical domain.
 const SKILL_PATHS = [
   { name: "governance-flow", path: "references/governance-flow.md", desc: "Event protocol, wire format, verdicts, approval polling, spec-vs-implementation mismatches" },
-  { name: "guardrails", path: "references/guardrails.md", desc: "Guardrail configuration: numeric IDs, stage gating, settings.activities[] shape, per-field status, backend validation gaps" },
+  { name: "guardrails", path: "references/guardrails.md", desc: "Guardrail configuration: numeric IDs, stage gating, legacy activity bindings, per-field status, backend validation gaps" },
   { name: "behaviors", path: "references/behaviors.md", desc: "Behavior rules: trigger/states enum, time_window, priority, active toggle, shell-as-internal" },
   { name: "backend-api", path: "references/backend-api.md", desc: "Backend conventions: {status,data} envelope, X-Openbox-Client header, /auth/refresh caveats, OpenAPI availability" },
   { name: "rego-reference", path: "references/rego-reference.md", desc: "Rego policy syntax, input fields, example policies, policy lifecycle gotchas" },

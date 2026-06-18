@@ -121,16 +121,23 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     expect(goalSignal?.args[2]).toMatchObject({
       signalName: 'user_prompt',
       signalArgs: 'hi',
+      sessionId: 'S',
+      prompt: 'hi',
       input: [{ prompt: 'hi', event_category: 'agent_goal', _openbox_source: 'claude-code' }],
     });
-    expect(goalSignal?.args[2].spans?.[0]).toMatchObject({
-      semantic_type: 'llm_completion',
-      module: 'claude-code',
-    });
+    expect(goalSignal?.args[2].spans).toBeUndefined();
     const promptGate = session.calls.find(
       (call: any) => call.method === 'activity' && call.args[0] === 'ActivityStarted',
     );
     expect(promptGate?.args[1]).toBe('PromptSubmission');
+    expect(promptGate?.args[2]).toMatchObject({
+      sessionId: 'S',
+      prompt: 'hi',
+    });
+    expect(promptGate?.args[2].spans?.[0]).toMatchObject({
+      semantic_type: 'llm_completion',
+      module: 'claude-code',
+    });
   });
 
   it('pre/post tool hooks pair on tool_use_id and send tool results as activity output', async () => {

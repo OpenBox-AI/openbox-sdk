@@ -379,6 +379,42 @@ model GovernedPayload {
   /** Activity output (response side); only set on completion events. */
   output?: unknown;
 
+  /** Caller/runtime session identifier, distinct from Core's internal session UUID. */
+  sessionId?: string;
+
+  /** LLM model identifier for normal ActivityStarted/ActivityCompleted telemetry. */
+  llmModel?: string;
+
+  /** Prompt/input token count observed by the SDK. */
+  inputTokens?: numeric;
+
+  /** Completion/output token count observed by the SDK. */
+  outputTokens?: numeric;
+
+  /** Total token count observed by the SDK. */
+  totalTokens?: numeric;
+
+  /** True when the LLM completion requested tool calls. */
+  hasToolCalls?: boolean;
+
+  /** Provider finish reason, when available. */
+  finishReason?: string;
+
+  /** Prompt text for LLM start events, when available. */
+  prompt?: string;
+
+  /** Assistant completion text for LLM completion events, when available. */
+  completion?: string;
+
+  /** Tool/function name for tool-call activities. */
+  toolName?: string;
+
+  /** Tool/function category such as http, database, builtin, a2a, or custom. */
+  toolType?: string;
+
+  /** Parent runtime run id when emitted by frameworks that expose nested runs. */
+  parentRunId?: string;
+
   /**
    * Caller-supplied activity id. When absent the SDK mints one. Supply it
    * when the same logical activity must be referenced across requests,

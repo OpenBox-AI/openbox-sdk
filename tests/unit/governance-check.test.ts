@@ -65,9 +65,22 @@ describe('governance/check', () => {
       event_type: 'ActivityStarted',
       activity_type: 'FileEdit',
       activity_input: [{ file_path: '/tmp/a.txt', content: 'x' }],
+    });
+    expect(state.payloads[0].hook_trigger).toBeUndefined();
+    expect(state.payloads[0].spans).toBeUndefined();
+    expect(state.payloads[0].span_count).toBeUndefined();
+    expect(state.payloads[1]).toMatchObject({
+      source: 'sdk',
+      event_type: 'ActivityStarted',
+      activity_type: 'FileEdit',
+      activity_input: [{ file_path: '/tmp/a.txt', content: 'x' }],
+      hook_trigger: true,
       span_count: 1,
     });
-    expect(state.payloads[0].spans[0]).toMatchObject({
+    expect(state.payloads[1].workflow_id).toBe(state.payloads[0].workflow_id);
+    expect(state.payloads[1].run_id).toBe(state.payloads[0].run_id);
+    expect(state.payloads[1].activity_id).toBe(state.payloads[0].activity_id);
+    expect(state.payloads[1].spans[0]).toMatchObject({
       name: 'file.write',
       semantic_type: 'file_write',
       file_path: '/tmp/a.txt',
@@ -90,8 +103,10 @@ describe('governance/check', () => {
       apiUrl: 'https://core.from-env.test',
       apiKey: runtimeKey('test'),
     });
-    expect(state.payloads[0].activity_type).toBe('ShellExecution');
-    expect(state.payloads[0].spans[0].attributes).toMatchObject({
+    const hookPayload = state.payloads.at(-1);
+    expect(hookPayload.activity_type).toBe('ShellExecution');
+    expect(hookPayload.hook_trigger).toBe(true);
+    expect(hookPayload.spans[0].attributes).toMatchObject({
       'shell.command': 'echo ok',
       'shell.cwd': '/tmp',
     });

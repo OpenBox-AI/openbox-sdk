@@ -71,6 +71,7 @@ export async function handleBeforeShellExecution(
   const span = buildSpan('cursor', isDelete ? 'file_delete' : 'shell', {
     command,
     cwd: env.cwd,
+    tool_name: 'Shell',
   });
   if (isDelete) payload.event_category = 'file_delete';
   try {

@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { SpanData } from '../core-client/core-client.js';
-import type { WorkflowVerdict } from '../core-client/index.js';
+import type { GovernedPayload, WorkflowVerdict } from '../core-client/index.js';
 import {
   buildLLMCompletionSpan,
   type LLMTokenUsage,
@@ -55,6 +55,12 @@ async function evaluateGate<T>(
   const activityType =
     input.activityType ?? activityTypeForGate(input.kind, input.payload);
   const spans = spansForGate(input.kind, activityType, input.payload);
+  const telemetry = telemetryForGate(
+    input.kind,
+    activityType,
+    input.payload,
+    input.sessionKey,
+  );
   const session = gateSession(
     adapter,
     { workflowId: ids.workflowId, runId: ids.runId },
@@ -65,6 +71,7 @@ async function evaluateGate<T>(
     const opened = await session.openActivity(activityType, {
       activityId: ids.activityId,
       input: [input.payload],
+      ...telemetry,
       spans,
     });
     return opened.verdict;
@@ -76,11 +83,13 @@ async function evaluateGate<T>(
       ? {
           activityId: ids.activityId,
           output: input.payload,
+          ...telemetry,
           spans,
         }
       : {
           activityId: ids.activityId,
           input: [input.payload],
+          ...telemetry,
           spans,
         },
   );
@@ -448,6 +457,56 @@ function usageFrom(record: Record<string, unknown>): LLMTokenUsage | undefined {
   return Object.values(usage).some((value) => value !== undefined)
     ? usage
     : undefined;
+}
+
+function usageInputTokens(usage: LLMTokenUsage | undefined): number | undefined {
+  return usage?.inputTokens ?? usage?.promptTokens;
+}
+
+function usageOutputTokens(usage: LLMTokenUsage | undefined): number | undefined {
+  return usage?.outputTokens ?? usage?.completionTokens;
+}
+
+function telemetryForGate(
+  kind: OpenBoxCopilotGateKind,
+  activityType: string,
+  payload: unknown,
+  sessionKey?: string,
+): Pick<
+  GovernedPayload,
+  | 'sessionId'
+  | 'llmModel'
+  | 'inputTokens'
+  | 'outputTokens'
+  | 'totalTokens'
+  | 'prompt'
+  | 'completion'
+  | 'toolName'
+  | 'toolType'
+> {
+  const sessionId = sessionKey === 'default' ? undefined : sessionKey;
+  if (kind === 'prompt') {
+    return {
+      sessionId,
+      prompt: promptTextFromPayload(payload),
+    };
+  }
+  if (kind === 'assistant_output') {
+    const metadata = llmCompletionMetadataFromPayload(payload);
+    return {
+      sessionId,
+      llmModel: metadata.model,
+      inputTokens: usageInputTokens(metadata.usage),
+      outputTokens: usageOutputTokens(metadata.usage),
+      totalTokens: metadata.usage?.totalTokens,
+      completion: assistantContentFromPayload(payload),
+    };
+  }
+  return {
+    sessionId,
+    toolName: toolNameFromPayload(payload) ?? activityType,
+    toolType: 'custom',
+  };
 }
 
 function numberFrom(value: unknown): number | undefined {

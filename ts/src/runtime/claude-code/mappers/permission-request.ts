@@ -78,6 +78,9 @@ export async function handlePermissionRequest(
     : undefined;
   const verdict = await session.activity(EVENT.START, activityType, {
     input: [stampSource(payload, 'claude-code')],
+    sessionId: env.session_id,
+    toolName,
+    toolType: effectiveSpanType ?? undefined,
     spans,
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);

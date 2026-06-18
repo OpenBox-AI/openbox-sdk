@@ -20,7 +20,6 @@ using OpenAPI;
 @service(#{ title: "OpenBox Core Governance API" })
 @info(#{ version: "1.1.0", license: #{ name: "BUSL-1.1" } })
 @server("https://core.openbox.ai", "Production")
-@server("https://core.staging.openbox.ai", "Staging")
 @server("http://localhost:8080", "Local")
 @tagMetadata("Health", #{ description: "Liveness checks." })
 @tagMetadata("Auth", #{ description: "SDK API-key validation." })
@@ -173,6 +172,42 @@ model GovernanceEventPayload {
 
   /** Activity output payload, set on `ActivityCompleted`. */
   activity_output?: unknown;
+
+  /** Caller/runtime session identifier, distinct from Core's internal session UUID. */
+  session_id?: string;
+
+  /** LLM model identifier for SDKs that observe usage outside provider HTTP spans. */
+  llm_model?: string;
+
+  /** Prompt/input token count observed by the SDK. */
+  input_tokens?: int64;
+
+  /** Completion/output token count observed by the SDK. */
+  output_tokens?: int64;
+
+  /** Total token count observed by the SDK. */
+  total_tokens?: int64;
+
+  /** True when the LLM completion requested tool calls. */
+  has_tool_calls?: boolean;
+
+  /** Provider finish reason, when available. */
+  finish_reason?: string;
+
+  /** Prompt text for LLM start events, when available. */
+  prompt?: string;
+
+  /** Assistant completion text for LLM completion events, when available. */
+  completion?: string;
+
+  /** Tool/function name for tool-call activities. */
+  tool_name?: string;
+
+  /** Tool/function category such as http, database, builtin, a2a, or custom. */
+  tool_type?: string;
+
+  /** Parent runtime run id when emitted by frameworks that expose nested runs. */
+  parent_run_id?: string;
 
   /** Set on `SignalReceived`. */
   signal_name?: string;

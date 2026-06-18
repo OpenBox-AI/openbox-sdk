@@ -77,6 +77,8 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
     expect(span.semantic_type).toBe('file_read');
     expect(span.attributes?.['file.path']).toBe('/etc/passwd');
+    expect(span.attributes?.['openbox.tool.name']).toBe('Read');
+    expect(span.attributes?.['tool.name']).toBe('Read');
   });
 
   test('beforeShellExecution → internal span with shell.command attribute', async () => {
@@ -100,6 +102,8 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     // via the @activityVariant; covered separately below.
     expect(span.semantic_type).toBe('internal');
     expect(span.attributes?.['shell.command']).toBe('echo hello world');
+    expect(span.attributes?.['openbox.tool.name']).toBe('Shell');
+    expect(span.attributes?.['tool.name']).toBe('Shell');
   });
 
   test('beforeShellExecution(rm) → file_delete span (FileDelete reroute)', async () => {
@@ -116,6 +120,8 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     );
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
     expect(span.semantic_type).toBe('file_delete');
+    expect(span.attributes?.['openbox.tool.name']).toBe('Shell');
+    expect(span.attributes?.['tool.name']).toBe('Shell');
     expect(captured[0]?.activityType).toBe('FileDelete');
   });
 
@@ -130,6 +136,8 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     expect(span.semantic_type).toBe('llm_tool_call');
     expect(span.attributes?.['http.method']).toBe('POST');
     expect(span.attributes?.['gen_ai.system']).toBe('mcp');
+    expect(span.attributes?.['openbox.tool.name']).toBe('fetch');
+    expect(span.attributes?.['tool.name']).toBe('fetch');
   });
 
   // after* events are no-ops on the SDK side (don't call session.activity);

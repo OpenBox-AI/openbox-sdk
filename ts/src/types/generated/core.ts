@@ -283,6 +283,39 @@ export interface components {
             activity_input?: unknown[] | Record<string, never>;
             /** @description Activity output payload, set on `ActivityCompleted`. */
             activity_output?: unknown;
+            /** @description Caller/runtime session identifier, distinct from Core's internal session UUID. */
+            session_id?: string;
+            /** @description LLM model identifier for SDKs that observe usage outside provider HTTP spans. */
+            llm_model?: string;
+            /**
+             * Format: int64
+             * @description Prompt/input token count observed by the SDK.
+             */
+            input_tokens?: number;
+            /**
+             * Format: int64
+             * @description Completion/output token count observed by the SDK.
+             */
+            output_tokens?: number;
+            /**
+             * Format: int64
+             * @description Total token count observed by the SDK.
+             */
+            total_tokens?: number;
+            /** @description True when the LLM completion requested tool calls. */
+            has_tool_calls?: boolean;
+            /** @description Provider finish reason, when available. */
+            finish_reason?: string;
+            /** @description Prompt text for LLM start events, when available. */
+            prompt?: string;
+            /** @description Assistant completion text for LLM completion events, when available. */
+            completion?: string;
+            /** @description Tool/function name for tool-call activities. */
+            tool_name?: string;
+            /** @description Tool/function category such as http, database, builtin, a2a, or custom. */
+            tool_type?: string;
+            /** @description Parent runtime run id when emitted by frameworks that expose nested runs. */
+            parent_run_id?: string;
             /** @description Set on `SignalReceived`. */
             signal_name?: string;
             /** @description Set on `SignalReceived`. */

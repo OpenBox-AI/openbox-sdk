@@ -373,39 +373,56 @@ export const CANONICAL_ACTIVITY_TYPES = [
 ] as const;
 
 export function validateActivitiesConfig(activities: unknown, stage: '0' | '1'): void {
-  if (!Array.isArray(activities) || activities.length === 0) {
-    block(
-      'activities-empty',
-      `settings.activities[] must be a non-empty array. Each entry binds the guardrail to a specific activity_type.`,
-      `Example: '{"settings":{"activities":[{"activity_type":"PromptSubmission","fields_to_check":["input.*.prompt"]}]}}'`,
-      'references/guardrails.md § "settings Shape"',
+  if (activities == null) {
+    return;
+  }
+  if (!Array.isArray(activities)) {
+    warn(
+      'settings.activities is a legacy no-op field and should be an array when provided. New guardrails check all activity types and fields by default.',
+      'references/guardrails.md § "Legacy activities"',
     );
+    return;
+  }
+  if (activities.length === 0) {
+    return;
   }
   const expectedPrefix = stage === '0' ? 'input' : 'output';
   for (let i = 0; i < activities.length; i++) {
     const a = activities[i] as Record<string, unknown>;
-    if (!a.activity_type || typeof a.activity_type !== 'string') {
-      block('activity-missing-type', `settings.activities[${i}].activity_type is required (string).`);
-    }
-    if (!(CANONICAL_ACTIVITY_TYPES as readonly string[]).includes(a.activity_type)) {
+    if (a.activity_type != null && typeof a.activity_type !== 'string') {
       warn(
-        `settings.activities[${i}].activity_type "${a.activity_type}" is non-canonical. First-party SDKs use past-tense PascalCase (${CANONICAL_ACTIVITY_TYPES.slice(0, 4).join(', ')}, ...). If your client sends a different string, this is fine; but inventions like "LLMCompletion" won't match actual SDK events.`,
-        'references/guardrails.md § "activity_type Matching"',
+        `settings.activities[${i}].activity_type is legacy/no-op and should be a string when provided.`,
+        'references/guardrails.md § "Legacy activities"',
       );
     }
-    if (!Array.isArray(a.fields_to_check) || a.fields_to_check.length === 0) {
-      block('activity-missing-fields', `settings.activities[${i}].fields_to_check is required (non-empty string array).`);
+    if (typeof a.activity_type === 'string' && !(CANONICAL_ACTIVITY_TYPES as readonly string[]).includes(a.activity_type)) {
+      warn(
+        `settings.activities[${i}].activity_type "${a.activity_type}" is legacy/no-op. First-party telemetry still emits activity_type for observability, but guardrails no longer filter on this field.`,
+        'references/guardrails.md § "Legacy activities"',
+      );
+    }
+    if (a.fields_to_check == null) {
+      continue;
+    }
+    if (!Array.isArray(a.fields_to_check)) {
+      warn(
+        `settings.activities[${i}].fields_to_check is legacy/no-op and should be an array when provided.`,
+        'references/guardrails.md § "Legacy activities"',
+      );
+      continue;
     }
     for (const path of a.fields_to_check as string[]) {
       if (typeof path !== 'string' || path.length === 0) {
-        block('fields-to-check-bad', `settings.activities[${i}].fields_to_check entries must be non-empty strings.`);
+        warn(
+          `settings.activities[${i}].fields_to_check entries are legacy/no-op and should be non-empty strings when provided.`,
+          'references/guardrails.md § "Legacy activities"',
+        );
+        continue;
       }
       if (!path.startsWith(expectedPrefix + '.') && path !== expectedPrefix) {
-        block(
-          'fields-to-check-wrong-prefix',
-          `fields_to_check path "${path}" doesn't match the stage. Stage ${stage} requires paths starting with "${expectedPrefix}."; the guardrails service silently drops paths without the correct prefix.`,
-          `Rename to "${expectedPrefix}.<field>" or switch stage. Stage 0 fires on ActivityStarted (input), stage 1 on ActivityCompleted (output).`,
-          'references/guardrails.md § "Field Path Prefixes"',
+        warn(
+          `fields_to_check path "${path}" is legacy/no-op. New guardrails check all fields, so stage-specific field prefixes are not required.`,
+          'references/guardrails.md § "Legacy activities"',
         );
       }
     }
