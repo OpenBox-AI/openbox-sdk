@@ -206,6 +206,15 @@ export function withOpenBoxActivityMetadata<T extends readonly unknown[] | undef
   return [...(input ?? []), marker];
 }
 
+export function withOpenBoxSubagentActivityMetadata<
+  T extends readonly unknown[] | undefined,
+>(input: T, subagentName?: string | null): T | unknown[] {
+  return withOpenBoxActivityMetadata(input, {
+    toolType: 'a2a',
+    subagentName,
+  });
+}
+
 export function buildLLMCompletionResponseBody(
   content: string,
   metadata: {

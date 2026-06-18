@@ -1158,13 +1158,16 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(startedParent?.spans).toBeUndefined();
     expect(startedParent).toMatchObject({
       tool_name: 'crm_lookup',
-      tool_type: 'custom',
+      tool_type: 'llm_tool_call',
+    });
+    expect(startedParent?.activity_input).toContainEqual({
+      __openbox: { tool_type: 'llm_tool_call' },
     });
     expect(completedParent?.hook_trigger).toBeUndefined();
     expect(completedParent?.spans).toBeUndefined();
     expect(completedParent).toMatchObject({
       tool_name: 'crm_lookup',
-      tool_type: 'custom',
+      tool_type: 'llm_tool_call',
     });
     expect(started?.hook_trigger).toBe(true);
     expect(completed?.hook_trigger).toBe(true);
@@ -1819,6 +1822,46 @@ describe('CopilotKit OpenBox adapter', () => {
 
     expect(handler).not.toHaveBeenCalled();
     expect(JSON.parse(result).status).toBe('blocked');
+    const parent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'send_email' &&
+        event.hook_trigger !== true,
+    );
+    expect(parent?.activity_input).toContainEqual({
+      __openbox: { tool_type: 'llm_tool_call' },
+    });
+    expect(parent?.tool_type).toBe('llm_tool_call');
+  });
+
+  it('marks CopilotKit Task tool input as a2a activity metadata', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const middleware = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+    const handler = vi.fn(async () => ({ ok: true }));
+
+    await middleware.wrapToolCall(
+      {
+        toolCall: {
+          name: 'Task',
+          args: { subagent_type: 'researcher', prompt: 'Find sources.' },
+        },
+        state: { openboxWorkflowId: 'wf-task', openboxRunId: 'run-task' },
+      },
+      handler,
+    );
+
+    const parent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'Task' &&
+        event.hook_trigger !== true,
+    );
+    expect(parent?.activity_input).toContainEqual({
+      __openbox: { tool_type: 'a2a', subagent_name: 'researcher' },
+    });
+    expect(parent?.tool_type).toBe('a2a');
   });
 
   it('applies generic nested tool output redaction before returning the result', async () => {

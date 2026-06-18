@@ -6,6 +6,7 @@ import {
   buildSpan,
   openBoxActivityMetadata,
   withOpenBoxActivityMetadata,
+  withOpenBoxSubagentActivityMetadata,
 } from '../../ts/src/governance/spans.js';
 
 function extractAssistantContentLikeCore(spans: SpanData[]): string {
@@ -188,6 +189,12 @@ describe('LLM completion spans', () => {
     ).toEqual([
       { file_path: '/tmp/secret.txt' },
       { __openbox: { tool_type: 'file_read' } },
+    ]);
+    expect(
+      withOpenBoxSubagentActivityMetadata([{ task: 'research' }], 'researcher'),
+    ).toEqual([
+      { task: 'research' },
+      { __openbox: { tool_type: 'a2a', subagent_name: 'researcher' } },
     ]);
   });
 

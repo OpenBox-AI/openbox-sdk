@@ -542,6 +542,18 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       { sessionDir: dir } as any,
     );
     expect(session.calls.length).toBeGreaterThan(0);
+    const start = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[0] === 'ActivityStarted',
+    );
+    const stop = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[0] === 'ActivityCompleted',
+    );
+    expect(start?.args[2].input).toContainEqual({
+      __openbox: { tool_type: 'a2a', subagent_name: 'researcher' },
+    });
+    expect(stop?.args[2].input).toContainEqual({
+      __openbox: { tool_type: 'a2a', subagent_name: 'researcher' },
+    });
   });
 
   it('subagent-stop emits a Core-extractable assistant output span when Claude provides transcript output', async () => {

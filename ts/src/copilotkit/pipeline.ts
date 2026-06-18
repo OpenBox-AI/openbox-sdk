@@ -1,7 +1,11 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { SpanData } from '../core-client/core-client.js';
 import type { GovernedPayload, WorkflowVerdict } from '../core-client/index.js';
-import { type LLMTokenUsage } from '../governance/spans.js';
+import {
+  withOpenBoxActivityMetadata,
+  type LLMTokenUsage,
+  type OpenBoxActivityMetadataInput,
+} from '../governance/spans.js';
 import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
@@ -71,7 +75,7 @@ async function evaluateGate<T>(
   if (input.kind === 'tool_input') {
     const opened = await session.openActivity(activityType, {
       activityId: ids.activityId,
-      input: [input.payload],
+      input: toolActivityInput(input.payload, activityType),
       ...telemetry,
       spans,
     });
@@ -500,7 +504,7 @@ function telemetryForGate(
   return {
     sessionId,
     toolName: toolNameFromPayload(payload) ?? activityType,
-    toolType: 'custom',
+    toolType: toolMetadataFromPayload(payload, activityType).toolType ?? 'custom',
   };
 }
 
@@ -534,6 +538,35 @@ function firstString(...values: unknown[]): string | undefined {
     if (typeof value === 'string' && value.trim()) return value;
   }
   return undefined;
+}
+
+function toolActivityInput(payload: unknown, activityType: string): unknown[] {
+  return withOpenBoxActivityMetadata(
+    [payload],
+    toolMetadataFromPayload(payload, activityType),
+  ) as unknown[];
+}
+
+function toolMetadataFromPayload(
+  payload: unknown,
+  activityType: string,
+): OpenBoxActivityMetadataInput {
+  const record = recordFrom(payload);
+  const args = recordFrom(record.args);
+  const toolName = firstString(record.name, activityType);
+  const subagentName = firstString(
+    args.subagent_name,
+    args.subagent_type,
+    args.agent_type,
+    args.agent_name,
+    args.name,
+    record.subagent_name,
+    record.subagent_type,
+  );
+  if (toolName === 'Agent' || toolName === 'Task' || subagentName) {
+    return { toolType: 'a2a', subagentName };
+  }
+  return { toolType: 'llm_tool_call' };
 }
 
 function spansForGate(

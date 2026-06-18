@@ -29,6 +29,7 @@ export {
   buildSpan,
   openBoxActivityMetadata,
   withOpenBoxActivityMetadata,
+  withOpenBoxSubagentActivityMetadata,
   type LLMCompletionSpanInput,
   type OpenBoxActivityMetadataInput,
   type SpanInput,

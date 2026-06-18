@@ -35,16 +35,17 @@ interface CapturedActivity {
   eventType: string;
   activityType: string;
   method: 'activity' | 'observeActivity';
+  payload?: any;
 }
 
 function makeCapturingSession(captured: CapturedActivity[]) {
   return {
-    activity: async (eventType: string, activityType: string) => {
-      captured.push({ eventType, activityType, method: 'activity' });
+    activity: async (eventType: string, activityType: string, payload?: any) => {
+      captured.push({ eventType, activityType, payload, method: 'activity' });
       return { arm: 'allow' as const, decision: { decisionId: 'd' } };
     },
-    observeActivity: async (eventType: string, activityType: string) => {
-      captured.push({ eventType, activityType, method: 'observeActivity' });
+    observeActivity: async (eventType: string, activityType: string, payload?: any) => {
+      captured.push({ eventType, activityType, payload, method: 'observeActivity' });
       return { arm: 'allow' as const, decision: { decisionId: 'd' } };
     },
     workflowStarted: async () => undefined,
@@ -120,13 +121,12 @@ describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
       makeCapturingSession(captured) as never,
       cfg,
     );
-    expect(captured).toEqual([
-      {
-        eventType: 'ActivityCompleted',
-        activityType: AFTER_AGENT_RESPONSE_ACTIVITY_TYPE,
-        method: 'observeActivity',
-      },
-    ]);
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: AFTER_AGENT_RESPONSE_ACTIVITY_TYPE,
+      method: 'observeActivity',
+    });
     expect(captured[0]?.activityType).toBe('LLMCompleted');
   });
   test('afterAgentThought emits no activity', async () => {
@@ -181,12 +181,20 @@ describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
   test('subagentStart fires SubagentStart', async () => {
     const captured: CapturedActivity[] = [];
     await handleSubagentStart(
-      { conversation_id: 'c', subagent_model: 'claude-opus', tool_call_id: 't1' } as never,
+      {
+        conversation_id: 'c',
+        subagent_type: 'researcher',
+        subagent_model: 'claude-opus',
+        tool_call_id: 't1',
+      } as never,
       makeCapturingSession(captured) as never,
       cfg,
     );
     expect(captured[0]?.activityType).toBe(SUBAGENT_START_ACTIVITY_TYPE);
     expect(captured[0]?.activityType).toBe('SubagentStart');
+    expect(captured[0]?.payload?.input).toContainEqual({
+      __openbox: { tool_type: 'a2a', subagent_name: 'researcher' },
+    });
   });
 
   test('afterTabFileEdit emits no activity (observe-only)', async () => {

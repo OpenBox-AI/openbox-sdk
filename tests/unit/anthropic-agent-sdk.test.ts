@@ -218,6 +218,47 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     });
   });
 
+  it('marks Agent/Task and subagent hooks as a2a activity metadata', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    await runHook(hooks, 'PreToolUse', {
+      ...baseInput,
+      tool_name: 'Task',
+      tool_input: { subagent_type: 'researcher', prompt: 'Find sources.' },
+      tool_use_id: 'tool_subagent',
+    });
+    await runHook(hooks, 'SubagentStart', {
+      ...baseInput,
+      hook_event_name: 'SubagentStart',
+      subagent_type: 'writer',
+    });
+
+    const taskStarted = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'AgentSpawn',
+    );
+    expect(taskStarted?.activity_input).toContainEqual({
+      __openbox: { tool_type: 'a2a', subagent_name: 'researcher' },
+    });
+    const subagentStarted = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'AgentSpawn' &&
+        event.activity_input?.some(
+          (entry) =>
+            typeof entry === 'object' &&
+            entry !== null &&
+            '__openbox' in entry &&
+            (entry as any).__openbox.subagent_name === 'writer',
+        ),
+    );
+    expect(subagentStarted?.activity_input).toContainEqual({
+      __openbox: { tool_type: 'a2a', subagent_name: 'writer' },
+    });
+  });
+
   it('maps constrained tool output to updatedToolOutput', async () => {
     const mock = createMockCore((payload) => {
       if (payload.event_type === 'ActivityCompleted') {

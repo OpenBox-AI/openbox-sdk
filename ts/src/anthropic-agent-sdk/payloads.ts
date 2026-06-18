@@ -4,6 +4,7 @@ import { stampSource } from '../approvals/source.js';
 import {
   buildSpan,
   withOpenBoxActivityMetadata,
+  withOpenBoxSubagentActivityMetadata,
   type LLMTokenUsage,
   type SpanType,
 } from '../governance/spans.js';
@@ -86,9 +87,30 @@ export function toolActivityInput(
   toolInput: Record<string, unknown>,
   payload: Record<string, unknown>,
 ): unknown[] {
+  const subagentName = subagentNameForTool(toolName, toolInput);
+  if (toolName === 'Agent' || toolName === 'Task' || subagentName) {
+    return withOpenBoxSubagentActivityMetadata([payload], subagentName) as unknown[];
+  }
   return withOpenBoxActivityMetadata([payload], {
     toolType: spanTypeFor(toolName, toolInput),
-  });
+  }) as unknown[];
+}
+
+export function subagentActivityInput(
+  env: Record<string, unknown>,
+  payload: Record<string, unknown>,
+): unknown[] {
+  return withOpenBoxSubagentActivityMetadata(
+    [payload],
+    firstString(
+      env.subagent_name,
+      env.subagent_type,
+      env.agent_type,
+      env.agent_name,
+      env.name,
+      env.agent_id,
+    ),
+  ) as unknown[];
 }
 
 export function assistantOutputSpan(
@@ -211,6 +233,21 @@ function spanTypeFor(
   if (isDatabaseMcpTool(toolName, toolInput)) return 'db';
   if (toolName.startsWith('mcp__')) return 'mcp';
   return null;
+}
+
+function subagentNameForTool(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+): string | undefined {
+  if (toolName !== 'Agent' && toolName !== 'Task') return undefined;
+  return firstString(
+    toolInput.subagent_name,
+    toolInput.subagent_type,
+    toolInput.agent_type,
+    toolInput.agent_name,
+    toolInput.name,
+    toolInput.description,
+  );
 }
 
 function textFromContent(value: unknown): string | undefined {

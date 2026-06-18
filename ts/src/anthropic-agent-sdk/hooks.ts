@@ -20,6 +20,7 @@ import {
   objectRecord,
   redactedRecord,
   redactedValue,
+  subagentActivityInput,
   toolActivityInput,
   toolActivityType,
   toolSpan,
@@ -336,7 +337,7 @@ async function handleSubagentStart(
   sessionId: string,
 ): Promise<HookJSONOutput> {
   const verdict = await deps.manager.activity(sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.SUBAGENT, {
-    input: [compactPayload(env, 'subagent_start')],
+    input: subagentActivityInput(env, compactPayload(env, 'subagent_start')),
   });
   return renderContinueBlock(verdict);
 }
@@ -349,7 +350,7 @@ async function handleSubagentStop(
   const content = stringFrom(env.last_assistant_message);
   const assistant = { content, sessionId, event: 'SubagentStop' };
   const verdict = await deps.manager.activity(sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.SUBAGENT, {
-    input: [compactPayload(env, 'subagent_stop')],
+    input: subagentActivityInput(env, compactPayload(env, 'subagent_stop')),
     output: env.last_assistant_message,
     ...assistantOutputTelemetry(assistant),
     spans: assistantOutputSpan(assistant),

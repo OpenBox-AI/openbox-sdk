@@ -11,6 +11,7 @@ import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
+import { withOpenBoxSubagentActivityMetadata } from '../../../governance/spans.js';
 
 /**
  * subagentStart: govern delegation to a subagent. This is the only
@@ -24,10 +25,20 @@ export async function handleSubagentStart(
   cfg: CursorConfig,
 ): Promise<WorkflowVerdict | undefined> {
   const payload = buildSubagentStartPayload(env);
+  const subagentName =
+    env.subagent_type?.trim() ||
+    env.subagent_id?.trim() ||
+    env.subagent_model?.trim() ||
+    undefined;
   const verdict = await session.activity(
     EVENT.START,
     SUBAGENT_START_ACTIVITY_TYPE,
-    { input: [stampSource(payload, 'cursor')] },
+    {
+      input: withOpenBoxSubagentActivityMetadata(
+        [stampSource(payload, 'cursor')],
+        subagentName,
+      ),
+    },
   );
   if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
   return verdict;
