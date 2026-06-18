@@ -441,6 +441,120 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     ).toBe(true);
   });
 
+  it('emits per-model synthetic usage spans for multi-model result telemetry', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const source = createMockQuery([
+      {
+        type: 'result',
+        session_id: 'sess_multi_model',
+        subtype: 'success',
+        is_error: false,
+        result: 'Done with multiple models.',
+        total_cost_usd: 0.021,
+        duration_ms: 1400,
+        duration_api_ms: 1000,
+        num_turns: 2,
+        permission_denials: [],
+        usage: { input_tokens: 30, output_tokens: 12 },
+        modelUsage: {
+          'claude-sonnet-4-5': {
+            inputTokens: 10,
+            outputTokens: 4,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            webSearchRequests: 0,
+            costUSD: 0.006,
+            contextWindow: 200000,
+            maxOutputTokens: 8192,
+          },
+          'claude-opus-4-8': {
+            inputTokens: 20,
+            outputTokens: 8,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            webSearchRequests: 0,
+            costUSD: 0.015,
+            contextWindow: 200000,
+            maxOutputTokens: 8192,
+          },
+        },
+        stop_reason: 'end_turn',
+      },
+    ] as SDKMessage[]);
+    const sdk = createOpenBoxAnthropicAgentSDK({
+      core: mock.core,
+      query: vi.fn(() => source) as any,
+    });
+
+    for await (const _message of sdk.query({ prompt: 'hello' })) {
+      // Drain the stream so the result observer runs.
+    }
+
+    const assistantEvents = mock.events.filter(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'LLMCompleted',
+    );
+    expect(assistantEvents).toHaveLength(4);
+    const [assistantParent, contentHook, ...syntheticHooks] = assistantEvents;
+    expect(assistantParent).toMatchObject({
+      input_tokens: 30,
+      output_tokens: 12,
+      total_tokens: 42,
+      completion: 'Done with multiple models.',
+    });
+    expect(assistantParent.llm_model).toBeUndefined();
+    expect(contentHook.hook_trigger).toBe(true);
+    expect(contentHook.activity_id).toBe(assistantParent.activity_id);
+    expect(contentHook.spans?.[0]).toMatchObject({
+      name: 'openbox.anthropic-agent-sdk.assistant_output',
+      semantic_type: 'llm_completion',
+    });
+    expect((contentHook.spans?.[0] as any).input_tokens).toBeUndefined();
+
+    expect(syntheticHooks).toHaveLength(2);
+    for (const hook of syntheticHooks) {
+      expect(hook.hook_trigger).toBe(true);
+      expect(hook.event_type).toBe(assistantParent.event_type);
+      expect(hook.workflow_id).toBe(assistantParent.workflow_id);
+      expect(hook.run_id).toBe(assistantParent.run_id);
+      expect(hook.activity_id).toBe(assistantParent.activity_id);
+      expect(hook.activity_type).toBe(assistantParent.activity_type);
+      expect(hook.span_count).toBe(1);
+    }
+    const spans = syntheticHooks.map((event) => event.spans?.[0] as any);
+    expect(spans).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'openbox.synthetic.model_usage',
+          model_id: 'claude-sonnet-4-5',
+          provider: 'anthropic',
+          model_provider: 'anthropic',
+          input_tokens: 10,
+          output_tokens: 4,
+          total_tokens: 14,
+          data: expect.objectContaining({ cost_usd: 0.006 }),
+        }),
+        expect.objectContaining({
+          name: 'openbox.synthetic.model_usage',
+          model_id: 'claude-opus-4-8',
+          provider: 'anthropic',
+          model_provider: 'anthropic',
+          input_tokens: 20,
+          output_tokens: 8,
+          total_tokens: 28,
+          data: expect.objectContaining({ cost_usd: 0.015 }),
+        }),
+      ]),
+    );
+    expect(spans.map((span) => JSON.parse(span.response_body).usage)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ input_tokens: 10, output_tokens: 4, total_tokens: 14 }),
+        expect.objectContaining({ input_tokens: 20, output_tokens: 8, total_tokens: 28 }),
+      ]),
+    );
+  });
+
   it('marks open sessions failed when the wrapped query throws', async () => {
     const mock = createMockCore(() => verdict('allow'));
     const source = createThrowingQuery();

@@ -15,6 +15,7 @@ import {
   assistantOutputTelemetry,
   assistantOutputSpan,
   compactPayload,
+  modelUsageSpansFromResult,
   resultAssistantOutput,
   usagePayloadFromResult,
 } from './payloads.js';
@@ -133,15 +134,20 @@ export class AnthropicAgentSessionManager {
       sessionId: message.session_id,
       event: 'result',
     };
-    const spans = assistantOutputSpan({
+    const modelUsageSpans = modelUsageSpansFromResult(message);
+    const contentSpans = assistantOutputSpan({
       content: assistantEvent.content,
       model: assistantEvent.model,
-      usage: assistantEvent.usage,
+      usage:
+        modelUsageSpans.length > 0 && !assistantEvent.model
+          ? undefined
+          : assistantEvent.usage,
       hasToolCalls: assistantEvent.hasToolCalls,
       sessionId: assistantEvent.sessionId,
       event: assistantEvent.event,
-    });
-    if (spans) {
+    }) ?? [];
+    const spans = [...contentSpans, ...modelUsageSpans];
+    if (spans.length > 0) {
       await managed.session.observeActivity(EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.ASSISTANT_OUTPUT, {
         input: [
           compactPayload(

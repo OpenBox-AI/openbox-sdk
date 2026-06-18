@@ -3,6 +3,7 @@ import type { GovernedPayload, SpanData, WorkflowVerdict } from '../core-client/
 import { stampSource } from '../approvals/source.js';
 import {
   buildSpan,
+  buildLLMCompletionSpan,
   withOpenBoxActivityMetadata,
   withOpenBoxSubagentActivityMetadata,
   type LLMTokenUsage,
@@ -209,6 +210,46 @@ export function usagePayloadFromResult(
   }, 'anthropic-agent-sdk');
 }
 
+export function modelUsageSpansFromResult(message: SDKResultMessage): SpanData[] {
+  const entries = Object.entries(objectRecord(message.modelUsage))
+    .map(([model, usage]) => ({
+      model: model.trim(),
+      usage: usageFrom(usage),
+      costUsd: numberFrom(objectRecord(usage).costUSD),
+    }))
+    .filter(
+      (
+        entry,
+      ): entry is { model: string; usage: LLMTokenUsage; costUsd: number | undefined } =>
+        Boolean(entry.model && entry.usage),
+    );
+
+  if (entries.length <= 1) return [];
+
+  return entries.map(({ model, usage, costUsd }) =>
+    buildLLMCompletionSpan({
+      content: '',
+      name: 'openbox.synthetic.model_usage',
+      system: 'anthropic-agent-sdk',
+      model,
+      usage,
+      providerUrl: 'https://api.anthropic.com/v1/messages',
+      attributes: {
+        'gen_ai.system': 'anthropic-agent-sdk',
+        'openbox.synthetic': true,
+        'openbox.anthropic_agent_sdk.event': 'result_model_usage',
+      },
+      data: {
+        source: 'anthropic-agent-sdk',
+        event: 'result_model_usage',
+        session_id: message.session_id,
+        model,
+        ...(costUsd !== undefined ? { cost_usd: costUsd } : {}),
+      },
+    }),
+  );
+}
+
 export function resultAssistantOutput(
   message: SDKResultMessage,
 ): {
@@ -298,11 +339,18 @@ function hasToolCallsFromContent(value: unknown): boolean {
 function usageFrom(value: unknown): LLMTokenUsage | undefined {
   const record = objectRecord(value);
   const usage: LLMTokenUsage = {
-    promptTokens: positiveInteger(record.input_tokens ?? record.prompt_tokens),
-    completionTokens: positiveInteger(record.output_tokens ?? record.completion_tokens),
-    inputTokens: positiveInteger(record.input_tokens),
-    outputTokens: positiveInteger(record.output_tokens),
-    totalTokens: positiveInteger(record.total_tokens),
+    promptTokens: positiveInteger(
+      record.input_tokens ?? record.inputTokens ?? record.prompt_tokens ?? record.promptTokens,
+    ),
+    completionTokens: positiveInteger(
+      record.output_tokens ??
+        record.outputTokens ??
+        record.completion_tokens ??
+        record.completionTokens,
+    ),
+    inputTokens: positiveInteger(record.input_tokens ?? record.inputTokens),
+    outputTokens: positiveInteger(record.output_tokens ?? record.outputTokens),
+    totalTokens: positiveInteger(record.total_tokens ?? record.totalTokens),
   };
   return Object.values(usage).some((entry) => entry !== undefined)
     ? usage
@@ -324,6 +372,18 @@ function positiveInteger(value: unknown): number | undefined {
         : undefined;
   if (numberValue === undefined || !Number.isFinite(numberValue) || numberValue <= 0) return undefined;
   return Math.trunc(numberValue);
+}
+
+function numberFrom(value: unknown): number | undefined {
+  const numberValue =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+        ? Number(value)
+        : undefined;
+  return numberValue !== undefined && Number.isFinite(numberValue)
+    ? numberValue
+    : undefined;
 }
 
 function stringFrom(value: unknown): string | undefined {
