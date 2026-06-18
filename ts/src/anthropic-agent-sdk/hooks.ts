@@ -235,11 +235,13 @@ async function handleUserPromptSubmit(
 ): Promise<HookJSONOutput> {
   const prompt = stringFrom(env.prompt);
   if (!prompt) return {};
-  void deps.manager.activity(sessionId, EVENT.SIGNAL, ANTHROPIC_AGENT_ACTIVITY_TYPES.GOAL_SIGNAL, {
+  await deps.manager.activity(sessionId, EVENT.SIGNAL, ANTHROPIC_AGENT_ACTIVITY_TYPES.GOAL_SIGNAL, {
     input: [compactPayload({ prompt, session_id: sessionId }, 'agent_goal')],
     signalName: ANTHROPIC_AGENT_ACTIVITY_TYPES.GOAL_SIGNAL,
     signalArgs: prompt,
-  }).catch(() => undefined);
+    sessionId,
+    prompt,
+  });
 
   const verdict = await deps.manager.activity(sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.PROMPT, {
     input: [compactPayload(env, 'llm_prompt')],

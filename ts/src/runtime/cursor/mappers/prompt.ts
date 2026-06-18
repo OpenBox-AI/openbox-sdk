@@ -22,12 +22,13 @@ export async function handleBeforeSubmitPrompt(
   const prompt = (env.prompt ?? '').trim();
   if (!prompt) return undefined;
 
-  // Goal signal; best-effort, never blocks.
-  void session.activity(EVENT.SIGNAL, 'user_prompt', {
+  await session.activity(EVENT.SIGNAL, 'user_prompt', {
     input: [stampSource({ prompt, event_category: 'agent_goal' }, 'cursor')],
     signalName: 'user_prompt',
     signalArgs: prompt,
-  }).catch(() => undefined);
+    sessionId: env.conversation_id,
+    prompt,
+  });
 
   const payload = buildBeforeSubmitPromptPayload(env);
   const span = buildSpan('cursor', 'llm', { prompt });

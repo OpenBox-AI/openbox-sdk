@@ -171,6 +171,28 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     });
 
     expect(output).toEqual({});
+    const signalEvent = mock.events.find(
+      (event) =>
+        event.event_type === 'SignalReceived' &&
+        event.activity_type === 'user_prompt',
+    );
+    expect(signalEvent).toMatchObject({
+      session_id: 'sess_agent_sdk',
+      signal_name: 'user_prompt',
+      signal_args: 'Summarize this repository.',
+      prompt: 'Summarize this repository.',
+      activity_input: [
+        expect.objectContaining({
+          prompt: 'Summarize this repository.',
+          session_id: 'sess_agent_sdk',
+          event_category: 'agent_goal',
+          _openbox_source: 'anthropic-agent-sdk',
+        }),
+      ],
+    });
+    expect(signalEvent?.hook_trigger).toBeUndefined();
+    expect(signalEvent?.spans).toBeUndefined();
+    expect(signalEvent?.span_count).toBeUndefined();
     const promptEvents = mock.events.filter(
       (event) =>
         event.event_type === 'ActivityStarted' &&
@@ -182,6 +204,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(parent.spans).toBeUndefined();
     expect(parent.span_count).toBeUndefined();
     expect(parent.prompt).toBe('Summarize this repository.');
+    expect(mock.events.indexOf(signalEvent!)).toBeLessThan(mock.events.indexOf(parent));
     expect(parent.activity_input).toEqual([
       expect.objectContaining({
         event_category: 'llm_prompt',

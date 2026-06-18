@@ -164,6 +164,7 @@ export async function governPipelineGate<T>(
         input.workflowType,
         input.taskQueue,
         promptText,
+        input.sessionKey,
       );
     }
     const verdict = await evaluateGate(adapter, input, ids);
@@ -260,6 +261,7 @@ async function governHaltedPipelineGate<T>(
         input.workflowType,
         input.taskQueue,
         promptTextFromPayload(input.payload),
+        input.sessionKey,
       );
     }
     const verdict = await evaluateGate(adapter, input, ids);

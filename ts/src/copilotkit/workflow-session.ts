@@ -3,6 +3,7 @@ import {
   type OpenBoxCoreClient,
   type SpanData,
 } from '../core-client/core-client.js';
+import { stampSource } from '../approvals/source.js';
 import { parseApprovalExpirationMs } from '../core-client/approval-time.js';
 import {
   presets,
@@ -263,6 +264,7 @@ export async function emitUserPromptSignal(
   workflowType: string,
   taskQueue: string,
   prompt: string | undefined,
+  sessionId?: string,
 ) {
   const signalArgs = prompt?.trim();
   if (!signalArgs) return;
@@ -270,8 +272,16 @@ export async function emitUserPromptSignal(
   await createWorkflowSession(adapter, ids, workflowType, taskQueue, {
     attached: true,
   }).activity('SignalReceived', 'user_prompt', {
+    input: [
+      stampSource(
+        { prompt: signalArgs, event_category: 'agent_goal' },
+        'copilotkit',
+      ),
+    ],
     signalName: 'user_prompt',
     signalArgs,
+    sessionId,
+    prompt: signalArgs,
   });
 }
 

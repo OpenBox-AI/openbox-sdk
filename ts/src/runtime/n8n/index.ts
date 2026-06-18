@@ -104,7 +104,7 @@ export async function emitN8nNodePreExecute(
   await emitN8nUserPromptSignal(session, input.prompt, {
     nodeName: input.nodeName,
     sessionId: input.sessionId,
-  }).catch(() => undefined);
+  });
   return session.nodePreExecute(buildN8nNodePreExecutePayload(input));
 }
 

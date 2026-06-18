@@ -130,6 +130,10 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     const promptGate = session.calls.find(
       (call: any) => call.method === 'activity' && call.args[0] === 'ActivityStarted',
     );
+    const signalIndex = session.calls.indexOf(goalSignal);
+    const promptGateIndex = session.calls.indexOf(promptGate);
+    expect(signalIndex).toBeGreaterThanOrEqual(0);
+    expect(promptGateIndex).toBeGreaterThan(signalIndex);
     expect(promptGate?.args[1]).toBe('PromptSubmission');
     expect(promptGate?.args[2]).toMatchObject({
       sessionId: 'S',

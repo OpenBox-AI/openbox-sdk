@@ -27,14 +27,13 @@ export async function handleUserPromptSubmit(
   const prompt = (env.prompt ?? '').trim();
   if (!prompt) return undefined;
 
-  // Best-effort goal signal; never blocks the prompt path.
-  void session.activity(EVENT.SIGNAL, 'user_prompt', {
+  await session.activity(EVENT.SIGNAL, 'user_prompt', {
     input: [stampSource({ prompt, event_category: 'agent_goal' }, 'claude-code')],
     signalName: 'user_prompt',
     signalArgs: prompt,
     sessionId: env.session_id,
     prompt,
-  }).catch(() => undefined);
+  });
 
   const payload = buildUserPromptSubmitPayload(env);
   const span = buildSpan('claude-code', 'llm', { prompt });

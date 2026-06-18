@@ -577,6 +577,15 @@ describe('CopilotKit OpenBox adapter', () => {
       event_type: 'SignalReceived',
       signal_name: 'user_prompt',
       signal_args: 'Create a support ticket.',
+      session_id: 'default',
+      prompt: 'Create a support ticket.',
+      activity_input: [
+        expect.objectContaining({
+          prompt: 'Create a support ticket.',
+          event_category: 'agent_goal',
+          _openbox_source: 'copilotkit',
+        }),
+      ],
     });
   });
 
@@ -1656,6 +1665,15 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(mock.events[1]).toMatchObject({
       signal_name: 'user_prompt',
       signal_args: 'Open the revenue queue.',
+      session_id: 'missing-state',
+      prompt: 'Open the revenue queue.',
+      activity_input: [
+        expect.objectContaining({
+          prompt: 'Open the revenue queue.',
+          event_category: 'agent_goal',
+          _openbox_source: 'copilotkit',
+        }),
+      ],
     });
     // The allowed input gate is paired under one activity id.
     expect(mock.events[3].activity_id).toBe(mock.events[2].activity_id);

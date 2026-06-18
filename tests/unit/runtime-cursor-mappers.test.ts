@@ -194,9 +194,18 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     expect(goalSignal?.args[2]).toMatchObject({
       signalName: 'user_prompt',
       signalArgs: 'hi',
+      sessionId: 'C',
+      prompt: 'hi',
       input: [{ prompt: 'hi', event_category: 'agent_goal', _openbox_source: 'cursor' }],
     });
     expect(goalSignal?.args[2].spans).toBeUndefined();
+    const promptGate = session.calls.find(
+      (call: any) =>
+        call.method === 'activity' &&
+        call.args[0] === 'ActivityStarted' &&
+        call.args[1] === 'PromptSubmission',
+    );
+    expect(session.calls.indexOf(promptGate)).toBeGreaterThan(session.calls.indexOf(goalSignal));
     if (typeof shellMod.handleBeforeShellExecution === 'function') {
       await shellMod.handleBeforeShellExecution(
         { conversation_id: 'C-decision', generation_id: `${dir}:shell-marker`, command: 'pwd' } as any,

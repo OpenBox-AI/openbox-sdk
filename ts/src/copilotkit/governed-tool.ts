@@ -136,6 +136,7 @@ export function createGovernedCopilotTool<
               workflowType,
               taskQueue,
               normalizedInput.request,
+              key,
             );
           },
         );
