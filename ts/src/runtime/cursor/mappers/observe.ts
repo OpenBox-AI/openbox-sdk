@@ -6,8 +6,10 @@ import type {
 import type { CursorEnvelope } from '../../../core-client/generated/runtime/cursor.js';
 import {
   AFTER_AGENT_RESPONSE_ACTIVITY_TYPE,
+  AFTER_FILE_EDIT_ACTIVITY_TYPE,
   AFTER_SHELL_EXECUTION_ACTIVITY_TYPE,
   buildAfterAgentResponsePayload,
+  buildAfterFileEditPayload,
   buildAfterShellExecutionPayload,
 } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
@@ -337,12 +339,47 @@ export async function handleAfterShellExecution(
   return undefined;
 }
 
-export function handleAfterFileEdit(
-  _env: CursorEnvelope,
-  _session: CursorSession,
+export async function handleAfterFileEdit(
+  env: CursorEnvelope,
+  session: CursorSession,
   _cfg: CursorConfig,
 ): Promise<undefined> {
-  return Promise.resolve(undefined);
+  const filePath = firstString(env.file_path);
+  if (!filePath) return undefined;
+  if (
+    !claimCompletionTelemetry({
+      generation_id: env.generation_id,
+      conversation_id: env.conversation_id,
+      kind: 'write',
+      arg: filePath,
+    })
+  ) {
+    return undefined;
+  }
+
+  const payload = buildAfterFileEditPayload(env);
+  await observeActivity(session, EVENT.COMPLETE, AFTER_FILE_EDIT_ACTIVITY_TYPE, {
+    input: withOpenBoxActivityMetadata(
+      [stampSource({
+        file_path: filePath,
+        edits: payload.edits,
+        event_category: 'file_write',
+      }, 'cursor')],
+      { toolType: 'file_write' },
+    ),
+    output: stampSource(payload, 'cursor'),
+    sessionId: env.conversation_id,
+    toolName: 'FileEdit',
+    toolType: 'file_write',
+    spans: [
+      buildSpan('cursor', 'file_write', {
+        file_path: filePath,
+        tool_name: 'FileEdit',
+        tool_input: { edits: payload.edits },
+      }),
+    ],
+  });
+  return undefined;
 }
 
 // Lifecycle: still fire workflowStarted / workflowCompleted so the

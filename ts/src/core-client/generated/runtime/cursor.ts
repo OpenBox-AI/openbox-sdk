@@ -317,6 +317,7 @@ export function buildAfterFileEditPayload(env: CursorEnvelope): Record<string, u
 
   return {
       "file_path": getPath(env, "file_path"),
+      "edits": getPath(env, "edits"),
       "generation_id": getPath(env, "generation_id"),
       "event_category": "file_write",
     };

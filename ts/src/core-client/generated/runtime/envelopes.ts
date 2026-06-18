@@ -88,6 +88,7 @@ export interface CursorEnvelope {
   failure_type?: string;
   is_interrupt?: boolean;
   content?: string;
+  edits?: unknown;
   result_json?: string;
   workspace_roots?: string[];
   subagent_model?: string;

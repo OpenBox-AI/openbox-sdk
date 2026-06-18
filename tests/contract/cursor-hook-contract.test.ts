@@ -7,6 +7,7 @@ import { handleBeforeSubmitPrompt } from '../../ts/src/runtime/cursor/mappers/pr
 import { handleBeforeShellExecution } from '../../ts/src/runtime/cursor/mappers/shell.js';
 import {
   handleAfterAgentResponse,
+  handleAfterFileEdit,
   handleAfterShellExecution,
 } from '../../ts/src/runtime/cursor/mappers/observe.js';
 import { handleAfterMCPExecution } from '../../ts/src/runtime/cursor/mappers/mcp-response.js';
@@ -658,6 +659,65 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
       attributes: {
         'gen_ai.system': 'mcp',
         'openbox.tool.name': toolName,
+      },
+    });
+  });
+
+  test('real CursorSession sends afterFileEdit spans as parent-plus-hook payloads', async () => {
+    const cap = capture();
+    const payloads: CorePayload[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    const filePath = `/tmp/cursor-after-file-${suffix}.ts`;
+    await createCursorAdapter({
+      core: makeAllowingCore(payloads) as never,
+      resolveSession: async () => ({
+        workflowId: 'wf-cursor-after-file-contract',
+        runId: 'run-cursor-after-file-contract',
+      }),
+      handlers: {
+        afterFileEdit: (env, session) => handleAfterFileEdit(env, session, cfg),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({
+          hook_event_name: 'afterFileEdit',
+          conversation_id: 'c',
+          generation_id: `contract-real-after-file-${suffix}`,
+          file_path: filePath,
+          edits: [{ old_string: 'old', new_string: 'new' }],
+        }),
+      ),
+    }).run();
+
+    expect(JSON.parse(cap.stdout[0])).toEqual({});
+    expect(payloads).toHaveLength(2);
+    const [parent, hook] = payloads;
+    expect(parent).toMatchObject({
+      workflow_id: 'wf-cursor-after-file-contract',
+      run_id: 'run-cursor-after-file-contract',
+      event_type: 'ActivityCompleted',
+      activity_type: 'FileEdit',
+      session_id: 'c',
+      tool_name: 'FileEdit',
+      tool_type: 'file_write',
+    });
+    expect(parent.spans).toBeUndefined();
+    expect(parent.hook_trigger).toBeUndefined();
+    expect(hook).toMatchObject({
+      workflow_id: parent.workflow_id,
+      run_id: parent.run_id,
+      event_type: parent.event_type,
+      activity_type: parent.activity_type,
+      activity_id: parent.activity_id,
+      hook_trigger: true,
+      span_count: 1,
+    });
+    expect(hook.spans?.[0]).toMatchObject({
+      semantic_type: 'file_write',
+      attributes: {
+        'file.path': filePath,
+        'file.operation': 'write',
+        'openbox.tool.name': 'FileEdit',
       },
     });
   });

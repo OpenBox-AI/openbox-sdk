@@ -168,14 +168,35 @@ describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
     });
     expect(captured[0]?.activityType).toBe('ShellExecution');
   });
-  test('afterFileEdit emits no activity', async () => {
+  test('afterFileEdit without file path emits no activity', async () => {
     const captured: CapturedActivity[] = [];
     await handleAfterFileEdit(
-      { conversation_id: 'c', file_path: '/tmp/y.txt' } as never,
+      { conversation_id: 'c' } as never,
       makeCapturingSession(captured) as never,
       cfg,
     );
     expect(captured).toHaveLength(0);
+  });
+  test('afterFileEdit with file path emits observe-only FileEdit', async () => {
+    const captured: CapturedActivity[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    await handleAfterFileEdit(
+      {
+        conversation_id: 'c',
+        generation_id: `activity-type-after-file-${suffix}`,
+        file_path: `/tmp/cursor-after-file-${suffix}.ts`,
+        edits: [{ old_string: 'old', new_string: 'new' }],
+      } as never,
+      makeCapturingSession(captured) as never,
+      cfg,
+    );
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: AFTER_FILE_EDIT_ACTIVITY_TYPE,
+      method: 'observeActivity',
+    });
+    expect(captured[0]?.activityType).toBe('FileEdit');
   });
   test('afterMCPExecution emits no activity', async () => {
     const captured: CapturedActivity[] = [];

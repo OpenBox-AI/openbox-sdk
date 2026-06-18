@@ -381,6 +381,44 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     });
   });
 
+  test('afterFileEdit emits completed file-write telemetry when Cursor supplies edit payload', async () => {
+    const captured: ActivityCall[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    const filePath = `/tmp/cursor-after-file-${suffix}.ts`;
+    await handleAfterFileEdit(
+      {
+        hook_event_name: 'afterFileEdit',
+        conversation_id: 'c',
+        generation_id: `after-file-unit-${suffix}`,
+        file_path: filePath,
+        edits: [{ old_string: 'old', new_string: 'new' }],
+      } as never,
+      makeCapturingSession(captured) as never,
+      cfg,
+    );
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: 'FileEdit',
+      payload: {
+        sessionId: 'c',
+        toolName: 'FileEdit',
+        toolType: 'file_write',
+      },
+    });
+    const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
+    expect(span.semantic_type).toBe('file_write');
+    expect(span.attributes?.['file.path']).toBe(filePath);
+    expect(span.attributes?.['file.operation']).toBe('write');
+    expect(span.attributes?.['openbox.tool.name']).toBe('FileEdit');
+    expect(captured[0]?.payload.output).toMatchObject({
+      file_path: filePath,
+      edits: [{ old_string: 'old', new_string: 'new' }],
+      event_category: 'file_write',
+      _openbox_source: 'cursor',
+    });
+  });
+
   test('non-response after* events remain observe-only without backend spans', async () => {
     const captured: ActivityCall[] = [];
     await handleAfterAgentThought(
@@ -394,7 +432,7 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
       cfg,
     );
     await handleAfterFileEdit(
-      { conversation_id: 'c', file_path: '/tmp/x.txt' } as never,
+      { conversation_id: 'c' } as never,
       makeCapturingSession(captured) as never,
       cfg,
     );

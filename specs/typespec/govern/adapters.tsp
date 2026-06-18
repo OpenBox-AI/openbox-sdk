@@ -789,6 +789,8 @@ model CursorEnvelope {
   is_interrupt?: boolean;
   /** beforeReadFile: Cursor inlines the file body in the envelope. */
   content?: string;
+  /** afterFileEdit: Cursor reports the search/replace edit list. */
+  edits?: unknown;
   /** afterMCPExecution legacy harness wire field; sometimes JSON-string-encoded. */
   result_json?: string;
   /**
@@ -986,6 +988,7 @@ interface CursorAdapter {
   @payloadShape(#{
     default: #{
       file_path: #{ from: "file_path" },
+      edits: #{ from: "edits" },
       generation_id: #{ from: "generation_id" },
       event_category: #{ literal: "file_write" },
     },
