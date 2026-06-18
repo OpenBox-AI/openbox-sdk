@@ -12,7 +12,7 @@ import {
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
-import { buildSpan } from '../../../governance/spans.js';
+import { buildSpan, withOpenBoxActivityMetadata } from '../../../governance/spans.js';
 import {
   isInsideAnyRoot,
   shouldRedactPathContent,
@@ -77,11 +77,13 @@ export async function handleBeforeReadFile(
     tool_name: 'Read',
   });
   try {
-    const verdict = await session.activity(
-      EVENT.START,
-      BEFORE_READ_FILE_ACTIVITY_TYPE,
-      { input: [stampSource(payload, 'cursor')], spans: [span] },
-    );
+    const verdict = await session.activity(EVENT.START, BEFORE_READ_FILE_ACTIVITY_TYPE, {
+      input: withOpenBoxActivityMetadata(
+        [stampSource(payload, 'cursor')],
+        { toolType: 'file_read' },
+      ),
+      spans: [span],
+    });
     publishClaimDecision(claim, { arm: verdict.arm, reason: verdict.reason ?? '' });
     if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
     return verdict;
@@ -121,11 +123,13 @@ export async function handleBeforeTabFileRead(
     file_path: filePath,
     tool_name: 'TabRead',
   });
-  const verdict = await session.activity(
-    EVENT.START,
-    BEFORE_TAB_FILE_READ_ACTIVITY_TYPE,
-    { input: [stampSource(payload, 'cursor')], spans: [span] },
-  );
+  const verdict = await session.activity(EVENT.START, BEFORE_TAB_FILE_READ_ACTIVITY_TYPE, {
+    input: withOpenBoxActivityMetadata(
+      [stampSource(payload, 'cursor')],
+      { toolType: 'file_read' },
+    ),
+    spans: [span],
+  });
   if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
   return verdict;
 }

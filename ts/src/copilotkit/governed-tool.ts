@@ -34,8 +34,10 @@ import {
   failWorkflow,
   finishStoppedWorkflow,
   pollApproval,
+  toolActivityInput,
   toolInput,
   toolSpan,
+  withCopilotToolActivityMetadata,
 } from './workflow-session.js';
 
 export function createGovernedCopilotTool<
@@ -147,7 +149,7 @@ export function createGovernedCopilotTool<
         () =>
           session.openActivity(definition.toolName, {
             activityId: ids.activityId,
-            input: [toolInput(definition, normalizedInput)],
+            input: toolActivityInput(definition, normalizedInput),
             ...(definition.spanProfile
               ? { spans: [toolSpan(definition, normalizedInput, 'started')] }
               : {}),
@@ -216,7 +218,7 @@ export function createGovernedCopilotTool<
         () =>
           openedActivity.complete(
             {
-              input: [toolInput(definition, startedRedaction.input)],
+              input: toolActivityInput(definition, startedRedaction.input),
               output: toolOutputForGovernance(provisional),
               ...(definition.spanProfile
                 ? {
@@ -417,7 +419,9 @@ export function createGovernedCopilotTool<
             { attached: true, inlineApproval: true },
           ).activity('ActivityCompleted', definition.toolName, {
             activityId: ids.activityId,
-            input: [approvalResumeToolInput(definition, normalizedInput)],
+            input: withCopilotToolActivityMetadata([
+              approvalResumeToolInput(definition, normalizedInput),
+            ]),
             output: toolOutputForGovernance(result),
             spans: [approvalResumeSpan(definition, normalizedInput)],
           }),
@@ -542,7 +546,7 @@ export function createGovernedCopilotTool<
             { attached: true, inlineApproval: true },
           ).openActivity(definition.toolName, {
             activityId: ids.activityId,
-            input: [toolInput(definition, input)],
+            input: toolActivityInput(definition, input),
             ...(definition.spanProfile
               ? { spans: [toolSpan(definition, input, 'started')] }
               : {}),

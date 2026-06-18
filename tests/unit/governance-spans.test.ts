@@ -4,6 +4,8 @@ import {
   buildLLMCompletionResponseBody,
   buildLLMCompletionSpan,
   buildSpan,
+  openBoxActivityMetadata,
+  withOpenBoxActivityMetadata,
 } from '../../ts/src/governance/spans.js';
 
 function extractAssistantContentLikeCore(spans: SpanData[]): string {
@@ -164,6 +166,29 @@ describe('LLM completion spans', () => {
       'tool.name': 'Shell',
       tool_name: 'Shell',
     });
+  });
+
+  test('activity metadata matches LangGraph __openbox marker shape', () => {
+    expect(openBoxActivityMetadata({ toolType: ' file_read ' })).toEqual({
+      __openbox: { tool_type: 'file_read' },
+    });
+    expect(
+      openBoxActivityMetadata({
+        toolType: 'a2a',
+        subagentName: 'writer',
+      }),
+    ).toEqual({
+      __openbox: { tool_type: 'a2a', subagent_name: 'writer' },
+    });
+    expect(openBoxActivityMetadata({ toolType: '  ' })).toBeUndefined();
+    expect(
+      withOpenBoxActivityMetadata([{ file_path: '/tmp/secret.txt' }], {
+        toolType: 'file_read',
+      }),
+    ).toEqual([
+      { file_path: '/tmp/secret.txt' },
+      { __openbox: { tool_type: 'file_read' } },
+    ]);
   });
 
   test('does not pretend arbitrary result JSON is goal-alignment content', () => {

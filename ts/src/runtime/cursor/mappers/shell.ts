@@ -10,7 +10,7 @@ import {
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
-import { buildSpan } from '../../../governance/spans.js';
+import { buildSpan, withOpenBoxActivityMetadata } from '../../../governance/spans.js';
 import {
   buildActionKey,
   claimAction,
@@ -76,7 +76,10 @@ export async function handleBeforeShellExecution(
   if (isDelete) payload.event_category = 'file_delete';
   try {
     const verdict = await session.activity(EVENT.START, activityType, {
-      input: [stampSource(payload, 'cursor')],
+      input: withOpenBoxActivityMetadata(
+        [stampSource(payload, 'cursor')],
+        { toolType: isDelete ? 'file_delete' : 'shell' },
+      ),
       spans: [span],
     });
     publishClaimDecision(claim, { arm: verdict.arm, reason: verdict.reason ?? '' });

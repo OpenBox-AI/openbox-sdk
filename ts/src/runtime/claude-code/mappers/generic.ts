@@ -14,6 +14,10 @@ import {
 import { readLatestAssistantUsage } from '../transcript-usage.js';
 
 type GenericEventKind = typeof EVENT.START | typeof EVENT.COMPLETE | typeof EVENT.SIGNAL;
+type GenericActivityPayload = Parameters<ClaudeCodeSession['activity']>[2];
+type ObserveCapableClaudeSession = ClaudeCodeSession & {
+  observeActivity?: ClaudeCodeSession['activity'];
+};
 
 const IMPORTANT_FIELDS = [
   'hook_event_name',
@@ -98,10 +102,10 @@ export async function observeGenericClaudeEvent(
   cfg: ClaudeCodeConfig,
   options: GenericEventOptions,
 ): Promise<undefined> {
+  void cfg;
   try {
-    await handleGenericClaudeEvent(env, session, cfg, {
-      ...options,
-      decisionCapable: false,
+    await observeActivity(session, options.eventKind ?? EVENT.START, options.activityType, {
+      input: [stampSource(compactPayload(env, options.eventCategory), 'claude-code')],
     });
   } catch {
     // Observe-only hooks must not disturb Claude Code.
@@ -123,7 +127,7 @@ export async function handleMessageDisplay(
     env.message ??
     '';
   try {
-    await session.activity(options.eventKind ?? EVENT.COMPLETE, options.activityType, {
+    await observeActivity(session, options.eventKind ?? EVENT.COMPLETE, options.activityType, {
       input: [stampSource(compactPayload(env, options.eventCategory), 'claude-code')],
       output: stampSource({ text, event_category: options.eventCategory }, 'claude-code'),
       ...(env.final === true
@@ -160,4 +164,17 @@ export async function handleMessageDisplay(
     }
   }
   return undefined;
+}
+
+async function observeActivity(
+  session: ClaudeCodeSession,
+  eventType: GenericEventKind,
+  activityType: string,
+  payload: GenericActivityPayload,
+): Promise<WorkflowVerdict> {
+  const observeSession = session as ObserveCapableClaudeSession;
+  if (observeSession.observeActivity) {
+    return observeSession.observeActivity(eventType, activityType, payload);
+  }
+  return session.activity(eventType, activityType, payload);
 }

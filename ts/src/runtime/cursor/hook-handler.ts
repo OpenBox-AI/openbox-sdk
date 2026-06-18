@@ -214,8 +214,8 @@ export async function runCursorHook(): Promise<void> {
   // installed plugin hooks file. Whatever the user has configured for
   // the event becomes the ceiling on how long we're willing to poll.
   //
-  // cfg.hitlMaxWait is the user-tunable knob (in project .cursor-hooks/config.json
-  // HITL_MAX_WAIT, default 300s). We respect it up to 1 hour. The
+  // cfg.hitlMaxWait is the user-tunable knob in project
+  // .cursor-hooks/config.json. We respect it up to 1 hour. The
   // The plugin hook `timeout` field MUST be set to at least the same
   // value or Cursor will kill us before pollApproval finishes.
   const approvalMaxWaitMs = Math.min(
@@ -274,7 +274,7 @@ export async function runCursorHook(): Promise<void> {
     resolveSession: (env) => resolveSession(env, cfg),
     approvalMaxWaitMs,
     readStdin: async () => raw,
-    // When APPROVAL_MODE=inline, the SDK skips its internal poll loop
+    // When approvalMode is inline, the SDK skips its internal poll loop
     // and the adapter renders permission:'ask' so Cursor's native
     // permission dialog pops in the IDE on every require_approval.
     // External approval clients such as the dashboard, mobile app,

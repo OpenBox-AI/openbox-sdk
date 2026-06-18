@@ -34,12 +34,17 @@ import {
 interface CapturedActivity {
   eventType: string;
   activityType: string;
+  method: 'activity' | 'observeActivity';
 }
 
 function makeCapturingSession(captured: CapturedActivity[]) {
   return {
     activity: async (eventType: string, activityType: string) => {
-      captured.push({ eventType, activityType });
+      captured.push({ eventType, activityType, method: 'activity' });
+      return { arm: 'allow' as const, decision: { decisionId: 'd' } };
+    },
+    observeActivity: async (eventType: string, activityType: string) => {
+      captured.push({ eventType, activityType, method: 'observeActivity' });
       return { arm: 'allow' as const, decision: { decisionId: 'd' } };
     },
     workflowStarted: async () => undefined,
@@ -104,20 +109,25 @@ describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
     expect(captured[0]?.activityType).toBe('MCPToolCall');
   });
 
-  // Observe-only events (after*) deliberately DO NOT call
-  // session.activity. Pinning that contract here so a future
-  // refactor can't accidentally re-introduce backend round-trips
-  // for events that don't gate (which created phantom approval
-  // rows in the dashboard panel and stalled the hook subprocess
-  // in pollApproval for 25s; see commit history for details).
-  test('afterAgentResponse emits no activity (observe-only)', async () => {
+  // Most observe-only events deliberately do not call session.activity.
+  // afterAgentResponse is the exception: it emits an observeActivity
+  // assistant-output event so Core can store completion spans without
+  // blocking an already-completed host action.
+  test('afterAgentResponse emits observe-only LLMCompleted', async () => {
     const captured: CapturedActivity[] = [];
     await handleAfterAgentResponse(
       { conversation_id: 'c', response: 'r' } as never,
       makeCapturingSession(captured) as never,
       cfg,
     );
-    expect(captured).toHaveLength(0);
+    expect(captured).toEqual([
+      {
+        eventType: 'ActivityCompleted',
+        activityType: AFTER_AGENT_RESPONSE_ACTIVITY_TYPE,
+        method: 'observeActivity',
+      },
+    ]);
+    expect(captured[0]?.activityType).toBe('LLMCompleted');
   });
   test('afterAgentThought emits no activity', async () => {
     const captured: CapturedActivity[] = [];

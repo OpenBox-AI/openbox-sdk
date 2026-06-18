@@ -11,7 +11,7 @@ import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
 import { sideEffects } from '../side-effects.js';
-import { buildSpan } from '../../../governance/spans.js';
+import { buildSpan, withOpenBoxActivityMetadata } from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
 
 /** beforeMCPExecution: govern an MCP tool call before Cursor invokes it. */
@@ -28,7 +28,13 @@ export async function handleBeforeMCPExecution(
   const verdict = await session.activity(
     EVENT.START,
     BEFORE_MCPEXECUTION_ACTIVITY_TYPE,
-    { input: [stampSource(payload, 'cursor')], spans: [span] },
+    {
+      input: withOpenBoxActivityMetadata(
+        [stampSource(payload, 'cursor')],
+        { toolType: 'mcp' },
+      ),
+      spans: [span],
+    },
   );
   if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
   return verdict;

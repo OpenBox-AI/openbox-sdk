@@ -74,11 +74,9 @@ export function loadConfig(): ClaudeCodeConfig {
     if (envConfig[key] !== undefined) return envConfig[key];
     return fileFallback ?? '';
   };
-  const getSetting = (key: string, legacyKey: string, fileFallback?: string) => {
+  const getSetting = (key: string, fileFallback?: string) => {
     if (fileConfig[key] !== undefined) return fileConfig[key];
     if (envConfig[key] !== undefined) return envConfig[key];
-    if (fileConfig[legacyKey] !== undefined) return fileConfig[legacyKey];
-    if (envConfig[legacyKey] !== undefined) return envConfig[legacyKey];
     return fileFallback ?? '';
   };
 
@@ -97,19 +95,19 @@ export function loadConfig(): ClaudeCodeConfig {
       OPENBOX_AGENT_PRIVATE_KEY: getRuntime('OPENBOX_AGENT_PRIVATE_KEY') || undefined,
     }),
     governancePolicy: 'fail_closed',
-    governanceTimeout: parseInt(getSetting('governanceTimeout', 'GOVERNANCE_TIMEOUT', '15'), 10) || 15,
-    sessionDir: getSetting('sessionDir', 'SESSION_DIR', path.join(CONFIG_DIR, 'sessions')),
-    logFile: getSetting('logFile', 'LOG_FILE', path.join(CONFIG_DIR, 'hook.log')) || null,
-    verbose: asBoolean(getSetting('verbose', 'VERBOSE', 'false')),
-    hitlEnabled: getSetting('hitlEnabled', 'HITL_ENABLED', 'true') !== 'false',
-    hitlPollInterval: parseInt(getSetting('hitlPollInterval', 'HITL_POLL_INTERVAL', '5'), 10) || 5,
-    hitlMaxWait: parseInt(getSetting('hitlMaxWait', 'HITL_MAX_WAIT', '300'), 10) || 300,
-    approvalMode: parseApprovalMode(getSetting('approvalMode', 'APPROVAL_MODE', 'remote')),
-    taskQueue: getSetting('taskQueue', 'TASK_QUEUE', 'claude-code'),
-    sendStartEvent: getSetting('sendStartEvent', 'SEND_START_EVENT', 'true') !== 'false',
-    sendActivityStartEvent: getSetting('sendActivityStartEvent', 'SEND_ACTIVITY_START_EVENT', 'true') !== 'false',
-    maxBodySize: getSetting('maxBodySize', 'MAX_BODY_SIZE')
-      ? (parseInt(getSetting('maxBodySize', 'MAX_BODY_SIZE'), 10) || null)
+    governanceTimeout: parseInt(getSetting('governanceTimeout', '15'), 10) || 15,
+    sessionDir: getSetting('sessionDir', path.join(CONFIG_DIR, 'sessions')),
+    logFile: getSetting('logFile', path.join(CONFIG_DIR, 'hook.log')) || null,
+    verbose: asBoolean(getSetting('verbose', 'false')),
+    hitlEnabled: getSetting('hitlEnabled', 'true') !== 'false',
+    hitlPollInterval: parseInt(getSetting('hitlPollInterval', '5'), 10) || 5,
+    hitlMaxWait: parseInt(getSetting('hitlMaxWait', '300'), 10) || 300,
+    approvalMode: parseApprovalMode(getSetting('approvalMode', 'remote')),
+    taskQueue: getSetting('taskQueue', 'claude-code'),
+    sendStartEvent: getSetting('sendStartEvent', 'true') !== 'false',
+    sendActivityStartEvent: getSetting('sendActivityStartEvent', 'true') !== 'false',
+    maxBodySize: getSetting('maxBodySize')
+      ? (parseInt(getSetting('maxBodySize'), 10) || null)
       : null,
   };
 }

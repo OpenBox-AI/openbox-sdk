@@ -210,6 +210,12 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(started?.activity_id).toBeDefined();
     expect(completed?.activity_id).toBe(started?.activity_id);
     expect(completed?.duration_ms).toBe(42);
+    expect(started?.activity_input).toContainEqual({
+      __openbox: { tool_type: 'shell' },
+    });
+    expect(completed?.activity_input).toContainEqual({
+      __openbox: { tool_type: 'shell' },
+    });
   });
 
   it('maps constrained tool output to updatedToolOutput', async () => {
@@ -337,6 +343,34 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         _openbox_source: 'anthropic-agent-sdk',
       }),
     ]);
+    const assistantEvents = mock.events.filter(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'LLMCompleted',
+    );
+    expect(assistantEvents).toHaveLength(2);
+    const [assistantParent, assistantHook] = assistantEvents;
+    expect(assistantParent.hook_trigger).toBeUndefined();
+    expect(assistantParent.spans).toBeUndefined();
+    expect(assistantParent.span_count).toBeUndefined();
+    expect(assistantParent).toMatchObject({
+      llm_model: 'claude-sonnet-4-5',
+      input_tokens: 10,
+      output_tokens: 5,
+      completion: 'Done.',
+    });
+    expect(assistantHook.hook_trigger).toBe(true);
+    expect(assistantHook.event_type).toBe(assistantParent.event_type);
+    expect(assistantHook.workflow_id).toBe(assistantParent.workflow_id);
+    expect(assistantHook.run_id).toBe(assistantParent.run_id);
+    expect(assistantHook.activity_id).toBe(assistantParent.activity_id);
+    expect(assistantHook.activity_type).toBe(assistantParent.activity_type);
+    expect(assistantHook.span_count).toBe(1);
+    expect(assistantHook.spans?.[0]).toMatchObject({
+      name: 'openbox.anthropic-agent-sdk.assistant_output',
+      stage: 'completed',
+      semantic_type: 'llm_completion',
+    });
     expect(
       mock.events.some((event) => event.event_type === 'WorkflowCompleted'),
     ).toBe(true);

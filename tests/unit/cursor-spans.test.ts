@@ -25,7 +25,7 @@ import {
 interface ActivityCall {
   eventType: string;
   activityType: string;
-  payload: { input?: unknown[]; spans?: unknown[] };
+  payload: { input?: unknown[]; output?: unknown; spans?: unknown[] };
 }
 
 function makeCapturingSession(captured: ActivityCall[]) {
@@ -140,15 +140,28 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     expect(span.attributes?.['tool.name']).toBe('fetch');
   });
 
-  // after* events are no-ops on the SDK side (don't call session.activity);
-  // see ts/src/runtime/cursor/mappers/observe.ts for why. Pin that here.
-  test('after* events emit no spans (observe-only, no backend round-trip)', async () => {
+  test('afterAgentResponse emits completed assistant-output span', async () => {
     const captured: ActivityCall[] = [];
     await handleAfterAgentResponse(
       { conversation_id: 'c', response: 'r' } as never,
       makeCapturingSession(captured) as never,
       cfg,
     );
+    expect(captured).toHaveLength(1);
+    expect(captured[0]?.eventType).toBe('ActivityCompleted');
+    expect(captured[0]?.activityType).toBe('LLMCompleted');
+    const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
+    expect(span).toMatchObject({
+      semantic_type: 'llm_completion',
+      attributes: {
+        'gen_ai.system': 'cursor',
+        'openbox.cursor.event': 'afterAgentResponse',
+      },
+    });
+  });
+
+  test('non-response after* events remain observe-only without backend spans', async () => {
+    const captured: ActivityCall[] = [];
     await handleAfterAgentThought(
       { conversation_id: 'c', thought: 't' } as never,
       makeCapturingSession(captured) as never,

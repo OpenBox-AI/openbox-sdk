@@ -30,6 +30,7 @@ import {
   buildLLMCompletionSpan,
   buildSpan,
 } from '../../ts/src/governance/spans.js';
+import { buildN8nLlmCompletionPayload } from '../../ts/src/runtime/n8n/index.js';
 
 interface MockCore {
   events: GovernanceEventPayload[];
@@ -281,25 +282,23 @@ describe('activity pairing', () => {
     expect(completed?.span_count).toBeUndefined();
   });
 
-  test('n8n nodePostExecute sends model usage on ActivityCompleted span', async () => {
+  test('n8n nodePostExecute sends parent model usage and hook completion span', async () => {
     const mock = createMockCore('allow');
     await govern(
       { ...baseConfig(mock), preset: presets.n8n },
       async (session) => {
         await session.nodePostExecute({
-          output: { text: 'Draft ready.' },
-          spans: [
-            buildLLMCompletionSpan({
-              content: 'Draft ready.',
-              system: 'n8n',
-              model: 'gpt-4o-mini',
-              usage: {
-                promptTokens: 18,
-                completionTokens: 7,
-                totalTokens: 25,
-              },
-            }),
-          ],
+          ...buildN8nLlmCompletionPayload({
+            text: 'Draft ready.',
+            model: 'gpt-4o-mini',
+            usage: {
+              promptTokens: 18,
+              completionTokens: 7,
+              totalTokens: 25,
+            },
+            nodeName: 'Governed LLM Draft',
+            provider: 'openrouter',
+          }),
         });
       },
     );
@@ -314,6 +313,13 @@ describe('activity pairing', () => {
     expect(completedParent.hook_trigger).toBeUndefined();
     expect(completedParent.spans).toBeUndefined();
     expect(completedParent.span_count).toBeUndefined();
+    expect(completedParent).toMatchObject({
+      llm_model: 'gpt-4o-mini',
+      input_tokens: 18,
+      output_tokens: 7,
+      total_tokens: 25,
+      completion: 'Draft ready.',
+    });
     expect(completedHook.hook_trigger).toBe(true);
     expect(completedHook.event_type).toBe(completedParent.event_type);
     expect(completedHook.workflow_id).toBe(completedParent.workflow_id);
@@ -323,11 +329,17 @@ describe('activity pairing', () => {
     expect(completedHook.span_count).toBe(1);
     const span = completedHook.spans?.[0] as Record<string, unknown> | undefined;
     expect(span).toMatchObject({
+      name: 'openbox.n8n.assistant_output',
       stage: 'completed',
       semantic_type: 'llm_completion',
       model: 'gpt-4o-mini',
       input_tokens: 18,
       output_tokens: 7,
+      attributes: expect.objectContaining({
+        'gen_ai.system': 'n8n',
+        'openbox.n8n.node_name': 'Governed LLM Draft',
+        'openbox.provider': 'openrouter',
+      }),
     });
     expect(JSON.parse(String(span?.response_body))).toMatchObject({
       model: 'gpt-4o-mini',
@@ -337,6 +349,39 @@ describe('activity pairing', () => {
         total_tokens: 25,
       },
     });
+  });
+
+  test('observeActivity emits parent plus hook span without approval polling', async () => {
+    const mock = createMockCore('require_approval', {
+      approval_id: 'approval-observe',
+    } as Partial<GovernanceVerdictResponse>);
+    await govern(
+      { ...baseConfig(mock), preset: presets.cursor },
+      async (session) => {
+        await session.observeActivity('ActivityCompleted', 'LLMCompleted', {
+          output: { response: 'Cursor answer.' },
+          completion: 'Cursor answer.',
+          spans: [
+            buildLLMCompletionSpan({
+              content: 'Cursor answer.',
+              system: 'cursor',
+              name: 'openbox.cursor.assistant_output',
+            }),
+          ],
+        });
+      },
+    );
+
+    const completedEvents = mock.events.filter(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'LLMCompleted',
+    );
+    expect(completedEvents).toHaveLength(2);
+    expect(completedEvents[0]?.spans).toBeUndefined();
+    expect(completedEvents[1]?.hook_trigger).toBe(true);
+    expect(completedEvents[1]?.spans).toHaveLength(1);
+    expect(mock.pollApproval).not.toHaveBeenCalled();
   });
 });
 

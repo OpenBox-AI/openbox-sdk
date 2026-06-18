@@ -277,8 +277,8 @@ export async function runClaudeHook(): Promise<void> {
     timeoutMs: cfg.governanceTimeout * 1000,
   });
 
-  // Respect the user's HITL_MAX_WAIT knob (claude-hooks/config.json or
-  // env). Without this wiring the SDK falls back to its 60s default,
+  // Respect the user's project `hitlMaxWait` setting. Without this wiring
+  // the SDK falls back to its 60s default,
   // which is much shorter than the 300s claude-code installs default to;
   // the hook would soft-deny long before the user could decide an
   // approval via the dashboard or mobile.
@@ -392,7 +392,7 @@ export async function runClaudeHook(): Promise<void> {
     resolveSession: (env) => resolveSession(env, cfg),
     approvalMaxWaitMs,
     readStdin: async () => raw,
-    // When APPROVAL_MODE=inline, the SDK skips its internal poll loop
+    // When approvalMode is inline, the SDK skips its internal poll loop
     // and the adapter renders permissionDecision:'ask' so Claude
     // Code's native permission dialog pops in the TUI on every
     // require_approval. External approval clients such as the

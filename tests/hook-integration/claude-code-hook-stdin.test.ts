@@ -202,7 +202,7 @@ describe('claude-code hook stdin/stdout', () => {
         tool_input: { file_path: '/etc/hostname' },
       },
       root,
-      { OPENBOX_CORE_URL: 'http://127.0.0.1:1', GOVERNANCE_TIMEOUT: '1' },
+      { OPENBOX_CORE_URL: 'http://127.0.0.1:1' },
     );
     expect(r.status, `exit=${r.status} stderr=${r.stderr}`).toBe(0);
     const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string } };
@@ -220,7 +220,7 @@ describe('claude-code hook stdin/stdout', () => {
         tool_input: { file_path: '/etc/hostname' },
       },
       root,
-      { OPENBOX_CORE_URL: 'http://127.0.0.1:1', GOVERNANCE_TIMEOUT: '1' },
+      { OPENBOX_CORE_URL: 'http://127.0.0.1:1' },
     );
     expect(r.status, `exit=${r.status} stderr=${r.stderr}`).toBe(0);
     const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string } };
@@ -332,7 +332,7 @@ describe('claude-code hook stdin/stdout', () => {
         session_crons: [],
       },
       root,
-      { OPENBOX_CORE_URL: 'http://127.0.0.1:1', GOVERNANCE_TIMEOUT: '1' },
+      { OPENBOX_CORE_URL: 'http://127.0.0.1:1' },
     );
     expect(r.status, `Stop active retry failed: ${r.stderr}`).toBe(0);
     const out = (r.parsed ?? {}) as Record<string, unknown>;

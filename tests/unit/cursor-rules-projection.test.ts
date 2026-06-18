@@ -14,6 +14,7 @@ vi.mock('../../ts/src/runtime/mcp/config.js', () => ({
     for (const [re, resp] of apiResponses) {
       if (re.test(urlPath)) return resp;
     }
+    if (/\/behavior-rule(?:\?|$)/.test(urlPath)) return [];
     throw new Error(`Unmocked endpoint: ${urlPath}`);
   },
 }));
@@ -94,6 +95,56 @@ describe('fetchRulesProjection', () => {
     const { fetchRulesProjection } = await loadModule();
     const projection = await fetchRulesProjection({ agentId: 'agt' });
     expect(projection.rules[0].trigger).toBe('agentRequested');
+  });
+
+  it('projects active behavior rules from the generated backend shape', async () => {
+    apiResponses.set(/\/guardrails/, []);
+    apiResponses.set(/\/policies/, []);
+    apiResponses.set(/\/behavior-rule/, {
+      data: [
+        {
+          id: 'br-block',
+          rule_name: 'Block sensitive tool',
+          description: 'Reject risky tool use',
+          priority: 90,
+          trigger: 'llm_tool_call',
+          states: ['llm_tool_call', 'file_read'],
+          time_window: 60,
+          verdict: 3,
+          reject_message: 'Do not call this tool',
+          is_active: true,
+          group_id: 'group-1',
+          version: 2,
+        },
+        {
+          id: 'br-off',
+          rule_name: 'Off',
+          trigger: 'internal',
+          states: ['internal'],
+          verdict: 4,
+          is_active: false,
+        },
+      ],
+    });
+    const { fetchRulesProjection } = await loadModule();
+    const projection = await fetchRulesProjection({ agentId: 'agt' });
+    expect(projection.rules.map((r) => r.id)).toEqual(['behavior-rule/br-block']);
+    expect(projection.rules[0]).toMatchObject({
+      source: 'behavior-rule',
+      trigger: 'always',
+      severity: 'block',
+      description: 'Reject risky tool use',
+      rendererHints: {
+        trigger: 'llm_tool_call',
+        states: ['llm_tool_call', 'file_read'],
+        priority: 90,
+        verdict: 3,
+        timeWindow: 60,
+        groupId: 'group-1',
+        version: 2,
+      },
+    });
+    expect(projection.rules[0].body).toContain('Reject message: Do not call this tool');
   });
 
   it('sorts rules by id for deterministic output', async () => {

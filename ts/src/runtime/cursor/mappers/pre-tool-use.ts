@@ -17,7 +17,11 @@ import {
   shouldRedactPathContent,
 } from '../../../governance/skip-patterns.js';
 import { sideEffects } from '../side-effects.js';
-import { buildSpan, type SpanType } from '../../../governance/spans.js';
+import {
+  buildSpan,
+  withOpenBoxActivityMetadata,
+  type SpanType,
+} from '../../../governance/spans.js';
 import {
   buildActionKey,
   claimAction,
@@ -117,7 +121,10 @@ export async function handlePreToolUse(
 
   try {
     const verdict = await session.activity(EVENT.START, activityType, {
-      input: [stampSource(payload, 'cursor')],
+      input: withOpenBoxActivityMetadata(
+        [stampSource(payload, 'cursor')],
+        { toolType: spanType },
+      ),
       spans: [span],
     });
     if (claim?.won) {

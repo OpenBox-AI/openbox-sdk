@@ -108,6 +108,10 @@ export interface LLMTokenUsage {
 }
 
 type JsonRecord = Record<string, unknown>;
+export interface OpenBoxActivityMetadataInput {
+  toolType?: string | null;
+  subagentName?: string | null;
+}
 
 type ObservableSpan = SpanData & {
   span_type?: string;
@@ -180,6 +184,26 @@ function toolNameAttributes(input: SpanInput): JsonRecord {
     'tool.name': toolName,
     tool_name: toolName,
   };
+}
+
+export function openBoxActivityMetadata(
+  input: OpenBoxActivityMetadataInput,
+): { __openbox: { tool_type?: string; subagent_name?: string } } | undefined {
+  const metadata: { tool_type?: string; subagent_name?: string } = {};
+  const toolType = typeof input.toolType === 'string' ? input.toolType.trim() : '';
+  const subagentName = typeof input.subagentName === 'string' ? input.subagentName.trim() : '';
+  if (toolType) metadata.tool_type = toolType;
+  if (subagentName) metadata.subagent_name = subagentName;
+  return Object.keys(metadata).length > 0 ? { __openbox: metadata } : undefined;
+}
+
+export function withOpenBoxActivityMetadata<T extends readonly unknown[] | undefined>(
+  input: T,
+  metadata: OpenBoxActivityMetadataInput,
+): T | unknown[] {
+  const marker = openBoxActivityMetadata(metadata);
+  if (!marker) return input;
+  return [...(input ?? []), marker];
 }
 
 export function buildLLMCompletionResponseBody(

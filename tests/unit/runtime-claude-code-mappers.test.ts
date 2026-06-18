@@ -49,6 +49,7 @@ function recordingSession(verdict: { arm?: string } = { arm: 'allow' }): any {
     workflowId: 'wf', runId: 'run', workflowType: 't', taskQueue: 'g',
     isOpen: true, isTerminated: false, calls,
     async activity(...a: any[]) { calls.push({ method: 'activity', args: a }); return verdict; },
+    async observeActivity(...a: any[]) { calls.push({ method: 'observeActivity', args: a }); return verdict; },
     async openActivity(...a: any[]) {
       calls.push({ method: 'openActivity', args: a });
       const activityId = a[1]?.activityId ?? `opened-${calls.length}`;
@@ -165,6 +166,9 @@ describe('runtime/claude-code/mappers; every event handler', () => {
 
     const opened = session.calls.find((call: any) => call.method === 'openActivity');
     expect(opened?.args[0]).toBe('ShellExecution');
+    expect(opened?.args[1].input).toContainEqual({
+      __openbox: { tool_type: 'shell' },
+    });
     const completed = session.calls.find(
       (call: any) => call.method === 'activity' && call.args[0] === 'ActivityCompleted',
     );
@@ -178,6 +182,9 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       command: 'echo ok',
       event_category: 'agent_action',
       _openbox_source: 'claude-code',
+    });
+    expect(completed?.args[2].input).toContainEqual({
+      __openbox: { tool_type: 'shell' },
     });
   });
 
@@ -315,7 +322,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       },
     );
     const message = session.calls.find(
-      (c: any) => c.method === 'activity' && c.args[1] === 'ClaudeCodeMessage',
+      (c: any) => c.method === 'observeActivity' && c.args[1] === 'ClaudeCodeMessage',
     );
     expect(message?.args[2]?.spans?.[0]).toMatchObject({
       name: 'openbox.claude-code.assistant_output',
@@ -416,7 +423,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     );
 
     const message = session.calls.find(
-      (c: any) => c.method === 'activity' && c.args[1] === 'ClaudeCodeMessage',
+      (c: any) => c.method === 'observeActivity' && c.args[1] === 'ClaudeCodeMessage',
     );
     expect(message?.args[2]?.spans?.[0]).toMatchObject({
       model: 'claude-opus-4-8',

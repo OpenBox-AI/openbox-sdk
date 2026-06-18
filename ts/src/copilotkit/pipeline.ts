@@ -1,10 +1,11 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { SpanData } from '../core-client/core-client.js';
 import type { GovernedPayload, WorkflowVerdict } from '../core-client/index.js';
+import { type LLMTokenUsage } from '../governance/spans.js';
 import {
-  buildLLMCompletionSpan,
-  type LLMTokenUsage,
-} from '../governance/spans.js';
+  assistantOutputTelemetryFields,
+  buildAssistantOutputSpan,
+} from '../governance/assistant-output.js';
 import {
   errorMessage,
   sameJson,
@@ -459,14 +460,6 @@ function usageFrom(record: Record<string, unknown>): LLMTokenUsage | undefined {
     : undefined;
 }
 
-function usageInputTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  return usage?.inputTokens ?? usage?.promptTokens;
-}
-
-function usageOutputTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  return usage?.outputTokens ?? usage?.completionTokens;
-}
-
 function telemetryForGate(
   kind: OpenBoxCopilotGateKind,
   activityType: string,
@@ -494,12 +487,14 @@ function telemetryForGate(
   if (kind === 'assistant_output') {
     const metadata = llmCompletionMetadataFromPayload(payload);
     return {
+      ...assistantOutputTelemetryFields({
+        source: 'copilotkit',
+        sessionId,
+        content: assistantContentFromPayload(payload),
+        model: metadata.model,
+        usage: metadata.usage,
+      }),
       sessionId,
-      llmModel: metadata.model,
-      inputTokens: usageInputTokens(metadata.usage),
-      outputTokens: usageOutputTokens(metadata.usage),
-      totalTokens: metadata.usage?.totalTokens,
-      completion: assistantContentFromPayload(payload),
     };
   }
   return {
@@ -550,17 +545,14 @@ function spansForGate(
     case 'assistant_output': {
       const content = assistantContentFromPayload(payload);
       if (!content) return [];
-      return [
-        buildLLMCompletionSpan({
-          content,
-          span: pipelineSpan(kind, 'llm.chat.completion', payload),
-          name: 'openbox.copilotkit.assistant_output',
-          kind: 'llm',
-          system: 'copilotkit',
-          attributes: { 'gen_ai.system': 'copilotkit' },
-          ...llmCompletionMetadataFromPayload(payload),
-        }),
-      ];
+      return buildAssistantOutputSpan({
+        source: 'copilotkit',
+        content,
+        span: pipelineSpan(kind, 'llm.chat.completion', payload),
+        name: 'openbox.copilotkit.assistant_output',
+        attributes: { 'gen_ai.system': 'copilotkit' },
+        ...llmCompletionMetadataFromPayload(payload),
+      }) ?? [];
     }
     case 'tool_input':
     case 'tool_output':

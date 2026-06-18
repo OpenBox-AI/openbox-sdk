@@ -1293,6 +1293,15 @@ describe('CopilotKit OpenBox adapter', () => {
         Array.isArray(event.spans) &&
         event.spans.length > 0,
     );
+    const parentStarted = mock.events.find(
+      (event) => event.event_type === 'ActivityStarted' && !event.hook_trigger,
+    );
+    expect(parentStarted?.activity_input).toContainEqual({
+      __openbox: { tool_type: 'llm_tool_call' },
+    });
+    expect(started?.activity_input).toContainEqual({
+      __openbox: { tool_type: 'llm_tool_call' },
+    });
     const span = started?.spans?.[0] as Record<string, any> | undefined;
     expect(span).toMatchObject({
       name: 'business.queue.review',

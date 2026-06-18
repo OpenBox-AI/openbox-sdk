@@ -142,7 +142,7 @@ export const CLAUDE_CODE_SDK_CAPABILITY_MATRIX: readonly ClaudeCodeSdkCapability
     capability: 'goal and signal telemetry',
     sdkSurface: 'BaseGovernedSession.activity(SignalReceived)',
     claudeCodeTreatment: 'implement_now',
-    coverage: 'UserPromptSubmit emits SignalReceived(user_prompt) with the prompt and an LLM span before the prompt gate.',
+    coverage: 'UserPromptSubmit emits SignalReceived(user_prompt) for AGE goal capture before the prompt gate; assistant-output spans are emitted only on completed assistant output.',
     tests: ['tests/unit/runtime-claude-code-mappers.test.ts', 'tests/unit/payload-shape.test.ts'],
   },
   {

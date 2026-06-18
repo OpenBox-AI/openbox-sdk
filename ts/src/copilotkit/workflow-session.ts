@@ -7,6 +7,7 @@ import {
   type BaseGovernedSession,
   type WorkflowVerdict,
 } from '../core-client/index.js';
+import { withOpenBoxActivityMetadata } from '../governance/spans.js';
 import { errorMessage, nowUnixNano } from './internal-utils.js';
 import { mapGuardrailsResult, normalizeArm } from './results.js';
 import type {
@@ -209,7 +210,6 @@ export async function emitUserPromptSignal(
   }).activity('SignalReceived', 'user_prompt', {
     signalName: 'user_prompt',
     signalArgs,
-    spans: [userPromptSpan(signalArgs)],
   });
 }
 
@@ -276,6 +276,19 @@ export function toolInput<TInput extends OpenBoxCopilotActionInput, TArtifact>(
   };
 }
 
+export function toolActivityInput<TInput extends OpenBoxCopilotActionInput, TArtifact>(
+  definition: GovernedCopilotToolDefinition<TInput, TArtifact>,
+  input: TInput,
+): unknown[] {
+  return withCopilotToolActivityMetadata([toolInput(definition, input)]);
+}
+
+export function withCopilotToolActivityMetadata(input: unknown[]): unknown[] {
+  return withOpenBoxActivityMetadata(input, {
+    toolType: 'llm_tool_call',
+  });
+}
+
 export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
   definition: GovernedCopilotToolDefinition<TInput, TArtifact>,
   input: TInput,
@@ -313,23 +326,5 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
       ...(profile.attributes ?? {}),
     },
     data: profile.data ?? base.data,
-  } as SpanData;
-}
-
-function userPromptSpan(prompt: string): SpanData {
-  const now = nowUnixNano();
-  return {
-    span_id: randomBytes(8).toString('hex'),
-    trace_id: randomBytes(16).toString('hex'),
-    name: 'user_prompt',
-    kind: 'internal',
-    start_time: now,
-    end_time: now,
-    duration_ns: 0,
-    stage: 'started',
-    attributes: {
-      'openbox.signal.name': 'user_prompt',
-    },
-    data: { prompt },
   } as SpanData;
 }

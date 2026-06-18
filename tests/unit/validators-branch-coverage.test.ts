@@ -62,7 +62,7 @@ describe('validators branch coverage', () => {
     expect(() => validateGuardrailParams('5', { regex: '(drop|truncate)\\s+table' })).not.toThrow();
   });
 
-  it('activity config accepts legacy bindings as optional no-op settings', () => {
+  it('activity config accepts optional guardrail activity bindings', () => {
     expect(() => validateActivitiesConfig(undefined, '0')).not.toThrow();
     expect(() => validateActivitiesConfig([], '0')).not.toThrow();
     expect(() =>

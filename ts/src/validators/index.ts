@@ -378,8 +378,8 @@ export function validateActivitiesConfig(activities: unknown, stage: '0' | '1'):
   }
   if (!Array.isArray(activities)) {
     warn(
-      'settings.activities is a legacy no-op field and should be an array when provided. New guardrails check all activity types and fields by default.',
-      'references/guardrails.md § "Legacy activities"',
+      'settings.activities should be an array when provided. Current guardrail evaluators can still use configured activity bindings.',
+      'references/guardrails.md § "Guardrail activities"',
     );
     return;
   }
@@ -391,14 +391,14 @@ export function validateActivitiesConfig(activities: unknown, stage: '0' | '1'):
     const a = activities[i] as Record<string, unknown>;
     if (a.activity_type != null && typeof a.activity_type !== 'string') {
       warn(
-        `settings.activities[${i}].activity_type is legacy/no-op and should be a string when provided.`,
-        'references/guardrails.md § "Legacy activities"',
+        `settings.activities[${i}].activity_type should be a string when provided.`,
+        'references/guardrails.md § "Guardrail activities"',
       );
     }
     if (typeof a.activity_type === 'string' && !(CANONICAL_ACTIVITY_TYPES as readonly string[]).includes(a.activity_type)) {
       warn(
-        `settings.activities[${i}].activity_type "${a.activity_type}" is legacy/no-op. First-party telemetry still emits activity_type for observability, but guardrails no longer filter on this field.`,
-        'references/guardrails.md § "Legacy activities"',
+        `settings.activities[${i}].activity_type "${a.activity_type}" is not a first-party SDK activity type and may not match current guardrail filters.`,
+        'references/guardrails.md § "Guardrail activities"',
       );
     }
     if (a.fields_to_check == null) {
@@ -406,23 +406,23 @@ export function validateActivitiesConfig(activities: unknown, stage: '0' | '1'):
     }
     if (!Array.isArray(a.fields_to_check)) {
       warn(
-        `settings.activities[${i}].fields_to_check is legacy/no-op and should be an array when provided.`,
-        'references/guardrails.md § "Legacy activities"',
+        `settings.activities[${i}].fields_to_check should be an array when provided.`,
+        'references/guardrails.md § "Guardrail activities"',
       );
       continue;
     }
     for (const path of a.fields_to_check as string[]) {
       if (typeof path !== 'string' || path.length === 0) {
         warn(
-          `settings.activities[${i}].fields_to_check entries are legacy/no-op and should be non-empty strings when provided.`,
-          'references/guardrails.md § "Legacy activities"',
+          `settings.activities[${i}].fields_to_check entries should be non-empty strings when provided.`,
+          'references/guardrails.md § "Guardrail activities"',
         );
         continue;
       }
       if (!path.startsWith(expectedPrefix + '.') && path !== expectedPrefix) {
         warn(
-          `fields_to_check path "${path}" is legacy/no-op. New guardrails check all fields, so stage-specific field prefixes are not required.`,
-          'references/guardrails.md § "Legacy activities"',
+          `fields_to_check path "${path}" does not match the configured processing stage prefix "${expectedPrefix}".`,
+          'references/guardrails.md § "Guardrail activities"',
         );
       }
     }

@@ -27,7 +27,6 @@ export async function handleBeforeSubmitPrompt(
     input: [stampSource({ prompt, event_category: 'agent_goal' }, 'cursor')],
     signalName: 'user_prompt',
     signalArgs: prompt,
-    spans: [buildSpan('cursor', 'llm', { prompt })],
   }).catch(() => undefined);
 
   const payload = buildBeforeSubmitPromptPayload(env);

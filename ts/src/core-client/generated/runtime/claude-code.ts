@@ -798,7 +798,7 @@ export interface ClaudeCodeAdapterConfig {
    * approver. External approval clients such as the dashboard, mobile
    * app, or editor extension can still resolve the backend row, but
    * the hook subprocess does not wait for them. Adapters wire this
-   * from the `APPROVAL_MODE` config.
+   * from the project `approvalMode` config.
    */
   inlineApproval?: boolean;
   deferApproval?: boolean;
@@ -1412,7 +1412,7 @@ function renderVerdictOutput(
         const r = reason.replace(/^\[OpenBox\] /, '').trim();
         // The hook has already polled for the configured deadline
         // (default 60s; Cursor's hook subprocess timeout; tunable up
-        // to ~1hr per hooks.json[event].timeout + HITL_MAX_WAIT).
+        // to ~1hr per hooks.json[event].timeout + hitlMaxWait).
         // Reaching this branch means no decision came through in time.
         // Cursor will block this tool attempt.
         return {
@@ -1490,7 +1490,6 @@ function renderVerdictOutput(
       return undefined;
   }
 }
-
 
 
 

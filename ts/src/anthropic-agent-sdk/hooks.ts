@@ -13,13 +13,14 @@ import {
 } from './config.js';
 import {
   ANTHROPIC_AGENT_ACTIVITY_TYPES,
+  assistantOutputTelemetry,
   assistantOutputSpan,
   brandedReason,
   compactPayload,
   objectRecord,
-  promptSpan,
   redactedRecord,
   redactedValue,
+  toolActivityInput,
   toolActivityType,
   toolSpan,
 } from './payloads.js';
@@ -175,12 +176,12 @@ async function handleUserPromptSubmit(
     input: [compactPayload({ prompt, session_id: sessionId }, 'agent_goal')],
     signalName: ANTHROPIC_AGENT_ACTIVITY_TYPES.GOAL_SIGNAL,
     signalArgs: prompt,
-    spans: promptSpan(prompt),
   }).catch(() => undefined);
 
   const verdict = await deps.manager.activity(sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.PROMPT, {
     input: [compactPayload(env, 'llm_prompt')],
-    spans: promptSpan(prompt),
+    prompt,
+    sessionId,
   });
   return renderDecisionBlock('UserPromptSubmit', verdict);
 }
@@ -194,7 +195,11 @@ async function handlePreToolUse(
   const toolInput = objectRecord(env.tool_input);
   const activityType = toolActivityType(toolName, toolInput);
   const opened = await deps.manager.openActivity(sessionId, activityType, {
-    input: [compactPayload({ ...env, tool_name: toolName, tool_input: toolInput }, 'tool_input')],
+    input: toolActivityInput(
+      toolName,
+      toolInput,
+      compactPayload({ ...env, tool_name: toolName, tool_input: toolInput }, 'tool_input'),
+    ),
     spans: toolSpan(toolName, toolInput),
   });
   deps.manager.rememberToolActivity(
@@ -214,7 +219,11 @@ async function handlePermissionRequest(
   const toolName = stringFrom(env.tool_name) ?? 'unknown';
   const toolInput = objectRecord(env.tool_input);
   const verdict = await deps.manager.activity(sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.PERMISSION, {
-    input: [compactPayload({ ...env, tool_name: toolName, tool_input: toolInput }, 'permission_request')],
+    input: toolActivityInput(
+      toolName,
+      toolInput,
+      compactPayload({ ...env, tool_name: toolName, tool_input: toolInput }, 'permission_request'),
+    ),
     spans: toolSpan(toolName, toolInput),
   });
   return renderPermissionRequest(verdict);
@@ -230,7 +239,11 @@ async function handlePostToolUse(
   const toolOutput = env.tool_response ?? env.tool_output;
   const activityType = toolActivityType(toolName, toolInput);
   const payload = {
-    input: [compactPayload({ tool_name: toolName, tool_input: toolInput }, 'tool_input')],
+    input: toolActivityInput(
+      toolName,
+      toolInput,
+      compactPayload({ tool_name: toolName, tool_input: toolInput }, 'tool_input'),
+    ),
     output: toolOutput,
     durationMs: numberFrom(env.duration_ms),
     spans: toolSpan(toolName, toolInput, toolOutput),
@@ -254,7 +267,11 @@ async function handlePostToolUseFailure(
   const toolName = stringFrom(env.tool_name) ?? 'unknown';
   const toolInput = objectRecord(env.tool_input);
   const payload = {
-    input: [compactPayload({ tool_name: toolName, tool_input: toolInput }, 'tool_input')],
+    input: toolActivityInput(
+      toolName,
+      toolInput,
+      compactPayload({ tool_name: toolName, tool_input: toolInput }, 'tool_input'),
+    ),
     output: compactPayload(env, 'tool_failure'),
     durationMs: numberFrom(env.duration_ms),
     spans: toolSpan(toolName, toolInput, env.error),
@@ -294,16 +311,18 @@ async function handleStop(
 ): Promise<HookJSONOutput> {
   const latest = deps.manager.latestAssistant(sessionId);
   const content = stringFrom(env.last_assistant_message) ?? latest?.content;
+  const assistant = {
+    content,
+    model: latest?.model,
+    usage: latest?.usage,
+    sessionId,
+    event: 'Stop',
+  };
   const verdict = await deps.manager.activity(sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.SESSION, {
     input: [compactPayload(env, 'session_stop')],
     output: content ? { content } : undefined,
-    spans: assistantOutputSpan({
-      content,
-      model: latest?.model,
-      usage: latest?.usage,
-      sessionId,
-      event: 'Stop',
-    }),
+    ...assistantOutputTelemetry(assistant),
+    spans: assistantOutputSpan(assistant),
   });
   if (verdict.arm === 'allow' || verdict.arm === 'constrain') {
     await deps.manager.complete(sessionId);
@@ -327,14 +346,13 @@ async function handleSubagentStop(
   deps: HookDeps,
   sessionId: string,
 ): Promise<HookJSONOutput> {
+  const content = stringFrom(env.last_assistant_message);
+  const assistant = { content, sessionId, event: 'SubagentStop' };
   const verdict = await deps.manager.activity(sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.SUBAGENT, {
     input: [compactPayload(env, 'subagent_stop')],
     output: env.last_assistant_message,
-    spans: assistantOutputSpan({
-      content: stringFrom(env.last_assistant_message),
-      sessionId,
-      event: 'SubagentStop',
-    }),
+    ...assistantOutputTelemetry(assistant),
+    spans: assistantOutputSpan(assistant),
   });
   return renderContinueBlock(verdict);
 }
@@ -356,14 +374,13 @@ async function handleMessageDisplay(
   sessionId: string,
 ): Promise<HookJSONOutput> {
   if (env.final !== true) return {};
-  await deps.manager.activity(sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.MESSAGE, {
+  const content = stringFrom(env.delta);
+  const assistant = { content, sessionId, event: 'MessageDisplay' };
+  await deps.manager.observeActivity(sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.MESSAGE, {
     input: [compactPayload(env, 'message_display')],
-    output: stringFrom(env.delta),
-    spans: assistantOutputSpan({
-      content: stringFrom(env.delta),
-      sessionId,
-      event: 'MessageDisplay',
-    }),
+    output: content,
+    ...assistantOutputTelemetry(assistant),
+    spans: assistantOutputSpan(assistant),
   });
   return {};
 }

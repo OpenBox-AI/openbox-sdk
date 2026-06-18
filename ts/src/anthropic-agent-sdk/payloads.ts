@@ -1,12 +1,16 @@
 import type { SDKAssistantMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
-import type { SpanData, WorkflowVerdict } from '../core-client/index.js';
+import type { GovernedPayload, SpanData, WorkflowVerdict } from '../core-client/index.js';
 import { stampSource } from '../approvals/source.js';
 import {
-  buildLLMCompletionSpan,
   buildSpan,
+  withOpenBoxActivityMetadata,
   type LLMTokenUsage,
   type SpanType,
 } from '../governance/spans.js';
+import {
+  assistantOutputTelemetryFields,
+  buildAssistantOutputSpan,
+} from '../governance/assistant-output.js';
 
 export const ANTHROPIC_AGENT_ACTIVITY_TYPES = {
   PROMPT: 'PromptSubmission',
@@ -77,13 +81,14 @@ export function toolSpan(
   ];
 }
 
-export function promptSpan(prompt: string): SpanData[] {
-  return [
-    buildSpan('anthropic-agent-sdk', 'llm', {
-      prompt,
-      model: undefined,
-    }) as unknown as SpanData,
-  ];
+export function toolActivityInput(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+  payload: Record<string, unknown>,
+): unknown[] {
+  return withOpenBoxActivityMetadata([payload], {
+    toolType: spanTypeFor(toolName, toolInput),
+  });
 }
 
 export function assistantOutputSpan(
@@ -95,28 +100,43 @@ export function assistantOutputSpan(
     event?: string;
   },
 ): SpanData[] | undefined {
-  if (!input.content && !input.usage) return undefined;
-  return [
-    buildLLMCompletionSpan({
-      content: input.content ?? '',
-      span: { module: 'anthropic-agent-sdk' },
-      name: 'openbox.anthropic-agent-sdk.assistant_output',
-      kind: 'llm',
-      system: 'anthropic-agent-sdk',
-      model: input.model,
-      usage: input.usage,
-      providerUrl: 'https://api.anthropic.com/v1/messages',
-      attributes: {
-        'gen_ai.system': 'anthropic-agent-sdk',
-        'openbox.anthropic_agent_sdk.event': input.event ?? 'assistant',
-      },
-      data: {
-        source: 'anthropic-agent-sdk',
-        event: input.event ?? 'assistant',
-        session_id: input.sessionId,
-      },
-    }),
-  ];
+  return buildAssistantOutputSpan({
+    source: 'anthropic-agent-sdk',
+    content: input.content,
+    span: { module: 'anthropic-agent-sdk' },
+    name: 'openbox.anthropic-agent-sdk.assistant_output',
+    model: input.model,
+    usage: input.usage,
+    providerUrl: 'https://api.anthropic.com/v1/messages',
+    attributes: {
+      'openbox.anthropic_agent_sdk.event': input.event ?? 'assistant',
+    },
+    data: {
+      source: 'anthropic-agent-sdk',
+      event: input.event ?? 'assistant',
+      session_id: input.sessionId,
+    },
+  });
+}
+
+export function assistantOutputTelemetry(
+  input: {
+    content?: string;
+    model?: string;
+    usage?: LLMTokenUsage;
+    sessionId?: string;
+  },
+): Pick<
+  GovernedPayload,
+  'sessionId' | 'llmModel' | 'inputTokens' | 'outputTokens' | 'totalTokens' | 'completion'
+> {
+  return assistantOutputTelemetryFields({
+    source: 'anthropic-agent-sdk',
+    sessionId: input.sessionId,
+    content: input.content,
+    model: input.model,
+    usage: input.usage,
+  });
 }
 
 export function assistantContentAndUsage(
@@ -153,9 +173,10 @@ export function usagePayloadFromResult(
 
 export function resultAssistantOutput(
   message: SDKResultMessage,
-): { content?: string; usage?: LLMTokenUsage } {
+): { content?: string; model?: string; usage?: LLMTokenUsage } {
   return {
     content: message.subtype === 'success' ? message.result : undefined,
+    model: singleResultModel(message.modelUsage),
     usage: usageFrom(message.usage),
   };
 }
@@ -218,6 +239,12 @@ function usageFrom(value: unknown): LLMTokenUsage | undefined {
   return Object.values(usage).some((entry) => entry !== undefined)
     ? usage
     : undefined;
+}
+
+function singleResultModel(value: unknown): string | undefined {
+  const record = objectRecord(value);
+  const models = Object.keys(record).filter((key) => key.trim());
+  return models.length === 1 ? models[0] : undefined;
 }
 
 function positiveInteger(value: unknown): number | undefined {

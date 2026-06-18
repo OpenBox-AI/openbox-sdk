@@ -43,8 +43,12 @@ function makeCapturingSession(
   reason?: string,
 ) {
   return {
-    activity: async (eventType: string, activityType: string, body: { input: unknown[] }) => {
-      captured.push({ eventType, activityType, payload: body.input?.[0] });
+    activity: async (eventType: string, activityType: string, body: unknown) => {
+      captured.push({ eventType, activityType, payload: body });
+      return { arm, reason, riskScore: 0 };
+    },
+    observeActivity: async (eventType: string, activityType: string, body: unknown) => {
+      captured.push({ eventType, activityType, payload: body });
       return { arm, reason, riskScore: 0 };
     },
     workflowStarted: async () => undefined,
@@ -191,6 +195,28 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
 
     const out = JSON.parse(cap.stdout[0]);
     expect(out).toEqual({});
+    const activity = captured[0];
+    expect(activity).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: 'LLMCompleted',
+    });
+    expect(activity?.payload).toMatchObject({
+      sessionId: 'c',
+      completion: 'done',
+      output: {
+        response: 'done',
+        _openbox_source: 'cursor',
+      },
+    });
+    expect((activity?.payload as any).spans?.[0]).toMatchObject({
+      name: 'openbox.cursor.assistant_output',
+      stage: 'completed',
+      semantic_type: 'llm_completion',
+      attributes: {
+        'gen_ai.system': 'cursor',
+        'openbox.cursor.event': 'afterAgentResponse',
+      },
+    });
   });
 
   test('cursor-permission require_approval (poll timed out) → deny (ask is silently no-op in Cursor; deny is the only working gate)', async () => {

@@ -69,6 +69,7 @@ describe('governance rules projection coverage', () => {
         },
       ],
     });
+    apiState.responses.set('/agent/agent-1/behavior-rule?page=0&perPage=200', { data: [] });
 
     const projection = await fetchRulesProjection({
       agentId: 'agent-1',
@@ -78,6 +79,7 @@ describe('governance rules projection coverage', () => {
     expect(apiState.calls).toEqual([
       '/agent/agent-1/guardrails?page=0&perPage=200',
       '/agent/agent-1/policies?page=0&perPage=200',
+      '/agent/agent-1/behavior-rule?page=0&perPage=200',
     ]);
     expect(projection).toMatchObject({
       agentId: 'agent-1',

@@ -11,7 +11,11 @@ import {
 import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
-import { buildSpan, type SpanType } from '../../../governance/spans.js';
+import {
+  buildSpan,
+  withOpenBoxActivityMetadata,
+  type SpanType,
+} from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import {
   dbOperationFor,
@@ -77,7 +81,10 @@ export async function handlePermissionRequest(
       ]
     : undefined;
   const verdict = await session.activity(EVENT.START, activityType, {
-    input: [stampSource(payload, 'claude-code')],
+    input: withOpenBoxActivityMetadata(
+      [stampSource(payload, 'claude-code')],
+      { toolType: effectiveSpanType },
+    ),
     sessionId: env.session_id,
     toolName,
     toolType: effectiveSpanType ?? undefined,
@@ -97,7 +104,10 @@ export async function handlePermissionDenied(
   const activityType = activityTypeForTool(toolName, toolInput);
   const payload = buildPermissionDeniedPayload(env);
   const verdict = await session.activity(EVENT.START, activityType, {
-    input: [stampSource(payload, 'claude-code')],
+    input: withOpenBoxActivityMetadata(
+      [stampSource(payload, 'claude-code')],
+      { toolType: spanTypeFor(toolName, toolInput) },
+    ),
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;

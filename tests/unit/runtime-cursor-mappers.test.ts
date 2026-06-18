@@ -196,16 +196,33 @@ describe('runtime/cursor/mappers; drive every handler', () => {
       signalArgs: 'hi',
       input: [{ prompt: 'hi', event_category: 'agent_goal', _openbox_source: 'cursor' }],
     });
-    expect(goalSignal?.args[2].spans?.[0]).toMatchObject({
-      semantic_type: 'llm_completion',
-      module: 'cursor',
-    });
+    expect(goalSignal?.args[2].spans).toBeUndefined();
     if (typeof shellMod.handleBeforeShellExecution === 'function') {
-      await shellMod.handleBeforeShellExecution({ conversation_id: 'C', command: 'ls' } as any, session, cfg);
+      await shellMod.handleBeforeShellExecution(
+        { conversation_id: 'C-decision', generation_id: `${dir}:shell-marker`, command: 'pwd' } as any,
+        session,
+        cfg,
+      );
     }
     if (typeof fileReadMod.handleBeforeReadFile === 'function') {
-      await fileReadMod.handleBeforeReadFile({ conversation_id: 'C', file_path: '/tmp/test.txt' } as any, session, cfg);
+      await fileReadMod.handleBeforeReadFile(
+        { conversation_id: 'C-decision', generation_id: `${dir}:file-marker`, file_path: '/tmp/test.txt' } as any,
+        session,
+        cfg,
+      );
     }
+    const shellGate = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[1] === 'ShellExecution',
+    );
+    expect(shellGate?.args[2].input).toContainEqual({
+      __openbox: { tool_type: 'shell' },
+    });
+    const fileGate = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[1] === 'FileRead',
+    );
+    expect(fileGate?.args[2].input).toContainEqual({
+      __openbox: { tool_type: 'file_read' },
+    });
   });
 
   it('beforeTabFileRead skips routine workspace files but gates sensitive workspace files', async () => {
@@ -245,6 +262,12 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     } as any;
     if (typeof mcp.handleBeforeMCPExecution === 'function') await mcp.handleBeforeMCPExecution(env, session, cfg);
     if (typeof mcpResp.handleAfterMCPExecution === 'function') await mcpResp.handleAfterMCPExecution(env, session, cfg);
+    const mcpGate = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[1] === 'MCPToolCall',
+    );
+    expect(mcpGate?.args[2].input).toContainEqual({
+      __openbox: { tool_type: 'mcp' },
+    });
   });
 });
 

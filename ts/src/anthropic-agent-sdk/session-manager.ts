@@ -12,6 +12,7 @@ import type { OpenBoxAnthropicRuntimeContext } from './config.js';
 import {
   ANTHROPIC_AGENT_ACTIVITY_TYPES,
   assistantContentAndUsage,
+  assistantOutputTelemetry,
   assistantOutputSpan,
   compactPayload,
   resultAssistantOutput,
@@ -128,14 +129,22 @@ export class AnthropicAgentSessionManager {
     });
 
     const assistant = resultAssistantOutput(message);
-    const spans = assistantOutputSpan({
+    const assistantEvent = {
       content: assistant.content,
+      model: assistant.model,
       usage: assistant.usage,
       sessionId: message.session_id,
       event: 'result',
+    };
+    const spans = assistantOutputSpan({
+      content: assistantEvent.content,
+      model: assistantEvent.model,
+      usage: assistantEvent.usage,
+      sessionId: assistantEvent.sessionId,
+      event: assistantEvent.event,
     });
     if (spans) {
-      await managed.session.activity(EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.ASSISTANT_OUTPUT, {
+      await managed.session.observeActivity(EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.ASSISTANT_OUTPUT, {
         input: [
           compactPayload(
             {
@@ -147,6 +156,7 @@ export class AnthropicAgentSessionManager {
           ),
         ],
         output: message.subtype === 'success' ? message.result : undefined,
+        ...assistantOutputTelemetry(assistantEvent),
         spans,
       });
     }
@@ -170,6 +180,16 @@ export class AnthropicAgentSessionManager {
   ): Promise<WorkflowVerdict> {
     const managed = await this.ensureStarted(sessionId);
     return managed.session.activity(eventType, activityType, payload);
+  }
+
+  async observeActivity(
+    sessionId: string,
+    eventType: typeof EVENT.START | typeof EVENT.COMPLETE | typeof EVENT.SIGNAL,
+    activityType: string,
+    payload: Parameters<AnthropicAgentSdkSession['activity']>[2],
+  ): Promise<WorkflowVerdict> {
+    const managed = await this.ensureStarted(sessionId);
+    return managed.session.observeActivity(eventType, activityType, payload);
   }
 
   async openActivity(

@@ -13,7 +13,11 @@ import {
 import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
-import { buildSpan, type SpanType } from '../../../governance/spans.js';
+import {
+  buildSpan,
+  withOpenBoxActivityMetadata,
+  type SpanType,
+} from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import { sideEffects } from '../side-effects.js';
 import { takeToolActivity } from '../tool-activity-store.js';
@@ -102,7 +106,10 @@ export async function handlePostToolUse(
     startTime: pending?.startTime,
     endTime: pending && durationMs !== undefined ? pending.startTime + durationMs : undefined,
     durationMs,
-    input: [stampSource(startedPayload, 'claude-code')],
+    input: withOpenBoxActivityMetadata(
+      [stampSource(startedPayload, 'claude-code')],
+      { toolType: effectiveSpanType },
+    ),
     output: outputFor(env, payload),
     sessionId: env.session_id,
     toolName,
@@ -135,7 +142,10 @@ export async function handlePostToolUseFailure(
     startTime: pending?.startTime,
     endTime: pending && durationMs !== undefined ? pending.startTime + durationMs : undefined,
     durationMs,
-    input: [stampSource(startedPayload, 'claude-code')],
+    input: withOpenBoxActivityMetadata(
+      [stampSource(startedPayload, 'claude-code')],
+      { toolType: effectiveSpanType },
+    ),
     output: stampSource(payload, 'claude-code'),
     sessionId: env.session_id,
     toolName,

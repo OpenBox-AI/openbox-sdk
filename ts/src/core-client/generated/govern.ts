@@ -1163,7 +1163,7 @@ export interface GovernedSessionConfig {
    * external approval clients such as the dashboard, mobile app, or
    * editor extension can still resolve the backend row, but the SDK
    * no longer waits for them. Adapters wire this from the
-   * `APPROVAL_MODE` config (`inline` -> true,
+   * project `approvalMode` config (`inline` -> true,
    * `remote` or unset -> false). Default: false.
    */
   inlineApproval?: boolean;
@@ -1388,6 +1388,58 @@ export class BaseGovernedSession {
   }
 
   /**
+   * Observe-only activity emission for post-action hooks. It preserves the
+   * same parent-plus-hook span contract as `activity()`, but it does not
+   * poll approvals or auto-pair ActivityStarted. Use this for host events
+   * that cannot block the already-completed action.
+   */
+  async observeActivity(
+    eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived',
+    activityType: string,
+    payload: GovernedPayload,
+  ): Promise<WorkflowVerdict> {
+    if (this.finalized) throw new SessionAlreadyTerminatedError();
+    if (!this.opened && !this.autoOpenSuppressed) await this.begin();
+    const activityId = payload.activityId ?? randomUUID();
+    const startTime = payload.startTime ?? Date.now();
+    this.inFlight.add(activityId);
+    try {
+      if (eventType === 'SignalReceived') {
+        const signalVerdict = await this.emit({
+          event_type: 'SignalReceived',
+          activity_id: activityId,
+          activity_type: activityType,
+          activity_input: payload.input,
+          signal_name: payload.signalName,
+          signal_args: payload.signalArgs,
+          ...telemetryEventFields(payload),
+        });
+        signalVerdict.activityId = activityId;
+        return signalVerdict;
+      }
+      if (eventType === 'ActivityStarted') {
+        this.activityStartsMs.set(activityId, startTime);
+        const startedVerdict = await this.emitWithSpanHook({
+          event_type: 'ActivityStarted',
+          activity_id: activityId,
+          activity_type: activityType,
+          activity_input: payload.input,
+          start_time: startTime,
+          spans: payload.spans as unknown as GovernanceEventPayload['spans'],
+          ...telemetryEventFields(payload),
+        });
+        startedVerdict.activityId = activityId;
+        return startedVerdict;
+      }
+      return this.emitCompleted(activityId, activityType, payload, {
+        pollApprovals: false,
+      });
+    } finally {
+      this.inFlight.delete(activityId);
+    }
+  }
+
+  /**
    * Split-stage activity for callers that must run business logic between
    * the input gate and the output gate (e.g. governed tools that gate the
    * produced artifact). Emits ActivityStarted and returns the gate verdict
@@ -1566,6 +1618,7 @@ export class BaseGovernedSession {
     activityId: string,
     activityType: string,
     payload: GovernedPayload,
+    options: { pollApprovals?: boolean } = {},
   ): Promise<WorkflowVerdict> {
     const startTime = payload.startTime ?? this.activityStartsMs.get(activityId);
     const endTime = payload.endTime ?? Date.now();
@@ -1587,7 +1640,7 @@ export class BaseGovernedSession {
     });
     this.activityStartsMs.delete(activityId);
     completedVerdict.activityId = activityId;
-    if (completedVerdict.arm === 'require_approval') {
+    if (completedVerdict.arm === 'require_approval' && options.pollApprovals !== false) {
       // See comment in runActivity: poll on activity_id even if the
       // backend omitted approval_id in the evaluate response.
       const approvalId = completedVerdict.approvalId ?? activityId;
