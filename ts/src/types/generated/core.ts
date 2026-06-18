@@ -367,6 +367,11 @@ export interface components {
              * @description Agent trust tier at the moment of evaluation.
              */
             trust_tier?: number;
+            /**
+             * Format: double
+             * @description Top-level goal-alignment score returned by older Core/AGE response paths.
+             */
+            alignment_score?: number;
             /** @description Behavior-rule names that triggered. */
             behavioral_violations?: string[];
             /** @description Set on `require_approval`; opaque ID returned for approval clients. */

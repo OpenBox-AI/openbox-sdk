@@ -354,6 +354,9 @@ model WorkflowVerdict {
   /** Agent trust tier (1-4) at the moment of evaluation. */
   trustTier?: int32;
 
+  /** Top-level goal-alignment score returned by older Core/AGE response paths. */
+  alignmentScore?: float64;
+
   /** OPA/behavior policy id that produced this verdict, when Core returns one. */
   policyId?: string;
 

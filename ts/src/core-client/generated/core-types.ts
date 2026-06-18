@@ -119,6 +119,7 @@ export interface GovernanceVerdictResponse {
   risk_score: number;
   action: LegacyAction;
   trust_tier?: number;
+  alignment_score?: number;
   behavioral_violations?: string[];
   approval_id?: string;
   constraints?: string[];

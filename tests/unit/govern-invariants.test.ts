@@ -1300,10 +1300,11 @@ describe('govern.attach (cross-process / harness-owned lifecycle)', () => {
 });
 
 describe('WorkflowVerdict.guardrailsResult', () => {
-  test('preserves Core policy, behavior-rule, constraint, and metadata fields', async () => {
+  test('preserves Core policy, behavior-rule, alignment, constraint, and metadata fields', async () => {
     const mock = createMockCore('constrain', {
       policy_id: 'policy-123',
       behavioral_violations: ['sensitive-shell-rule'],
+      alignment_score: 0.85,
       constraints: ['redact command before display'],
       metadata: { evaluator: 'opa', rule: 'shell' },
       fallback_used: true,
@@ -1324,6 +1325,7 @@ describe('WorkflowVerdict.guardrailsResult', () => {
       arm: 'constrain',
       policyId: 'policy-123',
       behavioralViolations: ['sensitive-shell-rule'],
+      alignmentScore: 0.85,
       constraints: ['redact command before display'],
       metadata: { evaluator: 'opa', rule: 'shell' },
       fallbackUsed: true,

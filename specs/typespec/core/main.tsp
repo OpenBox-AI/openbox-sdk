@@ -374,6 +374,9 @@ model GovernanceVerdictResponse {
   /** Agent trust tier at the moment of evaluation. */
   @minValue(1) @maxValue(4) trust_tier?: int32;
 
+  /** Top-level goal-alignment score returned by older Core/AGE response paths. */
+  @minValue(0) @maxValue(1) alignment_score?: float64;
+
   /** Behavior-rule names that triggered. */
   behavioral_violations?: string[];
 
