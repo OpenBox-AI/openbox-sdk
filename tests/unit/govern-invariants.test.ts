@@ -1163,6 +1163,56 @@ describe('WorkflowVerdict.guardrailsResult', () => {
     expect(v.guardrailsResult?.fieldResults[0].status).toBe('redacted');
   });
 
+  test('failed guardrails override require_approval before polling', async () => {
+    const mock = createMockCore('allow');
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      if (payload.event_type === 'ActivityStarted') {
+        return {
+          governance_event_id: 'evt_test',
+          verdict: 'require_approval',
+          action: 'require_approval',
+          approval_id: 'apr_xxx',
+          risk_score: 0,
+          guardrails_result: {
+            input_type: 'activity_input',
+            validation_passed: false,
+            reasons: [
+              {
+                type: 'pii',
+                field: 'cmd',
+                reason:
+                  'PII detected in command\n\nThought: this scratchpad should not leak',
+              },
+            ],
+          },
+        } as unknown as GovernanceVerdictResponse;
+      }
+      return {
+        governance_event_id: 'evt_test',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+      } as GovernanceVerdictResponse;
+    });
+    mock.pollApproval = vi.fn();
+
+    let captured: import('../../ts/src/core-client/generated/govern.js').WorkflowVerdict | null = null;
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        captured = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+      },
+    );
+
+    expect(captured).toMatchObject({
+      arm: 'block',
+      reason: 'PII detected in command',
+    });
+    expect(captured?.guardrailsResult?.validationPassed).toBe(false);
+    expect(mock.pollApproval).not.toHaveBeenCalled();
+  });
+
   test('absent on the verdict when wire response has no guardrails_result', async () => {
     const mock = createMockCore('allow');
     type WV = import('../../ts/src/core-client/generated/govern.js').WorkflowVerdict;

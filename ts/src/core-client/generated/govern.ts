@@ -2820,8 +2820,17 @@ export namespace govern {
   export const attach = governAttach;
 }
 function mapVerdict(response: GovernanceVerdictResponse): WorkflowVerdict {
+  const wireArm = normalizeArm(response.verdict ?? response.action ?? 'allow');
+  const guardrailsResult = mapGuardrailsResult(response.guardrails_result);
+  const guardrailsFailed = guardrailsResult?.validationPassed === false;
+  const arm =
+    wireArm === 'halt' || wireArm === 'block'
+      ? wireArm
+      : guardrailsFailed
+        ? 'block'
+        : wireArm;
   return {
-    arm: normalizeArm(response.verdict ?? response.action ?? 'allow'),
+    arm,
     approvalId: response.approval_id,
     // Cross-reference key for matching this verdict against the
     // backend's persisted Approval row (whose `event_id` field equals
@@ -2831,12 +2840,34 @@ function mapVerdict(response: GovernanceVerdictResponse): WorkflowVerdict {
     // the dashboard's pending-approvals list.
     governanceEventId: (response as { governance_event_id?: string }).governance_event_id,
     approvalExpiresAt: response.approval_expiration_time,
-    reason: response.reason,
+    reason: response.reason ?? (guardrailsFailed ? guardrailFailureReason(guardrailsResult) : undefined),
     riskScore: response.risk_score ?? 0,
     trustTier: response.trust_tier ?? undefined,
-    guardrailsResult: mapGuardrailsResult(response.guardrails_result),
+    guardrailsResult,
     ageResult: response.age_result,
   };
+}
+
+function guardrailFailureReason(result: GuardrailsVerdict | undefined): string {
+  if (!result) return 'Guardrails validation failed';
+  const reasons = result.reasons
+    .map((reason) => cleanGuardrailReason(reason.reason))
+    .filter((reason) => reason.length > 0);
+  if (reasons.length > 0) {
+    return result.inputType === 'activity_output' ? reasons.join('; ') : reasons[0];
+  }
+  return result.inputType === 'activity_output'
+    ? 'Guardrails output validation failed'
+    : 'Guardrails validation failed';
+}
+
+function cleanGuardrailReason(reason: string): string {
+  const withoutQuestion = reason.replace(/\n?-\s*Question:\s*\[Session context\][^\n]*\n?/g, '');
+  for (const marker of ['\n\nThought:', '\n\nThought', '\nThought:', '\nThought']) {
+    const index = withoutQuestion.indexOf(marker);
+    if (index >= 0) return withoutQuestion.slice(0, index).trimEnd();
+  }
+  return withoutQuestion.trimEnd();
 }
 
 function mapGuardrailsResult(
