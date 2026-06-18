@@ -40,6 +40,7 @@ const HOOK_EVENTS: OpenBoxAnthropicAgentHookEvent[] = [
   'PostToolUseFailure',
   'PostToolBatch',
   'Stop',
+  'StopFailure',
   'SubagentStart',
   'SubagentStop',
   'PreCompact',
@@ -155,6 +156,8 @@ async function handleHook(
       return handlePostToolBatch(env, deps, sessionId);
     case 'Stop':
       return handleStop(env, deps, sessionId);
+    case 'StopFailure':
+      return handleStopFailure(env, deps, sessionId);
     case 'SubagentStart':
       return handleSubagentStart(env, deps, sessionId);
     case 'SubagentStop':
@@ -330,6 +333,39 @@ async function handleStop(
     await deps.manager.complete(sessionId);
   }
   return renderContinueBlock(verdict);
+}
+
+async function handleStopFailure(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+): Promise<HookJSONOutput> {
+  const latest = deps.manager.latestAssistant(sessionId);
+  const content = stringFrom(env.last_assistant_message) ?? latest?.content;
+  const assistant = {
+    content,
+    model: latest?.model,
+    usage: latest?.usage,
+    hasToolCalls: latest?.hasToolCalls ?? false,
+    sessionId,
+    event: 'StopFailure',
+  };
+  try {
+    await deps.manager.activity(sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.SESSION, {
+      input: [compactPayload(env, 'session_stop_failure')],
+      output: stopFailureOutput(env, content),
+      ...assistantOutputTelemetry(assistant),
+      spans: assistantOutputSpan(assistant),
+    });
+  } catch {
+    // best-effort failure telemetry; StopFailure cannot safely block the host.
+  }
+  try {
+    await deps.manager.fail(sessionId, stopFailureReason(env));
+  } catch {
+    // best-effort terminal telemetry; the hook response remains observe-only.
+  }
+  return {};
 }
 
 async function handleSubagentStart(
@@ -551,6 +587,29 @@ function stringFrom(value: unknown): string | undefined {
 
 function numberFrom(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function stopFailureOutput(
+  env: Record<string, unknown>,
+  content: string | undefined,
+): Record<string, unknown> {
+  return compactPayload(
+    {
+      error: env.error,
+      error_details: env.error_details,
+      ...(content ? { content } : {}),
+    },
+    'session_stop_failure_output',
+  );
+}
+
+function stopFailureReason(env: Record<string, unknown>): Error {
+  const details = stringFrom(env.error_details);
+  const errorText =
+    stringFrom(env.error) ??
+    stringFrom(objectRecord(env.error).message) ??
+    'Anthropic Agent SDK StopFailure';
+  return new Error(details ? `${errorText}: ${details}` : errorText);
 }
 
 function toolUseIdFrom(env: Record<string, unknown>): string | undefined {

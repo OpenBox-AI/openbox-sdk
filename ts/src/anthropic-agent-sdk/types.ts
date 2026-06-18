@@ -20,6 +20,7 @@ export type OpenBoxAnthropicAgentHookEvent = Extract<
   | 'PostToolUseFailure'
   | 'PostToolBatch'
   | 'Stop'
+  | 'StopFailure'
   | 'SubagentStart'
   | 'SubagentStop'
   | 'PreCompact'

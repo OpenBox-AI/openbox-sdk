@@ -319,6 +319,75 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(mock.events.some((event) => event.event_type === 'WorkflowCompleted')).toBe(false);
   });
 
+  it('records StopFailure as observe-only failed workflow telemetry', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    expect(hooks.StopFailure).toBeDefined();
+    const output = await runHook(hooks, 'StopFailure', {
+      ...baseInput,
+      hook_event_name: 'StopFailure',
+      error: 'rate_limit',
+      error_details: 'API request exhausted retries',
+      last_assistant_message: 'partial assistant answer',
+    });
+
+    expect(output).toEqual({});
+    const sessionEvents = mock.events.filter(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'AnthropicAgentSDKSession',
+    );
+    expect(sessionEvents).toHaveLength(2);
+    const [parent, hook] = sessionEvents;
+    expect(parent.hook_trigger).toBeUndefined();
+    expect(parent.spans).toBeUndefined();
+    expect(parent.span_count).toBeUndefined();
+    expect(parent.activity_input).toEqual([
+      expect.objectContaining({
+        event_category: 'session_stop_failure',
+        error: 'rate_limit',
+        error_details: 'API request exhausted retries',
+        last_assistant_message: 'partial assistant answer',
+        _openbox_source: 'anthropic-agent-sdk',
+      }),
+    ]);
+    expect(parent.activity_output).toEqual(
+      expect.objectContaining({
+        event_category: 'session_stop_failure_output',
+        error: 'rate_limit',
+        error_details: 'API request exhausted retries',
+        content: 'partial assistant answer',
+        _openbox_source: 'anthropic-agent-sdk',
+      }),
+    );
+    expect(parent.completion).toBe('partial assistant answer');
+    expect(hook.hook_trigger).toBe(true);
+    expect(hook.event_type).toBe(parent.event_type);
+    expect(hook.workflow_id).toBe(parent.workflow_id);
+    expect(hook.run_id).toBe(parent.run_id);
+    expect(hook.activity_id).toBe(parent.activity_id);
+    expect(hook.activity_type).toBe(parent.activity_type);
+    expect(hook.span_count).toBe(1);
+    const span = hook.spans?.[0] as any;
+    expect(span).toMatchObject({
+      name: 'openbox.anthropic-agent-sdk.assistant_output',
+      stage: 'completed',
+      semantic_type: 'llm_completion',
+    });
+    expect(JSON.parse(span.response_body).choices[0].message.content).toBe(
+      'partial assistant answer',
+    );
+
+    expect(mock.events.some((event) => event.event_type === 'WorkflowCompleted')).toBe(false);
+    expect(
+      mock.events.find((event) => event.event_type === 'WorkflowFailed')?.error,
+    ).toEqual({
+      type: 'Error',
+      message: 'rate_limit: API request exhausted retries',
+    });
+  });
+
   it('delegates Agent SDK query methods and emits result usage telemetry', async () => {
     const { assistantContentAndUsage } = await import(
       '../../ts/src/anthropic-agent-sdk/payloads'
