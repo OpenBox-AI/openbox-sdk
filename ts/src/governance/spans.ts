@@ -350,13 +350,18 @@ export function buildLLMCompletionSpan(
     usage?.output_tokens ?? usage?.completion_tokens,
   );
   const totalTokens = toPositiveInteger(usage?.total_tokens);
-  const httpUrl =
+  const explicitProviderUrl =
     input.providerUrl ??
     source.http_url ??
     (typeof source.attributes?.['http.url'] === 'string'
       ? source.attributes['http.url']
-      : 'https://api.openai.com/v1/chat/completions');
-  const modelTelemetry = modelTelemetryFields(input.model, input.provider, httpUrl);
+      : undefined);
+  const httpUrl = explicitProviderUrl ?? 'https://api.openai.com/v1/chat/completions';
+  const modelTelemetry = modelTelemetryFields(
+    input.model,
+    input.provider,
+    explicitProviderUrl,
+  );
   return {
     ...source,
     span_id: source.span_id ?? hex(16),

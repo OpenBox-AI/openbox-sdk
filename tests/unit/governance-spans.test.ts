@@ -194,6 +194,21 @@ describe('LLM completion spans', () => {
     });
   });
 
+  test('default classifier URL does not create a provider alias by itself', () => {
+    const span = buildLLMCompletionSpan({
+      content: 'done',
+      usage: { inputTokens: 1, outputTokens: 1 },
+    }) as ReturnType<typeof buildLLMCompletionSpan> & {
+      provider?: string;
+      model_provider?: string;
+    };
+
+    expect(span.http_url).toBe('https://api.openai.com/v1/chat/completions');
+    expect(span.provider).toBeUndefined();
+    expect(span.model_provider).toBeUndefined();
+    expect(span.attributes).not.toHaveProperty('openbox.model.provider');
+  });
+
   test('MCP spans expose behavior and platform tool telemetry fields', () => {
     const span = buildSpan('cursor', 'mcp', {
       tool_name: 'read_customer_file',
