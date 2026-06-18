@@ -26,6 +26,10 @@ export const ANTHROPIC_AGENT_ACTIVITY_TYPES = {
   SUBAGENT: 'AgentSpawn',
   COMPACT: 'PreCompact',
   MESSAGE: 'AnthropicAgentSDKMessage',
+  CONFIG_CHANGE: 'AnthropicAgentSDKConfigChange',
+  WORKSPACE_CHANGE: 'AnthropicAgentSDKWorkspaceChange',
+  MCP_ELICITATION: 'MCPElicitation',
+  TASK: 'AnthropicAgentSDKTask',
   USAGE_SIGNAL: 'anthropic_agent_sdk_usage',
   GOAL_SIGNAL: 'user_prompt',
 } as const;

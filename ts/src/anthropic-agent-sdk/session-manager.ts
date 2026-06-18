@@ -82,6 +82,10 @@ export class AnthropicAgentSessionManager {
     return this.sessions.get(sessionId)?.latestAssistant;
   }
 
+  has(sessionId: string): boolean {
+    return this.sessions.has(sessionId);
+  }
+
   async complete(sessionId: string): Promise<void> {
     const managed = await this.ensureStarted(sessionId);
     if (managed.terminal) return;

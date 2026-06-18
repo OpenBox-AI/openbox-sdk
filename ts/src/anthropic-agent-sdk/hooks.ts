@@ -33,9 +33,12 @@ import type {
 } from './types.js';
 
 const HOOK_EVENTS: OpenBoxAnthropicAgentHookEvent[] = [
+  'Setup',
   'SessionStart',
+  'InstructionsLoaded',
   'UserPromptSubmit',
   'UserPromptExpansion',
+  'Notification',
   'PreToolUse',
   'PermissionRequest',
   'PermissionDenied',
@@ -46,7 +49,18 @@ const HOOK_EVENTS: OpenBoxAnthropicAgentHookEvent[] = [
   'StopFailure',
   'SubagentStart',
   'SubagentStop',
+  'TaskCreated',
+  'TaskCompleted',
+  'TeammateIdle',
+  'ConfigChange',
+  'CwdChanged',
+  'FileChanged',
+  'WorktreeRemove',
   'PreCompact',
+  'PostCompact',
+  'SessionEnd',
+  'Elicitation',
+  'ElicitationResult',
   'MessageDisplay',
 ];
 
@@ -62,13 +76,21 @@ const DECISION_CAPABLE = new Set<OpenBoxAnthropicAgentHookEvent>([
   'Stop',
   'SubagentStart',
   'SubagentStop',
+  'TaskCreated',
+  'TaskCompleted',
+  'TeammateIdle',
+  'ConfigChange',
   'PreCompact',
+  'Elicitation',
+  'ElicitationResult',
 ]);
 
 interface HookDeps {
   context: OpenBoxAnthropicRuntimeContext;
   manager: AnthropicAgentSessionManager;
 }
+
+type ActivityEventKind = typeof EVENT.START | typeof EVENT.COMPLETE | typeof EVENT.SIGNAL;
 
 export function createOpenBoxAnthropicAgentHooks(
   config: OpenBoxAnthropicAgentSDKConfig = {},
@@ -141,16 +163,22 @@ async function handleHook(
   const env = input as HookInput & Record<string, unknown>;
   const sessionId = stringFrom(env.session_id) ?? 'default';
   switch (event) {
+    case 'Setup':
+      return observeGenericEvent(env, deps, sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.SESSION, 'setup');
     case 'SessionStart':
       await deps.manager.ensureStarted(sessionId);
       await deps.manager.activity(sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.SESSION, {
         input: [compactPayload(env, 'session_start')],
       });
       return {};
+    case 'InstructionsLoaded':
+      return observeGenericEvent(env, deps, sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.MESSAGE, 'agent_observation');
     case 'UserPromptSubmit':
       return handleUserPromptSubmit(env, deps, sessionId);
     case 'UserPromptExpansion':
       return handleUserPromptExpansion(env, deps, sessionId);
+    case 'Notification':
+      return observeGenericEvent(env, deps, sessionId, EVENT.SIGNAL, ANTHROPIC_AGENT_ACTIVITY_TYPES.MESSAGE, 'agent_notification');
     case 'PreToolUse':
       return handlePreToolUse(env, deps, sessionId);
     case 'PermissionRequest':
@@ -171,8 +199,30 @@ async function handleHook(
       return handleSubagentStart(env, deps, sessionId);
     case 'SubagentStop':
       return handleSubagentStop(env, deps, sessionId);
+    case 'TaskCreated':
+      return handleTaskEvent(env, deps, sessionId, EVENT.START, 'task_created');
+    case 'TaskCompleted':
+      return handleTaskEvent(env, deps, sessionId, EVENT.COMPLETE, 'task_completed');
+    case 'TeammateIdle':
+      return handleTaskEvent(env, deps, sessionId, EVENT.COMPLETE, 'teammate_idle');
+    case 'ConfigChange':
+      return handleConfigChange(env, deps, sessionId);
+    case 'CwdChanged':
+      return observeGenericEvent(env, deps, sessionId, EVENT.SIGNAL, ANTHROPIC_AGENT_ACTIVITY_TYPES.WORKSPACE_CHANGE, 'cwd_changed');
+    case 'FileChanged':
+      return observeGenericEvent(env, deps, sessionId, EVENT.SIGNAL, ANTHROPIC_AGENT_ACTIVITY_TYPES.WORKSPACE_CHANGE, 'file_changed');
+    case 'WorktreeRemove':
+      return observeGenericEvent(env, deps, sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.WORKSPACE_CHANGE, 'worktree_remove');
     case 'PreCompact':
       return handlePreCompact(env, deps, sessionId);
+    case 'PostCompact':
+      return observeGenericEvent(env, deps, sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.SESSION, 'post_compact');
+    case 'SessionEnd':
+      return handleSessionEnd(env, deps, sessionId);
+    case 'Elicitation':
+      return handleElicitation(env, deps, sessionId, EVENT.START, 'mcp_elicitation');
+    case 'ElicitationResult':
+      return handleElicitation(env, deps, sessionId, EVENT.COMPLETE, 'mcp_elicitation_result');
     case 'MessageDisplay':
       return handleMessageDisplay(env, deps, sessionId);
   }
@@ -214,6 +264,24 @@ async function handleUserPromptExpansion(
     spans: promptSpan(prompt),
   });
   return renderDecisionBlock('UserPromptExpansion', verdict);
+}
+
+async function observeGenericEvent(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+  eventType: ActivityEventKind,
+  activityType: string,
+  eventCategory: string,
+): Promise<HookJSONOutput> {
+  try {
+    await deps.manager.observeActivity(sessionId, eventType, activityType, {
+      input: [compactPayload(env, eventCategory)],
+    });
+  } catch {
+    // Observe-only hooks must not disturb the host.
+  }
+  return {};
 }
 
 async function handlePreToolUse(
@@ -274,6 +342,68 @@ async function handlePermissionDenied(
     ),
   });
   return renderPermissionDenied(verdict);
+}
+
+async function handleTaskEvent(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+  eventType: typeof EVENT.START | typeof EVENT.COMPLETE,
+  eventCategory: string,
+): Promise<HookJSONOutput> {
+  const verdict = await deps.manager.activity(sessionId, eventType, ANTHROPIC_AGENT_ACTIVITY_TYPES.TASK, {
+    input: subagentActivityInput(env, compactPayload(env, eventCategory)),
+  });
+  return renderContinueBlock(verdict);
+}
+
+async function handleConfigChange(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+): Promise<HookJSONOutput> {
+  const verdict = await deps.manager.activity(sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.CONFIG_CHANGE, {
+    input: [compactPayload(env, 'config_change')],
+  });
+  return renderDecisionBlock('ConfigChange', verdict);
+}
+
+async function handleSessionEnd(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+): Promise<HookJSONOutput> {
+  if (!deps.manager.has(sessionId)) return {};
+  try {
+    await deps.manager.observeActivity(sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.SESSION, {
+      input: [compactPayload(env, 'session_end')],
+    });
+  } catch {
+    // best-effort shutdown telemetry
+  }
+  try {
+    await deps.manager.complete(sessionId);
+  } catch {
+    // best-effort terminal telemetry
+  }
+  return {};
+}
+
+async function handleElicitation(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+  eventType: typeof EVENT.START | typeof EVENT.COMPLETE,
+  eventCategory: string,
+): Promise<HookJSONOutput> {
+  const verdict = await deps.manager.activity(sessionId, eventType, ANTHROPIC_AGENT_ACTIVITY_TYPES.MCP_ELICITATION, {
+    input: [compactPayload(env, eventCategory)],
+  });
+  return renderElicitationResponse(
+    stringFrom(env.hook_event_name) === 'ElicitationResult' ? 'ElicitationResult' : 'Elicitation',
+    verdict,
+    env,
+  );
 }
 
 async function handlePostToolUse(
@@ -533,7 +663,12 @@ function renderPermissionRequest(verdict: WorkflowVerdict | undefined): HookJSON
 }
 
 function renderDecisionBlock(
-  event: 'UserPromptSubmit' | 'UserPromptExpansion' | 'PostToolUse' | 'PostToolBatch',
+  event:
+    | 'UserPromptSubmit'
+    | 'UserPromptExpansion'
+    | 'PostToolUse'
+    | 'PostToolBatch'
+    | 'ConfigChange',
   verdict: WorkflowVerdict | undefined,
   includeUpdatedToolOutput = false,
 ): HookJSONOutput {
@@ -571,6 +706,31 @@ function renderPermissionDenied(verdict: WorkflowVerdict | undefined): HookJSONO
     hookSpecificOutput: {
       hookEventName: 'PermissionDenied',
       retry: arm === 'allow' || arm === 'constrain',
+    },
+  };
+}
+
+function renderElicitationResponse(
+  event: 'Elicitation' | 'ElicitationResult',
+  verdict: WorkflowVerdict | undefined,
+  env: Record<string, unknown>,
+): HookJSONOutput {
+  const arm = verdict?.arm ?? 'allow';
+  if (arm === 'allow') return {};
+  if (arm === 'constrain') {
+    return {
+      hookSpecificOutput: {
+        hookEventName: event,
+        action: 'accept',
+        content: redactedRecord(verdict) ?? objectRecord(env.response) ?? objectRecord(env.content),
+      },
+    };
+  }
+  return {
+    hookSpecificOutput: {
+      hookEventName: event,
+      action: arm === 'halt' ? 'cancel' : 'decline',
+      content: {},
     },
   };
 }
@@ -634,8 +794,20 @@ function renderFailClosed(event: OpenBoxAnthropicAgentHookEvent, error: unknown)
     case 'Stop':
     case 'SubagentStart':
     case 'SubagentStop':
+    case 'TaskCreated':
+    case 'TaskCompleted':
+    case 'TeammateIdle':
     case 'PreCompact':
       return { continue: false, stopReason: reason };
+    case 'Elicitation':
+    case 'ElicitationResult':
+      return {
+        hookSpecificOutput: {
+          hookEventName: event,
+          action: 'decline',
+          content: {},
+        },
+      };
     default:
       return { decision: 'block', reason };
   }

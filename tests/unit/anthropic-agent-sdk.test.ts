@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { HOOK_EVENTS as ANTHROPIC_AGENT_HOOK_EVENTS } from '@anthropic-ai/claude-agent-sdk';
 import type {
   HookCallbackMatcher,
   HookInput,
@@ -101,6 +102,62 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(options.hooks.PreToolUse).toEqual([userMatcher]);
     expect(wrapped.hooks?.PreToolUse?.[0]).toMatchObject({ timeout: 7 });
     expect(wrapped.hooks?.PreToolUse?.[1]).toBe(userMatcher);
+  });
+
+  it('registers every official Agent SDK hook except WorktreeCreate', () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+    const registered = Object.keys(hooks).sort();
+    const expected = ANTHROPIC_AGENT_HOOK_EVENTS
+      .filter((event) => event !== 'WorktreeCreate')
+      .slice()
+      .sort();
+
+    expect(registered).toEqual(expected);
+    expect((hooks as Record<string, unknown>).WorktreeCreate).toBeUndefined();
+  });
+
+  it('observes generic Agent SDK hooks without decision output', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    await expect(runHook(hooks, 'Setup', {
+      ...baseInput,
+      hook_event_name: 'Setup',
+      trigger: 'init',
+    })).resolves.toEqual({});
+    await expect(runHook(hooks, 'Notification', {
+      ...baseInput,
+      hook_event_name: 'Notification',
+      message: 'background task finished',
+      notification_type: 'info',
+    })).resolves.toEqual({});
+    await expect(runHook(hooks, 'CwdChanged', {
+      ...baseInput,
+      hook_event_name: 'CwdChanged',
+      old_cwd: '/tmp/old',
+      new_cwd: '/tmp/new',
+    })).resolves.toEqual({});
+
+    expect(mock.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: 'ActivityStarted',
+          activity_type: 'AnthropicAgentSDKSession',
+          activity_input: [expect.objectContaining({ event_category: 'setup' })],
+        }),
+        expect.objectContaining({
+          event_type: 'SignalReceived',
+          activity_type: 'AnthropicAgentSDKMessage',
+          activity_input: [expect.objectContaining({ event_category: 'agent_notification' })],
+        }),
+        expect.objectContaining({
+          event_type: 'SignalReceived',
+          activity_type: 'AnthropicAgentSDKWorkspaceChange',
+          activity_input: [expect.objectContaining({ event_category: 'cwd_changed' })],
+        }),
+      ]),
+    );
   });
 
   it('emits prompt submit spans with parent-plus-hook ordering', async () => {
@@ -330,6 +387,65 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     );
   });
 
+  it('maps task, config, and elicitation verdicts to Agent SDK outputs', async () => {
+    const mock = createMockCore((payload) => {
+      if (payload.activity_type === 'AnthropicAgentSDKTask') {
+        return verdict('block', { reason: 'task is out of scope' });
+      }
+      if (payload.activity_type === 'AnthropicAgentSDKConfigChange') {
+        return verdict('block', { reason: 'config change denied' });
+      }
+      if (payload.activity_type === 'MCPElicitation') {
+        return verdict('constrain', {
+          reason: 'redacted elicitation response',
+          guardrails_result: {
+            input_type: 'activity_input',
+            redacted_input: { answer: '[redacted]' },
+            validation_passed: true,
+            reasons: [],
+            results: [],
+            raw_logs: {},
+          },
+        });
+      }
+      return verdict('allow');
+    });
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    await expect(runHook(hooks, 'TaskCreated', {
+      ...baseInput,
+      hook_event_name: 'TaskCreated',
+      task_id: 'task_1',
+      task_subject: 'Deploy production',
+      team_name: 'release',
+    })).resolves.toEqual({
+      continue: false,
+      stopReason: '[OpenBox] task is out of scope',
+    });
+    await expect(runHook(hooks, 'ConfigChange', {
+      ...baseInput,
+      hook_event_name: 'ConfigChange',
+      source: 'project_settings',
+      file_path: '/tmp/project/.claude/settings.json',
+    })).resolves.toEqual({
+      decision: 'block',
+      reason: '[OpenBox] config change denied',
+    });
+    await expect(runHook(hooks, 'ElicitationResult', {
+      ...baseInput,
+      hook_event_name: 'ElicitationResult',
+      mcp_server_name: 'openbox',
+      elicitation_id: 'elicit_1',
+      response: { answer: 'secret' },
+    })).resolves.toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'ElicitationResult',
+        action: 'accept',
+        content: { answer: '[redacted]' },
+      },
+    });
+  });
+
   it('pairs PreToolUse and PostToolUse activity ids from the Agent SDK tool id', async () => {
     const mock = createMockCore(() => verdict('allow'));
     const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
@@ -539,6 +655,44 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       type: 'Error',
       message: 'rate_limit: API request exhausted retries',
     });
+  });
+
+  it('completes active SessionEnd hooks without creating phantom sessions', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    await expect(runHook(hooks, 'SessionEnd', {
+      ...baseInput,
+      hook_event_name: 'SessionEnd',
+      session_id: 'never_opened',
+      reason: 'exit',
+    })).resolves.toEqual({});
+    expect(mock.events).toEqual([]);
+
+    await runHook(hooks, 'SessionStart', {
+      ...baseInput,
+      hook_event_name: 'SessionStart',
+      session_id: 'sess_end',
+    });
+    await expect(runHook(hooks, 'SessionEnd', {
+      ...baseInput,
+      hook_event_name: 'SessionEnd',
+      session_id: 'sess_end',
+      reason: 'exit',
+    })).resolves.toEqual({});
+
+    expect(mock.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: 'ActivityCompleted',
+          activity_type: 'AnthropicAgentSDKSession',
+          activity_input: [expect.objectContaining({ event_category: 'session_end' })],
+        }),
+        expect.objectContaining({
+          event_type: 'WorkflowCompleted',
+        }),
+      ]),
+    );
   });
 
   it('delegates Agent SDK query methods and emits result usage telemetry', async () => {

@@ -12,9 +12,12 @@ import type {
 
 export type OpenBoxAnthropicAgentHookEvent = Extract<
   HookEvent,
+  | 'Setup'
   | 'SessionStart'
+  | 'InstructionsLoaded'
   | 'UserPromptSubmit'
   | 'UserPromptExpansion'
+  | 'Notification'
   | 'PreToolUse'
   | 'PermissionRequest'
   | 'PermissionDenied'
@@ -25,7 +28,18 @@ export type OpenBoxAnthropicAgentHookEvent = Extract<
   | 'StopFailure'
   | 'SubagentStart'
   | 'SubagentStop'
+  | 'TaskCreated'
+  | 'TaskCompleted'
+  | 'TeammateIdle'
+  | 'ConfigChange'
+  | 'CwdChanged'
+  | 'FileChanged'
+  | 'WorktreeRemove'
   | 'PreCompact'
+  | 'PostCompact'
+  | 'SessionEnd'
+  | 'Elicitation'
+  | 'ElicitationResult'
   | 'MessageDisplay'
 >;
 
