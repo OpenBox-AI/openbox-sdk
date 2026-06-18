@@ -18,6 +18,8 @@ import type {
 
 const startedWorkflowRuns = new Set<string>();
 const TERMINAL_EVENT_TIMEOUT_MS = 5_000;
+const APPROVAL_POLL_INTERVAL_MS = 750;
+const APPROVAL_MISSING_EXPIRATION_MAX_WAIT_MS = 60_000;
 
 // One user task should map to one OpenBox session. The runtime gate (or the
 // middleware, when no runtime gate exists) opens the workflow and registers
@@ -105,7 +107,8 @@ export async function pollApproval(
   adapter: OpenBoxCopilotKitAdapter,
   ids: { workflowId: string; runId: string; activityId: string },
 ): Promise<WorkflowVerdict> {
-  const deadline = Date.now() + 10_000;
+  const fallbackDeadline = Date.now() + APPROVAL_MISSING_EXPIRATION_MAX_WAIT_MS;
+  let deadline = Number.POSITIVE_INFINITY;
   let last: WorkflowVerdict | undefined;
   while (Date.now() < deadline) {
     const response = await adapter.getCoreClient().pollApproval({
@@ -126,8 +129,14 @@ export async function pollApproval(
         typeof extra.trust_tier === 'number' ? extra.trust_tier : undefined,
       guardrailsResult: mapGuardrailsResult(extra.guardrails_result),
     };
+    const serverDeadline = parseApprovalDeadline(response.approval_expiration_time);
+    deadline = Number.isFinite(serverDeadline)
+      ? Math.min(deadline, serverDeadline)
+      : Math.min(deadline, fallbackDeadline);
     if (last && last.arm !== 'require_approval') return last;
-    await new Promise((resolve) => setTimeout(resolve, 750));
+    const sleepMs = Math.min(APPROVAL_POLL_INTERVAL_MS, deadline - Date.now());
+    if (sleepMs <= 0) break;
+    await sleep(sleepMs);
   }
   return (
     last ?? {
@@ -136,6 +145,16 @@ export async function pollApproval(
       riskScore: 0,
     }
   );
+}
+
+function parseApprovalDeadline(value: string | undefined): number {
+  if (!value) return Number.NaN;
+  const deadline = new Date(value).getTime();
+  return Number.isFinite(deadline) ? deadline : Number.NaN;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function completeWorkflow(
