@@ -129,9 +129,10 @@ describe('governance/check', () => {
     const cases = [
       ['llm', { prompt: 'hi' }, 'PromptSubmission', 'llm.chat.completion'],
       ['file_read', { file_path: '/tmp/r' }, 'FileRead', 'file.read'],
+      ['file_delete', { file_path: '/tmp/d' }, 'FileDelete', 'file.delete'],
       ['http', { method: 'get', url: 'https://example.test' }, 'HTTPRequest', 'GET https://example.test'],
       ['db', { operation: 'insert', statement: 'insert 1' }, 'DatabaseQuery', 'INSERT'],
-      ['db', { query: 'SELECT 1' }, 'DatabaseQuery', 'QUERY'],
+      ['db', { query: 'SELECT 1' }, 'DatabaseQuery', 'SELECT'],
       ['mcp', { tool: 'read' }, 'MCPToolCall', 'tool.read'],
     ] as const;
 

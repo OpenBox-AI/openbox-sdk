@@ -20,7 +20,6 @@ import type {
 const startedWorkflowRuns = new Set<string>();
 const TERMINAL_EVENT_TIMEOUT_MS = 5_000;
 const APPROVAL_POLL_INTERVAL_MS = 750;
-const APPROVAL_MISSING_EXPIRATION_MAX_WAIT_MS = 60_000;
 
 // One user task should map to one OpenBox session. The runtime gate (or the
 // middleware, when no runtime gate exists) opens the workflow and registers
@@ -108,7 +107,6 @@ export async function pollApproval(
   adapter: OpenBoxCopilotKitAdapter,
   ids: { workflowId: string; runId: string; activityId: string },
 ): Promise<WorkflowVerdict> {
-  const fallbackDeadline = Date.now() + APPROVAL_MISSING_EXPIRATION_MAX_WAIT_MS;
   let deadline = Number.POSITIVE_INFINITY;
   let last: WorkflowVerdict | undefined;
   while (Date.now() < deadline) {
@@ -120,7 +118,6 @@ export async function pollApproval(
         activity_id: ids.activityId,
       });
     } catch {
-      deadline = Math.min(deadline, fallbackDeadline);
       const sleepMs = Math.min(APPROVAL_POLL_INTERVAL_MS, deadline - Date.now());
       if (sleepMs <= 0) break;
       await sleep(sleepMs);
@@ -140,9 +137,9 @@ export async function pollApproval(
       guardrailsResult: mapGuardrailsResult(extra.guardrails_result),
     };
     const serverDeadline = parseApprovalDeadline(response.approval_expiration_time);
-    deadline = Number.isFinite(serverDeadline)
-      ? Math.min(deadline, serverDeadline)
-      : Math.min(deadline, fallbackDeadline);
+    if (Number.isFinite(serverDeadline)) {
+      deadline = Math.min(deadline, serverDeadline);
+    }
     if (last && last.arm !== 'require_approval') return last;
     const sleepMs = Math.min(APPROVAL_POLL_INTERVAL_MS, deadline - Date.now());
     if (sleepMs <= 0) break;

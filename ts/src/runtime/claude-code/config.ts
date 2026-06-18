@@ -55,8 +55,8 @@ export interface ClaudeCodeConfig {
    *  in the TUI; the local user is the approver. When 'defer', supported
    *  Claude Code permission decisions are deferred in non-interactive
    *  sessions. When 'remote' (or
-   *  unset, the default), the hook polls the backend up to
-   *  `hitlMaxWait` for an external approver's decision. */
+   *  unset, the default), the hook polls until Core returns a terminal
+   *  decision or the server-owned approval expiration is reached. */
   approvalMode: 'inline' | 'remote' | 'defer';
   taskQueue: string;
   sendStartEvent: boolean;

@@ -49,8 +49,9 @@ export interface CursorConfig {
   hitlMaxWait: number;
   /** When 'inline', the hook returns permission:'ask' on
    *  require_approval so Cursor's native permission dialog pops; the
-   *  local user is the approver. 'remote' (default) keeps the
-   *  existing poll-and-wait behavior. */
+   *  local user is the approver. 'remote' (default) polls until Core
+   *  returns a terminal decision or the server-owned approval
+   *  expiration is reached. */
   approvalMode: 'inline' | 'remote';
   approvalSocketPath: string | null;
   taskQueue: string;

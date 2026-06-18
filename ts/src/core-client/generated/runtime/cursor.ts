@@ -440,12 +440,8 @@ export interface CursorAdapterConfig {
   /** Override exit (test injection). Default: process.exit. */
   exit?: (code: number) => never;
   /**
-   * Cap (ms) on how long the SDK polls a require_approval verdict
-   * before giving up. The actual wait is min(this, server-side
-   * approvalExpiresAt). Hook subprocesses have a finite lifetime
-   * imposed by the host IDE; set this slightly under that ceiling so
-   * the poll resolves before the host kills the process. Default: SDK
-   * default (60s).
+   * @deprecated Compatibility no-op. Approval expiration is controlled
+   * by the server-supplied approvalExpiresAt value.
    */
   approvalMaxWaitMs?: number;
   /**
@@ -987,11 +983,9 @@ function renderVerdictOutput(
       if (arm === 'allow' || arm === 'constrain') return { permission: 'allow' };
       if (arm === 'require_approval') {
         const r = reason.replace(/^\[OpenBox\] /, '').trim();
-        // The hook has already polled for the configured deadline
-        // (default 60s; Cursor's hook subprocess timeout; tunable up
-        // to ~1hr per hooks.json[event].timeout + hitlMaxWait).
-        // Reaching this branch means no decision came through in time.
-        // Cursor will block this tool attempt.
+        // Reaching this branch means Core still reports
+        // require_approval, or the server-side approval window expired.
+        // Cursor blocks this tool attempt; the user can approve and retry.
         return {
           permission: 'deny',
           user_message:
@@ -1067,6 +1061,5 @@ function renderVerdictOutput(
       return undefined;
   }
 }
-
 
 

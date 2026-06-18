@@ -34,6 +34,7 @@ import {
 } from "../claude-code/doctor.js";
 import { buildMcpGovernanceSpan, MCP_ACTIVITY_TYPE_MAP } from "./governance-span.js";
 import { claudeCodeGovernanceSummary } from "../claude-code/governance-matrix.js";
+import type { SpanType } from "../../governance/spans.js";
 
 export async function runMcpServer(): Promise<void> {
   const server = new McpServer({ name: "openbox", version: "0.1.0" });
@@ -338,7 +339,7 @@ async function coreEvaluate(
   source: string,
   agentIdentity?: AgentIdentityConfig,
 ) {
-  const span = buildMcpGovernanceSpan(spanType, activityInput);
+  const span = buildMcpGovernanceSpan(spanType as SpanType, activityInput);
   const payload = {
     source,
     event_type: "ActivityStarted",
@@ -415,7 +416,7 @@ async function resolveApiKey(agentId: string | undefined): Promise<string> {
 
 server.tool("check_governance", "Evaluate an action against governance rules. The tool builds the span shape required for behavioral rule matching. When the response carries verdict=require_approval, an approval row is materialized server-side. The expiration window comes from whichever surface produced the verdict. For behavior_rule-driven verdicts, the value is `behavior_rule.approval_timeout`, which is user-settable. For OPA-policy-driven verdicts, the value is the core server default of around 30 minutes; OPA policies have no `approval_timeout` field, so use a behavior_rule when the window matters.", {
   agent_id: z.string().optional().describe("Agent ID. Used to resolve the API key when OPENBOX_API_KEY is unset."),
-  span_type: z.enum(["llm", "file_read", "file_write", "shell", "http", "db", "mcp"]).describe("Type of action to evaluate."),
+  span_type: z.enum(["llm", "file_read", "file_write", "file_delete", "shell", "http", "db", "mcp"]).describe("Type of action to evaluate."),
   activity_input: z.any().describe("Action input payload. Examples: { prompt: '...' }, { file_path: '...' }, { command: '...' }."),
 }, async ({ agent_id, span_type, activity_input }) => {
   try {

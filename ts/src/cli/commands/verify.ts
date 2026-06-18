@@ -322,8 +322,8 @@ const rules: Rule[] = [
   {
     name: 'approval-poll-unbounded',
     severity: 'warn',
-    message: 'Approval polling loop with no obvious timeout/max-wait bound. An indefinite poll on `/governance/approval` can hang forever if the human decision is never made.',
-    fix: 'Bound the loop: use the SDK\'s `hitlMaxWait` (default 300s), or check `approval_expiration_time` against now(), or track elapsed time and give up after N seconds and treat as block.',
+    message: 'Approval polling loop with no obvious server expiration check. `/governance/approval` should poll until a terminal decision or Core-supplied expiration.',
+    fix: 'Use the response `approval_expiration_time`/expired state as the deadline. Do not add a separate SDK-side total wait cap.',
     appliesTo: () => true,
     detect: (content) => {
       const out: Array<{ line: number; snippet: string }> = [];
@@ -331,7 +331,7 @@ const rules: Rule[] = [
       // Strip comments so "// no timeout" (documentation noise) doesn't fool the check.
       const strippedLines = stripComments(content).split('\n');
       const lines = content.split('\n');
-      const boundRe = /(maxWait|max_wait|hitlMaxWait|approval_expiration_time|elapsed|\btimeout\b|AbortSignal|deadline|Date\.now\(\)\s*[-+])/i;
+      const boundRe = /(approval_expiration_time|approvalExpiresAt|\bexpired\b|server.*deadline|deadline.*server)/i;
       for (let i = 0; i < lines.length; i++) {
         if (/\/governance\/approval/.test(lines[i])) {
           const start = Math.max(0, i - 15);

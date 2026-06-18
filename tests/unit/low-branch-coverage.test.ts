@@ -119,11 +119,11 @@ describe('low-branch utility coverage', () => {
       ['llm', { prompt: 'hi' }, 'llm.chat.completion'],
       ['file_read', { file_path: '/tmp/read.txt' }, 'file.read'],
       ['file_write', { file_path: '/tmp/write.txt' }, 'file.write'],
+      ['file_delete', { file_path: '/tmp/delete.txt' }, 'file.delete'],
       ['shell', { command: 'echo ok', cwd: '/repo' }, 'ShellExecution'],
       ['http', { method: 'get', url: 'https://example.test' }, 'GET https://example.test'],
       ['db', { operation: 'insert', statement: 'insert 1' }, 'INSERT'],
       ['mcp', { tool_name: 'search' }, 'tool.search'],
-      ['unknown', {}, 'unknown'],
     ] as const;
 
     for (const [spanType, input, name] of cases) {
@@ -134,15 +134,14 @@ describe('low-branch utility coverage', () => {
       expect(span.status).toEqual({ code: 'OK', description: null });
     }
 
-    expect(buildMcpGovernanceSpan('http', {}).name).toBe(
-      'POST https://api.example.com',
-    );
-    expect(buildMcpGovernanceSpan('db', {}).db_operation).toBe('QUERY');
+    expect(buildMcpGovernanceSpan('http', {}).name).toBe('GET ');
+    expect(buildMcpGovernanceSpan('db', {}).db_operation).toBe('SELECT');
     expect(buildMcpGovernanceSpan('mcp', {}).function).toBe('mcp.call');
     expect(MCP_ACTIVITY_TYPE_MAP).toMatchObject({
       llm: 'PromptSubmission',
       file_read: 'FileRead',
       file_write: 'FileEdit',
+      file_delete: 'FileDelete',
       shell: 'ShellExecution',
       http: 'HTTPRequest',
       db: 'DatabaseQuery',

@@ -210,14 +210,10 @@ export async function runCursorHook(): Promise<void> {
     timeoutMs: cfg.governanceTimeout * 1000,
   });
 
-  // Cursor's hook subprocess timeout is per-event config from the
-  // installed plugin hooks file. Whatever the user has configured for
-  // the event becomes the ceiling on how long we're willing to poll.
-  //
-  // cfg.hitlMaxWait is the user-tunable knob in project
-  // .cursor-hooks/config.json. We respect it up to 1 hour. The
-  // The plugin hook `timeout` field MUST be set to at least the same
-  // value or Cursor will kill us before pollApproval finishes.
+  // Legacy adapter option for SDK compatibility. Core polling is
+  // bounded by the server-supplied approval expiration. Cursor still
+  // uses this value below to bound the local extension socket wait so
+  // a hook subprocess is not held open solely by the editor-side IPC.
   const approvalMaxWaitMs = Math.min(
     Math.max(1, cfg.hitlMaxWait) * 1000,
     3600_000,

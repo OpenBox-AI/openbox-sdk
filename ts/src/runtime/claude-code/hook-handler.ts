@@ -277,11 +277,9 @@ export async function runClaudeHook(): Promise<void> {
     timeoutMs: cfg.governanceTimeout * 1000,
   });
 
-  // Respect the user's project `hitlMaxWait` setting. Without this wiring
-  // the SDK falls back to its 60s default,
-  // which is much shorter than the 300s claude-code installs default to;
-  // the hook would soft-deny long before the user could decide an
-  // approval via the dashboard or mobile.
+  // Legacy adapter option. The generated session treats this as a
+  // no-op for Core polling; the server-supplied approval expiration is
+  // authoritative.
   const approvalMaxWaitMs = Math.min(
     Math.max(1, cfg.hitlMaxWait) * 1000,
     3600_000,

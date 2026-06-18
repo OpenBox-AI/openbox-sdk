@@ -72,13 +72,18 @@ export interface SpanInput {
   command?: string;
   cwd?: string;
   tool_name?: string;
+  tool?: string;
   tool_input?: unknown;
   tool_output?: unknown;
   url?: string;
   method?: string;
   db_system?: string;
+  system?: string;
   db_operation?: string;
+  operation?: string;
   db_statement?: string;
+  statement?: string;
+  query?: string;
 }
 
 export interface LLMCompletionSpanInput {
@@ -182,7 +187,7 @@ function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
 }
 
 function toolNameAttributes(input: SpanInput): JsonRecord {
-  const toolName = input.tool_name?.trim();
+  const toolName = (input.tool_name ?? input.tool)?.trim();
   if (!toolName) return {};
   return {
     'openbox.tool.name': toolName,
@@ -454,9 +459,10 @@ export function buildSpan(
     case 'mcp':
       // Behavior rules use the generic tool-call semantic type; platform
       // observability uses the MCP span type and tool name fields.
+      const toolName = input.tool_name ?? input.tool ?? 'call';
       return {
         ...b,
-        name: `tool.${input.tool_name ?? 'call'}`,
+        name: `tool.${toolName}`,
         span_type: 'mcp_tool_call',
         hook_type: 'function_call',
         semantic_type: 'llm_tool_call',
@@ -466,11 +472,11 @@ export function buildSpan(
           'http.url': 'https://api.openai.com/v1/chat/completions',
           'openbox.semantic_type': 'llm_tool_call',
           'openbox.span_type': 'mcp_tool_call',
-          'openbox.tool.name': input.tool_name ?? 'call',
-          'tool.name': input.tool_name ?? 'call',
-          tool_name: input.tool_name ?? 'call',
+          'openbox.tool.name': toolName,
+          'tool.name': toolName,
+          tool_name: toolName,
         },
-        function: `mcp.${input.tool_name ?? 'call'}`,
+        function: `mcp.${toolName}`,
         module: host,
         args: input,
         result: input.tool_output ?? null,
@@ -507,9 +513,10 @@ export function buildSpan(
         result: null,
       };
     case 'db':
-      const dbSystem = input.db_system ?? 'postgresql';
-      const dbOperation = (input.db_operation ?? 'SELECT').toUpperCase();
-      const dbStatement = input.db_statement ?? `${dbOperation} statement`;
+      const dbSystem = input.db_system ?? input.system ?? 'postgresql';
+      const dbOperation = (input.db_operation ?? input.operation ?? 'SELECT').toUpperCase();
+      const dbStatement =
+        input.db_statement ?? input.statement ?? input.query ?? `${dbOperation} statement`;
       return {
         ...b,
         name: dbOperation,
