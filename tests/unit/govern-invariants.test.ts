@@ -26,6 +26,7 @@ import {
   presets,
   SessionAlreadyTerminatedError,
 } from '../../ts/src/core-client/generated/govern.js';
+import { buildLLMCompletionSpan } from '../../ts/src/governance/spans.js';
 
 interface MockCore {
   events: GovernanceEventPayload[];
@@ -182,6 +183,54 @@ describe('activity pairing', () => {
     const signalEvents = mock.events.filter((e) => e.event_type === 'SignalReceived');
     expect(signalEvents).toHaveLength(1);
     expect(signalEvents[0].activity_type).toBe('interrupt');
+  });
+
+  test('n8n nodePostExecute sends model usage on ActivityCompleted span', async () => {
+    const mock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(mock), preset: presets.n8n },
+      async (session) => {
+        await session.nodePostExecute({
+          output: { text: 'Draft ready.' },
+          spans: [
+            buildLLMCompletionSpan({
+              content: 'Draft ready.',
+              system: 'n8n',
+              model: 'gpt-4o-mini',
+              usage: {
+                promptTokens: 18,
+                completionTokens: 7,
+                totalTokens: 25,
+              },
+            }),
+          ],
+        });
+      },
+    );
+
+    const completed = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'node-post-execute',
+    );
+    expect(completed?.hook_trigger).toBe(true);
+    expect(completed?.span_count).toBe(1);
+    const span = completed?.spans?.[0] as Record<string, unknown> | undefined;
+    expect(span).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'llm_completion',
+      model: 'gpt-4o-mini',
+      input_tokens: 18,
+      output_tokens: 7,
+    });
+    expect(JSON.parse(String(span?.response_body))).toMatchObject({
+      model: 'gpt-4o-mini',
+      usage: {
+        prompt_tokens: 18,
+        completion_tokens: 7,
+        total_tokens: 25,
+      },
+    });
   });
 });
 

@@ -54,6 +54,10 @@
       "types": "./dist/approvals/index.d.ts",
       "import": "./dist/approvals/index.js"
     },
+    "./anthropic-agent-sdk": {
+      "types": "./dist/anthropic-agent-sdk/index.d.ts",
+      "import": "./dist/anthropic-agent-sdk/index.js"
+    },
     "./client-factory": {
       "types": "./dist/client-factory/index.d.ts",
       "import": "./dist/client-factory/index.js"
@@ -176,12 +180,16 @@
     "zod": "^3.23.0"
   },
   "peerDependencies": {
+    "@anthropic-ai/claude-agent-sdk": ">=0.3.181",
     "@ag-ui/client": ">=0.0.53",
     "@copilotkit/react-core": ">=1.56.0",
     "@copilotkit/runtime": ">=1.56.0",
     "react": ">=18"
   },
   "peerDependenciesMeta": {
+    "@anthropic-ai/claude-agent-sdk": {
+      "optional": true
+    },
     "@ag-ui/client": {
       "optional": true
     },
@@ -196,6 +204,7 @@
     }
   },
   "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.181",
     "@types/node": "^25.5.2",
     "@types/react": "^19.2.16",
     "@typespec/compiler": "^1.11.0",

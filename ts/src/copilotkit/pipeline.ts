@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import type { AGEResult, SpanData } from '../core-client/core-client.js';
+import type { SpanData } from '../core-client/core-client.js';
 import type { WorkflowVerdict } from '../core-client/index.js';
 import {
   buildLLMCompletionSpan,
@@ -20,14 +20,11 @@ import type {
 } from './types.js';
 import {
   createWorkflowSession,
-  emitActivityHookSpanUpdate,
   emitUserPromptSignal,
   ensureWorkflowStarted,
   failWorkflow,
   finishStoppedWorkflow,
 } from './workflow-session.js';
-
-type WorkflowVerdictWithAge = WorkflowVerdict & { ageResult?: AGEResult };
 
 // All gate emission goes through the spec-generated session runtime
 // (core-client/generated/govern.ts), which owns the canonical envelope:
@@ -57,12 +54,21 @@ async function evaluateGate<T>(
     input.kind === 'tool_output' || input.kind === 'assistant_output';
   const activityType =
     input.activityType ?? activityTypeForGate(input.kind, input.payload);
+  const spans = spansForGate(input.kind, activityType, input.payload);
   const session = gateSession(
     adapter,
     { workflowId: ids.workflowId, runId: ids.runId },
     input.workflowType,
     input.taskQueue,
   );
+  if (input.kind === 'tool_input') {
+    const opened = await session.openActivity(activityType, {
+      activityId: ids.activityId,
+      input: [input.payload],
+      spans,
+    });
+    return opened.verdict;
+  }
   return session.activity(
     completed ? 'ActivityCompleted' : 'ActivityStarted',
     activityType,
@@ -70,12 +76,12 @@ async function evaluateGate<T>(
       ? {
           activityId: ids.activityId,
           output: input.payload,
-          spans: [],
+          spans,
         }
       : {
           activityId: ids.activityId,
           input: [input.payload],
-          spans: [],
+          spans,
         },
   );
 }
@@ -142,15 +148,7 @@ export async function governPipelineGate<T>(
     const transformed = isAllowed(verdict.arm)
       ? applyOpenBoxTransform(input.payload, verdict)
       : input.payload;
-    const effectiveVerdict = isAllowed(verdict.arm)
-      ? await evaluateAssistantOutputHook(
-          adapter,
-          input,
-          ids,
-          verdict,
-          transformed,
-        )
-      : verdict;
+    const effectiveVerdict = verdict;
     const safe = isAllowed(effectiveVerdict.arm)
       ? applyOpenBoxTransform(transformed, effectiveVerdict)
       : transformed;
@@ -374,42 +372,6 @@ function activityTypeForGate(
   }
 }
 
-async function evaluateAssistantOutputHook<T>(
-  adapter: OpenBoxCopilotKitAdapter,
-  input: OpenBoxCopilotGateInput<T> & {
-    kind: OpenBoxCopilotGateKind;
-    workflowType: string;
-    taskQueue: string;
-  },
-  ids: { workflowId: string; runId: string; activityId: string },
-  verdict: WorkflowVerdict,
-  safePayload: T,
-): Promise<WorkflowVerdict> {
-  if (input.kind !== 'assistant_output') return verdict;
-  const content = assistantContentFromPayload(safePayload);
-  if (!content) return verdict;
-  const hookVerdict = await emitActivityHookSpanUpdate(
-    adapter,
-    ids,
-    input.workflowType,
-    input.taskQueue,
-    undefined,
-    safePayload,
-    [
-      buildLLMCompletionSpan({
-        content,
-        span: pipelineSpan(input.kind, 'llm.chat.completion', safePayload),
-        name: 'openbox.copilotkit.assistant_output',
-        kind: 'llm',
-        system: 'copilotkit',
-        attributes: { 'gen_ai.system': 'copilotkit' },
-        ...llmCompletionMetadataFromPayload(safePayload),
-      }),
-    ],
-  );
-  return mergeGateVerdicts(verdict, hookVerdict);
-}
-
 function llmCompletionMetadataFromPayload(payload: unknown): {
   model?: string;
   usage?: LLMTokenUsage;
@@ -520,44 +482,67 @@ function firstString(...values: unknown[]): string | undefined {
   return undefined;
 }
 
-function mergeGateVerdicts(
-  first: WorkflowVerdict,
-  second: WorkflowVerdict,
-): WorkflowVerdict {
-  const winner =
-    verdictSeverity(second.arm) > verdictSeverity(first.arm) ? second : first;
-  const merged = {
-    ...winner,
-    governanceEventId:
-      winner.governanceEventId ??
-      first.governanceEventId ??
-      second.governanceEventId,
-    riskScore: Math.max(first.riskScore ?? 0, second.riskScore ?? 0),
-    trustTier: second.trustTier ?? first.trustTier ?? winner.trustTier,
-    guardrailsResult:
-      winner.guardrailsResult ??
-      first.guardrailsResult ??
-      second.guardrailsResult,
-  } as WorkflowVerdict & Record<string, unknown>;
-  const firstAge = (first as WorkflowVerdictWithAge).ageResult;
-  const secondAge = (second as WorkflowVerdictWithAge).ageResult;
-  if (secondAge ?? firstAge) merged.ageResult = secondAge ?? firstAge;
-  return merged;
+function spansForGate(
+  kind: OpenBoxCopilotGateKind,
+  activityType: string,
+  payload: unknown,
+): SpanData[] {
+  switch (kind) {
+    case 'assistant_output': {
+      const content = assistantContentFromPayload(payload);
+      if (!content) return [];
+      return [
+        buildLLMCompletionSpan({
+          content,
+          span: pipelineSpan(kind, 'llm.chat.completion', payload),
+          name: 'openbox.copilotkit.assistant_output',
+          kind: 'llm',
+          system: 'copilotkit',
+          attributes: { 'gen_ai.system': 'copilotkit' },
+          ...llmCompletionMetadataFromPayload(payload),
+        }),
+      ];
+    }
+    case 'tool_input':
+    case 'tool_output':
+      return [toolCallSpan(kind, activityType, payload)];
+    case 'prompt':
+      return [];
+  }
 }
 
-function verdictSeverity(arm: WorkflowVerdict['arm']): number {
-  switch (arm) {
-    case 'halt':
-      return 4;
-    case 'block':
-      return 3;
-    case 'require_approval':
-      return 2;
-    case 'constrain':
-      return 1;
-    case 'allow':
-      return 0;
-  }
+function toolCallSpan(
+  kind: Extract<OpenBoxCopilotGateKind, 'tool_input' | 'tool_output'>,
+  activityType: string,
+  payload: unknown,
+): SpanData {
+  const now = Date.now();
+  const stage = kind === 'tool_input' ? 'started' : 'completed';
+  const toolName = activityType || 'call';
+  return {
+    span_id: randomBytes(8).toString('hex'),
+    trace_id: randomBytes(16).toString('hex'),
+    name: `tool.${toolName}`,
+    kind: 'tool',
+    span_type: 'function',
+    start_time: now,
+    end_time: stage === 'completed' ? now : null,
+    duration_ns: stage === 'completed' ? 0 : null,
+    stage,
+    semantic_type: 'llm_tool_call',
+    attributes: {
+      'gen_ai.system': 'copilotkit',
+      'openbox.copilotkit.gate': kind,
+      'openbox.activity_type': activityType,
+      'openbox.semantic_type': 'llm_tool_call',
+      'openbox.span_type': 'function',
+      'openbox.tool.name': toolName,
+      'tool.name': toolName,
+      tool_name: toolName,
+    },
+    data: payload,
+    ...(stage === 'completed' ? { result: payload } : {}),
+  } as SpanData;
 }
 
 function pipelineSpan(

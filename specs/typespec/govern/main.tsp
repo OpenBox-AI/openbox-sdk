@@ -67,9 +67,13 @@ using OpenBox.Workflow;
   PostToolUse: "Post-Tool Use",
   UserPromptSubmit: "User Prompt Submit",
   PermissionRequest: "Permission Request",
+  SessionStart: "Session Start",
   PreCompact: "Pre-Compact",
   SubagentStart: "Subagent Start",
   SubagentStop: "Subagent Stop",
+  PostToolUseFailure: "Post-Tool Use Failure",
+  PostToolBatch: "Post-Tool Batch",
+  MessageDisplay: "Message Display",
   Notification: "Notification",
   Stop: "Stop",
   // Cursor; lowerCamel hook names
@@ -457,6 +461,45 @@ interface ClaudeCodePreset {
 
   @maps_to("ActivityCompleted", "Stop")
   stop(payload: GovernedPayload): WorkflowVerdict;
+}
+
+@preset("anthropic-agent-sdk")
+interface AnthropicAgentSDKPreset {
+  @maps_to("ActivityStarted", "SessionStart")
+  sessionStart(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "UserPromptSubmit")
+  userPromptSubmit(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "PreToolUse")
+  preToolUse(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "PermissionRequest")
+  permissionRequest(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "PostToolUse")
+  postToolUse(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "PostToolUseFailure")
+  postToolUseFailure(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "PostToolBatch")
+  postToolBatch(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "Stop")
+  stop(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "SubagentStart")
+  subagentStart(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "SubagentStop")
+  subagentStop(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "PreCompact")
+  preCompact(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "MessageDisplay")
+  messageDisplay(payload: GovernedPayload): WorkflowVerdict;
 }
 
 @preset("cursor")

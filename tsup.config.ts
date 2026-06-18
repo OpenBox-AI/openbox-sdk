@@ -16,6 +16,7 @@ export default defineConfig({
     'ts/src/maturity/index.ts',
     'ts/src/cli/index.ts',
     'ts/src/approvals/index.ts',
+    'ts/src/anthropic-agent-sdk/index.ts',
     'ts/src/client-factory/index.ts',
     'ts/src/file-tokens/index.ts',
     'ts/src/polling/index.ts',
@@ -45,5 +46,11 @@ export default defineConfig({
   splitting: false,
   // playwright is an optional CLI dep for E2E `verify` runs; never inline
   // it (it pulls a chromium driver). Mark its sub-modules external too.
-  external: ['react', 'playwright', /^chromium-bidi/, /^playwright-core/],
+  external: [
+    'react',
+    'playwright',
+    '@anthropic-ai/claude-agent-sdk',
+    /^chromium-bidi/,
+    /^playwright-core/,
+  ],
 });

@@ -1035,22 +1035,11 @@ describe('CopilotKit OpenBox adapter', () => {
       (event) =>
         event.event_type === 'ActivityCompleted' &&
         event.activity_type === 'on_llm_end' &&
-        !event.hook_trigger,
-    );
-    expect(completed?.span_count).toBe(0);
-    expect(completed?.spans).toEqual([]);
-
-    const hookCompleted = mock.events.find(
-      (event) =>
-        event.event_type === 'ActivityCompleted' &&
-        event.activity_type === undefined &&
         event.hook_trigger,
     );
-    expect(hookCompleted?.activity_id).toBe(completed?.activity_id);
-    expect(hookCompleted?.status).toBe('completed');
-    expect(hookCompleted?.activity_type).toBeUndefined();
-    expect(hookCompleted?.span_count).toBe(1);
-    const span = hookCompleted?.spans?.[0] as Record<string, any> | undefined;
+    expect(completed?.status).toBe('completed');
+    expect(completed?.span_count).toBe(1);
+    const span = completed?.spans?.[0] as Record<string, any> | undefined;
     expect(span).toMatchObject({
       stage: 'completed',
       semantic_type: 'llm_completion',
@@ -1076,6 +1065,72 @@ describe('CopilotKit OpenBox adapter', () => {
         output_tokens: 16,
         total_tokens: 58,
       },
+    });
+    expect(
+      mock.events.some(
+        (event) =>
+          event.event_type === 'ActivityCompleted' &&
+          event.activity_type === undefined &&
+          event.hook_trigger,
+      ),
+    ).toBe(false);
+  });
+
+  it('emits same-activity tool-call spans for generic LangChain tool gates', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const middleware = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+
+    await middleware.wrapToolCall(
+      {
+        toolCall: {
+          name: 'crm_lookup',
+          args: { customerId: 'cus_123' },
+        },
+        state: { openboxWorkflowId: 'wf', openboxRunId: 'run' },
+      },
+      async () => ({ ok: true, accountTier: 'enterprise' }),
+    );
+
+    const started = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'crm_lookup',
+    );
+    const completed = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'crm_lookup' &&
+        event.activity_id === started?.activity_id,
+    );
+
+    expect(started?.hook_trigger).toBe(true);
+    expect(completed?.hook_trigger).toBe(true);
+    expect(started?.span_count).toBe(1);
+    expect(completed?.span_count).toBe(1);
+    expect(started?.spans?.[0]).toMatchObject({
+      stage: 'started',
+      semantic_type: 'llm_tool_call',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'crm_lookup',
+        'tool.name': 'crm_lookup',
+      }),
+    });
+    expect(completed?.spans?.[0]).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'llm_tool_call',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'crm_lookup',
+        'tool.name': 'crm_lookup',
+      }),
+    });
+    expect(completed?.activity_output).toEqual({
+      ok: true,
+      accountTier: 'enterprise',
     });
   });
 

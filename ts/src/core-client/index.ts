@@ -63,6 +63,7 @@ export type {
 // runtime/<adapter>/mappers/ pull these to type their handler params.
 export {
   AirflowSession,
+  AnthropicAgentSdkSession,
   ArgocdSession,
   AutogenSession,
   ClaudeCodeSession,
