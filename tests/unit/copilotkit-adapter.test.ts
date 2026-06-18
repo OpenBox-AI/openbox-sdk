@@ -621,15 +621,20 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(result.executed).toBe(true);
     expect(result.verdict).toBe('allow');
     expect(result.reason).toBe('OpenBox approval was granted.');
-    expect(JSON.stringify(events[0].activity_input)).not.toContain('7500');
-    expect(JSON.stringify(events[0].spans ?? [])).not.toContain('7500');
+    const activityInputJson = JSON.stringify(events[0].activity_input);
+    const spanDataJson = JSON.stringify(
+      (events[0].spans ?? []).map((span) => span.data ?? {}),
+    );
+    expect(activityInputJson).not.toContain('"amountUsd"');
+    expect(activityInputJson).not.toContain('Issue a service credit');
+    expect(spanDataJson).not.toContain('"amountUsd"');
+    expect(spanDataJson).not.toContain('Issue a service credit');
     expect(JSON.stringify(events[0].activity_output)).toContain('7,500');
     expect(events.map((event) => event.event_type)).toEqual([
       'ActivityCompleted',
       'WorkflowCompleted',
     ]);
     expect(events[0].hook_trigger).toBe(true);
-    expect(JSON.stringify(events[0].spans ?? [])).not.toContain('7500');
   });
 
   it('fails closed and skips execution when OpenBox blocks activity start', async () => {
