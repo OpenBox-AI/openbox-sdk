@@ -124,6 +124,15 @@ describe('OpenBoxCoreClient', () => {
       ).toMatch(/^\d+\.\d+\.\d+/);
     });
 
+    it('sets the User-Agent header for Core calls', async () => {
+      const client = createClient({ apiKey: 'obx_live_mykey' });
+      fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
+      await client.validateApiKey();
+      expect(fetchMock.mock.calls[0][1].headers['User-Agent']).toMatch(
+        /^OpenBox-SDK\/\d+\.\d+\.\d+/,
+      );
+    });
+
     it('attaches signed agent identity headers when configured', async () => {
       const { identity } = makeAgentIdentity();
       const client = createClient({ agentIdentity: identity });
@@ -269,6 +278,56 @@ describe('OpenBoxCoreClient', () => {
         '/api/v1/governance/approval',
       );
       expect(result.action).toBe('allow');
+    });
+
+    it('marks approval responses expired when expiration is in the past', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date('2026-01-01T00:00:10.000Z'));
+        const client = createClient();
+        fetchMock.mockResolvedValueOnce(
+          mockResponse(200, {
+            id: 'app-1',
+            action: 'require_approval',
+            approval_expiration_time: '2026-01-01T00:00:09.000Z',
+          }),
+        );
+
+        const result = await client.pollApproval({
+          workflow_id: 'wf-1',
+          run_id: 'run-1',
+          activity_id: 'act-1',
+        });
+
+        expect(result).toMatchObject({ expired: true });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('parses DB-style approval expiration timestamps as UTC', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date('2026-01-01T00:00:10.000Z'));
+        const client = createClient();
+        fetchMock.mockResolvedValueOnce(
+          mockResponse(200, {
+            id: 'app-1',
+            action: 'require_approval',
+            approval_expiration_time: '2026-01-01 00:00:09',
+          }),
+        );
+
+        const result = await client.pollApproval({
+          workflow_id: 'wf-1',
+          run_id: 'run-1',
+          activity_id: 'act-1',
+        });
+
+        expect(result).toMatchObject({ expired: true });
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

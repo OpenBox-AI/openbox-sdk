@@ -519,12 +519,59 @@ describe('approval polling bounds', () => {
         approvalMaxWaitMs: 60_000, // long config, but server expires at 50ms
       },
       async (session) => {
-        await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        const verdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(verdict.arm).toBe('block');
+        expect(verdict.reason).toBe('Approval expired for PreToolUse');
       },
     );
     const elapsed = Date.now() - start;
     // Should bail well before the 60s config max-wait; server expiry wins.
     expect(elapsed).toBeLessThan(2_000);
+  });
+
+  test('polling treats expired approval status as terminal before verdict', async () => {
+    const mock = createMockCore('allow');
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      if (payload.event_type === 'ActivityStarted') {
+        return {
+          governance_event_id: 'evt_test',
+          verdict: 'require_approval',
+          action: 'require_approval',
+          approval_id: 'apr_xxx',
+          approval_expiration_time: new Date(Date.now() + 1_000).toISOString(),
+          risk_score: 0,
+        } as GovernanceVerdictResponse;
+      }
+      return {
+        governance_event_id: 'evt_test',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+      } as GovernanceVerdictResponse;
+    });
+    mock.pollApproval = vi.fn(async () => ({
+      id: 'apr_xxx',
+      action: 'allow',
+      expired: true,
+      reason: 'approval window expired',
+    }));
+
+    await govern(
+      {
+        ...baseConfig(mock),
+        preset: presets.claudeCode,
+        approvalPollIntervalMs: 10,
+        approvalPollJitter: 0,
+        approvalMaxWaitMs: 1_000,
+      },
+      async (session) => {
+        const verdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(verdict.arm).toBe('block');
+        expect(verdict.reason).toBe('approval window expired');
+      },
+    );
+    expect(mock.pollApproval).toHaveBeenCalledTimes(1);
   });
 
   test('polling retries transient pollApproval failures until a decision arrives', async () => {

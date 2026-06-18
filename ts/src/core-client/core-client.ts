@@ -182,9 +182,10 @@ export class OpenBoxCoreClient {
   }
 
   async pollApproval(request: ApprovalStatusRequest): Promise<ApprovalStatusResponse> {
-    return this.request('POST', '/api/v1/governance/approval', {
+    const response = await this.request('POST', '/api/v1/governance/approval', {
       data: request,
-    }) as Promise<ApprovalStatusResponse>;
+    }) as ApprovalStatusResponse;
+    return withClientExpiredApproval(response);
   }
 
   // =========================================================================
@@ -207,6 +208,7 @@ export class OpenBoxCoreClient {
     const baseHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${this.config.apiKey}`,
+      'User-Agent': `OpenBox-SDK/${OPENBOX_SDK_VERSION}`,
       'X-OpenBox-SDK-Version': OPENBOX_SDK_VERSION,
     };
     const body = options?.data ? JSON.stringify(options.data) : undefined;
@@ -353,6 +355,25 @@ function appendQuery(path: string, params: Record<string, unknown> | undefined):
   const query = search.toString();
   if (!query) return path;
   return `${path}${path.includes('?') ? '&' : '?'}${query}`;
+}
+
+function withClientExpiredApproval<T extends ApprovalStatusResponse>(response: T): T {
+  const expiration = response.approval_expiration_time;
+  if (!expiration) return response;
+  const deadline = parseApprovalExpirationMs(expiration);
+  if (deadline === undefined || Date.now() <= deadline) return response;
+  return { ...response, expired: true } as T;
+}
+
+function parseApprovalExpirationMs(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const normalized = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T');
+  const withTimezone = /(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(normalized)
+    ? normalized
+    : `${normalized}Z`;
+  const timestamp = new Date(withTimezone).getTime();
+  return Number.isFinite(timestamp) ? timestamp : undefined;
 }
 
 const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');

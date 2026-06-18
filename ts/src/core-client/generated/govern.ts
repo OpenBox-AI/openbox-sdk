@@ -1750,7 +1750,7 @@ export class BaseGovernedSession {
     // and run one confirmatory pollApproval() to fetch the backend's
     // authoritative verdict for this activity_id.
     const approvalId = initial.approvalId ?? activityId;
-    const deadline = initial.approvalExpiresAt
+    let deadline = initial.approvalExpiresAt
       ? new Date(initial.approvalExpiresAt).getTime()
       : Number.POSITIVE_INFINITY;
 
@@ -1799,6 +1799,27 @@ export class BaseGovernedSession {
             );
         continue;
       }
+      const statusWithExpiry = status as typeof status & { expired?: boolean };
+      const statusDeadline = status.approval_expiration_time
+        ? new Date(status.approval_expiration_time).getTime()
+        : Number.NaN;
+      if (Number.isFinite(statusDeadline)) {
+        deadline = Math.min(deadline, statusDeadline);
+      }
+      if (
+        statusWithExpiry.expired === true ||
+        (Number.isFinite(statusDeadline) && Date.now() >= statusDeadline)
+      ) {
+        return {
+          arm: 'block',
+          approvalId: initial.approvalId,
+          governanceEventId: initial.governanceEventId,
+          approvalExpiresAt: status.approval_expiration_time,
+          reason: status.reason ?? `Approval expired for ${activityType}`,
+          riskScore: initial.riskScore,
+          trustTier: initial.trustTier,
+        };
+      }
       if (status.action && status.action !== 'require_approval') {
         return {
           arm: normalizeArm(status.action),
@@ -1819,6 +1840,13 @@ export class BaseGovernedSession {
             nextInterval * this.approvalPollBackoffFactor,
             this.approvalPollMaxIntervalMs,
           );
+    }
+    if (Number.isFinite(deadline) && Date.now() >= deadline) {
+      return {
+        ...initial,
+        arm: 'block',
+        reason: initial.reason ?? `Approval expired for ${activityType}`,
+      };
     }
     return initial;
   }
