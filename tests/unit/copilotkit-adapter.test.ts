@@ -777,6 +777,81 @@ describe('CopilotKit OpenBox adapter', () => {
     });
   });
 
+  it('uses verdict before action when polling CopilotKit approvals', async () => {
+    const core = {
+      evaluate: vi.fn(),
+      pollApproval: vi.fn(async () => ({
+        verdict: 0,
+        action: 'require_approval',
+        reason: 'approval granted',
+      })),
+    };
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: core as any,
+      workflowType: 'CopilotKitTestWorkflow',
+      taskQueue: 'langgraph',
+    });
+    const { pollApproval } = await import(
+      '../../ts/src/copilotkit/workflow-session'
+    );
+
+    await expect(
+      pollApproval(adapter, {
+        workflowId: 'workflow-approval',
+        runId: 'run-approval',
+        activityId: 'activity-approval',
+      }),
+    ).resolves.toMatchObject({
+      arm: 'allow',
+      reason: 'approval granted',
+    });
+    expect(core.pollApproval).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed when CopilotKit approval polling receives failed guardrails', async () => {
+    const core = {
+      evaluate: vi.fn(),
+      pollApproval: vi.fn(async () => ({
+        action: 'require_approval',
+        guardrails_result: {
+          input_type: 'activity_input',
+          validation_passed: false,
+          reasons: [
+            {
+              type: 'pii',
+              field: 'request',
+              reason:
+                'PII detected in request\n\nThought: hidden chain should not leak',
+            },
+          ],
+        },
+      })),
+    };
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: core as any,
+      workflowType: 'CopilotKitTestWorkflow',
+      taskQueue: 'langgraph',
+    });
+    const { pollApproval } = await import(
+      '../../ts/src/copilotkit/workflow-session'
+    );
+
+    await expect(
+      pollApproval(adapter, {
+        workflowId: 'workflow-approval',
+        runId: 'run-approval',
+        activityId: 'activity-approval',
+      }),
+    ).resolves.toMatchObject({
+      arm: 'block',
+      reason: 'PII detected in request',
+      guardrailsResult: {
+        validationPassed: false,
+      },
+    });
+    expect(core.pollApproval).toHaveBeenCalledTimes(1);
+  });
+
   it('parses DB-style CopilotKit approval expiration timestamps as UTC', async () => {
     vi.useFakeTimers();
     try {

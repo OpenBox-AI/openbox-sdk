@@ -478,6 +478,21 @@ export function mapGuardrailsResult(
 }
 
 export function normalizeArm(value: unknown): WorkflowVerdict['arm'] {
+  if (typeof value === 'number') {
+    switch (value) {
+      case 1:
+        return 'constrain';
+      case 2:
+        return 'require_approval';
+      case 3:
+        return 'block';
+      case 4:
+        return 'halt';
+      case 0:
+      default:
+        return 'allow';
+    }
+  }
   if (
     value === 'allow' ||
     value === 'constrain' ||
@@ -488,8 +503,53 @@ export function normalizeArm(value: unknown): WorkflowVerdict['arm'] {
     return value;
   }
   if (value === 'continue') return 'allow';
-  if (value === 'stop') return 'block';
+  if (value === 'stop') return 'halt';
+  if (value === 'require-approval' || value === 'request_approval')
+    return 'require_approval';
   return 'block';
+}
+
+export function effectiveArmForGuardrails(
+  arm: WorkflowVerdict['arm'],
+  guardrailsResult: WorkflowVerdict['guardrailsResult'] | undefined,
+): WorkflowVerdict['arm'] {
+  if (
+    guardrailsResult?.validationPassed === false &&
+    arm !== 'halt' &&
+    arm !== 'block'
+  ) {
+    return 'block';
+  }
+  return arm;
+}
+
+export function guardrailFailureReason(
+  result: WorkflowVerdict['guardrailsResult'] | undefined,
+): string {
+  if (!result) return 'Guardrails validation failed';
+  const reasons = (result.reasons ?? [])
+    .map((reason) => cleanGuardrailReason(reason.reason))
+    .filter((reason) => reason.length > 0);
+  if (reasons.length > 0) {
+    return result.inputType === 'activity_output'
+      ? reasons.join('; ')
+      : reasons[0];
+  }
+  return result.inputType === 'activity_output'
+    ? 'Guardrails output validation failed'
+    : 'Guardrails validation failed';
+}
+
+function cleanGuardrailReason(reason: string): string {
+  const withoutQuestion = reason.replace(
+    /\n?-\s*Question:\s*\[Session context\][^\n]*\n?/g,
+    '',
+  );
+  for (const marker of ['\n\nThought:', '\n\nThought', '\nThought:', '\nThought']) {
+    const index = withoutQuestion.indexOf(marker);
+    if (index >= 0) return withoutQuestion.slice(0, index).trimEnd();
+  }
+  return withoutQuestion.trimEnd();
 }
 
 export function isAllowed(arm: WorkflowVerdict['arm']): boolean {

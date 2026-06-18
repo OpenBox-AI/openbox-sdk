@@ -11,7 +11,12 @@ import {
 } from '../core-client/index.js';
 import { withOpenBoxActivityMetadata } from '../governance/spans.js';
 import { errorMessage, nowUnixNano } from './internal-utils.js';
-import { mapGuardrailsResult, normalizeArm } from './results.js';
+import {
+  effectiveArmForGuardrails,
+  guardrailFailureReason,
+  mapGuardrailsResult,
+  normalizeArm,
+} from './results.js';
 import type {
   GovernedCopilotToolDefinition,
   OpenBoxCopilotActionInput,
@@ -128,6 +133,7 @@ export async function pollApproval(
       expired?: boolean;
       trust_tier?: string | number;
       guardrails_result?: unknown;
+      verdict?: unknown;
     };
     const serverDeadline = parseApprovalExpirationMs(
       response.approval_expiration_time,
@@ -149,15 +155,23 @@ export async function pollApproval(
         guardrailsResult: mapGuardrailsResult(extra.guardrails_result),
       };
     }
+    const guardrailsResult = mapGuardrailsResult(extra.guardrails_result);
+    const arm = effectiveArmForGuardrails(
+      normalizeArm(extra.verdict ?? response.action),
+      guardrailsResult,
+    );
     last = {
-      arm: normalizeArm(response.action),
+      arm,
       reason: response.reason,
       approvalExpiresAt: response.approval_expiration_time,
       riskScore: 0,
       trustTier:
         typeof extra.trust_tier === 'number' ? extra.trust_tier : undefined,
-      guardrailsResult: mapGuardrailsResult(extra.guardrails_result),
+      guardrailsResult,
     };
+    if (guardrailsResult?.validationPassed === false && !response.reason) {
+      last.reason = guardrailFailureReason(guardrailsResult);
+    }
     if (last && last.arm !== 'require_approval') return last;
     const sleepMs = Math.min(APPROVAL_POLL_INTERVAL_MS, deadline - Date.now());
     if (sleepMs <= 0) break;

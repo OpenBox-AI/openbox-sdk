@@ -481,7 +481,13 @@ describe('copilotkit helper coverage', () => {
       fieldResults: [{ field: 'x', status: 'skipped' }],
     });
     expect(normalizeArm('continue')).toBe('allow');
-    expect(normalizeArm('stop')).toBe('block');
+    expect(normalizeArm('stop')).toBe('halt');
+    expect(normalizeArm('require-approval')).toBe('require_approval');
+    expect(normalizeArm(0)).toBe('allow');
+    expect(normalizeArm(1)).toBe('constrain');
+    expect(normalizeArm(2)).toBe('require_approval');
+    expect(normalizeArm(3)).toBe('block');
+    expect(normalizeArm(4)).toBe('halt');
     expect(normalizeArm('ask')).toBe('block');
     expect(normalizeArm('halt')).toBe('halt');
     expect(isAllowed('allow')).toBe(true);
