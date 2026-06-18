@@ -116,6 +116,18 @@ export interface LLMTokenUsage {
   input_tokens?: number;
   output_tokens?: number;
   total_tokens?: number;
+  promptTokenCount?: number;
+  inputTokenCount?: number;
+  candidatesTokenCount?: number;
+  outputTokenCount?: number;
+  responseTokenCount?: number;
+  totalTokenCount?: number;
+  prompt_token_count?: number;
+  input_token_count?: number;
+  candidates_token_count?: number;
+  output_token_count?: number;
+  response_token_count?: number;
+  total_token_count?: number;
 }
 
 type JsonRecord = Record<string, unknown>;
@@ -169,18 +181,58 @@ function toPositiveInteger(value: unknown): number | undefined {
   return Math.trunc(numberValue);
 }
 
-function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
-  if (!usage) return undefined;
+export function llmTokenUsageFromRecord(value: unknown): LLMTokenUsage | undefined {
+  const record = objectRecord(value);
   const promptTokens = toPositiveInteger(
-    usage.promptTokens ?? usage.prompt_tokens ?? usage.inputTokens ?? usage.input_tokens,
+    record.promptTokens ??
+      record.prompt_tokens ??
+      record.inputTokens ??
+      record.input_tokens ??
+      record.promptTokenCount ??
+      record.prompt_token_count ??
+      record.inputTokenCount ??
+      record.input_token_count,
   );
   const completionTokens = toPositiveInteger(
-    usage.completionTokens ??
-      usage.completion_tokens ??
-      usage.outputTokens ??
-      usage.output_tokens,
+    record.completionTokens ??
+      record.completion_tokens ??
+      record.outputTokens ??
+      record.output_tokens ??
+      record.candidatesTokenCount ??
+      record.candidates_token_count ??
+      record.outputTokenCount ??
+      record.output_token_count ??
+      record.responseTokenCount ??
+      record.response_token_count,
   );
-  const totalTokens = toPositiveInteger(usage.totalTokens ?? usage.total_tokens);
+  const totalTokens = toPositiveInteger(
+    record.totalTokens ??
+      record.total_tokens ??
+      record.totalTokenCount ??
+      record.total_token_count,
+  );
+  const usage: LLMTokenUsage = {
+    promptTokens,
+    completionTokens,
+    inputTokens: promptTokens,
+    outputTokens: completionTokens,
+    totalTokens,
+  };
+  return Object.values(usage).some((entry) => entry !== undefined)
+    ? usage
+    : undefined;
+}
+
+function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
+  const normalizedUsage = llmTokenUsageFromRecord(usage);
+  if (!normalizedUsage) return undefined;
+  const promptTokens = toPositiveInteger(
+    normalizedUsage.promptTokens ?? normalizedUsage.inputTokens,
+  );
+  const completionTokens = toPositiveInteger(
+    normalizedUsage.completionTokens ?? normalizedUsage.outputTokens,
+  );
+  const totalTokens = toPositiveInteger(normalizedUsage.totalTokens);
   const derivedTotalTokens =
     totalTokens ??
     (promptTokens !== undefined || completionTokens !== undefined

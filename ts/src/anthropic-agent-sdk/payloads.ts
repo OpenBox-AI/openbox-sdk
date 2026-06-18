@@ -2,8 +2,9 @@ import type { SDKAssistantMessage, SDKResultMessage } from '@anthropic-ai/claude
 import type { GovernedPayload, SpanData, WorkflowVerdict } from '../core-client/index.js';
 import { stampSource } from '../approvals/source.js';
 import {
-  buildSpan,
   buildLLMCompletionSpan,
+  buildSpan,
+  llmTokenUsageFromRecord,
   withOpenBoxActivityMetadata,
   withOpenBoxSubagentActivityMetadata,
   type LLMTokenUsage,
@@ -341,41 +342,13 @@ function hasToolCallsFromContent(value: unknown): boolean {
 }
 
 function usageFrom(value: unknown): LLMTokenUsage | undefined {
-  const record = objectRecord(value);
-  const usage: LLMTokenUsage = {
-    promptTokens: positiveInteger(
-      record.input_tokens ?? record.inputTokens ?? record.prompt_tokens ?? record.promptTokens,
-    ),
-    completionTokens: positiveInteger(
-      record.output_tokens ??
-        record.outputTokens ??
-        record.completion_tokens ??
-        record.completionTokens,
-    ),
-    inputTokens: positiveInteger(record.input_tokens ?? record.inputTokens),
-    outputTokens: positiveInteger(record.output_tokens ?? record.outputTokens),
-    totalTokens: positiveInteger(record.total_tokens ?? record.totalTokens),
-  };
-  return Object.values(usage).some((entry) => entry !== undefined)
-    ? usage
-    : undefined;
+  return llmTokenUsageFromRecord(value);
 }
 
 function singleResultModel(value: unknown): string | undefined {
   const record = objectRecord(value);
   const models = Object.keys(record).filter((key) => key.trim());
   return models.length === 1 ? models[0] : undefined;
-}
-
-function positiveInteger(value: unknown): number | undefined {
-  const numberValue =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string' && value.trim() !== ''
-        ? Number(value)
-        : undefined;
-  if (numberValue === undefined || !Number.isFinite(numberValue) || numberValue <= 0) return undefined;
-  return Math.trunc(numberValue);
 }
 
 function numberFrom(value: unknown): number | undefined {

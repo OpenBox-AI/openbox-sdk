@@ -27,6 +27,7 @@ export {
   buildLLMCompletionResponseBody,
   buildLLMCompletionSpan,
   buildSpan,
+  llmTokenUsageFromRecord,
   openBoxActivityMetadata,
   withOpenBoxActivityMetadata,
   withOpenBoxSubagentActivityMetadata,

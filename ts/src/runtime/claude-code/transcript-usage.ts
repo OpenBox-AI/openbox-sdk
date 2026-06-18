@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ClaudeCodeEnvelope } from '../../core-client/generated/runtime/claude-code.js';
-import type { LLMTokenUsage } from '../../governance/spans.js';
+import {
+  llmTokenUsageFromRecord,
+  type LLMTokenUsage,
+} from '../../governance/spans.js';
 
 const MAX_TRANSCRIPT_TAIL_BYTES = 1024 * 1024;
 
@@ -19,29 +22,8 @@ interface AssistantTranscriptRecord {
   hasToolCalls?: boolean;
 }
 
-function toPositiveInteger(value: unknown): number | undefined {
-  const numberValue =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string' && value.trim() !== ''
-        ? Number(value)
-        : undefined;
-  if (numberValue === undefined || !Number.isFinite(numberValue) || numberValue <= 0)
-    return undefined;
-  return Math.trunc(numberValue);
-}
-
 function normalizeClaudeUsage(value: unknown): LLMTokenUsage | undefined {
-  if (value === null || typeof value !== 'object') return undefined;
-  const usage = value as Record<string, unknown>;
-  const normalized: LLMTokenUsage = {
-    inputTokens: toPositiveInteger(usage.input_tokens),
-    outputTokens: toPositiveInteger(usage.output_tokens),
-    totalTokens: toPositiveInteger(usage.total_tokens),
-  };
-  return Object.values(normalized).some((entry) => entry !== undefined)
-    ? normalized
-    : undefined;
+  return llmTokenUsageFromRecord(value);
 }
 
 function sumTokenField(

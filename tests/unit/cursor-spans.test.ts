@@ -171,9 +171,10 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
         },
         response_metadata: {
           ls_model_name: 'gemini-2.5-flash',
-          usage: {
-            input_tokens: 12,
-            output_tokens: 5,
+          usageMetadata: {
+            promptTokenCount: 12,
+            candidatesTokenCount: 5,
+            totalTokenCount: 17,
           },
         },
       } as never,

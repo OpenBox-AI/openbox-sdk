@@ -1,6 +1,7 @@
 import type { GovernedPayload, SpanData } from '../core-client/index.js';
 import {
   buildLLMCompletionSpan,
+  llmTokenUsageFromRecord,
   type LLMTokenUsage,
   type LLMCompletionSpanInput,
 } from './spans.js';
@@ -47,29 +48,21 @@ function firstText(...values: Array<unknown>): string | undefined {
 }
 
 function inputTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  return (
-    usage?.promptTokens ??
-    usage?.prompt_tokens ??
-    usage?.inputTokens ??
-    usage?.input_tokens
-  );
+  const normalized = llmTokenUsageFromRecord(usage);
+  return normalized?.promptTokens ?? normalized?.inputTokens;
 }
 
 function outputTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  return (
-    usage?.completionTokens ??
-    usage?.completion_tokens ??
-    usage?.outputTokens ??
-    usage?.output_tokens
-  );
+  const normalized = llmTokenUsageFromRecord(usage);
+  return normalized?.completionTokens ?? normalized?.outputTokens;
 }
 
 function totalTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  if (!usage) return undefined;
-  if (usage.totalTokens !== undefined) return usage.totalTokens;
-  if (usage.total_tokens !== undefined) return usage.total_tokens;
-  const input = inputTokens(usage);
-  const output = outputTokens(usage);
+  const normalized = llmTokenUsageFromRecord(usage);
+  if (!normalized) return undefined;
+  if (normalized.totalTokens !== undefined) return normalized.totalTokens;
+  const input = normalized.promptTokens ?? normalized.inputTokens;
+  const output = normalized.completionTokens ?? normalized.outputTokens;
   return input !== undefined || output !== undefined
     ? (input ?? 0) + (output ?? 0)
     : undefined;

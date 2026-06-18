@@ -5,6 +5,7 @@ import {
   buildLLMCompletionResponseBody,
   buildLLMCompletionSpan,
   buildSpan,
+  llmTokenUsageFromRecord,
   openBoxActivityMetadata,
   withOpenBoxActivityMetadata,
   withOpenBoxSubagentActivityMetadata,
@@ -171,6 +172,64 @@ describe('LLM completion spans', () => {
         'openbox.model.id': 'gemini-2.5-flash',
         'openbox.model.provider': 'google',
       },
+    });
+  });
+
+  test('normalizes Gemini usageMetadata token-count fields', () => {
+    const usage = llmTokenUsageFromRecord({
+      promptTokenCount: 11,
+      candidatesTokenCount: 7,
+      totalTokenCount: 21,
+    });
+
+    expect(usage).toMatchObject({
+      promptTokens: 11,
+      completionTokens: 7,
+      inputTokens: 11,
+      outputTokens: 7,
+      totalTokens: 21,
+    });
+    expect(
+      assistantOutputTelemetryFields({
+        source: 'cursor',
+        content: 'Gemini response.',
+        model: 'gemini-2.5-flash',
+        usage,
+      }),
+    ).toMatchObject({
+      llmModel: 'gemini-2.5-flash',
+      inputTokens: 11,
+      outputTokens: 7,
+      totalTokens: 21,
+      completion: 'Gemini response.',
+    });
+
+    const span = buildLLMCompletionSpan({
+      content: 'Gemini response.',
+      model: 'gemini-2.5-flash',
+      usage,
+    });
+
+    expect(span).toMatchObject({
+      model_id: 'gemini-2.5-flash',
+      provider: 'google',
+      input_tokens: 11,
+      output_tokens: 7,
+      total_tokens: 21,
+    });
+    expect(JSON.parse(String(span.response_body)).usage).toMatchObject({
+      input_tokens: 11,
+      output_tokens: 7,
+      total_tokens: 21,
+    });
+    expect(
+      llmTokenUsageFromRecord({
+        inputTokenCount: 3,
+        outputTokenCount: 4,
+      }),
+    ).toMatchObject({
+      inputTokens: 3,
+      outputTokens: 4,
     });
   });
 

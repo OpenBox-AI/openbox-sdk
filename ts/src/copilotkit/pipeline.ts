@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { SpanData } from '../core-client/core-client.js';
 import type { GovernedPayload, WorkflowVerdict } from '../core-client/index.js';
 import {
+  llmTokenUsageFromRecord,
   withOpenBoxActivityMetadata,
   type LLMTokenUsage,
   type OpenBoxActivityMetadataInput,
@@ -411,6 +412,8 @@ function llmCompletionMetadataFromPayload(payload: unknown): {
     metadata.usage,
     metadata.tokenUsage,
     metadata.token_usage,
+    metadata.usageMetadata,
+    metadata.usage_metadata,
   );
   const model =
     firstString(
@@ -434,7 +437,7 @@ function llmCompletionMetadataFromPayload(payload: unknown): {
   return {
     model,
     provider,
-    usage: usageFrom(usageMetadata),
+    usage: llmTokenUsageFromRecord(usageMetadata),
     requestBody:
       record.request_body ?? record.requestBody ?? metadata.request_body,
     responseBody:
@@ -454,21 +457,6 @@ function providerUrlFor(
   if (normalized?.includes('openai')) return 'https://api.openai.com/v1/chat/completions';
   if (model?.startsWith('gemini')) return 'https://generativelanguage.googleapis.com/v1beta/models';
   return undefined;
-}
-
-function usageFrom(record: Record<string, unknown>): LLMTokenUsage | undefined {
-  const usage = {
-    promptTokens: numberFrom(record.prompt_tokens ?? record.promptTokens),
-    completionTokens: numberFrom(
-      record.completion_tokens ?? record.completionTokens,
-    ),
-    inputTokens: numberFrom(record.input_tokens ?? record.inputTokens),
-    outputTokens: numberFrom(record.output_tokens ?? record.outputTokens),
-    totalTokens: numberFrom(record.total_tokens ?? record.totalTokens),
-  };
-  return Object.values(usage).some((value) => value !== undefined)
-    ? usage
-    : undefined;
 }
 
 function telemetryForGate(

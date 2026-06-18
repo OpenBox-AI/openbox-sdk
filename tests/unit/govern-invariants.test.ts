@@ -360,14 +360,14 @@ describe('activity pairing', () => {
           text: 'Draft ready.',
           input: { chatInput: 'Draft release note.' },
           prompt: 'Draft release note.',
-          model: 'gpt-4o-mini',
+          model: 'gemini-2.5-flash',
           usage: {
-            promptTokens: 18,
-            completionTokens: 7,
-            totalTokens: 25,
+            promptTokenCount: 18,
+            candidatesTokenCount: 7,
+            totalTokenCount: 25,
           },
           nodeName: 'Governed LLM Draft',
-          provider: 'openrouter',
+          provider: 'google',
           sessionId: 'n8n-chat-1',
         });
       },
@@ -429,7 +429,7 @@ describe('activity pairing', () => {
     expect(completedParent.spans).toBeUndefined();
     expect(completedParent.span_count).toBeUndefined();
     expect(completedParent).toMatchObject({
-      llm_model: 'gpt-4o-mini',
+      llm_model: 'gemini-2.5-flash',
       input_tokens: 18,
       output_tokens: 7,
       total_tokens: 25,
@@ -459,23 +459,23 @@ describe('activity pairing', () => {
       name: 'openbox.n8n.assistant_output',
       stage: 'completed',
       semantic_type: 'llm_completion',
-      model: 'gpt-4o-mini',
-      model_id: 'gpt-4o-mini',
-      provider: 'openrouter',
-      model_provider: 'openrouter',
+      model: 'gemini-2.5-flash',
+      model_id: 'gemini-2.5-flash',
+      provider: 'google',
+      model_provider: 'google',
       input_tokens: 18,
       output_tokens: 7,
       total_tokens: 25,
       attributes: expect.objectContaining({
         'gen_ai.system': 'n8n',
-        'openbox.model.id': 'gpt-4o-mini',
-        'openbox.model.provider': 'openrouter',
+        'openbox.model.id': 'gemini-2.5-flash',
+        'openbox.model.provider': 'google',
         'openbox.n8n.node_name': 'Governed LLM Draft',
-        'openbox.provider': 'openrouter',
+        'openbox.provider': 'google',
       }),
     });
     expect(JSON.parse(String(span?.response_body))).toMatchObject({
-      model: 'gpt-4o-mini',
+      model: 'gemini-2.5-flash',
       usage: {
         prompt_tokens: 18,
         completion_tokens: 7,

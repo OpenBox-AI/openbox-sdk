@@ -1459,9 +1459,10 @@ describe('CopilotKit OpenBox adapter', () => {
         response_metadata: {
           ls_model_name: 'gpt-4o-mini',
           ls_provider: 'openai',
-          tokenUsage: {
-            promptTokens: 42,
-            completionTokens: 16,
+          usageMetadata: {
+            promptTokenCount: 42,
+            candidatesTokenCount: 16,
+            totalTokenCount: 58,
           },
         },
       }),

@@ -21,6 +21,7 @@ import {
 } from '../../../governance/assistant-output.js';
 import {
   buildSpan,
+  llmTokenUsageFromRecord,
   withOpenBoxActivityMetadata,
 } from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
@@ -98,21 +99,10 @@ function usageFrom(value: unknown) {
     metadata.usage,
     metadata.tokenUsage,
     metadata.token_usage,
+    metadata.usageMetadata,
+    metadata.usage_metadata,
   );
-  const normalized = {
-    promptTokens: numberFrom(record.prompt_tokens ?? record.promptTokens ?? usage.prompt_tokens),
-    completionTokens: numberFrom(
-      record.completion_tokens ??
-        record.completionTokens ??
-        usage.completion_tokens,
-    ),
-    inputTokens: numberFrom(record.input_tokens ?? record.inputTokens ?? usage.input_tokens),
-    outputTokens: numberFrom(record.output_tokens ?? record.outputTokens ?? usage.output_tokens),
-    totalTokens: numberFrom(record.total_tokens ?? record.totalTokens ?? usage.total_tokens),
-  };
-  return Object.values(normalized).some((entry) => entry !== undefined)
-    ? normalized
-    : undefined;
+  return llmTokenUsageFromRecord({ ...usage, ...record });
 }
 
 function messageContent(value: unknown): string | undefined {
