@@ -1694,12 +1694,12 @@ export class BaseGovernedSession {
     let hookVerdict = parentVerdict;
     const persistableSpans = (event.spans ?? []).filter(isPersistableHookSpan);
     for (const span of persistableSpans) {
-      hookVerdict = await this.emit({
+      hookVerdict = stricterVerdict(hookVerdict, await this.emit({
         ...parentEvent,
         attempt: event.attempt ?? 1,
         hook_trigger: true,
         spans: [span],
-      } as typeof event & { hook_trigger: true });
+      } as typeof event & { hook_trigger: true }));
     }
     if (parentVerdict.arm !== 'allow' && parentVerdict.arm !== 'constrain') {
       return parentVerdict;

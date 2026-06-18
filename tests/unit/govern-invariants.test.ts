@@ -250,6 +250,66 @@ describe('activity pairing', () => {
     });
   });
 
+  test('multi-span hooks return the strictest hook verdict instead of the last verdict', async () => {
+    const events: GovernanceEventPayload[] = [];
+    const evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      events.push(payload);
+      const toolName = (
+        payload.spans?.[0] as { attributes?: Record<string, unknown> } | undefined
+      )?.attributes?.['openbox.tool.name'];
+      const arm = payload.hook_trigger === true && toolName === 'Bash'
+        ? 'block'
+        : 'allow';
+      return {
+        governance_event_id: `evt_${events.length}`,
+        verdict: arm,
+        action: arm,
+        risk_score: arm === 'block' ? 1 : 0,
+      } satisfies Partial<GovernanceVerdictResponse>;
+    });
+    const mock: MockCore = {
+      events,
+      evaluate,
+      pollApproval: vi.fn(),
+    };
+    const shellSpan = buildSpan('claude-code', 'shell', {
+      command: 'npm test',
+      tool_name: 'Bash',
+    });
+    const mcpSpan = buildSpan('claude-code', 'mcp', {
+      tool_name: 'mcp__filesystem__read',
+      tool_input: { path: 'README.md' },
+    });
+
+    let verdict: { arm: string } | undefined;
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        verdict = await session.preToolUse({
+          input: [{ tool: 'Bash', cmd: 'npm test' }],
+          spans: [shellSpan, mcpSpan] as never,
+        });
+      },
+    );
+
+    expect(verdict?.arm).toBe('block');
+    expect(
+      events.filter(
+        (event) =>
+          event.event_type === 'ActivityCompleted' &&
+          event.activity_type === 'PreToolUse',
+      ),
+    ).toHaveLength(0);
+    expect(
+      events.filter(
+        (event) =>
+          event.event_type === 'ActivityStarted' &&
+          event.activity_type === 'PreToolUse' &&
+          event.hook_trigger === true,
+      ),
+    ).toHaveLength(2);
+  });
+
   test('ActivityCompleted sends LangGraph-style model usage on the parent event', async () => {
     const mock = createMockCore('allow');
     await govern(
