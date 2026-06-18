@@ -41,7 +41,7 @@ export function createOpenBoxReadinessCheck(
       const mode = {
         enabled: config.enabled ?? true,
         strict: config.strict ?? true,
-        governanceMode: config.governanceMode ?? ('enforce' as const),
+        governanceMode: 'enforce' as const,
         failClosed: true,
       };
       const apiUrl = config.apiUrl ?? process.env.OPENBOX_API_URL;

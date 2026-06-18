@@ -23,7 +23,7 @@ export function createOpenBoxCopilotKitAdapter(
 ): OpenBoxCopilotKitAdapter {
   const getCoreClient = createCoreClientResolver(config);
   const strict = config.strict ?? true;
-  const governanceMode = config.governanceMode ?? 'enforce';
+  const governanceMode = 'enforce' as const;
   const failClosed = true;
   const redactionMode = config.redactionMode ?? 'transformed-only';
   const workflowType = config.agentWorkflowType ?? DEFAULT_AGENT_WORKFLOW_TYPE;

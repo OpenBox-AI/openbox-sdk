@@ -206,14 +206,6 @@ export async function governPipelineGate<T>(
     }
     return payload;
   } catch (error) {
-    if (!input.failClosed || input.governanceMode === 'observe') {
-      const verdict: WorkflowVerdict = {
-        arm: 'allow',
-        reason: errorMessage(error),
-        riskScore: 0,
-      };
-      return safePayload(input.payload, input.payload, verdict, ids, false);
-    }
     if (workflowKnown) {
       await swallow(() =>
         failWorkflow(
@@ -315,14 +307,6 @@ async function governHaltedPipelineGate<T>(
     }
     return payload;
   } catch (error) {
-    if (!input.failClosed || input.governanceMode === 'observe') {
-      const verdict: WorkflowVerdict = {
-        arm: 'allow',
-        reason: errorMessage(error),
-        riskScore: 0,
-      };
-      return safePayload(input.payload, input.payload, verdict, ids, false);
-    }
     if (workflowKnown) {
       await swallow(() =>
         failWorkflow(

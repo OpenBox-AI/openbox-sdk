@@ -494,7 +494,7 @@ describe('copilotkit helper coverage', () => {
     expect(isAllowed('constrain')).toBe(true);
     expect(isAllowed('block')).toBe(false);
     expect(shouldStopForGate({ rawBlocked: true } as any, 'enforce')).toBe(true);
-    expect(shouldStopForGate({ rawBlocked: true } as any, 'observe')).toBe(false);
+    expect(shouldStopForGate({ rawBlocked: true } as any, 'observe')).toBe(true);
   });
 
   it('covers approval, rejection, and guardrail redaction result branches', () => {

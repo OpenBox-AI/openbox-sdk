@@ -89,6 +89,7 @@ export interface OpenBoxCopilotActionResult<TArtifact = unknown> {
 export interface OpenBoxCopilotKitConfig {
   enabled?: boolean;
   strict?: boolean;
+  /** @deprecated Compatibility no-op. Runtime governance is always enforced. */
   governanceMode?: 'observe' | 'enforce';
   /** @deprecated Compatibility no-op. Runtime governance failures always fail closed. */
   failClosed?: boolean;

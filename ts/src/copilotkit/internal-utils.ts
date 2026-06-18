@@ -17,7 +17,7 @@ export function shouldStopForGate(
   gate: OpenBoxSafePayload,
   governanceMode: 'observe' | 'enforce',
 ): boolean {
-  return governanceMode === 'enforce' && gate.rawBlocked;
+  return gate.rawBlocked;
 }
 
 export function modelInput(request: {

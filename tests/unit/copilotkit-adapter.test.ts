@@ -2042,6 +2042,32 @@ describe('CopilotKit OpenBox adapter', () => {
     });
   });
 
+  it('treats governanceMode observe as a compatibility no-op for blocked gates', async () => {
+    const mock = createMockCore((payload) => ({
+      verdict: payload.activity_type === 'send_email' ? 'block' : 'allow',
+      reason: 'tool input blocked',
+    }));
+    const middleware = createOpenBoxCopilotKitAdapter({
+      governanceMode: 'observe',
+      core: mock.core as any,
+    }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+    const handler = vi.fn(async () => ({ ok: true }));
+
+    const result = await middleware.wrapToolCall(
+      {
+        toolCall: { name: 'send_email', args: { to: 'personal Gmail' } },
+        state: { openboxWorkflowId: 'wf-observe', openboxRunId: 'run-observe' },
+      },
+      handler,
+    );
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(JSON.parse(result)).toMatchObject({
+      status: 'blocked',
+      reason: 'tool input blocked',
+    });
+  });
+
   it('does not start the same runtime workflow twice in one agent process', async () => {
     const events: GovernanceEventPayload[] = [];
     const adapter = createOpenBoxCopilotKitAdapter({
