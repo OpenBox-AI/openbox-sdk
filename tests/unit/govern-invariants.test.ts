@@ -8,8 +8,8 @@
 //      ActivityCompleted (unless pre-stage block short-circuits).
 //   3. Idempotent: a session can't be reused after a terminal event;
 //      activity calls throw SessionAlreadyTerminatedError.
-//   4. Approval polling is bounded by both the SDK config max-wait AND
-//      the server-supplied approvalExpiresAt (whichever is sooner).
+//   4. Approval polling is bounded by the server-supplied
+//      approvalExpiresAt; the SDK does not impose a second total wait cap.
 //
 // We mock the OpenBoxCoreClient instead of hitting a live core; the
 // invariants are about what the runtime emits, not about wire fidelity
@@ -527,6 +527,57 @@ describe('approval polling bounds', () => {
     const elapsed = Date.now() - start;
     // Should bail well before the 60s config max-wait; server expiry wins.
     expect(elapsed).toBeLessThan(2_000);
+  });
+
+  test('polling treats DB-style approvalExpiresAt timestamps as UTC', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+      const mock = createMockCore('allow');
+      mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+        mock.events.push(payload);
+        if (payload.event_type === 'ActivityStarted') {
+          return {
+            governance_event_id: 'evt_test',
+            verdict: 'require_approval',
+            action: 'require_approval',
+            approval_id: 'apr_xxx',
+            approval_expiration_time: '2026-01-01 00:00:01',
+            risk_score: 0,
+          } as GovernanceVerdictResponse;
+        }
+        return {
+          governance_event_id: 'evt_test',
+          verdict: 'allow',
+          action: 'allow',
+          risk_score: 0,
+        } as GovernanceVerdictResponse;
+      });
+      mock.pollApproval = vi.fn(async () => ({
+        id: 'apr_xxx',
+        action: 'allow',
+        reason: 'approved before UTC deadline',
+        approval_expiration_time: '2026-01-01 00:00:01',
+      }));
+
+      const result = govern(
+        {
+          ...baseConfig(mock),
+          preset: presets.claudeCode,
+          approvalPollIntervalMs: 10,
+          approvalPollJitter: 0,
+        },
+        async (session) => session.preToolUse({ input: [{ tool: 'Bash' }] }),
+      );
+      await vi.advanceTimersByTimeAsync(10);
+
+      await expect(result).resolves.toMatchObject({
+        arm: 'allow',
+        reason: 'approved before UTC deadline',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test('polling treats expired approval status as terminal before verdict', async () => {

@@ -1072,6 +1072,7 @@ function randomUUID(): string {
 }
 
 import type { OpenBoxCoreClient } from '../core-client.js';
+import { parseApprovalExpirationMs } from '../approval-time.js';
 import type {
   GovernanceEventPayload,
   GovernanceVerdictResponse,
@@ -1750,9 +1751,9 @@ export class BaseGovernedSession {
     // and run one confirmatory pollApproval() to fetch the backend's
     // authoritative verdict for this activity_id.
     const approvalId = initial.approvalId ?? activityId;
-    let deadline = initial.approvalExpiresAt
-      ? new Date(initial.approvalExpiresAt).getTime()
-      : Number.POSITIVE_INFINITY;
+    let deadline =
+      parseApprovalExpirationMs(initial.approvalExpiresAt) ??
+      Number.POSITIVE_INFINITY;
 
     let externalSignaled = false;
     const externalDecision = this.awaitExternalDecision
@@ -1800,15 +1801,15 @@ export class BaseGovernedSession {
         continue;
       }
       const statusWithExpiry = status as typeof status & { expired?: boolean };
-      const statusDeadline = status.approval_expiration_time
-        ? new Date(status.approval_expiration_time).getTime()
-        : Number.NaN;
-      if (Number.isFinite(statusDeadline)) {
+      const statusDeadline = parseApprovalExpirationMs(
+        status.approval_expiration_time,
+      );
+      if (statusDeadline !== undefined) {
         deadline = Math.min(deadline, statusDeadline);
       }
       if (
         statusWithExpiry.expired === true ||
-        (Number.isFinite(statusDeadline) && Date.now() >= statusDeadline)
+        (statusDeadline !== undefined && Date.now() >= statusDeadline)
       ) {
         return {
           arm: 'block',

@@ -3,6 +3,7 @@ import {
   type OpenBoxCoreClient,
   type SpanData,
 } from '../core-client/core-client.js';
+import { parseApprovalExpirationMs } from '../core-client/approval-time.js';
 import {
   presets,
   type BaseGovernedSession,
@@ -128,13 +129,15 @@ export async function pollApproval(
       trust_tier?: string | number;
       guardrails_result?: unknown;
     };
-    const serverDeadline = parseApprovalDeadline(response.approval_expiration_time);
-    if (Number.isFinite(serverDeadline)) {
+    const serverDeadline = parseApprovalExpirationMs(
+      response.approval_expiration_time,
+    );
+    if (serverDeadline !== undefined) {
       deadline = Math.min(deadline, serverDeadline);
     }
     if (
       extra.expired === true ||
-      (Number.isFinite(serverDeadline) && Date.now() >= serverDeadline)
+      (serverDeadline !== undefined && Date.now() >= serverDeadline)
     ) {
       return {
         arm: 'block',
@@ -177,17 +180,6 @@ export async function pollApproval(
       riskScore: 0,
     }
   );
-}
-
-function parseApprovalDeadline(value: string | undefined): number {
-  const trimmed = value?.trim();
-  if (!trimmed) return Number.NaN;
-  const normalized = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T');
-  const withTimezone = /(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(normalized)
-    ? normalized
-    : `${normalized}Z`;
-  const deadline = new Date(withTimezone).getTime();
-  return Number.isFinite(deadline) ? deadline : Number.NaN;
 }
 
 function sleep(ms: number) {

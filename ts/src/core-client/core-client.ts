@@ -1,6 +1,7 @@
 import { createHash, createPrivateKey, randomUUID, sign } from 'node:crypto';
 import { TokenBucket } from '../client/index.js';
 import { OPENBOX_SDK_VERSION } from '../version.js';
+import { parseApprovalExpirationMs } from './approval-time.js';
 
 // Every wire-shape type in this module comes from the spec at
 // specs/typespec/core/main.tsp via codegen/emitters/ts/. This file
@@ -363,17 +364,6 @@ function withClientExpiredApproval<T extends ApprovalStatusResponse>(response: T
   const deadline = parseApprovalExpirationMs(expiration);
   if (deadline === undefined || Date.now() <= deadline) return response;
   return { ...response, expired: true } as T;
-}
-
-function parseApprovalExpirationMs(value: string): number | undefined {
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  const normalized = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T');
-  const withTimezone = /(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(normalized)
-    ? normalized
-    : `${normalized}Z`;
-  const timestamp = new Date(withTimezone).getTime();
-  return Number.isFinite(timestamp) ? timestamp : undefined;
 }
 
 const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
