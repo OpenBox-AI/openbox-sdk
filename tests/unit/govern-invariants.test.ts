@@ -613,6 +613,60 @@ describe('approval polling bounds', () => {
     expect(mock.pollApproval).toHaveBeenCalledTimes(3);
   });
 
+  test('polling treats constrain approval status as still pending', async () => {
+    const mock = createMockCore('allow');
+    const expiresAt = new Date(Date.now() + 500).toISOString();
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      if (payload.event_type === 'ActivityStarted') {
+        return {
+          governance_event_id: 'evt_test',
+          verdict: 'require_approval',
+          action: 'require_approval',
+          approval_id: 'apr_xxx',
+          approval_expiration_time: expiresAt,
+          risk_score: 0,
+        } as GovernanceVerdictResponse;
+      }
+      return {
+        governance_event_id: 'evt_test',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+      } as GovernanceVerdictResponse;
+    });
+    mock.pollApproval = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: 'apr_xxx',
+        action: 'constrain',
+        reason: 'still gathering constraints',
+        approval_expiration_time: expiresAt,
+      })
+      .mockResolvedValueOnce({
+        id: 'apr_xxx',
+        action: 'allow',
+        reason: 'approved after constraint pass',
+        approval_expiration_time: expiresAt,
+      });
+
+    await govern(
+      {
+        ...baseConfig(mock),
+        preset: presets.claudeCode,
+        approvalPollIntervalMs: 10,
+        approvalPollBackoffFactor: 1,
+        approvalPollJitter: 0,
+      },
+      async (session) => {
+        const verdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(verdict.arm).toBe('allow');
+        expect(verdict.reason).toBe('approved after constraint pass');
+      },
+    );
+    expect(mock.pollApproval).toHaveBeenCalledTimes(2);
+  });
+
   test('polling stops at server-supplied approvalExpiresAt even if config max-wait is longer', async () => {
     const mock = createMockCore('allow');
     // Override the response with require_approval + a tight expiry.

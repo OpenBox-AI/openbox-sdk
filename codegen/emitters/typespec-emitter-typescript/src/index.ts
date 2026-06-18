@@ -2937,7 +2937,11 @@ export class BaseGovernedSession {
       }).verdict ?? status.action;
       const normalizedApprovalArm =
         approvalArm === undefined ? undefined : normalizeArm(approvalArm);
-      if (normalizedApprovalArm && normalizedApprovalArm !== 'require_approval') {
+      if (
+        normalizedApprovalArm === 'allow' ||
+        normalizedApprovalArm === 'block' ||
+        normalizedApprovalArm === 'halt'
+      ) {
         return {
           arm: normalizedApprovalArm,
           approvalId: initial.approvalId,
@@ -2948,6 +2952,7 @@ export class BaseGovernedSession {
           trustTier: initial.trustTier,
         };
       }
+      // Core may return require_approval or constrain while the approval row is still pending.
       // External signal said "decided" but backend hasn't caught up
       // yet (mutation in flight). Tighten the cadence to catch it
       // promptly instead of waiting for the next backoff step.
