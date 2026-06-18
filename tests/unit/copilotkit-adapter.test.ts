@@ -277,6 +277,30 @@ describe('CopilotKit OpenBox adapter', () => {
     }
   });
 
+  it('enables governance for canonical runtime config without requiring an injected Core client', () => {
+    const previous = {
+      OPENBOX_API_KEY: process.env.OPENBOX_API_KEY,
+      OPENBOX_CORE_URL: process.env.OPENBOX_CORE_URL,
+    };
+    process.env.OPENBOX_API_KEY = 'obx_test_runtime';
+    process.env.OPENBOX_CORE_URL = 'http://127.0.0.1:8086';
+
+    try {
+      expect(createOpenBoxCopilotKitAdapter().isEnabled()).toBe(true);
+      expect(
+        createOpenBoxCopilotKitAdapter({
+          apiKey: 'obx_test_runtime',
+          coreUrl: 'http://127.0.0.1:8086',
+        }).isEnabled(),
+      ).toBe(true);
+      expect(
+        createOpenBoxCopilotKitAdapter({ enabled: false }).isEnabled(),
+      ).toBe(false);
+    } finally {
+      restoreEnv(previous);
+    }
+  });
+
   it('rejects org/backend keys used as CopilotKit runtime keys', () => {
     const previous = {
       OPENBOX_API_KEY: process.env.OPENBOX_API_KEY,
