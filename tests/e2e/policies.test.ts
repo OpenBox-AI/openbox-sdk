@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { getBackendClient, fullResponse, getTeamIds } from '../helpers/api-client';
+import { getBackendClient, fullResponse, getTeamIds, hasOrgId } from '../helpers/api-client';
 import { trackResource, cleanupAll } from '../helpers/cleanup';
 import { makeCreateAgentDto, makeCreatePolicyDto } from '../helpers/fixtures';
 
-const CAN_RUN = !!process.env.OPENBOX_BACKEND_API_KEY && !!process.env.OPENBOX_ORG_ID;
+const CAN_RUN = !!process.env.OPENBOX_BACKEND_API_KEY && hasOrgId();
 const describeOrSkip = CAN_RUN ? describe : describe.skip;
 
 describeOrSkip('Policies', () => {

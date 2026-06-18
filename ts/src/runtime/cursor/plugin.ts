@@ -160,10 +160,9 @@ function writeRuntimeConfigTemplate(configDir: string): void {
   const file = path.join(configDir, 'config.json');
   if (existsSync(file)) return;
   const example = {
-    GOVERNANCE_POLICY: 'fail_closed',
-    HITL_ENABLED: true,
-    HITL_MAX_WAIT: 300,
-    VERBOSE: false,
+    hitlEnabled: true,
+    hitlMaxWait: 300,
+    verbose: false,
   };
   writeFileSync(file, JSON.stringify(example, null, 2) + '\n', {
     mode: 0o600,

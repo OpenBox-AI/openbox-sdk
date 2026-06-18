@@ -42,7 +42,7 @@ export function createOpenBoxCopilotKitAdapter(
   const adapter: OpenBoxCopilotKitAdapter = {
     isEnabled: () =>
       config.enabled ??
-      (Boolean(config.core) || process.env.OPENBOX_ENABLED === 'true'),
+      Boolean(config.core),
     getCoreClient,
     wrapAgent: (agent) => agent,
     createLangChainMiddleware: (deps) =>

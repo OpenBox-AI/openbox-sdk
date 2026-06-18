@@ -31,13 +31,13 @@ describe('@openbox-ai/openbox-sdk/env URL resolution', () => {
   it('uses explicit API and core URLs without an environment selector', () => {
     process.env.OPENBOX_API_URL = 'https://api.example.test';
     process.env.OPENBOX_CORE_URL = 'https://core.example.test';
-    process.env.OPENBOX_PLATFORM_URL = 'https://n8n.example.test/';
+    process.env.OPENBOX_PLATFORM_URL = 'https://platform.example.invalid/';
     process.env.OPENBOX_AUTH_URL = 'https://auth.example.test/';
     const connection = resolveConnection();
     expect(connection.source).toBe('explicit');
     expect(connection.apiUrl).toBe('https://api.example.test');
     expect(connection.coreUrl).toBe('https://core.example.test');
-    expect(connection.platformUrl).toBe('https://n8n.example.test/');
+    expect(connection.platformUrl).toBe('https://platform.example.invalid/');
     expect(connection.authUrl).toBe('https://auth.example.test/');
   });
 

@@ -36,12 +36,12 @@ import { buildIdleStatusBar, statusTagFor as statusTagForPure } from "./statusBa
 import { pickApproval as pickApprovalPure } from "./pickApproval";
 import { resolveApproval, type ResolvedApprovalEvent } from "./resolveApproval";
 
-// Build-time flag, baked by esbuild via --define:process.env.OPENBOX_DEBUG_BUILD.
+// Build-time flag, baked by esbuild via --define:process.env.EXTENSION_DEBUG_BUILD.
 // `npm run build` (production) sets it to "false"; `npm run build:dev` sets
 // "true". When false, all debug commands, the debug tree view, and mock-auth
 // affordances stay unregistered, and esbuild dead-code-eliminates the
 // branches below - so a prod .vsix can't be flipped into debug at runtime.
-const DEBUG_BUILD = process.env.OPENBOX_DEBUG_BUILD === "true";
+const DEBUG_BUILD = process.env.EXTENSION_DEBUG_BUILD === "true";
 
 // OpenBox key shape; matches the CLI's auth.ts validator. Anything else
 // is rejected before it touches the token store so we surface the
@@ -50,11 +50,6 @@ const API_KEY_PATTERN = /^obx_key_[0-9a-f]{48}$/;
 
 /** Halt verdict; approvals with this code block the save flow. */
 const VERDICT_HALT = 4;
-
-function injectedOrgId(): string | undefined {
-  const value = process.env.OPENBOX_ORG_ID?.trim();
-  return value || undefined;
-}
 
 interface ActiveBoot {
   pending: ViewSession;
@@ -680,8 +675,6 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       }
 
-      orgId = orgId ?? injectedOrgId();
-
       if (!orgId) {
         statusBar.text = `$(openbox-logo) ${statusTagFor("Connection Issue")}`;
         statusBar.tooltip = "OpenBox connected, but the account could not be verified.";
@@ -694,23 +687,15 @@ export async function activate(context: vscode.ExtensionContext) {
       // (bad key / real error). The two signals belong on the bar
       // separately so the user knows whether to check their network
       // vs. their credentials.
-      const fallbackOrgId = injectedOrgId();
-      if (fallbackOrgId) {
-        orgId = fallbackOrgId;
-        isApiKeyAuth = true;
-        activeKeyError = err?.message ?? "profile unavailable";
-        statusBar.tooltip = "OpenBox connected to the configured URL target.";
-      } else {
-        const msg = err?.message ?? String(err);
-        const isNetwork = /fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|getaddrinfo/i.test(msg);
-        const label = isNetwork ? "Disconnected" : "Error";
-        statusBar.text = `$(openbox-logo) ${statusTagFor(label)}`;
-        statusBar.tooltip = isNetwork
-          ? connectionErrorMessage(msg)
-          : connectionErrorMessage(err);
-        if (isNetwork) scheduleReconnect();
-        return;
-      }
+      const msg = err?.message ?? String(err);
+      const isNetwork = /fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|getaddrinfo/i.test(msg);
+      const label = isNetwork ? "Disconnected" : "Error";
+      statusBar.text = `$(openbox-logo) ${statusTagFor(label)}`;
+      statusBar.tooltip = isNetwork
+        ? connectionErrorMessage(msg)
+        : connectionErrorMessage(err);
+      if (isNetwork) scheduleReconnect();
+      return;
     }
 
     try {

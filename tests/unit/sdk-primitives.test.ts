@@ -171,10 +171,9 @@ describe('install/from-spec', () => {
     expect(json.hooks).toBeDefined();
     expect(JSON.stringify(json.hooks)).toContain('openbox claude-code hook');
     expect(JSON.parse(readFileSync(join(dir, '.claude-hooks', 'config.json'), 'utf-8'))).toEqual({
-      GOVERNANCE_POLICY: 'fail_closed',
-      HITL_ENABLED: true,
-      HITL_MAX_WAIT: 300,
-      VERBOSE: false,
+      hitlEnabled: true,
+      hitlMaxWait: 300,
+      verbose: false,
     });
 
     uninstallAdapter(spec, { cwd: dir });

@@ -6,15 +6,29 @@ const rootDir = resolve(__dirname, '..');
 // Load .env
 config({ path: resolve(rootDir, '.env') });
 
+declare global {
+  // Shared with setup-creds.ts in the same Vitest worker. This keeps
+  // ambient credentials out of unit tests without adding extra
+  // environment variables.
+  var __OBX_TEST_ENV__: {
+    OPENBOX_API_URL?: string;
+    OPENBOX_CORE_URL?: string;
+    OPENBOX_BACKEND_API_KEY?: string;
+    OPENBOX_API_KEY?: string;
+  } | undefined;
+}
+
+globalThis.__OBX_TEST_ENV__ = {
+  OPENBOX_API_URL: process.env.OPENBOX_API_URL,
+  OPENBOX_CORE_URL: process.env.OPENBOX_CORE_URL,
+  OPENBOX_BACKEND_API_KEY: process.env.OPENBOX_BACKEND_API_KEY,
+  OPENBOX_API_KEY: process.env.OPENBOX_API_KEY,
+};
+
 // URL-first clients intentionally have no production defaults. Unit tests get
 // explicit loopback defaults so constructors can be exercised without touching
-// live services. E2E/contract setup restores explicit caller overrides.
-if (process.env.OPENBOX_API_URL) {
-  process.env.OPENBOX_API_URL_OVERRIDE = process.env.OPENBOX_API_URL;
-}
-if (process.env.OPENBOX_CORE_URL) {
-  process.env.OPENBOX_CORE_URL_OVERRIDE = process.env.OPENBOX_CORE_URL;
-}
+// live services. E2E/contract setup restores explicit caller values from
+// globalThis.__OBX_TEST_ENV__.
 process.env.OPENBOX_API_URL = 'http://localhost:18080';
 process.env.OPENBOX_CORE_URL = 'http://localhost:18081';
 
@@ -31,12 +45,6 @@ if (!process.env.OPENBOX_ASSUME_YES) {
 // so leaving a real key in the env from the developer's shell would
 // silently bleed into unit tests that exercise loadApiKey. e2e and
 // contract projects opt in to credential loading via setup-creds.ts.
-if (process.env.OPENBOX_BACKEND_API_KEY) {
-  process.env.OPENBOX_BACKEND_API_KEY_OVERRIDE = process.env.OPENBOX_BACKEND_API_KEY;
-}
-if (process.env.OPENBOX_API_KEY) {
-  process.env.OPENBOX_API_KEY_OVERRIDE = process.env.OPENBOX_API_KEY;
-}
 delete process.env.OPENBOX_BACKEND_API_KEY;
 delete process.env.OPENBOX_API_KEY;
 delete process.env.ACCESS_TOKEN;

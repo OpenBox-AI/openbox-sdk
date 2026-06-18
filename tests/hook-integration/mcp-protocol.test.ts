@@ -15,9 +15,8 @@
 // server stays alive between calls (one process per test), which
 // mirrors how the LLM host actually uses it.
 //
-// Live round-trip cases run when OPENBOX_E2E_LIVE=1 or this machine has
-// the normal local e2e-agent cache. That keeps CI opt-in, but prevents
-// local Cursor/MCP work from silently skipping the most important path.
+// Live round-trip cases run when this machine has the normal local
+// e2e-agent cache or canonical runtime credentials.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -26,10 +25,6 @@ import path from 'node:path';
 import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
 
 const OPENBOX = requireOpenBoxCli();
-const DEFAULT_OPENBOX_ARGS: string[] = [];
-const OPENBOX_ARGS = process.env.OPENBOX_CLI_ARGS
-  ? JSON.parse(process.env.OPENBOX_CLI_ARGS) as string[]
-  : DEFAULT_OPENBOX_ARGS;
 const E2E_AGENT_NAME = 'e2e-agent';
 const PROJECT_OPENBOX = path.resolve(process.cwd(), '.openbox');
 
@@ -59,7 +54,7 @@ class McpClient {
   private pending = new Map<number | string, (r: JsonRpcResponse) => void>();
 
   constructor(env: Record<string, string>, args: string[] = []) {
-    this.proc = spawn(OPENBOX, [...OPENBOX_ARGS, ...args, 'mcp', 'serve'], {
+    this.proc = spawn(OPENBOX, [...args, 'mcp', 'serve'], {
       env: { ...process.env, ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
     }) as ChildProcessWithoutNullStreams;
@@ -116,7 +111,7 @@ class McpClient {
 }
 
 function resolveAgentId(): string | undefined {
-  if (process.env.OPENBOX_E2E_AGENT_ID) return process.env.OPENBOX_E2E_AGENT_ID;
+  if (process.env.OPENBOX_AGENT_ID) return process.env.OPENBOX_AGENT_ID;
   const keysFile = path.join(PROJECT_OPENBOX, 'agent-keys');
   if (!existsSync(keysFile)) return undefined;
   try {
@@ -131,7 +126,7 @@ function resolveAgentId(): string | undefined {
 }
 
 function hasCachedRuntimeKey(agentId: string | undefined): boolean {
-  if (process.env.OPENBOX_E2E_RUNTIME_KEY || process.env.OPENBOX_API_KEY) return true;
+  if (process.env.OPENBOX_API_KEY) return true;
   if (!agentId) return false;
   const keysFile = path.join(PROJECT_OPENBOX, 'agent-keys');
   if (!existsSync(keysFile)) return false;
@@ -148,7 +143,7 @@ function hasCachedRuntimeKey(agentId: string | undefined): boolean {
 
 const orgKey = resolveOrgApiKey();
 const SHOULD_RUN = !!orgKey;
-const LIVE = process.env.OPENBOX_E2E_LIVE === '1' && hasCachedRuntimeKey(resolveAgentId());
+const LIVE = localHarnessEnabled() && hasCachedRuntimeKey(resolveAgentId());
 
 describe.runIf(SHOULD_RUN)('openbox MCP server protocol', () => {
   let client: McpClient;
@@ -264,3 +259,18 @@ describe.runIf(SHOULD_RUN)('openbox MCP server protocol', () => {
     });
   });
 });
+
+function localHarnessEnabled(): boolean {
+  const markerPath = path.join(PROJECT_OPENBOX, 'test-harness.json');
+  if (!existsSync(markerPath)) return false;
+  try {
+    const marker = JSON.parse(readFileSync(markerPath, 'utf-8')) as {
+      localMcp?: boolean;
+      local_mcp?: boolean;
+      enabled?: boolean;
+    };
+    return marker.localMcp === true || marker.local_mcp === true || marker.enabled === true;
+  } catch {
+    return false;
+  }
+}

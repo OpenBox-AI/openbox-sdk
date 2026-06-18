@@ -138,13 +138,13 @@ describe('config store', () => {
       '',
       'bad-line',
       'bad.key=value',
-      ' OPENBOX_EXTRA = kept ',
+      ' DEMO_EXTRA = kept ',
       '',
     ].join('\n'));
     expect(listConfig()).toMatchObject({
       OPENBOX_API_KEY: 'from-store',
       OPENBOX_CORE_URL: 'http://127.0.0.1:8086',
-      OPENBOX_EXTRA: 'kept',
+      DEMO_EXTRA: 'kept',
     });
 
     process.env.OPENBOX_API_KEY = 'from-env';
@@ -152,7 +152,7 @@ describe('config store', () => {
     applyConfigToProcessEnv();
     expect(process.env.OPENBOX_API_KEY).toBe('from-env');
     expect(process.env.OPENBOX_CORE_URL).toBe('http://127.0.0.1:8086');
-    expect(unsetConfig('OPENBOX_EXTRA')).toEqual({
+    expect(unsetConfig('DEMO_EXTRA')).toEqual({
       scope: 'project',
       removed: true,
     });

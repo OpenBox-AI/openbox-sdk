@@ -30,7 +30,7 @@ interface ConfigOverrides {
   skipTools?: string[];
   /** Stale SKIP_ACTIVITY_TYPES list retained by old project configs. */
   skipActivityTypes?: string[];
-  /** Stale GOVERNANCE_POLICY value; runtime normalizes to fail_closed. */
+  /** Stale fail-open value; runtime normalizes to fail_closed. */
   governancePolicy?: 'fail_open' | 'fail_closed';
   /** Runtime key. Defaults to a syntactically valid test key. */
   apiKey?: string;
@@ -56,10 +56,10 @@ function planConfigDir(opts: ConfigOverrides): string {
   mkdirSync(configDir, { recursive: true });
   const cfg: Record<string, unknown> = {
     OPENBOX_CORE_URL: opts.coreUrl ?? DEAD_CORE,
-    GOVERNANCE_POLICY: opts.governancePolicy ?? 'fail_closed',
-    GOVERNANCE_TIMEOUT: 1,
-    HITL_ENABLED: false,
-    VERBOSE: opts.verbose ?? false,
+    governancePolicy: opts.governancePolicy ?? 'fail_closed',
+    governanceTimeout: 1,
+    hitlEnabled: false,
+    verbose: opts.verbose ?? false,
   };
   if (!opts.omitApiKey) {
     cfg.OPENBOX_API_KEY = opts.apiKey ?? TEST_KEY;
@@ -151,14 +151,14 @@ describe('claude-code hook stdin/stdout', () => {
     }
   });
 
-  it('VERBOSE=true does not break the verdict shape on dispatch', () => {
+  it('verbose=true does not break the verdict shape on dispatch', () => {
     // Note: the per-event verbose log (`<configDir>/hook.log`) is
     // not currently wired; the adapter calls `createLogger().initLogger`
     // but never calls `log()`. The only on-disk log today is the
     // JSONL hook log at `<project>/.claude-hooks/log/claude-code-hook.jsonl`,
     // which is covered separately. If a future PR wires the
     // human-readable log, this test should grow assertions on
-    // <configDir>/hook.log; for now we only assert that VERBOSE
+    // <configDir>/hook.log; for now we only assert that verbose
     // does not regress the verdict path.
     const root = planConfigDir({ verbose: true, coreUrl: DEAD_CORE });
     const r = callHook(

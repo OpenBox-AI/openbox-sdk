@@ -67,7 +67,7 @@ export function createOpenBoxLangChainMiddleware({
     };
   };
   const debugState = (hook: string, state: unknown) => {
-    if (process.env.OPENBOX_COPILOTKIT_DEBUG !== 'true') return;
+    if (process.env.OPENBOX_DEBUG !== 'true') return;
     const record = isRecord(state) ? state : {};
     console.error(
       `[openbox:${hook}] stateKeys=${JSON.stringify(Object.keys(record))} openboxSession=${JSON.stringify(record.openboxSession ?? null)} workflowId=${String(record.openboxWorkflowId ?? '')}`,
@@ -106,7 +106,7 @@ export function createOpenBoxLangChainMiddleware({
     runtimeLike?: unknown,
   ) => {
     const fromContext = contextIds(runtimeLike);
-    if (process.env.OPENBOX_COPILOTKIT_DEBUG === 'true') {
+    if (process.env.OPENBOX_DEBUG === 'true') {
       console.error(
         `[openbox:ensure] key=${key} fromContext=${JSON.stringify(fromContext)} stateWorkflowId=${String(workflowIdFromState(state) ?? '')}`,
       );

@@ -10,17 +10,16 @@ import path from 'node:path';
 import { requireOpenBoxCli } from '../../helpers/openbox-cli.js';
 
 export const WORKSPACE =
-  process.env.OPENBOX_E2E_CLAUDE_WORKSPACE ??
   path.join(homedir(), 'workspace', 'openbox-claude-test');
 export const PLUGIN_DIR =
-  process.env.OPENBOX_E2E_CLAUDE_PLUGIN_DIR ??
   path.join(WORKSPACE, '.claude', 'skills', 'openbox');
 const OPENBOX_CLI = requireOpenBoxCli();
 
 export const SHOULD_RUN =
-  process.env.OPENBOX_E2E_LIVE === '1' &&
+  projectHarnessEnabled() &&
   existsSync(path.join(PLUGIN_DIR, '.claude-plugin', 'plugin.json')) &&
-  existsSync(path.join(WORKSPACE, '.claude-hooks', 'config.json'));
+  existsSync(path.join(WORKSPACE, '.claude-hooks', 'config.json')) &&
+  projectCoreIsLoopback();
 
 export const HOOK_LOG = path.join(
   WORKSPACE,
@@ -50,21 +49,12 @@ export interface RunOptions {
   env?: Record<string, string>;
 }
 
-const OPENBOX_RUNTIME_ENV = [
+const RUNTIME_ENV_KEYS = [
   'OPENBOX_API_KEY',
   'OPENBOX_CORE_URL',
-  'OPENBOX_ENDPOINT',
   'OPENBOX_AGENT_DID',
   'OPENBOX_AGENT_PRIVATE_KEY',
   'OPENBOX_HOME',
-  'GOVERNANCE_POLICY',
-  'GOVERNANCE_TIMEOUT',
-  'APPROVAL_MODE',
-  'HITL_ENABLED',
-  'HITL_POLL_INTERVAL',
-  'SESSION_DIR',
-  'LOG_FILE',
-  'TASK_QUEUE',
 ] as const;
 
 function claudeEnv(overrides: Record<string, string> = {}): Record<string, string> {
@@ -72,13 +62,12 @@ function claudeEnv(overrides: Record<string, string> = {}): Record<string, strin
   // tests/setup.ts installs loopback defaults for unit clients. Claude Code
   // live tests must not leak those into the hook subprocess because the
   // project-local .claude-hooks/config.json is the runtime authority.
-  for (const key of OPENBOX_RUNTIME_ENV) {
+  for (const key of RUNTIME_ENV_KEYS) {
     delete env[key];
   }
   return {
     ...env,
     OPENBOX_CLI,
-    HITL_MAX_WAIT: '5',
     ...overrides,
   };
 }
@@ -98,13 +87,6 @@ export function runClaude(prompt: string, opts: RunOptions = {}): ClaudeResult {
   if (opts.allowedTool !== undefined) {
     args.push('--allowedTools', opts.allowedTool);
   }
-  // Default HITL_MAX_WAIT to 5s. Tests assert the verdict path,
-  // not the polling window; a 5s ceiling is plenty for the SDK
-  // adapter to register the require_approval and time out into a
-  // soft deny that claude reports back as a permission denial.
-  // The round-trip test (which actively decides the approval
-  // mid-poll) overrides this through `opts.env` to a longer
-  // window so the watcher can fire before the soft deny lands.
   const env = claudeEnv(opts.env);
   const result = spawnSync('claude', args, {
     cwd: WORKSPACE,
@@ -124,6 +106,37 @@ export function runClaude(prompt: string, opts: RunOptions = {}): ClaudeResult {
     throw new Error(`no JSON in claude -p output: ${text.slice(0, 200)}`);
   }
   return JSON.parse(text.slice(start)) as ClaudeResult;
+}
+
+function projectCoreIsLoopback(): boolean {
+  const configPath = path.join(WORKSPACE, '.claude-hooks', 'config.json');
+  if (!existsSync(configPath)) return false;
+  try {
+    const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
+      OPENBOX_CORE_URL?: string;
+    };
+    if (!config.OPENBOX_CORE_URL) return false;
+    const host = new URL(config.OPENBOX_CORE_URL).hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
+function projectHarnessEnabled(): boolean {
+  const configPath = path.join(WORKSPACE, '.claude-hooks', 'config.json');
+  if (!existsSync(configPath)) return false;
+  try {
+    const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
+      testHarness?: boolean | string | { enabled?: boolean };
+      test_harness?: boolean | string | { enabled?: boolean };
+    };
+    const marker = config.testHarness ?? config.test_harness;
+    if (marker === true || marker === 'openbox-local') return true;
+    return typeof marker === 'object' && marker?.enabled === true;
+  } catch {
+    return false;
+  }
 }
 
 export interface HookLogLine {

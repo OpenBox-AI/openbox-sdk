@@ -63,10 +63,17 @@ export interface CursorConfig {
 export function loadConfig(): CursorConfig {
   const fileConfig = loadConfigFile();
   const envConfig = loadEnvFile();
-  const get = (key: string, fileFallback?: string) => {
+  const getRuntime = (key: string, fileFallback?: string) => {
     if (process.env[key] !== undefined) return process.env[key]!;
     if (fileConfig[key] !== undefined) return fileConfig[key];
     if (envConfig[key] !== undefined) return envConfig[key];
+    return fileFallback ?? '';
+  };
+  const getSetting = (key: string, legacyKey: string, fileFallback?: string) => {
+    if (fileConfig[key] !== undefined) return fileConfig[key];
+    if (envConfig[key] !== undefined) return envConfig[key];
+    if (fileConfig[legacyKey] !== undefined) return fileConfig[legacyKey];
+    if (envConfig[legacyKey] !== undefined) return envConfig[legacyKey];
     return fileFallback ?? '';
   };
 
@@ -78,27 +85,29 @@ export function loadConfig(): CursorConfig {
     envConfig.OPENBOX_CORE_URL ??
     '';
   return {
-    openboxApiKey: get('OPENBOX_API_KEY'),
+    openboxApiKey: getRuntime('OPENBOX_API_KEY'),
     openboxEndpoint: coreUrl,
     agentIdentity: resolveAgentIdentity({
-      OPENBOX_AGENT_DID: get('OPENBOX_AGENT_DID') || undefined,
-      OPENBOX_AGENT_PRIVATE_KEY: get('OPENBOX_AGENT_PRIVATE_KEY') || undefined,
+      OPENBOX_AGENT_DID: getRuntime('OPENBOX_AGENT_DID') || undefined,
+      OPENBOX_AGENT_PRIVATE_KEY: getRuntime('OPENBOX_AGENT_PRIVATE_KEY') || undefined,
     }),
     governancePolicy: 'fail_closed',
-    governanceTimeout: parseInt(get('GOVERNANCE_TIMEOUT', '15'), 10) || 15,
-    activityType: get('ACTIVITY_TYPE', 'CursorIDE'),
-    sessionDir: get('SESSION_DIR', path.join(CONFIG_DIR, 'sessions')),
-    logFile: get('LOG_FILE', path.join(CONFIG_DIR, 'hook.log')) || null,
-    verbose: get('VERBOSE') === 'true' || get('VERBOSE') === '1',
-    hitlEnabled: get('HITL_ENABLED', 'true') !== 'false',
-    hitlPollInterval: parseInt(get('HITL_POLL_INTERVAL', '5'), 10) || 5,
-    hitlMaxWait: parseInt(get('HITL_MAX_WAIT', '300'), 10) || 300,
-    approvalMode: (get('APPROVAL_MODE', 'remote').toLowerCase() === 'inline' ? 'inline' : 'remote'),
-    approvalSocketPath: get('OPENBOX_APPROVAL_SOCKET') || null,
-    taskQueue: get('TASK_QUEUE', 'cursor-hooks'),
-    sendStartEvent: get('SEND_START_EVENT', 'true') !== 'false',
-    sendActivityStartEvent: get('SEND_ACTIVITY_START_EVENT', 'true') !== 'false',
-    maxBodySize: get('MAX_BODY_SIZE') ? (parseInt(get('MAX_BODY_SIZE'), 10) || null) : null,
+    governanceTimeout: parseInt(getSetting('governanceTimeout', 'GOVERNANCE_TIMEOUT', '15'), 10) || 15,
+    activityType: getSetting('activityType', 'ACTIVITY_TYPE', 'CursorIDE'),
+    sessionDir: getSetting('sessionDir', 'SESSION_DIR', path.join(CONFIG_DIR, 'sessions')),
+    logFile: getSetting('logFile', 'LOG_FILE', path.join(CONFIG_DIR, 'hook.log')) || null,
+    verbose: asBoolean(getSetting('verbose', 'VERBOSE', 'false')),
+    hitlEnabled: getSetting('hitlEnabled', 'HITL_ENABLED', 'true') !== 'false',
+    hitlPollInterval: parseInt(getSetting('hitlPollInterval', 'HITL_POLL_INTERVAL', '5'), 10) || 5,
+    hitlMaxWait: parseInt(getSetting('hitlMaxWait', 'HITL_MAX_WAIT', '300'), 10) || 300,
+    approvalMode: (getSetting('approvalMode', 'APPROVAL_MODE', 'remote').toLowerCase() === 'inline' ? 'inline' : 'remote'),
+    approvalSocketPath: getRuntime('OPENBOX_APPROVAL_SOCKET') || null,
+    taskQueue: getSetting('taskQueue', 'TASK_QUEUE', 'cursor-hooks'),
+    sendStartEvent: getSetting('sendStartEvent', 'SEND_START_EVENT', 'true') !== 'false',
+    sendActivityStartEvent: getSetting('sendActivityStartEvent', 'SEND_ACTIVITY_START_EVENT', 'true') !== 'false',
+    maxBodySize: getSetting('maxBodySize', 'MAX_BODY_SIZE')
+      ? (parseInt(getSetting('maxBodySize', 'MAX_BODY_SIZE'), 10) || null)
+      : null,
   };
 }
 
@@ -111,4 +120,8 @@ export function getConfigDir(): string {
 
 export function getConfigFilePath(): string {
   return CONFIG_FILE;
+}
+
+function asBoolean(value: string): boolean {
+  return value === 'true' || value === '1';
 }

@@ -6,20 +6,17 @@ import { z } from 'zod';
 const server = new McpServer({ name: 'realdb', version: '0.0.0-test' });
 
 function runPsql(query) {
-  const container = process.env.OPENBOX_E2E_POSTGRES_CONTAINER || 'openbox-postgres';
-  const database = process.env.OPENBOX_E2E_POSTGRES_DB || 'openbox';
-  const user = process.env.OPENBOX_E2E_POSTGRES_USER || 'postgres';
   const result = spawnSync(
     'docker',
     [
       'exec',
       '-i',
-      container,
+      'openbox-postgres',
       'psql',
       '-U',
-      user,
+      'postgres',
       '-d',
-      database,
+      'openbox',
       '-P',
       'pager=off',
       '-t',

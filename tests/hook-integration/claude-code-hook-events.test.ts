@@ -13,9 +13,9 @@
 // asserts every expected event appeared in the appended slice
 // with sane took_ms bounds and no error string.
 //
-// Skipped unless `OPENBOX_E2E_LIVE=1` and the project-scope plugin
-// test workspace is configured. See claude-code-headless.test.ts for
-// the workspace prerequisites.
+// Skipped unless the project-scope plugin test workspace is configured
+// against a loopback Core. See claude-code-headless.test.ts for the
+// workspace prerequisites.
 
 import { describe, expect, it, beforeAll } from 'vitest';
 import {

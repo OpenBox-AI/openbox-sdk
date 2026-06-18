@@ -188,17 +188,25 @@ export function fullResponse<T = any>(response: { data: ApiResponse<T> }): ApiRe
   return response.data;
 }
 
+declare global {
+  var __OBX_TEST_ORG_ID__: string | undefined;
+}
+
+export function hasOrgId(): boolean {
+  return !!globalThis.__OBX_TEST_ORG_ID__;
+}
+
 /** Get the org ID. Populated by tests/setup-creds.ts from
  *  /auth/profile (the backend tells us what org the authenticated
- *  principal belongs to). No env-name derivation: backend is the
+ *  principal belongs to). No env derivation: backend is the
  *  source of truth, so a misconfigured token surfaces as an explicit
  *  error rather than a wrong-host orgId silently 403'ing every
  *  org-scoped endpoint. */
 export function getOrgId(): string {
-  const id = process.env.OPENBOX_ORG_ID;
+  const id = globalThis.__OBX_TEST_ORG_ID__;
   if (!id) {
     throw new Error(
-      'OPENBOX_ORG_ID is not populated. tests/setup-creds.ts should have ' +
+      'test org id is not populated. tests/setup-creds.ts should have ' +
         'fetched it from /auth/profile during setup; confirm OPENBOX_API_URL ' +
         'and OPENBOX_BACKEND_API_KEY were set before the suite started.',
     );

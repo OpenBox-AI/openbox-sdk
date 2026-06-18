@@ -23,8 +23,6 @@ function runCLI(args: string[]): { status: number | null; out: string; err: stri
     env: {
       ...process.env,
       HOME,
-      OPENBOX_SKIP_EXTENSION: '1',
-      OPENBOX_CONSENT: 'yes', // for any consent prompts in non-TTY
     },
     encoding: 'utf-8',
   });

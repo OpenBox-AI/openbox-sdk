@@ -245,7 +245,6 @@ export async function runCursorHook(): Promise<void> {
   // 200ms timeout, returns null, hook falls back to pollApproval-only).
   let socketHandle: Awaited<ReturnType<typeof connectApprovalSocket>> | null | undefined;
   const ensureSocket = async () => {
-    if (process.env.OPENBOX_DISABLE_APPROVAL_SOCKET === '1') return null;
     if (socketHandle !== undefined) return socketHandle;
     socketHandle = await connectApprovalSocket(cfg.approvalSocketPath ?? undefined);
     return socketHandle;

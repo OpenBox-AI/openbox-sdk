@@ -123,8 +123,8 @@ const rules: Rule[] = [
   {
     name: 'invented-activity-type',
     severity: 'warn',
-    message: 'Non-canonical `activity_type` string. First-party SDKs use past-tense PascalCase (`LLMCompleted`, `ToolCompleted`, `PromptSubmission`, `FileRead`, `ShellExecution`, `MCPToolCall`). Non-canonical strings silently miss guardrail config.',
-    fix: 'Use the canonical names from references/governance-flow.md § "Canonical activity_type Names" so guardrail bindings match.',
+    message: 'Non-canonical `activity_type` string. First-party SDKs use past-tense PascalCase (`LLMCompleted`, `ToolCompleted`, `PromptSubmission`, `FileRead`, `ShellExecution`, `MCPToolCall`) for observability and approvals.',
+    fix: 'Use the canonical names from references/governance-flow.md § "Canonical activity_type Names" so telemetry and approval displays stay consistent.',
     appliesTo: () => true,
     detect: (content, lines) => {
       // Context-aware: only flag these strings when they appear as an activity_type

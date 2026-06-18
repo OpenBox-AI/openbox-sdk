@@ -56,9 +56,9 @@ function doFetch(service, tier) {
   }
 
   if (tier === 'staging') {
-    const base = env.OPENBOX_STAGING_API_URL;
+    const base = env.OPENBOX_API_URL;
     if (!base) {
-      return writeSkip(out, 'OPENBOX_STAGING_API_URL not set in env');
+      return writeSkip(out, 'OPENBOX_API_URL not set in env');
     }
     fetchOpenApi(`${base.replace(/\/$/, '')}/api/docs-json`, out);
     return;

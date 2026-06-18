@@ -3,7 +3,7 @@ set -e
 
 # Copy the prebuilt custom node into the n8n data volume on first start.
 # The volume is mounted at /home/node/.n8n which shadows anything baked
-# into the image at that path; staging in /opt and copying once is the
+# into the image at that path; keeping the source in /opt and copying once is the
 # simplest portable approach.
 DEST="/home/node/.n8n/custom/n8n-nodes-openbox-hook"
 rm -rf "$DEST"

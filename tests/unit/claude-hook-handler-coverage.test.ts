@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let adapterOptions: any;
 let coreClientOptions: any;
 let stdinIteratorSpy: any;
+let mockHitlMaxWait = 2;
+let mockApprovalMode: 'remote' | 'inline' | 'defer' = 'remote';
 
 vi.mock('../../ts/src/cli/env-source.js', () => ({
   applyEnvSource: vi.fn(),
@@ -55,12 +57,8 @@ vi.mock('../../ts/src/runtime/claude-code/config.js', () => ({
     verbose: false,
     hitlEnabled: true,
     hitlPollInterval: 5,
-    hitlMaxWait: Number(process.env.HITL_MAX_WAIT ?? 2),
-    approvalMode: process.env.APPROVAL_MODE === 'inline'
-      ? 'inline'
-      : process.env.APPROVAL_MODE === 'defer'
-        ? 'defer'
-        : 'remote',
+    hitlMaxWait: mockHitlMaxWait,
+    approvalMode: mockApprovalMode,
     taskQueue: 'claude-code-hooks',
     sendStartEvent: true,
     sendActivityStartEvent: true,
@@ -84,9 +82,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   adapterOptions = undefined;
   coreClientOptions = undefined;
+  mockHitlMaxWait = 2;
+  mockApprovalMode = 'remote';
   process.env.OPENBOX_API_KEY = 'obx_test_claude_handler';
-  delete process.env.APPROVAL_MODE;
-  delete process.env.HITL_MAX_WAIT;
   delete process.env.OPENBOX_AGENT_DID;
   delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
   delete process.env.OPENBOX_HOME;
@@ -96,8 +94,6 @@ afterEach(() => {
   stdinIteratorSpy?.mockRestore?.();
   stdinIteratorSpy = undefined;
   delete process.env.OPENBOX_API_KEY;
-  delete process.env.APPROVAL_MODE;
-  delete process.env.HITL_MAX_WAIT;
   delete process.env.OPENBOX_AGENT_DID;
   delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
 });
@@ -128,8 +124,8 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
   };
 
   it('registers handlers and clamps approval wait bounds', async () => {
-    process.env.HITL_MAX_WAIT = '9999';
-    process.env.APPROVAL_MODE = 'inline';
+    mockHitlMaxWait = 9999;
+    mockApprovalMode = 'inline';
     mockHookStdin();
     const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
 

@@ -68,17 +68,6 @@ async function rejectPendingMatching(match: (approval: PendingApprovalDiag) => b
   }
 }
 
-async function cleanupCreatedAgent(): Promise<void> {
-  const agentId = process.env.OPENBOX_E2E_CREATED_AGENT_ID;
-  const apiUrl = process.env.OPENBOX_API_URL;
-  const apiKey = process.env.OPENBOX_BACKEND_API_KEY;
-  if (!agentId || !apiUrl || !apiKey) return;
-  await fetch(`${apiUrl}/agent/${agentId}`, {
-    method: 'DELETE',
-    headers: { 'X-API-Key': apiKey },
-  }).catch(() => undefined);
-}
-
 before(() => {
   // Pre-populate the gate-test fixture files. Lives outside any
   // describe so it runs once per spec file, not per describe block.
@@ -119,7 +108,6 @@ after(async () => {
       input.includes('"lifecycle-test ')
     );
   });
-  await cleanupCreatedAgent();
 });
 
 // ─── 1. Verdict matrix ──────────────────────────────────────────────
@@ -380,12 +368,8 @@ describe('LIVE; views and boot snapshot', () => {
       { timeout: 15_000, timeoutMsg: 'boot snapshot never resolved orgId' },
     );
     expect(snap?.mockAuth).toBe(false);
-    if (process.env.OPENBOX_E2E_EXPECT_ORG_ID) {
-      expect(snap?.orgId).toBe(process.env.OPENBOX_E2E_EXPECT_ORG_ID);
-    } else {
-      expect(snap?.orgId).toBeTruthy();
-    }
-    expect(snap?.agentId).toBe(process.env.OPENBOX_E2E_AGENT_ID);
+    expect(snap?.orgId).toBeTruthy();
+    expect(snap?.agentId).toBe(process.env.OPENBOX_AGENT_ID);
     expect(snap?.isApiKeyAuth).toBe(true);
   });
 
@@ -514,7 +498,7 @@ describe('LIVE; approval lifecycle (verdict 2 → pending → decide → history
         );
       },
       id,
-      process.env.OPENBOX_E2E_AGENT_ID,
+      process.env.OPENBOX_AGENT_ID,
     )) as boolean;
     expect(ok).toBe(true);
     await browser.waitUntil(

@@ -7,10 +7,8 @@
 // fixture under `fixtures/verdict-matrix.ts`) so adding a host
 // adds one runner, not a duplicate matrix.
 //
-// Skipped unless:
-//   - `OPENBOX_E2E_LIVE=1`
-//   - the local stack is reachable
-//   - the test workspace `~/workspace/openbox-claude-test/` contains
+// Skipped unless the test workspace `~/workspace/openbox-claude-test/`
+// is configured against a loopback Core and contains
 //     `.claude/skills/openbox` and `.claude-hooks/config.json`
 //
 // Set up the workspace once with:
@@ -36,25 +34,7 @@ import {
   hookLogSince,
 } from './helpers/claude-runner.js';
 
-function isLoopbackUrl(raw: string | undefined): boolean {
-  if (!raw) return true;
-  try {
-    const host = new URL(raw).hostname;
-    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
-  } catch {
-    return false;
-  }
-}
-
-const EXPECT_LOCAL_RULES =
-  process.env.OPENBOX_E2E_EXPECT_LOCAL_RULES === '1' ||
-  (
-    process.env.OPENBOX_E2E_EXPECT_LOCAL_RULES !== '0' &&
-    !process.env.OPENBOX_STAGING_API_URL &&
-    !process.env.OPENBOX_STAGING_CORE_URL &&
-    isLoopbackUrl(process.env.OPENBOX_API_URL) &&
-    isLoopbackUrl(process.env.OPENBOX_CORE_URL)
-  );
+const EXPECT_LOCAL_RULES = true;
 
 /** Translate a fixture case into a (prompt, tool) pair claude can
  *  run. Only the cases the claude-code runtime can realistically

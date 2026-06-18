@@ -311,8 +311,6 @@ export class OpenboxLlm implements INodeType {
     const systemPrompt = this.getNodeParameter('systemPrompt', 0) as string;
     const apiEndpoint = this.getNodeParameter('apiEndpoint', 0) as string;
     const apiKey = this.getNodeParameter('apiKey', 0) as string;
-    const fallbackEnabled = process.env.OPENBOX_LLM_FALLBACK !== 'disabled';
-
     const input = (items[0]?.json ?? {}) as Record<string, unknown>;
     const userMessage = (input.chatInput ?? '') as string;
 
@@ -348,7 +346,7 @@ export class OpenboxLlm implements INodeType {
           headers: {
             Authorization: `Bearer ${openRouterApiKey}`,
             'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.N8N_EDITOR_BASE_URL ?? 'https://n8n.example.test/ob/n8n/',
+            'HTTP-Referer': process.env.N8N_EDITOR_BASE_URL ?? 'http://localhost:5678/',
             'X-Title': 'OpenBox n8n demo',
           },
           body: requestBody,
@@ -525,12 +523,8 @@ export class OpenboxLlm implements INodeType {
           llmCall = await callLlm(promptToUse);
           text = llmCall.text;
         } catch (error) {
-          if (fallbackEnabled) {
-            providerFallback = { enabled: true, reason: errorMessage(error) };
-            text = buildFallbackText(node.name, promptToUse);
-          } else {
-            return providerErrorResult(error, session, pre);
-          }
+          providerFallback = { enabled: true, reason: errorMessage(error) };
+          text = buildFallbackText(node.name, promptToUse);
         }
 
         let postSkipped: string | undefined;

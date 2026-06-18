@@ -76,5 +76,5 @@ npm run watch
 
 ```sh
 npm test                       # vitest unit tests
-npm run test:e2e-extension     # wdio against VS Code
+npm --prefix tests/e2e-extension test  # wdio against VS Code
 ```

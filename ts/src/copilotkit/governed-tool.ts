@@ -82,7 +82,7 @@ export function createGovernedCopilotTool<
     const shared =
       sharedWorkflowFromConfig(runtimeConfig) ??
       activeWorkflowFor(definition.adapter, key);
-    if (process.env.OPENBOX_COPILOTKIT_DEBUG === 'true') {
+    if (process.env.OPENBOX_DEBUG === 'true') {
       console.error(
         `[openbox:governed-tool] key=${key} shared=${JSON.stringify(shared ?? null)} action=${String((normalizedInput as Record<string, unknown>).action ?? '')}`,
       );

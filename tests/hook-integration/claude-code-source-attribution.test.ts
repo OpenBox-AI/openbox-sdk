@@ -21,8 +21,8 @@
 // approval-source unit tests; the backend's pending-list view
 // strips spans for response size, so it cannot be checked here.
 //
-// Skipped unless OPENBOX_E2E_LIVE=1 and the project-scope test
-// workspace is configured.
+// Live source attribution is covered by the staging matrix. This file
+// keeps the span/source contract local and deterministic.
 
 import { describe, expect, it } from 'vitest';
 import { approvalSource } from '../../ts/src/approvals/source.js';

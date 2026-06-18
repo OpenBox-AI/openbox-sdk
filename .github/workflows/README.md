@@ -15,7 +15,7 @@
 | Secret | Used by | Notes |
 |---|---|---|
 | `CODECOV_TOKEN` | `pr-quality.yml` | Optional token for Codecov coverage uploads |
-| `OPENBOX_STAGING_API_URL` | `spec-drift.yml`, staging tier | Backend staging base URL. Read by CI only; not shipped in SDK code |
+| `OPENBOX_API_URL` | `spec-drift.yml`, staging tier | Backend staging base URL. Read by CI only; not shipped in SDK code |
 | `SONAR_HOST_URL` | `pr-quality.yml`, `publish.yml` | Optional SonarQube server URL |
 | `SONAR_TOKEN` | `pr-quality.yml`, `publish.yml` | Optional token for SonarQube analysis |
 | `UPSTREAM_REPO_TOKEN` | `spec-drift.yml`, develop and main tiers | PAT with `repo:read` scope for `gh api` calls into the upstream service repositories. Read-only by intent. The workflow never pushes or comments on those repos |

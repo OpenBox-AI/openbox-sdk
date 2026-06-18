@@ -73,7 +73,7 @@ jobs:
       - if: steps.gate.outputs.skip != 'true'
         name: Fetch upstream OpenAPI
         env:
-          OPENBOX_STAGING_API_URL: ${{ secrets.OPENBOX_STAGING_API_URL }}
+          OPENBOX_API_URL: ${{ secrets.OPENBOX_API_URL }}
           GH_TOKEN: ${{ secrets.UPSTREAM_REPO_TOKEN }}
         run: node --experimental-strip-types scripts/spec-drift.ts fetch --service ${{ matrix.service }} --tier ${{ matrix.tier }}
 
