@@ -1,21 +1,16 @@
-FROM node:20-alpine AS builder
-WORKDIR /work
-
-# Prebuilt @openbox-ai/openbox-sdk from the parent repo. The example package
-# depends on it via `file:../../..`, so the Docker context must be the repo root.
-COPY package.json ./package.json
-COPY dist ./dist
-RUN npm pkg delete scripts.prepare scripts.prepublishOnly
-
-COPY example/n8n/custom-node ./example/n8n/custom-node
-
+FROM node:22-alpine AS builder
 WORKDIR /work/example/n8n/custom-node
-RUN npm install --no-audit --no-fund --omit=optional \
- && npm run build \
+
+RUN npm install -g npm@11.17.0
+
+COPY example/n8n/custom-node/package*.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund --omit=optional --omit=peer
+
+COPY example/n8n/custom-node ./
+
+RUN npm run build \
  && npm run smoke:load \
  && npm prune --omit=dev --omit=optional \
- && node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8')); if (p.dependencies) delete p.dependencies['@openbox-ai/openbox-sdk']; delete p.devDependencies; delete p.scripts; fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n')" \
- && npm install --no-audit --no-fund --omit=dev --omit=optional --no-save --install-links ../../.. \
  && node -e "import('@openbox-ai/openbox-sdk').then(() => console.log('sdk-import-ok'))"
 
 # ---------------------------------------------------------------------------

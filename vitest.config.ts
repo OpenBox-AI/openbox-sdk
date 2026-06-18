@@ -1,7 +1,57 @@
 import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'node:url';
+
+const src = (path: string) => fileURLToPath(new URL(path, import.meta.url));
+const sdkAliasMap = {
+  '@openbox-ai/openbox-sdk': src('./ts/src/index.ts'),
+  '@openbox-ai/openbox-sdk/agent-trace': src('./ts/src/agent-trace/index.ts'),
+  '@openbox-ai/openbox-sdk/anthropic-agent-sdk': src('./ts/src/anthropic-agent-sdk/index.ts'),
+  '@openbox-ai/openbox-sdk/approvals': src('./ts/src/approvals/index.ts'),
+  '@openbox-ai/openbox-sdk/client': src('./ts/src/client/index.ts'),
+  '@openbox-ai/openbox-sdk/client-factory': src('./ts/src/client-factory/index.ts'),
+  '@openbox-ai/openbox-sdk/config': src('./ts/src/config/index.ts'),
+  '@openbox-ai/openbox-sdk/core-client': src('./ts/src/core-client/index.ts'),
+  '@openbox-ai/openbox-sdk/env': src('./ts/src/env/index.ts'),
+  '@openbox-ai/openbox-sdk/file-tokens': src('./ts/src/file-tokens/index.ts'),
+  '@openbox-ai/openbox-sdk/governance': src('./ts/src/governance/index.ts'),
+  '@openbox-ai/openbox-sdk/install': src('./ts/src/install/index.ts'),
+  '@openbox-ai/openbox-sdk/logging': src('./ts/src/logging/index.ts'),
+  '@openbox-ai/openbox-sdk/maturity': src('./ts/src/maturity/index.ts'),
+  '@openbox-ai/openbox-sdk/os-paths': src('./ts/src/env/os-paths.ts'),
+  '@openbox-ai/openbox-sdk/polling': src('./ts/src/polling/index.ts'),
+  '@openbox-ai/openbox-sdk/runtime/claude-code': src('./ts/src/runtime/claude-code/index.ts'),
+  '@openbox-ai/openbox-sdk/runtime/cursor': src('./ts/src/runtime/cursor/index.ts'),
+  '@openbox-ai/openbox-sdk/runtime/mcp': src('./ts/src/runtime/mcp/index.ts'),
+  '@openbox-ai/openbox-sdk/session': src('./ts/src/session/index.ts'),
+  '@openbox-ai/openbox-sdk/test-utils': src('./ts/src/test-utils/index.ts'),
+  '@openbox-ai/openbox-sdk/types': src('./ts/src/types/index.ts'),
+  '@openbox-ai/openbox-sdk/validators': src('./ts/src/validators/index.ts'),
+  '@openbox-ai/openbox-sdk/copilotkit': src('./ts/src/copilotkit/index.ts'),
+  '@openbox-ai/openbox-sdk/copilotkit/react': src('./ts/src/copilotkit/react.ts'),
+};
+
+const sdkAliases = Object.entries(sdkAliasMap)
+  .sort(([left], [right]) => right.length - left.length)
+  .map(([find, replacement]) => ({
+    find: find === '@openbox-ai/openbox-sdk' ? /^@openbox-ai\/openbox-sdk$/ : find,
+    replacement,
+  }));
+
+const sdkSelfReferencePlugin = () => ({
+  name: 'openbox-sdk-source-self-reference',
+  enforce: 'pre' as const,
+  resolveId(source: string) {
+    return sdkAliasMap[source as keyof typeof sdkAliasMap] ?? null;
+  },
+});
 
 export default defineConfig({
+  plugins: [sdkSelfReferencePlugin()],
+  resolve: {
+    alias: sdkAliases,
+  },
   test: {
+    alias: sdkAliases,
     globals: true,
     setupFiles: ['./tests/setup.ts'],
     testTimeout: 30000,
@@ -40,8 +90,11 @@ export default defineConfig({
     },
     projects: [
       {
+        plugins: [sdkSelfReferencePlugin()],
+        resolve: { alias: sdkAliases },
         test: {
           name: 'unit',
+          alias: sdkAliases,
           include: [
             'tests/unit/**/*.test.ts',
             // App-level tests (extension, future apps) live next to source.
@@ -52,8 +105,11 @@ export default defineConfig({
         },
       },
       {
+        plugins: [sdkSelfReferencePlugin()],
+        resolve: { alias: sdkAliases },
         test: {
           name: 'e2e',
+          alias: sdkAliases,
           include: ['tests/e2e/**/*.test.ts'],
           setupFiles: ['./tests/setup.ts', './tests/setup-creds.ts'],
           testTimeout: 30000,
@@ -62,18 +118,23 @@ export default defineConfig({
         },
       },
       {
+        plugins: [sdkSelfReferencePlugin()],
+        resolve: { alias: sdkAliases },
         test: {
           // Spec-driven wire-shape conformance.Drives
           // every spec op through the SDK against an in-process HTTP
           // capture server; no backend required. Catches SDK<->spec
           // method-name drift and silent no-op regressions.
           name: 'contract',
+          alias: sdkAliases,
           include: ['tests/contract/**/*.test.ts'],
           setupFiles: ['./tests/setup.ts', './tests/setup-creds.ts'],
           testTimeout: 10000,
         },
       },
       {
+        plugins: [sdkSelfReferencePlugin()],
+        resolve: { alias: sdkAliases },
         test: {
           // Hook integration: spawns `openbox cursor hook` as a
           // subprocess (the same way Cursor does), pipes a synthetic
@@ -81,6 +142,7 @@ export default defineConfig({
           // JSONL log line. No IDE / display required; covers the
           // hook handler end-to-end without needing Cursor's agent.
           name: 'hook-integration',
+          alias: sdkAliases,
           include: ['tests/hook-integration/**/*.test.ts'],
           setupFiles: ['./tests/setup.ts'],
           testTimeout: 30000,

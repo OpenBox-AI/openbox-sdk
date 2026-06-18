@@ -32,11 +32,8 @@ jobs:
           node-version: 22
           cache: npm
 
-      # The root `prepare` lifecycle runs `npm run build` (needed so
-      # github-URL consumers like the mobile app get a built dist/
-      # after `npm install`). On ubuntu-latest the default Node heap
-      # runs out partway through; bumping `--max-old-space-size` to
-      # 4 GiB keeps the build inside the runner's memory budget.
+      # Keep the Node heap high enough for TypeSpec + emitter builds on
+      # hosted runners.
       - run: npm ci
         env:
           NODE_OPTIONS: --max-old-space-size=4096
@@ -78,11 +75,8 @@ jobs:
           node-version: 22
           cache: npm
 
-      # The root `prepare` lifecycle runs `npm run build` (needed so
-      # github-URL consumers like the mobile app get a built dist/
-      # after `npm install`). On ubuntu-latest the default Node heap
-      # runs out partway through; bumping `--max-old-space-size` to
-      # 4 GiB keeps the build inside the runner's memory budget.
+      # Keep the Node heap high enough for TypeSpec + emitter builds on
+      # hosted runners.
       - run: npm ci
         env:
           NODE_OPTIONS: --max-old-space-size=4096
@@ -116,11 +110,8 @@ jobs:
           node-version: 22
           cache: npm
 
-      # The root `prepare` lifecycle runs `npm run build` (needed so
-      # github-URL consumers like the mobile app get a built dist/
-      # after `npm install`). On ubuntu-latest the default Node heap
-      # runs out partway through; bumping `--max-old-space-size` to
-      # 4 GiB keeps the build inside the runner's memory budget.
+      # Keep the Node heap high enough for TypeSpec + emitter builds on
+      # hosted runners.
       - run: npm ci
         env:
           NODE_OPTIONS: --max-old-space-size=4096

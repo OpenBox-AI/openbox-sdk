@@ -19,8 +19,9 @@ import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { HOOK_SPEC } from '../../ts/src/core-client/generated/runtime/claude-code.js';
+import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
 
-const OPENBOX = process.env.OPENBOX_CLI ?? path.resolve(import.meta.dirname, '../../dist/cli/index.js');
+const OPENBOX = requireOpenBoxCli();
 const TEST_KEY = 'obx_test_0000000000000000000000000000000000000000000000';
 const DEAD_CORE = 'http://127.0.0.1:1';
 

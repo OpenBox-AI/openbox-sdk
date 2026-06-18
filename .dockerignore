@@ -1,6 +1,5 @@
 node_modules
 **/node_modules
 example/n8n/custom-node/dist
-example/n8n/custom-node/package-lock.json
 *.log
 npm-debug.log*

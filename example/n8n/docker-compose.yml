@@ -1,9 +1,7 @@
 # Local OpenBox + n8n integration playground.
 #
-# Prereq: from the openbox-sdk repo root, run `npm install && npm run build`
-# once so the parent SDK package has a prebuilt `dist/` for the custom node's
-# `file:../../..` dependency. Have your local OpenBox stack up so the
-# `openbox-local_default` network exists. Then from this directory:
+# Prereq: have your local OpenBox stack up so the `openbox-local_default`
+# network exists. Then from this directory:
 #
 #   docker compose up --build
 #

@@ -1,6 +1,6 @@
 // Shared gate for cli-commands e2e files. Each test is a real
 // subprocess invocation of the openbox binary; it requires the
-// binary to be built and an authenticated backend to talk to.
+// CLI entrypoint and an authenticated backend to talk to.
 //
 // `tests/setup-creds.ts` populates both credentials and orgId from
 // on-disk caches + a /auth/profile probe before any spec file runs;
@@ -8,14 +8,12 @@
 // is missing, the suite skips cleanly.
 
 import { existsSync } from 'fs';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { optionalOpenBoxCli } from '../../helpers/openbox-cli.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const CLI_BIN = resolve(__dirname, '../../../dist/cli/index.js');
+const CLI_BIN = optionalOpenBoxCli();
 
 export const CAN_RUN_CLI =
+  !!CLI_BIN &&
   existsSync(CLI_BIN) &&
   !!process.env.OPENBOX_BACKEND_API_KEY &&
   !!process.env.OPENBOX_ORG_ID;

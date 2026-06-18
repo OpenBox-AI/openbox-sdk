@@ -1,23 +1,24 @@
 // End-to-end install/uninstall against a throwaway HOME. Drives the
-// real CLI binary (dist/cli/index.js) so the test exercises the same
-// code path users hit: project-local plugin-first Cursor install.
+// real CLI entrypoint so the test exercises the same code path users hit:
+// project-local plugin-first Cursor install.
 //
 // Everything (plugin manifest, hooks, MCP, slash commands, rules,
-// agents, skill) runs end-to-end without writing global Cursor files.
+// agents, skill) runs end-to-end without writing host-level Cursor files.
 
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
 
-const CLI = resolve(__dirname, '../../dist/cli/index.js');
+const CLI = requireOpenBoxCli();
 
 let HOME: string;
 let PROJECT: string;
 
 function runCLI(args: string[]): { status: number | null; out: string; err: string } {
-  const r = spawnSync('node', [CLI, ...args], {
+  const r = spawnSync(CLI, args, {
     cwd: PROJECT,
     env: {
       ...process.env,
@@ -32,7 +33,7 @@ function runCLI(args: string[]): { status: number | null; out: string; err: stri
 
 beforeAll(() => {
   if (!existsSync(CLI)) {
-    throw new Error(`CLI not built. Run \`npm run build:bundle\` first. Looked for ${CLI}`);
+    throw new Error(`CLI entrypoint not found at ${CLI}`);
   }
   HOME = mkdtempSync(join(tmpdir(), 'openbox-install-itest-'));
   PROJECT = mkdtempSync(join(tmpdir(), 'openbox-install-project-'));

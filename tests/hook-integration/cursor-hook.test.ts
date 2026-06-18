@@ -17,11 +17,12 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ENVELOPES, type EventName, OBSERVE_EVENTS, PERMISSION_EVENTS } from './fixtures/envelopes';
+import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
 
-const CLI = resolve(__dirname, '../../dist/cli/index.js');
+const CLI = requireOpenBoxCli();
 const HOOK_ROOT = mkdtempSync(join(tmpdir(), 'openbox-cursor-hook-'));
 const HOOK_HOME = join(HOOK_ROOT, '.cursor-hooks');
 const LOG = join(HOOK_HOME, 'log', 'cursor-hook.jsonl');
@@ -73,7 +74,7 @@ function logSize(): number {
 }
 
 beforeAll(() => {
-  // Ensure CLI is built. Without this we'd spawn a stale dist/.
+  // Ensure the CLI entrypoint is available.
   if (!existsSync(CLI)) {
     throw new Error(
       `CLI not built at ${CLI}. Run \`npm run build\` before \`npm run test:hook-integration\`.`,

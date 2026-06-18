@@ -484,7 +484,7 @@ function writePluginCliRunner(file: string): void {
       '',
       'const cli = candidateFromEnv() ?? candidateFromProjectNodeModules();',
       'if (!cli) {',
-      "  console.error('OpenBox SDK CLI not found for project-scoped Claude Code plugin. Set OPENBOX_CLI to this project\\'s SDK dist/cli/index.js, or install @openbox-ai/openbox-sdk in the project.');",
+      "  console.error('OpenBox SDK CLI not found for project-scoped Claude Code plugin. Set OPENBOX_CLI to an OpenBox CLI entrypoint, or install @openbox-ai/openbox-sdk in the project.');",
       '  process.exit(127);',
       '}',
       '',

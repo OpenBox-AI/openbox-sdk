@@ -1,7 +1,5 @@
 node_modules
 dist
-!dist/
-!dist/govern-*.d.ts
 apps/*/dist
 codegen/**/dist
 dist-pack
@@ -15,7 +13,8 @@ ts/*/src/**/*.d.ts
 ts/*/src/**/*.d.ts.map
 # TypeSpec emitter outputs. Reproducible from `npx tsp compile specs/typespec`.
 # These stay untracked verification output; committed generated code lives under
-# `ts/src/**/generated/` and `dist/`.
+# `ts/src/**/generated/`. Package artifacts are built into `dist/` only for
+# local packaging and publish.
 /specs/generated/openapi3/
 /specs/generated/json-schema/
 # Local auth state; never commit.

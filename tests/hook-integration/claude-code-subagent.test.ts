@@ -20,8 +20,9 @@ import {
   SHOULD_RUN as LIVE_SHOULD_RUN,
   assertClaudeOnPath,
 } from './helpers/claude-runner.js';
+import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
 
-const OPENBOX = process.env.OPENBOX_CLI ?? path.resolve(import.meta.dirname, '../../dist/cli/index.js');
+const OPENBOX = requireOpenBoxCli();
 
 function planConfigDir(): string {
   const root = mkdtempSync(path.join(tmpdir(), 'obx-cc-subagent-'));

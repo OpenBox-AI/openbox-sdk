@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
+import { requireOpenBoxCli } from '../../helpers/openbox-cli.js';
 
 export const WORKSPACE =
   process.env.OPENBOX_E2E_CLAUDE_WORKSPACE ??
@@ -14,7 +15,7 @@ export const WORKSPACE =
 export const PLUGIN_DIR =
   process.env.OPENBOX_E2E_CLAUDE_PLUGIN_DIR ??
   path.join(WORKSPACE, '.claude', 'skills', 'openbox');
-const DIST_CLI = path.resolve(import.meta.dirname, '../../../dist/cli/index.js');
+const OPENBOX_CLI = requireOpenBoxCli();
 
 export const SHOULD_RUN =
   process.env.OPENBOX_E2E_LIVE === '1' &&
@@ -76,7 +77,7 @@ function claudeEnv(overrides: Record<string, string> = {}): Record<string, strin
   }
   return {
     ...env,
-    OPENBOX_CLI: process.env.OPENBOX_CLI ?? DIST_CLI,
+    OPENBOX_CLI,
     HITL_MAX_WAIT: '5',
     ...overrides,
   };

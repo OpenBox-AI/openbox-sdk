@@ -1,9 +1,0 @@
-[
-  {
-    "name": "openbox-status",
-    "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs\" status --json",
-    "description": "OpenBox runtime status and approval readiness notifications.",
-    "when": "on-skill-invoke:openbox",
-    "activeByDefault": false
-  }
-]
