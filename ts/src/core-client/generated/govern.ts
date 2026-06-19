@@ -1546,7 +1546,6 @@ function randomUUID(): string {
 }
 
 import type { OpenBoxCoreClient } from '../core-client.js';
-import { parseApprovalExpirationMs } from '../approval-time.js';
 import type {
   GovernanceEventPayload,
   GovernanceVerdictResponse,
@@ -1617,8 +1616,6 @@ export interface GovernedSessionConfig {
   approvalPollIntervalMs?: number;
   /**
    * Cap (ms) on the per-attempt poll interval after backoff. Default: 5000ms.
-   * The actual sleep is also bounded by server-supplied approvalExpiresAt
-   * so we never overshoot the server-controlled deadline.
    */
   approvalPollMaxIntervalMs?: number;
   /**
@@ -1634,7 +1631,7 @@ export interface GovernedSessionConfig {
   approvalPollJitter?: number;
   /**
    * @deprecated Accepted as a compatibility no-op. Approval expiration is
-   * controlled by the server-supplied approvalExpiresAt value.
+   * controlled by the server-owned approval row state.
    */
   approvalMaxWaitMs?: number;
   /**
@@ -1670,7 +1667,7 @@ export interface GovernedSessionConfig {
    * Fired the moment the backend returns a `require_approval` verdict
    * with an `approval_id`; BEFORE pollApproval starts the long wait.
    * Lets harnesses (cursor-hooks, claude-hooks) surface inline approval
-   * UI in their host IDE without first burning the full poll deadline.
+   * UI in their host IDE without first waiting through the poll loop.
    * Errors thrown here are swallowed; this hook is observability, not
    * a gate.
    */
@@ -2316,10 +2313,9 @@ export class BaseGovernedSession {
     initial: WorkflowVerdict,
   ): Promise<WorkflowVerdict> {
     // ── Polling design notes ──
-    // Bounded only by the server-supplied approvalExpiresAt. This
-    // matches the Python LangGraph SDK contract: the server controls
-    // approval expiration and the SDK does not impose a second total
-    // wait deadline.
+    // Server-owned approval expiration. This matches the Python LangGraph
+    // SDK contract: the server controls approval expiration and the SDK
+    // does not convert locally elapsed timestamps into terminal verdicts.
     // Exponential backoff (× factor each attempt, capped at maxIntervalMs)
     // matches the bimodal latency of approvals (decided in seconds OR
     // minutes) without burning a long sleep when the answer's right there.
@@ -2334,10 +2330,6 @@ export class BaseGovernedSession {
     // and run one confirmatory pollApproval() to fetch the backend's
     // authoritative verdict for this activity_id.
     const approvalId = initial.approvalId ?? activityId;
-    let deadline =
-      parseApprovalExpirationMs(initial.approvalExpiresAt) ??
-      Number.POSITIVE_INFINITY;
-
     let externalPending = this.awaitExternalDecision !== undefined;
     let externalSignaled = false;
     const externalDecision = this.awaitExternalDecision
@@ -2361,12 +2353,10 @@ export class BaseGovernedSession {
       : undefined;
 
     let nextInterval = this.approvalPollIntervalMs;
-    while (Date.now() < deadline) {
-      const remaining = deadline - Date.now();
+    while (true) {
       const jittered = applyJitter(nextInterval, this.approvalPollJitter);
-      // Never sleep past the deadline. Wake early if an external
-      // decision arrives.
-      const sleepMs = Math.max(0, Math.min(jittered, remaining));
+      // Wake early if an external decision arrives.
+      const sleepMs = Math.max(0, jittered);
       if (externalPending && externalDecision) {
         await Promise.race([sleep(sleepMs), externalDecision]);
       } else {
@@ -2389,16 +2379,7 @@ export class BaseGovernedSession {
         continue;
       }
       const statusWithExpiry = status as typeof status & { expired?: boolean };
-      const statusDeadline = parseApprovalExpirationMs(
-        status.approval_expiration_time,
-      );
-      if (statusDeadline !== undefined) {
-        deadline = Math.min(deadline, statusDeadline);
-      }
-      if (
-        statusWithExpiry.expired === true ||
-        (statusDeadline !== undefined && Date.now() >= statusDeadline)
-      ) {
+      if (statusWithExpiry.expired === true) {
         return {
           arm: 'block',
           approvalId: initial.approvalId,
@@ -2440,14 +2421,6 @@ export class BaseGovernedSession {
             this.approvalPollMaxIntervalMs,
           );
     }
-    if (Number.isFinite(deadline) && Date.now() >= deadline) {
-      return {
-        ...initial,
-        arm: 'block',
-        reason: initial.reason ?? `Approval expired for ${activityType}`,
-      };
-    }
-    return initial;
   }
 
   /**

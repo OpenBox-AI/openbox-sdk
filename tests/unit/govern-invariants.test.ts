@@ -8,8 +8,8 @@
 //      ActivityCompleted (unless pre-stage block short-circuits).
 //   3. Idempotent: a session can't be reused after a terminal event;
 //      activity calls throw SessionAlreadyTerminatedError.
-//   4. Approval polling is bounded by the server-supplied
-//      approvalExpiresAt; the SDK does not impose a second total wait cap.
+//   4. Approval polling waits for server terminal status; the SDK does
+//      not convert locally elapsed approvalExpiresAt timestamps into blocks.
 //
 // We mock the OpenBoxCoreClient instead of hitting a live core; the
 // invariants are about what the runtime emits, not about wire fidelity
@@ -1060,10 +1060,9 @@ describe('approval polling bounds', () => {
     expect(mock.pollApproval).toHaveBeenCalledTimes(2);
   });
 
-  test('polling stops at server-supplied approvalExpiresAt even if config max-wait is longer', async () => {
+  test('polling continues past elapsed approvalExpiresAt until server returns terminal status', async () => {
     const mock = createMockCore('allow');
-    // Override the response with require_approval + a tight expiry.
-    const expiresAt = new Date(Date.now() + 50).toISOString();
+    const expiresAt = new Date(Date.now() - 50).toISOString();
     mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
       mock.events.push(payload);
       if (payload.event_type === 'ActivityStarted') {
@@ -1083,29 +1082,34 @@ describe('approval polling bounds', () => {
         risk_score: 0,
       } as GovernanceVerdictResponse;
     });
-    // Always-pending poll responses
-    mock.pollApproval = vi.fn(async () => ({
-      id: 'apr_xxx',
-      action: 'require_approval',
-    }));
+    mock.pollApproval = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: 'apr_xxx',
+        action: 'require_approval',
+        approval_expiration_time: expiresAt,
+      })
+      .mockResolvedValueOnce({
+        id: 'apr_xxx',
+        action: 'allow',
+        reason: 'approved by server after elapsed timestamp',
+        approval_expiration_time: expiresAt,
+      });
 
-    const start = Date.now();
     await govern(
       {
         ...baseConfig(mock),
         preset: presets.claudeCode,
-        approvalPollIntervalMs: 10,
-        approvalMaxWaitMs: 60_000, // long config, but server expires at 50ms
+        approvalPollIntervalMs: 0,
+        approvalMaxWaitMs: 1,
       },
       async (session) => {
         const verdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
-        expect(verdict.arm).toBe('block');
-        expect(verdict.reason).toBe('Approval expired for PreToolUse');
+        expect(verdict.arm).toBe('allow');
+        expect(verdict.reason).toBe('approved by server after elapsed timestamp');
       },
     );
-    const elapsed = Date.now() - start;
-    // Should bail well before the 60s config max-wait; server expiry wins.
-    expect(elapsed).toBeLessThan(2_000);
+    expect(mock.pollApproval).toHaveBeenCalledTimes(2);
   });
 
   test('polling treats DB-style approvalExpiresAt timestamps as UTC', async () => {
@@ -1296,8 +1300,8 @@ describe('approval polling bounds', () => {
   });
 
   test('exponential backoff: poll intervals grow toward the cap', async () => {
-    // Set up a require_approval that never resolves so we get many poll
-    // attempts. Capture the gap between successive pollApproval() calls.
+    // Set up a require_approval that resolves only when Core explicitly
+    // reports expiration, so we get enough poll attempts to measure gaps.
     const mock = createMockCore('allow');
     mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
       mock.events.push(payload);
@@ -1321,7 +1325,9 @@ describe('approval polling bounds', () => {
     const pollTimes: number[] = [];
     mock.pollApproval = vi.fn(async () => {
       pollTimes.push(Date.now());
-      return { id: 'apr_xxx', action: 'require_approval' };
+      return pollTimes.length >= 6
+        ? { id: 'apr_xxx', action: 'require_approval', expired: true }
+        : { id: 'apr_xxx', action: 'require_approval' };
     });
 
     await govern(
@@ -1375,7 +1381,9 @@ describe('approval polling bounds', () => {
     const pollTimes: number[] = [];
     mock.pollApproval = vi.fn(async () => {
       pollTimes.push(Date.now());
-      return { id: 'apr_xxx', action: 'require_approval' };
+      return pollTimes.length >= 8
+        ? { id: 'apr_xxx', action: 'require_approval', expired: true }
+        : { id: 'apr_xxx', action: 'require_approval' };
     });
 
     await govern(

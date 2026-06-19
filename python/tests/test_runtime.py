@@ -195,7 +195,7 @@ async def test_core_client_validation_no_retry_signing_and_approval_expiry() -> 
     assert seen[0].headers["x-openbox-internal"] == "true"
     assert seen[0].headers["X-OpenBox-Agent-DID"] == "did:openbox:agent-1"
     assert b'"sdk_version"' in seen[0].content
-    assert approval["expired"] is True
+    assert "expired" not in approval
 
     with pytest.raises(ValueError):
         AsyncOpenBoxCoreClient(
@@ -553,12 +553,12 @@ async def test_govern_runtime_edge_paths() -> None:
     )
     assert rejected["arm"] == "block"
 
-    expired = await external.poll_approval(
+    approved_after_elapsed_timestamp = await external.poll_approval(
         "activity",
         "Manual",
         {"arm": "require_approval", "approvalExpiresAt": "2000-01-01T00:00:00Z"},
     )
-    assert expired["arm"] == "block"
+    assert approved_after_elapsed_timestamp["arm"] == "allow"
 
     guardrail = map_verdict(
         {

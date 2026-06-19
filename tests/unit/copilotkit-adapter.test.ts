@@ -1078,55 +1078,21 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(core.pollApproval).toHaveBeenCalledTimes(1);
   });
 
-  it('parses DB-style CopilotKit approval expiration timestamps as UTC', async () => {
+  it('does not locally expire DB-style CopilotKit approval timestamps', async () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date('2026-01-01T00:00:10.000Z'));
+      let polls = 0;
       const core = {
         evaluate: vi.fn(),
-        pollApproval: vi.fn(async () => ({
-          action: 'allow',
-          reason: 'approval should be expired',
-          approval_expiration_time: '2026-01-01 00:00:09',
-        })),
-      };
-      const adapter = createOpenBoxCopilotKitAdapter({
-        core: core as any,
-        workflowType: 'CopilotKitTestWorkflow',
-        taskQueue: 'langgraph',
-      });
-      const { pollApproval } = await import(
-        '../../ts/src/copilotkit/workflow-session'
-      );
-
-      await expect(
-        pollApproval(adapter, {
-          workflowId: 'workflow-approval',
-          runId: 'run-approval',
-          activityId: 'activity-approval',
+        pollApproval: vi.fn(async () => {
+          polls += 1;
+          return {
+            action: polls === 1 ? 'require_approval' : 'allow',
+            reason: polls === 1 ? 'approval pending' : 'approval allowed by server',
+            approval_expiration_time: '2026-01-01 00:00:09',
+          };
         }),
-      ).resolves.toMatchObject({
-        arm: 'block',
-        reason: 'approval should be expired',
-      });
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('blocks CopilotKit approvals when the server approval deadline elapses', async () => {
-    vi.useFakeTimers();
-    try {
-      const startedAt = new Date('2026-01-01T00:00:00.000Z');
-      vi.setSystemTime(startedAt);
-      const expiresAt = new Date(startedAt.getTime() + 1_000).toISOString();
-      const core = {
-        evaluate: vi.fn(),
-        pollApproval: vi.fn(async () => ({
-          action: 'require_approval',
-          reason: 'approval pending',
-          approval_expiration_time: expiresAt,
-        })),
       };
       const adapter = createOpenBoxCopilotKitAdapter({
         core: core as any,
@@ -1142,11 +1108,55 @@ describe('CopilotKit OpenBox adapter', () => {
         runId: 'run-approval',
         activityId: 'activity-approval',
       });
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(750);
 
       await expect(result).resolves.toMatchObject({
-        arm: 'block',
-        reason: 'OpenBox approval expired.',
+        arm: 'allow',
+        reason: 'approval allowed by server',
+        approvalExpiresAt: '2026-01-01 00:00:09',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps polling CopilotKit approvals after elapsed expiration timestamp until server action', async () => {
+    vi.useFakeTimers();
+    try {
+      const startedAt = new Date('2026-01-01T00:00:00.000Z');
+      vi.setSystemTime(startedAt);
+      const expiresAt = new Date(startedAt.getTime() + 1_000).toISOString();
+      let polls = 0;
+      const core = {
+        evaluate: vi.fn(),
+        pollApproval: vi.fn(async () => {
+          polls += 1;
+          return {
+            action: polls === 1 ? 'require_approval' : 'allow',
+            reason: polls === 1 ? 'approval pending' : 'approval allowed after timestamp',
+            approval_expiration_time: expiresAt,
+          };
+        }),
+      };
+      const adapter = createOpenBoxCopilotKitAdapter({
+        core: core as any,
+        workflowType: 'CopilotKitTestWorkflow',
+        taskQueue: 'langgraph',
+      });
+      const { pollApproval } = await import(
+        '../../ts/src/copilotkit/workflow-session'
+      );
+
+      const result = pollApproval(adapter, {
+        workflowId: 'workflow-approval',
+        runId: 'run-approval',
+        activityId: 'activity-approval',
+      });
+      await vi.advanceTimersByTimeAsync(1_500);
+
+      await expect(result).resolves.toMatchObject({
+        arm: 'allow',
+        reason: 'approval allowed after timestamp',
         approvalExpiresAt: expiresAt,
       });
     } finally {

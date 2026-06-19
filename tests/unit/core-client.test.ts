@@ -458,7 +458,7 @@ describe('OpenBoxCoreClient', () => {
       expect(result.action).toBe('allow');
     });
 
-    it('marks approval responses expired when expiration is in the past', async () => {
+    it('does not derive expired approval status from past expiration timestamps', async () => {
       vi.useFakeTimers();
       try {
         vi.setSystemTime(new Date('2026-01-01T00:00:10.000Z'));
@@ -478,13 +478,13 @@ describe('OpenBoxCoreClient', () => {
         });
 
         const expired: boolean | undefined = result.expired;
-        expect(expired).toBe(true);
+        expect(expired).toBeUndefined();
       } finally {
         vi.useRealTimers();
       }
     });
 
-    it('parses DB-style approval expiration timestamps as UTC', async () => {
+    it('preserves DB-style approval expiration timestamps without local expiry', async () => {
       vi.useFakeTimers();
       try {
         vi.setSystemTime(new Date('2026-01-01T00:00:10.000Z'));
@@ -503,7 +503,11 @@ describe('OpenBoxCoreClient', () => {
           activity_id: 'act-1',
         });
 
-        expect(result).toMatchObject({ expired: true });
+        expect(result).toMatchObject({
+          action: 'require_approval',
+          approval_expiration_time: '2026-01-01 00:00:09',
+        });
+        expect(result.expired).toBeUndefined();
       } finally {
         vi.useRealTimers();
       }

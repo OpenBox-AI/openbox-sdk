@@ -249,7 +249,7 @@ export interface CodexAdapterConfig {
   exit?: (code: number) => never;
   /**
    * @deprecated Compatibility no-op. Approval expiration is controlled
-   * by the server-supplied approvalExpiresAt value.
+   * by the server-owned approval row state.
    */
   approvalMaxWaitMs?: number;
   /**
@@ -800,8 +800,7 @@ function renderVerdictOutput(
       }
       if (arm === 'require_approval') {
         const r = reason.replace(/^\[OpenBox\] /, '').trim();
-        // Reaching this branch means Core still reports
-        // require_approval, or the server-side approval window expired.
+        // Reaching this branch means Core still reports require_approval.
         // The host blocks this tool attempt; the user can approve and retry.
         return {
           permission: 'deny',

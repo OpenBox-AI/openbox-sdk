@@ -4,7 +4,6 @@ import {
   type SpanData,
 } from '../core-client/core-client.js';
 import { stampSource } from '../approvals/source.js';
-import { parseApprovalExpirationMs } from '../core-client/approval-time.js';
 import {
   PRESET_ACTIVITY_TYPES,
   presets,
@@ -117,9 +116,8 @@ export async function pollApproval(
   adapter: OpenBoxCopilotKitAdapter,
   ids: { workflowId: string; runId: string; activityId: string },
 ): Promise<WorkflowVerdict> {
-  let deadline = Number.POSITIVE_INFINITY;
   let last: WorkflowVerdict | undefined;
-  while (Date.now() < deadline) {
+  while (true) {
     let response: Awaited<ReturnType<OpenBoxCoreClient['pollApproval']>> | undefined;
     try {
       response = await adapter.getCoreClient().pollApproval({
@@ -128,9 +126,7 @@ export async function pollApproval(
         activity_id: ids.activityId,
       });
     } catch {
-      const sleepMs = Math.min(APPROVAL_POLL_INTERVAL_MS, deadline - Date.now());
-      if (sleepMs <= 0) break;
-      await sleep(sleepMs);
+      await sleep(APPROVAL_POLL_INTERVAL_MS);
       continue;
     }
     const extra = response as typeof response & {
@@ -147,16 +143,7 @@ export async function pollApproval(
     const rawTrustTier = extra.trust_tier ?? extra.trustTier;
     const trustTier = typeof rawTrustTier === 'number' ? rawTrustTier : undefined;
     const guardrailsPayload = extra.guardrails_result ?? extra.guardrailsResult;
-    const serverDeadline = parseApprovalExpirationMs(
-      approvalExpiresAt,
-    );
-    if (serverDeadline !== undefined) {
-      deadline = Math.min(deadline, serverDeadline);
-    }
-    if (
-      extra.expired === true ||
-      (serverDeadline !== undefined && Date.now() >= serverDeadline)
-    ) {
+    if (extra.expired === true) {
       return {
         arm: 'block',
         reason: response.reason ?? 'OpenBox approval expired.',
@@ -183,27 +170,8 @@ export async function pollApproval(
       last.reason = guardrailFailureReason(guardrailsResult);
     }
     if (last && last.arm !== 'require_approval') return last;
-    const sleepMs = Math.min(APPROVAL_POLL_INTERVAL_MS, deadline - Date.now());
-    if (sleepMs <= 0) break;
-    await sleep(sleepMs);
+    await sleep(APPROVAL_POLL_INTERVAL_MS);
   }
-  if (Number.isFinite(deadline) && Date.now() >= deadline) {
-    return {
-      arm: 'block',
-      reason: 'OpenBox approval expired.',
-      approvalExpiresAt: last?.approvalExpiresAt,
-      riskScore: last?.riskScore ?? 0,
-      trustTier: last?.trustTier,
-      guardrailsResult: last?.guardrailsResult,
-    };
-  }
-  return (
-    last ?? {
-      arm: 'require_approval',
-      reason: 'OpenBox approval is still pending.',
-      riskScore: 0,
-    }
-  );
 }
 
 function sleep(ms: number) {

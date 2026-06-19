@@ -10,11 +10,10 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal, TypeAlias, TypeVar
 
-from ._utils import maybe_await, parse_datetime, utc_now
+from ._utils import maybe_await, utc_now
 from .generated.runtime_contract import (
     ACTIVITY_COMPLETED_EVENT_TYPE,
     ACTIVITY_STARTED_EVENT_TYPE,
-    APPROVAL_EXPIRY_ALIASES,
     APPROVAL_STATUS_FIELD_ALIASES,
     DEFAULT_GUARDRAIL_FIELD_STATUS,
     DEFAULT_GUARDRAIL_INPUT_TYPE,
@@ -459,7 +458,6 @@ class BaseGovernedSession:
         initial: WorkflowVerdict,
     ) -> WorkflowVerdict:
         approval_id = str(initial.get("approvalId") or activity_id)
-        deadline = _approval_deadline(initial.get("approvalExpiresAt"))
         external_signaled = False
         external_task: asyncio.Task[str | None] | None = None
         if self.await_external_decision is not None:
@@ -477,10 +475,9 @@ class BaseGovernedSession:
             )
         interval = self.approval_poll_interval_seconds
         try:
-            while time.time() < deadline:
-                remaining = deadline - time.time()
+            while True:
                 sleep_seconds = max(
-                    0.0, min(_apply_jitter(interval, self.approval_poll_jitter), remaining)
+                    0.0, _apply_jitter(interval, self.approval_poll_jitter)
                 )
                 if external_task is not None and not external_task.done():
                     done, _pending = await asyncio.wait(
@@ -504,12 +501,7 @@ class BaseGovernedSession:
                 except Exception:
                     interval = self._next_poll_interval(interval, external_signaled)
                     continue
-                status_deadline = _approval_deadline(
-                    _pick(status, *APPROVAL_EXPIRY_ALIASES)
-                )
-                if status_deadline != float("inf"):
-                    deadline = min(deadline, status_deadline)
-                if bool(_pick(status, "expired")) or time.time() >= deadline:
+                if bool(_pick(status, "expired")):
                     return _expired_verdict(initial, activity_type, status)
                 arm = normalize_arm(_pick_alias(status, APPROVAL_STATUS_FIELD_ALIASES["arm"]))
                 if arm in {"allow", "block", "halt"}:
@@ -523,11 +515,6 @@ class BaseGovernedSession:
                         "reason": _pick_alias(status, APPROVAL_STATUS_FIELD_ALIASES["reason"]),
                     }
                 interval = self._next_poll_interval(interval, external_signaled)
-            return {
-                **initial,
-                "arm": "block",
-                "reason": initial.get("reason") or f"Approval expired for {activity_type}",
-            }
         finally:
             if external_task is not None and not external_task.done():
                 external_task.cancel()
@@ -698,13 +685,6 @@ def _pick_alias(source: Any, aliases: list[str]) -> Any:
 
 def _pick_payload_field(source: Any, field: str) -> Any:
     return _pick_alias(source, GOVERNED_PAYLOAD_FIELD_ALIASES[field])
-
-
-def _approval_deadline(value: Any) -> float:
-    parsed = parse_datetime(value)
-    if parsed is None:
-        return float("inf")
-    return parsed.timestamp()
 
 
 def _expired_verdict(initial: WorkflowVerdict, activity_type: str, status: Any) -> WorkflowVerdict:
