@@ -375,6 +375,42 @@ describe('OpenBoxCoreClient', () => {
         self: '[Circular]',
       });
     });
+
+    it('serializes binary governance payload values like official SDKs', async () => {
+      const client = createClient();
+      fetchMock.mockResolvedValueOnce(
+        mockResponse(200, { verdict: 'ALLOW', action: 'allow' }),
+      );
+      const arrayBuffer = new Uint8Array(Buffer.from('array buffer text')).buffer;
+
+      await client.evaluate({
+        event_type: 'ActivityCompleted',
+        workflow_id: 'wf-1',
+        run_id: 'run-1',
+        workflow_type: 'unit-test',
+        task_queue: 'langchain',
+        source: 'workflow-telemetry',
+        timestamp: new Date().toISOString(),
+        activity_id: 'act-1',
+        activity_type: 'my-activity',
+        activity_input: [
+          {
+            validBytes: new Uint8Array(Buffer.from('hello bytes')),
+            nodeBuffer: Buffer.from('buffer text'),
+            arrayBuffer,
+            invalidBytes: new Uint8Array([0xff, 0xfe]),
+          },
+        ],
+      });
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.activity_input[0]).toMatchObject({
+        validBytes: 'hello bytes',
+        nodeBuffer: 'buffer text',
+        arrayBuffer: 'array buffer text',
+        invalidBytes: '//4=',
+      });
+    });
   });
 
   describe('pollApproval', () => {

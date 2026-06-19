@@ -1,4 +1,5 @@
 import { createHash, createPrivateKey, randomUUID, sign } from 'node:crypto';
+import { TextDecoder } from 'node:util';
 import { TokenBucket } from '../client/index.js';
 import { normalizeServiceUrl } from '../env/connection.js';
 import { OPENBOX_SDK_VERSION } from '../version.js';
@@ -388,26 +389,64 @@ function appendQuery(path: string, params: Record<string, unknown> | undefined):
 function makeGovernancePayloadJsonSafe(
   payload: GovernanceEventPayload,
 ): GovernanceEventPayload {
-  return JSON.parse(
-    JSON.stringify(payload, governancePayloadReplacer()),
-  ) as GovernanceEventPayload;
+  return JSON.parse(JSON.stringify(toGovernanceJsonSafe(payload))) as GovernanceEventPayload;
 }
 
-function governancePayloadReplacer(): (key: string, value: unknown) => unknown {
-  const seen = new WeakSet<object>();
-  return (_key: string, value: unknown): unknown => {
-    if (typeof value === 'bigint') return value.toString();
-    if (typeof value === 'function' || typeof value === 'symbol') return String(value);
-    if (value instanceof Error) {
-      return value.name ? `${value.name}: ${value.message}` : value.message;
+function toGovernanceJsonSafe(value: unknown, seen = new WeakSet<object>()): unknown {
+  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === 'function' || typeof value === 'symbol') return String(value);
+  if (!value || typeof value !== 'object') return value;
+  if (value instanceof Error) {
+    return value.name ? `${value.name}: ${value.message}` : value.message;
+  }
+  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Uint8Array) return serializeBinaryBytes(value);
+  if (value instanceof DataView) return serializeDataView(value);
+  if (value instanceof ArrayBuffer) return serializeBinaryBytes(new Uint8Array(value));
+  if (seen.has(value)) return '[Circular]';
+  seen.add(value);
+  if (value instanceof Map) {
+    return Object.fromEntries(
+      Array.from(value.entries()).map(([entryKey, entryValue]) => [
+        String(entryKey),
+        toGovernanceJsonSafe(entryValue, seen),
+      ]),
+    );
+  }
+  if (value instanceof Set) {
+    return Array.from(value.values()).map((entry) => toGovernanceJsonSafe(entry, seen));
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => toGovernanceJsonSafe(entry, seen));
+  }
+  const toJSON = (value as { toJSON?: unknown }).toJSON;
+  if (typeof toJSON === 'function') {
+    try {
+      return toGovernanceJsonSafe(toJSON.call(value), seen);
+    } catch {
+      return String(value);
     }
-    if (!value || typeof value !== 'object') return value;
-    if (seen.has(value)) return '[Circular]';
-    seen.add(value);
-    if (value instanceof Map) return Object.fromEntries(value.entries());
-    if (value instanceof Set) return Array.from(value.values());
-    return value;
-  };
+  }
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => [
+      entryKey,
+      toGovernanceJsonSafe(entryValue, seen),
+    ]),
+  );
+}
+
+function serializeDataView(value: DataView): string {
+  return serializeBinaryBytes(
+    new Uint8Array(value.buffer, value.byteOffset, value.byteLength),
+  );
+}
+
+function serializeBinaryBytes(value: Uint8Array): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(value);
+  } catch {
+    return Buffer.from(value).toString('base64');
+  }
 }
 
 function withClientExpiredApproval<T extends ApprovalStatusResponse>(
