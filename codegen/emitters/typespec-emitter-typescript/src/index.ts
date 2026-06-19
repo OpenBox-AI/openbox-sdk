@@ -3490,6 +3490,7 @@ function mapGuardrailsResult(
   raw: GovernanceVerdictResponse['guardrails_result'],
 ): GuardrailsVerdict | undefined {
   if (!raw) return undefined;
+  if (Object.keys(raw as unknown as Record<string, unknown>).length === 0) return undefined;
   return {
     inputType: normalizeGuardrailsInputType(raw.input_type),
     redactedInput: raw.redacted_input,

@@ -12,6 +12,7 @@ let socketTimesOut = false;
 let socketCloseThrows = false;
 let validateApiKeyFails = false;
 const socketEvents: any[] = [];
+// Mock-only raw 32-byte Ed25519 key encoded at runtime; not a real credential.
 const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
 
 vi.mock('../../ts/src/cli/env-source.js', () => ({
@@ -228,6 +229,7 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
 
   it('passes signed agent identity through to the Core client', async () => {
     process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
+    // gitleaks:allow - deterministic test fixture generated above, not a credential.
     process.env.OPENBOX_AGENT_PRIVATE_KEY = FAKE_AGENT_PRIVATE_KEY;
     const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
 

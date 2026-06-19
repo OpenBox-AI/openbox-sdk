@@ -2035,4 +2035,27 @@ describe('WorkflowVerdict.guardrailsResult', () => {
     );
     expect((captured as WV | null)?.guardrailsResult).toBeUndefined();
   });
+
+  test('absent on the verdict when wire response has empty guardrails_result', async () => {
+    const mock = createMockCore('allow');
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      return {
+        governance_event_id: 'evt_empty_guardrails',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+        guardrails_result: {},
+      } as unknown as GovernanceVerdictResponse;
+    });
+    type WV = import('../../ts/src/core-client/generated/govern.js').WorkflowVerdict;
+    let captured: WV | null = null;
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        captured = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+      },
+    );
+    expect((captured as WV | null)?.guardrailsResult).toBeUndefined();
+  });
 });
