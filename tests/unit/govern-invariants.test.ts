@@ -1386,20 +1386,29 @@ describe('approval polling bounds', () => {
         : { id: 'apr_xxx', action: 'require_approval' };
     });
 
-    await govern(
-      {
-        ...baseConfig(mock),
-        preset: presets.claudeCode,
-        approvalPollIntervalMs: 50,
-        approvalPollMaxIntervalMs: 50,
-        approvalPollBackoffFactor: 1, // no backoff; fixed base
-        approvalPollJitter: 0.5, // ±50%
-        approvalMaxWaitMs: 800,
-      },
-      async (session) => {
-        await session.preToolUse({ input: [{ tool: 'Bash' }] });
-      },
-    );
+    let randomIndex = 0;
+    const randomSpy = vi.spyOn(Math, 'random').mockImplementation(() => {
+      randomIndex += 1;
+      return randomIndex % 2 === 0 ? 1 : 0;
+    });
+    try {
+      await govern(
+        {
+          ...baseConfig(mock),
+          preset: presets.claudeCode,
+          approvalPollIntervalMs: 50,
+          approvalPollMaxIntervalMs: 50,
+          approvalPollBackoffFactor: 1, // no backoff; fixed base
+          approvalPollJitter: 0.5, // ±50%
+          approvalMaxWaitMs: 800,
+        },
+        async (session) => {
+          await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        },
+      );
+    } finally {
+      randomSpy.mockRestore();
+    }
 
     expect(pollTimes.length).toBeGreaterThanOrEqual(5);
     const gaps = pollTimes.slice(1).map((t, i) => t - pollTimes[i]);
