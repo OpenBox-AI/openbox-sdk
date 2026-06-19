@@ -513,6 +513,18 @@ describe('copilotkit helper coverage', () => {
       validationPassed: true,
       fieldResults: [{ field: 'x', status: 'skipped' }],
     });
+    const signalMapped = mapGuardrailsResult({
+      input_type: 'signal_args',
+      redacted_input: ['open <EMAIL_ADDRESS>'],
+      validation_passed: true,
+    });
+    expect(signalMapped?.inputType).toBe('signal_args');
+    expect(
+      applyOpenBoxTransform(
+        ['open avery@example.com'],
+        verdict({ arm: 'allow', guardrailsResult: signalMapped }),
+      ),
+    ).toEqual(['open <EMAIL_ADDRESS>']);
     expect(normalizeArm('continue')).toBe('allow');
     expect(normalizeArm('stop')).toBe('halt');
     expect(normalizeArm('require-approval')).toBe('require_approval');

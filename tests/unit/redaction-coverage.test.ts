@@ -57,6 +57,14 @@ describe('applyInputRedaction', () => {
     expect(out).toEqual({ prompt: '[REDACTED]' });
   });
 
+  it('treats signal_args as input-like redaction', () => {
+    const out = applyInputRedaction(['email avery@example.com'], {
+      inputType: 'signal_args',
+      redactedInput: ['email <EMAIL_ADDRESS>'],
+    } as any);
+    expect(out).toEqual(['email <EMAIL_ADDRESS>']);
+  });
+
   it('falls through when redactedInput is neither obj nor array', () => {
     expect(
       applyInputRedaction({ x: 1 }, { inputType: 'activity_input', redactedInput: 'plain' } as any),
@@ -239,6 +247,18 @@ describe('guardrail redaction helpers', () => {
       hasGuardrailRedaction({
         inputType: 'activity_input',
         redactedInput: [{ prompt: '[REDACTED]' }],
+        validationPassed: true,
+        reasons: [],
+        fieldResults: [],
+      }),
+    ).toBe(true);
+  });
+
+  it('detects signal_args redaction payloads', () => {
+    expect(
+      hasGuardrailRedaction({
+        inputType: 'signal_args',
+        redactedInput: ['<EMAIL_ADDRESS>'],
         validationPassed: true,
         reasons: [],
         fieldResults: [],

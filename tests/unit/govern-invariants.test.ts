@@ -21,6 +21,7 @@ import type {
   GovernanceVerdictResponse,
 } from '../../ts/src/core-client/core-client.js';
 import type { OpenBoxCoreClient } from '../../ts/src/core-client/core-client.js';
+import type { WorkflowVerdict } from '../../ts/src/core-client/generated/govern.js';
 import {
   govern,
   presets,
@@ -1430,6 +1431,43 @@ describe('WorkflowVerdict.guardrailsResult', () => {
     expect(v.guardrailsResult?.reasons[0].type).toBe('pii');
     expect(v.guardrailsResult?.fieldResults).toHaveLength(1);
     expect(v.guardrailsResult?.fieldResults[0].status).toBe('redacted');
+  });
+
+  test('SignalReceived preserves guardrails_result input_type=signal_args', async () => {
+    const mock = createMockCore('allow');
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      return {
+        governance_event_id: 'evt_signal',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+        guardrails_result: {
+          input_type: 'signal_args',
+          redacted_input: ['prompt <EMAIL_ADDRESS>'],
+          validation_passed: true,
+          reasons: [],
+          results: [],
+        },
+      } as unknown as GovernanceVerdictResponse;
+    });
+
+    let captured: WorkflowVerdict | null = null;
+    await govern(
+      { ...baseConfig(mock), preset: presets.langgraph },
+      async (session) => {
+        captured = await session.interrupt({
+          signalArgs: ['prompt avery@example.com'],
+        });
+      },
+    );
+
+    expect(captured).not.toBeNull();
+    const verdict = captured as unknown as WorkflowVerdict;
+    expect(verdict.guardrailsResult?.inputType).toBe('signal_args');
+    expect(verdict.guardrailsResult?.redactedInput).toEqual([
+      'prompt <EMAIL_ADDRESS>',
+    ]);
   });
 
   test('failed guardrails override require_approval before polling', async () => {

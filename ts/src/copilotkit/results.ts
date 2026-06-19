@@ -471,8 +471,7 @@ export function mapGuardrailsResult(
   };
   const inputType = raw.inputType ?? raw.input_type;
   return {
-    inputType:
-      inputType === 'activity_output' ? 'activity_output' : 'activity_input',
+    inputType: normalizeGuardrailsInputType(inputType),
     redactedInput: raw.redactedInput ?? raw.redacted_input,
     validationPassed: raw.validationPassed ?? raw.validation_passed ?? true,
     rawLogs: raw.rawLogs ?? raw.raw_logs,
@@ -581,6 +580,14 @@ function toolInputForRedaction<
     args: input,
     description: definition.description,
   };
+}
+
+function normalizeGuardrailsInputType(
+  value: unknown,
+): NonNullable<WorkflowVerdict['guardrailsResult']>['inputType'] {
+  if (value === 'activity_output') return 'activity_output';
+  if (value === 'signal_args') return 'signal_args';
+  return 'activity_input';
 }
 
 function normalizeGuardrailStatus(

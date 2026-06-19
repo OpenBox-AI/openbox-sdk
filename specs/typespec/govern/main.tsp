@@ -308,12 +308,13 @@ model GuardrailReasonRef {
  */
 model GuardrailsVerdict {
   /** Which side of the activity the redaction applies to. */
-  inputType: "activity_input" | "activity_output";
+  inputType: "activity_input" | "activity_output" | "signal_args";
 
   /**
    * Redacted payload as decided by the guardrail service. Pass to
-   * `applyInputRedaction(...)` / `applyOutputRedaction(...)` against
-   * the original payload to forward a safe version downstream.
+   * `applyInputRedaction(...)` / `applyOutputRedaction(...)` against the
+   * original payload to forward a safe version downstream. `signal_args`
+   * is input-like and uses `applyInputRedaction(...)`.
    */
   redactedInput?: unknown;
 

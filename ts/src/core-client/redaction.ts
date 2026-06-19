@@ -60,14 +60,15 @@ function mergeArray(target: unknown[], source: unknown[]): void {
 /**
  * Apply core's `redactedInput` over the ORIGINAL activity input. Returns
  * a redacted copy you can forward downstream. No-op when the verdict
- * isn't an activity-input redaction (input_type !== "activity_input")
+ * isn't an input-like redaction (input_type !== "activity_input" or
+ * "signal_args")
  * or when there's no redaction to apply.
  */
 export function applyInputRedaction<T = unknown>(
   originalData: T,
   guardrails: GuardrailsVerdict | undefined,
 ): T {
-  if (!guardrails || guardrails.inputType !== 'activity_input') return originalData;
+  if (!guardrails || !isInputLikeGuardrail(guardrails.inputType)) return originalData;
 
   let redacted = unwrapActivityInputRedaction(guardrails.redactedInput);
   if (redacted && typeof redacted === 'object' && !Array.isArray(redacted)) {
@@ -148,11 +149,15 @@ function unwrapActivityOutputRedaction(redactedInput: unknown, originalOutput: u
 export function hasGuardrailRedaction(guardrails: GuardrailsVerdict | undefined): boolean {
   return Boolean(
     guardrails &&
-      (guardrails.inputType === 'activity_input' ||
+      (isInputLikeGuardrail(guardrails.inputType) ||
         guardrails.inputType === 'activity_output') &&
       guardrails.redactedInput !== null &&
       guardrails.redactedInput !== undefined,
   );
+}
+
+function isInputLikeGuardrail(inputType: GuardrailsVerdict['inputType']): boolean {
+  return inputType === 'activity_input' || inputType === 'signal_args';
 }
 
 export function summarizeGuardrailRedaction(

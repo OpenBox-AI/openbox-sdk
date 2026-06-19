@@ -422,7 +422,7 @@ model GovernanceVerdictResponse {
 
 /** SDK-facing guardrail report; one entry per guardrail type that ran. */
 model GuardrailsResult {
-  input_type: "activity_input" | "activity_output";
+  input_type: "activity_input" | "activity_output" | "signal_args";
 
   /**
    * Redacted or transformed payload as decided by the guardrail

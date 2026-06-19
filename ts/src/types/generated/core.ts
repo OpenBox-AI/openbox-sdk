@@ -422,7 +422,7 @@ export interface components {
         /** @description SDK-facing guardrail report; one entry per guardrail type that ran. */
         GuardrailsResult: {
             /** @enum {string} */
-            input_type: "activity_input" | "activity_output";
+            input_type: "activity_input" | "activity_output" | "signal_args";
             /**
              * @description Redacted or transformed payload as decided by the guardrail
              *     service. Free-form: string for text content, object for

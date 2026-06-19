@@ -134,7 +134,7 @@ export interface GovernanceVerdictResponse {
   age_result?: AGEResult;
 }
 export interface GuardrailsResult {
-  input_type: "activity_input" | "activity_output";
+  input_type: "activity_input" | "activity_output" | "signal_args";
   redacted_input: unknown;
   raw_logs?: Record<string, unknown>;
   validation_passed: boolean;

@@ -3347,7 +3347,7 @@ function mapGuardrailsResult(
 ): GuardrailsVerdict | undefined {
   if (!raw) return undefined;
   return {
-    inputType: (raw.input_type as 'activity_input' | 'activity_output') ?? 'activity_input',
+    inputType: normalizeGuardrailsInputType(raw.input_type),
     redactedInput: raw.redacted_input,
     validationPassed: raw.validation_passed !== false,
     rawLogs: raw.raw_logs,
@@ -3363,6 +3363,18 @@ function mapGuardrailsResult(
         reason: fr.reason,
       }))),
   };
+}
+
+function normalizeGuardrailsInputType(value: string | undefined): GuardrailsVerdict['inputType'] {
+  switch (value) {
+    case 'activity_output':
+      return 'activity_output';
+    case 'signal_args':
+      return 'signal_args';
+    case 'activity_input':
+    default:
+      return 'activity_input';
+  }
 }
 
 function normalizeGuardrailFieldStatus(value: string | undefined): 'allowed' | 'blocked' | 'redacted' | 'transformed' | 'skipped' {
