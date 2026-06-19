@@ -21,9 +21,9 @@ import {
 } from '../../../governance/assistant-output.js';
 import {
   buildSpan,
-  llmTokenUsageFromRecord,
   withOpenBoxActivityMetadata,
 } from '../../../governance/spans.js';
+import { normalizeOpenBoxUsage } from '../../../governance/usage.js';
 import { stampSource } from '../../../approvals/source.js';
 import { claimCompletionTelemetry, takeCompletionActivity } from '../dedup.js';
 
@@ -102,7 +102,7 @@ function usageFrom(value: unknown) {
     metadata.usageMetadata,
     metadata.usage_metadata,
   );
-  return llmTokenUsageFromRecord({ ...usage, ...record });
+  return normalizeOpenBoxUsage({ ...usage, ...record })?.raw;
 }
 
 function messageContent(value: unknown): string | undefined {
