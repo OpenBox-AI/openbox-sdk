@@ -493,6 +493,11 @@ PRESET_MANIFEST = [
         "activityType": "ShellExecution"
       },
       {
+        "name": "databaseQuery",
+        "eventType": "ActivityStarted",
+        "activityType": "DatabaseQuery"
+      },
+      {
         "name": "httpRequest",
         "eventType": "ActivityStarted",
         "activityType": "HTTPRequest"
@@ -1298,6 +1303,9 @@ class DefaultSession(BaseGovernedSession):
 
     async def shell(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
         return await self.run_activity("ActivityStarted", "ShellExecution", payload or {})
+
+    async def database_query(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "DatabaseQuery", payload or {})
 
     async def http_request(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
         return await self.run_activity("ActivityStarted", "HTTPRequest", payload or {})

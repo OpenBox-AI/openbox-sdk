@@ -1,6 +1,8 @@
-// Cursor-specific activity_type vocabulary. snake_case strings
-// matching Cursor's hook-feature mapping where production governance
-// rules target.
+// Cursor-specific activity_type vocabulary. Values use the canonical
+// OpenBox activity_type strings declared in TypeSpec. The snake_case
+// Cursor event categories (`file_read`, `llm_prompt`, ...) remain inside
+// generated payload builders as `event_category` metadata, not as Core
+// activity_type values.
 //
 // Why this isn't generated: the *standard* per-event activity-type
 // constants ARE generated (e.g. `BEFORE_SUBMIT_PROMPT_ACTIVITY_TYPE`
@@ -15,14 +17,14 @@
 export { EVENT } from '../../governance/events.js';
 
 export const ACTIVITY_TYPES = {
-  PROMPT: 'llm_prompt',
-  COMPLETION: 'llm_completion',
-  FILE_READ: 'file_read',
-  FILE_WRITE: 'file_write',
-  AGENT_ACTION: 'agent_action',
-  AGENT_OBSERVATION: 'agent_observation',
-  AGENT_DECISION: 'agent_decision',
-  API_CALL: 'api_call',
-  WORKFLOW_START: 'workflow_start',
-  WORKFLOW_COMPLETE: 'workflow_complete',
+  PROMPT: 'PromptSubmission',
+  COMPLETION: 'LLMCompleted',
+  FILE_READ: 'FileRead',
+  FILE_WRITE: 'FileEdit',
+  AGENT_ACTION: 'AgentAction',
+  AGENT_OBSERVATION: 'AgentAction',
+  AGENT_DECISION: 'AgentAction',
+  API_CALL: 'HTTPRequest',
+  WORKFLOW_START: 'SessionStart',
+  WORKFLOW_COMPLETE: 'Stop',
 } as const;

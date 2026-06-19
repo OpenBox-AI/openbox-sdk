@@ -57,6 +57,7 @@ using OpenBox.Workflow;
   FileEdit: "File Edit",
   FileDelete: "File Delete",
   ShellExecution: "Shell Execution",
+  DatabaseQuery: "Database Query",
   HTTPRequest: "HTTP Request",
   MCPToolCall: "MCP Tool Call",
   AgentSpawn: "Agent Spawn",
@@ -1140,6 +1141,9 @@ interface DefaultPreset {
 
   @maps_to("ActivityStarted", "ShellExecution")
   shell(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "DatabaseQuery")
+  databaseQuery(payload: GovernedPayload): WorkflowVerdict;
 
   @maps_to("ActivityStarted", "HTTPRequest")
   httpRequest(payload: GovernedPayload): WorkflowVerdict;

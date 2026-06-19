@@ -38,6 +38,60 @@ describe('thin exports', () => {
     expect(Object.values(mod.ACTIVITY_TYPES).length).toBeGreaterThan(0);
   });
 
+  it('first-party runtime activity maps are canonical or explicitly host-specific', async () => {
+    const { CANONICAL_ACTIVITY_TYPES } = await import(
+      '../../ts/src/core-client/generated/govern'
+    );
+    const { ACTIVITY_TYPES: claudeCode } = await import(
+      '../../ts/src/runtime/claude-code/activity-types'
+    );
+    const { ACTIVITY_TYPES: cursor } = await import(
+      '../../ts/src/runtime/cursor/activity-types'
+    );
+    const { CODEX_ACTIVITY_TYPES: codex } = await import(
+      '../../ts/src/runtime/codex/activity-types'
+    );
+    const { ANTHROPIC_AGENT_ACTIVITY_TYPES: anthropicAgent } = await import(
+      '../../ts/src/anthropic-agent-sdk/payloads'
+    );
+    const { OPENAI_AGENTS_ACTIVITY_TYPES: openaiAgents } = await import(
+      '../../ts/src/openai-agents-sdk/payloads'
+    );
+    const explicitHostSpecific = new Set([
+      'AnthropicAgentSDKConfigChange',
+      'AnthropicAgentSDKMessage',
+      'AnthropicAgentSDKSession',
+      'AnthropicAgentSDKTask',
+      'AnthropicAgentSDKWorkspaceChange',
+      'ClaudeCodeConfigChange',
+      'ClaudeCodeMessage',
+      'ClaudeCodeSession',
+      'ClaudeCodeTask',
+      'ClaudeCodeWorkspaceChange',
+      'CodexSession',
+      'MCPElicitation',
+      'anthropic_agent_sdk_usage',
+      'user_prompt',
+    ]);
+
+    for (const [name, map] of Object.entries({
+      anthropicAgent,
+      claudeCode,
+      codex,
+      cursor,
+      openaiAgents,
+    })) {
+      const drift = Object.entries(map).filter(
+        ([, value]) =>
+          !CANONICAL_ACTIVITY_TYPES.has(value) && !explicitHostSpecific.has(value),
+      );
+      expect(
+        drift,
+        `${name} activity map has non-canonical values without an explicit host-specific exception`,
+      ).toEqual([]);
+    }
+  });
+
   it('cli/permissions exports COMMAND_PERMISSIONS + missingPermissions', async () => {
     const { COMMAND_PERMISSIONS, missingPermissions } = await import(
       '../../ts/src/cli/permissions'
