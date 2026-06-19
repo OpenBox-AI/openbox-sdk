@@ -1217,6 +1217,12 @@ interface DefaultPreset {
   @maps_to("SignalReceived", "user_prompt")
   goalSignal(payload: GovernedPayload): WorkflowVerdict;
 
+  @maps_to("ActivityStarted", "SessionStart")
+  sessionStart(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "Stop")
+  stop(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "PromptSubmission")
   prompt(payload: GovernedPayload): WorkflowVerdict;
 
@@ -1252,6 +1258,9 @@ interface DefaultPreset {
 
   @maps_to("ActivityStarted", "AgentSpawn")
   agentSpawn(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "AgentAction")
+  agentAction(payload: GovernedPayload): WorkflowVerdict;
 }
 
 /**

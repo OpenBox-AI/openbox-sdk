@@ -1,30 +1,28 @@
-// Cursor-specific activity_type vocabulary. Values use the canonical
-// OpenBox activity_type strings declared in TypeSpec. The snake_case
-// Cursor event categories (`file_read`, `llm_prompt`, ...) remain inside
-// generated payload builders as `event_category` metadata, not as Core
-// activity_type values.
-//
-// Why this isn't generated: the *standard* per-event activity-type
-// constants ARE generated (e.g. `BEFORE_SUBMIT_PROMPT_ACTIVITY_TYPE`
-// in core-client/generated/runtime/cursor). This file names the
-// activity-types we fire for *non-event* uses; workflow signals,
-// out-of-band telemetry; so mappers reference symbolic constants
-// instead of bare strings.
+// Cursor-specific activity_type vocabulary. Values are sourced from the
+// generated TypeSpec preset manifest. The snake_case Cursor event
+// categories (`file_read`, `llm_prompt`, ...) remain inside generated
+// payload builders as `event_category` metadata, not as Core activity_type
+// values.
 //
 // EVENT (ActivityStarted/Completed/SignalReceived) is shared across
 // adapters; it's re-exported from `governance/events.ts`.
 
+import { PRESET_ACTIVITY_TYPES } from '../../core-client/generated/govern.js';
+
 export { EVENT } from '../../governance/events.js';
 
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const cursorActivity = PRESET_ACTIVITY_TYPES.cursor;
+
 export const ACTIVITY_TYPES = {
-  PROMPT: 'PromptSubmission',
-  COMPLETION: 'LLMCompleted',
-  FILE_READ: 'FileRead',
-  FILE_WRITE: 'FileEdit',
-  AGENT_ACTION: 'AgentAction',
-  AGENT_OBSERVATION: 'AgentAction',
-  AGENT_DECISION: 'AgentAction',
-  API_CALL: 'HTTPRequest',
-  WORKFLOW_START: 'SessionStart',
-  WORKFLOW_COMPLETE: 'Stop',
+  PROMPT: cursorActivity.beforeSubmitPrompt,
+  COMPLETION: cursorActivity.afterAgentResponse,
+  FILE_READ: cursorActivity.beforeReadFile,
+  FILE_WRITE: cursorActivity.afterFileEdit,
+  AGENT_ACTION: defaultActivity.agentAction,
+  AGENT_OBSERVATION: defaultActivity.agentAction,
+  AGENT_DECISION: defaultActivity.agentAction,
+  API_CALL: defaultActivity.httpRequest,
+  WORKFLOW_START: defaultActivity.sessionStart,
+  WORKFLOW_COMPLETE: defaultActivity.stop,
 } as const;

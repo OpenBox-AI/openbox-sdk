@@ -39,7 +39,7 @@ describe('thin exports', () => {
   });
 
   it('first-party runtime activity maps are canonical or explicitly host-specific', async () => {
-    const { CANONICAL_ACTIVITY_TYPES } = await import(
+    const { CANONICAL_ACTIVITY_TYPES, PRESET_ACTIVITY_TYPES } = await import(
       '../../ts/src/core-client/generated/govern'
     );
     const { ACTIVITY_TYPES: claudeCode } = await import(
@@ -57,6 +57,62 @@ describe('thin exports', () => {
     const { OPENAI_AGENTS_ACTIVITY_TYPES: openaiAgents } = await import(
       '../../ts/src/openai-agents-sdk/payloads'
     );
+    const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+    const claudeCodePreset = PRESET_ACTIVITY_TYPES['claude-code'];
+    const codexPreset = PRESET_ACTIVITY_TYPES.codex;
+    const cursorPreset = PRESET_ACTIVITY_TYPES.cursor;
+    const anthropicPreset = PRESET_ACTIVITY_TYPES['anthropic-agent-sdk'];
+    const openaiPreset = PRESET_ACTIVITY_TYPES['openai-agents-sdk'];
+
+    expect(claudeCode).toMatchObject({
+      PROMPT: defaultActivity.prompt,
+      FILE_READ: defaultActivity.read,
+      FILE_EDIT: defaultActivity.write,
+      DB_QUERY: defaultActivity.databaseQuery,
+      AGENT_ACTION: defaultActivity.agentAction,
+      SESSION: claudeCodePreset.sessionActivityStarted,
+      CONFIG_CHANGE: claudeCodePreset.configChangeActivity,
+      WORKSPACE_CHANGE: claudeCodePreset.workspaceChangeSignal,
+      MCP_ELICITATION: claudeCodePreset.mcpElicitationStarted,
+      TASK: claudeCodePreset.taskActivityStarted,
+      MESSAGE: claudeCodePreset.messageActivityStarted,
+    });
+    expect(codex).toMatchObject({
+      PROMPT: defaultActivity.prompt,
+      SESSION: codexPreset.sessionCompleted,
+      TOOL_INPUT: codexPreset.preToolUse,
+      TOOL_OUTPUT: codexPreset.postToolUse,
+      DB_QUERY: defaultActivity.databaseQuery,
+      AGENT_ACTION: defaultActivity.agentAction,
+    });
+    expect(cursor).toMatchObject({
+      PROMPT: cursorPreset.beforeSubmitPrompt,
+      COMPLETION: cursorPreset.afterAgentResponse,
+      FILE_READ: cursorPreset.beforeReadFile,
+      FILE_WRITE: cursorPreset.afterFileEdit,
+      WORKFLOW_START: defaultActivity.sessionStart,
+      WORKFLOW_COMPLETE: defaultActivity.stop,
+    });
+    expect(anthropicAgent).toMatchObject({
+      PROMPT: defaultActivity.prompt,
+      TOOL_INPUT: anthropicPreset.preToolUse,
+      SESSION: anthropicPreset.sessionActivityStarted,
+      MESSAGE: anthropicPreset.messageActivityStarted,
+      CONFIG_CHANGE: anthropicPreset.configChangeActivity,
+      WORKSPACE_CHANGE: anthropicPreset.workspaceChangeSignal,
+      MCP_ELICITATION: anthropicPreset.mcpElicitationStarted,
+      TASK: anthropicPreset.taskActivityStarted,
+      USAGE_SIGNAL: anthropicPreset.usageSignal,
+      GOAL_SIGNAL: defaultActivity.goalSignal,
+    });
+    expect(openaiAgents).toMatchObject({
+      RUN: openaiPreset.runStarted,
+      TOOL_STARTED: openaiPreset.toolStarted,
+      TOOL_COMPLETED: openaiPreset.toolCompleted,
+      HANDOFF: openaiPreset.handoff,
+      GUARDRAIL: openaiPreset.guardrail,
+    });
+
     for (const [name, map] of Object.entries({
       anthropicAgent,
       claudeCode,

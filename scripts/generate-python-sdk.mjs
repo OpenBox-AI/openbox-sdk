@@ -498,10 +498,16 @@ function emitSchemas() {
 function emitGovern(governManifest) {
   const classes = [];
   const registry = [];
+  const presetActivityTypes = {};
   for (const preset of governManifest) {
     const className = `${pascalCase(preset.preset)}Session`;
     const presetKey = snakeCase(preset.preset);
     registry.push([presetKey, className]);
+    presetActivityTypes[preset.preset] = Object.fromEntries(
+      preset.methods
+        .filter((method) => typeof method.activityType === "string" && method.activityType.length > 0)
+        .map((method) => [method.name, method.activityType]),
+    );
     if (presetKey === "custom") {
       classes.push([
         `class ${className}(BaseGovernedSession):`,
@@ -525,7 +531,7 @@ function emitGovern(governManifest) {
     classes.push(`class ${className}(BaseGovernedSession):\n${methods || "    pass\n"}`);
   }
   const registryLiteral = `{\n${registry.map(([key, cls]) => `    ${JSON.stringify(key)}: ${cls},`).join("\n")}\n}`;
-  return `${banner}from types import SimpleNamespace\n\nfrom openbox_sdk._govern_runtime import ActivityStage, BaseGovernedSession, GovernedPayload, WorkflowVerdict\n\nPRESET_MANIFEST = ${py(governManifest)}\n\n\n${classes.join("\n\n")}\n\nPRESET_CLASSES = ${registryLiteral}\npresets = SimpleNamespace(**PRESET_CLASSES)\n\n__all__ = [\"PRESET_MANIFEST\", \"PRESET_CLASSES\", \"presets\", ${registry.map(([, cls]) => JSON.stringify(cls)).join(", ")}]\n`;
+  return `${banner}from types import SimpleNamespace\n\nfrom openbox_sdk._govern_runtime import ActivityStage, BaseGovernedSession, GovernedPayload, WorkflowVerdict\n\nPRESET_MANIFEST = ${py(governManifest)}\nPRESET_ACTIVITY_TYPES = ${py(presetActivityTypes)}\n\n\n${classes.join("\n\n")}\n\nPRESET_CLASSES = ${registryLiteral}\npresets = SimpleNamespace(**PRESET_CLASSES)\n\n__all__ = [\"PRESET_MANIFEST\", \"PRESET_ACTIVITY_TYPES\", \"PRESET_CLASSES\", \"presets\", ${registry.map(([, cls]) => JSON.stringify(cls)).join(", ")}]\n`;
 }
 
 function write(file, content) {

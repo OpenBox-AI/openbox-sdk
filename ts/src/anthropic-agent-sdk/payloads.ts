@@ -1,5 +1,6 @@
 import type { SDKAssistantMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { GovernedPayload, SpanData, WorkflowVerdict } from '../core-client/index.js';
+import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import { stampSource } from '../approvals/source.js';
 import {
   buildLLMCompletionSpan,
@@ -15,24 +16,27 @@ import {
   buildAssistantOutputSpan,
 } from '../governance/assistant-output.js';
 
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const anthropicAgentActivity = PRESET_ACTIVITY_TYPES['anthropic-agent-sdk'];
+
 export const ANTHROPIC_AGENT_ACTIVITY_TYPES = {
-  PROMPT: 'PromptSubmission',
-  TOOL_INPUT: 'PreToolUse',
-  TOOL_OUTPUT: 'PostToolUse',
-  TOOL_BATCH: 'PostToolBatch',
-  TOOL_FAILURE: 'PostToolUseFailure',
-  PERMISSION: 'PermissionRequest',
-  SESSION: 'AnthropicAgentSDKSession',
-  ASSISTANT_OUTPUT: 'LLMCompleted',
-  SUBAGENT: 'AgentSpawn',
-  COMPACT: 'PreCompact',
-  MESSAGE: 'AnthropicAgentSDKMessage',
-  CONFIG_CHANGE: 'AnthropicAgentSDKConfigChange',
-  WORKSPACE_CHANGE: 'AnthropicAgentSDKWorkspaceChange',
-  MCP_ELICITATION: 'MCPElicitation',
-  TASK: 'AnthropicAgentSDKTask',
-  USAGE_SIGNAL: 'anthropic_agent_sdk_usage',
-  GOAL_SIGNAL: 'user_prompt',
+  PROMPT: defaultActivity.prompt,
+  TOOL_INPUT: anthropicAgentActivity.preToolUse,
+  TOOL_OUTPUT: anthropicAgentActivity.postToolUse,
+  TOOL_BATCH: anthropicAgentActivity.postToolBatch,
+  TOOL_FAILURE: anthropicAgentActivity.postToolUseFailure,
+  PERMISSION: anthropicAgentActivity.permissionRequest,
+  SESSION: anthropicAgentActivity.sessionActivityStarted,
+  ASSISTANT_OUTPUT: defaultActivity.llm,
+  SUBAGENT: defaultActivity.agentSpawn,
+  COMPACT: anthropicAgentActivity.preCompact,
+  MESSAGE: anthropicAgentActivity.messageActivityStarted,
+  CONFIG_CHANGE: anthropicAgentActivity.configChangeActivity,
+  WORKSPACE_CHANGE: anthropicAgentActivity.workspaceChangeSignal,
+  MCP_ELICITATION: anthropicAgentActivity.mcpElicitationStarted,
+  TASK: anthropicAgentActivity.taskActivityStarted,
+  USAGE_SIGNAL: anthropicAgentActivity.usageSignal,
+  GOAL_SIGNAL: defaultActivity.goalSignal,
 } as const;
 
 export function objectRecord(value: unknown): Record<string, unknown> {
@@ -53,15 +57,15 @@ export function compactPayload(
 }
 
 export function toolActivityType(toolName: string, toolInput: Record<string, unknown>): string {
-  if (toolName === 'Read' || toolName === 'NotebookRead' || toolName === 'Glob' || toolName === 'Grep') return 'FileRead';
-  if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') return 'FileEdit';
-  if (toolName === 'Delete') return 'FileDelete';
-  if (toolName === 'Bash' || toolName === 'PowerShell' || toolName === 'Monitor') return 'ShellExecution';
-  if (toolName === 'WebFetch' || toolName === 'WebSearch') return 'HTTPRequest';
-  if (isDatabaseMcpTool(toolName, toolInput)) return 'DatabaseQuery';
-  if (toolName.startsWith('mcp__')) return 'MCPToolCall';
-  if (toolName === 'Agent' || toolName === 'Task') return 'AgentSpawn';
-  return 'AgentAction';
+  if (toolName === 'Read' || toolName === 'NotebookRead' || toolName === 'Glob' || toolName === 'Grep') return defaultActivity.read;
+  if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') return defaultActivity.write;
+  if (toolName === 'Delete') return defaultActivity.fileDelete;
+  if (toolName === 'Bash' || toolName === 'PowerShell' || toolName === 'Monitor') return defaultActivity.shell;
+  if (toolName === 'WebFetch' || toolName === 'WebSearch') return defaultActivity.httpRequest;
+  if (isDatabaseMcpTool(toolName, toolInput)) return defaultActivity.databaseQuery;
+  if (toolName.startsWith('mcp__')) return defaultActivity.mcpToolCall;
+  if (toolName === 'Agent' || toolName === 'Task') return defaultActivity.agentSpawn;
+  return defaultActivity.agentAction;
 }
 
 export function toolSpan(

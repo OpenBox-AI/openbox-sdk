@@ -1,4 +1,5 @@
 import type { GovernedPayload, SpanData } from '../core-client/index.js';
+import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import { stampSource } from '../approvals/source.js';
 import {
   buildSpan,
@@ -9,12 +10,15 @@ import {
 } from '../governance/spans.js';
 import type { OpenBoxAgentsToolCallDetails } from './types.js';
 
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const openAIAgentsActivity = PRESET_ACTIVITY_TYPES['openai-agents-sdk'];
+
 export const OPENAI_AGENTS_ACTIVITY_TYPES = {
-  RUN: 'OpenAIAgentsSDKRun',
-  TOOL_STARTED: 'ToolStarted',
-  TOOL_COMPLETED: 'ToolCompleted',
-  HANDOFF: 'AgentHandoff',
-  GUARDRAIL: 'GuardrailEvaluation',
+  RUN: openAIAgentsActivity.runStarted,
+  TOOL_STARTED: openAIAgentsActivity.toolStarted,
+  TOOL_COMPLETED: openAIAgentsActivity.toolCompleted,
+  HANDOFF: openAIAgentsActivity.handoff,
+  GUARDRAIL: openAIAgentsActivity.guardrail,
 } as const;
 
 export function objectRecord(value: unknown): Record<string, unknown> {
@@ -44,13 +48,13 @@ export function toolActivityType(
   toolInput: Record<string, unknown>,
 ): string {
   const spanType = spanTypeFor(toolName, toolInput);
-  if (spanType === 'file_read') return 'FileRead';
-  if (spanType === 'file_write') return 'FileEdit';
-  if (spanType === 'file_delete') return 'FileDelete';
-  if (spanType === 'shell') return 'ShellExecution';
-  if (spanType === 'http') return 'HTTPRequest';
-  if (spanType === 'mcp') return 'MCPToolCall';
-  if (toolName === 'Agent' || toolName === 'Task') return 'AgentSpawn';
+  if (spanType === 'file_read') return defaultActivity.read;
+  if (spanType === 'file_write') return defaultActivity.write;
+  if (spanType === 'file_delete') return defaultActivity.fileDelete;
+  if (spanType === 'shell') return defaultActivity.shell;
+  if (spanType === 'http') return defaultActivity.httpRequest;
+  if (spanType === 'mcp') return defaultActivity.mcpToolCall;
+  if (toolName === 'Agent' || toolName === 'Task') return defaultActivity.agentSpawn;
   return OPENAI_AGENTS_ACTIVITY_TYPES.TOOL_STARTED;
 }
 

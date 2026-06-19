@@ -1139,11 +1139,27 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
       activityType: m.activityType,
     })),
   }));
+  const presetActivityTypes = Object.fromEntries(
+    manifest.map((preset) => [
+      preset.preset,
+      Object.fromEntries(
+        preset.methods
+          .filter((method) => typeof method.activityType === 'string' && method.activityType.length > 0)
+          .map((method) => [method.name, method.activityType]),
+      ),
+    ]),
+  );
   out.addStatements([
     '/** Spec-driven manifest of every preset + its method envelopes. */',
     `export const PRESET_MANIFEST = ${JSON.stringify(manifest, null, 2)} as const;`,
     '',
     'export type PresetName = (typeof PRESET_MANIFEST)[number]["preset"];',
+    '',
+    '/** Spec-driven fixed activity_type lookup by preset method.',
+    ' *  Free-form custom-preset methods are intentionally omitted. */',
+    `export const PRESET_ACTIVITY_TYPES = ${JSON.stringify(presetActivityTypes, null, 2)} as const;`,
+    '',
+    'export type PresetActivityTypes = typeof PRESET_ACTIVITY_TYPES;',
     '',
   ]);
 

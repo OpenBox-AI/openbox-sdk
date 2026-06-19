@@ -657,6 +657,16 @@ export const PRESET_MANIFEST = [
         "activityType": "user_prompt"
       },
       {
+        "name": "sessionStart",
+        "eventType": "ActivityStarted",
+        "activityType": "SessionStart"
+      },
+      {
+        "name": "stop",
+        "eventType": "ActivityCompleted",
+        "activityType": "Stop"
+      },
+      {
         "name": "prompt",
         "eventType": "ActivityStarted",
         "activityType": "PromptSubmission"
@@ -715,6 +725,11 @@ export const PRESET_MANIFEST = [
         "name": "agentSpawn",
         "eventType": "ActivityStarted",
         "activityType": "AgentSpawn"
+      },
+      {
+        "name": "agentAction",
+        "eventType": "ActivityStarted",
+        "activityType": "AgentAction"
       }
     ]
   },
@@ -1225,6 +1240,267 @@ export const PRESET_MANIFEST = [
   }
 ] as const;
 export type PresetName = (typeof PRESET_MANIFEST)[number]["preset"];
+/** Spec-driven fixed activity_type lookup by preset method.
+ *  Free-form custom-preset methods are intentionally omitted. */
+export const PRESET_ACTIVITY_TYPES = {
+  "airflow": {
+    "onExecuteCallback": "on_execute_callback",
+    "onSuccessCallback": "on_success_callback",
+    "onFailureCallback": "on_failure_callback",
+    "onRetryCallback": "on_retry_callback",
+    "slaMissCallback": "sla_miss_callback",
+    "onSkippedCallback": "on_skipped_callback"
+  },
+  "anthropic-agent-sdk": {
+    "sessionActivityStarted": "AnthropicAgentSDKSession",
+    "sessionActivityCompleted": "AnthropicAgentSDKSession",
+    "messageActivityStarted": "AnthropicAgentSDKMessage",
+    "messageActivityCompleted": "AnthropicAgentSDKMessage",
+    "messageSignalReceived": "AnthropicAgentSDKMessage",
+    "configChangeActivity": "AnthropicAgentSDKConfigChange",
+    "workspaceChangeSignal": "AnthropicAgentSDKWorkspaceChange",
+    "workspaceChangeCompleted": "AnthropicAgentSDKWorkspaceChange",
+    "mcpElicitationStarted": "MCPElicitation",
+    "mcpElicitationCompleted": "MCPElicitation",
+    "taskActivityStarted": "AnthropicAgentSDKTask",
+    "taskActivityCompleted": "AnthropicAgentSDKTask",
+    "usageSignal": "anthropic_agent_sdk_usage",
+    "sessionStart": "SessionStart",
+    "userPromptSubmit": "UserPromptSubmit",
+    "preToolUse": "PreToolUse",
+    "permissionRequest": "PermissionRequest",
+    "postToolUse": "PostToolUse",
+    "postToolUseFailure": "PostToolUseFailure",
+    "postToolBatch": "PostToolBatch",
+    "stop": "Stop",
+    "subagentStart": "SubagentStart",
+    "subagentStop": "SubagentStop",
+    "preCompact": "PreCompact",
+    "messageDisplay": "MessageDisplay"
+  },
+  "argocd": {
+    "operationStarted": "OperationStarted",
+    "operationCompleted": "OperationCompleted",
+    "resourceUpdated": "ResourceUpdated",
+    "preSyncHookStarted": "PreSyncHookStarted",
+    "preSyncHookSucceeded": "PreSyncHookSucceeded",
+    "syncStatusChanged": "SyncStatusChanged"
+  },
+  "autogen": {
+    "textMessage": "TextMessage",
+    "multiModalMessage": "MultiModalMessage",
+    "toolCallRequestEvent": "ToolCallRequestEvent",
+    "toolCallExecutionEvent": "ToolCallExecutionEvent",
+    "memoryQueryEvent": "MemoryQueryEvent",
+    "userInputRequestedEvent": "UserInputRequestedEvent",
+    "handoffMessage": "HandoffMessage",
+    "stopMessage": "StopMessage"
+  },
+  "claude-code": {
+    "sessionActivityStarted": "ClaudeCodeSession",
+    "sessionActivityCompleted": "ClaudeCodeSession",
+    "messageActivityStarted": "ClaudeCodeMessage",
+    "messageActivityCompleted": "ClaudeCodeMessage",
+    "messageSignalReceived": "ClaudeCodeMessage",
+    "configChangeActivity": "ClaudeCodeConfigChange",
+    "workspaceChangeSignal": "ClaudeCodeWorkspaceChange",
+    "workspaceChangeCompleted": "ClaudeCodeWorkspaceChange",
+    "mcpElicitationStarted": "MCPElicitation",
+    "mcpElicitationCompleted": "MCPElicitation",
+    "taskActivityStarted": "ClaudeCodeTask",
+    "taskActivityCompleted": "ClaudeCodeTask",
+    "claudeUsageSignal": "claude_usage",
+    "preToolUse": "PreToolUse",
+    "postToolUse": "PostToolUse",
+    "userPromptSubmit": "UserPromptSubmit",
+    "permissionRequest": "PermissionRequest",
+    "preCompact": "PreCompact",
+    "subagentStop": "SubagentStop",
+    "notification": "Notification",
+    "stop": "Stop"
+  },
+  "cline": {
+    "preToolUse": "PreToolUse",
+    "postToolUse": "PostToolUse",
+    "userPromptSubmit": "UserPromptSubmit",
+    "taskStart": "TaskStart"
+  },
+  "codex": {
+    "sessionCompleted": "CodexSession",
+    "userPromptSubmit": "UserPromptSubmit",
+    "preToolUse": "PreToolUse",
+    "permissionRequest": "PermissionRequest",
+    "postToolUse": "PostToolUse",
+    "stop": "Stop"
+  },
+  "copilot": {
+    "userPromptSubmitted": "userPromptSubmitted",
+    "preToolUse": "preToolUse",
+    "postToolUse": "postToolUse",
+    "agentStop": "agentStop",
+    "subagentStop": "subagentStop",
+    "errorOccurred": "errorOccurred"
+  },
+  "crewai": {
+    "crewKickoffStarted": "CrewKickoffStarted",
+    "crewKickoffCompleted": "CrewKickoffCompleted",
+    "agentExecutionStarted": "AgentExecutionStarted",
+    "agentExecutionCompleted": "AgentExecutionCompleted",
+    "taskStarted": "TaskStarted",
+    "taskCompleted": "TaskCompleted",
+    "toolUsageStarted": "ToolUsageStarted",
+    "toolUsageFinished": "ToolUsageFinished",
+    "toolUsageError": "ToolUsageError",
+    "llmCallStarted": "LLMCallStarted",
+    "llmCallCompleted": "LLMCallCompleted"
+  },
+  "cursor": {
+    "beforeSubmitPrompt": "PromptSubmission",
+    "preToolUse": "preToolUse",
+    "postToolUse": "postToolUse",
+    "beforeShellExecution": "ShellExecution",
+    "afterShellExecution": "ShellExecution",
+    "beforeMCPExecution": "MCPToolCall",
+    "afterMCPExecution": "MCPToolCall",
+    "beforeReadFile": "FileRead",
+    "afterFileEdit": "FileEdit",
+    "afterAgentResponse": "LLMCompleted",
+    "afterAgentThought": "LLMCompleted"
+  },
+  "custom": {},
+  "default": {
+    "goalSignal": "user_prompt",
+    "sessionStart": "SessionStart",
+    "stop": "Stop",
+    "prompt": "PromptSubmission",
+    "llm": "LLMCompleted",
+    "tool": "ToolStarted",
+    "toolCompleted": "ToolCompleted",
+    "read": "FileRead",
+    "write": "FileEdit",
+    "fileDelete": "FileDelete",
+    "shell": "ShellExecution",
+    "databaseQuery": "DatabaseQuery",
+    "httpRequest": "HTTPRequest",
+    "mcpToolCall": "MCPToolCall",
+    "agentSpawn": "AgentSpawn",
+    "agentAction": "AgentAction"
+  },
+  "langchain": {
+    "onLlmStart": "on_llm_start",
+    "onLlmEnd": "on_llm_end",
+    "onLlmError": "on_llm_error",
+    "onChatModelStart": "on_chat_model_start",
+    "onToolStart": "on_tool_start",
+    "onToolEnd": "on_tool_end",
+    "onToolError": "on_tool_error",
+    "onChainStart": "on_chain_start",
+    "onChainEnd": "on_chain_end",
+    "onAgentAction": "on_agent_action",
+    "onAgentFinish": "on_agent_finish",
+    "onRetrieverStart": "on_retriever_start",
+    "onRetrieverEnd": "on_retriever_end"
+  },
+  "langgraph": {
+    "nodeStart": "node_start",
+    "nodeEnd": "node_end",
+    "interrupt": "interrupt",
+    "checkpoint": "checkpoint",
+    "taskStart": "task_start",
+    "taskEnd": "task_end",
+    "customEvent": "custom_event"
+  },
+  "llamaindex": {
+    "chunking": "CHUNKING",
+    "llm": "LLM",
+    "query": "QUERY",
+    "retrieve": "RETRIEVE",
+    "synthesize": "SYNTHESIZE",
+    "embedding": "EMBEDDING",
+    "functionCall": "FUNCTION_CALL",
+    "agentStep": "AGENT_STEP",
+    "reranking": "RERANKING",
+    "subQuestion": "SUB_QUESTION",
+    "exception": "EXCEPTION"
+  },
+  "mastra": {
+    "workflowStepStart": "workflow-step-start",
+    "workflowStepFinish": "workflow-step-finish",
+    "workflowStepProgress": "workflow-step-progress",
+    "toolCall": "tool-call",
+    "toolResult": "tool-result",
+    "error": "error"
+  },
+  "modern-treasury": {
+    "paymentOrderApproved": "payment_order.approved",
+    "paymentOrderBeginProcessing": "payment_order.begin_processing",
+    "paymentOrderFailed": "payment_order.failed",
+    "paymentOrderReconciled": "payment_order.reconciled",
+    "paymentReferenceCreated": "payment_reference.created"
+  },
+  "n8n": {
+    "nodePreExecute": "node-pre-execute",
+    "nodePostExecute": "node-post-execute",
+    "errorTrigger": "error-trigger"
+  },
+  "openai-agents-sdk": {
+    "runStarted": "OpenAIAgentsSDKRun",
+    "runCompleted": "OpenAIAgentsSDKRun",
+    "toolStarted": "ToolStarted",
+    "toolCompleted": "ToolCompleted",
+    "handoff": "AgentHandoff",
+    "guardrail": "GuardrailEvaluation"
+  },
+  "pagerduty": {
+    "incidentTriggered": "incident.triggered",
+    "incidentAcknowledged": "incident.acknowledged",
+    "incidentEscalated": "incident.escalated",
+    "incidentReassigned": "incident.reassigned",
+    "incidentDelegated": "incident.delegated",
+    "incidentPriorityUpdated": "incident.priority_updated",
+    "incidentResolved": "incident.resolved",
+    "incidentReopened": "incident.reopened",
+    "incidentUnacknowledged": "incident.unacknowledged",
+    "incidentAnnotated": "incident.annotated"
+  },
+  "pydantic-ai": {
+    "userPromptNode": "UserPromptNode",
+    "modelRequestNode": "ModelRequestNode",
+    "callToolsNode": "CallToolsNode",
+    "end": "End",
+    "outputValidator": "output_validator",
+    "toolRetry": "tool_retry"
+  },
+  "semantic-kernel": {
+    "functionInvocationPre": "function_invocation_pre",
+    "functionInvocationPost": "function_invocation_post",
+    "promptRenderPre": "prompt_render_pre",
+    "promptRenderPost": "prompt_render_post",
+    "autoFunctionInvocationPre": "auto_function_invocation_pre",
+    "autoFunctionInvocationPost": "auto_function_invocation_post"
+  },
+  "temporal": {
+    "activityTaskScheduled": "ActivityTaskScheduled",
+    "activityTaskStarted": "ActivityTaskStarted",
+    "activityTaskCompleted": "ActivityTaskCompleted",
+    "activityTaskFailed": "ActivityTaskFailed",
+    "activityTaskTimedOut": "ActivityTaskTimedOut",
+    "activityTaskCanceled": "ActivityTaskCanceled",
+    "childWorkflowExecutionInitiated": "ChildWorkflowExecutionInitiated",
+    "childWorkflowExecutionCompleted": "ChildWorkflowExecutionCompleted",
+    "workflowExecutionSignaled": "WorkflowExecutionSignaled",
+    "markerRecorded": "MarkerRecorded",
+    "timerStarted": "TimerStarted",
+    "timerFired": "TimerFired"
+  },
+  "vercel-ai": {
+    "onStepFinish": "onStepFinish",
+    "onFinish": "onFinish",
+    "onError": "onError",
+    "onAbort": "onAbort"
+  }
+} as const;
+export type PresetActivityTypes = typeof PRESET_ACTIVITY_TYPES;
 /** The 7 canonical event_type strings. Anything else on the wire
  *  is a protocol bug. Consumed by the session-inspect protocol
  *  checker + the verify static linter. */
@@ -2741,6 +3017,14 @@ export class DefaultSession extends BaseGovernedSession {
     return this.runActivity("SignalReceived", "user_prompt", payload);
   }
 
+  async sessionStart(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "SessionStart", payload);
+  }
+
+  async stop(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "Stop", payload);
+  }
+
   async prompt(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "PromptSubmission", payload);
   }
@@ -2787,6 +3071,10 @@ export class DefaultSession extends BaseGovernedSession {
 
   async agentSpawn(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "AgentSpawn", payload);
+  }
+
+  async agentAction(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "AgentAction", payload);
   }
 }
 /** Session for the `langchain` preset; methods match the framework's hook names. */
