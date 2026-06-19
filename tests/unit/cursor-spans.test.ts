@@ -89,6 +89,8 @@ const cfg = {
 interface SpanShape {
   semantic_type?: string;
   attributes?: Record<string, unknown>;
+  status?: { code?: string; description?: string | null };
+  error?: unknown;
 }
 
 describe('cursor mappers emit spans for behavior-rule matching', () => {
@@ -379,6 +381,11 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
     expect(span.semantic_type).toBe('file_read');
     expect(span.attributes?.['file.path']).toBe(filePath);
+    expect(span.status).toEqual({
+      code: 'ERROR',
+      description: 'permission denied',
+    });
+    expect(span.error).toBe('permission denied');
     expect(captured[0]?.payload.output).toMatchObject({
       error_message: 'permission denied',
       failure_type: 'permission_denied',

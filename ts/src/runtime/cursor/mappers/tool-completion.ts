@@ -95,6 +95,10 @@ function spanInput(env: CursorEnvelope): Parameters<typeof buildSpan>[2] {
   };
 }
 
+function failureError(env: CursorEnvelope): string | undefined {
+  return stringFrom(env.error_message) ?? stringFrom(env.failure_type);
+}
+
 function completionClaim(env: CursorEnvelope, toolType: SpanType): boolean {
   return claimCompletionTelemetry(completionParts(env, toolType));
 }
@@ -207,7 +211,13 @@ export async function handlePostToolUseFailure(
     toolName: env.tool_name,
     toolType,
     finishReason: stringFrom(env.failure_type) ?? 'failed',
-    spans: [buildSpan('cursor', toolType, { ...spanInput(env), stage: 'completed' })],
+    spans: [
+      buildSpan('cursor', toolType, {
+        ...spanInput(env),
+        stage: 'completed',
+        error: failureError(env),
+      }),
+    ],
   });
   return undefined;
 }

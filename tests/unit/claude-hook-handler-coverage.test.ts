@@ -189,6 +189,7 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
 
   it('passes signed agent identity through to the Core client', async () => {
     process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
+    // gitleaks:allow - deterministic test fixture generated above, not a credential.
     process.env.OPENBOX_AGENT_PRIVATE_KEY = FAKE_AGENT_PRIVATE_KEY;
     mockHookStdin();
     const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');

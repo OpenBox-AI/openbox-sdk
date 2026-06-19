@@ -31,13 +31,32 @@ interface SpanBase {
   start_time: number;
   end_time: number | null;
   duration_ns: number | null;
-  status: { code: string; description: null };
+  status: { code: string; description: string | null };
   events: never[];
-  error: null;
+  error: string | null;
 }
 
-function base(stage: 'started' | 'completed' = 'started'): SpanBase {
+function errorDescription(value: unknown): string | undefined {
+  if (value instanceof Error) return value.message || value.name;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  }
+  if (value === undefined || value === null) return undefined;
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized === undefined ? String(value) : serialized;
+  } catch {
+    return String(value);
+  }
+}
+
+function base(
+  stage: 'started' | 'completed' = 'started',
+  error?: unknown,
+): SpanBase {
   const now = Date.now() * 1_000_000;
+  const description = errorDescription(error);
   return {
     span_id: hex(16),
     trace_id: hex(32),
@@ -48,9 +67,9 @@ function base(stage: 'started' | 'completed' = 'started'): SpanBase {
     start_time: now,
     end_time: stage === 'completed' ? now : null,
     duration_ns: stage === 'completed' ? 0 : null,
-    status: { code: 'OK', description: null },
+    status: { code: description ? 'ERROR' : 'OK', description: description ?? null },
     events: [],
-    error: null,
+    error: description ?? null,
   };
 }
 
@@ -91,6 +110,7 @@ export interface SpanInput {
   db_statement?: string;
   statement?: string;
   query?: string;
+  error?: unknown;
 }
 
 export interface LLMCompletionSpanInput {
@@ -692,7 +712,7 @@ export function buildSpan(
   type: SpanType,
   input: SpanInput,
 ): Record<string, unknown> {
-  const b = base(input.stage);
+  const b = base(input.stage, input.error);
   switch (type) {
     case 'llm':
       // The LLM classifier requires `http.method` of POST and an

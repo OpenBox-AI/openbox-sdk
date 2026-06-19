@@ -600,7 +600,8 @@ describe('activity pairing', () => {
           nodeName: 'CRM Upsert',
           sessionId: 'n8n-node-1',
           prompt: 'Sync the account.',
-          status: 'success',
+          status: 'failed',
+          error: 'CRM timeout',
           durationMs: 25,
         });
       },
@@ -630,7 +631,8 @@ describe('activity pairing', () => {
         updated: true,
         event_category: 'node_post_execute',
         node_name: 'CRM Upsert',
-        status: 'success',
+        status: 'failed',
+        error: 'CRM timeout',
         _openbox_source: 'n8n',
       }),
     });
@@ -642,6 +644,8 @@ describe('activity pairing', () => {
       stage: 'completed',
       semantic_type: 'llm_tool_call',
       duration_ns: 25_000_000,
+      status: { code: 'ERROR', description: 'CRM timeout' },
+      error: 'CRM timeout',
       attributes: expect.objectContaining({
         'gen_ai.system': 'n8n',
         'openbox.tool.name': 'CRM Upsert',
@@ -653,7 +657,8 @@ describe('activity pairing', () => {
       data: expect.objectContaining({
         source: 'n8n',
         node_name: 'CRM Upsert',
-        status: 'success',
+        status: 'failed',
+        error: 'CRM timeout',
       }),
     });
   });

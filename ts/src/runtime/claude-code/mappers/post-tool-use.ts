@@ -61,6 +61,19 @@ function outputFor(env: ClaudeCodeEnvelope, payload: Record<string, unknown>): u
   return env.tool_response ?? env.tool_output ?? payload.output;
 }
 
+function stringFrom(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function failureError(env: ClaudeCodeEnvelope, payload: Record<string, unknown>): unknown {
+  return (
+    stringFrom(env.error) ??
+    stringFrom(env.reason) ??
+    stringFrom((env as { error_message?: unknown }).error_message) ??
+    payload
+  );
+}
+
 /**
  * PostToolUse fires after the tool returned. Closes the activity opened
  * by PreToolUse and runs output governance. Verdict shape is
@@ -152,6 +165,7 @@ export async function handlePostToolUseFailure(
           db_system: dbSystemFor(toolName, toolInput),
           db_operation: dbOperationFor(toolInput),
           db_statement: dbStatementFor(toolInput),
+          error: failureError(env, payload),
         }),
       ]
     : undefined;

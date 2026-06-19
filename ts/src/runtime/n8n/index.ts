@@ -124,6 +124,21 @@ function recordFrom(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function errorDescription(value: unknown): string | undefined {
+  if (value instanceof Error) return value.message || value.name;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  }
+  if (value === undefined || value === null) return undefined;
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized === undefined ? String(value) : serialized;
+  } catch {
+    return String(value);
+  }
+}
+
 function nodePostExecuteOutput(input: N8nNodePostExecutePayloadInput): Record<string, unknown> {
   const output = recordFrom(input.output);
   return stampSource(cleanRecord({
@@ -139,6 +154,7 @@ function nodeExecutionSpan(input: N8nNodePostExecutePayloadInput) {
   const toolName = trimmed(input.nodeName) ?? 'n8n_node';
   const startTime = timeToUnixNano(input.startTime) ?? nowUnixNano();
   const endTime = timeToUnixNano(input.endTime) ?? nowUnixNano();
+  const error = errorDescription(input.error);
   return {
     span_id: randomBytes(8).toString('hex'),
     trace_id: randomBytes(16).toString('hex'),
@@ -150,6 +166,8 @@ function nodeExecutionSpan(input: N8nNodePostExecutePayloadInput) {
     duration_ns: input.durationMs !== undefined
       ? Math.max(0, Math.trunc(input.durationMs * 1_000_000))
       : Math.max(0, endTime - startTime),
+    status: { code: error ? 'ERROR' : 'OK', description: error ?? null },
+    error: error ?? null,
     stage: 'completed',
     semantic_type: 'llm_tool_call',
     attributes: cleanRecord({

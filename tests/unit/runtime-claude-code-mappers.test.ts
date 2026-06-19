@@ -193,6 +193,42 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     });
   });
 
+  it('post tool failure marks the completed hook span as errored', async () => {
+    const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
+    const { handlePostToolUseFailure } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
+    const session = recordingSession();
+    const cfg = { sessionDir: dir } as any;
+    const base = {
+      session_id: 'S-tool-failure',
+      tool_use_id: 'toolu_failed',
+      tool_name: 'Bash',
+      tool_input: { command: 'cat /root/secret', cwd: dir },
+    } as any;
+
+    await handlePreToolUse(base, session, cfg);
+    await handlePostToolUseFailure(
+      {
+        ...base,
+        error: 'permission denied',
+        reason: 'permission denied',
+        duration_ms: 5,
+      },
+      session,
+      cfg,
+    );
+
+    const completed = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[0] === 'ActivityCompleted',
+    );
+    const span = completed?.args[2]?.spans?.[0];
+    expect(span).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'internal',
+      status: { code: 'ERROR', description: expect.stringContaining('permission denied') },
+    });
+    expect(String(span?.error)).toContain('permission denied');
+  });
+
   it('session-start workflowStarted + START activity', async () => {
     const { handleSessionStart, handleSessionEnd } = await import('../../ts/src/runtime/claude-code/mappers/session');
     const session = recordingSession();
