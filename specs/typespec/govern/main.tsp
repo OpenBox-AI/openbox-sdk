@@ -3,9 +3,9 @@
 //
 // THREE-TIER MODEL:
 //
-// Tier 1 (locked); `CanonicalEventType`. Six values the core service
-//   recognizes for guardrail eligibility, attestation extraction, and
-//   metric routing.
+// Tier 1 (locked); `CanonicalEventType`. Seven values the core service
+//   accepts for lifecycle storage, guardrail/metric routing, and handoff
+//   storage.
 //   Lifecycle (Workflow{Started,Completed,Failed}) is SDK-internal:
 //   the runtime fires it via try/finally + process-exit handlers, never
 //   user code. So workflows can't hang in PENDING state.
@@ -245,10 +245,8 @@ namespace OpenboxGovern;
 // ---------------------------------------------------------------------------
 
 /**
- * Canonical event_type values the core service recognizes. Custom
- * strings are accepted on the wire (varchar(50), no whitelist) but
- * skip event-type-specific code paths: guardrails will not fire,
- * attestation will not extract, and metrics route to a fallback.
+ * Canonical event_type values the core service accepts. Unknown strings
+ * are rejected by the Core API before workflow execution.
  */
 enum CanonicalEventType {
   WorkflowStarted: "WorkflowStarted",
@@ -257,6 +255,7 @@ enum CanonicalEventType {
   ActivityStarted: "ActivityStarted",
   ActivityCompleted: "ActivityCompleted",
   SignalReceived: "SignalReceived",
+  Handoff: "Handoff",
 }
 
 /** Stage prefix on guardrail field paths. "0" = start, "1" = complete. */
@@ -435,6 +434,15 @@ model GovernedPayload {
 
   /** Parent runtime run id when emitted by frameworks that expose nested runs. */
   parentRunId?: string;
+
+  /** Cross-agent grouping id. Core stores this on the session and on handoff rows. */
+  multiAgentSessionId?: string;
+
+  /**
+   * Set on `Handoff` only. The receiving agent is the authenticated
+   * emitter; this field identifies the source agent DID.
+   */
+  fromAgentDid?: string;
 
   /**
    * Caller-supplied activity id. When absent the SDK mints one. Supply it
@@ -809,7 +817,7 @@ interface AutogenPreset {
   @maps_to("SignalReceived", "UserInputRequestedEvent")
   userInputRequestedEvent(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("SignalReceived", "HandoffMessage")
+  @maps_to("Handoff", "HandoffMessage")
   handoffMessage(payload: GovernedPayload): WorkflowVerdict;
 
   @maps_to("ActivityCompleted", "StopMessage")

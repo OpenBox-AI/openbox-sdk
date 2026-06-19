@@ -2,7 +2,7 @@
 // Regenerate with: npm run specs:compile
 export type Verdict = "allow" | "constrain" | "require_approval" | "block" | "halt";
 export type LegacyAction = "allow" | "constrain" | "require_approval" | "block" | "halt" | "continue" | "stop";
-export type EventType = "WorkflowStarted" | "WorkflowCompleted" | "WorkflowFailed" | "ActivityStarted" | "ActivityCompleted" | "SignalReceived";
+export type EventType = "WorkflowStarted" | "WorkflowCompleted" | "WorkflowFailed" | "ActivityStarted" | "ActivityCompleted" | "SignalReceived" | "Handoff";
 export interface CoreError {
   code: string;
   message: string;
@@ -43,6 +43,8 @@ export interface GovernanceEventPayload {
   tool_name?: string;
   tool_type?: string;
   parent_run_id?: string;
+  multi_agent_session_id?: string;
+  from_agent_did?: string;
   signal_name?: string;
   signal_args?: unknown;
   start_time?: number;

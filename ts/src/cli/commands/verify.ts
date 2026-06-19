@@ -256,8 +256,8 @@ const rules: Rule[] = [
   {
     name: 'non-canonical-event-type',
     severity: 'error',
-    message: 'Non-canonical `event_type` string. Core accepts exactly six: WorkflowStarted, SignalReceived, ActivityStarted, ActivityCompleted, WorkflowCompleted, WorkflowFailed.',
-    fix: 'Use one of the six canonical event types. Unknown strings silently no-op downstream classifiers (no guardrail / AGE / trust evaluation).',
+    message: 'Non-canonical `event_type` string. Core accepts exactly seven: WorkflowStarted, SignalReceived, ActivityStarted, ActivityCompleted, WorkflowCompleted, WorkflowFailed, Handoff.',
+    fix: 'Use one of the seven canonical event types. Unknown strings are rejected by the Core API before workflow execution.',
     appliesTo: () => true,
     detect: (_content, origLines) => {
       // Strip comments so a doc note like `// event_type: "Foo"` doesn't fire.

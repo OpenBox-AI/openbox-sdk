@@ -1208,7 +1208,7 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
   for (const k of Object.keys(labelTable).sort()) sortedLabels[k] = labelTable[k];
 
   out.addStatements([
-    '/** The 6 canonical event_type strings. Anything else on the wire',
+    '/** The 7 canonical event_type strings. Anything else on the wire',
     ' *  is a protocol bug. Consumed by the session-inspect protocol',
     ' *  checker + the verify static linter. */',
     `export const CANONICAL_EVENT_TYPES: ReadonlySet<CanonicalEventType> = new Set(${JSON.stringify(
@@ -2203,6 +2203,8 @@ type TelemetryEventFields = Pick<
   | 'tool_name'
   | 'tool_type'
   | 'parent_run_id'
+  | 'multi_agent_session_id'
+  | 'from_agent_did'
 >;
 
 function telemetryEventFields(payload: GovernedPayload): Partial<TelemetryEventFields> {
@@ -2219,6 +2221,8 @@ function telemetryEventFields(payload: GovernedPayload): Partial<TelemetryEventF
     tool_name: payload.toolName,
     tool_type: payload.toolType,
     parent_run_id: payload.parentRunId,
+    multi_agent_session_id: payload.multiAgentSessionId,
+    from_agent_did: payload.fromAgentDid,
   };
 }
 
@@ -2239,6 +2243,8 @@ export interface GovernedSessionConfig {
   workflowType?: string;
   /** Originating runtime tag (\`langgraph\` / \`temporal\` / \`mastra\` / ...). */
   taskQueue?: string;
+  /** Cross-agent grouping id. Core stores this on the session lifecycle and handoff rows. */
+  multiAgentSessionId?: string;
   /**
    * Initial polling interval (ms) when the verdict is \`require_approval\`.
    * The runtime exponentially backs this off (× factor) up to a cap on
@@ -2368,6 +2374,7 @@ export class BaseGovernedSession {
   readonly runId: string;
   readonly workflowType: string;
   readonly taskQueue: string;
+  readonly multiAgentSessionId?: string;
 
   protected readonly core: OpenBoxCoreClient;
   private readonly approvalPollIntervalMs: number;
@@ -2391,6 +2398,7 @@ export class BaseGovernedSession {
     this.runId = config.runId ?? randomUUID();
     this.workflowType = config.workflowType ?? 'governed_agent';
     this.taskQueue = config.taskQueue ?? 'generic';
+    this.multiAgentSessionId = config.multiAgentSessionId;
     this.approvalPollIntervalMs = config.approvalPollIntervalMs ?? 500;
     this.approvalPollMaxIntervalMs = config.approvalPollMaxIntervalMs ?? 5_000;
     this.approvalPollBackoffFactor = config.approvalPollBackoffFactor ?? 1.5;
@@ -2489,11 +2497,12 @@ export class BaseGovernedSession {
    * routing; e.g. Claude's PreToolUse hook fires FileRead, FileEdit,
    * ShellExecution etc. depending on \`tool_name\`.
    *
-   * Mirrors the \`custom\` preset's free-form \`activity()\`. Same lifecycle
-   * invariants (workflow open, paired Start/Complete, idempotent terminal).
+   * Mirrors the \`custom\` preset's free-form \`activity()\`. ActivityStarted
+   * and ActivityCompleted keep their normal pairing semantics; Handoff and
+   * SignalReceived are standalone Core events.
    */
   async activity(
-    eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived',
+    eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived' | 'Handoff',
     activityType: string,
     payload: GovernedPayload,
   ): Promise<${verdictModelName}> {
@@ -2507,7 +2516,7 @@ export class BaseGovernedSession {
    * that cannot block the already-completed action.
    */
   async observeActivity(
-    eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived',
+    eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived' | 'Handoff',
     activityType: string,
     payload: GovernedPayload,
   ): Promise<${verdictModelName}> {
@@ -2517,6 +2526,17 @@ export class BaseGovernedSession {
     const startTime = payload.startTime ?? Date.now();
     this.inFlight.add(activityId);
     try {
+      if (eventType === 'Handoff') {
+        const handoffVerdict = await this.emit({
+          event_type: 'Handoff',
+          activity_id: activityId,
+          activity_type: activityType,
+          activity_input: payload.input,
+          ...telemetryEventFields(payload),
+        });
+        handoffVerdict.activityId = activityId;
+        return handoffVerdict;
+      }
       if (eventType === 'SignalReceived') {
         const signalVerdict = await this.emit({
           event_type: 'SignalReceived',
@@ -2617,9 +2637,10 @@ export class BaseGovernedSession {
    *                       Otherwise emit a paired ActivityCompleted.
    *   ActivityCompleted → emit completion only (post-stage observe / gate).
    *   SignalReceived    → fire-and-forget telemetry (no gate).
+   *   Handoff           → emit Core handoff row (no activity pair, no gate).
    */
   protected async runActivity(
-    eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived',
+    eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived' | 'Handoff',
     activityType: string,
     payload: GovernedPayload,
   ): Promise<${verdictModelName}> {
@@ -2630,6 +2651,18 @@ export class BaseGovernedSession {
     this.inFlight.add(activityId);
 
     try {
+      if (eventType === 'Handoff') {
+        const handoffVerdict = await this.emit({
+          event_type: 'Handoff',
+          activity_id: activityId,
+          activity_type: activityType,
+          activity_input: payload.input,
+          ...telemetryEventFields(payload),
+        });
+        handoffVerdict.activityId = activityId;
+        return handoffVerdict;
+      }
+
       if (eventType === 'SignalReceived') {
         const signalVerdict = await this.emit({
           event_type: 'SignalReceived',
@@ -2831,6 +2864,7 @@ export class BaseGovernedSession {
       run_id: this.runId,
       workflow_type: this.workflowType,
       task_queue: this.taskQueue,
+      multi_agent_session_id: event.multi_agent_session_id ?? this.multiAgentSessionId,
       timestamp: new Date().toISOString(),
       span_count: event.spans?.length,
     } as unknown as GovernanceEventPayload;

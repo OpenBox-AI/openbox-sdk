@@ -1,8 +1,8 @@
 // typespec-workflow: decorators describing the Temporal-style
 // governance protocol. The wire format is
-// `POST /api/v1/governance/evaluate`. Every call rides one of six
-// canonical event_types that the core service recognizes for guardrail
-// eligibility, attestation extraction, and metric routing.
+// `POST /api/v1/governance/evaluate`. Every call rides one of seven
+// canonical event_types that the core service accepts for lifecycle
+// storage, guardrail/metric routing, and handoff storage.
 //
 // Decorator surface for the framework-preset shape:
 //   @preset(name)   marks an interface as a framework preset
@@ -44,11 +44,10 @@ extern dec preset(target: Interface, name: valueof string);
  * emitter "when the user calls this method, fire this canonical
  * event_type with this activity_type string."
  *
- * Only six event_types are valid. These are the ones the core service
- * recognizes for guardrail eligibility checks. Custom strings would be
- * stored but skip event-type-specific logic.
+ * Only seven event_types are valid. Unknown strings are rejected by the
+ * Core API before workflow execution.
  *
- * @param eventType One of the six canonical event_types.
+ * @param eventType One of the seven canonical event_types.
  * @param activityType The free-form activity_type string for the wire.
  *   Optional; defaults to the operation name verbatim if omitted, so
  *   `onToolStart` becomes activity_type="onToolStart".
@@ -61,7 +60,8 @@ extern dec maps_to(
     | "WorkflowFailed"
     | "ActivityStarted"
     | "ActivityCompleted"
-    | "SignalReceived",
+    | "SignalReceived"
+    | "Handoff",
   activityType?: valueof string,
 );
 

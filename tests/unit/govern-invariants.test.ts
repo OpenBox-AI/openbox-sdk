@@ -1112,6 +1112,53 @@ describe('BaseGovernedSession.activity (cross-preset escape)', () => {
     expect(stray).toBeUndefined();
   });
 
+  test('Handoff event_type via session.activity is standalone and carries handoff identifiers', async () => {
+    const mock = createMockCore('allow');
+    await govern(
+      {
+        ...baseConfig(mock),
+        preset: presets.claudeCode,
+        multiAgentSessionId: 'mas-1',
+      },
+      async (session) => {
+        await session.activity('Handoff', 'HandoffMessage', {
+          fromAgentDid: 'did:aip:source-agent',
+          input: [{ reason: 'delegate to receiving agent' }],
+        });
+      },
+    );
+    const workflowStarted = mock.events.find((e) => e.event_type === 'WorkflowStarted');
+    expect(workflowStarted?.multi_agent_session_id).toBe('mas-1');
+
+    const handoff = mock.events.find((e) => e.event_type === 'Handoff');
+    expect(handoff?.activity_type).toBe('HandoffMessage');
+    expect(handoff?.multi_agent_session_id).toBe('mas-1');
+    expect(handoff?.from_agent_did).toBe('did:aip:source-agent');
+    expect(handoff?.activity_input).toEqual([{ reason: 'delegate to receiving agent' }]);
+    expect(
+      mock.events.find(
+        (e) => e.event_type === 'ActivityCompleted' && e.activity_type === 'HandoffMessage',
+      ),
+    ).toBeUndefined();
+  });
+
+  test('Autogen handoffMessage maps to Core Handoff with payload grouping fields', async () => {
+    const mock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(mock), preset: presets.autogen },
+      async (session) => {
+        await session.handoffMessage({
+          multiAgentSessionId: 'mas-2',
+          fromAgentDid: 'did:aip:source-agent-2',
+        });
+      },
+    );
+    const handoff = mock.events.find((e) => e.event_type === 'Handoff');
+    expect(handoff?.activity_type).toBe('HandoffMessage');
+    expect(handoff?.multi_agent_session_id).toBe('mas-2');
+    expect(handoff?.from_agent_did).toBe('did:aip:source-agent-2');
+  });
+
   test('openActivity defers the pair until complete() and keeps one activity id', async () => {
     const mock = createMockCore('allow');
     await govern(

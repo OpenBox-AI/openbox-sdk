@@ -101,10 +101,11 @@ enum EventType {
   ActivityStarted,
   ActivityCompleted,
   SignalReceived,
+  Handoff,
 }
 
 /**
- * Unified event payload; all six event types share this shape, and
+ * Unified event payload; all seven event types share this shape, and
  * only the fields relevant to that type are populated. The SDK
  * keeps `workflow_id` and `run_id` constant across one workflow
  * run; `activity_id` is per-action and pairs ActivityStarted with
@@ -208,6 +209,15 @@ model GovernanceEventPayload {
 
   /** Parent runtime run id when emitted by frameworks that expose nested runs. */
   parent_run_id?: string;
+
+  /** Cross-agent grouping id. Core stores this on the session and on handoff rows. */
+  multi_agent_session_id?: string;
+
+  /**
+   * Set on `Handoff` only. The receiving agent is the authenticated
+   * emitter; this field identifies the source agent DID.
+   */
+  from_agent_did?: string;
 
   /** Set on `SignalReceived`. */
   signal_name?: string;

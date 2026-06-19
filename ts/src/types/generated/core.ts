@@ -219,9 +219,9 @@ export interface components {
          * @description Discriminator for the unified `GovernanceEventPayload`.
          * @enum {string}
          */
-        EventType: "WorkflowStarted" | "WorkflowCompleted" | "WorkflowFailed" | "ActivityStarted" | "ActivityCompleted" | "SignalReceived";
+        EventType: "WorkflowStarted" | "WorkflowCompleted" | "WorkflowFailed" | "ActivityStarted" | "ActivityCompleted" | "SignalReceived" | "Handoff";
         /**
-         * @description Unified event payload; all six event types share this shape, and
+         * @description Unified event payload; all seven event types share this shape, and
          *     only the fields relevant to that type are populated. The SDK
          *     keeps `workflow_id` and `run_id` constant across one workflow
          *     run; `activity_id` is per-action and pairs ActivityStarted with
@@ -313,6 +313,13 @@ export interface components {
             tool_type?: string;
             /** @description Parent runtime run id when emitted by frameworks that expose nested runs. */
             parent_run_id?: string;
+            /** @description Cross-agent grouping id. Core stores this on the session and on handoff rows. */
+            multi_agent_session_id?: string;
+            /**
+             * @description Set on `Handoff` only. The receiving agent is the authenticated
+             *     emitter; this field identifies the source agent DID.
+             */
+            from_agent_did?: string;
             /** @description Set on `SignalReceived`. */
             signal_name?: string;
             /** @description Set on `SignalReceived`. */
