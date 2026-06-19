@@ -740,6 +740,51 @@ describe('activity pairing', () => {
     });
   });
 
+  test('n8n pre-execute guardrail constraints keep redaction and source attribution', async () => {
+    const mock = createMockCore('constrain', {
+      reason: 'guardrail redacted node input',
+      guardrails_result: {
+        input_type: 'activity_input',
+        redacted_input: [{ operation: '[redacted]' }],
+        validation_passed: true,
+        field_results: [{ field: 'operation', status: 'redacted' }],
+      },
+    });
+
+    await govern(
+      { ...baseConfig(mock), preset: presets.n8n },
+      async (session) => {
+        const verdict = await emitN8nNodePreExecute(session, {
+          input: { operation: 'refund secret' },
+          nodeName: 'Guardrails Node',
+          sessionId: 'n8n-guardrail-1',
+        });
+        expect(verdict.arm).toBe('constrain');
+        expect(verdict.guardrailsResult?.redactedInput).toEqual([
+          { operation: '[redacted]' },
+        ]);
+        expect(verdict.guardrailsResult?.fieldResults).toEqual([
+          { field: 'operation', status: 'redacted', reason: undefined },
+        ]);
+      },
+    );
+
+    const started = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'node-pre-execute',
+    );
+    expect(started?.activity_input).toContainEqual(
+      expect.objectContaining({
+        operation: 'refund secret',
+        event_category: 'node_pre_execute',
+        node_name: 'Guardrails Node',
+        _openbox_source: 'n8n',
+      }),
+    );
+    expect(mock.pollApproval).not.toHaveBeenCalled();
+  });
+
   test('n8n generic node completion emits paired parent plus tool hook span', async () => {
     const mock = createMockCore('allow');
     await govern(

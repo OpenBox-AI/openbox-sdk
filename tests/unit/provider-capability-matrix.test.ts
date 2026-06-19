@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { HOOK_EVENTS as ANTHROPIC_AGENT_HOOK_EVENTS } from '@anthropic-ai/claude-agent-sdk';
 import {
@@ -9,6 +11,7 @@ import { HOOK_SPEC as CODEX_HOOK_SPEC } from '../../ts/src/core-client/generated
 import { HOOK_SPEC as CURSOR_HOOK_SPEC } from '../../ts/src/core-client/generated/runtime/cursor.js';
 import {
   GOAL_SIGNAL_GUARDS,
+  GUARDRAIL_CAPABILITY_GUARDS,
   HITL_CAPABILITY_GUARDS,
   OPENBOX_CAPABILITY_IDS,
   POLICY_EVALUATION_GUARDS,
@@ -97,6 +100,44 @@ describe('provider capability matrix', () => {
       expect(guard.forbiddenLocalWork, `${guard.provider} forbiddenLocalWork`).toContain('OPA/Rego evaluation');
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
     }
+  });
+
+  it('pins native guardrail support claims to explicit guardrail guard coverage', () => {
+    const nativeCapabilityProviders = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) => entry.capability === 'guardrails' && entry.tier === 'native')
+      .map((entry) => entry.provider)
+      .sort();
+    const nativeGuardProviders = GUARDRAIL_CAPABILITY_GUARDS
+      .filter((entry) => entry.tier === 'native')
+      .map((entry) => entry.provider)
+      .sort();
+
+    expect(nativeGuardProviders).toEqual(nativeCapabilityProviders);
+    expect(new Set(nativeGuardProviders).size).toBe(nativeGuardProviders.length);
+
+    for (const guard of GUARDRAIL_CAPABILITY_GUARDS) {
+      expect(guard.coreContract, `${guard.provider} coreContract`).toContain('Core');
+      expect(guard.governedSurfaces.length, `${guard.provider} governedSurfaces`).toBeGreaterThan(10);
+      expect(guard.redactionBehavior.length, `${guard.provider} redactionBehavior`).toBeGreaterThan(30);
+      expect(guard.failClosedBehavior, `${guard.provider} failClosedBehavior`).toMatch(/fail|block|deny|halt|throw/i);
+      expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+    }
+  });
+
+  it('preserves lowercase literal words in generated Python strings', () => {
+    const capabilityMatrix = readFileSync(
+      resolve(process.cwd(), 'python/openbox_sdk/generated/capability_matrix.py'),
+      'utf8',
+    );
+    const backendClient = readFileSync(
+      resolve(process.cwd(), 'python/openbox_sdk/generated/backend_client.py'),
+      'utf8',
+    );
+
+    expect(capabilityMatrix).toContain('continue:false');
+    expect(capabilityMatrix).not.toContain('continue:False');
+    expect(backendClient).toContain('/false-positive');
+    expect(backendClient).not.toContain('/False-positive');
   });
 
   it('pins native goal-signal capability claims to explicit guard coverage', () => {

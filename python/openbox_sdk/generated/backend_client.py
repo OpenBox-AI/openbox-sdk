@@ -145,8 +145,8 @@ BACKEND_ENDPOINT_MANIFEST = [
     "operation_id": "AgentController_markAsFalsePositive",
     "method_name": "mark_false_positive",
     "verb": "patch",
-    "path": "/agent/{agentId}/violations/{violationId}/False-positive",
-    "path_pattern": "/agent/{x}/violations/{x}/False-positive"
+    "path": "/agent/{agentId}/violations/{violationId}/false-positive",
+    "path_pattern": "/agent/{x}/violations/{x}/false-positive"
   },
   {
     "operation_id": "AgentController_getAgentLogs",
