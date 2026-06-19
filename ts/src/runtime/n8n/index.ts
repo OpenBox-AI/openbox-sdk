@@ -4,6 +4,7 @@ import type {
   WorkflowVerdict,
 } from '../../core-client/index.js';
 import type { LLMTokenUsage } from '../../governance/spans.js';
+import { withOpenBoxActivityMetadata } from '../../governance/spans.js';
 import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
@@ -52,12 +53,42 @@ interface PendingNodeActivity {
   startTime: number;
 }
 
+const N8N_NODE_TOOL_TYPE = 'n8n_node';
 const pendingNodeActivities = new WeakMap<object, Map<string, PendingNodeActivity>>();
 
 function cleanRecord(value: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(value).filter(([, entry]) => entry !== undefined),
   );
+}
+
+function trimmed(value: string | undefined): string | undefined {
+  const next = value?.trim();
+  return next || undefined;
+}
+
+function nodeToolTelemetry(nodeName: string | undefined): Pick<GovernedPayload, 'toolName' | 'toolType'> {
+  return {
+    toolName: trimmed(nodeName),
+    toolType: N8N_NODE_TOOL_TYPE,
+  };
+}
+
+function nodeActivityInput(record: Record<string, unknown>): unknown[] {
+  return withOpenBoxActivityMetadata(
+    [stampSource(cleanRecord(record), 'n8n')],
+    { toolType: N8N_NODE_TOOL_TYPE },
+  ) as unknown[];
+}
+
+function nodeToolAttributes(nodeName: string | undefined): Record<string, unknown> {
+  const toolName = trimmed(nodeName);
+  return cleanRecord({
+    'openbox.tool.name': toolName,
+    'tool.name': toolName,
+    tool_name: toolName,
+    'openbox.tool.type': N8N_NODE_TOOL_TYPE,
+  });
 }
 
 function stableStringify(value: unknown): string {
@@ -141,19 +172,15 @@ export function buildN8nNodePreExecutePayload(
 ): GovernedPayload {
   const prompt = input.prompt?.trim();
   return {
-    input: [
-      stampSource(
-        cleanRecord({
-          ...(input.input ?? {}),
-          event_category: 'node_pre_execute',
-          node_name: input.nodeName,
-          prompt,
-        }),
-        'n8n',
-      ),
-    ],
+    input: nodeActivityInput({
+      ...(input.input ?? {}),
+      event_category: 'node_pre_execute',
+      node_name: input.nodeName,
+      prompt,
+    }),
     sessionId: input.sessionId,
     prompt,
+    ...nodeToolTelemetry(input.nodeName),
   };
 }
 
@@ -211,11 +238,12 @@ export function buildN8nLlmCompletionPayload(
   });
   return {
     ...(activityInput && Object.keys(activityInput).length > 0
-      ? { input: [stampSource(activityInput, 'n8n')] }
+      ? { input: nodeActivityInput(activityInput) }
       : {}),
     output: { text: input.text },
     prompt,
     ...telemetry,
+    ...nodeToolTelemetry(input.nodeName),
     spans: buildAssistantOutputSpan({
       source: 'n8n',
       content,
@@ -231,6 +259,7 @@ export function buildN8nLlmCompletionPayload(
       endTime: input.endTime,
       durationNs: input.durationNs,
       attributes: cleanRecord({
+        ...nodeToolAttributes(input.nodeName),
         'openbox.n8n.node_name': input.nodeName,
         'openbox.provider': input.provider,
         'openbox.provider.url': input.actualProviderUrl,

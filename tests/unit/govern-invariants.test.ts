@@ -407,15 +407,20 @@ describe('activity pairing', () => {
     expect(started).toMatchObject({
       session_id: 'n8n-chat-1',
       prompt: 'Draft release note.',
-      activity_input: [
-        expect.objectContaining({
-          chatInput: 'Draft release note.',
-          event_category: 'node_pre_execute',
-          node_name: 'Governed LLM Draft',
-          prompt: 'Draft release note.',
-          _openbox_source: 'n8n',
-        }),
-      ],
+      tool_name: 'Governed LLM Draft',
+      tool_type: 'n8n_node',
+    });
+    expect(started?.activity_input).toContainEqual(
+      expect.objectContaining({
+        chatInput: 'Draft release note.',
+        event_category: 'node_pre_execute',
+        node_name: 'Governed LLM Draft',
+        prompt: 'Draft release note.',
+        _openbox_source: 'n8n',
+      }),
+    );
+    expect(started?.activity_input).toContainEqual({
+      __openbox: { tool_type: 'n8n_node' },
     });
     expect(started?.hook_trigger).toBeUndefined();
     expect(started?.spans).toBeUndefined();
@@ -450,15 +455,20 @@ describe('activity pairing', () => {
       completion: 'Draft ready.',
       session_id: 'n8n-chat-1',
       prompt: 'Draft release note.',
-      activity_input: [
-        expect.objectContaining({
-          chatInput: 'Draft release note.',
-          event_category: 'node_post_execute',
-          node_name: 'Governed LLM Draft',
-          prompt: 'Draft release note.',
-          _openbox_source: 'n8n',
-        }),
-      ],
+      tool_name: 'Governed LLM Draft',
+      tool_type: 'n8n_node',
+    });
+    expect(completedParent.activity_input).toContainEqual(
+      expect.objectContaining({
+        chatInput: 'Draft release note.',
+        event_category: 'node_post_execute',
+        node_name: 'Governed LLM Draft',
+        prompt: 'Draft release note.',
+        _openbox_source: 'n8n',
+      }),
+    );
+    expect(completedParent.activity_input).toContainEqual({
+      __openbox: { tool_type: 'n8n_node' },
     });
     expect(completedHook.hook_trigger).toBe(true);
     expect(completedHook.event_type).toBe(completedParent.event_type);
@@ -485,6 +495,10 @@ describe('activity pairing', () => {
         'http.url': 'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
         'openbox.model.id': 'gemini-2.5-flash',
         'openbox.model.provider': 'google',
+        'openbox.tool.name': 'Governed LLM Draft',
+        'tool.name': 'Governed LLM Draft',
+        tool_name: 'Governed LLM Draft',
+        'openbox.tool.type': 'n8n_node',
         'openbox.n8n.node_name': 'Governed LLM Draft',
         'openbox.provider': 'google',
       }),
