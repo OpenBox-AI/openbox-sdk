@@ -1,19 +1,19 @@
-// Editor-agnostic rules projection. Fetches an agent's live guardrails
-// and policies and normalizes them into the `ProjectedRule` shape
+// Editor-agnostic rules projection. Fetches an agent's live guardrails,
+// policies, and behavior rules and normalizes them into the `ProjectedRule` shape
 // declared in specs/typespec/govern/rules-projection.tsp.
 //
-// The shape is hand-mirrored from the TypeSpec model rather than
-// generated; once codegen lights it up, switch the imports to
-// generated types and delete the duplication. Until then, treat this
-// file as the source of truth for what the spec says.
+// The projection output shape is hand-mirrored from the TypeSpec model.
+// Backend behavior-rule inputs use generated types so v2 state predicates
+// stay aligned with the API contract.
 import { createApi } from '../runtime/mcp/config.js';
+import type { components } from '../types/generated/backend.js';
 
 export type RuleTrigger = 'always' | 'globMatch' | 'agentRequested' | 'manual';
 export type RuleSeverity = 'block' | 'warn' | 'info';
 
 export interface ProjectedRule {
   id: string;
-  source: 'guardrail' | 'policy';
+  source: 'guardrail' | 'policy' | 'behavior-rule';
   description: string;
   body: string;
   trigger: RuleTrigger;
@@ -52,6 +52,10 @@ interface BackendPolicy {
   trust_impact?: string;
 }
 
+type BackendBehaviorRule = components['schemas']['BehaviorRule'];
+type BehaviorRuleState =
+  NonNullable<BackendBehaviorRule['states']>[number];
+
 /**
  * Trust impact ∈ {none, low, medium, high, critical}; map to the rule
  * severity vocabulary. "high" / "critical" carry hard-block semantics
@@ -67,6 +71,21 @@ function severityFromTrustImpact(impact: string | undefined): RuleSeverity {
       return 'warn';
     default:
       return 'info';
+  }
+}
+
+function severityFromBehaviorRule(rule: BackendBehaviorRule): RuleSeverity {
+  switch (rule.verdict) {
+    case 3:
+    case 4:
+      return 'block';
+    case 1:
+    case 2:
+      return 'warn';
+    case 0:
+      return 'info';
+    default:
+      return severityFromTrustImpact(rule.trust_impact);
   }
 }
 
@@ -119,6 +138,28 @@ function projectPolicy(p: BackendPolicy): ProjectedRule | null {
   };
 }
 
+function projectBehaviorRule(rule: BackendBehaviorRule): ProjectedRule | null {
+  if (rule.is_active === false) return null;
+  return {
+    id: `behavior-rule/${rule.id}`,
+    source: 'behavior-rule',
+    description: rule.description ?? rule.rule_name,
+    body: renderBehaviorRuleBody(rule),
+    trigger: 'always',
+    severity: severityFromBehaviorRule(rule),
+    rendererHints: {
+      trigger: rule.trigger,
+      triggerMatch: rule.trigger_match,
+      states: rule.states,
+      priority: rule.priority,
+      verdict: rule.verdict,
+      timeWindow: rule.time_window,
+      groupId: rule.group_id,
+      version: rule.version,
+    },
+  };
+}
+
 function renderGuardrailBody(g: BackendGuardrail): string {
   const lines = [
     `**${g.name}** (${g.guardrail_type}, ${g.processing_stage})`,
@@ -143,6 +184,46 @@ function renderPolicyBody(p: BackendPolicy): string {
   ].join('\n');
 }
 
+function renderBehaviorRuleBody(rule: BackendBehaviorRule): string {
+  const lines = [
+    `**${rule.rule_name}** (behavior rule)`,
+    '',
+    rule.description ?? '_No description provided._',
+  ];
+  if (rule.trigger) lines.push('', `Trigger: \`${rule.trigger}\``);
+  if (rule.trigger_match && rule.trigger_match.length > 0) {
+    lines.push(`Trigger match: ${renderMatchConditions(rule.trigger_match)}`);
+  }
+  if (rule.states && rule.states.length > 0) {
+    lines.push(`States: ${rule.states.map(renderBehaviorState).join(', ')}`);
+  }
+  if (typeof rule.verdict === 'number') lines.push(`Verdict: ${rule.verdict}`);
+  if (rule.reject_message) lines.push('', `Reject message: ${rule.reject_message}`);
+  return lines.join('\n');
+}
+
+function renderBehaviorState(state: BehaviorRuleState): string {
+  if (typeof state === 'string') return `\`${state}\``;
+  const semanticType = state.semantic_type;
+  const match =
+    state.match && state.match.length > 0
+      ? ` where ${renderMatchConditions(state.match)}`
+      : '';
+  return `\`${semanticType}\`${match}`;
+}
+
+function renderMatchConditions(
+  conditions: components['schemas']['BehaviorRuleMatchCondition'][],
+): string {
+  return conditions
+    .map((condition) => {
+      const value =
+        condition.value === undefined ? '' : ` ${JSON.stringify(condition.value)}`;
+      return `\`${condition.field} ${condition.op}${value}\``;
+    })
+    .join(', ');
+}
+
 export interface FetchProjectionOpts {
   agentId: string;
   tokensPath?: string;
@@ -150,19 +231,15 @@ export interface FetchProjectionOpts {
 
 export async function fetchRulesProjection(opts: FetchProjectionOpts): Promise<RulesProjection> {
   const api = createApi({ tokensPath: opts.tokensPath });
-  const [guardrails, policies] = await Promise.all([
+  const [guardrails, policies, behaviorRules] = await Promise.all([
     api(`/agent/${opts.agentId}/guardrails?page=0&perPage=200`),
     api(`/agent/${opts.agentId}/policies?page=0&perPage=200`),
-  ]) as [unknown, unknown];
+    api(`/agent/${opts.agentId}/behavior-rule?page=0&perPage=200`),
+  ]) as [unknown, unknown, unknown];
 
-  const guardrailEnvelope = guardrails as { data?: BackendGuardrail[] };
-  const policyEnvelope = policies as { data?: BackendPolicy[] };
-  const grList: BackendGuardrail[] = Array.isArray(guardrails)
-    ? guardrails
-    : guardrailEnvelope.data ?? [];
-  const polList: BackendPolicy[] = Array.isArray(policies)
-    ? policies
-    : policyEnvelope.data ?? [];
+  const grList = listFromEnvelope<BackendGuardrail>(guardrails);
+  const polList = listFromEnvelope<BackendPolicy>(policies);
+  const behaviorRuleList = listFromEnvelope<BackendBehaviorRule>(behaviorRules);
 
   const rules: ProjectedRule[] = [];
   for (const g of grList) {
@@ -171,6 +248,10 @@ export async function fetchRulesProjection(opts: FetchProjectionOpts): Promise<R
   }
   for (const p of polList) {
     const r = projectPolicy(p);
+    if (r) rules.push(r);
+  }
+  for (const rule of behaviorRuleList) {
+    const r = projectBehaviorRule(rule);
     if (r) rules.push(r);
   }
 
@@ -182,4 +263,16 @@ export async function fetchRulesProjection(opts: FetchProjectionOpts): Promise<R
     version: PROJECTION_VERSION,
     rules,
   };
+}
+
+function listFromEnvelope<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (!value || typeof value !== 'object') return [];
+  const data = (value as { data?: unknown }).data;
+  if (Array.isArray(data)) return data as T[];
+  if (data && typeof data === 'object') {
+    const nested = (data as { data?: unknown }).data;
+    if (Array.isArray(nested)) return nested as T[];
+  }
+  return [];
 }

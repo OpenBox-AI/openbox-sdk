@@ -99,8 +99,8 @@ The TypeScript boundary is enforced by:
 
 ### Promote a CLI subcommand from experimental to stable
 
-1. Run `npm run test:e2e` against the live backend covering that
-   subcommand path.
+1. Run the targeted live backend e2e test for that subcommand path with
+   an explicit `OPENBOX_CLI`.
 2. Edit the spec: change `@cli_maturity("experimental")` to
    `@cli_maturity("stable")` (or remove the override if the parent
    interface is `@cli_maturity("stable")`).
@@ -134,7 +134,6 @@ npm install                    # workspaces resolve in topological order
 npm run specs:all              # TypeSpec compile, emitters, openapi-typescript
 npm run build                  # codegen + bundle to dist/
 npm test                       # vitest unit + contract + hook integration
-npm run test:e2e               # CLI e2e with explicit OPENBOX_CLI
 npm run check:generated-drift  # asserts no uncommitted regen output
 ```
 

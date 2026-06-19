@@ -24,7 +24,7 @@ export const $lib = createTypeSpecLibrary({
     'invalid-event-type': {
       severity: 'error',
       messages: {
-        default: paramMessage`Invalid event_type '${'eventType'}' on @maps_to; must be one of WorkflowStarted, WorkflowCompleted, WorkflowFailed, ActivityStarted, ActivityCompleted, SignalReceived`,
+        default: paramMessage`Invalid event_type '${'eventType'}' on @maps_to; must be one of WorkflowStarted, WorkflowCompleted, WorkflowFailed, ActivityStarted, ActivityCompleted, SignalReceived, Handoff`,
       },
     },
     'invalid-adapter-name': {

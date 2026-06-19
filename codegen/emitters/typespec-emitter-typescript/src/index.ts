@@ -94,6 +94,8 @@ export async function $onEmit(context: EmitContext): Promise<void> {
     resolvePath(repoRoot, 'ts', 'src', 'cli', 'generated', 'cli-maturity.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'govern.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'core-types.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'claude-code.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'cursor.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'env', 'generated', 'env-bindings.ts'),
   ]);
 }
@@ -602,7 +604,7 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
   // RuntimeConfig (URLs) + Credentials (api key) + CliRuntimeConfig
   // (cli-only gates). Spec authors add a field here, the table grows.
   // Consumers reach env vars by NAME from this table, never by string
-  // literal; adding `OPENBOX_FOO` is a one-line spec change.
+  // literal; adding a new binding is a one-line spec change.
   const bindings: EnvVarBindingRow[] = [];
   if (runtimeConfig) bindings.push(...collectEnvVarBindings(program, runtimeConfig));
   if (credentials) bindings.push(...collectEnvVarBindings(program, credentials));
@@ -1206,7 +1208,7 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
   for (const k of Object.keys(labelTable).sort()) sortedLabels[k] = labelTable[k];
 
   out.addStatements([
-    '/** The 6 canonical event_type strings. Anything else on the wire',
+    '/** The 7 canonical event_type strings. Anything else on the wire',
     ' *  is a protocol bug. Consumed by the session-inspect protocol',
     ' *  checker + the verify static linter. */',
     `export const CANONICAL_EVENT_TYPES: ReadonlySet<CanonicalEventType> = new Set(${JSON.stringify(
@@ -1551,12 +1553,8 @@ export interface ${configIface} {
   /** Override exit (test injection). Default: process.exit. */
   exit?: (code: number) => never;
   /**
-   * Cap (ms) on how long the SDK polls a require_approval verdict
-   * before giving up. The actual wait is min(this, server-side
-   * approvalExpiresAt). Hook subprocesses have a finite lifetime
-   * imposed by the host IDE; set this slightly under that ceiling so
-   * the poll resolves before the host kills the process. Default: SDK
-   * default (60s).
+   * @deprecated Compatibility no-op. Approval expiration is controlled
+   * by the server-supplied approvalExpiresAt value.
    */
   approvalMaxWaitMs?: number;
   /**
@@ -1567,7 +1565,7 @@ export interface ${configIface} {
    * approver. External approval clients such as the dashboard, mobile
    * app, or editor extension can still resolve the backend row, but
    * the hook subprocess does not wait for them. Adapters wire this
-   * from the \`APPROVAL_MODE\` config.
+   * from the project \`approvalMode\` config.
    */
   inlineApproval?: boolean;
   deferApproval?: boolean;
@@ -1910,9 +1908,89 @@ function redactedInput(v: WorkflowVerdict | undefined): unknown {
   return v?.guardrailsResult?.redactedInput;
 }
 
+function redactedOutputValue(
+  v: WorkflowVerdict | undefined,
+  env: Record<string, unknown>,
+): unknown {
+  const guardrails = v?.guardrailsResult;
+  if (
+    !guardrails ||
+    guardrails.inputType !== 'activity_output' ||
+    guardrails.redactedInput === undefined ||
+    guardrails.redactedInput === null
+  ) {
+    return undefined;
+  }
+  return unwrapOutputRedaction(guardrails.redactedInput, originalOutputFor(env));
+}
+
+function redactedInputRecord(v: WorkflowVerdict | undefined): Record<string, unknown> | undefined {
+  return objectRecord(unwrapInputRedaction(redactedInput(v)));
+}
+
+function unwrapInputRedaction(value: unknown): unknown {
+  if (Array.isArray(value) && value.length === 1) return value[0];
+  const record = objectRecord(value);
+  if (!record) return value;
+  if (Array.isArray(record.input) && record.input.length === 1) return record.input[0];
+  if (Array.isArray(record.activity_input) && record.activity_input.length === 1) return record.activity_input[0];
+  if (Array.isArray(record.activityInput) && record.activityInput.length === 1) return record.activityInput[0];
+  return value;
+}
+
+function unwrapOutputRedaction(value: unknown, originalOutput: unknown): unknown {
+  const record = objectRecord(value);
+  if (!record || hasOwnKey(originalOutput, 'output')) return value;
+  if (Object.prototype.hasOwnProperty.call(record, 'output')) return record.output;
+  if (Object.prototype.hasOwnProperty.call(record, 'activity_output')) return record.activity_output;
+  if (Object.prototype.hasOwnProperty.call(record, 'activityOutput')) return record.activityOutput;
+  return value;
+}
+
+function originalOutputFor(env: Record<string, unknown>): unknown {
+  return env.tool_response ?? env.toolResponse ?? env.response ?? env.content;
+}
+
+function hasInputRedaction(v: WorkflowVerdict | undefined): boolean {
+  const guardrails = v?.guardrailsResult;
+  return Boolean(
+    guardrails &&
+      (guardrails.inputType === 'activity_input' || guardrails.inputType === 'signal_args') &&
+      guardrails.redactedInput !== undefined &&
+      guardrails.redactedInput !== null,
+  );
+}
+
+function isSubmittedPromptEvent(eventName: unknown): boolean {
+  return eventName === 'UserPromptSubmit' || eventName === 'UserPromptExpansion';
+}
+
+function promptRedactionBlockReason(reason: string): string {
+  return (
+    reason ||
+    '[OpenBox] redacted this prompt, but this host cannot replace submitted prompts. Rewrite the prompt with the redacted content and submit again.'
+  );
+}
+
+function cursorInputRedactionBlockReason(reason: string): string {
+  const detail = reason.replace(/[.]+$/, '');
+  return detail
+    ? detail + '. Cursor cannot replace this hook input, so OpenBox blocked the original action.'
+    : '[OpenBox] redacted this action input, but Cursor cannot replace this hook input. Rewrite the action with redacted content and retry.';
+}
+
 function objectRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   return value as Record<string, unknown>;
+}
+
+function hasOwnKey(value: unknown, key: string): value is Record<string, unknown> {
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.prototype.hasOwnProperty.call(value, key)
+  );
 }
 
 function addIfDefined(target: Record<string, unknown>, key: string, value: unknown): void {
@@ -1936,7 +2014,7 @@ function renderVerdictOutput(
           permissionDecision: 'allow',
         };
         if (arm === 'constrain') {
-          addIfDefined(hookSpecificOutput, 'updatedInput', objectRecord(redactedInput(v)));
+          addIfDefined(hookSpecificOutput, 'updatedInput', redactedInputRecord(v));
           if (reason) hookSpecificOutput.additionalContext = reason;
         }
         return {
@@ -1978,12 +2056,21 @@ function renderVerdictOutput(
             '. Approve in OpenBox, then ask the agent to retry.',
         };
       }
-      if (arm === 'constrain' && reason) {
+      if (arm === 'constrain' && isSubmittedPromptEvent(env.hook_event_name) && hasInputRedaction(v)) {
+        return {
+          decision: 'block',
+          reason: promptRedactionBlockReason(reason),
+          suppressOriginalPrompt: true,
+        };
+      }
+      if (arm === 'constrain') {
+        const updatedToolOutput = redactedOutputValue(v, env);
+        if (!reason && updatedToolOutput === undefined) return {};
         const hookSpecificOutput: Record<string, unknown> = {
           hookEventName: env.hook_event_name ?? 'ClaudeCode',
-          additionalContext: reason,
         };
-        addIfDefined(hookSpecificOutput, 'updatedToolOutput', redactedInput(v));
+        if (reason) hookSpecificOutput.additionalContext = reason;
+        addIfDefined(hookSpecificOutput, 'updatedToolOutput', updatedToolOutput);
         return { hookSpecificOutput };
       }
       return {};
@@ -1993,7 +2080,7 @@ function renderVerdictOutput(
       if (arm === 'allow' || arm === 'constrain') {
         const decision: Record<string, unknown> = { behavior: 'allow' };
         if (arm === 'constrain') {
-          addIfDefined(decision, 'updatedInput', objectRecord(redactedInput(v)));
+          addIfDefined(decision, 'updatedInput', redactedInputRecord(v));
         }
         return {
           hookSpecificOutput: {
@@ -2037,7 +2124,7 @@ function renderVerdictOutput(
           hookSpecificOutput: {
             hookEventName: eventName,
             action: 'accept',
-            content: redactedInput(v) ?? env.response ?? env.content ?? {},
+            content: redactedInputRecord(v) ?? objectRecord(env.response) ?? objectRecord(env.content) ?? {},
           },
         };
       }
@@ -2082,14 +2169,23 @@ function renderVerdictOutput(
       //     beforeTabFileRead, the validator rejects \`ask\` outright.
       // We always return \`deny\` for require_approval and surface our
       // own toast / panel as the actual gate.
-      if (arm === 'allow' || arm === 'constrain') return { permission: 'allow' };
+      if (arm === 'allow') return { permission: 'allow' };
+      if (arm === 'constrain') {
+        if (hasInputRedaction(v)) {
+          const message = cursorInputRedactionBlockReason(reason);
+          return {
+            permission: 'deny',
+            user_message: message,
+            agent_message: message,
+          };
+        }
+        return { permission: 'allow' };
+      }
       if (arm === 'require_approval') {
         const r = reason.replace(/^\\[OpenBox\\] /, '').trim();
-        // The hook has already polled for the configured deadline
-        // (default 60s; Cursor's hook subprocess timeout; tunable up
-        // to ~1hr per hooks.json[event].timeout + HITL_MAX_WAIT).
-        // Reaching this branch means no decision came through in time.
-        // Cursor will block this tool attempt.
+        // Reaching this branch means Core still reports
+        // require_approval, or the server-side approval window expired.
+        // The host blocks this tool attempt; the user can approve and retry.
         return {
           permission: 'deny',
           user_message:
@@ -2131,6 +2227,12 @@ function renderVerdictOutput(
       // Cursor's beforeSubmitPrompt verdict shape.
        // Stdout is { continue: bool, user_message?: string };       // distinct from cursor-permission (which uses 'permission').
       // Per cursor.com/docs/hooks.
+      if (arm === 'constrain' && hasInputRedaction(v)) {
+        return {
+          continue: false,
+          user_message: promptRedactionBlockReason(reason),
+        };
+      }
       if (arm === 'allow' || arm === 'constrain') return { continue: true };
       if (arm === 'require_approval') {
         // Cursor's beforeSubmitPrompt API is fire-and-forget: stdout
@@ -2187,10 +2289,48 @@ function randomUUID(): string {
 }
 
 import type { OpenBoxCoreClient } from '../core-client.js';
+import { parseApprovalExpirationMs } from '../approval-time.js';
 import type {
   GovernanceEventPayload,
   GovernanceVerdictResponse,
 } from './core-types.js';
+
+type TelemetryEventFields = Pick<
+  GovernanceEventPayload,
+  | 'session_id'
+  | 'llm_model'
+  | 'input_tokens'
+  | 'output_tokens'
+  | 'total_tokens'
+  | 'has_tool_calls'
+  | 'finish_reason'
+  | 'prompt'
+  | 'completion'
+  | 'tool_name'
+  | 'tool_type'
+  | 'parent_run_id'
+  | 'multi_agent_session_id'
+  | 'from_agent_did'
+>;
+
+function telemetryEventFields(payload: GovernedPayload): Partial<TelemetryEventFields> {
+  return {
+    session_id: payload.sessionId,
+    llm_model: payload.llmModel,
+    input_tokens: payload.inputTokens,
+    output_tokens: payload.outputTokens,
+    total_tokens: payload.totalTokens,
+    has_tool_calls: payload.hasToolCalls,
+    finish_reason: payload.finishReason,
+    prompt: payload.prompt,
+    completion: payload.completion,
+    tool_name: payload.toolName,
+    tool_type: payload.toolType,
+    parent_run_id: payload.parentRunId,
+    multi_agent_session_id: payload.multiAgentSessionId,
+    from_agent_did: payload.fromAgentDid,
+  };
+}
 
 /**
  * Construction options for any preset Session class. The \`core\` client
@@ -2209,6 +2349,8 @@ export interface GovernedSessionConfig {
   workflowType?: string;
   /** Originating runtime tag (\`langgraph\` / \`temporal\` / \`mastra\` / ...). */
   taskQueue?: string;
+  /** Cross-agent grouping id. Core stores this on the session lifecycle and handoff rows. */
+  multiAgentSessionId?: string;
   /**
    * Initial polling interval (ms) when the verdict is \`require_approval\`.
    * The runtime exponentially backs this off (× factor) up to a cap on
@@ -2218,8 +2360,8 @@ export interface GovernedSessionConfig {
   approvalPollIntervalMs?: number;
   /**
    * Cap (ms) on the per-attempt poll interval after backoff. Default: 5000ms.
-   * The actual sleep is also bounded by min(approvalMaxWaitMs, approvalExpiresAt)
-   * so we never overshoot the deadline.
+   * The actual sleep is also bounded by server-supplied approvalExpiresAt
+   * so we never overshoot the server-controlled deadline.
    */
   approvalPollMaxIntervalMs?: number;
   /**
@@ -2233,7 +2375,10 @@ export interface GovernedSessionConfig {
    * thundering-herd when a fleet of agents wait on the same approval.
    */
   approvalPollJitter?: number;
-  /** Maximum total wait (ms) for an approval decision. Default: 60_000ms. */
+  /**
+   * @deprecated Accepted as a compatibility no-op. Approval expiration is
+   * controlled by the server-supplied approvalExpiresAt value.
+   */
   approvalMaxWaitMs?: number;
   /**
    * When true, \`runActivity\` skips the in-process poll loop on a
@@ -2245,7 +2390,7 @@ export interface GovernedSessionConfig {
    * external approval clients such as the dashboard, mobile app, or
    * editor extension can still resolve the backend row, but the SDK
    * no longer waits for them. Adapters wire this from the
-   * \`APPROVAL_MODE\` config (\`inline\` -> true,
+   * project \`approvalMode\` config (\`inline\` -> true,
    * \`remote\` or unset -> false). Default: false.
    */
   inlineApproval?: boolean;
@@ -2335,19 +2480,20 @@ export class BaseGovernedSession {
   readonly runId: string;
   readonly workflowType: string;
   readonly taskQueue: string;
+  readonly multiAgentSessionId?: string;
 
   protected readonly core: OpenBoxCoreClient;
   private readonly approvalPollIntervalMs: number;
   private readonly approvalPollMaxIntervalMs: number;
   private readonly approvalPollBackoffFactor: number;
   private readonly approvalPollJitter: number;
-  private readonly approvalMaxWaitMs: number;
   private readonly inlineApproval: boolean;
   private opened = false;
   private finalized = false;
   private readonly autoOpenSuppressed: boolean;
   private readonly inFlight = new Set<string>();
   private readonly activityStartsMs = new Map<string, number>();
+  private readonly activityParents = new Set<string>();
   private readonly exitHandlerCleanup: Array<() => void> = [];
   protected readonly onPendingApproval?: GovernedSessionConfig['onPendingApproval'];
   protected readonly onApprovalResolved?: GovernedSessionConfig['onApprovalResolved'];
@@ -2359,11 +2505,11 @@ export class BaseGovernedSession {
     this.runId = config.runId ?? randomUUID();
     this.workflowType = config.workflowType ?? 'governed_agent';
     this.taskQueue = config.taskQueue ?? 'generic';
+    this.multiAgentSessionId = config.multiAgentSessionId;
     this.approvalPollIntervalMs = config.approvalPollIntervalMs ?? 500;
     this.approvalPollMaxIntervalMs = config.approvalPollMaxIntervalMs ?? 5_000;
     this.approvalPollBackoffFactor = config.approvalPollBackoffFactor ?? 1.5;
     this.approvalPollJitter = config.approvalPollJitter ?? 0.25;
-    this.approvalMaxWaitMs = config.approvalMaxWaitMs ?? 60_000;
     this.inlineApproval = config.inlineApproval === true;
     this.autoOpenSuppressed = config.attached === true;
     this.onPendingApproval = config.onPendingApproval;
@@ -2458,11 +2604,12 @@ export class BaseGovernedSession {
    * routing; e.g. Claude's PreToolUse hook fires FileRead, FileEdit,
    * ShellExecution etc. depending on \`tool_name\`.
    *
-   * Mirrors the \`custom\` preset's free-form \`activity()\`. Same lifecycle
-   * invariants (workflow open, paired Start/Complete, idempotent terminal).
+   * Mirrors the \`custom\` preset's free-form \`activity()\`. ActivityStarted
+   * and ActivityCompleted keep their normal pairing semantics; Handoff and
+   * SignalReceived are standalone Core events.
    */
   async activity(
-    eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived',
+    eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived' | 'Handoff',
     activityType: string,
     payload: GovernedPayload,
   ): Promise<${verdictModelName}> {
@@ -2470,13 +2617,78 @@ export class BaseGovernedSession {
   }
 
   /**
+   * Observe-only activity emission for post-action hooks. It preserves the
+   * same parent-plus-hook span contract as \`activity()\`, but it does not
+   * poll approvals or auto-pair ActivityStarted. Use this for host events
+   * that cannot block the already-completed action.
+   */
+  async observeActivity(
+    eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived' | 'Handoff',
+    activityType: string,
+    payload: GovernedPayload,
+  ): Promise<${verdictModelName}> {
+    if (this.finalized) throw new SessionAlreadyTerminatedError();
+    if (!this.opened && !this.autoOpenSuppressed) await this.begin();
+    const activityId = payload.activityId ?? randomUUID();
+    const startTime = payload.startTime ?? Date.now();
+    this.inFlight.add(activityId);
+    try {
+      if (eventType === 'Handoff') {
+        const handoffVerdict = await this.emit({
+          event_type: 'Handoff',
+          activity_id: activityId,
+          activity_type: activityType,
+          activity_input: payload.input,
+          ...telemetryEventFields(payload),
+        });
+        handoffVerdict.activityId = activityId;
+        return handoffVerdict;
+      }
+      if (eventType === 'SignalReceived') {
+        const signalVerdict = await this.emit({
+          event_type: 'SignalReceived',
+          activity_id: activityId,
+          activity_type: activityType,
+          activity_input: payload.input,
+          signal_name: payload.signalName,
+          signal_args: payload.signalArgs,
+          ...telemetryEventFields(payload),
+        });
+        signalVerdict.activityId = activityId;
+        return signalVerdict;
+      }
+      if (eventType === 'ActivityStarted') {
+        this.activityStartsMs.set(activityId, startTime);
+        const startedVerdict = await this.emitWithSpanHook({
+          event_type: 'ActivityStarted',
+          activity_id: activityId,
+          activity_type: activityType,
+          activity_input: payload.input,
+          start_time: startTime,
+          spans: payload.spans as unknown as GovernanceEventPayload['spans'],
+          ...telemetryEventFields(payload),
+        });
+        startedVerdict.activityId = activityId;
+        return startedVerdict;
+      }
+      return this.emitCompleted(activityId, activityType, observeCompletedSpanPayload(payload), {
+        pollApprovals: false,
+      });
+    } finally {
+      this.inFlight.delete(activityId);
+    }
+  }
+
+  /**
    * Split-stage activity for callers that must run business logic between
    * the input gate and the output gate (e.g. governed tools that gate the
    * produced artifact). Emits ActivityStarted and returns the gate verdict
    * plus a \`complete()\` bound to the same activity id, so the pair cannot
-   * drift apart. Stopped starts (block/halt) and pending approvals are
-   * canonically left unpaired; the caller resolves them via the workflow
-   * terminal or approval resume (ActivityCompleted with this activity id).
+   * drift apart. Stopped starts (block/halt) are canonically left
+   * unpaired. Remote approvals are resolved before returning so the
+   * caller only runs business logic after an allow/block/halt decision;
+   * inline/defer approvals still return \`require_approval\` for the host
+   * native dialog path.
    */
   async openActivity(
     activityType: string,
@@ -2496,17 +2708,48 @@ export class BaseGovernedSession {
     this.activityStartsMs.set(activityId, startTime);
     this.inFlight.add(activityId);
     try {
-      const verdict = await this.emitWithSpanHook({
+      let verdict = await this.emitWithSpanHook({
         event_type: 'ActivityStarted',
         activity_id: activityId,
         activity_type: activityType,
         activity_input: payload.input,
         start_time: startTime,
         spans: payload.spans as unknown as GovernanceEventPayload['spans'],
+        ...telemetryEventFields(payload),
       });
       verdict.activityId = activityId;
+      if (verdict.arm === 'require_approval') {
+        const approvalId = verdict.approvalId ?? activityId;
+        if (this.onPendingApproval) {
+          try {
+            await this.onPendingApproval({
+              approvalId,
+              governanceEventId: verdict.governanceEventId,
+              activityId,
+              activityType,
+              expiresAt: verdict.approvalExpiresAt,
+              reason: verdict.reason,
+            });
+          } catch { /* observability hook; never blocks */ }
+        }
+        if (!this.inlineApproval) {
+          verdict = await this.pollApproval(activityId, activityType, verdict);
+          verdict.activityId = activityId;
+          if (this.onApprovalResolved) {
+            try {
+              await this.onApprovalResolved({
+                approvalId,
+                activityId,
+                activityType,
+                arm: verdict.arm,
+              });
+            } catch { /* observability hook */ }
+          }
+        }
+      }
       if (verdict.arm !== 'allow' && verdict.arm !== 'constrain') {
         this.activityStartsMs.delete(activityId);
+        this.activityParents.delete(activityId);
       }
       return {
         activityId,
@@ -2515,7 +2758,11 @@ export class BaseGovernedSession {
           this.runActivity(
             'ActivityCompleted',
             completionActivityType ?? activityType,
-            { ...completionPayload, activityId },
+            {
+              ...completionPayload,
+              activityId,
+              hookSpanParentEventType: completionPayload.hookSpanParentEventType ?? 'ActivityStarted',
+            },
           ),
       };
     } finally {
@@ -2533,9 +2780,10 @@ export class BaseGovernedSession {
    *                       Otherwise emit a paired ActivityCompleted.
    *   ActivityCompleted → emit completion only (post-stage observe / gate).
    *   SignalReceived    → fire-and-forget telemetry (no gate).
+   *   Handoff           → emit Core handoff row (no activity pair, no gate).
    */
   protected async runActivity(
-    eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived',
+    eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived' | 'Handoff',
     activityType: string,
     payload: GovernedPayload,
   ): Promise<${verdictModelName}> {
@@ -2546,6 +2794,18 @@ export class BaseGovernedSession {
     this.inFlight.add(activityId);
 
     try {
+      if (eventType === 'Handoff') {
+        const handoffVerdict = await this.emit({
+          event_type: 'Handoff',
+          activity_id: activityId,
+          activity_type: activityType,
+          activity_input: payload.input,
+          ...telemetryEventFields(payload),
+        });
+        handoffVerdict.activityId = activityId;
+        return handoffVerdict;
+      }
+
       if (eventType === 'SignalReceived') {
         const signalVerdict = await this.emit({
           event_type: 'SignalReceived',
@@ -2554,7 +2814,7 @@ export class BaseGovernedSession {
           activity_input: payload.input,
           signal_name: payload.signalName,
           signal_args: payload.signalArgs,
-          spans: payload.spans as unknown as GovernanceEventPayload['spans'],
+          ...telemetryEventFields(payload),
         });
         signalVerdict.activityId = activityId;
         return signalVerdict;
@@ -2569,6 +2829,7 @@ export class BaseGovernedSession {
           activity_input: payload.input,
           start_time: startTime,
           spans: payload.spans as unknown as GovernanceEventPayload['spans'],
+          ...telemetryEventFields(payload),
         });
         startedVerdict.activityId = activityId;
         if (startedVerdict.arm === 'constrain') {
@@ -2577,15 +2838,17 @@ export class BaseGovernedSession {
           // The started verdict (carrying the guardrails transform) is
           // returned; the paired completion is lifecycle bookkeeping.
           try {
-            await this.emitCompleted(activityId, activityType, payload);
+            await this.emitCompleted(activityId, activityType, { ...payload, spans: undefined });
           } catch { /* pairing must not mask the constrain verdict */ }
           return startedVerdict;
         }
         if (startedVerdict.arm !== 'allow') {
           this.activityStartsMs.delete(activityId);
+          this.activityParents.delete(activityId);
           // Pre-stage block; never emit ActivityCompleted, but if the
           // gate said require_approval, poll for the approval decision.
-           // pollApproval keys on workflow_id + run_id + activity_id;           // approval_id is informational. Some backends omit it from
+          // pollApproval keys on workflow_id + run_id + activity_id;
+          // approval_id is informational. Some backends omit it from
           // /governance/evaluate responses (only return governance_event_id);
           // gating on approvalId there silently skips polling and the
           // user sees an instant "approval pending" message that never
@@ -2632,7 +2895,7 @@ export class BaseGovernedSession {
         }
         // Allow → emit the matching ActivityCompleted with the payload's
         // output (or undefined if the user only has input at start time).
-        return this.emitCompleted(activityId, activityType, payload);
+        return this.emitCompleted(activityId, activityType, { ...payload, spans: undefined });
       }
 
       // eventType === 'ActivityCompleted'; post-stage gate.
@@ -2646,6 +2909,7 @@ export class BaseGovernedSession {
     activityId: string,
     activityType: string,
     payload: GovernedPayload,
+    options: { pollApprovals?: boolean } = {},
   ): Promise<${verdictModelName}> {
     const startTime = payload.startTime ?? this.activityStartsMs.get(activityId);
     const endTime = payload.endTime ?? Date.now();
@@ -2663,10 +2927,14 @@ export class BaseGovernedSession {
       end_time: endTime,
       duration_ms: durationMs,
       spans: payload.spans as unknown as GovernanceEventPayload['spans'],
+      hook_span_parent_event_type: payload.hookSpanParentEventType,
+      ensure_hook_span_parent: payload.ensureHookSpanParent,
+      ...telemetryEventFields(payload),
     });
     this.activityStartsMs.delete(activityId);
+    this.activityParents.delete(activityId);
     completedVerdict.activityId = activityId;
-    if (completedVerdict.arm === 'require_approval') {
+    if (completedVerdict.arm === 'require_approval' && options.pollApprovals !== false) {
       // See comment in runActivity: poll on activity_id even if the
       // backend omitted approval_id in the evaluate response.
       const approvalId = completedVerdict.approvalId ?? activityId;
@@ -2702,27 +2970,67 @@ export class BaseGovernedSession {
   private async emitWithSpanHook(
     event: Pick<
       GovernanceEventPayload,
-      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms'
-    >,
+      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms' | keyof TelemetryEventFields
+    > & {
+      hook_span_parent_event_type?: 'ActivityStarted';
+      ensure_hook_span_parent?: boolean;
+    },
   ): Promise<${verdictModelName}> {
     const hasActivitySpans =
-      (event.event_type === 'ActivityStarted' ||
-        event.event_type === 'ActivityCompleted') &&
+      (event.event_type === 'ActivityStarted' || event.hook_span_parent_event_type === 'ActivityStarted') &&
       Array.isArray(event.spans) &&
       event.spans.some(isPersistableHookSpan);
-    if (!hasActivitySpans) return this.emit(event);
+    const parentEvent = withoutSpanRuntimeHints({ ...event, spans: undefined }) as typeof event;
+    const hookParentEvent = event.hook_span_parent_event_type === 'ActivityStarted'
+      ? ({
+          ...parentEvent,
+          event_type: 'ActivityStarted',
+          status: undefined,
+          activity_output: undefined,
+          end_time: undefined,
+          duration_ms: undefined,
+        } as typeof event)
+      : parentEvent;
+    if (
+      hasActivitySpans &&
+      hookParentEvent.event_type === 'ActivityStarted' &&
+      event.ensure_hook_span_parent === true &&
+      event.activity_id &&
+      !this.activityParents.has(event.activity_id)
+    ) {
+      await this.emit(withoutSpanRuntimeHints(hookParentEvent));
+      this.activityParents.add(event.activity_id);
+      if (typeof event.start_time === 'number') {
+        this.activityStartsMs.set(event.activity_id, event.start_time);
+      }
+    }
+    const parentVerdict = await this.emit(parentEvent);
+    if (parentEvent.event_type === 'ActivityStarted' && event.activity_id) {
+      this.activityParents.add(event.activity_id);
+    }
+    if (!hasActivitySpans) return parentVerdict;
 
-    return await this.emit({
-      ...event,
-      attempt: event.attempt ?? 1,
-      hook_trigger: true,
-    } as typeof event & { hook_trigger: true });
+    let hookVerdict = parentVerdict;
+    const persistableSpans = (event.spans ?? []).filter(isPersistableHookSpan);
+    for (const span of persistableSpans) {
+      const hookSpan = withSpanHookContext(span, event);
+      hookVerdict = stricterVerdict(hookVerdict, await this.emit({
+        ...hookParentEvent,
+        attempt: event.attempt ?? 1,
+        hook_trigger: true,
+        spans: [hookSpan],
+      } as typeof event & { hook_trigger: true }));
+    }
+    if (parentVerdict.arm !== 'allow' && parentVerdict.arm !== 'constrain') {
+      return parentVerdict;
+    }
+    return hookVerdict;
   }
 
   private async emit(
     event: Pick<
       GovernanceEventPayload,
-      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms'
+      'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms' | keyof TelemetryEventFields
     > & { hook_trigger?: boolean },
   ): Promise<${verdictModelName}> {
     const payload = {
@@ -2732,9 +3040,15 @@ export class BaseGovernedSession {
       run_id: this.runId,
       workflow_type: this.workflowType,
       task_queue: this.taskQueue,
+      multi_agent_session_id: event.multi_agent_session_id ?? this.multiAgentSessionId,
       timestamp: new Date().toISOString(),
-      span_count: event.spans?.length,
+      hook_trigger: event.hook_trigger ?? false,
     } as unknown as GovernanceEventPayload;
+    if (Array.isArray(event.spans)) {
+      payload.span_count = event.spans.length;
+    } else {
+      delete payload.spans;
+    }
     const response = await this.core.evaluate(payload);
     return mapVerdict(response);
   }
@@ -2745,8 +3059,10 @@ export class BaseGovernedSession {
     initial: ${verdictModelName},
   ): Promise<${verdictModelName}> {
     // ── Polling design notes ──
-    // Bounded by both config max-wait AND the server-supplied
-    // approvalExpiresAt (whichever is sooner) so we never overshoot.
+    // Bounded only by the server-supplied approvalExpiresAt. This
+    // matches the Python LangGraph SDK contract: the server controls
+    // approval expiration and the SDK does not impose a second total
+    // wait deadline.
     // Exponential backoff (× factor each attempt, capped at maxIntervalMs)
     // matches the bimodal latency of approvals (decided in seconds OR
     // minutes) without burning a long sleep when the answer's right there.
@@ -2761,12 +3077,11 @@ export class BaseGovernedSession {
     // and run one confirmatory pollApproval() to fetch the backend's
     // authoritative verdict for this activity_id.
     const approvalId = initial.approvalId ?? activityId;
-    const cfgDeadline = Date.now() + this.approvalMaxWaitMs;
-    const srvDeadline = initial.approvalExpiresAt
-      ? new Date(initial.approvalExpiresAt).getTime()
-      : Number.POSITIVE_INFINITY;
-    const deadline = Math.min(cfgDeadline, srvDeadline);
+    let deadline =
+      parseApprovalExpirationMs(initial.approvalExpiresAt) ??
+      Number.POSITIVE_INFINITY;
 
+    let externalPending = this.awaitExternalDecision !== undefined;
     let externalSignaled = false;
     const externalDecision = this.awaitExternalDecision
       ? this.awaitExternalDecision({
@@ -2778,9 +3093,13 @@ export class BaseGovernedSession {
         }).then(
           (d) => {
             externalSignaled = d === 'approve' || d === 'reject';
+            externalPending = false;
             return d;
           },
-          () => undefined,
+          () => {
+            externalPending = false;
+            return undefined;
+          },
         )
       : undefined;
 
@@ -2791,19 +3110,60 @@ export class BaseGovernedSession {
       // Never sleep past the deadline. Wake early if an external
       // decision arrives.
       const sleepMs = Math.max(0, Math.min(jittered, remaining));
-      if (externalDecision) {
+      if (externalPending && externalDecision) {
         await Promise.race([sleep(sleepMs), externalDecision]);
       } else {
         await sleep(sleepMs);
       }
-      const status = await this.core.pollApproval({
-        workflow_id: this.workflowId,
-        run_id: this.runId,
-        activity_id: activityId,
-      });
-      if (status.action && status.action !== 'require_approval') {
+      let status: Awaited<ReturnType<OpenBoxCoreClient['pollApproval']>>;
+      try {
+        status = await this.core.pollApproval({
+          workflow_id: this.workflowId,
+          run_id: this.runId,
+          activity_id: activityId,
+        });
+      } catch {
+        nextInterval = externalSignaled
+          ? this.approvalPollIntervalMs
+          : Math.min(
+              nextInterval * this.approvalPollBackoffFactor,
+              this.approvalPollMaxIntervalMs,
+            );
+        continue;
+      }
+      const statusWithExpiry = status as typeof status & { expired?: boolean };
+      const statusDeadline = parseApprovalExpirationMs(
+        status.approval_expiration_time,
+      );
+      if (statusDeadline !== undefined) {
+        deadline = Math.min(deadline, statusDeadline);
+      }
+      if (
+        statusWithExpiry.expired === true ||
+        (statusDeadline !== undefined && Date.now() >= statusDeadline)
+      ) {
         return {
-          arm: normalizeArm(status.action),
+          arm: 'block',
+          approvalId: initial.approvalId,
+          governanceEventId: initial.governanceEventId,
+          approvalExpiresAt: status.approval_expiration_time,
+          reason: status.reason ?? \`Approval expired for \${activityType}\`,
+          riskScore: initial.riskScore,
+          trustTier: initial.trustTier,
+        };
+      }
+      const approvalArm = (status as typeof status & {
+        verdict?: string | number;
+      }).verdict ?? status.action;
+      const normalizedApprovalArm =
+        approvalArm === undefined ? undefined : normalizeArm(approvalArm);
+      if (
+        normalizedApprovalArm === 'allow' ||
+        normalizedApprovalArm === 'block' ||
+        normalizedApprovalArm === 'halt'
+      ) {
+        return {
+          arm: normalizedApprovalArm,
           approvalId: initial.approvalId,
           governanceEventId: initial.governanceEventId,
           approvalExpiresAt: status.approval_expiration_time,
@@ -2812,6 +3172,7 @@ export class BaseGovernedSession {
           trustTier: initial.trustTier,
         };
       }
+      // Core may return require_approval or constrain while the approval row is still pending.
       // External signal said "decided" but backend hasn't caught up
       // yet (mutation in flight). Tighten the cadence to catch it
       // promptly instead of waiting for the next backoff step.
@@ -2821,6 +3182,13 @@ export class BaseGovernedSession {
             nextInterval * this.approvalPollBackoffFactor,
             this.approvalPollMaxIntervalMs,
           );
+    }
+    if (Number.isFinite(deadline) && Date.now() >= deadline) {
+      return {
+        ...initial,
+        arm: 'block',
+        reason: initial.reason ?? \`Approval expired for \${activityType}\`,
+      };
     }
     return initial;
   }
@@ -2878,6 +3246,23 @@ export class BaseGovernedSession {
     }
     this.exitHandlerCleanup.length = 0;
   }
+}
+
+function withoutSpanRuntimeHints<T extends Record<string, unknown>>(event: T): T {
+  const next = { ...event };
+  delete next.hook_span_parent_event_type;
+  delete next.ensure_hook_span_parent;
+  return next;
+}
+
+function observeCompletedSpanPayload(payload: GovernedPayload): GovernedPayload {
+  if (!Array.isArray(payload.spans) || payload.spans.length === 0) return payload;
+  if (payload.hookSpanParentEventType) return payload;
+  return {
+    ...payload,
+    hookSpanParentEventType: 'ActivityStarted',
+    ensureHookSpanParent: payload.ensureHookSpanParent ?? true,
+  };
 }
 
 function activityCompletionStatus(activityType: string): 'completed' | 'failed' {
@@ -3104,8 +3489,17 @@ export namespace govern {
 /** Verdict-mapping helpers shared across all preset session classes. */
 function emitVerdictHelpers(verdictModelName: string): string {
   return `function mapVerdict(response: GovernanceVerdictResponse): ${verdictModelName} {
+  const wireArm = normalizeArm(response.verdict ?? response.action ?? 'allow');
+  const guardrailsResult = mapGuardrailsResult(response.guardrails_result);
+  const guardrailsFailed = guardrailsResult?.validationPassed === false;
+  const arm =
+    wireArm === 'halt' || wireArm === 'block'
+      ? wireArm
+      : guardrailsFailed
+        ? 'block'
+        : wireArm;
   return {
-    arm: normalizeArm(response.verdict ?? response.action ?? 'allow'),
+    arm,
     approvalId: response.approval_id,
     // Cross-reference key for matching this verdict against the
     // backend's persisted Approval row (whose \`event_id\` field equals
@@ -3115,22 +3509,52 @@ function emitVerdictHelpers(verdictModelName: string): string {
     // the dashboard's pending-approvals list.
     governanceEventId: (response as { governance_event_id?: string }).governance_event_id,
     approvalExpiresAt: response.approval_expiration_time,
-    reason: response.reason,
+    reason: response.reason ?? (guardrailsFailed ? guardrailFailureReason(guardrailsResult) : undefined),
     riskScore: response.risk_score ?? 0,
     trustTier: response.trust_tier ?? undefined,
-    guardrailsResult: mapGuardrailsResult(response.guardrails_result),
+    alignmentScore: response.alignment_score,
+    policyId: response.policy_id,
+    behavioralViolations: response.behavioral_violations,
+    constraints: response.constraints,
+    metadata: response.metadata,
+    fallbackUsed: response.fallback_used,
+    guardrailsResult,
     ageResult: response.age_result,
   };
+}
+
+function guardrailFailureReason(result: GuardrailsVerdict | undefined): string {
+  if (!result) return 'Guardrails validation failed';
+  const reasons = result.reasons
+    .map((reason) => cleanGuardrailReason(reason.reason))
+    .filter((reason) => reason.length > 0);
+  if (reasons.length > 0) {
+    return result.inputType === 'activity_output' ? reasons.join('; ') : reasons[0];
+  }
+  return result.inputType === 'activity_output'
+    ? 'Guardrails output validation failed'
+    : 'Guardrails validation failed';
+}
+
+function cleanGuardrailReason(reason: string): string {
+  const withoutQuestion = reason.replace(/\\n?-\\s*Question:\\s*\\[Session context\\][^\\n]*\\n?/g, '');
+  for (const marker of ['\\n\\nThought:', '\\n\\nThought', '\\nThought:', '\\nThought']) {
+    const index = withoutQuestion.indexOf(marker);
+    if (index >= 0) return withoutQuestion.slice(0, index).trimEnd();
+  }
+  return withoutQuestion.trimEnd();
 }
 
 function mapGuardrailsResult(
   raw: GovernanceVerdictResponse['guardrails_result'],
 ): GuardrailsVerdict | undefined {
   if (!raw) return undefined;
+  if (Object.keys(raw as unknown as Record<string, unknown>).length === 0) return undefined;
   return {
-    inputType: (raw.input_type as 'activity_input' | 'activity_output') ?? 'activity_input',
+    inputType: normalizeGuardrailsInputType(raw.input_type),
     redactedInput: raw.redacted_input,
     validationPassed: raw.validation_passed !== false,
+    rawLogs: raw.raw_logs,
     reasons: ((raw.reasons ?? []) as Array<{ type?: string; field?: string; reason?: string }>).map((r) => ({
       type: String(r.type ?? ''),
       field: r.field,
@@ -3145,7 +3569,19 @@ function mapGuardrailsResult(
   };
 }
 
-function normalizeGuardrailFieldStatus(value: string | undefined): 'allowed' | 'blocked' | 'redacted' | 'skipped' {
+function normalizeGuardrailsInputType(value: string | undefined): GuardrailsVerdict['inputType'] {
+  switch (value) {
+    case 'activity_output':
+      return 'activity_output';
+    case 'signal_args':
+      return 'signal_args';
+    case 'activity_input':
+    default:
+      return 'activity_input';
+  }
+}
+
+function normalizeGuardrailFieldStatus(value: string | undefined): 'allowed' | 'blocked' | 'redacted' | 'transformed' | 'skipped' {
   switch (value) {
     case 'allowed':
     case 'allow':
@@ -3154,8 +3590,9 @@ function normalizeGuardrailFieldStatus(value: string | undefined): 'allowed' | '
     case 'block':
       return 'blocked';
     case 'redacted':
-    case 'transformed':
       return 'redacted';
+    case 'transformed':
+      return 'transformed';
     case 'skipped':
     default:
       return 'skipped';
@@ -3178,14 +3615,18 @@ function normalizeArm(value: string | number | undefined): VerdictArm {
         return 'allow';
     }
   }
-  switch (value) {
+  const normalized =
+    typeof value === 'string'
+      ? value.trim().toLowerCase().replace(/-/g, '_')
+      : value;
+  switch (normalized) {
     case 'allow':
     case 'continue':
       return 'allow';
     case 'constrain':
       return 'constrain';
     case 'require_approval':
-    case 'require-approval':
+    case 'request_approval':
       return 'require_approval';
     case 'block':
       return 'block';
@@ -3217,13 +3658,42 @@ function stricterVerdict(
   base: WorkflowVerdict,
   hook: WorkflowVerdict,
 ): WorkflowVerdict {
-  return verdictRank(hook.arm) >= verdictRank(base.arm) ? hook : base;
+  const hookRank = verdictRank(hook.arm);
+  const baseRank = verdictRank(base.arm);
+  if (hookRank > baseRank) return hook;
+  if (hookRank < baseRank) return base;
+  return mergePeerVerdicts(base, hook);
+}
+
+function mergePeerVerdicts(
+  base: WorkflowVerdict,
+  hook: WorkflowVerdict,
+): WorkflowVerdict {
+  return {
+    ...hook,
+    ...base,
+    riskScore: Math.max(base.riskScore ?? 0, hook.riskScore ?? 0),
+    trustTier: base.trustTier ?? hook.trustTier,
+    alignmentScore: base.alignmentScore ?? hook.alignmentScore,
+    policyId: base.policyId ?? hook.policyId,
+    behavioralViolations: base.behavioralViolations ?? hook.behavioralViolations,
+    constraints: base.constraints ?? hook.constraints,
+    metadata: hook.metadata || base.metadata
+      ? { ...(hook.metadata ?? {}), ...(base.metadata ?? {}) }
+      : undefined,
+    fallbackUsed: base.fallbackUsed ?? hook.fallbackUsed,
+    guardrailsResult: base.guardrailsResult ?? hook.guardrailsResult,
+    ageResult: base.ageResult ?? hook.ageResult,
+  };
 }
 
 function isPersistableHookSpan(span: unknown): boolean {
   if (!span || typeof span !== 'object') return false;
   const record = span as Record<string, unknown>;
-  if (typeof record.semantic_type === 'string' && record.semantic_type !== '') {
+  if (hasNonEmptyString(record, 'semantic_type', 'semanticType')) {
+    return true;
+  }
+  if (hasNonEmptyString(record, 'hook_type', 'hookType')) {
     return true;
   }
   const attributes =
@@ -3231,17 +3701,220 @@ function isPersistableHookSpan(span: unknown): boolean {
       ? (record.attributes as Record<string, unknown>)
       : {};
   return (
-    typeof record.db_statement === 'string' ||
-    typeof record.db_operation === 'string' ||
-    typeof record.db_system === 'string' ||
+    hasNonEmptyString(record, 'http_url', 'httpUrl') ||
+    hasNonEmptyString(record, 'http_method', 'httpMethod') ||
+    hasNonEmptyString(record, 'file_path', 'filePath') ||
+    hasNonEmptyString(record, 'file_operation', 'fileOperation') ||
+    hasNonEmptyString(record, 'db_statement', 'dbStatement') ||
+    hasNonEmptyString(record, 'db_operation', 'dbOperation') ||
+    hasNonEmptyString(record, 'db_system', 'dbSystem') ||
+    typeof attributes['url.full'] === 'string' ||
+    typeof attributes['http.url'] === 'string' ||
+    typeof attributes['http.method'] === 'string' ||
+    typeof attributes['file.path'] === 'string' ||
+    typeof attributes['file.operation'] === 'string' ||
     typeof attributes['db.statement'] === 'string' ||
     typeof attributes['db.operation'] === 'string' ||
     typeof attributes['db.system'] === 'string' ||
+    typeof attributes['shell.command'] === 'string' ||
+    typeof attributes['mcp.method'] === 'string' ||
     typeof attributes['openbox.tool.name'] === 'string' ||
     typeof attributes['tool.name'] === 'string' ||
     typeof attributes.tool_name === 'string' ||
     typeof attributes['gen_ai.system'] === 'string'
   );
+}
+
+function withSpanHookContext<T>(
+  span: T,
+  event: {
+    activity_id?: string;
+    duration_ms?: number;
+    end_time?: number;
+    event_type?: string;
+    start_time?: number;
+  },
+): T {
+  if (!span || typeof span !== 'object' || Array.isArray(span)) {
+    return span;
+  }
+  const record = span as Record<string, unknown>;
+  const next: Record<string, unknown> = normalizeHookSpanAliases(record);
+  if (
+    event.activity_id &&
+    (typeof next.activity_id !== 'string' || next.activity_id.trim() === '')
+  ) {
+    next.activity_id = event.activity_id;
+  }
+  if (!hasUsefulSpanDuration(next)) {
+    const startTime = toSpanTimestampNs(event.start_time);
+    const endTime = toSpanTimestampNs(event.end_time);
+    const durationNs = durationMsToNs(event.duration_ms) ??
+      (startTime !== undefined && endTime !== undefined
+        ? Math.max(0, endTime - startTime)
+        : undefined);
+    if (startTime !== undefined) next.start_time = startTime;
+    if (event.event_type === 'ActivityStarted') {
+      next.end_time = null;
+      next.duration_ns = null;
+    } else if (event.event_type === 'ActivityCompleted') {
+      if (endTime !== undefined) next.end_time = endTime;
+      if (durationNs !== undefined) next.duration_ns = durationNs;
+    }
+  }
+  return next as T;
+}
+
+function normalizeHookSpanAliases(record: Record<string, unknown>): Record<string, unknown> {
+  const attributes =
+    record.attributes && typeof record.attributes === 'object'
+      ? { ...(record.attributes as Record<string, unknown>) }
+      : undefined;
+  if (
+    attributes &&
+    typeof attributes['http.url'] !== 'string' &&
+    typeof attributes['url.full'] === 'string'
+  ) {
+    attributes['http.url'] = attributes['url.full'];
+  }
+  const normalized: Record<string, unknown> = {
+    ...record,
+    ...(attributes ? { attributes } : {}),
+    ...aliasField(record, 'span_id', 'spanId'),
+    ...aliasField(record, 'trace_id', 'traceId'),
+    ...aliasField(record, 'parent_span_id', 'parentSpanId'),
+    ...aliasField(record, 'start_time', 'startTime'),
+    ...aliasField(record, 'end_time', 'endTime'),
+    ...aliasField(record, 'duration_ns', 'durationNs'),
+    ...aliasField(record, 'semantic_type', 'semanticType'),
+    ...aliasField(record, 'hook_type', 'hookType'),
+    ...aliasField(record, 'request_body', 'requestBody'),
+    ...aliasField(record, 'response_body', 'responseBody'),
+    ...aliasField(record, 'request_headers', 'requestHeaders'),
+    ...aliasField(record, 'response_headers', 'responseHeaders'),
+  };
+  if (Object.prototype.hasOwnProperty.call(normalized, 'events')) {
+    normalized.events = normalizeHookSpanEvents(normalized.events);
+  }
+  if (Object.prototype.hasOwnProperty.call(normalized, 'status')) {
+    const status = normalizeHookSpanStatus(normalized.status);
+    if (status) {
+      normalized.status = status;
+    } else {
+      delete normalized.status;
+    }
+  }
+  normalizeHookSpanHeaderField(normalized, 'request_headers');
+  normalizeHookSpanHeaderField(normalized, 'response_headers');
+  return normalized;
+}
+
+function aliasField(
+  record: Record<string, unknown>,
+  snakeKey: string,
+  camelKey: string,
+): Record<string, unknown> {
+  return record[snakeKey] === undefined && record[camelKey] !== undefined
+    ? { [snakeKey]: record[camelKey] }
+    : {};
+}
+
+function normalizeHookSpanEvents(events: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(events)) {
+    return [];
+  }
+  return events.map((event) => {
+    const record = toPlainRecord(event);
+    return {
+      attributes: toPlainRecord(record.attributes),
+      name: typeof record.name === 'string' ? record.name : '',
+      timestamp:
+        typeof record.timestamp === 'number' && Number.isFinite(record.timestamp)
+          ? record.timestamp
+          : 0,
+    };
+  });
+}
+
+function normalizeHookSpanStatus(status: unknown): Record<string, unknown> | undefined {
+  const record = toPlainRecord(status);
+  const code = typeof record.code === 'string' ? record.code : undefined;
+  const description =
+    typeof record.description === 'string' || record.description === null
+      ? record.description
+      : undefined;
+  if (!code && description === undefined) {
+    return undefined;
+  }
+  return {
+    ...(code ? { code } : {}),
+    ...(description !== undefined ? { description } : {}),
+  };
+}
+
+function normalizeHookSpanHeaderField(
+  record: Record<string, unknown>,
+  key: 'request_headers' | 'response_headers',
+): void {
+  if (!Object.prototype.hasOwnProperty.call(record, key)) {
+    return;
+  }
+  const value = record[key];
+  if (value === null) {
+    return;
+  }
+  const headers = toStringRecord(value);
+  if (headers) {
+    record[key] = headers;
+  } else {
+    delete record[key];
+  }
+}
+
+function toStringRecord(value: unknown): Record<string, string> | undefined {
+  const record = toPlainRecord(value);
+  const entries = Object.entries(record).flatMap(([key, entry]) =>
+    typeof entry === 'string' ? ([[key, entry]] as const) : [],
+  );
+  if (entries.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(entries);
+}
+
+function toPlainRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  return value as Record<string, unknown>;
+}
+
+function hasNonEmptyString(
+  record: Record<string, unknown>,
+  ...keys: string[]
+): boolean {
+  return keys.some((key) => {
+    const value = record[key];
+    return typeof value === 'string' && value.trim() !== '';
+  });
+}
+
+function hasUsefulSpanDuration(record: Record<string, unknown>): boolean {
+  return (
+    typeof record.duration_ns === 'number' &&
+    Number.isFinite(record.duration_ns) &&
+    record.duration_ns > 0
+  );
+}
+
+function toSpanTimestampNs(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.trunc(value >= 1_000_000_000_000_000 ? value : value * 1_000_000);
+}
+
+function durationMsToNs(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.max(0, Math.trunc(value * 1_000_000));
 }
 
 function errorInfoFrom(value: unknown): { type: string; message: string } | undefined {

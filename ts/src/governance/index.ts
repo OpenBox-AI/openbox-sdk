@@ -27,9 +27,19 @@ export {
   buildLLMCompletionResponseBody,
   buildLLMCompletionSpan,
   buildSpan,
+  llmTokenUsageFromRecord,
+  openBoxActivityMetadata,
+  withOpenBoxActivityMetadata,
+  withOpenBoxSubagentActivityMetadata,
   type LLMCompletionSpanInput,
+  type OpenBoxActivityMetadataInput,
   type SpanInput,
 } from './spans.js';
+export {
+  assistantOutputTelemetryFields,
+  buildAssistantOutputSpan,
+  type AssistantOutputTelemetryInput,
+} from './assistant-output.js';
 export { EVENT } from './events.js';
 export {
   REDACT_PATH_CONTENT_PATTERNS,

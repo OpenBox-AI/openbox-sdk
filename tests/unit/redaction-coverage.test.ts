@@ -57,6 +57,14 @@ describe('applyInputRedaction', () => {
     expect(out).toEqual({ prompt: '[REDACTED]' });
   });
 
+  it('treats signal_args as input-like redaction', () => {
+    const out = applyInputRedaction(['email avery@example.com'], {
+      inputType: 'signal_args',
+      redactedInput: ['email <EMAIL_ADDRESS>'],
+    } as any);
+    expect(out).toEqual(['email <EMAIL_ADDRESS>']);
+  });
+
   it('falls through when redactedInput is neither obj nor array', () => {
     expect(
       applyInputRedaction({ x: 1 }, { inputType: 'activity_input', redactedInput: 'plain' } as any),
@@ -230,7 +238,31 @@ describe('guardrail redaction helpers', () => {
         validationPassed: true,
         reasons: [],
         fieldResults: [{ field: 'output.artifact.body', status: 'transformed' }],
-      } as any),
+      }),
+    ).toBe(true);
+  });
+
+  it('treats a Core redaction payload as authoritative without field rows', () => {
+    expect(
+      hasGuardrailRedaction({
+        inputType: 'activity_input',
+        redactedInput: [{ prompt: '[REDACTED]' }],
+        validationPassed: true,
+        reasons: [],
+        fieldResults: [],
+      }),
+    ).toBe(true);
+  });
+
+  it('detects signal_args redaction payloads', () => {
+    expect(
+      hasGuardrailRedaction({
+        inputType: 'signal_args',
+        redactedInput: ['<EMAIL_ADDRESS>'],
+        validationPassed: true,
+        reasons: [],
+        fieldResults: [],
+      }),
     ).toBe(true);
   });
 
@@ -254,7 +286,7 @@ describe('guardrail redaction helpers', () => {
       reasons: [],
       fieldResults: [
         { field: 'output.a', status: 'redacted' },
-        { field: 'output.b', status: 'transformed' as any },
+        { field: 'output.b', status: 'transformed' },
         { field: 'output.c', status: 'redacted' },
         { field: 'output.d', status: 'redacted' },
         { field: 'output.e', status: 'redacted' },
@@ -272,7 +304,7 @@ describe('guardrail redaction helpers', () => {
       reasons: [],
       fieldResults: [
         { field: 'input.0.args.request', status: 'redacted' },
-        { field: 'input.0.args.request', status: 'transformed' as any },
+        { field: 'input.0.args.request', status: 'transformed' },
       ],
     });
 

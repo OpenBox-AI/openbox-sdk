@@ -13,14 +13,17 @@ import {
 } from './config.js';
 import {
   ANTHROPIC_AGENT_ACTIVITY_TYPES,
+  assistantOutputTelemetry,
   assistantOutputSpan,
   brandedReason,
   compactPayload,
   objectRecord,
-  promptSpan,
+  redactedOutputValue,
   redactedRecord,
-  redactedValue,
+  subagentActivityInput,
+  toolActivityInput,
   toolActivityType,
+  toolTelemetryFields,
   toolSpan,
 } from './payloads.js';
 import { AnthropicAgentSessionManager } from './session-manager.js';
@@ -30,37 +33,64 @@ import type {
 } from './types.js';
 
 const HOOK_EVENTS: OpenBoxAnthropicAgentHookEvent[] = [
+  'Setup',
   'SessionStart',
+  'InstructionsLoaded',
   'UserPromptSubmit',
+  'UserPromptExpansion',
+  'Notification',
   'PreToolUse',
   'PermissionRequest',
+  'PermissionDenied',
   'PostToolUse',
   'PostToolUseFailure',
   'PostToolBatch',
   'Stop',
+  'StopFailure',
   'SubagentStart',
   'SubagentStop',
+  'TaskCreated',
+  'TaskCompleted',
+  'TeammateIdle',
+  'ConfigChange',
+  'CwdChanged',
+  'FileChanged',
+  'WorktreeRemove',
   'PreCompact',
+  'PostCompact',
+  'SessionEnd',
+  'Elicitation',
+  'ElicitationResult',
   'MessageDisplay',
 ];
 
 const DECISION_CAPABLE = new Set<OpenBoxAnthropicAgentHookEvent>([
   'UserPromptSubmit',
+  'UserPromptExpansion',
   'PreToolUse',
   'PermissionRequest',
+  'PermissionDenied',
   'PostToolUse',
   'PostToolUseFailure',
   'PostToolBatch',
   'Stop',
   'SubagentStart',
   'SubagentStop',
+  'TaskCreated',
+  'TaskCompleted',
+  'TeammateIdle',
+  'ConfigChange',
   'PreCompact',
+  'Elicitation',
+  'ElicitationResult',
 ]);
 
 interface HookDeps {
   context: OpenBoxAnthropicRuntimeContext;
   manager: AnthropicAgentSessionManager;
 }
+
+type ActivityEventKind = typeof EVENT.START | typeof EVENT.COMPLETE | typeof EVENT.SIGNAL;
 
 export function createOpenBoxAnthropicAgentHooks(
   config: OpenBoxAnthropicAgentSDKConfig = {},
@@ -119,7 +149,7 @@ function guarded(event: OpenBoxAnthropicAgentHookEvent, deps: HookDeps): HookCal
     try {
       return await handleHook(event, withToolUseId(input, toolUseID), deps);
     } catch (error) {
-      if (!deps.context.failClosed || !DECISION_CAPABLE.has(event)) return {};
+      if (!DECISION_CAPABLE.has(event)) return {};
       return renderFailClosed(event, error);
     }
   };
@@ -133,18 +163,28 @@ async function handleHook(
   const env = input as HookInput & Record<string, unknown>;
   const sessionId = stringFrom(env.session_id) ?? 'default';
   switch (event) {
+    case 'Setup':
+      return observeGenericEvent(env, deps, sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.SESSION, 'setup');
     case 'SessionStart':
       await deps.manager.ensureStarted(sessionId);
       await deps.manager.activity(sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.SESSION, {
         input: [compactPayload(env, 'session_start')],
       });
       return {};
+    case 'InstructionsLoaded':
+      return observeGenericEvent(env, deps, sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.MESSAGE, 'agent_observation');
     case 'UserPromptSubmit':
       return handleUserPromptSubmit(env, deps, sessionId);
+    case 'UserPromptExpansion':
+      return handleUserPromptExpansion(env, deps, sessionId);
+    case 'Notification':
+      return observeGenericEvent(env, deps, sessionId, EVENT.SIGNAL, ANTHROPIC_AGENT_ACTIVITY_TYPES.MESSAGE, 'agent_notification');
     case 'PreToolUse':
       return handlePreToolUse(env, deps, sessionId);
     case 'PermissionRequest':
       return handlePermissionRequest(env, deps, sessionId);
+    case 'PermissionDenied':
+      return handlePermissionDenied(env, deps, sessionId);
     case 'PostToolUse':
       return handlePostToolUse(env, deps, sessionId);
     case 'PostToolUseFailure':
@@ -153,12 +193,36 @@ async function handleHook(
       return handlePostToolBatch(env, deps, sessionId);
     case 'Stop':
       return handleStop(env, deps, sessionId);
+    case 'StopFailure':
+      return handleStopFailure(env, deps, sessionId);
     case 'SubagentStart':
       return handleSubagentStart(env, deps, sessionId);
     case 'SubagentStop':
       return handleSubagentStop(env, deps, sessionId);
+    case 'TaskCreated':
+      return handleTaskEvent(env, deps, sessionId, EVENT.START, 'task_created');
+    case 'TaskCompleted':
+      return handleTaskEvent(env, deps, sessionId, EVENT.COMPLETE, 'task_completed');
+    case 'TeammateIdle':
+      return handleTaskEvent(env, deps, sessionId, EVENT.COMPLETE, 'teammate_idle');
+    case 'ConfigChange':
+      return handleConfigChange(env, deps, sessionId);
+    case 'CwdChanged':
+      return observeGenericEvent(env, deps, sessionId, EVENT.SIGNAL, ANTHROPIC_AGENT_ACTIVITY_TYPES.WORKSPACE_CHANGE, 'cwd_changed');
+    case 'FileChanged':
+      return observeGenericEvent(env, deps, sessionId, EVENT.SIGNAL, ANTHROPIC_AGENT_ACTIVITY_TYPES.WORKSPACE_CHANGE, 'file_changed');
+    case 'WorktreeRemove':
+      return observeGenericEvent(env, deps, sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.WORKSPACE_CHANGE, 'worktree_remove');
     case 'PreCompact':
       return handlePreCompact(env, deps, sessionId);
+    case 'PostCompact':
+      return observeGenericEvent(env, deps, sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.SESSION, 'post_compact');
+    case 'SessionEnd':
+      return handleSessionEnd(env, deps, sessionId);
+    case 'Elicitation':
+      return handleElicitation(env, deps, sessionId, EVENT.START, 'mcp_elicitation');
+    case 'ElicitationResult':
+      return handleElicitation(env, deps, sessionId, EVENT.COMPLETE, 'mcp_elicitation_result');
     case 'MessageDisplay':
       return handleMessageDisplay(env, deps, sessionId);
   }
@@ -171,18 +235,53 @@ async function handleUserPromptSubmit(
 ): Promise<HookJSONOutput> {
   const prompt = stringFrom(env.prompt);
   if (!prompt) return {};
-  void deps.manager.activity(sessionId, EVENT.SIGNAL, ANTHROPIC_AGENT_ACTIVITY_TYPES.GOAL_SIGNAL, {
+  await deps.manager.activity(sessionId, EVENT.SIGNAL, ANTHROPIC_AGENT_ACTIVITY_TYPES.GOAL_SIGNAL, {
     input: [compactPayload({ prompt, session_id: sessionId }, 'agent_goal')],
     signalName: ANTHROPIC_AGENT_ACTIVITY_TYPES.GOAL_SIGNAL,
     signalArgs: prompt,
-    spans: promptSpan(prompt),
-  }).catch(() => undefined);
+    sessionId,
+    prompt,
+  });
 
   const verdict = await deps.manager.activity(sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.PROMPT, {
     input: [compactPayload(env, 'llm_prompt')],
-    spans: promptSpan(prompt),
+    prompt,
+    sessionId,
   });
   return renderDecisionBlock('UserPromptSubmit', verdict);
+}
+
+async function handleUserPromptExpansion(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+): Promise<HookJSONOutput> {
+  const prompt = stringFrom(env.prompt);
+  if (!prompt) return {};
+  const verdict = await deps.manager.activity(sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.PROMPT, {
+    input: [compactPayload(env, 'llm_prompt_expansion')],
+    prompt,
+    sessionId,
+  });
+  return renderDecisionBlock('UserPromptExpansion', verdict);
+}
+
+async function observeGenericEvent(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+  eventType: ActivityEventKind,
+  activityType: string,
+  eventCategory: string,
+): Promise<HookJSONOutput> {
+  try {
+    await deps.manager.observeActivity(sessionId, eventType, activityType, {
+      input: [compactPayload(env, eventCategory)],
+    });
+  } catch {
+    // Observe-only hooks must not disturb the host.
+  }
+  return {};
 }
 
 async function handlePreToolUse(
@@ -194,7 +293,12 @@ async function handlePreToolUse(
   const toolInput = objectRecord(env.tool_input);
   const activityType = toolActivityType(toolName, toolInput);
   const opened = await deps.manager.openActivity(sessionId, activityType, {
-    input: [compactPayload({ ...env, tool_name: toolName, tool_input: toolInput }, 'tool_input')],
+    input: toolActivityInput(
+      toolName,
+      toolInput,
+      compactPayload({ ...env, tool_name: toolName, tool_input: toolInput }, 'tool_input'),
+    ),
+    ...toolTelemetryFields(toolName, toolInput),
     spans: toolSpan(toolName, toolInput),
   });
   deps.manager.rememberToolActivity(
@@ -214,10 +318,96 @@ async function handlePermissionRequest(
   const toolName = stringFrom(env.tool_name) ?? 'unknown';
   const toolInput = objectRecord(env.tool_input);
   const verdict = await deps.manager.activity(sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.PERMISSION, {
-    input: [compactPayload({ ...env, tool_name: toolName, tool_input: toolInput }, 'permission_request')],
+    input: toolActivityInput(
+      toolName,
+      toolInput,
+      compactPayload({ ...env, tool_name: toolName, tool_input: toolInput }, 'permission_request'),
+    ),
+    ...toolTelemetryFields(toolName, toolInput),
     spans: toolSpan(toolName, toolInput),
   });
   return renderPermissionRequest(verdict);
+}
+
+async function handlePermissionDenied(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+): Promise<HookJSONOutput> {
+  const toolName = stringFrom(env.tool_name) ?? 'unknown';
+  const toolInput = objectRecord(env.tool_input);
+  const verdict = await deps.manager.activity(sessionId, EVENT.START, toolActivityType(toolName, toolInput), {
+    input: toolActivityInput(
+      toolName,
+      toolInput,
+      compactPayload({ ...env, tool_name: toolName, tool_input: toolInput }, 'permission_denied'),
+    ),
+    ...toolTelemetryFields(toolName, toolInput),
+    spans: toolSpan(toolName, toolInput, env.reason),
+  });
+  return renderPermissionDenied(verdict);
+}
+
+async function handleTaskEvent(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+  eventType: typeof EVENT.START | typeof EVENT.COMPLETE,
+  eventCategory: string,
+): Promise<HookJSONOutput> {
+  const verdict = await deps.manager.activity(sessionId, eventType, ANTHROPIC_AGENT_ACTIVITY_TYPES.TASK, {
+    input: subagentActivityInput(env, compactPayload(env, eventCategory)),
+  });
+  return renderContinueBlock(verdict);
+}
+
+async function handleConfigChange(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+): Promise<HookJSONOutput> {
+  const verdict = await deps.manager.activity(sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.CONFIG_CHANGE, {
+    input: [compactPayload(env, 'config_change')],
+  });
+  return renderDecisionBlock('ConfigChange', verdict);
+}
+
+async function handleSessionEnd(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+): Promise<HookJSONOutput> {
+  if (!deps.manager.has(sessionId)) return {};
+  try {
+    await deps.manager.observeActivity(sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.SESSION, {
+      input: [compactPayload(env, 'session_end')],
+    });
+  } catch {
+    // best-effort shutdown telemetry
+  }
+  try {
+    await deps.manager.complete(sessionId);
+  } catch {
+    // best-effort terminal telemetry
+  }
+  return {};
+}
+
+async function handleElicitation(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+  eventType: typeof EVENT.START | typeof EVENT.COMPLETE,
+  eventCategory: string,
+): Promise<HookJSONOutput> {
+  const verdict = await deps.manager.activity(sessionId, eventType, ANTHROPIC_AGENT_ACTIVITY_TYPES.MCP_ELICITATION, {
+    input: [compactPayload(env, eventCategory)],
+  });
+  return renderElicitationResponse(
+    stringFrom(env.hook_event_name) === 'ElicitationResult' ? 'ElicitationResult' : 'Elicitation',
+    verdict,
+    env,
+  );
 }
 
 async function handlePostToolUse(
@@ -230,10 +420,16 @@ async function handlePostToolUse(
   const toolOutput = env.tool_response ?? env.tool_output;
   const activityType = toolActivityType(toolName, toolInput);
   const payload = {
-    input: [compactPayload({ tool_name: toolName, tool_input: toolInput }, 'tool_input')],
+    input: toolActivityInput(
+      toolName,
+      toolInput,
+      compactPayload({ tool_name: toolName, tool_input: toolInput }, 'tool_input'),
+    ),
     output: toolOutput,
     durationMs: numberFrom(env.duration_ms),
-    spans: toolSpan(toolName, toolInput, toolOutput),
+    ...toolTelemetryFields(toolName, toolInput),
+    spans: toolSpan(toolName, toolInput, toolOutput, 'completed'),
+    hookSpanParentEventType: 'ActivityStarted' as const,
   };
   const verdict =
     (await deps.manager.completeToolActivity(
@@ -243,7 +439,7 @@ async function handlePostToolUse(
       payload,
     )) ??
     (await deps.manager.activity(sessionId, EVENT.COMPLETE, activityType, payload));
-  return renderDecisionBlock('PostToolUse', verdict, true);
+  return renderDecisionBlock('PostToolUse', verdict, toolOutput);
 }
 
 async function handlePostToolUseFailure(
@@ -254,10 +450,16 @@ async function handlePostToolUseFailure(
   const toolName = stringFrom(env.tool_name) ?? 'unknown';
   const toolInput = objectRecord(env.tool_input);
   const payload = {
-    input: [compactPayload({ tool_name: toolName, tool_input: toolInput }, 'tool_input')],
+    input: toolActivityInput(
+      toolName,
+      toolInput,
+      compactPayload({ tool_name: toolName, tool_input: toolInput }, 'tool_input'),
+    ),
     output: compactPayload(env, 'tool_failure'),
     durationMs: numberFrom(env.duration_ms),
-    spans: toolSpan(toolName, toolInput, env.error),
+    ...toolTelemetryFields(toolName, toolInput),
+    spans: toolSpan(toolName, toolInput, env.error, 'completed'),
+    hookSpanParentEventType: 'ActivityStarted' as const,
   };
   const verdict =
     (await deps.manager.completeToolActivity(
@@ -284,7 +486,7 @@ async function handlePostToolBatch(
     input: [compactPayload(env, 'tool_batch')],
     output: env.tool_calls,
   });
-  return renderDecisionBlock('PostToolBatch', verdict, true);
+  return renderDecisionBlock('PostToolBatch', verdict, env.tool_calls);
 }
 
 async function handleStop(
@@ -294,21 +496,61 @@ async function handleStop(
 ): Promise<HookJSONOutput> {
   const latest = deps.manager.latestAssistant(sessionId);
   const content = stringFrom(env.last_assistant_message) ?? latest?.content;
+  const assistant = {
+    content,
+    model: latest?.model,
+    usage: latest?.usage,
+    hasToolCalls: latest?.hasToolCalls ?? false,
+    sessionId,
+    event: 'Stop',
+  };
   const verdict = await deps.manager.activity(sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.SESSION, {
     input: [compactPayload(env, 'session_stop')],
     output: content ? { content } : undefined,
-    spans: assistantOutputSpan({
-      content,
-      model: latest?.model,
-      usage: latest?.usage,
-      sessionId,
-      event: 'Stop',
-    }),
+    ...assistantOutputTelemetry(assistant),
+    spans: assistantOutputSpan(assistant),
+    hookSpanParentEventType: 'ActivityStarted',
+    ensureHookSpanParent: true,
   });
   if (verdict.arm === 'allow' || verdict.arm === 'constrain') {
     await deps.manager.complete(sessionId);
   }
   return renderContinueBlock(verdict);
+}
+
+async function handleStopFailure(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+): Promise<HookJSONOutput> {
+  const latest = deps.manager.latestAssistant(sessionId);
+  const content = stringFrom(env.last_assistant_message) ?? latest?.content;
+  const assistant = {
+    content,
+    model: latest?.model,
+    usage: latest?.usage,
+    hasToolCalls: latest?.hasToolCalls ?? false,
+    sessionId,
+    event: 'StopFailure',
+  };
+  try {
+    await deps.manager.activity(sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.SESSION, {
+      input: [compactPayload(env, 'session_stop_failure')],
+      output: stopFailureOutput(env, content),
+      ...assistantOutputTelemetry(assistant),
+      spans: assistantOutputSpan(assistant),
+      hookSpanParentEventType: 'ActivityStarted',
+      ensureHookSpanParent: true,
+    });
+  } catch {
+    // best-effort failure telemetry; StopFailure cannot safely block the host.
+  }
+  try {
+    await deps.manager.fail(sessionId, stopFailureReason(env));
+  } catch {
+    // best-effort terminal telemetry; the hook response remains observe-only.
+  }
+  return {};
 }
 
 async function handleSubagentStart(
@@ -317,7 +559,7 @@ async function handleSubagentStart(
   sessionId: string,
 ): Promise<HookJSONOutput> {
   const verdict = await deps.manager.activity(sessionId, EVENT.START, ANTHROPIC_AGENT_ACTIVITY_TYPES.SUBAGENT, {
-    input: [compactPayload(env, 'subagent_start')],
+    input: subagentActivityInput(env, compactPayload(env, 'subagent_start')),
   });
   return renderContinueBlock(verdict);
 }
@@ -327,14 +569,15 @@ async function handleSubagentStop(
   deps: HookDeps,
   sessionId: string,
 ): Promise<HookJSONOutput> {
+  const content = stringFrom(env.last_assistant_message);
+  const assistant = { content, sessionId, event: 'SubagentStop' };
   const verdict = await deps.manager.activity(sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.SUBAGENT, {
-    input: [compactPayload(env, 'subagent_stop')],
+    input: subagentActivityInput(env, compactPayload(env, 'subagent_stop')),
     output: env.last_assistant_message,
-    spans: assistantOutputSpan({
-      content: stringFrom(env.last_assistant_message),
-      sessionId,
-      event: 'SubagentStop',
-    }),
+    ...assistantOutputTelemetry(assistant),
+    spans: assistantOutputSpan(assistant),
+    hookSpanParentEventType: 'ActivityStarted',
+    ensureHookSpanParent: true,
   });
   return renderContinueBlock(verdict);
 }
@@ -356,14 +599,15 @@ async function handleMessageDisplay(
   sessionId: string,
 ): Promise<HookJSONOutput> {
   if (env.final !== true) return {};
-  await deps.manager.activity(sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.MESSAGE, {
+  const content = stringFrom(env.delta);
+  const assistant = { content, sessionId, event: 'MessageDisplay' };
+  await deps.manager.observeActivity(sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.MESSAGE, {
     input: [compactPayload(env, 'message_display')],
-    output: stringFrom(env.delta),
-    spans: assistantOutputSpan({
-      content: stringFrom(env.delta),
-      sessionId,
-      event: 'MessageDisplay',
-    }),
+    output: content,
+    ...assistantOutputTelemetry(assistant),
+    spans: assistantOutputSpan(assistant),
+    hookSpanParentEventType: 'ActivityStarted',
+    ensureHookSpanParent: true,
   });
   return {};
 }
@@ -435,9 +679,14 @@ function renderPermissionRequest(verdict: WorkflowVerdict | undefined): HookJSON
 }
 
 function renderDecisionBlock(
-  event: 'UserPromptSubmit' | 'PostToolUse' | 'PostToolBatch',
+  event:
+    | 'UserPromptSubmit'
+    | 'UserPromptExpansion'
+    | 'PostToolUse'
+    | 'PostToolBatch'
+    | 'ConfigChange',
   verdict: WorkflowVerdict | undefined,
-  includeUpdatedToolOutput = false,
+  originalToolOutput?: unknown,
 ): HookJSONOutput {
   const arm = verdict?.arm ?? 'allow';
   const reason = brandedReason(verdict);
@@ -453,18 +702,79 @@ function renderDecisionBlock(
         '. Approve in OpenBox, then ask the agent to retry.',
     };
   }
-  if (arm === 'constrain' && reason) {
+  if (
+    arm === 'constrain' &&
+    isPromptDecisionEvent(event) &&
+    hasPromptRedaction(verdict)
+  ) {
+    return {
+      decision: 'block',
+      reason:
+        reason ||
+        '[OpenBox] redacted this prompt, but this host cannot replace submitted prompts. Rewrite the prompt with the redacted content and submit again.',
+    };
+  }
+  if (arm === 'constrain') {
+    const redacted = redactedOutputValue(verdict, originalToolOutput);
+    if (!reason && redacted === undefined) return {};
     const hookSpecificOutput: Record<string, unknown> = {
       hookEventName: event,
-      additionalContext: reason,
     };
-    if (includeUpdatedToolOutput) {
-      const redacted = redactedValue(verdict);
-      if (redacted !== undefined) hookSpecificOutput.updatedToolOutput = redacted;
-    }
+    if (reason) hookSpecificOutput.additionalContext = reason;
+    if (redacted !== undefined) hookSpecificOutput.updatedToolOutput = redacted;
     return { hookSpecificOutput } as HookJSONOutput;
   }
   return {};
+}
+
+function isPromptDecisionEvent(event: string): boolean {
+  return event === 'UserPromptSubmit' || event === 'UserPromptExpansion';
+}
+
+function hasPromptRedaction(verdict: WorkflowVerdict | undefined): boolean {
+  const guardrails = verdict?.guardrailsResult;
+  return Boolean(
+    guardrails &&
+      (guardrails.inputType === 'activity_input' ||
+        guardrails.inputType === 'signal_args') &&
+      guardrails.redactedInput !== undefined &&
+      guardrails.redactedInput !== null,
+  );
+}
+
+function renderPermissionDenied(verdict: WorkflowVerdict | undefined): HookJSONOutput {
+  const arm = verdict?.arm ?? 'allow';
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PermissionDenied',
+      retry: arm === 'allow' || arm === 'constrain',
+    },
+  };
+}
+
+function renderElicitationResponse(
+  event: 'Elicitation' | 'ElicitationResult',
+  verdict: WorkflowVerdict | undefined,
+  env: Record<string, unknown>,
+): HookJSONOutput {
+  const arm = verdict?.arm ?? 'allow';
+  if (arm === 'allow') return {};
+  if (arm === 'constrain') {
+    return {
+      hookSpecificOutput: {
+        hookEventName: event,
+        action: 'accept',
+        content: redactedRecord(verdict) ?? objectRecord(env.response) ?? objectRecord(env.content),
+      },
+    };
+  }
+  return {
+    hookSpecificOutput: {
+      hookEventName: event,
+      action: arm === 'halt' ? 'cancel' : 'decline',
+      content: {},
+    },
+  };
 }
 
 function renderAdditionalContext(
@@ -509,6 +819,13 @@ function renderFailClosed(event: OpenBoxAnthropicAgentHookEvent, error: unknown)
           decision: { behavior: 'deny', message: reason },
         },
       };
+    case 'PermissionDenied':
+      return {
+        hookSpecificOutput: {
+          hookEventName: event,
+          retry: false,
+        },
+      };
     case 'PostToolUseFailure':
       return {
         hookSpecificOutput: {
@@ -519,8 +836,20 @@ function renderFailClosed(event: OpenBoxAnthropicAgentHookEvent, error: unknown)
     case 'Stop':
     case 'SubagentStart':
     case 'SubagentStop':
+    case 'TaskCreated':
+    case 'TaskCompleted':
+    case 'TeammateIdle':
     case 'PreCompact':
       return { continue: false, stopReason: reason };
+    case 'Elicitation':
+    case 'ElicitationResult':
+      return {
+        hookSpecificOutput: {
+          hookEventName: event,
+          action: 'decline',
+          content: {},
+        },
+      };
     default:
       return { decision: 'block', reason };
   }
@@ -532,6 +861,29 @@ function stringFrom(value: unknown): string | undefined {
 
 function numberFrom(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function stopFailureOutput(
+  env: Record<string, unknown>,
+  content: string | undefined,
+): Record<string, unknown> {
+  return compactPayload(
+    {
+      error: env.error,
+      error_details: env.error_details,
+      ...(content ? { content } : {}),
+    },
+    'session_stop_failure_output',
+  );
+}
+
+function stopFailureReason(env: Record<string, unknown>): Error {
+  const details = stringFrom(env.error_details);
+  const errorText =
+    stringFrom(env.error) ??
+    stringFrom(objectRecord(env.error).message) ??
+    'Anthropic Agent SDK StopFailure';
+  return new Error(details ? `${errorText}: ${details}` : errorText);
 }
 
 function toolUseIdFrom(env: Record<string, unknown>): string | undefined {

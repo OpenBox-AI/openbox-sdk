@@ -782,12 +782,8 @@ export interface ClaudeCodeAdapterConfig {
   /** Override exit (test injection). Default: process.exit. */
   exit?: (code: number) => never;
   /**
-   * Cap (ms) on how long the SDK polls a require_approval verdict
-   * before giving up. The actual wait is min(this, server-side
-   * approvalExpiresAt). Hook subprocesses have a finite lifetime
-   * imposed by the host IDE; set this slightly under that ceiling so
-   * the poll resolves before the host kills the process. Default: SDK
-   * default (60s).
+   * @deprecated Compatibility no-op. Approval expiration is controlled
+   * by the server-supplied approvalExpiresAt value.
    */
   approvalMaxWaitMs?: number;
   /**
@@ -798,7 +794,7 @@ export interface ClaudeCodeAdapterConfig {
    * approver. External approval clients such as the dashboard, mobile
    * app, or editor extension can still resolve the backend row, but
    * the hook subprocess does not wait for them. Adapters wire this
-   * from the `APPROVAL_MODE` config.
+   * from the project `approvalMode` config.
    */
   inlineApproval?: boolean;
   deferApproval?: boolean;
@@ -1235,9 +1231,89 @@ function redactedInput(v: WorkflowVerdict | undefined): unknown {
   return v?.guardrailsResult?.redactedInput;
 }
 
+function redactedOutputValue(
+  v: WorkflowVerdict | undefined,
+  env: Record<string, unknown>,
+): unknown {
+  const guardrails = v?.guardrailsResult;
+  if (
+    !guardrails ||
+    guardrails.inputType !== 'activity_output' ||
+    guardrails.redactedInput === undefined ||
+    guardrails.redactedInput === null
+  ) {
+    return undefined;
+  }
+  return unwrapOutputRedaction(guardrails.redactedInput, originalOutputFor(env));
+}
+
+function redactedInputRecord(v: WorkflowVerdict | undefined): Record<string, unknown> | undefined {
+  return objectRecord(unwrapInputRedaction(redactedInput(v)));
+}
+
+function unwrapInputRedaction(value: unknown): unknown {
+  if (Array.isArray(value) && value.length === 1) return value[0];
+  const record = objectRecord(value);
+  if (!record) return value;
+  if (Array.isArray(record.input) && record.input.length === 1) return record.input[0];
+  if (Array.isArray(record.activity_input) && record.activity_input.length === 1) return record.activity_input[0];
+  if (Array.isArray(record.activityInput) && record.activityInput.length === 1) return record.activityInput[0];
+  return value;
+}
+
+function unwrapOutputRedaction(value: unknown, originalOutput: unknown): unknown {
+  const record = objectRecord(value);
+  if (!record || hasOwnKey(originalOutput, 'output')) return value;
+  if (Object.prototype.hasOwnProperty.call(record, 'output')) return record.output;
+  if (Object.prototype.hasOwnProperty.call(record, 'activity_output')) return record.activity_output;
+  if (Object.prototype.hasOwnProperty.call(record, 'activityOutput')) return record.activityOutput;
+  return value;
+}
+
+function originalOutputFor(env: Record<string, unknown>): unknown {
+  return env.tool_response ?? env.toolResponse ?? env.response ?? env.content;
+}
+
+function hasInputRedaction(v: WorkflowVerdict | undefined): boolean {
+  const guardrails = v?.guardrailsResult;
+  return Boolean(
+    guardrails &&
+      (guardrails.inputType === 'activity_input' || guardrails.inputType === 'signal_args') &&
+      guardrails.redactedInput !== undefined &&
+      guardrails.redactedInput !== null,
+  );
+}
+
+function isSubmittedPromptEvent(eventName: unknown): boolean {
+  return eventName === 'UserPromptSubmit' || eventName === 'UserPromptExpansion';
+}
+
+function promptRedactionBlockReason(reason: string): string {
+  return (
+    reason ||
+    '[OpenBox] redacted this prompt, but this host cannot replace submitted prompts. Rewrite the prompt with the redacted content and submit again.'
+  );
+}
+
+function cursorInputRedactionBlockReason(reason: string): string {
+  const detail = reason.replace(/[.]+$/, '');
+  return detail
+    ? detail + '. Cursor cannot replace this hook input, so OpenBox blocked the original action.'
+    : '[OpenBox] redacted this action input, but Cursor cannot replace this hook input. Rewrite the action with redacted content and retry.';
+}
+
 function objectRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   return value as Record<string, unknown>;
+}
+
+function hasOwnKey(value: unknown, key: string): value is Record<string, unknown> {
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.prototype.hasOwnProperty.call(value, key)
+  );
 }
 
 function addIfDefined(target: Record<string, unknown>, key: string, value: unknown): void {
@@ -1261,7 +1337,7 @@ function renderVerdictOutput(
           permissionDecision: 'allow',
         };
         if (arm === 'constrain') {
-          addIfDefined(hookSpecificOutput, 'updatedInput', objectRecord(redactedInput(v)));
+          addIfDefined(hookSpecificOutput, 'updatedInput', redactedInputRecord(v));
           if (reason) hookSpecificOutput.additionalContext = reason;
         }
         return {
@@ -1303,12 +1379,21 @@ function renderVerdictOutput(
             '. Approve in OpenBox, then ask the agent to retry.',
         };
       }
-      if (arm === 'constrain' && reason) {
+      if (arm === 'constrain' && isSubmittedPromptEvent(env.hook_event_name) && hasInputRedaction(v)) {
+        return {
+          decision: 'block',
+          reason: promptRedactionBlockReason(reason),
+          suppressOriginalPrompt: true,
+        };
+      }
+      if (arm === 'constrain') {
+        const updatedToolOutput = redactedOutputValue(v, env);
+        if (!reason && updatedToolOutput === undefined) return {};
         const hookSpecificOutput: Record<string, unknown> = {
           hookEventName: env.hook_event_name ?? 'ClaudeCode',
-          additionalContext: reason,
         };
-        addIfDefined(hookSpecificOutput, 'updatedToolOutput', redactedInput(v));
+        if (reason) hookSpecificOutput.additionalContext = reason;
+        addIfDefined(hookSpecificOutput, 'updatedToolOutput', updatedToolOutput);
         return { hookSpecificOutput };
       }
       return {};
@@ -1318,7 +1403,7 @@ function renderVerdictOutput(
       if (arm === 'allow' || arm === 'constrain') {
         const decision: Record<string, unknown> = { behavior: 'allow' };
         if (arm === 'constrain') {
-          addIfDefined(decision, 'updatedInput', objectRecord(redactedInput(v)));
+          addIfDefined(decision, 'updatedInput', redactedInputRecord(v));
         }
         return {
           hookSpecificOutput: {
@@ -1362,7 +1447,7 @@ function renderVerdictOutput(
           hookSpecificOutput: {
             hookEventName: eventName,
             action: 'accept',
-            content: redactedInput(v) ?? env.response ?? env.content ?? {},
+            content: redactedInputRecord(v) ?? objectRecord(env.response) ?? objectRecord(env.content) ?? {},
           },
         };
       }
@@ -1407,14 +1492,23 @@ function renderVerdictOutput(
       //     beforeTabFileRead, the validator rejects `ask` outright.
       // We always return `deny` for require_approval and surface our
       // own toast / panel as the actual gate.
-      if (arm === 'allow' || arm === 'constrain') return { permission: 'allow' };
+      if (arm === 'allow') return { permission: 'allow' };
+      if (arm === 'constrain') {
+        if (hasInputRedaction(v)) {
+          const message = cursorInputRedactionBlockReason(reason);
+          return {
+            permission: 'deny',
+            user_message: message,
+            agent_message: message,
+          };
+        }
+        return { permission: 'allow' };
+      }
       if (arm === 'require_approval') {
         const r = reason.replace(/^\[OpenBox\] /, '').trim();
-        // The hook has already polled for the configured deadline
-        // (default 60s; Cursor's hook subprocess timeout; tunable up
-        // to ~1hr per hooks.json[event].timeout + HITL_MAX_WAIT).
-        // Reaching this branch means no decision came through in time.
-        // Cursor will block this tool attempt.
+        // Reaching this branch means Core still reports
+        // require_approval, or the server-side approval window expired.
+        // The host blocks this tool attempt; the user can approve and retry.
         return {
           permission: 'deny',
           user_message:
@@ -1456,6 +1550,12 @@ function renderVerdictOutput(
       // Cursor's beforeSubmitPrompt verdict shape.
        // Stdout is { continue: bool, user_message?: string };       // distinct from cursor-permission (which uses 'permission').
       // Per cursor.com/docs/hooks.
+      if (arm === 'constrain' && hasInputRedaction(v)) {
+        return {
+          continue: false,
+          user_message: promptRedactionBlockReason(reason),
+        };
+      }
       if (arm === 'allow' || arm === 'constrain') return { continue: true };
       if (arm === 'require_approval') {
         // Cursor's beforeSubmitPrompt API is fire-and-forget: stdout
@@ -1490,7 +1590,3 @@ function renderVerdictOutput(
       return undefined;
   }
 }
-
-
-
-

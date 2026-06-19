@@ -49,6 +49,7 @@ function recordingSession(verdict: { arm?: string } = { arm: 'allow' }): any {
     workflowId: 'wf', runId: 'run', workflowType: 't', taskQueue: 'g',
     isOpen: true, isTerminated: false, calls,
     async activity(...a: any[]) { calls.push({ method: 'activity', args: a }); return verdict; },
+    async observeActivity(...a: any[]) { calls.push({ method: 'observeActivity', args: a }); return verdict; },
     async openActivity(...a: any[]) {
       calls.push({ method: 'openActivity', args: a });
       const activityId = a[1]?.activityId ?? `opened-${calls.length}`;
@@ -121,16 +122,24 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     expect(goalSignal?.args[2]).toMatchObject({
       signalName: 'user_prompt',
       signalArgs: 'hi',
+      sessionId: 'S',
+      prompt: 'hi',
       input: [{ prompt: 'hi', event_category: 'agent_goal', _openbox_source: 'claude-code' }],
     });
-    expect(goalSignal?.args[2].spans?.[0]).toMatchObject({
-      semantic_type: 'llm_completion',
-      module: 'claude-code',
-    });
+    expect(goalSignal?.args[2].spans).toBeUndefined();
     const promptGate = session.calls.find(
       (call: any) => call.method === 'activity' && call.args[0] === 'ActivityStarted',
     );
+    const signalIndex = session.calls.indexOf(goalSignal);
+    const promptGateIndex = session.calls.indexOf(promptGate);
+    expect(signalIndex).toBeGreaterThanOrEqual(0);
+    expect(promptGateIndex).toBeGreaterThan(signalIndex);
     expect(promptGate?.args[1]).toBe('PromptSubmission');
+    expect(promptGate?.args[2]).toMatchObject({
+      sessionId: 'S',
+      prompt: 'hi',
+    });
+    expect(promptGate?.args[2].spans).toBeUndefined();
   });
 
   it('pre/post tool hooks pair on tool_use_id and send tool results as activity output', async () => {
@@ -158,6 +167,9 @@ describe('runtime/claude-code/mappers; every event handler', () => {
 
     const opened = session.calls.find((call: any) => call.method === 'openActivity');
     expect(opened?.args[0]).toBe('ShellExecution');
+    expect(opened?.args[1].input).toContainEqual({
+      __openbox: { tool_type: 'shell' },
+    });
     const completed = session.calls.find(
       (call: any) => call.method === 'activity' && call.args[0] === 'ActivityCompleted',
     );
@@ -172,6 +184,49 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       event_category: 'agent_action',
       _openbox_source: 'claude-code',
     });
+    expect(completed?.args[2].input).toContainEqual({
+      __openbox: { tool_type: 'shell' },
+    });
+    expect(completed?.args[2].spans?.[0]).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'internal',
+    });
+  });
+
+  it('post tool failure marks the completed hook span as errored', async () => {
+    const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
+    const { handlePostToolUseFailure } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
+    const session = recordingSession();
+    const cfg = { sessionDir: dir } as any;
+    const base = {
+      session_id: 'S-tool-failure',
+      tool_use_id: 'toolu_failed',
+      tool_name: 'Bash',
+      tool_input: { command: 'cat /root/secret', cwd: dir },
+    } as any;
+
+    await handlePreToolUse(base, session, cfg);
+    await handlePostToolUseFailure(
+      {
+        ...base,
+        error: 'permission denied',
+        reason: 'permission denied',
+        duration_ms: 5,
+      },
+      session,
+      cfg,
+    );
+
+    const completed = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[0] === 'ActivityCompleted',
+    );
+    const span = completed?.args[2]?.spans?.[0];
+    expect(span).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'internal',
+      status: { code: 'ERROR', description: expect.stringContaining('permission denied') },
+    });
+    expect(String(span?.error)).toContain('permission denied');
   });
 
   it('session-start workflowStarted + START activity', async () => {
@@ -180,6 +235,27 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     await handleSessionStart({ session_id: 'S' } as any, session, { sessionDir: dir } as any);
     await handleSessionEnd({ session_id: 'S', reason: 'stop' } as any, session, { sessionDir: dir } as any);
     expect(session.calls.some((c: any) => c.method === 'workflowStarted')).toBe(true);
+    const start = session.calls.find((c: any) => c.method === 'openActivity');
+    const end = session.calls.find(
+      (c: any) => c.method === 'activity' && c.args[0] === 'ActivityCompleted',
+    );
+    expect(start?.args[0]).toBe('ClaudeCodeSession');
+    expect(end?.args[1]).toBe('ClaudeCodeSession');
+    expect(end?.args[2].activityId).toBe(start?.args[1].activityId ?? 'opened-2');
+    expect(end?.args[2].startTime).toBe(start?.args[1].startTime);
+  });
+
+  it('pre/post compact pair on one ClaudeCodeSession activity id', async () => {
+    const { handlePreCompact, handlePostCompact } = await import('../../ts/src/runtime/claude-code/mappers/session');
+    const session = recordingSession();
+    await handlePreCompact({ session_id: 'COMPACT' } as any, session, { sessionDir: dir } as any);
+    await handlePostCompact({ session_id: 'COMPACT' } as any, session, { sessionDir: dir } as any);
+    const start = session.calls.find((c: any) => c.method === 'openActivity');
+    const end = session.calls.find(
+      (c: any) => c.method === 'activity' && c.args[0] === 'ActivityCompleted',
+    );
+    expect(end?.args[2].activityId).toBe(start?.args[1].activityId ?? 'opened-1');
+    expect(end?.args[2].startTime).toBe(start?.args[1].startTime);
   });
 
   it('session-end short-circuits when resolveSession created a fresh record (phantom session, e.g. `claude update`)', async () => {
@@ -308,7 +384,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       },
     );
     const message = session.calls.find(
-      (c: any) => c.method === 'activity' && c.args[1] === 'ClaudeCodeMessage',
+      (c: any) => c.method === 'observeActivity' && c.args[1] === 'ClaudeCodeMessage',
     );
     expect(message?.args[2]?.spans?.[0]).toMatchObject({
       name: 'openbox.claude-code.assistant_output',
@@ -358,6 +434,10 @@ describe('runtime/claude-code/mappers; every event handler', () => {
           usage: {
             input_tokens: 3138,
             output_tokens: 358,
+            cache_read_input_tokens: 10,
+            cache_creation_input_tokens: 5,
+            web_search_requests: 1,
+            cost_usd: 0.004,
           },
         },
       },
@@ -372,6 +452,10 @@ describe('runtime/claude-code/mappers; every event handler', () => {
           usage: {
             input_tokens: 3138,
             output_tokens: 358,
+            cache_read_input_tokens: 10,
+            cache_creation_input_tokens: 5,
+            web_search_requests: 1,
+            cost_usd: 0.004,
           },
         },
       },
@@ -382,10 +466,17 @@ describe('runtime/claude-code/mappers; every event handler', () => {
           id: 'msg_final',
           role: 'assistant',
           model: 'claude-opus-4-8',
-          content: [{ type: 'text', text: 'final canonical answer' }],
+          content: [
+            { type: 'text', text: 'final canonical' },
+            { type: 'text', text: 'answer' },
+          ],
           usage: {
             input_tokens: 2,
             output_tokens: 591,
+            cache_read_input_tokens: 4,
+            cache_creation_input_tokens: 2,
+            web_search_requests: 2,
+            cost_usd: 0.006,
           },
         },
       },
@@ -409,14 +500,40 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     );
 
     const message = session.calls.find(
-      (c: any) => c.method === 'activity' && c.args[1] === 'ClaudeCodeMessage',
+      (c: any) => c.method === 'observeActivity' && c.args[1] === 'ClaudeCodeMessage',
     );
-    expect(message?.args[2]?.spans?.[0]).toMatchObject({
+    const span = message?.args[2]?.spans?.[0];
+    expect(span).toMatchObject({
       model: 'claude-opus-4-8',
       input_tokens: 3140,
       output_tokens: 949,
+      cache_read_input_tokens: 14,
+      cache_creation_input_tokens: 7,
+      web_search_requests: 3,
+      attributes: {
+        'gen_ai.usage.cache_read_input_tokens': 14,
+        'gen_ai.usage.cache_creation_input_tokens': 7,
+        'gen_ai.usage.web_search_requests': 3,
+      },
     });
-    expect(assistantContentFromSpan(message?.args[2]?.spans?.[0])).toBe(
+    expect(span?.cost_usd).toBeCloseTo(0.01);
+    expect(span?.attributes?.['openbox.usage.cost_usd']).toBeCloseTo(0.01);
+    expect(message?.args[2]).toMatchObject({
+      hasToolCalls: true,
+    });
+    const responseBody = JSON.parse(
+      String(span?.response_body ?? '{}'),
+    );
+    expect(responseBody.usage).toMatchObject({
+      input_tokens: 3140,
+      output_tokens: 949,
+      total_tokens: 4089,
+      cache_read_input_tokens: 14,
+      cache_creation_input_tokens: 7,
+      web_search_requests: 3,
+    });
+    expect(responseBody.usage?.cost_usd).toBeCloseTo(0.01);
+    expect(assistantContentFromSpan(span)).toBe(
       'final canonical answer',
     );
     const usageSignal = session.calls.find(
@@ -425,16 +542,32 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     expect(usageSignal?.args[2]?.input?.[0]).toMatchObject({
       event_category: 'llm_usage',
       model: 'claude-opus-4-8',
-      usage: { inputTokens: 3140, outputTokens: 949, totalTokens: 4089 },
+      usage: {
+        inputTokens: 3140,
+        outputTokens: 949,
+        totalTokens: 4089,
+        cacheReadInputTokens: 14,
+        cacheCreationInputTokens: 7,
+        webSearchRequests: 3,
+      },
       _openbox_source: 'claude-code',
     });
+    expect(usageSignal?.args[2]?.input?.[0]?.usage?.costUSD).toBeCloseTo(0.01);
     expect(usageSignal?.args[2]?.signalName).toBe('claude_usage');
     expect(usageSignal?.args[2]?.signalArgs?.[0]).toMatchObject({
       event_category: 'llm_usage',
       model: 'claude-opus-4-8',
-      usage: { inputTokens: 3140, outputTokens: 949, totalTokens: 4089 },
+      usage: {
+        inputTokens: 3140,
+        outputTokens: 949,
+        totalTokens: 4089,
+        cacheReadInputTokens: 14,
+        cacheCreationInputTokens: 7,
+        webSearchRequests: 3,
+      },
       _openbox_source: 'claude-code',
     });
+    expect(usageSignal?.args[2]?.signalArgs?.[0]?.usage?.costUSD).toBeCloseTo(0.01);
   });
 
   it('stop keeps the workflow open while Claude reports background work', async () => {
@@ -528,6 +661,18 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       { sessionDir: dir } as any,
     );
     expect(session.calls.length).toBeGreaterThan(0);
+    const start = session.calls.find((call: any) => call.method === 'openActivity');
+    const stop = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[0] === 'ActivityCompleted',
+    );
+    expect(start?.args[1].input).toContainEqual({
+      __openbox: { tool_type: 'a2a', subagent_name: 'researcher' },
+    });
+    expect(stop?.args[2].activityId).toBe('opened-1');
+    expect(stop?.args[2].startTime).toBe(start?.args[1].startTime);
+    expect(stop?.args[2].input).toContainEqual({
+      __openbox: { tool_type: 'a2a', subagent_name: 'researcher' },
+    });
   });
 
   it('subagent-stop emits a Core-extractable assistant output span when Claude provides transcript output', async () => {
@@ -564,6 +709,28 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       },
     });
     expect(assistantContentFromSpan(span)).toBe('subagent final answer');
+  });
+
+  it('task-created + task-completed pair on one task activity id', async () => {
+    const { handleTaskCreated, handleTaskCompleted } = await import(
+      '../../ts/src/runtime/claude-code/mappers/subagent'
+    );
+    const session = recordingSession();
+    const env = {
+      session_id: 'S',
+      task_id: 'task-1',
+      task_subject: 'research',
+    } as any;
+    await handleTaskCreated(env, session, { sessionDir: dir } as any);
+    await handleTaskCompleted(env, session, { sessionDir: dir } as any);
+    const start = session.calls.find((call: any) => call.method === 'openActivity');
+    const completed = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[0] === 'ActivityCompleted',
+    );
+    expect(start?.args[0]).toBe('ClaudeCodeTask');
+    expect(completed?.args[1]).toBe('ClaudeCodeTask');
+    expect(completed?.args[2].activityId).toBe(start?.args[1].activityId ?? 'opened-1');
+    expect(completed?.args[2].startTime).toBe(start?.args[1].startTime);
   });
 });
 

@@ -12,7 +12,7 @@ import {
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
-import { buildSpan } from '../../../governance/spans.js';
+import { buildSpan, withOpenBoxActivityMetadata } from '../../../governance/spans.js';
 import {
   isInsideAnyRoot,
   shouldRedactPathContent,
@@ -22,6 +22,7 @@ import {
   claimAction,
   awaitClaimDecision,
   publishClaimDecision,
+  rememberCompletionActivity,
 } from '../dedup.js';
 import { stampSource } from '../../../approvals/source.js';
 
@@ -72,13 +73,41 @@ export async function handleBeforeReadFile(
   }
 
   const payload = buildBeforeReadFilePayload(env);
-  const span = buildSpan('cursor', 'file_read', { file_path: filePath });
+  const span = buildSpan('cursor', 'file_read', {
+    file_path: filePath,
+    tool_name: 'Read',
+  });
   try {
-    const verdict = await session.activity(
-      EVENT.START,
-      BEFORE_READ_FILE_ACTIVITY_TYPE,
-      { input: [stampSource(payload, 'cursor')], spans: [span] },
-    );
+    const startTime = Date.now();
+    const opened = await session.openActivity(BEFORE_READ_FILE_ACTIVITY_TYPE, {
+      input: withOpenBoxActivityMetadata(
+        [stampSource(payload, 'cursor')],
+        { toolType: 'file_read' },
+      ),
+      startTime,
+      spans: [span],
+    });
+    const verdict = opened.verdict;
+    if (
+      verdict.arm === 'allow' ||
+      verdict.arm === 'constrain' ||
+      verdict.arm === 'require_approval'
+    ) {
+      rememberCompletionActivity(
+        {
+          generation_id: env.generation_id,
+          conversation_id: env.conversation_id,
+          kind: 'read',
+          arg: filePath,
+        },
+        cfg,
+        {
+          activityId: opened.activityId,
+          activityType: BEFORE_READ_FILE_ACTIVITY_TYPE,
+          startTime,
+        },
+      );
+    }
     publishClaimDecision(claim, { arm: verdict.arm, reason: verdict.reason ?? '' });
     if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
     return verdict;
@@ -114,12 +143,17 @@ export async function handleBeforeTabFileRead(
   }
 
   const payload = buildBeforeTabFileReadPayload(env);
-  const span = buildSpan('cursor', 'file_read', { file_path: filePath });
-  const verdict = await session.activity(
-    EVENT.START,
-    BEFORE_TAB_FILE_READ_ACTIVITY_TYPE,
-    { input: [stampSource(payload, 'cursor')], spans: [span] },
-  );
+  const span = buildSpan('cursor', 'file_read', {
+    file_path: filePath,
+    tool_name: 'TabRead',
+  });
+  const verdict = await session.activity(EVENT.START, BEFORE_TAB_FILE_READ_ACTIVITY_TYPE, {
+    input: withOpenBoxActivityMetadata(
+      [stampSource(payload, 'cursor')],
+      { toolType: 'file_read' },
+    ),
+    spans: [span],
+  });
   if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
   return verdict;
 }

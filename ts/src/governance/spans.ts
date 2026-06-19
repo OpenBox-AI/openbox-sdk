@@ -31,25 +31,54 @@ interface SpanBase {
   start_time: number;
   end_time: number | null;
   duration_ns: number | null;
-  status: { code: string; description: null };
+  status: { code: string; description: string | null };
   events: never[];
-  error: null;
+  error: string | null;
 }
 
-function base(): SpanBase {
+function errorDescription(value: unknown): string | undefined {
+  if (value instanceof Error) return value.message || value.name;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  }
+  if (value === undefined || value === null) return undefined;
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized === undefined ? String(value) : serialized;
+  } catch {
+    return String(value);
+  }
+}
+
+function spanStatusOrDefault(
+  status: unknown,
+  error: string | undefined,
+): { code: string; description?: string | null } {
+  return status && typeof status === 'object' && !Array.isArray(status)
+    ? (status as { code: string; description?: string | null })
+    : { code: error ? 'ERROR' : 'UNSET', description: error ?? null };
+}
+
+function base(
+  stage: 'started' | 'completed' = 'started',
+  error?: unknown,
+): SpanBase {
+  const now = Date.now() * 1_000_000;
+  const description = errorDescription(error);
   return {
     span_id: hex(16),
     trace_id: hex(32),
     parent_span_id: null,
     kind: 'CLIENT',
     span_type: 'function',
-    stage: 'started',
-    start_time: Date.now() * 1_000_000,
-    end_time: null,
-    duration_ns: null,
-    status: { code: 'OK', description: null },
+    stage,
+    start_time: now,
+    end_time: stage === 'completed' ? now : null,
+    duration_ns: stage === 'completed' ? 0 : null,
+    status: { code: description ? 'ERROR' : 'UNSET', description: description ?? null },
     events: [],
-    error: null,
+    error: description ?? null,
   };
 }
 
@@ -64,6 +93,7 @@ export type SpanType =
   | 'db';
 
 export interface SpanInput {
+  stage?: 'started' | 'completed';
   prompt?: string;
   response?: string;
   model?: string;
@@ -72,13 +102,24 @@ export interface SpanInput {
   command?: string;
   cwd?: string;
   tool_name?: string;
+  tool?: string;
   tool_input?: unknown;
   tool_output?: unknown;
+  server?: string;
+  server_id?: string;
+  mcp_server_id?: string;
+  mcp_method?: string;
+  mcp_operation?: string;
   url?: string;
   method?: string;
   db_system?: string;
+  system?: string;
   db_operation?: string;
+  operation?: string;
   db_statement?: string;
+  statement?: string;
+  query?: string;
+  error?: unknown;
 }
 
 export interface LLMCompletionSpanInput {
@@ -88,6 +129,7 @@ export interface LLMCompletionSpanInput {
   kind?: string;
   system?: string;
   model?: string;
+  provider?: string;
   usage?: LLMTokenUsage;
   requestBody?: unknown;
   responseBody?: unknown;
@@ -105,15 +147,67 @@ export interface LLMTokenUsage {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  webSearchRequests?: number;
+  costUSD?: number;
+  costUsd?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+  web_search_requests?: number;
+  cost_usd?: number;
+  promptTokenCount?: number;
+  inputTokenCount?: number;
+  candidatesTokenCount?: number;
+  outputTokenCount?: number;
+  responseTokenCount?: number;
+  totalTokenCount?: number;
+  prompt_token_count?: number;
+  input_token_count?: number;
+  candidates_token_count?: number;
+  output_token_count?: number;
+  response_token_count?: number;
+  total_token_count?: number;
+}
+
+export function withSpanActivityId<T>(span: T, activityId?: string): T {
+  if (!activityId || !span || typeof span !== 'object' || Array.isArray(span)) {
+    return span;
+  }
+  const record = span as Record<string, unknown>;
+  if (typeof record.activity_id === 'string' && record.activity_id.trim() !== '') {
+    return span;
+  }
+  return {
+    ...record,
+    activity_id: activityId,
+  } as T;
 }
 
 type JsonRecord = Record<string, unknown>;
+export interface OpenBoxActivityMetadataInput {
+  toolType?: string | null;
+  subagentName?: string | null;
+}
 
 type ObservableSpan = SpanData & {
   span_type?: string;
   model?: string;
+  model_id?: string;
+  provider?: string;
+  model_provider?: string;
   input_tokens?: number;
   output_tokens?: number;
+  total_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+  web_search_requests?: number;
+  cost_usd?: number;
 };
 
 function objectRecord(value: unknown): JsonRecord {
@@ -150,15 +244,147 @@ function toPositiveInteger(value: unknown): number | undefined {
   return Math.trunc(numberValue);
 }
 
-function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
-  if (!usage) return undefined;
+function toPositiveNumber(value: unknown): number | undefined {
+  const numberValue =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+        ? Number(value)
+        : undefined;
+  if (numberValue === undefined || !Number.isFinite(numberValue) || numberValue <= 0)
+    return undefined;
+  return numberValue;
+}
+
+function normalizeSpanTimestamp(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isFinite(value)) return undefined;
+  const timestamp = Math.trunc(value);
+  // JavaScript Date.now() values are currently 13 digits. Span timestamps
+  // are Unix nanoseconds in the Python SDK hooks and Core span storage.
+  return timestamp > 0 && timestamp < 100_000_000_000_000
+    ? timestamp * 1_000_000
+    : timestamp;
+}
+
+function isDateNowTimestamp(value: number): boolean {
+  return value > 0 && value < 100_000_000_000_000;
+}
+
+function normalizeDurationNs(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.max(0, Math.trunc(value));
+}
+
+function deriveDurationNs(
+  startTime: number | undefined,
+  endTime: number | undefined,
+): number | undefined {
+  if (startTime === undefined || endTime === undefined) return undefined;
+  return Math.max(0, endTime - startTime);
+}
+
+function deriveDurationNsFromRawTimestamps(
+  startTime: number | undefined,
+  endTime: number | undefined,
+): number | undefined {
+  if (
+    startTime === undefined ||
+    endTime === undefined ||
+    !Number.isFinite(startTime) ||
+    !Number.isFinite(endTime)
+  ) {
+    return undefined;
+  }
+  if (isDateNowTimestamp(startTime) && isDateNowTimestamp(endTime)) {
+    return Math.max(0, Math.trunc((endTime - startTime) * 1_000_000));
+  }
+  return Math.max(0, Math.trunc(endTime - startTime));
+}
+
+export function llmTokenUsageFromRecord(value: unknown): LLMTokenUsage | undefined {
+  const record = objectRecord(value);
   const promptTokens = toPositiveInteger(
-    usage.promptTokens ?? usage.inputTokens,
+    record.promptTokens ??
+      record.prompt_tokens ??
+      record.inputTokens ??
+      record.input_tokens ??
+      record.promptTokenCount ??
+      record.prompt_token_count ??
+      record.inputTokenCount ??
+      record.input_token_count,
   );
   const completionTokens = toPositiveInteger(
-    usage.completionTokens ?? usage.outputTokens,
+    record.completionTokens ??
+      record.completion_tokens ??
+      record.outputTokens ??
+      record.output_tokens ??
+      record.candidatesTokenCount ??
+      record.candidates_token_count ??
+      record.outputTokenCount ??
+      record.output_token_count ??
+      record.responseTokenCount ??
+      record.response_token_count,
   );
-  const totalTokens = toPositiveInteger(usage.totalTokens);
+  const totalTokens = toPositiveInteger(
+    record.totalTokens ??
+      record.total_tokens ??
+      record.totalTokenCount ??
+      record.total_token_count,
+  );
+  const cacheReadInputTokens = toPositiveInteger(
+    record.cacheReadInputTokens ?? record.cache_read_input_tokens,
+  );
+  const cacheCreationInputTokens = toPositiveInteger(
+    record.cacheCreationInputTokens ?? record.cache_creation_input_tokens,
+  );
+  const webSearchRequests = toPositiveInteger(
+    record.webSearchRequests ?? record.web_search_requests,
+  );
+  const costUsd = toPositiveNumber(record.costUSD ?? record.costUsd ?? record.cost_usd);
+  const usage: LLMTokenUsage = {
+    promptTokens,
+    completionTokens,
+    inputTokens: promptTokens,
+    outputTokens: completionTokens,
+    totalTokens,
+    cacheReadInputTokens,
+    cacheCreationInputTokens,
+    webSearchRequests,
+    costUSD: costUsd,
+    costUsd,
+  };
+  return Object.values(usage).some((entry) => entry !== undefined)
+    ? usage
+    : undefined;
+}
+
+function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
+  const normalizedUsage = llmTokenUsageFromRecord(usage);
+  if (!normalizedUsage) return undefined;
+  const promptTokens = toPositiveInteger(
+    normalizedUsage.promptTokens ?? normalizedUsage.inputTokens,
+  );
+  const completionTokens = toPositiveInteger(
+    normalizedUsage.completionTokens ?? normalizedUsage.outputTokens,
+  );
+  const totalTokens = toPositiveInteger(normalizedUsage.totalTokens);
+  const cacheReadInputTokens = toPositiveInteger(
+    normalizedUsage.cacheReadInputTokens ?? normalizedUsage.cache_read_input_tokens,
+  );
+  const cacheCreationInputTokens = toPositiveInteger(
+    normalizedUsage.cacheCreationInputTokens ?? normalizedUsage.cache_creation_input_tokens,
+  );
+  const webSearchRequests = toPositiveInteger(
+    normalizedUsage.webSearchRequests ?? normalizedUsage.web_search_requests,
+  );
+  const costUsd = toPositiveNumber(
+    normalizedUsage.costUSD ?? normalizedUsage.costUsd ?? normalizedUsage.cost_usd,
+  );
+  const derivedTotalTokens =
+    totalTokens ??
+    (promptTokens !== undefined || completionTokens !== undefined
+      ? (promptTokens ?? 0) + (completionTokens ?? 0)
+      : undefined);
   const normalized: JsonRecord = {};
   if (promptTokens !== undefined) {
     normalized.prompt_tokens = promptTokens;
@@ -168,14 +394,180 @@ function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
     normalized.completion_tokens = completionTokens;
     normalized.output_tokens = completionTokens;
   }
-  if (totalTokens !== undefined) normalized.total_tokens = totalTokens;
+  if (derivedTotalTokens !== undefined) normalized.total_tokens = derivedTotalTokens;
+  if (cacheReadInputTokens !== undefined) {
+    normalized.cache_read_input_tokens = cacheReadInputTokens;
+  }
+  if (cacheCreationInputTokens !== undefined) {
+    normalized.cache_creation_input_tokens = cacheCreationInputTokens;
+  }
+  if (webSearchRequests !== undefined) normalized.web_search_requests = webSearchRequests;
+  if (costUsd !== undefined) normalized.cost_usd = costUsd;
   return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function firstTrimmed(...values: Array<unknown>): string | undefined {
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
+}
+
+function normalizeProvider(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized.includes('openai')) return 'openai';
+  if (normalized.includes('anthropic')) return 'anthropic';
+  if (normalized.includes('google') || normalized.includes('gemini')) return 'google';
+  return normalized;
+}
+
+function parseModelIdentifier(value: string | undefined): {
+  modelId?: string;
+  provider?: string;
+} {
+  const trimmed = value?.trim();
+  if (!trimmed) return {};
+  const slashParts = trimmed.split('/');
+  if (slashParts.length >= 2) {
+    const possibleProvider = normalizeProvider(slashParts[0]);
+    const modelPart = slashParts.slice(1).join('/').trim();
+    if (possibleProvider && modelPart) {
+      return { modelId: modelPart, provider: possibleProvider };
+    }
+  }
+  return { modelId: trimmed };
+}
+
+function inferProviderFromModelId(modelId: string | undefined): string | undefined {
+  const normalized = modelId?.toLowerCase();
+  if (!normalized) return undefined;
+  if (
+    normalized.startsWith('gpt-') ||
+    normalized.startsWith('o1') ||
+    normalized.startsWith('o3') ||
+    normalized.startsWith('o4')
+  ) {
+    return 'openai';
+  }
+  if (normalized.startsWith('claude-')) return 'anthropic';
+  if (normalized.startsWith('gemini')) return 'google';
+  return undefined;
+}
+
+function inferProviderFromUrl(url: string | undefined): string | undefined {
+  const normalized = url?.toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized.includes('api.openai.com')) return 'openai';
+  if (normalized.includes('api.anthropic.com')) return 'anthropic';
+  if (normalized.includes('generativelanguage.googleapis.com')) return 'google';
+  return undefined;
+}
+
+function modelTelemetryFields(
+  model: string | undefined,
+  explicitProvider: string | undefined,
+  providerUrl: string | undefined,
+): {
+  modelId?: string;
+  provider?: string;
+} {
+  const parsed = parseModelIdentifier(model);
+  const provider =
+    normalizeProvider(explicitProvider) ??
+    parsed.provider ??
+    inferProviderFromModelId(parsed.modelId) ??
+    inferProviderFromUrl(providerUrl);
+  return {
+    modelId: firstTrimmed(parsed.modelId),
+    provider,
+  };
+}
+
+function providerUrlForLLM(provider: string | undefined): string {
+  switch (provider) {
+    case 'anthropic':
+      return 'https://api.anthropic.com/v1/messages';
+    case 'google':
+      return 'https://generativelanguage.googleapis.com/v1beta/models/generateContent';
+    case 'openai':
+    default:
+      return 'https://api.openai.com/v1/chat/completions';
+  }
+}
+
+function toolNameAttributes(input: SpanInput): JsonRecord {
+  const toolName = (input.tool_name ?? input.tool)?.trim();
+  if (!toolName) return {};
+  return {
+    'openbox.tool.name': toolName,
+    'tool.name': toolName,
+    tool_name: toolName,
+  };
+}
+
+function mcpIdentity(input: SpanInput): {
+  method: string;
+  operation: string;
+  serverId: string;
+} {
+  const toolName = input.tool_name ?? input.tool ?? 'call';
+  const parts = toolName.split('__');
+  const serverFromClaudeName =
+    parts.length >= 3 && parts[0] === 'mcp' ? parts[1] : undefined;
+  const operationFromClaudeName =
+    parts.length >= 3 && parts[0] === 'mcp' ? parts.slice(2).join('__') : undefined;
+  return {
+    method: firstTrimmed(input.mcp_method) ?? 'callTool',
+    operation: firstTrimmed(input.mcp_operation, operationFromClaudeName, toolName) ?? 'call',
+    serverId:
+      firstTrimmed(
+        input.mcp_server_id,
+        input.server_id,
+        input.server,
+        serverFromClaudeName,
+      ) ?? 'unknown',
+  };
+}
+
+export function openBoxActivityMetadata(
+  input: OpenBoxActivityMetadataInput,
+): { __openbox: { tool_type?: string; subagent_name?: string } } | undefined {
+  const metadata: { tool_type?: string; subagent_name?: string } = {};
+  const toolType = typeof input.toolType === 'string' ? input.toolType.trim() : '';
+  const subagentName = typeof input.subagentName === 'string' ? input.subagentName.trim() : '';
+  if (toolType) metadata.tool_type = toolType;
+  if (subagentName) metadata.subagent_name = subagentName;
+  return Object.keys(metadata).length > 0 ? { __openbox: metadata } : undefined;
+}
+
+export function withOpenBoxActivityMetadata<T extends readonly unknown[] | undefined>(
+  input: T,
+  metadata: OpenBoxActivityMetadataInput,
+): T | unknown[] {
+  const marker = openBoxActivityMetadata(metadata);
+  if (!marker) return input;
+  return [...(input ?? []), marker];
+}
+
+export function withOpenBoxSubagentActivityMetadata<
+  T extends readonly unknown[] | undefined,
+>(input: T, subagentName?: string | null): T | unknown[] {
+  return withOpenBoxActivityMetadata(input, {
+    toolType: 'a2a',
+    subagentName,
+  });
 }
 
 export function buildLLMCompletionResponseBody(
   content: string,
   metadata: {
     model?: string;
+    modelId?: string;
+    provider?: string;
     usage?: LLMTokenUsage;
     responseBody?: unknown;
   } = {},
@@ -191,6 +583,15 @@ export function buildLLMCompletionResponseBody(
   if (metadata.model && typeof body.model !== 'string') {
     body.model = metadata.model;
   }
+  if (metadata.modelId && !firstTrimmed(body.model_id)) {
+    body.model_id = metadata.modelId;
+  }
+  if (metadata.provider && !firstTrimmed(body.provider)) {
+    body.provider = metadata.provider;
+  }
+  if (metadata.provider && !firstTrimmed(body.model_provider)) {
+    body.model_provider = metadata.provider;
+  }
   const usage = normalizeUsage(metadata.usage);
   if (usage && Object.keys(objectRecord(body.usage)).length === 0) {
     body.usage = usage;
@@ -198,11 +599,64 @@ export function buildLLMCompletionResponseBody(
   return JSON.stringify(body);
 }
 
+function buildLLMCompletionRequestBody(metadata: {
+  model?: string;
+  modelId?: string;
+  provider?: string;
+  requestBody?: unknown;
+}): string | undefined {
+  const body = parseJsonRecord(metadata.requestBody);
+  if (metadata.model && typeof body.model !== 'string') {
+    body.model = metadata.model;
+  }
+  if (metadata.modelId && !firstTrimmed(body.model_id)) {
+    body.model_id = metadata.modelId;
+  }
+  if (metadata.provider && !firstTrimmed(body.provider)) {
+    body.provider = metadata.provider;
+  }
+  if (metadata.provider && !firstTrimmed(body.model_provider)) {
+    body.model_provider = metadata.provider;
+  }
+  return Object.keys(body).length > 0
+    ? JSON.stringify(body)
+    : stringifyBody(metadata.requestBody);
+}
+
 export function buildLLMCompletionSpan(
   input: LLMCompletionSpanInput,
 ): SpanData {
-  const now = Date.now();
+  const now = Date.now() * 1_000_000;
   const source = input.span ?? {};
+  const sourceRecord = source as SpanData & {
+    durationNs?: unknown;
+    error?: unknown;
+    parent_span_id?: string | null;
+  };
+  const spanError = errorDescription(sourceRecord.error);
+  const rawStartTime = input.startTime ?? source.start_time;
+  const rawEndTime = input.endTime ?? source.end_time;
+  const sourceStartTime =
+    typeof source.start_time === 'number'
+      ? normalizeSpanTimestamp(source.start_time)
+      : undefined;
+  const sourceEndTime =
+    typeof source.end_time === 'number'
+      ? normalizeSpanTimestamp(source.end_time)
+      : undefined;
+  const startTime = normalizeSpanTimestamp(input.startTime) ?? sourceStartTime ?? now;
+  const endTime = normalizeSpanTimestamp(input.endTime) ?? sourceEndTime ?? now;
+  const explicitDurationNs = normalizeDurationNs(input.durationNs);
+  const sourceDurationNs = normalizeDurationNs(
+    sourceRecord.duration_ns ?? sourceRecord.durationNs,
+  );
+  const usefulSourceDurationNs =
+    sourceDurationNs !== undefined && sourceDurationNs > 0
+      ? sourceDurationNs
+      : undefined;
+  const derivedDurationNs =
+    deriveDurationNsFromRawTimestamps(rawStartTime, rawEndTime) ??
+    deriveDurationNs(startTime, endTime);
   const usage = normalizeUsage(input.usage);
   const inputTokens = toPositiveInteger(
     usage?.input_tokens ?? usage?.prompt_tokens,
@@ -210,33 +664,82 @@ export function buildLLMCompletionSpan(
   const outputTokens = toPositiveInteger(
     usage?.output_tokens ?? usage?.completion_tokens,
   );
-  const httpUrl =
+  const totalTokens = toPositiveInteger(usage?.total_tokens);
+  const cacheReadInputTokens = toPositiveInteger(usage?.cache_read_input_tokens);
+  const cacheCreationInputTokens = toPositiveInteger(
+    usage?.cache_creation_input_tokens,
+  );
+  const webSearchRequests = toPositiveInteger(usage?.web_search_requests);
+  const costUsd = toPositiveNumber(usage?.cost_usd);
+  const explicitProviderUrl =
     input.providerUrl ??
     source.http_url ??
     (typeof source.attributes?.['http.url'] === 'string'
       ? source.attributes['http.url']
-      : 'https://api.openai.com/v1/chat/completions');
+      : undefined);
+  const modelTelemetry = modelTelemetryFields(
+    input.model,
+    input.provider,
+    explicitProviderUrl,
+  );
+  const httpUrl = explicitProviderUrl ?? providerUrlForLLM(modelTelemetry.provider);
   return {
     ...source,
     span_id: source.span_id ?? hex(16),
     trace_id: source.trace_id ?? hex(32),
+    parent_span_id: sourceRecord.parent_span_id ?? null,
     name: input.name ?? source.name ?? 'llm.chat.completion',
     kind: input.kind ?? source.kind ?? 'CLIENT',
-    start_time: input.startTime ?? source.start_time ?? now,
-    end_time: input.endTime ?? source.end_time ?? now,
-    duration_ns: input.durationNs ?? source.duration_ns ?? 0,
+    start_time: startTime,
+    end_time: endTime,
+    duration_ns:
+      explicitDurationNs ??
+      usefulSourceDurationNs ??
+      derivedDurationNs ??
+      sourceDurationNs ??
+      0,
     span_type: 'function',
     stage: 'completed',
     semantic_type: 'llm_completion',
+    status: spanStatusOrDefault(source.status, spanError),
+    events: Array.isArray(source.events) ? source.events : [],
+    error: spanError ?? null,
     attributes: {
       'gen_ai.system': input.system ?? 'openbox-sdk',
       ...(input.model ? { 'gen_ai.request.model': input.model } : {}),
       ...(input.model ? { 'gen_ai.response.model': input.model } : {}),
+      ...(modelTelemetry.modelId ? { 'openbox.model.id': modelTelemetry.modelId } : {}),
+      ...(modelTelemetry.provider ? { 'openbox.model.provider': modelTelemetry.provider } : {}),
       ...(inputTokens !== undefined
         ? { 'gen_ai.usage.input_tokens': inputTokens }
         : {}),
       ...(outputTokens !== undefined
         ? { 'gen_ai.usage.output_tokens': outputTokens }
+        : {}),
+      ...(totalTokens !== undefined
+        ? { 'gen_ai.usage.total_tokens': totalTokens }
+        : {}),
+      ...(cacheReadInputTokens !== undefined
+        ? {
+            'gen_ai.usage.cache_read_input_tokens': cacheReadInputTokens,
+            'openbox.usage.cache_read_input_tokens': cacheReadInputTokens,
+          }
+        : {}),
+      ...(cacheCreationInputTokens !== undefined
+        ? {
+            'gen_ai.usage.cache_creation_input_tokens': cacheCreationInputTokens,
+            'openbox.usage.cache_creation_input_tokens': cacheCreationInputTokens,
+          }
+        : {}),
+      ...(webSearchRequests !== undefined
+        ? {
+            'gen_ai.usage.web_search_requests': webSearchRequests,
+            'openbox.usage.web_search_requests': webSearchRequests,
+            'openbox.web_search.requests': webSearchRequests,
+          }
+        : {}),
+      ...(costUsd !== undefined
+        ? { 'openbox.usage.cost_usd': costUsd, 'openbox.cost.usd': costUsd }
         : {}),
       'http.method': 'POST',
       'http.url': httpUrl,
@@ -246,15 +749,34 @@ export function buildLLMCompletionSpan(
       ...(input.attributes ?? {}),
     },
     ...(input.model ? { model: input.model } : {}),
+    ...(modelTelemetry.modelId ? { model_id: modelTelemetry.modelId } : {}),
+    ...(modelTelemetry.provider
+      ? { provider: modelTelemetry.provider, model_provider: modelTelemetry.provider }
+      : {}),
     ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
     ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
+    ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),
+    ...(cacheReadInputTokens !== undefined
+      ? { cache_read_input_tokens: cacheReadInputTokens }
+      : {}),
+    ...(cacheCreationInputTokens !== undefined
+      ? { cache_creation_input_tokens: cacheCreationInputTokens }
+      : {}),
+    ...(webSearchRequests !== undefined ? { web_search_requests: webSearchRequests } : {}),
+    ...(costUsd !== undefined ? { cost_usd: costUsd } : {}),
     http_method: source.http_method ?? 'POST',
     http_url: httpUrl,
-    request_body:
-      stringifyBody(input.requestBody) ?? source.request_body ?? undefined,
+    request_body: buildLLMCompletionRequestBody({
+      model: input.model,
+      modelId: modelTelemetry.modelId,
+      provider: modelTelemetry.provider,
+      requestBody: input.requestBody ?? source.request_body,
+    }),
     data: input.data ?? source.data,
     response_body: buildLLMCompletionResponseBody(input.content, {
       model: input.model,
+      modelId: modelTelemetry.modelId,
+      provider: modelTelemetry.provider,
       usage: input.usage,
       responseBody: input.responseBody ?? source.response_body,
     }),
@@ -278,13 +800,14 @@ export function buildSpan(
   type: SpanType,
   input: SpanInput,
 ): Record<string, unknown> {
-  const b = base();
+  const b = base(input.stage, input.error);
   switch (type) {
     case 'llm':
       // The LLM classifier requires `http.method` of POST and an
       // `http.url` that matches a known LLM domain. IDE and agent
-      // hosts abstract the underlying model call, so tag a generic
-      // OpenAI-shaped URL. See `span-reference.md`.
+      // hosts abstract the underlying model call, so infer the closest
+      // provider URL from the model and fall back to OpenAI-compatible.
+      // See `span-reference.md`.
       const usage = normalizeUsage(input.usage);
       const inputTokens = toPositiveInteger(
         usage?.input_tokens ?? usage?.prompt_tokens,
@@ -292,6 +815,30 @@ export function buildSpan(
       const outputTokens = toPositiveInteger(
         usage?.output_tokens ?? usage?.completion_tokens,
       );
+      const totalTokens = toPositiveInteger(usage?.total_tokens);
+      const cacheReadInputTokens = toPositiveInteger(usage?.cache_read_input_tokens);
+      const cacheCreationInputTokens = toPositiveInteger(
+        usage?.cache_creation_input_tokens,
+      );
+      const webSearchRequests = toPositiveInteger(usage?.web_search_requests);
+      const costUsd = toPositiveNumber(usage?.cost_usd);
+      const modelTelemetry = modelTelemetryFields(input.model, undefined, undefined);
+      const llmHttpUrl = providerUrlForLLM(modelTelemetry.provider);
+      const llmRequestBody = {
+        ...(input.model ? { model: input.model } : {}),
+        ...(modelTelemetry.modelId ? { model_id: modelTelemetry.modelId } : {}),
+        ...(modelTelemetry.provider
+          ? {
+              provider: modelTelemetry.provider,
+              model_provider: modelTelemetry.provider,
+            }
+          : {}),
+        ...(input.prompt
+          ? { messages: [{ role: 'user', content: input.prompt }] }
+          : {}),
+      };
+      const llmResponseContent =
+        typeof input.response === 'string' ? input.response : '';
       return {
         ...b,
         name: 'llm.chat.completion',
@@ -302,24 +849,79 @@ export function buildSpan(
           'gen_ai.system': host,
           ...(input.model ? { 'gen_ai.request.model': input.model } : {}),
           ...(input.model ? { 'gen_ai.response.model': input.model } : {}),
+          ...(modelTelemetry.modelId
+            ? { 'openbox.model.id': modelTelemetry.modelId }
+            : {}),
+          ...(modelTelemetry.provider
+            ? { 'openbox.model.provider': modelTelemetry.provider }
+            : {}),
           ...(inputTokens !== undefined
             ? { 'gen_ai.usage.input_tokens': inputTokens }
             : {}),
           ...(outputTokens !== undefined
             ? { 'gen_ai.usage.output_tokens': outputTokens }
             : {}),
+          ...(totalTokens !== undefined
+            ? { 'gen_ai.usage.total_tokens': totalTokens }
+            : {}),
+          ...(cacheReadInputTokens !== undefined
+            ? {
+                'gen_ai.usage.cache_read_input_tokens': cacheReadInputTokens,
+                'openbox.usage.cache_read_input_tokens': cacheReadInputTokens,
+              }
+            : {}),
+          ...(cacheCreationInputTokens !== undefined
+            ? {
+                'gen_ai.usage.cache_creation_input_tokens': cacheCreationInputTokens,
+                'openbox.usage.cache_creation_input_tokens': cacheCreationInputTokens,
+              }
+            : {}),
+          ...(webSearchRequests !== undefined
+            ? {
+                'gen_ai.usage.web_search_requests': webSearchRequests,
+                'openbox.usage.web_search_requests': webSearchRequests,
+                'openbox.web_search.requests': webSearchRequests,
+              }
+            : {}),
+          ...(costUsd !== undefined
+            ? { 'openbox.usage.cost_usd': costUsd, 'openbox.cost.usd': costUsd }
+            : {}),
           'http.method': 'POST',
-          'http.url': 'https://api.openai.com/v1/chat/completions',
+          'http.url': llmHttpUrl,
           'openbox.semantic_type': 'llm_completion',
           'openbox.span_type': 'function',
         },
         ...(input.model ? { model: input.model } : {}),
+        ...(modelTelemetry.modelId ? { model_id: modelTelemetry.modelId } : {}),
+        ...(modelTelemetry.provider
+          ? { provider: modelTelemetry.provider, model_provider: modelTelemetry.provider }
+          : {}),
         ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
         ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
+        ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),
+        ...(cacheReadInputTokens !== undefined
+          ? { cache_read_input_tokens: cacheReadInputTokens }
+          : {}),
+        ...(cacheCreationInputTokens !== undefined
+          ? { cache_creation_input_tokens: cacheCreationInputTokens }
+          : {}),
+        ...(webSearchRequests !== undefined ? { web_search_requests: webSearchRequests } : {}),
+        ...(costUsd !== undefined ? { cost_usd: costUsd } : {}),
         function: 'LLMCall',
         module: host,
         args: input,
         result: input.response ?? null,
+        http_method: 'POST',
+        http_url: llmHttpUrl,
+        ...(Object.keys(llmRequestBody).length > 0
+          ? { request_body: stringifyBody(llmRequestBody) }
+          : {}),
+        response_body: buildLLMCompletionResponseBody(llmResponseContent, {
+          model: input.model,
+          modelId: modelTelemetry.modelId,
+          provider: modelTelemetry.provider,
+          usage: input.usage,
+        }),
       };
     case 'file_read':
       return {
@@ -332,6 +934,7 @@ export function buildSpan(
         attributes: {
           'file.path': input.file_path ?? '',
           'file.operation': 'read',
+          ...toolNameAttributes(input),
           'openbox.semantic_type': 'file_read',
           'openbox.span_type': 'file_io',
         },
@@ -351,6 +954,7 @@ export function buildSpan(
         attributes: {
           'file.path': input.file_path ?? '',
           'file.operation': 'write',
+          ...toolNameAttributes(input),
           'openbox.semantic_type': 'file_write',
           'openbox.span_type': 'file_io',
         },
@@ -370,6 +974,7 @@ export function buildSpan(
         attributes: {
           'file.path': input.file_path ?? '',
           'file.operation': 'delete',
+          ...toolNameAttributes(input),
           'openbox.semantic_type': 'file_delete',
           'openbox.span_type': 'file_io',
         },
@@ -391,6 +996,7 @@ export function buildSpan(
         attributes: {
           'shell.command': input.command ?? '',
           'shell.cwd': input.cwd ?? '',
+          ...toolNameAttributes(input),
           'openbox.semantic_type': 'internal',
           'openbox.span_type': 'function',
         },
@@ -400,25 +1006,29 @@ export function buildSpan(
         result: null,
       };
     case 'mcp':
-      // Behavior rules use the generic tool-call semantic type; platform
-      // observability uses the MCP span type and tool name fields.
+      // Core classifies MCP calls from `mcp.method=callTool`.
+      // Keep this transport-agnostic so MCP does not get counted as
+      // provider LLM traffic merely because a host routes it through an LLM.
+      const toolName = input.tool_name ?? input.tool ?? 'call';
+      const mcp = mcpIdentity(input);
       return {
         ...b,
-        name: `tool.${input.tool_name ?? 'call'}`,
+        name: `MCP ${mcp.method} ${mcp.operation}`,
         span_type: 'mcp_tool_call',
         hook_type: 'function_call',
-        semantic_type: 'llm_tool_call',
+        semantic_type: 'mcp_tool_call',
         attributes: {
-          'gen_ai.system': 'mcp',
-          'http.method': 'POST',
-          'http.url': 'https://api.openai.com/v1/chat/completions',
-          'openbox.semantic_type': 'llm_tool_call',
+          'mcp.method': mcp.method,
+          'mcp.operation': mcp.operation,
+          'mcp.server_id': mcp.serverId,
+          'mcp.input': input.tool_input ?? {},
+          'openbox.semantic_type': 'mcp_tool_call',
           'openbox.span_type': 'mcp_tool_call',
-          'openbox.tool.name': input.tool_name ?? 'call',
-          'tool.name': input.tool_name ?? 'call',
-          tool_name: input.tool_name ?? 'call',
+          'openbox.tool.name': toolName,
+          'tool.name': toolName,
+          tool_name: toolName,
         },
-        function: `mcp.${input.tool_name ?? 'call'}`,
+        function: `mcp.${toolName}`,
         module: host,
         args: input,
         result: input.tool_output ?? null,
@@ -438,6 +1048,7 @@ export function buildSpan(
         attributes: {
           'http.method': method,
           'http.url': url,
+          ...toolNameAttributes(input),
           'openbox.semantic_type': `http_${method.toLowerCase()}`,
           'openbox.span_type': 'http',
         },
@@ -454,9 +1065,10 @@ export function buildSpan(
         result: null,
       };
     case 'db':
-      const dbSystem = input.db_system ?? 'postgresql';
-      const dbOperation = (input.db_operation ?? 'SELECT').toUpperCase();
-      const dbStatement = input.db_statement ?? `${dbOperation} statement`;
+      const dbSystem = input.db_system ?? input.system ?? 'postgresql';
+      const dbOperation = (input.db_operation ?? input.operation ?? 'SELECT').toUpperCase();
+      const dbStatement =
+        input.db_statement ?? input.statement ?? input.query ?? `${dbOperation} statement`;
       return {
         ...b,
         name: dbOperation,
@@ -467,6 +1079,7 @@ export function buildSpan(
           'db.system': dbSystem,
           'db.operation': dbOperation,
           'db.statement': dbStatement,
+          ...toolNameAttributes(input),
           'openbox.semantic_type': `database_${dbOperation.toLowerCase()}`,
           'openbox.span_type': 'database',
         },

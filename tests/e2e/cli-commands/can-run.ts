@@ -9,6 +9,7 @@
 
 import { existsSync } from 'fs';
 import { optionalOpenBoxCli } from '../../helpers/openbox-cli.js';
+import { hasOrgId } from '../../helpers/api-client';
 
 const CLI_BIN = optionalOpenBoxCli();
 
@@ -16,4 +17,4 @@ export const CAN_RUN_CLI =
   !!CLI_BIN &&
   existsSync(CLI_BIN) &&
   !!process.env.OPENBOX_BACKEND_API_KEY &&
-  !!process.env.OPENBOX_ORG_ID;
+  hasOrgId();

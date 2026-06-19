@@ -23,6 +23,7 @@ export default defineConfig({
     'ts/src/runtime/claude-code/index.ts',
     'ts/src/runtime/cursor/index.ts',
     'ts/src/runtime/mcp/index.ts',
+    'ts/src/runtime/n8n/index.ts',
     'ts/src/governance/index.ts',
     'ts/src/agent-trace/index.ts',
     'ts/src/logging/index.ts',

@@ -6,7 +6,14 @@ let activityVerdict: any = { arm: 'allow' };
 let validateApiKeyCalls = 0;
 let socketConnects = 0;
 let stdinIteratorSpy: any;
+let mockApprovalMode: 'remote' | 'inline' = 'remote';
+let socketUnavailable = false;
+let socketTimesOut = false;
+let socketCloseThrows = false;
+let validateApiKeyFails = false;
 const socketEvents: any[] = [];
+// Mock-only raw 32-byte Ed25519 key encoded at runtime; not a real credential.
+const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
 
 vi.mock('../../ts/src/cli/env-source.js', () => ({
   applyEnvSource: vi.fn(),
@@ -23,17 +30,17 @@ vi.mock('../../ts/src/logging/hook-log.js', () => ({
 vi.mock('../../ts/src/approvals/socket-client.js', () => ({
   connectApprovalSocket: vi.fn(async () => {
     socketConnects += 1;
-    if (process.env.OPENBOX_SOCKET_NULL === '1') return null;
+    if (socketUnavailable) return null;
     return {
       notifyPending: (payload: any) => socketEvents.push({ type: 'pending', payload }),
       awaitDecision: async (id: string) => {
         socketEvents.push({ type: 'await', id });
-        if (process.env.OPENBOX_SOCKET_TIMEOUT === '1') return { kind: 'timeout' };
+        if (socketTimesOut) return { kind: 'timeout' };
         return { kind: 'decision', decision: { action: 'approve', reason: 'ok' } };
       },
       close: () => {
         socketEvents.push({ type: 'close' });
-        if (process.env.OPENBOX_SOCKET_CLOSE_THROW === '1') throw new Error('close failed');
+        if (socketCloseThrows) throw new Error('close failed');
       },
     };
   }),
@@ -46,7 +53,7 @@ vi.mock('../../ts/src/core-client/index.js', () => ({
     }
     async validateApiKey() {
       validateApiKeyCalls += 1;
-      if (process.env.OPENBOX_VALIDATE_FAIL === '1') throw new Error('invalid key');
+      if (validateApiKeyFails) throw new Error('invalid key');
       return { agent_id: 'agent-from-key' };
     }
   },
@@ -85,7 +92,7 @@ vi.mock('../../ts/src/runtime/cursor/config.js', () => ({
     hitlEnabled: true,
     hitlPollInterval: 5,
     hitlMaxWait: 2,
-    approvalMode: process.env.APPROVAL_MODE === 'inline' ? 'inline' : 'remote',
+    approvalMode: mockApprovalMode,
     taskQueue: 'cursor-hooks',
     sendStartEvent: true,
     sendActivityStartEvent: true,
@@ -111,8 +118,12 @@ beforeEach(() => {
   validateApiKeyCalls = 0;
   socketConnects = 0;
   socketEvents.length = 0;
+  mockApprovalMode = 'remote';
+  socketUnavailable = false;
+  socketTimesOut = false;
+  socketCloseThrows = false;
+  validateApiKeyFails = false;
   process.env.OPENBOX_API_KEY = 'obx_test_cursor_handler';
-  delete process.env.APPROVAL_MODE;
   delete process.env.OPENBOX_AGENT_DID;
   delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
   stdinIteratorSpy?.mockRestore?.();
@@ -133,12 +144,6 @@ afterEach(() => {
   stdinIteratorSpy?.mockRestore?.();
   stdinIteratorSpy = undefined;
   delete process.env.OPENBOX_API_KEY;
-  delete process.env.APPROVAL_MODE;
-  delete process.env.OPENBOX_DISABLE_APPROVAL_SOCKET;
-  delete process.env.OPENBOX_SOCKET_NULL;
-  delete process.env.OPENBOX_SOCKET_TIMEOUT;
-  delete process.env.OPENBOX_SOCKET_CLOSE_THROW;
-  delete process.env.OPENBOX_VALIDATE_FAIL;
   delete process.env.OPENBOX_HOME;
   delete process.env.OPENBOX_AGENT_DID;
   delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
@@ -204,7 +209,7 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
   });
 
   it('does not surface observe-only approvals and supports inline mode', async () => {
-    process.env.APPROVAL_MODE = 'inline';
+    mockApprovalMode = 'inline';
     const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
 
     await runCursorHook();
@@ -223,15 +228,16 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
   });
 
   it('passes signed agent identity through to the Core client', async () => {
-    process.env.OPENBOX_AGENT_DID = 'did:openbox:agent:test';
-    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'a'.repeat(44);
+    process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
+    // gitleaks:allow - deterministic test fixture generated above, not a credential.
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = FAKE_AGENT_PRIVATE_KEY;
     const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
 
     await runCursorHook();
 
     expect(coreClientOptions?.agentIdentity).toEqual({
-      did: 'did:openbox:agent:test',
-      privateKey: 'a'.repeat(44),
+      did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+      privateKey: FAKE_AGENT_PRIVATE_KEY,
     });
   });
 
@@ -268,7 +274,7 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
       '',
     ]);
 
-    process.env.OPENBOX_SOCKET_TIMEOUT = '1';
+    socketTimesOut = true;
     await expect(
       adapterOptions.awaitExternalDecision(
         { approvalId: 'timeout' },
@@ -276,29 +282,14 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
       ),
     ).resolves.toBeUndefined();
 
-    process.env.OPENBOX_SOCKET_CLOSE_THROW = '1';
+    socketCloseThrows = true;
     expect(() => adapterOptions.onApprovalResolved()).not.toThrow();
   });
 
-  it('does not open approval sockets when disabled or unavailable', async () => {
+  it('does not surface approvals when the socket is unavailable', async () => {
     const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
 
-    process.env.OPENBOX_DISABLE_APPROVAL_SOCKET = '1';
-    await runCursorHook();
-    await adapterOptions.onPendingApproval(
-      { approvalId: 'disabled' },
-      { hook_event_name: 'beforeShellExecution', command: 'pwd' },
-    );
-    await expect(
-      adapterOptions.awaitExternalDecision(
-        { approvalId: 'disabled' },
-        { hook_event_name: 'beforeShellExecution' },
-      ),
-    ).resolves.toBeUndefined();
-    expect(socketConnects).toBe(0);
-
-    delete process.env.OPENBOX_DISABLE_APPROVAL_SOCKET;
-    process.env.OPENBOX_SOCKET_NULL = '1';
+    socketUnavailable = true;
     await runCursorHook();
     await adapterOptions.onPendingApproval(
       { approvalId: 'null' },
@@ -314,7 +305,7 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
   });
 
   it('surfaces pending approvals without agent id when key validation fails', async () => {
-    process.env.OPENBOX_VALIDATE_FAIL = '1';
+    validateApiKeyFails = true;
     const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
 
     await runCursorHook();

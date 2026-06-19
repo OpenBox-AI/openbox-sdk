@@ -4,9 +4,8 @@ A self-contained n8n example for OpenBox-governed support triage. It uses
 built-in n8n nodes for chat, optional Slack, Postgres logging, optional
 HubSpot, and one custom OpenBox LLM node.
 
-This is an example workflow, not a promise that a hosted demo is currently
-running. Use the local compose stack first, then adapt the hosted compose
-files to your own domain and secret store if you need a public deployment.
+This checked-in example is local-only. Keep deployment-specific runbooks,
+network config, and real infrastructure hostnames outside the SDK repo.
 
 ## Workflow shape
 
@@ -139,18 +138,6 @@ order by event_id desc
 limit 20;
 ```
 
-## Optional hosted deployment
-
-The `docker-compose.hosted*.yml`, `hosting/Caddyfile`, and `.env.hosted.example`
-files are deployment templates. Before exposing the stack publicly:
-
-- replace placeholder hostnames and OpenBox endpoints with your own values
-- store real secrets in your deployment secret manager
-- rotate `POSTGRES_PASSWORD`, `N8N_ENCRYPTION_KEY`, and
-  `N8N_USER_MANAGEMENT_JWT_SECRET`
-- set Slack and HubSpot credentials in n8n only when those branches are enabled
-- restrict public reverse-proxy routes to the n8n paths you intend to expose
-
 Slack app manifest files:
 
 - `slack-app-manifest.json`: paste-ready full manifest for Slack UI.
@@ -175,11 +162,7 @@ change the workflow schema, update the seed scripts and workflow together.
 example/n8n/
   README.md
   docker-compose.yml
-  docker-compose.hosted.yml
-  docker-compose.hosted-path-caddy.yml
   .env.example
-  .env.hosted.example
-  hosting/Caddyfile
   slack-app-manifest.json
   slack-app-manifest.yml
   workflows/sdk-showcase.json

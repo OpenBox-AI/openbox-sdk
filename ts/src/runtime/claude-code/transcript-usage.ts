@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ClaudeCodeEnvelope } from '../../core-client/generated/runtime/claude-code.js';
-import type { LLMTokenUsage } from '../../governance/spans.js';
+import {
+  llmTokenUsageFromRecord,
+  type LLMTokenUsage,
+} from '../../governance/spans.js';
 
 const MAX_TRANSCRIPT_TAIL_BYTES = 1024 * 1024;
 
@@ -9,37 +12,18 @@ export interface ClaudeTranscriptUsage {
   model?: string;
   usage?: LLMTokenUsage;
   content?: string;
+  hasToolCalls?: boolean;
 }
 
 interface AssistantTranscriptRecord {
   model?: string;
   usage?: LLMTokenUsage;
   content?: string;
-}
-
-function toPositiveInteger(value: unknown): number | undefined {
-  const numberValue =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string' && value.trim() !== ''
-        ? Number(value)
-        : undefined;
-  if (numberValue === undefined || !Number.isFinite(numberValue) || numberValue <= 0)
-    return undefined;
-  return Math.trunc(numberValue);
+  hasToolCalls?: boolean;
 }
 
 function normalizeClaudeUsage(value: unknown): LLMTokenUsage | undefined {
-  if (value === null || typeof value !== 'object') return undefined;
-  const usage = value as Record<string, unknown>;
-  const normalized: LLMTokenUsage = {
-    inputTokens: toPositiveInteger(usage.input_tokens),
-    outputTokens: toPositiveInteger(usage.output_tokens),
-    totalTokens: toPositiveInteger(usage.total_tokens),
-  };
-  return Object.values(normalized).some((entry) => entry !== undefined)
-    ? normalized
-    : undefined;
+  return llmTokenUsageFromRecord(value);
 }
 
 function sumTokenField(
@@ -87,6 +71,20 @@ function combineUsage(
     inputTokens: sumTokenField(left.inputTokens, right.inputTokens),
     outputTokens: sumTokenField(left.outputTokens, right.outputTokens),
     totalTokens: sumTokenField(left.totalTokens, right.totalTokens),
+    cacheReadInputTokens: sumTokenField(
+      left.cacheReadInputTokens,
+      right.cacheReadInputTokens,
+    ),
+    cacheCreationInputTokens: sumTokenField(
+      left.cacheCreationInputTokens,
+      right.cacheCreationInputTokens,
+    ),
+    webSearchRequests: sumTokenField(
+      left.webSearchRequests,
+      right.webSearchRequests,
+    ),
+    costUSD: sumTokenField(left.costUSD, right.costUSD),
+    costUsd: sumTokenField(left.costUsd, right.costUsd),
   };
 }
 
@@ -119,7 +117,7 @@ function textFromClaudeContent(value: unknown): string | undefined {
         return '';
       })
       .filter(Boolean)
-      .join('');
+      .join(' ');
     const trimmed = text.trim();
     return trimmed || undefined;
   }
@@ -128,6 +126,16 @@ function textFromClaudeContent(value: unknown): string | undefined {
     return textFromClaudeContent(record.text ?? record.content);
   }
   return undefined;
+}
+
+function contentHasToolUse(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.some((item) => {
+    if (item === null || typeof item !== 'object') return false;
+    const record = item as Record<string, unknown>;
+    const type = typeof record.type === 'string' ? record.type : '';
+    return type === 'tool_use' || type === 'tool_call' || type === 'function_call';
+  });
 }
 
 function isSafeTranscriptPath(filePath: string): boolean {
@@ -198,7 +206,8 @@ export function readLatestAssistantTurn(
       }
       const usage = normalizeClaudeUsage(record.message?.usage);
       const content = textFromClaudeContent(record.message?.content);
-      if (!usage && !content) continue;
+      const hasToolCalls = contentHasToolUse(record.message?.content);
+      if (!usage && !content && !hasToolCalls) continue;
       const id = transcriptRecordId(record, index);
       const previous = assistantRecords.get(id);
       const model = record.message?.model ?? previous?.model;
@@ -206,6 +215,7 @@ export function readLatestAssistantTurn(
         model,
         usage: usage ?? previous?.usage,
         content: content ?? previous?.content,
+        hasToolCalls: hasToolCalls || previous?.hasToolCalls,
       });
       if (record.message?.model) latestModel = record.message.model;
       if (content) latestContent = content;
@@ -214,6 +224,9 @@ export function readLatestAssistantTurn(
     }
   }
 
+  const hasToolCalls = [...assistantRecords.values()].some(
+    (record) => record.hasToolCalls,
+  );
   let aggregatedUsage: LLMTokenUsage | undefined;
   for (const record of assistantRecords.values()) {
     aggregatedUsage = combineUsage(aggregatedUsage, record.usage);
@@ -222,11 +235,12 @@ export function readLatestAssistantTurn(
     ? withDerivedTotal(aggregatedUsage)
     : undefined;
 
-  if (!aggregatedUsage && !latestContent) return undefined;
+  if (!aggregatedUsage && !latestContent && !hasToolCalls) return undefined;
   return {
     model: latestModel,
     usage: aggregatedUsage,
     content: latestContent,
+    hasToolCalls,
   };
 }
 
@@ -235,6 +249,11 @@ export function readLatestAssistantUsage(
 ): ClaudeTranscriptUsage | undefined {
   const turn = readLatestAssistantTurn(env);
   return turn?.usage
-    ? { model: turn.model, usage: turn.usage, content: turn.content }
+    ? {
+        model: turn.model,
+        usage: turn.usage,
+        content: turn.content,
+        hasToolCalls: turn.hasToolCalls,
+      }
     : undefined;
 }

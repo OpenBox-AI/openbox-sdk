@@ -13,7 +13,11 @@ import {
 import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
-import { buildSpan, type SpanType } from '../../../governance/spans.js';
+import {
+  buildSpan,
+  withOpenBoxActivityMetadata,
+  type SpanType,
+} from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import { sideEffects } from '../side-effects.js';
 import { takeToolActivity } from '../tool-activity-store.js';
@@ -57,6 +61,19 @@ function outputFor(env: ClaudeCodeEnvelope, payload: Record<string, unknown>): u
   return env.tool_response ?? env.tool_output ?? payload.output;
 }
 
+function stringFrom(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function failureError(env: ClaudeCodeEnvelope, payload: Record<string, unknown>): unknown {
+  return (
+    stringFrom(env.error) ??
+    stringFrom(env.reason) ??
+    stringFrom((env as { error_message?: unknown }).error_message) ??
+    payload
+  );
+}
+
 /**
  * PostToolUse fires after the tool returned. Closes the activity opened
  * by PreToolUse and runs output governance. Verdict shape is
@@ -83,6 +100,7 @@ export async function handlePostToolUse(
   const spans = effectiveSpanType
     ? [
         buildSpan('claude-code', effectiveSpanType, {
+          stage: 'completed',
           file_path: (toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path) as string | undefined,
           command: toolInput.command as string | undefined,
           cwd: toolInput.cwd as string | undefined,
@@ -102,9 +120,16 @@ export async function handlePostToolUse(
     startTime: pending?.startTime,
     endTime: pending && durationMs !== undefined ? pending.startTime + durationMs : undefined,
     durationMs,
-    input: [stampSource(startedPayload, 'claude-code')],
+    input: withOpenBoxActivityMetadata(
+      [stampSource(startedPayload, 'claude-code')],
+      { toolType: effectiveSpanType },
+    ),
     output: outputFor(env, payload),
+    sessionId: env.session_id,
+    toolName,
+    toolType: effectiveSpanType ?? undefined,
     spans,
+    hookSpanParentEventType: spans ? 'ActivityStarted' : undefined,
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;
@@ -124,14 +149,43 @@ export async function handlePostToolUseFailure(
   const pending = takeToolActivity(env, cfg);
   const payload = buildPostToolUseFailurePayload(env);
   const startedPayload = buildPreToolUsePayload(env, toolName, sideEffects);
+  const spanType = spanTypeFor(toolName, toolInput);
+  const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? 'db' : null);
+  const spans = effectiveSpanType
+    ? [
+        buildSpan('claude-code', effectiveSpanType, {
+          stage: 'completed',
+          file_path: filePath || undefined,
+          command: toolInput.command as string | undefined,
+          cwd: toolInput.cwd as string | undefined,
+          tool_name: toolName,
+          tool_input: toolInput,
+          tool_output: payload,
+          url: httpTargetFor(toolInput),
+          method: httpMethodFor(toolInput),
+          db_system: dbSystemFor(toolName, toolInput),
+          db_operation: dbOperationFor(toolInput),
+          db_statement: dbStatementFor(toolInput),
+          error: failureError(env, payload),
+        }),
+      ]
+    : undefined;
   const durationMs = durationMsFor(env);
   const verdict = await session.activity(EVENT.COMPLETE, activityType, {
     activityId: pending?.activityId,
     startTime: pending?.startTime,
     endTime: pending && durationMs !== undefined ? pending.startTime + durationMs : undefined,
     durationMs,
-    input: [stampSource(startedPayload, 'claude-code')],
+    input: withOpenBoxActivityMetadata(
+      [stampSource(startedPayload, 'claude-code')],
+      { toolType: effectiveSpanType },
+    ),
     output: stampSource(payload, 'claude-code'),
+    sessionId: env.session_id,
+    toolName,
+    toolType: effectiveSpanType ?? undefined,
+    spans,
+    hookSpanParentEventType: spans ? 'ActivityStarted' : undefined,
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;

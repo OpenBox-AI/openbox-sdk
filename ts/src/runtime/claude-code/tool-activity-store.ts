@@ -4,7 +4,7 @@ import { SessionStore } from '../../session/store.js';
 import type { ClaudeCodeEnvelope } from '../../core-client/generated/runtime/claude-code.js';
 import type { ClaudeCodeConfig } from './config.js';
 
-interface PendingToolActivity {
+interface PendingActivity {
   activityId: string;
   activityType: string;
   startTime: number;
@@ -49,7 +49,7 @@ export function toolActivityKey(env: ClaudeCodeEnvelope): string {
 export function rememberToolActivity(
   env: ClaudeCodeEnvelope,
   cfg: ClaudeCodeConfig,
-  activity: PendingToolActivity,
+  activity: PendingActivity,
 ): void {
   storeFor(cfg).save(toolActivityKey(env), { ...activity });
 }
@@ -57,10 +57,31 @@ export function rememberToolActivity(
 export function takeToolActivity(
   env: ClaudeCodeEnvelope,
   cfg: ClaudeCodeConfig,
-): PendingToolActivity | null {
-  const key = toolActivityKey(env);
+): PendingActivity | null {
+  return takeStoredActivity(toolActivityKey(env), cfg);
+}
+
+export function rememberLifecycleActivity(
+  key: string,
+  cfg: ClaudeCodeConfig,
+  activity: PendingActivity,
+): void {
+  storeFor(cfg).save(`lifecycle:${key}`, { ...activity });
+}
+
+export function takeLifecycleActivity(
+  key: string,
+  cfg: ClaudeCodeConfig,
+): PendingActivity | null {
+  return takeStoredActivity(`lifecycle:${key}`, cfg);
+}
+
+function takeStoredActivity(
+  key: string,
+  cfg: ClaudeCodeConfig,
+): PendingActivity | null {
   const store = storeFor(cfg);
-  const record = store.load(key) as Partial<PendingToolActivity> | null;
+  const record = store.load(key) as Partial<PendingActivity> | null;
   store.delete(key);
   if (
     !record ||

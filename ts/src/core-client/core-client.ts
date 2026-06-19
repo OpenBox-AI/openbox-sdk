@@ -1,6 +1,9 @@
 import { createHash, createPrivateKey, randomUUID, sign } from 'node:crypto';
+import { TextDecoder } from 'node:util';
 import { TokenBucket } from '../client/index.js';
+import { normalizeServiceUrl } from '../env/connection.js';
 import { OPENBOX_SDK_VERSION } from '../version.js';
+import { parseApprovalExpirationMs } from './approval-time.js';
 
 // Every wire-shape type in this module comes from the spec at
 // specs/typespec/core/main.tsp via codegen/emitters/ts/. This file
@@ -54,6 +57,16 @@ export interface BehavioralResult {
   would_violate?: boolean;
 }
 
+export type ApprovalStatusResponseWithClientExpiry = ApprovalStatusResponse & {
+  /**
+   * Client-normalized approval timeout marker. Core currently returns the
+   * expiration timestamp; the SDK derives this flag when that deadline is
+   * already in the past so callers can handle the same shape exposed by the
+   * official OpenBox SDKs without changing the Core wire contract.
+   */
+  expired?: boolean;
+};
+
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
@@ -88,6 +101,9 @@ export interface AgentIdentityConfig {
   privateKey: string;
 }
 
+const AGENT_DID_PATTERN =
+  /^did:aip:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ---------------------------------------------------------------------------
 // Error wrapper
 // ---------------------------------------------------------------------------
@@ -114,7 +130,12 @@ export class OpenBoxCoreClient {
   private rateLimiter: TokenBucket | null = null;
 
   constructor(config: CoreClientConfig) {
-    this.config = { ...config };
+    this.config = {
+      ...config,
+      agentIdentity: config.agentIdentity
+        ? validateAgentIdentityConfig(config.agentIdentity)
+        : undefined,
+    };
     this.baseUrl = requireCoreUrl(this.config.apiUrl ?? process.env.OPENBOX_CORE_URL);
     if (config.rateLimit) {
       this.rateLimiter = new TokenBucket(
@@ -168,15 +189,18 @@ export class OpenBoxCoreClient {
         ? payload
         : { ...payload, sdk_version: OPENBOX_SDK_VERSION };
     return this.request('POST', '/api/v1/governance/evaluate', {
-      data: versionedPayload,
+      data: makeGovernancePayloadJsonSafe(versionedPayload),
       retryable: false,
     }) as Promise<GovernanceVerdictResponse>;
   }
 
-  async pollApproval(request: ApprovalStatusRequest): Promise<ApprovalStatusResponse> {
-    return this.request('POST', '/api/v1/governance/approval', {
+  async pollApproval(
+    request: ApprovalStatusRequest,
+  ): Promise<ApprovalStatusResponseWithClientExpiry> {
+    const response = await this.request('POST', '/api/v1/governance/approval', {
       data: request,
-    }) as Promise<ApprovalStatusResponse>;
+    }) as ApprovalStatusResponse;
+    return withClientExpiredApproval(response);
   }
 
   // =========================================================================
@@ -190,6 +214,9 @@ export class OpenBoxCoreClient {
     path: string,
     options?: { data?: unknown; retryable?: boolean },
   ): Promise<unknown> {
+    if (path !== '/') {
+      validateCoreRuntimeApiKey(this.config.apiKey);
+    }
     if (this.rateLimiter) {
       await this.rateLimiter.acquire();
     }
@@ -199,9 +226,11 @@ export class OpenBoxCoreClient {
     const baseHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${this.config.apiKey}`,
+      'User-Agent': `OpenBox-SDK/${OPENBOX_SDK_VERSION}`,
       'X-OpenBox-SDK-Version': OPENBOX_SDK_VERSION,
+      'x-openbox-internal': 'true',
     };
-    const body = options?.data ? JSON.stringify(options.data) : undefined;
+    const body = options?.data !== undefined ? JSON.stringify(options.data) : undefined;
     const signedHeaders = this.config.agentIdentity
       ? signAgentIdentityRequest({
         identity: this.config.agentIdentity,
@@ -322,11 +351,21 @@ export class OpenBoxCoreClient {
 
 function requireCoreUrl(value: string | undefined): string {
   if (!value) throw new Error('OPENBOX_CORE_URL is required. Set the core API URL explicitly.');
-  const url = new URL(value);
-  url.hash = '';
-  url.search = '';
-  url.pathname = url.pathname.replace(/\/+$/, '');
-  return url.toString().replace(/\/$/, '');
+  return normalizeServiceUrl('OPENBOX_CORE_URL', value);
+}
+
+function validateCoreRuntimeApiKey(value: string): void {
+  if (!value) {
+    throw new Error('OpenBox Core runtime API key is required for authenticated Core calls.');
+  }
+  if (value.startsWith('obx_key_')) {
+    throw new Error(
+      'OpenBox Core requires an agent runtime key (obx_live_* or obx_test_*), not an org/backend key (obx_key_*).',
+    );
+  }
+  if (!/^obx_(live|test)_/.test(value)) {
+    throw new Error('OpenBox Core runtime API key must start with obx_live_ or obx_test_.');
+  }
 }
 
 function appendQuery(path: string, params: Record<string, unknown> | undefined): string {
@@ -347,7 +386,97 @@ function appendQuery(path: string, params: Record<string, unknown> | undefined):
   return `${path}${path.includes('?') ? '&' : '?'}${query}`;
 }
 
+function makeGovernancePayloadJsonSafe(
+  payload: GovernanceEventPayload,
+): GovernanceEventPayload {
+  return JSON.parse(JSON.stringify(toGovernanceJsonSafe(payload))) as GovernanceEventPayload;
+}
+
+function toGovernanceJsonSafe(value: unknown, seen = new WeakSet<object>()): unknown {
+  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === 'function' || typeof value === 'symbol') return String(value);
+  if (!value || typeof value !== 'object') return value;
+  if (value instanceof Error) {
+    return value.name ? `${value.name}: ${value.message}` : value.message;
+  }
+  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Uint8Array) return serializeBinaryBytes(value);
+  if (value instanceof DataView) return serializeDataView(value);
+  if (value instanceof ArrayBuffer) return serializeBinaryBytes(new Uint8Array(value));
+  if (seen.has(value)) return '[Circular]';
+  seen.add(value);
+
+  try {
+    if (value instanceof Map) {
+      return Object.fromEntries(
+        Array.from(value.entries()).map(([entryKey, entryValue]) => [
+          String(entryKey),
+          toGovernanceJsonSafe(entryValue, seen),
+        ]),
+      );
+    }
+    if (value instanceof Set) {
+      return Array.from(value.values()).map((entry) => toGovernanceJsonSafe(entry, seen));
+    }
+    if (Array.isArray(value)) {
+      return value.map((entry) => toGovernanceJsonSafe(entry, seen));
+    }
+    const toJSON = (value as { toJSON?: unknown }).toJSON;
+    if (typeof toJSON === 'function') {
+      try {
+        return toGovernanceJsonSafe(toJSON.call(value), seen);
+      } catch {
+        return String(value);
+      }
+    }
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => [
+        entryKey,
+        toGovernanceJsonSafe(entryValue, seen),
+      ]),
+    );
+  } finally {
+    seen.delete(value);
+  }
+}
+
+function serializeDataView(value: DataView): string {
+  return serializeBinaryBytes(
+    new Uint8Array(value.buffer, value.byteOffset, value.byteLength),
+  );
+}
+
+function serializeBinaryBytes(value: Uint8Array): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(value);
+  } catch {
+    return Buffer.from(value).toString('base64');
+  }
+}
+
+function withClientExpiredApproval<T extends ApprovalStatusResponse>(
+  response: T,
+): T & { expired?: boolean } {
+  const expiration = response.approval_expiration_time;
+  if (!expiration) return response;
+  const deadline = parseApprovalExpirationMs(expiration);
+  if (deadline === undefined || Date.now() <= deadline) return response;
+  return { ...response, expired: true };
+}
+
 const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
+
+export function validateAgentIdentityConfig(
+  identity: AgentIdentityConfig,
+): AgentIdentityConfig {
+  const did = identity.did.trim();
+  const privateKey = identity.privateKey.trim();
+  if (!AGENT_DID_PATTERN.test(did)) {
+    throw new Error("Invalid OpenBox agent DID. Expected format 'did:aip:<uuid>'.");
+  }
+  decodeRawEd25519Seed(privateKey);
+  return { did, privateKey };
+}
 
 export function signAgentIdentityRequest(input: {
   identity: AgentIdentityConfig;
@@ -357,6 +486,7 @@ export function signAgentIdentityRequest(input: {
   timestamp?: string;
   nonce?: string;
 }): Record<string, string> {
+  const identity = validateAgentIdentityConfig(input.identity);
   const timestamp = input.timestamp ?? new Date().toISOString();
   const nonce = input.nonce ?? randomUUID();
   const bodySha256 = createHash('sha256').update(input.body ?? '').digest('hex');
@@ -367,10 +497,10 @@ export function signAgentIdentityRequest(input: {
     nonce,
     bodySha256,
   ].join('\n');
-  const privateKey = ed25519PrivateKeyFromRawBase64(input.identity.privateKey);
+  const privateKey = ed25519PrivateKeyFromRawBase64(identity.privateKey);
   const signature = sign(null, Buffer.from(canonical), privateKey).toString('base64');
   return {
-    'X-OpenBox-Agent-DID': input.identity.did,
+    'X-OpenBox-Agent-DID': identity.did,
     'X-OpenBox-Agent-Timestamp': timestamp,
     'X-OpenBox-Agent-Nonce': nonce,
     'X-OpenBox-Body-SHA256': bodySha256,
@@ -379,13 +509,21 @@ export function signAgentIdentityRequest(input: {
 }
 
 function ed25519PrivateKeyFromRawBase64(rawBase64: string) {
-  const raw = Buffer.from(rawBase64, 'base64');
-  if (raw.length !== 32) {
-    throw new Error('agent identity privateKey must be a base64-encoded 32-byte Ed25519 key');
-  }
+  const raw = decodeRawEd25519Seed(rawBase64);
   return createPrivateKey({
     key: Buffer.concat([ED25519_PKCS8_PREFIX, raw]),
     format: 'der',
     type: 'pkcs8',
   });
+}
+
+function decodeRawEd25519Seed(rawBase64: string): Buffer {
+  const privateKey = rawBase64.trim();
+  const raw = Buffer.from(privateKey, 'base64');
+  if (raw.length !== 32 || raw.toString('base64') !== privateKey) {
+    throw new Error(
+      'Invalid OpenBox agent private key. Expected a canonical base64 raw 32-byte Ed25519 key.',
+    );
+  }
+  return raw;
 }

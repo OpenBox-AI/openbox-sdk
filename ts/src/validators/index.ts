@@ -369,47 +369,14 @@ export const CANONICAL_ACTIVITY_TYPES = [
   'AgentSpawn',          // runtime/claude-code
   'ClaudeCodeSession',   // runtime/claude-code session marker
   'CursorSession',       // runtime/cursor session marker
-  'DefaultActivity',     // openbox-sdk default; will not match specific-type guardrails. Override via config.activityType.
+  'DefaultActivity',     // openbox-sdk default fallback.
 ] as const;
 
-export function validateActivitiesConfig(activities: unknown, stage: '0' | '1'): void {
-  if (!Array.isArray(activities) || activities.length === 0) {
-    block(
-      'activities-empty',
-      `settings.activities[] must be a non-empty array. Each entry binds the guardrail to a specific activity_type.`,
-      `Example: '{"settings":{"activities":[{"activity_type":"PromptSubmission","fields_to_check":["input.*.prompt"]}]}}'`,
-      'references/guardrails.md § "settings Shape"',
-    );
-  }
-  const expectedPrefix = stage === '0' ? 'input' : 'output';
-  for (let i = 0; i < activities.length; i++) {
-    const a = activities[i] as Record<string, unknown>;
-    if (!a.activity_type || typeof a.activity_type !== 'string') {
-      block('activity-missing-type', `settings.activities[${i}].activity_type is required (string).`);
-    }
-    if (!(CANONICAL_ACTIVITY_TYPES as readonly string[]).includes(a.activity_type)) {
-      warn(
-        `settings.activities[${i}].activity_type "${a.activity_type}" is non-canonical. First-party SDKs use past-tense PascalCase (${CANONICAL_ACTIVITY_TYPES.slice(0, 4).join(', ')}, ...). If your client sends a different string, this is fine; but inventions like "LLMCompletion" won't match actual SDK events.`,
-        'references/guardrails.md § "activity_type Matching"',
-      );
-    }
-    if (!Array.isArray(a.fields_to_check) || a.fields_to_check.length === 0) {
-      block('activity-missing-fields', `settings.activities[${i}].fields_to_check is required (non-empty string array).`);
-    }
-    for (const path of a.fields_to_check as string[]) {
-      if (typeof path !== 'string' || path.length === 0) {
-        block('fields-to-check-bad', `settings.activities[${i}].fields_to_check entries must be non-empty strings.`);
-      }
-      if (!path.startsWith(expectedPrefix + '.') && path !== expectedPrefix) {
-        block(
-          'fields-to-check-wrong-prefix',
-          `fields_to_check path "${path}" doesn't match the stage. Stage ${stage} requires paths starting with "${expectedPrefix}."; the guardrails service silently drops paths without the correct prefix.`,
-          `Rename to "${expectedPrefix}.<field>" or switch stage. Stage 0 fires on ActivityStarted (input), stage 1 on ActivityCompleted (output).`,
-          'references/guardrails.md § "Field Path Prefixes"',
-        );
-      }
-    }
-  }
+export function validateActivitiesConfig(_activities: unknown, _stage: '0' | '1'): void {
+  // Compatibility no-op: backend/Core now apply guardrails by processing stage
+  // and no longer use legacy settings.activities activity_type/fields_to_check
+  // filters. Keep accepting the field so older configs and SDK callers do not
+  // break while new guardrails omit it.
 }
 
 // ---------------------------------------------------------------------------
@@ -468,7 +435,8 @@ export const API_KEY_GRANTABLE_PERMISSIONS = ALL_PERMISSIONS.filter(
 /** Mirrors the live `BehaviorRuleTrigger` enum the backend persists. */
 export const BEHAVIOR_TRIGGER_ENUM = [
   'http_get', 'http_post', 'http_put', 'http_patch', 'http_delete', 'http',
-  'llm_completion', 'llm_embedding', 'llm_tool_call',
+  'llm_completion', 'llm_embedding', 'llm_tool_call', 'llm_gen_ai',
+  'mcp_tool_call',
   'database_select', 'database_insert', 'database_update', 'database_delete', 'database_query',
   'file_read', 'file_write', 'file_open', 'file_delete',
   'internal',

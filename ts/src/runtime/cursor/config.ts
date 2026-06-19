@@ -49,8 +49,9 @@ export interface CursorConfig {
   hitlMaxWait: number;
   /** When 'inline', the hook returns permission:'ask' on
    *  require_approval so Cursor's native permission dialog pops; the
-   *  local user is the approver. 'remote' (default) keeps the
-   *  existing poll-and-wait behavior. */
+   *  local user is the approver. 'remote' (default) polls until Core
+   *  returns a terminal decision or the server-owned approval
+   *  expiration is reached. */
   approvalMode: 'inline' | 'remote';
   approvalSocketPath: string | null;
   taskQueue: string;
@@ -63,8 +64,13 @@ export interface CursorConfig {
 export function loadConfig(): CursorConfig {
   const fileConfig = loadConfigFile();
   const envConfig = loadEnvFile();
-  const get = (key: string, fileFallback?: string) => {
+  const getRuntime = (key: string, fileFallback?: string) => {
     if (process.env[key] !== undefined) return process.env[key]!;
+    if (fileConfig[key] !== undefined) return fileConfig[key];
+    if (envConfig[key] !== undefined) return envConfig[key];
+    return fileFallback ?? '';
+  };
+  const getSetting = (key: string, fileFallback?: string) => {
     if (fileConfig[key] !== undefined) return fileConfig[key];
     if (envConfig[key] !== undefined) return envConfig[key];
     return fileFallback ?? '';
@@ -78,27 +84,29 @@ export function loadConfig(): CursorConfig {
     envConfig.OPENBOX_CORE_URL ??
     '';
   return {
-    openboxApiKey: get('OPENBOX_API_KEY'),
+    openboxApiKey: getRuntime('OPENBOX_API_KEY'),
     openboxEndpoint: coreUrl,
     agentIdentity: resolveAgentIdentity({
-      OPENBOX_AGENT_DID: get('OPENBOX_AGENT_DID') || undefined,
-      OPENBOX_AGENT_PRIVATE_KEY: get('OPENBOX_AGENT_PRIVATE_KEY') || undefined,
+      OPENBOX_AGENT_DID: getRuntime('OPENBOX_AGENT_DID') || undefined,
+      OPENBOX_AGENT_PRIVATE_KEY: getRuntime('OPENBOX_AGENT_PRIVATE_KEY') || undefined,
     }),
     governancePolicy: 'fail_closed',
-    governanceTimeout: parseInt(get('GOVERNANCE_TIMEOUT', '15'), 10) || 15,
-    activityType: get('ACTIVITY_TYPE', 'CursorIDE'),
-    sessionDir: get('SESSION_DIR', path.join(CONFIG_DIR, 'sessions')),
-    logFile: get('LOG_FILE', path.join(CONFIG_DIR, 'hook.log')) || null,
-    verbose: get('VERBOSE') === 'true' || get('VERBOSE') === '1',
-    hitlEnabled: get('HITL_ENABLED', 'true') !== 'false',
-    hitlPollInterval: parseInt(get('HITL_POLL_INTERVAL', '5'), 10) || 5,
-    hitlMaxWait: parseInt(get('HITL_MAX_WAIT', '300'), 10) || 300,
-    approvalMode: (get('APPROVAL_MODE', 'remote').toLowerCase() === 'inline' ? 'inline' : 'remote'),
-    approvalSocketPath: get('OPENBOX_APPROVAL_SOCKET') || null,
-    taskQueue: get('TASK_QUEUE', 'cursor-hooks'),
-    sendStartEvent: get('SEND_START_EVENT', 'true') !== 'false',
-    sendActivityStartEvent: get('SEND_ACTIVITY_START_EVENT', 'true') !== 'false',
-    maxBodySize: get('MAX_BODY_SIZE') ? (parseInt(get('MAX_BODY_SIZE'), 10) || null) : null,
+    governanceTimeout: parseInt(getSetting('governanceTimeout', '15'), 10) || 15,
+    activityType: getSetting('activityType', 'CursorIDE'),
+    sessionDir: getSetting('sessionDir', path.join(CONFIG_DIR, 'sessions')),
+    logFile: getSetting('logFile', path.join(CONFIG_DIR, 'hook.log')) || null,
+    verbose: asBoolean(getSetting('verbose', 'false')),
+    hitlEnabled: getSetting('hitlEnabled', 'true') !== 'false',
+    hitlPollInterval: parseInt(getSetting('hitlPollInterval', '5'), 10) || 5,
+    hitlMaxWait: parseInt(getSetting('hitlMaxWait', '300'), 10) || 300,
+    approvalMode: (getSetting('approvalMode', 'remote').toLowerCase() === 'inline' ? 'inline' : 'remote'),
+    approvalSocketPath: getSetting('approvalSocketPath') || null,
+    taskQueue: getSetting('taskQueue', 'cursor-hooks'),
+    sendStartEvent: getSetting('sendStartEvent', 'true') !== 'false',
+    sendActivityStartEvent: getSetting('sendActivityStartEvent', 'true') !== 'false',
+    maxBodySize: getSetting('maxBodySize')
+      ? (parseInt(getSetting('maxBodySize'), 10) || null)
+      : null,
   };
 }
 
@@ -111,4 +119,8 @@ export function getConfigDir(): string {
 
 export function getConfigFilePath(): string {
   return CONFIG_FILE;
+}
+
+function asBoolean(value: string): boolean {
+  return value === 'true' || value === '1';
 }

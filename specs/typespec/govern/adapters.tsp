@@ -726,6 +726,9 @@ interface ClaudeCodeAdapter {
 //     / beforeMCPExecution): stdout `{ permission: "allow"|"deny"|"ask",
 //     user_message?: string }`. Field names are **snake_case**;
 //     emitting `userMessage` silently no-ops the user-facing message.
+//     No documented output field replaces the hook input. Therefore a
+//     `constrain` verdict with guardrail-redacted input must deny/block
+//     the original action rather than allowing unredacted input through.
 //   * `beforeSubmitPrompt`: distinct shape; stdout `{ continue: bool,
 //     user_message?: string, agent_message?: string }`. Cursor does NOT
 //     accept `permission` here; emitting it causes the prompt to fall
@@ -776,10 +779,21 @@ model CursorEnvelope {
   tool_name?: string;
   tool_input?: unknown;
   tool_output?: unknown;
+  tool_use_id?: string;
+  duration_ms?: numeric;
+  `model`?: string;
+  agent_message?: string;
   thought?: string;
   response?: string;
+  output?: string;
+  sandbox?: boolean;
+  error_message?: string;
+  failure_type?: string;
+  is_interrupt?: boolean;
   /** beforeReadFile: Cursor inlines the file body in the envelope. */
   content?: string;
+  /** afterFileEdit: Cursor reports the search/replace edit list. */
+  edits?: unknown;
   /** afterMCPExecution legacy harness wire field; sometimes JSON-string-encoded. */
   result_json?: string;
   /**
@@ -961,6 +975,9 @@ interface CursorAdapter {
   @payloadShape(#{
     default: #{
       command: #{ from: "command" },
+      output: #{ from: "output" },
+      duration_ms: #{ from: "duration" },
+      sandbox: #{ from: "sandbox" },
       generation_id: #{ from: "generation_id" },
       event_category: #{ literal: "agent_observation" },
     },
@@ -974,6 +991,7 @@ interface CursorAdapter {
   @payloadShape(#{
     default: #{
       file_path: #{ from: "file_path" },
+      edits: #{ from: "edits" },
       generation_id: #{ from: "generation_id" },
       event_category: #{ literal: "file_write" },
     },
@@ -988,6 +1006,7 @@ interface CursorAdapter {
     default: #{
       tool_name: #{ from: "tool_name" },
       tool_output: #{ sideEffect: "extractMcpText", from: "result_json", fallback: "tool_output" },
+      duration_ms: #{ from: "duration" },
       generation_id: #{ from: "generation_id" },
       event_category: #{ literal: "agent_observation" },
     },
@@ -997,13 +1016,36 @@ interface CursorAdapter {
   @hookEvent("postToolUse")
   @hookEventLabel("Tool completion")
   @verdictShape("cursor-observe")
-  @noPayload
+  @payloadShape(#{
+    default: #{
+      tool_name: #{ from: "tool_name" },
+      tool_input: #{ from: "tool_input" },
+      tool_output: #{ from: "tool_output" },
+      tool_use_id: #{ from: "tool_use_id" },
+      cwd: #{ from: "cwd" },
+      duration_ms: #{ from: "duration" },
+      `model`: #{ from: "model" },
+      event_category: #{ literal: "agent_observation" },
+    },
+  })
   postToolUse(input: CursorEnvelope): unknown;
 
   @hookEvent("postToolUseFailure")
   @hookEventLabel("Tool failure")
   @verdictShape("cursor-observe")
-  @noPayload
+  @payloadShape(#{
+    default: #{
+      tool_name: #{ from: "tool_name" },
+      tool_input: #{ from: "tool_input" },
+      tool_use_id: #{ from: "tool_use_id" },
+      cwd: #{ from: "cwd" },
+      error_message: #{ from: "error_message" },
+      failure_type: #{ from: "failure_type" },
+      duration_ms: #{ from: "duration" },
+      is_interrupt: #{ from: "is_interrupt" },
+      event_category: #{ literal: "agent_observation" },
+    },
+  })
   postToolUseFailure(input: CursorEnvelope): unknown;
 
   @hookEvent("sessionStart")

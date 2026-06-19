@@ -25,7 +25,6 @@ export interface OpenBoxAnthropicRuntimeContext {
   workflowType: string;
   taskQueue: string;
   approvalMode: OpenBoxAnthropicApprovalMode;
-  failClosed: boolean;
   hookTimeoutSeconds?: number;
   getCoreClient(): OpenBoxCoreClient;
 }
@@ -80,7 +79,6 @@ export function createOpenBoxAnthropicRuntimeContext(
       config.workflowType ?? DEFAULT_ANTHROPIC_AGENT_WORKFLOW_TYPE,
     taskQueue: config.taskQueue ?? DEFAULT_ANTHROPIC_AGENT_TASK_QUEUE,
     approvalMode: config.approvalMode ?? 'ask',
-    failClosed: config.failClosed ?? true,
     hookTimeoutSeconds: config.hookTimeoutSeconds,
     getCoreClient,
   };

@@ -35,7 +35,6 @@ afterEach(() => {
 
 describe('runtime/cursor/install; source-level verification', () => {
   it('verifies the plugin-only Cursor surface and never writes direct Cursor hooks or MCP files', async () => {
-    process.env.OPENBOX_SKIP_EXTENSION = '1';
     const { installCursorPlugin, verifyCursorInstall } = await import('../../ts/src/runtime/cursor/index.ts');
 
     installCursorPlugin({ cwd, matchers: { beforeShellExecution: '\\b(rm|curl)\\b' } });
@@ -51,10 +50,9 @@ describe('runtime/cursor/install; source-level verification', () => {
     expect(fs.existsSync(path.join(home, '.cursor', 'mcp.json'))).toBe(false);
     expect(fs.existsSync(path.join(cwd, '.cursor-hooks', 'config.json'))).toBe(true);
     expect(readJson(path.join(cwd, '.cursor-hooks', 'config.json'))).toEqual({
-      GOVERNANCE_POLICY: 'fail_closed',
-      HITL_ENABLED: true,
-      HITL_MAX_WAIT: 300,
-      VERBOSE: false,
+      hitlEnabled: true,
+      hitlMaxWait: 300,
+      verbose: false,
     });
 
     expect(verifyCursorInstall({ cwd }).map((c) => [c.name, c.status])).toEqual([
@@ -71,7 +69,6 @@ describe('runtime/cursor/install; source-level verification', () => {
   });
 
   it('runtime readiness fails stale hook config states and passes valid format when core validation is disabled', async () => {
-    process.env.OPENBOX_SKIP_EXTENSION = '1';
     const { installCursorPlugin, verifyCursorInstall } = await import('../../ts/src/runtime/cursor/index.ts');
 
     installCursorPlugin({ cwd });
@@ -102,7 +99,6 @@ describe('runtime/cursor/install; source-level verification', () => {
   });
 
   it('runtime readiness fails when core validation rejects the runtime key', async () => {
-    process.env.OPENBOX_SKIP_EXTENSION = '1';
     const { installCursorPlugin, verifyCursorInstall } = await import('../../ts/src/runtime/cursor/index.ts');
 
     installCursorPlugin({ cwd });
@@ -205,10 +201,10 @@ describe('install/from-spec; MCP entry helpers', () => {
     installMcpEntry(
       HOOK_SPEC,
       'openbox',
-      { command: 'openbox-dev', args: ['mcp', 'serve'] },
+      { command: 'openbox-local', args: ['mcp', 'serve'] },
       { scope: 'project', cwd },
     );
-    expect(readJson(first).mcpServers.openbox.command).toBe('openbox-dev');
+    expect(readJson(first).mcpServers.openbox.command).toBe('openbox-local');
 
     expect(uninstallMcpEntry(HOOK_SPEC, 'missing', { scope: 'project', cwd })).toBe(first);
     uninstallMcpEntry(HOOK_SPEC, 'openbox', { scope: 'project', cwd });

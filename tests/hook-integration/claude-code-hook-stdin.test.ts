@@ -30,7 +30,7 @@ interface ConfigOverrides {
   skipTools?: string[];
   /** Stale SKIP_ACTIVITY_TYPES list retained by old project configs. */
   skipActivityTypes?: string[];
-  /** Stale GOVERNANCE_POLICY value; runtime normalizes to fail_closed. */
+  /** Stale permissive value; runtime normalizes to fail_closed. */
   governancePolicy?: 'fail_open' | 'fail_closed';
   /** Runtime key. Defaults to a syntactically valid test key. */
   apiKey?: string;
@@ -56,10 +56,10 @@ function planConfigDir(opts: ConfigOverrides): string {
   mkdirSync(configDir, { recursive: true });
   const cfg: Record<string, unknown> = {
     OPENBOX_CORE_URL: opts.coreUrl ?? DEAD_CORE,
-    GOVERNANCE_POLICY: opts.governancePolicy ?? 'fail_closed',
-    GOVERNANCE_TIMEOUT: 1,
-    HITL_ENABLED: false,
-    VERBOSE: opts.verbose ?? false,
+    governancePolicy: opts.governancePolicy ?? 'fail_closed',
+    governanceTimeout: 1,
+    hitlEnabled: false,
+    verbose: opts.verbose ?? false,
   };
   if (!opts.omitApiKey) {
     cfg.OPENBOX_API_KEY = opts.apiKey ?? TEST_KEY;
@@ -151,14 +151,14 @@ describe('claude-code hook stdin/stdout', () => {
     }
   });
 
-  it('VERBOSE=true does not break the verdict shape on dispatch', () => {
+  it('verbose=true does not break the verdict shape on dispatch', () => {
     // Note: the per-event verbose log (`<configDir>/hook.log`) is
     // not currently wired; the adapter calls `createLogger().initLogger`
     // but never calls `log()`. The only on-disk log today is the
     // JSONL hook log at `<project>/.claude-hooks/log/claude-code-hook.jsonl`,
     // which is covered separately. If a future PR wires the
     // human-readable log, this test should grow assertions on
-    // <configDir>/hook.log; for now we only assert that VERBOSE
+    // <configDir>/hook.log; for now we only assert that verbose
     // does not regress the verdict path.
     const root = planConfigDir({ verbose: true, coreUrl: DEAD_CORE });
     const r = callHook(
@@ -192,7 +192,7 @@ describe('claude-code hook stdin/stdout', () => {
     expect(out.hookSpecificOutput?.permissionDecisionReason).toContain('[OpenBox]');
   });
 
-  it('stale fail_open with unreachable core still denies decision-capable PreToolUse', () => {
+  it('stale permissive policy with unreachable core still denies decision-capable PreToolUse', () => {
     const root = planConfigDir({ coreUrl: 'http://127.0.0.1:1', governancePolicy: 'fail_open' });
     const r = callHook(
       {
@@ -202,7 +202,7 @@ describe('claude-code hook stdin/stdout', () => {
         tool_input: { file_path: '/etc/hostname' },
       },
       root,
-      { OPENBOX_CORE_URL: 'http://127.0.0.1:1', GOVERNANCE_TIMEOUT: '1' },
+      { OPENBOX_CORE_URL: 'http://127.0.0.1:1' },
     );
     expect(r.status, `exit=${r.status} stderr=${r.stderr}`).toBe(0);
     const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string } };
@@ -220,7 +220,7 @@ describe('claude-code hook stdin/stdout', () => {
         tool_input: { file_path: '/etc/hostname' },
       },
       root,
-      { OPENBOX_CORE_URL: 'http://127.0.0.1:1', GOVERNANCE_TIMEOUT: '1' },
+      { OPENBOX_CORE_URL: 'http://127.0.0.1:1' },
     );
     expect(r.status, `exit=${r.status} stderr=${r.stderr}`).toBe(0);
     const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string } };
@@ -228,7 +228,7 @@ describe('claude-code hook stdin/stdout', () => {
     expect(out.hookSpecificOutput?.permissionDecisionReason).toContain('[OpenBox]');
   });
 
-  it('missing OPENBOX_API_KEY denies decision-capable hooks even with stale fail_open', () => {
+  it('missing OPENBOX_API_KEY denies decision-capable hooks even with stale permissive policy', () => {
     const root = planConfigDir({ omitApiKey: true, governancePolicy: 'fail_open' });
     const r = callHook(
       {
@@ -332,7 +332,7 @@ describe('claude-code hook stdin/stdout', () => {
         session_crons: [],
       },
       root,
-      { OPENBOX_CORE_URL: 'http://127.0.0.1:1', GOVERNANCE_TIMEOUT: '1' },
+      { OPENBOX_CORE_URL: 'http://127.0.0.1:1' },
     );
     expect(r.status, `Stop active retry failed: ${r.stderr}`).toBe(0);
     const out = (r.parsed ?? {}) as Record<string, unknown>;

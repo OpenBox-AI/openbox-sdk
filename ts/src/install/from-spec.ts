@@ -153,10 +153,9 @@ function dropExampleConfig(configDir: string): void {
   const file = path.join(configDir, 'config.json');
   if (fs.existsSync(file)) return;
   const example = {
-    GOVERNANCE_POLICY: 'fail_closed',
-    HITL_ENABLED: true,
-    HITL_MAX_WAIT: 300,
-    VERBOSE: false,
+    hitlEnabled: true,
+    hitlMaxWait: 300,
+    verbose: false,
   };
   // Mode 0o600: this template is where the user pastes their API
   // key, so treat it as sensitive from creation rather than relying

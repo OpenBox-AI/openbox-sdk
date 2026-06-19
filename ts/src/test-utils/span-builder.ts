@@ -3,6 +3,7 @@
  * Handles all gate attributes, semantic type detection workarounds, and
  * payload structure so callers don't need to know the internals.
  */
+import { withSpanActivityId } from '../governance/spans.js';
 
 function hex(len: number): string {
   return Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join('');
@@ -27,13 +28,11 @@ export interface SpanOptions {
   type: SpanType;
   // Override the default activity_type, e.g. "PromptSubmission" or "FileRead".
   activityType?: string;
-  /** Match the official temporal-sdk-python convention: hook-level
-   *  events from `hook_governance.py` set `hook_trigger: true`;
-   *  activity-level events from `activity_interceptor.py` do not. The
-   *  hook path
-   *  triggers `CheckApprovalCacheActivity` server-side which hits Redis.
-   *  Default to false here so test payloads match the activity-level
-   *  convention; flip to true when explicitly testing hook flows. */
+  /** Match the official SDK convention: activity parent events omit
+   *  span fields; hook-level events set `hook_trigger: true` and carry
+   *  exactly one span. Default to false so test payloads match the
+   *  activity-level convention; flip to true when explicitly testing
+   *  hook flows. */
   hookTrigger?: boolean;
   // LLM
   prompt?: string;
@@ -70,8 +69,8 @@ interface BuiltPayload {
   timestamp: string;
   hook_trigger: boolean;
   activity_input: unknown[];
-  spans: Record<string, unknown>[];
-  span_count: number;
+  spans?: Record<string, unknown>[];
+  span_count?: number;
 }
 
 export function buildTestPayload(opts: SpanOptions): BuiltPayload {
@@ -84,7 +83,7 @@ export function buildTestPayload(opts: SpanOptions): BuiltPayload {
 
   const { activityType: defaultActivityType, activityInput, span } = buildSpan(opts, spanId, traceId, nowNs);
 
-  return {
+  const payload: BuiltPayload = {
     source: 'workflow-telemetry',
     event_type: 'ActivityStarted',
     workflow_id: workflowId,
@@ -97,9 +96,15 @@ export function buildTestPayload(opts: SpanOptions): BuiltPayload {
     timestamp: new Date().toISOString(),
     hook_trigger: opts.hookTrigger ?? false,
     activity_input: [activityInput],
-    spans: [span],
-    span_count: 1,
   };
+  if (opts.hookTrigger === true) {
+    return {
+      ...payload,
+      spans: [withSpanActivityId(span, activityId)],
+      span_count: 1,
+    };
+  }
+  return payload;
 }
 
 function buildSpan(
@@ -117,7 +122,7 @@ function buildSpan(
     start_time: nowNs,
     end_time: null,
     duration_ns: null,
-    status: { code: 'OK', description: null },
+    status: { code: 'UNSET', description: null },
     events: [],
     error: null,
   };
@@ -283,14 +288,16 @@ function buildSpan(
         activityInput: input,
         span: {
           ...base,
-          name: `tool.${toolName}`,
+          name: `MCP callTool ${toolName}`,
           hook_type: 'function_call',
-          semantic_type: 'llm_tool_call',
+          semantic_type: 'mcp_tool_call',
           attributes: {
-            'gen_ai.system': 'mcp',
-            // Core currently classifies tool-call spans from HTTP attributes.
-            'http.method': 'POST',
-            'http.url': 'https://api.openai.com/v1/chat/completions',
+            'mcp.method': 'callTool',
+            'mcp.operation': toolName,
+            'mcp.server_id': serverName,
+            'mcp.input': input.tool_input,
+            'openbox.semantic_type': 'mcp_tool_call',
+            'openbox.span_type': 'mcp_tool_call',
           },
           function: `mcp.${toolName}`,
           module: 'activity',

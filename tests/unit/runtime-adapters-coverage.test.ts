@@ -12,6 +12,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 let dir: string;
+// Mock-only raw 32-byte Ed25519 key encoded at runtime; not a real credential.
+const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'openbox-runtime-cov-'));
 });
@@ -61,16 +63,17 @@ describe('runtime/claude-code/config', () => {
   it('loadConfig pulls API key + endpoint from env', async () => {
     process.env.OPENBOX_API_KEY = 'obx_live_test_x';
     process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
-    process.env.OPENBOX_AGENT_DID = 'did:openbox:agent:test';
-    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'a'.repeat(44);
+    process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
+    // gitleaks:allow - deterministic test fixture generated above, not a credential.
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = FAKE_AGENT_PRIVATE_KEY;
     // Force re-import so config picks up our env state at module-load time.
     const mod = await import('../../ts/src/runtime/claude-code/config');
     const cfg = mod.loadConfig();
     expect(cfg.openboxApiKey).toBe('obx_live_test_x');
     expect(cfg.openboxEndpoint).toBe('http://localhost:8086');
     expect(cfg.agentIdentity).toEqual({
-      did: 'did:openbox:agent:test',
-      privateKey: 'a'.repeat(44),
+      did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+      privateKey: FAKE_AGENT_PRIVATE_KEY,
     });
     delete process.env.OPENBOX_API_KEY;
     delete process.env.OPENBOX_CORE_URL;
@@ -270,6 +273,31 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     expect(span?.http_method).toBe('PATCH');
     expect(span?.http_url).toBe('https://example.test/complete');
   });
+
+  it('emits spans for failed tool completions', async () => {
+    const { handlePostToolUseFailure } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
+    const session = recordingSession();
+    const env: any = {
+      tool_name: 'Bash',
+      tool_input: { command: 'npm test', cwd: dir },
+      error: 'exit 1',
+      session_id: 'post-failure-shell',
+    };
+    const cfg: any = { sessionDir: dir };
+    await handlePostToolUseFailure(env, session, cfg);
+    const payload = session.calls[0]?.args[2];
+    const span = payload?.spans?.[0] as Record<string, any>;
+    expect(payload.toolName).toBe('Bash');
+    expect(payload.toolType).toBe('shell');
+    expect(span).toMatchObject({
+      name: 'ShellExecution',
+      semantic_type: 'internal',
+      attributes: expect.objectContaining({
+        'shell.command': 'npm test',
+        'openbox.tool.name': 'Bash',
+      }),
+    });
+  });
 });
 
 describe('runtime/claude-code/mappers/permission-request', () => {
@@ -321,6 +349,32 @@ describe('runtime/claude-code/mappers/permission-request', () => {
     expect(span?.semantic_type).toBe('http_delete');
     expect(span?.http_method).toBe('DELETE');
     expect(span?.http_url).toBe('https://example.test/permission');
+  });
+
+  it('emits spans for permission-denied tool telemetry', async () => {
+    const { handlePermissionDenied } = await import('../../ts/src/runtime/claude-code/mappers/permission-request');
+    const session = recordingSession();
+    const env: any = {
+      tool_name: 'Bash',
+      tool_input: { command: 'npm test', cwd: dir },
+      reason: 'auto mode denied',
+      session_id: 'permission-denied-shell',
+    };
+    const cfg: any = { sessionDir: dir };
+    await handlePermissionDenied(env, session, cfg);
+    const payload = session.calls[0]?.args[2];
+    const span = payload?.spans?.[0] as Record<string, any>;
+    expect(payload.sessionId).toBe('permission-denied-shell');
+    expect(payload.toolName).toBe('Bash');
+    expect(payload.toolType).toBe('shell');
+    expect(span).toMatchObject({
+      name: 'ShellExecution',
+      semantic_type: 'internal',
+      attributes: expect.objectContaining({
+        'shell.command': 'npm test',
+        'openbox.tool.name': 'Bash',
+      }),
+    });
   });
 });
 
@@ -398,8 +452,8 @@ describe('runtime/cursor/mappers/pre-tool-use', () => {
       cfg,
     );
     expect(verdict?.arm).toBe('allow');
-    expect(session.calls[0]?.method).toBe('activity');
-    expect(session.calls[0]?.args[2]?.input?.[0]?.content).toBe('[OpenBox redacted file content]');
+    expect(session.calls[0]?.method).toBe('openActivity');
+    expect(session.calls[0]?.args[1]?.input?.[0]?.content).toBe('[OpenBox redacted file content]');
   });
 
   it('drives the @activityVariant override path without throwing', async () => {
@@ -413,8 +467,8 @@ describe('runtime/cursor/mappers/pre-tool-use', () => {
     };
     const cfg: any = { sessionDir: dir, hitlMaxWait: 1 };
     await handlePreToolUse(env, session, cfg);
-    expect(session.calls[0]?.method).toBe('activity');
-    expect(session.calls[0]?.args[1]).toBe('FileDelete');
+    expect(session.calls[0]?.method).toBe('openActivity');
+    expect(session.calls[0]?.args[0]).toBe('FileDelete');
   });
 
   it('routes write tools through activity and marks halt verdicts', async () => {
@@ -430,7 +484,7 @@ describe('runtime/cursor/mappers/pre-tool-use', () => {
     };
     const verdict = await handlePreToolUse(env, session, cfg);
     expect(verdict?.arm).toBe('halt');
-    expect(session.calls[0]?.method).toBe('activity');
+    expect(session.calls[0]?.method).toBe('openActivity');
   });
 });
 

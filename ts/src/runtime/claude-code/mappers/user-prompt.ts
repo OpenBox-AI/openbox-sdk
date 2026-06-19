@@ -10,7 +10,6 @@ import {
 import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
-import { buildSpan } from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
 
 /**
@@ -27,19 +26,20 @@ export async function handleUserPromptSubmit(
   const prompt = (env.prompt ?? '').trim();
   if (!prompt) return undefined;
 
-  // Best-effort goal signal; never blocks the prompt path.
-  void session.activity(EVENT.SIGNAL, 'user_prompt', {
+  await session.activity(EVENT.SIGNAL, 'user_prompt', {
     input: [stampSource({ prompt, event_category: 'agent_goal' }, 'claude-code')],
     signalName: 'user_prompt',
     signalArgs: prompt,
-    spans: [buildSpan('claude-code', 'llm', { prompt })],
-  }).catch(() => undefined);
+    sessionId: env.session_id,
+    prompt,
+  });
 
   const payload = buildUserPromptSubmitPayload(env);
-  const span = buildSpan('claude-code', 'llm', { prompt });
   const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, {
     input: [stampSource(payload, 'claude-code')],
-    spans: [span],
+    sessionId: env.session_id,
+    llmModel: env.model,
+    prompt,
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;
@@ -53,10 +53,11 @@ export async function handleUserPromptExpansion(
   const prompt = (env.expanded_prompt ?? env.prompt ?? '').trim();
   if (!prompt) return undefined;
   const payload = buildUserPromptExpansionPayload(env);
-  const span = buildSpan('claude-code', 'llm', { prompt });
   const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, {
     input: [stampSource(payload, 'claude-code')],
-    spans: [span],
+    sessionId: env.session_id,
+    llmModel: env.model,
+    prompt,
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;

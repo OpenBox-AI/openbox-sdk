@@ -8,6 +8,16 @@ import {
   makeUpdateAivssConfigDto,
   makeGoalAlignmentConfigDto,
 } from '../helpers/fixtures';
+import type { components } from '../../ts/src/types/generated/backend';
+
+type GeneratedCreateBehaviorRuleDto =
+  components['schemas']['CreateBehaviorRuleDto'];
+type GeneratedBehaviorRule = components['schemas']['BehaviorRule'];
+type GeneratedCreateGuardrailDto =
+  components['schemas']['CreateGuardrailDto'];
+type GeneratedCreatePolicyDto = components['schemas']['CreatePolicyDto'];
+type GeneratedUpdateGuardrailDto =
+  components['schemas']['UpdateGuardrailDto'];
 
 describe('Test Fixtures', () => {
   describe('makeCreateAgentDto', () => {
@@ -37,10 +47,29 @@ describe('Test Fixtures', () => {
   describe('makeCreateGuardrailDto', () => {
     it('generates valid guardrail DTO', () => {
       const dto = makeCreateGuardrailDto();
+      const typed: GeneratedCreateGuardrailDto = dto;
+      const update: GeneratedUpdateGuardrailDto = {
+        guardrail_type: dto.guardrail_type,
+        processing_stage: dto.processing_stage,
+      };
       expect(dto.name).toMatch(/^test-guardrail-/);
       expect(dto.guardrail_type).toBe('1');
       expect(dto.processing_stage).toBe('1');
       expect(dto.trust_impact).toBeTruthy();
+      expect(typed.guardrail_type).toBe('1');
+      expect(update.processing_stage).toBe('1');
+    });
+
+    it('keeps legacy activity scoping absent and defaulted trust impact optional', () => {
+      const minimal: GeneratedCreateGuardrailDto = {
+        guardrail_type: '1',
+        name: 'minimal-guardrail',
+        processing_stage: '0',
+      };
+
+      expect(minimal).not.toHaveProperty('trust_impact');
+      expect(minimal).not.toHaveProperty('activity_type');
+      expect(minimal).not.toHaveProperty('fields_to_check');
     });
   });
 
@@ -50,6 +79,16 @@ describe('Test Fixtures', () => {
       expect(dto.name).toMatch(/^test-policy-/);
       expect(dto.rego_code).toContain('package openbox.policy');
       expect(dto.rego_code).toContain('decision');
+    });
+
+    it('generated create policy type keeps trust impact optional', () => {
+      const dto: GeneratedCreatePolicyDto = {
+        name: 'minimal-policy',
+        rego_code: 'package openbox.policy',
+        input: {},
+      };
+
+      expect(dto).not.toHaveProperty('trust_impact');
     });
   });
 
@@ -63,6 +102,58 @@ describe('Test Fixtures', () => {
       expect(dto.time_window).toBeGreaterThan(0);
       expect(dto.verdict).toBeGreaterThanOrEqual(0);
       expect(dto.reject_message).toBeTruthy();
+    });
+
+    it('generated behavior rule types support trigger and state predicates', () => {
+      const dto: GeneratedCreateBehaviorRuleDto = {
+        rule_name: 'state-predicate',
+        priority: 50,
+        trigger: 'http_post',
+        trigger_match: [{ field: 'http_url', op: 'contains', value: 'api' }],
+        states: [
+          {
+            semantic_type: 'file_read',
+            match: [{ field: 'file_path', op: 'contains', value: '/private' }],
+          },
+          'mcp_tool_call',
+        ],
+        time_window: 60,
+        verdict: 2,
+        reject_message: 'approval required',
+        approval_timeout: 300,
+        trust_impact: 'none',
+      };
+      const rule: GeneratedBehaviorRule = {
+        id: 'rule-1',
+        rule_name: dto.rule_name,
+        priority: dto.priority,
+        trigger: dto.trigger,
+        trigger_match: dto.trigger_match,
+        states: dto.states,
+        time_window: dto.time_window,
+        verdict: dto.verdict,
+        reject_message: dto.reject_message,
+        approval_timeout: dto.approval_timeout,
+        is_active: true,
+      };
+
+      expect(rule.trigger_match?.[0]?.field).toBe('http_url');
+      expect(rule.states[0]).toMatchObject({ semantic_type: 'file_read' });
+      expect(rule.states[1]).toBe('mcp_tool_call');
+    });
+
+    it('generated create behavior rule type keeps trust impact optional', () => {
+      const dto: GeneratedCreateBehaviorRuleDto = {
+        rule_name: 'minimal-rule',
+        priority: 50,
+        trigger: 'http_post',
+        states: ['http_post'],
+        time_window: 60,
+        verdict: 0,
+        reject_message: 'allow',
+      };
+
+      expect(dto).not.toHaveProperty('trust_impact');
     });
   });
 

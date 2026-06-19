@@ -183,7 +183,7 @@ export function createOpenBoxRuntimeHooks(
         activityType: 'on_chat_model_start',
         ensureWorkflowStarted: true,
       });
-      if (shouldStopForGate(promptGate, 'enforce')) {
+      if (shouldStopForGate(promptGate)) {
         throw openBoxSseResponse(
           input,
           adapter.toOpenBoxCopilotResult(promptGate.verdict, promptGate),
@@ -278,7 +278,7 @@ async function governRunPrompt(
     activityType: 'on_chat_model_start',
     ensureWorkflowStarted: true,
   });
-  if (shouldStopForGate(promptGate, 'enforce')) {
+  if (shouldStopForGate(promptGate)) {
     emitOpenBoxRunResult(
       subscriber,
       input,
@@ -475,7 +475,7 @@ function pipeGovernedEvents(
               ...ids,
               activityType: 'on_llm_end',
             });
-            if (shouldStopForGate(gate, 'enforce')) {
+            if (shouldStopForGate(gate)) {
               terminalized = true;
               emitOpenBoxMessageEvents(
                 subscriber,
@@ -509,7 +509,7 @@ function pipeGovernedEvents(
               ...ids,
               activityType: 'on_llm_end',
             });
-            if (shouldStopForGate(gate, 'enforce')) {
+            if (shouldStopForGate(gate)) {
               terminalized = true;
               emitOpenBoxMessageEvents(
                 subscriber,

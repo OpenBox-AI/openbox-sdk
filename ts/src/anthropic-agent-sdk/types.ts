@@ -12,17 +12,34 @@ import type {
 
 export type OpenBoxAnthropicAgentHookEvent = Extract<
   HookEvent,
+  | 'Setup'
   | 'SessionStart'
+  | 'InstructionsLoaded'
   | 'UserPromptSubmit'
+  | 'UserPromptExpansion'
+  | 'Notification'
   | 'PreToolUse'
   | 'PermissionRequest'
+  | 'PermissionDenied'
   | 'PostToolUse'
   | 'PostToolUseFailure'
   | 'PostToolBatch'
   | 'Stop'
+  | 'StopFailure'
   | 'SubagentStart'
   | 'SubagentStop'
+  | 'TaskCreated'
+  | 'TaskCompleted'
+  | 'TeammateIdle'
+  | 'ConfigChange'
+  | 'CwdChanged'
+  | 'FileChanged'
+  | 'WorktreeRemove'
   | 'PreCompact'
+  | 'PostCompact'
+  | 'SessionEnd'
+  | 'Elicitation'
+  | 'ElicitationResult'
   | 'MessageDisplay'
 >;
 
@@ -41,6 +58,7 @@ export interface OpenBoxAnthropicAgentSDKConfig {
   workflowType?: string;
   taskQueue?: string;
   approvalMode?: OpenBoxAnthropicApprovalMode;
+  /** @deprecated Compatibility no-op. Decision-capable hooks always fail closed. */
   failClosed?: boolean;
   hookTimeoutSeconds?: number;
   clientName?: string;

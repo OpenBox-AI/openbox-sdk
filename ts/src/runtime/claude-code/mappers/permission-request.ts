@@ -11,7 +11,11 @@ import {
 import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
-import { buildSpan, type SpanType } from '../../../governance/spans.js';
+import {
+  buildSpan,
+  withOpenBoxActivityMetadata,
+  type SpanType,
+} from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import {
   dbOperationFor,
@@ -77,7 +81,13 @@ export async function handlePermissionRequest(
       ]
     : undefined;
   const verdict = await session.activity(EVENT.START, activityType, {
-    input: [stampSource(payload, 'claude-code')],
+    input: withOpenBoxActivityMetadata(
+      [stampSource(payload, 'claude-code')],
+      { toolType: effectiveSpanType },
+    ),
+    sessionId: env.session_id,
+    toolName,
+    toolType: effectiveSpanType ?? undefined,
     spans,
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
@@ -93,8 +103,35 @@ export async function handlePermissionDenied(
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
   const activityType = activityTypeForTool(toolName, toolInput);
   const payload = buildPermissionDeniedPayload(env);
+  const spanType = spanTypeFor(toolName, toolInput);
+  const effectiveSpanType = spanType ?? (activityType === ACTIVITY_TYPES.DB_QUERY ? 'db' : null);
+  const filePath = filePathFor(toolInput);
+  const spans = effectiveSpanType
+    ? [
+        buildSpan('claude-code', effectiveSpanType, {
+          file_path: filePath,
+          command: toolInput.command as string | undefined,
+          cwd: toolInput.cwd as string | undefined,
+          tool_name: toolName,
+          tool_input: toolInput,
+          tool_output: env.reason,
+          url: httpTargetFor(toolInput),
+          method: httpMethodFor(toolInput),
+          db_system: dbSystemFor(toolName, toolInput),
+          db_operation: dbOperationFor(toolInput),
+          db_statement: dbStatementFor(toolInput),
+        }),
+      ]
+    : undefined;
   const verdict = await session.activity(EVENT.START, activityType, {
-    input: [stampSource(payload, 'claude-code')],
+    input: withOpenBoxActivityMetadata(
+      [stampSource(payload, 'claude-code')],
+      { toolType: effectiveSpanType },
+    ),
+    sessionId: env.session_id,
+    toolName,
+    toolType: effectiveSpanType ?? undefined,
+    spans,
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;

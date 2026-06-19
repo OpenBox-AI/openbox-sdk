@@ -12,14 +12,15 @@ import type {
 } from '@typespec/compiler';
 import { reportDiagnostic, stateKeys } from './lib.js';
 
-/** Six canonical event_type values the core service recognizes. */
+/** Seven canonical event_type values the core service recognizes. */
 export type CanonicalEventType =
   | 'WorkflowStarted'
   | 'WorkflowCompleted'
   | 'WorkflowFailed'
   | 'ActivityStarted'
   | 'ActivityCompleted'
-  | 'SignalReceived';
+  | 'SignalReceived'
+  | 'Handoff';
 
 const CANONICAL_EVENT_TYPES: ReadonlySet<CanonicalEventType> = new Set([
   'WorkflowStarted',
@@ -28,6 +29,7 @@ const CANONICAL_EVENT_TYPES: ReadonlySet<CanonicalEventType> = new Set([
   'ActivityStarted',
   'ActivityCompleted',
   'SignalReceived',
+  'Handoff',
 ]);
 
 export interface PresetBinding {

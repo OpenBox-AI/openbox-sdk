@@ -62,7 +62,10 @@ describe('validators branch coverage', () => {
     expect(() => validateGuardrailParams('5', { regex: '(drop|truncate)\\s+table' })).not.toThrow();
   });
 
-  it('activity config validates stage-specific paths and canonical warnings', () => {
+  it('activity config accepts legacy guardrail activity bindings as no-op compatibility data', () => {
+    expect(() => validateActivitiesConfig(undefined, '0')).not.toThrow();
+    expect(() => validateActivitiesConfig([], '0')).not.toThrow();
+    expect(() => validateActivitiesConfig('legacy-non-array', '0')).not.toThrow();
     expect(() =>
       validateActivitiesConfig(
         [{ activity_type: 'PromptSubmission', fields_to_check: ['input.0.prompt'] }],
@@ -75,23 +78,28 @@ describe('validators branch coverage', () => {
         '1',
       ),
     ).not.toThrow();
-    expect(() => validateActivitiesConfig([], '0')).toThrow(ValidationError);
-    expect(() => validateActivitiesConfig([{ fields_to_check: ['input.x'] }], '0')).toThrow(ValidationError);
+    expect(() => validateActivitiesConfig([{ fields_to_check: ['input.x'] }], '0')).not.toThrow();
     expect(() =>
       validateActivitiesConfig(
         [{ activity_type: 'PromptSubmission', fields_to_check: [] }],
         '0',
       ),
-    ).toThrow(ValidationError);
+    ).not.toThrow();
     expect(() =>
       validateActivitiesConfig(
         [{ activity_type: 'PromptSubmission', fields_to_check: ['output.text'] }],
         '0',
       ),
-    ).toThrow(ValidationError);
+    ).not.toThrow();
     expect(() =>
       validateActivitiesConfig(
         [{ activity_type: 'CustomActivity', fields_to_check: ['input.text'] }],
+        '0',
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateActivitiesConfig(
+        [{ activity_type: 123, fields_to_check: 'not-an-array' }],
         '0',
       ),
     ).not.toThrow();
@@ -99,8 +107,10 @@ describe('validators branch coverage', () => {
 
   it('behavior rule validators cover string and array state parsing', () => {
     expect(validateBehaviorTrigger('http_post')).toBe('http_post');
+    expect(validateBehaviorTrigger('llm_gen_ai')).toBe('llm_gen_ai');
+    expect(validateBehaviorTrigger('mcp_tool_call')).toBe('mcp_tool_call');
     expect(validateBehaviorStates('http_get, http_post')).toEqual(['http_get', 'http_post']);
-    expect(validateBehaviorStates(['file_read', 'file_write'])).toEqual(['file_read', 'file_write']);
+    expect(validateBehaviorStates(['file_read', 'file_write', 'mcp_tool_call'])).toEqual(['file_read', 'file_write', 'mcp_tool_call']);
     expect(() => validateBehaviorStates(42)).toThrow(ValidationError);
     expect(() => validateBehaviorStates('')).toThrow(ValidationError);
     expect(validateVerdict('4')).toBe(4);

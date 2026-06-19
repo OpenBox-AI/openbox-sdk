@@ -11,18 +11,22 @@ import {
 } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
-import { EVENT } from '../activity-types.js';
 import {
   isInsideAnyRoot,
   shouldRedactPathContent,
 } from '../../../governance/skip-patterns.js';
 import { sideEffects } from '../side-effects.js';
-import { buildSpan, type SpanType } from '../../../governance/spans.js';
+import {
+  buildSpan,
+  withOpenBoxActivityMetadata,
+  type SpanType,
+} from '../../../governance/spans.js';
 import {
   buildActionKey,
   claimAction,
   awaitClaimDecision,
   publishClaimDecision,
+  rememberCompletionActivity,
 } from '../dedup.js';
 import { stampSource } from '../../../approvals/source.js';
 
@@ -69,12 +73,13 @@ export async function handlePreToolUse(
     toolName === 'Shell' ? 'shell' :
     toolName === 'Read' ? 'read' :
     toolName === 'Write' ? 'write' : null;
+  const claimArg = claimKind === 'shell' ? command : filePath;
   const claim = claimKind
     ? claimAction(buildActionKey({
         generation_id: env.generation_id,
         conversation_id: env.conversation_id,
         kind: claimKind,
-        arg: claimKind === 'shell' ? command : filePath,
+        arg: claimArg,
       }))
     : null;
   if (claim && !claim.won) {
@@ -112,13 +117,41 @@ export async function handlePreToolUse(
     file_path: filePath || undefined,
     command: (toolInput.command as string) || undefined,
     cwd: (toolInput.cwd as string) || (env.cwd as string) || undefined,
+    tool_name: toolName,
   });
 
   try {
-    const verdict = await session.activity(EVENT.START, activityType, {
-      input: [stampSource(payload, 'cursor')],
+    const startTime = Date.now();
+    const opened = await session.openActivity(activityType, {
+      input: withOpenBoxActivityMetadata(
+        [stampSource(payload, 'cursor')],
+        { toolType: spanType },
+      ),
+      startTime,
       spans: [span],
     });
+    const verdict = opened.verdict;
+    if (
+      claimKind &&
+      (verdict.arm === 'allow' ||
+        verdict.arm === 'constrain' ||
+        verdict.arm === 'require_approval')
+    ) {
+      rememberCompletionActivity(
+        {
+          generation_id: env.generation_id,
+          conversation_id: env.conversation_id,
+          kind: claimKind,
+          arg: claimArg,
+        },
+        cfg,
+        {
+          activityId: opened.activityId,
+          activityType,
+          startTime,
+        },
+      );
+    }
     if (claim?.won) {
       publishClaimDecision(claim, { arm: verdict.arm, reason: verdict.reason ?? '' });
     }

@@ -16,41 +16,62 @@ interface LLMTokenUsage {
   totalTokens?: number;
 }
 
-interface OpenBoxGovernanceSdk {
-  buildLLMCompletionSpan(input: {
-    content: string;
-    name?: string;
-    kind?: string;
-    system?: string;
-    model?: string;
-    usage?: LLMTokenUsage;
-    requestBody?: unknown;
-    responseBody?: unknown;
-    providerUrl?: string;
-    startTime?: number;
-    endTime?: number;
-    durationNs?: number;
-    attributes?: Record<string, unknown>;
-  }): Record<string, unknown>;
+interface OpenBoxN8nRuntimeSdk {
+  emitN8nNodePreExecute(
+    session: {
+      activity(
+        eventType: 'ActivityStarted' | 'ActivityCompleted' | 'SignalReceived',
+        activityType: string,
+        payload: unknown,
+      ): Promise<WorkflowVerdict>;
+      nodePreExecute(payload: unknown): Promise<WorkflowVerdict>;
+    },
+    input: {
+      input?: Record<string, unknown>;
+      nodeName?: string;
+      sessionId?: string;
+      prompt?: string;
+    },
+  ): Promise<WorkflowVerdict>;
+  emitN8nLlmCompletion(
+    session: {
+      nodePostExecute(payload: unknown): Promise<WorkflowVerdict>;
+    },
+    input: {
+      text: string;
+      input?: Record<string, unknown>;
+      prompt?: string;
+      model?: string;
+      usage?: LLMTokenUsage;
+      requestBody?: unknown;
+      responseBody?: unknown;
+      providerUrl?: string;
+      actualProviderUrl?: string;
+      provider?: string;
+      nodeName?: string;
+      sessionId?: string;
+      startTime?: number;
+      endTime?: number;
+      durationNs?: number;
+    },
+  ): Promise<WorkflowVerdict>;
 }
 
 const importModule = new Function('specifier', 'return import(specifier)') as (
   specifier: string,
-) => Promise<OpenBoxSdk | OpenBoxGovernanceSdk>;
+) => Promise<OpenBoxSdk | OpenBoxN8nRuntimeSdk>;
 
 let openboxSdkPromise: Promise<OpenBoxSdk> | undefined;
-let openboxGovernancePromise: Promise<OpenBoxGovernanceSdk> | undefined;
+let openboxN8nRuntimePromise: Promise<OpenBoxN8nRuntimeSdk> | undefined;
 
 function loadOpenBoxSdk(): Promise<OpenBoxSdk> {
   openboxSdkPromise ??= importModule('@openbox-ai/openbox-sdk') as Promise<OpenBoxSdk>;
   return openboxSdkPromise;
 }
 
-function loadOpenBoxGovernanceSdk(): Promise<OpenBoxGovernanceSdk> {
-  openboxGovernancePromise ??= importModule(
-    '@openbox-ai/openbox-sdk/governance',
-  ) as Promise<OpenBoxGovernanceSdk>;
-  return openboxGovernancePromise;
+function loadOpenBoxN8nRuntimeSdk(): Promise<OpenBoxN8nRuntimeSdk> {
+  openboxN8nRuntimePromise ??= importModule('@openbox-ai/openbox-sdk/runtime/n8n') as Promise<OpenBoxN8nRuntimeSdk>;
+  return openboxN8nRuntimePromise;
 }
 
 interface LlmCallResult {
@@ -311,8 +332,6 @@ export class OpenboxLlm implements INodeType {
     const systemPrompt = this.getNodeParameter('systemPrompt', 0) as string;
     const apiEndpoint = this.getNodeParameter('apiEndpoint', 0) as string;
     const apiKey = this.getNodeParameter('apiKey', 0) as string;
-    const fallbackEnabled = process.env.OPENBOX_LLM_FALLBACK !== 'disabled';
-
     const input = (items[0]?.json ?? {}) as Record<string, unknown>;
     const userMessage = (input.chatInput ?? '') as string;
 
@@ -348,7 +367,7 @@ export class OpenboxLlm implements INodeType {
           headers: {
             Authorization: `Bearer ${openRouterApiKey}`,
             'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.N8N_EDITOR_BASE_URL ?? 'https://n8n.example.test/ob/n8n/',
+            'HTTP-Referer': process.env.N8N_EDITOR_BASE_URL ?? 'http://localhost:5678/',
             'X-Title': 'OpenBox n8n demo',
           },
           body: requestBody,
@@ -428,7 +447,10 @@ export class OpenboxLlm implements INodeType {
     }
 
     const { OpenBoxCoreClient, govern, presets } = await loadOpenBoxSdk();
-    const { buildLLMCompletionSpan } = await loadOpenBoxGovernanceSdk();
+    const {
+      emitN8nLlmCompletion,
+      emitN8nNodePreExecute,
+    } = await loadOpenBoxN8nRuntimeSdk();
     const core = new OpenBoxCoreClient({ apiUrl: apiEndpoint, apiKey });
 
     const isAllowed = (verdict: WorkflowVerdict): boolean =>
@@ -492,7 +514,11 @@ export class OpenboxLlm implements INodeType {
     const result = await govern(
       { core, preset: presets.n8n, workflowType: 'N8nChatWorkflow', taskQueue: 'n8n' },
       async (session) => {
-        const pre = await session.nodePreExecute({ input: [{ chatInput: userMessage }] });
+        const pre = await emitN8nNodePreExecute(session, {
+          input: { chatInput: userMessage },
+          nodeName: node.name,
+          prompt: userMessage,
+        });
         if (!isAllowed(pre)) {
           return blockedResult(pre, 'input', session, pre);
         }
@@ -525,44 +551,28 @@ export class OpenboxLlm implements INodeType {
           llmCall = await callLlm(promptToUse);
           text = llmCall.text;
         } catch (error) {
-          if (fallbackEnabled) {
-            providerFallback = { enabled: true, reason: errorMessage(error) };
-            text = buildFallbackText(node.name, promptToUse);
-          } else {
-            return providerErrorResult(error, session, pre);
-          }
+          providerFallback = { enabled: true, reason: errorMessage(error) };
+          text = buildFallbackText(node.name, promptToUse);
         }
 
         let postSkipped: string | undefined;
         let post: WorkflowVerdict;
         try {
-          post = await session.nodePostExecute({
-            input: [{ chatInput: promptToUse }],
-            output: { text },
-            spans: llmCall
-              ? [
-                  buildLLMCompletionSpan({
-                    content: text,
-                    name: 'openbox.n8n.llm_completion',
-                    kind: 'llm',
-                    system: 'n8n',
-                    model: llmCall.model,
-                    usage: llmCall.usage,
-                    requestBody: llmCall.requestBody,
-                    responseBody: llmCall.responseBody,
-                    providerUrl: llmCall.providerUrl,
-                    startTime: llmCall.startTime,
-                    endTime: llmCall.endTime,
-                    durationNs: llmCall.durationNs,
-                    attributes: {
-                      'gen_ai.system': 'n8n',
-                      'openbox.n8n.node_name': node.name,
-                      'openbox.provider': llmProvider,
-                      'openbox.provider.url': llmCall.actualProviderUrl,
-                    },
-                  }),
-                ]
-              : [],
+          post = await emitN8nLlmCompletion(session, {
+            text,
+            input: { chatInput: promptToUse },
+            prompt: promptToUse,
+            model: llmCall?.model,
+            usage: llmCall?.usage,
+            requestBody: llmCall?.requestBody,
+            responseBody: llmCall?.responseBody,
+            providerUrl: llmCall?.providerUrl,
+            actualProviderUrl: llmCall?.actualProviderUrl,
+            provider: llmCall ? llmProvider : 'fallback',
+            nodeName: node.name,
+            startTime: llmCall?.startTime,
+            endTime: llmCall?.endTime,
+            durationNs: llmCall?.durationNs,
           });
         } catch (error) {
           postSkipped = errorMessage(error);

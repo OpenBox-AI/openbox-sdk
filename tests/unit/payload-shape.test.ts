@@ -149,6 +149,7 @@ describe('cursor payload builders', () => {
       conversation_id: 'c',
       tool_name: 't',
       result_json: '{"content":[{"type":"text","text":"hi"}]}',
+      duration: 123,
     } as cur.CursorEnvelope;
     const payload = cur.buildAfterMCPExecutionPayload(env, {
       extractMcpText: (raw) => {
@@ -157,6 +158,23 @@ describe('cursor payload builders', () => {
       },
     });
     expect(payload.tool_output).toBe('hi');
+    expect(payload.duration_ms).toBe(123);
+  });
+
+  test('afterFileEdit preserves Cursor edit list for file-write accounting', () => {
+    const env = {
+      hook_event_name: 'afterFileEdit',
+      conversation_id: 'c',
+      file_path: '/tmp/x.ts',
+      edits: [{ old_string: 'old', new_string: 'new' }],
+      generation_id: 'g',
+    } as cur.CursorEnvelope;
+    expect(cur.buildAfterFileEditPayload(env)).toEqual({
+      file_path: '/tmp/x.ts',
+      edits: [{ old_string: 'old', new_string: 'new' }],
+      generation_id: 'g',
+      event_category: 'file_write',
+    });
   });
 
   test('afterAgentResponse pulls response and sets llm_completion category', () => {

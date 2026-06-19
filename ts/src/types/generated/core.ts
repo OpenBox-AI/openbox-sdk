@@ -219,9 +219,9 @@ export interface components {
          * @description Discriminator for the unified `GovernanceEventPayload`.
          * @enum {string}
          */
-        EventType: "WorkflowStarted" | "WorkflowCompleted" | "WorkflowFailed" | "ActivityStarted" | "ActivityCompleted" | "SignalReceived";
+        EventType: "WorkflowStarted" | "WorkflowCompleted" | "WorkflowFailed" | "ActivityStarted" | "ActivityCompleted" | "SignalReceived" | "Handoff";
         /**
-         * @description Unified event payload; all six event types share this shape, and
+         * @description Unified event payload; all seven event types share this shape, and
          *     only the fields relevant to that type are populated. The SDK
          *     keeps `workflow_id` and `run_id` constant across one workflow
          *     run; `activity_id` is per-action and pairs ActivityStarted with
@@ -241,11 +241,8 @@ export interface components {
             run_id: string;
             /** @description Implementation-specific workflow class name. */
             workflow_type: string;
-            /**
-             * @description Originating SDK / runtime.
-             * @enum {string}
-             */
-            task_queue: "langgraph" | "temporal" | "mastra" | "claude-code" | "cursor" | "generic";
+            /** @description Originating SDK / runtime. */
+            task_queue: string;
             /** Format: date-time */
             timestamp: string;
             /**
@@ -283,6 +280,46 @@ export interface components {
             activity_input?: unknown[] | Record<string, never>;
             /** @description Activity output payload, set on `ActivityCompleted`. */
             activity_output?: unknown;
+            /** @description Caller/runtime session identifier, distinct from Core's internal session UUID. */
+            session_id?: string;
+            /** @description LLM model identifier for SDKs that observe usage outside provider HTTP spans. */
+            llm_model?: string;
+            /**
+             * Format: int64
+             * @description Prompt/input token count observed by the SDK.
+             */
+            input_tokens?: number;
+            /**
+             * Format: int64
+             * @description Completion/output token count observed by the SDK.
+             */
+            output_tokens?: number;
+            /**
+             * Format: int64
+             * @description Total token count observed by the SDK.
+             */
+            total_tokens?: number;
+            /** @description True when the LLM completion requested tool calls. */
+            has_tool_calls?: boolean;
+            /** @description Provider finish reason, when available. */
+            finish_reason?: string;
+            /** @description Prompt text for LLM start events, when available. */
+            prompt?: string;
+            /** @description Assistant completion text for LLM completion events, when available. */
+            completion?: string;
+            /** @description Tool/function name for tool-call activities. */
+            tool_name?: string;
+            /** @description Tool/function category such as http, database, builtin, a2a, or custom. */
+            tool_type?: string;
+            /** @description Parent runtime run id when emitted by frameworks that expose nested runs. */
+            parent_run_id?: string;
+            /** @description Cross-agent grouping id. Core stores this on the session and on handoff rows. */
+            multi_agent_session_id?: string;
+            /**
+             * @description Set on `Handoff` only. The receiving agent is the authenticated
+             *     emitter; this field identifies the source agent DID.
+             */
+            from_agent_did?: string;
             /** @description Set on `SignalReceived`. */
             signal_name?: string;
             /** @description Set on `SignalReceived`. */
@@ -331,9 +368,14 @@ export interface components {
             action: components["schemas"]["LegacyAction"];
             /**
              * Format: int32
-             * @description Agent trust tier at the moment of evaluation.
+             * @description Agent trust tier at the moment of evaluation. 0 means untrusted.
              */
             trust_tier?: number;
+            /**
+             * Format: double
+             * @description Top-level goal-alignment score returned by older Core/AGE response paths.
+             */
+            alignment_score?: number;
             /** @description Behavior-rule names that triggered. */
             behavioral_violations?: string[];
             /** @description Set on `require_approval`; opaque ID returned for approval clients. */
@@ -369,7 +411,7 @@ export interface components {
             /** Format: int32 */
             order: number;
             /** @enum {string} */
-            status: "allowed" | "blocked" | "redacted" | "skipped";
+            status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
             reason?: string;
         };
         GuardrailReason: {
@@ -380,7 +422,7 @@ export interface components {
         /** @description SDK-facing guardrail report; one entry per guardrail type that ran. */
         GuardrailsResult: {
             /** @enum {string} */
-            input_type: "activity_input" | "activity_output";
+            input_type: "activity_input" | "activity_output" | "signal_args";
             /**
              * @description Redacted or transformed payload as decided by the guardrail
              *     service. Free-form: string for text content, object for
@@ -388,7 +430,7 @@ export interface components {
              */
             redacted_input: unknown;
             /** @description Raw guardrail-service output, retained for debugging. */
-            raw_logs: {
+            raw_logs?: {
                 [key: string]: unknown;
             };
             /** @description False when any field result is `blocked`. */

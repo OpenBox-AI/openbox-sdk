@@ -91,15 +91,18 @@ describe('buildSpan content per SpanType', () => {
     expect(attrs['shell.cwd']).toBe('/tmp');
   });
 
-  it('mcp spans classify as llm_tool_call with gen_ai.system=mcp', () => {
+  it('mcp spans classify with Core MCP callTool fields', () => {
     const span = buildSpan('claude-code', 'mcp', {
       tool_name: 'check_governance',
       tool_input: { foo: 'bar' },
     });
-    expect(span.semantic_type).toBe('llm_tool_call');
+    expect(span.semantic_type).toBe('mcp_tool_call');
     expect(span.module).toBe('claude-code');
     const attrs = span.attributes as Record<string, unknown>;
-    expect(attrs['gen_ai.system']).toBe('mcp');
+    expect(attrs['mcp.method']).toBe('callTool');
+    expect(attrs['mcp.operation']).toBe('check_governance');
+    expect(attrs['mcp.server_id']).toBe('unknown');
+    expect(attrs['mcp.input']).toEqual({ foo: 'bar' });
   });
 
   it('http spans set semantic_type per method and stamp the URL', () => {
@@ -113,13 +116,13 @@ describe('buildSpan content per SpanType', () => {
     expect(post.module).toBe('claude-code');
   });
 
-  it('common span shape: span_id + trace_id are 16/32 hex chars, status OK', () => {
+  it('common span shape: span_id + trace_id are 16/32 hex chars, status UNSET', () => {
     const span = buildSpan('claude-code', 'llm', { prompt: 'x' });
     expect(typeof span.span_id).toBe('string');
     expect((span.span_id as string).length).toBe(16);
     expect((span.trace_id as string).length).toBe(32);
     const status = span.status as { code: string };
-    expect(status.code).toBe('OK');
+    expect(status.code).toBe('UNSET');
   });
 });
 

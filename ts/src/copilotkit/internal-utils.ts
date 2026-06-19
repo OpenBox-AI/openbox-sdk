@@ -13,11 +13,8 @@ export function nowUnixNano(): number {
   return Date.now() * 1_000_000;
 }
 
-export function shouldStopForGate(
-  gate: OpenBoxSafePayload,
-  governanceMode: 'observe' | 'enforce',
-): boolean {
-  return governanceMode === 'enforce' && gate.rawBlocked;
+export function shouldStopForGate(gate: OpenBoxSafePayload): boolean {
+  return gate.rawBlocked;
 }
 
 export function modelInput(request: {

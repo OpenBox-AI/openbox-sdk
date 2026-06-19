@@ -2,7 +2,7 @@
 // Regenerate with: npm run specs:compile
 export type Verdict = "allow" | "constrain" | "require_approval" | "block" | "halt";
 export type LegacyAction = "allow" | "constrain" | "require_approval" | "block" | "halt" | "continue" | "stop";
-export type EventType = "WorkflowStarted" | "WorkflowCompleted" | "WorkflowFailed" | "ActivityStarted" | "ActivityCompleted" | "SignalReceived";
+export type EventType = "WorkflowStarted" | "WorkflowCompleted" | "WorkflowFailed" | "ActivityStarted" | "ActivityCompleted" | "SignalReceived" | "Handoff";
 export interface CoreError {
   code: string;
   message: string;
@@ -21,7 +21,7 @@ export interface GovernanceEventPayload {
   workflow_id: string;
   run_id: string;
   workflow_type: string;
-  task_queue: "langgraph" | "temporal" | "mastra" | "claude-code" | "cursor" | "generic";
+  task_queue: string;
   timestamp: string;
   sdk_version?: string;
   parent_workflow_id?: string;
@@ -31,6 +31,20 @@ export interface GovernanceEventPayload {
   attempt?: number;
   activity_input?: unknown[] | {  };
   activity_output?: unknown;
+  session_id?: string;
+  llm_model?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  has_tool_calls?: boolean;
+  finish_reason?: string;
+  prompt?: string;
+  completion?: string;
+  tool_name?: string;
+  tool_type?: string;
+  parent_run_id?: string;
+  multi_agent_session_id?: string;
+  from_agent_did?: string;
   signal_name?: string;
   signal_args?: unknown;
   start_time?: number;
@@ -107,6 +121,7 @@ export interface GovernanceVerdictResponse {
   risk_score: number;
   action: LegacyAction;
   trust_tier?: number;
+  alignment_score?: number;
   behavioral_violations?: string[];
   approval_id?: string;
   constraints?: string[];
@@ -119,9 +134,9 @@ export interface GovernanceVerdictResponse {
   age_result?: AGEResult;
 }
 export interface GuardrailsResult {
-  input_type: "activity_input" | "activity_output";
+  input_type: "activity_input" | "activity_output" | "signal_args";
   redacted_input: unknown;
-  raw_logs: Record<string, unknown>;
+  raw_logs?: Record<string, unknown>;
   validation_passed: boolean;
   reasons: GuardrailReason[];
   results: GuardrailsVerdictResult[];
@@ -138,7 +153,7 @@ export interface GuardrailsVerdictResult {
 export interface GuardrailFieldResult {
   field: string;
   order: number;
-  status: "allowed" | "blocked" | "redacted" | "skipped";
+  status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
   reason?: string;
 }
 export interface AGEResult {

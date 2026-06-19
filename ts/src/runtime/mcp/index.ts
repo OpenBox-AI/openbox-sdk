@@ -15,7 +15,11 @@ import { z } from "zod";
 import * as fs from "fs";
 import * as path from "path";
 import { OpenBoxClient } from "../../client/index.js";
-import { OpenBoxCoreClient, type AgentIdentityConfig } from "../../core-client/index.js";
+import {
+  OpenBoxCoreClient,
+  type AgentIdentityConfig,
+  type GovernanceVerdictResponse,
+} from "../../core-client/index.js";
 import { loadApiKey } from "../../file-tokens/index.js";
 import { listConfig } from "../../config/index.js";
 import { setMcpClientName } from "./config.js";
@@ -30,6 +34,7 @@ import {
 } from "../claude-code/doctor.js";
 import { buildMcpGovernanceSpan, MCP_ACTIVITY_TYPE_MAP } from "./governance-span.js";
 import { claudeCodeGovernanceSummary } from "../claude-code/governance-matrix.js";
+import { withSpanActivityId, type SpanType } from "../../governance/spans.js";
 
 export async function runMcpServer(): Promise<void> {
   const server = new McpServer({ name: "openbox", version: "0.1.0" });
@@ -58,7 +63,7 @@ export async function runMcpServer(): Promise<void> {
       runtimeApiKey,
       agentIdentity,
       governancePolicy: "fail_closed",
-      approvalMode: process.env.APPROVAL_MODE ?? config.APPROVAL_MODE ?? "remote",
+      approvalMode: "remote",
     };
   }
 
@@ -321,6 +326,19 @@ server.tool("get_trust_score", "Get an agent's current trust score and tier", {
   return { content: [{ type: "text", text: JSON.stringify(ts, null, 2) }] };
 });
 
+function isAllowishVerdict(response: GovernanceVerdictResponse): boolean {
+  const arm: unknown = response.verdict ?? response.action;
+  const normalized =
+    typeof arm === "string" ? arm.trim().toLowerCase().replace(/-/g, "_") : arm;
+  return (
+    normalized === "allow" ||
+    normalized === "continue" ||
+    normalized === "constrain" ||
+    normalized === 0 ||
+    normalized === 1
+  );
+}
+
 async function coreEvaluate(
   apiKey: string,
   spanType: string,
@@ -329,7 +347,11 @@ async function coreEvaluate(
   source: string,
   agentIdentity?: AgentIdentityConfig,
 ) {
-  const span = buildMcpGovernanceSpan(spanType, activityInput);
+  const activityId = crypto.randomUUID();
+  const span = withSpanActivityId(
+    buildMcpGovernanceSpan(spanType as SpanType, activityInput),
+    activityId,
+  );
   const payload = {
     source,
     event_type: "ActivityStarted",
@@ -337,7 +359,7 @@ async function coreEvaluate(
     run_id: crypto.randomUUID(),
     workflow_type: "MCPCheck",
     task_queue: "mcp",
-    activity_id: crypto.randomUUID(),
+    activity_id: activityId,
     activity_type: MCP_ACTIVITY_TYPE_MAP[spanType] || spanType,
     activity_input: [stampSource(activityInput, source)],
     timestamp: new Date().toISOString(),
@@ -358,7 +380,23 @@ async function coreEvaluate(
     apiKey,
     agentIdentity,
   });
-  return await client.evaluate(payload as unknown as Parameters<typeof client.evaluate>[0]);
+  const {
+    spans: _parentSpans,
+    span_count: _parentSpanCount,
+    hook_trigger: _parentHookTrigger,
+    ...parentFields
+  } = payload;
+  const parentPayload = {
+    ...parentFields,
+    hook_trigger: false,
+  };
+  const parentVerdict = await client.evaluate(
+    parentPayload as unknown as Parameters<typeof client.evaluate>[0],
+  );
+  const hookVerdict = await client.evaluate(
+    payload as unknown as Parameters<typeof client.evaluate>[0],
+  );
+  return isAllowishVerdict(parentVerdict) ? hookVerdict : parentVerdict;
 }
 
 async function resolveApiKey(agentId: string | undefined): Promise<string> {
@@ -394,7 +432,7 @@ async function resolveApiKey(agentId: string | undefined): Promise<string> {
 
 server.tool("check_governance", "Evaluate an action against governance rules. The tool builds the span shape required for behavioral rule matching. When the response carries verdict=require_approval, an approval row is materialized server-side. The expiration window comes from whichever surface produced the verdict. For behavior_rule-driven verdicts, the value is `behavior_rule.approval_timeout`, which is user-settable. For OPA-policy-driven verdicts, the value is the core server default of around 30 minutes; OPA policies have no `approval_timeout` field, so use a behavior_rule when the window matters.", {
   agent_id: z.string().optional().describe("Agent ID. Used to resolve the API key when OPENBOX_API_KEY is unset."),
-  span_type: z.enum(["llm", "file_read", "file_write", "shell", "http", "db", "mcp"]).describe("Type of action to evaluate."),
+  span_type: z.enum(["llm", "file_read", "file_write", "file_delete", "shell", "http", "db", "mcp"]).describe("Type of action to evaluate."),
   activity_input: z.any().describe("Action input payload. Examples: { prompt: '...' }, { file_path: '...' }, { command: '...' }."),
 }, async ({ agent_id, span_type, activity_input }) => {
   try {
@@ -418,7 +456,7 @@ server.tool("check_governance", "Evaluate an action against governance rules. Th
 // Skill references; one per topical domain.
 const SKILL_PATHS = [
   { name: "governance-flow", path: "references/governance-flow.md", desc: "Event protocol, wire format, verdicts, approval polling, spec-vs-implementation mismatches" },
-  { name: "guardrails", path: "references/guardrails.md", desc: "Guardrail configuration: numeric IDs, stage gating, settings.activities[] shape, per-field status, backend validation gaps" },
+  { name: "guardrails", path: "references/guardrails.md", desc: "Guardrail configuration: numeric IDs, stage gating, legacy binding no-ops, per-field status, backend validation gaps" },
   { name: "behaviors", path: "references/behaviors.md", desc: "Behavior rules: trigger/states enum, time_window, priority, active toggle, shell-as-internal" },
   { name: "backend-api", path: "references/backend-api.md", desc: "Backend conventions: {status,data} envelope, X-Openbox-Client header, /auth/refresh caveats, OpenAPI availability" },
   { name: "rego-reference", path: "references/rego-reference.md", desc: "Rego policy syntax, input fields, example policies, policy lifecycle gotchas" },

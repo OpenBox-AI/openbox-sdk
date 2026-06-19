@@ -39,10 +39,10 @@ export function createOpenBoxReadinessCheck(
       const errors: string[] = [];
       const warnings: string[] = [];
       const mode = {
-        enabled: config.enabled ?? process.env.OPENBOX_ENABLED !== 'false',
+        enabled: config.enabled ?? true,
         strict: config.strict ?? true,
-        governanceMode: config.governanceMode ?? ('enforce' as const),
-        failClosed: config.failClosed ?? true,
+        governanceMode: 'enforce' as const,
+        failClosed: true,
       };
       const apiUrl = config.apiUrl ?? process.env.OPENBOX_API_URL;
       const apiKey = getApprovalBackendApiKey(config);

@@ -12,8 +12,10 @@ import type { OpenBoxAnthropicRuntimeContext } from './config.js';
 import {
   ANTHROPIC_AGENT_ACTIVITY_TYPES,
   assistantContentAndUsage,
+  assistantOutputTelemetry,
   assistantOutputSpan,
   compactPayload,
+  modelUsageSpansFromResult,
   resultAssistantOutput,
   usagePayloadFromResult,
 } from './payloads.js';
@@ -22,11 +24,7 @@ interface ManagedSession {
   session: AnthropicAgentSdkSession;
   started: boolean;
   terminal: boolean;
-  latestAssistant?: {
-    content?: string;
-    model?: string;
-    usage?: ReturnType<typeof assistantContentAndUsage>['usage'];
-  };
+  latestAssistant?: ReturnType<typeof assistantContentAndUsage>;
 }
 
 type OpenedActivity = Awaited<
@@ -84,6 +82,10 @@ export class AnthropicAgentSessionManager {
     return this.sessions.get(sessionId)?.latestAssistant;
   }
 
+  has(sessionId: string): boolean {
+    return this.sessions.has(sessionId);
+  }
+
   async complete(sessionId: string): Promise<void> {
     const managed = await this.ensureStarted(sessionId);
     if (managed.terminal) return;
@@ -128,14 +130,29 @@ export class AnthropicAgentSessionManager {
     });
 
     const assistant = resultAssistantOutput(message);
-    const spans = assistantOutputSpan({
+    const assistantEvent = {
       content: assistant.content,
+      model: assistant.model,
       usage: assistant.usage,
+      hasToolCalls: assistant.hasToolCalls,
       sessionId: message.session_id,
       event: 'result',
-    });
-    if (spans) {
-      await managed.session.activity(EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.ASSISTANT_OUTPUT, {
+    };
+    const modelUsageSpans = modelUsageSpansFromResult(message);
+    const contentSpans = assistantOutputSpan({
+      content: assistantEvent.content,
+      model: assistantEvent.model,
+      usage:
+        modelUsageSpans.length > 0 && !assistantEvent.model
+          ? undefined
+          : assistantEvent.usage,
+      hasToolCalls: assistantEvent.hasToolCalls,
+      sessionId: assistantEvent.sessionId,
+      event: assistantEvent.event,
+    }) ?? [];
+    const spans = [...contentSpans, ...modelUsageSpans];
+    if (spans.length > 0) {
+      await managed.session.observeActivity(EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.ASSISTANT_OUTPUT, {
         input: [
           compactPayload(
             {
@@ -147,7 +164,10 @@ export class AnthropicAgentSessionManager {
           ),
         ],
         output: message.subtype === 'success' ? message.result : undefined,
+        ...assistantOutputTelemetry(assistantEvent),
         spans,
+        hookSpanParentEventType: 'ActivityStarted',
+        ensureHookSpanParent: true,
       });
     }
 
@@ -172,6 +192,16 @@ export class AnthropicAgentSessionManager {
     return managed.session.activity(eventType, activityType, payload);
   }
 
+  async observeActivity(
+    sessionId: string,
+    eventType: typeof EVENT.START | typeof EVENT.COMPLETE | typeof EVENT.SIGNAL,
+    activityType: string,
+    payload: Parameters<AnthropicAgentSdkSession['activity']>[2],
+  ): Promise<WorkflowVerdict> {
+    const managed = await this.ensureStarted(sessionId);
+    return managed.session.observeActivity(eventType, activityType, payload);
+  }
+
   async openActivity(
     sessionId: string,
     activityType: string,
@@ -190,7 +220,8 @@ export class AnthropicAgentSessionManager {
     if (!toolUseId) return;
     if (
       opened.verdict.arm !== 'allow' &&
-      opened.verdict.arm !== 'constrain'
+      opened.verdict.arm !== 'constrain' &&
+      opened.verdict.arm !== 'require_approval'
     ) {
       return;
     }

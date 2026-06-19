@@ -16,8 +16,14 @@
 import { OpenBoxCoreClient, type GovernanceVerdictResponse } from '../core-client/index.js';
 import { recallAgentKey } from '../file-tokens/agent-keys.js';
 import { resolveAgentIdentity, resolveConnection } from '../env/index.js';
+import {
+  buildSpan,
+  withSpanActivityId,
+  type SpanInput,
+  type SpanType,
+} from './spans.js';
 
-export type SpanType = 'llm' | 'file_read' | 'file_write' | 'shell' | 'http' | 'db' | 'mcp';
+export type { SpanType } from './spans.js';
 
 export interface CheckGovernanceOptions {
   /** Agent ID for resolving a cached runtime key. */
@@ -36,6 +42,7 @@ const ACTIVITY_TYPE_MAP: Record<SpanType, string> = {
   llm: 'PromptSubmission',
   file_read: 'FileRead',
   file_write: 'FileEdit',
+  file_delete: 'FileDelete',
   shell: 'ShellExecution',
   http: 'HTTPRequest',
   db: 'DatabaseQuery',
@@ -44,164 +51,6 @@ const ACTIVITY_TYPE_MAP: Record<SpanType, string> = {
 
 function hex(len: number): string {
   return Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-}
-
-function buildSpan(spanType: SpanType, input: Record<string, unknown>): Record<string, unknown> {
-  const base = {
-    span_id: hex(16),
-    trace_id: hex(32),
-    parent_span_id: null,
-    kind: 'CLIENT',
-    span_type: 'function',
-    stage: 'started',
-    start_time: Date.now() * 1_000_000,
-    end_time: null,
-    duration_ns: null,
-    status: { code: 'OK', description: null },
-    events: [],
-    error: null,
-  };
-  switch (spanType) {
-    case 'llm':
-      return {
-        ...base,
-        name: 'llm.chat.completion',
-        hook_type: 'function_call',
-        span_type: 'function',
-        semantic_type: 'llm_completion',
-        attributes: {
-          'gen_ai.system': 'openai',
-          'http.method': 'POST',
-          'http.url': 'https://api.openai.com/v1/chat/completions',
-          'openbox.semantic_type': 'llm_completion',
-          'openbox.span_type': 'function',
-        },
-        function: 'LLMCall',
-        module: 'activity',
-        args: input,
-        result: null,
-      };
-    case 'file_read':
-      return {
-        ...base,
-        name: 'file.read',
-        kind: 'INTERNAL',
-        hook_type: 'file_operation',
-        span_type: 'file_io',
-        semantic_type: 'file_read',
-        attributes: {
-          'file.path': input.file_path || '',
-          'file.operation': 'read',
-          'openbox.semantic_type': 'file_read',
-          'openbox.span_type': 'file_io',
-        },
-        file_path: input.file_path || '',
-        file_mode: 'r',
-        file_operation: 'read',
-      };
-    case 'file_write':
-      return {
-        ...base,
-        name: 'file.write',
-        kind: 'INTERNAL',
-        hook_type: 'file_operation',
-        span_type: 'file_io',
-        semantic_type: 'file_write',
-        attributes: {
-          'file.path': input.file_path || '',
-          'file.operation': 'write',
-          'openbox.semantic_type': 'file_write',
-          'openbox.span_type': 'file_io',
-        },
-        file_path: input.file_path || '',
-        file_mode: 'w',
-        file_operation: 'write',
-      };
-    case 'shell':
-      return {
-        ...base,
-        name: 'ShellExecution',
-        kind: 'INTERNAL',
-        hook_type: 'function_call',
-        span_type: 'function',
-        semantic_type: 'internal',
-        attributes: {
-          'shell.command': input.command || '',
-          'shell.cwd': input.cwd || '',
-          'openbox.semantic_type': 'internal',
-          'openbox.span_type': 'function',
-        },
-        function: 'ShellExecution',
-        module: 'activity',
-        args: input,
-        result: null,
-      };
-    case 'http': {
-      const method = ((input.method as string) || 'POST').toUpperCase();
-      const url = (input.url as string) || 'https://api.example.com';
-      return {
-        ...base,
-        name: `${method} ${url}`,
-        hook_type: 'http_request',
-        span_type: 'http',
-        semantic_type: `http_${method.toLowerCase()}`,
-        attributes: {
-          'http.method': method,
-          'http.url': url,
-          'openbox.semantic_type': `http_${method.toLowerCase()}`,
-          'openbox.span_type': 'http',
-        },
-        http_method: method,
-        http_url: url,
-        request_body: null,
-        response_body: null,
-      };
-    }
-    case 'db': {
-      const statement = (input.statement as string) || (input.query as string) || '';
-      const dbOp = ((input.operation as string) || 'QUERY').toUpperCase();
-      return {
-        ...base,
-        name: dbOp,
-        hook_type: 'db_query',
-        span_type: 'database',
-        semantic_type: `database_${dbOp.toLowerCase()}`,
-        attributes: {
-          'db.system': input.system || 'postgresql',
-          'db.operation': dbOp,
-          'openbox.semantic_type': `database_${dbOp.toLowerCase()}`,
-          'openbox.span_type': 'database',
-        },
-        db_system: input.system || 'postgresql',
-        db_operation: dbOp,
-        db_statement: statement,
-      };
-    }
-    case 'mcp':
-      return {
-        ...base,
-        name: `tool.${input.tool_name || input.tool || 'call'}`,
-        kind: 'INTERNAL',
-        span_type: 'mcp_tool_call',
-        hook_type: 'function_call',
-        semantic_type: 'llm_tool_call',
-        attributes: {
-          'gen_ai.system': 'mcp',
-          'http.method': 'POST',
-          'http.url': 'https://api.openai.com/v1/chat/completions',
-          'mcp.tool': input.tool_name || input.tool || '',
-          'openbox.semantic_type': 'llm_tool_call',
-          'openbox.span_type': 'mcp_tool_call',
-          'openbox.tool.name': input.tool_name || input.tool || 'call',
-          'tool.name': input.tool_name || input.tool || 'call',
-          tool_name: input.tool_name || input.tool || 'call',
-        },
-        function: `mcp.${input.tool_name || input.tool || 'call'}`,
-        module: 'activity',
-        args: input,
-        result: null,
-      };
-  }
 }
 
 function isRuntimeKey(k: string | undefined): k is string {
@@ -236,6 +85,19 @@ function resolveCoreUrl(coreUrlOverride?: string): string {
   return resolveConnection().coreUrl;
 }
 
+function isAllowishVerdict(response: GovernanceVerdictResponse): boolean {
+  const arm: unknown = response.verdict ?? response.action;
+  const normalized =
+    typeof arm === 'string' ? arm.trim().toLowerCase().replace(/-/g, '_') : arm;
+  return (
+    normalized === 'allow' ||
+    normalized === 'continue' ||
+    normalized === 'constrain' ||
+    normalized === 0 ||
+    normalized === 1
+  );
+}
+
 /**
  * Evaluate an action against an agent's governance rules.
  *
@@ -254,15 +116,19 @@ export async function checkGovernance(
 ): Promise<GovernanceVerdictResponse> {
   const apiKey = resolveApiKey(opts);
   const coreUrl = resolveCoreUrl(opts.coreUrl);
-  const span = buildSpan(opts.spanType, opts.activityInput);
+  const activityId = hex(32);
+  const span = withSpanActivityId(
+    buildSpan('sdk', opts.spanType, opts.activityInput as SpanInput),
+    activityId,
+  );
   const payload = {
-    source: 'sdk',
+    source: 'workflow-telemetry',
     event_type: 'ActivityStarted',
     workflow_id: hex(32),
     run_id: hex(32),
     workflow_type: 'SdkCheck',
     task_queue: 'sdk',
-    activity_id: hex(32),
+    activity_id: activityId,
     activity_type: ACTIVITY_TYPE_MAP[opts.spanType] || opts.spanType,
     activity_input: [opts.activityInput],
     timestamp: new Date().toISOString(),
@@ -276,5 +142,21 @@ export async function checkGovernance(
     apiKey,
     agentIdentity: resolveAgentIdentity(),
   });
-  return client.evaluate(payload as unknown as Parameters<typeof client.evaluate>[0]);
+  const {
+    spans: _parentSpans,
+    span_count: _parentSpanCount,
+    hook_trigger: _parentHookTrigger,
+    ...parentFields
+  } = payload;
+  const parentPayload = {
+    ...parentFields,
+    hook_trigger: false,
+  };
+  const parentVerdict = await client.evaluate(
+    parentPayload as unknown as Parameters<typeof client.evaluate>[0],
+  );
+  const hookVerdict = await client.evaluate(
+    payload as unknown as Parameters<typeof client.evaluate>[0],
+  );
+  return isAllowishVerdict(parentVerdict) ? hookVerdict : parentVerdict;
 }

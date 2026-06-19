@@ -55,8 +55,8 @@ export interface ClaudeCodeConfig {
    *  in the TUI; the local user is the approver. When 'defer', supported
    *  Claude Code permission decisions are deferred in non-interactive
    *  sessions. When 'remote' (or
-   *  unset, the default), the hook polls the backend up to
-   *  `hitlMaxWait` for an external approver's decision. */
+   *  unset, the default), the hook polls until Core returns a terminal
+   *  decision or the server-owned approval expiration is reached. */
   approvalMode: 'inline' | 'remote' | 'defer';
   taskQueue: string;
   sendStartEvent: boolean;
@@ -68,8 +68,13 @@ export interface ClaudeCodeConfig {
 export function loadConfig(): ClaudeCodeConfig {
   const fileConfig = loadConfigFile();
   const envConfig = loadEnvFile();
-  const get = (key: string, fileFallback?: string) => {
+  const getRuntime = (key: string, fileFallback?: string) => {
     if (process.env[key] !== undefined) return process.env[key]!;
+    if (fileConfig[key] !== undefined) return fileConfig[key];
+    if (envConfig[key] !== undefined) return envConfig[key];
+    return fileFallback ?? '';
+  };
+  const getSetting = (key: string, fileFallback?: string) => {
     if (fileConfig[key] !== undefined) return fileConfig[key];
     if (envConfig[key] !== undefined) return envConfig[key];
     return fileFallback ?? '';
@@ -83,25 +88,27 @@ export function loadConfig(): ClaudeCodeConfig {
     envConfig.OPENBOX_CORE_URL ??
     '';
   return {
-    openboxApiKey: get('OPENBOX_API_KEY'),
+    openboxApiKey: getRuntime('OPENBOX_API_KEY'),
     openboxEndpoint: coreUrl,
     agentIdentity: resolveAgentIdentity({
-      OPENBOX_AGENT_DID: get('OPENBOX_AGENT_DID') || undefined,
-      OPENBOX_AGENT_PRIVATE_KEY: get('OPENBOX_AGENT_PRIVATE_KEY') || undefined,
+      OPENBOX_AGENT_DID: getRuntime('OPENBOX_AGENT_DID') || undefined,
+      OPENBOX_AGENT_PRIVATE_KEY: getRuntime('OPENBOX_AGENT_PRIVATE_KEY') || undefined,
     }),
     governancePolicy: 'fail_closed',
-    governanceTimeout: parseInt(get('GOVERNANCE_TIMEOUT', '15'), 10) || 15,
-    sessionDir: get('SESSION_DIR', path.join(CONFIG_DIR, 'sessions')),
-    logFile: get('LOG_FILE', path.join(CONFIG_DIR, 'hook.log')) || null,
-    verbose: get('VERBOSE') === 'true' || get('VERBOSE') === '1',
-    hitlEnabled: get('HITL_ENABLED', 'true') !== 'false',
-    hitlPollInterval: parseInt(get('HITL_POLL_INTERVAL', '5'), 10) || 5,
-    hitlMaxWait: parseInt(get('HITL_MAX_WAIT', '300'), 10) || 300,
-    approvalMode: parseApprovalMode(get('APPROVAL_MODE', 'remote')),
-    taskQueue: get('TASK_QUEUE', 'claude-code'),
-    sendStartEvent: get('SEND_START_EVENT', 'true') !== 'false',
-    sendActivityStartEvent: get('SEND_ACTIVITY_START_EVENT', 'true') !== 'false',
-    maxBodySize: get('MAX_BODY_SIZE') ? (parseInt(get('MAX_BODY_SIZE'), 10) || null) : null,
+    governanceTimeout: parseInt(getSetting('governanceTimeout', '15'), 10) || 15,
+    sessionDir: getSetting('sessionDir', path.join(CONFIG_DIR, 'sessions')),
+    logFile: getSetting('logFile', path.join(CONFIG_DIR, 'hook.log')) || null,
+    verbose: asBoolean(getSetting('verbose', 'false')),
+    hitlEnabled: getSetting('hitlEnabled', 'true') !== 'false',
+    hitlPollInterval: parseInt(getSetting('hitlPollInterval', '5'), 10) || 5,
+    hitlMaxWait: parseInt(getSetting('hitlMaxWait', '300'), 10) || 300,
+    approvalMode: parseApprovalMode(getSetting('approvalMode', 'remote')),
+    taskQueue: getSetting('taskQueue', 'claude-code'),
+    sendStartEvent: getSetting('sendStartEvent', 'true') !== 'false',
+    sendActivityStartEvent: getSetting('sendActivityStartEvent', 'true') !== 'false',
+    maxBodySize: getSetting('maxBodySize')
+      ? (parseInt(getSetting('maxBodySize'), 10) || null)
+      : null,
   };
 }
 
@@ -120,4 +127,8 @@ function parseApprovalMode(value: string): ClaudeCodeConfig['approvalMode'] {
   const mode = value.toLowerCase();
   if (mode === 'inline' || mode === 'defer') return mode;
   return 'remote';
+}
+
+function asBoolean(value: string): boolean {
+  return value === 'true' || value === '1';
 }

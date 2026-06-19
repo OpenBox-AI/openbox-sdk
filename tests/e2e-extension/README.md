@@ -15,7 +15,7 @@ e2e-extension     ← this dir                     (wdio-vscode-service)
 cd apps/extension && npm run package
 cd -
 
-npm run test:e2e-extension
+npm --prefix tests/e2e-extension test
 ```
 
 ## Running against a non-local dev stack
@@ -28,11 +28,11 @@ endpoint profile:
 OPENBOX_API_URL="https://api.example.test" \
 OPENBOX_CORE_URL="https://core.example.test" \
 OPENBOX_BACKEND_API_KEY="obx_key_..." \
-  npm run test:e2e-extension
+  npm --prefix tests/e2e-extension test
 ```
 
-If `OPENBOX_E2E_AGENT_ID` and `OPENBOX_E2E_RUNTIME_KEY` are not
-present, the harness uses `OPENBOX_BACKEND_API_KEY` to create a
+If `OPENBOX_AGENT_ID` and `OPENBOX_API_KEY` are not present, the
+harness uses `OPENBOX_BACKEND_API_KEY` to create a
 disposable test agent and deletes it at the end of the run.
 
 The SDK target is URL-first: inject `OPENBOX_API_URL` and
@@ -44,8 +44,8 @@ By default the harness downloads stable VS Code. To exercise Cursor's
 fork:
 
 ```bash
-OPENBOX_E2E_VSCODE_BINARY="/Applications/Cursor.app/Contents/MacOS/Cursor" \
-  npm run test:e2e-extension
+VSCODE_TEST_BINARY="/Applications/Cursor.app/Contents/MacOS/Cursor" \
+  npm --prefix tests/e2e-extension test
 ```
 
 Cursor is a VS Code fork so the workbench page objects work; the
@@ -56,7 +56,7 @@ that layer.
 ## Headless / CI
 
 ```bash
-OPENBOX_E2E_HEADLESS=1 xvfb-run -a npm run test:e2e-extension
+VSCODE_TEST_HEADLESS=1 xvfb-run -a npm --prefix tests/e2e-extension test
 ```
 
 The flag passes `--no-sandbox` to the launched VS Code; `xvfb-run`

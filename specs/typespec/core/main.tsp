@@ -20,7 +20,6 @@ using OpenAPI;
 @service(#{ title: "OpenBox Core Governance API" })
 @info(#{ version: "1.1.0", license: #{ name: "BUSL-1.1" } })
 @server("https://core.openbox.ai", "Production")
-@server("https://core.staging.openbox.ai", "Staging")
 @server("http://localhost:8080", "Local")
 @tagMetadata("Health", #{ description: "Liveness checks." })
 @tagMetadata("Auth", #{ description: "SDK API-key validation." })
@@ -102,10 +101,11 @@ enum EventType {
   ActivityStarted,
   ActivityCompleted,
   SignalReceived,
+  Handoff,
 }
 
 /**
- * Unified event payload; all six event types share this shape, and
+ * Unified event payload; all seven event types share this shape, and
  * only the fields relevant to that type are populated. The SDK
  * keeps `workflow_id` and `run_id` constant across one workflow
  * run; `activity_id` is per-action and pairs ActivityStarted with
@@ -130,7 +130,7 @@ model GovernanceEventPayload {
   workflow_type: string;
 
   /** Originating SDK / runtime. */
-  task_queue: "langgraph" | "temporal" | "mastra" | "claude-code" | "cursor" | "generic";
+  task_queue: string;
 
   timestamp: utcDateTime;
 
@@ -173,6 +173,51 @@ model GovernanceEventPayload {
 
   /** Activity output payload, set on `ActivityCompleted`. */
   activity_output?: unknown;
+
+  /** Caller/runtime session identifier, distinct from Core's internal session UUID. */
+  session_id?: string;
+
+  /** LLM model identifier for SDKs that observe usage outside provider HTTP spans. */
+  llm_model?: string;
+
+  /** Prompt/input token count observed by the SDK. */
+  input_tokens?: int64;
+
+  /** Completion/output token count observed by the SDK. */
+  output_tokens?: int64;
+
+  /** Total token count observed by the SDK. */
+  total_tokens?: int64;
+
+  /** True when the LLM completion requested tool calls. */
+  has_tool_calls?: boolean;
+
+  /** Provider finish reason, when available. */
+  finish_reason?: string;
+
+  /** Prompt text for LLM start events, when available. */
+  prompt?: string;
+
+  /** Assistant completion text for LLM completion events, when available. */
+  completion?: string;
+
+  /** Tool/function name for tool-call activities. */
+  tool_name?: string;
+
+  /** Tool/function category such as http, database, builtin, a2a, or custom. */
+  tool_type?: string;
+
+  /** Parent runtime run id when emitted by frameworks that expose nested runs. */
+  parent_run_id?: string;
+
+  /** Cross-agent grouping id. Core stores this on the session and on handoff rows. */
+  multi_agent_session_id?: string;
+
+  /**
+   * Set on `Handoff` only. The receiving agent is the authenticated
+   * emitter; this field identifies the source agent DID.
+   */
+  from_agent_did?: string;
 
   /** Set on `SignalReceived`. */
   signal_name?: string;
@@ -336,8 +381,11 @@ model GovernanceVerdictResponse {
 
   action: LegacyAction;
 
-  /** Agent trust tier at the moment of evaluation. */
-  @minValue(1) @maxValue(4) trust_tier?: int32;
+  /** Agent trust tier at the moment of evaluation. 0 means untrusted. */
+  @minValue(0) @maxValue(4) trust_tier?: int32;
+
+  /** Top-level goal-alignment score returned by older Core/AGE response paths. */
+  @minValue(0) @maxValue(1) alignment_score?: float64;
 
   /** Behavior-rule names that triggered. */
   behavioral_violations?: string[];
@@ -374,7 +422,7 @@ model GovernanceVerdictResponse {
 
 /** SDK-facing guardrail report; one entry per guardrail type that ran. */
 model GuardrailsResult {
-  input_type: "activity_input" | "activity_output";
+  input_type: "activity_input" | "activity_output" | "signal_args";
 
   /**
    * Redacted or transformed payload as decided by the guardrail
@@ -385,7 +433,7 @@ model GuardrailsResult {
   redacted_input: unknown;
 
   /** Raw guardrail-service output, retained for debugging. */
-  raw_logs: Record<unknown>;
+  raw_logs?: Record<unknown>;
 
   /** False when any field result is `blocked`. */
   validation_passed: boolean;
@@ -408,7 +456,7 @@ model GuardrailsVerdictResult {
 model GuardrailFieldResult {
   field: string;
   order: int32;
-  status: "allowed" | "blocked" | "redacted" | "skipped";
+  status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
   reason?: string;
 }
 
@@ -438,7 +486,7 @@ model AGEResult {
 
 model AGETrustScore {
   trust_score: float64;
-  @minValue(1) @maxValue(4) trust_tier: int32;
+  @minValue(0) @maxValue(4) trust_tier: int32;
   behavioral_compliance: float64;
   alignment_consistency: float64;
   aivss_baseline: float64;

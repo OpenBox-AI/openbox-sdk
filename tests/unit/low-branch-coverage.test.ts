@@ -48,6 +48,17 @@ function recordingSession(verdict: any = { arm: 'allow', reason: 'ok' }) {
       calls.push({ method: 'activity', args });
       return verdict;
     }),
+    openActivity: vi.fn(async (...args: unknown[]) => {
+      calls.push({ method: 'openActivity', args });
+      return {
+        activityId: `opened-${calls.length}`,
+        verdict,
+        complete: vi.fn(async (...completeArgs: unknown[]) => {
+          calls.push({ method: 'openActivity.complete', args: completeArgs });
+          return verdict;
+        }),
+      };
+    }),
     workflowStarted: vi.fn(async (...args: unknown[]) => {
       calls.push({ method: 'workflowStarted', args });
       return undefined;
@@ -119,11 +130,11 @@ describe('low-branch utility coverage', () => {
       ['llm', { prompt: 'hi' }, 'llm.chat.completion'],
       ['file_read', { file_path: '/tmp/read.txt' }, 'file.read'],
       ['file_write', { file_path: '/tmp/write.txt' }, 'file.write'],
+      ['file_delete', { file_path: '/tmp/delete.txt' }, 'file.delete'],
       ['shell', { command: 'echo ok', cwd: '/repo' }, 'ShellExecution'],
       ['http', { method: 'get', url: 'https://example.test' }, 'GET https://example.test'],
       ['db', { operation: 'insert', statement: 'insert 1' }, 'INSERT'],
-      ['mcp', { tool_name: 'search' }, 'tool.search'],
-      ['unknown', {}, 'unknown'],
+      ['mcp', { tool_name: 'search' }, 'MCP callTool search'],
     ] as const;
 
     for (const [spanType, input, name] of cases) {
@@ -131,18 +142,17 @@ describe('low-branch utility coverage', () => {
       expect(span.name).toBe(name);
       expect(String(span.span_id)).toMatch(/^[0-9a-f]{16}$/);
       expect(String(span.trace_id)).toMatch(/^[0-9a-f]{32}$/);
-      expect(span.status).toEqual({ code: 'OK', description: null });
+      expect(span.status).toEqual({ code: 'UNSET', description: null });
     }
 
-    expect(buildMcpGovernanceSpan('http', {}).name).toBe(
-      'POST https://api.example.com',
-    );
-    expect(buildMcpGovernanceSpan('db', {}).db_operation).toBe('QUERY');
+    expect(buildMcpGovernanceSpan('http', {}).name).toBe('GET ');
+    expect(buildMcpGovernanceSpan('db', {}).db_operation).toBe('SELECT');
     expect(buildMcpGovernanceSpan('mcp', {}).function).toBe('mcp.call');
     expect(MCP_ACTIVITY_TYPE_MAP).toMatchObject({
       llm: 'PromptSubmission',
       file_read: 'FileRead',
       file_write: 'FileEdit',
+      file_delete: 'FileDelete',
       shell: 'ShellExecution',
       http: 'HTTPRequest',
       db: 'DatabaseQuery',
@@ -205,7 +215,7 @@ describe('low-branch utility coverage', () => {
         cfg,
       ),
     ).resolves.toMatchObject({ arm: 'halt' });
-    expect(haltedMcp.activity).toHaveBeenCalled();
+    expect(haltedMcp.openActivity).toHaveBeenCalled();
 
     const haltedSubagent = recordingSession({ arm: 'halt', reason: 'stop subagent' });
     await expect(

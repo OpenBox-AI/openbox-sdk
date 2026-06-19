@@ -1,12 +1,19 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { SpanData } from '../core-client/core-client.js';
-import type { WorkflowVerdict } from '../core-client/index.js';
+import type { GovernedPayload, WorkflowVerdict } from '../core-client/index.js';
 import {
-  buildLLMCompletionSpan,
+  llmTokenUsageFromRecord,
+  withOpenBoxActivityMetadata,
   type LLMTokenUsage,
+  type OpenBoxActivityMetadataInput,
 } from '../governance/spans.js';
 import {
+  assistantOutputTelemetryFields,
+  buildAssistantOutputSpan,
+} from '../governance/assistant-output.js';
+import {
   errorMessage,
+  nowUnixNano,
   sameJson,
   swallow,
 } from './internal-utils.js';
@@ -55,16 +62,32 @@ async function evaluateGate<T>(
   const activityType =
     input.activityType ?? activityTypeForGate(input.kind, input.payload);
   const spans = spansForGate(input.kind, activityType, input.payload);
+  const telemetry = telemetryForGate(
+    input.kind,
+    activityType,
+    input.payload,
+    input.sessionKey,
+  );
   const session = gateSession(
     adapter,
     { workflowId: ids.workflowId, runId: ids.runId },
     input.workflowType,
     input.taskQueue,
   );
+  const spanParent =
+    completed && spans && spans.length > 0
+      ? {
+          hookSpanParentEventType: 'ActivityStarted' as const,
+          ...(input.kind === 'assistant_output'
+            ? { ensureHookSpanParent: true }
+            : {}),
+        }
+      : {};
   if (input.kind === 'tool_input') {
     const opened = await session.openActivity(activityType, {
       activityId: ids.activityId,
-      input: [input.payload],
+      input: toolActivityInput(input.payload, activityType),
+      ...telemetry,
       spans,
     });
     return opened.verdict;
@@ -76,11 +99,14 @@ async function evaluateGate<T>(
       ? {
           activityId: ids.activityId,
           output: input.payload,
+          ...telemetry,
           spans,
+          ...spanParent,
         }
       : {
           activityId: ids.activityId,
           input: [input.payload],
+          ...telemetry,
           spans,
         },
   );
@@ -97,8 +123,6 @@ export async function governPipelineGate<T>(
       Extract<OpenBoxCopilotSessionState, { status: 'halted' }>
     >;
     strict: boolean;
-    governanceMode: 'observe' | 'enforce';
-    failClosed: boolean;
     redactionMode: 'transformed-only';
     ensureWorkflowStarted?: boolean;
   },
@@ -119,6 +143,8 @@ export async function governPipelineGate<T>(
     };
     return safePayload(input.payload, input.payload, verdict, ids, false);
   }
+  const promptText =
+    input.kind === 'prompt' ? promptTextFromPayload(input.payload) : undefined;
   let workflowKnown = Boolean(input.workflowId && input.runId);
   try {
     const needsWorkflowStart =
@@ -136,12 +162,21 @@ export async function governPipelineGate<T>(
     }
     workflowKnown = true;
     if (input.kind === 'prompt') {
+      if (shouldSkipPromptGate(input.payload, promptText)) {
+        const verdict: WorkflowVerdict = {
+          arm: 'allow',
+          reason: 'OpenBox skipped an empty prompt governance gate.',
+          riskScore: 0,
+        };
+        return safePayload(input.payload, input.payload, verdict, ids, false);
+      }
       await emitUserPromptSignal(
         adapter,
         { workflowId: ids.workflowId, runId: ids.runId },
         input.workflowType,
         input.taskQueue,
-        promptTextFromPayload(input.payload),
+        promptText,
+        input.sessionKey,
       );
     }
     const verdict = await evaluateGate(adapter, input, ids);
@@ -182,14 +217,6 @@ export async function governPipelineGate<T>(
     }
     return payload;
   } catch (error) {
-    if (!input.failClosed || input.governanceMode === 'observe') {
-      const verdict: WorkflowVerdict = {
-        arm: 'allow',
-        reason: errorMessage(error),
-        riskScore: 0,
-      };
-      return safePayload(input.payload, input.payload, verdict, ids, false);
-    }
     if (workflowKnown) {
       await swallow(() =>
         failWorkflow(
@@ -222,8 +249,6 @@ async function governHaltedPipelineGate<T>(
       string,
       Extract<OpenBoxCopilotSessionState, { status: 'halted' }>
     >;
-    failClosed: boolean;
-    governanceMode: 'observe' | 'enforce';
   },
   ids: { workflowId: string; runId: string; activityId: string },
   key: string,
@@ -248,6 +273,7 @@ async function governHaltedPipelineGate<T>(
         input.workflowType,
         input.taskQueue,
         promptTextFromPayload(input.payload),
+        input.sessionKey,
       );
     }
     const verdict = await evaluateGate(adapter, input, ids);
@@ -291,14 +317,6 @@ async function governHaltedPipelineGate<T>(
     }
     return payload;
   } catch (error) {
-    if (!input.failClosed || input.governanceMode === 'observe') {
-      const verdict: WorkflowVerdict = {
-        arm: 'allow',
-        reason: errorMessage(error),
-        riskScore: 0,
-      };
-      return safePayload(input.payload, input.payload, verdict, ids, false);
-    }
     if (workflowKnown) {
       await swallow(() =>
         failWorkflow(
@@ -319,6 +337,17 @@ async function governHaltedPipelineGate<T>(
     };
     return { ...safePayload(input.payload, input.payload, verdict, ids, false), status: 'error' as const };
   }
+}
+
+function shouldSkipPromptGate(payload: unknown, promptText: string | undefined): boolean {
+  if (typeof payload === 'string') return !payload.trim();
+  if (!payload || typeof payload !== 'object') return false;
+  const record = payload as Record<string, unknown>;
+  if (Array.isArray(record.messages)) return !promptText?.trim();
+  if ('prompt' in record || 'request' in record || 'content' in record) {
+    return !promptText?.trim();
+  }
+  return false;
 }
 
 function promptTextFromPayload(payload: unknown): string | undefined {
@@ -374,6 +403,7 @@ function activityTypeForGate(
 
 function llmCompletionMetadataFromPayload(payload: unknown): {
   model?: string;
+  provider?: string;
   usage?: LLMTokenUsage;
   requestBody?: unknown;
   responseBody?: unknown;
@@ -393,32 +423,37 @@ function llmCompletionMetadataFromPayload(payload: unknown): {
     metadata.usage,
     metadata.tokenUsage,
     metadata.token_usage,
+    metadata.usageMetadata,
+    metadata.usage_metadata,
   );
   const model =
     firstString(
       record.model,
       record.model_name,
       record.modelName,
+      record.ls_model_name,
+      record.lsModelName,
       metadata.model,
       metadata.model_name,
       metadata.modelName,
+      metadata.ls_model_name,
+      metadata.lsModelName,
     ) ?? undefined;
+  const provider = firstString(
+    metadata.ls_provider,
+    metadata.provider,
+    record.provider,
+    record.model_provider,
+  );
   return {
     model,
-    usage: usageFrom(usageMetadata),
+    provider,
+    usage: llmTokenUsageFromRecord(usageMetadata),
     requestBody:
       record.request_body ?? record.requestBody ?? metadata.request_body,
     responseBody:
       record.response_body ?? record.responseBody ?? metadata.response_body,
-    providerUrl: providerUrlFor(
-      firstString(
-        metadata.ls_provider,
-        metadata.provider,
-        record.provider,
-        record.model_provider,
-      ),
-      model,
-    ),
+    providerUrl: providerUrlFor(provider, model),
   };
 }
 
@@ -435,19 +470,49 @@ function providerUrlFor(
   return undefined;
 }
 
-function usageFrom(record: Record<string, unknown>): LLMTokenUsage | undefined {
-  const usage = {
-    promptTokens: numberFrom(record.prompt_tokens ?? record.promptTokens),
-    completionTokens: numberFrom(
-      record.completion_tokens ?? record.completionTokens,
-    ),
-    inputTokens: numberFrom(record.input_tokens ?? record.inputTokens),
-    outputTokens: numberFrom(record.output_tokens ?? record.outputTokens),
-    totalTokens: numberFrom(record.total_tokens ?? record.totalTokens),
+function telemetryForGate(
+  kind: OpenBoxCopilotGateKind,
+  activityType: string,
+  payload: unknown,
+  sessionKey?: string,
+): Pick<
+  GovernedPayload,
+  | 'sessionId'
+  | 'llmModel'
+  | 'inputTokens'
+  | 'outputTokens'
+  | 'totalTokens'
+  | 'prompt'
+  | 'completion'
+  | 'toolName'
+  | 'toolType'
+> {
+  const sessionId = sessionKey === 'default' ? undefined : sessionKey;
+  if (kind === 'prompt') {
+    return {
+      sessionId,
+      prompt: promptTextFromPayload(payload),
+    };
+  }
+  if (kind === 'assistant_output') {
+    const metadata = llmCompletionMetadataFromPayload(payload);
+    return {
+      ...assistantOutputTelemetryFields({
+        source: 'copilotkit',
+        sessionId,
+        content: assistantContentFromPayload(payload),
+        model: metadata.model,
+        usage: metadata.usage,
+        hasToolCalls: hasToolCallsFromPayload(payload),
+      }),
+      sessionId,
+    };
+  }
+  return {
+    sessionId,
+    toolName: toolNameFromPayload(payload) ?? activityType,
+    toolType: toolMetadataFromPayload(payload, activityType).toolType ?? 'custom',
   };
-  return Object.values(usage).some((value) => value !== undefined)
-    ? usage
-    : undefined;
 }
 
 function numberFrom(value: unknown): number | undefined {
@@ -482,6 +547,35 @@ function firstString(...values: unknown[]): string | undefined {
   return undefined;
 }
 
+function toolActivityInput(payload: unknown, activityType: string): unknown[] {
+  return withOpenBoxActivityMetadata(
+    [payload],
+    toolMetadataFromPayload(payload, activityType),
+  ) as unknown[];
+}
+
+function toolMetadataFromPayload(
+  payload: unknown,
+  activityType: string,
+): OpenBoxActivityMetadataInput {
+  const record = recordFrom(payload);
+  const args = recordFrom(record.args);
+  const toolName = firstString(record.name, activityType);
+  const subagentName = firstString(
+    args.subagent_name,
+    args.subagent_type,
+    args.agent_type,
+    args.agent_name,
+    args.name,
+    record.subagent_name,
+    record.subagent_type,
+  );
+  if (toolName === 'Agent' || toolName === 'Task' || subagentName) {
+    return { toolType: 'a2a', subagentName };
+  }
+  return { toolType: 'llm_tool_call' };
+}
+
 function spansForGate(
   kind: OpenBoxCopilotGateKind,
   activityType: string,
@@ -491,17 +585,15 @@ function spansForGate(
     case 'assistant_output': {
       const content = assistantContentFromPayload(payload);
       if (!content) return [];
-      return [
-        buildLLMCompletionSpan({
-          content,
-          span: pipelineSpan(kind, 'llm.chat.completion', payload),
-          name: 'openbox.copilotkit.assistant_output',
-          kind: 'llm',
-          system: 'copilotkit',
-          attributes: { 'gen_ai.system': 'copilotkit' },
-          ...llmCompletionMetadataFromPayload(payload),
-        }),
-      ];
+      return buildAssistantOutputSpan({
+        source: 'copilotkit',
+        content,
+        span: pipelineSpan(kind, 'llm.chat.completion', payload),
+        name: 'openbox.copilotkit.assistant_output',
+        attributes: { 'gen_ai.system': 'copilotkit' },
+        hasToolCalls: hasToolCallsFromPayload(payload),
+        ...llmCompletionMetadataFromPayload(payload),
+      }) ?? [];
     }
     case 'tool_input':
     case 'tool_output':
@@ -516,7 +608,7 @@ function toolCallSpan(
   activityType: string,
   payload: unknown,
 ): SpanData {
-  const now = Date.now();
+  const now = nowUnixNano();
   const stage = kind === 'tool_input' ? 'started' : 'completed';
   const toolName = activityType || 'call';
   return {
@@ -525,11 +617,14 @@ function toolCallSpan(
     name: `tool.${toolName}`,
     kind: 'tool',
     span_type: 'function',
+    hook_type: 'function_call',
     start_time: now,
     end_time: stage === 'completed' ? now : null,
     duration_ns: stage === 'completed' ? 0 : null,
     stage,
     semantic_type: 'llm_tool_call',
+    status: { code: 'UNSET' },
+    events: [],
     attributes: {
       'gen_ai.system': 'copilotkit',
       'openbox.copilotkit.gate': kind,
@@ -550,7 +645,7 @@ function pipelineSpan(
   activityType: string,
   payload: unknown,
 ): SpanData {
-  const now = Date.now();
+  const now = nowUnixNano();
   const span = {
     span_id: randomBytes(8).toString('hex'),
     trace_id: randomBytes(16).toString('hex'),
@@ -597,13 +692,13 @@ function assistantContentFromPayload(payload: unknown): string | undefined {
   if (!payload || typeof payload !== 'object') return undefined;
   const record = payload as Record<string, unknown>;
   for (const key of ['content', 'text', 'summary', 'body']) {
-    const value = record[key];
-    if (typeof value === 'string' && value.trim()) return value;
+    const text = textFromContent(record[key]);
+    if (text) return text;
   }
   const message = record.message;
   if (message && typeof message === 'object') {
-    const content = (message as Record<string, unknown>).content;
-    if (typeof content === 'string' && content.trim()) return content;
+    const text = textFromContent((message as Record<string, unknown>).content);
+    if (text) return text;
   }
   if (Array.isArray(record.messages)) {
     const latestAssistant = [...record.messages]
@@ -618,15 +713,64 @@ function assistantContentFromPayload(payload: unknown): string | undefined {
                 (message as Record<string, unknown>).type ??
                 '',
             ),
-          ) &&
-          typeof (message as Record<string, unknown>).content === 'string',
+          ),
       );
-    if (
-      typeof latestAssistant?.content === 'string' &&
-      latestAssistant.content.trim()
-    ) {
-      return latestAssistant.content;
-    }
+    const text = textFromContent(latestAssistant?.content);
+    if (text) return text;
   }
   return undefined;
+}
+
+function hasToolCallsFromPayload(payload: unknown): boolean {
+  return hasToolCallBlocks(recordFrom(payload));
+}
+
+function hasToolCallBlocks(record: Record<string, unknown>): boolean {
+  if (arrayHasEntries(record.tool_calls) || arrayHasEntries(record.toolCalls)) {
+    return true;
+  }
+  if (contentHasToolUse(record.content)) return true;
+  const additional = recordFrom(record.additional_kwargs ?? record.additionalKwargs);
+  if (
+    arrayHasEntries(additional.tool_calls) ||
+    arrayHasEntries(additional.toolCalls)
+  ) {
+    return true;
+  }
+  const message = recordFrom(record.message);
+  if (Object.keys(message).length > 0 && hasToolCallBlocks(message)) return true;
+  if (Array.isArray(record.messages)) {
+    return record.messages.some((entry) => hasToolCallBlocks(recordFrom(entry)));
+  }
+  return false;
+}
+
+function arrayHasEntries(value: unknown): boolean {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function contentHasToolUse(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.some((part) => {
+    const record = recordFrom(part);
+    const type = typeof record.type === 'string' ? record.type : '';
+    return type === 'tool_use' || type === 'tool_call' || type === 'function_call';
+  });
+}
+
+function textFromContent(value: unknown): string | undefined {
+  if (typeof value === 'string') return value.trim() || undefined;
+  if (!Array.isArray(value)) return undefined;
+  const text = value
+    .map((part) => {
+      if (typeof part === 'string') return part;
+      const record = recordFrom(part);
+      return record.type === 'text' && typeof record.text === 'string'
+        ? record.text
+        : '';
+    })
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  return text || undefined;
 }

@@ -2,6 +2,8 @@
 // for each hook event.
 
 import { describe, expect, test } from 'vitest';
+import path from 'node:path';
+import { tmpdir } from 'node:os';
 import {
   BEFORE_SUBMIT_PROMPT_ACTIVITY_TYPE,
   BEFORE_READ_FILE_ACTIVITY_TYPE,
@@ -34,20 +36,44 @@ import {
 interface CapturedActivity {
   eventType: string;
   activityType: string;
+  method: 'activity' | 'observeActivity' | 'openActivity';
+  payload?: any;
 }
 
 function makeCapturingSession(captured: CapturedActivity[]) {
   return {
-    activity: async (eventType: string, activityType: string) => {
-      captured.push({ eventType, activityType });
+    activity: async (eventType: string, activityType: string, payload?: any) => {
+      captured.push({ eventType, activityType, payload, method: 'activity' });
       return { arm: 'allow' as const, decision: { decisionId: 'd' } };
+    },
+    observeActivity: async (eventType: string, activityType: string, payload?: any) => {
+      captured.push({ eventType, activityType, payload, method: 'observeActivity' });
+      return { arm: 'allow' as const, decision: { decisionId: 'd' } };
+    },
+    openActivity: async (activityType: string, payload?: any) => {
+      const activityId = payload?.activityId ?? `cursor-open-${captured.length + 1}`;
+      captured.push({
+        eventType: 'ActivityStarted',
+        activityType,
+        payload: { ...payload, activityId },
+        method: 'openActivity',
+      });
+      return {
+        activityId,
+        verdict: { arm: 'allow' as const, decision: { decisionId: 'd' } },
+        complete: async () => ({ arm: 'allow' as const }),
+      };
     },
     workflowStarted: async () => undefined,
     workflowCompleted: async () => undefined,
   };
 }
 
-const cfg = { idleTimeoutMs: 60_000, sessionStorePath: '' } as never;
+const cfg = {
+  idleTimeoutMs: 60_000,
+  sessionDir: path.join(tmpdir(), 'openbox-cursor-activity-type-drift'),
+  sessionStorePath: '',
+} as never;
 
 describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
   test('beforeSubmitPrompt fires PromptSubmission', async () => {
@@ -104,20 +130,24 @@ describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
     expect(captured[0]?.activityType).toBe('MCPToolCall');
   });
 
-  // Observe-only events (after*) deliberately DO NOT call
-  // session.activity. Pinning that contract here so a future
-  // refactor can't accidentally re-introduce backend round-trips
-  // for events that don't gate (which created phantom approval
-  // rows in the dashboard panel and stalled the hook subprocess
-  // in pollApproval for 25s; see commit history for details).
-  test('afterAgentResponse emits no activity (observe-only)', async () => {
+  // Most observe-only events deliberately do not call session.activity.
+  // Completion payloads are the exceptions: they emit observeActivity
+  // events so Core can store completed spans without blocking an
+  // already-completed host action.
+  test('afterAgentResponse emits observe-only LLMCompleted', async () => {
     const captured: CapturedActivity[] = [];
     await handleAfterAgentResponse(
       { conversation_id: 'c', response: 'r' } as never,
       makeCapturingSession(captured) as never,
       cfg,
     );
-    expect(captured).toHaveLength(0);
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: AFTER_AGENT_RESPONSE_ACTIVITY_TYPE,
+      method: 'observeActivity',
+    });
+    expect(captured[0]?.activityType).toBe('LLMCompleted');
   });
   test('afterAgentThought emits no activity', async () => {
     const captured: CapturedActivity[] = [];
@@ -137,14 +167,56 @@ describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
     );
     expect(captured).toHaveLength(0);
   });
-  test('afterFileEdit emits no activity', async () => {
+  test('afterShellExecution with completion payload emits observe-only ShellExecution', async () => {
+    const captured: CapturedActivity[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    await handleAfterShellExecution(
+      {
+        conversation_id: 'c',
+        generation_id: `activity-type-after-shell-${suffix}`,
+        command: `echo activity-type-${suffix}`,
+        output: 'ok',
+      } as never,
+      makeCapturingSession(captured) as never,
+      cfg,
+    );
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: AFTER_SHELL_EXECUTION_ACTIVITY_TYPE,
+      method: 'observeActivity',
+    });
+    expect(captured[0]?.activityType).toBe('ShellExecution');
+  });
+  test('afterFileEdit without file path emits no activity', async () => {
     const captured: CapturedActivity[] = [];
     await handleAfterFileEdit(
-      { conversation_id: 'c', file_path: '/tmp/y.txt' } as never,
+      { conversation_id: 'c' } as never,
       makeCapturingSession(captured) as never,
       cfg,
     );
     expect(captured).toHaveLength(0);
+  });
+  test('afterFileEdit with file path emits observe-only FileEdit', async () => {
+    const captured: CapturedActivity[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    await handleAfterFileEdit(
+      {
+        conversation_id: 'c',
+        generation_id: `activity-type-after-file-${suffix}`,
+        file_path: `/tmp/cursor-after-file-${suffix}.ts`,
+        edits: [{ old_string: 'old', new_string: 'new' }],
+      } as never,
+      makeCapturingSession(captured) as never,
+      cfg,
+    );
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: AFTER_FILE_EDIT_ACTIVITY_TYPE,
+      method: 'observeActivity',
+    });
+    expect(captured[0]?.activityType).toBe('FileEdit');
   });
   test('afterMCPExecution emits no activity', async () => {
     const captured: CapturedActivity[] = [];
@@ -154,6 +226,27 @@ describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
       cfg,
     );
     expect(captured).toHaveLength(0);
+  });
+  test('afterMCPExecution with completion payload emits observe-only MCPToolCall', async () => {
+    const captured: CapturedActivity[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    await handleAfterMCPExecution(
+      {
+        conversation_id: 'c',
+        generation_id: `activity-type-after-mcp-${suffix}`,
+        tool_name: `fetch_${suffix}`,
+        result_json: '{"content":[{"type":"text","text":"ok"}]}',
+      } as never,
+      makeCapturingSession(captured) as never,
+      cfg,
+    );
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: AFTER_MCPEXECUTION_ACTIVITY_TYPE,
+      method: 'observeActivity',
+    });
+    expect(captured[0]?.activityType).toBe('MCPToolCall');
   });
 
   // ─── Extended event coverage ───────────────────────────────────────────
@@ -171,12 +264,20 @@ describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
   test('subagentStart fires SubagentStart', async () => {
     const captured: CapturedActivity[] = [];
     await handleSubagentStart(
-      { conversation_id: 'c', subagent_model: 'claude-opus', tool_call_id: 't1' } as never,
+      {
+        conversation_id: 'c',
+        subagent_type: 'researcher',
+        subagent_model: 'claude-opus',
+        tool_call_id: 't1',
+      } as never,
       makeCapturingSession(captured) as never,
       cfg,
     );
     expect(captured[0]?.activityType).toBe(SUBAGENT_START_ACTIVITY_TYPE);
     expect(captured[0]?.activityType).toBe('SubagentStart');
+    expect(captured[0]?.payload?.input).toContainEqual({
+      __openbox: { tool_type: 'a2a', subagent_name: 'researcher' },
+    });
   });
 
   test('afterTabFileEdit emits no activity (observe-only)', async () => {

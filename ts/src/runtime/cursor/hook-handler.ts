@@ -23,6 +23,10 @@ import { handleBeforeMCPExecution } from './mappers/mcp.js';
 import { handleBeforeReadFile, handleBeforeTabFileRead } from './mappers/file-read.js';
 import { handlePreToolUse } from './mappers/pre-tool-use.js';
 import { handleAfterMCPExecution } from './mappers/mcp-response.js';
+import {
+  handlePostToolUse,
+  handlePostToolUseFailure,
+} from './mappers/tool-completion.js';
 import { handleSubagentStart } from './mappers/subagent.js';
 import {
   handleAfterAgentResponse,
@@ -210,14 +214,10 @@ export async function runCursorHook(): Promise<void> {
     timeoutMs: cfg.governanceTimeout * 1000,
   });
 
-  // Cursor's hook subprocess timeout is per-event config from the
-  // installed plugin hooks file. Whatever the user has configured for
-  // the event becomes the ceiling on how long we're willing to poll.
-  //
-  // cfg.hitlMaxWait is the user-tunable knob (in project .cursor-hooks/config.json
-  // HITL_MAX_WAIT, default 300s). We respect it up to 1 hour. The
-  // The plugin hook `timeout` field MUST be set to at least the same
-  // value or Cursor will kill us before pollApproval finishes.
+  // Legacy adapter option for SDK compatibility. Core polling is
+  // bounded by the server-supplied approval expiration. Cursor still
+  // uses this value below to bound the local extension socket wait so
+  // a hook subprocess is not held open solely by the editor-side IPC.
   const approvalMaxWaitMs = Math.min(
     Math.max(1, cfg.hitlMaxWait) * 1000,
     3600_000,
@@ -245,7 +245,6 @@ export async function runCursorHook(): Promise<void> {
   // 200ms timeout, returns null, hook falls back to pollApproval-only).
   let socketHandle: Awaited<ReturnType<typeof connectApprovalSocket>> | null | undefined;
   const ensureSocket = async () => {
-    if (process.env.OPENBOX_DISABLE_APPROVAL_SOCKET === '1') return null;
     if (socketHandle !== undefined) return socketHandle;
     socketHandle = await connectApprovalSocket(cfg.approvalSocketPath ?? undefined);
     return socketHandle;
@@ -275,7 +274,7 @@ export async function runCursorHook(): Promise<void> {
     resolveSession: (env) => resolveSession(env, cfg),
     approvalMaxWaitMs,
     readStdin: async () => raw,
-    // When APPROVAL_MODE=inline, the SDK skips its internal poll loop
+    // When approvalMode is inline, the SDK skips its internal poll loop
     // and the adapter renders permission:'ask' so Cursor's native
     // permission dialog pops in the IDE on every require_approval.
     // External approval clients such as the dashboard, mobile app,
@@ -351,11 +350,10 @@ export async function runCursorHook(): Promise<void> {
         async (env, s) => handleSessionStart(env, s, cfg)),
       stop: guarded(cfg, 'stop', 'none',
         async (env, s) => handleStop(env, s, cfg)),
-      // postToolUse / postToolUseFailure carry no payload per the
-      // spec (@noPayload). We log them so the OutputChannel tail
-      // shows the full lifecycle, but there's nothing to map.
-      postToolUse: guarded(cfg, 'postToolUse', 'observe', async () => undefined),
-      postToolUseFailure: guarded(cfg, 'postToolUseFailure', 'observe', async () => undefined),
+      postToolUse: guarded(cfg, 'postToolUse', 'observe',
+        async (env, s) => handlePostToolUse(env, s, cfg)),
+      postToolUseFailure: guarded(cfg, 'postToolUseFailure', 'observe',
+        async (env, s) => handlePostToolUseFailure(env, s, cfg)),
       // Tab-driven + lifecycle + subagent coverage.
       beforeTabFileRead: guarded(cfg, 'beforeTabFileRead', 'permission',
         async (env, s) => handleBeforeTabFileRead(env, s, cfg)),

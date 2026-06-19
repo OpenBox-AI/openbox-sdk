@@ -3,9 +3,9 @@
 //
 // THREE-TIER MODEL:
 //
-// Tier 1 (locked); `CanonicalEventType`. Six values the core service
-//   recognizes for guardrail eligibility, attestation extraction, and
-//   metric routing.
+// Tier 1 (locked); `CanonicalEventType`. Seven values the core service
+//   accepts for lifecycle storage, guardrail/metric routing, and handoff
+//   storage.
 //   Lifecycle (Workflow{Started,Completed,Failed}) is SDK-internal:
 //   the runtime fires it via try/finally + process-exit handlers, never
 //   user code. So workflows can't hang in PENDING state.
@@ -245,10 +245,8 @@ namespace OpenboxGovern;
 // ---------------------------------------------------------------------------
 
 /**
- * Canonical event_type values the core service recognizes. Custom
- * strings are accepted on the wire (varchar(50), no whitelist) but
- * skip event-type-specific code paths: guardrails will not fire,
- * attestation will not extract, and metrics route to a fallback.
+ * Canonical event_type values the core service accepts. Unknown strings
+ * are rejected by the Core API before workflow execution.
  */
 enum CanonicalEventType {
   WorkflowStarted: "WorkflowStarted",
@@ -257,6 +255,7 @@ enum CanonicalEventType {
   ActivityStarted: "ActivityStarted",
   ActivityCompleted: "ActivityCompleted",
   SignalReceived: "SignalReceived",
+  Handoff: "Handoff",
 }
 
 /** Stage prefix on guardrail field paths. "0" = start, "1" = complete. */
@@ -286,7 +285,7 @@ enum VerdictArm {
  */
 model GuardrailFieldVerdict {
   field: string;
-  status: "allowed" | "blocked" | "redacted" | "skipped";
+  status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
   reason?: string;
 }
 
@@ -309,17 +308,21 @@ model GuardrailReasonRef {
  */
 model GuardrailsVerdict {
   /** Which side of the activity the redaction applies to. */
-  inputType: "activity_input" | "activity_output";
+  inputType: "activity_input" | "activity_output" | "signal_args";
 
   /**
    * Redacted payload as decided by the guardrail service. Pass to
-   * `applyInputRedaction(...)` / `applyOutputRedaction(...)` against
-   * the original payload to forward a safe version downstream.
+   * `applyInputRedaction(...)` / `applyOutputRedaction(...)` against the
+   * original payload to forward a safe version downstream. `signal_args`
+   * is input-like and uses `applyInputRedaction(...)`.
    */
   redactedInput?: unknown;
 
   /** False when any field result is `blocked`. */
   validationPassed: boolean;
+
+  /** Raw guardrail-service output, retained for debugging and parity with Core. */
+  rawLogs?: Record<unknown>;
 
   reasons: GuardrailReasonRef[];
 
@@ -354,6 +357,24 @@ model WorkflowVerdict {
   /** Agent trust tier (1-4) at the moment of evaluation. */
   trustTier?: int32;
 
+  /** Top-level goal-alignment score returned by older Core/AGE response paths. */
+  alignmentScore?: float64;
+
+  /** OPA/behavior policy id that produced this verdict, when Core returns one. */
+  policyId?: string;
+
+  /** Behavior-rule names that triggered during evaluation. */
+  behavioralViolations?: string[];
+
+  /** Set on `constrain`; enforcement hints for transformed output. */
+  constraints?: string[];
+
+  /** Free-form Core metadata attached to the verdict. */
+  metadata?: Record<unknown>;
+
+  /** True when Core used a fallback evaluation path. */
+  fallbackUsed?: boolean;
+
   /**
    * Guardrails outcome; populated when a guardrail fired (PII/safety/
    * content checks). `redactedInput` is the safe payload to forward
@@ -378,6 +399,51 @@ model GovernedPayload {
 
   /** Activity output (response side); only set on completion events. */
   output?: unknown;
+
+  /** Caller/runtime session identifier, distinct from Core's internal session UUID. */
+  sessionId?: string;
+
+  /** LLM model identifier for normal ActivityStarted/ActivityCompleted telemetry. */
+  llmModel?: string;
+
+  /** Prompt/input token count observed by the SDK. */
+  inputTokens?: numeric;
+
+  /** Completion/output token count observed by the SDK. */
+  outputTokens?: numeric;
+
+  /** Total token count observed by the SDK. */
+  totalTokens?: numeric;
+
+  /** True when the LLM completion requested tool calls. */
+  hasToolCalls?: boolean;
+
+  /** Provider finish reason, when available. */
+  finishReason?: string;
+
+  /** Prompt text for LLM start events, when available. */
+  prompt?: string;
+
+  /** Assistant completion text for LLM completion events, when available. */
+  completion?: string;
+
+  /** Tool/function name for tool-call activities. */
+  toolName?: string;
+
+  /** Tool/function category such as http, database, builtin, a2a, or custom. */
+  toolType?: string;
+
+  /** Parent runtime run id when emitted by frameworks that expose nested runs. */
+  parentRunId?: string;
+
+  /** Cross-agent grouping id. Core stores this on the session and on handoff rows. */
+  multiAgentSessionId?: string;
+
+  /**
+   * Set on `Handoff` only. The receiving agent is the authenticated
+   * emitter; this field identifies the source agent DID.
+   */
+  fromAgentDid?: string;
 
   /**
    * Caller-supplied activity id. When absent the SDK mints one. Supply it
@@ -415,6 +481,20 @@ model GovernedPayload {
    * `skill/references/span-reference.md` for span shapes by semantic type.
    */
   spans?: unknown[];
+
+  /**
+   * SDK-internal span persistence hint. When a completion/observe event carries
+   * spans, the runtime re-evaluates those spans against the existing
+   * ActivityStarted parent row instead of attaching them to the completion row.
+   */
+  hookSpanParentEventType?: "ActivityStarted";
+
+  /**
+   * SDK-internal span persistence hint for observe-only outputs that do not
+   * have a natural pre/start hook. When true, the runtime emits a minimal
+   * ActivityStarted parent before sending hook spans.
+   */
+  ensureHookSpanParent?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -504,7 +584,7 @@ interface AnthropicAgentSDKPreset {
 
 @preset("cursor")
 interface CursorPreset {
-  @maps_to("ActivityStarted", "beforeSubmitPrompt")
+  @maps_to("ActivityStarted", "PromptSubmission")
   beforeSubmitPrompt(payload: GovernedPayload): WorkflowVerdict;
 
   @maps_to("ActivityStarted", "preToolUse")
@@ -513,28 +593,28 @@ interface CursorPreset {
   @maps_to("ActivityCompleted", "postToolUse")
   postToolUse(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityStarted", "beforeShellExecution")
+  @maps_to("ActivityStarted", "ShellExecution")
   beforeShellExecution(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityCompleted", "afterShellExecution")
+  @maps_to("ActivityCompleted", "ShellExecution")
   afterShellExecution(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityStarted", "beforeMCPExecution")
+  @maps_to("ActivityStarted", "MCPToolCall")
   beforeMCPExecution(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityCompleted", "afterMCPExecution")
+  @maps_to("ActivityCompleted", "MCPToolCall")
   afterMCPExecution(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityStarted", "beforeReadFile")
+  @maps_to("ActivityStarted", "FileRead")
   beforeReadFile(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityCompleted", "afterFileEdit")
+  @maps_to("ActivityCompleted", "FileEdit")
   afterFileEdit(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityCompleted", "afterAgentResponse")
+  @maps_to("ActivityCompleted", "LLMCompleted")
   afterAgentResponse(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("ActivityCompleted", "afterAgentThought")
+  @maps_to("ActivityCompleted", "LLMCompleted")
   afterAgentThought(payload: GovernedPayload): WorkflowVerdict;
 }
 
@@ -752,7 +832,7 @@ interface AutogenPreset {
   @maps_to("SignalReceived", "UserInputRequestedEvent")
   userInputRequestedEvent(payload: GovernedPayload): WorkflowVerdict;
 
-  @maps_to("SignalReceived", "HandoffMessage")
+  @maps_to("Handoff", "HandoffMessage")
   handoffMessage(payload: GovernedPayload): WorkflowVerdict;
 
   @maps_to("ActivityCompleted", "StopMessage")

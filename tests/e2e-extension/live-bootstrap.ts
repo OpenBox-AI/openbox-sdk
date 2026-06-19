@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import { OpenBoxCoreClient, type AgentIdentityConfig } from '../../ts/src/core-client/index.js';
+import { withSpanActivityId } from '../../ts/src/governance/spans.js';
 
 const BACKEND_KEY_PREFIX = /^obx_key_/;
 const RUNTIME_KEY_PREFIX = /^obx_(?:test|live)_/;
@@ -81,7 +81,7 @@ function span(spanType: SpanType, input: Record<string, unknown>): Record<string
     start_time: Date.now() * 1_000_000,
     end_time: null,
     duration_ns: null,
-    status: { code: 'OK', description: null },
+    status: { code: 'UNSET', description: null },
     events: [],
     error: null,
   };
@@ -145,6 +145,7 @@ function span(spanType: SpanType, input: Record<string, unknown>): Record<string
 }
 
 function governancePayload(spanType: SpanType, input: Record<string, unknown>): Record<string, unknown> {
+  const activityId = hex(16);
   return {
     source: 'sdk',
     event_type: 'ActivityStarted',
@@ -152,12 +153,12 @@ function governancePayload(spanType: SpanType, input: Record<string, unknown>): 
     run_id: hex(16),
     workflow_type: 'ExtensionE2E',
     task_queue: 'sdk',
-    activity_id: hex(16),
+    activity_id: activityId,
     activity_type: activityType(spanType),
     activity_input: [input],
     timestamp: new Date().toISOString(),
     hook_trigger: true,
-    spans: [span(spanType, input)],
+    spans: [withSpanActivityId(span(spanType, input), activityId)],
     span_count: 1,
     attempt: 1,
   };
@@ -191,17 +192,13 @@ result := {"decision": "HALT", "reason": "e2e-halt-http"} if {
 `;
 }
 
-function bootstrapAgentIdentity(preferE2eIdentity = false): AgentIdentityConfig | undefined {
-  const did = preferE2eIdentity
-    ? process.env.OPENBOX_E2E_AGENT_DID ?? process.env.OPENBOX_AGENT_DID
-    : process.env.OPENBOX_AGENT_DID ?? process.env.OPENBOX_E2E_AGENT_DID;
-  const privateKey = preferE2eIdentity
-    ? process.env.OPENBOX_E2E_AGENT_PRIVATE_KEY ?? process.env.OPENBOX_AGENT_PRIVATE_KEY
-    : process.env.OPENBOX_AGENT_PRIVATE_KEY ?? process.env.OPENBOX_E2E_AGENT_PRIVATE_KEY;
+function bootstrapAgentIdentity(): AgentIdentityConfig | undefined {
+  const did = process.env.OPENBOX_AGENT_DID;
+  const privateKey = process.env.OPENBOX_AGENT_PRIVATE_KEY;
   if (!did && !privateKey) return undefined;
   if (!did || !privateKey) {
     throw new Error(
-      'signed live verdict verification requires both OPENBOX_AGENT_DID/OPENBOX_AGENT_PRIVATE_KEY or both OPENBOX_E2E_AGENT_DID/OPENBOX_E2E_AGENT_PRIVATE_KEY',
+      'signed live verdict verification requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY',
     );
   }
   return { did, privateKey };
@@ -247,65 +244,14 @@ async function createPolicyViaBackend(agentId: string, rego: string): Promise<vo
   });
 }
 
-function inferSshHost(): string | undefined {
-  if (process.env.OPENBOX_E2E_BOOTSTRAP_SSH_HOST) return process.env.OPENBOX_E2E_BOOTSTRAP_SSH_HOST;
-  return undefined;
-}
-
-function seedViaDevHost(agentId: string): void {
-  const sshHost = inferSshHost();
-  const orgId = process.env.OPENBOX_ORG_ID;
-  if (!sshHost || !orgId) {
-    throw new Error('backend policy create failed and no dev-host bootstrap target is configured');
-  }
-  if (!/^[0-9a-f-]{36}$/i.test(agentId)) throw new Error('OPENBOX_E2E_AGENT_ID is not a UUID');
-  const policyId = randomUUID();
-  const orgPart = orgId.replace(/[^a-zA-Z0-9]/g, '_');
-  const policyPath = `openbox_e2e/${orgPart}/policy_${policyId.replace(/-/g, '')}`;
-  const rego = e2eRego(policyPath);
-  const put = spawnSync(
-    'ssh',
-    [sshHost, `curl -sS -X PUT --data-binary @- http://127.0.0.1:8181/v1/policies/${policyPath}`],
-    { input: rego, encoding: 'utf-8' },
-  );
-  if (put.status !== 0 || /invalid|error/i.test(put.stdout)) {
-    throw new Error(`OPA dev-host policy install failed: ${put.stdout || put.stderr}`);
-  }
-
-  const sql = `
-update policies
-set is_active=false, is_current_version=false, updated_at=now()
-where agent_id='${agentId}' and name like 'openbox-sdk-live-e2e%';
-insert into policies (
-  id, agent_id, name, description, rego_code, config, input,
-  is_active, is_current_version, trust_impact, trust_threshold, created_at, updated_at
-)
-values (
-  '${policyId}', '${agentId}', '${POLICY_NAME}',
-  'Deterministic dev-only live E2E verdict matrix for openbox-sdk.',
-  $rego$${rego}$rego$, '{"path":"${policyPath}"}'::jsonb, '{}'::jsonb,
-  true, true, 'none', null, now(), now()
-);
-`;
-  const db = spawnSync(
-    'ssh',
-    [sshHost, 'docker exec -i openbox-postgres psql -U postgres -d openbox -v ON_ERROR_STOP=1 -q'],
-    { input: sql, encoding: 'utf-8' },
-  );
-  if (db.status !== 0) {
-    throw new Error(`dev-host policy DB install failed: ${db.stderr}`);
-  }
-}
-
 async function evaluate(spanType: SpanType, input: Record<string, unknown>): Promise<{ verdict?: string; reason?: string }> {
   const coreUrl = process.env.OPENBOX_CORE_URL;
-  const e2eRuntimeKey = process.env.OPENBOX_E2E_RUNTIME_KEY;
-  const key = e2eRuntimeKey ?? process.env.OPENBOX_API_KEY;
+  const key = process.env.OPENBOX_API_KEY;
   if (!coreUrl || !key || !RUNTIME_KEY_PREFIX.test(key)) {
     throw new Error('OPENBOX_CORE_URL and an agent runtime key are required for live verdict verification');
   }
   const payload = governancePayload(spanType, input);
-  const agentIdentity = bootstrapAgentIdentity(Boolean(e2eRuntimeKey));
+  const agentIdentity = bootstrapAgentIdentity();
   if (agentIdentity) {
     const client = new OpenBoxCoreClient({
       apiUrl: coreUrl,
@@ -342,8 +288,8 @@ async function verifyMatrix(): Promise<boolean> {
 
 export async function ensureLiveVerdictMatrix(): Promise<void> {
   if (!isLiveTarget()) return;
-  const agentId = process.env.OPENBOX_E2E_AGENT_ID;
-  if (!agentId || !process.env.OPENBOX_E2E_RUNTIME_KEY) return;
+  const agentId = process.env.OPENBOX_AGENT_ID;
+  if (!agentId || !process.env.OPENBOX_API_KEY) return;
 
   const current = process.env.OPENBOX_BACKEND_API_KEY ? await currentPolicy(agentId).catch(() => undefined) : undefined;
   if (current?.rego_code?.includes(POLICY_MARKER) && (await verifyMatrix().catch(() => false))) {
@@ -351,13 +297,9 @@ export async function ensureLiveVerdictMatrix(): Promise<void> {
   }
 
   const policyId = randomUUID();
-  const orgPart = (process.env.OPENBOX_ORG_ID ?? 'openbox_e2e').replace(/[^a-zA-Z0-9]/g, '_');
-  const policyPath = `openbox_e2e/${orgPart}/policy_${policyId.replace(/-/g, '')}`;
-  try {
-    await createPolicyViaBackend(agentId, e2eRego(policyPath));
-  } catch {
-    seedViaDevHost(agentId);
-  }
+  const agentPart = agentId.replace(/[^a-zA-Z0-9]/g, '_');
+  const policyPath = `openbox_e2e/${agentPart}/policy_${policyId.replace(/-/g, '')}`;
+  await createPolicyViaBackend(agentId, e2eRego(policyPath));
 
   for (let attempt = 0; attempt < 10; attempt += 1) {
     if (await verifyMatrix().catch(() => false)) return;

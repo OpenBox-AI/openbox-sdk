@@ -298,10 +298,9 @@ function writeRuntimeConfigTemplate(configDir: string): void {
   const file = path.join(configDir, 'config.json');
   if (existsSync(file)) return;
   const example = {
-    GOVERNANCE_POLICY: 'fail_closed',
-    HITL_ENABLED: true,
-    HITL_MAX_WAIT: 300,
-    VERBOSE: false,
+    hitlEnabled: true,
+    hitlMaxWait: 300,
+    verbose: false,
   };
   writeFileSync(file, JSON.stringify(example, null, 2) + '\n', {
     mode: 0o600,
@@ -450,13 +449,6 @@ function writePluginCliRunner(file: string): void {
       '',
       'const args = process.argv.slice(2);',
       '',
-      'function candidateFromEnv() {',
-      '  const value = process.env.OPENBOX_CLI;',
-      '  if (!value) return undefined;',
-      '  const resolved = path.resolve(value);',
-      '  return existsSync(resolved) ? resolved : undefined;',
-      '}',
-      '',
       'function projectRoots() {',
       '  const roots = [];',
       '  if (process.env.CLAUDE_PROJECT_DIR) roots.push(process.env.CLAUDE_PROJECT_DIR);',
@@ -482,9 +474,9 @@ function writePluginCliRunner(file: string): void {
       '  return undefined;',
       '}',
       '',
-      'const cli = candidateFromEnv() ?? candidateFromProjectNodeModules();',
+      'const cli = candidateFromProjectNodeModules();',
       'if (!cli) {',
-      "  console.error('OpenBox SDK CLI not found for project-scoped Claude Code plugin. Set OPENBOX_CLI to an OpenBox CLI entrypoint, or install @openbox-ai/openbox-sdk in the project.');",
+      "  console.error('OpenBox SDK CLI not found for project-scoped Claude Code plugin. Install @openbox-ai/openbox-sdk in the project.');",
       '  process.exit(127);',
       '}',
       '',

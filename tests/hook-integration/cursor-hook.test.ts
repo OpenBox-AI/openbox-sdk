@@ -41,9 +41,7 @@ function runHook(envelope: Record<string, unknown>): HookOutcome {
       ...process.env,
       OPENBOX_API_KEY: 'obx_test_' + 'x'.repeat(48),
       OPENBOX_CORE_URL: 'http://127.0.0.1:1',
-      GOVERNANCE_TIMEOUT: '1',
       OPENBOX_HOME: HOOK_HOME,
-      HITL_ENABLED: 'false',
     },
     encoding: 'utf-8',
     timeout: 15_000,
@@ -82,6 +80,10 @@ beforeAll(() => {
   }
   // Ensure log dir exists so readLogTail works on first iteration.
   mkdirSync(join(HOOK_HOME, 'log'), { recursive: true });
+  writeFileSync(join(HOOK_HOME, 'config.json'), JSON.stringify({
+    governanceTimeout: 1,
+    hitlEnabled: false,
+  }, null, 2));
   if (!existsSync(LOG)) writeFileSync(LOG, '');
 });
 

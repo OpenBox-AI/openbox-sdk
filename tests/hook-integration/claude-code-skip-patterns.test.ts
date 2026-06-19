@@ -10,8 +10,8 @@
 //   - claude reports the governed Read permission denial / approval timeout;
 //   - `.git/HEAD` no longer bypasses the file_read guardrail path.
 //
-// Skipped unless OPENBOX_E2E_LIVE=1 and the project-scope test
-// workspace is configured.
+// Skipped unless the project-scope test workspace is configured
+// against a loopback Core.
 
 import { describe, expect, it, beforeAll } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -25,25 +25,7 @@ import {
   hookLogSince,
 } from './helpers/claude-runner.js';
 
-function isLoopbackUrl(raw: string | undefined): boolean {
-  if (!raw) return true;
-  try {
-    const host = new URL(raw).hostname;
-    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
-  } catch {
-    return false;
-  }
-}
-
-const EXPECT_LOCAL_RULES =
-  process.env.OPENBOX_E2E_EXPECT_LOCAL_RULES === '1' ||
-  (
-    process.env.OPENBOX_E2E_EXPECT_LOCAL_RULES !== '0' &&
-    !process.env.OPENBOX_STAGING_API_URL &&
-    !process.env.OPENBOX_STAGING_CORE_URL &&
-    isLoopbackUrl(process.env.OPENBOX_API_URL) &&
-    isLoopbackUrl(process.env.OPENBOX_CORE_URL)
-  );
+const EXPECT_LOCAL_RULES = true;
 
 describe.runIf(SHOULD_RUN)('claude-code redaction patterns', () => {
   beforeAll(() => {

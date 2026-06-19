@@ -6,9 +6,7 @@
 
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
-// Mock vscode just enough that GovernanceClient instantiates AND we can
-// flip openbox.failClosed through a mutable map for the applyFailMode
-// tests below.
+// Mock vscode just enough that GovernanceClient instantiates.
 const configMap: Record<string, unknown> = {};
 vi.mock('vscode', () => ({
   workspace: {
@@ -106,35 +104,22 @@ describe('GovernanceClient - verdict mapping (string + numeric)', () => {
 });
 
 describe('GovernanceClient.applyFailMode - unknown outcome folding', () => {
-  // openbox.failClosed folds an unknown outcome to allow or deny.
-
   function client() {
     return new GovernanceClient();
   }
 
-  it('failClosed=false (default): unknown → allow with synthesized reason', () => {
-    delete configMap['failClosed']; // default
+  it('unknown → deny with synthesized reason', () => {
     const r = client().applyFailMode({ outcome: 'unknown', error: 'fetch timeout' });
-    expect(r.outcome).toBe('allow');
+    expect(r.outcome).toBe('deny');
     expect(r.reason).toMatch(/Governance check failed/);
     expect(r.reason).toMatch(/fetch timeout/);
   });
 
-  it('failClosed=true: unknown → deny with synthesized reason', () => {
-    configMap['failClosed'] = true;
-    const r = client().applyFailMode({ outcome: 'unknown', error: 'connection refused' });
-    expect(r.outcome).toBe('deny');
-    expect(r.reason).toMatch(/Governance check failed/);
-    expect(r.reason).toMatch(/connection refused/);
-  });
-
-  it('non-unknown outcomes pass through both fail modes unchanged', () => {
-    configMap['failClosed'] = true;
+  it('non-unknown outcomes pass through unchanged', () => {
     const denied = client().applyFailMode({ outcome: 'deny', reason: 'rule fired' });
     expect(denied.outcome).toBe('deny');
     expect(denied.reason).toBe('rule fired');
 
-    configMap['failClosed'] = false;
     const allowed = client().applyFailMode({ outcome: 'allow' });
     expect(allowed.outcome).toBe('allow');
 
@@ -143,14 +128,12 @@ describe('GovernanceClient.applyFailMode - unknown outcome folding', () => {
   });
 
   it('preserves existing reason when one is already set', () => {
-    configMap['failClosed'] = true;
     const r = client().applyFailMode({ outcome: 'unknown', error: 'x', reason: 'preset' });
     expect(r.outcome).toBe('deny');
     expect(r.reason).toBe('preset');
   });
 
   it('fills in "unknown error" when neither error nor reason is set', () => {
-    delete configMap['failClosed'];
     const r = client().applyFailMode({ outcome: 'unknown' });
     expect(r.reason).toMatch(/unknown error/);
   });

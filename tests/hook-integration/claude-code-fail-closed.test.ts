@@ -1,16 +1,16 @@
 // Fail-closed behavior for the claude-code runtime adapter.
 //
 // If Core is unreachable, decision-capable hooks deny/block rather
-// than silently allowing Claude Code to proceed. Stale configs that
-// still set `GOVERNANCE_POLICY=fail_open` are normalized to fail-closed.
+// than silently allowing Claude Code to proceed. The runtime is
+// hardcoded fail-closed.
 //
 // This test points the hook at an obviously dead port and asserts
 // claude is denied. We override OPENBOX_CORE_URL via the
 // process env passed to claude; the hook subprocess inherits and
 // loadConfig() prefers process.env over the project config file.
 //
-// Skipped unless OPENBOX_E2E_LIVE=1 and the project-scope test
-// workspace is configured.
+// Skipped unless the project-scope test workspace is configured
+// against a loopback Core.
 
 import { describe, expect, it, beforeAll } from 'vitest';
 import {
@@ -35,7 +35,6 @@ describe.runIf(SHOULD_RUN)('claude-code fail-closed behavior', () => {
       timeoutMs: 60_000,
       env: {
         OPENBOX_CORE_URL: DEAD_CORE,
-        GOVERNANCE_POLICY: 'fail_open',
       },
     });
     const denied = r.permission_denials?.some((d) => d.tool_name === 'Bash');

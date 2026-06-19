@@ -10,8 +10,8 @@
 // asking it to invoke `mcp__openbox__openbox_status`. Assert the JSON envelope
 // reports the tool was called and returned a non-error result.
 //
-// Skipped unless OPENBOX_E2E_LIVE=1, the test workspace exists,
-// and an org X-API-Key is on disk (the MCP server needs it).
+// Skipped unless the loopback test workspace exists and an org
+// X-API-Key is on disk (the MCP server needs it).
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -32,29 +32,20 @@ import {
 } from './helpers/claude-runner.js';
 import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
 
-const OPENBOX = requireOpenBoxCli();
+const LOCAL_CLI = requireOpenBoxCli();
 const PROJECT_OPENBOX = path.resolve(process.cwd(), '.openbox');
 const REAL_DB_MCP = path.resolve(import.meta.dirname, 'fixtures/real-db-mcp-server.mjs');
 const DEFAULT_API_URL = 'http://127.0.0.1:3000';
 const DEFAULT_CORE_URL = 'http://127.0.0.1:8086';
 const UNIT_API_URL = 'http://localhost:18080';
 const UNIT_CORE_URL = 'http://localhost:18081';
-const OPENBOX_RUNTIME_ENV = [
+const RUNTIME_ENV_KEYS = [
   'OPENBOX_API_KEY',
   'OPENBOX_API_URL',
   'OPENBOX_CORE_URL',
-  'OPENBOX_ENDPOINT',
   'OPENBOX_AGENT_DID',
   'OPENBOX_AGENT_PRIVATE_KEY',
   'OPENBOX_HOME',
-  'GOVERNANCE_POLICY',
-  'GOVERNANCE_TIMEOUT',
-  'APPROVAL_MODE',
-  'HITL_ENABLED',
-  'HITL_POLL_INTERVAL',
-  'SESSION_DIR',
-  'LOG_FILE',
-  'TASK_QUEUE',
 ] as const;
 const E2E_AGENT_NAME = 'e2e-agent';
 const RUNTIME_KEY_PREFIX = /^obx_(test|live)_/;
@@ -79,7 +70,6 @@ const hookConfig = readClaudeHookConfig();
 
 function resolveOrgApiKey(): string | undefined {
   if (process.env.OPENBOX_BACKEND_API_KEY) return process.env.OPENBOX_BACKEND_API_KEY;
-  if (process.env.OPENBOX_BACKEND_API_KEY_OVERRIDE) return process.env.OPENBOX_BACKEND_API_KEY_OVERRIDE;
   const tokens = path.join(PROJECT_OPENBOX, 'tokens');
   if (!existsSync(tokens)) return undefined;
   const text = readFileSync(tokens, 'utf-8');
@@ -88,13 +78,11 @@ function resolveOrgApiKey(): string | undefined {
 
 function runtimeUrl(kind: 'api' | 'core'): string {
   if (kind === 'api') {
-    return process.env.OPENBOX_API_URL_OVERRIDE
-      ?? (process.env.OPENBOX_API_URL && process.env.OPENBOX_API_URL !== UNIT_API_URL
+    return (process.env.OPENBOX_API_URL && process.env.OPENBOX_API_URL !== UNIT_API_URL
         ? process.env.OPENBOX_API_URL
         : DEFAULT_API_URL);
   }
-  return process.env.OPENBOX_CORE_URL_OVERRIDE
-    ?? hookConfig.OPENBOX_CORE_URL
+  return hookConfig.OPENBOX_CORE_URL
     ?? (process.env.OPENBOX_CORE_URL && process.env.OPENBOX_CORE_URL !== UNIT_CORE_URL
       ? process.env.OPENBOX_CORE_URL
       : DEFAULT_CORE_URL);
@@ -102,8 +90,8 @@ function runtimeUrl(kind: 'api' | 'core'): string {
 
 function claudeHookEnv(): Record<string, string> {
   const env: Record<string, string> = { ...(process.env as Record<string, string>) };
-  for (const key of OPENBOX_RUNTIME_ENV) delete env[key];
-  return { ...env, OPENBOX_CLI: OPENBOX, HITL_MAX_WAIT: '5' };
+  for (const key of RUNTIME_ENV_KEYS) delete env[key];
+  return env;
 }
 
 function readAgentRecords(): AgentKeyRecord[] {
@@ -125,9 +113,7 @@ function resolveAgentRecord(): AgentKeyRecord | undefined {
 function resolveRuntimeKey(): string | undefined {
   for (const candidate of [
     hookConfig.OPENBOX_API_KEY,
-    process.env.OPENBOX_E2E_RUNTIME_KEY,
     process.env.OPENBOX_API_KEY,
-    process.env.OPENBOX_API_KEY_OVERRIDE,
     resolveAgentRecord()?.runtimeKey,
   ]) {
     if (candidate && RUNTIME_KEY_PREFIX.test(candidate)) return candidate;
@@ -136,7 +122,7 @@ function resolveRuntimeKey(): string | undefined {
 }
 
 function resolveAgentId(): string | undefined {
-  return process.env.OPENBOX_E2E_AGENT_ID ?? resolveAgentRecord()?.agentId;
+  return process.env.OPENBOX_AGENT_ID ?? resolveAgentRecord()?.agentId;
 }
 
 const orgKey = resolveOrgApiKey();
@@ -224,7 +210,7 @@ function assertRemoteGovernanceResult(parsed: ClaudeResult, c: VerdictMatrixCase
 }
 
 async function readPlatformSessionsSince(fromTime: string): Promise<PlatformSession[]> {
-  expect(agentId, 'OPENBOX_E2E_AGENT_ID is required for remote platform session proof').toBeTruthy();
+  expect(agentId, 'OPENBOX_AGENT_ID is required for remote platform session proof').toBeTruthy();
   expect(orgKey, 'OPENBOX_BACKEND_API_KEY is required for remote platform session proof').toBeTruthy();
 
   let rows: unknown[] = [];
@@ -356,11 +342,6 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
             realdb: {
               command: process.execPath,
               args: [REAL_DB_MCP],
-              env: {
-                OPENBOX_E2E_POSTGRES_CONTAINER: 'openbox-postgres',
-                OPENBOX_E2E_POSTGRES_DB: 'openbox',
-                OPENBOX_E2E_POSTGRES_USER: 'postgres',
-              },
             },
           },
         },
@@ -377,7 +358,7 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
         {
           mcpServers: {
             openbox: {
-              command: OPENBOX,
+              command: LOCAL_CLI,
               args: ['mcp', 'serve'],
               env: {
                 OPENBOX_HOME: PROJECT_OPENBOX,
@@ -402,7 +383,7 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
     // `.claude-hooks/`. The openbox hooks live in WORKSPACE; from
     // a clean cwd the walk-up resolver finds nothing and claude
     // runs without the governance gate firing on the MCP call.
-    // The governance gate on `llm_tool_call` is exercised in the
+    // The governance gate on `mcp_tool_call` is exercised in the
     // headless matrix; here we are pinning the MCP load + call
     // path on its own.
     const cleanCwd = path.dirname(mcpConfigPath);
@@ -427,7 +408,7 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
         // a busy local stack it stretches further. Keep generous
         // headroom inside the per-test 200s ceiling.
         timeout: 180_000,
-        env: { ...process.env, HITL_MAX_WAIT: '5' },
+        env: process.env,
       },
     );
 

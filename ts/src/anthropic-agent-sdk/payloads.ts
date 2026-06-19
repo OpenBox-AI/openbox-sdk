@@ -1,12 +1,19 @@
 import type { SDKAssistantMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
-import type { SpanData, WorkflowVerdict } from '../core-client/index.js';
+import type { GovernedPayload, SpanData, WorkflowVerdict } from '../core-client/index.js';
 import { stampSource } from '../approvals/source.js';
 import {
   buildLLMCompletionSpan,
   buildSpan,
+  llmTokenUsageFromRecord,
+  withOpenBoxActivityMetadata,
+  withOpenBoxSubagentActivityMetadata,
   type LLMTokenUsage,
   type SpanType,
 } from '../governance/spans.js';
+import {
+  assistantOutputTelemetryFields,
+  buildAssistantOutputSpan,
+} from '../governance/assistant-output.js';
 
 export const ANTHROPIC_AGENT_ACTIVITY_TYPES = {
   PROMPT: 'PromptSubmission',
@@ -20,6 +27,10 @@ export const ANTHROPIC_AGENT_ACTIVITY_TYPES = {
   SUBAGENT: 'AgentSpawn',
   COMPACT: 'PreCompact',
   MESSAGE: 'AnthropicAgentSDKMessage',
+  CONFIG_CHANGE: 'AnthropicAgentSDKConfigChange',
+  WORKSPACE_CHANGE: 'AnthropicAgentSDKWorkspaceChange',
+  MCP_ELICITATION: 'MCPElicitation',
+  TASK: 'AnthropicAgentSDKTask',
   USAGE_SIGNAL: 'anthropic_agent_sdk_usage',
   GOAL_SIGNAL: 'user_prompt',
 } as const;
@@ -57,11 +68,13 @@ export function toolSpan(
   toolName: string,
   toolInput: Record<string, unknown>,
   toolOutput?: unknown,
+  stage: 'started' | 'completed' = 'started',
 ): SpanData[] | undefined {
   const spanType = spanTypeFor(toolName, toolInput);
   if (!spanType) return undefined;
   return [
     buildSpan('anthropic-agent-sdk', spanType, {
+      stage,
       file_path: filePathFor(toolInput),
       command: stringFrom(toolInput.command),
       cwd: stringFrom(toolInput.cwd),
@@ -77,13 +90,50 @@ export function toolSpan(
   ];
 }
 
-export function promptSpan(prompt: string): SpanData[] {
-  return [
-    buildSpan('anthropic-agent-sdk', 'llm', {
-      prompt,
-      model: undefined,
-    }) as unknown as SpanData,
-  ];
+export function toolActivityInput(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+  payload: Record<string, unknown>,
+): unknown[] {
+  const subagentName = subagentNameForTool(toolName, toolInput);
+  if (toolName === 'Agent' || toolName === 'Task' || subagentName) {
+    return withOpenBoxSubagentActivityMetadata([payload], subagentName) as unknown[];
+  }
+  return withOpenBoxActivityMetadata([payload], {
+    toolType: spanTypeFor(toolName, toolInput),
+  }) as unknown[];
+}
+
+export function toolTelemetryFields(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+): { toolName: string; toolType?: string } {
+  const subagentName = subagentNameForTool(toolName, toolInput);
+  const toolType =
+    toolName === 'Agent' || toolName === 'Task' || subagentName
+      ? 'a2a'
+      : spanTypeFor(toolName, toolInput);
+  return {
+    toolName,
+    ...(toolType ? { toolType } : {}),
+  };
+}
+
+export function subagentActivityInput(
+  env: Record<string, unknown>,
+  payload: Record<string, unknown>,
+): unknown[] {
+  return withOpenBoxSubagentActivityMetadata(
+    [payload],
+    firstString(
+      env.subagent_name,
+      env.subagent_type,
+      env.agent_type,
+      env.agent_name,
+      env.name,
+      env.agent_id,
+    ),
+  ) as unknown[];
 }
 
 export function assistantOutputSpan(
@@ -93,35 +143,65 @@ export function assistantOutputSpan(
     usage?: LLMTokenUsage;
     sessionId?: string;
     event?: string;
+    hasToolCalls?: boolean;
   },
 ): SpanData[] | undefined {
-  if (!input.content && !input.usage) return undefined;
-  return [
-    buildLLMCompletionSpan({
-      content: input.content ?? '',
-      span: { module: 'anthropic-agent-sdk' },
-      name: 'openbox.anthropic-agent-sdk.assistant_output',
-      kind: 'llm',
-      system: 'anthropic-agent-sdk',
-      model: input.model,
-      usage: input.usage,
-      providerUrl: 'https://api.anthropic.com/v1/messages',
-      attributes: {
-        'gen_ai.system': 'anthropic-agent-sdk',
-        'openbox.anthropic_agent_sdk.event': input.event ?? 'assistant',
-      },
-      data: {
-        source: 'anthropic-agent-sdk',
-        event: input.event ?? 'assistant',
-        session_id: input.sessionId,
-      },
-    }),
-  ];
+  return buildAssistantOutputSpan({
+    source: 'anthropic-agent-sdk',
+    content: input.content,
+    span: { module: 'anthropic-agent-sdk' },
+    name: 'openbox.anthropic-agent-sdk.assistant_output',
+    model: input.model,
+    usage: input.usage,
+    hasToolCalls: input.hasToolCalls ?? false,
+    providerUrl: 'https://api.anthropic.com/v1/messages',
+    attributes: {
+      'openbox.anthropic_agent_sdk.event': input.event ?? 'assistant',
+    },
+    data: {
+      source: 'anthropic-agent-sdk',
+      event: input.event ?? 'assistant',
+      session_id: input.sessionId,
+    },
+  });
+}
+
+export function assistantOutputTelemetry(
+  input: {
+    content?: string;
+    model?: string;
+    usage?: LLMTokenUsage;
+    sessionId?: string;
+    hasToolCalls?: boolean;
+  },
+): Pick<
+  GovernedPayload,
+  | 'sessionId'
+  | 'llmModel'
+  | 'inputTokens'
+  | 'outputTokens'
+  | 'totalTokens'
+  | 'hasToolCalls'
+  | 'completion'
+> {
+  return assistantOutputTelemetryFields({
+    source: 'anthropic-agent-sdk',
+    sessionId: input.sessionId,
+    content: input.content,
+    model: input.model,
+    usage: input.usage,
+    hasToolCalls: input.hasToolCalls ?? false,
+  });
 }
 
 export function assistantContentAndUsage(
   message: SDKAssistantMessage,
-): { content?: string; model?: string; usage?: LLMTokenUsage } {
+): {
+  content?: string;
+  model?: string;
+  usage?: LLMTokenUsage;
+  hasToolCalls?: boolean;
+} {
   const apiMessage = message.message as unknown as {
     content?: unknown;
     model?: string;
@@ -131,6 +211,7 @@ export function assistantContentAndUsage(
     content: textFromContent(apiMessage.content),
     model: apiMessage.model,
     usage: usageFrom(apiMessage.usage),
+    hasToolCalls: hasToolCallsFromContent(apiMessage.content),
   };
 }
 
@@ -151,12 +232,60 @@ export function usagePayloadFromResult(
   }, 'anthropic-agent-sdk');
 }
 
+export function modelUsageSpansFromResult(message: SDKResultMessage): SpanData[] {
+  const entries = Object.entries(objectRecord(message.modelUsage))
+    .map(([model, usage]) => ({
+      model: model.trim(),
+      usage: usageFrom(usage),
+      costUsd: numberFrom(objectRecord(usage).costUSD),
+    }))
+    .filter(
+      (
+        entry,
+      ): entry is { model: string; usage: LLMTokenUsage; costUsd: number | undefined } =>
+        Boolean(entry.model && entry.usage),
+    );
+
+  if (entries.length <= 1) return [];
+
+  return entries.map(({ model, usage, costUsd }) =>
+    buildLLMCompletionSpan({
+      content: '',
+      name: 'openbox.synthetic.model_usage',
+      system: 'anthropic-agent-sdk',
+      model,
+      usage,
+      providerUrl: 'https://api.anthropic.com/v1/messages',
+      span: { status: { code: 'OK' } },
+      attributes: {
+        'gen_ai.system': 'anthropic-agent-sdk',
+        'openbox.synthetic': true,
+        'openbox.anthropic_agent_sdk.event': 'result_model_usage',
+      },
+      data: {
+        source: 'anthropic-agent-sdk',
+        event: 'result_model_usage',
+        session_id: message.session_id,
+        model,
+        ...(costUsd !== undefined ? { cost_usd: costUsd } : {}),
+      },
+    }),
+  );
+}
+
 export function resultAssistantOutput(
   message: SDKResultMessage,
-): { content?: string; usage?: LLMTokenUsage } {
+): {
+  content?: string;
+  model?: string;
+  usage?: LLMTokenUsage;
+  hasToolCalls?: boolean;
+} {
   return {
     content: message.subtype === 'success' ? message.result : undefined,
+    model: singleResultModel(message.modelUsage),
     usage: usageFrom(message.usage),
+    hasToolCalls: false,
   };
 }
 
@@ -168,7 +297,7 @@ export function brandedReason(verdict?: WorkflowVerdict): string {
 }
 
 export function redactedRecord(verdict?: WorkflowVerdict): Record<string, unknown> | undefined {
-  const redacted = verdict?.guardrailsResult?.redactedInput;
+  const redacted = unwrapInputRedaction(verdict?.guardrailsResult?.redactedInput);
   return redacted && typeof redacted === 'object' && !Array.isArray(redacted)
     ? (redacted as Record<string, unknown>)
     : undefined;
@@ -176,6 +305,51 @@ export function redactedRecord(verdict?: WorkflowVerdict): Record<string, unknow
 
 export function redactedValue(verdict?: WorkflowVerdict): unknown {
   return verdict?.guardrailsResult?.redactedInput;
+}
+
+export function redactedOutputValue(
+  verdict?: WorkflowVerdict,
+  originalOutput?: unknown,
+): unknown {
+  const guardrails = verdict?.guardrailsResult;
+  if (
+    !guardrails ||
+    guardrails.inputType !== 'activity_output' ||
+    guardrails.redactedInput === null ||
+    guardrails.redactedInput === undefined
+  ) {
+    return undefined;
+  }
+  return unwrapOutputRedaction(guardrails.redactedInput, originalOutput);
+}
+
+function unwrapInputRedaction(value: unknown): unknown {
+  if (Array.isArray(value) && value.length === 1) return value[0];
+  if (!isPlainObject(value)) return value;
+  if (Array.isArray(value.input) && value.input.length === 1) return value.input[0];
+  if (Array.isArray(value.activity_input) && value.activity_input.length === 1) {
+    return value.activity_input[0];
+  }
+  if (Array.isArray(value.activityInput) && value.activityInput.length === 1) {
+    return value.activityInput[0];
+  }
+  return value;
+}
+
+function unwrapOutputRedaction(value: unknown, originalOutput: unknown): unknown {
+  if (!isPlainObject(value) || hasOwnKey(originalOutput, 'output')) return value;
+  if (Object.prototype.hasOwnProperty.call(value, 'output')) return value.output;
+  if (Object.prototype.hasOwnProperty.call(value, 'activity_output')) return value.activity_output;
+  if (Object.prototype.hasOwnProperty.call(value, 'activityOutput')) return value.activityOutput;
+  return value;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function hasOwnKey(value: unknown, key: string): value is Record<string, unknown> {
+  return isPlainObject(value) && Object.prototype.hasOwnProperty.call(value, key);
 }
 
 function spanTypeFor(
@@ -192,6 +366,21 @@ function spanTypeFor(
   return null;
 }
 
+function subagentNameForTool(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+): string | undefined {
+  if (toolName !== 'Agent' && toolName !== 'Task') return undefined;
+  return firstString(
+    toolInput.subagent_name,
+    toolInput.subagent_type,
+    toolInput.agent_type,
+    toolInput.agent_name,
+    toolInput.name,
+    toolInput.description,
+  );
+}
+
 function textFromContent(value: unknown): string | undefined {
   if (typeof value === 'string') return value.trim() || undefined;
   if (!Array.isArray(value)) return undefined;
@@ -201,34 +390,40 @@ function textFromContent(value: unknown): string | undefined {
       const record = objectRecord(part);
       return typeof record.text === 'string' ? record.text : '';
     })
-    .join('')
+    .join(' ')
     .trim();
   return text || undefined;
 }
 
-function usageFrom(value: unknown): LLMTokenUsage | undefined {
-  const record = objectRecord(value);
-  const usage: LLMTokenUsage = {
-    promptTokens: positiveInteger(record.input_tokens ?? record.prompt_tokens),
-    completionTokens: positiveInteger(record.output_tokens ?? record.completion_tokens),
-    inputTokens: positiveInteger(record.input_tokens),
-    outputTokens: positiveInteger(record.output_tokens),
-    totalTokens: positiveInteger(record.total_tokens),
-  };
-  return Object.values(usage).some((entry) => entry !== undefined)
-    ? usage
-    : undefined;
+function hasToolCallsFromContent(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.some((part) => {
+    const record = objectRecord(part);
+    const type = typeof record.type === 'string' ? record.type : '';
+    return type === 'tool_use' || type === 'tool_call' || type === 'function_call';
+  });
 }
 
-function positiveInteger(value: unknown): number | undefined {
+function usageFrom(value: unknown): LLMTokenUsage | undefined {
+  return llmTokenUsageFromRecord(value);
+}
+
+function singleResultModel(value: unknown): string | undefined {
+  const record = objectRecord(value);
+  const models = Object.keys(record).filter((key) => key.trim());
+  return models.length === 1 ? models[0] : undefined;
+}
+
+function numberFrom(value: unknown): number | undefined {
   const numberValue =
     typeof value === 'number'
       ? value
       : typeof value === 'string' && value.trim() !== ''
         ? Number(value)
         : undefined;
-  if (numberValue === undefined || !Number.isFinite(numberValue) || numberValue <= 0) return undefined;
-  return Math.trunc(numberValue);
+  return numberValue !== undefined && Number.isFinite(numberValue)
+    ? numberValue
+    : undefined;
 }
 
 function stringFrom(value: unknown): string | undefined {

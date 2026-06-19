@@ -10,7 +10,11 @@ import {
 import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
-import { buildSpan, type SpanType } from '../../../governance/spans.js';
+import {
+  buildSpan,
+  withOpenBoxActivityMetadata,
+  type SpanType,
+} from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import { sideEffects } from '../side-effects.js';
 import { rememberToolActivity } from '../tool-activity-store.js';
@@ -93,7 +97,13 @@ export async function handlePreToolUse(
 
   const startTime = Date.now();
   const opened = await session.openActivity(activityType, {
-    input: [stampSource(payload, 'claude-code')],
+    input: withOpenBoxActivityMetadata(
+      [stampSource(payload, 'claude-code')],
+      { toolType: effectiveSpanType },
+    ),
+    sessionId: env.session_id,
+    toolName,
+    toolType: effectiveSpanType ?? undefined,
     startTime,
     spans,
   });

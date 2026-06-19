@@ -50,12 +50,14 @@ function buildProjectRuntimeEnv(cwd = process.cwd()) {
   const envFile = path.join(configDir, '.env');
   const fileConfig = loadJsonConfig(configFile);
   const envConfig = loadDotenv(envFile);
-  const get = (key: string): string | undefined =>
+  const getRuntime = (key: string): string | undefined =>
     process.env[key] ?? fileConfig[key] ?? envConfig[key];
+  const getSetting = (key: string): string | undefined =>
+    fileConfig[key] ?? envConfig[key];
 
   const agentIdentity = resolveAgentIdentity({
-    OPENBOX_AGENT_DID: get('OPENBOX_AGENT_DID'),
-    OPENBOX_AGENT_PRIVATE_KEY: get('OPENBOX_AGENT_PRIVATE_KEY'),
+    OPENBOX_AGENT_DID: getRuntime('OPENBOX_AGENT_DID'),
+    OPENBOX_AGENT_PRIVATE_KEY: getRuntime('OPENBOX_AGENT_PRIVATE_KEY'),
   });
 
   return {
@@ -64,10 +66,10 @@ function buildProjectRuntimeEnv(cwd = process.cwd()) {
     envFile,
     projectConfigPresent: existsSync(configFile),
     projectEnvPresent: existsSync(envFile),
-    coreUrl: get('OPENBOX_CORE_URL') ?? '',
-    apiKey: get('OPENBOX_API_KEY') ?? '',
+    coreUrl: getRuntime('OPENBOX_CORE_URL') ?? '',
+    apiKey: getRuntime('OPENBOX_API_KEY') ?? '',
     governancePolicy: 'fail_closed' as const,
-    approvalMode: parseApprovalMode(get('APPROVAL_MODE')),
+    approvalMode: parseApprovalMode(getSetting('approvalMode')),
     agentIdentity,
   };
 }

@@ -1,16 +1,23 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import {
-  type GovernanceEventPayload,
-  type GovernanceVerdictResponse,
+  type OpenBoxCoreClient,
   type SpanData,
 } from '../core-client/core-client.js';
+import { stampSource } from '../approvals/source.js';
+import { parseApprovalExpirationMs } from '../core-client/approval-time.js';
 import {
   presets,
   type BaseGovernedSession,
   type WorkflowVerdict,
 } from '../core-client/index.js';
+import { withOpenBoxActivityMetadata } from '../governance/spans.js';
 import { errorMessage, nowUnixNano } from './internal-utils.js';
-import { mapGuardrailsResult, normalizeArm } from './results.js';
+import {
+  effectiveArmForGuardrails,
+  guardrailFailureReason,
+  mapGuardrailsResult,
+  normalizeArm,
+} from './results.js';
 import type {
   GovernedCopilotToolDefinition,
   OpenBoxCopilotActionInput,
@@ -19,6 +26,7 @@ import type {
 
 const startedWorkflowRuns = new Set<string>();
 const TERMINAL_EVENT_TIMEOUT_MS = 5_000;
+const APPROVAL_POLL_INTERVAL_MS = 750;
 
 // One user task should map to one OpenBox session. The runtime gate (or the
 // middleware, when no runtime gate exists) opens the workflow and registers
@@ -106,29 +114,79 @@ export async function pollApproval(
   adapter: OpenBoxCopilotKitAdapter,
   ids: { workflowId: string; runId: string; activityId: string },
 ): Promise<WorkflowVerdict> {
-  const deadline = Date.now() + 10_000;
+  let deadline = Number.POSITIVE_INFINITY;
   let last: WorkflowVerdict | undefined;
   while (Date.now() < deadline) {
-    const response = await adapter.getCoreClient().pollApproval({
-      workflow_id: ids.workflowId,
-      run_id: ids.runId,
-      activity_id: ids.activityId,
-    });
+    let response: Awaited<ReturnType<OpenBoxCoreClient['pollApproval']>> | undefined;
+    try {
+      response = await adapter.getCoreClient().pollApproval({
+        workflow_id: ids.workflowId,
+        run_id: ids.runId,
+        activity_id: ids.activityId,
+      });
+    } catch {
+      const sleepMs = Math.min(APPROVAL_POLL_INTERVAL_MS, deadline - Date.now());
+      if (sleepMs <= 0) break;
+      await sleep(sleepMs);
+      continue;
+    }
     const extra = response as typeof response & {
+      expired?: boolean;
       trust_tier?: string | number;
       guardrails_result?: unknown;
+      verdict?: unknown;
     };
+    const serverDeadline = parseApprovalExpirationMs(
+      response.approval_expiration_time,
+    );
+    if (serverDeadline !== undefined) {
+      deadline = Math.min(deadline, serverDeadline);
+    }
+    if (
+      extra.expired === true ||
+      (serverDeadline !== undefined && Date.now() >= serverDeadline)
+    ) {
+      return {
+        arm: 'block',
+        reason: response.reason ?? 'OpenBox approval expired.',
+        approvalExpiresAt: response.approval_expiration_time,
+        riskScore: 0,
+        trustTier:
+          typeof extra.trust_tier === 'number' ? extra.trust_tier : undefined,
+        guardrailsResult: mapGuardrailsResult(extra.guardrails_result),
+      };
+    }
+    const guardrailsResult = mapGuardrailsResult(extra.guardrails_result);
+    const arm = effectiveArmForGuardrails(
+      normalizeArm(extra.verdict ?? response.action),
+      guardrailsResult,
+    );
     last = {
-      arm: normalizeArm(response.action),
+      arm,
       reason: response.reason,
       approvalExpiresAt: response.approval_expiration_time,
       riskScore: 0,
       trustTier:
         typeof extra.trust_tier === 'number' ? extra.trust_tier : undefined,
-      guardrailsResult: mapGuardrailsResult(extra.guardrails_result),
+      guardrailsResult,
     };
+    if (guardrailsResult?.validationPassed === false && !response.reason) {
+      last.reason = guardrailFailureReason(guardrailsResult);
+    }
     if (last && last.arm !== 'require_approval') return last;
-    await new Promise((resolve) => setTimeout(resolve, 750));
+    const sleepMs = Math.min(APPROVAL_POLL_INTERVAL_MS, deadline - Date.now());
+    if (sleepMs <= 0) break;
+    await sleep(sleepMs);
+  }
+  if (Number.isFinite(deadline) && Date.now() >= deadline) {
+    return {
+      arm: 'block',
+      reason: 'OpenBox approval expired.',
+      approvalExpiresAt: last?.approvalExpiresAt,
+      riskScore: last?.riskScore ?? 0,
+      trustTier: last?.trustTier,
+      guardrailsResult: last?.guardrailsResult,
+    };
   }
   return (
     last ?? {
@@ -137,6 +195,10 @@ export async function pollApproval(
       riskScore: 0,
     }
   );
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function completeWorkflow(
@@ -202,6 +264,7 @@ export async function emitUserPromptSignal(
   workflowType: string,
   taskQueue: string,
   prompt: string | undefined,
+  sessionId?: string,
 ) {
   const signalArgs = prompt?.trim();
   if (!signalArgs) return;
@@ -209,9 +272,16 @@ export async function emitUserPromptSignal(
   await createWorkflowSession(adapter, ids, workflowType, taskQueue, {
     attached: true,
   }).activity('SignalReceived', 'user_prompt', {
+    input: [
+      stampSource(
+        { prompt: signalArgs, event_category: 'agent_goal' },
+        'copilotkit',
+      ),
+    ],
     signalName: 'user_prompt',
     signalArgs,
-    spans: [userPromptSpan(signalArgs)],
+    sessionId,
+    prompt: signalArgs,
   });
 }
 
@@ -224,23 +294,14 @@ export async function emitActivityHookSpanUpdate(
   output: unknown,
   spans: SpanData[],
 ): Promise<WorkflowVerdict> {
-  const response = await adapter.getCoreClient().evaluate({
-    source: 'workflow-telemetry',
-    event_type: 'ActivityCompleted',
-    workflow_id: ids.workflowId,
-    run_id: ids.runId,
-    workflow_type: workflowType,
-    task_queue: taskQueue as GovernanceEventPayload['task_queue'],
-    timestamp: new Date().toISOString(),
-    activity_id: ids.activityId,
-    ...(activityType ? { activity_type: activityType } : {}),
-    status: 'completed',
-    activity_output: output,
-    hook_trigger: true,
+  return createWorkflowSession(adapter, ids, workflowType, taskQueue, {
+    attached: true,
+  }).activity('ActivityCompleted', activityType ?? 'assistant_output', {
+    activityId: ids.activityId,
+    output,
     spans,
-    span_count: spans.length,
+    hookSpanParentEventType: 'ActivityStarted',
   });
-  return mapCoreVerdict(response);
 }
 
 export async function failWorkflow(
@@ -258,22 +319,6 @@ export async function failWorkflow(
       taskQueue,
     ).workflowFailed(typeof reason === 'string' ? new Error(reason) : reason),
   );
-}
-
-function mapCoreVerdict(
-  response: GovernanceVerdictResponse,
-): WorkflowVerdict & { ageResult?: GovernanceVerdictResponse['age_result'] } {
-  return {
-    arm: normalizeArm(response.verdict ?? response.action ?? 'allow'),
-    approvalId: response.approval_id,
-    governanceEventId: response.governance_event_id,
-    approvalExpiresAt: response.approval_expiration_time,
-    reason: response.reason,
-    riskScore: response.risk_score ?? 0,
-    trustTier: response.trust_tier ?? undefined,
-    guardrailsResult: mapGuardrailsResult(response.guardrails_result),
-    ageResult: response.age_result,
-  };
 }
 
 async function bestEffortTerminalEvent(
@@ -304,6 +349,19 @@ export function toolInput<TInput extends OpenBoxCopilotActionInput, TArtifact>(
   };
 }
 
+export function toolActivityInput<TInput extends OpenBoxCopilotActionInput, TArtifact>(
+  definition: GovernedCopilotToolDefinition<TInput, TArtifact>,
+  input: TInput,
+): unknown[] {
+  return withCopilotToolActivityMetadata([toolInput(definition, input)]);
+}
+
+export function withCopilotToolActivityMetadata(input: unknown[]): unknown[] {
+  return withOpenBoxActivityMetadata(input, {
+    toolType: 'llm_tool_call',
+  });
+}
+
 export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
   definition: GovernedCopilotToolDefinition<TInput, TArtifact>,
   input: TInput,
@@ -317,11 +375,14 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
     name: definition.toolName,
     kind: 'tool',
     span_type: 'function',
+    hook_type: 'function_call',
     start_time: now,
     end_time: now,
     duration_ns: 0,
     stage,
     semantic_type: 'llm_tool_call',
+    status: { code: 'UNSET' },
+    events: [],
     attributes: {
       'openbox.semantic_type': 'llm_tool_call',
       'openbox.span_type': 'function',
@@ -341,23 +402,5 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
       ...(profile.attributes ?? {}),
     },
     data: profile.data ?? base.data,
-  } as SpanData;
-}
-
-function userPromptSpan(prompt: string): SpanData {
-  const now = nowUnixNano();
-  return {
-    span_id: randomBytes(8).toString('hex'),
-    trace_id: randomBytes(16).toString('hex'),
-    name: 'user_prompt',
-    kind: 'internal',
-    start_time: now,
-    end_time: now,
-    duration_ns: 0,
-    stage: 'started',
-    attributes: {
-      'openbox.signal.name': 'user_prompt',
-    },
-    data: { prompt },
   } as SpanData;
 }

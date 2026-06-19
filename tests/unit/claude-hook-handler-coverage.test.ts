@@ -3,6 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let adapterOptions: any;
 let coreClientOptions: any;
 let stdinIteratorSpy: any;
+let mockHitlMaxWait = 2;
+let mockApprovalMode: 'remote' | 'inline' | 'defer' = 'remote';
+// Mock-only raw 32-byte Ed25519 key encoded at runtime; not a real credential.
+const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
 
 vi.mock('../../ts/src/cli/env-source.js', () => ({
   applyEnvSource: vi.fn(),
@@ -55,12 +59,8 @@ vi.mock('../../ts/src/runtime/claude-code/config.js', () => ({
     verbose: false,
     hitlEnabled: true,
     hitlPollInterval: 5,
-    hitlMaxWait: Number(process.env.HITL_MAX_WAIT ?? 2),
-    approvalMode: process.env.APPROVAL_MODE === 'inline'
-      ? 'inline'
-      : process.env.APPROVAL_MODE === 'defer'
-        ? 'defer'
-        : 'remote',
+    hitlMaxWait: mockHitlMaxWait,
+    approvalMode: mockApprovalMode,
     taskQueue: 'claude-code-hooks',
     sendStartEvent: true,
     sendActivityStartEvent: true,
@@ -84,9 +84,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   adapterOptions = undefined;
   coreClientOptions = undefined;
+  mockHitlMaxWait = 2;
+  mockApprovalMode = 'remote';
   process.env.OPENBOX_API_KEY = 'obx_test_claude_handler';
-  delete process.env.APPROVAL_MODE;
-  delete process.env.HITL_MAX_WAIT;
   delete process.env.OPENBOX_AGENT_DID;
   delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
   delete process.env.OPENBOX_HOME;
@@ -96,8 +96,6 @@ afterEach(() => {
   stdinIteratorSpy?.mockRestore?.();
   stdinIteratorSpy = undefined;
   delete process.env.OPENBOX_API_KEY;
-  delete process.env.APPROVAL_MODE;
-  delete process.env.HITL_MAX_WAIT;
   delete process.env.OPENBOX_AGENT_DID;
   delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
 });
@@ -128,8 +126,8 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
   };
 
   it('registers handlers and clamps approval wait bounds', async () => {
-    process.env.HITL_MAX_WAIT = '9999';
-    process.env.APPROVAL_MODE = 'inline';
+    mockHitlMaxWait = 9999;
+    mockApprovalMode = 'inline';
     mockHookStdin();
     const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
 
@@ -190,16 +188,17 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
   });
 
   it('passes signed agent identity through to the Core client', async () => {
-    process.env.OPENBOX_AGENT_DID = 'did:openbox:agent:test';
-    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'a'.repeat(44);
+    process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
+    // gitleaks:allow - deterministic test fixture generated above, not a credential.
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = FAKE_AGENT_PRIVATE_KEY;
     mockHookStdin();
     const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
 
     await runClaudeHook();
 
     expect(coreClientOptions?.agentIdentity).toEqual({
-      did: 'did:openbox:agent:test',
-      privateKey: 'a'.repeat(44),
+      did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+      privateKey: FAKE_AGENT_PRIVATE_KEY,
     });
   });
 

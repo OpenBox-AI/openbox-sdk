@@ -34,13 +34,11 @@ function mockCore(plan: Array<{ action?: string; reason?: string }>) {
 
 describe('awaitExternalDecision fast path', () => {
   test('external decision races against poll interval and wakes early', async () => {
-    // Plan: backend says require_approval on first poll, then allow.
+    // Plan: after the external decision signal, the confirmatory
+    // backend poll already observes the committed approval.
     // External signal fires after 50ms; orders of magnitude before
     // the 500ms first tick.
-    const core = mockCore([
-      { action: 'require_approval' },
-      { action: 'allow' },
-    ]);
+    const core = mockCore([{ action: 'allow' }]);
     let externalFired = false;
     const externalDecision = new Promise<'approve'>((resolve) => {
       setTimeout(() => {
@@ -72,6 +70,54 @@ describe('awaitExternalDecision fast path', () => {
     // signal at 50ms wakes us and we poll right away. Use 250ms as a
     // generous ceiling that's still well under the full 500ms tick.
     expect(elapsed).toBeLessThan(250);
+  });
+
+  test('external decision does not busy-poll after the wake-up poll', async () => {
+    const plan = [
+      { action: 'require_approval' },
+      { action: 'require_approval' },
+      { action: 'allow' },
+    ];
+    let i = 0;
+    const pollTimes: number[] = [];
+    const core = {
+      pollApproval: vi.fn(async () => {
+        pollTimes.push(Date.now());
+        const r = plan[Math.min(i, plan.length - 1)];
+        i += 1;
+        return r;
+      }),
+      evaluate: vi.fn(async () => ({
+        action: 'require_approval',
+        decision_id: 'd2',
+        governance_event_id: 'g2',
+        approval_id: 'a2',
+        approval_expiration_time: new Date(Date.now() + 60_000).toISOString(),
+      })),
+    } as unknown as Parameters<typeof govern.attach>[0]['core'];
+    const externalDecision = new Promise<'approve'>((resolve) => {
+      setTimeout(() => resolve('approve'), 20);
+    });
+
+    const session = govern.attach({
+      core,
+      preset: presets.custom,
+      workflowId: 'w-busy',
+      runId: 'r-busy',
+      approvalPollIntervalMs: 60,
+      approvalPollBackoffFactor: 1,
+      approvalPollJitter: 0,
+      awaitExternalDecision: () => externalDecision,
+    });
+
+    const verdict = await session.activity('Test', 'pre', {
+      input: [{ x: 1 }],
+    });
+
+    expect(verdict.arm).toBe('allow');
+    expect(pollTimes).toHaveLength(3);
+    const gapAfterWakePoll = pollTimes[1] - pollTimes[0];
+    expect(gapAfterWakePoll).toBeGreaterThanOrEqual(45);
   });
 
   test('no external decision → loop falls back to normal interval', async () => {

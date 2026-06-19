@@ -23,8 +23,6 @@ export function createOpenBoxCopilotKitAdapter(
 ): OpenBoxCopilotKitAdapter {
   const getCoreClient = createCoreClientResolver(config);
   const strict = config.strict ?? true;
-  const governanceMode = config.governanceMode ?? 'enforce';
-  const failClosed = config.failClosed ?? true;
   const redactionMode = config.redactionMode ?? 'transformed-only';
   const workflowType = config.agentWorkflowType ?? DEFAULT_AGENT_WORKFLOW_TYPE;
   const taskQueue = config.taskQueue ?? DEFAULT_TASK_QUEUE;
@@ -40,9 +38,7 @@ export function createOpenBoxCopilotKitAdapter(
   ]);
 
   const adapter: OpenBoxCopilotKitAdapter = {
-    isEnabled: () =>
-      config.enabled ??
-      (Boolean(config.core) || process.env.OPENBOX_ENABLED === 'true'),
+    isEnabled: () => config.enabled !== false,
     getCoreClient,
     wrapAgent: (agent) => agent,
     createLangChainMiddleware: (deps) =>
@@ -53,8 +49,6 @@ export function createOpenBoxCopilotKitAdapter(
         taskQueue,
         selfGovernedToolNames,
         strict,
-        governanceMode,
-        failClosed,
       }),
     governPrompt: (input) =>
       governPipelineGate(adapter, {
@@ -63,8 +57,6 @@ export function createOpenBoxCopilotKitAdapter(
         taskQueue,
         haltedSessions,
         strict,
-        governanceMode,
-        failClosed,
         redactionMode,
         ...input,
       }),
@@ -75,8 +67,6 @@ export function createOpenBoxCopilotKitAdapter(
         taskQueue,
         haltedSessions,
         strict,
-        governanceMode,
-        failClosed,
         redactionMode,
         ...input,
       }),
@@ -87,8 +77,6 @@ export function createOpenBoxCopilotKitAdapter(
         taskQueue,
         haltedSessions,
         strict,
-        governanceMode,
-        failClosed,
         redactionMode,
         ...input,
       }),
@@ -99,8 +87,6 @@ export function createOpenBoxCopilotKitAdapter(
         taskQueue,
         haltedSessions,
         strict,
-        governanceMode,
-        failClosed,
         redactionMode,
         ...input,
       }),

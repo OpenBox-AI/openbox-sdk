@@ -1,6 +1,6 @@
 // WebdriverIO + wdio-vscode-service config for the OpenBox extension.
 //
-// Run: `npm run test:e2e-extension`
+// Run: `npm --prefix tests/e2e-extension test`
 //
 // LIVE end-to-end suite; the extension activates inside a real
 // VS Code / Cursor workbench and talks through the real SDK to the
@@ -17,21 +17,20 @@
 // can point this harness at a dev deployment without committing
 // endpoint profiles or secrets:
 //
-//   OPENBOX_API_URL          ← override OR http://localhost:3000
-//   OPENBOX_CORE_URL         ← override OR http://localhost:8086
-//   OPENBOX_BACKEND_API_KEY  ← override OR API_KEY from .openbox/tokens
-//   OPENBOX_API_KEY          ← override OR OPENBOX_E2E_RUNTIME_KEY
-//   OPENBOX_E2E_AGENT_ID     ← override OR e2e-agent cache OR bootstrap
-//   OPENBOX_E2E_RUNTIME_KEY  ← override OR e2e-agent cache OR bootstrap
+//   OPENBOX_API_URL          ← http://localhost:3000 when unset
+//   OPENBOX_CORE_URL         ← http://localhost:8086 when unset
+//   OPENBOX_BACKEND_API_KEY  ← API_KEY from .openbox/tokens when unset
+//   OPENBOX_API_KEY          ← runtime key from e2e-agent cache or bootstrap when unset
+//   OPENBOX_AGENT_ID         ← e2e-agent cache or bootstrap when unset
 //
 // Knobs:
-//   OPENBOX_E2E_VSCODE_VERSION; VS Code version (default: stable)
-//   OPENBOX_E2E_VSCODE_BINARY ; path to a VS Code-fork binary
+//   VSCODE_TEST_VERSION; VS Code version (default: stable)
+//   VSCODE_TEST_BINARY ; path to a VS Code-fork binary
 //                                 (e.g. Cursor) to use instead of the
 //                                 downloaded one. Versions must stay
 //                                 close; chromedriver is bundled to
 //                                 the VS Code version we downloaded.
-//   OPENBOX_E2E_HEADLESS=1    ; pass `--no-sandbox` for Linux + Xvfb
+//   VSCODE_TEST_HEADLESS=1    ; pass `--no-sandbox` for Linux + Xvfb
 //                                 environments. macOS shows the
 //                                 workbench window; the in-test
 //                                 before-hook minimizes it after launch.
@@ -63,23 +62,22 @@ function isLocalUrl(raw: string | undefined): boolean {
 //
 // Pull the e2e-agent's runtime key from project `.openbox/agent-keys` (the
 // canonical store openbox-local's bootstrap writes to). Same pattern
-// as tests/setup-creds.ts; lets `npm run test:e2e-extension` Just Work
+// as tests/setup-creds.ts; lets the extension e2e harness work
 // after `cd ~/workspace/openbox-local && npm run bootstrap`.
 
 const E2E_AGENT_NAME = 'e2e-agent';
 const explicitApiUrl = process.env.OPENBOX_API_URL;
 const explicitCoreUrl = process.env.OPENBOX_CORE_URL;
+let createdAgentId: string | undefined;
+let resolvedOrgId: string | undefined;
 
 process.env.OPENBOX_API_URL = process.env.OPENBOX_API_URL ?? DEFAULT_API_URL;
 process.env.OPENBOX_CORE_URL = process.env.OPENBOX_CORE_URL ?? DEFAULT_CORE_URL;
 
 const usingLocalTarget = isLocalUrl(process.env.OPENBOX_API_URL) && isLocalUrl(process.env.OPENBOX_CORE_URL);
-const allowLocalCredentialFallback =
-  usingLocalTarget ||
-  process.env.OPENBOX_ALLOW_LOCAL_TOKEN_FALLBACK === '1' ||
-  (!explicitApiUrl && !explicitCoreUrl);
+const allowLocalCredentialFallback = usingLocalTarget || (!explicitApiUrl && !explicitCoreUrl);
 
-if (allowLocalCredentialFallback && (!process.env.OPENBOX_E2E_AGENT_ID || !process.env.OPENBOX_E2E_RUNTIME_KEY)) {
+if (allowLocalCredentialFallback && (!process.env.OPENBOX_AGENT_ID || !process.env.OPENBOX_API_KEY)) {
   const keysFile = resolve(ROOT, '.openbox', 'agent-keys');
   if (existsSync(keysFile)) {
     try {
@@ -89,21 +87,14 @@ if (allowLocalCredentialFallback && (!process.env.OPENBOX_E2E_AGENT_ID || !proce
       >;
       const entry = Object.values(cache).find((r) => r.agentName === E2E_AGENT_NAME);
       if (entry) {
-        if (!process.env.OPENBOX_E2E_AGENT_ID) process.env.OPENBOX_E2E_AGENT_ID = entry.agentId;
-        if (!process.env.OPENBOX_E2E_RUNTIME_KEY) process.env.OPENBOX_E2E_RUNTIME_KEY = entry.runtimeKey;
+        if (!process.env.OPENBOX_AGENT_ID) process.env.OPENBOX_AGENT_ID = entry.agentId;
+        if (!process.env.OPENBOX_API_KEY) process.env.OPENBOX_API_KEY = entry.runtimeKey;
       }
     } catch {
       /* best-effort; the explicit-error path below catches missing creds */
     }
   }
 }
-
-if (!process.env.OPENBOX_E2E_RUNTIME_KEY && RUNTIME_KEY_PREFIX.test(process.env.OPENBOX_API_KEY ?? '')) {
-  process.env.OPENBOX_E2E_RUNTIME_KEY = process.env.OPENBOX_API_KEY;
-}
-
-process.env.OPENBOX_API_KEY = process.env.OPENBOX_API_KEY ?? process.env.OPENBOX_E2E_RUNTIME_KEY;
-process.env.OPENBOX_E2E_EXPECT_ORG_ID = process.env.OPENBOX_E2E_EXPECT_ORG_ID ?? process.env.OPENBOX_ORG_ID;
 
 if (allowLocalCredentialFallback && !process.env.OPENBOX_BACKEND_API_KEY) {
   for (const tokenFile of [
@@ -156,27 +147,27 @@ async function backend<T = any>(path: string, init: RequestInit = {}): Promise<B
 }
 
 async function resolveOrgId(): Promise<string | undefined> {
-  if (process.env.OPENBOX_ORG_ID) return process.env.OPENBOX_ORG_ID;
+  if (resolvedOrgId) return resolvedOrgId;
   if (!process.env.OPENBOX_BACKEND_API_KEY) return undefined;
   const profile = await backend<{ orgId?: string }>('/auth/profile');
   const orgId = profile?.data?.orgId;
-  if (orgId) process.env.OPENBOX_ORG_ID = orgId;
-  return orgId;
+  if (orgId) resolvedOrgId = orgId;
+  return resolvedOrgId;
 }
 
 async function resolveAgentFromRuntimeKey(): Promise<void> {
-  const key = process.env.OPENBOX_E2E_RUNTIME_KEY ?? process.env.OPENBOX_API_KEY;
-  if (process.env.OPENBOX_E2E_AGENT_ID || !key || !RUNTIME_KEY_PREFIX.test(key)) return;
+  const key = process.env.OPENBOX_API_KEY;
+  if (process.env.OPENBOX_AGENT_ID || !key || !RUNTIME_KEY_PREFIX.test(key)) return;
   const res = await fetch(`${process.env.OPENBOX_CORE_URL}/api/v1/auth/validate`, {
     headers: { Authorization: `Bearer ${key}` },
   }).catch(() => undefined);
   if (!res?.ok) return;
   const body = (await res.json().catch(() => ({}))) as { agent_id?: string };
-  if (body.agent_id) process.env.OPENBOX_E2E_AGENT_ID = body.agent_id;
+  if (body.agent_id) process.env.OPENBOX_AGENT_ID = body.agent_id;
 }
 
 async function validateRuntimeKey(): Promise<boolean> {
-  const key = process.env.OPENBOX_E2E_RUNTIME_KEY ?? process.env.OPENBOX_API_KEY;
+  const key = process.env.OPENBOX_API_KEY;
   if (!key || !RUNTIME_KEY_PREFIX.test(key)) return false;
   const res = await fetch(`${process.env.OPENBOX_CORE_URL}/api/v1/auth/validate`, {
     headers: { Authorization: `Bearer ${key}` },
@@ -184,17 +175,16 @@ async function validateRuntimeKey(): Promise<boolean> {
   if (!res?.ok) return false;
   const body = (await res.json().catch(() => ({}))) as { agent_id?: string; agentId?: string };
   const resolvedAgentId = body.agent_id ?? body.agentId;
-  if (process.env.OPENBOX_E2E_AGENT_ID && resolvedAgentId && process.env.OPENBOX_E2E_AGENT_ID !== resolvedAgentId) {
+  if (process.env.OPENBOX_AGENT_ID && resolvedAgentId && process.env.OPENBOX_AGENT_ID !== resolvedAgentId) {
     return false;
   }
-  if (resolvedAgentId) process.env.OPENBOX_E2E_AGENT_ID = resolvedAgentId;
+  if (resolvedAgentId) process.env.OPENBOX_AGENT_ID = resolvedAgentId;
   return true;
 }
 
 function clearInvalidRuntimeKey(): void {
-  const key = process.env.OPENBOX_E2E_RUNTIME_KEY;
-  delete process.env.OPENBOX_E2E_AGENT_ID;
-  delete process.env.OPENBOX_E2E_RUNTIME_KEY;
+  const key = process.env.OPENBOX_API_KEY;
+  delete process.env.OPENBOX_AGENT_ID;
   if (key && process.env.OPENBOX_API_KEY === key) delete process.env.OPENBOX_API_KEY;
 }
 
@@ -206,7 +196,7 @@ async function listTeamIds(orgId: string): Promise<string[]> {
 
 async function createDisposableAgent(): Promise<void> {
   const orgId = await resolveOrgId();
-  if (!orgId) throw new Error('OPENBOX_ORG_ID could not be resolved for extension e2e bootstrap');
+  if (!orgId) throw new Error('test org id could not be resolved for extension e2e bootstrap');
   const teamIds = await listTeamIds(orgId);
   const body = {
     agent_name: `e2e-extension-${Date.now().toString(36)}`,
@@ -254,28 +244,35 @@ async function createDisposableAgent(): Promise<void> {
   if (!agentId || !runtimeKey || !RUNTIME_KEY_PREFIX.test(runtimeKey)) {
     throw new Error('backend agent create did not return an agent id and runtime key');
   }
-  process.env.OPENBOX_E2E_AGENT_ID = agentId;
-  process.env.OPENBOX_E2E_RUNTIME_KEY = runtimeKey;
+  process.env.OPENBOX_AGENT_ID = agentId;
   process.env.OPENBOX_API_KEY = runtimeKey;
-  process.env.OPENBOX_E2E_CREATED_AGENT_ID = agentId;
+  createdAgentId = agentId;
+}
+
+async function cleanupDisposableAgent(): Promise<void> {
+  if (!createdAgentId || !process.env.OPENBOX_API_URL || !process.env.OPENBOX_BACKEND_API_KEY) return;
+  await fetch(`${process.env.OPENBOX_API_URL}/agent/${createdAgentId}`, {
+    method: 'DELETE',
+    headers: { 'X-API-Key': process.env.OPENBOX_BACKEND_API_KEY },
+  }).catch(() => undefined);
 }
 
 await resolveAgentFromRuntimeKey();
 
-if (process.env.OPENBOX_E2E_RUNTIME_KEY && !(await validateRuntimeKey())) {
+if (process.env.OPENBOX_API_KEY && !(await validateRuntimeKey())) {
   clearInvalidRuntimeKey();
 }
 
-if (!process.env.OPENBOX_E2E_AGENT_ID || !process.env.OPENBOX_E2E_RUNTIME_KEY) {
+if (!process.env.OPENBOX_AGENT_ID || !process.env.OPENBOX_API_KEY) {
   await resolveOrgId();
   await createDisposableAgent();
 } else {
   await resolveOrgId().catch(() => undefined);
 }
 
-if (!process.env.OPENBOX_E2E_AGENT_ID || !process.env.OPENBOX_E2E_RUNTIME_KEY) {
+if (!process.env.OPENBOX_AGENT_ID || !process.env.OPENBOX_API_KEY) {
   console.error(
-    'No e2e agent credentials. Inject OPENBOX_E2E_AGENT_ID + OPENBOX_E2E_RUNTIME_KEY ' +
+    'No extension e2e agent credentials. Inject OPENBOX_AGENT_ID + OPENBOX_API_KEY ' +
       'or provide OPENBOX_BACKEND_API_KEY so the harness can create a disposable agent.',
   );
   process.exit(1);
@@ -283,18 +280,17 @@ if (!process.env.OPENBOX_E2E_AGENT_ID || !process.env.OPENBOX_E2E_RUNTIME_KEY) {
 
 await ensureLiveVerdictMatrix();
 
-const vscodeVersion = process.env.OPENBOX_E2E_VSCODE_VERSION ?? 'stable';
-const vscodeBinary = process.env.OPENBOX_E2E_VSCODE_BINARY;
-const headless = process.env.OPENBOX_E2E_HEADLESS === '1';
+const vscodeVersion = process.env.VSCODE_TEST_VERSION ?? 'stable';
+const vscodeBinary = process.env.VSCODE_TEST_BINARY;
+const headless = process.env.VSCODE_TEST_HEADLESS === '1';
 
 const userSettings: Record<string, unknown> = {
   'openbox.mockAuth': false,
-  'openbox.agentId': process.env.OPENBOX_E2E_AGENT_ID!,
+  'openbox.agentId': process.env.OPENBOX_AGENT_ID!,
   'openbox.preWriteGate.active': true,
   'openbox.tabObserver.enabled': true,
   'openbox.tabObserver.active': true,
   'openbox.fileOpGate.enabled': true,
-  'openbox.failClosed': false,
 };
 
 export const config = {
@@ -335,4 +331,7 @@ export const config = {
   services: ['vscode'],
   outputDir: resolve(ROOT, 'tests/e2e-extension/.wdio-cache/logs'),
   logLevel: 'info',
+  onComplete: async () => {
+    await cleanupDisposableAgent();
+  },
 } as const;

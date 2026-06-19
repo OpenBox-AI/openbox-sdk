@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_TASK_QUEUE, DEFAULT_WORKFLOW_TYPE } from './constants.js';
-import { nowUnixNano, sessionKeyFromConfig } from './internal-utils.js';
+import {
+  errorOutput,
+  nowUnixNano,
+  sessionKeyFromConfig,
+} from './internal-utils.js';
 import {
   applyCompletedRedaction,
   applyStartedRedaction,
@@ -34,8 +38,10 @@ import {
   failWorkflow,
   finishStoppedWorkflow,
   pollApproval,
+  toolActivityInput,
   toolInput,
   toolSpan,
+  withCopilotToolActivityMetadata,
 } from './workflow-session.js';
 
 export function createGovernedCopilotTool<
@@ -82,7 +88,7 @@ export function createGovernedCopilotTool<
     const shared =
       sharedWorkflowFromConfig(runtimeConfig) ??
       activeWorkflowFor(definition.adapter, key);
-    if (process.env.OPENBOX_COPILOTKIT_DEBUG === 'true') {
+    if (process.env.OPENBOX_DEBUG === 'true') {
       console.error(
         `[openbox:governed-tool] key=${key} shared=${JSON.stringify(shared ?? null)} action=${String((normalizedInput as Record<string, unknown>).action ?? '')}`,
       );
@@ -134,6 +140,7 @@ export function createGovernedCopilotTool<
               workflowType,
               taskQueue,
               normalizedInput.request,
+              key,
             );
           },
         );
@@ -147,10 +154,8 @@ export function createGovernedCopilotTool<
         () =>
           session.openActivity(definition.toolName, {
             activityId: ids.activityId,
-            input: [toolInput(definition, normalizedInput)],
-            ...(definition.spanProfile
-              ? { spans: [toolSpan(definition, normalizedInput, 'started')] }
-              : {}),
+            input: toolActivityInput(definition, normalizedInput),
+            spans: [toolSpan(definition, normalizedInput, 'started')],
           }),
       );
       const started = openedActivity.verdict;
@@ -195,12 +200,39 @@ export function createGovernedCopilotTool<
         normalizedInput,
         started,
       );
-      const artifact = await timings.measure(
-        'tool_execution',
-        'Business action',
-        'tool',
-        () => definition.execute(startedRedaction.input),
-      );
+      let artifact: TArtifact;
+      try {
+        artifact = await timings.measure(
+          'tool_execution',
+          'Business action',
+          'tool',
+          () => definition.execute(startedRedaction.input),
+        );
+      } catch (error) {
+        await timings.measure(
+          'tool_output_gate',
+          'Record failed tool output',
+          'openbox',
+          async () => {
+            try {
+              await openedActivity.complete(
+                {
+                  input: toolActivityInput(definition, startedRedaction.input),
+                  output: failedToolOutputForGovernance(error),
+                  spans: [
+                    toolSpan(definition, startedRedaction.input, 'completed'),
+                  ],
+                  hookSpanParentEventType: 'ActivityStarted',
+                },
+                definition.toolName,
+              );
+            } catch {
+              // Preserve the business error. WorkflowFailed below records the terminal state.
+            }
+          },
+        );
+        throw error;
+      }
       const provisional = resultForAllowedVerdict(
         startedRedaction.input,
         ids,
@@ -216,15 +248,12 @@ export function createGovernedCopilotTool<
         () =>
           openedActivity.complete(
             {
-              input: [toolInput(definition, startedRedaction.input)],
+              input: toolActivityInput(definition, startedRedaction.input),
               output: toolOutputForGovernance(provisional),
-              ...(definition.spanProfile
-                ? {
-                    spans: [
-                      toolSpan(definition, startedRedaction.input, 'completed'),
-                    ],
-                  }
-                : {}),
+              spans: [
+                toolSpan(definition, startedRedaction.input, 'completed'),
+              ],
+              hookSpanParentEventType: 'ActivityStarted',
             },
             definition.toolName,
           ),
@@ -417,9 +446,12 @@ export function createGovernedCopilotTool<
             { attached: true, inlineApproval: true },
           ).activity('ActivityCompleted', definition.toolName, {
             activityId: ids.activityId,
-            input: [approvalResumeToolInput(definition, normalizedInput)],
+            input: withCopilotToolActivityMetadata([
+              approvalResumeToolInput(definition, normalizedInput),
+            ]),
             output: toolOutputForGovernance(result),
             spans: [approvalResumeSpan(definition, normalizedInput)],
+            hookSpanParentEventType: 'ActivityStarted',
           }),
       );
 
@@ -542,10 +574,8 @@ export function createGovernedCopilotTool<
             { attached: true, inlineApproval: true },
           ).openActivity(definition.toolName, {
             activityId: ids.activityId,
-            input: [toolInput(definition, input)],
-            ...(definition.spanProfile
-              ? { spans: [toolSpan(definition, input, 'started')] }
-              : {}),
+            input: toolActivityInput(definition, input),
+            spans: [toolSpan(definition, input, 'started')],
           }),
       );
       if (isAllowed(verdict.arm)) {
@@ -601,6 +631,13 @@ function toolOutputForGovernance<TArtifact>(
   return { artifact: result.artifact };
 }
 
+function failedToolOutputForGovernance(error: unknown) {
+  return {
+    status: 'failed',
+    error: errorOutput(error),
+  };
+}
+
 function approvalResumeToolInput<
   TInput extends OpenBoxCopilotActionInput & OpenBoxCopilotResumeInput,
 >(
@@ -627,14 +664,22 @@ function approvalResumeSpan<
     trace_id: randomUUID().replaceAll('-', ''),
     name: `${definition.toolName}.approval_resume`,
     kind: 'internal',
+    span_type: 'function',
+    hook_type: 'function_call',
     start_time: now,
     end_time: now,
     duration_ns: 0,
     stage: 'completed',
+    semantic_type: 'llm_tool_call',
+    status: { code: 'UNSET' },
+    events: [],
     attributes: {
+      'openbox.semantic_type': 'llm_tool_call',
+      'openbox.span_type': 'function',
       'openbox.tool.name': definition.toolName,
       'openbox.approval.resume': true,
       'tool.name': definition.toolName,
+      tool_name: definition.toolName,
     },
     data: approvalResumeMetadata(input),
   };

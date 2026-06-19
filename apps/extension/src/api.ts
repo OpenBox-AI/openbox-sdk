@@ -53,7 +53,6 @@ export async function createApiContext(): Promise<{
     coreUrl: process.env.OPENBOX_CORE_URL ?? getConfig("OPENBOX_CORE_URL") ?? undefined,
     authUrl: process.env.OPENBOX_AUTH_URL ?? getConfig("OPENBOX_AUTH_URL") ?? undefined,
     platformUrl: process.env.OPENBOX_PLATFORM_URL ?? getConfig("OPENBOX_PLATFORM_URL") ?? undefined,
-    stackUrl: process.env.OPENBOX_STACK_URL ?? getConfig("OPENBOX_STACK_URL") ?? undefined,
     getApiKey: () => loadApiKey(),
     clientName: "apps/extension",
   });

@@ -11,6 +11,12 @@ using OpenAPI;
 @info(#{ version: "1.0", contact: #{} })
 namespace OpenboxBackend;
 
+/** Guardrail type IDs accepted by the agent guardrail create/update DTOs. */
+alias GuardrailType = "1" | "2" | "3" | "4" | "5";
+
+/** Guardrail stage IDs accepted by the agent guardrail create/update DTOs. */
+alias ProcessingStage = "0" | "1";
+
 model LoginDto {
   realm: string;
   username: string;
@@ -232,8 +238,8 @@ model UpdateAgentAivssConfigDto {
 }
 
 model CreateGuardrailDto {
-  /** Guardrail Type */
-  guardrail_type: string;
+  /** Guardrail type ID: "1"=PII, "2"=NSFW, "3"=Toxicity, "4"=BanList, "5"=Regex. */
+  guardrail_type: GuardrailType;
 
   /** Name of the guardrail */
   name: string;
@@ -241,25 +247,25 @@ model CreateGuardrailDto {
   /** Description of the guardrail */
   description?: string;
 
-  /** Processing stage of the guardrail */
-  processing_stage: string;
+  /** Processing stage: "0"=input/ActivityStarted, "1"=output/ActivityCompleted. */
+  processing_stage: ProcessingStage;
 
   /** Parameters for the guardrail */
-  params?: {};
+  params?: Record<unknown>;
 
   /** Settings for the guardrail */
-  settings?: {};
+  settings?: Record<unknown>;
 
   /** Controls whether violations affect trust score and severity. none = excluded from trust evaluation. */
-  trust_impact?: "none" | "low" | "medium" | "high" = "none";
+  trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
-  trust_threshold?: {};
+  trust_threshold?: numeric | null;
 }
 
 model UpdateGuardrailDto {
-  /** Guardrail Type */
-  guardrail_type?: string;
+  /** Guardrail type ID: "1"=PII, "2"=NSFW, "3"=Toxicity, "4"=BanList, "5"=Regex. */
+  guardrail_type?: GuardrailType;
 
   /** Name of the guardrail */
   name?: string;
@@ -267,23 +273,23 @@ model UpdateGuardrailDto {
   /** Description of the guardrail */
   description?: string;
 
-  /** Processing stage of the guardrail */
-  processing_stage?: string;
+  /** Processing stage: "0"=input/ActivityStarted, "1"=output/ActivityCompleted. */
+  processing_stage?: ProcessingStage;
 
   /** Active status of the guardrail */
   is_active?: boolean;
 
   /** Parameters for the guardrail */
-  params?: {};
+  params?: Record<unknown>;
 
   /** Settings for the guardrail */
-  settings?: {};
+  settings?: Record<unknown>;
 
   /** Controls whether violations affect trust score and severity. none = excluded from trust evaluation. */
   trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default. */
-  trust_threshold?: {};
+  trust_threshold?: numeric | null;
 }
 
 model ReorderGuardrailDto {
@@ -308,7 +314,7 @@ model CreatePolicyDto {
   config?: {};
 
   /** Controls whether violations affect trust score and severity. none = excluded from trust evaluation. */
-  trust_impact?: "none" | "low" | "medium" | "high" = "none";
+  trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
   trust_threshold?: {};
@@ -335,48 +341,13 @@ model CreateBehaviorRuleDto {
   @minValue(1) @maxValue(100) priority: numeric;
 
   /** Trigger event */
-  trigger:
-    | "http_get"
-    | "http_post"
-    | "http_put"
-    | "http_patch"
-    | "http_delete"
-    | "http"
-    | "llm_completion"
-    | "llm_embedding"
-    | "llm_tool_call"
-    | "database_select"
-    | "database_insert"
-    | "database_update"
-    | "database_delete"
-    | "database_query"
-    | "file_read"
-    | "file_write"
-    | "file_open"
-    | "file_delete"
-    | "internal";
+  trigger: BehaviorRuleTrigger;
+
+  /** Trigger predicate conditions on the trigger span. Omit for type-only triggers. */
+  trigger_match?: BehaviorRuleMatchCondition[];
 
   /** States (multiple select) */
-  states: (
-    | "http_get"
-    | "http_post"
-    | "http_put"
-    | "http_patch"
-    | "http_delete"
-    | "http"
-    | "llm_completion"
-    | "llm_embedding"
-    | "llm_tool_call"
-    | "database_select"
-    | "database_insert"
-    | "database_update"
-    | "database_delete"
-    | "database_query"
-    | "file_read"
-    | "file_write"
-    | "file_open"
-    | "file_delete"
-    | "internal")[];
+  states: BehaviorRuleStateInput[];
 
   /** The base_rule_id of the rule that this rule depends on (must be within the same agent) */
   @format("uuid") dependency_base_rule_id?: string;
@@ -399,7 +370,7 @@ model CreateBehaviorRuleDto {
   @minValue(1) approval_timeout?: numeric;
 
   /** Controls whether violations affect trust score and severity. none = excluded from trust evaluation. */
-  trust_impact?: "none" | "low" | "medium" | "high" = "none";
+  trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
   trust_threshold?: {};
@@ -421,48 +392,13 @@ model UpdateBehavioralRuleDto {
   @minValue(1) @maxValue(100) priority: numeric;
 
   /** Trigger event */
-  trigger:
-    | "http_get"
-    | "http_post"
-    | "http_put"
-    | "http_patch"
-    | "http_delete"
-    | "http"
-    | "llm_completion"
-    | "llm_embedding"
-    | "llm_tool_call"
-    | "database_select"
-    | "database_insert"
-    | "database_update"
-    | "database_delete"
-    | "database_query"
-    | "file_read"
-    | "file_write"
-    | "file_open"
-    | "file_delete"
-    | "internal";
+  trigger: BehaviorRuleTrigger;
+
+  /** Trigger predicate conditions on the trigger span. Omit for type-only triggers. */
+  trigger_match?: BehaviorRuleMatchCondition[];
 
   /** States (multiple select) */
-  states: (
-    | "http_get"
-    | "http_post"
-    | "http_put"
-    | "http_patch"
-    | "http_delete"
-    | "http"
-    | "llm_completion"
-    | "llm_embedding"
-    | "llm_tool_call"
-    | "database_select"
-    | "database_insert"
-    | "database_update"
-    | "database_delete"
-    | "database_query"
-    | "file_read"
-    | "file_write"
-    | "file_open"
-    | "file_delete"
-    | "internal")[];
+  states: BehaviorRuleStateInput[];
 
   /** The base_rule_id of the rule that this rule depends on (must be within the same agent) */
   @format("uuid") dependency_base_rule_id?: string;
@@ -485,7 +421,7 @@ model UpdateBehavioralRuleDto {
   @minValue(1) approval_timeout?: numeric;
 
   /** Controls whether violations affect trust score and severity. none = excluded from trust evaluation. */
-  trust_impact?: "none" | "low" | "medium" | "high" = "none";
+  trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
   trust_threshold?: {};
@@ -496,9 +432,9 @@ model UpdateBehavioralRuleDto {
 
 model TestGuardrailDto {
   guardrail_type?: string;
-  params?: {};
-  settings?: {};
-  logs?: {};
+  params?: Record<unknown>;
+  settings?: Record<unknown>;
+  logs?: Record<unknown>;
 }
 
 model EvaluateRegoDto {
@@ -1347,26 +1283,7 @@ op AgentController_getBehaviorRuleList(
   @query(#{ explode: true }) is_active?: boolean,
 
   /** Filter by trigger */
-  @query(#{ explode: true }) trigger?:
-    | "http_get"
-    | "http_post"
-    | "http_put"
-    | "http_patch"
-    | "http_delete"
-    | "http"
-    | "llm_completion"
-    | "llm_embedding"
-    | "llm_tool_call"
-    | "database_select"
-    | "database_insert"
-    | "database_update"
-    | "database_delete"
-    | "database_query"
-    | "file_read"
-    | "file_write"
-    | "file_open"
-    | "file_delete"
-    | "internal",
+  @query(#{ explode: true }) trigger?: BehaviorRuleTrigger,
 ): Body<PaginatedResponse<BehaviorRule>>;
 
 @tag("Agent")

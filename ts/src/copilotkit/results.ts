@@ -408,6 +408,12 @@ export function verdictMetadata(
   return {
     riskScore: verdict?.riskScore,
     trustTier: verdict?.trustTier,
+    alignmentScore: verdict?.alignmentScore,
+    policyId: verdict?.policyId,
+    behavioralViolations: verdict?.behavioralViolations,
+    constraints: verdict?.constraints,
+    metadata: verdict?.metadata,
+    fallbackUsed: verdict?.fallbackUsed,
     guardrailsResult: verdict?.guardrailsResult,
     ageResult: ageResultFromVerdict(verdict),
     redactionSummary,
@@ -422,6 +428,12 @@ export function mergedVerdictMetadata(
   return {
     riskScore: verdict.riskScore ?? result.riskScore,
     trustTier: verdict.trustTier ?? result.trustTier,
+    alignmentScore: verdict.alignmentScore ?? result.alignmentScore,
+    policyId: verdict.policyId ?? result.policyId,
+    behavioralViolations: verdict.behavioralViolations ?? result.behavioralViolations,
+    constraints: verdict.constraints ?? result.constraints,
+    metadata: verdict.metadata ?? result.metadata,
+    fallbackUsed: verdict.fallbackUsed ?? result.fallbackUsed,
     guardrailsResult: verdict.guardrailsResult ?? result.guardrailsResult,
     ageResult: ageResultFromVerdict(verdict) ?? result.ageResult,
     redactionSummary: redactionSummary || result.redactionSummary,
@@ -445,6 +457,8 @@ export function mapGuardrailsResult(
     redacted_input?: unknown;
     validationPassed?: boolean;
     validation_passed?: boolean;
+    rawLogs?: Record<string, unknown>;
+    raw_logs?: Record<string, unknown>;
     reasons?: Array<{ type?: unknown; field?: unknown; reason?: unknown }>;
     fieldResults?: Array<{
       field?: unknown;
@@ -457,10 +471,10 @@ export function mapGuardrailsResult(
   };
   const inputType = raw.inputType ?? raw.input_type;
   return {
-    inputType:
-      inputType === 'activity_output' ? 'activity_output' : 'activity_input',
+    inputType: normalizeGuardrailsInputType(inputType),
     redactedInput: raw.redactedInput ?? raw.redacted_input,
     validationPassed: raw.validationPassed ?? raw.validation_passed ?? true,
+    rawLogs: raw.rawLogs ?? raw.raw_logs,
     reasons: (raw.reasons ?? []).map((reason) => ({
       type: String(reason.type ?? ''),
       field: typeof reason.field === 'string' ? reason.field : undefined,
@@ -478,18 +492,79 @@ export function mapGuardrailsResult(
 }
 
 export function normalizeArm(value: unknown): WorkflowVerdict['arm'] {
-  if (
-    value === 'allow' ||
-    value === 'constrain' ||
-    value === 'require_approval' ||
-    value === 'block' ||
-    value === 'halt'
-  ) {
-    return value;
+  if (typeof value === 'number') {
+    switch (value) {
+      case 1:
+        return 'constrain';
+      case 2:
+        return 'require_approval';
+      case 3:
+        return 'block';
+      case 4:
+        return 'halt';
+      case 0:
+      default:
+        return 'allow';
+    }
   }
-  if (value === 'continue') return 'allow';
-  if (value === 'stop') return 'block';
-  return 'block';
+  const normalized =
+    typeof value === 'string' ? value.trim().toLowerCase().replace(/-/g, '_') : value;
+  if (
+    normalized === 'allow' ||
+    normalized === 'constrain' ||
+    normalized === 'require_approval' ||
+    normalized === 'block' ||
+    normalized === 'halt'
+  ) {
+    return normalized;
+  }
+  if (normalized === 'continue') return 'allow';
+  if (normalized === 'stop') return 'halt';
+  if (normalized === 'request_approval') return 'require_approval';
+  return 'allow';
+}
+
+export function effectiveArmForGuardrails(
+  arm: WorkflowVerdict['arm'],
+  guardrailsResult: WorkflowVerdict['guardrailsResult'] | undefined,
+): WorkflowVerdict['arm'] {
+  if (
+    guardrailsResult?.validationPassed === false &&
+    arm !== 'halt' &&
+    arm !== 'block'
+  ) {
+    return 'block';
+  }
+  return arm;
+}
+
+export function guardrailFailureReason(
+  result: WorkflowVerdict['guardrailsResult'] | undefined,
+): string {
+  if (!result) return 'Guardrails validation failed';
+  const reasons = (result.reasons ?? [])
+    .map((reason) => cleanGuardrailReason(reason.reason))
+    .filter((reason) => reason.length > 0);
+  if (reasons.length > 0) {
+    return result.inputType === 'activity_output'
+      ? reasons.join('; ')
+      : reasons[0];
+  }
+  return result.inputType === 'activity_output'
+    ? 'Guardrails output validation failed'
+    : 'Guardrails validation failed';
+}
+
+function cleanGuardrailReason(reason: string): string {
+  const withoutQuestion = reason.replace(
+    /\n?-\s*Question:\s*\[Session context\][^\n]*\n?/g,
+    '',
+  );
+  for (const marker of ['\n\nThought:', '\n\nThought', '\nThought:', '\nThought']) {
+    const index = withoutQuestion.indexOf(marker);
+    if (index >= 0) return withoutQuestion.slice(0, index).trimEnd();
+  }
+  return withoutQuestion.trimEnd();
 }
 
 export function isAllowed(arm: WorkflowVerdict['arm']): boolean {
@@ -508,11 +583,20 @@ function toolInputForRedaction<
   };
 }
 
+function normalizeGuardrailsInputType(
+  value: unknown,
+): NonNullable<WorkflowVerdict['guardrailsResult']>['inputType'] {
+  if (value === 'activity_output') return 'activity_output';
+  if (value === 'signal_args') return 'signal_args';
+  return 'activity_input';
+}
+
 function normalizeGuardrailStatus(
   value: unknown,
-): 'allowed' | 'blocked' | 'redacted' | 'skipped' {
+): 'allowed' | 'blocked' | 'redacted' | 'transformed' | 'skipped' {
   if (value === 'blocked' || value === 'block') return 'blocked';
-  if (value === 'redacted' || value === 'transformed') return 'redacted';
+  if (value === 'redacted') return 'redacted';
+  if (value === 'transformed') return 'transformed';
   if (value === 'allowed' || value === 'allow') return 'allowed';
   return 'skipped';
 }

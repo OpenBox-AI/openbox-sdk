@@ -71,6 +71,12 @@ export interface OpenBoxCopilotActionResult<TArtifact = unknown> {
   message: string;
   riskScore?: number;
   trustTier?: string | number;
+  alignmentScore?: WorkflowVerdict['alignmentScore'];
+  policyId?: WorkflowVerdict['policyId'];
+  behavioralViolations?: WorkflowVerdict['behavioralViolations'];
+  constraints?: WorkflowVerdict['constraints'];
+  metadata?: WorkflowVerdict['metadata'];
+  fallbackUsed?: WorkflowVerdict['fallbackUsed'];
   guardrailsResult?: WorkflowVerdict['guardrailsResult'];
   ageResult?: AGEResult;
   redactionSummary?: string;
@@ -89,7 +95,9 @@ export interface OpenBoxCopilotActionResult<TArtifact = unknown> {
 export interface OpenBoxCopilotKitConfig {
   enabled?: boolean;
   strict?: boolean;
+  /** @deprecated Compatibility no-op. Runtime governance is always enforced. */
   governanceMode?: 'observe' | 'enforce';
+  /** @deprecated Compatibility no-op. Runtime governance failures always fail closed. */
   failClosed?: boolean;
   redactionMode?: 'transformed-only';
   core?: OpenBoxCoreClient;

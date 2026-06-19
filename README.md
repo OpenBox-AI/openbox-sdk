@@ -76,7 +76,6 @@ npx tsc --noEmit -p tsconfig.build.json
 npm run test:unit
 npm run test:contract
 npm run test:hook-integration
-npm run test:e2e
 npm run check:generated-drift
 npm run lint:generated-banners
 ```

@@ -2108,19 +2108,39 @@ export interface components {
             description?: string;
             /** Format: int32 */
             priority: number;
-            trigger: string;
-            states: string[];
+            /** @enum {string} */
+            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            trigger_match?: components["schemas"]["BehaviorRuleMatchCondition"][] | null;
+            states: (("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal") | components["schemas"]["BehaviorRuleStateCondition"])[];
             /** Format: int32 */
             time_window: number;
             /** Format: int32 */
             verdict: number;
             reject_message: string;
+            /** Format: int32 */
+            approval_timeout?: number;
             is_active: boolean;
+            base_rule_id?: string;
+            dependency_base_rule_id?: string;
             group_id?: string;
             /** Format: int32 */
             version?: number;
+            /** @enum {string} */
+            trust_impact?: "none" | "low" | "medium" | "high";
+            /** Format: int32 */
+            trust_threshold?: number | null;
         } & {
             [key: string]: unknown;
+        };
+        BehaviorRuleMatchCondition: {
+            field: string;
+            op: string;
+            value?: unknown;
+        };
+        BehaviorRuleStateCondition: {
+            /** @enum {string} */
+            semantic_type: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            match?: components["schemas"]["BehaviorRuleMatchCondition"][];
         };
         ChangeBehaviorRuleStatusDto: {
             /** @description New status */
@@ -2212,9 +2232,11 @@ export interface components {
              * @description Trigger event
              * @enum {string}
              */
-            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            /** @description Trigger predicate conditions on the trigger span. Omit for type-only triggers. */
+            trigger_match?: components["schemas"]["BehaviorRuleMatchCondition"][];
             /** @description States (multiple select) */
-            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
+            states: (("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal") | components["schemas"]["BehaviorRuleStateCondition"])[];
             /**
              * Format: uuid
              * @description The base_rule_id of the rule that this rule depends on (must be within the same agent)
@@ -2240,34 +2262,42 @@ export interface components {
             approval_timeout?: number;
             /**
              * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
-             * @default none
              * @enum {string}
              */
-            trust_impact: "none" | "low" | "medium" | "high";
+            trust_impact?: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
             trust_threshold?: Record<string, never>;
         };
         CreateGuardrailDto: {
-            /** @description Guardrail Type */
-            guardrail_type: string;
+            /**
+             * @description Guardrail type ID: "1"=PII, "2"=NSFW, "3"=Toxicity, "4"=BanList, "5"=Regex.
+             * @enum {string}
+             */
+            guardrail_type: "1" | "2" | "3" | "4" | "5";
             /** @description Name of the guardrail */
             name: string;
             /** @description Description of the guardrail */
             description?: string;
-            /** @description Processing stage of the guardrail */
-            processing_stage: string;
-            /** @description Parameters for the guardrail */
-            params?: Record<string, never>;
-            /** @description Settings for the guardrail */
-            settings?: Record<string, never>;
             /**
-             * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
-             * @default none
+             * @description Processing stage: "0"=input/ActivityStarted, "1"=output/ActivityCompleted.
              * @enum {string}
              */
-            trust_impact: "none" | "low" | "medium" | "high";
+            processing_stage: "0" | "1";
+            /** @description Parameters for the guardrail */
+            params?: {
+                [key: string]: unknown;
+            };
+            /** @description Settings for the guardrail */
+            settings?: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
+             * @enum {string}
+             */
+            trust_impact?: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
-            trust_threshold?: Record<string, never>;
+            trust_threshold?: number | null;
         };
         CreateOrganizationDto: {
             orgName?: string;
@@ -2294,10 +2324,9 @@ export interface components {
             config?: Record<string, never>;
             /**
              * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
-             * @default none
              * @enum {string}
              */
-            trust_impact: "none" | "low" | "medium" | "high";
+            trust_impact?: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
             trust_threshold?: Record<string, never>;
         };
@@ -2830,9 +2859,15 @@ export interface components {
         };
         TestGuardrailDto: {
             guardrail_type?: string;
-            params?: Record<string, never>;
-            settings?: Record<string, never>;
-            logs?: Record<string, never>;
+            params?: {
+                [key: string]: unknown;
+            };
+            settings?: {
+                [key: string]: unknown;
+            };
+            logs?: {
+                [key: string]: unknown;
+            };
         };
         /**
          * @description OAuth-style token pair returned by `/auth/login` and the refresh endpoint.
@@ -2962,9 +2997,11 @@ export interface components {
              * @description Trigger event
              * @enum {string}
              */
-            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            /** @description Trigger predicate conditions on the trigger span. Omit for type-only triggers. */
+            trigger_match?: components["schemas"]["BehaviorRuleMatchCondition"][];
             /** @description States (multiple select) */
-            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
+            states: (("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal") | components["schemas"]["BehaviorRuleStateCondition"])[];
             /**
              * Format: uuid
              * @description The base_rule_id of the rule that this rule depends on (must be within the same agent)
@@ -2990,37 +3027,46 @@ export interface components {
             approval_timeout?: number;
             /**
              * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
-             * @default none
              * @enum {string}
              */
-            trust_impact: "none" | "low" | "medium" | "high";
+            trust_impact?: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
             trust_threshold?: Record<string, never>;
             /** @description Change log */
             change_log: string;
         };
         UpdateGuardrailDto: {
-            /** @description Guardrail Type */
-            guardrail_type?: string;
+            /**
+             * @description Guardrail type ID: "1"=PII, "2"=NSFW, "3"=Toxicity, "4"=BanList, "5"=Regex.
+             * @enum {string}
+             */
+            guardrail_type?: "1" | "2" | "3" | "4" | "5";
             /** @description Name of the guardrail */
             name?: string;
             /** @description Description of the guardrail */
             description?: string;
-            /** @description Processing stage of the guardrail */
-            processing_stage?: string;
+            /**
+             * @description Processing stage: "0"=input/ActivityStarted, "1"=output/ActivityCompleted.
+             * @enum {string}
+             */
+            processing_stage?: "0" | "1";
             /** @description Active status of the guardrail */
             is_active?: boolean;
             /** @description Parameters for the guardrail */
-            params?: Record<string, never>;
+            params?: {
+                [key: string]: unknown;
+            };
             /** @description Settings for the guardrail */
-            settings?: Record<string, never>;
+            settings?: {
+                [key: string]: unknown;
+            };
             /**
              * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
              * @enum {string}
              */
             trust_impact?: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default. */
-            trust_threshold?: Record<string, never>;
+            trust_threshold?: number | null;
         };
         UpdateMemberDto: {
             /** @description Role ID */
@@ -3621,7 +3667,7 @@ export interface operations {
                 /** @description Filter by status */
                 is_active?: boolean;
                 /** @description Filter by trigger */
-                trigger?: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+                trigger?: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
             };
             header?: never;
             path: {

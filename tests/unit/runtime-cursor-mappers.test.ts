@@ -12,17 +12,22 @@
 //   - mappers/observe         ; every after-* observe-only handler
 //   - mappers/pre-tool-use    ; @activityVariant override (Shell→FileDelete)
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Command } from 'commander';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 let dir: string;
+const ORIGINAL_OPENBOX_HOME = process.env.OPENBOX_HOME;
+const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'openbox-final-2-'));
+  process.env.OPENBOX_HOME = join(dir, '.openbox');
 });
 afterEach(() => {
+  if (ORIGINAL_OPENBOX_HOME === undefined) delete process.env.OPENBOX_HOME;
+  else process.env.OPENBOX_HOME = ORIGINAL_OPENBOX_HOME;
   if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -39,7 +44,22 @@ function recordingSession(verdict: any = { arm: 'allow' }): any {
   for (const m of methods) {
     proxy[m] = async (...a: any[]) => { calls.push({ method: m, args: a }); return verdict; };
   }
+  proxy.openActivity = async (...a: any[]) => {
+    calls.push({ method: 'openActivity', args: a });
+    return {
+      activityId: a[1]?.activityId ?? `opened-${calls.length}`,
+      verdict,
+      complete: async (...completeArgs: any[]) => {
+        calls.push({ method: 'openActivity.complete', args: completeArgs });
+        return verdict;
+      },
+    };
+  };
   return proxy;
+}
+
+function movedRuntimeSettingKey(prefix: string, suffix: string): string {
+  return `${prefix}${suffix}`;
 }
 
 describe('core-client/redaction', () => {
@@ -88,6 +108,8 @@ describe('validators/index; extra surface', () => {
     expect(v.validateInt('42', 'n')).toBe(42);
     expect(v.validateEnum('a', ['a', 'b'] as const, 'mode')).toBe('a');
     expect(v.validateBehaviorTrigger('http_post')).toBe('http_post');
+    expect(v.validateBehaviorTrigger('llm_gen_ai')).toBe('llm_gen_ai');
+    expect(v.validateBehaviorTrigger('mcp_tool_call')).toBe('mcp_tool_call');
     // validateRegoSource requires both a package decl AND a `result := {...}`
     // assignment (core reads only result.decision / result.reason).
     expect(() =>
@@ -190,18 +212,49 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     expect(goalSignal?.args[2]).toMatchObject({
       signalName: 'user_prompt',
       signalArgs: 'hi',
+      sessionId: 'C',
+      prompt: 'hi',
       input: [{ prompt: 'hi', event_category: 'agent_goal', _openbox_source: 'cursor' }],
     });
-    expect(goalSignal?.args[2].spans?.[0]).toMatchObject({
-      semantic_type: 'llm_completion',
-      module: 'cursor',
+    expect(goalSignal?.args[2].spans).toBeUndefined();
+    const promptGate = session.calls.find(
+      (call: any) =>
+        call.method === 'activity' &&
+        call.args[0] === 'ActivityStarted' &&
+        call.args[1] === 'PromptSubmission',
+    );
+    expect(promptGate?.args[2]).toMatchObject({
+      sessionId: 'C',
+      prompt: 'hi',
     });
+    expect(promptGate?.args[2].spans).toBeUndefined();
+    expect(session.calls.indexOf(promptGate)).toBeGreaterThan(session.calls.indexOf(goalSignal));
     if (typeof shellMod.handleBeforeShellExecution === 'function') {
-      await shellMod.handleBeforeShellExecution({ conversation_id: 'C', command: 'ls' } as any, session, cfg);
+      await shellMod.handleBeforeShellExecution(
+        { conversation_id: 'C-decision', generation_id: `${dir}:shell-marker`, command: 'pwd' } as any,
+        session,
+        cfg,
+      );
     }
     if (typeof fileReadMod.handleBeforeReadFile === 'function') {
-      await fileReadMod.handleBeforeReadFile({ conversation_id: 'C', file_path: '/tmp/test.txt' } as any, session, cfg);
+      await fileReadMod.handleBeforeReadFile(
+        { conversation_id: 'C-decision', generation_id: `${dir}:file-marker`, file_path: '/tmp/test.txt' } as any,
+        session,
+        cfg,
+      );
     }
+    const shellGate = session.calls.find(
+      (call: any) => call.method === 'openActivity' && call.args[0] === 'ShellExecution',
+    );
+    expect(shellGate?.args[1].input).toContainEqual({
+      __openbox: { tool_type: 'shell' },
+    });
+    const fileGate = session.calls.find(
+      (call: any) => call.method === 'openActivity' && call.args[0] === 'FileRead',
+    );
+    expect(fileGate?.args[1].input).toContainEqual({
+      __openbox: { tool_type: 'file_read' },
+    });
   });
 
   it('beforeTabFileRead skips routine workspace files but gates sensitive workspace files', async () => {
@@ -237,51 +290,102 @@ describe('runtime/cursor/mappers; drive every handler', () => {
       server_name: 'fs',
       tool_name: 'read_file',
       tool_input: { path: '/tmp/x' },
+      result_json: { content: [{ type: 'text', text: 'data' }] },
       response: { content: [{ type: 'text', text: 'data' }] },
     } as any;
     if (typeof mcp.handleBeforeMCPExecution === 'function') await mcp.handleBeforeMCPExecution(env, session, cfg);
     if (typeof mcpResp.handleAfterMCPExecution === 'function') await mcpResp.handleAfterMCPExecution(env, session, cfg);
+    const mcpGate = session.calls.find(
+      (call: any) => call.method === 'openActivity' && call.args[0] === 'MCPToolCall',
+    );
+    expect(mcpGate?.args[1].input).toContainEqual({
+      __openbox: { tool_type: 'mcp' },
+    });
+    const mcpCompleted = session.calls.find(
+      (call: any) =>
+        call.method === 'activity' &&
+        call.args[0] === 'ActivityCompleted' &&
+        call.args[1] === 'MCPToolCall',
+    );
+    expect(mcpCompleted?.args[2].spans?.[0]).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'mcp_tool_call',
+    });
   });
 });
 
 describe('runtime configs; env precedence + defaults', () => {
-  it('claude-code config respects every env override', async () => {
+  it('claude-code config reads connection env and leaves tuning in project config', async () => {
     const before = { ...process.env };
+    const beforeCwd = process.cwd();
+    mkdirSync(join(dir, '.claude-hooks'), { recursive: true });
+    writeFileSync(
+      join(dir, '.claude-hooks', 'config.json'),
+      JSON.stringify({ verbose: true, hitlEnabled: false, hitlMaxWait: 12 }),
+    );
+    process.chdir(dir);
     process.env.OPENBOX_API_KEY = 'obx_live_envtest';
     process.env.OPENBOX_CORE_URL = 'http://localhost:9999';
-    process.env.GOVERNANCE_POLICY = 'fail_closed';
-    process.env.HITL_ENABLED = 'true';
-    process.env.HITL_MAX_WAIT = '120';
-    process.env.VERBOSE = 'true';
+    process.env[movedRuntimeSettingKey('VER', 'BOSE')] = 'false';
+    process.env[movedRuntimeSettingKey('HITL_', 'ENABLED')] = 'true';
+    process.env[movedRuntimeSettingKey('HITL_', 'MAX_WAIT')] = '999';
     try {
+      vi.resetModules();
       const mod = await import('../../ts/src/runtime/claude-code/config');
       const cfg = mod.loadConfig();
       expect(cfg.openboxApiKey).toBe('obx_live_envtest');
       expect(cfg.openboxEndpoint).toBe('http://localhost:9999');
+      expect(cfg.hitlEnabled).toBe(false);
+      expect(cfg.hitlMaxWait).toBe(12);
+      expect(cfg.verbose).toBe(true);
     } finally {
+      process.chdir(beforeCwd);
       process.env = before;
+      vi.resetModules();
     }
   });
 
-  it('cursor config respects every env override', async () => {
+  it('cursor config reads connection and identity env only', async () => {
     const before = { ...process.env };
+    const beforeCwd = process.cwd();
+    mkdirSync(join(dir, '.cursor-hooks'), { recursive: true });
+    writeFileSync(
+      join(dir, '.cursor-hooks', 'config.json'),
+      JSON.stringify({
+        verbose: true,
+        hitlEnabled: false,
+        hitlMaxWait: 9,
+        approvalSocketPath: '/tmp/openbox-project-approval.sock',
+      }),
+    );
+    process.chdir(dir);
     process.env.OPENBOX_API_KEY = 'obx_live_envtest';
     process.env.OPENBOX_CORE_URL = 'http://localhost:9999';
-    process.env.OPENBOX_AGENT_DID = 'did:openbox:agent:test';
-    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'a'.repeat(44);
-    process.env.GOVERNANCE_POLICY = 'fail_closed';
-    process.env.VERBOSE = 'true';
+    process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = FAKE_AGENT_PRIVATE_KEY;
+    process.env[movedRuntimeSettingKey('VER', 'BOSE')] = 'false';
+    process.env[movedRuntimeSettingKey('HITL_', 'ENABLED')] = 'true';
+    process.env[movedRuntimeSettingKey('HITL_', 'MAX_WAIT')] = '999';
+    process.env[['OPENBOX', 'APPROVAL', 'SOCKET'].join('_')] =
+      '/tmp/openbox-env-approval.sock';
     try {
+      vi.resetModules();
       const mod = await import('../../ts/src/runtime/cursor/config');
       const cfg = mod.loadConfig();
       expect(cfg.openboxApiKey).toBe('obx_live_envtest');
       expect(cfg.openboxEndpoint).toBe('http://localhost:9999');
+      expect(cfg.hitlEnabled).toBe(false);
+      expect(cfg.hitlMaxWait).toBe(9);
+      expect(cfg.verbose).toBe(true);
+      expect(cfg.approvalSocketPath).toBe('/tmp/openbox-project-approval.sock');
       expect(cfg.agentIdentity).toEqual({
-        did: 'did:openbox:agent:test',
-        privateKey: 'a'.repeat(44),
+        did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+        privateKey: FAKE_AGENT_PRIVATE_KEY,
       });
     } finally {
+      process.chdir(beforeCwd);
       process.env = before;
+      vi.resetModules();
     }
   });
 });

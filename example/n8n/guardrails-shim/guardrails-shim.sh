@@ -58,12 +58,8 @@ fields AS (
     g.guardrail_type,
     g.params,
     g."order",
-    field.value AS field
+    'input.*.chatInput'::text AS field
   FROM active_guardrails g
-  CROSS JOIN LATERAL jsonb_array_elements(g.settings->'activities') activity(value)
-  CROSS JOIN LATERAL jsonb_array_elements_text(activity.value->'fields_to_check') field(value)
-  WHERE activity.value->>'activity_type' = g.logs->>'activity_type'
-    AND field.value IN ('input.*.chatInput')
 ),
 values AS (
   SELECT

@@ -27,6 +27,16 @@ import { resolve } from 'path';
 import { readFileSync, existsSync } from 'fs';
 import { parseTokenStore } from '../ts/src/env/index';
 
+declare global {
+  var __OBX_TEST_ENV__: {
+    OPENBOX_API_URL?: string;
+    OPENBOX_CORE_URL?: string;
+    OPENBOX_BACKEND_API_KEY?: string;
+    OPENBOX_API_KEY?: string;
+  } | undefined;
+  var __OBX_TEST_ORG_ID__: string | undefined;
+}
+
 const DEFAULT_API_URL = 'http://127.0.0.1:3000';
 const DEFAULT_CORE_URL = 'http://127.0.0.1:8086';
 const UNIT_DEFAULT_API_URL = 'http://localhost:18080';
@@ -65,14 +75,9 @@ function isLocalCoreUrl(): boolean {
 }
 
 function populateUrls(): void {
-  if (process.env.OPENBOX_API_URL_OVERRIDE) {
-    process.env.OPENBOX_API_URL = process.env.OPENBOX_API_URL_OVERRIDE;
-    delete process.env.OPENBOX_API_URL_OVERRIDE;
-  }
-  if (process.env.OPENBOX_CORE_URL_OVERRIDE) {
-    process.env.OPENBOX_CORE_URL = process.env.OPENBOX_CORE_URL_OVERRIDE;
-    delete process.env.OPENBOX_CORE_URL_OVERRIDE;
-  }
+  const preserved = globalThis.__OBX_TEST_ENV__;
+  if (preserved?.OPENBOX_API_URL) process.env.OPENBOX_API_URL = preserved.OPENBOX_API_URL;
+  if (preserved?.OPENBOX_CORE_URL) process.env.OPENBOX_CORE_URL = preserved.OPENBOX_CORE_URL;
   if (!process.env.OPENBOX_API_URL || process.env.OPENBOX_API_URL === UNIT_DEFAULT_API_URL) {
     process.env.OPENBOX_API_URL = DEFAULT_API_URL;
   }
@@ -87,14 +92,10 @@ function loadBackendKey(): void {
   // another context; overwrite rather than break the run.
   const existing =
     process.env.OPENBOX_BACKEND_API_KEY ||
-    process.env.OPENBOX_BACKEND_API_KEY_OVERRIDE;
+    globalThis.__OBX_TEST_ENV__?.OPENBOX_BACKEND_API_KEY;
   if (existing && BACKEND_KEY_PREFIX.test(existing)) {
     process.env.OPENBOX_BACKEND_API_KEY = existing;
-    delete process.env.OPENBOX_BACKEND_API_KEY_OVERRIDE;
     return;
-  }
-  if (process.env.OPENBOX_BACKEND_API_KEY_OVERRIDE) {
-    delete process.env.OPENBOX_BACKEND_API_KEY_OVERRIDE;
   }
 
   const candidates = [
@@ -119,21 +120,15 @@ function loadCoreRuntimeKey(): void {
   const projectRuntimeKey = readProjectRuntimeKey();
   if (projectRuntimeKey && isLocalCoreUrl()) {
     process.env.OPENBOX_API_KEY = projectRuntimeKey;
-    delete process.env.OPENBOX_API_KEY_OVERRIDE;
     return;
   }
 
   const existing =
-    process.env.OPENBOX_E2E_RUNTIME_KEY ||
     process.env.OPENBOX_API_KEY ||
-    process.env.OPENBOX_API_KEY_OVERRIDE;
+    globalThis.__OBX_TEST_ENV__?.OPENBOX_API_KEY;
   if (existing && RUNTIME_KEY_PREFIX.test(existing)) {
     process.env.OPENBOX_API_KEY = existing;
-    delete process.env.OPENBOX_API_KEY_OVERRIDE;
     return;
-  }
-  if (process.env.OPENBOX_API_KEY_OVERRIDE) {
-    delete process.env.OPENBOX_API_KEY_OVERRIDE;
   }
 
   if (projectRuntimeKey) process.env.OPENBOX_API_KEY = projectRuntimeKey;
@@ -147,7 +142,7 @@ async function populateOrgId(): Promise<void> {
   // the backend itself: /auth/profile returns the orgId for the
   // authenticated principal. Single source of truth, lives on the
   // server we're already talking to.
-  if (process.env.OPENBOX_ORG_ID) return;
+  if (globalThis.__OBX_TEST_ORG_ID__) return;
   const apiUrl = process.env.OPENBOX_API_URL;
   const apiKey = process.env.OPENBOX_BACKEND_API_KEY;
   if (!apiUrl || !apiKey) return;
@@ -157,7 +152,7 @@ async function populateOrgId(): Promise<void> {
     });
     if (!res.ok) return;
     const body = (await res.json()) as { data?: { orgId?: string } };
-    if (body?.data?.orgId) process.env.OPENBOX_ORG_ID = body.data.orgId;
+    if (body?.data?.orgId) globalThis.__OBX_TEST_ORG_ID__ = body.data.orgId;
   } catch {
     /* best-effort; tests requiring orgId will surface a clear error */
   }

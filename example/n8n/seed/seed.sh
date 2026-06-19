@@ -13,7 +13,7 @@
 #      team service queries keycloak; agent_teams FK requires the row).
 #   4. Mint the agent via POST /agent/create with the X-API-Key — the
 #      response is the only place the runtime `obx_test_*` surfaces.
-#   5. Attach deterministic demo guardrails that mirror the hosted policy.
+#   5. Attach deterministic demo guardrails for the local policy path.
 #   6. Persist the runtime key to /seed/agent_key for n8n to consume.
 set -eu
 
@@ -201,14 +201,12 @@ AGENT_ID=$(echo "$AGENT_RESP" | jq -r '.data.agent.id // .data.id // .data.agent
 [ -n "$AGENT_ID" ] || fail "could not read agent id: $AGENT_RESP"
 
 # ---------------------------------------------------------------------------
-# 5. Attach visible demo guardrails. The hosted OpenBox agent uses PII, NSFW,
-#    draft privacy, and channel-secret policies. The local guardrails shim is
-#    intentionally small and only evaluates banned-word rules, so these local
-#    rules use deterministic trigger phrases under the same policy names.
+# 5. Attach visible demo guardrails. The local guardrails shim is intentionally
+#    small and only evaluates banned-word rules, so these local rules use
+#    deterministic trigger phrases under the same policy names.
 #
-#    The n8n preset emits:
-#    ActivityStarted + activity_type=node-pre-execute + input[].chatInput
-#    so Cursor/Claude-style input.*.prompt rules would not match here.
+#    The local guardrails shim checks chat input for every ActivityStarted
+#    event; legacy activity_type / fields_to_check bindings are not needed.
 # ---------------------------------------------------------------------------
 log "creating demo n8n guardrails on agent $AGENT_ID"
 psql -h "$PG_HOST" -U "$PG_USER" -d "$PG_DB" -v ON_ERROR_STOP=1 -q -c "
@@ -238,48 +236,48 @@ INSERT INTO guardrails (
   '$AGENT_ID',
   '4',
   'Prompt PII Wall',
-  'Local deterministic mirror of the hosted prompt PII wall for card, SSN, password, API key, and token prompts.',
+  'Local deterministic prompt PII wall for card, SSN, password, API key, and token prompts.',
   '0',
   true,
   0,
   '{\"banned_words\":[\"4242 4242\",\"123-45-6789\",\"ssn\",\"card 4242\",\"password\",\"api key\",\"token\"]}'::jsonb,
-  '{\"on_fail\":1,\"timeout\":5000,\"log_violation\":true,\"retry_attempts\":0,\"activities\":[{\"activity_type\":\"node-pre-execute\",\"fields_to_check\":[\"input.*.chatInput\"]}]}'::jsonb,
+  '{\"on_fail\":1,\"timeout\":5000,\"log_violation\":true,\"retry_attempts\":0}'::jsonb,
   'high'
 ),
 (
   '$AGENT_ID',
   '4',
   'Prompt NSFW Wall',
-  'Local deterministic mirror of the hosted prompt NSFW wall.',
+  'Local deterministic prompt NSFW wall.',
   '0',
   true,
   1,
   '{\"banned_words\":[\"nsfw\",\"abuse-demo\",\"violent sexual\"]}'::jsonb,
-  '{\"on_fail\":1,\"timeout\":5000,\"log_violation\":true,\"retry_attempts\":0,\"activities\":[{\"activity_type\":\"node-pre-execute\",\"fields_to_check\":[\"input.*.chatInput\"]}]}'::jsonb,
+  '{\"on_fail\":1,\"timeout\":5000,\"log_violation\":true,\"retry_attempts\":0}'::jsonb,
   'high'
 ),
 (
   '$AGENT_ID',
   '4',
   'Draft Privacy Check',
-  'Local deterministic mirror of the hosted draft privacy check.',
+  'Local deterministic draft privacy check.',
   '0',
   true,
   2,
   '{\"banned_words\":[\"contextblock\",\"blockme\"]}'::jsonb,
-  '{\"on_fail\":1,\"timeout\":5000,\"log_violation\":true,\"retry_attempts\":0,\"activities\":[{\"activity_type\":\"node-pre-execute\",\"fields_to_check\":[\"input.*.chatInput\"]}]}'::jsonb,
+  '{\"on_fail\":1,\"timeout\":5000,\"log_violation\":true,\"retry_attempts\":0}'::jsonb,
   'high'
 ),
 (
   '$AGENT_ID',
   '4',
   'Channel Secret Check',
-  'Local deterministic mirror of the hosted outbound secret check for provider keys, Slack tokens, and password-like strings.',
+  'Local deterministic outbound secret check for provider keys, Slack tokens, and password-like strings.',
   '0',
   true,
   3,
   '{\"banned_words\":[\"channelblock\",\"sk-\",\"xoxb-\",\"slack token\",\"password:\"]}'::jsonb,
-  '{\"on_fail\":1,\"timeout\":5000,\"log_violation\":true,\"retry_attempts\":0,\"activities\":[{\"activity_type\":\"node-pre-execute\",\"fields_to_check\":[\"input.*.chatInput\"]}]}'::jsonb,
+  '{\"on_fail\":1,\"timeout\":5000,\"log_violation\":true,\"retry_attempts\":0}'::jsonb,
   'high'
 ),
 (
@@ -291,7 +289,7 @@ INSERT INTO guardrails (
   true,
   4,
   '{\"banned_words\":[\"openbox-block-demo\"]}'::jsonb,
-  '{\"on_fail\":1,\"timeout\":5000,\"log_violation\":true,\"retry_attempts\":0,\"activities\":[{\"activity_type\":\"node-pre-execute\",\"fields_to_check\":[\"input.*.chatInput\"]}]}'::jsonb,
+  '{\"on_fail\":1,\"timeout\":5000,\"log_violation\":true,\"retry_attempts\":0}'::jsonb,
   'medium'
 );
 " >/dev/null

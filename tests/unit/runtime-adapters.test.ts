@@ -140,7 +140,7 @@ describe('createClaudeCodeAdapter', () => {
         preToolUse: async () => verdict('constrain', 'redacted command', {
           guardrailsResult: {
             inputType: 'activity_input',
-            redactedInput: { command: 'echo [redacted]' },
+            redactedInput: [{ command: 'echo [redacted]' }],
             validationPassed: true,
             reasons: [],
             fieldResults: [],
@@ -224,16 +224,45 @@ describe('createClaudeCodeAdapter', () => {
     );
   });
 
-  test('decision-block constrain → hookSpecificOutput.additionalContext + updatedToolOutput', async () => {
+  test('decision-block prompt constrain with redaction fails closed', async () => {
     const cap = capture();
     await createClaudeCodeAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: {
-        postToolUse: async () => verdict('constrain', 'tool output redacted', {
+        userPromptSubmit: async () => verdict('constrain', 'prompt redacted', {
+          guardrailsResult: {
+            inputType: 'activity_input',
+            redactedInput: [{ prompt: 'Summarize [redacted].' }],
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [],
+          },
+        }),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({ ...baseEnv, hook_event_name: 'UserPromptSubmit' }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out).toEqual({
+      decision: 'block',
+      reason: '[OpenBox] prompt redacted',
+      suppressOriginalPrompt: true,
+    });
+  });
+
+  test('decision-block constrain → updatedToolOutput without requiring a reason', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        postToolUse: async () => verdict('constrain', undefined, {
           guardrailsResult: {
             inputType: 'activity_output',
-            redactedInput: { stdout: '[redacted]', stderr: '', interrupted: false, isImage: false },
+            redactedInput: { output: { stdout: '[redacted]', stderr: '', interrupted: false, isImage: false } },
             validationPassed: true,
             reasons: [],
             fieldResults: [],
@@ -247,7 +276,7 @@ describe('createClaudeCodeAdapter', () => {
     }).run();
     const out = JSON.parse(cap.stdout[0]);
     expect(out.hookSpecificOutput.hookEventName).toBe('PostToolUse');
-    expect(out.hookSpecificOutput.additionalContext).toBe('[OpenBox] tool output redacted');
+    expect(out.hookSpecificOutput.additionalContext).toBeUndefined();
     expect(out.hookSpecificOutput.updatedToolOutput.stdout).toBe('[redacted]');
   });
 
@@ -278,7 +307,7 @@ describe('createClaudeCodeAdapter', () => {
         permissionRequest: async () => verdict('constrain', undefined, {
           guardrailsResult: {
             inputType: 'activity_input',
-            redactedInput: { command: 'npm test' },
+            redactedInput: { activity_input: [{ command: 'npm test' }] },
             validationPassed: true,
             reasons: [],
             fieldResults: [],
@@ -416,7 +445,7 @@ describe('createClaudeCodeAdapter', () => {
         elicitationResult: async () => verdict('constrain', 'redacted answer', {
           guardrailsResult: {
             inputType: 'activity_input',
-            redactedInput: { answer: '[redacted]' },
+            redactedInput: [{ answer: '[redacted]' }],
             validationPassed: true,
             reasons: [],
             fieldResults: [],
@@ -582,6 +611,66 @@ describe('createCursorAdapter', () => {
     const out = JSON.parse(cap.stdout[0]);
     expect(out.permission).toBe('deny');
     expect(out.user_message).toMatch(/^\[OpenBox\] HALT:/);
+  });
+
+  test('cursor-permission constrain with input redaction fails closed', async () => {
+    const cap = capture();
+    await createCursorAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        beforeShellExecution: async () => verdict('constrain', 'command redacted', {
+          guardrailsResult: {
+            inputType: 'activity_input',
+            redactedInput: [{ command: 'echo [redacted]' }],
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [],
+          },
+        }),
+      },
+      ...adapterIO(cap, JSON.stringify(baseEnv)),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out).toEqual({
+      permission: 'deny',
+      user_message:
+        '[OpenBox] command redacted. Cursor cannot replace this hook input, so OpenBox blocked the original action.',
+      agent_message:
+        '[OpenBox] command redacted. Cursor cannot replace this hook input, so OpenBox blocked the original action.',
+    });
+  });
+
+  test('cursor-continue prompt constrain with redaction fails closed', async () => {
+    const cap = capture();
+    await createCursorAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        beforeSubmitPrompt: async () => verdict('constrain', 'prompt redacted', {
+          guardrailsResult: {
+            inputType: 'activity_input',
+            redactedInput: [{ prompt: 'Summarize [redacted].' }],
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [],
+          },
+        }),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({
+          ...baseEnv,
+          hook_event_name: 'beforeSubmitPrompt',
+          prompt: 'Summarize secret.',
+        }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out).toEqual({
+      continue: false,
+      user_message: '[OpenBox] prompt redacted',
+    });
   });
 
   test('cursor-observe (afterShellExecution) → empty object', async () => {

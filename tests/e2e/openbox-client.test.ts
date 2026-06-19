@@ -1,8 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { OpenBoxClient, OpenBoxApiError } from '../../ts/src/client/client.js';
 import { getOrgId, getTeamIds } from '../helpers/api-client';
 import { makeCreateAgentDto, makeCreateGuardrailDto } from '../helpers/fixtures';
-import { makeExpiredToken } from '../helpers/jwt';
 
 function createClient(): OpenBoxClient {
   return new OpenBoxClient({
@@ -196,40 +195,5 @@ describe('OpenBoxClient E2E', () => {
         expect((err as OpenBoxApiError).message).toContain('Request failed');
       }
     });
-  });
-
-  // =========================================================================
-  // Token refresh
-  // =========================================================================
-
-  describe('token refresh', () => {
-    // Auto-refresh is DISABLED in the SDK (REFRESH_ENABLED=false in
-    // ts/src/client/client.ts:157) because the upstream /auth/refresh is
-    // broken end-to-end. With the flag off, the SDK never calls
-    // onTokenRefresh; making any assertion that it does call would test
-    // disabled behavior. The test mirrors the SDK contract: an expired
-    // access token simply 401s rather than auto-refreshing.
-    //
-    // When the upstream fix ships, flip REFRESH_ENABLED to true and
-    // restore this test to:
-    //   await refreshClient.health();
-    //   expect(onTokenRefresh).toHaveBeenCalled();
-    it.runIf(process.env.OPENBOX_REFRESH_E2E === '1')(
-      'refreshes token when access token is expired when refresh is enabled',
-      async () => {
-      const refreshToken = process.env.REFRESH_TOKEN;
-      if (!refreshToken) return;
-      const onTokenRefresh = vi.fn();
-      const refreshClient = new OpenBoxClient({
-        apiUrl: process.env.OPENBOX_API_URL,
-        accessToken: makeExpiredToken(),
-        refreshToken,
-        onTokenRefresh,
-      });
-      const result = await refreshClient.health();
-      expect(result).toBeDefined();
-      expect(onTokenRefresh).toHaveBeenCalled();
-      },
-    );
   });
 });

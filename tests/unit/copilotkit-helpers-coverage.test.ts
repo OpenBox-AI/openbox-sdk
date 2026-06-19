@@ -273,6 +273,12 @@ describe('copilotkit helper coverage', () => {
       reason: 'allowed',
       riskScore: 0.1,
       trustTier: 2,
+      alignmentScore: 0.85,
+      policyId: 'policy-abc',
+      behavioralViolations: ['rule-a'],
+      constraints: ['mask field'],
+      metadata: { evaluator: 'opa' },
+      fallbackUsed: false,
     });
     const constrainedBySummary = resultForAllowedVerdict(
       input,
@@ -287,6 +293,12 @@ describe('copilotkit helper coverage', () => {
       verdict: 'constrain',
       riskScore: 0.1,
       trustTier: 2,
+      alignmentScore: 0.85,
+      policyId: 'policy-abc',
+      behavioralViolations: ['rule-a'],
+      constraints: ['mask field'],
+      metadata: { evaluator: 'opa' },
+      fallbackUsed: false,
       redactionSummary: 'redacted field',
     });
     expect(
@@ -356,7 +368,14 @@ describe('copilotkit helper coverage', () => {
     expect(verdictMetadata(undefined)).toEqual({
       riskScore: undefined,
       trustTier: undefined,
+      alignmentScore: undefined,
+      policyId: undefined,
+      behavioralViolations: undefined,
+      constraints: undefined,
+      metadata: undefined,
+      fallbackUsed: undefined,
       guardrailsResult: undefined,
+      ageResult: undefined,
       redactionSummary: undefined,
     });
     expect(
@@ -364,6 +383,12 @@ describe('copilotkit helper coverage', () => {
         {
           riskScore: 0.4,
           trustTier: 'silver',
+          alignmentScore: 0.75,
+          policyId: 'policy-existing',
+          behavioralViolations: ['existing-rule'],
+          constraints: ['existing-constraint'],
+          metadata: { existing: true },
+          fallbackUsed: true,
           guardrailsResult: { inputType: 'activity_input' },
           redactionSummary: 'existing',
         } as any,
@@ -372,6 +397,12 @@ describe('copilotkit helper coverage', () => {
     ).toMatchObject({
       riskScore: 0.4,
       trustTier: 'silver',
+      alignmentScore: 0.75,
+      policyId: 'policy-existing',
+      behavioralViolations: ['existing-rule'],
+      constraints: ['existing-constraint'],
+      metadata: { existing: true },
+      fallbackUsed: true,
       guardrailsResult: { inputType: 'activity_input' },
       redactionSummary: 'existing',
     });
@@ -450,6 +481,7 @@ describe('copilotkit helper coverage', () => {
       input_type: 'activity_output',
       redacted_input: { output: { secret: '[REDACTED]' } },
       validation_passed: false,
+      raw_logs: { pii: { redacted: 1 } },
       reasons: [{ type: 'pii', field: 42, reason: null }],
       fieldResults: [{ field: 'a', status: 'block', reason: 'bad' }],
       results: [
@@ -465,10 +497,11 @@ describe('copilotkit helper coverage', () => {
       inputType: 'activity_output',
       redactedInput: { output: { secret: '[REDACTED]' } },
       validationPassed: false,
+      rawLogs: { pii: { redacted: 1 } },
       reasons: [{ type: 'pii', field: undefined, reason: '' }],
       fieldResults: [
         { field: 'a', status: 'blocked', reason: 'bad' },
-        { field: 'b', status: 'redacted', reason: undefined },
+        { field: 'b', status: 'transformed', reason: undefined },
         { field: 'c', status: 'allowed', reason: undefined },
       ],
     });
@@ -480,15 +513,36 @@ describe('copilotkit helper coverage', () => {
       validationPassed: true,
       fieldResults: [{ field: 'x', status: 'skipped' }],
     });
+    const signalMapped = mapGuardrailsResult({
+      input_type: 'signal_args',
+      redacted_input: ['open <EMAIL_ADDRESS>'],
+      validation_passed: true,
+    });
+    expect(signalMapped?.inputType).toBe('signal_args');
+    expect(
+      applyOpenBoxTransform(
+        ['open avery@example.com'],
+        verdict({ arm: 'allow', guardrailsResult: signalMapped }),
+      ),
+    ).toEqual(['open <EMAIL_ADDRESS>']);
     expect(normalizeArm('continue')).toBe('allow');
-    expect(normalizeArm('stop')).toBe('block');
-    expect(normalizeArm('ask')).toBe('block');
+    expect(normalizeArm('stop')).toBe('halt');
+    expect(normalizeArm('require-approval')).toBe('require_approval');
+    expect(normalizeArm('request_approval')).toBe('require_approval');
+    expect(normalizeArm('request-approval')).toBe('require_approval');
+    expect(normalizeArm(' REQUEST-APPROVAL ')).toBe('require_approval');
+    expect(normalizeArm(0)).toBe('allow');
+    expect(normalizeArm(1)).toBe('constrain');
+    expect(normalizeArm(2)).toBe('require_approval');
+    expect(normalizeArm(3)).toBe('block');
+    expect(normalizeArm(4)).toBe('halt');
+    expect(normalizeArm('ask')).toBe('allow');
     expect(normalizeArm('halt')).toBe('halt');
+    expect(normalizeArm('HALT')).toBe('halt');
     expect(isAllowed('allow')).toBe(true);
     expect(isAllowed('constrain')).toBe(true);
     expect(isAllowed('block')).toBe(false);
-    expect(shouldStopForGate({ rawBlocked: true } as any, 'enforce')).toBe(true);
-    expect(shouldStopForGate({ rawBlocked: true } as any, 'observe')).toBe(false);
+    expect(shouldStopForGate({ rawBlocked: true } as any)).toBe(true);
   });
 
   it('covers approval, rejection, and guardrail redaction result branches', () => {
@@ -589,7 +643,7 @@ describe('copilotkit helper coverage', () => {
         redactedInput: { output: { artifact: { body: '[REDACTED]' } } },
         validationPassed: true,
         reasons: [],
-        fieldResults: [{ field: 'artifact.body', status: 'transformed' as any }],
+        fieldResults: [{ field: 'artifact.body', status: 'transformed' }],
       },
     });
     const completed = applyCompletedRedaction(
