@@ -268,6 +268,7 @@ function emitCapabilityMatrix(program: Program): string {
     ...arrayOfRecords(matrix.policyEvaluationGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.rulesInstructionCapabilityGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.hookCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.subagentsAgentsCapabilityGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.pluginCapabilityGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.skillCapabilityGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.mcpCapabilityGuards).map((entry) => String(entry.tier ?? '')),
@@ -290,6 +291,7 @@ GUARDRAIL_CAPABILITY_GUARDS = ${py(matrix.guardrailCapabilityGuards)}
 POLICY_EVALUATION_GUARDS = ${py(matrix.policyEvaluationGuards)}
 RULES_INSTRUCTION_CAPABILITY_GUARDS = ${py(matrix.rulesInstructionCapabilityGuards)}
 HOOK_CAPABILITY_GUARDS = ${py(matrix.hookCapabilityGuards)}
+SUBAGENTS_AGENTS_CAPABILITY_GUARDS = ${py(matrix.subagentsAgentsCapabilityGuards)}
 PLUGIN_CAPABILITY_GUARDS = ${py(matrix.pluginCapabilityGuards)}
 SKILL_CAPABILITY_GUARDS = ${py(matrix.skillCapabilityGuards)}
 MCP_CAPABILITY_GUARDS = ${py(matrix.mcpCapabilityGuards)}

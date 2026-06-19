@@ -29,6 +29,7 @@ import {
   PUBLIC_INTEGRATION_SUPPORT,
   RULES_INSTRUCTION_CAPABILITY_GUARDS,
   SKILL_CAPABILITY_GUARDS,
+  SUBAGENTS_AGENTS_CAPABILITY_GUARDS,
   TRACING_CAPABILITY_GUARDS,
   USAGE_COST_CAPABILITY_GUARDS,
   type OpenBoxProviderId,
@@ -490,6 +491,61 @@ describe('provider capability matrix', () => {
 
       if (guard.tier !== 'out-of-scope') {
         expect(guard.enforcementBoundary, `${guard.provider} enforcementBoundary`).toContain('Core');
+      }
+    }
+  });
+
+  it('pins subagents-agents support claims to explicit agent ownership coverage', () => {
+    const capabilityProviders = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) => entry.capability === 'subagents-agents')
+      .map((entry) => entry.provider)
+      .sort();
+    const guardProviders = SUBAGENTS_AGENTS_CAPABILITY_GUARDS
+      .map((entry) => entry.provider)
+      .sort();
+
+    expect(guardProviders).toEqual(capabilityProviders);
+    expect(new Set(guardProviders).size).toBe(guardProviders.length);
+
+    const tierByProvider = new Map(
+      PROVIDER_CAPABILITY_MATRIX
+        .filter((entry) => entry.capability === 'subagents-agents')
+        .map((entry) => [entry.provider, entry.tier]),
+    );
+    const eventCatalogByProvider = new Map<OpenBoxProviderId, (typeof PROVIDER_EVENT_CATALOG)[number]>(
+      PROVIDER_EVENT_CATALOG.map((entry) => [entry.provider, entry]),
+    );
+    const pluginComponentsByProvider = new Map<OpenBoxProviderId, (typeof PROVIDER_PLUGIN_COMPONENTS)[number]['components']>(
+      PROVIDER_PLUGIN_COMPONENTS.map((entry) => [entry.provider, entry.components]),
+    );
+
+    for (const guard of SUBAGENTS_AGENTS_CAPABILITY_GUARDS) {
+      expect(guard.tier, `${guard.provider} tier`).toBe(tierByProvider.get(guard.provider));
+      expect(guard.agentSurface.length, `${guard.provider} agentSurface`).toBeGreaterThan(30);
+      expect(guard.lifecycleCoverage.length, `${guard.provider} lifecycleCoverage`).toBeGreaterThan(30);
+      expect(guard.ownershipBoundary.length, `${guard.provider} ownershipBoundary`).toBeGreaterThan(30);
+      expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+
+      if (guard.provider === 'cursor' || guard.provider === 'claude-code') {
+        expect(guard.tier).toBe('native');
+        expect(pluginComponentsByProvider.get(guard.provider)?.map((entry) => entry.name)).toContain('agents');
+        expect(eventCatalogByProvider.get(guard.provider)?.generatedAdapterEvents.some((event) =>
+          event.toLowerCase().includes('subagent'))).toBe(true);
+        expect(guard.ownershipBoundary).toContain('Native');
+      } else {
+        expect(guard.tier, `${guard.provider} tier`).toBe('observe-only');
+        expect(guard.ownershipBoundary, `${guard.provider} ownershipBoundary`).toMatch(/Observe-only|owns/);
+      }
+
+      if (guard.provider === 'mcp') {
+        expect(MCP_RESOURCE_TEMPLATE_SURFACES.map((entry) => entry.name)).toContain('agent');
+      } else if (guard.provider === 'n8n') {
+        expect(N8N_INTEGRATION_SURFACE.workflowTemplates.some((template) =>
+          Array.isArray(template.nodes) && template.nodes.includes('n8nAiAgent'))).toBe(true);
+      } else if (guard.provider === 'openai-agents-sdk') {
+        expect(guard.lifecycleCoverage).toMatch(/handoff/i);
+      } else if (guard.provider === 'anthropic-agent-sdk') {
+        expect(guard.lifecycleCoverage).toMatch(/TaskCreated|SubagentStart|a2a/);
       }
     }
   });
