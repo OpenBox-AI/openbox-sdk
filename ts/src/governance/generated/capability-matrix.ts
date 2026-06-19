@@ -143,6 +143,16 @@ export interface RulesInstructionCapabilityGuardEntry {
   guardTest: string;
 }
 
+export interface SkillCapabilityGuardEntry {
+  provider: OpenBoxProviderId;
+  tier: OpenBoxSupportTier;
+  skillSurface: string;
+  installSurface: string;
+  discoverySurface: string;
+  hostBoundary: string;
+  guardTest: string;
+}
+
 export interface McpCapabilityGuardEntry {
   provider: OpenBoxProviderId;
   tier: OpenBoxSupportTier;
@@ -1783,6 +1793,80 @@ export const RULES_INSTRUCTION_CAPABILITY_GUARDS = [
     "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
   }
 ] as const satisfies readonly RulesInstructionCapabilityGuardEntry[];
+export const SKILL_CAPABILITY_GUARDS = [
+  {
+    "provider": "codex",
+    "tier": "native",
+    "skillSurface": "Codex plugin skills/openbox/SKILL.md and repo .agents/skills/openbox/SKILL.md carry the OpenBox governance skill.",
+    "installSurface": "exportCodexPlugin/installCodexPlugin and openbox install codex install project-local skill assets without user-level writes.",
+    "discoverySurface": "Codex plugin manifest, repo marketplace metadata, and AGENTS.md instruction projection reference the OpenBox skill.",
+    "hostBoundary": "Skills are advisory host instructions; Core/backend remains authoritative for guardrails, OPA/Rego, approvals, and verdict enforcement.",
+    "guardTest": "tests/unit/codex-install-spec.test.ts#exports and installs Codex plugin, repo skill, and marketplace surfaces"
+  },
+  {
+    "provider": "cursor",
+    "tier": "native",
+    "skillSurface": "Cursor plugin skills/openbox/SKILL.md and cloud-compatible repo .agents/skills/openbox/SKILL.md carry the OpenBox governance skill.",
+    "installSurface": "installCursorPlugin and installCursorRepoMode write project-local plugin or repo skill assets and preserve unrelated workspace files.",
+    "discoverySurface": "Cursor plugin metadata, workspaceOpen metadata, and repo .agents/skills/openbox expose the OpenBox skill to local and cloud-compatible modes.",
+    "hostBoundary": "Skills provide native host context only; OpenBox Core/backend remains authoritative for guardrails, OPA/Rego, approvals, and verdicts.",
+    "guardTest": "tests/unit/cursor-plugin.test.ts#installs and uninstalls cloud-compatible repo mode files"
+  },
+  {
+    "provider": "claude-code",
+    "tier": "native",
+    "skillSurface": "Claude Code plugin skills/openbox/SKILL.md carries the OpenBox governance skill inside the project-local plugin bundle.",
+    "installSurface": "exportClaudeCodePlugin/installClaudeCodePlugin install the plugin under the project-local target without direct settings writes.",
+    "discoverySurface": "Claude Code plugin manifest, marketplace metadata, commands, agents, and diagnostics inventory reference the bundled OpenBox skill.",
+    "hostBoundary": "Plugin skills and commands are host instruction assets; Core/backend remains authoritative for guardrails, OPA/Rego, approvals, and verdicts.",
+    "guardTest": "tests/unit/claude-code-plugin.test.ts#exports a complete marketplace-ready plugin folder"
+  },
+  {
+    "provider": "mcp",
+    "tier": "native",
+    "skillSurface": "MCP exposes OpenBox skill reference markdown through the openbox://skill/{name} resource template.",
+    "installSurface": "openbox mcp serve registers the generated skill-reference resource template; host-specific skill file installs remain adapter-owned.",
+    "discoverySurface": "MCP_RESOURCE_TEMPLATE_SURFACES includes skill-reference so clients can discover skill documentation without language-specific SDK code.",
+    "hostBoundary": "MCP skill resources are read/inspection surfaces; Core/backend remains authoritative for guardrails, OPA/Rego, approvals, and verdicts.",
+    "guardTest": "tests/unit/mcp-server-coverage.test.ts#registers spec-driven MCP tool annotations, prompts, and resource templates"
+  },
+  {
+    "provider": "openai-agents-sdk",
+    "tier": "out-of-scope",
+    "skillSurface": "No OpenBox skill file surface is installed for OpenAI Agents SDK; consumers import SDK helpers instead.",
+    "installSurface": "No skill installation occurs for OpenAI Agents SDK helpers.",
+    "discoverySurface": "Public integration exports document helper support; Codex/host skill assets are intentionally out of scope.",
+    "hostBoundary": "Out-of-scope for skills because OpenAI Agents SDK does not consume Codex/Cursor/Claude Code skill assets.",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
+  },
+  {
+    "provider": "anthropic-agent-sdk",
+    "tier": "out-of-scope",
+    "skillSurface": "No OpenBox skill file surface is installed for Anthropic Agent SDK; consumers import hook/options helpers instead.",
+    "installSurface": "No skill installation occurs for Anthropic Agent SDK helpers.",
+    "discoverySurface": "Public integration exports document helper support; host skill assets are intentionally out of scope.",
+    "hostBoundary": "Out-of-scope for skills because Anthropic Agent SDK usage is separate from host plugin skill assets.",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
+  },
+  {
+    "provider": "copilotkit",
+    "tier": "out-of-scope",
+    "skillSurface": "No OpenBox skill file surface is installed for CopilotKit; consumers wire runtime adapters and approval UI helpers instead.",
+    "installSurface": "No skill installation occurs for CopilotKit runtime or React helpers.",
+    "discoverySurface": "Public integration exports document helper support; host skill assets are intentionally out of scope.",
+    "hostBoundary": "Out-of-scope for skills because CopilotKit does not consume Codex/Cursor/Claude Code skill assets.",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
+  },
+  {
+    "provider": "n8n",
+    "tier": "out-of-scope",
+    "skillSurface": "No OpenBox skill file surface is installed for n8n; OpenBox ships node descriptors and workflow templates instead.",
+    "installSurface": "No skill installation occurs for the n8n integration descriptors.",
+    "discoverySurface": "N8N_INTEGRATION_SURFACE documents credentials, nodes, templates, and examples rather than host skill files.",
+    "hostBoundary": "Out-of-scope for skills because n8n consumes package descriptors/templates, not host plugin skill assets.",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
+  }
+] as const satisfies readonly SkillCapabilityGuardEntry[];
 export const MCP_CAPABILITY_GUARDS = [
   {
     "provider": "codex",
