@@ -80,6 +80,21 @@ using OpenBox.Workflow;
   MessageDisplay: "Message Display",
   Notification: "Notification",
   Stop: "Stop",
+  ClaudeCodeSession: "Claude Code Session",
+  ClaudeCodeMessage: "Claude Code Message",
+  ClaudeCodeConfigChange: "Claude Code Config Change",
+  ClaudeCodeWorkspaceChange: "Claude Code Workspace Change",
+  ClaudeCodeTask: "Claude Code Task",
+  CodexSession: "Codex Session",
+  AnthropicAgentSDKSession: "Anthropic Agent SDK Session",
+  AnthropicAgentSDKMessage: "Anthropic Agent SDK Message",
+  AnthropicAgentSDKConfigChange: "Anthropic Agent SDK Config Change",
+  AnthropicAgentSDKWorkspaceChange: "Anthropic Agent SDK Workspace Change",
+  AnthropicAgentSDKTask: "Anthropic Agent SDK Task",
+  MCPElicitation: "MCP Elicitation",
+  user_prompt: "User Prompt",
+  claude_usage: "Claude Usage",
+  anthropic_agent_sdk_usage: "Anthropic Agent SDK Usage",
   // Cursor; lowerCamel hook names
   beforeSubmitPrompt: "Before Submit Prompt",
   preToolUse: "Pre-Tool Use",
@@ -538,6 +553,45 @@ model GovernedPayload {
 
 @preset("claude-code")
 interface ClaudeCodePreset {
+  @maps_to("ActivityStarted", "ClaudeCodeSession")
+  sessionActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "ClaudeCodeSession")
+  sessionActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "ClaudeCodeMessage")
+  messageActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "ClaudeCodeMessage")
+  messageActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "ClaudeCodeMessage")
+  messageSignalReceived(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "ClaudeCodeConfigChange")
+  configChangeActivity(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "ClaudeCodeWorkspaceChange")
+  workspaceChangeSignal(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "ClaudeCodeWorkspaceChange")
+  workspaceChangeCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "MCPElicitation")
+  mcpElicitationStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "MCPElicitation")
+  mcpElicitationCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "ClaudeCodeTask")
+  taskActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "ClaudeCodeTask")
+  taskActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "claude_usage")
+  claudeUsageSignal(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "PreToolUse")
   preToolUse(payload: GovernedPayload): WorkflowVerdict;
 
@@ -565,6 +619,45 @@ interface ClaudeCodePreset {
 
 @preset("anthropic-agent-sdk")
 interface AnthropicAgentSDKPreset {
+  @maps_to("ActivityStarted", "AnthropicAgentSDKSession")
+  sessionActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "AnthropicAgentSDKSession")
+  sessionActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "AnthropicAgentSDKMessage")
+  messageActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "AnthropicAgentSDKMessage")
+  messageActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "AnthropicAgentSDKMessage")
+  messageSignalReceived(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "AnthropicAgentSDKConfigChange")
+  configChangeActivity(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "AnthropicAgentSDKWorkspaceChange")
+  workspaceChangeSignal(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "AnthropicAgentSDKWorkspaceChange")
+  workspaceChangeCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "MCPElicitation")
+  mcpElicitationStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "MCPElicitation")
+  mcpElicitationCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "AnthropicAgentSDKTask")
+  taskActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "AnthropicAgentSDKTask")
+  taskActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "anthropic_agent_sdk_usage")
+  usageSignal(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "SessionStart")
   sessionStart(payload: GovernedPayload): WorkflowVerdict;
 
@@ -640,6 +733,9 @@ interface CursorPreset {
 
 @preset("codex")
 interface CodexPreset {
+  @maps_to("ActivityCompleted", "CodexSession")
+  sessionCompleted(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "UserPromptSubmit")
   userPromptSubmit(payload: GovernedPayload): WorkflowVerdict;
 
@@ -1118,6 +1214,9 @@ interface ModernTreasuryPreset {
  */
 @preset("default")
 interface DefaultPreset {
+  @maps_to("SignalReceived", "user_prompt")
+  goalSignal(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "PromptSubmission")
   prompt(payload: GovernedPayload): WorkflowVerdict;
 

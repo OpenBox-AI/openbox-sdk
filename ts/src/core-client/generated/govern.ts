@@ -109,6 +109,71 @@ export const PRESET_MANIFEST = [
     "preset": "anthropic-agent-sdk",
     "methods": [
       {
+        "name": "sessionActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "AnthropicAgentSDKSession"
+      },
+      {
+        "name": "sessionActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "AnthropicAgentSDKSession"
+      },
+      {
+        "name": "messageActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "AnthropicAgentSDKMessage"
+      },
+      {
+        "name": "messageActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "AnthropicAgentSDKMessage"
+      },
+      {
+        "name": "messageSignalReceived",
+        "eventType": "SignalReceived",
+        "activityType": "AnthropicAgentSDKMessage"
+      },
+      {
+        "name": "configChangeActivity",
+        "eventType": "ActivityStarted",
+        "activityType": "AnthropicAgentSDKConfigChange"
+      },
+      {
+        "name": "workspaceChangeSignal",
+        "eventType": "SignalReceived",
+        "activityType": "AnthropicAgentSDKWorkspaceChange"
+      },
+      {
+        "name": "workspaceChangeCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "AnthropicAgentSDKWorkspaceChange"
+      },
+      {
+        "name": "mcpElicitationStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "MCPElicitation"
+      },
+      {
+        "name": "mcpElicitationCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "MCPElicitation"
+      },
+      {
+        "name": "taskActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "AnthropicAgentSDKTask"
+      },
+      {
+        "name": "taskActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "AnthropicAgentSDKTask"
+      },
+      {
+        "name": "usageSignal",
+        "eventType": "SignalReceived",
+        "activityType": "anthropic_agent_sdk_usage"
+      },
+      {
         "name": "sessionStart",
         "eventType": "ActivityStarted",
         "activityType": "SessionStart"
@@ -254,6 +319,71 @@ export const PRESET_MANIFEST = [
     "preset": "claude-code",
     "methods": [
       {
+        "name": "sessionActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "ClaudeCodeSession"
+      },
+      {
+        "name": "sessionActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "ClaudeCodeSession"
+      },
+      {
+        "name": "messageActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "ClaudeCodeMessage"
+      },
+      {
+        "name": "messageActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "ClaudeCodeMessage"
+      },
+      {
+        "name": "messageSignalReceived",
+        "eventType": "SignalReceived",
+        "activityType": "ClaudeCodeMessage"
+      },
+      {
+        "name": "configChangeActivity",
+        "eventType": "ActivityStarted",
+        "activityType": "ClaudeCodeConfigChange"
+      },
+      {
+        "name": "workspaceChangeSignal",
+        "eventType": "SignalReceived",
+        "activityType": "ClaudeCodeWorkspaceChange"
+      },
+      {
+        "name": "workspaceChangeCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "ClaudeCodeWorkspaceChange"
+      },
+      {
+        "name": "mcpElicitationStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "MCPElicitation"
+      },
+      {
+        "name": "mcpElicitationCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "MCPElicitation"
+      },
+      {
+        "name": "taskActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "ClaudeCodeTask"
+      },
+      {
+        "name": "taskActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "ClaudeCodeTask"
+      },
+      {
+        "name": "claudeUsageSignal",
+        "eventType": "SignalReceived",
+        "activityType": "claude_usage"
+      },
+      {
         "name": "preToolUse",
         "eventType": "ActivityStarted",
         "activityType": "PreToolUse"
@@ -323,6 +453,11 @@ export const PRESET_MANIFEST = [
   {
     "preset": "codex",
     "methods": [
+      {
+        "name": "sessionCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "CodexSession"
+      },
       {
         "name": "userPromptSubmit",
         "eventType": "ActivityStarted",
@@ -516,6 +651,11 @@ export const PRESET_MANIFEST = [
   {
     "preset": "default",
     "methods": [
+      {
+        "name": "goalSignal",
+        "eventType": "SignalReceived",
+        "activityType": "user_prompt"
+      },
       {
         "name": "prompt",
         "eventType": "ActivityStarted",
@@ -1094,14 +1234,14 @@ export const CANONICAL_EVENT_TYPES: ReadonlySet<CanonicalEventType> = new Set(["
  *  the wire (custom agents legitimately emit custom names); this
  *  is the *first-party* vocabulary, useful for guardrail authors
  *  and conformance reports. */
-export const CANONICAL_ACTIVITY_TYPES: ReadonlySet<string> = new Set(["AGENT_STEP","ActivityTaskCanceled","ActivityTaskCompleted","ActivityTaskFailed","ActivityTaskScheduled","ActivityTaskStarted","ActivityTaskTimedOut","AgentAction","AgentExecutionCompleted","AgentExecutionStarted","AgentHandoff","AgentSpawn","CHUNKING","CallToolsNode","ChildWorkflowExecutionCompleted","ChildWorkflowExecutionInitiated","CrewKickoffCompleted","CrewKickoffStarted","DatabaseQuery","EMBEDDING","EXCEPTION","End","FUNCTION_CALL","FileDelete","FileEdit","FileRead","GuardrailEvaluation","HTTPRequest","HandoffMessage","LLM","LLMCallCompleted","LLMCallStarted","LLMCompleted","MCPToolCall","MarkerRecorded","MemoryQueryEvent","MessageDisplay","ModelRequestNode","MultiModalMessage","Notification","OpenAIAgentsSDKRun","OperationCompleted","OperationStarted","PermissionRequest","PostToolBatch","PostToolUse","PostToolUseFailure","PreCompact","PreSyncHookStarted","PreSyncHookSucceeded","PreToolUse","PromptSubmission","QUERY","RERANKING","RETRIEVE","ResourceUpdated","SUB_QUESTION","SYNTHESIZE","SessionStart","ShellExecution","Stop","StopMessage","SubagentStart","SubagentStop","SyncStatusChanged","TaskCompleted","TaskStart","TaskStarted","TextMessage","TimerFired","TimerStarted","ToolCallExecutionEvent","ToolCallRequestEvent","ToolCompleted","ToolStarted","ToolUsageError","ToolUsageFinished","ToolUsageStarted","UserInputRequestedEvent","UserPromptNode","UserPromptSubmit","WorkflowExecutionSignaled","agentStop","auto_function_invocation_post","auto_function_invocation_pre","checkpoint","custom_event","error","error-trigger","errorOccurred","function_invocation_post","function_invocation_pre","incident.acknowledged","incident.annotated","incident.delegated","incident.escalated","incident.priority_updated","incident.reassigned","incident.reopened","incident.resolved","incident.triggered","incident.unacknowledged","interrupt","node-post-execute","node-pre-execute","node_end","node_start","onAbort","onError","onFinish","onStepFinish","on_agent_action","on_agent_finish","on_chain_end","on_chain_start","on_chat_model_start","on_execute_callback","on_failure_callback","on_llm_end","on_llm_error","on_llm_start","on_retriever_end","on_retriever_start","on_retry_callback","on_skipped_callback","on_success_callback","on_tool_end","on_tool_error","on_tool_start","output_validator","payment_order.approved","payment_order.begin_processing","payment_order.failed","payment_order.reconciled","payment_reference.created","postToolUse","preToolUse","prompt_render_post","prompt_render_pre","sla_miss_callback","subagentStop","task_end","task_start","tool-call","tool-result","tool_retry","userPromptSubmitted","workflow-step-finish","workflow-step-progress","workflow-step-start"]);
+export const CANONICAL_ACTIVITY_TYPES: ReadonlySet<string> = new Set(["AGENT_STEP","ActivityTaskCanceled","ActivityTaskCompleted","ActivityTaskFailed","ActivityTaskScheduled","ActivityTaskStarted","ActivityTaskTimedOut","AgentAction","AgentExecutionCompleted","AgentExecutionStarted","AgentHandoff","AgentSpawn","AnthropicAgentSDKConfigChange","AnthropicAgentSDKMessage","AnthropicAgentSDKSession","AnthropicAgentSDKTask","AnthropicAgentSDKWorkspaceChange","CHUNKING","CallToolsNode","ChildWorkflowExecutionCompleted","ChildWorkflowExecutionInitiated","ClaudeCodeConfigChange","ClaudeCodeMessage","ClaudeCodeSession","ClaudeCodeTask","ClaudeCodeWorkspaceChange","CodexSession","CrewKickoffCompleted","CrewKickoffStarted","DatabaseQuery","EMBEDDING","EXCEPTION","End","FUNCTION_CALL","FileDelete","FileEdit","FileRead","GuardrailEvaluation","HTTPRequest","HandoffMessage","LLM","LLMCallCompleted","LLMCallStarted","LLMCompleted","MCPElicitation","MCPToolCall","MarkerRecorded","MemoryQueryEvent","MessageDisplay","ModelRequestNode","MultiModalMessage","Notification","OpenAIAgentsSDKRun","OperationCompleted","OperationStarted","PermissionRequest","PostToolBatch","PostToolUse","PostToolUseFailure","PreCompact","PreSyncHookStarted","PreSyncHookSucceeded","PreToolUse","PromptSubmission","QUERY","RERANKING","RETRIEVE","ResourceUpdated","SUB_QUESTION","SYNTHESIZE","SessionStart","ShellExecution","Stop","StopMessage","SubagentStart","SubagentStop","SyncStatusChanged","TaskCompleted","TaskStart","TaskStarted","TextMessage","TimerFired","TimerStarted","ToolCallExecutionEvent","ToolCallRequestEvent","ToolCompleted","ToolStarted","ToolUsageError","ToolUsageFinished","ToolUsageStarted","UserInputRequestedEvent","UserPromptNode","UserPromptSubmit","WorkflowExecutionSignaled","agentStop","anthropic_agent_sdk_usage","auto_function_invocation_post","auto_function_invocation_pre","checkpoint","claude_usage","custom_event","error","error-trigger","errorOccurred","function_invocation_post","function_invocation_pre","incident.acknowledged","incident.annotated","incident.delegated","incident.escalated","incident.priority_updated","incident.reassigned","incident.reopened","incident.resolved","incident.triggered","incident.unacknowledged","interrupt","node-post-execute","node-pre-execute","node_end","node_start","onAbort","onError","onFinish","onStepFinish","on_agent_action","on_agent_finish","on_chain_end","on_chain_start","on_chat_model_start","on_execute_callback","on_failure_callback","on_llm_end","on_llm_error","on_llm_start","on_retriever_end","on_retriever_start","on_retry_callback","on_skipped_callback","on_success_callback","on_tool_end","on_tool_error","on_tool_start","output_validator","payment_order.approved","payment_order.begin_processing","payment_order.failed","payment_order.reconciled","payment_reference.created","postToolUse","preToolUse","prompt_render_post","prompt_render_pre","sla_miss_callback","subagentStop","task_end","task_start","tool-call","tool-result","tool_retry","userPromptSubmitted","user_prompt","workflow-step-finish","workflow-step-progress","workflow-step-start"]);
 /** Spec-driven display label for each canonical activity_type.
  *  Source of truth for any UI that renders activity types
  *  (mobile, web dashboard, CLI list views, audit reports). Consumers
  *  fall back to a Title-Case formatter for activity_types not in
  *  this table; custom-preset domain agents emit free-form strings
  *  that legitimately aren't covered here. */
-export const CANONICAL_ACTIVITY_LABELS: Readonly<Record<string, string>> = Object.freeze({"AGENT_STEP":"Agent Step","ActivityTaskCanceled":"Activity Task Canceled","ActivityTaskCompleted":"Activity Task Completed","ActivityTaskFailed":"Activity Task Failed","ActivityTaskScheduled":"Activity Task Scheduled","ActivityTaskStarted":"Activity Task Started","ActivityTaskTimedOut":"Activity Task Timed Out","AgentAction":"Agent Action","AgentExecutionCompleted":"Agent Execution Completed","AgentExecutionStarted":"Agent Execution Started","AgentHandoff":"Agent Handoff","AgentSpawn":"Agent Spawn","CHUNKING":"Chunking","CallToolsNode":"Call Tools Node","ChildWorkflowExecutionCompleted":"Child Workflow Execution Completed","ChildWorkflowExecutionInitiated":"Child Workflow Execution Initiated","CrewKickoffCompleted":"Crew Kickoff Completed","CrewKickoffStarted":"Crew Kickoff Started","DatabaseQuery":"Database Query","EMBEDDING":"Embedding","EXCEPTION":"Exception","End":"End","FUNCTION_CALL":"Function Call","FileDelete":"File Delete","FileEdit":"File Edit","FileRead":"File Read","GuardrailEvaluation":"Guardrail Evaluation","HTTPRequest":"HTTP Request","HandoffMessage":"Handoff Message","LLM":"LLM","LLMCallCompleted":"LLM Call Completed","LLMCallStarted":"LLM Call Started","LLMCompleted":"LLM Completed","MCPToolCall":"MCP Tool Call","MarkerRecorded":"Marker Recorded","MemoryQueryEvent":"Memory Query","MessageDisplay":"Message Display","ModelRequestNode":"Model Request Node","MultiModalMessage":"Multi-Modal Message","Notification":"Notification","OpenAIAgentsSDKRun":"OpenAI Agents SDK Run","OperationCompleted":"Operation Completed","OperationStarted":"Operation Started","PermissionRequest":"Permission Request","PostToolBatch":"Post-Tool Batch","PostToolUse":"Post-Tool Use","PostToolUseFailure":"Post-Tool Use Failure","PreCompact":"Pre-Compact","PreSyncHookStarted":"Pre-Sync Hook Started","PreSyncHookSucceeded":"Pre-Sync Hook Succeeded","PreToolUse":"Pre-Tool Use","PromptSubmission":"Prompt Submission","QUERY":"Query","RERANKING":"Reranking","RETRIEVE":"Retrieve","ResourceUpdated":"Resource Updated","SUB_QUESTION":"Sub-Question","SYNTHESIZE":"Synthesize","SessionStart":"Session Start","ShellExecution":"Shell Execution","Stop":"Stop","StopMessage":"Stop Message","SubagentStart":"Subagent Start","SubagentStop":"Subagent Stop","SyncStatusChanged":"Sync Status Changed","TaskCompleted":"Task Completed","TaskStart":"Task Start","TaskStarted":"Task Started","TextMessage":"Text Message","TimerFired":"Timer Fired","TimerStarted":"Timer Started","ToolCallExecutionEvent":"Tool Call Execution","ToolCallRequestEvent":"Tool Call Request","ToolCompleted":"Tool Completed","ToolStarted":"Tool Started","ToolUsageError":"Tool Usage Error","ToolUsageFinished":"Tool Usage Finished","ToolUsageStarted":"Tool Usage Started","UserInputRequestedEvent":"User Input Requested","UserPromptNode":"User Prompt Node","UserPromptSubmit":"User Prompt Submit","WorkflowExecutionSignaled":"Workflow Execution Signaled","agentStop":"Agent Stop","auto_function_invocation_post":"Auto Function Invocation Post","auto_function_invocation_pre":"Auto Function Invocation Pre","checkpoint":"Checkpoint","custom_event":"Custom Event","error":"Error","error-trigger":"Error Trigger","errorOccurred":"Error Occurred","function_invocation_post":"Function Invocation Post","function_invocation_pre":"Function Invocation Pre","incident.acknowledged":"Incident Acknowledged","incident.annotated":"Incident Annotated","incident.delegated":"Incident Delegated","incident.escalated":"Incident Escalated","incident.priority_updated":"Incident Priority Updated","incident.reassigned":"Incident Reassigned","incident.reopened":"Incident Reopened","incident.resolved":"Incident Resolved","incident.triggered":"Incident Triggered","incident.unacknowledged":"Incident Unacknowledged","interrupt":"Interrupt","node-post-execute":"Node Post-Execute","node-pre-execute":"Node Pre-Execute","node_end":"Node End","node_start":"Node Start","onAbort":"Abort","onError":"Error","onFinish":"Finish","onStepFinish":"Step Finish","on_agent_action":"Agent Action","on_agent_finish":"Agent Finish","on_chain_end":"Chain End","on_chain_start":"Chain Start","on_chat_model_start":"Chat Model Start","on_execute_callback":"Execute Callback","on_failure_callback":"Failure Callback","on_llm_end":"LLM End","on_llm_error":"LLM Error","on_llm_start":"LLM Start","on_retriever_end":"Retriever End","on_retriever_start":"Retriever Start","on_retry_callback":"Retry Callback","on_skipped_callback":"Skipped Callback","on_success_callback":"Success Callback","on_tool_end":"Tool End","on_tool_error":"Tool Error","on_tool_start":"Tool Start","output_validator":"Output Validator","payment_order.approved":"Payment Order Approved","payment_order.begin_processing":"Payment Order Begin Processing","payment_order.failed":"Payment Order Failed","payment_order.reconciled":"Payment Order Reconciled","payment_reference.created":"Payment Reference Created","postToolUse":"Post-Tool Use","preToolUse":"Pre-Tool Use","prompt_render_post":"Prompt Render Post","prompt_render_pre":"Prompt Render Pre","sla_miss_callback":"SLA Miss Callback","subagentStop":"Subagent Stop","task_end":"Task End","task_start":"Task Start","tool-call":"Tool Call","tool-result":"Tool Result","tool_retry":"Tool Retry","userPromptSubmitted":"User Prompt Submitted","workflow-step-finish":"Workflow Step Finish","workflow-step-progress":"Workflow Step Progress","workflow-step-start":"Workflow Step Start"});
+export const CANONICAL_ACTIVITY_LABELS: Readonly<Record<string, string>> = Object.freeze({"AGENT_STEP":"Agent Step","ActivityTaskCanceled":"Activity Task Canceled","ActivityTaskCompleted":"Activity Task Completed","ActivityTaskFailed":"Activity Task Failed","ActivityTaskScheduled":"Activity Task Scheduled","ActivityTaskStarted":"Activity Task Started","ActivityTaskTimedOut":"Activity Task Timed Out","AgentAction":"Agent Action","AgentExecutionCompleted":"Agent Execution Completed","AgentExecutionStarted":"Agent Execution Started","AgentHandoff":"Agent Handoff","AgentSpawn":"Agent Spawn","AnthropicAgentSDKConfigChange":"Anthropic Agent SDK Config Change","AnthropicAgentSDKMessage":"Anthropic Agent SDK Message","AnthropicAgentSDKSession":"Anthropic Agent SDK Session","AnthropicAgentSDKTask":"Anthropic Agent SDK Task","AnthropicAgentSDKWorkspaceChange":"Anthropic Agent SDK Workspace Change","CHUNKING":"Chunking","CallToolsNode":"Call Tools Node","ChildWorkflowExecutionCompleted":"Child Workflow Execution Completed","ChildWorkflowExecutionInitiated":"Child Workflow Execution Initiated","ClaudeCodeConfigChange":"Claude Code Config Change","ClaudeCodeMessage":"Claude Code Message","ClaudeCodeSession":"Claude Code Session","ClaudeCodeTask":"Claude Code Task","ClaudeCodeWorkspaceChange":"Claude Code Workspace Change","CodexSession":"Codex Session","CrewKickoffCompleted":"Crew Kickoff Completed","CrewKickoffStarted":"Crew Kickoff Started","DatabaseQuery":"Database Query","EMBEDDING":"Embedding","EXCEPTION":"Exception","End":"End","FUNCTION_CALL":"Function Call","FileDelete":"File Delete","FileEdit":"File Edit","FileRead":"File Read","GuardrailEvaluation":"Guardrail Evaluation","HTTPRequest":"HTTP Request","HandoffMessage":"Handoff Message","LLM":"LLM","LLMCallCompleted":"LLM Call Completed","LLMCallStarted":"LLM Call Started","LLMCompleted":"LLM Completed","MCPElicitation":"MCP Elicitation","MCPToolCall":"MCP Tool Call","MarkerRecorded":"Marker Recorded","MemoryQueryEvent":"Memory Query","MessageDisplay":"Message Display","ModelRequestNode":"Model Request Node","MultiModalMessage":"Multi-Modal Message","Notification":"Notification","OpenAIAgentsSDKRun":"OpenAI Agents SDK Run","OperationCompleted":"Operation Completed","OperationStarted":"Operation Started","PermissionRequest":"Permission Request","PostToolBatch":"Post-Tool Batch","PostToolUse":"Post-Tool Use","PostToolUseFailure":"Post-Tool Use Failure","PreCompact":"Pre-Compact","PreSyncHookStarted":"Pre-Sync Hook Started","PreSyncHookSucceeded":"Pre-Sync Hook Succeeded","PreToolUse":"Pre-Tool Use","PromptSubmission":"Prompt Submission","QUERY":"Query","RERANKING":"Reranking","RETRIEVE":"Retrieve","ResourceUpdated":"Resource Updated","SUB_QUESTION":"Sub-Question","SYNTHESIZE":"Synthesize","SessionStart":"Session Start","ShellExecution":"Shell Execution","Stop":"Stop","StopMessage":"Stop Message","SubagentStart":"Subagent Start","SubagentStop":"Subagent Stop","SyncStatusChanged":"Sync Status Changed","TaskCompleted":"Task Completed","TaskStart":"Task Start","TaskStarted":"Task Started","TextMessage":"Text Message","TimerFired":"Timer Fired","TimerStarted":"Timer Started","ToolCallExecutionEvent":"Tool Call Execution","ToolCallRequestEvent":"Tool Call Request","ToolCompleted":"Tool Completed","ToolStarted":"Tool Started","ToolUsageError":"Tool Usage Error","ToolUsageFinished":"Tool Usage Finished","ToolUsageStarted":"Tool Usage Started","UserInputRequestedEvent":"User Input Requested","UserPromptNode":"User Prompt Node","UserPromptSubmit":"User Prompt Submit","WorkflowExecutionSignaled":"Workflow Execution Signaled","agentStop":"Agent Stop","anthropic_agent_sdk_usage":"Anthropic Agent SDK Usage","auto_function_invocation_post":"Auto Function Invocation Post","auto_function_invocation_pre":"Auto Function Invocation Pre","checkpoint":"Checkpoint","claude_usage":"Claude Usage","custom_event":"Custom Event","error":"Error","error-trigger":"Error Trigger","errorOccurred":"Error Occurred","function_invocation_post":"Function Invocation Post","function_invocation_pre":"Function Invocation Pre","incident.acknowledged":"Incident Acknowledged","incident.annotated":"Incident Annotated","incident.delegated":"Incident Delegated","incident.escalated":"Incident Escalated","incident.priority_updated":"Incident Priority Updated","incident.reassigned":"Incident Reassigned","incident.reopened":"Incident Reopened","incident.resolved":"Incident Resolved","incident.triggered":"Incident Triggered","incident.unacknowledged":"Incident Unacknowledged","interrupt":"Interrupt","node-post-execute":"Node Post-Execute","node-pre-execute":"Node Pre-Execute","node_end":"Node End","node_start":"Node Start","onAbort":"Abort","onError":"Error","onFinish":"Finish","onStepFinish":"Step Finish","on_agent_action":"Agent Action","on_agent_finish":"Agent Finish","on_chain_end":"Chain End","on_chain_start":"Chain Start","on_chat_model_start":"Chat Model Start","on_execute_callback":"Execute Callback","on_failure_callback":"Failure Callback","on_llm_end":"LLM End","on_llm_error":"LLM Error","on_llm_start":"LLM Start","on_retriever_end":"Retriever End","on_retriever_start":"Retriever Start","on_retry_callback":"Retry Callback","on_skipped_callback":"Skipped Callback","on_success_callback":"Success Callback","on_tool_end":"Tool End","on_tool_error":"Tool Error","on_tool_start":"Tool Start","output_validator":"Output Validator","payment_order.approved":"Payment Order Approved","payment_order.begin_processing":"Payment Order Begin Processing","payment_order.failed":"Payment Order Failed","payment_order.reconciled":"Payment Order Reconciled","payment_reference.created":"Payment Reference Created","postToolUse":"Post-Tool Use","preToolUse":"Pre-Tool Use","prompt_render_post":"Prompt Render Post","prompt_render_pre":"Prompt Render Pre","sla_miss_callback":"SLA Miss Callback","subagentStop":"Subagent Stop","task_end":"Task End","task_start":"Task Start","tool-call":"Tool Call","tool-result":"Tool Result","tool_retry":"Tool Retry","userPromptSubmitted":"User Prompt Submitted","user_prompt":"User Prompt","workflow-step-finish":"Workflow Step Finish","workflow-step-progress":"Workflow Step Progress","workflow-step-start":"Workflow Step Start"});
 /** Every verdict arm the runtime emits. Production sets typically
  *  exclude `constrain`; consumers can re-filter. */
 export const CANONICAL_VERDICT_ARMS: ReadonlySet<VerdictArm> = new Set(["allow","block","constrain","halt","require_approval"] as const);
@@ -2171,6 +2311,58 @@ export class AirflowSession extends BaseGovernedSession {
 }
 /** Session for the `anthropic-agent-sdk` preset; methods match the framework's hook names. */
 export class AnthropicAgentSdkSession extends BaseGovernedSession {
+  async sessionActivityStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "AnthropicAgentSDKSession", payload);
+  }
+
+  async sessionActivityCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "AnthropicAgentSDKSession", payload);
+  }
+
+  async messageActivityStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "AnthropicAgentSDKMessage", payload);
+  }
+
+  async messageActivityCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "AnthropicAgentSDKMessage", payload);
+  }
+
+  async messageSignalReceived(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("SignalReceived", "AnthropicAgentSDKMessage", payload);
+  }
+
+  async configChangeActivity(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "AnthropicAgentSDKConfigChange", payload);
+  }
+
+  async workspaceChangeSignal(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("SignalReceived", "AnthropicAgentSDKWorkspaceChange", payload);
+  }
+
+  async workspaceChangeCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "AnthropicAgentSDKWorkspaceChange", payload);
+  }
+
+  async mcpElicitationStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "MCPElicitation", payload);
+  }
+
+  async mcpElicitationCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "MCPElicitation", payload);
+  }
+
+  async taskActivityStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "AnthropicAgentSDKTask", payload);
+  }
+
+  async taskActivityCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "AnthropicAgentSDKTask", payload);
+  }
+
+  async usageSignal(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("SignalReceived", "anthropic_agent_sdk_usage", payload);
+  }
+
   async sessionStart(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "SessionStart", payload);
   }
@@ -2281,6 +2473,58 @@ export class AutogenSession extends BaseGovernedSession {
 }
 /** Session for the `claude-code` preset; methods match the framework's hook names. */
 export class ClaudeCodeSession extends BaseGovernedSession {
+  async sessionActivityStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "ClaudeCodeSession", payload);
+  }
+
+  async sessionActivityCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "ClaudeCodeSession", payload);
+  }
+
+  async messageActivityStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "ClaudeCodeMessage", payload);
+  }
+
+  async messageActivityCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "ClaudeCodeMessage", payload);
+  }
+
+  async messageSignalReceived(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("SignalReceived", "ClaudeCodeMessage", payload);
+  }
+
+  async configChangeActivity(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "ClaudeCodeConfigChange", payload);
+  }
+
+  async workspaceChangeSignal(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("SignalReceived", "ClaudeCodeWorkspaceChange", payload);
+  }
+
+  async workspaceChangeCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "ClaudeCodeWorkspaceChange", payload);
+  }
+
+  async mcpElicitationStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "MCPElicitation", payload);
+  }
+
+  async mcpElicitationCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "MCPElicitation", payload);
+  }
+
+  async taskActivityStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "ClaudeCodeTask", payload);
+  }
+
+  async taskActivityCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "ClaudeCodeTask", payload);
+  }
+
+  async claudeUsageSignal(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("SignalReceived", "claude_usage", payload);
+  }
+
   async preToolUse(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "PreToolUse", payload);
   }
@@ -2333,6 +2577,10 @@ export class ClineSession extends BaseGovernedSession {
 }
 /** Session for the `codex` preset; methods match the framework's hook names. */
 export class CodexSession extends BaseGovernedSession {
+  async sessionCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "CodexSession", payload);
+  }
+
   async userPromptSubmit(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "UserPromptSubmit", payload);
   }
@@ -2489,6 +2737,10 @@ export class CustomSession extends BaseGovernedSession {
 }
 /** Session for the `default` preset; methods match the framework's hook names. */
 export class DefaultSession extends BaseGovernedSession {
+  async goalSignal(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("SignalReceived", "user_prompt", payload);
+  }
+
   async prompt(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "PromptSubmission", payload);
   }

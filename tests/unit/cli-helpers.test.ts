@@ -57,23 +57,6 @@ describe('thin exports', () => {
     const { OPENAI_AGENTS_ACTIVITY_TYPES: openaiAgents } = await import(
       '../../ts/src/openai-agents-sdk/payloads'
     );
-    const explicitHostSpecific = new Set([
-      'AnthropicAgentSDKConfigChange',
-      'AnthropicAgentSDKMessage',
-      'AnthropicAgentSDKSession',
-      'AnthropicAgentSDKTask',
-      'AnthropicAgentSDKWorkspaceChange',
-      'ClaudeCodeConfigChange',
-      'ClaudeCodeMessage',
-      'ClaudeCodeSession',
-      'ClaudeCodeTask',
-      'ClaudeCodeWorkspaceChange',
-      'CodexSession',
-      'MCPElicitation',
-      'anthropic_agent_sdk_usage',
-      'user_prompt',
-    ]);
-
     for (const [name, map] of Object.entries({
       anthropicAgent,
       claudeCode,
@@ -82,12 +65,11 @@ describe('thin exports', () => {
       openaiAgents,
     })) {
       const drift = Object.entries(map).filter(
-        ([, value]) =>
-          !CANONICAL_ACTIVITY_TYPES.has(value) && !explicitHostSpecific.has(value),
+        ([, value]) => !CANONICAL_ACTIVITY_TYPES.has(value),
       );
       expect(
         drift,
-        `${name} activity map has non-canonical values without an explicit host-specific exception`,
+        `${name} activity map has values missing from the TypeSpec-generated first-party vocabulary`,
       ).toEqual([]);
     }
   });

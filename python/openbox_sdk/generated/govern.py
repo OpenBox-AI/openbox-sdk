@@ -45,6 +45,71 @@ PRESET_MANIFEST = [
     "preset": "anthropic-agent-sdk",
     "methods": [
       {
+        "name": "sessionActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "AnthropicAgentSDKSession"
+      },
+      {
+        "name": "sessionActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "AnthropicAgentSDKSession"
+      },
+      {
+        "name": "messageActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "AnthropicAgentSDKMessage"
+      },
+      {
+        "name": "messageActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "AnthropicAgentSDKMessage"
+      },
+      {
+        "name": "messageSignalReceived",
+        "eventType": "SignalReceived",
+        "activityType": "AnthropicAgentSDKMessage"
+      },
+      {
+        "name": "configChangeActivity",
+        "eventType": "ActivityStarted",
+        "activityType": "AnthropicAgentSDKConfigChange"
+      },
+      {
+        "name": "workspaceChangeSignal",
+        "eventType": "SignalReceived",
+        "activityType": "AnthropicAgentSDKWorkspaceChange"
+      },
+      {
+        "name": "workspaceChangeCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "AnthropicAgentSDKWorkspaceChange"
+      },
+      {
+        "name": "mcpElicitationStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "MCPElicitation"
+      },
+      {
+        "name": "mcpElicitationCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "MCPElicitation"
+      },
+      {
+        "name": "taskActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "AnthropicAgentSDKTask"
+      },
+      {
+        "name": "taskActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "AnthropicAgentSDKTask"
+      },
+      {
+        "name": "usageSignal",
+        "eventType": "SignalReceived",
+        "activityType": "anthropic_agent_sdk_usage"
+      },
+      {
         "name": "sessionStart",
         "eventType": "ActivityStarted",
         "activityType": "SessionStart"
@@ -190,6 +255,71 @@ PRESET_MANIFEST = [
     "preset": "claude-code",
     "methods": [
       {
+        "name": "sessionActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "ClaudeCodeSession"
+      },
+      {
+        "name": "sessionActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "ClaudeCodeSession"
+      },
+      {
+        "name": "messageActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "ClaudeCodeMessage"
+      },
+      {
+        "name": "messageActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "ClaudeCodeMessage"
+      },
+      {
+        "name": "messageSignalReceived",
+        "eventType": "SignalReceived",
+        "activityType": "ClaudeCodeMessage"
+      },
+      {
+        "name": "configChangeActivity",
+        "eventType": "ActivityStarted",
+        "activityType": "ClaudeCodeConfigChange"
+      },
+      {
+        "name": "workspaceChangeSignal",
+        "eventType": "SignalReceived",
+        "activityType": "ClaudeCodeWorkspaceChange"
+      },
+      {
+        "name": "workspaceChangeCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "ClaudeCodeWorkspaceChange"
+      },
+      {
+        "name": "mcpElicitationStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "MCPElicitation"
+      },
+      {
+        "name": "mcpElicitationCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "MCPElicitation"
+      },
+      {
+        "name": "taskActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "ClaudeCodeTask"
+      },
+      {
+        "name": "taskActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "ClaudeCodeTask"
+      },
+      {
+        "name": "claudeUsageSignal",
+        "eventType": "SignalReceived",
+        "activityType": "claude_usage"
+      },
+      {
         "name": "preToolUse",
         "eventType": "ActivityStarted",
         "activityType": "PreToolUse"
@@ -259,6 +389,11 @@ PRESET_MANIFEST = [
   {
     "preset": "codex",
     "methods": [
+      {
+        "name": "sessionCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "CodexSession"
+      },
       {
         "name": "userPromptSubmit",
         "eventType": "ActivityStarted",
@@ -452,6 +587,11 @@ PRESET_MANIFEST = [
   {
     "preset": "default",
     "methods": [
+      {
+        "name": "goalSignal",
+        "eventType": "SignalReceived",
+        "activityType": "user_prompt"
+      },
       {
         "name": "prompt",
         "eventType": "ActivityStarted",
@@ -1043,6 +1183,45 @@ class AirflowSession(BaseGovernedSession):
 
 
 class AnthropicAgentSdkSession(BaseGovernedSession):
+    async def session_activity_started(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "AnthropicAgentSDKSession", payload or {})
+
+    async def session_activity_completed(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityCompleted", "AnthropicAgentSDKSession", payload or {})
+
+    async def message_activity_started(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "AnthropicAgentSDKMessage", payload or {})
+
+    async def message_activity_completed(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityCompleted", "AnthropicAgentSDKMessage", payload or {})
+
+    async def message_signal_received(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("SignalReceived", "AnthropicAgentSDKMessage", payload or {})
+
+    async def config_change_activity(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "AnthropicAgentSDKConfigChange", payload or {})
+
+    async def workspace_change_signal(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("SignalReceived", "AnthropicAgentSDKWorkspaceChange", payload or {})
+
+    async def workspace_change_completed(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityCompleted", "AnthropicAgentSDKWorkspaceChange", payload or {})
+
+    async def mcp_elicitation_started(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "MCPElicitation", payload or {})
+
+    async def mcp_elicitation_completed(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityCompleted", "MCPElicitation", payload or {})
+
+    async def task_activity_started(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "AnthropicAgentSDKTask", payload or {})
+
+    async def task_activity_completed(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityCompleted", "AnthropicAgentSDKTask", payload or {})
+
+    async def usage_signal(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("SignalReceived", "anthropic_agent_sdk_usage", payload or {})
+
     async def session_start(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
         return await self.run_activity("ActivityStarted", "SessionStart", payload or {})
 
@@ -1127,6 +1306,45 @@ class AutogenSession(BaseGovernedSession):
 
 
 class ClaudeCodeSession(BaseGovernedSession):
+    async def session_activity_started(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "ClaudeCodeSession", payload or {})
+
+    async def session_activity_completed(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityCompleted", "ClaudeCodeSession", payload or {})
+
+    async def message_activity_started(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "ClaudeCodeMessage", payload or {})
+
+    async def message_activity_completed(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityCompleted", "ClaudeCodeMessage", payload or {})
+
+    async def message_signal_received(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("SignalReceived", "ClaudeCodeMessage", payload or {})
+
+    async def config_change_activity(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "ClaudeCodeConfigChange", payload or {})
+
+    async def workspace_change_signal(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("SignalReceived", "ClaudeCodeWorkspaceChange", payload or {})
+
+    async def workspace_change_completed(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityCompleted", "ClaudeCodeWorkspaceChange", payload or {})
+
+    async def mcp_elicitation_started(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "MCPElicitation", payload or {})
+
+    async def mcp_elicitation_completed(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityCompleted", "MCPElicitation", payload or {})
+
+    async def task_activity_started(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "ClaudeCodeTask", payload or {})
+
+    async def task_activity_completed(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityCompleted", "ClaudeCodeTask", payload or {})
+
+    async def claude_usage_signal(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("SignalReceived", "claude_usage", payload or {})
+
     async def pre_tool_use(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
         return await self.run_activity("ActivityStarted", "PreToolUse", payload or {})
 
@@ -1167,6 +1385,9 @@ class ClineSession(BaseGovernedSession):
 
 
 class CodexSession(BaseGovernedSession):
+    async def session_completed(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityCompleted", "CodexSession", payload or {})
+
     async def user_prompt_submit(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
         return await self.run_activity("ActivityStarted", "UserPromptSubmit", payload or {})
 
@@ -1280,6 +1501,9 @@ class CustomSession(BaseGovernedSession):
 
 
 class DefaultSession(BaseGovernedSession):
+    async def goal_signal(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("SignalReceived", "user_prompt", payload or {})
+
     async def prompt(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
         return await self.run_activity("ActivityStarted", "PromptSubmission", payload or {})
 
