@@ -22,6 +22,7 @@ import {
   claimAction,
   awaitClaimDecision,
   publishClaimDecision,
+  rememberCompletionActivity,
 } from '../dedup.js';
 import { stampSource } from '../../../approvals/source.js';
 
@@ -77,13 +78,36 @@ export async function handleBeforeReadFile(
     tool_name: 'Read',
   });
   try {
-    const verdict = await session.activity(EVENT.START, BEFORE_READ_FILE_ACTIVITY_TYPE, {
+    const startTime = Date.now();
+    const opened = await session.openActivity(BEFORE_READ_FILE_ACTIVITY_TYPE, {
       input: withOpenBoxActivityMetadata(
         [stampSource(payload, 'cursor')],
         { toolType: 'file_read' },
       ),
+      startTime,
       spans: [span],
     });
+    const verdict = opened.verdict;
+    if (
+      verdict.arm === 'allow' ||
+      verdict.arm === 'constrain' ||
+      verdict.arm === 'require_approval'
+    ) {
+      rememberCompletionActivity(
+        {
+          generation_id: env.generation_id,
+          conversation_id: env.conversation_id,
+          kind: 'read',
+          arg: filePath,
+        },
+        cfg,
+        {
+          activityId: opened.activityId,
+          activityType: BEFORE_READ_FILE_ACTIVITY_TYPE,
+          startTime,
+        },
+      );
+    }
     publishClaimDecision(claim, { arm: verdict.arm, reason: verdict.reason ?? '' });
     if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
     return verdict;

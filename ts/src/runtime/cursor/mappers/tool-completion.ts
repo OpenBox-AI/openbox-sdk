@@ -18,7 +18,7 @@ import {
   type SpanType,
 } from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
-import { claimCompletionTelemetry } from '../dedup.js';
+import { claimCompletionTelemetry, takeCompletionActivity } from '../dedup.js';
 
 type ObserveCapableCursorSession = CursorSession & {
   observeActivity?: CursorSession['activity'];
@@ -96,6 +96,15 @@ function spanInput(env: CursorEnvelope): Parameters<typeof buildSpan>[2] {
 }
 
 function completionClaim(env: CursorEnvelope, toolType: SpanType): boolean {
+  return claimCompletionTelemetry(completionParts(env, toolType));
+}
+
+function completionParts(env: CursorEnvelope, toolType: SpanType): {
+  generation_id?: string;
+  conversation_id?: string;
+  kind: 'shell' | 'read' | 'write' | 'mcp';
+  arg?: string;
+} {
   const kind =
     toolType === 'shell' || toolType === 'file_delete'
       ? 'shell'
@@ -110,12 +119,12 @@ function completionClaim(env: CursorEnvelope, toolType: SpanType): boolean {
       : kind === 'mcp'
         ? env.tool_name
         : toolFilePath(env);
-  return claimCompletionTelemetry({
+  return {
     generation_id: env.generation_id,
     conversation_id: env.conversation_id,
     kind,
     arg,
-  });
+  };
 }
 
 function shouldEmitPostToolUse(env: CursorEnvelope): boolean {
@@ -148,15 +157,17 @@ async function observeActivity(
 export async function handlePostToolUse(
   env: CursorEnvelope,
   session: CursorSession,
-  _cfg: CursorConfig,
+  cfg: CursorConfig,
 ): Promise<undefined> {
   if (!shouldEmitPostToolUse(env)) return undefined;
   const activityType = activityTypeFor(env);
   const toolType = spanTypeFor(env);
   if (!completionClaim(env, toolType)) return undefined;
+  const pending = takeCompletionActivity(completionParts(env, toolType), cfg);
   const payload = buildPostToolUsePayload(env);
-  await observeActivity(session, EVENT.COMPLETE, activityType, {
-    activityId: env.tool_use_id,
+  await observeActivity(session, EVENT.COMPLETE, pending?.activityType ?? activityType, {
+    activityId: pending?.activityId ?? env.tool_use_id,
+    startTime: pending?.startTime,
     durationMs: cursorDurationMs(env),
     input: withOpenBoxActivityMetadata(
       [stampSource({ tool_name: env.tool_name, tool_input: env.tool_input }, 'cursor')],
@@ -175,15 +186,17 @@ export async function handlePostToolUse(
 export async function handlePostToolUseFailure(
   env: CursorEnvelope,
   session: CursorSession,
-  _cfg: CursorConfig,
+  cfg: CursorConfig,
 ): Promise<undefined> {
   if (!shouldEmitPostToolUseFailure(env)) return undefined;
   const activityType = activityTypeFor(env);
   const toolType = spanTypeFor(env);
   if (!completionClaim(env, toolType)) return undefined;
+  const pending = takeCompletionActivity(completionParts(env, toolType), cfg);
   const payload = buildPostToolUseFailurePayload(env);
-  await observeActivity(session, EVENT.COMPLETE, activityType, {
-    activityId: env.tool_use_id,
+  await observeActivity(session, EVENT.COMPLETE, pending?.activityType ?? activityType, {
+    activityId: pending?.activityId ?? env.tool_use_id,
+    startTime: pending?.startTime,
     durationMs: cursorDurationMs(env),
     input: withOpenBoxActivityMetadata(
       [stampSource({ tool_name: env.tool_name, tool_input: env.tool_input }, 'cursor')],

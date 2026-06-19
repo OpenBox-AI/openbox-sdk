@@ -10,6 +10,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { openboxDataRoot } from '../../env/os-paths.js';
+import { SessionStore } from '../../session/store.js';
+import type { CursorConfig } from './config.js';
 
 const TTL_MS = 60 * 60 * 1000; // 1h
 const POLL_INTERVAL_MS = 100;
@@ -87,7 +89,81 @@ export function claimCompletionTelemetry(parts: {
 }): boolean {
   const arg = parts.arg?.trim();
   if (!arg) return true;
-  return claimAction(buildActionKey({ ...parts, arg: `completion:${arg}` })).won;
+  return claimAction(completionActivityKey({ ...parts, arg })).won;
+}
+
+interface PendingToolActivity {
+  activityId: string;
+  activityType: string;
+  startTime: number;
+}
+
+const activityStores = new WeakMap<CursorConfig, SessionStore>();
+
+function activityStoreFor(cfg: CursorConfig): SessionStore {
+  let store = activityStores.get(cfg);
+  if (!store) {
+    store = new SessionStore(path.join(cfg.sessionDir, 'tool-activities'));
+    activityStores.set(cfg, store);
+  }
+  return store;
+}
+
+function completionActivityKey(parts: {
+  generation_id?: string;
+  conversation_id?: string;
+  kind: 'shell' | 'read' | 'write' | 'mcp';
+  arg: string;
+}): string {
+  return buildActionKey({ ...parts, arg: `completion:${parts.arg}` });
+}
+
+export function rememberCompletionActivity(
+  parts: {
+    generation_id?: string;
+    conversation_id?: string;
+    kind: 'shell' | 'read' | 'write' | 'mcp';
+    arg?: string;
+  },
+  cfg: CursorConfig,
+  activity: PendingToolActivity,
+): void {
+  const arg = parts.arg?.trim();
+  if (!arg) return;
+  activityStoreFor(cfg).save(
+    completionActivityKey({ ...parts, arg }),
+    { ...activity },
+  );
+}
+
+export function takeCompletionActivity(
+  parts: {
+    generation_id?: string;
+    conversation_id?: string;
+    kind: 'shell' | 'read' | 'write' | 'mcp';
+    arg?: string;
+  },
+  cfg: CursorConfig,
+): PendingToolActivity | null {
+  const arg = parts.arg?.trim();
+  if (!arg) return null;
+  const key = completionActivityKey({ ...parts, arg });
+  const store = activityStoreFor(cfg);
+  const record = store.load(key) as Partial<PendingToolActivity> | null;
+  store.delete(key);
+  if (
+    !record ||
+    typeof record.activityId !== 'string' ||
+    typeof record.activityType !== 'string' ||
+    typeof record.startTime !== 'number'
+  ) {
+    return null;
+  }
+  return {
+    activityId: record.activityId,
+    activityType: record.activityType,
+    startTime: record.startTime,
+  };
 }
 
 export interface ActionClaim {

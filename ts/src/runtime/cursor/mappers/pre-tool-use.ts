@@ -11,7 +11,6 @@ import {
 } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
-import { EVENT } from '../activity-types.js';
 import {
   isInsideAnyRoot,
   shouldRedactPathContent,
@@ -27,6 +26,7 @@ import {
   claimAction,
   awaitClaimDecision,
   publishClaimDecision,
+  rememberCompletionActivity,
 } from '../dedup.js';
 import { stampSource } from '../../../approvals/source.js';
 
@@ -73,12 +73,13 @@ export async function handlePreToolUse(
     toolName === 'Shell' ? 'shell' :
     toolName === 'Read' ? 'read' :
     toolName === 'Write' ? 'write' : null;
+  const claimArg = claimKind === 'shell' ? command : filePath;
   const claim = claimKind
     ? claimAction(buildActionKey({
         generation_id: env.generation_id,
         conversation_id: env.conversation_id,
         kind: claimKind,
-        arg: claimKind === 'shell' ? command : filePath,
+        arg: claimArg,
       }))
     : null;
   if (claim && !claim.won) {
@@ -120,13 +121,37 @@ export async function handlePreToolUse(
   });
 
   try {
-    const verdict = await session.activity(EVENT.START, activityType, {
+    const startTime = Date.now();
+    const opened = await session.openActivity(activityType, {
       input: withOpenBoxActivityMetadata(
         [stampSource(payload, 'cursor')],
         { toolType: spanType },
       ),
+      startTime,
       spans: [span],
     });
+    const verdict = opened.verdict;
+    if (
+      claimKind &&
+      (verdict.arm === 'allow' ||
+        verdict.arm === 'constrain' ||
+        verdict.arm === 'require_approval')
+    ) {
+      rememberCompletionActivity(
+        {
+          generation_id: env.generation_id,
+          conversation_id: env.conversation_id,
+          kind: claimKind,
+          arg: claimArg,
+        },
+        cfg,
+        {
+          activityId: opened.activityId,
+          activityType,
+          startTime,
+        },
+      );
+    }
     if (claim?.won) {
       publishClaimDecision(claim, { arm: verdict.arm, reason: verdict.reason ?? '' });
     }

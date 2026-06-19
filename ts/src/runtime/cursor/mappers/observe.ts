@@ -25,7 +25,7 @@ import {
   withOpenBoxActivityMetadata,
 } from '../../../governance/spans.js';
 import { stampSource } from '../../../approvals/source.js';
-import { claimCompletionTelemetry } from '../dedup.js';
+import { claimCompletionTelemetry, takeCompletionActivity } from '../dedup.js';
 
 type ObserveCapableCursorSession = CursorSession & {
   observeActivity?: (
@@ -285,7 +285,7 @@ export function handleAfterAgentThought(
 export async function handleAfterShellExecution(
   env: CursorEnvelope,
   session: CursorSession,
-  _cfg: CursorConfig,
+  cfg: CursorConfig,
 ): Promise<undefined> {
   const source = env as CursorEnvelope & { output?: unknown; sandbox?: unknown };
   const command = firstString(env.command);
@@ -304,9 +304,20 @@ export async function handleAfterShellExecution(
   ) {
     return undefined;
   }
+  const pending = takeCompletionActivity(
+    {
+      generation_id: env.generation_id,
+      conversation_id: env.conversation_id,
+      kind: 'shell',
+      arg: command,
+    },
+    cfg,
+  );
 
   const payload = buildAfterShellExecutionPayload(env);
-  await observeActivity(session, EVENT.COMPLETE, AFTER_SHELL_EXECUTION_ACTIVITY_TYPE, {
+  await observeActivity(session, EVENT.COMPLETE, pending?.activityType ?? AFTER_SHELL_EXECUTION_ACTIVITY_TYPE, {
+    activityId: pending?.activityId,
+    startTime: pending?.startTime,
     durationMs,
     input: withOpenBoxActivityMetadata(
       [stampSource({ command, cwd: env.cwd, event_category: 'agent_action' }, 'cursor')],
@@ -331,7 +342,7 @@ export async function handleAfterShellExecution(
 export async function handleAfterFileEdit(
   env: CursorEnvelope,
   session: CursorSession,
-  _cfg: CursorConfig,
+  cfg: CursorConfig,
 ): Promise<undefined> {
   const filePath = firstString(env.file_path);
   if (!filePath) return undefined;
@@ -345,9 +356,20 @@ export async function handleAfterFileEdit(
   ) {
     return undefined;
   }
+  const pending = takeCompletionActivity(
+    {
+      generation_id: env.generation_id,
+      conversation_id: env.conversation_id,
+      kind: 'write',
+      arg: filePath,
+    },
+    cfg,
+  );
 
   const payload = buildAfterFileEditPayload(env);
-  await observeActivity(session, EVENT.COMPLETE, AFTER_FILE_EDIT_ACTIVITY_TYPE, {
+  await observeActivity(session, EVENT.COMPLETE, pending?.activityType ?? AFTER_FILE_EDIT_ACTIVITY_TYPE, {
+    activityId: pending?.activityId,
+    startTime: pending?.startTime,
     input: withOpenBoxActivityMetadata(
       [stampSource({
         file_path: filePath,

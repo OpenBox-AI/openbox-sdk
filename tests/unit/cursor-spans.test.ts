@@ -9,6 +9,8 @@
 // classifier reads (file.path / shell.command / http.method+url +
 // gen_ai.system) is present.
 
+import path from 'node:path';
+import { tmpdir } from 'node:os';
 import { describe, expect, test } from 'vitest';
 import { handleBeforeSubmitPrompt } from '../../ts/src/runtime/cursor/mappers/prompt.js';
 import { handleBeforeReadFile } from '../../ts/src/runtime/cursor/mappers/file-read.js';
@@ -29,7 +31,13 @@ import {
 interface ActivityCall {
   eventType: string;
   activityType: string;
-  payload: { input?: unknown[]; output?: unknown; spans?: unknown[] };
+  payload: {
+    activityId?: string;
+    startTime?: number;
+    input?: unknown[];
+    output?: unknown;
+    spans?: unknown[];
+  };
 }
 
 function makeCapturingSession(captured: ActivityCall[]) {
@@ -42,12 +50,41 @@ function makeCapturingSession(captured: ActivityCall[]) {
       captured.push({ eventType, activityType, payload });
       return { arm: 'allow' as const };
     },
+    openActivity: async (activityType: string, payload: ActivityCall['payload']) => {
+      const activityId = payload.activityId ?? `cursor-open-${captured.length + 1}`;
+      const startTime = payload.startTime ?? Date.now();
+      captured.push({
+        eventType: 'ActivityStarted',
+        activityType,
+        payload: { ...payload, activityId, startTime },
+      });
+      return {
+        activityId,
+        verdict: { arm: 'allow' as const },
+        complete: async (
+          completionPayload: ActivityCall['payload'],
+          completionActivityType?: string,
+        ) => {
+          captured.push({
+            eventType: 'ActivityCompleted',
+            activityType: completionActivityType ?? activityType,
+            payload: { ...completionPayload, activityId },
+          });
+          return { arm: 'allow' as const };
+        },
+      };
+    },
     workflowStarted: async () => undefined,
     workflowCompleted: async () => undefined,
   };
 }
 
-const cfg = { idleTimeoutMs: 60_000, sessionStorePath: '' } as never;
+const cfg = {
+  hitlMaxWait: 1,
+  idleTimeoutMs: 60_000,
+  sessionDir: path.join(tmpdir(), 'openbox-cursor-spans-test'),
+  sessionStorePath: '',
+} as never;
 
 interface SpanShape {
   semantic_type?: string;
@@ -122,6 +159,51 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     expect(span.attributes?.['shell.command']).toBe('echo hello world');
     expect(span.attributes?.['openbox.tool.name']).toBe('Shell');
     expect(span.attributes?.['tool.name']).toBe('Shell');
+  });
+
+  test('before/after shell execution keeps one activity id across the tool lifecycle', async () => {
+    const captured: ActivityCall[] = [];
+    const suffix = Math.random().toString(36).slice(2);
+    const command = `npm run cursor-shell-lifecycle-${suffix}`;
+    const envelope = {
+      conversation_id: 'c',
+      generation_id: `cursor-shell-lifecycle-${suffix}`,
+      command,
+      cwd: '/repo',
+      hook_event_name: 'beforeShellExecution',
+      workspace_roots: ['/repo'],
+    };
+
+    await handleBeforeShellExecution(
+      envelope as never,
+      makeCapturingSession(captured) as never,
+      cfg,
+    );
+    await handleAfterShellExecution(
+      {
+        ...envelope,
+        hook_event_name: 'afterShellExecution',
+        output: 'ok',
+        duration: 42,
+      } as never,
+      makeCapturingSession(captured) as never,
+      cfg,
+    );
+
+    expect(captured).toHaveLength(2);
+    expect(captured[0]).toMatchObject({
+      eventType: 'ActivityStarted',
+      activityType: 'ShellExecution',
+    });
+    expect(captured[1]).toMatchObject({
+      eventType: 'ActivityCompleted',
+      activityType: 'ShellExecution',
+      payload: {
+        activityId: captured[0]?.payload.activityId,
+        startTime: captured[0]?.payload.startTime,
+        durationMs: 42,
+      },
+    });
   });
 
   test('beforeShellExecution(rm) → file_delete span (FileDelete reroute)', async () => {

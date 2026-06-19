@@ -48,6 +48,17 @@ function recordingSession(verdict: any = { arm: 'allow', reason: 'ok' }) {
       calls.push({ method: 'activity', args });
       return verdict;
     }),
+    openActivity: vi.fn(async (...args: unknown[]) => {
+      calls.push({ method: 'openActivity', args });
+      return {
+        activityId: `opened-${calls.length}`,
+        verdict,
+        complete: vi.fn(async (...completeArgs: unknown[]) => {
+          calls.push({ method: 'openActivity.complete', args: completeArgs });
+          return verdict;
+        }),
+      };
+    }),
     workflowStarted: vi.fn(async (...args: unknown[]) => {
       calls.push({ method: 'workflowStarted', args });
       return undefined;
@@ -204,7 +215,7 @@ describe('low-branch utility coverage', () => {
         cfg,
       ),
     ).resolves.toMatchObject({ arm: 'halt' });
-    expect(haltedMcp.activity).toHaveBeenCalled();
+    expect(haltedMcp.openActivity).toHaveBeenCalled();
 
     const haltedSubagent = recordingSession({ arm: 'halt', reason: 'stop subagent' });
     await expect(

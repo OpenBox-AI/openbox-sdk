@@ -40,6 +40,17 @@ function recordingSession(verdict: any = { arm: 'allow' }): any {
   for (const m of methods) {
     proxy[m] = async (...a: any[]) => { calls.push({ method: m, args: a }); return verdict; };
   }
+  proxy.openActivity = async (...a: any[]) => {
+    calls.push({ method: 'openActivity', args: a });
+    return {
+      activityId: a[1]?.activityId ?? `opened-${calls.length}`,
+      verdict,
+      complete: async (...completeArgs: any[]) => {
+        calls.push({ method: 'openActivity.complete', args: completeArgs });
+        return verdict;
+      },
+    };
+  };
   return proxy;
 }
 
@@ -229,15 +240,15 @@ describe('runtime/cursor/mappers; drive every handler', () => {
       );
     }
     const shellGate = session.calls.find(
-      (call: any) => call.method === 'activity' && call.args[1] === 'ShellExecution',
+      (call: any) => call.method === 'openActivity' && call.args[0] === 'ShellExecution',
     );
-    expect(shellGate?.args[2].input).toContainEqual({
+    expect(shellGate?.args[1].input).toContainEqual({
       __openbox: { tool_type: 'shell' },
     });
     const fileGate = session.calls.find(
-      (call: any) => call.method === 'activity' && call.args[1] === 'FileRead',
+      (call: any) => call.method === 'openActivity' && call.args[0] === 'FileRead',
     );
-    expect(fileGate?.args[2].input).toContainEqual({
+    expect(fileGate?.args[1].input).toContainEqual({
       __openbox: { tool_type: 'file_read' },
     });
   });
@@ -280,9 +291,9 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     if (typeof mcp.handleBeforeMCPExecution === 'function') await mcp.handleBeforeMCPExecution(env, session, cfg);
     if (typeof mcpResp.handleAfterMCPExecution === 'function') await mcpResp.handleAfterMCPExecution(env, session, cfg);
     const mcpGate = session.calls.find(
-      (call: any) => call.method === 'activity' && call.args[1] === 'MCPToolCall',
+      (call: any) => call.method === 'openActivity' && call.args[0] === 'MCPToolCall',
     );
-    expect(mcpGate?.args[2].input).toContainEqual({
+    expect(mcpGate?.args[1].input).toContainEqual({
       __openbox: { tool_type: 'mcp' },
     });
   });

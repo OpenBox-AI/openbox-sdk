@@ -9,7 +9,6 @@ import {
 } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
-import { EVENT } from '../activity-types.js';
 import { buildSpan, withOpenBoxActivityMetadata } from '../../../governance/spans.js';
 import {
   buildActionKey,
@@ -17,6 +16,7 @@ import {
   awaitClaimDecision,
   publishClaimDecision,
   isFileDeleteCommand,
+  rememberCompletionActivity,
 } from '../dedup.js';
 import { stampSource } from '../../../approvals/source.js';
 
@@ -75,13 +75,36 @@ export async function handleBeforeShellExecution(
   });
   if (isDelete) payload.event_category = 'file_delete';
   try {
-    const verdict = await session.activity(EVENT.START, activityType, {
+    const startTime = Date.now();
+    const opened = await session.openActivity(activityType, {
       input: withOpenBoxActivityMetadata(
         [stampSource(payload, 'cursor')],
         { toolType: isDelete ? 'file_delete' : 'shell' },
       ),
+      startTime,
       spans: [span],
     });
+    const verdict = opened.verdict;
+    if (
+      verdict.arm === 'allow' ||
+      verdict.arm === 'constrain' ||
+      verdict.arm === 'require_approval'
+    ) {
+      rememberCompletionActivity(
+        {
+          generation_id: env.generation_id,
+          conversation_id: env.conversation_id,
+          kind: 'shell',
+          arg: command,
+        },
+        cfg,
+        {
+          activityId: opened.activityId,
+          activityType,
+          startTime,
+        },
+      );
+    }
     publishClaimDecision(claim, { arm: verdict.arm, reason: verdict.reason ?? '' });
     if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
     return verdict;

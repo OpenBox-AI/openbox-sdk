@@ -35,6 +35,14 @@ function makeCapturingSession(captured: ActivityCall[]) {
       captured.push({ eventType, activityType });
       return { arm: 'allow' as const, decision: { decisionId: 'd' } };
     },
+    openActivity: async (activityType: string) => {
+      captured.push({ eventType: 'ActivityStarted', activityType });
+      return {
+        activityId: `cursor-open-${captured.length}`,
+        verdict: { arm: 'allow' as const, decision: { decisionId: 'd' } },
+        complete: async () => ({ arm: 'allow' as const }),
+      };
+    },
     workflowStarted: async () => undefined,
     workflowCompleted: async () => undefined,
   };
@@ -43,7 +51,12 @@ function makeCapturingSession(captured: ActivityCall[]) {
 // hitlMaxWait drives the loser's await deadline; keep small so the
 // timeout-path test doesn't slow the suite. Tests that exercise the
 // happy path complete in <200ms because the winner runs synchronously.
-const cfg = { idleTimeoutMs: 60_000, sessionStorePath: '', hitlMaxWait: 2 } as never;
+const cfg = {
+  idleTimeoutMs: 60_000,
+  sessionDir: path.join(openboxHome, 'sessions'),
+  sessionStorePath: '',
+  hitlMaxWait: 2,
+} as never;
 
 function uniqueGenId(): string {
   return `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -97,7 +110,7 @@ describe('per-action dedup across hook subprocesses', () => {
     const captured: ActivityCall[] = [];
 
     // preToolUse fires first (Cursor's typical pattern): wins claim,
-    // calls session.activity (allow), publishes decision to lock.
+    // opens the activity (allow), publishes decision to lock.
     await handlePreToolUse(
       {
         conversation_id: 'c',
@@ -110,7 +123,7 @@ describe('per-action dedup across hook subprocesses', () => {
     );
     // beforeShellExecution fires second: loses claim, reads the
     // published decision, returns matching verdict without calling
-    // session.activity again.
+    // openActivity again.
     await handleBeforeShellExecution(
       { conversation_id: 'c', generation_id, command } as never,
       makeCapturingSession(captured) as never,
@@ -128,9 +141,16 @@ describe('per-action dedup across hook subprocesses', () => {
     // Winner whose session.activity stalls until we explicitly resolve.
     let resolveActivity: (v: { arm: 'block'; reason: string }) => void = () => {};
     const winnerSession = {
-      activity: async (eventType: string, activityType: string) => {
-        captured.push({ eventType, activityType });
-        return await new Promise((res) => { resolveActivity = res as never; });
+      openActivity: async (activityType: string) => {
+        captured.push({ eventType: 'ActivityStarted', activityType });
+        const verdict = await new Promise<{ arm: 'block'; reason: string }>((res) => {
+          resolveActivity = res;
+        });
+        return {
+          activityId: 'cursor-open-blocked',
+          verdict,
+          complete: async () => verdict,
+        };
       },
       workflowStarted: async () => undefined,
       workflowCompleted: async () => undefined,
@@ -165,7 +185,7 @@ describe('per-action dedup across hook subprocesses', () => {
     expect(w?.arm).toBe('block');
     expect(l?.arm).toBe('block');
     expect(l?.reason).toBe('denied by policy');
-    expect(captured).toHaveLength(1); // only winner emitted activity
+    expect(captured).toHaveLength(1); // only winner opened activity
   });
 
   test('published lock is unlinked after grace window so re-issues gate freshly', async () => {
@@ -193,7 +213,7 @@ describe('per-action dedup across hook subprocesses', () => {
       cfg,
     );
 
-    // Two session.activity calls; confirms lock cleanup happened.
+    // Two openActivity calls; confirms lock cleanup happened.
     expect(captured).toHaveLength(2);
   });
 

@@ -2,6 +2,8 @@
 // for each hook event.
 
 import { describe, expect, test } from 'vitest';
+import path from 'node:path';
+import { tmpdir } from 'node:os';
 import {
   BEFORE_SUBMIT_PROMPT_ACTIVITY_TYPE,
   BEFORE_READ_FILE_ACTIVITY_TYPE,
@@ -34,7 +36,7 @@ import {
 interface CapturedActivity {
   eventType: string;
   activityType: string;
-  method: 'activity' | 'observeActivity';
+  method: 'activity' | 'observeActivity' | 'openActivity';
   payload?: any;
 }
 
@@ -48,12 +50,30 @@ function makeCapturingSession(captured: CapturedActivity[]) {
       captured.push({ eventType, activityType, payload, method: 'observeActivity' });
       return { arm: 'allow' as const, decision: { decisionId: 'd' } };
     },
+    openActivity: async (activityType: string, payload?: any) => {
+      const activityId = payload?.activityId ?? `cursor-open-${captured.length + 1}`;
+      captured.push({
+        eventType: 'ActivityStarted',
+        activityType,
+        payload: { ...payload, activityId },
+        method: 'openActivity',
+      });
+      return {
+        activityId,
+        verdict: { arm: 'allow' as const, decision: { decisionId: 'd' } },
+        complete: async () => ({ arm: 'allow' as const }),
+      };
+    },
     workflowStarted: async () => undefined,
     workflowCompleted: async () => undefined,
   };
 }
 
-const cfg = { idleTimeoutMs: 60_000, sessionStorePath: '' } as never;
+const cfg = {
+  idleTimeoutMs: 60_000,
+  sessionDir: path.join(tmpdir(), 'openbox-cursor-activity-type-drift'),
+  sessionStorePath: '',
+} as never;
 
 describe('spec @activityType ↔ runtime activity_type parity (cursor)', () => {
   test('beforeSubmitPrompt fires PromptSubmission', async () => {

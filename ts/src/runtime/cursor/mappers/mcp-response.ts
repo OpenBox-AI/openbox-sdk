@@ -13,7 +13,7 @@ import { EVENT } from '../activity-types.js';
 import { sideEffects } from '../side-effects.js';
 import { stampSource } from '../../../approvals/source.js';
 import { buildSpan, withOpenBoxActivityMetadata } from '../../../governance/spans.js';
-import { claimCompletionTelemetry } from '../dedup.js';
+import { claimCompletionTelemetry, takeCompletionActivity } from '../dedup.js';
 
 type ObserveCapableCursorSession = CursorSession & {
   observeActivity?: (
@@ -56,7 +56,7 @@ async function observeActivity(
 export async function handleAfterMCPExecution(
   env: CursorEnvelope,
   session: CursorSession,
-  _cfg: CursorConfig,
+  cfg: CursorConfig,
 ): Promise<undefined> {
   const toolName = env.tool_name ?? '';
   const durationMs = cursorDurationMs(env);
@@ -73,9 +73,20 @@ export async function handleAfterMCPExecution(
   ) {
     return undefined;
   }
+  const pending = takeCompletionActivity(
+    {
+      generation_id: env.generation_id,
+      conversation_id: env.conversation_id,
+      kind: 'mcp',
+      arg: toolName,
+    },
+    cfg,
+  );
 
   const payload = buildAfterMCPExecutionPayload(env, sideEffects);
-  await observeActivity(session, AFTER_MCPEXECUTION_ACTIVITY_TYPE, {
+  await observeActivity(session, pending?.activityType ?? AFTER_MCPEXECUTION_ACTIVITY_TYPE, {
+    activityId: pending?.activityId,
+    startTime: pending?.startTime,
     durationMs,
     input: withOpenBoxActivityMetadata(
       [stampSource({

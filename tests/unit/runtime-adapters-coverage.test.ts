@@ -450,8 +450,8 @@ describe('runtime/cursor/mappers/pre-tool-use', () => {
       cfg,
     );
     expect(verdict?.arm).toBe('allow');
-    expect(session.calls[0]?.method).toBe('activity');
-    expect(session.calls[0]?.args[2]?.input?.[0]?.content).toBe('[OpenBox redacted file content]');
+    expect(session.calls[0]?.method).toBe('openActivity');
+    expect(session.calls[0]?.args[1]?.input?.[0]?.content).toBe('[OpenBox redacted file content]');
   });
 
   it('drives the @activityVariant override path without throwing', async () => {
@@ -465,8 +465,8 @@ describe('runtime/cursor/mappers/pre-tool-use', () => {
     };
     const cfg: any = { sessionDir: dir, hitlMaxWait: 1 };
     await handlePreToolUse(env, session, cfg);
-    expect(session.calls[0]?.method).toBe('activity');
-    expect(session.calls[0]?.args[1]).toBe('FileDelete');
+    expect(session.calls[0]?.method).toBe('openActivity');
+    expect(session.calls[0]?.args[0]).toBe('FileDelete');
   });
 
   it('routes write tools through activity and marks halt verdicts', async () => {
@@ -482,7 +482,7 @@ describe('runtime/cursor/mappers/pre-tool-use', () => {
     };
     const verdict = await handlePreToolUse(env, session, cfg);
     expect(verdict?.arm).toBe('halt');
-    expect(session.calls[0]?.method).toBe('activity');
+    expect(session.calls[0]?.method).toBe('openActivity');
   });
 });
 

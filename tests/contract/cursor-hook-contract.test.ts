@@ -2,6 +2,8 @@
 // session, and exact stdout verdict shape.
 
 import { describe, expect, test } from 'vitest';
+import path from 'node:path';
+import { tmpdir } from 'node:os';
 import { createCursorAdapter } from '../../ts/src/core-client/generated/runtime/cursor.js';
 import { handleBeforeSubmitPrompt } from '../../ts/src/runtime/cursor/mappers/prompt.js';
 import { handleBeforeShellExecution } from '../../ts/src/runtime/cursor/mappers/shell.js';
@@ -37,7 +39,11 @@ function adapterIO(cap: Captured, stdin: string) {
   };
 }
 
-const cfg = { idleTimeoutMs: 60_000, sessionStorePath: '' } as never;
+const cfg = {
+  idleTimeoutMs: 60_000,
+  sessionDir: path.join(tmpdir(), 'openbox-cursor-contract-test'),
+  sessionStorePath: '',
+} as never;
 type Arm = 'allow' | 'constrain' | 'block' | 'halt' | 'require_approval';
 
 interface ActivityCall {
@@ -61,6 +67,23 @@ function makeCapturingSession(
     observeActivity: async (eventType: string, activityType: string, body: unknown) => {
       captured.push({ eventType, activityType, payload: body });
       return { arm, reason, riskScore: 0 };
+    },
+    openActivity: async (activityType: string, body: unknown) => {
+      const payload = body as { activityId?: string } | undefined;
+      const activityId = payload?.activityId ?? `cursor-open-${captured.length + 1}`;
+      captured.push({ eventType: 'ActivityStarted', activityType, payload: body });
+      return {
+        activityId,
+        verdict: { arm, reason, riskScore: 0 },
+        complete: async (completionBody: unknown, completionActivityType?: string) => {
+          captured.push({
+            eventType: 'ActivityCompleted',
+            activityType: completionActivityType ?? activityType,
+            payload: completionBody,
+          });
+          return { arm, reason, riskScore: 0 };
+        },
+      };
     },
     workflowStarted: async () => undefined,
     workflowCompleted: async () => undefined,
