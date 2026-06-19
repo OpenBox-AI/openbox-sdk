@@ -3081,17 +3081,30 @@ function isPersistableHookSpan(span: unknown): boolean {
   if (typeof record.semantic_type === 'string' && record.semantic_type !== '') {
     return true;
   }
+  if (typeof record.hook_type === 'string' && record.hook_type !== '') {
+    return true;
+  }
   const attributes =
     record.attributes && typeof record.attributes === 'object'
       ? (record.attributes as Record<string, unknown>)
       : {};
   return (
+    typeof record.http_url === 'string' ||
+    typeof record.http_method === 'string' ||
+    typeof record.file_path === 'string' ||
+    typeof record.file_operation === 'string' ||
     typeof record.db_statement === 'string' ||
     typeof record.db_operation === 'string' ||
     typeof record.db_system === 'string' ||
+    typeof attributes['http.url'] === 'string' ||
+    typeof attributes['http.method'] === 'string' ||
+    typeof attributes['file.path'] === 'string' ||
+    typeof attributes['file.operation'] === 'string' ||
     typeof attributes['db.statement'] === 'string' ||
     typeof attributes['db.operation'] === 'string' ||
     typeof attributes['db.system'] === 'string' ||
+    typeof attributes['shell.command'] === 'string' ||
+    typeof attributes['mcp.method'] === 'string' ||
     typeof attributes['openbox.tool.name'] === 'string' ||
     typeof attributes['tool.name'] === 'string' ||
     typeof attributes.tool_name === 'string' ||

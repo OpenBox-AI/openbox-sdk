@@ -254,6 +254,75 @@ describe('activity pairing', () => {
     });
   });
 
+  test('official Python-style root-field spans are emitted as hook re-evaluations', async () => {
+    const mock = createMockCore('allow');
+    const httpSpan = {
+      span_id: '1111111111111111',
+      trace_id: '1'.repeat(32),
+      name: 'GET https://api.example.test/data',
+      kind: 'CLIENT',
+      stage: 'started',
+      http_method: 'GET',
+      http_url: 'https://api.example.test/data',
+    };
+    const fileSpan = {
+      span_id: '2222222222222222',
+      trace_id: '2'.repeat(32),
+      name: 'file.read',
+      kind: 'INTERNAL',
+      stage: 'started',
+      file_path: '/tmp/openbox-python-style.txt',
+      file_operation: 'read',
+    };
+    const dbSpan = {
+      span_id: '3333333333333333',
+      trace_id: '3'.repeat(32),
+      name: 'SELECT postgresql',
+      kind: 'CLIENT',
+      stage: 'started',
+      db_system: 'postgresql',
+      db_operation: 'SELECT',
+      db_statement: 'SELECT 1',
+    };
+
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        await session.preToolUse({
+          input: [{ tool: 'python-style-hooks' }],
+          spans: [httpSpan, fileSpan, dbSpan] as never,
+        });
+      },
+    );
+
+    const startedEvents = mock.events.filter(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'PreToolUse',
+    );
+    expect(startedEvents).toHaveLength(4);
+    const [parent, ...hooks] = startedEvents;
+    expect(parent.hook_trigger).toBeUndefined();
+    expect(parent.spans).toBeUndefined();
+    expect(parent.span_count).toBeUndefined();
+    expect(hooks).toHaveLength(3);
+    for (const hook of hooks) {
+      expect(hook.hook_trigger).toBe(true);
+      expect(hook.event_type).toBe(parent.event_type);
+      expect(hook.workflow_id).toBe(parent.workflow_id);
+      expect(hook.run_id).toBe(parent.run_id);
+      expect(hook.activity_id).toBe(parent.activity_id);
+      expect(hook.activity_type).toBe(parent.activity_type);
+      expect(hook.span_count).toBe(1);
+      expect(hook.spans).toHaveLength(1);
+    }
+    expect(hooks.map((hook) => hook.spans?.[0])).toEqual([
+      httpSpan,
+      fileSpan,
+      dbSpan,
+    ]);
+  });
+
   test('multi-span hooks return the strictest hook verdict instead of the last verdict', async () => {
     const events: GovernanceEventPayload[] = [];
     const evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
