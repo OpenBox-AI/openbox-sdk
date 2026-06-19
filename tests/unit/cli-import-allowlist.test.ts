@@ -69,6 +69,12 @@ const ALLOWED_PREFIXES: Record<string, string> = {
     'claude-code plugin/install commands use the public claude-code runtime surface.',
   '../../runtime/claude-code/hook-handler.js':
     'claude-code hook command runs the runtime hook handler.',
+  '../../runtime/codex/index.js':
+    'codex install/doctor commands use the public codex runtime surface.',
+  '../../runtime/codex/install.js':
+    'codex doctor verifies project-local hook and runtime readiness.',
+  '../../runtime/codex/hook-handler.js':
+    'codex hook command runs the runtime hook handler.',
   '../../runtime/cursor/install.js':
     'cursor doctor verifies the plugin and hook runtime surface.',
   '../../runtime/cursor/index.js':

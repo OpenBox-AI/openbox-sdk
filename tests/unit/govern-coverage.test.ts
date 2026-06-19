@@ -37,6 +37,7 @@ const PRESET_TO_CAMEL: Record<string, keyof typeof presets> = {
   mastra: 'mastra',
   'modern-treasury': 'modernTreasury',
   n8n: 'n8n',
+  'openai-agents-sdk': 'openaiAgentsSdk',
   pagerduty: 'pagerduty',
   'pydantic-ai': 'pydanticAi',
   'semantic-kernel': 'semanticKernel',

@@ -775,12 +775,12 @@ describe('cli/commands; skill + install', () => {
     const targets = install!.commands.map((s) => s.name()).sort();
     // Bare `openbox install` is the selective meta-command (no
     // subcommand); the entries below are the per-target verbs only.
-    expect(targets).toEqual(['claude-code', 'cursor'].sort());
+    expect(targets).toEqual(['claude-code', 'codex', 'cursor'].sort());
 
     const uninstall = program.commands.find((c) => c.name() === 'uninstall');
     expect(uninstall).toBeDefined();
     const utargets = uninstall!.commands.map((s) => s.name()).sort();
-    expect(utargets).toEqual(['claude-code', 'cursor'].sort());
+    expect(utargets).toEqual(['claude-code', 'codex', 'cursor'].sort());
   });
 
 });

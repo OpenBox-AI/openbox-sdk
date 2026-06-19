@@ -95,6 +95,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'govern.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'core-types.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'claude-code.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'codex.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'cursor.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'env', 'generated', 'env-bindings.ts'),
   ]);
@@ -1396,6 +1397,7 @@ function emitAdapters(program: Program, project: Project, repoRoot: string): voi
     if (modelName === 'Array' || modelName === 'Record') continue;
     sharedTypes.addStatements([emitInterface(modelName, model), '']);
   }
+  sharedTypes.replaceWithText(sharedTypes.getFullText().replace(/\n{3,}$/g, '\n'));
 
   for (const a of adapters) {
     const out = project.createSourceFile(
@@ -1820,7 +1822,7 @@ function emitHookSpec(a: AdapterEntry): string {
   return `export interface HookSpec {
   file: string;
   key: string;
-  style: 'claude-array' | 'cursor-keyed';
+  style: 'claude-array' | 'codex-array' | 'cursor-keyed';
   command: string;
   configDir: string;
   events: Array<{ name: string; timeout?: number; installDefault?: boolean }>;

@@ -89,6 +89,7 @@ export {
   MastraSession,
   ModernTreasurySession,
   N8nSession,
+  OpenaiAgentsSdkSession,
   PagerdutySession,
   PydanticAiSession,
   SemanticKernelSession,

@@ -2,6 +2,7 @@
 // Regenerate with: npm run specs:compile
 export * from './envelopes.js';
 export * as claudeCode from './claude-code.js';
+export * as codex from './codex.js';
 export * as cursor from './cursor.js';
 
 

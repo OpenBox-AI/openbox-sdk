@@ -287,6 +287,7 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     const cfg = { sessionDir: dir } as any;
     const env = {
       conversation_id: 'C',
+      generation_id: `${dir}:mcp-marker`,
       server_name: 'fs',
       tool_name: 'read_file',
       tool_input: { path: '/tmp/x' },

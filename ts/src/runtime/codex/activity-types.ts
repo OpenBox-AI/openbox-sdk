@@ -1,0 +1,15 @@
+export const CODEX_ACTIVITY_TYPES = {
+  PROMPT: 'PromptSubmission',
+  SESSION: 'CodexSession',
+  TOOL_INPUT: 'PreToolUse',
+  TOOL_OUTPUT: 'PostToolUse',
+  AGENT_ACTION: 'AgentAction',
+  FILE_READ: 'FileRead',
+  FILE_EDIT: 'FileEdit',
+  FILE_DELETE: 'FileDelete',
+  SHELL: 'ShellExecution',
+  HTTP: 'HTTPRequest',
+  MCP_CALL: 'MCPToolCall',
+  SUBAGENT: 'AgentSpawn',
+  DB_QUERY: 'DatabaseQuery',
+} as const;

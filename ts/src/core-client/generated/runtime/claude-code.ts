@@ -119,7 +119,7 @@ export const HOOK_EVENT_LABELS: Record<string, string> = {
 export interface HookSpec {
   file: string;
   key: string;
-  style: 'claude-array' | 'cursor-keyed';
+  style: 'claude-array' | 'codex-array' | 'cursor-keyed';
   command: string;
   configDir: string;
   events: Array<{ name: string; timeout?: number; installDefault?: boolean }>;

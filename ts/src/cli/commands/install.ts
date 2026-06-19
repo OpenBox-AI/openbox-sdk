@@ -1,6 +1,6 @@
 // `openbox install <target>` and `openbox uninstall <target>`.
 // Stable targets are intentionally small and project-scoped: cursor,
-// claude-code.
+// claude-code, codex.
 
 import { Command } from 'commander';
 import { EXIT, bailWith } from '../exit-codes.js';
@@ -15,7 +15,7 @@ type HostScope = 'project';
  */
 export function parseHostScope(
   raw: string | undefined,
-  _host: 'cursor' | 'claude-code',
+  _host: 'cursor' | 'claude-code' | 'codex',
 ): HostScope {
   const value = (raw ?? 'project').toLowerCase();
   if (value !== 'project') {
@@ -97,6 +97,20 @@ export function registerInstallCommands(program: Command): void {
     );
 
   install
+    .command('codex')
+    .description('Install project-local Codex hooks')
+    .option('--cwd <dir>', 'Project root for project-local install')
+    .action(async (opts: { cwd?: string }) => {
+      const { installCodex, verifyCodexInstall } = await import('../../runtime/codex/index.js');
+      const cwd = opts.cwd ?? process.cwd();
+      installCodex({ cwd });
+      success('Codex hooks installed');
+      info('');
+      const checks = verifyCodexInstall({ cwd });
+      printChecks(checks, 'run `openbox codex doctor --surface-only` for details');
+    });
+
+  install
     .command('claude-code')
     .description(
       'Install the project-local Claude Code plugin: hooks, MCP server entry, slash commands, agent, and OpenBox skill.',
@@ -161,6 +175,16 @@ export function registerInstallCommands(program: Command): void {
         success('Cursor plugin removed');
       },
     );
+
+  uninstall
+    .command('codex')
+    .description('Remove project-local Codex hooks')
+    .option('--cwd <dir>', 'Project root for project-local install')
+    .action(async (opts: { cwd?: string }) => {
+      const { uninstallCodex } = await import('../../runtime/codex/index.js');
+      uninstallCodex({ cwd: opts.cwd });
+      success('Codex hooks removed');
+    });
 
   uninstall
     .command('claude-code')

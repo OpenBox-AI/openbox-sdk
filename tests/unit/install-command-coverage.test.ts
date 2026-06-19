@@ -37,17 +37,19 @@ async function runInstallCli(args: string[]): Promise<void> {
 }
 
 describe('minimal install command', () => {
-  it('keeps only project-local cursor and claude-code install targets', () => {
+  it('keeps only project-local host install targets', () => {
     const program = new Command();
     registerInstallCommands(program);
     const install = program.commands.find((command) => command.name() === 'install');
     expect(install?.commands.map((command) => command.name()).sort()).toEqual([
       'claude-code',
+      'codex',
       'cursor',
     ]);
     const uninstall = program.commands.find((command) => command.name() === 'uninstall');
     expect(uninstall?.commands.map((command) => command.name()).sort()).toEqual([
       'claude-code',
+      'codex',
       'cursor',
     ]);
   });
