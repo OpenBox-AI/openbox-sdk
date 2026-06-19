@@ -3604,10 +3604,10 @@ function stricterVerdict(
 function isPersistableHookSpan(span: unknown): boolean {
   if (!span || typeof span !== 'object') return false;
   const record = span as Record<string, unknown>;
-  if (typeof record.semantic_type === 'string' && record.semantic_type !== '') {
+  if (hasNonEmptyString(record, 'semantic_type', 'semanticType')) {
     return true;
   }
-  if (typeof record.hook_type === 'string' && record.hook_type !== '') {
+  if (hasNonEmptyString(record, 'hook_type', 'hookType')) {
     return true;
   }
   const attributes =
@@ -3615,13 +3615,14 @@ function isPersistableHookSpan(span: unknown): boolean {
       ? (record.attributes as Record<string, unknown>)
       : {};
   return (
-    typeof record.http_url === 'string' ||
-    typeof record.http_method === 'string' ||
-    typeof record.file_path === 'string' ||
-    typeof record.file_operation === 'string' ||
-    typeof record.db_statement === 'string' ||
-    typeof record.db_operation === 'string' ||
-    typeof record.db_system === 'string' ||
+    hasNonEmptyString(record, 'http_url', 'httpUrl') ||
+    hasNonEmptyString(record, 'http_method', 'httpMethod') ||
+    hasNonEmptyString(record, 'file_path', 'filePath') ||
+    hasNonEmptyString(record, 'file_operation', 'fileOperation') ||
+    hasNonEmptyString(record, 'db_statement', 'dbStatement') ||
+    hasNonEmptyString(record, 'db_operation', 'dbOperation') ||
+    hasNonEmptyString(record, 'db_system', 'dbSystem') ||
+    typeof attributes['url.full'] === 'string' ||
     typeof attributes['http.url'] === 'string' ||
     typeof attributes['http.method'] === 'string' ||
     typeof attributes['file.path'] === 'string' ||
@@ -3652,7 +3653,7 @@ function withSpanHookContext<T>(
     return span;
   }
   const record = span as Record<string, unknown>;
-  const next: Record<string, unknown> = { ...record };
+  const next: Record<string, unknown> = normalizeHookSpanAliases(record);
   if (
     event.activity_id &&
     (typeof next.activity_id !== 'string' || next.activity_id.trim() === '')
@@ -3676,6 +3677,56 @@ function withSpanHookContext<T>(
     }
   }
   return next as T;
+}
+
+function normalizeHookSpanAliases(record: Record<string, unknown>): Record<string, unknown> {
+  const attributes =
+    record.attributes && typeof record.attributes === 'object'
+      ? { ...(record.attributes as Record<string, unknown>) }
+      : undefined;
+  if (
+    attributes &&
+    typeof attributes['http.url'] !== 'string' &&
+    typeof attributes['url.full'] === 'string'
+  ) {
+    attributes['http.url'] = attributes['url.full'];
+  }
+  return {
+    ...record,
+    ...(attributes ? { attributes } : {}),
+    ...aliasField(record, 'span_id', 'spanId'),
+    ...aliasField(record, 'trace_id', 'traceId'),
+    ...aliasField(record, 'parent_span_id', 'parentSpanId'),
+    ...aliasField(record, 'start_time', 'startTime'),
+    ...aliasField(record, 'end_time', 'endTime'),
+    ...aliasField(record, 'duration_ns', 'durationNs'),
+    ...aliasField(record, 'semantic_type', 'semanticType'),
+    ...aliasField(record, 'hook_type', 'hookType'),
+    ...aliasField(record, 'request_body', 'requestBody'),
+    ...aliasField(record, 'response_body', 'responseBody'),
+    ...aliasField(record, 'request_headers', 'requestHeaders'),
+    ...aliasField(record, 'response_headers', 'responseHeaders'),
+  };
+}
+
+function aliasField(
+  record: Record<string, unknown>,
+  snakeKey: string,
+  camelKey: string,
+): Record<string, unknown> {
+  return record[snakeKey] === undefined && record[camelKey] !== undefined
+    ? { [snakeKey]: record[camelKey] }
+    : {};
+}
+
+function hasNonEmptyString(
+  record: Record<string, unknown>,
+  ...keys: string[]
+): boolean {
+  return keys.some((key) => {
+    const value = record[key];
+    return typeof value === 'string' && value.trim() !== '';
+  });
 }
 
 function hasUsefulSpanDuration(record: Record<string, unknown>): boolean {

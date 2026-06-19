@@ -331,6 +331,63 @@ describe('activity pairing', () => {
     }
   });
 
+  test('official Mastra-style camelCase spans are normalized for hook re-evaluations', async () => {
+    const mock = createMockCore('allow');
+    const startTime = 1_767_348_000_000_000_000;
+    const endTime = startTime + 25_000_000;
+    const span = {
+      spanId: 'aaaaaaaaaaaaaaaa',
+      traceId: 'b'.repeat(32),
+      parentSpanId: 'cccccccccccccccc',
+      name: 'custom.function',
+      kind: 'INTERNAL',
+      semanticType: 'internal',
+      hookType: 'function_call',
+      startTime,
+      endTime,
+      durationNs: 25_000_000,
+      attributes: {
+        'url.full': 'https://example.test/tool',
+      },
+    };
+
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        await session.preToolUse({
+          input: [{ tool: 'mastra-style-span' }],
+          spans: [span] as never,
+        });
+      },
+    );
+
+    const startedEvents = mock.events.filter(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'PreToolUse',
+    );
+    expect(startedEvents).toHaveLength(2);
+    const [parent, hook] = startedEvents;
+    expect(parent.hook_trigger).toBe(false);
+    expect(hook.hook_trigger).toBe(true);
+    expect(hook.span_count).toBe(1);
+    expect(hook.spans?.[0]).toMatchObject({
+      activity_id: parent.activity_id,
+      span_id: 'aaaaaaaaaaaaaaaa',
+      trace_id: 'b'.repeat(32),
+      parent_span_id: 'cccccccccccccccc',
+      semantic_type: 'internal',
+      hook_type: 'function_call',
+      start_time: startTime,
+      end_time: endTime,
+      duration_ns: 25_000_000,
+      attributes: expect.objectContaining({
+        'http.url': 'https://example.test/tool',
+        'url.full': 'https://example.test/tool',
+      }),
+    });
+  });
+
   test('multi-span hooks return the strictest hook verdict instead of the last verdict', async () => {
     const events: GovernanceEventPayload[] = [];
     const evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
