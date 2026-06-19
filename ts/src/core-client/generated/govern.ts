@@ -1829,6 +1829,7 @@ export class BaseGovernedSession {
       parseApprovalExpirationMs(initial.approvalExpiresAt) ??
       Number.POSITIVE_INFINITY;
 
+    let externalPending = this.awaitExternalDecision !== undefined;
     let externalSignaled = false;
     const externalDecision = this.awaitExternalDecision
       ? this.awaitExternalDecision({
@@ -1840,9 +1841,13 @@ export class BaseGovernedSession {
         }).then(
           (d) => {
             externalSignaled = d === 'approve' || d === 'reject';
+            externalPending = false;
             return d;
           },
-          () => undefined,
+          () => {
+            externalPending = false;
+            return undefined;
+          },
         )
       : undefined;
 
@@ -1853,7 +1858,7 @@ export class BaseGovernedSession {
       // Never sleep past the deadline. Wake early if an external
       // decision arrives.
       const sleepMs = Math.max(0, Math.min(jittered, remaining));
-      if (externalDecision) {
+      if (externalPending && externalDecision) {
         await Promise.race([sleep(sleepMs), externalDecision]);
       } else {
         await sleep(sleepMs);
