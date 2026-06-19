@@ -15,7 +15,7 @@ under `specs/generated/openapi3/`.
 | `typespec-libs/typespec-env/` | Decorator library: `@env_var`, `@token_format`, `@os_path` |
 | `emitters/typespec-emitter/` | OpenBox TypeSpec emitter. Walks the program, writes TypeScript and Python generated SDK artifacts |
 | `fixtures/` | Conformance test inputs in JSON. Future SDK target branches should replay the same fixtures |
-| `method-permissions.json` | Mirrored `@Permissions` map from the live backend controllers, keyed by `operationId` to required perms |
+| `method-permissions.json` | Backend-owned `@Permissions` mirror, keyed by `operationId` to required perms. Drift-guarded against current TypeSpec operation IDs until upstream permission metadata is available in TypeSpec |
 | `method-names.json` | OpenAPI `operationId` to CLI method name mapping. Used by the wrapper-method emitter |
 
 ## How a code change flows
