@@ -96,7 +96,7 @@ export const CLAUDE_CODE_SURFACE_MATRIX: readonly ClaudeCodeSurfaceMatrixEntry[]
   { surface: 'plugin settings', status: 'diagnose_only', notes: 'Only agent/subagentStatusLine are currently supported by Claude Code plugin settings.' },
   { surface: 'monitors', status: 'diagnose_only', notes: 'Documented as opt-in because monitors run unsandboxed and project-scope plugins do not load them.' },
   { surface: 'LSP', status: 'explicit_out_of_scope', notes: 'No OpenBox language server exists; official LSP plugins should be installed separately.' },
-  { surface: 'bin', status: 'implement_now', notes: 'Plugin ships a project-local Node runner for hooks, MCP, and diagnostics; it resolves an explicit OPENBOX_CLI or a project-local SDK package.' },
+  { surface: 'bin', status: 'implement_now', notes: 'Plugin ships a project-local Node runner for hooks, MCP, and diagnostics; it resolves a project-local SDK package.' },
   { surface: 'managed settings', status: 'diagnose_only', notes: 'Enterprise policy belongs to managed Claude Code deployment, not SDK mutation.' },
   { surface: 'channels', status: 'diagnose_only', notes: 'Research preview MCP push channel surface; standard MCP remains the connector path.' },
   { surface: 'built-in tool permissions', status: 'implement_now', notes: 'PreToolUse/PermissionRequest routing covers current built-in tool names and dynamic mcp__ tools.' },

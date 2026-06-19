@@ -102,14 +102,12 @@ function readNotifyOnNew(): boolean {
 }
 
 function resolveApprovalSocketPath(): string | undefined {
-  const configured = process.env.OPENBOX_APPROVAL_SOCKET?.trim();
-  if (configured) return configured;
   for (const folder of vscode.workspace.workspaceFolders ?? []) {
     const configPath = path.join(folder.uri.fsPath, ".cursor-hooks", "config.json");
     try {
       const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
-      const socketPath = typeof parsed.OPENBOX_APPROVAL_SOCKET === "string"
-        ? parsed.OPENBOX_APPROVAL_SOCKET.trim()
+      const socketPath = typeof parsed.approvalSocketPath === "string"
+        ? parsed.approvalSocketPath.trim()
         : "";
       if (socketPath) return socketPath;
     } catch {

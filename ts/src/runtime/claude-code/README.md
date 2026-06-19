@@ -12,7 +12,7 @@ Three surfaces are available via
 
 2. **Hook runtime primitive**; `openbox claude-code hook`.
    Project plugins invoke it through `bin/openbox-cli.mjs`, which resolves
-   either an explicit `OPENBOX_CLI` or a project-local SDK package install.
+   a project-local SDK package install.
    `hook-handler.ts` wires the spec-emitted adapter to per-event mappers in `mappers/`. `install.ts` is a compatibility alias for
    the plugin installer so SDK consumers do not write Claude settings
    directly.
@@ -24,8 +24,7 @@ Three surfaces are available via
    an OpenBox reviewer agent, `hooks/hooks.json`, `.mcp.json`, and
    `.claude-plugin/plugin.json` into a marketplace-ready plugin
    folder. Build asset sync emits the packaged plugin into `dist/` for package
-   publishing. Source checkout tests pass `OPENBOX_CLI=scripts/openbox-cli-dev.mjs`
-   for local hook and MCP runs.
+   publishing.
 
 ## Shared with cursor
 

@@ -136,10 +136,9 @@ interface TokenCodec {
 // X-Openbox-Client header composer. Every outbound request from any
 // SDK target must produce the same shape: `<base>`, such as
 // `openbox-cli`, optionally followed by `/<variant>` where variant
-// matches CLIENT_VARIANT_PATTERN. The variant comes from the explicit
-// override or the OPENBOX_CLIENT_VARIANT env var. Bad values are
-// silently dropped instead of throwing, so a typo cannot poison the
-// header.
+// matches CLIENT_VARIANT_PATTERN. The variant comes from an explicit
+// constructor/config argument. Bad values are silently dropped instead
+// of throwing, so a typo cannot poison the header.
 // ---------------------------------------------------------------------------
 
 /**
@@ -152,9 +151,8 @@ interface TokenCodec {
  */
 model ClientVariant {
   /**
-   * `OPENBOX_CLIENT_VARIANT` pattern. Letters, digits, `.`, `_`,
-   * `+`, `-`; the conservative intersection of HTTP-header-safe
-   * and shell-safe characters.
+   * Letters, digits, `.`, `_`, `+`, `-`; the conservative
+   * intersection of HTTP-header-safe and shell-safe characters.
    */
   @token_format("^[A-Za-z0-9._+-]+$")
   value: string;

@@ -7,13 +7,11 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { requireOpenBoxCli } from '../../helpers/openbox-cli.js';
 
 export const WORKSPACE =
   path.join(homedir(), 'workspace', 'openbox-claude-test');
 export const PLUGIN_DIR =
   path.join(WORKSPACE, '.claude', 'skills', 'openbox');
-const OPENBOX_CLI = requireOpenBoxCli();
 
 export const SHOULD_RUN =
   projectHarnessEnabled() &&
@@ -67,7 +65,6 @@ function claudeEnv(overrides: Record<string, string> = {}): Record<string, strin
   }
   return {
     ...env,
-    OPENBOX_CLI,
     ...overrides,
   };
 }

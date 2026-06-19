@@ -98,17 +98,10 @@ describe("createApi", () => {
     expect(headers["Authorization"]).toBeUndefined();
   });
 
-  it("appends OPENBOX_CLIENT_VARIANT to the header", async () => {
-    const orig = process.env.OPENBOX_CLIENT_VARIANT;
-    process.env.OPENBOX_CLIENT_VARIANT = "claude-code";
-    try {
-      const client = await createApi();
-      await client.health();
-      const headers = fetchSpy.mock.calls[0][1]!.headers as Record<string, string>;
-      expect(headers["X-Openbox-Client"]).toBe("apps/extension/claude-code");
-    } finally {
-      if (orig === undefined) delete process.env.OPENBOX_CLIENT_VARIANT;
-      else process.env.OPENBOX_CLIENT_VARIANT = orig;
-    }
+  it("does not append client variants from env", async () => {
+    const client = await createApi();
+    await client.health();
+    const headers = fetchSpy.mock.calls[0][1]!.headers as Record<string, string>;
+    expect(headers["X-Openbox-Client"]).toBe("apps/extension");
   });
 });

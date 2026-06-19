@@ -38,8 +38,8 @@ the test fails:
 - **Authorization.** Every authenticated request sends
   `Authorization: Bearer <accessToken>`.
 - **Client identity.** Every request sends
-  `X-Openbox-Client: <clientName>`, with `OPENBOX_CLIENT_VARIANT`
-  appended via the env library's `resolveClientName`. Covered in
+  `X-Openbox-Client: <clientName>`. Host adapters that need a
+  variant pass it explicitly through config. Covered in
   `@openbox-ai/openbox-sdk/env`'s contract tests.
 - **Path concatenation.** The request URL is exactly
   `<baseUrl>/<path>`. Path placeholders like `/agent/{agentId}` are

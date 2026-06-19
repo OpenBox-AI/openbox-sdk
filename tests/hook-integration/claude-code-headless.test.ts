@@ -17,9 +17,7 @@
 //     --cwd ~/workspace/openbox-claude-test
 //
 // then edit `<cwd>/.claude-hooks/config.json` to point at the
-// target Core with a runtime key. Run through `npm run test:hook-integration`
-// or set `OPENBOX_CLI` explicitly so the hook subprocess uses the intended
-// CLI entrypoint.
+// target Core with a runtime key. Run through `npm run test:hook-integration`.
 
 import { describe, expect, it, beforeAll } from 'vitest';
 import {

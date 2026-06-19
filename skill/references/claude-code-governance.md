@@ -82,7 +82,7 @@ hook.
 | plugin settings | diagnose only | Claude Code currently supports only limited plugin settings; OpenBox reports this rather than mutating it. |
 | monitors | diagnose only | Monitors are opt-in because they run unsandboxed and project-scope plugins do not load them. |
 | LSP | explicit out of scope | OpenBox has no language server; official LSP plugins should be installed separately. |
-| bin | implement now | Plugin ships a project-local Node runner for hooks, MCP, and diagnostics; it resolves an explicit `OPENBOX_CLI` or a project-local SDK package. |
+| bin | implement now | Plugin ships a project-local Node runner for hooks, MCP, and diagnostics; it resolves a project-local SDK package. |
 | managed settings | diagnose only | Enterprise managed settings are deployment policy, not SDK mutation. |
 | channels | diagnose only | Channels are research preview; standard MCP remains the OpenBox connector path. |
 | built-in tool permissions | implement now | Tool routing covers current built-in tool names and dynamic `mcp__*` tools. |

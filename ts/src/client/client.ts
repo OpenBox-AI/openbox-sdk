@@ -157,9 +157,8 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     // both apiKey and accessToken are unset).
     this.config = { ...config };
     this.baseUrl = requireApiUrl(this.config.apiUrl ?? process.env.OPENBOX_API_URL);
-    // Apply OPENBOX_CLIENT_VARIANT (if set) on top of the configured base name.
-    // Lets a skill running inside Claude Code / Codex / Cursor identify itself
-    // in backend telemetry without each app having to plumb the variant.
+    // Emit the configured client name without consulting host-specific env.
+    // Host adapters that need a variant should pass it through config.
     this.clientName = resolveClientName(this.config.clientName ?? 'openbox-cli');
     // Populate the wrapper-base permissions cache so generated methods can
     // pre-flight against MissingPermissionError before any network call.

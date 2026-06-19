@@ -32,7 +32,7 @@ import {
 } from './helpers/claude-runner.js';
 import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
 
-const OPENBOX = requireOpenBoxCli();
+const LOCAL_CLI = requireOpenBoxCli();
 const PROJECT_OPENBOX = path.resolve(process.cwd(), '.openbox');
 const REAL_DB_MCP = path.resolve(import.meta.dirname, 'fixtures/real-db-mcp-server.mjs');
 const DEFAULT_API_URL = 'http://127.0.0.1:3000';
@@ -91,7 +91,7 @@ function runtimeUrl(kind: 'api' | 'core'): string {
 function claudeHookEnv(): Record<string, string> {
   const env: Record<string, string> = { ...(process.env as Record<string, string>) };
   for (const key of RUNTIME_ENV_KEYS) delete env[key];
-  return { ...env, OPENBOX_CLI: OPENBOX };
+  return env;
 }
 
 function readAgentRecords(): AgentKeyRecord[] {
@@ -358,7 +358,7 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
         {
           mcpServers: {
             openbox: {
-              command: OPENBOX,
+              command: LOCAL_CLI,
               args: ['mcp', 'serve'],
               env: {
                 OPENBOX_HOME: PROJECT_OPENBOX,

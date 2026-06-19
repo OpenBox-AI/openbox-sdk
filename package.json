@@ -161,7 +161,7 @@
     "test": "npm run test:unit && npm run test:contract && npm run test:hook-integration",
     "test:unit": "vitest run --project unit",
     "test:contract": "vitest run --project contract",
-    "test:hook-integration": "OPENBOX_CLI=./scripts/openbox-cli-dev.mjs vitest run --project hook-integration",
+    "test:hook-integration": "vitest run --project hook-integration",
     "generate:types:backend": "openapi-typescript specs/generated/openapi3/OpenboxBackend.json -o ts/src/types/generated/backend.ts",
     "generate:types:core": "openapi-typescript specs/generated/openapi3/OpenboxCore.json    -o ts/src/types/generated/core.ts",
     "generate:types": "npm run generate:types:backend && npm run generate:types:core",

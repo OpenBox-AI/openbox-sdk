@@ -113,28 +113,12 @@ describe('@openbox-ai/openbox-sdk/env token-codec', () => {
 });
 
 describe('@openbox-ai/openbox-sdk/env resolveClientName', () => {
-  const original = process.env.OPENBOX_CLIENT_VARIANT;
-
-  beforeEach(() => {
-    delete process.env.OPENBOX_CLIENT_VARIANT;
-  });
-
-  afterEach(() => {
-    if (original === undefined) delete process.env.OPENBOX_CLIENT_VARIANT;
-    else process.env.OPENBOX_CLIENT_VARIANT = original;
-  });
-
   it('returns the bare base when no variant is set', () => {
     expect(resolveClientName('openbox-cli')).toBe('openbox-cli');
   });
 
   it('appends an explicit variant argument', () => {
     expect(resolveClientName('openbox-cli', 'claude-code')).toBe('openbox-cli/claude-code');
-  });
-
-  it('falls back to OPENBOX_CLIENT_VARIANT', () => {
-    process.env.OPENBOX_CLIENT_VARIANT = 'codex';
-    expect(resolveClientName('openbox-cli')).toBe('openbox-cli/codex');
   });
 
   it('rejects variants with disallowed chars and warns', () => {

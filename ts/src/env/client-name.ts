@@ -18,13 +18,13 @@ import {
 } from './generated/env-bindings.js';
 
 export const resolveClientName: ClientNameResolver['resolveClientName'] = (base, variant) => {
-  const raw = variant ?? process.env.OPENBOX_CLIENT_VARIANT;
+  const raw = variant;
   if (!raw) return base;
   const trimmed = raw.trim();
   if (!trimmed) return base;
   if (!CLIENT_VARIANT_PATTERN.test(trimmed)) {
     console.error(
-      `[openbox] OPENBOX_CLIENT_VARIANT='${trimmed}' contains invalid characters; ignoring. ` +
+      `[openbox] client variant '${trimmed}' contains invalid characters; ignoring. ` +
         `Allowed: letters, digits, '.', '_', '+', '-'.`,
     );
     return base;
