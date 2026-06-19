@@ -743,8 +743,10 @@ describe('activity pairing', () => {
       name: 'n8n.CRM Upsert',
       stage: 'completed',
       semantic_type: 'llm_tool_call',
+      hook_type: 'function_call',
       duration_ns: 25_000_000,
       status: { code: 'ERROR', description: 'CRM timeout' },
+      events: [],
       error: 'CRM timeout',
       attributes: expect.objectContaining({
         'gen_ai.system': 'n8n',

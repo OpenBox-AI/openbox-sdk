@@ -164,12 +164,14 @@ function nodeExecutionSpan(input: N8nNodePostExecutePayloadInput) {
     name: `n8n.${toolName}`,
     kind: 'tool',
     span_type: 'function',
+    hook_type: 'function_call',
     start_time: startTime,
     end_time: endTime,
     duration_ns: input.durationMs !== undefined
       ? Math.max(0, Math.trunc(input.durationMs * 1_000_000))
       : Math.max(0, endTime - startTime),
     status: { code: error ? 'ERROR' : 'UNSET', description: error ?? null },
+    events: [],
     error: error ?? null,
     stage: 'completed',
     semantic_type: 'llm_tool_call',

@@ -601,6 +601,9 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(startedHook?.spans?.[0]).toMatchObject({
       stage: 'started',
       semantic_type: 'llm_tool_call',
+      hook_type: 'function_call',
+      status: { code: 'UNSET' },
+      events: [],
       attributes: expect.objectContaining({
         'openbox.tool.name': 'openbox_governed_action',
         'tool.name': 'openbox_governed_action',
@@ -609,6 +612,9 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completedHook?.spans?.[0]).toMatchObject({
       stage: 'completed',
       semantic_type: 'llm_tool_call',
+      hook_type: 'function_call',
+      status: { code: 'UNSET' },
+      events: [],
       attributes: expect.objectContaining({
         'openbox.tool.name': 'openbox_governed_action',
         'tool.name': 'openbox_governed_action',
@@ -1653,6 +1659,9 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(started?.spans?.[0]).toMatchObject({
       stage: 'started',
       semantic_type: 'llm_tool_call',
+      hook_type: 'function_call',
+      status: { code: 'UNSET' },
+      events: [],
       attributes: expect.objectContaining({
         'openbox.tool.name': 'crm_lookup',
         'tool.name': 'crm_lookup',
@@ -1661,6 +1670,9 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completed?.spans?.[0]).toMatchObject({
       stage: 'completed',
       semantic_type: 'llm_tool_call',
+      hook_type: 'function_call',
+      status: { code: 'UNSET' },
+      events: [],
       attributes: expect.objectContaining({
         'openbox.tool.name': 'crm_lookup',
         'tool.name': 'crm_lookup',
