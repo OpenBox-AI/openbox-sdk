@@ -196,6 +196,7 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     expect(span).toMatchObject({
       semantic_type: 'llm_completion',
       model: 'gemini-2.5-flash',
+      http_url: 'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
       total_tokens: 17,
       attributes: {
         'gen_ai.system': 'cursor',
@@ -203,6 +204,7 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
         'gen_ai.usage.input_tokens': 12,
         'gen_ai.usage.output_tokens': 5,
         'gen_ai.usage.total_tokens': 17,
+        'http.url': 'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
         'openbox.cursor.event': 'afterAgentResponse',
       },
     });

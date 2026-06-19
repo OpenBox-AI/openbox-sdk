@@ -260,7 +260,6 @@ export async function handleAfterAgentResponse(
       model,
       usage,
       hasToolCalls: hasToolCallsFrom(source),
-      providerUrl: 'https://api.openai.com/v1/chat/completions',
       attributes: {
         'openbox.cursor.event': 'afterAgentResponse',
       },

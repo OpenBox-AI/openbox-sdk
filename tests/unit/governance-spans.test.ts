@@ -296,7 +296,9 @@ describe('LLM completion spans', () => {
     expect(span.model_id).toBe('claude-opus-4-8');
     expect(span.provider).toBe('anthropic');
     expect(span.model_provider).toBe('anthropic');
+    expect(span.http_url).toBe('https://api.anthropic.com/v1/messages');
     expect(span.attributes).toMatchObject({
+      'http.url': 'https://api.anthropic.com/v1/messages',
       'openbox.model.id': 'claude-opus-4-8',
       'openbox.model.provider': 'anthropic',
     });

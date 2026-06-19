@@ -457,12 +457,12 @@ export function buildLLMCompletionSpan(
     (typeof source.attributes?.['http.url'] === 'string'
       ? source.attributes['http.url']
       : undefined);
-  const httpUrl = explicitProviderUrl ?? 'https://api.openai.com/v1/chat/completions';
   const modelTelemetry = modelTelemetryFields(
     input.model,
     input.provider,
     explicitProviderUrl,
   );
+  const httpUrl = explicitProviderUrl ?? providerUrlForLLM(modelTelemetry.provider);
   return {
     ...source,
     span_id: source.span_id ?? hex(16),

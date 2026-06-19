@@ -467,11 +467,13 @@ describe('activity pairing', () => {
       model_id: 'gemini-2.5-flash',
       provider: 'google',
       model_provider: 'google',
+      http_url: 'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
       input_tokens: 18,
       output_tokens: 7,
       total_tokens: 25,
       attributes: expect.objectContaining({
         'gen_ai.system': 'n8n',
+        'http.url': 'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
         'openbox.model.id': 'gemini-2.5-flash',
         'openbox.model.provider': 'google',
         'openbox.n8n.node_name': 'Governed LLM Draft',
