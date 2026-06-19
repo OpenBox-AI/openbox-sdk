@@ -1,0 +1,2410 @@
+{
+  "generatedBy": "codegen/emitters/typespec-emitter",
+  "source": "specs/typespec/govern/capabilities.tsp",
+  "regenerate": "npm run specs:compile",
+  "capabilityIds": [
+    "hooks",
+    "plugins",
+    "skills",
+    "mcp",
+    "rules-instructions",
+    "subagents-agents",
+    "approvals-hitl",
+    "usage-cost",
+    "guardrails",
+    "opa-rules",
+    "goal-signals",
+    "tracing",
+    "install-doctor"
+  ],
+  "providerIds": [
+    "codex",
+    "cursor",
+    "claude-code",
+    "mcp",
+    "openai-agents-sdk",
+    "anthropic-agent-sdk",
+    "copilotkit",
+    "n8n"
+  ],
+  "supportTiers": [
+    "native",
+    "wrapped",
+    "observe-only",
+    "out-of-scope",
+    "diagnose-only"
+  ],
+  "providerCapabilityMatrix": [
+    {
+      "provider": "codex",
+      "capability": "hooks",
+      "tier": "native",
+      "rationale": "Codex hook JSON invokes the OpenBox Codex hook handler."
+    },
+    {
+      "provider": "codex",
+      "capability": "plugins",
+      "tier": "native",
+      "rationale": "OpenBox exports a Codex plugin bundle with manifest, hooks, skill, MCP config, and marketplace metadata."
+    },
+    {
+      "provider": "codex",
+      "capability": "skills",
+      "tier": "native",
+      "rationale": "The OpenBox skill installs under both repo skills and plugin skills."
+    },
+    {
+      "provider": "codex",
+      "capability": "mcp",
+      "tier": "native",
+      "rationale": "Codex uses trusted project config.toml or plugin-bundled MCP configuration."
+    },
+    {
+      "provider": "codex",
+      "capability": "rules-instructions",
+      "tier": "wrapped",
+      "rationale": "Governance instructions render to AGENTS.md/skills; command-prefix execution policy renders to .codex/rules only when exact prefixes exist."
+    },
+    {
+      "provider": "codex",
+      "capability": "subagents-agents",
+      "tier": "observe-only",
+      "rationale": "Codex agent/task tool calls emit governance spans but OpenBox does not own Codex subagent orchestration."
+    },
+    {
+      "provider": "codex",
+      "capability": "approvals-hitl",
+      "tier": "native",
+      "rationale": "PermissionRequest and require_approval verdicts fail closed through Core-owned approval state."
+    },
+    {
+      "provider": "codex",
+      "capability": "usage-cost",
+      "tier": "observe-only",
+      "rationale": "Codex usage is recorded when hook envelopes expose it; Core remains canonical for cost policy."
+    },
+    {
+      "provider": "codex",
+      "capability": "guardrails",
+      "tier": "native",
+      "rationale": "Prompt/tool/output spans are sent to Core guardrails and returned transforms are enforced."
+    },
+    {
+      "provider": "codex",
+      "capability": "opa-rules",
+      "tier": "native",
+      "rationale": "OPA/Rego and behavior-rule evaluation remain backend-owned."
+    },
+    {
+      "provider": "codex",
+      "capability": "goal-signals",
+      "tier": "native",
+      "rationale": "UserPromptSubmit emits the default goal signal before governed prompt/action work."
+    },
+    {
+      "provider": "codex",
+      "capability": "tracing",
+      "tier": "wrapped",
+      "rationale": "Hook spans normalize Codex tool, file, shell, HTTP, MCP, and assistant activity."
+    },
+    {
+      "provider": "codex",
+      "capability": "install-doctor",
+      "tier": "native",
+      "rationale": "Install, plugin export, and verify helpers cover project-local Codex surfaces."
+    },
+    {
+      "provider": "cursor",
+      "capability": "hooks",
+      "tier": "native",
+      "rationale": "Cursor hooks are generated from the adapter spec and installed in plugin or repo mode."
+    },
+    {
+      "provider": "cursor",
+      "capability": "plugins",
+      "tier": "native",
+      "rationale": "Cursor plugin mode exports hooks, MCP, commands, rules, agents, and skill assets."
+    },
+    {
+      "provider": "cursor",
+      "capability": "skills",
+      "tier": "native",
+      "rationale": "Repo and plugin installs include .agents/skills/openbox or plugin skills/openbox."
+    },
+    {
+      "provider": "cursor",
+      "capability": "mcp",
+      "tier": "native",
+      "rationale": "Cursor repo and plugin modes include MCP server configuration."
+    },
+    {
+      "provider": "cursor",
+      "capability": "rules-instructions",
+      "tier": "native",
+      "rationale": "Cursor .mdc governance projection remains the native instruction/rule surface."
+    },
+    {
+      "provider": "cursor",
+      "capability": "subagents-agents",
+      "tier": "native",
+      "rationale": "Cursor subagent hooks and bundled agent templates emit OpenBox activities."
+    },
+    {
+      "provider": "cursor",
+      "capability": "approvals-hitl",
+      "tier": "native",
+      "rationale": "Cursor hook decisions integrate with the extension/native approval path and Core polling fallback."
+    },
+    {
+      "provider": "cursor",
+      "capability": "usage-cost",
+      "tier": "observe-only",
+      "rationale": "Assistant response/thought telemetry records usage when Cursor exposes it."
+    },
+    {
+      "provider": "cursor",
+      "capability": "guardrails",
+      "tier": "native",
+      "rationale": "Prompt/tool/output gates enforce Core guardrail verdicts fail-closed."
+    },
+    {
+      "provider": "cursor",
+      "capability": "opa-rules",
+      "tier": "native",
+      "rationale": "Rules are evaluated by Core; Cursor receives projected instructions and verdicts only."
+    },
+    {
+      "provider": "cursor",
+      "capability": "goal-signals",
+      "tier": "native",
+      "rationale": "Prompt-start surfaces emit goal signals before first governed action."
+    },
+    {
+      "provider": "cursor",
+      "capability": "tracing",
+      "tier": "wrapped",
+      "rationale": "Cursor hook spans normalize file, shell, MCP, subagent, and LLM activity."
+    },
+    {
+      "provider": "cursor",
+      "capability": "install-doctor",
+      "tier": "native",
+      "rationale": "Plugin mode, repo mode, workspaceOpen metadata, and runtime doctor checks are declared."
+    },
+    {
+      "provider": "claude-code",
+      "capability": "hooks",
+      "tier": "native",
+      "rationale": "Claude Code hooks are generated and default/opt-in events are recorded explicitly."
+    },
+    {
+      "provider": "claude-code",
+      "capability": "plugins",
+      "tier": "native",
+      "rationale": "Claude Code plugin packaging is the primary install surface."
+    },
+    {
+      "provider": "claude-code",
+      "capability": "skills",
+      "tier": "native",
+      "rationale": "OpenBox skill is packaged in the Claude Code plugin."
+    },
+    {
+      "provider": "claude-code",
+      "capability": "mcp",
+      "tier": "native",
+      "rationale": "The plugin bundles .mcp.json pointing at the project-local OpenBox CLI runner."
+    },
+    {
+      "provider": "claude-code",
+      "capability": "rules-instructions",
+      "tier": "wrapped",
+      "rationale": "CLAUDE/AGENTS-style instruction projection is documentation-only; policy logic stays in Core."
+    },
+    {
+      "provider": "claude-code",
+      "capability": "subagents-agents",
+      "tier": "native",
+      "rationale": "Subagent hooks and the OpenBox reviewer agent template are packaged."
+    },
+    {
+      "provider": "claude-code",
+      "capability": "approvals-hitl",
+      "tier": "native",
+      "rationale": "Native permission hooks and remote polling both enforce require_approval fail-closed."
+    },
+    {
+      "provider": "claude-code",
+      "capability": "usage-cost",
+      "tier": "native",
+      "rationale": "Claude transcript usage extraction and hook telemetry normalize usage fields."
+    },
+    {
+      "provider": "claude-code",
+      "capability": "guardrails",
+      "tier": "native",
+      "rationale": "Prompt/tool/output guardrails enforce Core verdicts."
+    },
+    {
+      "provider": "claude-code",
+      "capability": "opa-rules",
+      "tier": "native",
+      "rationale": "Core evaluates OPA/Rego and behavior rules from emitted spans."
+    },
+    {
+      "provider": "claude-code",
+      "capability": "goal-signals",
+      "tier": "native",
+      "rationale": "UserPromptSubmit emits goal signals ahead of prompt/tool gates."
+    },
+    {
+      "provider": "claude-code",
+      "capability": "tracing",
+      "tier": "native",
+      "rationale": "Claude Code spans cover prompts, tools, batches, subagents, compaction, and assistant output."
+    },
+    {
+      "provider": "claude-code",
+      "capability": "install-doctor",
+      "tier": "native",
+      "rationale": "Plugin export/install/doctor and component inventory cover Claude Code surfaces."
+    },
+    {
+      "provider": "mcp",
+      "capability": "hooks",
+      "tier": "out-of-scope",
+      "rationale": "MCP is a server protocol, not a host hook system."
+    },
+    {
+      "provider": "mcp",
+      "capability": "plugins",
+      "tier": "out-of-scope",
+      "rationale": "Plugin packaging belongs to host adapters."
+    },
+    {
+      "provider": "mcp",
+      "capability": "skills",
+      "tier": "native",
+      "rationale": "MCP exposes OpenBox skill references as resources."
+    },
+    {
+      "provider": "mcp",
+      "capability": "mcp",
+      "tier": "native",
+      "rationale": "OpenBox is itself an MCP server over stdio or Streamable HTTP."
+    },
+    {
+      "provider": "mcp",
+      "capability": "rules-instructions",
+      "tier": "native",
+      "rationale": "Prompts and resource templates expose policy review and governance workflows."
+    },
+    {
+      "provider": "mcp",
+      "capability": "subagents-agents",
+      "tier": "observe-only",
+      "rationale": "MCP can inspect agents and approvals but does not spawn subagents."
+    },
+    {
+      "provider": "mcp",
+      "capability": "approvals-hitl",
+      "tier": "native",
+      "rationale": "Approval list/decision tools and Core polling fallback are exposed."
+    },
+    {
+      "provider": "mcp",
+      "capability": "usage-cost",
+      "tier": "observe-only",
+      "rationale": "MCP check spans can include usage from caller payloads; it does not meter hosts directly."
+    },
+    {
+      "provider": "mcp",
+      "capability": "guardrails",
+      "tier": "native",
+      "rationale": "check_governance sends complete spans to Core guardrails."
+    },
+    {
+      "provider": "mcp",
+      "capability": "opa-rules",
+      "tier": "native",
+      "rationale": "MCP policy/rule reads and check_governance stay backend-owned."
+    },
+    {
+      "provider": "mcp",
+      "capability": "goal-signals",
+      "tier": "wrapped",
+      "rationale": "Prompt templates instruct clients to emit goal signals; server tools govern actions."
+    },
+    {
+      "provider": "mcp",
+      "capability": "tracing",
+      "tier": "wrapped",
+      "rationale": "MCP governance spans normalize ad-hoc tool/resource checks."
+    },
+    {
+      "provider": "mcp",
+      "capability": "install-doctor",
+      "tier": "native",
+      "rationale": "MCP exposes status and doctor tools for host installs."
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "hooks",
+      "tier": "native",
+      "rationale": "AgentHooks helper maps run/tool lifecycle into OpenBox sessions."
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "plugins",
+      "tier": "out-of-scope",
+      "rationale": "The OpenAI Agents SDK has no plugin package surface for OpenBox to install."
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "skills",
+      "tier": "out-of-scope",
+      "rationale": "Skills are Codex/host assets, not OpenAI Agents SDK assets."
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "mcp",
+      "tier": "observe-only",
+      "rationale": "Tracing observes MCP tool usage; MCP tool servers remain owned by the host app."
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "rules-instructions",
+      "tier": "wrapped",
+      "rationale": "Guardrail helpers project Core verdicts into native SDK guardrail callbacks."
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "subagents-agents",
+      "tier": "observe-only",
+      "rationale": "Handoffs and agents-as-tools are observed through hooks/tracing."
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "approvals-hitl",
+      "tier": "wrapped",
+      "rationale": "require_approval is surfaced as OpenBox errors or caller-managed interruption."
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "usage-cost",
+      "tier": "native",
+      "rationale": "Run/tracing processors normalize model usage and cost telemetry where available."
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "guardrails",
+      "tier": "native",
+      "rationale": "Input/output/tool guardrail helpers enforce Core verdicts."
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "opa-rules",
+      "tier": "native",
+      "rationale": "Core evaluates all policy/rule payloads."
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "goal-signals",
+      "tier": "native",
+      "rationale": "Run-start helpers emit the default goal signal before governed action."
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "tracing",
+      "tier": "native",
+      "rationale": "Tracing processor observes hosted tools, built-in tools, MCP tools, handoffs, generations, and usage."
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "install-doctor",
+      "tier": "diagnose-only",
+      "rationale": "No files are installed; diagnostics are SDK export and configuration checks."
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "hooks",
+      "tier": "native",
+      "rationale": "Anthropic Agent SDK hook helpers wrap query/options and message observation."
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "plugins",
+      "tier": "out-of-scope",
+      "rationale": "Claude Code plugin packaging is separate from Anthropic Agent SDK usage."
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "skills",
+      "tier": "out-of-scope",
+      "rationale": "Skills are host assets, not Anthropic Agent SDK assets."
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "mcp",
+      "tier": "observe-only",
+      "rationale": "MCP server status and elicitation events are observed when the SDK exposes them."
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "rules-instructions",
+      "tier": "wrapped",
+      "rationale": "Options/workspace changes are governed through Core, not local policy evaluation."
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "subagents-agents",
+      "tier": "observe-only",
+      "rationale": "Tasks and subagents are observed from SDK messages."
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "approvals-hitl",
+      "tier": "wrapped",
+      "rationale": "Permission/MCP elicitation events use Core approval semantics."
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "usage-cost",
+      "tier": "native",
+      "rationale": "Usage messages are normalized into OpenBox telemetry."
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "guardrails",
+      "tier": "native",
+      "rationale": "Prompt/tool/message gates send payloads to Core guardrails."
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "opa-rules",
+      "tier": "native",
+      "rationale": "Core evaluates all policies and behavior rules."
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "goal-signals",
+      "tier": "native",
+      "rationale": "User-prompt events emit goal signals before governed actions."
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "tracing",
+      "tier": "wrapped",
+      "rationale": "SDK message observation maps sessions, tools, usage, and results to spans."
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "install-doctor",
+      "tier": "diagnose-only",
+      "rationale": "No install surface; configuration is runtime-only."
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "hooks",
+      "tier": "wrapped",
+      "rationale": "Runtime hooks and middleware wrap CopilotKit agent/prompt/tool surfaces."
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "plugins",
+      "tier": "out-of-scope",
+      "rationale": "CopilotKit does not install host plugins through OpenBox."
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "skills",
+      "tier": "out-of-scope",
+      "rationale": "Skills are host assets, not CopilotKit assets."
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "mcp",
+      "tier": "observe-only",
+      "rationale": "MCP client/server use is observed through tool events when surfaced."
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "rules-instructions",
+      "tier": "wrapped",
+      "rationale": "Prompt/tool/output gates project Core verdicts into CopilotKit result shapes."
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "subagents-agents",
+      "tier": "observe-only",
+      "rationale": "Agent runner lifecycle is observed; CopilotKit owns orchestration."
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "approvals-hitl",
+      "tier": "native",
+      "rationale": "React renderers and headless interruption helpers resolve OpenBox HITL decisions."
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "usage-cost",
+      "tier": "observe-only",
+      "rationale": "AG-UI/runtime events normalize usage when present."
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "guardrails",
+      "tier": "native",
+      "rationale": "Prompt/tool/output gates enforce Core guardrails."
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "opa-rules",
+      "tier": "native",
+      "rationale": "Core remains canonical for OPA/Rego and behavior rules."
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "goal-signals",
+      "tier": "native",
+      "rationale": "Run/prompt entrypoints emit goal signals before governed actions."
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "tracing",
+      "tier": "wrapped",
+      "rationale": "AG-UI event streams map lifecycle, text, tool, state, error, and interrupt activity."
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "install-doctor",
+      "tier": "diagnose-only",
+      "rationale": "No host install; readiness helpers validate runtime wiring."
+    },
+    {
+      "provider": "n8n",
+      "capability": "hooks",
+      "tier": "wrapped",
+      "rationale": "n8n node pre/post execution helpers provide hook-equivalent gates."
+    },
+    {
+      "provider": "n8n",
+      "capability": "plugins",
+      "tier": "wrapped",
+      "rationale": "Packaged n8n node descriptors and templates are generated from SDK helpers."
+    },
+    {
+      "provider": "n8n",
+      "capability": "skills",
+      "tier": "out-of-scope",
+      "rationale": "n8n does not consume OpenBox skills directly."
+    },
+    {
+      "provider": "n8n",
+      "capability": "mcp",
+      "tier": "native",
+      "rationale": "Examples cover MCP Client Tool and MCP Server Trigger interop."
+    },
+    {
+      "provider": "n8n",
+      "capability": "rules-instructions",
+      "tier": "wrapped",
+      "rationale": "Governance and approval nodes project Core verdicts into workflows."
+    },
+    {
+      "provider": "n8n",
+      "capability": "subagents-agents",
+      "tier": "observe-only",
+      "rationale": "AI Agent workflow nodes are observed; n8n owns orchestration."
+    },
+    {
+      "provider": "n8n",
+      "capability": "approvals-hitl",
+      "tier": "native",
+      "rationale": "Approval/HITL node and Core polling resolve decisions."
+    },
+    {
+      "provider": "n8n",
+      "capability": "usage-cost",
+      "tier": "native",
+      "rationale": "LLM completion helpers normalize usage telemetry."
+    },
+    {
+      "provider": "n8n",
+      "capability": "guardrails",
+      "tier": "native",
+      "rationale": "Guardrails node wrapper and pre/post helpers enforce Core verdicts."
+    },
+    {
+      "provider": "n8n",
+      "capability": "opa-rules",
+      "tier": "native",
+      "rationale": "Core evaluates OPA/Rego and behavior rules."
+    },
+    {
+      "provider": "n8n",
+      "capability": "goal-signals",
+      "tier": "native",
+      "rationale": "Prompt helper emits default goal signal before node execution."
+    },
+    {
+      "provider": "n8n",
+      "capability": "tracing",
+      "tier": "wrapped",
+      "rationale": "Node and LLM spans normalize n8n workflow telemetry."
+    },
+    {
+      "provider": "n8n",
+      "capability": "install-doctor",
+      "tier": "diagnose-only",
+      "rationale": "Packaged descriptors/templates can be inspected; n8n installation is operator-owned."
+    }
+  ],
+  "providerEventCatalog": [
+    {
+      "provider": "codex",
+      "upstreamKnownEvents": [
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PermissionRequest",
+        "PostToolUse",
+        "Stop"
+      ],
+      "generatedAdapterEvents": [
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PermissionRequest",
+        "PostToolUse",
+        "Stop"
+      ],
+      "intentionalExclusions": []
+    },
+    {
+      "provider": "cursor",
+      "upstreamKnownEvents": [
+        "beforeSubmitPrompt",
+        "beforeReadFile",
+        "beforeShellExecution",
+        "beforeMCPExecution",
+        "preToolUse",
+        "afterAgentResponse",
+        "afterAgentThought",
+        "afterShellExecution",
+        "afterFileEdit",
+        "afterMCPExecution",
+        "postToolUse",
+        "postToolUseFailure",
+        "sessionStart",
+        "stop",
+        "beforeTabFileRead",
+        "afterTabFileEdit",
+        "sessionEnd",
+        "preCompact",
+        "subagentStart",
+        "subagentStop"
+      ],
+      "generatedAdapterEvents": [
+        "beforeSubmitPrompt",
+        "beforeReadFile",
+        "beforeShellExecution",
+        "beforeMCPExecution",
+        "preToolUse",
+        "afterAgentResponse",
+        "afterAgentThought",
+        "afterShellExecution",
+        "afterFileEdit",
+        "afterMCPExecution",
+        "postToolUse",
+        "postToolUseFailure",
+        "sessionStart",
+        "stop",
+        "beforeTabFileRead",
+        "afterTabFileEdit",
+        "sessionEnd",
+        "preCompact",
+        "subagentStart",
+        "subagentStop"
+      ],
+      "intentionalExclusions": []
+    },
+    {
+      "provider": "claude-code",
+      "upstreamKnownEvents": [
+        "Setup",
+        "SessionStart",
+        "InstructionsLoaded",
+        "UserPromptSubmit",
+        "UserPromptExpansion",
+        "MessageDisplay",
+        "PreToolUse",
+        "PermissionRequest",
+        "PermissionDenied",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "PostToolBatch",
+        "SubagentStart",
+        "SubagentStop",
+        "TaskCreated",
+        "TaskCompleted",
+        "Stop",
+        "StopFailure",
+        "TeammateIdle",
+        "Notification",
+        "ConfigChange",
+        "CwdChanged",
+        "FileChanged",
+        "WorktreeCreate",
+        "WorktreeRemove",
+        "PreCompact",
+        "PostCompact",
+        "SessionEnd",
+        "Elicitation",
+        "ElicitationResult"
+      ],
+      "generatedAdapterEvents": [
+        "PreToolUse",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "PostToolBatch",
+        "UserPromptSubmit",
+        "UserPromptExpansion",
+        "PermissionRequest",
+        "PermissionDenied",
+        "Setup",
+        "InstructionsLoaded",
+        "PreCompact",
+        "PostCompact",
+        "SessionStart",
+        "SessionEnd",
+        "SubagentStart",
+        "SubagentStop",
+        "TaskCreated",
+        "TaskCompleted",
+        "Stop",
+        "StopFailure",
+        "TeammateIdle",
+        "Notification",
+        "MessageDisplay",
+        "ConfigChange",
+        "CwdChanged",
+        "FileChanged",
+        "WorktreeCreate",
+        "WorktreeRemove",
+        "Elicitation",
+        "ElicitationResult"
+      ],
+      "intentionalExclusions": []
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "upstreamKnownEvents": [
+        "Setup",
+        "SessionStart",
+        "InstructionsLoaded",
+        "UserPromptSubmit",
+        "UserPromptExpansion",
+        "MessageDisplay",
+        "PreToolUse",
+        "PermissionRequest",
+        "PermissionDenied",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "PostToolBatch",
+        "SubagentStart",
+        "SubagentStop",
+        "TaskCreated",
+        "TaskCompleted",
+        "Stop",
+        "StopFailure",
+        "TeammateIdle",
+        "Notification",
+        "ConfigChange",
+        "CwdChanged",
+        "FileChanged",
+        "WorktreeCreate",
+        "WorktreeRemove",
+        "PreCompact",
+        "PostCompact",
+        "SessionEnd",
+        "Elicitation",
+        "ElicitationResult"
+      ],
+      "generatedAdapterEvents": [
+        "Setup",
+        "SessionStart",
+        "InstructionsLoaded",
+        "UserPromptSubmit",
+        "UserPromptExpansion",
+        "Notification",
+        "PreToolUse",
+        "PermissionRequest",
+        "PermissionDenied",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "PostToolBatch",
+        "Stop",
+        "StopFailure",
+        "SubagentStart",
+        "SubagentStop",
+        "TaskCreated",
+        "TaskCompleted",
+        "TeammateIdle",
+        "ConfigChange",
+        "CwdChanged",
+        "FileChanged",
+        "WorktreeRemove",
+        "PreCompact",
+        "PostCompact",
+        "SessionEnd",
+        "Elicitation",
+        "ElicitationResult",
+        "MessageDisplay",
+        "WorktreeCreate"
+      ],
+      "intentionalExclusions": []
+    }
+  ],
+  "providerPluginComponents": [
+    {
+      "provider": "codex",
+      "components": [
+        {
+          "name": "manifest",
+          "tier": "native",
+          "path": ".codex-plugin/plugin.json",
+          "reason": "Required Codex plugin manifest."
+        },
+        {
+          "name": "marketplace",
+          "tier": "native",
+          "path": ".agents/plugins/marketplace.json",
+          "reason": "Repo-local marketplace entry for local Codex discovery."
+        },
+        {
+          "name": "skills",
+          "tier": "native",
+          "path": "skills/openbox/SKILL.md",
+          "reason": "Codex plugin skill bundle."
+        },
+        {
+          "name": "repo-skill",
+          "tier": "native",
+          "path": ".agents/skills/openbox/SKILL.md",
+          "reason": "Project-local skill install for non-plugin discovery."
+        },
+        {
+          "name": "hooks",
+          "tier": "native",
+          "path": "hooks/hooks.json",
+          "reason": "Plugin-bundled Codex hook config."
+        },
+        {
+          "name": "mcp",
+          "tier": "native",
+          "path": ".mcp.json",
+          "reason": "Plugin-bundled MCP server config."
+        },
+        {
+          "name": "agents-md",
+          "tier": "wrapped",
+          "path": "AGENTS.md",
+          "reason": "Codex instruction projection references OpenBox governance and skills."
+        },
+        {
+          "name": "rules",
+          "tier": "wrapped",
+          "path": ".codex/rules/openbox.rules",
+          "reason": "Only command-prefix execution policy is projected to Codex rules."
+        },
+        {
+          "name": "assets",
+          "tier": "diagnose-only",
+          "path": "assets/",
+          "reason": "Optional presentation assets are not required for governance."
+        }
+      ]
+    },
+    {
+      "provider": "cursor",
+      "components": [
+        {
+          "name": "plugin-manifest",
+          "tier": "native",
+          "path": ".cursor-plugin/plugin.json",
+          "reason": "Cursor local plugin metadata."
+        },
+        {
+          "name": "marketplace",
+          "tier": "native",
+          "path": ".cursor-plugin/marketplace.json",
+          "reason": "Cursor marketplace-style metadata."
+        },
+        {
+          "name": "hooks",
+          "tier": "native",
+          "path": "hooks/hooks.json",
+          "reason": "Plugin hook config; repo mode writes .cursor/hooks.json."
+        },
+        {
+          "name": "mcp",
+          "tier": "native",
+          "path": "mcp.json",
+          "reason": "Plugin MCP config; repo mode writes .cursor/mcp.json."
+        },
+        {
+          "name": "rules",
+          "tier": "native",
+          "path": "rules/openbox.mdc",
+          "reason": "Cursor .mdc governance projection."
+        },
+        {
+          "name": "commands",
+          "tier": "native",
+          "path": "commands/",
+          "reason": "Cursor slash command markdown files."
+        },
+        {
+          "name": "agents",
+          "tier": "native",
+          "path": "agents/openbox-reviewer.md",
+          "reason": "Cursor agent template."
+        },
+        {
+          "name": "skills",
+          "tier": "native",
+          "path": "skills/openbox/SKILL.md",
+          "reason": "Plugin skill bundle; repo mode writes .agents/skills/openbox."
+        },
+        {
+          "name": "workspaceOpen",
+          "tier": "wrapped",
+          "path": "workspaceOpen.json",
+          "reason": "Metadata hint for workspace plugin discovery/loading."
+        }
+      ]
+    },
+    {
+      "provider": "claude-code",
+      "components": [
+        {
+          "name": "manifest",
+          "tier": "native",
+          "path": ".claude-plugin/plugin.json",
+          "reason": "Claude Code plugin manifest."
+        },
+        {
+          "name": "marketplace",
+          "tier": "native",
+          "path": ".claude-plugin/marketplace.json",
+          "reason": "Claude Code marketplace metadata."
+        },
+        {
+          "name": "skills",
+          "tier": "native",
+          "path": "skills/openbox/SKILL.md",
+          "reason": "Plugin skill bundle."
+        },
+        {
+          "name": "commands",
+          "tier": "native",
+          "path": "commands/",
+          "reason": "Slash commands."
+        },
+        {
+          "name": "agents",
+          "tier": "native",
+          "path": "agents/openbox-reviewer.md",
+          "reason": "Agent template."
+        },
+        {
+          "name": "hooks",
+          "tier": "native",
+          "path": "hooks/hooks.json",
+          "reason": "Generated hook config."
+        },
+        {
+          "name": "mcp",
+          "tier": "native",
+          "path": ".mcp.json",
+          "reason": "Plugin MCP config."
+        },
+        {
+          "name": "diagnostics",
+          "tier": "native",
+          "path": "diagnostics/",
+          "reason": "Component inventory and governance audit."
+        },
+        {
+          "name": "bin",
+          "tier": "native",
+          "path": "bin/",
+          "reason": "Project-local OpenBox CLI runner."
+        },
+        {
+          "name": "monitors",
+          "tier": "diagnose-only",
+          "path": "diagnostics/monitors.opt-in.json",
+          "reason": "Monitor execution is unsandboxed and opt-in."
+        },
+        {
+          "name": "lsp",
+          "tier": "out-of-scope",
+          "reason": "OpenBox does not ship a language server."
+        }
+      ]
+    }
+  ],
+  "publicIntegrationSupport": [
+    {
+      "integration": "openai-agents-sdk",
+      "tier": "native",
+      "exports": [
+        "createOpenBoxAgentHooks",
+        "createOpenBoxTracingProcessor",
+        "openBoxInputGuardrail",
+        "openBoxOutputGuardrail",
+        "openBoxToolInputGuardrail",
+        "openBoxToolOutputGuardrail",
+        "runWithOpenBox",
+        "createOpenBoxAgentsTool"
+      ],
+      "notes": "Native helpers plus compatibility wrappers for the OpenAI Agents SDK."
+    },
+    {
+      "integration": "anthropic-agent-sdk",
+      "tier": "native",
+      "exports": [
+        "createOpenBoxAnthropicAgentHooks",
+        "withOpenBoxAnthropicAgentOptions",
+        "createOpenBoxAnthropicAgentSDK"
+      ],
+      "notes": "Native hook/options/query wrapper coverage; WorktreeCreate remains opt-in at host level."
+    },
+    {
+      "integration": "copilotkit",
+      "tier": "wrapped",
+      "exports": [
+        "createOpenBoxCopilotKitAdapter",
+        "createOpenBoxAGUIAdapter",
+        "createOpenBoxHeadlessApprovalClient",
+        "createOpenBoxApprovalRoute"
+      ],
+      "notes": "CopilotKit runtime, AG-UI event stream, React renderers, and headless HITL helpers."
+    },
+    {
+      "integration": "n8n",
+      "tier": "wrapped",
+      "exports": [
+        "emitN8nUserPromptSignal",
+        "emitN8nNodePreExecute",
+        "emitN8nNodePostExecute",
+        "emitN8nLlmCompletion",
+        "OPENBOX_N8N_INTEGRATION"
+      ],
+      "notes": "Low-level primitives plus packaged credentials, nodes, and workflow template descriptors."
+    }
+  ],
+  "goalSignalGuards": [
+    {
+      "provider": "codex",
+      "tier": "native",
+      "entrySurface": "UserPromptSubmit",
+      "signalActivity": "user_prompt",
+      "firstGovernedSurface": "PromptSubmission",
+      "guardTest": "tests/unit/codex-runtime.test.ts#opens the workflow once when Codex starts from a prompt hook",
+      "orderGuarantee": "SignalReceived user_prompt precedes PromptSubmission"
+    },
+    {
+      "provider": "cursor",
+      "tier": "native",
+      "entrySurface": "beforeSubmitPrompt",
+      "signalActivity": "user_prompt",
+      "firstGovernedSurface": "PromptSubmission",
+      "guardTest": "tests/contract/cursor-hook-contract.test.ts#real CursorSession sends spans as parent-plus-hook payloads",
+      "orderGuarantee": "SignalReceived user_prompt precedes PromptSubmission"
+    },
+    {
+      "provider": "claude-code",
+      "tier": "native",
+      "entrySurface": "UserPromptSubmit",
+      "signalActivity": "user_prompt",
+      "firstGovernedSurface": "PromptSubmission",
+      "guardTest": "tests/unit/runtime-claude-code-mappers.test.ts#user-prompt-submit fires PromptSubmission activity",
+      "orderGuarantee": "SignalReceived user_prompt precedes PromptSubmission"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "tier": "native",
+      "entrySurface": "runWithOpenBox",
+      "signalActivity": "user_prompt",
+      "firstGovernedSurface": "OpenAIAgentsSDKRun",
+      "guardTest": "tests/unit/openai-agents-sdk.test.ts#wraps run() with workflow lifecycle and usage events",
+      "orderGuarantee": "SignalReceived user_prompt precedes OpenAIAgentsSDKRun"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "tier": "native",
+      "entrySurface": "UserPromptSubmit",
+      "signalActivity": "user_prompt",
+      "firstGovernedSurface": "PromptSubmission",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#emits prompt submit gate after the goal signal without prompt spans",
+      "orderGuarantee": "SignalReceived user_prompt precedes PromptSubmission"
+    },
+    {
+      "provider": "copilotkit",
+      "tier": "native",
+      "entrySurface": "governed tool execute",
+      "signalActivity": "user_prompt",
+      "firstGovernedSurface": "openbox_governed_action",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits workflow/tool lifecycle events around a governed tool",
+      "orderGuarantee": "SignalReceived user_prompt precedes first governed tool activity"
+    },
+    {
+      "provider": "n8n",
+      "tier": "native",
+      "entrySurface": "emitN8nNodePreExecute",
+      "signalActivity": "user_prompt",
+      "firstGovernedSurface": "node-pre-execute",
+      "guardTest": "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans",
+      "orderGuarantee": "SignalReceived user_prompt precedes node-pre-execute"
+    }
+  ],
+  "usageCostCapabilityGuards": [
+    {
+      "provider": "codex",
+      "tier": "observe-only",
+      "usageSurface": "Codex hook envelopes when upstream exposes usage metadata; current hook contracts are not metering surfaces.",
+      "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
+      "sharedNormalizer": "No host usage fields yet; observe-only record prevents native claims until normalizeOpenBoxUsage can consume upstream usage.",
+      "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; Codex never computes spend locally.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins usage-cost support claims to explicit usage guard coverage"
+    },
+    {
+      "provider": "cursor",
+      "tier": "observe-only",
+      "usageSurface": "afterAgentResponse and afterAgentThought assistant telemetry when Cursor exposes usage metadata",
+      "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
+      "sharedNormalizer": "Cursor assistant-output mappers route usage through normalizeOpenBoxUsage and buildAssistantOutputSpan.",
+      "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; Cursor observation never enforces spend locally.",
+      "guardTest": "tests/unit/cursor-spans.test.ts#afterAgentResponse emits completed assistant-output span"
+    },
+    {
+      "provider": "claude-code",
+      "tier": "native",
+      "usageSurface": "Claude transcript assistant turns, Stop, MessageDisplay, and final batch usage signals",
+      "normalizedFields": "input_tokens, output_tokens, total_tokens, cache_read_input_tokens, cache_creation_input_tokens, web_search_requests, cost_usd",
+      "sharedNormalizer": "Claude transcript extraction combines records with combineOpenBoxUsage and emits spans through buildAssistantOutputSpan.",
+      "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; Claude Code only normalizes telemetry.",
+      "guardTest": "tests/unit/runtime-claude-code-mappers.test.ts#message-display aggregates unique Claude assistant message usage without double-counting duplicate transcript rows"
+    },
+    {
+      "provider": "mcp",
+      "tier": "observe-only",
+      "usageSurface": "check_governance caller-supplied llm activity_input usage",
+      "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
+      "sharedNormalizer": "MCP check_governance builds spans with buildSpan, which normalizes llm usage through the shared usage facade.",
+      "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; MCP does not meter hosts directly.",
+      "guardTest": "tests/unit/mcp-server-coverage.test.ts#check_governance normalizes caller LLM usage into the emitted hook span"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "tier": "native",
+      "usageSurface": "run results, rawResponses, tracing processor generations, hosted/built-in tool observation",
+      "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd",
+      "sharedNormalizer": "OpenAI Agents SDK payload helpers route rawResponses through normalizeOpenBoxUsage and buildAssistantOutputSpan.",
+      "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; SDK helpers only report telemetry.",
+      "guardTest": "tests/unit/openai-agents-sdk.test.ts#normalizes raw response usage through the shared usage facade"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "tier": "native",
+      "usageSurface": "query result messages, usage_EXPERIMENTAL messages, per-model result telemetry",
+      "normalizedFields": "input_tokens, output_tokens, total_tokens, cache_read_input_tokens, cache_creation_input_tokens, web_search_requests, cost_usd",
+      "sharedNormalizer": "Anthropic Agent SDK payload helpers route usage and modelUsage through normalizeOpenBoxUsage and combineOpenBoxUsage.",
+      "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; SDK helpers only normalize telemetry.",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#emits per-model synthetic usage spans for multi-model result telemetry"
+    },
+    {
+      "provider": "copilotkit",
+      "tier": "observe-only",
+      "usageSurface": "LangChain/CopilotKit model end events and AG-UI runtime events when usage metadata is present",
+      "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
+      "sharedNormalizer": "CopilotKit middleware routes usageMetadata through openBoxUsageTelemetryFields and buildAssistantOutputSpan.",
+      "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; CopilotKit only observes model usage.",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits Core-extractable assistant output spans for goal alignment"
+    },
+    {
+      "provider": "n8n",
+      "tier": "native",
+      "usageSurface": "emitN8nLlmCompletion and packaged OpenBox governed AI Agent workflow telemetry",
+      "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
+      "sharedNormalizer": "n8n helpers route LLM completion usage through assistantOutputTelemetryFields and buildAssistantOutputSpan.",
+      "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; n8n nodes only normalize telemetry.",
+      "guardTest": "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans"
+    }
+  ],
+  "tracingCapabilityGuards": [
+    {
+      "provider": "codex",
+      "tier": "wrapped",
+      "traceSurface": "UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, Stop",
+      "spanCoverage": "Codex shell, file, HTTP, MCP, database, agent/action, and assistant-output spans",
+      "spanEmission": "Parent activities omit spans; hook_trigger re-evaluations carry span_count=1 and per-span payloads.",
+      "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as codex.",
+      "guardTest": "tests/unit/codex-runtime.test.ts#stamps Codex source and shell spans in paired tool mappers"
+    },
+    {
+      "provider": "cursor",
+      "tier": "wrapped",
+      "traceSurface": "before/after prompt, shell, file, MCP, assistant response, thought, and subagent hooks",
+      "spanCoverage": "Cursor file_read, file_write, shell/internal, MCP, LLM, HTTP, and assistant-output spans",
+      "spanEmission": "Tool/assistant spans are emitted on hook_trigger payloads while parent lifecycle events remain span-free where required.",
+      "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as cursor.",
+      "guardTest": "tests/unit/cursor-spans.test.ts#before/after shell execution keeps one activity id across the tool lifecycle"
+    },
+    {
+      "provider": "claude-code",
+      "tier": "native",
+      "traceSurface": "Claude Code prompts, tools, batches, subagents, compaction, session, and assistant output",
+      "spanCoverage": "Claude Code shell, MCP, HTTP, file, database, Python-style root-field, Mastra-style camelCase, and assistant-output spans",
+      "spanEmission": "Parent activities omit spans; each hook_trigger re-evaluation carries one normalized span with the parent activity_id.",
+      "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as claude-code.",
+      "guardTest": "tests/unit/govern-invariants.test.ts#ActivityStarted spans are emitted as parent plus per-span hook re-evaluations"
+    },
+    {
+      "provider": "mcp",
+      "tier": "wrapped",
+      "traceSurface": "check_governance tool over stdio or Streamable HTTP",
+      "spanCoverage": "MCP check spans normalize caller-supplied llm, shell, file, HTTP, database, and MCP payloads",
+      "spanEmission": "check_governance emits a span-free parent plus hook_trigger span re-evaluation for Core behavior matching.",
+      "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as mcp or cursor-mcp.",
+      "guardTest": "tests/unit/mcp-server-coverage.test.ts#check_governance still emits the hook span when the parent verdict blocks"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "tier": "native",
+      "traceSurface": "AgentHooks lifecycle and OpenAI tracing processor spans",
+      "spanCoverage": "OpenAI generation, handoff, guardrail, hosted tool, built-in tool, MCP tool, and usage spans",
+      "spanEmission": "Tracing processor emits Core activities for observed spans even when they cannot be pre-gated.",
+      "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as openai-agents-sdk.",
+      "guardTest": "tests/unit/openai-agents-sdk.test.ts#observes OpenAI trace spans for generations, handoffs, guardrails, and tools"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "tier": "wrapped",
+      "traceSurface": "Anthropic Agent SDK hook events, query messages, result messages, usage messages, and elicitation",
+      "spanCoverage": "Anthropic Agent SDK prompt, tool, assistant-output, session, synthetic model-usage, and failure spans",
+      "spanEmission": "Assistant/tool outputs emit span-free parents plus hook_trigger span re-evaluations where Core needs spans.",
+      "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as anthropic-agent-sdk.",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#records StopFailure as observe-only failed workflow telemetry"
+    },
+    {
+      "provider": "copilotkit",
+      "tier": "wrapped",
+      "traceSurface": "CopilotKit middleware, governed tools, AG-UI lifecycle, tool, state, error, and interrupt events",
+      "spanCoverage": "CopilotKit LLM, tool, AG-UI lifecycle, interrupt, and assistant-output spans",
+      "spanEmission": "Middleware emits span-free parent completion events plus hook_trigger assistant-output span re-evaluations.",
+      "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as copilotkit.",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits Core-extractable assistant output spans for goal alignment"
+    },
+    {
+      "provider": "n8n",
+      "tier": "wrapped",
+      "traceSurface": "n8n node pre/post execution, LLM completion helpers, and governed AI Agent workflow template",
+      "spanCoverage": "n8n node, LLM, assistant-output, tool, error, and workflow telemetry spans",
+      "spanEmission": "n8n post/LLM helpers emit span-free parent completions plus hook_trigger span re-evaluations.",
+      "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as n8n.",
+      "guardTest": "tests/unit/govern-invariants.test.ts#n8n generic node completion emits paired parent plus tool hook span"
+    }
+  ],
+  "hitlCapabilityGuards": [
+    {
+      "provider": "codex",
+      "tier": "native",
+      "requireApprovalSurface": "PreToolUse permission gate",
+      "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+      "nativeSurface": "Codex permission ask/defer hook output",
+      "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+      "guardTest": "tests/unit/codex-runtime.test.ts#maps approval-required PreToolUse verdicts to Codex permission ask",
+      "failClosedBehavior": "Permission gates ask/defer when available and otherwise deny or block unsafe continuation."
+    },
+    {
+      "provider": "cursor",
+      "tier": "native",
+      "requireApprovalSurface": "beforeShellExecution and beforeSubmitPrompt",
+      "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+      "nativeSurface": "Cursor notification with deny/continue:false hook output",
+      "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+      "guardTest": "tests/contract/cursor-hook-contract.test.ts#cursor-permission require_approval (poll timed out) -> deny (ask is silently no-op in Cursor; deny is the only working gate)",
+      "failClosedBehavior": "Cursor returns deny or continue:false when approval remains pending."
+    },
+    {
+      "provider": "claude-code",
+      "tier": "native",
+      "requireApprovalSurface": "PreToolUse and PermissionRequest",
+      "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+      "nativeSurface": "Claude Code permissionDecision ask/defer",
+      "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+      "guardTest": "tests/unit/runtime-adapters.test.ts#permission-decision require_approval -> permissionDecision:\"ask\"",
+      "failClosedBehavior": "Claude Code asks/defer on permission gates and blocks decision-block surfaces while approval is pending."
+    },
+    {
+      "provider": "mcp",
+      "tier": "native",
+      "requireApprovalSurface": "check_governance",
+      "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+      "nativeSurface": "list_pending_approvals and decide_approval MCP tools",
+      "fallbackSurface": "Core approval rows",
+      "guardTest": "tests/unit/mcp-server-coverage.test.ts#stamps Cursor MCP governance approvals with cursor-mcp source",
+      "failClosedBehavior": "MCP callers halt on require_approval until decide_approval resolves the Core row."
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "tier": "wrapped",
+      "requireApprovalSurface": "input, output, tool input, and tool output guardrails",
+      "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+      "nativeSurface": "OpenBox guardrail outputInfo or throwException behavior",
+      "fallbackSurface": "Caller-managed interruption or Core polling",
+      "guardTest": "tests/unit/openai-agents-sdk.test.ts#maps OpenBox tool guardrail verdicts to fail-closed tool behavior",
+      "failClosedBehavior": "Guardrails surface require_approval in outputInfo and throw for tool execution."
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "tier": "wrapped",
+      "requireApprovalSurface": "PreToolUse",
+      "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+      "nativeSurface": "Anthropic hook permissionDecision ask/defer",
+      "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#maps approval-required PreToolUse verdicts to ask or defer",
+      "failClosedBehavior": "Anthropic Agent SDK asks/defer on permission gates and blocks unsupported continuation."
+    },
+    {
+      "provider": "copilotkit",
+      "tier": "native",
+      "requireApprovalSurface": "governed tool resume and pollApproval",
+      "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+      "nativeSurface": "React renderers, headless approval client, and approval route",
+      "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#does not reopen approval after an approved resume completes the tool",
+      "failClosedBehavior": "CopilotKit interrupts/polls until approval resolves and does not reopen completed approvals."
+    },
+    {
+      "provider": "n8n",
+      "tier": "native",
+      "requireApprovalSurface": "emitN8nNodePreExecute",
+      "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+      "nativeSurface": "OpenBox Approval/HITL node",
+      "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+      "guardTest": "tests/unit/govern-invariants.test.ts#n8n pre-execute approvals keep source attribution through Core polling",
+      "failClosedBehavior": "n8n pre-execute gates poll Core and preserve n8n source attribution."
+    }
+  ],
+  "guardrailCapabilityGuards": [
+    {
+      "provider": "codex",
+      "tier": "native",
+      "governedSurfaces": "UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse",
+      "coreContract": "Codex hook payloads are sent to OpenBox Core guardrails before continuation and returned verdicts are projected into Codex hook decisions.",
+      "redactionBehavior": "Prompt redaction that Codex cannot safely replace blocks; supported tool/output redaction is returned through the host output shape.",
+      "failClosedBehavior": "Unsupported or failed redaction blocks or denies continuation instead of allowing the original payload through.",
+      "guardTest": "tests/unit/codex-runtime.test.ts#fails closed when submitted prompt redaction cannot be applied by Codex"
+    },
+    {
+      "provider": "cursor",
+      "tier": "native",
+      "governedSurfaces": "beforeSubmitPrompt, beforeShellExecution, beforeReadFile, beforeMCPExecution, assistant output hooks",
+      "coreContract": "Cursor hook payloads and spans are sent to OpenBox Core guardrails; hook decisions enforce the returned verdict.",
+      "redactionBehavior": "Prompt and tool input redaction must arrive as a host-compatible replacement, otherwise Cursor returns deny or continue:false.",
+      "failClosedBehavior": "Field-only or unsupported redaction fails closed with deny/continue:false instead of passing the unredacted action.",
+      "guardTest": "tests/unit/runtime-adapters.test.ts#cursor-continue prompt field-only redaction fails closed"
+    },
+    {
+      "provider": "claude-code",
+      "tier": "native",
+      "governedSurfaces": "UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse",
+      "coreContract": "Claude Code hook activities send prompt/tool/output payloads to OpenBox Core guardrails and enforce the returned verdict.",
+      "redactionBehavior": "Decision-block prompt redaction requires a host-compatible replacement; unsupported redaction becomes a block.",
+      "failClosedBehavior": "Unsupported guardrail transforms block the Claude Code decision surface before unsafe continuation.",
+      "guardTest": "tests/unit/runtime-adapters.test.ts#decision-block prompt constrain with redaction fails closed"
+    },
+    {
+      "provider": "mcp",
+      "tier": "native",
+      "governedSurfaces": "check_governance tool plus guardrail review resources/prompts",
+      "coreContract": "check_governance sends caller-provided spans and activity payloads to OpenBox Core guardrails and returns the Core verdict.",
+      "redactionBehavior": "MCP exposes Core redaction fields in the verdict and does not mutate or reinterpret guardrail results locally.",
+      "failClosedBehavior": "MCP callers halt on block, halt, failed guardrails, or require_approval until Core returns a safe terminal decision.",
+      "guardTest": "tests/unit/mcp-server-coverage.test.ts#check_governance still emits the hook span when the parent verdict blocks"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "tier": "native",
+      "governedSurfaces": "input, output, tool input, and tool output guardrail helpers",
+      "coreContract": "OpenAI Agents SDK guardrail helpers send native guardrail payloads to OpenBox Core and project Core verdicts into native guardrail outcomes.",
+      "redactionBehavior": "Tool input/output redaction must provide a replacement payload that the SDK helper can return; field-only replacements are rejected.",
+      "failClosedBehavior": "Unsupported redaction throws or trips the guardrail instead of executing the original tool payload.",
+      "guardTest": "tests/unit/openai-agents-sdk.test.ts#fails closed when constrained tool input has field-only redaction"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "tier": "native",
+      "governedSurfaces": "UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, Elicitation",
+      "coreContract": "Anthropic Agent SDK hook payloads and message observations are sent to OpenBox Core guardrails; Core verdicts drive hook outcomes.",
+      "redactionBehavior": "Prompt/tool redaction must be represented as updated prompt/tool output when supported; field-only prompt redaction blocks.",
+      "failClosedBehavior": "Unsupported redaction blocks or denies the Anthropic Agent SDK hook surface before unsafe continuation.",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#fails closed on field-only prompt redaction without replacement input"
+    },
+    {
+      "provider": "copilotkit",
+      "tier": "native",
+      "governedSurfaces": "prompt gates, tool gates, output gates, AG-UI interrupt/HITL flow",
+      "coreContract": "CopilotKit adapters send prompt/tool/output activities to OpenBox Core guardrails and map Core verdicts into runtime and interruption results.",
+      "redactionBehavior": "Output transforms use Core-provided redacted content without legacy placeholders; failed guardrails interrupt or block execution.",
+      "failClosedBehavior": "Failed guardrails or unsupported transforms fail closed by skipping execution, interrupting, or returning blocked results.",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#treats Core output guardrail transforms as constrained without legacy placeholders"
+    },
+    {
+      "provider": "n8n",
+      "tier": "native",
+      "governedSurfaces": "emitN8nNodePreExecute, emitN8nNodePostExecute, emitN8nLlmCompletion, OpenBox Guardrails node descriptor",
+      "coreContract": "n8n helper payloads and node/LLM spans are sent to OpenBox Core guardrails; n8n nodes/templates enforce the returned verdict.",
+      "redactionBehavior": "Core redacted input/output is preserved on the WorkflowVerdict while source-attributed n8n payloads remain available for audit.",
+      "failClosedBehavior": "n8n pre/post helpers block, halt, or require approval from Core instead of continuing after failed guardrails.",
+      "guardTest": "tests/unit/govern-invariants.test.ts#n8n pre-execute guardrail constraints keep redaction and source attribution"
+    }
+  ],
+  "policyEvaluationGuards": [
+    {
+      "provider": "codex",
+      "tier": "native",
+      "authority": "OpenBox Core/backend",
+      "sdkResponsibility": "send complete spans and source-attributed inputs; enforce returned verdicts fail-closed",
+      "allowedLocalWork": "Rego source shape validation, instruction/rule projection, backend client calls",
+      "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+      "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+    },
+    {
+      "provider": "cursor",
+      "tier": "native",
+      "authority": "OpenBox Core/backend",
+      "sdkResponsibility": "send complete spans and source-attributed inputs; enforce returned verdicts fail-closed",
+      "allowedLocalWork": "Cursor .mdc projection and backend reads",
+      "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+      "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+    },
+    {
+      "provider": "claude-code",
+      "tier": "native",
+      "authority": "OpenBox Core/backend",
+      "sdkResponsibility": "send complete spans and source-attributed inputs; enforce returned verdicts fail-closed",
+      "allowedLocalWork": "CLAUDE/AGENTS-style instruction projection and backend reads",
+      "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+      "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+    },
+    {
+      "provider": "mcp",
+      "tier": "native",
+      "authority": "OpenBox Core/backend",
+      "sdkResponsibility": "send check_governance spans to Core and expose policy/rule resources without evaluating them",
+      "allowedLocalWork": "MCP prompts, resource templates, list/read tools, and backend check_governance calls",
+      "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+      "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "tier": "native",
+      "authority": "OpenBox Core/backend",
+      "sdkResponsibility": "send guardrail/tool/run spans to Core; project returned verdicts into native SDK guardrails",
+      "allowedLocalWork": "guardrail helper wrapping and tracing observation",
+      "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+      "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "tier": "native",
+      "authority": "OpenBox Core/backend",
+      "sdkResponsibility": "send hook/message/tool spans to Core; enforce returned verdicts",
+      "allowedLocalWork": "options/workspace governance payload construction and backend reads",
+      "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+      "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+    },
+    {
+      "provider": "copilotkit",
+      "tier": "native",
+      "authority": "OpenBox Core/backend",
+      "sdkResponsibility": "send prompt/tool/output spans to Core; project returned verdicts into CopilotKit flows",
+      "allowedLocalWork": "runtime middleware wrapping, AG-UI observation, and approval helpers",
+      "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+      "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+    },
+    {
+      "provider": "n8n",
+      "tier": "native",
+      "authority": "OpenBox Core/backend",
+      "sdkResponsibility": "send node/LLM spans to Core; project returned verdicts into n8n nodes/templates",
+      "allowedLocalWork": "node/template descriptor generation and helper payload construction",
+      "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+      "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+    }
+  ],
+  "rulesInstructionCapabilityGuards": [
+    {
+      "provider": "codex",
+      "tier": "wrapped",
+      "projectionSurface": "AGENTS.md/OpenBox skill governance instructions plus .codex/rules exact shell-prefix rules when behavior-rule renderer hints include codexCommandPrefix, commandPrefix, or exactShellPrefix",
+      "sourceOfTruth": "OpenBox Core/backend",
+      "allowedProjectionWork": "Render instruction summaries, skill references, source counts, and exact shell command-prefix execution policy only.",
+      "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or broad policy translation in SDK/runtime code",
+      "hostBoundary": "AGENTS.md and skills are advisory instruction surfaces; .codex/rules is limited to command-prefix execution policy and Core verdicts remain enforcement.",
+      "guardTest": "tests/unit/rules-projection-coverage.test.ts#renders Codex AGENTS instructions and exact shell-prefix command rules without local policy evaluation"
+    },
+    {
+      "provider": "cursor",
+      "tier": "native",
+      "projectionSurface": "Cursor plugin rules/openbox.mdc, repo .cursor/rules/openbox-governance.mdc, and per-rule .cursor/rules/openbox-*.mdc projection",
+      "sourceOfTruth": "OpenBox Core/backend",
+      "allowedProjectionWork": "Render active guardrails, policies, and behavior rules into Cursor .mdc files with source/severity metadata and prune only OpenBox-managed files.",
+      "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or local verdict computation in SDK/runtime code",
+      "hostBoundary": "Cursor .mdc files provide native instruction context; hook decisions and final policy evaluation still come from Core.",
+      "guardTest": "tests/unit/cursor-rules-render.test.ts#writes one mdc per rule into .cursor/rules with our header marker"
+    },
+    {
+      "provider": "claude-code",
+      "tier": "wrapped",
+      "projectionSurface": "Claude Code plugin reviewer agent, slash command guidance, OpenBox skill, and optional CLAUDE/AGENTS-style instruction projection",
+      "sourceOfTruth": "OpenBox Core/backend",
+      "allowedProjectionWork": "Ship reviewer and command instructions that ask MCP/Core for policies, guardrails, behavior rules, trust, and governance verdicts.",
+      "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, invented endpoint shapes, or local policy decisions in plugin assets",
+      "hostBoundary": "Claude Code instruction assets are documentation and review aids; hooks/MCP/Core provide enforcement.",
+      "guardTest": "tests/unit/claude-code-plugin.test.ts#exports a complete marketplace-ready plugin folder"
+    },
+    {
+      "provider": "mcp",
+      "tier": "native",
+      "projectionSurface": "MCP prompts and resource templates for policy review, governance checks, guardrails, policies, behavior rules, approvals, agents, and skills",
+      "sourceOfTruth": "OpenBox Core/backend",
+      "allowedProjectionWork": "Expose read resources, prompts, and check_governance calls that route proposed actions to Core.",
+      "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or local guardrail duplication in MCP server code",
+      "hostBoundary": "MCP resources and prompts are inspection/check surfaces; clients must call check_governance so Core makes decisions.",
+      "guardTest": "tests/unit/mcp-server-coverage.test.ts#registers spec-driven MCP tool annotations, prompts, and resource templates"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "tier": "wrapped",
+      "projectionSurface": "OpenAI Agents SDK guardrail helpers and tracing observations that project Core verdicts into native callbacks",
+      "sourceOfTruth": "OpenBox Core/backend",
+      "allowedProjectionWork": "Wrap input/output/tool guardrails and run lifecycle to send payloads to Core and return native SDK outcomes.",
+      "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or local policy decisions inside SDK helpers",
+      "hostBoundary": "OpenAI Agents SDK helpers provide native callback shapes; Core remains the decision authority.",
+      "guardTest": "tests/unit/openai-agents-sdk.test.ts#maps OpenBox tool guardrail verdicts to fail-closed tool behavior"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "tier": "wrapped",
+      "projectionSurface": "Anthropic Agent SDK options, hooks, message observations, permission events, and workspace-change payloads",
+      "sourceOfTruth": "OpenBox Core/backend",
+      "allowedProjectionWork": "Build hook/message payloads, observe SDK events, and project returned Core verdicts into Anthropic hook decisions.",
+      "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or local policy decisions inside SDK helpers",
+      "hostBoundary": "Anthropic Agent SDK wrapping maps host events to Core checks; Core-owned verdicts drive continuation.",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#maps approval-required PreToolUse verdicts to ask or defer"
+    },
+    {
+      "provider": "copilotkit",
+      "tier": "wrapped",
+      "projectionSurface": "CopilotKit prompt, tool, output, AG-UI, and approval helper result shapes",
+      "sourceOfTruth": "OpenBox Core/backend",
+      "allowedProjectionWork": "Project Core verdicts into CopilotKit runtime results, AG-UI events, interruptions, and approval routes.",
+      "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or local policy decisions inside CopilotKit adapters",
+      "hostBoundary": "CopilotKit surfaces adapt application UI/runtime behavior; Core remains canonical for rules and verdicts.",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits workflow/tool lifecycle events around a governed tool"
+    },
+    {
+      "provider": "n8n",
+      "tier": "wrapped",
+      "projectionSurface": "n8n Governance, Guardrails, Approval/HITL, and governed AI Agent node/template descriptors",
+      "sourceOfTruth": "OpenBox Core/backend",
+      "allowedProjectionWork": "Project Core verdicts into n8n node helper outputs, workflow templates, and packaged node descriptors.",
+      "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or local policy decisions inside n8n helpers",
+      "hostBoundary": "n8n nodes/templates are workflow projection surfaces; Core remains canonical for policy, guardrails, and approvals.",
+      "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
+    }
+  ],
+  "hookCapabilityGuards": [
+    {
+      "provider": "codex",
+      "tier": "native",
+      "hookSurface": "Codex hooks/hooks.json in plugin mode and project .codex/hooks.json invoke openbox codex hook.",
+      "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match CODEX_HOOK_SPEC events for UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, and Stop.",
+      "enforcementBoundary": "Codex prompt/tool/output hooks send spans to Core and enforce returned verdicts fail-closed.",
+      "fallbackOrOutOfScope": "Project-local install only; no global Codex hook configuration is mutated.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins generated hook events to the event catalog"
+    },
+    {
+      "provider": "cursor",
+      "tier": "native",
+      "hookSurface": "Cursor plugin hooks/hooks.json and repo .cursor/hooks.json invoke openbox cursor hook.",
+      "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match CURSOR_HOOK_SPEC events including prompt, file, shell, MCP, subagent, compaction, and stop surfaces.",
+      "enforcementBoundary": "Cursor pre-action hooks send spans to Core and enforce guardrail/policy verdicts fail-closed; post hooks observe outputs.",
+      "fallbackOrOutOfScope": "Project-local plugin or repo-mode install only; user-level Cursor hook configuration is not mutated.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins generated hook events to the event catalog"
+    },
+    {
+      "provider": "claude-code",
+      "tier": "native",
+      "hookSurface": "Claude Code plugin hooks/hooks.json invokes the project-local OpenBox CLI runner for default and opt-in hook events.",
+      "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match CLAUDE_HOOK_SPEC and the official hook matrix, with WorktreeCreate and SessionEnd opt-in by default.",
+      "enforcementBoundary": "Claude Code prompt/tool/permission hooks send spans to Core and enforce returned verdicts fail-closed; opt-in worktree hooks are disabled by default.",
+      "fallbackOrOutOfScope": "Project-local plugin install only; monitors are opt-in and direct settings writes are avoided.",
+      "guardTest": "tests/unit/claude-code-governance-matrix.test.ts#keeps generated HOOK_SPEC aligned with the checked-in official hook matrix"
+    },
+    {
+      "provider": "mcp",
+      "tier": "out-of-scope",
+      "hookSurface": "No host hook surface exists for MCP itself; MCP is a server protocol.",
+      "eventCoverage": "MCP exposes tools, prompts, and resources rather than upstream hook events.",
+      "enforcementBoundary": "MCP check_governance sends spans to Core when called; there is no host hook lifecycle to pre-gate.",
+      "fallbackOrOutOfScope": "Out-of-scope for hooks because plugin adapters or clients own hook installation.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins hook support claims to explicit hook surface coverage"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "tier": "native",
+      "hookSurface": "createOpenBoxAgentHooks returns native OpenAI AgentHooks lifecycle handlers backed by OpenBox sessions.",
+      "eventCoverage": "AgentHooks lifecycle covers agent start/end/error, tool start/end/error, and model/output observation through tracing processor helpers.",
+      "enforcementBoundary": "Native hook callbacks open sessions and emit Core spans; tracing observes hosted/built-in/MCP tool use that cannot always be pre-gated.",
+      "fallbackOrOutOfScope": "No host hook files are installed; consumers import SDK helpers and wire them into OpenAI Agents SDK runs.",
+      "guardTest": "tests/unit/openai-agents-sdk.test.ts#creates native AgentHooks lifecycle handlers backed by OpenBox sessions"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "tier": "native",
+      "hookSurface": "createOpenBoxAnthropicAgentHooks and withOpenBoxAnthropicAgentOptions register Anthropic Agent SDK hook handlers.",
+      "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match official HOOK_EVENTS, with WorktreeCreate opt-in by default.",
+      "enforcementBoundary": "Anthropic Agent SDK hooks send prompt/tool/permission/workspace spans to Core and enforce returned verdicts.",
+      "fallbackOrOutOfScope": "No host plugin files are installed; hook helpers are runtime SDK configuration.",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#registers every official Agent SDK hook except WorktreeCreate by default"
+    },
+    {
+      "provider": "copilotkit",
+      "tier": "wrapped",
+      "hookSurface": "createOpenBoxCopilotKitAdapter wraps CopilotKit runtime, LangChain middleware, tool, prompt, output, and AG-UI surfaces.",
+      "eventCoverage": "Wrapped CopilotKit hooks map run lifecycle, messages, tool calls/results, shared state, errors, interrupts, and middleware callbacks to OpenBox activities.",
+      "enforcementBoundary": "Wrapped prompt/tool/output gates send spans to Core and project returned verdicts into CopilotKit continuation, interruption, or terminal results.",
+      "fallbackOrOutOfScope": "No host hook files are installed; application runtime wiring owns adapter registration.",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#pauses on approval-required prompt verdict without calling the model"
+    },
+    {
+      "provider": "n8n",
+      "tier": "wrapped",
+      "hookSurface": "emitN8nUserPromptSignal, emitN8nNodePreExecute, emitN8nNodePostExecute, and emitN8nLlmCompletion provide hook-equivalent gates.",
+      "eventCoverage": "Wrapped n8n helpers map node pre/post execution and LLM completion to OpenBox lifecycle and activity spans.",
+      "enforcementBoundary": "n8n helper calls send spans to Core and project returned verdicts into node/template behavior.",
+      "fallbackOrOutOfScope": "No n8n instance mutation; operator-owned workflows consume packaged node/template descriptors.",
+      "guardTest": "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans"
+    }
+  ],
+  "subagentsAgentsCapabilityGuards": [
+    {
+      "provider": "codex",
+      "tier": "observe-only",
+      "agentSurface": "Codex Agent/Task-style tool calls are observed as tool or a2a metadata when surfaced by Codex spans.",
+      "lifecycleCoverage": "Codex hook events do not expose a dedicated subagent lifecycle; OpenBox records available agent/task spans where present.",
+      "ownershipBoundary": "Observe-only; Codex owns subagent orchestration and OpenBox does not package Codex subagent templates.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins subagents-agents support claims to explicit agent ownership coverage"
+    },
+    {
+      "provider": "cursor",
+      "tier": "native",
+      "agentSurface": "Cursor subagentStart/subagentStop hooks plus bundled agents/openbox-reviewer.md agent template.",
+      "lifecycleCoverage": "CURSOR_HOOK_SPEC and PROVIDER_EVENT_CATALOG include subagentStart and subagentStop, with subagentStart mapped to SubagentStart activity and a2a metadata.",
+      "ownershipBoundary": "Native host surface; Cursor owns model orchestration while OpenBox governs/observes subagent hook lifecycle through Core.",
+      "guardTest": "tests/unit/cursor-activity-type-drift.test.ts#subagentStart fires SubagentStart"
+    },
+    {
+      "provider": "claude-code",
+      "tier": "native",
+      "agentSurface": "Claude Code SubagentStart/SubagentStop/TaskCreated/TaskCompleted hooks plus bundled agents/openbox-reviewer.md agent template.",
+      "lifecycleCoverage": "CLAUDE_HOOK_SPEC and PROVIDER_EVENT_CATALOG include subagent and task lifecycle events; mapper tests pin AGENT_SPAWN activities and assistant-output spans.",
+      "ownershipBoundary": "Native host surface; Claude Code owns orchestration while OpenBox governs/observes subagent and task hook lifecycle through Core.",
+      "guardTest": "tests/unit/runtime-claude-code-mappers.test.ts#subagent-start + subagent-stop fire AGENT_SPAWN activities"
+    },
+    {
+      "provider": "mcp",
+      "tier": "observe-only",
+      "agentSurface": "MCP list_agents, get_agent, and openbox://agent/{agent_id} resources inspect OpenBox agents.",
+      "lifecycleCoverage": "MCP can inspect agents and approvals but does not spawn subagents or own multi-agent lifecycle events.",
+      "ownershipBoundary": "Observe-only; MCP exposes inspection/governance tools while host clients own agent orchestration.",
+      "guardTest": "tests/unit/mcp-server-coverage.test.ts#registers spec-driven MCP tool annotations, prompts, and resource templates"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "tier": "observe-only",
+      "agentSurface": "OpenAI Agents SDK handoffs and agents-as-tools are observed through AgentHooks and tracing processor spans.",
+      "lifecycleCoverage": "Tracing processor observes handoff spans, hosted tools, built-in tools, MCP tools, generations, and usage after the host SDK produces them.",
+      "ownershipBoundary": "Observe-only for multi-agent orchestration; OpenAI Agents SDK owns handoffs/agents-as-tools and OpenBox records spans where available.",
+      "guardTest": "tests/unit/openai-agents-sdk.test.ts#observes OpenAI trace spans for generations, handoffs, guardrails, and tools"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "tier": "observe-only",
+      "agentSurface": "Anthropic Agent SDK Task/Agent tool events and subagent metadata are observed through hook payloads.",
+      "lifecycleCoverage": "Official TaskCreated/TaskCompleted/SubagentStart/SubagentStop hooks and Agent/Task tool payloads are normalized with a2a metadata.",
+      "ownershipBoundary": "Observe-only for agent orchestration; Anthropic Agent SDK/Claude owns tasks and subagents while OpenBox records/governs exposed hooks.",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#marks Agent/Task and subagent hooks as a2a activity metadata"
+    },
+    {
+      "provider": "copilotkit",
+      "tier": "observe-only",
+      "agentSurface": "CopilotKit agent runner lifecycle and a2a tool metadata are observed through runtime, middleware, and AG-UI adapters.",
+      "lifecycleCoverage": "CopilotKit AG-UI/run lifecycle and governed tool calls map subagent_type/tool metadata to OpenBox activities when surfaced.",
+      "ownershipBoundary": "Observe-only for orchestration; CopilotKit/application code owns agent runners while OpenBox observes/gates exposed prompt/tool/runtime events.",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits workflow/tool lifecycle events around a governed tool"
+    },
+    {
+      "provider": "n8n",
+      "tier": "observe-only",
+      "agentSurface": "n8n governed AI Agent workflow template and node descriptors expose AI Agent workflow surfaces.",
+      "lifecycleCoverage": "OpenBox Governance, Guardrails, Approval/HITL, and governed AI Agent descriptors observe node/tool/LLM lifecycle around n8n AI Agent workflows.",
+      "ownershipBoundary": "Observe-only for orchestration; n8n owns AI Agent workflow execution while OpenBox nodes/helpers govern exposed workflow surfaces.",
+      "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
+    }
+  ],
+  "pluginCapabilityGuards": [
+    {
+      "provider": "codex",
+      "tier": "native",
+      "packageSurface": "Codex plugin bundle with .codex-plugin/plugin.json plus repo-local .agents/plugins/marketplace.json metadata.",
+      "componentCoverage": "Codex plugin components include manifest, marketplace, hooks/hooks.json, plugin .mcp.json, skills/openbox/SKILL.md, AGENTS.md, and exact-prefix .codex/rules/openbox.rules.",
+      "installSurface": "exportCodexPlugin/installCodexPlugin and openbox install codex write project-local plugin and marketplace surfaces.",
+      "scopeBoundary": "Project-local only; OpenBox does not mutate global or user-level Codex plugin configuration.",
+      "guardTest": "tests/unit/codex-install-spec.test.ts#exports and installs Codex plugin, repo skill, and marketplace surfaces"
+    },
+    {
+      "provider": "cursor",
+      "tier": "native",
+      "packageSurface": "Cursor plugin bundle with .cursor-plugin/plugin.json, .cursor-plugin/marketplace.json, and workspaceOpen.json metadata.",
+      "componentCoverage": "Cursor plugin components include hooks, mcp.json, rules/openbox.mdc, commands, agents, skills/openbox/SKILL.md, and workspaceOpen discovery metadata.",
+      "installSurface": "exportCursorPlugin/installCursorPlugin install local plugin mode; installCursorRepoMode covers cloud-compatible repo mode separately.",
+      "scopeBoundary": "Project-local plugin or repo files only; OpenBox does not mutate user-level Cursor plugin configuration.",
+      "guardTest": "tests/unit/cursor-plugin.test.ts#exports a complete marketplace-ready plugin folder"
+    },
+    {
+      "provider": "claude-code",
+      "tier": "native",
+      "packageSurface": "Claude Code plugin bundle with .claude-plugin/plugin.json and .claude-plugin/marketplace.json metadata.",
+      "componentCoverage": "Claude Code plugin components include hooks, .mcp.json, commands, agents, skills/openbox/SKILL.md, diagnostics, bin runner, opt-in monitors metadata, and explicit LSP exclusion.",
+      "installSurface": "exportClaudeCodePlugin/installClaudeCodePlugin install the project-local plugin target without direct settings writes.",
+      "scopeBoundary": "Project-local plugin target and runtime config only; monitors are opt-in and LSP remains out of scope.",
+      "guardTest": "tests/unit/claude-code-plugin.test.ts#exports a complete marketplace-ready plugin folder"
+    },
+    {
+      "provider": "mcp",
+      "tier": "out-of-scope",
+      "packageSurface": "No MCP plugin package is emitted; MCP is the server protocol surface used by host plugins.",
+      "componentCoverage": "Plugin component catalogs are owned by Codex, Cursor, and Claude Code adapters, not the MCP server.",
+      "installSurface": "No plugin install surface; openbox mcp serve exposes protocol tools/resources/prompts only.",
+      "scopeBoundary": "Out-of-scope for plugins because host adapters own plugin packaging and installation.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "tier": "out-of-scope",
+      "packageSurface": "No OpenAI Agents SDK plugin package is emitted; consumers import public SDK helpers.",
+      "componentCoverage": "Public integration exports cover helper functions; host plugin components are intentionally out of scope.",
+      "installSurface": "No plugin install surface for OpenAI Agents SDK helpers.",
+      "scopeBoundary": "Out-of-scope for plugins because OpenAI Agents SDK does not consume host plugin bundles.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "tier": "out-of-scope",
+      "packageSurface": "No Anthropic Agent SDK plugin package is emitted; consumers import hook/options helpers.",
+      "componentCoverage": "Claude Code plugin packaging is covered under claude-code, not Anthropic Agent SDK.",
+      "installSurface": "No plugin install surface for Anthropic Agent SDK helpers.",
+      "scopeBoundary": "Out-of-scope for plugins because Anthropic Agent SDK usage is runtime-only.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
+    },
+    {
+      "provider": "copilotkit",
+      "tier": "out-of-scope",
+      "packageSurface": "No CopilotKit plugin package is emitted; consumers wire runtime adapters and UI helpers.",
+      "componentCoverage": "Public integration exports cover CopilotKit adapters and approval helpers; host plugin components are intentionally out of scope.",
+      "installSurface": "No plugin install surface for CopilotKit helpers.",
+      "scopeBoundary": "Out-of-scope for plugins because CopilotKit does not consume host plugin bundles.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
+    },
+    {
+      "provider": "n8n",
+      "tier": "wrapped",
+      "packageSurface": "Packaged n8n integration descriptor surface, not a Codex/Cursor/Claude host plugin folder.",
+      "componentCoverage": "N8N_INTEGRATION_SURFACE covers OpenBox credentials, Governance node, Guardrails node, Approval/HITL node, governed AI Agent template, and examples.",
+      "installSurface": "Operator-owned n8n package installation consumes generated descriptors/templates; OpenBox does not mutate n8n instances.",
+      "scopeBoundary": "Wrapped descriptor/template surface; n8n installation remains operator-owned and Core/backend remains authoritative for governance.",
+      "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
+    }
+  ],
+  "skillCapabilityGuards": [
+    {
+      "provider": "codex",
+      "tier": "native",
+      "skillSurface": "Codex plugin skills/openbox/SKILL.md and repo .agents/skills/openbox/SKILL.md carry the OpenBox governance skill.",
+      "installSurface": "exportCodexPlugin/installCodexPlugin and openbox install codex install project-local skill assets without user-level writes.",
+      "discoverySurface": "Codex plugin manifest, repo marketplace metadata, and AGENTS.md instruction projection reference the OpenBox skill.",
+      "hostBoundary": "Skills are advisory host instructions; Core/backend remains authoritative for guardrails, OPA/Rego, approvals, and verdict enforcement.",
+      "guardTest": "tests/unit/codex-install-spec.test.ts#exports and installs Codex plugin, repo skill, and marketplace surfaces"
+    },
+    {
+      "provider": "cursor",
+      "tier": "native",
+      "skillSurface": "Cursor plugin skills/openbox/SKILL.md and cloud-compatible repo .agents/skills/openbox/SKILL.md carry the OpenBox governance skill.",
+      "installSurface": "installCursorPlugin and installCursorRepoMode write project-local plugin or repo skill assets and preserve unrelated workspace files.",
+      "discoverySurface": "Cursor plugin metadata, workspaceOpen metadata, and repo .agents/skills/openbox expose the OpenBox skill to local and cloud-compatible modes.",
+      "hostBoundary": "Skills provide native host context only; OpenBox Core/backend remains authoritative for guardrails, OPA/Rego, approvals, and verdicts.",
+      "guardTest": "tests/unit/cursor-plugin.test.ts#installs and uninstalls cloud-compatible repo mode files"
+    },
+    {
+      "provider": "claude-code",
+      "tier": "native",
+      "skillSurface": "Claude Code plugin skills/openbox/SKILL.md carries the OpenBox governance skill inside the project-local plugin bundle.",
+      "installSurface": "exportClaudeCodePlugin/installClaudeCodePlugin install the plugin under the project-local target without direct settings writes.",
+      "discoverySurface": "Claude Code plugin manifest, marketplace metadata, commands, agents, and diagnostics inventory reference the bundled OpenBox skill.",
+      "hostBoundary": "Plugin skills and commands are host instruction assets; Core/backend remains authoritative for guardrails, OPA/Rego, approvals, and verdicts.",
+      "guardTest": "tests/unit/claude-code-plugin.test.ts#exports a complete marketplace-ready plugin folder"
+    },
+    {
+      "provider": "mcp",
+      "tier": "native",
+      "skillSurface": "MCP exposes OpenBox skill reference markdown through the openbox://skill/{name} resource template.",
+      "installSurface": "openbox mcp serve registers the generated skill-reference resource template; host-specific skill file installs remain adapter-owned.",
+      "discoverySurface": "MCP_RESOURCE_TEMPLATE_SURFACES includes skill-reference so clients can discover skill documentation without language-specific SDK code.",
+      "hostBoundary": "MCP skill resources are read/inspection surfaces; Core/backend remains authoritative for guardrails, OPA/Rego, approvals, and verdicts.",
+      "guardTest": "tests/unit/mcp-server-coverage.test.ts#registers spec-driven MCP tool annotations, prompts, and resource templates"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "tier": "out-of-scope",
+      "skillSurface": "No OpenBox skill file surface is installed for OpenAI Agents SDK; consumers import SDK helpers instead.",
+      "installSurface": "No skill installation occurs for OpenAI Agents SDK helpers.",
+      "discoverySurface": "Public integration exports document helper support; Codex/host skill assets are intentionally out of scope.",
+      "hostBoundary": "Out-of-scope for skills because OpenAI Agents SDK does not consume Codex/Cursor/Claude Code skill assets.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "tier": "out-of-scope",
+      "skillSurface": "No OpenBox skill file surface is installed for Anthropic Agent SDK; consumers import hook/options helpers instead.",
+      "installSurface": "No skill installation occurs for Anthropic Agent SDK helpers.",
+      "discoverySurface": "Public integration exports document helper support; host skill assets are intentionally out of scope.",
+      "hostBoundary": "Out-of-scope for skills because Anthropic Agent SDK usage is separate from host plugin skill assets.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
+    },
+    {
+      "provider": "copilotkit",
+      "tier": "out-of-scope",
+      "skillSurface": "No OpenBox skill file surface is installed for CopilotKit; consumers wire runtime adapters and approval UI helpers instead.",
+      "installSurface": "No skill installation occurs for CopilotKit runtime or React helpers.",
+      "discoverySurface": "Public integration exports document helper support; host skill assets are intentionally out of scope.",
+      "hostBoundary": "Out-of-scope for skills because CopilotKit does not consume Codex/Cursor/Claude Code skill assets.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
+    },
+    {
+      "provider": "n8n",
+      "tier": "out-of-scope",
+      "skillSurface": "No OpenBox skill file surface is installed for n8n; OpenBox ships node descriptors and workflow templates instead.",
+      "installSurface": "No skill installation occurs for the n8n integration descriptors.",
+      "discoverySurface": "N8N_INTEGRATION_SURFACE documents credentials, nodes, templates, and examples rather than host skill files.",
+      "hostBoundary": "Out-of-scope for skills because n8n consumes package descriptors/templates, not host plugin skill assets.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
+    }
+  ],
+  "mcpCapabilityGuards": [
+    {
+      "provider": "codex",
+      "tier": "native",
+      "serverSurface": "OpenBox MCP server launched by Codex through trusted project .codex/config.toml or plugin-bundled .mcp.json.",
+      "configSurface": ".codex/config.toml project entry plus Codex plugin .mcp.json; .codex/mcp.json is intentionally not used.",
+      "toolResourcePromptCoverage": "Shared MCP tools, prompts, resource templates, openbox_status, check_governance, and codex_doctor are available to Codex/MCP clients.",
+      "hostBoundary": "Project-local config only; OpenBox does not mutate global Codex config and Core evaluates governance decisions.",
+      "guardTest": "tests/unit/codex-install-spec.test.ts#writes Codex MCP config to trusted .codex/config.toml, not .codex/mcp.json"
+    },
+    {
+      "provider": "cursor",
+      "tier": "native",
+      "serverSurface": "OpenBox MCP server launched from Cursor plugin mcp.json or cloud-compatible repo .cursor/mcp.json.",
+      "configSurface": "Cursor plugin mcp.json and repo .cursor/mcp.json project entries; user-level Cursor MCP files are not written.",
+      "toolResourcePromptCoverage": "Shared MCP tools, prompts, resource templates, openbox_status, check_governance, and cursor_doctor back slash commands and diagnostics.",
+      "hostBoundary": "Project-local/plugin config only; OpenBox preserves other MCP servers and Core evaluates governance decisions.",
+      "guardTest": "tests/unit/cursor-mcp-install-coverage.test.ts#installs and uninstalls the project Cursor MCP entry without touching other servers"
+    },
+    {
+      "provider": "claude-code",
+      "tier": "native",
+      "serverSurface": "OpenBox MCP server launched from Claude Code plugin .mcp.json through the bundled project-local Node runner.",
+      "configSurface": "Claude Code plugin .mcp.json and project .mcp.json openbox command entries.",
+      "toolResourcePromptCoverage": "Shared MCP tools, prompts, resource templates, openbox_status, check_governance, and claude_code_doctor back slash commands and diagnostics.",
+      "hostBoundary": "Project-local plugin config only; OpenBox avoids direct settings writes and Core evaluates governance decisions.",
+      "guardTest": "tests/unit/claude-code-plugin.test.ts#exports a complete marketplace-ready plugin folder"
+    },
+    {
+      "provider": "mcp",
+      "tier": "native",
+      "serverSurface": "openbox mcp serve exposes the OpenBox MCP server over stdio or optional Streamable HTTP transport.",
+      "configSurface": "CLI transport options --transport stdio|http, --host, and --port; host config entries remain adapter-owned.",
+      "toolResourcePromptCoverage": "MCP_TOOL_SURFACES, MCP_PROMPT_SURFACES, and MCP_RESOURCE_TEMPLATE_SURFACES are generated from TypeSpec and registered by the server.",
+      "hostBoundary": "MCP server exposes tools/resources/prompts and sends check_governance to Core; it does not own host plugin installation.",
+      "guardTest": "tests/unit/mcp-server-coverage.test.ts#registers spec-driven MCP tool annotations, prompts, and resource templates"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "tier": "observe-only",
+      "serverSurface": "No OpenBox-owned MCP server install; OpenAI Agents SDK MCP tool usage is observed through tracing when the host app exposes spans.",
+      "configSurface": "Host application owns MCP server/client configuration; OpenBox SDK helpers do not install MCP config.",
+      "toolResourcePromptCoverage": "MCP tool calls are observed as tool spans and usage telemetry when tracing exposes mcp_data; no MCP prompts/resources are registered by the SDK.",
+      "hostBoundary": "Observe-only; hosted MCP tools may execute before observation, so Core receives spans where available instead of pre-gating host-owned MCP execution.",
+      "guardTest": "tests/unit/openai-agents-sdk.test.ts#observes OpenAI trace spans for generations, handoffs, guardrails, and tools"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "tier": "observe-only",
+      "serverSurface": "No OpenBox-owned MCP server install; Anthropic Agent SDK MCP elicitation/status events are observed when hooks expose them.",
+      "configSurface": "Host application owns MCP server/client configuration; OpenBox SDK helpers do not install MCP config.",
+      "toolResourcePromptCoverage": "MCP elicitation and permission events are mapped into OpenBox activities when surfaced by the SDK; no MCP prompts/resources are registered by the SDK.",
+      "hostBoundary": "Observe-only except governed hook payloads; Core receives elicitation/tool spans when the SDK exposes them.",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#maps task, config, and elicitation verdicts to Agent SDK outputs"
+    },
+    {
+      "provider": "copilotkit",
+      "tier": "observe-only",
+      "serverSurface": "No OpenBox-owned MCP server install; CopilotKit observes MCP-like client/server tool events through AG-UI/runtime streams when surfaced.",
+      "configSurface": "Host application owns MCP server/client configuration; CopilotKit adapters do not install MCP config.",
+      "toolResourcePromptCoverage": "AG-UI lifecycle, tool, state, error, and interrupt events are mapped to OpenBox activities; MCP prompts/resources are not registered by CopilotKit.",
+      "hostBoundary": "Observe-only for host-owned MCP client/server usage; Core receives tool/runtime events when CopilotKit surfaces them.",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#maps AG-UI run, tool, message, state, error, and interrupt events through OpenBox gates"
+    },
+    {
+      "provider": "n8n",
+      "tier": "native",
+      "serverSurface": "n8n packaged examples cover OpenBox-governed MCP Client Tool and MCP Server Trigger workflow entrypoints.",
+      "configSurface": "Operator-owned n8n MCP node configuration plus OpenBox credentials; OpenBox does not mutate n8n instances.",
+      "toolResourcePromptCoverage": "OpenBox Governance, Guardrails, Approval/HITL, and governed AI Agent descriptors include MCP Client Tool and MCP Server Trigger examples.",
+      "hostBoundary": "Operator-owned n8n installation; Core evaluates governance decisions for MCP workflow nodes through OpenBox helpers.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#declares the packaged n8n integration descriptor from the canonical spec"
+    }
+  ],
+  "installDoctorCapabilityGuards": [
+    {
+      "provider": "codex",
+      "tier": "native",
+      "installSurface": "openbox install codex, Codex plugin export/install, repo skill install, and trusted MCP config install",
+      "doctorSurface": "verifyCodexInstall, verifyCodexPlugin, and codex_doctor MCP tool",
+      "scopeBoundary": "project-local only; no global or user-level host config mutation",
+      "generatedOrPackagedSurface": ".codex-plugin/plugin.json, hooks/hooks.json, .mcp.json, AGENTS.md, .codex/config.toml, .agents/skills/openbox, and plugin skills/openbox",
+      "guardTest": "tests/unit/codex-install-spec.test.ts#exports and installs Codex plugin, repo skill, and marketplace surfaces"
+    },
+    {
+      "provider": "cursor",
+      "tier": "native",
+      "installSurface": "Cursor plugin mode plus cloud-compatible repo mode",
+      "doctorSurface": "verifyCursorPlugin, verifyCursorRepoMode, verifyCursorInstall, and cursor_doctor MCP tool",
+      "scopeBoundary": "project-local plugin or repo files only; no user-level Cursor writes",
+      "generatedOrPackagedSurface": ".cursor-plugin/plugin.json, workspaceOpen.json, hooks/hooks.json, mcp.json, .cursor/hooks.json, .cursor/mcp.json, .cursor/rules/openbox-governance.mdc, and .agents/skills/openbox",
+      "guardTest": "tests/unit/cursor-plugin.test.ts#installs and uninstalls cloud-compatible repo mode files"
+    },
+    {
+      "provider": "claude-code",
+      "tier": "native",
+      "installSurface": "Claude Code plugin export/install through project scope",
+      "doctorSurface": "verifyClaudeCodeInstall, verifyClaudeCodePlugin, openbox-plugin-doctor, and claude_code_doctor MCP tool",
+      "scopeBoundary": "project-local plugin target and runtime config only; monitors opt-in and LSP out-of-scope",
+      "generatedOrPackagedSurface": ".claude-plugin/plugin.json, hooks/hooks.json, .mcp.json, commands, agents, skills/openbox, diagnostics, and bin/openbox-plugin-doctor",
+      "guardTest": "tests/hook-integration/claude-code-install.test.ts#claude-code plugin install --scope project writes a complete native plugin folder"
+    },
+    {
+      "provider": "mcp",
+      "tier": "native",
+      "installSurface": "openbox mcp serve over stdio or Streamable HTTP plus host MCP config entries",
+      "doctorSurface": "openbox_status, codex_doctor, cursor_doctor, and claude_code_doctor MCP tools",
+      "scopeBoundary": "project-local reads and backend readiness diagnostics; MCP tools do not mutate global host config",
+      "generatedOrPackagedSurface": "MCP tool annotations, prompts, resource templates, and doctor tool metadata from TypeSpec",
+      "guardTest": "tests/unit/mcp-server-coverage.test.ts#registers spec-driven MCP tool annotations, prompts, and resource templates"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "tier": "diagnose-only",
+      "installSurface": "No host install surface; consumers import SDK helpers",
+      "doctorSurface": "public export and configuration diagnostics only",
+      "scopeBoundary": "diagnose-only runtime library checks; no files installed",
+      "generatedOrPackagedSurface": "public integration support exports generated from the capability matrix",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins public SDK integrations to intended support tiers and exports"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "tier": "diagnose-only",
+      "installSurface": "No host install surface; consumers import SDK helpers",
+      "doctorSurface": "public export and runtime configuration diagnostics only",
+      "scopeBoundary": "diagnose-only runtime library checks; no files installed",
+      "generatedOrPackagedSurface": "public integration support exports generated from the capability matrix",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins public SDK integrations to intended support tiers and exports"
+    },
+    {
+      "provider": "copilotkit",
+      "tier": "diagnose-only",
+      "installSurface": "No host install surface; consumers wire runtime adapters and approval routes",
+      "doctorSurface": "runtime readiness and approval route diagnostics only",
+      "scopeBoundary": "diagnose-only application wiring checks; no host plugin files installed",
+      "generatedOrPackagedSurface": "public integration support exports generated from the capability matrix",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins public SDK integrations to intended support tiers and exports"
+    },
+    {
+      "provider": "n8n",
+      "tier": "diagnose-only",
+      "installSurface": "Operator-owned n8n package installation; OpenBox ships descriptors and templates",
+      "doctorSurface": "packaged descriptor and workflow template inspection only",
+      "scopeBoundary": "diagnose-only and operator-owned installation boundary; OpenBox does not mutate n8n instances",
+      "generatedOrPackagedSurface": "OpenBox credentials, Governance node, Guardrails node, Approval/HITL node, governed AI Agent template, and MCP examples",
+      "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
+    }
+  ],
+  "mcpToolSurfaces": [
+    {
+      "name": "get_profile",
+      "title": "Get Profile",
+      "risk": "low",
+      "approval": "never requires approval",
+      "sideEffects": "reads OpenBox backend profile only",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    {
+      "name": "cursor_status",
+      "title": "Cursor Status",
+      "risk": "low",
+      "approval": "never requires approval",
+      "sideEffects": "reads OpenBox backend health and local runtime readiness",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    {
+      "name": "openbox_status",
+      "title": "OpenBox Status",
+      "risk": "low",
+      "approval": "never requires approval",
+      "sideEffects": "reads OpenBox backend health and local runtime readiness",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    {
+      "name": "codex_doctor",
+      "title": "Codex Doctor",
+      "risk": "low",
+      "approval": "never requires approval",
+      "sideEffects": "reads project-local Codex/OpenBox hook files and optionally validates runtime connectivity",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    {
+      "name": "cursor_doctor",
+      "title": "Cursor Doctor",
+      "risk": "low",
+      "approval": "never requires approval",
+      "sideEffects": "reads project-local Cursor/OpenBox install files and optionally validates runtime connectivity",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    {
+      "name": "claude_code_doctor",
+      "title": "Claude Code Doctor",
+      "risk": "low",
+      "approval": "never requires approval",
+      "sideEffects": "reads project-local Claude Code/OpenBox plugin files and optionally validates runtime connectivity",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    {
+      "name": "list_agents",
+      "title": "List Agents",
+      "risk": "low",
+      "approval": "never requires approval",
+      "sideEffects": "reads OpenBox backend agents",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    {
+      "name": "get_agent",
+      "title": "Get Agent",
+      "risk": "low",
+      "approval": "never requires approval",
+      "sideEffects": "reads one OpenBox backend agent",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    {
+      "name": "list_pending_approvals",
+      "title": "List Pending Approvals",
+      "risk": "low",
+      "approval": "never requires approval",
+      "sideEffects": "reads OpenBox backend approval rows",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    {
+      "name": "decide_approval",
+      "title": "Decide Approval",
+      "risk": "high",
+      "approval": "does not require a separate approval, but mutates an existing OpenBox approval decision",
+      "sideEffects": "approves or rejects a pending OpenBox approval row",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true
+    },
+    {
+      "name": "list_guardrails",
+      "title": "List Guardrails",
+      "risk": "low",
+      "approval": "never requires approval",
+      "sideEffects": "reads OpenBox backend guardrails",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    {
+      "name": "list_policies",
+      "title": "List Policies",
+      "risk": "low",
+      "approval": "never requires approval",
+      "sideEffects": "reads OpenBox backend policies",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    {
+      "name": "get_trust_score",
+      "title": "Get Trust Score",
+      "risk": "low",
+      "approval": "never requires approval",
+      "sideEffects": "reads one OpenBox backend agent trust snapshot",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    {
+      "name": "check_governance",
+      "title": "Check Governance",
+      "risk": "medium",
+      "approval": "may return require_approval and materialize a Core-owned approval row",
+      "sideEffects": "emits governance events and spans to OpenBox Core",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true
+    }
+  ],
+  "mcpPromptSurfaces": [
+    {
+      "name": "openbox_status",
+      "title": "OpenBox Status",
+      "description": "Check OpenBox backend, MCP, and host readiness.",
+      "args": [],
+      "instructions": "Call openbox_status and summarize connection health, fail-closed mode, approval mode, and host install readiness. Do not run shell commands."
+    },
+    {
+      "name": "pending_approvals",
+      "title": "Pending Approvals",
+      "description": "Review pending OpenBox approvals and request a human decision.",
+      "args": [],
+      "instructions": "Call list_pending_approvals, group pending rows by agent/source, and ask the user before calling decide_approval. Keep source attribution visible."
+    },
+    {
+      "name": "policy_review",
+      "title": "Policy Review",
+      "description": "Inspect policies and behavior rules for an agent.",
+      "args": [
+        {
+          "name": "agent_id",
+          "description": "OpenBox agent ID to review",
+          "required": true
+        }
+      ],
+      "instructions": "Call list_policies for the provided agent_id, then use policy/behavior-rule resources when specific records need detail. Explain that OPA/Rego and behavior-rule evaluation remain Core-owned."
+    },
+    {
+      "name": "governance_check",
+      "title": "Governance Check",
+      "description": "Evaluate a proposed action through OpenBox Core.",
+      "args": [
+        {
+          "name": "agent_id",
+          "description": "OpenBox agent ID used to resolve runtime API key when needed",
+          "required": false
+        },
+        {
+          "name": "span_type",
+          "description": "Span type such as llm, shell, http, db, file_read, file_write, file_delete, or mcp",
+          "required": true
+        },
+        {
+          "name": "activity_input",
+          "description": "JSON string containing the proposed action payload",
+          "required": true
+        }
+      ],
+      "instructions": "Call check_governance with span_type and parsed activity_input before advising execution. If the verdict is require_approval, halt and route the user to approval resolution."
+    },
+    {
+      "name": "guardrail_review",
+      "title": "Guardrail Review",
+      "description": "Inspect guardrails for an agent.",
+      "args": [
+        {
+          "name": "agent_id",
+          "description": "OpenBox agent ID to review",
+          "required": true
+        }
+      ],
+      "instructions": "Call list_guardrails for the provided agent_id and summarize stage coverage, redaction behavior, and any inactive or missing guardrails. Do not duplicate Core guardrail logic locally."
+    }
+  ],
+  "mcpResourceTemplateSurfaces": [
+    {
+      "name": "agent",
+      "title": "OpenBox Agent",
+      "uriTemplate": "openbox://agent/{agent_id}",
+      "description": "OpenBox agent details, trust score, and tier.",
+      "mimeType": "application/json"
+    },
+    {
+      "name": "guardrail",
+      "title": "OpenBox Guardrail",
+      "uriTemplate": "openbox://agent/{agent_id}/guardrail/{guardrail_id}",
+      "description": "OpenBox guardrail record for an agent.",
+      "mimeType": "application/json"
+    },
+    {
+      "name": "policy",
+      "title": "OpenBox Policy",
+      "uriTemplate": "openbox://agent/{agent_id}/policy/{policy_id}",
+      "description": "OpenBox OPA/Rego policy record for an agent.",
+      "mimeType": "application/json"
+    },
+    {
+      "name": "behavior-rule",
+      "title": "OpenBox Behavior Rule",
+      "uriTemplate": "openbox://agent/{agent_id}/behavior-rule/{behavior_rule_id}",
+      "description": "OpenBox behavior-rule record for an agent.",
+      "mimeType": "application/json"
+    },
+    {
+      "name": "approval",
+      "title": "OpenBox Approval",
+      "uriTemplate": "openbox://agent/{agent_id}/approval/{approval_id}",
+      "description": "OpenBox pending or historical approval record.",
+      "mimeType": "application/json"
+    },
+    {
+      "name": "skill-reference",
+      "title": "OpenBox Skill Reference",
+      "uriTemplate": "openbox://skill/{name}",
+      "description": "OpenBox skill reference markdown installed by host plugins.",
+      "mimeType": "text/markdown"
+    }
+  ],
+  "n8nIntegrationSurface": {
+    "credentials": [
+      {
+        "name": "OpenBox Credentials",
+        "id": "openboxCredentials",
+        "properties": [
+          "coreUrl",
+          "apiKey",
+          "apiUrl",
+          "backendApiKey",
+          "agentId"
+        ],
+        "reason": "Core governance requires a runtime API key; backend approval decisions optionally use backend credentials."
+      }
+    ],
+    "nodes": [
+      {
+        "name": "OpenBox Governance",
+        "id": "openboxGovernance",
+        "tier": "wrapped",
+        "description": "Runs prompt or node pre-execution governance through OpenBox Core."
+      },
+      {
+        "name": "OpenBox Guardrails",
+        "id": "openboxGuardrails",
+        "tier": "native",
+        "description": "Wraps n8n guardrail checks and emits OpenBox guardrail spans."
+      },
+      {
+        "name": "OpenBox Approval/HITL",
+        "id": "openboxApproval",
+        "tier": "native",
+        "description": "Pauses/resumes workflow execution through OpenBox approval rows."
+      },
+      {
+        "name": "OpenBox Governed AI Agent",
+        "id": "openboxGovernedAiAgent",
+        "tier": "wrapped",
+        "description": "Template node composition for a governed n8n AI Agent workflow."
+      }
+    ],
+    "workflowTemplates": [
+      {
+        "name": "OpenBox Governed AI Agent",
+        "id": "openbox-governed-ai-agent",
+        "nodes": [
+          "openboxGovernance",
+          "n8nAiAgent",
+          "openboxGuardrails",
+          "openboxApproval"
+        ],
+        "description": "Govern prompt, review tool calls, enforce guardrails, and resolve HITL approvals around an n8n AI Agent."
+      }
+    ],
+    "examples": [
+      {
+        "name": "AI Agent Tool Review",
+        "id": "ai-agent-tool-review",
+        "description": "Pre/post tool review around an n8n AI Agent tool call."
+      },
+      {
+        "name": "Guardrails Node Interop",
+        "id": "guardrails-node-interop",
+        "description": "OpenBox guardrail wrapper around the native n8n Guardrails node."
+      },
+      {
+        "name": "MCP Client Tool",
+        "id": "mcp-client-tool",
+        "description": "OpenBox-governed n8n MCP Client Tool invocation."
+      },
+      {
+        "name": "MCP Server Trigger",
+        "id": "mcp-server-trigger",
+        "description": "OpenBox-governed n8n MCP Server Trigger workflow entrypoint."
+      }
+    ]
+  }
+}

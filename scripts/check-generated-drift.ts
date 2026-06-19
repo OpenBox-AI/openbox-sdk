@@ -13,6 +13,7 @@ import { relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const GENERATED_ROOTS = ['specs/generated', 'python/openbox_sdk/generated'];
+const GENERATED_FILES = ['codegen/fixtures/provider-capabilities.json'];
 
 function run(command: string, args: string[], stdio: 'pipe' | 'inherit' = 'inherit'): string {
   const result = spawnSync(command, args, {
@@ -29,7 +30,16 @@ function run(command: string, args: string[], stdio: 'pipe' | 'inherit' = 'inher
 function trackedAndUntrackedFiles(): string[] {
   const out = run(
     'git',
-    ['ls-files', '-co', '--exclude-standard', '--', 'ts/src', 'specs/generated', 'python/openbox_sdk/generated'],
+    [
+      'ls-files',
+      '-co',
+      '--exclude-standard',
+      '--',
+      'ts/src',
+      'specs/generated',
+      'python/openbox_sdk/generated',
+      ...GENERATED_FILES,
+    ],
     'pipe',
   );
   return out
@@ -37,6 +47,7 @@ function trackedAndUntrackedFiles(): string[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .filter((file) => {
+      if (GENERATED_FILES.includes(file)) return true;
       if (GENERATED_ROOTS.some((root) => file.startsWith(`${root}/`))) return true;
       return file.startsWith('ts/src/') && file.includes('/generated/');
     })

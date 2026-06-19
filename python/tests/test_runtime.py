@@ -113,6 +113,13 @@ def _ts_array(file: Path, const_name: str) -> list[dict[str, Any]]:
     return value
 
 
+def _provider_capability_fixture() -> dict[str, Any]:
+    repo = Path(__file__).parents[2]
+    fixture = json.loads((repo / "codegen/fixtures/provider-capabilities.json").read_text())
+    assert isinstance(fixture, dict)
+    return cast(dict[str, Any], fixture)
+
+
 @pytest.mark.asyncio
 async def test_backend_client_auth_retry_unwrap_and_permission_preflight() -> None:
     requests: list[httpx.Request] = []
@@ -365,52 +372,35 @@ def test_generated_python_matches_typescript_manifests() -> None:
     assert hasattr(presets.langgraph, "node_start")
 
 
-def test_generated_python_matches_typescript_capability_matrix() -> None:
-    repo = Path(__file__).parents[2]
-    matrix_ts = repo / "ts/src/governance/generated/capability-matrix.ts"
+def test_generated_python_matches_typespec_capability_fixture() -> None:
+    fixture = _provider_capability_fixture()
 
-    assert OPENBOX_CAPABILITY_IDS == _ts_const(matrix_ts, "OPENBOX_CAPABILITY_IDS")
-    assert OPENBOX_PROVIDER_IDS == _ts_const(matrix_ts, "OPENBOX_PROVIDER_IDS")
-    assert OPENBOX_SUPPORT_TIERS == _ts_const(matrix_ts, "OPENBOX_SUPPORT_TIERS")
-    assert PROVIDER_CAPABILITY_MATRIX == _ts_const(matrix_ts, "PROVIDER_CAPABILITY_MATRIX")
-    assert PROVIDER_EVENT_CATALOG == _ts_const(matrix_ts, "PROVIDER_EVENT_CATALOG")
-    assert PROVIDER_PLUGIN_COMPONENTS == _ts_const(matrix_ts, "PROVIDER_PLUGIN_COMPONENTS")
-    assert PUBLIC_INTEGRATION_SUPPORT == _ts_const(matrix_ts, "PUBLIC_INTEGRATION_SUPPORT")
-    assert GOAL_SIGNAL_GUARDS == _ts_const(matrix_ts, "GOAL_SIGNAL_GUARDS")
-    assert USAGE_COST_CAPABILITY_GUARDS == _ts_const(
-        matrix_ts,
-        "USAGE_COST_CAPABILITY_GUARDS",
-    )
-    assert TRACING_CAPABILITY_GUARDS == _ts_const(matrix_ts, "TRACING_CAPABILITY_GUARDS")
-    assert HITL_CAPABILITY_GUARDS == _ts_const(matrix_ts, "HITL_CAPABILITY_GUARDS")
-    assert GUARDRAIL_CAPABILITY_GUARDS == _ts_const(
-        matrix_ts,
-        "GUARDRAIL_CAPABILITY_GUARDS",
-    )
-    assert POLICY_EVALUATION_GUARDS == _ts_const(matrix_ts, "POLICY_EVALUATION_GUARDS")
-    assert RULES_INSTRUCTION_CAPABILITY_GUARDS == _ts_const(
-        matrix_ts,
-        "RULES_INSTRUCTION_CAPABILITY_GUARDS",
-    )
-    assert HOOK_CAPABILITY_GUARDS == _ts_const(matrix_ts, "HOOK_CAPABILITY_GUARDS")
-    assert SUBAGENTS_AGENTS_CAPABILITY_GUARDS == _ts_const(
-        matrix_ts,
-        "SUBAGENTS_AGENTS_CAPABILITY_GUARDS",
-    )
-    assert PLUGIN_CAPABILITY_GUARDS == _ts_const(matrix_ts, "PLUGIN_CAPABILITY_GUARDS")
-    assert SKILL_CAPABILITY_GUARDS == _ts_const(matrix_ts, "SKILL_CAPABILITY_GUARDS")
-    assert MCP_CAPABILITY_GUARDS == _ts_const(matrix_ts, "MCP_CAPABILITY_GUARDS")
-    assert INSTALL_DOCTOR_CAPABILITY_GUARDS == _ts_const(
-        matrix_ts,
-        "INSTALL_DOCTOR_CAPABILITY_GUARDS",
-    )
-    assert MCP_TOOL_SURFACES == _ts_const(matrix_ts, "MCP_TOOL_SURFACES")
-    assert MCP_PROMPT_SURFACES == _ts_const(matrix_ts, "MCP_PROMPT_SURFACES")
-    assert MCP_RESOURCE_TEMPLATE_SURFACES == _ts_const(
-        matrix_ts,
-        "MCP_RESOURCE_TEMPLATE_SURFACES",
-    )
-    assert N8N_INTEGRATION_SURFACE == _ts_const(matrix_ts, "N8N_INTEGRATION_SURFACE")
+    assert fixture["generatedBy"] == "codegen/emitters/typespec-emitter"
+    assert fixture["source"] == "specs/typespec/govern/capabilities.tsp"
+    assert OPENBOX_CAPABILITY_IDS == fixture["capabilityIds"]
+    assert OPENBOX_PROVIDER_IDS == fixture["providerIds"]
+    assert OPENBOX_SUPPORT_TIERS == fixture["supportTiers"]
+    assert PROVIDER_CAPABILITY_MATRIX == fixture["providerCapabilityMatrix"]
+    assert PROVIDER_EVENT_CATALOG == fixture["providerEventCatalog"]
+    assert PROVIDER_PLUGIN_COMPONENTS == fixture["providerPluginComponents"]
+    assert PUBLIC_INTEGRATION_SUPPORT == fixture["publicIntegrationSupport"]
+    assert GOAL_SIGNAL_GUARDS == fixture["goalSignalGuards"]
+    assert USAGE_COST_CAPABILITY_GUARDS == fixture["usageCostCapabilityGuards"]
+    assert TRACING_CAPABILITY_GUARDS == fixture["tracingCapabilityGuards"]
+    assert HITL_CAPABILITY_GUARDS == fixture["hitlCapabilityGuards"]
+    assert GUARDRAIL_CAPABILITY_GUARDS == fixture["guardrailCapabilityGuards"]
+    assert POLICY_EVALUATION_GUARDS == fixture["policyEvaluationGuards"]
+    assert RULES_INSTRUCTION_CAPABILITY_GUARDS == fixture["rulesInstructionCapabilityGuards"]
+    assert HOOK_CAPABILITY_GUARDS == fixture["hookCapabilityGuards"]
+    assert SUBAGENTS_AGENTS_CAPABILITY_GUARDS == fixture["subagentsAgentsCapabilityGuards"]
+    assert PLUGIN_CAPABILITY_GUARDS == fixture["pluginCapabilityGuards"]
+    assert SKILL_CAPABILITY_GUARDS == fixture["skillCapabilityGuards"]
+    assert MCP_CAPABILITY_GUARDS == fixture["mcpCapabilityGuards"]
+    assert INSTALL_DOCTOR_CAPABILITY_GUARDS == fixture["installDoctorCapabilityGuards"]
+    assert MCP_TOOL_SURFACES == fixture["mcpToolSurfaces"]
+    assert MCP_PROMPT_SURFACES == fixture["mcpPromptSurfaces"]
+    assert MCP_RESOURCE_TEMPLATE_SURFACES == fixture["mcpResourceTemplateSurfaces"]
+    assert N8N_INTEGRATION_SURFACE == fixture["n8nIntegrationSurface"]
 
 
 @pytest.mark.asyncio
