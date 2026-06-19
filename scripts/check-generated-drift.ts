@@ -58,7 +58,6 @@ const beforeFiles = trackedAndUntrackedFiles();
 const before = snapshot(beforeFiles);
 
 run('npm', ['run', 'specs:compile']);
-run('npm', ['run', 'generate:types']);
 
 const afterFiles = trackedAndUntrackedFiles();
 const allFiles = [...new Set([...beforeFiles, ...afterFiles])].sort();

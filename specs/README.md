@@ -13,8 +13,8 @@ SDK tracks.
 
 ```bash
 npm run specs:compile      # tsp compile specs/typespec
-npm run generate:types     # openapi-typescript on the emitted OpenAPI
-npm run specs:all          # build:codegen + specs:compile + generate:types
+npm run generate:sdks      # generic alias for specs:compile
+npm run specs:all          # build:codegen + specs:compile
 ```
 
 The OpenBox emitter under

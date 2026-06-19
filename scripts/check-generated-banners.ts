@@ -17,12 +17,9 @@ import { join, relative } from 'path';
 const repoRoot = process.cwd();
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'specs/generated']);
-// Accept either our codegen banner or the third-party
-// openapi-typescript banner; both forms mark a file as generated.
 const BANNER_PREFIXES = [
   '// AUTO-GENERATED',
   '# AUTO-GENERATED',
-  '/**\n * This file was auto-generated',
 ];
 const README = 'README.md';
 

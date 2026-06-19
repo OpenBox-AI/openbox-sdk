@@ -159,7 +159,7 @@
   "scripts": {
     "build:codegen": "npm run build -w typespec-env -w typespec-cli -w typespec-workflow -w typespec-emitter",
     "build:bundle": "tsup && node --experimental-strip-types scripts/sync-runtime-assets.ts",
-    "build": "npm run build:codegen && npm run specs:compile && npm run generate:types && npm run build:bundle",
+    "build": "npm run build:codegen && npm run specs:compile && npm run build:bundle",
     "prepublishOnly": "npm run build",
     "clean": "rm -rf dist dist-pack codegen/**/dist codegen/**/tsconfig.tsbuildinfo specs/generated apps/extension/dist apps/extension/openbox-*.vsix && npm run clean:generated",
     "clean:generated": "find ts/src -path '*/generated/*.ts' -type f -delete && find ts/src -path '*/generated/*.d.ts' -type f -delete && rm -rf specs/generated python/openbox_sdk/generated",
@@ -170,12 +170,9 @@
     "test:unit": "vitest run --project unit",
     "test:contract": "vitest run --project contract",
     "test:hook-integration": "vitest run --project hook-integration",
-    "generate:types:backend": "openapi-typescript specs/generated/openapi3/OpenboxBackend.json -o ts/src/types/generated/backend.ts",
-    "generate:types:core": "openapi-typescript specs/generated/openapi3/OpenboxCore.json    -o ts/src/types/generated/core.ts",
-    "generate:types": "npm run generate:types:backend && npm run generate:types:core",
     "generate:sdks": "npm run specs:compile",
     "specs:compile": "tsp compile specs/typespec",
-    "specs:all": "npm run build:codegen && npm run specs:compile && npm run generate:types",
+    "specs:all": "npm run build:codegen && npm run specs:compile",
     "specs:watch": "tsp compile specs/typespec --watch",
     "lint:generated-banners": "node --experimental-strip-types scripts/check-generated-banners.ts",
     "audit:security": "node scripts/security-audit.mjs"

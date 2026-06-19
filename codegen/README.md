@@ -21,10 +21,8 @@ under `specs/generated/openapi3/`.
 ## How a code change flows
 
 1. Edit a `.tsp` file in `specs/typespec/`.
-2. Run `npm run specs:all`. TypeSpec compiles, the OpenBox emitter writes
-   TypeScript and Python generated SDK artifacts, and
-   `openapi-typescript` regenerates `ts/src/types/generated/backend.ts`
-   and `ts/src/types/generated/core.ts` from the emitted OpenAPI3.
+2. Run `npm run specs:all`. TypeSpec compiles, and the OpenBox emitter writes
+   TypeScript, Python, and wire-type SDK artifacts from the same contract.
 3. Run `npm run check:generated-drift` to assert every generated path
    is committed. Catches "I forgot to regen and commit".
 4. Run `npm test`. Vitest snapshot tests catch unintended emitter
@@ -86,8 +84,8 @@ No → hand-code.
 |---|---|---|---|
 | `ts/src/env` | `specs/typespec/env/main.tsp` | `RuntimeConfig`, `Credentials`, `TokenEntry`, `TokenStore`, `ConnectionLoader`, `TokenCodec`, `ClientNameResolver`, `ENV_VAR_BINDINGS`, `validateApiKeyFormat`, `OS_PATH_FIELDS`, `CLIENT_VARIANT_PATTERN` | `connection.ts`, `token-codec.ts`, and `client-name.ts` annotate every export with `ConnectionLoader['x']`, `TokenCodec['x']`, or `ClientNameResolver['x']`, so TypeScript catches signature drift at compile time |
 | `ts/src/cli` | `specs/typespec/cli/main.tsp` | `CLI_COMMAND_MANIFEST` and `CliCommandManifest`, plus per-command flag and permission tables | `commands/<name>.ts` handlers walk the manifest for permissions and structure; the action body is hand-coded |
-| `ts/src/client` | `specs/typespec/backend/main.tsp` | Types via `openapi-typescript` to `ts/src/types/generated/backend.ts`; method coverage via `client/generated/endpoint-manifest.ts` | Every method MUST use `Backend.paths['/...']['<verb>']` row types from `@openbox-ai/openbox-sdk/types`. `tests/unit/endpoint-coverage.test.ts` walks the manifest and fails if any entry lacks a wrapper |
-| `ts/src/core-client` | `specs/typespec/core/main.tsp`, `specs/typespec/govern/main.tsp`, `specs/typespec/govern/adapters.tsp` | Wire types via `openapi-typescript` to `ts/src/types/generated/core.ts`; `CORE_ENDPOINT_MANIFEST`; full `govern.ts` with `BaseGovernedSession`, 22 preset Session classes, and the `govern()` helper; per-adapter runtime modules under `generated/runtime/` | Same wrapper rule as `client`. Verdict arms come from the `govern/main.tsp` `VerdictArm` enum. The `runtime/<platform>/index.ts` files re-export the spec-emitted adapter primitive plus platform-specific install scripts |
+| `ts/src/client` | `specs/typespec/backend/main.tsp` | Wire types at `ts/src/types/generated/backend.ts`; method coverage via `client/generated/endpoint-manifest.ts` | Every method MUST use `Backend.paths['/...']['<verb>']` row types from `@openbox-ai/openbox-sdk/types`. `tests/unit/endpoint-coverage.test.ts` walks the manifest and fails if any entry lacks a wrapper |
+| `ts/src/core-client` | `specs/typespec/core/main.tsp`, `specs/typespec/govern/main.tsp`, `specs/typespec/govern/adapters.tsp` | Wire types at `ts/src/types/generated/core.ts`; `CORE_ENDPOINT_MANIFEST`; full `govern.ts` with `BaseGovernedSession`, 22 preset Session classes, and the `govern()` helper; per-adapter runtime modules under `generated/runtime/` | Same wrapper rule as `client`. Verdict arms come from the `govern/main.tsp` `VerdictArm` enum. The `runtime/<platform>/index.ts` files re-export the spec-emitted adapter primitive plus platform-specific install scripts |
 | `ts/src/types` | Both OpenAPI specs | `backend.ts` and `core.ts`, entirely generated | No hand-written code in this package |
 
 ## Adding a new SDK target

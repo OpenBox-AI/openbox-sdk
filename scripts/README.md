@@ -6,9 +6,8 @@ canonical TypeSpec contract.
 
 ## Emitter-Owned
 
-- `check:generated-drift` reruns the TypeSpec compiler and OpenAPI type
-  generation, then checks generated TypeScript, Python, and OpenAPI artifacts
-  for drift.
+- `check:generated-drift` reruns the TypeSpec compiler, then checks generated
+  TypeScript, Python, OpenAPI, and JSON Schema artifacts for drift.
 - `generate:sdks` is the generic SDK artifact generation command; it delegates
   to `npm run specs:compile`, where the OpenBox TypeSpec emitter writes every
   generated SDK artifact for every language target.

@@ -12,6 +12,7 @@
 
 import { readFileSync, writeFileSync } from 'fs';
 import { Project, IndentationText, NewLineKind, QuoteKind } from 'ts-morph';
+import openapiTS, { astToString } from 'openapi-typescript';
 import type {
   EmitContext,
   Interface,
@@ -76,6 +77,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitProviderCapabilities(program, project, repoRoot);
   emitPythonSdk(program, repoRoot);
   emitAdapters(program, project, repoRoot);
+  await emitOpenApiWireTypes(repoRoot);
   emitWrapperMethods(program, project, repoRoot, {
     namespaceName: 'OpenboxBackend',
     outRel: 'ts/src/client/generated/wrapper-methods.ts',
@@ -102,6 +104,8 @@ export async function $onEmit(context: EmitContext): Promise<void> {
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'claude-code.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'codex.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'cursor.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'types', 'generated', 'backend.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'types', 'generated', 'core.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'env', 'generated', 'env-bindings.ts'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', '__init__.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'backend_client.py'),
@@ -122,6 +126,31 @@ function trimTrailingBlankLines(filePaths: string[]): void {
       writeFileSync(filePath, trimmed);
     }
   }
+}
+
+async function emitOpenApiWireTypes(repoRoot: string): Promise<void> {
+  await emitOpenApiWireType(
+    repoRoot,
+    'specs/generated/openapi3/OpenboxBackend.json',
+    'ts/src/types/generated/backend.ts',
+  );
+  await emitOpenApiWireType(
+    repoRoot,
+    'specs/generated/openapi3/OpenboxCore.json',
+    'ts/src/types/generated/core.ts',
+  );
+}
+
+async function emitOpenApiWireType(
+  repoRoot: string,
+  openApiRel: string,
+  outRel: string,
+): Promise<void> {
+  const openApi = JSON.parse(readFileSync(resolvePath(repoRoot, openApiRel), 'utf8'));
+  const ast = await openapiTS(openApi, {
+    cwd: repoRoot,
+  });
+  writeFileSync(resolvePath(repoRoot, outRel), `${BANNER}${astToString(ast).trimEnd()}\n`);
 }
 
 // ---------------------------------------------------------------------------
@@ -254,8 +283,8 @@ function wrapperMethodFor(op: HttpOp): WrapperMethodSpec | null {
       pathParams.push({ name: p.name, tsType: tspTypeToTs(p.param.type) });
     } else if (p.type === 'query') {
       // Multiple query params get flattened by callers via a single options
-      // bag; surface as `Record<string, unknown>` for now (the openapi-typescript
-      // -typed helpers in the hand-written wrapper coerce it back to the right shape).
+      // bag; surface as `Record<string, unknown>` for now (the generated
+      // wire-type helpers in the hand-written wrapper coerce it back to the right shape).
       queryParam = { name: 'query', tsType: 'Record<string, unknown>' };
     }
   }
@@ -318,14 +347,14 @@ function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSp
 
   const lines: string[] = [];
 
-  // Import the openapi-typescript output once at the top so every
+  // Import the generated wire-type output once at the top so every
   // method's response type can be expressed via indexed access:
   //
   //   Backend.paths['/auth/profile']['get']['responses']['200']['content']['application/json']
   //
   // This sidesteps the "PaginatedResponse<T> inlining" problem; we
   // never need a named alias for the generic instantiation; the
-  // openapi-typescript path object already has the structural type.
+  // generated path object already has the structural type.
   lines.push(`import type { ${opts.pathsAlias} } from '${opts.pathsImport}';`);
   lines.push('');
 
@@ -419,7 +448,7 @@ function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSp
 
   // Path -> verb -> argument shape derived from `paths`. Each
   // method below references these via indexed access so changes to
-  // the spec flow through openapi-typescript regen automatically.
+  // the spec flow through TypeSpec emitter regen automatically.
   lines.push(`type Paths = ${opts.pathsAlias}.paths;`);
   lines.push(`type RequestBodyOf<P extends keyof Paths, V extends keyof Paths[P]> =`);
   lines.push(
@@ -520,10 +549,10 @@ function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSp
     if (!helper) continue;
 
     // Build the literal-string `paths[<path>][<verb>]` lookup keys.
-    // openapi-typescript emits paths like `'/agent/list'` and verbs
+    // The emitted wire types key paths like `'/agent/list'` and verbs
     // as `'get' | 'post' | ...` keys. We use the *path with
-    // placeholders*, such as `/agent/{agentId}`. That is what
-    // openapi-typescript keys by, not the runtime-substituted form.
+    // placeholders*, such as `/agent/{agentId}`, because those types
+    // are keyed by the spec path, not the runtime-substituted form.
     const pathLiteral = JSON.stringify(method.pathTemplate.replace(/\$\{[^}]+\}/g, (_, n) => '{' + n + '}'));
     // Recover the original `{x}` form from the `${x}` template.
     // Actually pathTemplate started as `${x}` so we need to convert back.
