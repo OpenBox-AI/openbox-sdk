@@ -372,11 +372,52 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
     await span_session.observe_activity(
         "ActivityStarted",
         "ToolStarted",
-        {"activity_id": "act_1", "spans": [{"stage": "started", "name": "http"}]},
+        {
+            "activity_id": "act_1",
+            "spans": [
+                {
+                    "stage": "started",
+                    "semantic_type": "http_get",
+                    "attributes": {"url.full": "https://example.com"},
+                }
+            ],
+        },
     )
-    assert span_core.events[-2].get("spans") is None
+    assert span_core.events[-2]["hook_trigger"] is False
+    assert "spans" not in span_core.events[-2]
+    assert "span_count" not in span_core.events[-2]
     assert span_core.events[-1]["hook_trigger"] is True
+    assert span_core.events[-1]["span_count"] == 1
     assert span_core.events[-1]["activity_id"] == "act_1"
+    assert span_core.events[-1]["spans"][0]["activity_id"] == "act_1"
+    assert span_core.events[-1]["spans"][0]["attributes"]["http.url"] == "https://example.com"
+
+    handle = await span_session.open_activity(
+        "ToolStarted",
+        {
+            "activity_id": "act_2",
+            "spans": [{"stage": "started", "semantic_type": "internal"}],
+        },
+    )
+    await handle.complete({"spans": [{"stage": "completed", "semantic_type": "internal"}]})
+    completed_parent = next(
+        event
+        for event in span_core.events
+        if event.get("activity_id") == "act_2"
+        and event["event_type"] == "ActivityCompleted"
+        and event["hook_trigger"] is False
+    )
+    completed_hook = next(
+        event
+        for event in span_core.events
+        if event.get("activity_id") == "act_2"
+        and event["event_type"] == "ActivityStarted"
+        and event["hook_trigger"] is True
+        and event["spans"][0]["stage"] == "completed"
+    )
+    assert "spans" not in completed_parent
+    assert "span_count" not in completed_parent
+    assert completed_hook["span_count"] == 1
 
     attached = govern.attach(
         {"core": FakeCore(), "preset": presets.default, "workflow_id": "w", "run_id": "r"}
@@ -450,6 +491,14 @@ async def test_govern_runtime_edge_paths() -> None:
     )
     assert guardrail["arm"] == "block"
     assert guardrail["reason"] == "bad"
+    assert map_verdict({"verdict": 2})["arm"] == "require_approval"
+    assert map_verdict({"guardrails_result": {}})["guardrailsResult"] is None
+    assert (
+        map_verdict({"guardrails_result": {"input_type": "activity_input"}})["guardrailsResult"][
+            "validationPassed"
+        ]
+        is True
+    )
 
 
 @pytest.mark.asyncio
@@ -472,6 +521,49 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
     assert result == {"handled": "lookup"}
     model_result = await middleware.wrap_model_call({"run_id": "model-1"}, lambda _req: "answer")
     assert model_result == "answer"
+
+    approval_core = FakeCore(
+        evals=[
+            {"verdict": "allow"},
+            {
+                "verdict": "require_approval",
+                "approval_id": "appr-lg",
+                "approval_expiration_time": _future_iso(),
+            }
+        ],
+        approvals=[{"action": "allow", "approval_expiration_time": _future_iso()}],
+    )
+    approval_middleware = OpenBoxLangGraphMiddleware(
+        core=approval_core,
+        workflow_id="aw",
+        run_id="ar",
+    )
+    assert await approval_middleware.wrap_tool_call(
+        {"id": "tool-approval", "name": "lookup"},
+        handler,
+    ) == {"handled": "lookup"}
+    assert approval_core.polls == [
+        {"workflow_id": "aw", "run_id": "ar", "activity_id": "tool-approval"}
+    ]
+
+    blocked_core = FakeCore(evals=[{"verdict": "allow"}, {"verdict": "block", "reason": "denied"}])
+    blocked_middleware = OpenBoxLangGraphMiddleware(
+        core=blocked_core,
+        workflow_id="bw",
+        run_id="br",
+    )
+    called = False
+
+    async def blocked_handler(_request: Mapping[str, Any]) -> None:
+        nonlocal called
+        called = True
+
+    with pytest.raises(RuntimeError, match="denied"):
+        await blocked_middleware.wrap_tool_call(
+            {"id": "tool-blocked", "name": "lookup"},
+            blocked_handler,
+        )
+    assert called is False
 
     async def failing_handler(_request: Mapping[str, Any]) -> None:
         raise RuntimeError("tool failed")
