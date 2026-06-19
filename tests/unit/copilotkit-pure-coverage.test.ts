@@ -19,6 +19,8 @@ import {
 import { verdictFromResult } from '../../ts/src/copilotkit/react-governance-decision.ts';
 import { createOpenBoxCustomMessageRenderer } from '../../ts/src/copilotkit/react-custom-message-renderer.ts';
 
+const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
+
 function withEnv<T>(
   values: Record<string, string | undefined>,
   run: () => T,
@@ -47,7 +49,7 @@ describe('CopilotKit pure utility coverage', () => {
         OPENBOX_API_KEY: 'obx_test_from_env',
         OPENBOX_BACKEND_API_KEY: 'obx_key_from_env',
         OPENBOX_AGENT_DID: 'did:aip:550e8400-e29b-41d4-a716-446655440001',
-        OPENBOX_AGENT_PRIVATE_KEY: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
+        OPENBOX_AGENT_PRIVATE_KEY: FAKE_AGENT_PRIVATE_KEY,
       },
       () => {
         expect(getRuntimeApiKey({})).toBe('obx_test_from_env');
@@ -60,18 +62,18 @@ describe('CopilotKit pure utility coverage', () => {
         );
         expect(getAgentIdentity({})).toEqual({
           did: 'did:aip:550e8400-e29b-41d4-a716-446655440001',
-          privateKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
+          privateKey: FAKE_AGENT_PRIVATE_KEY,
         });
         expect(
           getAgentIdentity({
             agentIdentity: {
               did: 'did:aip:550e8400-e29b-41d4-a716-446655440002',
-              privateKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
+              privateKey: FAKE_AGENT_PRIVATE_KEY,
             },
           }),
         ).toEqual({
           did: 'did:aip:550e8400-e29b-41d4-a716-446655440002',
-          privateKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
+          privateKey: FAKE_AGENT_PRIVATE_KEY,
         });
       },
     );
@@ -126,7 +128,7 @@ describe('CopilotKit pure utility coverage', () => {
         expect(second).toBe(first);
 
         process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440003';
-        process.env.OPENBOX_AGENT_PRIVATE_KEY = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
+        process.env.OPENBOX_AGENT_PRIVATE_KEY = FAKE_AGENT_PRIVATE_KEY;
         const third = resolver();
         expect(third).not.toBe(first);
       },

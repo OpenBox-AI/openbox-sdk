@@ -16,6 +16,8 @@ import {
 } from '../../ts/src/copilotkit/react';
 import type { GovernanceEventPayload } from '../../ts/src/core-client/index';
 
+const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
+
 type DemoInput = OpenBoxCopilotActionInput & {
   action: 'demo_action';
   request: string;
@@ -328,13 +330,13 @@ describe('CopilotKit OpenBox adapter', () => {
     process.env.OPENBOX_API_KEY = 'obx_test_runtime';
     process.env.OPENBOX_CORE_URL = 'http://127.0.0.1:8086';
     process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
-    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = FAKE_AGENT_PRIVATE_KEY;
 
     try {
       const client = createOpenBoxCopilotKitAdapter().getCoreClient() as any;
       expect(client.config.agentIdentity).toEqual({
         did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
-        privateKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
+        privateKey: FAKE_AGENT_PRIVATE_KEY,
       });
     } finally {
       restoreEnv(previous);

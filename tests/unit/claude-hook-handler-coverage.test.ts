@@ -5,6 +5,7 @@ let coreClientOptions: any;
 let stdinIteratorSpy: any;
 let mockHitlMaxWait = 2;
 let mockApprovalMode: 'remote' | 'inline' | 'defer' = 'remote';
+const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
 
 vi.mock('../../ts/src/cli/env-source.js', () => ({
   applyEnvSource: vi.fn(),
@@ -187,7 +188,7 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
 
   it('passes signed agent identity through to the Core client', async () => {
     process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
-    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = FAKE_AGENT_PRIVATE_KEY;
     mockHookStdin();
     const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
 
@@ -195,7 +196,7 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
 
     expect(coreClientOptions?.agentIdentity).toEqual({
       did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
-      privateKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
+      privateKey: FAKE_AGENT_PRIVATE_KEY,
     });
   });
 

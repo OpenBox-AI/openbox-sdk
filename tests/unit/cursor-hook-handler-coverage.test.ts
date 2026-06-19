@@ -12,6 +12,7 @@ let socketTimesOut = false;
 let socketCloseThrows = false;
 let validateApiKeyFails = false;
 const socketEvents: any[] = [];
+const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
 
 vi.mock('../../ts/src/cli/env-source.js', () => ({
   applyEnvSource: vi.fn(),
@@ -227,14 +228,14 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
 
   it('passes signed agent identity through to the Core client', async () => {
     process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
-    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = FAKE_AGENT_PRIVATE_KEY;
     const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
 
     await runCursorHook();
 
     expect(coreClientOptions?.agentIdentity).toEqual({
       did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
-      privateKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
+      privateKey: FAKE_AGENT_PRIVATE_KEY,
     });
   });
 

@@ -19,6 +19,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 let dir: string;
+const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'openbox-final-2-'));
 });
@@ -328,7 +329,7 @@ describe('runtime configs; env precedence + defaults', () => {
     process.env.OPENBOX_API_KEY = 'obx_live_envtest';
     process.env.OPENBOX_CORE_URL = 'http://localhost:9999';
     process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
-    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = FAKE_AGENT_PRIVATE_KEY;
     process.env[movedRuntimeSettingKey('VER', 'BOSE')] = 'false';
     process.env[movedRuntimeSettingKey('HITL_', 'ENABLED')] = 'true';
     process.env[movedRuntimeSettingKey('HITL_', 'MAX_WAIT')] = '999';
@@ -343,7 +344,7 @@ describe('runtime configs; env precedence + defaults', () => {
       expect(cfg.verbose).toBe(true);
       expect(cfg.agentIdentity).toEqual({
         did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
-        privateKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
+        privateKey: FAKE_AGENT_PRIVATE_KEY,
       });
     } finally {
       process.chdir(beforeCwd);

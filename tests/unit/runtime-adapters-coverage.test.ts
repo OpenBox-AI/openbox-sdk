@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 let dir: string;
+const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'openbox-runtime-cov-'));
 });
@@ -62,7 +63,7 @@ describe('runtime/claude-code/config', () => {
     process.env.OPENBOX_API_KEY = 'obx_live_test_x';
     process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
     process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
-    process.env.OPENBOX_AGENT_PRIVATE_KEY = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
+    process.env.OPENBOX_AGENT_PRIVATE_KEY = FAKE_AGENT_PRIVATE_KEY;
     // Force re-import so config picks up our env state at module-load time.
     const mod = await import('../../ts/src/runtime/claude-code/config');
     const cfg = mod.loadConfig();
@@ -70,7 +71,7 @@ describe('runtime/claude-code/config', () => {
     expect(cfg.openboxEndpoint).toBe('http://localhost:8086');
     expect(cfg.agentIdentity).toEqual({
       did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
-      privateKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
+      privateKey: FAKE_AGENT_PRIVATE_KEY,
     });
     delete process.env.OPENBOX_API_KEY;
     delete process.env.OPENBOX_CORE_URL;
