@@ -26,6 +26,7 @@ import {
   PROVIDER_PLUGIN_COMPONENTS,
   PUBLIC_INTEGRATION_SUPPORT,
   RULES_INSTRUCTION_CAPABILITY_GUARDS,
+  SKILL_CAPABILITY_GUARDS,
   TRACING_CAPABILITY_GUARDS,
   USAGE_COST_CAPABILITY_GUARDS,
   type OpenBoxProviderId,
@@ -269,6 +270,51 @@ describe('provider capability matrix', () => {
       expect(guard.toolResourcePromptCoverage, `${guard.provider} toolResourcePromptCoverage`).toMatch(/MCP|mcp/);
       expect(guard.hostBoundary, `${guard.provider} hostBoundary`).toContain('Core');
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+    }
+  });
+
+  it('pins skill support claims to explicit skill surface coverage', () => {
+    const skillCapabilityProviders = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) => entry.capability === 'skills')
+      .map((entry) => entry.provider)
+      .sort();
+    const guardProviders = SKILL_CAPABILITY_GUARDS
+      .map((entry) => entry.provider)
+      .sort();
+
+    expect(guardProviders).toEqual(skillCapabilityProviders);
+    expect(new Set(guardProviders).size).toBe(guardProviders.length);
+
+    const tierByProvider = new Map(
+      PROVIDER_CAPABILITY_MATRIX
+        .filter((entry) => entry.capability === 'skills')
+        .map((entry) => [entry.provider, entry.tier]),
+    );
+    const pluginComponentsByProvider = new Map(
+      PROVIDER_PLUGIN_COMPONENTS.map((entry) => [entry.provider, entry.components]),
+    );
+    const mcpSkillResource = MCP_RESOURCE_TEMPLATE_SURFACES.find((entry) => entry.name === 'skill-reference');
+
+    for (const guard of SKILL_CAPABILITY_GUARDS) {
+      expect(guard.tier, `${guard.provider} tier`).toBe(tierByProvider.get(guard.provider));
+      expect(guard.skillSurface.length, `${guard.provider} skillSurface`).toBeGreaterThan(30);
+      expect(guard.installSurface.length, `${guard.provider} installSurface`).toBeGreaterThan(20);
+      expect(guard.discoverySurface.length, `${guard.provider} discoverySurface`).toBeGreaterThan(20);
+      expect(guard.hostBoundary, `${guard.provider} hostBoundary`).toMatch(/Core\/backend|Out-of-scope/);
+      expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+
+      if (guard.tier === 'native' && guard.provider !== 'mcp') {
+        expect(guard.skillSurface, `${guard.provider} skillSurface`).toContain('SKILL.md');
+        expect(pluginComponentsByProvider.get(guard.provider)?.map((entry) => entry.name)).toContain('skills');
+      } else if (guard.provider === 'mcp') {
+        expect(mcpSkillResource).toMatchObject({
+          name: 'skill-reference',
+          uriTemplate: 'openbox://skill/{name}',
+        });
+      } else {
+        expect(guard.installSurface, `${guard.provider} installSurface`).toMatch(/No skill installation/);
+        expect(guard.hostBoundary, `${guard.provider} hostBoundary`).toContain('Out-of-scope');
+      }
     }
   });
 
