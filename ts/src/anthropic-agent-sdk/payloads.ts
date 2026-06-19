@@ -5,12 +5,12 @@ import { stampSource } from '../approvals/source.js';
 import {
   buildLLMCompletionSpan,
   buildSpan,
-  llmTokenUsageFromRecord,
   withOpenBoxActivityMetadata,
   withOpenBoxSubagentActivityMetadata,
   type LLMTokenUsage,
   type SpanType,
 } from '../governance/spans.js';
+import { normalizeOpenBoxUsage } from '../governance/usage.js';
 import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
@@ -214,7 +214,7 @@ export function assistantContentAndUsage(
   return {
     content: textFromContent(apiMessage.content),
     model: apiMessage.model,
-    usage: usageFrom(apiMessage.usage),
+    usage: normalizeOpenBoxUsage(apiMessage.usage)?.raw,
     hasToolCalls: hasToolCallsFromContent(apiMessage.content),
   };
 }
@@ -238,11 +238,14 @@ export function usagePayloadFromResult(
 
 export function modelUsageSpansFromResult(message: SDKResultMessage): SpanData[] {
   const entries = Object.entries(objectRecord(message.modelUsage))
-    .map(([model, usage]) => ({
-      model: model.trim(),
-      usage: usageFrom(usage),
-      costUsd: numberFrom(objectRecord(usage).costUSD),
-    }))
+    .map(([model, usage]) => {
+      const normalizedUsage = normalizeOpenBoxUsage(usage);
+      return {
+        model: model.trim(),
+        usage: normalizedUsage?.raw,
+        costUsd: normalizedUsage?.costUsd,
+      };
+    })
     .filter(
       (
         entry,
@@ -288,7 +291,7 @@ export function resultAssistantOutput(
   return {
     content: message.subtype === 'success' ? message.result : undefined,
     model: singleResultModel(message.modelUsage),
-    usage: usageFrom(message.usage),
+    usage: normalizeOpenBoxUsage(message.usage)?.raw,
     hasToolCalls: false,
   };
 }
@@ -409,26 +412,10 @@ function hasToolCallsFromContent(value: unknown): boolean {
   });
 }
 
-function usageFrom(value: unknown): LLMTokenUsage | undefined {
-  return llmTokenUsageFromRecord(value);
-}
-
 function singleResultModel(value: unknown): string | undefined {
   const record = objectRecord(value);
   const models = Object.keys(record).filter((key) => key.trim());
   return models.length === 1 ? models[0] : undefined;
-}
-
-function numberFrom(value: unknown): number | undefined {
-  const numberValue =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string' && value.trim() !== ''
-        ? Number(value)
-        : undefined;
-  return numberValue !== undefined && Number.isFinite(numberValue)
-    ? numberValue
-    : undefined;
 }
 
 function stringFrom(value: unknown): string | undefined {
