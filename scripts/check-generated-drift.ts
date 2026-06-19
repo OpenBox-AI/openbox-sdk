@@ -12,7 +12,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const GENERATED_ROOTS = ['specs/generated'];
+const GENERATED_ROOTS = ['specs/generated', 'python/openbox_sdk/generated'];
 
 function run(command: string, args: string[], stdio: 'pipe' | 'inherit' = 'inherit'): string {
   const result = spawnSync(command, args, {
@@ -29,7 +29,7 @@ function run(command: string, args: string[], stdio: 'pipe' | 'inherit' = 'inher
 function trackedAndUntrackedFiles(): string[] {
   const out = run(
     'git',
-    ['ls-files', '-co', '--exclude-standard', '--', 'ts/src', 'specs/generated'],
+    ['ls-files', '-co', '--exclude-standard', '--', 'ts/src', 'specs/generated', 'python/openbox_sdk/generated'],
     'pipe',
   );
   return out

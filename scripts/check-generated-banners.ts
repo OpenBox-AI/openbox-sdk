@@ -21,6 +21,7 @@ const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'specs/generated']);
 // openapi-typescript banner; both forms mark a file as generated.
 const BANNER_PREFIXES = [
   '// AUTO-GENERATED',
+  '# AUTO-GENERATED',
   '/**\n * This file was auto-generated',
 ];
 const README = 'README.md';
