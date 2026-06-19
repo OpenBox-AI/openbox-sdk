@@ -36,6 +36,7 @@ import {
   summarizeClaudeCodeChecks,
   verifyClaudeCodeInstall,
 } from "../claude-code/doctor.js";
+import { verifyCodexInstall } from "../codex/install.js";
 import { buildMcpGovernanceSpan, MCP_ACTIVITY_TYPE_MAP } from "./governance-span.js";
 import { claudeCodeGovernanceSummary } from "../claude-code/governance-matrix.js";
 import { EVENT } from "../../governance/events.js";
@@ -199,6 +200,16 @@ export async function runMcpServer(options: RunMcpServerOptions = {}): Promise<v
     };
   }
 
+  function summarizeChecks(checks: Array<{ status: "pass" | "skip" | "fail" }>) {
+    return checks.reduce(
+      (acc, check) => {
+        acc[check.status] += 1;
+        return acc;
+      },
+      { pass: 0, skip: 0, fail: 0 } as Record<"pass" | "skip" | "fail", number>,
+    );
+  }
+
   function registerOpenBoxTool(
     name: string,
     description: string,
@@ -320,14 +331,30 @@ registerOpenBoxTool("cursor_doctor", "Verify installed Cursor/OpenBox surfaces a
         includeRuntime: true,
         validateRuntime: validate_core !== false,
       });
-  const summary = checks.reduce(
-    (acc, check) => {
-      acc[check.status] += 1;
-      return acc;
-    },
-    { pass: 0, skip: 0, fail: 0 } as Record<"pass" | "skip" | "fail", number>,
-  );
+  const summary = summarizeChecks(checks);
   return { content: [{ type: "text", text: JSON.stringify({ checks, summary }, null, 2) }] };
+});
+
+registerOpenBoxTool("codex_doctor", "Verify installed Codex/OpenBox hook surfaces and runtime readiness without requiring Codex chat to run shell commands", {
+  cwd: z.string().optional().describe("Project root for project-local install."),
+  surface_only: z.boolean().optional().describe("When true, skip runtime key/core validation and only inspect installed files."),
+  validate_core: z.boolean().optional().describe("When false, validate runtime config and key format without calling core."),
+}, async ({ cwd, surface_only, validate_core }) => {
+  const checks = await Promise.resolve(
+    surface_only
+      ? verifyCodexInstall({ cwd })
+      : verifyCodexInstall({
+          cwd,
+          includeRuntime: true,
+          validateRuntime: validate_core !== false,
+        }),
+  );
+  const summary = summarizeChecks(checks);
+  return { content: [{ type: "text", text: JSON.stringify({
+    checks,
+    summary,
+    mcpReadiness: runtimeDiagnostics(),
+  }, null, 2) }] };
 });
 
 registerOpenBoxTool("claude_code_doctor", "Verify installed Claude Code/OpenBox plugin surfaces and runtime readiness without requiring Claude Code chat to run shell commands", {

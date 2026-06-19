@@ -82,6 +82,8 @@ npm run lint:generated-banners
 
 TypeSpec under `specs/typespec/` is the source for generated contracts. Fix the
 spec or generator first; do not patch generated output by hand.
+The repository layout and generation boundaries are documented in
+[`docs/repo-structure.md`](./docs/repo-structure.md).
 
 ## License
 

@@ -182,6 +182,7 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       expect(captured.map((t) => t.name)).toContain('get_profile');
       expect(captured.map((t) => t.name)).toContain('cursor_status');
       expect(captured.map((t) => t.name)).toContain('cursor_doctor');
+      expect(captured.map((t) => t.name)).toContain('codex_doctor');
       expect(captured.map((t) => t.name)).toContain('openbox_status');
       expect(captured.map((t) => t.name)).toContain('claude_code_doctor');
     } finally {
@@ -290,6 +291,19 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       const out = await tool.cb({ surface_only: true });
       expect(out.content[0].text).toContain('"checks"');
       expect(out.content[0].text).toContain('"summary"');
+    });
+  });
+
+  it('codex_doctor gives Codex/MCP clients a non-shell install diagnostic path', async () => {
+    await withMcpEnv(async () => {
+      const { runMcpServer } = await import('../../ts/src/runtime/mcp');
+      await runMcpServer();
+      const tool = captured.find((t) => t.name === 'codex_doctor')!;
+      const out = await tool.cb({ cwd: join(tmpdir(), 'openbox-missing-codex-install'), surface_only: true });
+      const parsed = JSON.parse(out.content[0].text);
+      expect(parsed.checks).toBeDefined();
+      expect(parsed.summary.fail).toBeGreaterThan(0);
+      expect(parsed.mcpReadiness.runtimeEnv.coreUrlPresent).toBe(true);
     });
   });
 

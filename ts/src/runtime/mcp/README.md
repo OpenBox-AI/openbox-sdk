@@ -35,7 +35,7 @@ the lifetime of the LLM session and exits when stdin closes.
 - `get_profile`: current user and permissions.
 - `cursor_status`, `openbox_status`: compact backend status for slash
   commands.
-- `cursor_doctor`, `claude_code_doctor`: project-local install and
+- `codex_doctor`, `cursor_doctor`, `claude_code_doctor`: project-local install and
   runtime readiness diagnostics.
 - `list_agents`, `get_agent`.
 - `list_pending_approvals`.

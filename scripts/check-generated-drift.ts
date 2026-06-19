@@ -57,7 +57,7 @@ function snapshot(files: string[]): Map<string, string> {
 const beforeFiles = trackedAndUntrackedFiles();
 const before = snapshot(beforeFiles);
 
-run('npm', ['run', 'specs:compile']);
+run('npm', ['run', 'generate:sdks']);
 
 const afterFiles = trackedAndUntrackedFiles();
 const allFiles = [...new Set([...beforeFiles, ...afterFiles])].sort();
@@ -65,7 +65,7 @@ const after = snapshot(allFiles);
 const changed = allFiles.filter((file) => before.get(file) !== after.get(file));
 
 if (changed.length > 0) {
-  console.error('Generated files drift detected. Re-run npm run specs:all and keep the generated result.');
+  console.error('Generated files drift detected. Re-run npm run generate:sdks and keep the generated result.');
   for (const file of changed) {
     console.error(`  - ${relative(process.cwd(), file)}`);
   }

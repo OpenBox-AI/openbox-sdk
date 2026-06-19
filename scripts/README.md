@@ -6,11 +6,12 @@ canonical TypeSpec contract.
 
 ## Emitter-Owned
 
-- `check:generated-drift` reruns the TypeSpec compiler, then checks generated
+- `generate:sdks` is the generic SDK artifact generation command. It builds
+  the TypeSpec decorator libraries and shared emitter, then compiles the
+  canonical TypeSpec contract. TypeScript, Python, OpenAPI, JSON Schema, and
+  future language targets must all hang off this command.
+- `check:generated-drift` reruns `npm run generate:sdks`, then checks generated
   TypeScript, Python, OpenAPI, and JSON Schema artifacts for drift.
-- `generate:sdks` is the generic SDK artifact generation command; it delegates
-  to `npm run specs:compile`, where the OpenBox TypeSpec emitter writes every
-  generated SDK artifact for every language target.
 
 ## Operational Scripts
 
@@ -23,4 +24,6 @@ canonical TypeSpec contract.
 - `check-generated-banners.ts` enforces generated-file provenance.
 
 Rule of thumb: scripts may check, copy, launch, or compare. Anything that
-authors SDK/API contract artifacts belongs in the TypeSpec emitter.
+authors SDK/API contract artifacts belongs in the shared TypeSpec emitter and
+must be reachable through `npm run generate:sdks`, not a language-specific
+script.

@@ -131,7 +131,7 @@ purpose.
 
 ```bash
 npm install                    # workspaces resolve in topological order
-npm run specs:all              # TypeSpec compile, emitters, openapi-typescript
+npm run generate:sdks          # build codegen, then emit all SDK targets
 npm run build                  # codegen + bundle to dist/
 npm test                       # vitest unit + contract + hook integration
 npm run check:generated-drift  # asserts no uncommitted regen output

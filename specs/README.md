@@ -7,14 +7,14 @@ SDK tracks.
 |---|---|
 | `typespec/` | TypeSpec sources. `main.tsp` is the root; per-area modules sit under `backend/`, `core/`, `env/`, `cli/`, `govern/` |
 | `tspconfig.yaml` | Compiler config: output paths and emitter list. Lives inside `typespec/` |
-| `generated/` | TypeSpec emits OpenAPI3 and JSON Schema here. Untracked; reproduce with `npm run specs:compile` |
+| `generated/` | TypeSpec emits OpenAPI3 and JSON Schema here. Untracked; reproduce with `npm run generate:sdks` |
 
 ## Compile
 
 ```bash
-npm run specs:compile      # tsp compile specs/typespec
-npm run generate:sdks      # generic alias for specs:compile
-npm run specs:all          # build:codegen + specs:compile
+npm run generate:sdks      # build codegen, then compile specs/typespec
+npm run specs:compile      # low-level TypeSpec compile; assumes codegen is already built
+npm run specs:all          # compatibility alias for generate:sdks
 ```
 
 The OpenBox emitter under
