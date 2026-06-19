@@ -25,6 +25,10 @@ import {
   claudeAssistantTelemetryFields,
 } from './assistant-output.js';
 import { readLatestAssistantUsage } from '../transcript-usage.js';
+import {
+  rememberLifecycleActivity,
+  takeLifecycleActivity,
+} from '../tool-activity-store.js';
 
 function hasPendingClaudeWork(env: ClaudeCodeEnvelope): boolean {
   return (
@@ -35,6 +39,14 @@ function hasPendingClaudeWork(env: ClaudeCodeEnvelope): boolean {
 
 function isStopHookRetry(env: ClaudeCodeEnvelope): boolean {
   return (env as unknown as { stop_hook_active?: unknown }).stop_hook_active === true;
+}
+
+function sessionLifecycleKey(env: ClaudeCodeEnvelope): string {
+  return `session:${env.session_id}`;
+}
+
+function compactLifecycleKey(env: ClaudeCodeEnvelope): string {
+  return `compact:${env.session_id}`;
 }
 
 function failClosedStopVerdict(
@@ -84,12 +96,25 @@ async function emitClaudeUsageSignal(
 export async function handleSessionStart(
   env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
-  _cfg: ClaudeCodeConfig,
+  cfg: ClaudeCodeConfig,
 ): Promise<undefined> {
   await session.workflowStarted();
-  await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
+  const startTime = Date.now();
+  const opened = await session.openActivity(ACTIVITY_TYPES.SESSION, {
     input: [stampSource(buildSessionStartPayload(env), 'claude-code')],
+    startTime,
   });
+  if (
+    opened.verdict.arm === 'allow' ||
+    opened.verdict.arm === 'constrain' ||
+    opened.verdict.arm === 'require_approval'
+  ) {
+    rememberLifecycleActivity(sessionLifecycleKey(env), cfg, {
+      activityId: opened.activityId,
+      activityType: ACTIVITY_TYPES.SESSION,
+      startTime,
+    });
+  }
   return undefined; // verdictShape is "none"; no stdout
 }
 
@@ -104,8 +129,11 @@ export async function handleStop(
   cfg: ClaudeCodeConfig,
 ): Promise<WorkflowVerdict | undefined> {
   let verdict: WorkflowVerdict;
+  const pending = takeLifecycleActivity(sessionLifecycleKey(env), cfg);
   try {
-    verdict = await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
+    verdict = await session.activity(EVENT.COMPLETE, pending?.activityType ?? ACTIVITY_TYPES.SESSION, {
+      activityId: pending?.activityId,
+      startTime: pending?.startTime,
       input: [stampSource(buildStopPayload(env), 'claude-code')],
       ...claudeAssistantTelemetryFields(env, {
         fallbackText: env.last_assistant_message,
@@ -163,9 +191,23 @@ export async function handlePreCompact(
   session: ClaudeCodeSession,
   cfg: ClaudeCodeConfig,
 ): Promise<WorkflowVerdict | undefined> {
-  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.SESSION, {
+  const startTime = Date.now();
+  const opened = await session.openActivity(ACTIVITY_TYPES.SESSION, {
     input: [stampSource(buildPreCompactPayload(env), 'claude-code')],
+    startTime,
   });
+  const verdict = opened.verdict;
+  if (
+    verdict.arm === 'allow' ||
+    verdict.arm === 'constrain' ||
+    verdict.arm === 'require_approval'
+  ) {
+    rememberLifecycleActivity(compactLifecycleKey(env), cfg, {
+      activityId: opened.activityId,
+      activityType: ACTIVITY_TYPES.SESSION,
+      startTime,
+    });
+  }
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;
 }
@@ -173,10 +215,13 @@ export async function handlePreCompact(
 export async function handlePostCompact(
   env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
-  _cfg: ClaudeCodeConfig,
+  cfg: ClaudeCodeConfig,
 ): Promise<undefined> {
   try {
-    await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
+    const pending = takeLifecycleActivity(compactLifecycleKey(env), cfg);
+    await session.activity(EVENT.COMPLETE, pending?.activityType ?? ACTIVITY_TYPES.SESSION, {
+      activityId: pending?.activityId,
+      startTime: pending?.startTime,
       input: [stampSource(buildPostCompactPayload(env), 'claude-code')],
     });
   } catch {
@@ -191,7 +236,10 @@ export async function handleStopFailure(
   cfg: ClaudeCodeConfig,
 ): Promise<undefined> {
   try {
-    await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
+    const pending = takeLifecycleActivity(sessionLifecycleKey(env), cfg);
+    await session.activity(EVENT.COMPLETE, pending?.activityType ?? ACTIVITY_TYPES.SESSION, {
+      activityId: pending?.activityId,
+      startTime: pending?.startTime,
       input: [stampSource(buildStopFailurePayload(env), 'claude-code')],
     });
   } catch {
@@ -230,7 +278,10 @@ export async function handleSessionEnd(
     return undefined;
   }
   try {
-    await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.SESSION, {
+    const pending = takeLifecycleActivity(sessionLifecycleKey(env), cfg);
+    await session.activity(EVENT.COMPLETE, pending?.activityType ?? ACTIVITY_TYPES.SESSION, {
+      activityId: pending?.activityId,
+      startTime: pending?.startTime,
       input: [stampSource(buildSessionEndPayload(env), 'claude-code')],
     });
   } catch {

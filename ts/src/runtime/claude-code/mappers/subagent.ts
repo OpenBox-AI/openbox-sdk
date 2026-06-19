@@ -16,6 +16,10 @@ import {
   buildClaudeAssistantOutputSpan,
   claudeAssistantTelemetryFields,
 } from './assistant-output.js';
+import {
+  rememberLifecycleActivity,
+  takeLifecycleActivity,
+} from '../tool-activity-store.js';
 
 /** Pinned per-subagent activity_type so START/STOP balance. Activity name
  *  carries identity that the spec-driven payload doesn't (the activity_type
@@ -39,6 +43,16 @@ function subagentName(env: ClaudeCodeEnvelope): string | undefined {
   );
 }
 
+function lifecycleKey(prefix: string, env: ClaudeCodeEnvelope): string {
+  const source = env as unknown as Record<string, unknown>;
+  const taskId = stringValue(source.task_id) ?? stringValue(source.taskId);
+  return [
+    prefix,
+    env.session_id,
+    taskId ?? subagentName(env) ?? subAgentActivityType(env),
+  ].join(':');
+}
+
 function subagentInput(input: unknown[], env: ClaudeCodeEnvelope): unknown[] {
   return withOpenBoxSubagentActivityMetadata(input, subagentName(env)) as unknown[];
 }
@@ -47,15 +61,29 @@ function subagentInput(input: unknown[], env: ClaudeCodeEnvelope): unknown[] {
 export async function handleSubagentStart(
   env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
-  _cfg: ClaudeCodeConfig,
+  cfg: ClaudeCodeConfig,
 ): Promise<undefined> {
   try {
-    await session.activity(EVENT.START, subAgentActivityType(env), {
+    const activityType = subAgentActivityType(env);
+    const startTime = Date.now();
+    const opened = await session.openActivity(activityType, {
       input: subagentInput(
         [stampSource(buildSubagentStartPayload(env), 'claude-code')],
         env,
       ),
+      startTime,
     });
+    if (
+      opened.verdict.arm === 'allow' ||
+      opened.verdict.arm === 'constrain' ||
+      opened.verdict.arm === 'require_approval'
+    ) {
+      rememberLifecycleActivity(lifecycleKey('subagent', env), cfg, {
+        activityId: opened.activityId,
+        activityType,
+        startTime,
+      });
+    }
   } catch {
     // best-effort observability
   }
@@ -68,19 +96,26 @@ export async function handleSubagentStop(
   session: ClaudeCodeSession,
   cfg: ClaudeCodeConfig,
 ): Promise<WorkflowVerdict | undefined> {
-  const verdict = await session.activity(EVENT.COMPLETE, subAgentActivityType(env), {
-    input: subagentInput(
-      [stampSource(buildSubagentStopPayload(env), 'claude-code')],
-      env,
-    ),
-    ...claudeAssistantTelemetryFields(env, {
-      fallbackText: env.last_assistant_message,
-    }),
-    spans: buildClaudeAssistantOutputSpan(env, {
-      event: 'SubagentStop',
-      fallbackText: env.last_assistant_message,
-    }),
-  });
+  const pending = takeLifecycleActivity(lifecycleKey('subagent', env), cfg);
+  const verdict = await session.activity(
+    EVENT.COMPLETE,
+    pending?.activityType ?? subAgentActivityType(env),
+    {
+      activityId: pending?.activityId,
+      startTime: pending?.startTime,
+      input: subagentInput(
+        [stampSource(buildSubagentStopPayload(env), 'claude-code')],
+        env,
+      ),
+      ...claudeAssistantTelemetryFields(env, {
+        fallbackText: env.last_assistant_message,
+      }),
+      spans: buildClaudeAssistantOutputSpan(env, {
+        event: 'SubagentStop',
+        fallbackText: env.last_assistant_message,
+      }),
+    },
+  );
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;
 }
@@ -90,12 +125,26 @@ export async function handleTaskCreated(
   session: ClaudeCodeSession,
   cfg: ClaudeCodeConfig,
 ): Promise<WorkflowVerdict | undefined> {
-  const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.TASK, {
+  const startTime = Date.now();
+  const opened = await session.openActivity(ACTIVITY_TYPES.TASK, {
     input: subagentInput(
       [stampSource(buildTaskCreatedPayload(env), 'claude-code')],
       env,
     ),
+    startTime,
   });
+  const verdict = opened.verdict;
+  if (
+    verdict.arm === 'allow' ||
+    verdict.arm === 'constrain' ||
+    verdict.arm === 'require_approval'
+  ) {
+    rememberLifecycleActivity(lifecycleKey('task', env), cfg, {
+      activityId: opened.activityId,
+      activityType: ACTIVITY_TYPES.TASK,
+      startTime,
+    });
+  }
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;
 }
@@ -105,12 +154,19 @@ export async function handleTaskCompleted(
   session: ClaudeCodeSession,
   cfg: ClaudeCodeConfig,
 ): Promise<WorkflowVerdict | undefined> {
-  const verdict = await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.TASK, {
-    input: subagentInput(
-      [stampSource(buildTaskCompletedPayload(env), 'claude-code')],
-      env,
-    ),
-  });
+  const pending = takeLifecycleActivity(lifecycleKey('task', env), cfg);
+  const verdict = await session.activity(
+    EVENT.COMPLETE,
+    pending?.activityType ?? ACTIVITY_TYPES.TASK,
+    {
+      activityId: pending?.activityId,
+      startTime: pending?.startTime,
+      input: subagentInput(
+        [stampSource(buildTaskCompletedPayload(env), 'claude-code')],
+        env,
+      ),
+    },
+  );
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;
 }
@@ -120,12 +176,19 @@ export async function handleTeammateIdle(
   session: ClaudeCodeSession,
   cfg: ClaudeCodeConfig,
 ): Promise<WorkflowVerdict | undefined> {
-  const verdict = await session.activity(EVENT.COMPLETE, ACTIVITY_TYPES.TASK, {
-    input: subagentInput(
-      [stampSource(buildTeammateIdlePayload(env), 'claude-code')],
-      env,
-    ),
-  });
+  const pending = takeLifecycleActivity(lifecycleKey('task', env), cfg);
+  const verdict = await session.activity(
+    EVENT.COMPLETE,
+    pending?.activityType ?? ACTIVITY_TYPES.TASK,
+    {
+      activityId: pending?.activityId,
+      startTime: pending?.startTime,
+      input: subagentInput(
+        [stampSource(buildTeammateIdlePayload(env), 'claude-code')],
+        env,
+      ),
+    },
+  );
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;
 }

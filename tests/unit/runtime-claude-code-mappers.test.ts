@@ -195,6 +195,27 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     await handleSessionStart({ session_id: 'S' } as any, session, { sessionDir: dir } as any);
     await handleSessionEnd({ session_id: 'S', reason: 'stop' } as any, session, { sessionDir: dir } as any);
     expect(session.calls.some((c: any) => c.method === 'workflowStarted')).toBe(true);
+    const start = session.calls.find((c: any) => c.method === 'openActivity');
+    const end = session.calls.find(
+      (c: any) => c.method === 'activity' && c.args[0] === 'ActivityCompleted',
+    );
+    expect(start?.args[0]).toBe('ClaudeCodeSession');
+    expect(end?.args[1]).toBe('ClaudeCodeSession');
+    expect(end?.args[2].activityId).toBe(start?.args[1].activityId ?? 'opened-2');
+    expect(end?.args[2].startTime).toBe(start?.args[1].startTime);
+  });
+
+  it('pre/post compact pair on one ClaudeCodeSession activity id', async () => {
+    const { handlePreCompact, handlePostCompact } = await import('../../ts/src/runtime/claude-code/mappers/session');
+    const session = recordingSession();
+    await handlePreCompact({ session_id: 'COMPACT' } as any, session, { sessionDir: dir } as any);
+    await handlePostCompact({ session_id: 'COMPACT' } as any, session, { sessionDir: dir } as any);
+    const start = session.calls.find((c: any) => c.method === 'openActivity');
+    const end = session.calls.find(
+      (c: any) => c.method === 'activity' && c.args[0] === 'ActivityCompleted',
+    );
+    expect(end?.args[2].activityId).toBe(start?.args[1].activityId ?? 'opened-1');
+    expect(end?.args[2].startTime).toBe(start?.args[1].startTime);
   });
 
   it('session-end short-circuits when resolveSession created a fresh record (phantom session, e.g. `claude update`)', async () => {
@@ -549,15 +570,15 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       { sessionDir: dir } as any,
     );
     expect(session.calls.length).toBeGreaterThan(0);
-    const start = session.calls.find(
-      (call: any) => call.method === 'activity' && call.args[0] === 'ActivityStarted',
-    );
+    const start = session.calls.find((call: any) => call.method === 'openActivity');
     const stop = session.calls.find(
       (call: any) => call.method === 'activity' && call.args[0] === 'ActivityCompleted',
     );
-    expect(start?.args[2].input).toContainEqual({
+    expect(start?.args[1].input).toContainEqual({
       __openbox: { tool_type: 'a2a', subagent_name: 'researcher' },
     });
+    expect(stop?.args[2].activityId).toBe('opened-1');
+    expect(stop?.args[2].startTime).toBe(start?.args[1].startTime);
     expect(stop?.args[2].input).toContainEqual({
       __openbox: { tool_type: 'a2a', subagent_name: 'researcher' },
     });
@@ -597,6 +618,28 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       },
     });
     expect(assistantContentFromSpan(span)).toBe('subagent final answer');
+  });
+
+  it('task-created + task-completed pair on one task activity id', async () => {
+    const { handleTaskCreated, handleTaskCompleted } = await import(
+      '../../ts/src/runtime/claude-code/mappers/subagent'
+    );
+    const session = recordingSession();
+    const env = {
+      session_id: 'S',
+      task_id: 'task-1',
+      task_subject: 'research',
+    } as any;
+    await handleTaskCreated(env, session, { sessionDir: dir } as any);
+    await handleTaskCompleted(env, session, { sessionDir: dir } as any);
+    const start = session.calls.find((call: any) => call.method === 'openActivity');
+    const completed = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[0] === 'ActivityCompleted',
+    );
+    expect(start?.args[0]).toBe('ClaudeCodeTask');
+    expect(completed?.args[1]).toBe('ClaudeCodeTask');
+    expect(completed?.args[2].activityId).toBe(start?.args[1].activityId ?? 'opened-1');
+    expect(completed?.args[2].startTime).toBe(start?.args[1].startTime);
   });
 });
 
