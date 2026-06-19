@@ -999,9 +999,9 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
           'claude-sonnet-4-5': {
             inputTokens: 10,
             outputTokens: 4,
-            cacheReadInputTokens: 0,
-            cacheCreationInputTokens: 0,
-            webSearchRequests: 0,
+            cacheReadInputTokens: 3,
+            cacheCreationInputTokens: 2,
+            webSearchRequests: 1,
             costUSD: 0.006,
             contextWindow: 200000,
             maxOutputTokens: 8192,
@@ -1072,6 +1072,19 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
           input_tokens: 10,
           output_tokens: 4,
           total_tokens: 14,
+          cache_read_input_tokens: 3,
+          cache_creation_input_tokens: 2,
+          web_search_requests: 1,
+          cost_usd: 0.006,
+          attributes: expect.objectContaining({
+            'gen_ai.usage.cache_read_input_tokens': 3,
+            'gen_ai.usage.cache_creation_input_tokens': 2,
+            'gen_ai.usage.web_search_requests': 1,
+            'openbox.usage.web_search_requests': 1,
+            'openbox.usage.cost_usd': 0.006,
+            'openbox.web_search.requests': 1,
+            'openbox.cost.usd': 0.006,
+          }),
           data: expect.objectContaining({ cost_usd: 0.006 }),
         }),
         expect.objectContaining({
@@ -1088,7 +1101,15 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     );
     expect(spans.map((span) => JSON.parse(span.response_body).usage)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ input_tokens: 10, output_tokens: 4, total_tokens: 14 }),
+        expect.objectContaining({
+          input_tokens: 10,
+          output_tokens: 4,
+          total_tokens: 14,
+          cache_read_input_tokens: 3,
+          cache_creation_input_tokens: 2,
+          web_search_requests: 1,
+          cost_usd: 0.006,
+        }),
         expect.objectContaining({ input_tokens: 20, output_tokens: 8, total_tokens: 28 }),
       ]),
     );

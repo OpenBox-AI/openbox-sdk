@@ -118,11 +118,20 @@ export interface LLMTokenUsage {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  webSearchRequests?: number;
+  costUSD?: number;
+  costUsd?: number;
   prompt_tokens?: number;
   completion_tokens?: number;
   input_tokens?: number;
   output_tokens?: number;
   total_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+  web_search_requests?: number;
+  cost_usd?: number;
   promptTokenCount?: number;
   inputTokenCount?: number;
   candidatesTokenCount?: number;
@@ -152,6 +161,10 @@ type ObservableSpan = SpanData & {
   input_tokens?: number;
   output_tokens?: number;
   total_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+  web_search_requests?: number;
+  cost_usd?: number;
 };
 
 function objectRecord(value: unknown): JsonRecord {
@@ -186,6 +199,18 @@ function toPositiveInteger(value: unknown): number | undefined {
   if (numberValue === undefined || !Number.isFinite(numberValue) || numberValue <= 0)
     return undefined;
   return Math.trunc(numberValue);
+}
+
+function toPositiveNumber(value: unknown): number | undefined {
+  const numberValue =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+        ? Number(value)
+        : undefined;
+  if (numberValue === undefined || !Number.isFinite(numberValue) || numberValue <= 0)
+    return undefined;
+  return numberValue;
 }
 
 function normalizeSpanTimestamp(value: number | undefined): number | undefined {
@@ -228,12 +253,27 @@ export function llmTokenUsageFromRecord(value: unknown): LLMTokenUsage | undefin
       record.totalTokenCount ??
       record.total_token_count,
   );
+  const cacheReadInputTokens = toPositiveInteger(
+    record.cacheReadInputTokens ?? record.cache_read_input_tokens,
+  );
+  const cacheCreationInputTokens = toPositiveInteger(
+    record.cacheCreationInputTokens ?? record.cache_creation_input_tokens,
+  );
+  const webSearchRequests = toPositiveInteger(
+    record.webSearchRequests ?? record.web_search_requests,
+  );
+  const costUsd = toPositiveNumber(record.costUSD ?? record.costUsd ?? record.cost_usd);
   const usage: LLMTokenUsage = {
     promptTokens,
     completionTokens,
     inputTokens: promptTokens,
     outputTokens: completionTokens,
     totalTokens,
+    cacheReadInputTokens,
+    cacheCreationInputTokens,
+    webSearchRequests,
+    costUSD: costUsd,
+    costUsd,
   };
   return Object.values(usage).some((entry) => entry !== undefined)
     ? usage
@@ -250,6 +290,18 @@ function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
     normalizedUsage.completionTokens ?? normalizedUsage.outputTokens,
   );
   const totalTokens = toPositiveInteger(normalizedUsage.totalTokens);
+  const cacheReadInputTokens = toPositiveInteger(
+    normalizedUsage.cacheReadInputTokens ?? normalizedUsage.cache_read_input_tokens,
+  );
+  const cacheCreationInputTokens = toPositiveInteger(
+    normalizedUsage.cacheCreationInputTokens ?? normalizedUsage.cache_creation_input_tokens,
+  );
+  const webSearchRequests = toPositiveInteger(
+    normalizedUsage.webSearchRequests ?? normalizedUsage.web_search_requests,
+  );
+  const costUsd = toPositiveNumber(
+    normalizedUsage.costUSD ?? normalizedUsage.costUsd ?? normalizedUsage.cost_usd,
+  );
   const derivedTotalTokens =
     totalTokens ??
     (promptTokens !== undefined || completionTokens !== undefined
@@ -265,6 +317,14 @@ function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
     normalized.output_tokens = completionTokens;
   }
   if (derivedTotalTokens !== undefined) normalized.total_tokens = derivedTotalTokens;
+  if (cacheReadInputTokens !== undefined) {
+    normalized.cache_read_input_tokens = cacheReadInputTokens;
+  }
+  if (cacheCreationInputTokens !== undefined) {
+    normalized.cache_creation_input_tokens = cacheCreationInputTokens;
+  }
+  if (webSearchRequests !== undefined) normalized.web_search_requests = webSearchRequests;
+  if (costUsd !== undefined) normalized.cost_usd = costUsd;
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
@@ -506,6 +566,12 @@ export function buildLLMCompletionSpan(
     usage?.output_tokens ?? usage?.completion_tokens,
   );
   const totalTokens = toPositiveInteger(usage?.total_tokens);
+  const cacheReadInputTokens = toPositiveInteger(usage?.cache_read_input_tokens);
+  const cacheCreationInputTokens = toPositiveInteger(
+    usage?.cache_creation_input_tokens,
+  );
+  const webSearchRequests = toPositiveInteger(usage?.web_search_requests);
+  const costUsd = toPositiveNumber(usage?.cost_usd);
   const explicitProviderUrl =
     input.providerUrl ??
     source.http_url ??
@@ -545,6 +611,28 @@ export function buildLLMCompletionSpan(
       ...(totalTokens !== undefined
         ? { 'gen_ai.usage.total_tokens': totalTokens }
         : {}),
+      ...(cacheReadInputTokens !== undefined
+        ? {
+            'gen_ai.usage.cache_read_input_tokens': cacheReadInputTokens,
+            'openbox.usage.cache_read_input_tokens': cacheReadInputTokens,
+          }
+        : {}),
+      ...(cacheCreationInputTokens !== undefined
+        ? {
+            'gen_ai.usage.cache_creation_input_tokens': cacheCreationInputTokens,
+            'openbox.usage.cache_creation_input_tokens': cacheCreationInputTokens,
+          }
+        : {}),
+      ...(webSearchRequests !== undefined
+        ? {
+            'gen_ai.usage.web_search_requests': webSearchRequests,
+            'openbox.usage.web_search_requests': webSearchRequests,
+            'openbox.web_search.requests': webSearchRequests,
+          }
+        : {}),
+      ...(costUsd !== undefined
+        ? { 'openbox.usage.cost_usd': costUsd, 'openbox.cost.usd': costUsd }
+        : {}),
       'http.method': 'POST',
       'http.url': httpUrl,
       'openbox.semantic_type': 'llm_completion',
@@ -560,6 +648,14 @@ export function buildLLMCompletionSpan(
     ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
     ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
     ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),
+    ...(cacheReadInputTokens !== undefined
+      ? { cache_read_input_tokens: cacheReadInputTokens }
+      : {}),
+    ...(cacheCreationInputTokens !== undefined
+      ? { cache_creation_input_tokens: cacheCreationInputTokens }
+      : {}),
+    ...(webSearchRequests !== undefined ? { web_search_requests: webSearchRequests } : {}),
+    ...(costUsd !== undefined ? { cost_usd: costUsd } : {}),
     http_method: source.http_method ?? 'POST',
     http_url: httpUrl,
     request_body: buildLLMCompletionRequestBody({
@@ -612,6 +708,12 @@ export function buildSpan(
         usage?.output_tokens ?? usage?.completion_tokens,
       );
       const totalTokens = toPositiveInteger(usage?.total_tokens);
+      const cacheReadInputTokens = toPositiveInteger(usage?.cache_read_input_tokens);
+      const cacheCreationInputTokens = toPositiveInteger(
+        usage?.cache_creation_input_tokens,
+      );
+      const webSearchRequests = toPositiveInteger(usage?.web_search_requests);
+      const costUsd = toPositiveNumber(usage?.cost_usd);
       const modelTelemetry = modelTelemetryFields(input.model, undefined, undefined);
       const llmHttpUrl = providerUrlForLLM(modelTelemetry.provider);
       const llmRequestBody = {
@@ -654,6 +756,28 @@ export function buildSpan(
           ...(totalTokens !== undefined
             ? { 'gen_ai.usage.total_tokens': totalTokens }
             : {}),
+          ...(cacheReadInputTokens !== undefined
+            ? {
+                'gen_ai.usage.cache_read_input_tokens': cacheReadInputTokens,
+                'openbox.usage.cache_read_input_tokens': cacheReadInputTokens,
+              }
+            : {}),
+          ...(cacheCreationInputTokens !== undefined
+            ? {
+                'gen_ai.usage.cache_creation_input_tokens': cacheCreationInputTokens,
+                'openbox.usage.cache_creation_input_tokens': cacheCreationInputTokens,
+              }
+            : {}),
+          ...(webSearchRequests !== undefined
+            ? {
+                'gen_ai.usage.web_search_requests': webSearchRequests,
+                'openbox.usage.web_search_requests': webSearchRequests,
+                'openbox.web_search.requests': webSearchRequests,
+              }
+            : {}),
+          ...(costUsd !== undefined
+            ? { 'openbox.usage.cost_usd': costUsd, 'openbox.cost.usd': costUsd }
+            : {}),
           'http.method': 'POST',
           'http.url': llmHttpUrl,
           'openbox.semantic_type': 'llm_completion',
@@ -667,6 +791,14 @@ export function buildSpan(
         ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
         ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
         ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),
+        ...(cacheReadInputTokens !== undefined
+          ? { cache_read_input_tokens: cacheReadInputTokens }
+          : {}),
+        ...(cacheCreationInputTokens !== undefined
+          ? { cache_creation_input_tokens: cacheCreationInputTokens }
+          : {}),
+        ...(webSearchRequests !== undefined ? { web_search_requests: webSearchRequests } : {}),
+        ...(costUsd !== undefined ? { cost_usd: costUsd } : {}),
         function: 'LLMCall',
         module: host,
         args: input,

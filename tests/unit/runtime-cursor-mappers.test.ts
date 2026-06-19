@@ -19,11 +19,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 let dir: string;
+const ORIGINAL_OPENBOX_HOME = process.env.OPENBOX_HOME;
 const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'openbox-final-2-'));
+  process.env.OPENBOX_HOME = join(dir, '.openbox');
 });
 afterEach(() => {
+  if (ORIGINAL_OPENBOX_HOME === undefined) delete process.env.OPENBOX_HOME;
+  else process.env.OPENBOX_HOME = ORIGINAL_OPENBOX_HOME;
   if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
 });
 
