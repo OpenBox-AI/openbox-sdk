@@ -306,6 +306,22 @@ export function redactedValue(verdict?: WorkflowVerdict): unknown {
   return verdict?.guardrailsResult?.redactedInput;
 }
 
+export function redactedOutputValue(
+  verdict?: WorkflowVerdict,
+  originalOutput?: unknown,
+): unknown {
+  const guardrails = verdict?.guardrailsResult;
+  if (
+    !guardrails ||
+    guardrails.inputType !== 'activity_output' ||
+    guardrails.redactedInput === null ||
+    guardrails.redactedInput === undefined
+  ) {
+    return undefined;
+  }
+  return unwrapOutputRedaction(guardrails.redactedInput, originalOutput);
+}
+
 function unwrapInputRedaction(value: unknown): unknown {
   if (Array.isArray(value) && value.length === 1) return value[0];
   if (!isPlainObject(value)) return value;
@@ -319,8 +335,20 @@ function unwrapInputRedaction(value: unknown): unknown {
   return value;
 }
 
+function unwrapOutputRedaction(value: unknown, originalOutput: unknown): unknown {
+  if (!isPlainObject(value) || hasOwnKey(originalOutput, 'output')) return value;
+  if (Object.prototype.hasOwnProperty.call(value, 'output')) return value.output;
+  if (Object.prototype.hasOwnProperty.call(value, 'activity_output')) return value.activity_output;
+  if (Object.prototype.hasOwnProperty.call(value, 'activityOutput')) return value.activityOutput;
+  return value;
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function hasOwnKey(value: unknown, key: string): value is Record<string, unknown> {
+  return isPlainObject(value) && Object.prototype.hasOwnProperty.call(value, key);
 }
 
 function spanTypeFor(

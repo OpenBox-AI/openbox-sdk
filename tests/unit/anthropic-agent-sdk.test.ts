@@ -697,10 +697,9 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     const mock = createMockCore((payload) => {
       if (payload.event_type === 'ActivityCompleted') {
         return verdict('constrain', {
-          reason: 'tool output redacted',
           guardrails_result: {
             input_type: 'activity_output',
-            redacted_input: { stdout: '[redacted]' },
+            redacted_input: { output: { stdout: '[redacted]' } },
             validation_passed: true,
             reasons: [],
             results: [],
@@ -724,7 +723,6 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(output).toEqual({
       hookSpecificOutput: {
         hookEventName: 'PostToolUse',
-        additionalContext: '[OpenBox] tool output redacted',
         updatedToolOutput: { stdout: '[redacted]' },
       },
     });

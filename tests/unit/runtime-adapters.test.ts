@@ -253,16 +253,16 @@ describe('createClaudeCodeAdapter', () => {
     });
   });
 
-  test('decision-block constrain → hookSpecificOutput.additionalContext + updatedToolOutput', async () => {
+  test('decision-block constrain → updatedToolOutput without requiring a reason', async () => {
     const cap = capture();
     await createClaudeCodeAdapter({
       core: makeMockCore(),
       resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
       handlers: {
-        postToolUse: async () => verdict('constrain', 'tool output redacted', {
+        postToolUse: async () => verdict('constrain', undefined, {
           guardrailsResult: {
             inputType: 'activity_output',
-            redactedInput: { stdout: '[redacted]', stderr: '', interrupted: false, isImage: false },
+            redactedInput: { output: { stdout: '[redacted]', stderr: '', interrupted: false, isImage: false } },
             validationPassed: true,
             reasons: [],
             fieldResults: [],
@@ -276,7 +276,7 @@ describe('createClaudeCodeAdapter', () => {
     }).run();
     const out = JSON.parse(cap.stdout[0]);
     expect(out.hookSpecificOutput.hookEventName).toBe('PostToolUse');
-    expect(out.hookSpecificOutput.additionalContext).toBe('[OpenBox] tool output redacted');
+    expect(out.hookSpecificOutput.additionalContext).toBeUndefined();
     expect(out.hookSpecificOutput.updatedToolOutput.stdout).toBe('[redacted]');
   });
 

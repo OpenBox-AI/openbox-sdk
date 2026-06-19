@@ -18,8 +18,8 @@ import {
   brandedReason,
   compactPayload,
   objectRecord,
+  redactedOutputValue,
   redactedRecord,
-  redactedValue,
   subagentActivityInput,
   toolActivityInput,
   toolActivityType,
@@ -438,7 +438,7 @@ async function handlePostToolUse(
       payload,
     )) ??
     (await deps.manager.activity(sessionId, EVENT.COMPLETE, activityType, payload));
-  return renderDecisionBlock('PostToolUse', verdict, true);
+  return renderDecisionBlock('PostToolUse', verdict, toolOutput);
 }
 
 async function handlePostToolUseFailure(
@@ -484,7 +484,7 @@ async function handlePostToolBatch(
     input: [compactPayload(env, 'tool_batch')],
     output: env.tool_calls,
   });
-  return renderDecisionBlock('PostToolBatch', verdict, true);
+  return renderDecisionBlock('PostToolBatch', verdict, env.tool_calls);
 }
 
 async function handleStop(
@@ -676,7 +676,7 @@ function renderDecisionBlock(
     | 'PostToolBatch'
     | 'ConfigChange',
   verdict: WorkflowVerdict | undefined,
-  includeUpdatedToolOutput = false,
+  originalToolOutput?: unknown,
 ): HookJSONOutput {
   const arm = verdict?.arm ?? 'allow';
   const reason = brandedReason(verdict);
@@ -704,15 +704,14 @@ function renderDecisionBlock(
         '[OpenBox] redacted this prompt, but this host cannot replace submitted prompts. Rewrite the prompt with the redacted content and submit again.',
     };
   }
-  if (arm === 'constrain' && reason) {
+  if (arm === 'constrain') {
+    const redacted = redactedOutputValue(verdict, originalToolOutput);
+    if (!reason && redacted === undefined) return {};
     const hookSpecificOutput: Record<string, unknown> = {
       hookEventName: event,
-      additionalContext: reason,
     };
-    if (includeUpdatedToolOutput) {
-      const redacted = redactedValue(verdict);
-      if (redacted !== undefined) hookSpecificOutput.updatedToolOutput = redacted;
-    }
+    if (reason) hookSpecificOutput.additionalContext = reason;
+    if (redacted !== undefined) hookSpecificOutput.updatedToolOutput = redacted;
     return { hookSpecificOutput } as HookJSONOutput;
   }
   return {};

@@ -1231,6 +1231,22 @@ function redactedInput(v: WorkflowVerdict | undefined): unknown {
   return v?.guardrailsResult?.redactedInput;
 }
 
+function redactedOutputValue(
+  v: WorkflowVerdict | undefined,
+  env: Record<string, unknown>,
+): unknown {
+  const guardrails = v?.guardrailsResult;
+  if (
+    !guardrails ||
+    guardrails.inputType !== 'activity_output' ||
+    guardrails.redactedInput === undefined ||
+    guardrails.redactedInput === null
+  ) {
+    return undefined;
+  }
+  return unwrapOutputRedaction(guardrails.redactedInput, originalOutputFor(env));
+}
+
 function redactedInputRecord(v: WorkflowVerdict | undefined): Record<string, unknown> | undefined {
   return objectRecord(unwrapInputRedaction(redactedInput(v)));
 }
@@ -1243,6 +1259,19 @@ function unwrapInputRedaction(value: unknown): unknown {
   if (Array.isArray(record.activity_input) && record.activity_input.length === 1) return record.activity_input[0];
   if (Array.isArray(record.activityInput) && record.activityInput.length === 1) return record.activityInput[0];
   return value;
+}
+
+function unwrapOutputRedaction(value: unknown, originalOutput: unknown): unknown {
+  const record = objectRecord(value);
+  if (!record || hasOwnKey(originalOutput, 'output')) return value;
+  if (Object.prototype.hasOwnProperty.call(record, 'output')) return record.output;
+  if (Object.prototype.hasOwnProperty.call(record, 'activity_output')) return record.activity_output;
+  if (Object.prototype.hasOwnProperty.call(record, 'activityOutput')) return record.activityOutput;
+  return value;
+}
+
+function originalOutputFor(env: Record<string, unknown>): unknown {
+  return env.tool_response ?? env.toolResponse ?? env.response ?? env.content;
 }
 
 function hasInputRedaction(v: WorkflowVerdict | undefined): boolean {
@@ -1276,6 +1305,15 @@ function cursorInputRedactionBlockReason(reason: string): string {
 function objectRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   return value as Record<string, unknown>;
+}
+
+function hasOwnKey(value: unknown, key: string): value is Record<string, unknown> {
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.prototype.hasOwnProperty.call(value, key)
+  );
 }
 
 function addIfDefined(target: Record<string, unknown>, key: string, value: unknown): void {
@@ -1348,12 +1386,14 @@ function renderVerdictOutput(
           suppressOriginalPrompt: true,
         };
       }
-      if (arm === 'constrain' && reason) {
+      if (arm === 'constrain') {
+        const updatedToolOutput = redactedOutputValue(v, env);
+        if (!reason && updatedToolOutput === undefined) return {};
         const hookSpecificOutput: Record<string, unknown> = {
           hookEventName: env.hook_event_name ?? 'ClaudeCode',
-          additionalContext: reason,
         };
-        addIfDefined(hookSpecificOutput, 'updatedToolOutput', redactedInput(v));
+        if (reason) hookSpecificOutput.additionalContext = reason;
+        addIfDefined(hookSpecificOutput, 'updatedToolOutput', updatedToolOutput);
         return { hookSpecificOutput };
       }
       return {};
