@@ -96,28 +96,30 @@ def _future_iso(seconds: int = 30) -> str:
     return (datetime.now(tz=UTC) + timedelta(seconds=seconds)).isoformat().replace("+00:00", "Z")
 
 
-def _ts_const(file: Path, const_name: str) -> Any:
-    source = file.read_text()
-    marker = f"const {const_name}"
-    start = source.index(marker)
-    equals = source.index("=", start)
-    literal_start = equals + 1
-    while literal_start < len(source) and source[literal_start].isspace():
-        literal_start += 1
-    return json.JSONDecoder().raw_decode(source[literal_start:])[0]
-
-
-def _ts_array(file: Path, const_name: str) -> list[dict[str, Any]]:
-    value = _ts_const(file, const_name)
-    assert isinstance(value, list)
-    return value
-
-
 def _provider_capability_fixture() -> dict[str, Any]:
     repo = Path(__file__).parents[2]
     fixture = json.loads((repo / "codegen/fixtures/provider-capabilities.json").read_text())
     assert isinstance(fixture, dict)
     return cast(dict[str, Any], fixture)
+
+
+def _sdk_manifest_fixture() -> dict[str, Any]:
+    repo = Path(__file__).parents[2]
+    fixture = json.loads((repo / "codegen/fixtures/sdk-manifests.json").read_text())
+    assert isinstance(fixture, dict)
+    return cast(dict[str, Any], fixture)
+
+
+def _endpoint_manifest_for_fixture(manifest: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "operationId": item["operation_id"],
+            "path": item["path"],
+            "verb": item["verb"],
+            "pathPattern": item["path_pattern"],
+        }
+        for item in manifest
+    ]
 
 
 @pytest.mark.asyncio
@@ -347,25 +349,18 @@ def test_signing_redaction_and_utility_helpers() -> None:
     assert apply_output_redaction({"a": 1}, {"guardrailsResult": {}}) == {"a": 1}
 
 
-def test_generated_python_matches_typescript_manifests() -> None:
-    repo = Path(__file__).parents[2]
-    backend_ts = _ts_array(
-        repo / "ts/src/client/generated/endpoint-manifest.ts",
-        "BACKEND_ENDPOINT_MANIFEST",
-    )
-    core_ts = _ts_array(
-        repo / "ts/src/core-client/generated/endpoint-manifest.ts",
-        "CORE_ENDPOINT_MANIFEST",
-    )
-    govern_ts = _ts_array(repo / "ts/src/core-client/generated/govern.ts", "PRESET_MANIFEST")
+def test_generated_python_matches_typespec_sdk_manifest_fixture() -> None:
+    fixture = _sdk_manifest_fixture()
 
-    assert [item["operationId"] for item in backend_ts] == [
-        item["operation_id"] for item in BACKEND_ENDPOINT_MANIFEST
+    assert fixture["generatedBy"] == "codegen/emitters/typespec-emitter"
+    assert "specs/typespec/backend/main.tsp" in fixture["sources"]
+    assert _endpoint_manifest_for_fixture(BACKEND_ENDPOINT_MANIFEST) == fixture[
+        "backendEndpointManifest"
     ]
-    assert [item["operationId"] for item in core_ts] == [
-        item["operation_id"] for item in CORE_ENDPOINT_MANIFEST
+    assert _endpoint_manifest_for_fixture(CORE_ENDPOINT_MANIFEST) == fixture[
+        "coreEndpointManifest"
     ]
-    assert [item["preset"] for item in govern_ts] == [item["preset"] for item in PRESET_MANIFEST]
+    assert PRESET_MANIFEST == fixture["governPresetManifest"]
     assert hasattr(AsyncOpenBoxClient, "list_agents")
     assert hasattr(AsyncOpenBoxCoreClient, "evaluate_governance")
     assert hasattr(presets.claude_code, "pre_tool_use")

@@ -76,6 +76,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitNamespaceTypes(program, project, repoRoot, 'OpenboxCore', 'ts/src/core-client/generated/core-types.ts');
   emitGovernProtocol(program, project, repoRoot);
   emitProviderCapabilities(program, project, repoRoot);
+  emitSdkManifestConformanceFixture(program, repoRoot);
   emitPythonSdk(program, repoRoot);
   emitAdapters(program, project, repoRoot);
   await emitOpenApiWireTypes(repoRoot);
@@ -1000,6 +1001,19 @@ interface EndpointEntry {
   pathPattern: string;
 }
 
+function collectEndpointEntries(program: Program, namespaceName: string): EndpointEntry[] {
+  const ns = findNamespace(program, namespaceName);
+  if (!ns) return [];
+
+  const [ops] = listHttpOperationsIn(program, ns);
+  return ops.map((o) => ({
+    operationId: o.operation.name,
+    path: o.path,
+    verb: o.verb,
+    pathPattern: o.path.replace(/\{[^}]+\}/g, '{x}'),
+  }));
+}
+
 function emitEndpointManifest(
   program: Program,
   project: Project,
@@ -1008,17 +1022,7 @@ function emitEndpointManifest(
   exportName: string,
   outRel: string,
 ): void {
-  const ns = findNamespace(program, namespaceName);
-  if (!ns) return;
-
-  const [ops] = listHttpOperationsIn(program, ns);
-  const entries: EndpointEntry[] = ops.map((o) => ({
-    operationId: o.operation.name,
-    path: o.path,
-    verb: o.verb,
-    pathPattern: o.path.replace(/\{[^}]+\}/g, '{x}'),
-  }));
-
+  const entries = collectEndpointEntries(program, namespaceName);
   if (entries.length === 0) return;
 
   const out = project.createSourceFile(resolvePath(repoRoot, outRel), '', { overwrite: true });
@@ -1441,9 +1445,97 @@ function writeProviderCapabilityConformanceFixture(
   repoRoot: string,
   payload: ProviderCapabilityConformancePayload,
 ): void {
-  const file = resolvePath(repoRoot, 'codegen/fixtures/provider-capabilities.json');
+  writeJsonFixture(repoRoot, 'codegen/fixtures/provider-capabilities.json', payload);
+}
+
+function writeJsonFixture(repoRoot: string, relPath: string, payload: unknown): void {
+  const file = resolvePath(repoRoot, relPath);
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, `${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function collectGovernPresetEntries(program: Program, ns: Namespace): PresetEntry[] {
+  const presets: PresetEntry[] = [];
+  for (const [ifaceName, iface] of ns.interfaces) {
+    const preset = getPreset(program, iface);
+    if (!preset) continue;
+
+    const isCustom = preset.name === 'custom';
+    const methods: PresetMethod[] = [];
+    for (const [opName, op] of iface.operations) {
+      if (isCustom) {
+        methods.push({ name: opName });
+        continue;
+      }
+      const m = getMapsTo(program, op);
+      if (!m) continue;
+      methods.push({
+        name: opName,
+        eventType: m.eventType,
+        activityType: m.activityType ?? opName,
+      });
+    }
+    if (methods.length === 0) continue;
+    presets.push({
+      name: preset.name,
+      pascal: pascal(preset.name.replace(/-/g, '_')),
+      camel: kebabToCamel(preset.name),
+      ifaceName,
+      methods,
+      isCustom,
+    });
+  }
+
+  return presets.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function governPresetManifestFromEntries(presets: PresetEntry[]): Array<{
+  preset: string;
+  methods: Array<{ name: string; eventType?: CanonicalEventType; activityType?: string }>;
+}> {
+  return presets.map((p) => ({
+    preset: p.name,
+    methods: p.methods.map((m) => ({
+      name: m.name,
+      eventType: m.eventType,
+      activityType: m.activityType,
+    })),
+  }));
+}
+
+function presetActivityTypesFromManifest(
+  manifest: ReturnType<typeof governPresetManifestFromEntries>,
+): Record<string, Record<string, string>> {
+  return Object.fromEntries(
+    manifest.map((preset) => [
+      preset.preset,
+      Object.fromEntries(
+        preset.methods
+          .filter((method) => typeof method.activityType === 'string' && method.activityType.length > 0)
+          .map((method) => [method.name, method.activityType as string]),
+      ),
+    ]),
+  );
+}
+
+function emitSdkManifestConformanceFixture(program: Program, repoRoot: string): void {
+  const governNs = findNamespace(program, 'OpenboxGovern');
+  const governPresetManifest = governNs
+    ? governPresetManifestFromEntries(collectGovernPresetEntries(program, governNs))
+    : [];
+
+  writeJsonFixture(repoRoot, 'codegen/fixtures/sdk-manifests.json', {
+    generatedBy: 'codegen/emitters/typespec-emitter',
+    sources: [
+      'specs/typespec/backend/main.tsp',
+      'specs/typespec/core/main.tsp',
+      'specs/typespec/govern/main.tsp',
+    ],
+    regenerate: 'npm run specs:compile',
+    backendEndpointManifest: collectEndpointEntries(program, 'OpenboxBackend'),
+    coreEndpointManifest: collectEndpointEntries(program, 'OpenboxCore'),
+    governPresetManifest,
+  });
 }
 
 function emitGovernProtocol(program: Program, project: Project, repoRoot: string): void {
@@ -1496,62 +1588,13 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
   // mappings. The `custom` preset is special: its `activity` operation
   // takes (activityType, stage, payload) and routes via the runtime,
   // so we don't bake a fixed envelope into the method.
-  const presets: PresetEntry[] = [];
-  for (const [ifaceName, iface] of ns.interfaces) {
-    const preset = getPreset(program, iface);
-    if (!preset) continue;
-
-    const isCustom = preset.name === 'custom';
-    const methods: PresetMethod[] = [];
-    for (const [opName, op] of iface.operations) {
-      if (isCustom) {
-        methods.push({ name: opName });
-        continue;
-      }
-      const m = getMapsTo(program, op);
-      if (!m) continue;
-      methods.push({
-        name: opName,
-        eventType: m.eventType,
-        activityType: m.activityType ?? opName,
-      });
-    }
-    if (methods.length === 0) continue;
-    presets.push({
-      name: preset.name,
-      pascal: pascal(preset.name.replace(/-/g, '_')),
-      camel: kebabToCamel(preset.name),
-      ifaceName,
-      methods,
-      isCustom,
-    });
-  }
-
+  const presets = collectGovernPresetEntries(program, ns);
   if (presets.length === 0) return;
-
-  // Stable sort for deterministic output.
-  presets.sort((a, b) => a.name.localeCompare(b.name));
 
   // Emit the manifest (one JSON-friendly entry per preset method) so
   // tests and downstream tooling can introspect what shipped.
-  const manifest = presets.map((p) => ({
-    preset: p.name,
-    methods: p.methods.map((m) => ({
-      name: m.name,
-      eventType: m.eventType,
-      activityType: m.activityType,
-    })),
-  }));
-  const presetActivityTypes = Object.fromEntries(
-    manifest.map((preset) => [
-      preset.preset,
-      Object.fromEntries(
-        preset.methods
-          .filter((method) => typeof method.activityType === 'string' && method.activityType.length > 0)
-          .map((method) => [method.name, method.activityType]),
-      ),
-    ]),
-  );
+  const manifest = governPresetManifestFromEntries(presets);
+  const presetActivityTypes = presetActivityTypesFromManifest(manifest);
   out.addStatements([
     '/** Spec-driven manifest of every preset + its method envelopes. */',
     `export const PRESET_MANIFEST = ${JSON.stringify(manifest, null, 2)} as const;`,
