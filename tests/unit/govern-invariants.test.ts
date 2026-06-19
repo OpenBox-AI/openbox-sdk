@@ -320,11 +320,15 @@ describe('activity pairing', () => {
       expect(hook.span_count).toBe(1);
       expect(hook.spans).toHaveLength(1);
     }
-    expect(hooks.map((hook) => hook.spans?.[0])).toEqual([
-      { ...httpSpan, activity_id: parent.activity_id },
-      { ...fileSpan, activity_id: parent.activity_id },
-      { ...dbSpan, activity_id: parent.activity_id },
-    ]);
+    for (const [index, span] of [httpSpan, fileSpan, dbSpan].entries()) {
+      expect(hooks[index]?.spans?.[0]).toMatchObject({
+        ...span,
+        activity_id: parent.activity_id,
+        duration_ns: null,
+        end_time: null,
+        start_time: Number(parent.start_time) * 1_000_000,
+      });
+    }
   });
 
   test('multi-span hooks return the strictest hook verdict instead of the last verdict', async () => {
@@ -1412,20 +1416,44 @@ describe('BaseGovernedSession.activity (cross-preset escape)', () => {
         expect(
           mock.events.filter((e) => e.event_type === 'ActivityCompleted'),
         ).toHaveLength(0);
-        await opened.complete({ output: { rows: 3 }, endTime: 1_250 }, 'on_tool_end');
+        await opened.complete(
+          {
+            output: { rows: 3 },
+            endTime: 1_250,
+            spans: [
+              buildSpan('langchain', 'shell', {
+                stage: 'completed',
+                command: 'crm_lookup',
+                tool_name: 'crm_lookup',
+              }),
+            ],
+          },
+          'on_tool_end',
+        );
       },
     );
     const started = mock.events.find((e) => e.event_type === 'ActivityStarted');
-    const completed = mock.events.find(
+    const completedEvents = mock.events.filter(
       (e) => e.event_type === 'ActivityCompleted' && e.activity_type === 'on_tool_end',
     );
+    expect(completedEvents).toHaveLength(2);
+    const [completed, completedHook] = completedEvents;
     expect(started?.activity_id).toBe('tool-activity-1');
     expect(started?.start_time).toBe(1_000);
     expect(completed?.activity_id).toBe('tool-activity-1');
+    expect(completed?.hook_trigger).toBe(false);
     expect(completed?.status).toBe('completed');
     expect(completed?.start_time).toBe(1_000);
     expect(completed?.end_time).toBe(1_250);
     expect(completed?.duration_ms).toBe(250);
+    expect(completedHook?.hook_trigger).toBe(true);
+    expect(completedHook?.activity_id).toBe(completed?.activity_id);
+    expect(completedHook?.spans?.[0]).toMatchObject({
+      activity_id: 'tool-activity-1',
+      duration_ns: 250_000_000,
+      end_time: 1_250_000_000,
+      start_time: 1_000_000_000,
+    });
   });
 
   test('openActivity leaves a blocked start canonically unpaired', async () => {

@@ -2975,7 +2975,7 @@ export class BaseGovernedSession {
     let hookVerdict = parentVerdict;
     const persistableSpans = (event.spans ?? []).filter(isPersistableHookSpan);
     for (const span of persistableSpans) {
-      const hookSpan = withSpanActivityId(span, event.activity_id);
+      const hookSpan = withSpanHookContext(span, event);
       hookVerdict = stricterVerdict(hookVerdict, await this.emit({
         ...parentEvent,
         attempt: event.attempt ?? 1,
@@ -3638,18 +3638,62 @@ function isPersistableHookSpan(span: unknown): boolean {
   );
 }
 
-function withSpanActivityId<T>(span: T, activityId?: string): T {
-  if (!activityId || !span || typeof span !== 'object' || Array.isArray(span)) {
+function withSpanHookContext<T>(
+  span: T,
+  event: {
+    activity_id?: string;
+    duration_ms?: number;
+    end_time?: number;
+    event_type?: string;
+    start_time?: number;
+  },
+): T {
+  if (!span || typeof span !== 'object' || Array.isArray(span)) {
     return span;
   }
   const record = span as Record<string, unknown>;
-  if (typeof record.activity_id === 'string' && record.activity_id.trim() !== '') {
-    return span;
+  const next: Record<string, unknown> = { ...record };
+  if (
+    event.activity_id &&
+    (typeof next.activity_id !== 'string' || next.activity_id.trim() === '')
+  ) {
+    next.activity_id = event.activity_id;
   }
-  return {
-    ...record,
-    activity_id: activityId,
-  } as T;
+  if (!hasUsefulSpanDuration(next)) {
+    const startTime = toSpanTimestampNs(event.start_time);
+    const endTime = toSpanTimestampNs(event.end_time);
+    const durationNs = durationMsToNs(event.duration_ms) ??
+      (startTime !== undefined && endTime !== undefined
+        ? Math.max(0, endTime - startTime)
+        : undefined);
+    if (startTime !== undefined) next.start_time = startTime;
+    if (event.event_type === 'ActivityStarted') {
+      next.end_time = null;
+      next.duration_ns = null;
+    } else if (event.event_type === 'ActivityCompleted') {
+      if (endTime !== undefined) next.end_time = endTime;
+      if (durationNs !== undefined) next.duration_ns = durationNs;
+    }
+  }
+  return next as T;
+}
+
+function hasUsefulSpanDuration(record: Record<string, unknown>): boolean {
+  return (
+    typeof record.duration_ns === 'number' &&
+    Number.isFinite(record.duration_ns) &&
+    record.duration_ns > 0
+  );
+}
+
+function toSpanTimestampNs(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.trunc(value >= 1_000_000_000_000_000 ? value : value * 1_000_000);
+}
+
+function durationMsToNs(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.max(0, Math.trunc(value * 1_000_000));
 }
 
 function errorInfoFrom(value: unknown): { type: string; message: string } | undefined {
