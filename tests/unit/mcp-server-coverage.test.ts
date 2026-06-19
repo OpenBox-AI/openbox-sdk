@@ -12,6 +12,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import {
+  MCP_PROMPT_SURFACES,
+  MCP_RESOURCE_TEMPLATE_SURFACES,
+  MCP_TOOL_SURFACES,
+} from '../../ts/src/governance/capability-matrix.js';
 
 interface CapturedTool {
   name: string;
@@ -199,6 +204,28 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       const { runMcpServer } = await import('../../ts/src/runtime/mcp');
       await runMcpServer();
 
+      expect(captured.map((tool) => tool.name).sort()).toEqual(
+        MCP_TOOL_SURFACES.map((surface) => surface.name).slice().sort(),
+      );
+      for (const surface of MCP_TOOL_SURFACES) {
+        const tool = captured.find((entry) => entry.name === surface.name);
+        expect(tool, `missing MCP tool ${surface.name}`).toBeDefined();
+        expect(tool!.description).toContain(`OpenBox risk: ${surface.risk}`);
+        expect(tool!.description).toContain(`Approval behavior: ${surface.approval}`);
+        expect(tool!.description).toContain(`Side effects: ${surface.sideEffects}`);
+        expect(tool!.annotations).toMatchObject({
+          title: surface.title,
+          readOnlyHint: surface.readOnlyHint,
+          destructiveHint: surface.destructiveHint,
+          idempotentHint: surface.idempotentHint,
+          openWorldHint: surface.openWorldHint,
+        });
+        expect(tool!.meta).toMatchObject({
+          'openbox/risk': surface.risk,
+          'openbox/approval': surface.approval,
+          'openbox/sideEffects': surface.sideEffects,
+        });
+      }
       const checkGovernance = captured.find((tool) => tool.name === 'check_governance')!;
       expect(checkGovernance.description).toContain('OpenBox risk: medium');
       expect(checkGovernance.description).toContain('Approval behavior: may return require_approval');
@@ -212,14 +239,19 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       expect(checkGovernance.meta['openbox/sideEffects']).toContain('governance events');
 
       expect(capturedPrompts.map((prompt) => prompt.name)).toEqual(
-        expect.arrayContaining([
-          'openbox_status',
-          'pending_approvals',
-          'policy_review',
-          'governance_check',
-          'guardrail_review',
-        ]),
+        MCP_PROMPT_SURFACES.map((surface) => surface.name),
       );
+      for (const surface of MCP_PROMPT_SURFACES) {
+        const promptEntry = capturedPrompts.find((entry) => entry.name === surface.name);
+        expect(promptEntry, `missing MCP prompt ${surface.name}`).toBeDefined();
+        expect(promptEntry!.config).toMatchObject({
+          title: surface.title,
+          description: surface.description,
+        });
+        expect(Object.keys(promptEntry!.config.argsSchema)).toEqual(
+          surface.args.map((arg) => arg.name),
+        );
+      }
       const prompt = capturedPrompts.find((entry) => entry.name === 'governance_check')!;
       expect(Object.keys(prompt.config.argsSchema)).toEqual(['agent_id', 'span_type', 'activity_input']);
       const promptResult = await prompt.cb({
@@ -230,15 +262,18 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       expect(promptResult.messages[0].content.text).toContain('"span_type": "shell"');
 
       expect(capturedResources.map((resource) => resource.name)).toEqual(
-        expect.arrayContaining([
-          'agent',
-          'guardrail',
-          'policy',
-          'behavior-rule',
-          'approval',
-          'skill-reference',
-        ]),
+        MCP_RESOURCE_TEMPLATE_SURFACES.map((surface) => surface.name),
       );
+      for (const surface of MCP_RESOURCE_TEMPLATE_SURFACES) {
+        const resource = capturedResources.find((entry) => entry.name === surface.name);
+        expect(resource, `missing MCP resource template ${surface.name}`).toBeDefined();
+        expect(resource!.config).toMatchObject({
+          title: surface.title,
+          description: surface.description,
+          mimeType: surface.mimeType,
+        });
+        expect(resource!.uriOrTemplate.uriTemplate.toString()).toBe(surface.uriTemplate);
+      }
       const agentResource = capturedResources.find((resource) => resource.name === 'agent')!;
       expect(agentResource.config).toMatchObject({
         title: 'OpenBox Agent',
