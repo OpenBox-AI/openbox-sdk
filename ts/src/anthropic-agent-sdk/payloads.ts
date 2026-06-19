@@ -296,7 +296,7 @@ export function brandedReason(verdict?: WorkflowVerdict): string {
 }
 
 export function redactedRecord(verdict?: WorkflowVerdict): Record<string, unknown> | undefined {
-  const redacted = verdict?.guardrailsResult?.redactedInput;
+  const redacted = unwrapInputRedaction(verdict?.guardrailsResult?.redactedInput);
   return redacted && typeof redacted === 'object' && !Array.isArray(redacted)
     ? (redacted as Record<string, unknown>)
     : undefined;
@@ -304,6 +304,23 @@ export function redactedRecord(verdict?: WorkflowVerdict): Record<string, unknow
 
 export function redactedValue(verdict?: WorkflowVerdict): unknown {
   return verdict?.guardrailsResult?.redactedInput;
+}
+
+function unwrapInputRedaction(value: unknown): unknown {
+  if (Array.isArray(value) && value.length === 1) return value[0];
+  if (!isPlainObject(value)) return value;
+  if (Array.isArray(value.input) && value.input.length === 1) return value.input[0];
+  if (Array.isArray(value.activity_input) && value.activity_input.length === 1) {
+    return value.activity_input[0];
+  }
+  if (Array.isArray(value.activityInput) && value.activityInput.length === 1) {
+    return value.activityInput[0];
+  }
+  return value;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
 function spanTypeFor(

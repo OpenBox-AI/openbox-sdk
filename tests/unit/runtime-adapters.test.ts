@@ -140,7 +140,7 @@ describe('createClaudeCodeAdapter', () => {
         preToolUse: async () => verdict('constrain', 'redacted command', {
           guardrailsResult: {
             inputType: 'activity_input',
-            redactedInput: { command: 'echo [redacted]' },
+            redactedInput: [{ command: 'echo [redacted]' }],
             validationPassed: true,
             reasons: [],
             fieldResults: [],
@@ -307,7 +307,7 @@ describe('createClaudeCodeAdapter', () => {
         permissionRequest: async () => verdict('constrain', undefined, {
           guardrailsResult: {
             inputType: 'activity_input',
-            redactedInput: { command: 'npm test' },
+            redactedInput: { activity_input: [{ command: 'npm test' }] },
             validationPassed: true,
             reasons: [],
             fieldResults: [],

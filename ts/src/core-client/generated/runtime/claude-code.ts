@@ -1231,6 +1231,20 @@ function redactedInput(v: WorkflowVerdict | undefined): unknown {
   return v?.guardrailsResult?.redactedInput;
 }
 
+function redactedInputRecord(v: WorkflowVerdict | undefined): Record<string, unknown> | undefined {
+  return objectRecord(unwrapInputRedaction(redactedInput(v)));
+}
+
+function unwrapInputRedaction(value: unknown): unknown {
+  if (Array.isArray(value) && value.length === 1) return value[0];
+  const record = objectRecord(value);
+  if (!record) return value;
+  if (Array.isArray(record.input) && record.input.length === 1) return record.input[0];
+  if (Array.isArray(record.activity_input) && record.activity_input.length === 1) return record.activity_input[0];
+  if (Array.isArray(record.activityInput) && record.activityInput.length === 1) return record.activityInput[0];
+  return value;
+}
+
 function hasInputRedaction(v: WorkflowVerdict | undefined): boolean {
   const guardrails = v?.guardrailsResult;
   return Boolean(
@@ -1285,7 +1299,7 @@ function renderVerdictOutput(
           permissionDecision: 'allow',
         };
         if (arm === 'constrain') {
-          addIfDefined(hookSpecificOutput, 'updatedInput', objectRecord(redactedInput(v)));
+          addIfDefined(hookSpecificOutput, 'updatedInput', redactedInputRecord(v));
           if (reason) hookSpecificOutput.additionalContext = reason;
         }
         return {
@@ -1349,7 +1363,7 @@ function renderVerdictOutput(
       if (arm === 'allow' || arm === 'constrain') {
         const decision: Record<string, unknown> = { behavior: 'allow' };
         if (arm === 'constrain') {
-          addIfDefined(decision, 'updatedInput', objectRecord(redactedInput(v)));
+          addIfDefined(decision, 'updatedInput', redactedInputRecord(v));
         }
         return {
           hookSpecificOutput: {

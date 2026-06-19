@@ -293,7 +293,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
           reason: 'redacted shell command',
           guardrails_result: {
             input_type: 'activity_input',
-            redacted_input: { command: 'echo [redacted]' },
+            redacted_input: [{ command: 'echo [redacted]' }],
             validation_passed: true,
             reasons: [],
             results: [],
