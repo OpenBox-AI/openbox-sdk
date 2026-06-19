@@ -100,7 +100,7 @@ export function loadConfig(): CursorConfig {
     hitlPollInterval: parseInt(getSetting('hitlPollInterval', '5'), 10) || 5,
     hitlMaxWait: parseInt(getSetting('hitlMaxWait', '300'), 10) || 300,
     approvalMode: (getSetting('approvalMode', 'remote').toLowerCase() === 'inline' ? 'inline' : 'remote'),
-    approvalSocketPath: getRuntime('OPENBOX_APPROVAL_SOCKET') || null,
+    approvalSocketPath: getSetting('approvalSocketPath') || null,
     taskQueue: getSetting('taskQueue', 'cursor-hooks'),
     sendStartEvent: getSetting('sendStartEvent', 'true') !== 'false',
     sendActivityStartEvent: getSetting('sendActivityStartEvent', 'true') !== 'false',

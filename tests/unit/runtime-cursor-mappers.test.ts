@@ -336,7 +336,12 @@ describe('runtime configs; env precedence + defaults', () => {
     mkdirSync(join(dir, '.cursor-hooks'), { recursive: true });
     writeFileSync(
       join(dir, '.cursor-hooks', 'config.json'),
-      JSON.stringify({ verbose: true, hitlEnabled: false, hitlMaxWait: 9 }),
+      JSON.stringify({
+        verbose: true,
+        hitlEnabled: false,
+        hitlMaxWait: 9,
+        approvalSocketPath: '/tmp/openbox-project-approval.sock',
+      }),
     );
     process.chdir(dir);
     process.env.OPENBOX_API_KEY = 'obx_live_envtest';
@@ -346,6 +351,8 @@ describe('runtime configs; env precedence + defaults', () => {
     process.env[movedRuntimeSettingKey('VER', 'BOSE')] = 'false';
     process.env[movedRuntimeSettingKey('HITL_', 'ENABLED')] = 'true';
     process.env[movedRuntimeSettingKey('HITL_', 'MAX_WAIT')] = '999';
+    process.env[['OPENBOX', 'APPROVAL', 'SOCKET'].join('_')] =
+      '/tmp/openbox-env-approval.sock';
     try {
       vi.resetModules();
       const mod = await import('../../ts/src/runtime/cursor/config');
@@ -355,6 +362,7 @@ describe('runtime configs; env precedence + defaults', () => {
       expect(cfg.hitlEnabled).toBe(false);
       expect(cfg.hitlMaxWait).toBe(9);
       expect(cfg.verbose).toBe(true);
+      expect(cfg.approvalSocketPath).toBe('/tmp/openbox-project-approval.sock');
       expect(cfg.agentIdentity).toEqual({
         did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
         privateKey: FAKE_AGENT_PRIVATE_KEY,
