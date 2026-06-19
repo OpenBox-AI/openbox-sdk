@@ -224,6 +224,35 @@ describe('createClaudeCodeAdapter', () => {
     );
   });
 
+  test('decision-block prompt constrain with redaction fails closed', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        userPromptSubmit: async () => verdict('constrain', 'prompt redacted', {
+          guardrailsResult: {
+            inputType: 'activity_input',
+            redactedInput: [{ prompt: 'Summarize [redacted].' }],
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [],
+          },
+        }),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({ ...baseEnv, hook_event_name: 'UserPromptSubmit' }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out).toEqual({
+      decision: 'block',
+      reason: '[OpenBox] prompt redacted',
+      suppressOriginalPrompt: true,
+    });
+  });
+
   test('decision-block constrain → hookSpecificOutput.additionalContext + updatedToolOutput', async () => {
     const cap = capture();
     await createClaudeCodeAdapter({
@@ -582,6 +611,38 @@ describe('createCursorAdapter', () => {
     const out = JSON.parse(cap.stdout[0]);
     expect(out.permission).toBe('deny');
     expect(out.user_message).toMatch(/^\[OpenBox\] HALT:/);
+  });
+
+  test('cursor-continue prompt constrain with redaction fails closed', async () => {
+    const cap = capture();
+    await createCursorAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        beforeSubmitPrompt: async () => verdict('constrain', 'prompt redacted', {
+          guardrailsResult: {
+            inputType: 'activity_input',
+            redactedInput: [{ prompt: 'Summarize [redacted].' }],
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [],
+          },
+        }),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({
+          ...baseEnv,
+          hook_event_name: 'beforeSubmitPrompt',
+          prompt: 'Summarize secret.',
+        }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out).toEqual({
+      continue: false,
+      user_message: '[OpenBox] prompt redacted',
+    });
   });
 
   test('cursor-observe (afterShellExecution) → empty object', async () => {

@@ -256,6 +256,36 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(parent.span_count).toBeUndefined();
   });
 
+  it('fails closed when prompt redaction cannot be applied by the host', async () => {
+    const mock = createMockCore((payload) =>
+      payload.event_type === 'ActivityStarted' &&
+      payload.activity_type === 'PromptSubmission'
+        ? verdict('constrain', {
+            reason: 'prompt redacted',
+            guardrails_result: {
+              input_type: 'activity_input',
+              redacted_input: [{ prompt: 'Summarize [redacted].' }],
+              validation_passed: true,
+              reasons: [],
+              results: [],
+              raw_logs: {},
+            },
+          })
+        : verdict('allow'),
+    );
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    const output = await runHook(hooks, 'UserPromptSubmit', {
+      ...baseInput,
+      prompt: 'Summarize secret.',
+    });
+
+    expect(output).toEqual({
+      decision: 'block',
+      reason: '[OpenBox] prompt redacted',
+    });
+  });
+
   it('maps a constrained PreToolUse verdict to allow plus updated input', async () => {
     const mock = createMockCore((payload) => {
       if (payload.event_type === 'ActivityStarted') {

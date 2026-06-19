@@ -844,6 +844,27 @@ function redactedInput(v: WorkflowVerdict | undefined): unknown {
   return v?.guardrailsResult?.redactedInput;
 }
 
+function hasInputRedaction(v: WorkflowVerdict | undefined): boolean {
+  const guardrails = v?.guardrailsResult;
+  return Boolean(
+    guardrails &&
+      (guardrails.inputType === 'activity_input' || guardrails.inputType === 'signal_args') &&
+      guardrails.redactedInput !== undefined &&
+      guardrails.redactedInput !== null,
+  );
+}
+
+function isSubmittedPromptEvent(eventName: unknown): boolean {
+  return eventName === 'UserPromptSubmit' || eventName === 'UserPromptExpansion';
+}
+
+function promptRedactionBlockReason(reason: string): string {
+  return (
+    reason ||
+    '[OpenBox] redacted this prompt, but this host cannot replace submitted prompts. Rewrite the prompt with the redacted content and submit again.'
+  );
+}
+
 function objectRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   return value as Record<string, unknown>;
@@ -910,6 +931,13 @@ function renderVerdictOutput(
             '[OpenBox] approval pending' +
             (approvalReason ? ': ' + approvalReason : '') +
             '. Approve in OpenBox, then ask the agent to retry.',
+        };
+      }
+      if (arm === 'constrain' && isSubmittedPromptEvent(env.hook_event_name) && hasInputRedaction(v)) {
+        return {
+          decision: 'block',
+          reason: promptRedactionBlockReason(reason),
+          suppressOriginalPrompt: true,
         };
       }
       if (arm === 'constrain' && reason) {
@@ -1063,6 +1091,12 @@ function renderVerdictOutput(
       // Cursor's beforeSubmitPrompt verdict shape.
        // Stdout is { continue: bool, user_message?: string };       // distinct from cursor-permission (which uses 'permission').
       // Per cursor.com/docs/hooks.
+      if (arm === 'constrain' && hasInputRedaction(v)) {
+        return {
+          continue: false,
+          user_message: promptRedactionBlockReason(reason),
+        };
+      }
       if (arm === 'allow' || arm === 'constrain') return { continue: true };
       if (arm === 'require_approval') {
         // Cursor's beforeSubmitPrompt API is fire-and-forget: stdout

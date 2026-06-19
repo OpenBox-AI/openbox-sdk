@@ -692,6 +692,18 @@ function renderDecisionBlock(
         '. Approve in OpenBox, then ask the agent to retry.',
     };
   }
+  if (
+    arm === 'constrain' &&
+    isPromptDecisionEvent(event) &&
+    hasPromptRedaction(verdict)
+  ) {
+    return {
+      decision: 'block',
+      reason:
+        reason ||
+        '[OpenBox] redacted this prompt, but this host cannot replace submitted prompts. Rewrite the prompt with the redacted content and submit again.',
+    };
+  }
   if (arm === 'constrain' && reason) {
     const hookSpecificOutput: Record<string, unknown> = {
       hookEventName: event,
@@ -704,6 +716,21 @@ function renderDecisionBlock(
     return { hookSpecificOutput } as HookJSONOutput;
   }
   return {};
+}
+
+function isPromptDecisionEvent(event: string): boolean {
+  return event === 'UserPromptSubmit' || event === 'UserPromptExpansion';
+}
+
+function hasPromptRedaction(verdict: WorkflowVerdict | undefined): boolean {
+  const guardrails = verdict?.guardrailsResult;
+  return Boolean(
+    guardrails &&
+      (guardrails.inputType === 'activity_input' ||
+        guardrails.inputType === 'signal_args') &&
+      guardrails.redactedInput !== undefined &&
+      guardrails.redactedInput !== null,
+  );
 }
 
 function renderPermissionDenied(verdict: WorkflowVerdict | undefined): HookJSONOutput {
