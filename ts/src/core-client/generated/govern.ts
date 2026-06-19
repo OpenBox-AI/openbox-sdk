@@ -3167,7 +3167,7 @@ function normalizeHookSpanAliases(record: Record<string, unknown>): Record<strin
   ) {
     attributes['http.url'] = attributes['url.full'];
   }
-  return {
+  const normalized: Record<string, unknown> = {
     ...record,
     ...(attributes ? { attributes } : {}),
     ...aliasField(record, 'span_id', 'spanId'),
@@ -3183,6 +3183,20 @@ function normalizeHookSpanAliases(record: Record<string, unknown>): Record<strin
     ...aliasField(record, 'request_headers', 'requestHeaders'),
     ...aliasField(record, 'response_headers', 'responseHeaders'),
   };
+  if (Object.prototype.hasOwnProperty.call(normalized, 'events')) {
+    normalized.events = normalizeHookSpanEvents(normalized.events);
+  }
+  if (Object.prototype.hasOwnProperty.call(normalized, 'status')) {
+    const status = normalizeHookSpanStatus(normalized.status);
+    if (status) {
+      normalized.status = status;
+    } else {
+      delete normalized.status;
+    }
+  }
+  normalizeHookSpanHeaderField(normalized, 'request_headers');
+  normalizeHookSpanHeaderField(normalized, 'response_headers');
+  return normalized;
 }
 
 function aliasField(
@@ -3193,6 +3207,76 @@ function aliasField(
   return record[snakeKey] === undefined && record[camelKey] !== undefined
     ? { [snakeKey]: record[camelKey] }
     : {};
+}
+
+function normalizeHookSpanEvents(events: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(events)) {
+    return [];
+  }
+  return events.map((event) => {
+    const record = toPlainRecord(event);
+    return {
+      attributes: toPlainRecord(record.attributes),
+      name: typeof record.name === 'string' ? record.name : '',
+      timestamp:
+        typeof record.timestamp === 'number' && Number.isFinite(record.timestamp)
+          ? record.timestamp
+          : 0,
+    };
+  });
+}
+
+function normalizeHookSpanStatus(status: unknown): Record<string, unknown> | undefined {
+  const record = toPlainRecord(status);
+  const code = typeof record.code === 'string' ? record.code : undefined;
+  const description =
+    typeof record.description === 'string' || record.description === null
+      ? record.description
+      : undefined;
+  if (!code && description === undefined) {
+    return undefined;
+  }
+  return {
+    ...(code ? { code } : {}),
+    ...(description !== undefined ? { description } : {}),
+  };
+}
+
+function normalizeHookSpanHeaderField(
+  record: Record<string, unknown>,
+  key: 'request_headers' | 'response_headers',
+): void {
+  if (!Object.prototype.hasOwnProperty.call(record, key)) {
+    return;
+  }
+  const value = record[key];
+  if (value === null) {
+    return;
+  }
+  const headers = toStringRecord(value);
+  if (headers) {
+    record[key] = headers;
+  } else {
+    delete record[key];
+  }
+}
+
+function toStringRecord(value: unknown): Record<string, string> | undefined {
+  const record = toPlainRecord(value);
+  const entries = Object.entries(record).flatMap(([key, entry]) =>
+    typeof entry === 'string' ? ([[key, entry]] as const) : [],
+  );
+  if (entries.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(entries);
+}
+
+function toPlainRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  return value as Record<string, unknown>;
 }
 
 function hasNonEmptyString(

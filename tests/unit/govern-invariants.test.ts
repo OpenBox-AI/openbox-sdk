@@ -346,6 +346,24 @@ describe('activity pairing', () => {
       startTime,
       endTime,
       durationNs: 25_000_000,
+      status: { code: 'ERROR', description: null, ignored: true },
+      events: [
+        {
+          name: 'cache.lookup',
+          timestamp: endTime,
+          attributes: { hit: false, tier: 'memory' },
+        },
+        {
+          name: 42,
+          timestamp: 'invalid',
+          attributes: null,
+        },
+      ],
+      requestHeaders: {
+        'x-openbox-test': 'yes',
+        'x-numeric': 42,
+      },
+      responseHeaders: null,
       attributes: {
         'url.full': 'https://example.test/tool',
       },
@@ -381,6 +399,23 @@ describe('activity pairing', () => {
       start_time: startTime,
       end_time: endTime,
       duration_ns: 25_000_000,
+      status: { code: 'ERROR', description: null },
+      events: [
+        {
+          name: 'cache.lookup',
+          timestamp: endTime,
+          attributes: { hit: false, tier: 'memory' },
+        },
+        {
+          name: '',
+          timestamp: 0,
+          attributes: {},
+        },
+      ],
+      request_headers: {
+        'x-openbox-test': 'yes',
+      },
+      response_headers: null,
       attributes: expect.objectContaining({
         'http.url': 'https://example.test/tool',
         'url.full': 'https://example.test/tool',
