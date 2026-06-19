@@ -1548,6 +1548,88 @@ POLICY_EVALUATION_GUARDS = [
     "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
   }
 ]
+RULES_INSTRUCTION_CAPABILITY_GUARDS = [
+  {
+    "provider": "codex",
+    "tier": "wrapped",
+    "projectionSurface": "AGENTS.md/OpenBox skill governance instructions plus .codex/rules exact shell-prefix rules when behavior-rule renderer hints include codexCommandPrefix, commandPrefix, or exactShellPrefix",
+    "sourceOfTruth": "OpenBox Core/backend",
+    "allowedProjectionWork": "Render instruction summaries, skill references, source counts, and exact shell command-prefix execution policy only.",
+    "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or broad policy translation in SDK/runtime code",
+    "hostBoundary": "AGENTS.md and skills are advisory instruction surfaces; .codex/rules is limited to command-prefix execution policy and Core verdicts remain enforcement.",
+    "guardTest": "tests/unit/rules-projection-coverage.test.ts#renders Codex AGENTS instructions and exact shell-prefix command rules without local policy evaluation"
+  },
+  {
+    "provider": "cursor",
+    "tier": "native",
+    "projectionSurface": "Cursor plugin rules/openbox.mdc, repo .cursor/rules/openbox-governance.mdc, and per-rule .cursor/rules/openbox-*.mdc projection",
+    "sourceOfTruth": "OpenBox Core/backend",
+    "allowedProjectionWork": "Render active guardrails, policies, and behavior rules into Cursor .mdc files with source/severity metadata and prune only OpenBox-managed files.",
+    "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or local verdict computation in SDK/runtime code",
+    "hostBoundary": "Cursor .mdc files provide native instruction context; hook decisions and final policy evaluation still come from Core.",
+    "guardTest": "tests/unit/cursor-rules-render.test.ts#writes one mdc per rule into .cursor/rules with our header marker"
+  },
+  {
+    "provider": "claude-code",
+    "tier": "wrapped",
+    "projectionSurface": "Claude Code plugin reviewer agent, slash command guidance, OpenBox skill, and optional CLAUDE/AGENTS-style instruction projection",
+    "sourceOfTruth": "OpenBox Core/backend",
+    "allowedProjectionWork": "Ship reviewer and command instructions that ask MCP/Core for policies, guardrails, behavior rules, trust, and governance verdicts.",
+    "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, invented endpoint shapes, or local policy decisions in plugin assets",
+    "hostBoundary": "Claude Code instruction assets are documentation and review aids; hooks/MCP/Core provide enforcement.",
+    "guardTest": "tests/unit/claude-code-plugin.test.ts#exports a complete marketplace-ready plugin folder"
+  },
+  {
+    "provider": "mcp",
+    "tier": "native",
+    "projectionSurface": "MCP prompts and resource templates for policy review, governance checks, guardrails, policies, behavior rules, approvals, agents, and skills",
+    "sourceOfTruth": "OpenBox Core/backend",
+    "allowedProjectionWork": "Expose read resources, prompts, and check_governance calls that route proposed actions to Core.",
+    "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or local guardrail duplication in MCP server code",
+    "hostBoundary": "MCP resources and prompts are inspection/check surfaces; clients must call check_governance so Core makes decisions.",
+    "guardTest": "tests/unit/mcp-server-coverage.test.ts#registers spec-driven MCP tool annotations, prompts, and resource templates"
+  },
+  {
+    "provider": "openai-agents-sdk",
+    "tier": "wrapped",
+    "projectionSurface": "OpenAI Agents SDK guardrail helpers and tracing observations that project Core verdicts into native callbacks",
+    "sourceOfTruth": "OpenBox Core/backend",
+    "allowedProjectionWork": "Wrap input/output/tool guardrails and run lifecycle to send payloads to Core and return native SDK outcomes.",
+    "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or local policy decisions inside SDK helpers",
+    "hostBoundary": "OpenAI Agents SDK helpers provide native callback shapes; Core remains the decision authority.",
+    "guardTest": "tests/unit/openai-agents-sdk.test.ts#maps OpenBox tool guardrail verdicts to fail-closed tool behavior"
+  },
+  {
+    "provider": "anthropic-agent-sdk",
+    "tier": "wrapped",
+    "projectionSurface": "Anthropic Agent SDK options, hooks, message observations, permission events, and workspace-change payloads",
+    "sourceOfTruth": "OpenBox Core/backend",
+    "allowedProjectionWork": "Build hook/message payloads, observe SDK events, and project returned Core verdicts into Anthropic hook decisions.",
+    "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or local policy decisions inside SDK helpers",
+    "hostBoundary": "Anthropic Agent SDK wrapping maps host events to Core checks; Core-owned verdicts drive continuation.",
+    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#maps approval-required PreToolUse verdicts to ask or defer"
+  },
+  {
+    "provider": "copilotkit",
+    "tier": "wrapped",
+    "projectionSurface": "CopilotKit prompt, tool, output, AG-UI, and approval helper result shapes",
+    "sourceOfTruth": "OpenBox Core/backend",
+    "allowedProjectionWork": "Project Core verdicts into CopilotKit runtime results, AG-UI events, interruptions, and approval routes.",
+    "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or local policy decisions inside CopilotKit adapters",
+    "hostBoundary": "CopilotKit surfaces adapt application UI/runtime behavior; Core remains canonical for rules and verdicts.",
+    "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits workflow/tool lifecycle events around a governed tool"
+  },
+  {
+    "provider": "n8n",
+    "tier": "wrapped",
+    "projectionSurface": "n8n Governance, Guardrails, Approval/HITL, and governed AI Agent node/template descriptors",
+    "sourceOfTruth": "OpenBox Core/backend",
+    "allowedProjectionWork": "Project Core verdicts into n8n node helper outputs, workflow templates, and packaged node descriptors.",
+    "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or local policy decisions inside n8n helpers",
+    "hostBoundary": "n8n nodes/templates are workflow projection surfaces; Core remains canonical for policy, guardrails, and approvals.",
+    "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
+  }
+]
 INSTALL_DOCTOR_CAPABILITY_GUARDS = [
   {
     "provider": "codex",

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RulesProjection } from '../../ts/src/governance/rules-projection.js';
 
 const apiState = vi.hoisted(() => ({
   responses: new Map<string, unknown>(),
@@ -169,5 +170,69 @@ describe('governance rules projection coverage', () => {
       severity: 'block',
       description: 'No description policy',
     });
+  });
+
+  it('renders Codex AGENTS instructions and exact shell-prefix command rules without local policy evaluation', async () => {
+    const { renderCodexAgentsMarkdown, renderCodexCommandRules } = await import(
+      '../../ts/src/governance/rules-projection.ts'
+    );
+    const projection: RulesProjection = {
+      agentId: 'agent-1',
+      fetchedAt: '2026-05-04T00:00:00Z',
+      version: 1,
+      rules: [
+        {
+          id: 'guardrail/gr-a',
+          source: 'guardrail',
+          description: 'Prompt guard',
+          body: 'guardrail body',
+          trigger: 'always',
+          severity: 'warn',
+        },
+        {
+          id: 'policy/pol-a',
+          source: 'policy',
+          description: 'Transfer policy',
+          body: 'policy body',
+          trigger: 'agentRequested',
+          severity: 'block',
+        },
+        {
+          id: 'behavior-rule/br-publish',
+          source: 'behavior-rule',
+          description: 'Block package publish',
+          body: 'behavior rule body',
+          trigger: 'always',
+          severity: 'block',
+          rendererHints: {
+            exactShellPrefix: ['npm', 'publish'],
+          },
+        },
+        {
+          id: 'behavior-rule/br-no-prefix',
+          source: 'behavior-rule',
+          description: 'No local command prefix',
+          body: 'behavior rule body',
+          trigger: 'always',
+          severity: 'warn',
+        },
+      ],
+    };
+
+    const agents = renderCodexAgentsMarkdown(projection);
+    expect(agents).toContain('OpenBox Core is the source of truth');
+    expect(agents).toContain('Do not locally reimplement policy decisions');
+    expect(agents).toContain('- Guardrails: 1');
+    expect(agents).toContain('- Policies: 1');
+    expect(agents).toContain('- Behavior rules: 2');
+
+    const commandRules = renderCodexCommandRules(projection);
+    expect(commandRules).toContain('Only exact shell command-prefix execution policy is projected here');
+    expect(commandRules).toContain('prefix_rule(');
+    expect(commandRules).toContain('pattern = ["npm", "publish"]');
+    expect(commandRules).toContain('decision = "forbidden"');
+    expect(commandRules).not.toContain('guardrail/gr-a');
+    expect(commandRules).not.toContain('policy/pol-a');
+    expect(commandRules).not.toContain('br-no-prefix');
   });
 });

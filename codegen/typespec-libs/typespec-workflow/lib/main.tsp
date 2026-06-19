@@ -302,6 +302,7 @@ extern dec hookEventLabel(target: Operation, label: valueof string);
  *     hitlCapabilityGuards: #[#{ provider, tier, requireApprovalSurface, sourceAttribution, nativeSurface, fallbackSurface, guardTest, failClosedBehavior }, ...],
  *     guardrailCapabilityGuards: #[#{ provider, tier, governedSurfaces, coreContract, redactionBehavior, failClosedBehavior, guardTest }, ...],
  *     policyEvaluationGuards: #[#{ provider, tier, authority, sdkResponsibility, allowedLocalWork, forbiddenLocalWork, guardTest }, ...],
+ *     rulesInstructionCapabilityGuards: #[#{ provider, tier, projectionSurface, sourceOfTruth, allowedProjectionWork, forbiddenLocalWork, hostBoundary, guardTest }, ...],
  *     installDoctorCapabilityGuards: #[#{ provider, tier, installSurface, doctorSurface, scopeBoundary, generatedOrPackagedSurface, guardTest }, ...],
  *     eventCatalog: #[...],
  *     pluginComponents: #[...],
