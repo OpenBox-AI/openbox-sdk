@@ -106,6 +106,7 @@ export type { Presets, PresetCtor } from './generated/govern.js';
 // web dashboard, CLI list views, audit reports. Consumers fall back to
 // a Title-Case formatter for activity_types not in the labels table.
 export {
+  CANONICAL_EVENT_TYPE,
   CANONICAL_EVENT_TYPES,
   CANONICAL_ACTIVITY_TYPES,
   CANONICAL_ACTIVITY_LABELS,

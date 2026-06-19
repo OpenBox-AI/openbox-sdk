@@ -193,6 +193,14 @@ function snakeToCamel(value) {
   return value.replace(/_([a-z0-9])/g, (_, char) => char.toUpperCase());
 }
 
+function eventTypeConstantName(value) {
+  return `${value
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toUpperCase()}_EVENT_TYPE`;
+}
+
 function assertSubset(values, allowed, label) {
   const missing = values.filter((value) => !allowed.includes(value));
   if (missing.length > 0) {
@@ -269,8 +277,13 @@ function emitRuntimeContract() {
     "GovernedPayload",
     "hookSpanParentEventType",
   );
-  const activityStartedEventType = requireValue(eventTypes, "ActivityStarted", "EventType");
-  const activityCompletedEventType = requireValue(eventTypes, "ActivityCompleted", "EventType");
+  const eventTypeConstants = Object.entries(
+    Object.fromEntries(eventTypes.map((value) => [eventTypeConstantName(value), value])),
+  )
+    .map(([name, value]) => `${name} = ${py(value)}`)
+    .join("\n");
+  requireValue(eventTypes, "ActivityStarted", "EventType");
+  requireValue(eventTypes, "ActivityCompleted", "EventType");
   const defaultGuardrailInputType = requireValue(
     guardrailInputTypes,
     "activity_input",
@@ -435,7 +448,7 @@ function emitRuntimeContract() {
     field.replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`),
     field,
   ]);
-  return `${banner}# Generated from TypeSpec governance/core contract inputs by scripts/generate-python-sdk.mjs.\n\nEVENT_TYPES = ${py(eventTypes)}\nACTIVITY_STARTED_EVENT_TYPE = ${py(activityStartedEventType)}\nACTIVITY_COMPLETED_EVENT_TYPE = ${py(activityCompletedEventType)}\nVERDICT_ARMS = ${py(verdictArms)}\nVERDICT_ARM_RANK = ${py(Object.fromEntries(verdictArms.map((arm, index) => [arm, index])))}\nGUARDRAIL_INPUT_TYPES = ${py(guardrailInputTypes)}\nDEFAULT_GUARDRAIL_INPUT_TYPE = ${py(defaultGuardrailInputType)}\nGUARDRAIL_INPUT_LIKE_TYPES = ${py(guardrailInputTypes.filter((value) => value !== guardrailOutputType))}\nGUARDRAIL_OUTPUT_TYPE = ${py(guardrailOutputType)}\nGUARDRAIL_FIELD_STATUSES = ${py(guardrailFieldStatuses)}\nDEFAULT_GUARDRAIL_FIELD_STATUS = ${py(defaultGuardrailFieldStatus)}\nGUARDRAIL_REDACTION_STATUSES = ${py(guardrailRedactionStatuses)}\nHOOK_SPAN_PARENT_EVENT_TYPES = ${py(hookParentEventTypes)}\nDEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE = ${py(hookParentEventTypes[0] || null)}\nGOVERNED_PAYLOAD_FIELD_ALIASES = ${py(governedPayloadFieldAliases)}\nWORKFLOW_VERDICT_FIELD_ALIASES = ${py(workflowVerdictFieldAliases)}\nGUARDRAILS_RESULT_RESPONSE_ALIASES = ${py(workflowVerdictFieldAliases.guardrailsResult)}\nGUARDRAILS_RESULT_FIELD_ALIASES = ${py(guardrailsResultFieldAliases)}\nAPPROVAL_STATUS_FIELD_ALIASES = ${py(approvalStatusFieldAliases)}\nAPPROVAL_EXPIRY_ALIASES = ${py(unique([...approvalStatusFieldAliases.approvalExpiresAt, "expires_at", "expiresAt"]))}\nTELEMETRY_FIELD_ALIASES = ${py(Object.fromEntries(telemetryFieldAliases.map(([snake, camel]) => [snake, [snake, camel]])))}\nSPAN_ALIAS_FIELDS = ${py(spanAliasSnakeFields.map((field) => [field, snakeToCamel(field)]))}\nSPAN_PERSISTABLE_ROOT_STRING_FIELDS = ${py(spanRootStringFields)}\nSPAN_PERSISTABLE_ATTRIBUTE_FIELDS = ${py(["url.full", "http.url", "http.method", "file.path", "file.operation", "db.statement", "db.operation", "db.system", "shell.command", "mcp.method", "openbox.tool.name", "tool.name", "tool_name", "gen_ai.system"])}\nSPAN_RUNTIME_HINT_FIELDS = ${py(runtimeHintFields)}\nSPAN_STATUS_CODES = ${py(spanStatusCodes)}\n`;
+  return `${banner}# Generated from TypeSpec governance/core contract inputs by scripts/generate-python-sdk.mjs.\n\nEVENT_TYPES = ${py(eventTypes)}\n${eventTypeConstants}\nVERDICT_ARMS = ${py(verdictArms)}\nVERDICT_ARM_RANK = ${py(Object.fromEntries(verdictArms.map((arm, index) => [arm, index])))}\nGUARDRAIL_INPUT_TYPES = ${py(guardrailInputTypes)}\nDEFAULT_GUARDRAIL_INPUT_TYPE = ${py(defaultGuardrailInputType)}\nGUARDRAIL_INPUT_LIKE_TYPES = ${py(guardrailInputTypes.filter((value) => value !== guardrailOutputType))}\nGUARDRAIL_OUTPUT_TYPE = ${py(guardrailOutputType)}\nGUARDRAIL_FIELD_STATUSES = ${py(guardrailFieldStatuses)}\nDEFAULT_GUARDRAIL_FIELD_STATUS = ${py(defaultGuardrailFieldStatus)}\nGUARDRAIL_REDACTION_STATUSES = ${py(guardrailRedactionStatuses)}\nHOOK_SPAN_PARENT_EVENT_TYPES = ${py(hookParentEventTypes)}\nDEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE = ${py(hookParentEventTypes[0] || null)}\nGOVERNED_PAYLOAD_FIELD_ALIASES = ${py(governedPayloadFieldAliases)}\nWORKFLOW_VERDICT_FIELD_ALIASES = ${py(workflowVerdictFieldAliases)}\nGUARDRAILS_RESULT_RESPONSE_ALIASES = ${py(workflowVerdictFieldAliases.guardrailsResult)}\nGUARDRAILS_RESULT_FIELD_ALIASES = ${py(guardrailsResultFieldAliases)}\nAPPROVAL_STATUS_FIELD_ALIASES = ${py(approvalStatusFieldAliases)}\nAPPROVAL_EXPIRY_ALIASES = ${py(unique([...approvalStatusFieldAliases.approvalExpiresAt, "expires_at", "expiresAt"]))}\nTELEMETRY_FIELD_ALIASES = ${py(Object.fromEntries(telemetryFieldAliases.map(([snake, camel]) => [snake, [snake, camel]])))}\nSPAN_ALIAS_FIELDS = ${py(spanAliasSnakeFields.map((field) => [field, snakeToCamel(field)]))}\nSPAN_PERSISTABLE_ROOT_STRING_FIELDS = ${py(spanRootStringFields)}\nSPAN_PERSISTABLE_ATTRIBUTE_FIELDS = ${py(["url.full", "http.url", "http.method", "file.path", "file.operation", "db.statement", "db.operation", "db.system", "shell.command", "mcp.method", "openbox.tool.name", "tool.name", "tool_name", "gen_ai.system"])}\nSPAN_RUNTIME_HINT_FIELDS = ${py(runtimeHintFields)}\nSPAN_STATUS_CODES = ${py(spanStatusCodes)}\n`;
 }
 
 function emitClientModule({ className, manifestName, manifest, methodNames }) {

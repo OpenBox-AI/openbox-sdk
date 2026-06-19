@@ -10,6 +10,7 @@ import {
   type BaseGovernedSession,
   type WorkflowVerdict,
 } from '../core-client/index.js';
+import { EVENT } from '../governance/events.js';
 import { withOpenBoxActivityMetadata } from '../governance/spans.js';
 import { errorMessage, nowUnixNano } from './internal-utils.js';
 import {
@@ -248,7 +249,7 @@ export async function emitUserPromptSignal(
 
   await createWorkflowSession(adapter, ids, workflowType, taskQueue, {
     attached: true,
-  }).activity('SignalReceived', defaultActivity.goalSignal, {
+  }).activity(EVENT.SIGNAL, defaultActivity.goalSignal, {
     input: [
       stampSource(
         { prompt: signalArgs, event_category: 'agent_goal' },
@@ -273,11 +274,11 @@ export async function emitActivityHookSpanUpdate(
 ): Promise<WorkflowVerdict> {
   return createWorkflowSession(adapter, ids, workflowType, taskQueue, {
     attached: true,
-  }).activity('ActivityCompleted', activityType ?? langchainActivity.onLlmEnd, {
+  }).activity(EVENT.COMPLETE, activityType ?? langchainActivity.onLlmEnd, {
     activityId: ids.activityId,
     output,
     spans,
-    hookSpanParentEventType: 'ActivityStarted',
+    hookSpanParentEventType: EVENT.START,
   });
 }
 

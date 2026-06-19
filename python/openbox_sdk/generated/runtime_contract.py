@@ -12,8 +12,13 @@ EVENT_TYPES = [
   "SignalReceived",
   "Handoff"
 ]
+WORKFLOW_STARTED_EVENT_TYPE = "WorkflowStarted"
+WORKFLOW_COMPLETED_EVENT_TYPE = "WorkflowCompleted"
+WORKFLOW_FAILED_EVENT_TYPE = "WorkflowFailed"
 ACTIVITY_STARTED_EVENT_TYPE = "ActivityStarted"
 ACTIVITY_COMPLETED_EVENT_TYPE = "ActivityCompleted"
+SIGNAL_RECEIVED_EVENT_TYPE = "SignalReceived"
+HANDOFF_EVENT_TYPE = "Handoff"
 VERDICT_ARMS = [
   "allow",
   "constrain",

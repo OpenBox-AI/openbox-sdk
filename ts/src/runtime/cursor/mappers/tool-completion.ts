@@ -183,7 +183,7 @@ export async function handlePostToolUse(
     toolName: env.tool_name,
     toolType,
     spans: [buildSpan('cursor', toolType, { ...spanInput(env), stage: 'completed' })],
-    hookSpanParentEventType: 'ActivityStarted',
+    hookSpanParentEventType: EVENT.START,
   });
   return undefined;
 }
@@ -219,7 +219,7 @@ export async function handlePostToolUseFailure(
         error: failureError(env),
       }),
     ],
-    hookSpanParentEventType: 'ActivityStarted',
+    hookSpanParentEventType: EVENT.START,
   });
   return undefined;
 }

@@ -1223,13 +1223,26 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
   // Stable key order for deterministic output.
   const sortedLabels: Record<string, string> = {};
   for (const k of Object.keys(labelTable).sort()) sortedLabels[k] = labelTable[k];
+  const sortedEventTypeMembers = [...eventTypeMembers].sort();
+  const eventTypeConstants = Object.fromEntries(
+    sortedEventTypeMembers.map((eventType) => [eventConstPrefix(eventType), eventType]),
+  );
 
   out.addStatements([
+    '/** Named event_type constants generated from CanonicalEventType.',
+    ' *  Runtime/adapters should import this instead of duplicating',
+    ' *  ActivityStarted / ActivityCompleted / SignalReceived strings. */',
+    `export const CANONICAL_EVENT_TYPE = ${JSON.stringify(
+      eventTypeConstants,
+      null,
+      2,
+    )} as const satisfies Record<string, CanonicalEventType>;`,
+    '',
     '/** The 7 canonical event_type strings. Anything else on the wire',
     ' *  is a protocol bug. Consumed by the session-inspect protocol',
     ' *  checker + the verify static linter. */',
     `export const CANONICAL_EVENT_TYPES: ReadonlySet<CanonicalEventType> = new Set(${JSON.stringify(
-      eventTypeMembers.sort(),
+      sortedEventTypeMembers,
     )} as const);`,
     '',
     '/** Every activity_type string declared in any @preset method or',
@@ -2600,7 +2613,7 @@ export class BaseGovernedSession {
   async workflowStarted(): Promise<void> {
     if (this.opened) return;
     this.opened = true;
-    await this.emit({ event_type: 'WorkflowStarted' });
+    await this.emit({ event_type: CANONICAL_EVENT_TYPE.WORKFLOW_STARTED });
   }
   /** @deprecated use \`workflowStarted()\`; same behavior. */
   async begin(): Promise<void> {
@@ -2618,7 +2631,7 @@ export class BaseGovernedSession {
     if (this.finalized) return undefined;
     this.finalized = true;
     try {
-      return await this.emit({ event_type: 'WorkflowCompleted', status: 'completed' });
+      return await this.emit({ event_type: CANONICAL_EVENT_TYPE.WORKFLOW_COMPLETED, status: 'completed' });
     } finally {
       this.cleanupExitHandlers();
     }
@@ -2641,7 +2654,7 @@ export class BaseGovernedSession {
     this.finalized = true;
     try {
       return await this.emit({
-        event_type: 'WorkflowFailed',
+        event_type: CANONICAL_EVENT_TYPE.WORKFLOW_FAILED,
         status: 'failed',
         error: errorInfoFrom(error),
       });
@@ -2691,9 +2704,9 @@ export class BaseGovernedSession {
     const startTime = payload.startTime ?? Date.now();
     this.inFlight.add(activityId);
     try {
-      if (eventType === 'Handoff') {
+      if (eventType === CANONICAL_EVENT_TYPE.HANDOFF) {
         const handoffVerdict = await this.emit({
-          event_type: 'Handoff',
+          event_type: CANONICAL_EVENT_TYPE.HANDOFF,
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
@@ -2702,9 +2715,9 @@ export class BaseGovernedSession {
         handoffVerdict.activityId = activityId;
         return handoffVerdict;
       }
-      if (eventType === 'SignalReceived') {
+      if (eventType === CANONICAL_EVENT_TYPE.SIGNAL_RECEIVED) {
         const signalVerdict = await this.emit({
-          event_type: 'SignalReceived',
+          event_type: CANONICAL_EVENT_TYPE.SIGNAL_RECEIVED,
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
@@ -2715,10 +2728,10 @@ export class BaseGovernedSession {
         signalVerdict.activityId = activityId;
         return signalVerdict;
       }
-      if (eventType === 'ActivityStarted') {
+      if (eventType === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED) {
         this.activityStartsMs.set(activityId, startTime);
         const startedVerdict = await this.emitWithSpanHook({
-          event_type: 'ActivityStarted',
+          event_type: CANONICAL_EVENT_TYPE.ACTIVITY_STARTED,
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
@@ -2767,7 +2780,7 @@ export class BaseGovernedSession {
     this.inFlight.add(activityId);
     try {
       let verdict = await this.emitWithSpanHook({
-        event_type: 'ActivityStarted',
+        event_type: CANONICAL_EVENT_TYPE.ACTIVITY_STARTED,
         activity_id: activityId,
         activity_type: activityType,
         activity_input: payload.input,
@@ -2814,12 +2827,12 @@ export class BaseGovernedSession {
         verdict,
         complete: (completionPayload, completionActivityType) =>
           this.runActivity(
-            'ActivityCompleted',
+            CANONICAL_EVENT_TYPE.ACTIVITY_COMPLETED,
             completionActivityType ?? activityType,
             {
               ...completionPayload,
               activityId,
-              hookSpanParentEventType: completionPayload.hookSpanParentEventType ?? 'ActivityStarted',
+              hookSpanParentEventType: completionPayload.hookSpanParentEventType ?? CANONICAL_EVENT_TYPE.ACTIVITY_STARTED,
             },
           ),
       };
@@ -2852,9 +2865,9 @@ export class BaseGovernedSession {
     this.inFlight.add(activityId);
 
     try {
-      if (eventType === 'Handoff') {
+      if (eventType === CANONICAL_EVENT_TYPE.HANDOFF) {
         const handoffVerdict = await this.emit({
-          event_type: 'Handoff',
+          event_type: CANONICAL_EVENT_TYPE.HANDOFF,
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
@@ -2864,9 +2877,9 @@ export class BaseGovernedSession {
         return handoffVerdict;
       }
 
-      if (eventType === 'SignalReceived') {
+      if (eventType === CANONICAL_EVENT_TYPE.SIGNAL_RECEIVED) {
         const signalVerdict = await this.emit({
-          event_type: 'SignalReceived',
+          event_type: CANONICAL_EVENT_TYPE.SIGNAL_RECEIVED,
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
@@ -2878,10 +2891,10 @@ export class BaseGovernedSession {
         return signalVerdict;
       }
 
-      if (eventType === 'ActivityStarted') {
+      if (eventType === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED) {
         this.activityStartsMs.set(activityId, startTime);
         const startedVerdict = await this.emitWithSpanHook({
-          event_type: 'ActivityStarted',
+          event_type: CANONICAL_EVENT_TYPE.ACTIVITY_STARTED,
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
@@ -2956,7 +2969,7 @@ export class BaseGovernedSession {
         return this.emitCompleted(activityId, activityType, { ...payload, spans: undefined });
       }
 
-      // eventType === 'ActivityCompleted'; post-stage gate.
+      // eventType === ActivityCompleted; post-stage gate.
       return this.emitCompleted(activityId, activityType, payload);
     } finally {
       this.inFlight.delete(activityId);
@@ -2975,7 +2988,7 @@ export class BaseGovernedSession {
       payload.durationMs ??
       (typeof startTime === 'number' ? Math.max(0, endTime - startTime) : undefined);
     const completedVerdict = await this.emitWithSpanHook({
-      event_type: 'ActivityCompleted',
+      event_type: CANONICAL_EVENT_TYPE.ACTIVITY_COMPLETED,
       activity_id: activityId,
       activity_type: activityType,
       status: activityCompletionStatus(activityType),
@@ -3030,19 +3043,19 @@ export class BaseGovernedSession {
       GovernanceEventPayload,
       'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms' | keyof TelemetryEventFields
     > & {
-      hook_span_parent_event_type?: 'ActivityStarted';
+      hook_span_parent_event_type?: typeof CANONICAL_EVENT_TYPE.ACTIVITY_STARTED;
       ensure_hook_span_parent?: boolean;
     },
   ): Promise<${verdictModelName}> {
     const hasActivitySpans =
-      (event.event_type === 'ActivityStarted' || event.hook_span_parent_event_type === 'ActivityStarted') &&
+      (event.event_type === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED || event.hook_span_parent_event_type === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED) &&
       Array.isArray(event.spans) &&
       event.spans.some(isPersistableHookSpan);
     const parentEvent = withoutSpanRuntimeHints({ ...event, spans: undefined }) as typeof event;
-    const hookParentEvent = event.hook_span_parent_event_type === 'ActivityStarted'
+    const hookParentEvent = event.hook_span_parent_event_type === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED
       ? ({
           ...parentEvent,
-          event_type: 'ActivityStarted',
+          event_type: CANONICAL_EVENT_TYPE.ACTIVITY_STARTED,
           status: undefined,
           activity_output: undefined,
           end_time: undefined,
@@ -3051,7 +3064,7 @@ export class BaseGovernedSession {
       : parentEvent;
     if (
       hasActivitySpans &&
-      hookParentEvent.event_type === 'ActivityStarted' &&
+      hookParentEvent.event_type === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED &&
       event.ensure_hook_span_parent === true &&
       event.activity_id &&
       !this.activityParents.has(event.activity_id)
@@ -3063,7 +3076,7 @@ export class BaseGovernedSession {
       }
     }
     const parentVerdict = await this.emit(parentEvent);
-    if (parentEvent.event_type === 'ActivityStarted' && event.activity_id) {
+    if (parentEvent.event_type === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED && event.activity_id) {
       this.activityParents.add(event.activity_id);
     }
     if (!hasActivitySpans) return parentVerdict;
@@ -3294,7 +3307,7 @@ function observeCompletedSpanPayload(payload: GovernedPayload): GovernedPayload 
   if (payload.hookSpanParentEventType) return payload;
   return {
     ...payload,
-    hookSpanParentEventType: 'ActivityStarted',
+    hookSpanParentEventType: CANONICAL_EVENT_TYPE.ACTIVITY_STARTED,
     ensureHookSpanParent: payload.ensureHookSpanParent ?? true,
   };
 }
@@ -3820,10 +3833,10 @@ function withSpanHookContext<T>(
         ? Math.max(0, endTime - startTime)
         : undefined);
     if (startTime !== undefined) next.start_time = startTime;
-    if (event.event_type === 'ActivityStarted') {
+    if (event.event_type === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED) {
       next.end_time = null;
       next.duration_ns = null;
-    } else if (event.event_type === 'ActivityCompleted') {
+    } else if (event.event_type === CANONICAL_EVENT_TYPE.ACTIVITY_COMPLETED) {
       if (endTime !== undefined) next.end_time = endTime;
       if (durationNs !== undefined) next.duration_ns = durationNs;
     }

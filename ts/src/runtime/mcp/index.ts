@@ -34,6 +34,7 @@ import {
 } from "../claude-code/doctor.js";
 import { buildMcpGovernanceSpan, MCP_ACTIVITY_TYPE_MAP } from "./governance-span.js";
 import { claudeCodeGovernanceSummary } from "../claude-code/governance-matrix.js";
+import { EVENT } from "../../governance/events.js";
 import { withSpanActivityId, type SpanType } from "../../governance/spans.js";
 
 export async function runMcpServer(): Promise<void> {
@@ -354,7 +355,7 @@ async function coreEvaluate(
   );
   const payload = {
     source,
-    event_type: "ActivityStarted",
+    event_type: EVENT.START,
     workflow_id: crypto.randomUUID(),
     run_id: crypto.randomUUID(),
     workflow_type: "MCPCheck",

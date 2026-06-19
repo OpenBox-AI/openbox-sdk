@@ -43,6 +43,7 @@ import {
   toolSpan,
   withCopilotToolActivityMetadata,
 } from './workflow-session.js';
+import { EVENT } from '../governance/events.js';
 
 export function createGovernedCopilotTool<
   TInput extends OpenBoxCopilotActionInput,
@@ -222,7 +223,7 @@ export function createGovernedCopilotTool<
                   spans: [
                     toolSpan(definition, startedRedaction.input, 'completed'),
                   ],
-                  hookSpanParentEventType: 'ActivityStarted',
+                  hookSpanParentEventType: EVENT.START,
                 },
                 definition.toolName,
               );
@@ -253,7 +254,7 @@ export function createGovernedCopilotTool<
               spans: [
                 toolSpan(definition, startedRedaction.input, 'completed'),
               ],
-              hookSpanParentEventType: 'ActivityStarted',
+              hookSpanParentEventType: EVENT.START,
             },
             definition.toolName,
           ),
@@ -444,14 +445,14 @@ export function createGovernedCopilotTool<
             workflowType,
             taskQueue,
             { attached: true, inlineApproval: true },
-          ).activity('ActivityCompleted', definition.toolName, {
+          ).activity(EVENT.COMPLETE, definition.toolName, {
             activityId: ids.activityId,
             input: withCopilotToolActivityMetadata([
               approvalResumeToolInput(definition, normalizedInput),
             ]),
             output: toolOutputForGovernance(result),
             spans: [approvalResumeSpan(definition, normalizedInput)],
-            hookSpanParentEventType: 'ActivityStarted',
+            hookSpanParentEventType: EVENT.START,
           }),
       );
 

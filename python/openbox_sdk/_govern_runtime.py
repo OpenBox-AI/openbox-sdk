@@ -24,12 +24,17 @@ from .generated.runtime_contract import (
     GUARDRAIL_OUTPUT_TYPE,
     GUARDRAILS_RESULT_FIELD_ALIASES,
     GUARDRAILS_RESULT_RESPONSE_ALIASES,
+    HANDOFF_EVENT_TYPE,
+    SIGNAL_RECEIVED_EVENT_TYPE,
     SPAN_ALIAS_FIELDS,
     SPAN_PERSISTABLE_ATTRIBUTE_FIELDS,
     SPAN_PERSISTABLE_ROOT_STRING_FIELDS,
     SPAN_RUNTIME_HINT_FIELDS,
     TELEMETRY_FIELD_ALIASES,
     VERDICT_ARM_RANK,
+    WORKFLOW_COMPLETED_EVENT_TYPE,
+    WORKFLOW_FAILED_EVENT_TYPE,
+    WORKFLOW_STARTED_EVENT_TYPE,
     WORKFLOW_VERDICT_FIELD_ALIASES,
 )
 
@@ -127,7 +132,7 @@ class BaseGovernedSession:
         if self._opened:
             return
         self._opened = True
-        await self.emit({"event_type": "WorkflowStarted"})
+        await self.emit({"event_type": WORKFLOW_STARTED_EVENT_TYPE})
 
     async def begin(self) -> None:
         await self.workflow_started()
@@ -136,7 +141,7 @@ class BaseGovernedSession:
         if self._finalized:
             return None
         self._finalized = True
-        return await self.emit({"event_type": "WorkflowCompleted", "status": "completed"})
+        return await self.emit({"event_type": WORKFLOW_COMPLETED_EVENT_TYPE, "status": "completed"})
 
     async def complete(self) -> WorkflowVerdict | None:
         return await self.workflow_completed()
@@ -147,7 +152,7 @@ class BaseGovernedSession:
         self._finalized = True
         return await self.emit(
             {
-                "event_type": "WorkflowFailed",
+                "event_type": WORKFLOW_FAILED_EVENT_TYPE,
                 "status": "failed",
                 "error": _error_info(error),
             }
@@ -243,16 +248,16 @@ class BaseGovernedSession:
         start_time = _coerce_int(_pick_payload_field(source_payload, "start_time"), _now_ms())
         self._in_flight.add(activity_id)
         try:
-            if event_type == "Handoff":
+            if event_type == HANDOFF_EVENT_TYPE:
                 return await self._standalone_event(
-                    "Handoff",
+                    HANDOFF_EVENT_TYPE,
                     activity_id,
                     activity_type,
                     source_payload,
                 )
-            if event_type == "SignalReceived":
+            if event_type == SIGNAL_RECEIVED_EVENT_TYPE:
                 return await self._standalone_event(
-                    "SignalReceived",
+                    SIGNAL_RECEIVED_EVENT_TYPE,
                     activity_id,
                     activity_type,
                     source_payload,
@@ -321,7 +326,7 @@ class BaseGovernedSession:
             "activity_input": payload.get("input"),
             **_telemetry_fields(payload, self.multi_agent_session_id),
         }
-        if event_type == "SignalReceived":
+        if event_type == SIGNAL_RECEIVED_EVENT_TYPE:
             event["signal_name"] = _pick_payload_field(payload, "signal_name")
             event["signal_args"] = _pick_payload_field(payload, "signal_args")
         verdict = await self.emit(event)

@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { SpanData } from '../core-client/core-client.js';
 import type { GovernedPayload, WorkflowVerdict } from '../core-client/index.js';
 import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
+import { EVENT } from '../governance/events.js';
 import {
   llmTokenUsageFromRecord,
   withOpenBoxActivityMetadata,
@@ -81,7 +82,7 @@ async function evaluateGate<T>(
   const spanParent =
     completed && spans && spans.length > 0
       ? {
-          hookSpanParentEventType: 'ActivityStarted' as const,
+          hookSpanParentEventType: EVENT.START,
           ensureHookSpanParent: true,
         }
       : {};
@@ -95,7 +96,7 @@ async function evaluateGate<T>(
     return opened.verdict;
   }
   return session.activity(
-    completed ? 'ActivityCompleted' : 'ActivityStarted',
+    completed ? EVENT.COMPLETE : EVENT.START,
     activityType,
     completed
       ? {

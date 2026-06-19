@@ -142,7 +142,7 @@ export async function handleStop(
         event: 'Stop',
         fallbackText: env.last_assistant_message,
       }),
-      hookSpanParentEventType: 'ActivityStarted',
+      hookSpanParentEventType: EVENT.START,
       ensureHookSpanParent: !pending,
     });
   } catch {

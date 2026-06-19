@@ -5,6 +5,7 @@ import type {
   WorkflowVerdict,
 } from '../../core-client/index.js';
 import { PRESET_ACTIVITY_TYPES } from '../../core-client/generated/govern.js';
+import { EVENT } from '../../governance/events.js';
 import type { LLMTokenUsage } from '../../governance/spans.js';
 import {
   withOpenBoxActivityMetadata,
@@ -255,7 +256,7 @@ export async function emitN8nUserPromptSignal(
 ): Promise<WorkflowVerdict | undefined> {
   const signalArgs = prompt?.trim();
   if (!signalArgs) return undefined;
-  return session.activity('SignalReceived', defaultActivity.goalSignal, {
+  return session.activity(EVENT.SIGNAL, defaultActivity.goalSignal, {
     input: [
       stampSource(
         cleanRecord({
@@ -423,7 +424,7 @@ export async function emitN8nNodePostExecute(
     activityId,
     spans: payload.spans?.map((span) => withSpanActivityId(span, activityId)),
     startTime: pending?.startTime ?? input.startTime,
-    hookSpanParentEventType: payload.spans?.length ? 'ActivityStarted' : undefined,
+    hookSpanParentEventType: payload.spans?.length ? EVENT.START : undefined,
     ensureHookSpanParent: !pending,
   });
 }
@@ -440,7 +441,7 @@ export async function emitN8nLlmCompletion(
     activityId,
     spans: payload.spans?.map((span) => withSpanActivityId(span, activityId)),
     startTime: pending?.startTime,
-    hookSpanParentEventType: payload.spans?.length ? 'ActivityStarted' : undefined,
+    hookSpanParentEventType: payload.spans?.length ? EVENT.START : undefined,
     ensureHookSpanParent: !pending,
   });
 }

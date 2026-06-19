@@ -143,7 +143,7 @@ export async function handleMessageDisplay(
             preferTranscriptContent: true,
           })
         : undefined,
-      hookSpanParentEventType: env.final === true ? 'ActivityStarted' : undefined,
+      hookSpanParentEventType: env.final === true ? EVENT.START : undefined,
       ensureHookSpanParent: env.final === true,
     });
   } catch {

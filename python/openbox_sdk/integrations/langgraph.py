@@ -8,6 +8,10 @@ from typing import Any, TypeVar
 from openbox_sdk._govern_runtime import BaseGovernedSession, WorkflowVerdict
 from openbox_sdk.clients import AsyncOpenBoxCoreClient
 from openbox_sdk.generated.govern import PRESET_ACTIVITY_TYPES, presets
+from openbox_sdk.generated.runtime_contract import (
+    ACTIVITY_COMPLETED_EVENT_TYPE,
+    ACTIVITY_STARTED_EVENT_TYPE,
+)
 
 T = TypeVar("T")
 DEFAULT_ACTIVITY_TYPES = PRESET_ACTIVITY_TYPES["default"]
@@ -45,7 +49,7 @@ class OpenBoxLangGraphMiddleware:
         activity_id: str | None = None,
     ) -> WorkflowVerdict:
         return await self.session.observe_activity(
-            "ActivityStarted",
+            ACTIVITY_STARTED_EVENT_TYPE,
             activity_type,
             _with_activity_id(payload, activity_id),
         )
@@ -58,7 +62,7 @@ class OpenBoxLangGraphMiddleware:
         activity_id: str | None = None,
     ) -> WorkflowVerdict:
         return await self.session.observe_activity(
-            "ActivityCompleted",
+            ACTIVITY_COMPLETED_EVENT_TYPE,
             activity_type,
             _with_activity_id(payload, activity_id),
         )
@@ -69,7 +73,7 @@ class OpenBoxLangGraphMiddleware:
         activity_id: str,
         activity_type: str,
         span: Mapping[str, Any],
-        event_type: str = "ActivityStarted",
+        event_type: str = ACTIVITY_STARTED_EVENT_TYPE,
     ) -> WorkflowVerdict:
         payload = {
             "event_type": event_type,

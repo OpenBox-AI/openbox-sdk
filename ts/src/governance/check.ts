@@ -17,6 +17,7 @@ import { OpenBoxCoreClient, type GovernanceVerdictResponse } from '../core-clien
 import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import { recallAgentKey } from '../file-tokens/agent-keys.js';
 import { resolveAgentIdentity, resolveConnection } from '../env/index.js';
+import { EVENT } from './events.js';
 import {
   buildSpan,
   withSpanActivityId,
@@ -126,7 +127,7 @@ export async function checkGovernance(
   );
   const payload = {
     source: 'workflow-telemetry',
-    event_type: 'ActivityStarted',
+    event_type: EVENT.START,
     workflow_id: hex(32),
     run_id: hex(32),
     workflow_type: 'SdkCheck',
