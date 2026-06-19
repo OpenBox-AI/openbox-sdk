@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import type {
   GovernedPayload,
   N8nSession,
@@ -42,6 +43,20 @@ export interface N8nLlmCompletionPayloadInput {
   endTime?: number;
   durationNs?: number;
   hasToolCalls?: boolean;
+}
+
+export interface N8nNodePostExecutePayloadInput {
+  activityId?: string;
+  input?: Record<string, unknown>;
+  output?: unknown;
+  prompt?: string;
+  nodeName?: string;
+  sessionId?: string;
+  status?: string;
+  error?: unknown;
+  startTime?: number;
+  endTime?: number;
+  durationMs?: number;
 }
 
 type SignalCapableN8nSession = Pick<N8nSession, 'activity'>;
@@ -91,6 +106,71 @@ function nodeToolAttributes(nodeName: string | undefined): Record<string, unknow
   });
 }
 
+function nowUnixNano(): number {
+  return Date.now() * 1_000_000;
+}
+
+function timeToUnixNano(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isFinite(value)) return undefined;
+  const timestamp = Math.trunc(value);
+  return timestamp > 0 && timestamp < 100_000_000_000_000
+    ? timestamp * 1_000_000
+    : timestamp;
+}
+
+function recordFrom(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function nodePostExecuteOutput(input: N8nNodePostExecutePayloadInput): Record<string, unknown> {
+  const output = recordFrom(input.output);
+  return stampSource(cleanRecord({
+    ...(Object.keys(output).length > 0 ? output : { result: input.output }),
+    event_category: 'node_post_execute',
+    node_name: input.nodeName,
+    status: input.status,
+    error: input.error,
+  }), 'n8n');
+}
+
+function nodeExecutionSpan(input: N8nNodePostExecutePayloadInput) {
+  const toolName = trimmed(input.nodeName) ?? 'n8n_node';
+  const startTime = timeToUnixNano(input.startTime) ?? nowUnixNano();
+  const endTime = timeToUnixNano(input.endTime) ?? nowUnixNano();
+  return {
+    span_id: randomBytes(8).toString('hex'),
+    trace_id: randomBytes(16).toString('hex'),
+    name: `n8n.${toolName}`,
+    kind: 'tool',
+    span_type: 'function',
+    start_time: startTime,
+    end_time: endTime,
+    duration_ns: input.durationMs !== undefined
+      ? Math.max(0, Math.trunc(input.durationMs * 1_000_000))
+      : Math.max(0, endTime - startTime),
+    stage: 'completed',
+    semantic_type: 'llm_tool_call',
+    attributes: cleanRecord({
+      'gen_ai.system': 'n8n',
+      'openbox.n8n.node_name': input.nodeName,
+      'openbox.semantic_type': 'llm_tool_call',
+      'openbox.span_type': 'function',
+      ...nodeToolAttributes(toolName),
+    }),
+    data: cleanRecord({
+      source: 'n8n',
+      node_name: input.nodeName,
+      status: input.status,
+      error: input.error,
+      input: input.input,
+      output: input.output,
+    }),
+    result: input.output,
+  };
+}
+
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
@@ -132,7 +212,7 @@ function rememberNodeActivity(
 
 function takeNodeActivity(
   session: object,
-  input: N8nLlmCompletionPayloadInput,
+  input: Pick<N8nNodePreExecutePayloadInput, 'activityId' | 'sessionId' | 'nodeName' | 'prompt' | 'input'>,
 ): PendingNodeActivity | null {
   const store = pendingNodeActivities.get(session);
   if (!store) return null;
@@ -272,6 +352,49 @@ export function buildN8nLlmCompletionPayload(
       }),
     }),
   };
+}
+
+export function buildN8nNodePostExecutePayload(
+  input: N8nNodePostExecutePayloadInput,
+): GovernedPayload {
+  const prompt = input.prompt?.trim();
+  const hasActivityInput =
+    input.input !== undefined ||
+    prompt !== undefined ||
+    input.nodeName !== undefined;
+  const activityInput = hasActivityInput
+    ? cleanRecord({
+        ...(input.input ?? {}),
+        event_category: 'node_post_execute',
+        node_name: input.nodeName,
+        prompt,
+      })
+    : undefined;
+  return {
+    ...(activityInput && Object.keys(activityInput).length > 0
+      ? { input: nodeActivityInput(activityInput) }
+      : {}),
+    output: nodePostExecuteOutput(input),
+    prompt,
+    sessionId: input.sessionId,
+    ...nodeToolTelemetry(input.nodeName),
+    spans: [nodeExecutionSpan(input)],
+    startTime: input.startTime,
+    endTime: input.endTime,
+    durationMs: input.durationMs,
+  };
+}
+
+export async function emitN8nNodePostExecute(
+  session: NodePostExecuteCapableN8nSession,
+  input: N8nNodePostExecutePayloadInput,
+): Promise<WorkflowVerdict> {
+  const pending = takeNodeActivity(session, input);
+  return session.nodePostExecute({
+    ...buildN8nNodePostExecutePayload(input),
+    activityId: pending?.activityId ?? input.activityId,
+    startTime: pending?.startTime ?? input.startTime,
+  });
 }
 
 export async function emitN8nLlmCompletion(

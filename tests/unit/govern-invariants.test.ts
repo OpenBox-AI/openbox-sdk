@@ -34,6 +34,7 @@ import {
 import {
   emitN8nLlmCompletion,
   emitN8nNodePreExecute,
+  emitN8nNodePostExecute,
 } from '../../ts/src/runtime/n8n/index.js';
 
 interface MockCore {
@@ -579,6 +580,81 @@ describe('activity pairing', () => {
         completion_tokens: 7,
         total_tokens: 25,
       },
+    });
+  });
+
+  test('n8n generic node completion emits paired parent plus tool hook span', async () => {
+    const mock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(mock), preset: presets.n8n },
+      async (session) => {
+        await emitN8nNodePreExecute(session, {
+          input: { operation: 'upsert' },
+          nodeName: 'CRM Upsert',
+          sessionId: 'n8n-node-1',
+          prompt: 'Sync the account.',
+        });
+        await emitN8nNodePostExecute(session, {
+          input: { operation: 'upsert' },
+          output: { updated: true },
+          nodeName: 'CRM Upsert',
+          sessionId: 'n8n-node-1',
+          prompt: 'Sync the account.',
+          status: 'success',
+          durationMs: 25,
+        });
+      },
+    );
+
+    const started = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'node-pre-execute',
+    );
+    const completedEvents = mock.events.filter(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'node-post-execute',
+    );
+    expect(completedEvents).toHaveLength(2);
+    const [completedParent, completedHook] = completedEvents;
+    expect(completedParent.activity_id).toBe(started?.activity_id);
+    expect(completedParent.hook_trigger).toBeUndefined();
+    expect(completedParent.spans).toBeUndefined();
+    expect(completedParent).toMatchObject({
+      session_id: 'n8n-node-1',
+      prompt: 'Sync the account.',
+      tool_name: 'CRM Upsert',
+      tool_type: 'n8n_node',
+      activity_output: expect.objectContaining({
+        updated: true,
+        event_category: 'node_post_execute',
+        node_name: 'CRM Upsert',
+        status: 'success',
+        _openbox_source: 'n8n',
+      }),
+    });
+    expect(completedHook.hook_trigger).toBe(true);
+    expect(completedHook.activity_id).toBe(completedParent.activity_id);
+    expect(completedHook.span_count).toBe(1);
+    expect(completedHook.spans?.[0]).toMatchObject({
+      name: 'n8n.CRM Upsert',
+      stage: 'completed',
+      semantic_type: 'llm_tool_call',
+      duration_ns: 25_000_000,
+      attributes: expect.objectContaining({
+        'gen_ai.system': 'n8n',
+        'openbox.tool.name': 'CRM Upsert',
+        'tool.name': 'CRM Upsert',
+        tool_name: 'CRM Upsert',
+        'openbox.tool.type': 'n8n_node',
+        'openbox.n8n.node_name': 'CRM Upsert',
+      }),
+      data: expect.objectContaining({
+        source: 'n8n',
+        node_name: 'CRM Upsert',
+        status: 'success',
+      }),
     });
   });
 
