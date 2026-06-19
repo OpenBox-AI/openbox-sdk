@@ -46,6 +46,32 @@ const PROVIDERS: readonly OpenBoxProviderId[] = [
   'n8n',
 ];
 
+const GUARD_COVERAGE_GROUPS = [
+  { name: 'approvals-hitl', guards: HITL_CAPABILITY_GUARDS },
+  { name: 'opa-rules', guards: POLICY_EVALUATION_GUARDS },
+  { name: 'guardrails', guards: GUARDRAIL_CAPABILITY_GUARDS },
+  { name: 'usage-cost', guards: USAGE_COST_CAPABILITY_GUARDS },
+  { name: 'tracing', guards: TRACING_CAPABILITY_GUARDS },
+  { name: 'install-doctor', guards: INSTALL_DOCTOR_CAPABILITY_GUARDS },
+  { name: 'rules-instructions', guards: RULES_INSTRUCTION_CAPABILITY_GUARDS },
+  { name: 'mcp', guards: MCP_CAPABILITY_GUARDS },
+  { name: 'plugins', guards: PLUGIN_CAPABILITY_GUARDS },
+  { name: 'skills', guards: SKILL_CAPABILITY_GUARDS },
+  { name: 'hooks', guards: HOOK_CAPABILITY_GUARDS },
+  { name: 'subagents-agents', guards: SUBAGENTS_AGENTS_CAPABILITY_GUARDS },
+  { name: 'goal-signals', guards: GOAL_SIGNAL_GUARDS },
+] as const;
+
+function normalizeGuardProofText(value: string): string {
+  return value
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[→⇒]/g, '->')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 describe('provider capability matrix', () => {
   it('declares every required capability for every provider', () => {
     for (const provider of PROVIDERS) {
@@ -55,6 +81,22 @@ describe('provider capability matrix', () => {
       );
       for (const entry of entries) {
         expect(entry.rationale.length, `${provider}/${entry.capability} rationale`).toBeGreaterThan(20);
+      }
+    }
+  });
+
+  it('resolves every capability guardTest to a checked-in test phrase', () => {
+    for (const group of GUARD_COVERAGE_GROUPS) {
+      for (const guard of group.guards) {
+        const [file, anchor] = guard.guardTest.split('#');
+        expect(file, `${group.name}/${guard.provider} guardTest file`).toMatch(/^tests\/.+\.test\.ts$/);
+        expect(anchor, `${group.name}/${guard.provider} guardTest anchor`).toBeTruthy();
+
+        const source = readFileSync(resolve(process.cwd(), file), 'utf8');
+        expect(
+          normalizeGuardProofText(source),
+          `${group.name}/${guard.provider} guardTest anchor ${guard.guardTest}`,
+        ).toContain(normalizeGuardProofText(anchor));
       }
     }
   });
