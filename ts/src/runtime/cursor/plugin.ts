@@ -25,6 +25,7 @@ const EXPECTED_COMMAND_FILES = [
 ] as const;
 const EXPECTED_RULE_FILES = ['openbox.mdc'] as const;
 const EXPECTED_AGENT_FILES = ['openbox-reviewer.md'] as const;
+const EXPECTED_REPO_RULE_FILES = ['openbox-governance.mdc'] as const;
 
 export type CursorPluginCheckStatus = 'pass' | 'fail' | 'skip';
 
@@ -64,6 +65,24 @@ export interface VerifyCursorPluginOptions {
   target?: string;
 }
 
+export interface InstallCursorRepoOptions {
+  /** Project root for repo-scoped install. Defaults to process.cwd(). */
+  cwd?: string;
+  /** Optional per-event hook matchers copied into .cursor/hooks.json. */
+  matchers?: Record<string, string>;
+  /** Skip creating the hook runtime config template. Defaults to false. */
+  skipRuntimeConfig?: boolean;
+}
+
+export interface VerifyCursorRepoOptions {
+  cwd?: string;
+}
+
+export interface UninstallCursorRepoOptions {
+  cwd?: string;
+  removeSkill?: boolean;
+}
+
 export interface UninstallCursorPluginOptions {
   /** Project root for project-scoped install. Defaults to process.cwd(). */
   cwd?: string;
@@ -77,6 +96,10 @@ export function cursorPluginTargetDir(cwd = process.cwd()): string {
 
 export function cursorRuntimeConfigDir(cwd = process.cwd()): string {
   return path.join(cwd, '.cursor-hooks');
+}
+
+export function cursorRepoSkillTargetDir(cwd = process.cwd()): string {
+  return path.join(cwd, '.agents', 'skills', 'openbox');
 }
 
 function readJson(file: string): Record<string, unknown> | undefined {
@@ -248,6 +271,20 @@ function marketplaceManifest(version: string): Record<string, unknown> {
   };
 }
 
+function workspaceOpenManifest(): Record<string, unknown> {
+  return {
+    workspaceOpen: {
+      plugins: [
+        {
+          name: 'openbox',
+          path: '.cursor/plugins/local/openbox',
+          activation: 'workspaceOpen',
+        },
+      ],
+    },
+  };
+}
+
 function copyDir(src: string, dst: string): void {
   rmSync(dst, { recursive: true, force: true });
   mkdirSync(path.dirname(dst), { recursive: true });
@@ -273,6 +310,7 @@ export function exportCursorPlugin(options: ExportCursorPluginOptions): string {
   copyDir(findTemplateDir('agents'), path.join(out, 'agents'));
   writeJson(path.join(out, 'hooks', 'hooks.json'), cursorHooksJson(options.matchers));
   writeJson(path.join(out, 'mcp.json'), mcpJson());
+  writeJson(path.join(out, 'workspaceOpen.json'), workspaceOpenManifest());
 
   return out;
 }
@@ -307,6 +345,32 @@ export function uninstallCursorPlugin(options: UninstallCursorPluginOptions = {}
   const cwd = options.cwd ?? process.cwd();
   const target = assertProjectTarget(options.target ?? cursorPluginTargetDir(cwd), cwd);
   rmSync(target, { recursive: true, force: true });
+}
+
+export function installCursorRepoMode(options: InstallCursorRepoOptions = {}): string {
+  const cwd = options.cwd ?? process.cwd();
+  writeJson(path.join(cwd, '.cursor', 'hooks.json'), cursorHooksJson(options.matchers));
+  writeJson(path.join(cwd, '.cursor', 'mcp.json'), mcpJson());
+  mkdirSync(path.join(cwd, '.cursor', 'rules'), { recursive: true });
+  cpSync(
+    path.join(findTemplateDir('rules'), 'openbox.mdc'),
+    path.join(cwd, '.cursor', 'rules', 'openbox-governance.mdc'),
+  );
+  copyDir(findSkillDir(), cursorRepoSkillTargetDir(cwd));
+  if (!options.skipRuntimeConfig) {
+    writeRuntimeConfigTemplate(cursorRuntimeConfigDir(cwd));
+  }
+  return path.join(cwd, '.cursor');
+}
+
+export function uninstallCursorRepoMode(options: UninstallCursorRepoOptions = {}): void {
+  const cwd = options.cwd ?? process.cwd();
+  rmSync(path.join(cwd, '.cursor', 'hooks.json'), { force: true });
+  rmSync(path.join(cwd, '.cursor', 'mcp.json'), { force: true });
+  rmSync(path.join(cwd, '.cursor', 'rules', 'openbox-governance.mdc'), { force: true });
+  if (options.removeSkill) {
+    rmSync(cursorRepoSkillTargetDir(cwd), { recursive: true, force: true });
+  }
 }
 
 function checkFile(name: string, file: string): CursorPluginCheck {
@@ -396,11 +460,23 @@ export function verifyCursorPlugin(options: VerifyCursorPluginOptions = {}): Cur
   }
   checks.push(checkFile('plugin-manifest', path.join(target, '.cursor-plugin', 'plugin.json')));
   checks.push(checkFile('plugin-marketplace', path.join(target, '.cursor-plugin', 'marketplace.json')));
+  checks.push(checkFile('plugin-workspace-open', path.join(target, 'workspaceOpen.json')));
   checks.push(checkFile('plugin-skill', path.join(target, 'skills', 'openbox', 'SKILL.md')));
   checks.push(checkDirFiles('plugin-commands', path.join(target, 'commands'), EXPECTED_COMMAND_FILES));
   checks.push(checkDirFiles('plugin-rules', path.join(target, 'rules'), EXPECTED_RULE_FILES));
   checks.push(checkDirFiles('plugin-agents', path.join(target, 'agents'), EXPECTED_AGENT_FILES));
   checks.push(checkHooks(path.join(target, 'hooks', 'hooks.json')));
   checks.push(checkMcp(path.join(target, 'mcp.json')));
+  return checks;
+}
+
+export function verifyCursorRepoMode(options: VerifyCursorRepoOptions = {}): CursorPluginCheck[] {
+  const cwd = options.cwd ?? process.cwd();
+  const checks: CursorPluginCheck[] = [];
+  checks.push(checkHooks(path.join(cwd, '.cursor', 'hooks.json')));
+  checks.push(checkMcp(path.join(cwd, '.cursor', 'mcp.json')));
+  checks.push(checkDirFiles('repo-rules', path.join(cwd, '.cursor', 'rules'), EXPECTED_REPO_RULE_FILES));
+  checks.push(checkFile('repo-skill', path.join(cursorRepoSkillTargetDir(cwd), 'SKILL.md')));
+  checks.push(checkFile('runtime-config', path.join(cursorRuntimeConfigDir(cwd), 'config.json')));
   return checks;
 }

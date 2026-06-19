@@ -5,7 +5,7 @@
 | Source | Reproduces |
 |---|---|
 | `specs/typespec/env/main.tsp` | the `RuntimeConfig`, `Credentials`, and `ConnectionLoader` types, plus the `ENV_VAR_BINDINGS`, `validateApiKeyFormat`, `OS_PATH_FIELDS` constants |
-| `codegen/emitters/typespec-emitter-typescript/src/index.ts` | the emit logic that walks the spec and writes this directory |
+| `codegen/emitters/typespec-emitter/src/index.ts` | the emit logic that walks the spec and writes this directory |
 
 Regenerate everything in this folder with:
 

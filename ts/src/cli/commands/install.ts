@@ -1,6 +1,6 @@
 // `openbox install <target>` and `openbox uninstall <target>`.
 // Stable targets are intentionally small and project-scoped: cursor,
-// claude-code.
+// claude-code, codex.
 
 import { Command } from 'commander';
 import { EXIT, bailWith } from '../exit-codes.js';
@@ -15,7 +15,7 @@ type HostScope = 'project';
  */
 export function parseHostScope(
   raw: string | undefined,
-  _host: 'cursor' | 'claude-code',
+  _host: 'cursor' | 'claude-code' | 'codex',
 ): HostScope {
   const value = (raw ?? 'project').toLowerCase();
   if (value !== 'project') {
@@ -64,8 +64,9 @@ export function registerInstallCommands(program: Command): void {
 
   install
     .command('cursor')
-    .description('Install the project-local Cursor plugin')
+    .description('Install the project-local Cursor plugin or repo-mode files')
     .option('--cwd <dir>', 'Project root for project-local install')
+    .option('--mode <mode>', 'plugin or repo', 'plugin')
     .option('--plugin-target <dir>', 'Cursor project-local plugin target directory')
     .option('--symlink <dir>', 'Symlink an already-exported plugin folder into Cursor')
     .option(
@@ -77,24 +78,53 @@ export function registerInstallCommands(program: Command): void {
     .action(
       async (opts: {
         cwd?: string;
+        mode?: string;
         pluginTarget?: string;
         symlink?: string;
         matcher: string[];
       }) => {
-        const { installCursorPlugin, verifyCursorInstall } = await import('../../runtime/cursor/index.js');
+        const { installCursorPlugin, installCursorRepoMode, verifyCursorInstall } = await import('../../runtime/cursor/index.js');
         const cwd = opts.cwd ?? process.cwd();
-        const target = installCursorPlugin({
-          cwd,
-          target: opts.pluginTarget,
-          symlink: opts.symlink,
-          matchers: parseMatchers(opts.matcher),
-        });
-        success(`Cursor plugin installed at ${target}`);
+        const mode = opts.mode ?? 'plugin';
+        if (mode !== 'plugin' && mode !== 'repo') {
+          error(`--mode: invalid value '${mode}'; expected plugin or repo`);
+          bailWith(EXIT.USAGE);
+        }
+        const target = mode === 'repo'
+          ? installCursorRepoMode({
+              cwd,
+              matchers: parseMatchers(opts.matcher),
+            })
+          : installCursorPlugin({
+              cwd,
+              target: opts.pluginTarget,
+              symlink: opts.symlink,
+              matchers: parseMatchers(opts.matcher),
+            });
+        success(mode === 'repo' ? `Cursor repo mode installed at ${target}` : `Cursor plugin installed at ${target}`);
         info('');
-        const checks = verifyCursorInstall({ cwd, pluginTarget: opts.pluginTarget });
+        const checks = verifyCursorInstall({ cwd, pluginTarget: opts.pluginTarget, mode });
         printChecks(checks, 'run `openbox cursor doctor --json` for details');
       },
     );
+
+  install
+    .command('codex')
+    .description('Install project-local Codex hooks, plugin, skill, marketplace entry, and MCP config')
+    .option('--cwd <dir>', 'Project root for project-local install')
+    .action(async (opts: { cwd?: string }) => {
+      const { HOOK_SPEC } = await import('../../core-client/generated/runtime/codex.js');
+      const { installMcpEntry } = await import('../../install/from-spec.js');
+      const { installCodex, installCodexPlugin, verifyCodexInstall } = await import('../../runtime/codex/index.js');
+      const cwd = opts.cwd ?? process.cwd();
+      installCodex({ cwd });
+      installCodexPlugin({ cwd });
+      installMcpEntry(HOOK_SPEC, 'openbox', { command: 'openbox', args: ['mcp', 'serve'] }, { cwd });
+      success('Codex project surfaces installed');
+      info('');
+      const checks = verifyCodexInstall({ cwd });
+      printChecks(checks, 'run `openbox codex doctor --surface-only` for details');
+    });
 
   install
     .command('claude-code')
@@ -148,19 +178,50 @@ export function registerInstallCommands(program: Command): void {
 
   uninstall
     .command('cursor')
-    .description('Remove the project-local Cursor plugin')
+    .description('Remove the project-local Cursor plugin or repo-mode files')
     .option('--cwd <dir>', 'Project root for project-local install')
+    .option('--mode <mode>', 'plugin or repo', 'plugin')
     .option('--plugin-target <dir>', 'Cursor project-local plugin target directory')
     .action(
       async (opts: {
         cwd?: string;
+        mode?: string;
         pluginTarget?: string;
       }) => {
-        const { uninstallCursorPlugin } = await import('../../runtime/cursor/index.js');
-        uninstallCursorPlugin({ cwd: opts.cwd, target: opts.pluginTarget });
-        success('Cursor plugin removed');
+        const { uninstallCursorPlugin, uninstallCursorRepoMode } = await import('../../runtime/cursor/index.js');
+        const mode = opts.mode ?? 'plugin';
+        if (mode !== 'plugin' && mode !== 'repo') {
+          error(`--mode: invalid value '${mode}'; expected plugin or repo`);
+          bailWith(EXIT.USAGE);
+        }
+        if (mode === 'repo') {
+          uninstallCursorRepoMode({ cwd: opts.cwd, removeSkill: true });
+          success('Cursor repo mode removed');
+        } else {
+          uninstallCursorPlugin({ cwd: opts.cwd, target: opts.pluginTarget });
+          success('Cursor plugin removed');
+        }
       },
     );
+
+  uninstall
+    .command('codex')
+    .description('Remove project-local Codex hooks, plugin, skill, marketplace entry, and MCP config')
+    .option('--cwd <dir>', 'Project root for project-local install')
+    .action(async (opts: { cwd?: string }) => {
+      const { HOOK_SPEC } = await import('../../core-client/generated/runtime/codex.js');
+      const { uninstallMcpEntry } = await import('../../install/from-spec.js');
+      const { uninstallCodex, uninstallCodexPlugin } = await import('../../runtime/codex/index.js');
+      const cwd = opts.cwd ?? process.cwd();
+      uninstallCodex({ cwd });
+      uninstallCodexPlugin({
+        cwd,
+        removeRepoSkill: true,
+        removeMarketplaceEntry: true,
+      });
+      uninstallMcpEntry(HOOK_SPEC, 'openbox', { cwd });
+      success('Codex project surfaces removed');
+    });
 
   uninstall
     .command('claude-code')

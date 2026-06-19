@@ -1,7 +1,7 @@
 {
-  "name": "typespec-emitter-typescript",
+  "name": "typespec-emitter",
   "version": "0.0.0",
-  "description": "TypeSpec emitter that generates ts/<package>/src/generated/ from the OpenBox programming-model specs",
+  "description": "TypeSpec emitter that generates OpenBox TypeScript and Python SDK artifacts from the OpenBox programming-model specs",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -25,6 +25,7 @@
     "typespec-env": "0.0.0",
     "typespec-workflow": "0.0.0",
     "@typespec/compiler": "^1.11.0",
+    "openapi-typescript": "^7.13.0",
     "ts-morph": "^28.0.0",
     "typescript": "^5.9.3"
   }

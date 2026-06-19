@@ -57,10 +57,14 @@ using OpenBox.Workflow;
   FileEdit: "File Edit",
   FileDelete: "File Delete",
   ShellExecution: "Shell Execution",
+  DatabaseQuery: "Database Query",
   HTTPRequest: "HTTP Request",
   MCPToolCall: "MCP Tool Call",
   AgentSpawn: "Agent Spawn",
   AgentAction: "Agent Action",
+  OpenAIAgentsSDKRun: "OpenAI Agents SDK Run",
+  AgentHandoff: "Agent Handoff",
+  GuardrailEvaluation: "Guardrail Evaluation",
 
   // --- Coding agents -----------------------------------------------------
   PreToolUse: "Pre-Tool Use",
@@ -76,6 +80,21 @@ using OpenBox.Workflow;
   MessageDisplay: "Message Display",
   Notification: "Notification",
   Stop: "Stop",
+  ClaudeCodeSession: "Claude Code Session",
+  ClaudeCodeMessage: "Claude Code Message",
+  ClaudeCodeConfigChange: "Claude Code Config Change",
+  ClaudeCodeWorkspaceChange: "Claude Code Workspace Change",
+  ClaudeCodeTask: "Claude Code Task",
+  CodexSession: "Codex Session",
+  AnthropicAgentSDKSession: "Anthropic Agent SDK Session",
+  AnthropicAgentSDKMessage: "Anthropic Agent SDK Message",
+  AnthropicAgentSDKConfigChange: "Anthropic Agent SDK Config Change",
+  AnthropicAgentSDKWorkspaceChange: "Anthropic Agent SDK Workspace Change",
+  AnthropicAgentSDKTask: "Anthropic Agent SDK Task",
+  MCPElicitation: "MCP Elicitation",
+  user_prompt: "User Prompt",
+  claude_usage: "Claude Usage",
+  anthropic_agent_sdk_usage: "Anthropic Agent SDK Usage",
   // Cursor; lowerCamel hook names
   beforeSubmitPrompt: "Before Submit Prompt",
   preToolUse: "Pre-Tool Use",
@@ -318,6 +337,14 @@ model GuardrailsVerdict {
    */
   redactedInput?: unknown;
 
+  /**
+   * Output-specific redacted payload. Some backend/Core paths expose
+   * output transforms separately from `redactedInput`; SDKs should
+   * prefer this value for `activity_output` redaction and fall back to
+   * `redactedInput` for older Core responses.
+   */
+  redactedOutput?: unknown;
+
   /** False when any field result is `blocked`. */
   validationPassed: boolean;
 
@@ -383,6 +410,14 @@ model WorkflowVerdict {
    * without parsing the raw wire response.
    */
   guardrailsResult?: GuardrailsVerdict;
+
+  /**
+   * Core AGE/governance evaluator output. This mirrors the core wire
+   * response's `age_result` field and is intentionally free-form here
+   * because the govern programming model does not import the Core HTTP
+   * namespace.
+   */
+  ageResult?: unknown;
 
   /**
    * The activity id this verdict was evaluated under. Callers that need
@@ -518,6 +553,45 @@ model GovernedPayload {
 
 @preset("claude-code")
 interface ClaudeCodePreset {
+  @maps_to("ActivityStarted", "ClaudeCodeSession")
+  sessionActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "ClaudeCodeSession")
+  sessionActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "ClaudeCodeMessage")
+  messageActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "ClaudeCodeMessage")
+  messageActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "ClaudeCodeMessage")
+  messageSignalReceived(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "ClaudeCodeConfigChange")
+  configChangeActivity(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "ClaudeCodeWorkspaceChange")
+  workspaceChangeSignal(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "ClaudeCodeWorkspaceChange")
+  workspaceChangeCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "MCPElicitation")
+  mcpElicitationStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "MCPElicitation")
+  mcpElicitationCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "ClaudeCodeTask")
+  taskActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "ClaudeCodeTask")
+  taskActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "claude_usage")
+  claudeUsageSignal(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "PreToolUse")
   preToolUse(payload: GovernedPayload): WorkflowVerdict;
 
@@ -545,6 +619,45 @@ interface ClaudeCodePreset {
 
 @preset("anthropic-agent-sdk")
 interface AnthropicAgentSDKPreset {
+  @maps_to("ActivityStarted", "AnthropicAgentSDKSession")
+  sessionActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "AnthropicAgentSDKSession")
+  sessionActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "AnthropicAgentSDKMessage")
+  messageActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "AnthropicAgentSDKMessage")
+  messageActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "AnthropicAgentSDKMessage")
+  messageSignalReceived(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "AnthropicAgentSDKConfigChange")
+  configChangeActivity(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "AnthropicAgentSDKWorkspaceChange")
+  workspaceChangeSignal(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "AnthropicAgentSDKWorkspaceChange")
+  workspaceChangeCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "MCPElicitation")
+  mcpElicitationStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "MCPElicitation")
+  mcpElicitationCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "AnthropicAgentSDKTask")
+  taskActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "AnthropicAgentSDKTask")
+  taskActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "anthropic_agent_sdk_usage")
+  usageSignal(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "SessionStart")
   sessionStart(payload: GovernedPayload): WorkflowVerdict;
 
@@ -620,6 +733,9 @@ interface CursorPreset {
 
 @preset("codex")
 interface CodexPreset {
+  @maps_to("ActivityCompleted", "CodexSession")
+  sessionCompleted(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "UserPromptSubmit")
   userPromptSubmit(payload: GovernedPayload): WorkflowVerdict;
 
@@ -634,6 +750,27 @@ interface CodexPreset {
 
   @maps_to("ActivityCompleted", "Stop")
   stop(payload: GovernedPayload): WorkflowVerdict;
+}
+
+@preset("openai-agents-sdk")
+interface OpenAIAgentsSDKPreset {
+  @maps_to("ActivityStarted", "OpenAIAgentsSDKRun")
+  runStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "OpenAIAgentsSDKRun")
+  runCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "ToolStarted")
+  toolStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "ToolCompleted")
+  toolCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("Handoff", "AgentHandoff")
+  handoff(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "GuardrailEvaluation")
+  guardrail(payload: GovernedPayload): WorkflowVerdict;
 }
 
 @preset("copilot")
@@ -1077,6 +1214,18 @@ interface ModernTreasuryPreset {
  */
 @preset("default")
 interface DefaultPreset {
+  @maps_to("SignalReceived", "user_prompt")
+  goalSignal(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "SessionStart")
+  sessionStart(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "Stop")
+  stop(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "UserPromptSubmit")
+  userPromptSubmit(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "PromptSubmission")
   prompt(payload: GovernedPayload): WorkflowVerdict;
 
@@ -1101,6 +1250,9 @@ interface DefaultPreset {
   @maps_to("ActivityStarted", "ShellExecution")
   shell(payload: GovernedPayload): WorkflowVerdict;
 
+  @maps_to("ActivityStarted", "DatabaseQuery")
+  databaseQuery(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "HTTPRequest")
   httpRequest(payload: GovernedPayload): WorkflowVerdict;
 
@@ -1109,6 +1261,9 @@ interface DefaultPreset {
 
   @maps_to("ActivityStarted", "AgentSpawn")
   agentSpawn(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "AgentAction")
+  agentAction(payload: GovernedPayload): WorkflowVerdict;
 }
 
 /**

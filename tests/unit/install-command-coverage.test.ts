@@ -37,17 +37,19 @@ async function runInstallCli(args: string[]): Promise<void> {
 }
 
 describe('minimal install command', () => {
-  it('keeps only project-local cursor and claude-code install targets', () => {
+  it('keeps only project-local host install targets', () => {
     const program = new Command();
     registerInstallCommands(program);
     const install = program.commands.find((command) => command.name() === 'install');
     expect(install?.commands.map((command) => command.name()).sort()).toEqual([
       'claude-code',
+      'codex',
       'cursor',
     ]);
     const uninstall = program.commands.find((command) => command.name() === 'uninstall');
     expect(uninstall?.commands.map((command) => command.name()).sort()).toEqual([
       'claude-code',
+      'codex',
       'cursor',
     ]);
   });
@@ -92,6 +94,20 @@ describe('minimal install command', () => {
     expect(existsSync(plugin)).toBe(false);
   });
 
+  it('installs and removes Cursor repo mode files', async () => {
+    const project = tempDir('openbox-install-cursor-repo-');
+
+    await runInstallCli(['install', 'cursor', '--mode', 'repo', '--cwd', project]);
+    expect(existsSync(join(project, '.cursor', 'hooks.json'))).toBe(true);
+    expect(existsSync(join(project, '.cursor', 'mcp.json'))).toBe(true);
+    expect(existsSync(join(project, '.cursor', 'rules', 'openbox-governance.mdc'))).toBe(true);
+    expect(existsSync(join(project, '.agents', 'skills', 'openbox', 'SKILL.md'))).toBe(true);
+
+    await runInstallCli(['uninstall', 'cursor', '--mode', 'repo', '--cwd', project]);
+    expect(existsSync(join(project, '.cursor', 'hooks.json'))).toBe(false);
+    expect(existsSync(join(project, '.agents', 'skills', 'openbox'))).toBe(false);
+  });
+
   it('installs and removes a project Claude Code plugin without direct settings writes', async () => {
     const project = tempDir('openbox-install-claude-');
 
@@ -107,6 +123,27 @@ describe('minimal install command', () => {
 
     await runInstallCli(['uninstall', 'claude-code', '--scope', 'project', '--cwd', project]);
     expect(existsSync(plugin)).toBe(false);
+  });
+
+  it('installs and removes project-local Codex surfaces without user-level writes', async () => {
+    const home = tempDir('openbox-install-home-');
+    const project = tempDir('openbox-install-codex-');
+    process.env.HOME = home;
+
+    await runInstallCli(['install', 'codex', '--cwd', project]);
+
+    const plugin = join(project, '.agents', 'plugins', 'openbox');
+    expect(existsSync(join(project, '.codex', 'hooks.json'))).toBe(true);
+    expect(existsSync(join(project, '.codex', 'config.toml'))).toBe(true);
+    expect(existsSync(join(project, '.codex', 'mcp.json'))).toBe(false);
+    expect(existsSync(join(plugin, '.codex-plugin', 'plugin.json'))).toBe(true);
+    expect(existsSync(join(project, '.agents', 'skills', 'openbox', 'SKILL.md'))).toBe(true);
+    expect(existsSync(join(project, '.agents', 'plugins', 'marketplace.json'))).toBe(true);
+    expect(existsSync(join(home, '.codex', 'config.toml'))).toBe(false);
+
+    await runInstallCli(['uninstall', 'codex', '--cwd', project]);
+    expect(existsSync(plugin)).toBe(false);
+    expect(existsSync(join(project, '.agents', 'skills', 'openbox'))).toBe(false);
   });
 
   it('rejects old direct Cursor install flags', async () => {

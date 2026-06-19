@@ -3,7 +3,9 @@
 // field from the envelope.
 import {
   resolveSessionByKey,
+  isSessionStartedByKey,
   markHaltedByKey,
+  markStartedByKey,
   clearSessionByKey,
 } from '../../session/resolver.js';
 import type { CursorConfig } from './config.js';
@@ -18,6 +20,14 @@ export async function resolveSession(
 
 export function markHalted(conversationId: string, cfg: CursorConfig): void {
   markHaltedByKey(conversationId, cfg);
+}
+
+export function isStarted(conversationId: string, cfg: CursorConfig): boolean {
+  return isSessionStartedByKey(conversationId, cfg);
+}
+
+export function markStarted(conversationId: string, cfg: CursorConfig): void {
+  markStartedByKey(conversationId, cfg);
 }
 
 export function clearSession(conversationId: string, cfg: CursorConfig): void {

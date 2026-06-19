@@ -58,6 +58,10 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   // inspect, agent audit, and verify for protocol-conformance checks.
   '../../core-client/generated/govern.js':
     'spec-driven canonical event_type / activity_type / verdict-arm sets.',
+  '../../core-client/generated/runtime/codex.js':
+    'spec-driven Codex HOOK_SPEC used by unified install/uninstall to write the matching MCP entry.',
+  '../../install/from-spec.js':
+    'spec-driven install writer shared by CLI host commands for project-local MCP entries.',
   // Env-binding constants (spec-driven, no HTTP).
   '../../env/index.js': 'ENV_VAR_BINDINGS for canonical env-var name lookups.',
   // Per-runtime adapter install/hook entrypoints; claude-code/cursor/
@@ -69,6 +73,12 @@ const ALLOWED_PREFIXES: Record<string, string> = {
     'claude-code plugin/install commands use the public claude-code runtime surface.',
   '../../runtime/claude-code/hook-handler.js':
     'claude-code hook command runs the runtime hook handler.',
+  '../../runtime/codex/index.js':
+    'codex install/doctor commands use the public codex runtime surface.',
+  '../../runtime/codex/install.js':
+    'codex doctor verifies project-local hook and runtime readiness.',
+  '../../runtime/codex/hook-handler.js':
+    'codex hook command runs the runtime hook handler.',
   '../../runtime/cursor/install.js':
     'cursor doctor verifies the plugin and hook runtime surface.',
   '../../runtime/cursor/index.js':

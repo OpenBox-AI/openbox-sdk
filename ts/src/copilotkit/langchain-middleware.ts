@@ -3,6 +3,7 @@ import {
   OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION,
   OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY,
 } from './constants.js';
+import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import {
   errorOutput,
   isRecord,
@@ -32,6 +33,8 @@ import {
   finishStoppedWorkflow,
   registerActiveWorkflow,
 } from './workflow-session.js';
+
+const langchainActivity = PRESET_ACTIVITY_TYPES.langchain;
 
 export function createOpenBoxLangChainMiddleware({
   adapter,
@@ -213,7 +216,7 @@ export function createOpenBoxLangChainMiddleware({
           sessionKey: key,
           workflowId: gateIds.workflowId,
           runId: gateIds.runId,
-          activityType: 'on_chat_model_start',
+          activityType: langchainActivity.onChatModelStart,
         });
         if (shouldStopForGate(promptGate)) {
           return new deps.AIMessage({
@@ -249,7 +252,7 @@ export function createOpenBoxLangChainMiddleware({
           sessionKey: key,
           workflowId: gateIds.workflowId,
           runId: gateIds.runId,
-          activityType: 'on_llm_end',
+          activityType: langchainActivity.onLlmEnd,
         });
         if (shouldStopForGate(responseGate)) {
           return new deps.AIMessage({
@@ -365,7 +368,7 @@ export function createOpenBoxLangChainMiddleware({
         sessionKey: sessionKeyFromConfig(state),
         workflowId,
         runId,
-        activityType: 'on_agent_finish',
+        activityType: langchainActivity.onAgentFinish,
       });
       if (shouldStopForGate(finishGate) && strict) {
         await swallow(() =>
@@ -386,7 +389,9 @@ export function createOpenBoxLangChainMiddleware({
 
 function toolActivityTypeFromRequest(request: any): string {
   const name = request?.toolCall?.name;
-  return typeof name === 'string' && name.trim() ? name.trim() : 'ToolCall';
+  return typeof name === 'string' && name.trim()
+    ? name.trim()
+    : langchainActivity.onToolStart;
 }
 
 const OPENBOX_RESULT_STATUSES = new Set([

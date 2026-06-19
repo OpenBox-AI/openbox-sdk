@@ -89,6 +89,22 @@ describe('runtime/claude-code/config', () => {
   });
 });
 
+describe('runtime/n8n integration descriptor', () => {
+  it('exports the spec-generated packaged n8n integration surface', async () => {
+    const { OPENBOX_N8N_INTEGRATION } = await import('../../ts/src/runtime/n8n');
+    expect(OPENBOX_N8N_INTEGRATION.credentials[0].id).toBe('openboxCredentials');
+    expect(OPENBOX_N8N_INTEGRATION.nodes.map((node: any) => node.id)).toEqual(
+      expect.arrayContaining([
+        'openboxGovernance',
+        'openboxGuardrails',
+        'openboxApproval',
+        'openboxGovernedAiAgent',
+      ]),
+    );
+    expect(OPENBOX_N8N_INTEGRATION.workflowTemplates[0].id).toBe('openbox-governed-ai-agent');
+  });
+});
+
 describe('runtime/claude-code/side-effects', () => {
   it('readFile redacts metadata paths, reads real files, and tolerates missing', async () => {
     const { sideEffects } = await import('../../ts/src/runtime/claude-code/side-effects');

@@ -29,6 +29,7 @@ import {
   rememberCompletionActivity,
 } from '../dedup.js';
 import { stampSource } from '../../../approvals/source.js';
+import { ACTIVITY_TYPES } from '../activity-types.js';
 
 /**
  * preToolUse: Cursor 3.x's primary agent-action hook. Activity routing,
@@ -106,7 +107,7 @@ export async function handlePreToolUse(
   // which span shape we emit; the @activityVariant override (rm/unlink
   // patterns on Shell) reroutes to file_delete.
   const spanType: SpanType =
-    override?.activityType === 'FileDelete'
+    override?.activityType === ACTIVITY_TYPES.FILE_DELETE
       ? 'file_delete'
       : toolName === 'Read'
         ? 'file_read'

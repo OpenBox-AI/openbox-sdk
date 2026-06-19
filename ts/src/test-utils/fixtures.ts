@@ -11,6 +11,7 @@
 //     the same default shape the e2e suite asserts on
 //   - any consumer that needs a sensible default for backend writes
 
+import { CANONICAL_EVENT_TYPE } from '../core-client/generated/govern.js';
 import type { components } from '../types/generated/backend.js';
 
 type CreateGuardrailDto = components['schemas']['CreateGuardrailDto'];
@@ -107,7 +108,7 @@ export function makeUpdateAgentDto(overrides: Record<string, any> = {}) {
 
 export function makeGovernanceEvent(overrides: Record<string, any> = {}) {
   return {
-    event_type: 'ActivityStarted',
+    event_type: CANONICAL_EVENT_TYPE.ACTIVITY_STARTED,
     workflow_id: `test-wf-${ts()}`,
     workflow_type: 'e2e-test',
     run_id: `test-run-${ts()}`,

@@ -1,6 +1,8 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { SpanData } from '../core-client/core-client.js';
 import type { GovernedPayload, WorkflowVerdict } from '../core-client/index.js';
+import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
+import { EVENT } from '../governance/events.js';
 import {
   llmTokenUsageFromRecord,
   withOpenBoxActivityMetadata,
@@ -32,6 +34,9 @@ import {
   failWorkflow,
   finishStoppedWorkflow,
 } from './workflow-session.js';
+
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const langchainActivity = PRESET_ACTIVITY_TYPES.langchain;
 
 // All gate emission goes through the spec-generated session runtime
 // (core-client/generated/govern.ts), which owns the canonical envelope:
@@ -77,10 +82,8 @@ async function evaluateGate<T>(
   const spanParent =
     completed && spans && spans.length > 0
       ? {
-          hookSpanParentEventType: 'ActivityStarted' as const,
-          ...(input.kind === 'assistant_output'
-            ? { ensureHookSpanParent: true }
-            : {}),
+          hookSpanParentEventType: EVENT.START,
+          ensureHookSpanParent: true,
         }
       : {};
   if (input.kind === 'tool_input') {
@@ -93,7 +96,7 @@ async function evaluateGate<T>(
     return opened.verdict;
   }
   return session.activity(
-    completed ? 'ActivityCompleted' : 'ActivityStarted',
+    completed ? EVENT.COMPLETE : EVENT.START,
     activityType,
     completed
       ? {
@@ -391,13 +394,13 @@ function activityTypeForGate(
 ): string {
   switch (kind) {
     case 'prompt':
-      return 'UserPromptSubmit';
+      return defaultActivity.userPromptSubmit;
     case 'tool_input':
-      return toolNameFromPayload(payload) ?? 'ToolCall';
+      return toolNameFromPayload(payload) ?? langchainActivity.onToolStart;
     case 'tool_output':
-      return toolNameFromPayload(payload) ?? 'ToolCall';
+      return toolNameFromPayload(payload) ?? langchainActivity.onToolEnd;
     case 'assistant_output':
-      return 'on_llm_end';
+      return langchainActivity.onLlmEnd;
   }
 }
 

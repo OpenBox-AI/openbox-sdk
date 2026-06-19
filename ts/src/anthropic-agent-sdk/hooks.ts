@@ -1,3 +1,5 @@
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
 import type {
   HookCallback,
   HookCallbackMatcher,
@@ -64,6 +66,18 @@ const HOOK_EVENTS: OpenBoxAnthropicAgentHookEvent[] = [
   'MessageDisplay',
 ];
 
+export const OPENBOX_ANTHROPIC_AGENT_DEFAULT_HOOK_EVENTS = [
+  ...HOOK_EVENTS,
+] as const satisfies readonly OpenBoxAnthropicAgentHookEvent[];
+
+const OPT_IN_HOOK_EVENTS: OpenBoxAnthropicAgentHookEvent[] = [
+  'WorktreeCreate',
+];
+
+export const OPENBOX_ANTHROPIC_AGENT_OPT_IN_HOOK_EVENTS = [
+  ...OPT_IN_HOOK_EVENTS,
+] as const satisfies readonly OpenBoxAnthropicAgentHookEvent[];
+
 const DECISION_CAPABLE = new Set<OpenBoxAnthropicAgentHookEvent>([
   'UserPromptSubmit',
   'UserPromptExpansion',
@@ -80,6 +94,7 @@ const DECISION_CAPABLE = new Set<OpenBoxAnthropicAgentHookEvent>([
   'TaskCompleted',
   'TeammateIdle',
   'ConfigChange',
+  'WorktreeCreate',
   'PreCompact',
   'Elicitation',
   'ElicitationResult',
@@ -103,7 +118,11 @@ export function createOpenBoxAnthropicAgentHooks(
     manager: manager ?? new AnthropicAgentSessionManager(context),
   };
 
-  return HOOK_EVENTS.reduce<
+  const events = context.includeOptInHooks
+    ? [...HOOK_EVENTS, ...OPT_IN_HOOK_EVENTS]
+    : HOOK_EVENTS;
+
+  return events.reduce<
     Partial<Record<OpenBoxAnthropicAgentHookEvent, HookCallbackMatcher[]>>
   >((hooks, event) => {
     hooks[event] = [
@@ -211,6 +230,8 @@ async function handleHook(
       return observeGenericEvent(env, deps, sessionId, EVENT.SIGNAL, ANTHROPIC_AGENT_ACTIVITY_TYPES.WORKSPACE_CHANGE, 'cwd_changed');
     case 'FileChanged':
       return observeGenericEvent(env, deps, sessionId, EVENT.SIGNAL, ANTHROPIC_AGENT_ACTIVITY_TYPES.WORKSPACE_CHANGE, 'file_changed');
+    case 'WorktreeCreate':
+      return handleWorktreeCreate(env, deps, sessionId);
     case 'WorktreeRemove':
       return observeGenericEvent(env, deps, sessionId, EVENT.COMPLETE, ANTHROPIC_AGENT_ACTIVITY_TYPES.WORKSPACE_CHANGE, 'worktree_remove');
     case 'PreCompact':
@@ -282,6 +303,37 @@ async function observeGenericEvent(
     // Observe-only hooks must not disturb the host.
   }
   return {};
+}
+
+async function handleWorktreeCreate(
+  env: Record<string, unknown>,
+  deps: HookDeps,
+  sessionId: string,
+): Promise<HookJSONOutput> {
+  const requestedName = stringFrom(env.name) ?? stringFrom(env.worktree_name) ?? 'worktree';
+  const safeName = sanitizePathSegment(requestedName);
+  const root = path.resolve(
+    deps.context.worktreeRoot ??
+      path.join(process.cwd(), '.openbox', 'worktrees'),
+  );
+  const worktreePath = path.join(root, `${safeName}-${Date.now().toString(36)}`);
+
+  mkdirSync(worktreePath, { recursive: true });
+  await observeGenericEvent(
+    { ...env, worktree_path: worktreePath },
+    deps,
+    sessionId,
+    EVENT.START,
+    ANTHROPIC_AGENT_ACTIVITY_TYPES.WORKSPACE_CHANGE,
+    'worktree_create',
+  );
+
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'WorktreeCreate',
+      worktreePath,
+    },
+  } as HookJSONOutput;
 }
 
 async function handlePreToolUse(
@@ -429,7 +481,7 @@ async function handlePostToolUse(
     durationMs: numberFrom(env.duration_ms),
     ...toolTelemetryFields(toolName, toolInput),
     spans: toolSpan(toolName, toolInput, toolOutput, 'completed'),
-    hookSpanParentEventType: 'ActivityStarted' as const,
+    hookSpanParentEventType: EVENT.START,
   };
   const verdict =
     (await deps.manager.completeToolActivity(
@@ -438,7 +490,10 @@ async function handlePostToolUse(
       activityType,
       payload,
     )) ??
-    (await deps.manager.activity(sessionId, EVENT.COMPLETE, activityType, payload));
+    (await deps.manager.activity(sessionId, EVENT.COMPLETE, activityType, {
+      ...payload,
+      ensureHookSpanParent: true,
+    }));
   return renderDecisionBlock('PostToolUse', verdict, toolOutput);
 }
 
@@ -459,7 +514,7 @@ async function handlePostToolUseFailure(
     durationMs: numberFrom(env.duration_ms),
     ...toolTelemetryFields(toolName, toolInput),
     spans: toolSpan(toolName, toolInput, env.error, 'completed'),
-    hookSpanParentEventType: 'ActivityStarted' as const,
+    hookSpanParentEventType: EVENT.START,
   };
   const verdict =
     (await deps.manager.completeToolActivity(
@@ -472,7 +527,10 @@ async function handlePostToolUseFailure(
       sessionId,
       EVENT.COMPLETE,
       ANTHROPIC_AGENT_ACTIVITY_TYPES.TOOL_FAILURE,
-      payload,
+      {
+        ...payload,
+        ensureHookSpanParent: true,
+      },
     ));
   return renderAdditionalContext('PostToolUseFailure', verdict);
 }
@@ -509,7 +567,7 @@ async function handleStop(
     output: content ? { content } : undefined,
     ...assistantOutputTelemetry(assistant),
     spans: assistantOutputSpan(assistant),
-    hookSpanParentEventType: 'ActivityStarted',
+    hookSpanParentEventType: EVENT.START,
     ensureHookSpanParent: true,
   });
   if (verdict.arm === 'allow' || verdict.arm === 'constrain') {
@@ -539,7 +597,7 @@ async function handleStopFailure(
       output: stopFailureOutput(env, content),
       ...assistantOutputTelemetry(assistant),
       spans: assistantOutputSpan(assistant),
-      hookSpanParentEventType: 'ActivityStarted',
+      hookSpanParentEventType: EVENT.START,
       ensureHookSpanParent: true,
     });
   } catch {
@@ -576,7 +634,7 @@ async function handleSubagentStop(
     output: env.last_assistant_message,
     ...assistantOutputTelemetry(assistant),
     spans: assistantOutputSpan(assistant),
-    hookSpanParentEventType: 'ActivityStarted',
+    hookSpanParentEventType: EVENT.START,
     ensureHookSpanParent: true,
   });
   return renderContinueBlock(verdict);
@@ -606,7 +664,7 @@ async function handleMessageDisplay(
     output: content,
     ...assistantOutputTelemetry(assistant),
     spans: assistantOutputSpan(assistant),
-    hookSpanParentEventType: 'ActivityStarted',
+    hookSpanParentEventType: EVENT.START,
     ensureHookSpanParent: true,
   });
   return {};
@@ -626,6 +684,15 @@ function renderPermissionDecision(
     };
     if (arm === 'constrain') {
       const redacted = redactedRecord(verdict);
+      if (hasInputRedaction(verdict) && !redacted) {
+        return {
+          hookSpecificOutput: {
+            hookEventName: event,
+            permissionDecision: 'deny',
+            permissionDecisionReason: missingInputReplacementBlockReason(reason),
+          },
+        };
+      }
       if (redacted) hookSpecificOutput.updatedInput = redacted;
       if (reason) hookSpecificOutput.additionalContext = reason;
     }
@@ -658,6 +725,17 @@ function renderPermissionRequest(verdict: WorkflowVerdict | undefined): HookJSON
     } = { behavior: 'allow' };
     if (arm === 'constrain') {
       const redacted = redactedRecord(verdict);
+      if (hasInputRedaction(verdict) && !redacted) {
+        return {
+          hookSpecificOutput: {
+            hookEventName: 'PermissionRequest',
+            decision: {
+              behavior: 'deny',
+              message: missingInputReplacementBlockReason(brandedReason(verdict)),
+            },
+          },
+        };
+      }
       if (redacted) decision.updatedInput = redacted;
     }
     return {
@@ -732,14 +810,29 @@ function isPromptDecisionEvent(event: string): boolean {
 }
 
 function hasPromptRedaction(verdict: WorkflowVerdict | undefined): boolean {
+  return hasInputRedaction(verdict);
+}
+
+function hasInputRedaction(verdict: WorkflowVerdict | undefined): boolean {
   const guardrails = verdict?.guardrailsResult;
+  const hasRedactedField = guardrails?.fieldResults?.some(
+    (field) => field.status === 'redacted' || field.status === 'transformed',
+  );
   return Boolean(
     guardrails &&
       (guardrails.inputType === 'activity_input' ||
         guardrails.inputType === 'signal_args') &&
-      guardrails.redactedInput !== undefined &&
-      guardrails.redactedInput !== null,
+      (hasRedactedField ||
+        guardrails.redactedInput !== undefined &&
+        guardrails.redactedInput !== null),
   );
+}
+
+function missingInputReplacementBlockReason(reason: string): string {
+  const detail = reason.replace(/^\[OpenBox\] /, '').replace(/[.]+$/, '');
+  return detail
+    ? `[OpenBox] ${detail}. OpenBox did not provide replacement input, so the original action was blocked.`
+    : '[OpenBox] redacted this action input but did not provide replacement input, so OpenBox blocked the original action.';
 }
 
 function renderPermissionDenied(verdict: WorkflowVerdict | undefined): HookJSONOutput {
@@ -760,11 +853,21 @@ function renderElicitationResponse(
   const arm = verdict?.arm ?? 'allow';
   if (arm === 'allow') return {};
   if (arm === 'constrain') {
+    const redacted = redactedRecord(verdict);
+    if (hasInputRedaction(verdict) && !redacted) {
+      return {
+        hookSpecificOutput: {
+          hookEventName: event,
+          action: 'decline',
+          content: {},
+        },
+      };
+    }
     return {
       hookSpecificOutput: {
         hookEventName: event,
         action: 'accept',
-        content: redactedRecord(verdict) ?? objectRecord(env.response) ?? objectRecord(env.content),
+        content: redacted ?? objectRecord(env.response) ?? objectRecord(env.content),
       },
     };
   }
@@ -857,6 +960,14 @@ function renderFailClosed(event: OpenBoxAnthropicAgentHookEvent, error: unknown)
 
 function stringFrom(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function sanitizePathSegment(value: string): string {
+  const sanitized = value
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return sanitized || 'worktree';
 }
 
 function numberFrom(value: unknown): number | undefined {

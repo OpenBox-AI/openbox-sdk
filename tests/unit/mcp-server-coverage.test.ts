@@ -17,16 +17,39 @@ interface CapturedTool {
   name: string;
   description: string;
   schema: any;
+  annotations?: any;
+  meta?: any;
   cb: (args: any) => Promise<any>;
 }
 
+interface CapturedPrompt {
+  name: string;
+  config: any;
+  cb: (args: any) => Promise<any>;
+}
+
+interface CapturedResource {
+  name: string;
+  uriOrTemplate: any;
+  config: any;
+  cb: (...args: any[]) => Promise<any>;
+}
+
 const captured: CapturedTool[] = [];
+const capturedPrompts: CapturedPrompt[] = [];
+const capturedResources: CapturedResource[] = [];
 const mockState = vi.hoisted(() => ({
   clientName: 'mock-mcp-client',
 }));
 
 vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => {
   return {
+    ResourceTemplate: class {
+      uriTemplate: { toString: () => string };
+      constructor(uriTemplate: string, public callbacks: any) {
+        this.uriTemplate = { toString: () => uriTemplate };
+      }
+    },
     McpServer: class {
       // Inner `server` object exposes the protocol-level introspection
       // helpers (getClientVersion etc) that runMcpServer calls
@@ -37,6 +60,22 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => {
       // Match the SDK's tool/resource overloads loosely.
       tool(name: string, description: string, schema: any, cb: any) {
         captured.push({ name, description, schema, cb });
+      }
+      registerTool(name: string, config: any, cb: any) {
+        captured.push({
+          name,
+          description: config.description,
+          schema: config.inputSchema,
+          annotations: config.annotations,
+          meta: config._meta,
+          cb,
+        });
+      }
+      registerPrompt(name: string, config: any, cb: any) {
+        capturedPrompts.push({ name, config, cb });
+      }
+      registerResource(name: string, uriOrTemplate: any, config: any, cb: any) {
+        capturedResources.push({ name, uriOrTemplate, config, cb });
       }
       resource(_name: string, _uri: string, _meta: any, _cb: any) {
         // not exercised in coverage; but accept calls so registration
@@ -57,6 +96,8 @@ vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => {
 
 beforeEach(() => {
   captured.length = 0;
+  capturedPrompts.length = 0;
+  capturedResources.length = 0;
   mockState.clientName = 'mock-mcp-client';
   // Default fetch: return a generic JSON envelope; individual tool
   // tests override per-call as needed.
@@ -150,6 +191,60 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       if (beforeBackend !== undefined) process.env.OPENBOX_BACKEND_API_KEY = beforeBackend;
       else delete process.env.OPENBOX_BACKEND_API_KEY;
     }
+  });
+
+  it('registers spec-driven MCP tool annotations, prompts, and resource templates', async () => {
+    await withMcpEnv(async () => {
+      const { runMcpServer } = await import('../../ts/src/runtime/mcp');
+      await runMcpServer();
+
+      const checkGovernance = captured.find((tool) => tool.name === 'check_governance')!;
+      expect(checkGovernance.description).toContain('OpenBox risk: medium');
+      expect(checkGovernance.description).toContain('Approval behavior: may return require_approval');
+      expect(checkGovernance.annotations).toMatchObject({
+        title: 'Check Governance',
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      });
+      expect(checkGovernance.meta['openbox/sideEffects']).toContain('governance events');
+
+      expect(capturedPrompts.map((prompt) => prompt.name)).toEqual(
+        expect.arrayContaining([
+          'openbox_status',
+          'pending_approvals',
+          'policy_review',
+          'governance_check',
+          'guardrail_review',
+        ]),
+      );
+      const prompt = capturedPrompts.find((entry) => entry.name === 'governance_check')!;
+      expect(Object.keys(prompt.config.argsSchema)).toEqual(['agent_id', 'span_type', 'activity_input']);
+      const promptResult = await prompt.cb({
+        span_type: 'shell',
+        activity_input: '{"command":"pwd"}',
+      });
+      expect(promptResult.messages[0].content.text).toContain('Call check_governance');
+      expect(promptResult.messages[0].content.text).toContain('"span_type": "shell"');
+
+      expect(capturedResources.map((resource) => resource.name)).toEqual(
+        expect.arrayContaining([
+          'agent',
+          'guardrail',
+          'policy',
+          'behavior-rule',
+          'approval',
+          'skill-reference',
+        ]),
+      );
+      const agentResource = capturedResources.find((resource) => resource.name === 'agent')!;
+      expect(agentResource.config).toMatchObject({
+        title: 'OpenBox Agent',
+        mimeType: 'application/json',
+      });
+      expect(agentResource.uriOrTemplate.uriTemplate.toString()).toBe('openbox://agent/{agent_id}');
+    });
   });
 
   it('cursor_status gives slash commands a non-shell backend ping path', async () => {

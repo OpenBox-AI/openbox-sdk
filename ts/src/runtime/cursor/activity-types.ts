@@ -1,28 +1,32 @@
-// Cursor-specific activity_type vocabulary. snake_case strings
-// matching Cursor's hook-feature mapping where production governance
-// rules target.
-//
-// Why this isn't generated: the *standard* per-event activity-type
-// constants ARE generated (e.g. `BEFORE_SUBMIT_PROMPT_ACTIVITY_TYPE`
-// in core-client/generated/runtime/cursor). This file names the
-// activity-types we fire for *non-event* uses; workflow signals,
-// out-of-band telemetry; so mappers reference symbolic constants
-// instead of bare strings.
+// Cursor-specific activity_type vocabulary. Values are sourced from the
+// generated TypeSpec preset manifest. The snake_case Cursor event
+// categories (`file_read`, `llm_prompt`, ...) remain inside generated
+// payload builders as `event_category` metadata, not as Core activity_type
+// values.
 //
 // EVENT (ActivityStarted/Completed/SignalReceived) is shared across
 // adapters; it's re-exported from `governance/events.ts`.
 
+import { PRESET_ACTIVITY_TYPES } from '../../core-client/generated/govern.js';
+
 export { EVENT } from '../../governance/events.js';
 
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const cursorActivity = PRESET_ACTIVITY_TYPES.cursor;
+
 export const ACTIVITY_TYPES = {
-  PROMPT: 'llm_prompt',
-  COMPLETION: 'llm_completion',
-  FILE_READ: 'file_read',
-  FILE_WRITE: 'file_write',
-  AGENT_ACTION: 'agent_action',
-  AGENT_OBSERVATION: 'agent_observation',
-  AGENT_DECISION: 'agent_decision',
-  API_CALL: 'api_call',
-  WORKFLOW_START: 'workflow_start',
-  WORKFLOW_COMPLETE: 'workflow_complete',
+  PROMPT: cursorActivity.beforeSubmitPrompt,
+  GOAL_SIGNAL: defaultActivity.goalSignal,
+  COMPLETION: cursorActivity.afterAgentResponse,
+  FILE_READ: cursorActivity.beforeReadFile,
+  FILE_WRITE: cursorActivity.afterFileEdit,
+  FILE_DELETE: defaultActivity.fileDelete,
+  SHELL: defaultActivity.shell,
+  MCP_CALL: defaultActivity.mcpToolCall,
+  AGENT_ACTION: defaultActivity.agentAction,
+  AGENT_OBSERVATION: defaultActivity.agentAction,
+  AGENT_DECISION: defaultActivity.agentAction,
+  API_CALL: defaultActivity.httpRequest,
+  WORKFLOW_START: defaultActivity.sessionStart,
+  WORKFLOW_COMPLETE: defaultActivity.stop,
 } as const;

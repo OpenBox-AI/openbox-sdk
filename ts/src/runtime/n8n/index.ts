@@ -4,6 +4,8 @@ import type {
   N8nSession,
   WorkflowVerdict,
 } from '../../core-client/index.js';
+import { PRESET_ACTIVITY_TYPES } from '../../core-client/generated/govern.js';
+import { EVENT } from '../../governance/events.js';
 import type { LLMTokenUsage } from '../../governance/spans.js';
 import {
   withOpenBoxActivityMetadata,
@@ -13,7 +15,10 @@ import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
 } from '../../governance/assistant-output.js';
+import { N8N_INTEGRATION_SURFACE } from '../../governance/capability-matrix.js';
 import { stampSource } from '../../approvals/source.js';
+
+export const OPENBOX_N8N_INTEGRATION = N8N_INTEGRATION_SURFACE;
 
 export interface N8nUserPromptSignalOptions {
   nodeName?: string;
@@ -72,6 +77,8 @@ interface PendingNodeActivity {
 }
 
 const N8N_NODE_TOOL_TYPE = 'n8n_node';
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const n8nActivity = PRESET_ACTIVITY_TYPES.n8n;
 const pendingNodeActivities = new WeakMap<object, Map<string, PendingNodeActivity>>();
 
 function cleanRecord(value: Record<string, unknown>): Record<string, unknown> {
@@ -252,7 +259,7 @@ export async function emitN8nUserPromptSignal(
 ): Promise<WorkflowVerdict | undefined> {
   const signalArgs = prompt?.trim();
   if (!signalArgs) return undefined;
-  return session.activity('SignalReceived', 'user_prompt', {
+  return session.activity(EVENT.SIGNAL, defaultActivity.goalSignal, {
     input: [
       stampSource(
         cleanRecord({
@@ -263,7 +270,7 @@ export async function emitN8nUserPromptSignal(
         'n8n',
       ),
     ],
-    signalName: 'user_prompt',
+    signalName: defaultActivity.goalSignal,
     signalArgs,
     sessionId: options.sessionId,
     prompt: signalArgs,
@@ -296,7 +303,7 @@ export async function emitN8nNodePreExecute(
     sessionId: input.sessionId,
   });
   const startTime = Date.now();
-  const opened = await session.openActivity('node-pre-execute', {
+  const opened = await session.openActivity(n8nActivity.nodePreExecute, {
     ...buildN8nNodePreExecutePayload(input),
     activityId: input.activityId,
     startTime,
@@ -420,7 +427,8 @@ export async function emitN8nNodePostExecute(
     activityId,
     spans: payload.spans?.map((span) => withSpanActivityId(span, activityId)),
     startTime: pending?.startTime ?? input.startTime,
-    hookSpanParentEventType: payload.spans?.length ? 'ActivityStarted' : undefined,
+    hookSpanParentEventType: payload.spans?.length ? EVENT.START : undefined,
+    ensureHookSpanParent: !pending,
   });
 }
 
@@ -436,7 +444,7 @@ export async function emitN8nLlmCompletion(
     activityId,
     spans: payload.spans?.map((span) => withSpanActivityId(span, activityId)),
     startTime: pending?.startTime,
-    hookSpanParentEventType: payload.spans?.length ? 'ActivityStarted' : undefined,
+    hookSpanParentEventType: payload.spans?.length ? EVENT.START : undefined,
     ensureHookSpanParent: !pending,
   });
 }

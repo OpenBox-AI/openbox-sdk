@@ -4,12 +4,13 @@ import {
   type SpanData,
 } from '../core-client/core-client.js';
 import { stampSource } from '../approvals/source.js';
-import { parseApprovalExpirationMs } from '../core-client/approval-time.js';
 import {
+  PRESET_ACTIVITY_TYPES,
   presets,
   type BaseGovernedSession,
   type WorkflowVerdict,
 } from '../core-client/index.js';
+import { EVENT } from '../governance/events.js';
 import { withOpenBoxActivityMetadata } from '../governance/spans.js';
 import { errorMessage, nowUnixNano } from './internal-utils.js';
 import {
@@ -27,6 +28,8 @@ import type {
 const startedWorkflowRuns = new Set<string>();
 const TERMINAL_EVENT_TIMEOUT_MS = 5_000;
 const APPROVAL_POLL_INTERVAL_MS = 750;
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const langchainActivity = PRESET_ACTIVITY_TYPES.langchain;
 
 // One user task should map to one OpenBox session. The runtime gate (or the
 // middleware, when no runtime gate exists) opens the workflow and registers
@@ -114,9 +117,8 @@ export async function pollApproval(
   adapter: OpenBoxCopilotKitAdapter,
   ids: { workflowId: string; runId: string; activityId: string },
 ): Promise<WorkflowVerdict> {
-  let deadline = Number.POSITIVE_INFINITY;
   let last: WorkflowVerdict | undefined;
-  while (Date.now() < deadline) {
+  while (true) {
     let response: Awaited<ReturnType<OpenBoxCoreClient['pollApproval']>> | undefined;
     try {
       response = await adapter.getCoreClient().pollApproval({
@@ -125,38 +127,34 @@ export async function pollApproval(
         activity_id: ids.activityId,
       });
     } catch {
-      const sleepMs = Math.min(APPROVAL_POLL_INTERVAL_MS, deadline - Date.now());
-      if (sleepMs <= 0) break;
-      await sleep(sleepMs);
+      await sleep(APPROVAL_POLL_INTERVAL_MS);
       continue;
     }
     const extra = response as typeof response & {
       expired?: boolean;
       trust_tier?: string | number;
+      trustTier?: string | number;
       guardrails_result?: unknown;
+      guardrailsResult?: unknown;
       verdict?: unknown;
+      approvalExpiresAt?: string;
     };
-    const serverDeadline = parseApprovalExpirationMs(
-      response.approval_expiration_time,
-    );
-    if (serverDeadline !== undefined) {
-      deadline = Math.min(deadline, serverDeadline);
-    }
-    if (
-      extra.expired === true ||
-      (serverDeadline !== undefined && Date.now() >= serverDeadline)
-    ) {
+    const approvalExpiresAt =
+      response.approval_expiration_time ?? extra.approvalExpiresAt;
+    const rawTrustTier = extra.trust_tier ?? extra.trustTier;
+    const trustTier = typeof rawTrustTier === 'number' ? rawTrustTier : undefined;
+    const guardrailsPayload = extra.guardrails_result ?? extra.guardrailsResult;
+    if (extra.expired === true) {
       return {
         arm: 'block',
         reason: response.reason ?? 'OpenBox approval expired.',
-        approvalExpiresAt: response.approval_expiration_time,
+        approvalExpiresAt,
         riskScore: 0,
-        trustTier:
-          typeof extra.trust_tier === 'number' ? extra.trust_tier : undefined,
-        guardrailsResult: mapGuardrailsResult(extra.guardrails_result),
+        trustTier,
+        guardrailsResult: mapGuardrailsResult(guardrailsPayload),
       };
     }
-    const guardrailsResult = mapGuardrailsResult(extra.guardrails_result);
+    const guardrailsResult = mapGuardrailsResult(guardrailsPayload);
     const arm = effectiveArmForGuardrails(
       normalizeArm(extra.verdict ?? response.action),
       guardrailsResult,
@@ -164,37 +162,17 @@ export async function pollApproval(
     last = {
       arm,
       reason: response.reason,
-      approvalExpiresAt: response.approval_expiration_time,
+      approvalExpiresAt,
       riskScore: 0,
-      trustTier:
-        typeof extra.trust_tier === 'number' ? extra.trust_tier : undefined,
+      trustTier,
       guardrailsResult,
     };
     if (guardrailsResult?.validationPassed === false && !response.reason) {
       last.reason = guardrailFailureReason(guardrailsResult);
     }
     if (last && last.arm !== 'require_approval') return last;
-    const sleepMs = Math.min(APPROVAL_POLL_INTERVAL_MS, deadline - Date.now());
-    if (sleepMs <= 0) break;
-    await sleep(sleepMs);
+    await sleep(APPROVAL_POLL_INTERVAL_MS);
   }
-  if (Number.isFinite(deadline) && Date.now() >= deadline) {
-    return {
-      arm: 'block',
-      reason: 'OpenBox approval expired.',
-      approvalExpiresAt: last?.approvalExpiresAt,
-      riskScore: last?.riskScore ?? 0,
-      trustTier: last?.trustTier,
-      guardrailsResult: last?.guardrailsResult,
-    };
-  }
-  return (
-    last ?? {
-      arm: 'require_approval',
-      reason: 'OpenBox approval is still pending.',
-      riskScore: 0,
-    }
-  );
 }
 
 function sleep(ms: number) {
@@ -271,14 +249,14 @@ export async function emitUserPromptSignal(
 
   await createWorkflowSession(adapter, ids, workflowType, taskQueue, {
     attached: true,
-  }).activity('SignalReceived', 'user_prompt', {
+  }).activity(EVENT.SIGNAL, defaultActivity.goalSignal, {
     input: [
       stampSource(
         { prompt: signalArgs, event_category: 'agent_goal' },
         'copilotkit',
       ),
     ],
-    signalName: 'user_prompt',
+    signalName: defaultActivity.goalSignal,
     signalArgs,
     sessionId,
     prompt: signalArgs,
@@ -296,11 +274,11 @@ export async function emitActivityHookSpanUpdate(
 ): Promise<WorkflowVerdict> {
   return createWorkflowSession(adapter, ids, workflowType, taskQueue, {
     attached: true,
-  }).activity('ActivityCompleted', activityType ?? 'assistant_output', {
+  }).activity(EVENT.COMPLETE, activityType ?? langchainActivity.onLlmEnd, {
     activityId: ids.activityId,
     output,
     spans,
-    hookSpanParentEventType: 'ActivityStarted',
+    hookSpanParentEventType: EVENT.START,
   });
 }
 

@@ -16,12 +16,11 @@ import { join, relative } from 'path';
 
 const repoRoot = process.cwd();
 
-const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'specs/generated']);
-// Accept either our codegen banner or the third-party
-// openapi-typescript banner; both forms mark a file as generated.
+const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'specs/generated', '__pycache__']);
+const SKIP_SUFFIXES = ['.pyc', '.pyo'];
 const BANNER_PREFIXES = [
   '// AUTO-GENERATED',
-  '/**\n * This file was auto-generated',
+  '# AUTO-GENERATED',
 ];
 const README = 'README.md';
 
@@ -43,6 +42,7 @@ for (const file of walk(repoRoot)) {
   const rel = relative(repoRoot, file);
   if (!rel.includes('/generated/')) continue;
   if (rel.endsWith(README)) continue; // documentation entries
+  if (SKIP_SUFFIXES.some((suffix) => rel.endsWith(suffix))) continue;
   const head = readFileSync(file, 'utf8').slice(0, 200);
   if (!BANNER_PREFIXES.some((b) => head.startsWith(b))) {
     failures.push(rel);

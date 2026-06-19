@@ -339,6 +339,66 @@ export interface OpenBoxApprovalDecisionResult {
   eventId?: string;
 }
 
+export interface OpenBoxAGUIEvent {
+  type?: string;
+  event?: string;
+  name?: string;
+  threadId?: string;
+  runId?: string;
+  toolCallId?: string;
+  toolName?: string;
+  messageId?: string;
+  payload?: unknown;
+  input?: unknown;
+  output?: unknown;
+  delta?: unknown;
+  state?: unknown;
+  error?: unknown;
+  result?: unknown;
+  [key: string]: unknown;
+}
+
+export type OpenBoxAGUIActivityKind =
+  | 'run'
+  | 'message'
+  | 'tool_input'
+  | 'tool_output'
+  | 'state'
+  | 'error'
+  | 'interrupt';
+
+export interface OpenBoxAGUIActivity {
+  kind: OpenBoxAGUIActivityKind;
+  eventType: string;
+  sessionKey: string;
+  workflowId: string;
+  runId: string;
+  activityId: string;
+  result: OpenBoxSafePayload<unknown>;
+}
+
+export interface OpenBoxAGUIAdapterConfig {
+  adapter?: OpenBoxCopilotKitAdapter;
+  sessionKey?: (event: OpenBoxAGUIEvent) => string;
+  workflowId?: (event: OpenBoxAGUIEvent) => string | undefined;
+  runId?: (event: OpenBoxAGUIEvent) => string | undefined;
+}
+
+export interface OpenBoxAGUIAdapter {
+  handleEvent(event: OpenBoxAGUIEvent): Promise<OpenBoxAGUIActivity>;
+  handleStream(events: AsyncIterable<OpenBoxAGUIEvent> | Iterable<OpenBoxAGUIEvent>): AsyncGenerator<OpenBoxAGUIActivity>;
+}
+
+export interface OpenBoxHeadlessApprovalRequest extends OpenBoxApprovalDecisionRequest {
+  result?: Partial<OpenBoxCopilotActionResult>;
+}
+
+export interface OpenBoxHeadlessApprovalClient {
+  decide(request: OpenBoxHeadlessApprovalRequest): Promise<OpenBoxApprovalDecisionResult>;
+  approve(request: Omit<OpenBoxHeadlessApprovalRequest, 'decision'>): Promise<OpenBoxApprovalDecisionResult>;
+  reject(request: Omit<OpenBoxHeadlessApprovalRequest, 'decision'>): Promise<OpenBoxApprovalDecisionResult>;
+}
+
 export class OpenBoxCopilotKitError extends Error {
   readonly verdict?: WorkflowVerdict;
 

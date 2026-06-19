@@ -466,7 +466,7 @@ export function isNoPayload(program: Program, target: Operation): boolean {
 // Host hook metadata: where the hook-event block lives for hosts that
 // read config directly, plus how each event's JSON entry is shaped.
 
-export type HookStyle = 'claude-array' | 'cursor-keyed';
+export type HookStyle = 'claude-array' | 'codex-array' | 'cursor-keyed';
 
 export interface HookTargetBinding {
   readonly file: string;
@@ -476,7 +476,7 @@ export interface HookTargetBinding {
   readonly configDir: string;
 }
 
-const HOOK_STYLES: ReadonlySet<HookStyle> = new Set(['claude-array', 'cursor-keyed']);
+const HOOK_STYLES: ReadonlySet<HookStyle> = new Set(['claude-array', 'codex-array', 'cursor-keyed']);
 
 export function $hookTarget(
   context: DecoratorContext,
@@ -669,4 +669,46 @@ export function getHookEventLabel(
   target: Operation,
 ): string | undefined {
   return program.stateMap(stateKeys.hookEventLabel).get(target);
+}
+
+// ─── Provider capability matrix ──────────────────────────────────────
+// Cross-host parity declarations live in TypeSpec so generated
+// language SDKs consume the same support tiers, plugin components,
+// event catalogs, and public integration exports.
+
+export type ProviderCapabilitiesBinding = Record<string, unknown>;
+
+export function $providerCapabilities(
+  context: DecoratorContext,
+  target: Namespace,
+  raw: unknown,
+): void {
+  const value = unwrapTspValue(raw);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-provider-capabilities',
+      format: { reason: 'expected a record literal' },
+      target,
+    });
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of ['capabilityIds', 'providers', 'capabilities', 'eventCatalog', 'pluginComponents', 'publicIntegrations']) {
+    if (!(key in record)) {
+      reportDiagnostic(context.program, {
+        code: 'invalid-provider-capabilities',
+        format: { reason: `missing ${key}` },
+        target,
+      });
+      return;
+    }
+  }
+  context.program.stateMap(stateKeys.providerCapabilities).set(target, record);
+}
+
+export function getProviderCapabilities(
+  program: Program,
+  target: Namespace,
+): ProviderCapabilitiesBinding | undefined {
+  return program.stateMap(stateKeys.providerCapabilities).get(target);
 }

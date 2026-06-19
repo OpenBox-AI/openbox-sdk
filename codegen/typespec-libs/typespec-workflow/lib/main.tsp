@@ -203,13 +203,13 @@ extern dec noPayload(target: Operation);
  *   #{
  *     file: ".claude/settings.json",       // resolved under project cwd
  *     key: "hooks",                         // top-level key under settings
- *     style: "claude-array" | "cursor-keyed",
+ *     style: "claude-array" | "codex-array" | "cursor-keyed",
  *     command: "openbox claude-code hook",  // bin command for each event
  *     configDir: ".claude-hooks",          // project config drop dir
  *   }
  *
  * `style` controls the per-event JSON shape:
- *   claude-array: events[evt] = [{ matcher?, hooks: [{ type, command, timeout? }] }]
+ *   claude-array/codex-array: events[evt] = [{ matcher?, hooks: [{ type, command, timeout? }] }]
  *   cursor-keyed: events[evt] = { command }
  */
 extern dec hookTarget(target: Interface, target_: valueof Record<unknown>);
@@ -283,3 +283,20 @@ extern dec activityLabels(target: Namespace, table: valueof Record<string>);
  *              `"File read"`.
  */
 extern dec hookEventLabel(target: Operation, label: valueof string);
+
+/**
+ * Cross-provider OpenBox capability matrix. This is a language-agnostic
+ * spec artifact consumed by SDK emitters; runtime packages should render
+ * or enforce this data, not re-author it in each language.
+ *
+ * Shape:
+ *   #{
+ *     capabilityIds: #[...],
+ *     providers: #[...],
+ *     capabilities: #[#{ provider, capability, tier, rationale }, ...],
+ *     eventCatalog: #[...],
+ *     pluginComponents: #[...],
+ *     publicIntegrations: #[...],
+ *   }
+ */
+extern dec providerCapabilities(target: Namespace, matrix: valueof Record<unknown>);

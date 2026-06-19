@@ -13,14 +13,14 @@ SDK tracks.
 
 ```bash
 npm run specs:compile      # tsp compile specs/typespec
-npm run generate:types     # openapi-typescript on the emitted OpenAPI
-npm run specs:all          # build:codegen + specs:compile + generate:types
+npm run generate:sdks      # generic alias for specs:compile
+npm run specs:all          # build:codegen + specs:compile
 ```
 
-The TypeScript emitter under
-`codegen/emitters/typespec-emitter-typescript/` writes TypeScript
-source into `ts/src/**/generated/`. The hand-written files in
-`ts/src/` only consume those generated artifacts.
+The OpenBox emitter under
+`codegen/emitters/typespec-emitter/` writes generated SDK
+artifacts for language targets such as TypeScript and Python. The
+hand-written files only consume those generated artifacts.
 
 ## Drift detection
 

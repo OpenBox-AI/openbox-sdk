@@ -116,6 +116,23 @@ describe('session/resolver', () => {
     const fresh = mod.resolveSessionByKey('S2', cfg);
     expect(fresh.workflowId).toBeDefined();
   });
+
+  it('tracks workflow-started state without changing workflow/run IDs', async () => {
+    const mod = await import('../../ts/src/session/resolver');
+    const cfg = { sessionDir: dir };
+    const created = mod.resolveSessionByKey('S3', cfg);
+
+    expect(mod.isSessionStartedByKey('S3', cfg)).toBe(false);
+    mod.markStartedByKey('S3', cfg);
+    expect(mod.isSessionStartedByKey('S3', cfg)).toBe(true);
+    expect(mod.resolveSessionByKey('S3', cfg)).toEqual(created);
+
+    mod.markHaltedByKey('S3', cfg);
+    expect(mod.isSessionStartedByKey('S3', cfg)).toBe(false);
+    const fresh = mod.resolveSessionByKey('S3', cfg);
+    expect(fresh.workflowId).not.toBe(created.workflowId);
+    expect(mod.isSessionStartedByKey('S3', cfg)).toBe(false);
+  });
 });
 
 describe('logging/logger', () => {

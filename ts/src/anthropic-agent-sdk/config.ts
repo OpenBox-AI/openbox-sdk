@@ -26,6 +26,8 @@ export interface OpenBoxAnthropicRuntimeContext {
   taskQueue: string;
   approvalMode: OpenBoxAnthropicApprovalMode;
   hookTimeoutSeconds?: number;
+  includeOptInHooks: boolean;
+  worktreeRoot?: string;
   getCoreClient(): OpenBoxCoreClient;
 }
 
@@ -80,6 +82,8 @@ export function createOpenBoxAnthropicRuntimeContext(
     taskQueue: config.taskQueue ?? DEFAULT_ANTHROPIC_AGENT_TASK_QUEUE,
     approvalMode: config.approvalMode ?? 'ask',
     hookTimeoutSeconds: config.hookTimeoutSeconds,
+    includeOptInHooks: config.includeOptInHooks === true,
+    worktreeRoot: config.worktreeRoot,
     getCoreClient,
   };
 }

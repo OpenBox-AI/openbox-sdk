@@ -15,8 +15,10 @@ import {
 import type { ClaudeCodeConfig } from '../config.js';
 import {
   clearSession,
+  isStarted,
   lastResolveCreatedFreshSession,
   markHalted,
+  markStarted,
 } from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
@@ -76,9 +78,9 @@ async function emitClaudeUsageSignal(
       model: usage.model,
       usage: usage.usage,
     }, 'claude-code');
-    await session.activity(EVENT.SIGNAL, 'claude_usage', {
+    await session.activity(EVENT.SIGNAL, ACTIVITY_TYPES.USAGE_SIGNAL, {
       input: [usagePayload],
-      signalName: 'claude_usage',
+      signalName: ACTIVITY_TYPES.USAGE_SIGNAL,
       signalArgs: [usagePayload],
     });
   } catch {
@@ -91,14 +93,18 @@ async function emitClaudeUsageSignal(
  *
  * The runtime adapter uses govern.attach(), which DOESN'T auto-fire
  * WorkflowStarted. We fire it explicitly here on the first hook of a
- * session. Subsequent hooks find `opened === true` and the call is a no-op.
+ * session. The shared session store prevents duplicate workflow starts across
+ * hook subprocesses that reuse the same Claude Code session id.
  */
 export async function handleSessionStart(
   env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
   cfg: ClaudeCodeConfig,
 ): Promise<undefined> {
-  await session.workflowStarted();
+  if (!isStarted(env.session_id, cfg)) {
+    await session.workflowStarted();
+    markStarted(env.session_id, cfg);
+  }
   const startTime = Date.now();
   const opened = await session.openActivity(ACTIVITY_TYPES.SESSION, {
     input: [stampSource(buildSessionStartPayload(env), 'claude-code')],
@@ -142,7 +148,7 @@ export async function handleStop(
         event: 'Stop',
         fallbackText: env.last_assistant_message,
       }),
-      hookSpanParentEventType: 'ActivityStarted',
+      hookSpanParentEventType: EVENT.START,
       ensureHookSpanParent: !pending,
     });
   } catch {

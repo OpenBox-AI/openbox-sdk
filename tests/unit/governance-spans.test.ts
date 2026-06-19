@@ -2,6 +2,11 @@ import { describe, expect, test } from 'vitest';
 import type { SpanData } from '../../ts/src/core-client/index.js';
 import { assistantOutputTelemetryFields } from '../../ts/src/governance/assistant-output.js';
 import {
+  combineOpenBoxUsage,
+  normalizeOpenBoxUsage,
+  openBoxUsageTelemetryFields,
+} from '../../ts/src/governance/usage.js';
+import {
   buildLLMCompletionResponseBody,
   buildLLMCompletionSpan,
   buildSpan,
@@ -29,6 +34,47 @@ function extractAssistantContentLikeCore(spans: SpanData[]): string {
 }
 
 describe('LLM completion spans', () => {
+  test('normalizes token, cache, web-search, and cost usage through the shared facade', () => {
+    expect(
+      normalizeOpenBoxUsage({
+        prompt_tokens: 3,
+        completionTokens: 4,
+        cache_read_input_tokens: 2,
+        webSearchRequests: 1,
+        cost_usd: 0.012,
+      }),
+    ).toMatchObject({
+      inputTokens: 3,
+      outputTokens: 4,
+      totalTokens: 7,
+      cacheReadInputTokens: 2,
+      webSearchRequests: 1,
+      costUsd: 0.012,
+    });
+    expect(
+      openBoxUsageTelemetryFields({
+        inputTokenCount: 5,
+        outputTokenCount: 6,
+      }),
+    ).toEqual({
+      inputTokens: 5,
+      outputTokens: 6,
+      totalTokens: 11,
+      costUsd: undefined,
+    });
+    expect(
+      combineOpenBoxUsage(
+        { input_tokens: 1, output_tokens: 2, cost_usd: 0.1 },
+        { promptTokens: 3, completionTokens: 4, costUSD: 0.2 },
+      ),
+    ).toMatchObject({
+      inputTokens: 4,
+      outputTokens: 6,
+      totalTokens: 10,
+      costUsd: 0.30000000000000004,
+    });
+  });
+
   test('response body matches Core goal-alignment assistant extraction', () => {
     expect(
       extractAssistantContentLikeCore([

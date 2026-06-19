@@ -3,6 +3,7 @@
  * Handles all gate attributes, semantic type detection workarounds, and
  * payload structure so callers don't need to know the internals.
  */
+import { CANONICAL_EVENT_TYPE } from '../core-client/generated/govern.js';
 import { withSpanActivityId } from '../governance/spans.js';
 
 function hex(len: number): string {
@@ -85,7 +86,7 @@ export function buildTestPayload(opts: SpanOptions): BuiltPayload {
 
   const payload: BuiltPayload = {
     source: 'workflow-telemetry',
-    event_type: 'ActivityStarted',
+    event_type: CANONICAL_EVENT_TYPE.ACTIVITY_STARTED,
     workflow_id: workflowId,
     run_id: runId,
     workflow_type: 'TestWorkflow',

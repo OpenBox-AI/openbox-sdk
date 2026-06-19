@@ -8,6 +8,8 @@ export {
   resolveSessionByKey,
   peekSessionByKey,
   markHaltedByKey,
+  isSessionStartedByKey,
+  markStartedByKey,
   clearSessionByKey,
   type SharedSessionConfig,
 } from './resolver.js';

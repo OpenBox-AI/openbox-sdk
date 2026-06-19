@@ -13,6 +13,8 @@ interface PersistedSession {
   runId: string;
   /** Cleared when a halt verdict fires; the next hook starts a fresh workflow. */
   halted?: boolean;
+  /** True after an adapter has emitted WorkflowStarted for this workflow/run pair. */
+  started?: boolean;
 }
 
 /** Minimal config contract every adapter shares. */
@@ -62,6 +64,17 @@ export function markHaltedByKey(key: string, cfg: SharedSessionConfig): void {
   const store = getStore(cfg);
   const existing = store.load(key) as PersistedSession | null;
   if (existing) store.save(key, { ...existing, halted: true });
+}
+
+export function isSessionStartedByKey(key: string, cfg: SharedSessionConfig): boolean {
+  const existing = getStore(cfg).load(key) as PersistedSession | null;
+  return Boolean(existing && !existing.halted && existing.started === true);
+}
+
+export function markStartedByKey(key: string, cfg: SharedSessionConfig): void {
+  const store = getStore(cfg);
+  const existing = store.load(key) as PersistedSession | null;
+  if (existing && !existing.halted) store.save(key, { ...existing, started: true });
 }
 
 export function clearSessionByKey(key: string, cfg: SharedSessionConfig): void {
