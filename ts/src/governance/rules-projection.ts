@@ -2,11 +2,11 @@
 // policies, and behavior rules and normalizes them into the `ProjectedRule` shape
 // declared in specs/typespec/govern/rules-projection.tsp.
 //
-// The shape is hand-mirrored from the TypeSpec model rather than
-// generated; once codegen lights it up, switch the imports to
-// generated types and delete the duplication. Until then, treat this
-// file as the source of truth for what the spec says.
+// The projection output shape is hand-mirrored from the TypeSpec model.
+// Backend behavior-rule inputs use generated types so v2 state predicates
+// stay aligned with the API contract.
 import { createApi } from '../runtime/mcp/config.js';
+import type { components } from '../types/generated/backend.js';
 
 export type RuleTrigger = 'always' | 'globMatch' | 'agentRequested' | 'manual';
 export type RuleSeverity = 'block' | 'warn' | 'info';
@@ -52,21 +52,9 @@ interface BackendPolicy {
   trust_impact?: string;
 }
 
-interface BackendBehaviorRule {
-  id: string;
-  rule_name: string;
-  description?: string;
-  priority?: number;
-  trigger?: string;
-  states?: string[];
-  time_window?: number;
-  verdict?: number;
-  reject_message?: string;
-  is_active?: boolean;
-  group_id?: string;
-  version?: number;
-  trust_impact?: string;
-}
+type BackendBehaviorRule = components['schemas']['BehaviorRule'];
+type BehaviorRuleState =
+  NonNullable<BackendBehaviorRule['states']>[number];
 
 /**
  * Trust impact ∈ {none, low, medium, high, critical}; map to the rule
@@ -161,6 +149,7 @@ function projectBehaviorRule(rule: BackendBehaviorRule): ProjectedRule | null {
     severity: severityFromBehaviorRule(rule),
     rendererHints: {
       trigger: rule.trigger,
+      triggerMatch: rule.trigger_match,
       states: rule.states,
       priority: rule.priority,
       verdict: rule.verdict,
@@ -202,12 +191,37 @@ function renderBehaviorRuleBody(rule: BackendBehaviorRule): string {
     rule.description ?? '_No description provided._',
   ];
   if (rule.trigger) lines.push('', `Trigger: \`${rule.trigger}\``);
+  if (rule.trigger_match && rule.trigger_match.length > 0) {
+    lines.push(`Trigger match: ${renderMatchConditions(rule.trigger_match)}`);
+  }
   if (rule.states && rule.states.length > 0) {
-    lines.push(`States: ${rule.states.map((state) => `\`${state}\``).join(', ')}`);
+    lines.push(`States: ${rule.states.map(renderBehaviorState).join(', ')}`);
   }
   if (typeof rule.verdict === 'number') lines.push(`Verdict: ${rule.verdict}`);
   if (rule.reject_message) lines.push('', `Reject message: ${rule.reject_message}`);
   return lines.join('\n');
+}
+
+function renderBehaviorState(state: BehaviorRuleState): string {
+  if (typeof state === 'string') return `\`${state}\``;
+  const semanticType = state.semantic_type;
+  const match =
+    state.match && state.match.length > 0
+      ? ` where ${renderMatchConditions(state.match)}`
+      : '';
+  return `\`${semanticType}\`${match}`;
+}
+
+function renderMatchConditions(
+  conditions: components['schemas']['BehaviorRuleMatchCondition'][],
+): string {
+  return conditions
+    .map((condition) => {
+      const value =
+        condition.value === undefined ? '' : ` ${JSON.stringify(condition.value)}`;
+      return `\`${condition.field} ${condition.op}${value}\``;
+    })
+    .join(', ');
 }
 
 export interface FetchProjectionOpts {
