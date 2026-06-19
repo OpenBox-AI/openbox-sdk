@@ -426,7 +426,7 @@ export interface components {
              */
             redacted_input: unknown;
             /** @description Raw guardrail-service output, retained for debugging. */
-            raw_logs: {
+            raw_logs?: {
                 [key: string]: unknown;
             };
             /** @description False when any field result is `blocked`. */

@@ -457,6 +457,8 @@ export function mapGuardrailsResult(
     redacted_input?: unknown;
     validationPassed?: boolean;
     validation_passed?: boolean;
+    rawLogs?: Record<string, unknown>;
+    raw_logs?: Record<string, unknown>;
     reasons?: Array<{ type?: unknown; field?: unknown; reason?: unknown }>;
     fieldResults?: Array<{
       field?: unknown;
@@ -473,6 +475,7 @@ export function mapGuardrailsResult(
       inputType === 'activity_output' ? 'activity_output' : 'activity_input',
     redactedInput: raw.redactedInput ?? raw.redacted_input,
     validationPassed: raw.validationPassed ?? raw.validation_passed ?? true,
+    rawLogs: raw.rawLogs ?? raw.raw_logs,
     reasons: (raw.reasons ?? []).map((reason) => ({
       type: String(reason.type ?? ''),
       field: typeof reason.field === 'string' ? reason.field : undefined,

@@ -1347,6 +1347,7 @@ describe('WorkflowVerdict.guardrailsResult', () => {
           input_type: 'activity_input',
           redacted_input: [{ tool: 'Bash', cmd: '<REDACTED>' }],
           validation_passed: true,
+          raw_logs: { pii: { redacted: 1 }, evaluator: 'guardrail-service' },
           reasons: [{ type: 'pii', field: 'cmd', reason: 'looks like a token' }],
           results: [
             {
@@ -1371,6 +1372,10 @@ describe('WorkflowVerdict.guardrailsResult', () => {
     expect(v.guardrailsResult).toBeDefined();
     expect(v.guardrailsResult?.inputType).toBe('activity_input');
     expect(v.guardrailsResult?.validationPassed).toBe(true);
+    expect(v.guardrailsResult?.rawLogs).toEqual({
+      pii: { redacted: 1 },
+      evaluator: 'guardrail-service',
+    });
     expect(v.guardrailsResult?.reasons).toHaveLength(1);
     expect(v.guardrailsResult?.reasons[0].type).toBe('pii');
     expect(v.guardrailsResult?.fieldResults).toHaveLength(1);

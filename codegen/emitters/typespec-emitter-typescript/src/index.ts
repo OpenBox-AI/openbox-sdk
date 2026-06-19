@@ -3316,6 +3316,7 @@ function mapGuardrailsResult(
     inputType: (raw.input_type as 'activity_input' | 'activity_output') ?? 'activity_input',
     redactedInput: raw.redacted_input,
     validationPassed: raw.validation_passed !== false,
+    rawLogs: raw.raw_logs,
     reasons: ((raw.reasons ?? []) as Array<{ type?: string; field?: string; reason?: string }>).map((r) => ({
       type: String(r.type ?? ''),
       field: r.field,

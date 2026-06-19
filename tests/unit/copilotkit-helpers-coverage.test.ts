@@ -481,6 +481,7 @@ describe('copilotkit helper coverage', () => {
       input_type: 'activity_output',
       redacted_input: { output: { secret: '[REDACTED]' } },
       validation_passed: false,
+      raw_logs: { pii: { redacted: 1 } },
       reasons: [{ type: 'pii', field: 42, reason: null }],
       fieldResults: [{ field: 'a', status: 'block', reason: 'bad' }],
       results: [
@@ -496,6 +497,7 @@ describe('copilotkit helper coverage', () => {
       inputType: 'activity_output',
       redactedInput: { output: { secret: '[REDACTED]' } },
       validationPassed: false,
+      rawLogs: { pii: { redacted: 1 } },
       reasons: [{ type: 'pii', field: undefined, reason: '' }],
       fieldResults: [
         { field: 'a', status: 'blocked', reason: 'bad' },

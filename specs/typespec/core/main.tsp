@@ -423,7 +423,7 @@ model GuardrailsResult {
   redacted_input: unknown;
 
   /** Raw guardrail-service output, retained for debugging. */
-  raw_logs: Record<unknown>;
+  raw_logs?: Record<unknown>;
 
   /** False when any field result is `blocked`. */
   validation_passed: boolean;

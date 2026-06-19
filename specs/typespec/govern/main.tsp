@@ -321,6 +321,9 @@ model GuardrailsVerdict {
   /** False when any field result is `blocked`. */
   validationPassed: boolean;
 
+  /** Raw guardrail-service output, retained for debugging and parity with Core. */
+  rawLogs?: Record<unknown>;
+
   reasons: GuardrailReasonRef[];
 
   fieldResults: GuardrailFieldVerdict[];
