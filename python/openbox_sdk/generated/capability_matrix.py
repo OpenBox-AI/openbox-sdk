@@ -1244,6 +1244,80 @@ USAGE_COST_CAPABILITY_GUARDS = [
     "guardTest": "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans"
   }
 ]
+TRACING_CAPABILITY_GUARDS = [
+  {
+    "provider": "codex",
+    "tier": "wrapped",
+    "traceSurface": "UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, Stop",
+    "spanCoverage": "Codex shell, file, HTTP, MCP, database, agent/action, and assistant-output spans",
+    "spanEmission": "Parent activities omit spans; hook_trigger re-evaluations carry span_count=1 and per-span payloads.",
+    "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as codex.",
+    "guardTest": "tests/unit/codex-runtime.test.ts#stamps Codex source and shell spans in paired tool mappers"
+  },
+  {
+    "provider": "cursor",
+    "tier": "wrapped",
+    "traceSurface": "before/after prompt, shell, file, MCP, assistant response, thought, and subagent hooks",
+    "spanCoverage": "Cursor file_read, file_write, shell/internal, MCP, LLM, HTTP, and assistant-output spans",
+    "spanEmission": "Tool/assistant spans are emitted on hook_trigger payloads while parent lifecycle events remain span-free where required.",
+    "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as cursor.",
+    "guardTest": "tests/unit/cursor-spans.test.ts#before/after shell execution keeps one activity id across the tool lifecycle"
+  },
+  {
+    "provider": "claude-code",
+    "tier": "native",
+    "traceSurface": "Claude Code prompts, tools, batches, subagents, compaction, session, and assistant output",
+    "spanCoverage": "Claude Code shell, MCP, HTTP, file, database, Python-style root-field, Mastra-style camelCase, and assistant-output spans",
+    "spanEmission": "Parent activities omit spans; each hook_trigger re-evaluation carries one normalized span with the parent activity_id.",
+    "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as claude-code.",
+    "guardTest": "tests/unit/govern-invariants.test.ts#ActivityStarted spans are emitted as parent plus per-span hook re-evaluations"
+  },
+  {
+    "provider": "mcp",
+    "tier": "wrapped",
+    "traceSurface": "check_governance tool over stdio or Streamable HTTP",
+    "spanCoverage": "MCP check spans normalize caller-supplied llm, shell, file, HTTP, database, and MCP payloads",
+    "spanEmission": "check_governance emits a span-free parent plus hook_trigger span re-evaluation for Core behavior matching.",
+    "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as mcp or cursor-mcp.",
+    "guardTest": "tests/unit/mcp-server-coverage.test.ts#check_governance still emits the hook span when the parent verdict blocks"
+  },
+  {
+    "provider": "openai-agents-sdk",
+    "tier": "native",
+    "traceSurface": "AgentHooks lifecycle and OpenAI tracing processor spans",
+    "spanCoverage": "OpenAI generation, handoff, guardrail, hosted tool, built-in tool, MCP tool, and usage spans",
+    "spanEmission": "Tracing processor emits Core activities for observed spans even when they cannot be pre-gated.",
+    "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as openai-agents-sdk.",
+    "guardTest": "tests/unit/openai-agents-sdk.test.ts#observes OpenAI trace spans for generations, handoffs, guardrails, and tools"
+  },
+  {
+    "provider": "anthropic-agent-sdk",
+    "tier": "wrapped",
+    "traceSurface": "Anthropic Agent SDK hook events, query messages, result messages, usage messages, and elicitation",
+    "spanCoverage": "Anthropic Agent SDK prompt, tool, assistant-output, session, synthetic model-usage, and failure spans",
+    "spanEmission": "Assistant/tool outputs emit span-free parents plus hook_trigger span re-evaluations where Core needs spans.",
+    "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as anthropic-agent-sdk.",
+    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#records StopFailure as observe-only failed workflow telemetry"
+  },
+  {
+    "provider": "copilotkit",
+    "tier": "wrapped",
+    "traceSurface": "CopilotKit middleware, governed tools, AG-UI lifecycle, tool, state, error, and interrupt events",
+    "spanCoverage": "CopilotKit LLM, tool, AG-UI lifecycle, interrupt, and assistant-output spans",
+    "spanEmission": "Middleware emits span-free parent completion events plus hook_trigger assistant-output span re-evaluations.",
+    "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as copilotkit.",
+    "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits Core-extractable assistant output spans for goal alignment"
+  },
+  {
+    "provider": "n8n",
+    "tier": "wrapped",
+    "traceSurface": "n8n node pre/post execution, LLM completion helpers, and governed AI Agent workflow template",
+    "spanCoverage": "n8n node, LLM, assistant-output, tool, error, and workflow telemetry spans",
+    "spanEmission": "n8n post/LLM helpers emit span-free parent completions plus hook_trigger span re-evaluations.",
+    "sourceAttribution": "metadata.source, activity input _openbox_source, and span module are stamped as n8n.",
+    "guardTest": "tests/unit/govern-invariants.test.ts#n8n generic node completion emits paired parent plus tool hook span"
+  }
+]
 HITL_CAPABILITY_GUARDS = [
   {
     "provider": "codex",
