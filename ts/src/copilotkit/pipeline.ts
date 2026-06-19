@@ -4,11 +4,11 @@ import type { GovernedPayload, WorkflowVerdict } from '../core-client/index.js';
 import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import { EVENT } from '../governance/events.js';
 import {
-  llmTokenUsageFromRecord,
   withOpenBoxActivityMetadata,
   type LLMTokenUsage,
   type OpenBoxActivityMetadataInput,
 } from '../governance/spans.js';
+import { normalizeOpenBoxUsage } from '../governance/usage.js';
 import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
@@ -451,7 +451,7 @@ function llmCompletionMetadataFromPayload(payload: unknown): {
   return {
     model,
     provider,
-    usage: llmTokenUsageFromRecord(usageMetadata),
+    usage: normalizeOpenBoxUsage(usageMetadata)?.raw,
     requestBody:
       record.request_body ?? record.requestBody ?? metadata.request_body,
     responseBody:
