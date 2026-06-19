@@ -14,6 +14,7 @@ import { OpenBoxAgentsSessionManager } from './session-manager.js';
 import type {
   AgentsRunFunction,
   AgentsToolFactory,
+  OpenBoxAgentsToolCallDetails,
   OpenBoxAgentsRunOptions,
   OpenBoxAgentsSDKConfig,
   OpenBoxAgentsToolConfig,
@@ -24,6 +25,7 @@ import {
   objectRecord,
   redactedOutputValue,
   redactedRecord,
+  runTelemetryFields,
 } from './payloads.js';
 
 export {
@@ -39,6 +41,7 @@ export type {
   OpenBoxAgentsApprovalMode,
   OpenBoxAgentsRunOptions,
   OpenBoxAgentsSDKConfig,
+  OpenBoxAgentsToolCallDetails,
   OpenBoxAgentsToolConfig,
   OpenBoxAgentsToolOptions,
 } from './types.js';
@@ -49,27 +52,64 @@ export function createOpenBoxAgentsTool(
 ): unknown {
   const context = createOpenBoxAgentsRuntimeContext(options);
   if (!context.enabled) {
-    const toolFactory = (options.toolFactory ?? openaiAgentsTool) as AgentsToolFactory;
+    const toolFactory = (options.toolFactory ??
+      openaiAgentsTool) as AgentsToolFactory;
     return toolFactory(toolConfig as unknown as Record<string, unknown>);
   }
   const manager = new OpenBoxAgentsSessionManager(context);
-  const toolFactory = (options.toolFactory ?? openaiAgentsTool) as AgentsToolFactory;
+  const toolFactory = (options.toolFactory ??
+    openaiAgentsTool) as AgentsToolFactory;
   const originalExecute = toolConfig.execute;
   const wrappedConfig = {
     ...toolConfig,
     execute: async (...args: unknown[]) => {
       const input = args[0];
+      const runContext = args[1];
+      const details = toolCallDetailsFrom(args[2]);
+      const call = {
+        callId: toolCallIdFromDetails(details) ?? randomUUID(),
+        details,
+      };
       const sessionId = sessionIdFor(options, toolConfig.name);
-      const opened = await manager.openTool(sessionId, toolConfig.name, input);
-      const governedInput = inputForVerdict(input, opened.verdict, context.approvalMode);
+      const opened = await manager.openTool(
+        sessionId,
+        toolConfig.name,
+        input,
+        call,
+      );
+      const governedInput = inputForVerdict(
+        input,
+        opened.verdict,
+        context.approvalMode,
+      );
       try {
-        const output = await originalExecute(governedInput, args[1]);
-        const completionVerdict = await manager.completeTool(sessionId, toolConfig.name, governedInput, output);
-        return outputForVerdict(output, completionVerdict, context.approvalMode);
+        const output = await originalExecute(
+          governedInput,
+          runContext,
+          details,
+        );
+        const completionVerdict = await manager.completeTool(
+          sessionId,
+          toolConfig.name,
+          governedInput,
+          output,
+          call,
+        );
+        return outputForVerdict(
+          output,
+          completionVerdict,
+          context.approvalMode,
+        );
       } catch (error) {
-        await manager.completeTool(sessionId, toolConfig.name, governedInput, {
-          error: error instanceof Error ? error.message : String(error),
-        });
+        await manager.completeTool(
+          sessionId,
+          toolConfig.name,
+          governedInput,
+          {
+            error: error instanceof Error ? error.message : String(error),
+          },
+          call,
+        );
         throw error;
       }
     },
@@ -83,14 +123,20 @@ export async function runWithOpenBox(
   options: OpenBoxAgentsRunOptions = {},
 ): Promise<unknown> {
   const context = createOpenBoxAgentsRuntimeContext(options);
-  const runFunction = (options.runFunction ?? openaiAgentsRun) as AgentsRunFunction;
+  const runFunction = (options.runFunction ??
+    openaiAgentsRun) as AgentsRunFunction;
   if (!context.enabled) return runFunction(agent, input, runOptions(options));
   const manager = new OpenBoxAgentsSessionManager(context);
   const sessionId = sessionIdFor(options, 'run');
-  await manager.ensureStarted(sessionId, input);
+  const startVerdict = await manager.startRun(sessionId, input);
+  const governedInput = inputForVerdict(
+    input,
+    startVerdict,
+    context.approvalMode,
+  );
   try {
-    const result = await runFunction(agent, input, runOptions(options));
-    await manager.complete(sessionId, result);
+    const result = await runFunction(agent, governedInput, runOptions(options));
+    await manager.complete(sessionId, result, runTelemetryFields(result));
     return result;
   } catch (error) {
     await manager.fail(sessionId, error);
@@ -126,7 +172,8 @@ function inputForVerdict(
     throw new OpenBoxAgentsSDKError(
       approvalMode === 'error'
         ? reason || '[OpenBox] approval required'
-        : reason || '[OpenBox] approval was not resolved before the tool deadline',
+        : reason ||
+            '[OpenBox] approval was not resolved before the tool deadline',
     );
   }
   throw new OpenBoxAgentsSDKError(reason || '[OpenBox] blocked by policy');
@@ -139,30 +186,40 @@ function outputForVerdict(
 ): unknown {
   if (!verdict || verdict.arm === 'allow') return output;
   if (verdict.arm === 'constrain') {
-    return redactedOutputValue(verdict.guardrailsResult?.redactedInput, output) ?? output;
+    return (
+      redactedOutputValue(verdict.guardrailsResult?.redactedInput, output) ??
+      output
+    );
   }
   const reason = brandedReason(verdict.reason);
   if (verdict.arm === 'require_approval') {
     throw new OpenBoxAgentsSDKError(
       approvalMode === 'error'
         ? reason || '[OpenBox] approval required for tool output'
-        : reason || '[OpenBox] tool output approval was not resolved before the deadline',
+        : reason ||
+            '[OpenBox] tool output approval was not resolved before the deadline',
     );
   }
   throw new OpenBoxAgentsSDKError(reason || '[OpenBox] blocked tool output');
 }
 
 function sessionIdFor(
-  options: Pick<OpenBoxAgentsSDKConfig, 'workflowId' | 'runId'> & { sessionId?: string },
+  options: Pick<OpenBoxAgentsSDKConfig, 'workflowId' | 'runId'> & {
+    sessionId?: string;
+  },
   suffix: string,
 ): string {
-  return options.sessionId ??
+  return (
+    options.sessionId ??
     options.workflowId ??
     options.runId ??
-    `openai-agents-sdk:${suffix}:${randomUUID()}`;
+    `openai-agents-sdk:${suffix}:${randomUUID()}`
+  );
 }
 
-function runOptions(options: OpenBoxAgentsRunOptions): Record<string, unknown> | undefined {
+function runOptions(
+  options: OpenBoxAgentsRunOptions,
+): Record<string, unknown> | undefined {
   const record = objectRecord(options);
   const blocked = new Set([
     'apiKey',
@@ -173,6 +230,7 @@ function runOptions(options: OpenBoxAgentsRunOptions): Record<string, unknown> |
     'enabled',
     'agentIdentity',
     'approvalMode',
+    'input',
     'runFunction',
     'sessionId',
     'taskQueue',
@@ -184,4 +242,21 @@ function runOptions(options: OpenBoxAgentsRunOptions): Record<string, unknown> |
     if (!blocked.has(key) && value !== undefined) passThrough[key] = value;
   }
   return Object.keys(passThrough).length > 0 ? passThrough : undefined;
+}
+
+function toolCallDetailsFrom(
+  value: unknown,
+): OpenBoxAgentsToolCallDetails | undefined {
+  return Object.keys(objectRecord(value)).length > 0
+    ? (value as OpenBoxAgentsToolCallDetails)
+    : undefined;
+}
+
+function toolCallIdFromDetails(
+  details: OpenBoxAgentsToolCallDetails | undefined,
+): string | undefined {
+  const callId = details?.toolCall?.callId ?? details?.toolCall?.id;
+  return typeof callId === 'string' && callId.trim().length > 0
+    ? callId.trim()
+    : undefined;
 }

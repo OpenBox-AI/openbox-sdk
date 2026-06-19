@@ -221,9 +221,10 @@ describe('Codex runtime adapter', () => {
     expect(completed?.hook_trigger).toBe(false);
     const completedHook = mock.events.find(
       (event) =>
-        event.event_type === 'ActivityCompleted' &&
+        event.event_type === 'ActivityStarted' &&
         event.activity_type === 'ShellExecution' &&
-        event.hook_trigger === true,
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
     );
     expect(completedHook?.spans?.[0]).toMatchObject({
       module: 'codex',

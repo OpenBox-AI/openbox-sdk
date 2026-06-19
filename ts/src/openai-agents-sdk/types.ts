@@ -39,10 +39,25 @@ export interface OpenBoxAgentsRunOptions extends OpenBoxAgentsSDKConfig {
   input?: unknown;
 }
 
+export interface OpenBoxAgentsToolCallDetails {
+  toolCall?: {
+    id?: string;
+    callId?: string;
+    name?: string;
+    namespace?: string;
+    arguments?: unknown;
+  };
+  [key: string]: unknown;
+}
+
 export interface OpenBoxAgentsToolConfig {
   name: string;
   description?: string;
   parameters?: unknown;
-  execute: (input: unknown, context?: unknown) => unknown | Promise<unknown>;
+  execute: (
+    input: unknown,
+    context?: unknown,
+    details?: OpenBoxAgentsToolCallDetails,
+  ) => unknown | Promise<unknown>;
   [key: string]: unknown;
 }

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   presets,
+  type GovernedPayload,
   type OpenaiAgentsSdkSession,
   type WorkflowVerdict,
 } from '../core-client/index.js';
@@ -11,22 +12,38 @@ import {
   objectRecord,
   toolActivityInput,
   toolActivityType,
+  toolCallFields,
   toolSpan,
   toolTelemetryFields,
+  type OpenBoxAgentsToolCallContext,
 } from './payloads.js';
 
 interface ManagedSession {
   session: OpenaiAgentsSdkSession;
   started: boolean;
   terminal: boolean;
+  runActivity?: OpenedActivity;
 }
 
-type OpenedActivity = Awaited<ReturnType<OpenaiAgentsSdkSession['openActivity']>>;
+type OpenedActivity = Awaited<
+  ReturnType<OpenaiAgentsSdkSession['openActivity']>
+>;
 
 interface PendingToolActivity {
+  activityId: string;
   activityType: string;
   complete: OpenedActivity['complete'];
 }
+
+type RunTelemetry = Pick<
+  GovernedPayload,
+  | 'llmModel'
+  | 'inputTokens'
+  | 'outputTokens'
+  | 'totalTokens'
+  | 'hasToolCalls'
+  | 'finishReason'
+>;
 
 export class OpenBoxAgentsSessionManager {
   private readonly sessions = new Map<string, ManagedSession>();
@@ -55,28 +72,56 @@ export class OpenBoxAgentsSessionManager {
     return managed;
   }
 
-  async ensureStarted(sessionId: string, input?: unknown): Promise<ManagedSession> {
+  async ensureStarted(
+    sessionId: string,
+    input?: unknown,
+  ): Promise<ManagedSession> {
     const managed = await this.get(sessionId);
     if (!managed.started) {
       await managed.session.workflowStarted();
-      await managed.session.runStarted({
-        input: [compactPayload({ session_id: sessionId, input }, 'run_start')],
-        sessionId,
-      });
       managed.started = true;
     }
     return managed;
   }
 
-  async complete(sessionId: string, output?: unknown): Promise<void> {
+  async startRun(sessionId: string, input?: unknown): Promise<WorkflowVerdict> {
+    const managed = await this.ensureStarted(sessionId);
+    if (!managed.runActivity) {
+      managed.runActivity = await managed.session.openActivity(
+        OPENAI_AGENTS_ACTIVITY_TYPES.RUN,
+        {
+          input: [
+            compactPayload({ session_id: sessionId, input }, 'run_start'),
+          ],
+          sessionId,
+        },
+      );
+    }
+    return managed.runActivity.verdict;
+  }
+
+  async complete(
+    sessionId: string,
+    output?: unknown,
+    telemetry: RunTelemetry = {},
+  ): Promise<void> {
     const managed = await this.ensureStarted(sessionId);
     if (managed.terminal) return;
     try {
-      await managed.session.runCompleted({
+      const payload = {
         input: [compactPayload({ session_id: sessionId }, 'run_complete')],
         output,
         sessionId,
-      });
+        ...telemetry,
+      };
+      if (managed.runActivity) {
+        await managed.runActivity.complete(
+          payload,
+          OPENAI_AGENTS_ACTIVITY_TYPES.RUN,
+        );
+      } else {
+        await managed.session.runCompleted(payload);
+      }
       await managed.session.workflowCompleted();
       managed.terminal = true;
     } finally {
@@ -103,21 +148,28 @@ export class OpenBoxAgentsSessionManager {
     sessionId: string,
     toolName: string,
     input: unknown,
+    call: OpenBoxAgentsToolCallContext,
   ): Promise<OpenedActivity> {
     const toolInput = objectRecord(input);
     const activityType = toolActivityType(toolName, toolInput);
+    const callFields = toolCallFields(call);
     const managed = await this.ensureStarted(sessionId);
     const opened = await managed.session.openActivity(activityType, {
+      activityId: call.callId,
       input: toolActivityInput(
         toolName,
         toolInput,
-        compactPayload({ tool_name: toolName, tool_input: toolInput }, 'tool_input'),
+        compactPayload(
+          { tool_name: toolName, tool_input: toolInput, ...callFields },
+          'tool_input',
+        ),
       ),
       sessionId,
       ...toolTelemetryFields(toolName, toolInput),
-      spans: toolSpan(toolName, toolInput),
+      spans: toolSpan(toolName, toolInput, undefined, undefined, call),
     });
-    this.toolActivities.set(this.toolKey(sessionId, toolName), {
+    this.toolActivities.set(this.toolKey(sessionId, call.callId), {
+      activityId: opened.activityId,
       activityType,
       complete: opened.complete,
     });
@@ -129,23 +181,31 @@ export class OpenBoxAgentsSessionManager {
     toolName: string,
     input: unknown,
     output: unknown,
+    call: OpenBoxAgentsToolCallContext,
   ): Promise<WorkflowVerdict | undefined> {
-    const key = this.toolKey(sessionId, toolName);
+    const key = this.toolKey(sessionId, call.callId);
     const pending = this.toolActivities.get(key);
     this.toolActivities.delete(key);
     if (!pending) return undefined;
     const toolInput = objectRecord(input);
-    return pending.complete({
-      input: toolActivityInput(
-        toolName,
-        toolInput,
-        compactPayload({ tool_name: toolName, tool_input: toolInput }, 'tool_input'),
-      ),
-      output,
-      sessionId,
-      ...toolTelemetryFields(toolName, toolInput),
-      spans: toolSpan(toolName, toolInput, output, 'completed'),
-    }, OPENAI_AGENTS_ACTIVITY_TYPES.TOOL_COMPLETED);
+    const callFields = toolCallFields(call);
+    return pending.complete(
+      {
+        input: toolActivityInput(
+          toolName,
+          toolInput,
+          compactPayload(
+            { tool_name: toolName, tool_input: toolInput, ...callFields },
+            'tool_input',
+          ),
+        ),
+        output,
+        sessionId,
+        ...toolTelemetryFields(toolName, toolInput),
+        spans: toolSpan(toolName, toolInput, output, 'completed', call),
+      },
+      OPENAI_AGENTS_ACTIVITY_TYPES.TOOL_COMPLETED,
+    );
   }
 
   async observeHandoff(
@@ -155,7 +215,9 @@ export class OpenBoxAgentsSessionManager {
   ): Promise<WorkflowVerdict> {
     const managed = await this.ensureStarted(sessionId);
     return managed.session.handoff({
-      input: [compactPayload({ from_agent: fromAgent, to_agent: toAgent }, 'handoff')],
+      input: [
+        compactPayload({ from_agent: fromAgent, to_agent: toAgent }, 'handoff'),
+      ],
       sessionId,
       fromAgentDid: fromAgent,
       activityId: randomUUID(),
@@ -173,8 +235,8 @@ export class OpenBoxAgentsSessionManager {
     });
   }
 
-  private toolKey(sessionId: string, toolName: string): string {
-    return `${sessionId}:${toolName}`;
+  private toolKey(sessionId: string, toolCallId: string): string {
+    return `${sessionId}:${toolCallId}`;
   }
 
   private deleteToolActivities(sessionId: string): void {
