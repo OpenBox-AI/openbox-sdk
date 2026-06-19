@@ -398,6 +398,10 @@ describe('runtime/claude-code/mappers; every event handler', () => {
           usage: {
             input_tokens: 3138,
             output_tokens: 358,
+            cache_read_input_tokens: 10,
+            cache_creation_input_tokens: 5,
+            web_search_requests: 1,
+            cost_usd: 0.004,
           },
         },
       },
@@ -412,6 +416,10 @@ describe('runtime/claude-code/mappers; every event handler', () => {
           usage: {
             input_tokens: 3138,
             output_tokens: 358,
+            cache_read_input_tokens: 10,
+            cache_creation_input_tokens: 5,
+            web_search_requests: 1,
+            cost_usd: 0.004,
           },
         },
       },
@@ -429,6 +437,10 @@ describe('runtime/claude-code/mappers; every event handler', () => {
           usage: {
             input_tokens: 2,
             output_tokens: 591,
+            cache_read_input_tokens: 4,
+            cache_creation_input_tokens: 2,
+            web_search_requests: 2,
+            cost_usd: 0.006,
           },
         },
       },
@@ -454,15 +466,38 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     const message = session.calls.find(
       (c: any) => c.method === 'observeActivity' && c.args[1] === 'ClaudeCodeMessage',
     );
-    expect(message?.args[2]?.spans?.[0]).toMatchObject({
+    const span = message?.args[2]?.spans?.[0];
+    expect(span).toMatchObject({
       model: 'claude-opus-4-8',
       input_tokens: 3140,
       output_tokens: 949,
+      cache_read_input_tokens: 14,
+      cache_creation_input_tokens: 7,
+      web_search_requests: 3,
+      attributes: {
+        'gen_ai.usage.cache_read_input_tokens': 14,
+        'gen_ai.usage.cache_creation_input_tokens': 7,
+        'gen_ai.usage.web_search_requests': 3,
+      },
     });
+    expect(span?.cost_usd).toBeCloseTo(0.01);
+    expect(span?.attributes?.['openbox.usage.cost_usd']).toBeCloseTo(0.01);
     expect(message?.args[2]).toMatchObject({
       hasToolCalls: true,
     });
-    expect(assistantContentFromSpan(message?.args[2]?.spans?.[0])).toBe(
+    const responseBody = JSON.parse(
+      String(span?.response_body ?? '{}'),
+    );
+    expect(responseBody.usage).toMatchObject({
+      input_tokens: 3140,
+      output_tokens: 949,
+      total_tokens: 4089,
+      cache_read_input_tokens: 14,
+      cache_creation_input_tokens: 7,
+      web_search_requests: 3,
+    });
+    expect(responseBody.usage?.cost_usd).toBeCloseTo(0.01);
+    expect(assistantContentFromSpan(span)).toBe(
       'final canonical answer',
     );
     const usageSignal = session.calls.find(
@@ -471,16 +506,32 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     expect(usageSignal?.args[2]?.input?.[0]).toMatchObject({
       event_category: 'llm_usage',
       model: 'claude-opus-4-8',
-      usage: { inputTokens: 3140, outputTokens: 949, totalTokens: 4089 },
+      usage: {
+        inputTokens: 3140,
+        outputTokens: 949,
+        totalTokens: 4089,
+        cacheReadInputTokens: 14,
+        cacheCreationInputTokens: 7,
+        webSearchRequests: 3,
+      },
       _openbox_source: 'claude-code',
     });
+    expect(usageSignal?.args[2]?.input?.[0]?.usage?.costUSD).toBeCloseTo(0.01);
     expect(usageSignal?.args[2]?.signalName).toBe('claude_usage');
     expect(usageSignal?.args[2]?.signalArgs?.[0]).toMatchObject({
       event_category: 'llm_usage',
       model: 'claude-opus-4-8',
-      usage: { inputTokens: 3140, outputTokens: 949, totalTokens: 4089 },
+      usage: {
+        inputTokens: 3140,
+        outputTokens: 949,
+        totalTokens: 4089,
+        cacheReadInputTokens: 14,
+        cacheCreationInputTokens: 7,
+        webSearchRequests: 3,
+      },
       _openbox_source: 'claude-code',
     });
+    expect(usageSignal?.args[2]?.signalArgs?.[0]?.usage?.costUSD).toBeCloseTo(0.01);
   });
 
   it('stop keeps the workflow open while Claude reports background work', async () => {

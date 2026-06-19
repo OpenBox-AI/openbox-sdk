@@ -71,6 +71,20 @@ function combineUsage(
     inputTokens: sumTokenField(left.inputTokens, right.inputTokens),
     outputTokens: sumTokenField(left.outputTokens, right.outputTokens),
     totalTokens: sumTokenField(left.totalTokens, right.totalTokens),
+    cacheReadInputTokens: sumTokenField(
+      left.cacheReadInputTokens,
+      right.cacheReadInputTokens,
+    ),
+    cacheCreationInputTokens: sumTokenField(
+      left.cacheCreationInputTokens,
+      right.cacheCreationInputTokens,
+    ),
+    webSearchRequests: sumTokenField(
+      left.webSearchRequests,
+      right.webSearchRequests,
+    ),
+    costUSD: sumTokenField(left.costUSD, right.costUSD),
+    costUsd: sumTokenField(left.costUsd, right.costUsd),
   };
 }
 
