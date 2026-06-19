@@ -11,9 +11,9 @@ export function buildMcpGovernanceSpan(
   return buildSpan('mcp', spanType, input as SpanInput);
 }
 
-// Canonical activity_type values the skill emits for observability, approvals,
-// and guardrail activity bindings when a guardrail scopes itself to a specific
-// activity type. Unset guardrail bindings still apply broadly.
+// Canonical activity_type values the skill emits for observability and
+// approvals. Legacy guardrail activity bindings are compatibility-only no-ops;
+// backend/Core apply guardrails by processing stage.
 export const MCP_ACTIVITY_TYPE_MAP: Record<string, string> = {
   llm: 'PromptSubmission',
   file_read: 'FileRead',

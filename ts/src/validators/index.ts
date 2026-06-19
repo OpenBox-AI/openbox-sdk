@@ -369,64 +369,14 @@ export const CANONICAL_ACTIVITY_TYPES = [
   'AgentSpawn',          // runtime/claude-code
   'ClaudeCodeSession',   // runtime/claude-code session marker
   'CursorSession',       // runtime/cursor session marker
-  'DefaultActivity',     // openbox-sdk default; will not match specific-type guardrails. Override via config.activityType.
+  'DefaultActivity',     // openbox-sdk default fallback.
 ] as const;
 
-export function validateActivitiesConfig(activities: unknown, stage: '0' | '1'): void {
-  if (activities == null) {
-    return;
-  }
-  if (!Array.isArray(activities)) {
-    warn(
-      'settings.activities should be an array when provided. Current guardrail evaluators can still use configured activity bindings.',
-      'references/guardrails.md § "Guardrail activities"',
-    );
-    return;
-  }
-  if (activities.length === 0) {
-    return;
-  }
-  const expectedPrefix = stage === '0' ? 'input' : 'output';
-  for (let i = 0; i < activities.length; i++) {
-    const a = activities[i] as Record<string, unknown>;
-    if (a.activity_type != null && typeof a.activity_type !== 'string') {
-      warn(
-        `settings.activities[${i}].activity_type should be a string when provided.`,
-        'references/guardrails.md § "Guardrail activities"',
-      );
-    }
-    if (typeof a.activity_type === 'string' && !(CANONICAL_ACTIVITY_TYPES as readonly string[]).includes(a.activity_type)) {
-      warn(
-        `settings.activities[${i}].activity_type "${a.activity_type}" is not a first-party SDK activity type and may not match current guardrail filters.`,
-        'references/guardrails.md § "Guardrail activities"',
-      );
-    }
-    if (a.fields_to_check == null) {
-      continue;
-    }
-    if (!Array.isArray(a.fields_to_check)) {
-      warn(
-        `settings.activities[${i}].fields_to_check should be an array when provided.`,
-        'references/guardrails.md § "Guardrail activities"',
-      );
-      continue;
-    }
-    for (const path of a.fields_to_check as string[]) {
-      if (typeof path !== 'string' || path.length === 0) {
-        warn(
-          `settings.activities[${i}].fields_to_check entries should be non-empty strings when provided.`,
-          'references/guardrails.md § "Guardrail activities"',
-        );
-        continue;
-      }
-      if (!path.startsWith(expectedPrefix + '.') && path !== expectedPrefix) {
-        warn(
-          `fields_to_check path "${path}" does not match the configured processing stage prefix "${expectedPrefix}".`,
-          'references/guardrails.md § "Guardrail activities"',
-        );
-      }
-    }
-  }
+export function validateActivitiesConfig(_activities: unknown, _stage: '0' | '1'): void {
+  // Compatibility no-op: backend/Core now apply guardrails by processing stage
+  // and no longer use legacy settings.activities activity_type/fields_to_check
+  // filters. Keep accepting the field so older configs and SDK callers do not
+  // break while new guardrails omit it.
 }
 
 // ---------------------------------------------------------------------------

@@ -62,9 +62,10 @@ describe('validators branch coverage', () => {
     expect(() => validateGuardrailParams('5', { regex: '(drop|truncate)\\s+table' })).not.toThrow();
   });
 
-  it('activity config accepts optional guardrail activity bindings', () => {
+  it('activity config accepts legacy guardrail activity bindings as no-op compatibility data', () => {
     expect(() => validateActivitiesConfig(undefined, '0')).not.toThrow();
     expect(() => validateActivitiesConfig([], '0')).not.toThrow();
+    expect(() => validateActivitiesConfig('legacy-non-array', '0')).not.toThrow();
     expect(() =>
       validateActivitiesConfig(
         [{ activity_type: 'PromptSubmission', fields_to_check: ['input.0.prompt'] }],
@@ -93,6 +94,12 @@ describe('validators branch coverage', () => {
     expect(() =>
       validateActivitiesConfig(
         [{ activity_type: 'CustomActivity', fields_to_check: ['input.text'] }],
+        '0',
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateActivitiesConfig(
+        [{ activity_type: 123, fields_to_check: 'not-an-array' }],
         '0',
       ),
     ).not.toThrow();

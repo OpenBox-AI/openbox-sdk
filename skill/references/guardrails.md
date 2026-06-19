@@ -23,6 +23,12 @@ openbox api backend AgentController_updateGuardrails --params '{"agentId":"...",
 openbox api backend AgentController_deleteGuardrails --params '{"agentId":"...","guardrailId":"..."}'
 ```
 
+Guardrails are evaluated by processing stage. Legacy
+`settings.activities[].activity_type` and
+`settings.activities[].fields_to_check` entries may still exist on old
+records, but current backend/Core treats them as compatibility no-ops.
+New guardrails should omit those fields.
+
 ## Runtime Proof
 
 Use `openbox api core evaluateGovernance --body @event.json` for a CLI
