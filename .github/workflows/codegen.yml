@@ -118,14 +118,20 @@ jobs:
       - name: Compile main spec
         run: |
           git fetch origin main
-          git checkout origin/main -- specs/typespec codegen
+          BASE_SPEC_WORKTREE="$RUNNER_TEMP/openbox-spec-base-worktree"
+          rm -rf "$BASE_SPEC_WORKTREE"
+          git worktree add --detach "$BASE_SPEC_WORKTREE" origin/main
+          cd "$BASE_SPEC_WORKTREE"
+          npm ci
           npm run build:codegen
           npm run specs:compile || true
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
 
       - name: Save base spec
         run: |
           mkdir -p /tmp/openbox-spec-base
-          cp specs/generated/openapi3/*.json /tmp/openbox-spec-base/ 2>/dev/null || true
+          cp "$RUNNER_TEMP/openbox-spec-base-worktree"/specs/generated/openapi3/*.json /tmp/openbox-spec-base/ 2>/dev/null || true
 
       - name: Optic diff
         run: |
