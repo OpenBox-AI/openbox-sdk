@@ -218,7 +218,8 @@ export class AnthropicAgentSessionManager {
     if (!toolUseId) return;
     if (
       opened.verdict.arm !== 'allow' &&
-      opened.verdict.arm !== 'constrain'
+      opened.verdict.arm !== 'constrain' &&
+      opened.verdict.arm !== 'require_approval'
     ) {
       return;
     }

@@ -330,6 +330,48 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect((deferOutput as any).hookSpecificOutput.permissionDecision).toBe('defer');
   });
 
+  it('pairs post-tool telemetry with the approval-required pre-tool activity', async () => {
+    const mock = createMockCore((payload) =>
+      payload.event_type === 'ActivityStarted'
+        ? verdict('require_approval', { reason: 'needs reviewer' })
+        : verdict('allow'),
+    );
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    await runHook(hooks, 'PreToolUse', {
+      ...baseInput,
+      tool_name: 'Bash',
+      tool_input: { command: 'npm test' },
+      tool_use_id: 'tool_inline_approval',
+    });
+    await runHook(hooks, 'PostToolUse', {
+      ...baseInput,
+      hook_event_name: 'PostToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'npm test' },
+      tool_response: 'ok',
+      tool_use_id: 'tool_inline_approval',
+      duration_ms: 25,
+    });
+
+    const parent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'ShellExecution' &&
+        event.hook_trigger !== true,
+    );
+    const completed = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'ShellExecution' &&
+        event.hook_trigger !== true,
+    );
+
+    expect(parent?.activity_id).toBeDefined();
+    expect(completed?.activity_id).toBe(parent?.activity_id);
+    expect(completed?.duration_ms).toBe(25);
+  });
+
   it('treats failClosed false as a compatibility no-op for decision-capable hooks', async () => {
     const core = {
       evaluate: vi.fn(async () => {
