@@ -262,6 +262,7 @@ function emitCapabilityMatrix(program: Program): string {
     ...arrayOfRecords(matrix.publicIntegrations).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.goalSignalGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.usageCostCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.tracingCapabilityGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.hitlCapabilityGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.guardrailCapabilityGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.policyEvaluationGuards).map((entry) => String(entry.tier ?? '')),
@@ -277,6 +278,7 @@ PROVIDER_PLUGIN_COMPONENTS = ${py(matrix.pluginComponents)}
 PUBLIC_INTEGRATION_SUPPORT = ${py(matrix.publicIntegrations)}
 GOAL_SIGNAL_GUARDS = ${py(matrix.goalSignalGuards)}
 USAGE_COST_CAPABILITY_GUARDS = ${py(matrix.usageCostCapabilityGuards)}
+TRACING_CAPABILITY_GUARDS = ${py(matrix.tracingCapabilityGuards)}
 HITL_CAPABILITY_GUARDS = ${py(matrix.hitlCapabilityGuards)}
 GUARDRAIL_CAPABILITY_GUARDS = ${py(matrix.guardrailCapabilityGuards)}
 POLICY_EVALUATION_GUARDS = ${py(matrix.policyEvaluationGuards)}

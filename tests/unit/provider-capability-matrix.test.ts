@@ -23,6 +23,7 @@ import {
   PROVIDER_EVENT_CATALOG,
   PROVIDER_PLUGIN_COMPONENTS,
   PUBLIC_INTEGRATION_SUPPORT,
+  TRACING_CAPABILITY_GUARDS,
   USAGE_COST_CAPABILITY_GUARDS,
   type OpenBoxProviderId,
 } from '../../ts/src/governance/capability-matrix.js';
@@ -150,6 +151,33 @@ describe('provider capability matrix', () => {
       expect(guard.normalizedFields, `${guard.provider} normalizedFields`).toContain('total_tokens');
       expect(guard.sharedNormalizer, `${guard.provider} sharedNormalizer`).toMatch(/normalizeOpenBoxUsage|openBoxUsageTelemetryFields|buildSpan|buildAssistantOutputSpan|assistantOutputTelemetryFields/);
       expect(guard.costPolicyBoundary, `${guard.provider} costPolicyBoundary`).toContain('OpenBox Core');
+      expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+    }
+  });
+
+  it('pins tracing support claims to explicit tracing guard coverage', () => {
+    const tracingCapabilityProviders = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) => entry.capability === 'tracing')
+      .map((entry) => entry.provider)
+      .sort();
+    const guardProviders = TRACING_CAPABILITY_GUARDS
+      .map((entry) => entry.provider)
+      .sort();
+
+    expect(guardProviders).toEqual(tracingCapabilityProviders);
+    expect(new Set(guardProviders).size).toBe(guardProviders.length);
+
+    const tierByProvider = new Map(
+      PROVIDER_CAPABILITY_MATRIX
+        .filter((entry) => entry.capability === 'tracing')
+        .map((entry) => [entry.provider, entry.tier]),
+    );
+    for (const guard of TRACING_CAPABILITY_GUARDS) {
+      expect(guard.tier, `${guard.provider} tier`).toBe(tierByProvider.get(guard.provider));
+      expect(guard.traceSurface.length, `${guard.provider} traceSurface`).toBeGreaterThan(20);
+      expect(guard.spanCoverage, `${guard.provider} spanCoverage`).toMatch(/span/i);
+      expect(guard.spanEmission, `${guard.provider} spanEmission`).toMatch(/hook_trigger|observed spans|pre-gated|span-free/i);
+      expect(guard.sourceAttribution, `${guard.provider} sourceAttribution`).toContain('_openbox_source');
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
     }
   });
