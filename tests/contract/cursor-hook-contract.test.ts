@@ -386,7 +386,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
         payload.activity_type === 'user_prompt',
     );
     expect(promptSignals).toHaveLength(1);
-    expect(promptSignals[0]?.hook_trigger).toBeUndefined();
+    expect(promptSignals[0]?.hook_trigger).toBe(false);
     expect(promptSignals[0]?.spans).toBeUndefined();
     expect(promptSignals[0]?.span_count).toBeUndefined();
     const promptStarts = promptPayloads.filter(
@@ -402,7 +402,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
       session_id: 'c',
       prompt: 'summarize this file',
     });
-    expect(promptParent.hook_trigger).toBeUndefined();
+    expect(promptParent.hook_trigger).toBe(false);
     expect(promptParent.spans).toBeUndefined();
     expect(promptParent.span_count).toBeUndefined();
     const promptCompleted = promptPayloads.find(
@@ -411,7 +411,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
         payload.activity_type === 'PromptSubmission',
     );
     expect(promptCompleted?.activity_id).toBe(promptParent.activity_id);
-    expect(promptCompleted?.hook_trigger).toBeUndefined();
+    expect(promptCompleted?.hook_trigger).toBe(false);
     expect(promptCompleted?.spans).toBeUndefined();
     expect(promptCompleted?.span_count).toBeUndefined();
     expect(promptPayloads.indexOf(promptSignals[0]!)).toBeLessThan(promptPayloads.indexOf(promptParent));
@@ -472,7 +472,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
       output_tokens: 2,
       total_tokens: 5,
     });
-    expect(responseParent.hook_trigger).toBeUndefined();
+    expect(responseParent.hook_trigger).toBe(false);
     expect(responseParent.spans).toBeUndefined();
     expect(responseParent.span_count).toBeUndefined();
     expect(responseHook).toMatchObject({
@@ -544,7 +544,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
       duration_ms: 42,
     });
     expect(parent.spans).toBeUndefined();
-    expect(parent.hook_trigger).toBeUndefined();
+    expect(parent.hook_trigger).toBe(false);
     expect(hook).toMatchObject({
       workflow_id: parent.workflow_id,
       run_id: parent.run_id,
@@ -606,7 +606,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
       duration_ms: 77,
     });
     expect(parent.spans).toBeUndefined();
-    expect(parent.hook_trigger).toBeUndefined();
+    expect(parent.hook_trigger).toBe(false);
     expect(hook).toMatchObject({
       workflow_id: parent.workflow_id,
       run_id: parent.run_id,
@@ -667,7 +667,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
       duration_ms: 88,
     });
     expect(parent.spans).toBeUndefined();
-    expect(parent.hook_trigger).toBeUndefined();
+    expect(parent.hook_trigger).toBe(false);
     expect(hook).toMatchObject({
       workflow_id: parent.workflow_id,
       run_id: parent.run_id,
@@ -727,7 +727,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
       tool_type: 'file_write',
     });
     expect(parent.spans).toBeUndefined();
-    expect(parent.hook_trigger).toBeUndefined();
+    expect(parent.hook_trigger).toBe(false);
     expect(hook).toMatchObject({
       workflow_id: parent.workflow_id,
       run_id: parent.run_id,

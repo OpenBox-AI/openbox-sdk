@@ -192,7 +192,7 @@ describe('activity pairing', () => {
     const signalEvents = mock.events.filter((e) => e.event_type === 'SignalReceived');
     expect(signalEvents).toHaveLength(1);
     expect(signalEvents[0].activity_type).toBe('interrupt');
-    expect(signalEvents[0].hook_trigger).toBeUndefined();
+    expect(signalEvents[0].hook_trigger).toBe(false);
     expect(signalEvents[0].spans).toBeUndefined();
     expect(signalEvents[0].span_count).toBeUndefined();
   });
@@ -225,7 +225,7 @@ describe('activity pairing', () => {
     );
     expect(startedEvents).toHaveLength(3);
     const [parent, firstHook, secondHook] = startedEvents;
-    expect(parent.hook_trigger).toBeUndefined();
+    expect(parent.hook_trigger).toBe(false);
     expect(parent.spans).toBeUndefined();
     expect(parent.span_count).toBeUndefined();
     for (const hook of [firstHook, secondHook]) {
@@ -303,7 +303,7 @@ describe('activity pairing', () => {
     );
     expect(startedEvents).toHaveLength(4);
     const [parent, ...hooks] = startedEvents;
-    expect(parent.hook_trigger).toBeUndefined();
+    expect(parent.hook_trigger).toBe(false);
     expect(parent.spans).toBeUndefined();
     expect(parent.span_count).toBeUndefined();
     expect(hooks).toHaveLength(3);
@@ -414,7 +414,7 @@ describe('activity pairing', () => {
       total_tokens: 168,
       completion: 'done',
     });
-    expect(completed?.hook_trigger).toBeUndefined();
+    expect(completed?.hook_trigger).toBe(false);
     expect(completed?.spans).toBeUndefined();
     expect(completed?.span_count).toBeUndefined();
   });
@@ -465,7 +465,7 @@ describe('activity pairing', () => {
         }),
       ],
     });
-    expect(signal?.hook_trigger).toBeUndefined();
+    expect(signal?.hook_trigger).toBe(false);
     expect(signal?.spans).toBeUndefined();
     expect(signal?.span_count).toBeUndefined();
 
@@ -492,7 +492,7 @@ describe('activity pairing', () => {
     expect(started?.activity_input).toContainEqual({
       __openbox: { tool_type: 'n8n_node' },
     });
-    expect(started?.hook_trigger).toBeUndefined();
+    expect(started?.hook_trigger).toBe(false);
     expect(started?.spans).toBeUndefined();
     expect(started?.span_count).toBeUndefined();
     expect(mock.events.indexOf(signal!)).toBeLessThan(mock.events.indexOf(started!));
@@ -511,7 +511,7 @@ describe('activity pairing', () => {
     );
     expect(completedEvents).toHaveLength(2);
     const [completedParent, completedHook] = completedEvents;
-    expect(completedParent.hook_trigger).toBeUndefined();
+    expect(completedParent.hook_trigger).toBe(false);
     expect(completedParent.spans).toBeUndefined();
     expect(completedParent.span_count).toBeUndefined();
     expect(completedParent.activity_id).toBe(started?.activity_id);
@@ -619,7 +619,7 @@ describe('activity pairing', () => {
     expect(completedEvents).toHaveLength(2);
     const [completedParent, completedHook] = completedEvents;
     expect(completedParent.activity_id).toBe(started?.activity_id);
-    expect(completedParent.hook_trigger).toBeUndefined();
+    expect(completedParent.hook_trigger).toBe(false);
     expect(completedParent.spans).toBeUndefined();
     expect(completedParent).toMatchObject({
       session_id: 'n8n-node-1',

@@ -511,7 +511,7 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
         event_type: 'ActivityStarted',
         activity_type: 'MCPToolCall',
       });
-      expect(parent.hook_trigger).toBeUndefined();
+      expect(parent.hook_trigger).toBe(false);
       expect(parent.spans).toBeUndefined();
       expect(parent.span_count).toBeUndefined();
       expect(hook).toMatchObject({

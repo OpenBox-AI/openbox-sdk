@@ -1795,6 +1795,7 @@ export class BaseGovernedSession {
       task_queue: this.taskQueue,
       multi_agent_session_id: event.multi_agent_session_id ?? this.multiAgentSessionId,
       timestamp: new Date().toISOString(),
+      hook_trigger: event.hook_trigger ?? false,
       span_count: event.spans?.length,
     } as unknown as GovernanceEventPayload;
     const response = await this.core.evaluate(payload);

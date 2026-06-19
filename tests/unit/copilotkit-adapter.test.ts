@@ -773,7 +773,7 @@ describe('CopilotKit OpenBox adapter', () => {
       'ActivityCompleted',
       'WorkflowCompleted',
     ]);
-    expect(completionParent?.hook_trigger).toBeUndefined();
+    expect(completionParent?.hook_trigger).toBe(false);
     expect(completionParent?.spans).toBeUndefined();
     expect(completionHook?.hook_trigger).toBe(true);
     expect(completionHook?.span_count).toBe(1);
@@ -1631,7 +1631,7 @@ describe('CopilotKit OpenBox adapter', () => {
         event.activity_id === startedParent?.activity_id,
     );
 
-    expect(startedParent?.hook_trigger).toBeUndefined();
+    expect(startedParent?.hook_trigger).toBe(false);
     expect(startedParent?.spans).toBeUndefined();
     expect(startedParent).toMatchObject({
       tool_name: 'crm_lookup',
@@ -1640,7 +1640,7 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(startedParent?.activity_input).toContainEqual({
       __openbox: { tool_type: 'llm_tool_call' },
     });
-    expect(completedParent?.hook_trigger).toBeUndefined();
+    expect(completedParent?.hook_trigger).toBe(false);
     expect(completedParent?.spans).toBeUndefined();
     expect(completedParent).toMatchObject({
       tool_name: 'crm_lookup',

@@ -190,7 +190,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         }),
       ],
     });
-    expect(signalEvent?.hook_trigger).toBeUndefined();
+    expect(signalEvent?.hook_trigger).toBe(false);
     expect(signalEvent?.spans).toBeUndefined();
     expect(signalEvent?.span_count).toBeUndefined();
     const promptEvents = mock.events.filter(
@@ -200,7 +200,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     );
     expect(promptEvents).toHaveLength(1);
     const [parent] = promptEvents;
-    expect(parent.hook_trigger).toBeUndefined();
+    expect(parent.hook_trigger).toBe(false);
     expect(parent.spans).toBeUndefined();
     expect(parent.span_count).toBeUndefined();
     expect(parent.prompt).toBe('Summarize this repository.');
@@ -500,7 +500,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         reason: 'auto mode denied',
       }),
     );
-    expect(permissionEvent?.hook_trigger).toBeUndefined();
+    expect(permissionEvent?.hook_trigger).toBe(false);
     expect(permissionEvent?.spans).toBeUndefined();
     expect(permissionEvent?.span_count).toBeUndefined();
     const permissionHook = allowMock.events.find(
@@ -772,7 +772,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     );
     expect(sessionEvents).toHaveLength(2);
     const [parent, hook] = sessionEvents;
-    expect(parent.hook_trigger).toBeUndefined();
+    expect(parent.hook_trigger).toBe(false);
     expect(parent.spans).toBeUndefined();
     expect(parent.span_count).toBeUndefined();
     expect(parent.activity_input).toEqual([
@@ -953,7 +953,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     );
     expect(assistantEvents).toHaveLength(2);
     const [assistantParent, assistantHook] = assistantEvents;
-    expect(assistantParent.hook_trigger).toBeUndefined();
+    expect(assistantParent.hook_trigger).toBe(false);
     expect(assistantParent.spans).toBeUndefined();
     expect(assistantParent.span_count).toBeUndefined();
     expect(assistantParent).toMatchObject({

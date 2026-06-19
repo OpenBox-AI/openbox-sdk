@@ -139,7 +139,7 @@ export async function checkGovernance(
   });
   const parentPayload = {
     ...payload,
-    hook_trigger: undefined,
+    hook_trigger: false,
     spans: undefined,
     span_count: undefined,
   };

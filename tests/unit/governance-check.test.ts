@@ -70,7 +70,7 @@ describe('governance/check', () => {
       activity_type: 'FileEdit',
       activity_input: [{ file_path: '/tmp/a.txt', content: 'x' }],
     });
-    expect(state.payloads[0].hook_trigger).toBeUndefined();
+    expect(state.payloads[0].hook_trigger).toBe(false);
     expect(state.payloads[0].spans).toBeUndefined();
     expect(state.payloads[0].span_count).toBeUndefined();
     expect(state.payloads[1]).toMatchObject({
@@ -136,7 +136,7 @@ describe('governance/check', () => {
     expect(state.payloads[0]).toMatchObject({
       event_type: 'ActivityStarted',
       activity_type: 'MCPToolCall',
-      hook_trigger: undefined,
+      hook_trigger: false,
       spans: undefined,
       span_count: undefined,
     });
