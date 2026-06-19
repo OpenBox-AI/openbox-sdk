@@ -256,6 +256,7 @@ export function modelUsageSpansFromResult(message: SDKResultMessage): SpanData[]
       model,
       usage,
       providerUrl: 'https://api.anthropic.com/v1/messages',
+      span: { status: { code: 'OK' } },
       attributes: {
         'gen_ai.system': 'anthropic-agent-sdk',
         'openbox.synthetic': true,

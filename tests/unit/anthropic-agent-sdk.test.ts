@@ -1069,6 +1069,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
           model_id: 'claude-sonnet-4-5',
           provider: 'anthropic',
           model_provider: 'anthropic',
+          status: { code: 'OK' },
           input_tokens: 10,
           output_tokens: 4,
           total_tokens: 14,
