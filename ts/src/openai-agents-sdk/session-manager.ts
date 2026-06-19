@@ -10,6 +10,7 @@ import {
   OPENAI_AGENTS_ACTIVITY_TYPES,
   compactPayload,
   objectRecord,
+  runAssistantOutputSpan,
   toolActivityInput,
   toolActivityType,
   toolCallFields,
@@ -113,6 +114,7 @@ export class OpenBoxAgentsSessionManager {
         output,
         sessionId,
         ...telemetry,
+        spans: runAssistantOutputSpan(output, sessionId),
       };
       if (managed.runActivity) {
         await managed.runActivity.complete(

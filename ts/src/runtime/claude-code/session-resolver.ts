@@ -5,6 +5,8 @@
 import {
   resolveSessionByKey,
   peekSessionByKey,
+  isSessionStartedByKey,
+  markStartedByKey,
   markHaltedByKey,
   clearSessionByKey,
 } from '../../session/resolver.js';
@@ -34,6 +36,14 @@ export function lastResolveCreatedFreshSession(): boolean {
 
 export function markHalted(sessionId: string, cfg: ClaudeCodeConfig): void {
   markHaltedByKey(sessionId, cfg);
+}
+
+export function isStarted(sessionId: string, cfg: ClaudeCodeConfig): boolean {
+  return isSessionStartedByKey(sessionId, cfg);
+}
+
+export function markStarted(sessionId: string, cfg: ClaudeCodeConfig): void {
+  markStartedByKey(sessionId, cfg);
 }
 
 export function clearSession(sessionId: string, cfg: ClaudeCodeConfig): void {

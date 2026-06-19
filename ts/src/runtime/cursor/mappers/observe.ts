@@ -13,7 +13,7 @@ import {
   buildAfterShellExecutionPayload,
 } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
-import { clearSession } from '../session-resolver.js';
+import { clearSession, isStarted, markStarted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
 import {
   assistantOutputTelemetryFields,
@@ -403,12 +403,15 @@ export async function handleAfterFileEdit(
 // SDK's session lifecycle is bookended properly (Temporal workflow
 // open/close), but no activity emission alongside.
 export async function handleSessionStart(
-  _env: CursorEnvelope,
+  env: CursorEnvelope,
   session: CursorSession,
-  _cfg: CursorConfig,
+  cfg: CursorConfig,
 ): Promise<undefined> {
   try {
-    await session.workflowStarted();
+    if (!isStarted(env.conversation_id, cfg)) {
+      await session.workflowStarted();
+      markStarted(env.conversation_id, cfg);
+    }
   } catch {
     /* best-effort */
   }

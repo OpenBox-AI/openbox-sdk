@@ -450,5 +450,21 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
       has_tool_calls: true,
       finish_reason: 'tool_calls',
     });
+    expect(completed?.spans).toBeUndefined();
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'OpenAIAgentsSDKRun' &&
+        event.hook_trigger === true,
+    );
+    expect(completedHook?.spans?.[0]).toMatchObject({
+      module: 'openai-agents-sdk',
+      name: 'openbox.openai-agents-sdk.assistant_output',
+      semantic_type: 'llm_completion',
+      model: 'gpt-4.1-mini',
+      input_tokens: 12,
+      output_tokens: 7,
+      total_tokens: 19,
+    });
   });
 });

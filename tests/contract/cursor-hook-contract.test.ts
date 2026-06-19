@@ -379,7 +379,15 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     }).run();
 
     expect(JSON.parse(promptCap.stdout[0])).toEqual({ continue: true });
-    expect(promptPayloads).toHaveLength(3);
+    expect(promptPayloads).toHaveLength(4);
+    const workflowStarted = promptPayloads.find(
+      (payload) => payload.event_type === 'WorkflowStarted',
+    );
+    expect(workflowStarted).toMatchObject({
+      workflow_id: 'wf-cursor-contract',
+      run_id: 'run-cursor-contract',
+    });
+    expect(promptPayloads[0]).toBe(workflowStarted);
     const promptSignals = promptPayloads.filter(
       (payload) =>
         payload.event_type === 'SignalReceived' &&

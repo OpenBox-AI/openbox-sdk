@@ -8,6 +8,7 @@ import {
   type LLMTokenUsage,
   type SpanType,
 } from '../governance/spans.js';
+import { buildAssistantOutputSpan } from '../governance/assistant-output.js';
 import type { OpenBoxAgentsToolCallDetails } from './types.js';
 
 const defaultActivity = PRESET_ACTIVITY_TYPES.default;
@@ -150,6 +151,38 @@ export function runTelemetryFields(
     hasToolCalls: rawResponses.some(responseHasToolCalls),
     finishReason: finishReasonFromResult(resultRecord, rawResponses),
   };
+}
+
+export function runAssistantOutputSpan(
+  result: unknown,
+  sessionId: string,
+): SpanData[] | undefined {
+  const resultRecord = objectRecord(result);
+  const rawResponses = arrayFrom(resultRecord.rawResponses);
+  const usage =
+    usageFrom(objectRecord(objectRecord(resultRecord.runContext).usage)) ??
+    usageFrom(objectRecord(objectRecord(resultRecord.state).usage)) ??
+    aggregateRawResponseUsage(rawResponses);
+  const finishReason = finishReasonFromResult(resultRecord, rawResponses);
+  return buildAssistantOutputSpan({
+    source: 'openai-agents-sdk',
+    content: assistantContentFromResult(resultRecord, rawResponses),
+    span: { module: 'openai-agents-sdk' },
+    name: 'openbox.openai-agents-sdk.assistant_output',
+    model: modelFromResult(resultRecord, rawResponses),
+    usage,
+    hasToolCalls: rawResponses.some(responseHasToolCalls),
+    attributes: {
+      'openbox.openai_agents_sdk.event': 'run_complete',
+      ...(finishReason ? { 'gen_ai.response.finish_reasons': finishReason } : {}),
+    },
+    data: {
+      source: 'openai-agents-sdk',
+      event: 'run_complete',
+      session_id: sessionId,
+      raw_response_count: rawResponses.length,
+    },
+  });
 }
 
 export function brandedReason(reason: string | undefined): string {
@@ -374,6 +407,31 @@ function responseHasToolCalls(response: unknown): boolean {
     const itemType = stringFrom(objectRecord(item).type)?.toLowerCase();
     return itemType === 'function_call' || itemType?.includes('tool') === true;
   });
+}
+
+function assistantContentFromResult(
+  resultRecord: Record<string, unknown>,
+  rawResponses: unknown[],
+): string | undefined {
+  const direct = firstString(
+    resultRecord.output,
+    resultRecord.finalOutput,
+    resultRecord.final_output,
+    objectRecord(resultRecord.state).output,
+  );
+  if (direct) return direct;
+  for (const response of rawResponses) {
+    for (const item of arrayFrom(objectRecord(response).output)) {
+      const itemRecord = objectRecord(item);
+      const text = firstString(
+        itemRecord.text,
+        itemRecord.content,
+        objectRecord(itemRecord.message).content,
+      );
+      if (text) return text;
+    }
+  }
+  return undefined;
 }
 
 function arrayFrom(value: unknown): unknown[] {

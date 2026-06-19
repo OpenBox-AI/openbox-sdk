@@ -8,7 +8,12 @@ import { EVENT } from '../../../governance/events.js';
 import { stampSource } from '../../../approvals/source.js';
 import type { CodexConfig } from '../config.js';
 import { CODEX_ACTIVITY_TYPES } from '../activity-types.js';
-import { codexSessionKey, markHalted } from '../session-resolver.js';
+import {
+  codexSessionKey,
+  isStarted,
+  markHalted,
+  markStarted,
+} from '../session-resolver.js';
 
 export async function handleUserPromptSubmit(
   env: CodexEnvelope,
@@ -18,6 +23,11 @@ export async function handleUserPromptSubmit(
   const prompt = (env.prompt ?? '').trim();
   if (!prompt) return undefined;
   const sessionId = codexSessionKey(env);
+
+  if (!isStarted(env, cfg)) {
+    await session.workflowStarted();
+    markStarted(env, cfg);
+  }
 
   await session.activity(EVENT.SIGNAL, CODEX_ACTIVITY_TYPES.GOAL_SIGNAL, {
     input: [stampSource({ prompt, event_category: 'agent_goal' }, 'codex')],

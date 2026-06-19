@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type {
   GovernanceEventPayload,
   GovernanceVerdictResponse,
@@ -12,6 +15,8 @@ import {
   handlePostToolUse,
   handlePreToolUse,
 } from '../../ts/src/runtime/codex/mappers/tool.js';
+import { handleUserPromptSubmit } from '../../ts/src/runtime/codex/mappers/prompt.js';
+import { resolveSession } from '../../ts/src/runtime/codex/session-resolver.js';
 
 function createMockCore(
   resolve: (payload: GovernanceEventPayload) => Partial<GovernanceVerdictResponse>,
@@ -151,6 +156,61 @@ describe('Codex runtime adapter', () => {
         updatedToolOutput: { stdout: '[redacted]' },
       },
     });
+  });
+
+  it('opens the workflow once when Codex starts from a prompt hook', async () => {
+    const sessionDir = mkdtempSync(join(tmpdir(), 'openbox-codex-started-'));
+    try {
+      const mock = createMockCore(() => ({ verdict: 'allow', action: 'allow' }));
+      const { presets } = await import('../../ts/src/core-client/index.js');
+      const runtimeCfg = { sessionDir } as never;
+      const env: CodexEnvelope = {
+        hook_event_name: 'UserPromptSubmit',
+        session_id: 'codex-prompt-first',
+        prompt: 'Summarize the telemetry behavior.',
+      };
+
+      const ids = await resolveSession(env, runtimeCfg);
+      const firstSession = new presets.codex({
+        core: mock.core,
+        workflowId: ids.workflowId,
+        runId: ids.runId,
+        registerExitHandlers: false,
+        attached: true,
+      });
+      await handleUserPromptSubmit(env, firstSession, runtimeCfg);
+
+      expect(mock.events.map((event) => event.event_type)).toEqual([
+        'WorkflowStarted',
+        'SignalReceived',
+        'ActivityStarted',
+        'ActivityCompleted',
+      ]);
+
+      const idsAgain = await resolveSession(env, runtimeCfg);
+      expect(idsAgain).toEqual(ids);
+      const secondSession = new presets.codex({
+        core: mock.core,
+        workflowId: idsAgain.workflowId,
+        runId: idsAgain.runId,
+        registerExitHandlers: false,
+        attached: true,
+      });
+      await handleUserPromptSubmit(
+        { ...env, prompt: 'Summarize the telemetry behavior again.' },
+        secondSession,
+        runtimeCfg,
+      );
+
+      expect(mock.events.filter((event) => event.event_type === 'WorkflowStarted')).toHaveLength(1);
+      expect(mock.events.slice(4).map((event) => event.event_type)).toEqual([
+        'SignalReceived',
+        'ActivityStarted',
+        'ActivityCompleted',
+      ]);
+    } finally {
+      rmSync(sessionDir, { recursive: true, force: true });
+    }
   });
 
   it('stamps Codex source and shell spans in paired tool mappers', async () => {

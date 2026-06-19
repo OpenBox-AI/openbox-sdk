@@ -1,6 +1,8 @@
 import {
   clearSessionByKey,
+  isSessionStartedByKey,
   markHaltedByKey,
+  markStartedByKey,
   resolveSessionByKey,
 } from '../../session/resolver.js';
 import type { CodexEnvelope } from '../../core-client/generated/runtime/codex.js';
@@ -19,6 +21,14 @@ export async function resolveSession(
 
 export function markHalted(env: CodexEnvelope, cfg: CodexConfig): void {
   markHaltedByKey(codexSessionKey(env), cfg);
+}
+
+export function isStarted(env: CodexEnvelope, cfg: CodexConfig): boolean {
+  return isSessionStartedByKey(codexSessionKey(env), cfg);
+}
+
+export function markStarted(env: CodexEnvelope, cfg: CodexConfig): void {
+  markStartedByKey(codexSessionKey(env), cfg);
 }
 
 export function clearSession(env: CodexEnvelope, cfg: CodexConfig): void {
