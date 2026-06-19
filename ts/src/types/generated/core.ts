@@ -409,7 +409,7 @@ export interface components {
         GuardrailFieldResult: {
             field: string;
             /** Format: int32 */
-            order: number;
+            order?: number;
             /** @enum {string} */
             status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
             reason?: string;
@@ -428,19 +428,27 @@ export interface components {
              *     service. Free-form: string for text content, object for
              *     structured payloads such as tool args.
              */
-            redacted_input: unknown;
+            redacted_input?: unknown;
+            /**
+             * @description Redacted or transformed output payload. Newer guardrail paths use this
+             *     for activity-output constraints; older paths may still place the same
+             *     payload in redacted_input.
+             */
+            redacted_output?: unknown;
             /** @description Raw guardrail-service output, retained for debugging. */
             raw_logs?: {
                 [key: string]: unknown;
             };
             /** @description False when any field result is `blocked`. */
-            validation_passed: boolean;
-            reasons: components["schemas"]["GuardrailReason"][];
-            results: components["schemas"]["GuardrailsVerdictResult"][];
+            validation_passed?: boolean;
+            reasons?: components["schemas"]["GuardrailReason"][];
+            results?: components["schemas"]["GuardrailsVerdictResult"][];
+            /** @description Direct field rows returned by newer guardrail evaluators. */
+            field_results?: components["schemas"]["GuardrailFieldResult"][];
         };
         GuardrailsVerdictResult: {
-            guardrail_type: string;
-            results: components["schemas"]["GuardrailFieldResult"][];
+            guardrail_type?: string;
+            results?: components["schemas"]["GuardrailFieldResult"][];
         };
         /**
          * @description v1.0 action string, kept on responses for backwards compatibility

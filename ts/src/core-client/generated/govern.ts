@@ -16,6 +16,7 @@ export interface GuardrailReasonRef {
 export interface GuardrailsVerdict {
   inputType: "activity_input" | "activity_output" | "signal_args";
   redactedInput?: unknown;
+  redactedOutput?: unknown;
   validationPassed: boolean;
   rawLogs?: Record<string, unknown>;
   reasons: GuardrailReasonRef[];
@@ -3029,8 +3030,21 @@ export namespace govern {
   export const attach = governAttach;
 }
 function mapVerdict(response: GovernanceVerdictResponse): WorkflowVerdict {
+  const raw = response as GovernanceVerdictResponse & {
+    approvalId?: string;
+    governanceEventId?: string;
+    approvalExpiresAt?: string;
+    riskScore?: number;
+    trustTier?: number;
+    alignmentScore?: number;
+    policyId?: string;
+    behavioralViolations?: string[];
+    fallbackUsed?: boolean;
+    guardrailsResult?: GovernanceVerdictResponse['guardrails_result'];
+    ageResult?: GovernanceVerdictResponse['age_result'];
+  };
   const wireArm = normalizeArm(response.verdict ?? response.action ?? 'allow');
-  const guardrailsResult = mapGuardrailsResult(response.guardrails_result);
+  const guardrailsResult = mapGuardrailsResult(response.guardrails_result ?? raw.guardrailsResult);
   const guardrailsFailed = guardrailsResult?.validationPassed === false;
   const arm =
     wireArm === 'halt' || wireArm === 'block'
@@ -3040,26 +3054,26 @@ function mapVerdict(response: GovernanceVerdictResponse): WorkflowVerdict {
         : wireArm;
   return {
     arm,
-    approvalId: response.approval_id,
+    approvalId: response.approval_id ?? raw.approvalId,
     // Cross-reference key for matching this verdict against the
     // backend's persisted Approval row (whose `event_id` field equals
     // the response's `governance_event_id`). The backend currently
     // omits `approval_id` from /governance/evaluate responses, so this
     // is the one stable identifier consumers can use to dedup against
     // the dashboard's pending-approvals list.
-    governanceEventId: (response as { governance_event_id?: string }).governance_event_id,
-    approvalExpiresAt: response.approval_expiration_time,
+    governanceEventId: (response as { governance_event_id?: string }).governance_event_id ?? raw.governanceEventId,
+    approvalExpiresAt: response.approval_expiration_time ?? raw.approvalExpiresAt,
     reason: response.reason ?? (guardrailsFailed ? guardrailFailureReason(guardrailsResult) : undefined),
-    riskScore: response.risk_score ?? 0,
-    trustTier: response.trust_tier ?? undefined,
-    alignmentScore: response.alignment_score,
-    policyId: response.policy_id,
-    behavioralViolations: response.behavioral_violations,
+    riskScore: response.risk_score ?? raw.riskScore ?? 0,
+    trustTier: response.trust_tier ?? raw.trustTier ?? undefined,
+    alignmentScore: response.alignment_score ?? raw.alignmentScore,
+    policyId: response.policy_id ?? raw.policyId,
+    behavioralViolations: response.behavioral_violations ?? raw.behavioralViolations,
     constraints: response.constraints,
     metadata: response.metadata,
-    fallbackUsed: response.fallback_used,
+    fallbackUsed: response.fallback_used ?? raw.fallbackUsed,
     guardrailsResult,
-    ageResult: response.age_result,
+    ageResult: response.age_result ?? raw.ageResult,
   };
 }
 
@@ -3093,6 +3107,8 @@ function mapGuardrailsResult(
   return {
     inputType: normalizeGuardrailsInputType(raw.input_type),
     redactedInput: raw.redacted_input,
+    redactedOutput: (raw as typeof raw & { redacted_output?: unknown; redactedOutput?: unknown }).redacted_output
+      ?? (raw as typeof raw & { redacted_output?: unknown; redactedOutput?: unknown }).redactedOutput,
     validationPassed: raw.validation_passed !== false,
     rawLogs: raw.raw_logs,
     reasons: ((raw.reasons ?? []) as Array<{ type?: string; field?: string; reason?: string }>).map((r) => ({
@@ -3100,12 +3116,17 @@ function mapGuardrailsResult(
       field: r.field,
       reason: String(r.reason ?? ''),
     })),
-    fieldResults: ((raw.results ?? []) as Array<{ results?: Array<{ field?: string; status?: string; reason?: string }> }>)
-      .flatMap((g) => (g.results ?? []).map((fr) => ({
+    fieldResults: [
+      ...(((raw as typeof raw & { field_results?: Array<{ field?: string; status?: string; reason?: string }>; fieldResults?: Array<{ field?: string; status?: string; reason?: string }> }).field_results
+        ?? (raw as typeof raw & { field_results?: Array<{ field?: string; status?: string; reason?: string }>; fieldResults?: Array<{ field?: string; status?: string; reason?: string }> }).fieldResults
+        ?? []) as Array<{ field?: string; status?: string; reason?: string }>),
+      ...((raw.results ?? []) as Array<{ results?: Array<{ field?: string; status?: string; reason?: string }> }>)
+        .flatMap((g) => g.results ?? []),
+    ].map((fr) => ({
         field: String(fr.field ?? ''),
         status: normalizeGuardrailFieldStatus(fr.status),
         reason: fr.reason,
-      }))),
+      })),
   };
 }
 
@@ -3160,17 +3181,29 @@ function normalizeArm(value: string | number | undefined): VerdictArm {
       ? value.trim().toLowerCase().replace(/-/g, '_')
       : value;
   switch (normalized) {
+    case 'approve':
+    case 'approved':
     case 'allow':
+    case 'allowed':
     case 'continue':
       return 'allow';
     case 'constrain':
       return 'constrain';
     case 'require_approval':
+    case 'requires_approval':
     case 'request_approval':
+    case 'pending':
+    case 'ask':
       return 'require_approval';
+    case 'reject':
+    case 'rejected':
+    case 'deny':
+    case 'denied':
     case 'block':
+    case 'blocked':
       return 'block';
     case 'halt':
+    case 'stopped':
     case 'stop':
       return 'halt';
     default:

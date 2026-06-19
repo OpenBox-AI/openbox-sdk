@@ -155,6 +155,30 @@ describe('createClaudeCodeAdapter', () => {
     expect(out.hookSpecificOutput.additionalContext).toBe('[OpenBox] redacted command');
   });
 
+  test('permission-decision constrain with field-only redaction denies original input', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        preToolUse: async () => verdict('constrain', 'redacted command', {
+          guardrailsResult: {
+            inputType: 'activity_input',
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [{ field: 'command', status: 'redacted' }],
+          },
+        }),
+      },
+      ...adapterIO(cap, JSON.stringify(baseEnv)),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.hookSpecificOutput.permissionDecision).toBe('deny');
+    expect(out.hookSpecificOutput.permissionDecisionReason).toBe(
+      '[OpenBox] redacted command. OpenBox did not provide replacement input, so the original action was blocked.',
+    );
+  });
+
   test('permission-decision require_approval + deferApproval → permissionDecision:"defer"', async () => {
     const cap = capture();
     await createClaudeCodeAdapter({
@@ -654,6 +678,37 @@ describe('createCursorAdapter', () => {
             validationPassed: true,
             reasons: [],
             fieldResults: [],
+          },
+        }),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({
+          ...baseEnv,
+          hook_event_name: 'beforeSubmitPrompt',
+          prompt: 'Summarize secret.',
+        }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out).toEqual({
+      continue: false,
+      user_message: '[OpenBox] prompt redacted',
+    });
+  });
+
+  test('cursor-continue prompt field-only redaction fails closed', async () => {
+    const cap = capture();
+    await createCursorAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        beforeSubmitPrompt: async () => verdict('constrain', 'prompt redacted', {
+          guardrailsResult: {
+            inputType: 'activity_input',
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [{ field: 'prompt', status: 'redacted' }],
           },
         }),
       },

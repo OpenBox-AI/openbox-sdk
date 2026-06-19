@@ -286,6 +286,35 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     });
   });
 
+  it('fails closed on field-only prompt redaction without replacement input', async () => {
+    const mock = createMockCore((payload) =>
+      payload.event_type === 'ActivityStarted' &&
+      payload.activity_type === 'PromptSubmission'
+        ? verdict('constrain', {
+            reason: 'prompt redacted',
+            guardrails_result: {
+              input_type: 'activity_input',
+              validation_passed: true,
+              reasons: [],
+              field_results: [{ field: 'prompt', status: 'redacted' }],
+              raw_logs: {},
+            },
+          })
+        : verdict('allow'),
+    );
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    const output = await runHook(hooks, 'UserPromptSubmit', {
+      ...baseInput,
+      prompt: 'Summarize secret.',
+    });
+
+    expect(output).toEqual({
+      decision: 'block',
+      reason: '[OpenBox] prompt redacted',
+    });
+  });
+
   it('maps a constrained PreToolUse verdict to allow plus updated input', async () => {
     const mock = createMockCore((payload) => {
       if (payload.event_type === 'ActivityStarted') {
@@ -318,6 +347,41 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         permissionDecision: 'allow',
         updatedInput: { command: 'echo [redacted]' },
         additionalContext: '[OpenBox] redacted shell command',
+      },
+    });
+  });
+
+  it('denies constrained PreToolUse when field-only input redaction has no replacement', async () => {
+    const mock = createMockCore((payload) => {
+      if (payload.event_type === 'ActivityStarted') {
+        return verdict('constrain', {
+          reason: 'redacted shell command',
+          guardrails_result: {
+            input_type: 'activity_input',
+            validation_passed: true,
+            reasons: [],
+            field_results: [{ field: 'command', status: 'redacted' }],
+            raw_logs: {},
+          },
+        });
+      }
+      return verdict('allow');
+    });
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    const output = await runHook(hooks, 'PreToolUse', {
+      ...baseInput,
+      tool_name: 'Bash',
+      tool_input: { command: 'cat secret.txt' },
+      tool_use_id: 'tool_field_only',
+    });
+
+    expect(output).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          '[OpenBox] redacted shell command. OpenBox did not provide replacement input, so the original action was blocked.',
       },
     });
   });
@@ -787,6 +851,42 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       tool_input: { command: 'cat secret.txt' },
       tool_response: { stdout: 'secret' },
       tool_use_id: 'tool_output',
+    });
+
+    expect(output).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PostToolUse',
+        updatedToolOutput: { stdout: '[redacted]' },
+      },
+    });
+  });
+
+  it('prefers Core redacted_output for constrained Anthropic tool output', async () => {
+    const mock = createMockCore((payload) => {
+      if (payload.event_type === 'ActivityCompleted') {
+        return verdict('constrain', {
+          guardrails_result: {
+            input_type: 'activity_output',
+            redacted_input: { output: { stdout: 'legacy' } },
+            redacted_output: { output: { stdout: '[redacted]' } },
+            validation_passed: true,
+            reasons: [],
+            field_results: [{ field: 'output.stdout', status: 'redacted' }],
+            raw_logs: {},
+          },
+        });
+      }
+      return verdict('allow');
+    });
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    const output = await runHook(hooks, 'PostToolUse', {
+      ...baseInput,
+      hook_event_name: 'PostToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'cat secret.txt' },
+      tool_response: { stdout: 'secret' },
+      tool_use_id: 'tool_output_current',
     });
 
     expect(output).toEqual({

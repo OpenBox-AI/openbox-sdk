@@ -430,16 +430,26 @@ model GuardrailsResult {
    * structured payloads such as tool args.
    *
    */
-  redacted_input: unknown;
+  redacted_input?: unknown;
+
+  /**
+   * Redacted or transformed output payload. Newer guardrail paths use this
+   * for activity-output constraints; older paths may still place the same
+   * payload in redacted_input.
+   */
+  redacted_output?: unknown;
 
   /** Raw guardrail-service output, retained for debugging. */
   raw_logs?: Record<unknown>;
 
   /** False when any field result is `blocked`. */
-  validation_passed: boolean;
+  validation_passed?: boolean;
 
-  reasons: GuardrailReason[];
-  results: GuardrailsVerdictResult[];
+  reasons?: GuardrailReason[];
+  results?: GuardrailsVerdictResult[];
+
+  /** Direct field rows returned by newer guardrail evaluators. */
+  field_results?: GuardrailFieldResult[];
 }
 
 model GuardrailReason {
@@ -449,13 +459,13 @@ model GuardrailReason {
 }
 
 model GuardrailsVerdictResult {
-  guardrail_type: string;
-  results: GuardrailFieldResult[];
+  guardrail_type?: string;
+  results?: GuardrailFieldResult[];
 }
 
 model GuardrailFieldResult {
   field: string;
-  order: int32;
+  order?: int32;
   status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
   reason?: string;
 }

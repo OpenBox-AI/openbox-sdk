@@ -133,11 +133,19 @@ export async function pollApproval(
     const extra = response as typeof response & {
       expired?: boolean;
       trust_tier?: string | number;
+      trustTier?: string | number;
       guardrails_result?: unknown;
+      guardrailsResult?: unknown;
       verdict?: unknown;
+      approvalExpiresAt?: string;
     };
+    const approvalExpiresAt =
+      response.approval_expiration_time ?? extra.approvalExpiresAt;
+    const rawTrustTier = extra.trust_tier ?? extra.trustTier;
+    const trustTier = typeof rawTrustTier === 'number' ? rawTrustTier : undefined;
+    const guardrailsPayload = extra.guardrails_result ?? extra.guardrailsResult;
     const serverDeadline = parseApprovalExpirationMs(
-      response.approval_expiration_time,
+      approvalExpiresAt,
     );
     if (serverDeadline !== undefined) {
       deadline = Math.min(deadline, serverDeadline);
@@ -149,14 +157,13 @@ export async function pollApproval(
       return {
         arm: 'block',
         reason: response.reason ?? 'OpenBox approval expired.',
-        approvalExpiresAt: response.approval_expiration_time,
+        approvalExpiresAt,
         riskScore: 0,
-        trustTier:
-          typeof extra.trust_tier === 'number' ? extra.trust_tier : undefined,
-        guardrailsResult: mapGuardrailsResult(extra.guardrails_result),
+        trustTier,
+        guardrailsResult: mapGuardrailsResult(guardrailsPayload),
       };
     }
-    const guardrailsResult = mapGuardrailsResult(extra.guardrails_result);
+    const guardrailsResult = mapGuardrailsResult(guardrailsPayload);
     const arm = effectiveArmForGuardrails(
       normalizeArm(extra.verdict ?? response.action),
       guardrailsResult,
@@ -164,10 +171,9 @@ export async function pollApproval(
     last = {
       arm,
       reason: response.reason,
-      approvalExpiresAt: response.approval_expiration_time,
+      approvalExpiresAt,
       riskScore: 0,
-      trustTier:
-        typeof extra.trust_tier === 'number' ? extra.trust_tier : undefined,
+      trustTier,
       guardrailsResult,
     };
     if (guardrailsResult?.validationPassed === false && !response.reason) {

@@ -242,6 +242,21 @@ describe('guardrail redaction helpers', () => {
     ).toBe(true);
   });
 
+  it('prefers redactedOutput for activity output redaction', () => {
+    const original = { artifact: { body: 'raw', title: 'keep' } };
+    expect(
+      applyOutputRedaction(original, {
+        inputType: 'activity_output',
+        redactedInput: { artifact: { body: 'legacy' } },
+        redactedOutput: { artifact: { body: '[REDACTED]' } },
+        validationPassed: true,
+        reasons: [],
+        fieldResults: [{ field: 'output.artifact.body', status: 'redacted' }],
+      }),
+    ).toEqual({ artifact: { body: '[REDACTED]', title: 'keep' } });
+    expect(original).toEqual({ artifact: { body: 'raw', title: 'keep' } });
+  });
+
   it('treats a Core redaction payload as authoritative without field rows', () => {
     expect(
       hasGuardrailRedaction({
@@ -266,7 +281,7 @@ describe('guardrail redaction helpers', () => {
     ).toBe(true);
   });
 
-  it('does not count redacted status without a payload as an applied redaction', () => {
+  it('counts redacted field results as applied redaction evidence without a payload', () => {
     expect(
       hasGuardrailRedaction({
         inputType: 'activity_output',
@@ -275,7 +290,7 @@ describe('guardrail redaction helpers', () => {
         reasons: [],
         fieldResults: [{ field: 'output.artifact.body', status: 'redacted' }],
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('summarizes redacted fields with bounded output', () => {

@@ -165,7 +165,15 @@ function inputForVerdict(
 ): unknown {
   if (verdict.arm === 'allow') return input;
   if (verdict.arm === 'constrain') {
-    return redactedRecord(verdict.guardrailsResult?.redactedInput) ?? input;
+    const redacted = redactedRecord(verdict.guardrailsResult?.redactedInput);
+    if (redacted) return redacted;
+    if (hasInputRedaction(verdict)) {
+      throw new OpenBoxAgentsSDKError(
+        brandedReason(verdict.reason) ||
+          '[OpenBox] redacted this tool input but did not provide replacement input',
+      );
+    }
+    return input;
   }
   const reason = brandedReason(verdict.reason);
   if (verdict.arm === 'require_approval') {
@@ -187,7 +195,11 @@ function outputForVerdict(
   if (!verdict || verdict.arm === 'allow') return output;
   if (verdict.arm === 'constrain') {
     return (
-      redactedOutputValue(verdict.guardrailsResult?.redactedInput, output) ??
+      redactedOutputValue(
+        verdict.guardrailsResult?.redactedOutput ??
+          verdict.guardrailsResult?.redactedInput,
+        output,
+      ) ??
       output
     );
   }
@@ -201,6 +213,21 @@ function outputForVerdict(
     );
   }
   throw new OpenBoxAgentsSDKError(reason || '[OpenBox] blocked tool output');
+}
+
+function hasInputRedaction(verdict: WorkflowVerdict): boolean {
+  const guardrails = verdict.guardrailsResult;
+  const hasRedactedField = guardrails?.fieldResults?.some(
+    (field) => field.status === 'redacted' || field.status === 'transformed',
+  );
+  return Boolean(
+    guardrails &&
+      (guardrails.inputType === 'activity_input' ||
+        guardrails.inputType === 'signal_args') &&
+      (hasRedactedField ||
+        guardrails.redactedInput !== undefined &&
+        guardrails.redactedInput !== null),
+  );
 }
 
 function sessionIdFor(

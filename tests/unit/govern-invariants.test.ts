@@ -1913,6 +1913,116 @@ describe('govern.attach (cross-process / harness-owned lifecycle)', () => {
     const after = process.listenerCount('SIGINT');
     expect(after).toBe(before);
   });
+
+  test('normalizes Python runtime verdict aliases on generated sessions', async () => {
+    const approved = createMockCore('allow', {
+      verdict: 'approved' as never,
+      action: 'approved' as never,
+    });
+    await govern(
+      { ...baseConfig(approved), preset: presets.claudeCode },
+      async (session) => {
+        const approvedVerdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(approvedVerdict.arm).toBe('allow');
+      },
+    );
+
+    const denied = createMockCore('allow', {
+      verdict: 'denied' as never,
+      action: 'denied' as never,
+    });
+    await govern(
+      { ...baseConfig(denied), preset: presets.claudeCode },
+      async (session) => {
+        const deniedVerdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(deniedVerdict.arm).toBe('block');
+      },
+    );
+
+    const ask = createMockCore('allow', {
+      verdict: 'ask' as never,
+      action: 'ask' as never,
+    });
+    await govern(
+      {
+        ...baseConfig(ask),
+        preset: presets.claudeCode,
+        inlineApproval: true,
+      },
+      async (session) => {
+        const askVerdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(askVerdict.arm).toBe('require_approval');
+      },
+    );
+  });
+
+  test('maps Python runtime camelCase verdict response aliases', async () => {
+    const events: GovernanceEventPayload[] = [];
+    const ageResult = {
+      overall_compliant: true,
+      total_spans: 0,
+      violations_count: 0,
+      span_results: [],
+      response_time_ms: 1,
+    };
+    const mock: MockCore = {
+      events,
+      evaluate: vi.fn(async (payload: GovernanceEventPayload) => {
+        events.push(payload);
+        return {
+          verdict: 'allow',
+          action: 'allow',
+          approvalId: 'approval-camel',
+          governanceEventId: 'event-camel',
+          approvalExpiresAt: '2026-01-01T00:00:00.000Z',
+          reason: 'camel aliases',
+          riskScore: 0.7,
+          trustTier: 2,
+          alignmentScore: 0.9,
+          policyId: 'policy-camel',
+          behavioralViolations: ['rule-camel'],
+          constraints: ['constraint-camel'],
+          metadata: { source: 'camel' },
+          fallbackUsed: true,
+          ageResult,
+          guardrailsResult: {
+            input_type: 'activity_input',
+            redacted_input: [{ prompt: '<REDACTED>' }],
+            validation_passed: true,
+            reasons: [],
+            field_results: [{ field: 'prompt', status: 'redacted' }],
+          },
+        } as unknown as GovernanceVerdictResponse;
+      }),
+      pollApproval: vi.fn(),
+    };
+
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        const verdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(verdict).toMatchObject({
+          arm: 'allow',
+          approvalId: 'approval-camel',
+          governanceEventId: 'event-camel',
+          approvalExpiresAt: '2026-01-01T00:00:00.000Z',
+          reason: 'camel aliases',
+          riskScore: 0.7,
+          trustTier: 2,
+          alignmentScore: 0.9,
+          policyId: 'policy-camel',
+          behavioralViolations: ['rule-camel'],
+          constraints: ['constraint-camel'],
+          metadata: { source: 'camel' },
+          fallbackUsed: true,
+          ageResult,
+        });
+        expect(verdict.guardrailsResult?.fieldResults).toEqual([
+          { field: 'prompt', status: 'redacted', reason: undefined },
+        ]);
+      },
+    );
+  });
 });
 
 describe('WorkflowVerdict.guardrailsResult', () => {
@@ -1962,9 +2072,11 @@ describe('WorkflowVerdict.guardrailsResult', () => {
         guardrails_result: {
           input_type: 'activity_input',
           redacted_input: [{ tool: 'Bash', cmd: '<REDACTED>' }],
+          redacted_output: { stdout: '<REDACTED>' },
           validation_passed: true,
           raw_logs: { pii: { redacted: 1 }, evaluator: 'guardrail-service' },
           reasons: [{ type: 'pii', field: 'cmd', reason: 'looks like a token' }],
+          field_results: [{ field: 'direct_cmd', status: 'transformed', reason: 'direct row' }],
           results: [
             {
               guardrail_type: 'pii',
@@ -1987,6 +2099,7 @@ describe('WorkflowVerdict.guardrailsResult', () => {
     const v = captured!;
     expect(v.guardrailsResult).toBeDefined();
     expect(v.guardrailsResult?.inputType).toBe('activity_input');
+    expect(v.guardrailsResult?.redactedOutput).toEqual({ stdout: '<REDACTED>' });
     expect(v.guardrailsResult?.validationPassed).toBe(true);
     expect(v.guardrailsResult?.rawLogs).toEqual({
       pii: { redacted: 1 },
@@ -1994,8 +2107,10 @@ describe('WorkflowVerdict.guardrailsResult', () => {
     });
     expect(v.guardrailsResult?.reasons).toHaveLength(1);
     expect(v.guardrailsResult?.reasons[0].type).toBe('pii');
-    expect(v.guardrailsResult?.fieldResults).toHaveLength(1);
-    expect(v.guardrailsResult?.fieldResults[0].status).toBe('redacted');
+    expect(v.guardrailsResult?.fieldResults).toEqual([
+      { field: 'direct_cmd', status: 'transformed', reason: 'direct row' },
+      { field: 'cmd', status: 'redacted', reason: 'token' },
+    ]);
   });
 
   test('SignalReceived preserves guardrails_result input_type=signal_args', async () => {

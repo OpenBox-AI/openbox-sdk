@@ -632,6 +632,15 @@ function renderPermissionDecision(
     };
     if (arm === 'constrain') {
       const redacted = redactedRecord(verdict);
+      if (hasInputRedaction(verdict) && !redacted) {
+        return {
+          hookSpecificOutput: {
+            hookEventName: event,
+            permissionDecision: 'deny',
+            permissionDecisionReason: missingInputReplacementBlockReason(reason),
+          },
+        };
+      }
       if (redacted) hookSpecificOutput.updatedInput = redacted;
       if (reason) hookSpecificOutput.additionalContext = reason;
     }
@@ -664,6 +673,17 @@ function renderPermissionRequest(verdict: WorkflowVerdict | undefined): HookJSON
     } = { behavior: 'allow' };
     if (arm === 'constrain') {
       const redacted = redactedRecord(verdict);
+      if (hasInputRedaction(verdict) && !redacted) {
+        return {
+          hookSpecificOutput: {
+            hookEventName: 'PermissionRequest',
+            decision: {
+              behavior: 'deny',
+              message: missingInputReplacementBlockReason(brandedReason(verdict)),
+            },
+          },
+        };
+      }
       if (redacted) decision.updatedInput = redacted;
     }
     return {
@@ -738,14 +758,29 @@ function isPromptDecisionEvent(event: string): boolean {
 }
 
 function hasPromptRedaction(verdict: WorkflowVerdict | undefined): boolean {
+  return hasInputRedaction(verdict);
+}
+
+function hasInputRedaction(verdict: WorkflowVerdict | undefined): boolean {
   const guardrails = verdict?.guardrailsResult;
+  const hasRedactedField = guardrails?.fieldResults?.some(
+    (field) => field.status === 'redacted' || field.status === 'transformed',
+  );
   return Boolean(
     guardrails &&
       (guardrails.inputType === 'activity_input' ||
         guardrails.inputType === 'signal_args') &&
-      guardrails.redactedInput !== undefined &&
-      guardrails.redactedInput !== null,
+      (hasRedactedField ||
+        guardrails.redactedInput !== undefined &&
+        guardrails.redactedInput !== null),
   );
+}
+
+function missingInputReplacementBlockReason(reason: string): string {
+  const detail = reason.replace(/^\[OpenBox\] /, '').replace(/[.]+$/, '');
+  return detail
+    ? `[OpenBox] ${detail}. OpenBox did not provide replacement input, so the original action was blocked.`
+    : '[OpenBox] redacted this action input but did not provide replacement input, so OpenBox blocked the original action.';
 }
 
 function renderPermissionDenied(verdict: WorkflowVerdict | undefined): HookJSONOutput {
@@ -766,11 +801,21 @@ function renderElicitationResponse(
   const arm = verdict?.arm ?? 'allow';
   if (arm === 'allow') return {};
   if (arm === 'constrain') {
+    const redacted = redactedRecord(verdict);
+    if (hasInputRedaction(verdict) && !redacted) {
+      return {
+        hookSpecificOutput: {
+          hookEventName: event,
+          action: 'decline',
+          content: {},
+        },
+      };
+    }
     return {
       hookSpecificOutput: {
         hookEventName: event,
         action: 'accept',
-        content: redactedRecord(verdict) ?? objectRecord(env.response) ?? objectRecord(env.content),
+        content: redacted ?? objectRecord(env.response) ?? objectRecord(env.content),
       },
     };
   }

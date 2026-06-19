@@ -849,15 +849,16 @@ function redactedOutputValue(
   env: Record<string, unknown>,
 ): unknown {
   const guardrails = v?.guardrailsResult;
+  const redactedOutput = guardrails?.redactedOutput ?? guardrails?.redactedInput;
   if (
     !guardrails ||
     guardrails.inputType !== 'activity_output' ||
-    guardrails.redactedInput === undefined ||
-    guardrails.redactedInput === null
+    redactedOutput === undefined ||
+    redactedOutput === null
   ) {
     return undefined;
   }
-  return unwrapOutputRedaction(guardrails.redactedInput, originalOutputFor(env));
+  return unwrapOutputRedaction(redactedOutput, originalOutputFor(env));
 }
 
 function redactedInputRecord(v: WorkflowVerdict | undefined): Record<string, unknown> | undefined {
@@ -889,11 +890,15 @@ function originalOutputFor(env: Record<string, unknown>): unknown {
 
 function hasInputRedaction(v: WorkflowVerdict | undefined): boolean {
   const guardrails = v?.guardrailsResult;
+  const hasRedactedField = guardrails?.fieldResults?.some((field) =>
+    field.status === 'redacted' || field.status === 'transformed'
+  );
   return Boolean(
     guardrails &&
       (guardrails.inputType === 'activity_input' || guardrails.inputType === 'signal_args') &&
-      guardrails.redactedInput !== undefined &&
-      guardrails.redactedInput !== null,
+      (hasRedactedField ||
+        guardrails.redactedInput !== undefined &&
+        guardrails.redactedInput !== null),
   );
 }
 
@@ -913,6 +918,13 @@ function cursorInputRedactionBlockReason(reason: string): string {
   return detail
     ? detail + '. Cursor cannot replace this hook input, so OpenBox blocked the original action.'
     : '[OpenBox] redacted this action input, but Cursor cannot replace this hook input. Rewrite the action with redacted content and retry.';
+}
+
+function missingInputReplacementBlockReason(reason: string): string {
+  const detail = reason.replace(/[.]+$/, '');
+  return detail
+    ? detail + '. OpenBox did not provide replacement input, so the original action was blocked.'
+    : '[OpenBox] redacted this action input but did not provide replacement input, so OpenBox blocked the original action.';
 }
 
 function objectRecord(value: unknown): Record<string, unknown> | undefined {
@@ -950,7 +962,17 @@ function renderVerdictOutput(
           permissionDecision: 'allow',
         };
         if (arm === 'constrain') {
-          addIfDefined(hookSpecificOutput, 'updatedInput', redactedInputRecord(v));
+          const updatedInput = redactedInputRecord(v);
+          if (hasInputRedaction(v) && updatedInput === undefined) {
+            return {
+              hookSpecificOutput: {
+                hookEventName: eventName,
+                permissionDecision: 'deny',
+                permissionDecisionReason: missingInputReplacementBlockReason(reason),
+              },
+            };
+          }
+          addIfDefined(hookSpecificOutput, 'updatedInput', updatedInput);
           if (reason) hookSpecificOutput.additionalContext = reason;
         }
         return {
@@ -1016,7 +1038,19 @@ function renderVerdictOutput(
       if (arm === 'allow' || arm === 'constrain') {
         const decision: Record<string, unknown> = { behavior: 'allow' };
         if (arm === 'constrain') {
-          addIfDefined(decision, 'updatedInput', redactedInputRecord(v));
+          const updatedInput = redactedInputRecord(v);
+          if (hasInputRedaction(v) && updatedInput === undefined) {
+            return {
+              hookSpecificOutput: {
+                hookEventName: eventName,
+                decision: {
+                  behavior: 'deny',
+                  message: missingInputReplacementBlockReason(reason),
+                },
+              },
+            };
+          }
+          addIfDefined(decision, 'updatedInput', updatedInput);
         }
         return {
           hookSpecificOutput: {
@@ -1056,11 +1090,21 @@ function renderVerdictOutput(
       const eventName = env.hook_event_name ?? 'Elicitation';
       if (arm === 'allow') return {};
       if (arm === 'constrain') {
+        const content = redactedInputRecord(v);
+        if (hasInputRedaction(v) && content === undefined) {
+          return {
+            hookSpecificOutput: {
+              hookEventName: eventName,
+              action: 'decline',
+              content: {},
+            },
+          };
+        }
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
             action: 'accept',
-            content: redactedInputRecord(v) ?? objectRecord(env.response) ?? objectRecord(env.content) ?? {},
+            content: content ?? objectRecord(env.response) ?? objectRecord(env.content) ?? {},
           },
         };
       }

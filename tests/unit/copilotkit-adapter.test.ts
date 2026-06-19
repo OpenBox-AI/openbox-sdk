@@ -854,6 +854,53 @@ describe('CopilotKit OpenBox adapter', () => {
     }
   });
 
+  it('maps camelCase CopilotKit approval status aliases', async () => {
+    const expiresAt = '2027-01-01T00:00:00.000Z';
+    const core = {
+      evaluate: vi.fn(),
+      pollApproval: vi.fn(async () => ({
+        action: 'allow',
+        reason: 'approval granted',
+        approvalExpiresAt: expiresAt,
+        trustTier: 2,
+        guardrailsResult: {
+          input_type: 'activity_output',
+          redacted_output: { output: { secret: '[REDACTED]' } },
+          validation_passed: true,
+          reasons: [],
+          field_results: [{ field: 'output.secret', status: 'redacted' }],
+        },
+      })),
+    };
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: core as any,
+      workflowType: 'CopilotKitTestWorkflow',
+      taskQueue: 'langgraph',
+    });
+    const { pollApproval } = await import(
+      '../../ts/src/copilotkit/workflow-session'
+    );
+
+    await expect(
+      pollApproval(adapter, {
+        workflowId: 'workflow-approval',
+        runId: 'run-approval',
+        activityId: 'activity-approval',
+      }),
+    ).resolves.toMatchObject({
+      arm: 'allow',
+      reason: 'approval granted',
+      approvalExpiresAt: expiresAt,
+      trustTier: 2,
+      guardrailsResult: {
+        inputType: 'activity_output',
+        redactedOutput: { output: { secret: '[REDACTED]' } },
+        fieldResults: [{ field: 'output.secret', status: 'redacted' }],
+      },
+    });
+    expect(core.pollApproval).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps polling CopilotKit approvals when Core omits expiration', async () => {
     vi.useFakeTimers();
     try {

@@ -321,6 +321,14 @@ model GuardrailsVerdict {
    */
   redactedInput?: unknown;
 
+  /**
+   * Output-specific redacted payload. Some backend/Core paths expose
+   * output transforms separately from `redactedInput`; SDKs should
+   * prefer this value for `activity_output` redaction and fall back to
+   * `redactedInput` for older Core responses.
+   */
+  redactedOutput?: unknown;
+
   /** False when any field result is `blocked`. */
   validationPassed: boolean;
 

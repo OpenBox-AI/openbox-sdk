@@ -327,16 +327,26 @@ export function applyStartedRedaction<
   verdict: WorkflowVerdict,
 ): { input: TInput; summary?: string } {
   if (!hasGuardrailRedaction(verdict.guardrailsResult)) return { input };
+  if (
+    verdict.guardrailsResult?.redactedInput === null ||
+    verdict.guardrailsResult?.redactedInput === undefined
+  ) {
+    throw new Error(
+      'OpenBox redacted action input but did not provide replacement input.',
+    );
+  }
   const redactedTools = applyInputRedaction(
     cloneValue([toolInputForRedaction(definition, input)]),
     verdict.guardrailsResult,
   ) as Array<{ args?: Partial<TInput> }>;
   const redactedArgs = redactedTools?.[0]?.args;
+  if (!redactedArgs || typeof redactedArgs !== 'object') {
+    throw new Error(
+      'OpenBox redacted action input but did not provide replacement input.',
+    );
+  }
   return {
-    input:
-      redactedArgs && typeof redactedArgs === 'object'
-        ? ({ ...input, ...redactedArgs, action: input.action } as TInput)
-        : input,
+    input: { ...input, ...redactedArgs, action: input.action } as TInput,
     summary: summarizeGuardrailRedaction(
       verdict.guardrailsResult,
       'Input redacted by OpenBox guardrails.',
@@ -455,12 +465,19 @@ export function mapGuardrailsResult(
     input_type?: string;
     redactedInput?: unknown;
     redacted_input?: unknown;
+    redactedOutput?: unknown;
+    redacted_output?: unknown;
     validationPassed?: boolean;
     validation_passed?: boolean;
     rawLogs?: Record<string, unknown>;
     raw_logs?: Record<string, unknown>;
     reasons?: Array<{ type?: unknown; field?: unknown; reason?: unknown }>;
     fieldResults?: Array<{
+      field?: unknown;
+      status?: unknown;
+      reason?: unknown;
+    }>;
+    field_results?: Array<{
       field?: unknown;
       status?: unknown;
       reason?: unknown;
@@ -473,6 +490,7 @@ export function mapGuardrailsResult(
   return {
     inputType: normalizeGuardrailsInputType(inputType),
     redactedInput: raw.redactedInput ?? raw.redacted_input,
+    redactedOutput: raw.redactedOutput ?? raw.redacted_output,
     validationPassed: raw.validationPassed ?? raw.validation_passed ?? true,
     rawLogs: raw.rawLogs ?? raw.raw_logs,
     reasons: (raw.reasons ?? []).map((reason) => ({
@@ -482,6 +500,7 @@ export function mapGuardrailsResult(
     })),
     fieldResults: [
       ...(raw.fieldResults ?? []),
+      ...(raw.field_results ?? []),
       ...(raw.results ?? []).flatMap((group) => group.results ?? []),
     ].map((field) => ({
       field: String(field.field ?? ''),
@@ -518,9 +537,27 @@ export function normalizeArm(value: unknown): WorkflowVerdict['arm'] {
   ) {
     return normalized;
   }
-  if (normalized === 'continue') return 'allow';
+  if (
+    normalized === 'approve' ||
+    normalized === 'approved' ||
+    normalized === 'allowed' ||
+    normalized === 'continue'
+  ) return 'allow';
   if (normalized === 'stop') return 'halt';
-  if (normalized === 'request_approval') return 'require_approval';
+  if (normalized === 'stopped') return 'halt';
+  if (normalized === 'blocked') return 'block';
+  if (
+    normalized === 'reject' ||
+    normalized === 'rejected' ||
+    normalized === 'deny' ||
+    normalized === 'denied'
+  ) return 'block';
+  if (
+    normalized === 'request_approval' ||
+    normalized === 'requires_approval' ||
+    normalized === 'pending' ||
+    normalized === 'ask'
+  ) return 'require_approval';
   return 'allow';
 }
 

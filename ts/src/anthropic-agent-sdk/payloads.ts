@@ -312,15 +312,16 @@ export function redactedOutputValue(
   originalOutput?: unknown,
 ): unknown {
   const guardrails = verdict?.guardrailsResult;
+  const redactedOutput = guardrails?.redactedOutput ?? guardrails?.redactedInput;
   if (
     !guardrails ||
     guardrails.inputType !== 'activity_output' ||
-    guardrails.redactedInput === null ||
-    guardrails.redactedInput === undefined
+    redactedOutput === null ||
+    redactedOutput === undefined
   ) {
     return undefined;
   }
-  return unwrapOutputRedaction(guardrails.redactedInput, originalOutput);
+  return unwrapOutputRedaction(redactedOutput, originalOutput);
 }
 
 function unwrapInputRedaction(value: unknown): unknown {

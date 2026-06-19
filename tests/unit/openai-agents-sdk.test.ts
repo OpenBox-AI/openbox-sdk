@@ -220,6 +220,74 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
     );
   });
 
+  it('fails closed when constrained tool input has field-only redaction', async () => {
+    const mock = createMockCore((payload) =>
+      payload.event_type === 'ActivityStarted' &&
+      payload.activity_type === 'ShellExecution'
+        ? verdict('constrain', {
+            reason: 'redacted',
+            guardrails_result: {
+              input_type: 'activity_input',
+              validation_passed: true,
+              reasons: [],
+              field_results: [{ field: 'command', status: 'redacted' }],
+            },
+          })
+        : verdict('allow'),
+    );
+    const execute = vi.fn(async (input) => input);
+    const wrapped = createOpenBoxAgentsTool(
+      {
+        name: 'Shell',
+        execute,
+      },
+      {
+        core: mock.core,
+        sessionId: 'field-only-redaction-session',
+        toolFactory: (config) => config,
+      },
+    ) as { execute: (input: unknown) => Promise<unknown> };
+
+    await expect(
+      wrapped.execute({ command: 'cat secret.txt' }),
+    ).rejects.toThrow(OpenBoxAgentsSDKError);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('uses constrained tool output when Core returns redacted output', async () => {
+    const mock = createMockCore((payload) =>
+      payload.event_type === 'ActivityCompleted' &&
+      payload.activity_type === 'ToolCompleted'
+        ? verdict('constrain', {
+            reason: 'redacted output',
+            guardrails_result: {
+              input_type: 'activity_output',
+              redacted_output: { output: { stdout: '[redacted]' } },
+              validation_passed: true,
+              reasons: [],
+              field_results: [{ field: 'output.stdout', status: 'redacted' }],
+            },
+          } as never)
+        : verdict('allow'),
+    );
+    const execute = vi.fn(async () => ({ stdout: 'secret' }));
+    const wrapped = createOpenBoxAgentsTool(
+      {
+        name: 'Shell',
+        execute,
+      },
+      {
+        core: mock.core,
+        sessionId: 'constrain-output-session',
+        toolFactory: (config) => config,
+      },
+    ) as { execute: (input: unknown) => Promise<unknown> };
+
+    await expect(wrapped.execute({ command: 'cat secret.txt' })).resolves.toEqual({
+      stdout: '[redacted]',
+    });
+  });
+
   it('keeps concurrent same-name tool calls isolated by OpenAI tool call id', async () => {
     const mock = createMockCore(() => verdict('allow'));
     let releaseTools: () => void = () => undefined;
