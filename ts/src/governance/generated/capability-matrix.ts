@@ -82,6 +82,16 @@ export interface HitlCapabilityGuardEntry {
   failClosedBehavior: string;
 }
 
+export interface PolicyEvaluationGuardEntry {
+  provider: OpenBoxProviderId;
+  tier: OpenBoxSupportTier;
+  authority: string;
+  sdkResponsibility: string;
+  allowedLocalWork: string;
+  forbiddenLocalWork: string;
+  guardTest: string;
+}
+
 export interface McpToolSurfaceEntry {
   name: string;
   title: string;
@@ -1334,6 +1344,80 @@ export const HITL_CAPABILITY_GUARDS = [
     "failClosedBehavior": "n8n pre-execute gates poll Core and preserve n8n source attribution."
   }
 ] as const satisfies readonly HitlCapabilityGuardEntry[];
+export const POLICY_EVALUATION_GUARDS = [
+  {
+    "provider": "codex",
+    "tier": "native",
+    "authority": "OpenBox Core/backend",
+    "sdkResponsibility": "send complete spans and source-attributed inputs; enforce returned verdicts fail-closed",
+    "allowedLocalWork": "Rego source shape validation, instruction/rule projection, backend client calls",
+    "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+    "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+  },
+  {
+    "provider": "cursor",
+    "tier": "native",
+    "authority": "OpenBox Core/backend",
+    "sdkResponsibility": "send complete spans and source-attributed inputs; enforce returned verdicts fail-closed",
+    "allowedLocalWork": "Cursor .mdc projection and backend reads",
+    "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+    "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+  },
+  {
+    "provider": "claude-code",
+    "tier": "native",
+    "authority": "OpenBox Core/backend",
+    "sdkResponsibility": "send complete spans and source-attributed inputs; enforce returned verdicts fail-closed",
+    "allowedLocalWork": "CLAUDE/AGENTS-style instruction projection and backend reads",
+    "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+    "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+  },
+  {
+    "provider": "mcp",
+    "tier": "native",
+    "authority": "OpenBox Core/backend",
+    "sdkResponsibility": "send check_governance spans to Core and expose policy/rule resources without evaluating them",
+    "allowedLocalWork": "MCP prompts, resource templates, list/read tools, and backend check_governance calls",
+    "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+    "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+  },
+  {
+    "provider": "openai-agents-sdk",
+    "tier": "native",
+    "authority": "OpenBox Core/backend",
+    "sdkResponsibility": "send guardrail/tool/run spans to Core; project returned verdicts into native SDK guardrails",
+    "allowedLocalWork": "guardrail helper wrapping and tracing observation",
+    "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+    "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+  },
+  {
+    "provider": "anthropic-agent-sdk",
+    "tier": "native",
+    "authority": "OpenBox Core/backend",
+    "sdkResponsibility": "send hook/message/tool spans to Core; enforce returned verdicts",
+    "allowedLocalWork": "options/workspace governance payload construction and backend reads",
+    "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+    "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+  },
+  {
+    "provider": "copilotkit",
+    "tier": "native",
+    "authority": "OpenBox Core/backend",
+    "sdkResponsibility": "send prompt/tool/output spans to Core; project returned verdicts into CopilotKit flows",
+    "allowedLocalWork": "runtime middleware wrapping, AG-UI observation, and approval helpers",
+    "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+    "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+  },
+  {
+    "provider": "n8n",
+    "tier": "native",
+    "authority": "OpenBox Core/backend",
+    "sdkResponsibility": "send node/LLM spans to Core; project returned verdicts into n8n nodes/templates",
+    "allowedLocalWork": "node/template descriptor generation and helper payload construction",
+    "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
+    "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
+  }
+] as const satisfies readonly PolicyEvaluationGuardEntry[];
 export const MCP_TOOL_SURFACES = [
   {
     "name": "get_profile",

@@ -298,6 +298,7 @@ extern dec hookEventLabel(target: Operation, label: valueof string);
  *     capabilities: #[#{ provider, capability, tier, rationale }, ...],
  *     goalSignalGuards: #[#{ provider, tier, entrySurface, signalActivity, firstGovernedSurface, guardTest, orderGuarantee }, ...],
  *     hitlCapabilityGuards: #[#{ provider, tier, requireApprovalSurface, sourceAttribution, nativeSurface, fallbackSurface, guardTest, failClosedBehavior }, ...],
+ *     policyEvaluationGuards: #[#{ provider, tier, authority, sdkResponsibility, allowedLocalWork, forbiddenLocalWork, guardTest }, ...],
  *     eventCatalog: #[...],
  *     pluginComponents: #[...],
  *     publicIntegrations: #[...],

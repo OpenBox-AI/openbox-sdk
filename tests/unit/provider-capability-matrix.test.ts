@@ -11,6 +11,7 @@ import {
   GOAL_SIGNAL_GUARDS,
   HITL_CAPABILITY_GUARDS,
   OPENBOX_CAPABILITY_IDS,
+  POLICY_EVALUATION_GUARDS,
   MCP_PROMPT_SURFACES,
   MCP_RESOURCE_TEMPLATE_SURFACES,
   MCP_TOOL_SURFACES,
@@ -74,6 +75,27 @@ describe('provider capability matrix', () => {
       expect(guard.fallbackSurface.length, `${guard.provider} fallbackSurface`).toBeGreaterThan(0);
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
       expect(guard.failClosedBehavior.length, `${guard.provider} failClosedBehavior`).toBeGreaterThan(20);
+    }
+  });
+
+  it('pins opa-rules support claims to backend-owned policy evaluation guards', () => {
+    const policyProviders = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) => entry.capability === 'opa-rules' && entry.tier === 'native')
+      .map((entry) => entry.provider)
+      .sort();
+    const guardProviders = POLICY_EVALUATION_GUARDS
+      .filter((entry) => entry.tier === 'native')
+      .map((entry) => entry.provider)
+      .sort();
+
+    expect(guardProviders).toEqual(policyProviders);
+    expect(new Set(guardProviders).size).toBe(guardProviders.length);
+
+    for (const guard of POLICY_EVALUATION_GUARDS) {
+      expect(guard.authority, `${guard.provider} authority`).toContain('Core/backend');
+      expect(guard.sdkResponsibility, `${guard.provider} sdkResponsibility`).toContain('send');
+      expect(guard.forbiddenLocalWork, `${guard.provider} forbiddenLocalWork`).toContain('OPA/Rego evaluation');
+      expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
     }
   });
 

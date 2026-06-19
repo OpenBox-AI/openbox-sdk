@@ -93,6 +93,16 @@ namespace OpenboxGovern.Capabilities {
     failClosedBehavior: string;
   }
 
+  model PolicyEvaluationGuardEntry {
+    provider: OpenBoxProviderId;
+    tier: OpenBoxSupportTier;
+    authority: string;
+    sdkResponsibility: string;
+    allowedLocalWork: string;
+    forbiddenLocalWork: string;
+    guardTest: string;
+  }
+
   model McpToolSurfaceEntry {
     name: string;
     title: string;
@@ -286,6 +296,16 @@ namespace OpenboxGovern.Capabilities {
     #{ provider: "anthropic-agent-sdk", tier: "wrapped", requireApprovalSurface: "PreToolUse", sourceAttribution: "metadata.source | input[0]._openbox_source | spans[0].module", nativeSurface: "Anthropic hook permissionDecision ask/defer", fallbackSurface: "Core polling plus MCP/CLI approval tools", guardTest: "tests/unit/anthropic-agent-sdk.test.ts#maps approval-required PreToolUse verdicts to ask or defer", failClosedBehavior: "Anthropic Agent SDK asks/defer on permission gates and blocks unsupported continuation." },
     #{ provider: "copilotkit", tier: "native", requireApprovalSurface: "governed tool resume and pollApproval", sourceAttribution: "metadata.source | input[0]._openbox_source | spans[0].module", nativeSurface: "React renderers, headless approval client, and approval route", fallbackSurface: "Core polling plus MCP/CLI approval tools", guardTest: "tests/unit/copilotkit-adapter.test.ts#does not reopen approval after an approved resume completes the tool", failClosedBehavior: "CopilotKit interrupts/polls until approval resolves and does not reopen completed approvals." },
     #{ provider: "n8n", tier: "native", requireApprovalSurface: "emitN8nNodePreExecute", sourceAttribution: "metadata.source | input[0]._openbox_source | spans[0].module", nativeSurface: "OpenBox Approval/HITL node", fallbackSurface: "Core polling plus MCP/CLI approval tools", guardTest: "tests/unit/govern-invariants.test.ts#n8n pre-execute approvals keep source attribution through Core polling", failClosedBehavior: "n8n pre-execute gates poll Core and preserve n8n source attribution." },
+  ],
+  policyEvaluationGuards: #[
+    #{ provider: "codex", tier: "native", authority: "OpenBox Core/backend", sdkResponsibility: "send complete spans and source-attributed inputs; enforce returned verdicts fail-closed", allowedLocalWork: "Rego source shape validation, instruction/rule projection, backend client calls", forbiddenLocalWork: "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code", guardTest: "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources" },
+    #{ provider: "cursor", tier: "native", authority: "OpenBox Core/backend", sdkResponsibility: "send complete spans and source-attributed inputs; enforce returned verdicts fail-closed", allowedLocalWork: "Cursor .mdc projection and backend reads", forbiddenLocalWork: "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code", guardTest: "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources" },
+    #{ provider: "claude-code", tier: "native", authority: "OpenBox Core/backend", sdkResponsibility: "send complete spans and source-attributed inputs; enforce returned verdicts fail-closed", allowedLocalWork: "CLAUDE/AGENTS-style instruction projection and backend reads", forbiddenLocalWork: "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code", guardTest: "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources" },
+    #{ provider: "mcp", tier: "native", authority: "OpenBox Core/backend", sdkResponsibility: "send check_governance spans to Core and expose policy/rule resources without evaluating them", allowedLocalWork: "MCP prompts, resource templates, list/read tools, and backend check_governance calls", forbiddenLocalWork: "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code", guardTest: "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources" },
+    #{ provider: "openai-agents-sdk", tier: "native", authority: "OpenBox Core/backend", sdkResponsibility: "send guardrail/tool/run spans to Core; project returned verdicts into native SDK guardrails", allowedLocalWork: "guardrail helper wrapping and tracing observation", forbiddenLocalWork: "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code", guardTest: "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources" },
+    #{ provider: "anthropic-agent-sdk", tier: "native", authority: "OpenBox Core/backend", sdkResponsibility: "send hook/message/tool spans to Core; enforce returned verdicts", allowedLocalWork: "options/workspace governance payload construction and backend reads", forbiddenLocalWork: "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code", guardTest: "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources" },
+    #{ provider: "copilotkit", tier: "native", authority: "OpenBox Core/backend", sdkResponsibility: "send prompt/tool/output spans to Core; project returned verdicts into CopilotKit flows", allowedLocalWork: "runtime middleware wrapping, AG-UI observation, and approval helpers", forbiddenLocalWork: "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code", guardTest: "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources" },
+    #{ provider: "n8n", tier: "native", authority: "OpenBox Core/backend", sdkResponsibility: "send node/LLM spans to Core; project returned verdicts into n8n nodes/templates", allowedLocalWork: "node/template descriptor generation and helper payload construction", forbiddenLocalWork: "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code", guardTest: "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources" },
   ],
   eventCatalog: #[
     #{

@@ -262,6 +262,7 @@ function emitCapabilityMatrix(program: Program): string {
     ...arrayOfRecords(matrix.publicIntegrations).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.goalSignalGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.hitlCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.policyEvaluationGuards).map((entry) => String(entry.tier ?? '')),
   ]).filter(Boolean);
   return `${PYTHON_BANNER}# Generated from TypeSpec capability contracts.
 
@@ -274,6 +275,7 @@ PROVIDER_PLUGIN_COMPONENTS = ${py(matrix.pluginComponents)}
 PUBLIC_INTEGRATION_SUPPORT = ${py(matrix.publicIntegrations)}
 GOAL_SIGNAL_GUARDS = ${py(matrix.goalSignalGuards)}
 HITL_CAPABILITY_GUARDS = ${py(matrix.hitlCapabilityGuards)}
+POLICY_EVALUATION_GUARDS = ${py(matrix.policyEvaluationGuards)}
 MCP_TOOL_SURFACES = ${py(matrix.mcpTools)}
 MCP_PROMPT_SURFACES = ${py(matrix.mcpPrompts)}
 MCP_RESOURCE_TEMPLATE_SURFACES = ${py(matrix.mcpResourceTemplates)}
