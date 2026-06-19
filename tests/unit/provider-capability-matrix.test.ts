@@ -13,6 +13,7 @@ import {
   GOAL_SIGNAL_GUARDS,
   GUARDRAIL_CAPABILITY_GUARDS,
   HITL_CAPABILITY_GUARDS,
+  HOOK_CAPABILITY_GUARDS,
   INSTALL_DOCTOR_CAPABILITY_GUARDS,
   MCP_CAPABILITY_GUARDS,
   OPENBOX_CAPABILITY_IDS,
@@ -433,6 +434,64 @@ describe('provider capability matrix', () => {
     expect(
       PROVIDER_EVENT_CATALOG.find((entry) => entry.provider === 'anthropic-agent-sdk')?.upstreamKnownEvents.slice().sort(),
     ).toEqual([...ANTHROPIC_AGENT_HOOK_EVENTS].sort());
+  });
+
+  it('pins hook support claims to explicit hook surface coverage', () => {
+    const hookCapabilityProviders = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) => entry.capability === 'hooks')
+      .map((entry) => entry.provider)
+      .sort();
+    const guardProviders = HOOK_CAPABILITY_GUARDS
+      .map((entry) => entry.provider)
+      .sort();
+
+    expect(guardProviders).toEqual(hookCapabilityProviders);
+    expect(new Set(guardProviders).size).toBe(guardProviders.length);
+
+    const tierByProvider = new Map(
+      PROVIDER_CAPABILITY_MATRIX
+        .filter((entry) => entry.capability === 'hooks')
+        .map((entry) => [entry.provider, entry.tier]),
+    );
+    const eventCatalogByProvider = new Map<OpenBoxProviderId, (typeof PROVIDER_EVENT_CATALOG)[number]>(
+      PROVIDER_EVENT_CATALOG.map((entry) => [entry.provider, entry]),
+    );
+    const publicIntegrationByProvider = new Map<OpenBoxProviderId, (typeof PUBLIC_INTEGRATION_SUPPORT)[number]>(
+      PUBLIC_INTEGRATION_SUPPORT.map((entry) => [entry.integration, entry]),
+    );
+
+    for (const guard of HOOK_CAPABILITY_GUARDS) {
+      expect(guard.tier, `${guard.provider} tier`).toBe(tierByProvider.get(guard.provider));
+      expect(guard.hookSurface.length, `${guard.provider} hookSurface`).toBeGreaterThan(30);
+      expect(guard.eventCoverage.length, `${guard.provider} eventCoverage`).toBeGreaterThan(30);
+      expect(guard.enforcementBoundary.length, `${guard.provider} enforcementBoundary`).toBeGreaterThan(30);
+      expect(guard.fallbackOrOutOfScope.length, `${guard.provider} fallbackOrOutOfScope`).toBeGreaterThan(20);
+      expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+
+      const eventCatalog = eventCatalogByProvider.get(guard.provider);
+      if (eventCatalog) {
+        expect(eventCatalog.generatedAdapterEvents.length, `${guard.provider} generatedAdapterEvents`).toBeGreaterThan(0);
+        expect(guard.eventCoverage, `${guard.provider} eventCoverage`).toMatch(/PROVIDER_EVENT_CATALOG|HOOK_SPEC|HOOK_EVENTS/);
+      } else if (guard.provider === 'openai-agents-sdk') {
+        expect(publicIntegrationByProvider.get(guard.provider)?.exports).toContain('createOpenBoxAgentHooks');
+        expect(guard.hookSurface).toContain('createOpenBoxAgentHooks');
+      } else if (guard.provider === 'copilotkit') {
+        expect(publicIntegrationByProvider.get(guard.provider)?.exports).toContain('createOpenBoxCopilotKitAdapter');
+        expect(guard.hookSurface).toContain('createOpenBoxCopilotKitAdapter');
+      } else if (guard.provider === 'n8n') {
+        expect(publicIntegrationByProvider.get(guard.provider)?.exports).toEqual(
+          expect.arrayContaining(['emitN8nNodePreExecute', 'emitN8nNodePostExecute']),
+        );
+        expect(guard.hookSurface).toContain('emitN8nNodePreExecute');
+      } else {
+        expect(guard.tier, `${guard.provider} tier`).toBe('out-of-scope');
+        expect(guard.fallbackOrOutOfScope, `${guard.provider} fallbackOrOutOfScope`).toContain('Out-of-scope');
+      }
+
+      if (guard.tier !== 'out-of-scope') {
+        expect(guard.enforcementBoundary, `${guard.provider} enforcementBoundary`).toContain('Core');
+      }
+    }
   });
 
   it('records install/plugin components and intentional exclusions per host', () => {
