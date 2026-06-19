@@ -257,7 +257,7 @@ model CreateGuardrailDto {
   settings?: Record<unknown>;
 
   /** Controls whether violations affect trust score and severity. none = excluded from trust evaluation. */
-  trust_impact?: "none" | "low" | "medium" | "high" = "none";
+  trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
   trust_threshold?: numeric | null;
@@ -314,7 +314,7 @@ model CreatePolicyDto {
   config?: {};
 
   /** Controls whether violations affect trust score and severity. none = excluded from trust evaluation. */
-  trust_impact?: "none" | "low" | "medium" | "high" = "none";
+  trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
   trust_threshold?: {};
@@ -370,7 +370,7 @@ model CreateBehaviorRuleDto {
   @minValue(1) approval_timeout?: numeric;
 
   /** Controls whether violations affect trust score and severity. none = excluded from trust evaluation. */
-  trust_impact?: "none" | "low" | "medium" | "high" = "none";
+  trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
   trust_threshold?: {};
@@ -421,7 +421,7 @@ model UpdateBehavioralRuleDto {
   @minValue(1) approval_timeout?: numeric;
 
   /** Controls whether violations affect trust score and severity. none = excluded from trust evaluation. */
-  trust_impact?: "none" | "low" | "medium" | "high" = "none";
+  trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
   trust_threshold?: {};

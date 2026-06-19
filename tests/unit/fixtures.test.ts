@@ -15,6 +15,7 @@ type GeneratedCreateBehaviorRuleDto =
 type GeneratedBehaviorRule = components['schemas']['BehaviorRule'];
 type GeneratedCreateGuardrailDto =
   components['schemas']['CreateGuardrailDto'];
+type GeneratedCreatePolicyDto = components['schemas']['CreatePolicyDto'];
 type GeneratedUpdateGuardrailDto =
   components['schemas']['UpdateGuardrailDto'];
 
@@ -58,6 +59,18 @@ describe('Test Fixtures', () => {
       expect(typed.guardrail_type).toBe('1');
       expect(update.processing_stage).toBe('1');
     });
+
+    it('keeps legacy activity scoping absent and defaulted trust impact optional', () => {
+      const minimal: GeneratedCreateGuardrailDto = {
+        guardrail_type: '1',
+        name: 'minimal-guardrail',
+        processing_stage: '0',
+      };
+
+      expect(minimal).not.toHaveProperty('trust_impact');
+      expect(minimal).not.toHaveProperty('activity_type');
+      expect(minimal).not.toHaveProperty('fields_to_check');
+    });
   });
 
   describe('makeCreatePolicyDto', () => {
@@ -66,6 +79,16 @@ describe('Test Fixtures', () => {
       expect(dto.name).toMatch(/^test-policy-/);
       expect(dto.rego_code).toContain('package openbox.policy');
       expect(dto.rego_code).toContain('decision');
+    });
+
+    it('generated create policy type keeps trust impact optional', () => {
+      const dto: GeneratedCreatePolicyDto = {
+        name: 'minimal-policy',
+        rego_code: 'package openbox.policy',
+        input: {},
+      };
+
+      expect(dto).not.toHaveProperty('trust_impact');
     });
   });
 
@@ -117,6 +140,20 @@ describe('Test Fixtures', () => {
       expect(rule.trigger_match?.[0]?.field).toBe('http_url');
       expect(rule.states[0]).toMatchObject({ semantic_type: 'file_read' });
       expect(rule.states[1]).toBe('mcp_tool_call');
+    });
+
+    it('generated create behavior rule type keeps trust impact optional', () => {
+      const dto: GeneratedCreateBehaviorRuleDto = {
+        rule_name: 'minimal-rule',
+        priority: 50,
+        trigger: 'http_post',
+        states: ['http_post'],
+        time_window: 60,
+        verdict: 0,
+        reject_message: 'allow',
+      };
+
+      expect(dto).not.toHaveProperty('trust_impact');
     });
   });
 

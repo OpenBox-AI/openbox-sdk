@@ -2262,10 +2262,9 @@ export interface components {
             approval_timeout?: number;
             /**
              * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
-             * @default none
              * @enum {string}
              */
-            trust_impact: "none" | "low" | "medium" | "high";
+            trust_impact?: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
             trust_threshold?: Record<string, never>;
         };
@@ -2294,10 +2293,9 @@ export interface components {
             };
             /**
              * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
-             * @default none
              * @enum {string}
              */
-            trust_impact: "none" | "low" | "medium" | "high";
+            trust_impact?: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
             trust_threshold?: number | null;
         };
@@ -2326,10 +2324,9 @@ export interface components {
             config?: Record<string, never>;
             /**
              * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
-             * @default none
              * @enum {string}
              */
-            trust_impact: "none" | "low" | "medium" | "high";
+            trust_impact?: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
             trust_threshold?: Record<string, never>;
         };
@@ -3030,10 +3027,9 @@ export interface components {
             approval_timeout?: number;
             /**
              * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
-             * @default none
              * @enum {string}
              */
-            trust_impact: "none" | "low" | "medium" | "high";
+            trust_impact?: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
             trust_threshold?: Record<string, never>;
             /** @description Change log */
