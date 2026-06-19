@@ -25,7 +25,8 @@ under `specs/generated/openapi3/`.
    TypeScript, Python, and wire-type SDK artifacts from the same contract.
 3. Run `npm run check:generated-drift` to assert every generated path
    is committed. Catches "I forgot to regen and commit".
-4. Run `npm test`. Vitest snapshot tests catch unintended emitter
+4. Run `npm run check:sdks`. TypeScript and Python target-native checks consume
+   the regenerated artifacts, and Vitest snapshot tests catch unintended emitter
    output drift.
 5. Commit the spec change and the regenerated files in the same
    commit.

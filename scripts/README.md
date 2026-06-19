@@ -12,6 +12,17 @@ canonical TypeSpec contract.
   future language targets must all hang off this command.
 - `check:generated-drift` reruns `npm run generate:sdks`, then checks generated
   TypeScript, Python, OpenAPI, and JSON Schema artifacts for drift.
+- `check:sdks` is the generic target-native validation gate. It regenerates the
+  TypeSpec-owned artifacts, then runs TypeScript and Python lint/type/test/build
+  checks from their emitted contracts. Future language targets should join this
+  command instead of adding root-level `check:<language>` or
+  `generate:<language>` entry points.
+
+## Local CI
+
+- `ci:local` composes the full local PR/release gate: `check:sdks`, coverage,
+  bundle build, generated drift, generated banners, OpenAPI lint, npm audit, and
+  the repository security audit.
 
 ## Operational Scripts
 

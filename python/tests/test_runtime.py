@@ -7,7 +7,7 @@ import json
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import pytest
@@ -259,7 +259,7 @@ def test_signing_redaction_and_utility_helpers() -> None:
             agent_private_key=seed,
         )
 
-    original = {"nested": {"secret": "raw"}, "items": [{"x": 1}]}
+    original: dict[str, Any] = {"nested": {"secret": "raw"}, "items": [{"x": 1}]}
     verdict = {
         "guardrailsResult": {
             "redactedInput": {"nested": {"secret": "[redacted]"}},
@@ -399,7 +399,11 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
     assert failed_core.events[-1]["error"]["message"] == "boom"
 
     blocked_core = FakeCore(evals=[{"verdict": "allow"}, {"verdict": "block", "reason": "no"}])
-    await govern({"core": blocked_core, "preset": presets.default}, lambda s: s.tool({"input": []}))
+
+    async def blocked_body(session: Any) -> Mapping[str, Any]:
+        return cast(Mapping[str, Any], await session.tool({"input": []}))
+
+    await govern({"core": blocked_core, "preset": presets.default}, blocked_body)
     assert [event["event_type"] for event in blocked_core.events].count("ActivityCompleted") == 0
 
     pending: list[Mapping[str, Any]] = []
@@ -542,8 +546,11 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
     assert camel_completed_parent["duration_ms"] == 25
     assert camel_completed_hook["span_count"] == 1
 
-    attached = govern.attach(
-        {"core": FakeCore(), "preset": presets.default, "workflow_id": "w", "run_id": "r"}
+    attached = cast(
+        Any,
+        govern.attach(
+            {"core": FakeCore(), "preset": presets.default, "workflow_id": "w", "run_id": "r"}
+        ),
     )
     await attached.workflow_completed()
     with pytest.raises(SessionAlreadyTerminatedError):
@@ -689,7 +696,8 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
     async def handler(request: Mapping[str, Any]) -> Mapping[str, Any]:
         return {"handled": request["name"]}
 
-    result = await middleware.wrap_tool_call({"id": "tool-1", "name": "lookup"}, handler)
+    tool_request: Mapping[str, Any] = {"id": "tool-1", "name": "lookup"}
+    result: Mapping[str, Any] = await middleware.wrap_tool_call(tool_request, handler)
     assert result == {"handled": "lookup"}
     tool_events = [event for event in core.events if event.get("activity_id") == "tool-1"]
     assert tool_events[0]["event_type"] == "ActivityStarted"
@@ -709,8 +717,9 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
     )
     assert completed_tool_hook["span_count"] == 1
 
+    unnamed_request: Mapping[str, Any] = {"id": "tool-unnamed"}
     unnamed_result = await middleware.wrap_tool_call(
-        {"id": "tool-unnamed"},
+        unnamed_request,
         lambda _req: {"ok": True},
     )
     assert unnamed_result == {"ok": True}
@@ -728,12 +737,13 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
         "usage_metadata": {"input_tokens": 8, "output_tokens": 3},
         "response_metadata": {"model_name": "gpt-4.1-mini", "finish_reason": "stop"},
     }
+    model_request: Mapping[str, Any] = {
+        "run_id": "model-1",
+        "model": "gpt-4.1-mini",
+        "messages": [{"role": "user", "content": "say hi"}],
+    }
     model_result = await middleware.wrap_model_call(
-        {
-            "run_id": "model-1",
-            "model": "gpt-4.1-mini",
-            "messages": [{"role": "user", "content": "say hi"}],
-        },
+        model_request,
         lambda _req: model_payload,
     )
     assert model_result == model_payload
@@ -766,8 +776,9 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
         workflow_id="aw",
         run_id="ar",
     )
+    approval_tool_request: Mapping[str, Any] = {"id": "tool-approval", "name": "lookup"}
     assert await approval_middleware.wrap_tool_call(
-        {"id": "tool-approval", "name": "lookup"},
+        approval_tool_request,
         handler,
     ) == {"handled": "lookup"}
     assert approval_core.polls == [
@@ -786,9 +797,10 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
         nonlocal called
         called = True
 
+    blocked_tool_request: Mapping[str, Any] = {"id": "tool-blocked", "name": "lookup"}
     with pytest.raises(RuntimeError, match="denied"):
         await blocked_middleware.wrap_tool_call(
-            {"id": "tool-blocked", "name": "lookup"},
+            blocked_tool_request,
             blocked_handler,
         )
     assert called is False
@@ -796,8 +808,9 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
     async def failing_handler(_request: Mapping[str, Any]) -> None:
         raise RuntimeError("tool failed")
 
+    failing_tool_request: Mapping[str, Any] = {"id": "tool-2", "name": "lookup"}
     with pytest.raises(RuntimeError, match="tool failed"):
-        await middleware.wrap_tool_call({"id": "tool-2", "name": "lookup"}, failing_handler)
+        await middleware.wrap_tool_call(failing_tool_request, failing_handler)
 
     class Graph:
         async def ainvoke(self, value: str) -> str:

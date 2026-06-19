@@ -71,17 +71,16 @@ with that integration or example, not in this top-level README.
 
 ```bash
 npm install
-npm run build
-npx tsc --noEmit -p tsconfig.build.json
-npm run test:unit
-npm run test:contract
-npm run test:hook-integration
+npm run check:sdks
+npm run ci:local
 npm run check:generated-drift
 npm run lint:generated-banners
 ```
 
 TypeSpec under `specs/typespec/` is the source for generated contracts. Fix the
 spec or generator first; do not patch generated output by hand.
+`check:sdks` is the generic validation gate for every language SDK target; it
+currently covers TypeScript and Python from the shared TypeSpec emitter.
 The repository layout and generation boundaries are documented in
 [`docs/repo-structure.md`](./docs/repo-structure.md).
 
