@@ -108,6 +108,9 @@ describe('LLM completion spans', () => {
         },
       ],
       model: 'gpt-4o-mini',
+      model_id: 'gpt-4o-mini',
+      provider: 'openai',
+      model_provider: 'openai',
       usage: {
         prompt_tokens: 120,
         input_tokens: 120,
@@ -182,10 +185,16 @@ describe('LLM completion spans', () => {
 
     expect(JSON.parse(span.request_body as string)).toMatchObject({
       model: 'gemini-2.5-flash',
+      model_id: 'gemini-2.5-flash',
+      provider: 'google',
+      model_provider: 'google',
       messages: [{ role: 'user', content: 'Summarize the changed files.' }],
     });
     expect(JSON.parse(span.response_body as string)).toMatchObject({
       model: 'gemini-2.5-flash',
+      model_id: 'gemini-2.5-flash',
+      provider: 'google',
+      model_provider: 'google',
       usage: {
         input_tokens: 11,
         output_tokens: 7,
@@ -246,6 +255,11 @@ describe('LLM completion spans', () => {
       output_tokens: 7,
       total_tokens: 21,
     });
+    expect(JSON.parse(String(span.response_body))).toMatchObject({
+      model_id: 'gemini-2.5-flash',
+      provider: 'google',
+      model_provider: 'google',
+    });
     expect(
       llmTokenUsageFromRecord({
         inputTokenCount: 3,
@@ -297,6 +311,18 @@ describe('LLM completion spans', () => {
     expect(span.provider).toBe('anthropic');
     expect(span.model_provider).toBe('anthropic');
     expect(span.http_url).toBe('https://api.anthropic.com/v1/messages');
+    expect(JSON.parse(String(span.request_body))).toMatchObject({
+      model: 'anthropic/claude-opus-4-8',
+      model_id: 'claude-opus-4-8',
+      provider: 'anthropic',
+      model_provider: 'anthropic',
+    });
+    expect(JSON.parse(String(span.response_body))).toMatchObject({
+      model: 'anthropic/claude-opus-4-8',
+      model_id: 'claude-opus-4-8',
+      provider: 'anthropic',
+      model_provider: 'anthropic',
+    });
     expect(span.attributes).toMatchObject({
       'http.url': 'https://api.anthropic.com/v1/messages',
       'openbox.model.id': 'claude-opus-4-8',

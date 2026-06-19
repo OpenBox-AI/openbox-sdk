@@ -1531,6 +1531,9 @@ describe('CopilotKit OpenBox adapter', () => {
         },
       ],
       model: 'gpt-4o-mini',
+      model_id: 'gpt-4o-mini',
+      provider: 'openai',
+      model_provider: 'openai',
       usage: {
         prompt_tokens: 42,
         input_tokens: 42,

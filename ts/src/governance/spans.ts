@@ -416,6 +416,8 @@ export function buildLLMCompletionResponseBody(
   content: string,
   metadata: {
     model?: string;
+    modelId?: string;
+    provider?: string;
     usage?: LLMTokenUsage;
     responseBody?: unknown;
   } = {},
@@ -431,11 +433,44 @@ export function buildLLMCompletionResponseBody(
   if (metadata.model && typeof body.model !== 'string') {
     body.model = metadata.model;
   }
+  if (metadata.modelId && !firstTrimmed(body.model_id)) {
+    body.model_id = metadata.modelId;
+  }
+  if (metadata.provider && !firstTrimmed(body.provider)) {
+    body.provider = metadata.provider;
+  }
+  if (metadata.provider && !firstTrimmed(body.model_provider)) {
+    body.model_provider = metadata.provider;
+  }
   const usage = normalizeUsage(metadata.usage);
   if (usage && Object.keys(objectRecord(body.usage)).length === 0) {
     body.usage = usage;
   }
   return JSON.stringify(body);
+}
+
+function buildLLMCompletionRequestBody(metadata: {
+  model?: string;
+  modelId?: string;
+  provider?: string;
+  requestBody?: unknown;
+}): string | undefined {
+  const body = parseJsonRecord(metadata.requestBody);
+  if (metadata.model && typeof body.model !== 'string') {
+    body.model = metadata.model;
+  }
+  if (metadata.modelId && !firstTrimmed(body.model_id)) {
+    body.model_id = metadata.modelId;
+  }
+  if (metadata.provider && !firstTrimmed(body.provider)) {
+    body.provider = metadata.provider;
+  }
+  if (metadata.provider && !firstTrimmed(body.model_provider)) {
+    body.model_provider = metadata.provider;
+  }
+  return Object.keys(body).length > 0
+    ? JSON.stringify(body)
+    : stringifyBody(metadata.requestBody);
 }
 
 export function buildLLMCompletionSpan(
@@ -507,11 +542,17 @@ export function buildLLMCompletionSpan(
     ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),
     http_method: source.http_method ?? 'POST',
     http_url: httpUrl,
-    request_body:
-      stringifyBody(input.requestBody) ?? source.request_body ?? undefined,
+    request_body: buildLLMCompletionRequestBody({
+      model: input.model,
+      modelId: modelTelemetry.modelId,
+      provider: modelTelemetry.provider,
+      requestBody: input.requestBody ?? source.request_body,
+    }),
     data: input.data ?? source.data,
     response_body: buildLLMCompletionResponseBody(input.content, {
       model: input.model,
+      modelId: modelTelemetry.modelId,
+      provider: modelTelemetry.provider,
       usage: input.usage,
       responseBody: input.responseBody ?? source.response_body,
     }),
@@ -555,6 +596,13 @@ export function buildSpan(
       const llmHttpUrl = providerUrlForLLM(modelTelemetry.provider);
       const llmRequestBody = {
         ...(input.model ? { model: input.model } : {}),
+        ...(modelTelemetry.modelId ? { model_id: modelTelemetry.modelId } : {}),
+        ...(modelTelemetry.provider
+          ? {
+              provider: modelTelemetry.provider,
+              model_provider: modelTelemetry.provider,
+            }
+          : {}),
         ...(input.prompt
           ? { messages: [{ role: 'user', content: input.prompt }] }
           : {}),
@@ -610,6 +658,8 @@ export function buildSpan(
           : {}),
         response_body: buildLLMCompletionResponseBody(llmResponseContent, {
           model: input.model,
+          modelId: modelTelemetry.modelId,
+          provider: modelTelemetry.provider,
           usage: input.usage,
         }),
       };
