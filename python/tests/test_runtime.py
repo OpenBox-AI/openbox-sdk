@@ -667,6 +667,20 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
     )
     assert completed_tool_hook["span_count"] == 1
 
+    unnamed_result = await middleware.wrap_tool_call(
+        {"id": "tool-unnamed"},
+        lambda _req: {"ok": True},
+    )
+    assert unnamed_result == {"ok": True}
+    unnamed_parent = next(
+        event
+        for event in core.events
+        if event.get("activity_id") == "tool-unnamed"
+        and event["event_type"] == "ActivityStarted"
+        and event["hook_trigger"] is False
+    )
+    assert unnamed_parent["activity_type"] == "AgentAction"
+
     model_payload = {
         "content": "answer",
         "usage_metadata": {"input_tokens": 8, "output_tokens": 3},

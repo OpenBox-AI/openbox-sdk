@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { createOpenBoxApprovalClient } from '../../ts/src/copilotkit/react-approval-client.ts';
 import { hookEventLabel, HOOK_EVENT_LABELS } from '../../ts/src/governance/hook-event-labels.ts';
+import { PRESET_ACTIVITY_TYPES } from '../../ts/src/core-client/generated/govern.js';
 import {
   buildMcpGovernanceSpan,
   MCP_ACTIVITY_TYPE_MAP,
@@ -149,14 +150,14 @@ describe('low-branch utility coverage', () => {
     expect(buildMcpGovernanceSpan('db', {}).db_operation).toBe('SELECT');
     expect(buildMcpGovernanceSpan('mcp', {}).function).toBe('mcp.call');
     expect(MCP_ACTIVITY_TYPE_MAP).toMatchObject({
-      llm: 'PromptSubmission',
-      file_read: 'FileRead',
-      file_write: 'FileEdit',
-      file_delete: 'FileDelete',
-      shell: 'ShellExecution',
-      http: 'HTTPRequest',
-      db: 'DatabaseQuery',
-      mcp: 'MCPToolCall',
+      llm: PRESET_ACTIVITY_TYPES.default.prompt,
+      file_read: PRESET_ACTIVITY_TYPES.default.read,
+      file_write: PRESET_ACTIVITY_TYPES.default.write,
+      file_delete: PRESET_ACTIVITY_TYPES.default.fileDelete,
+      shell: PRESET_ACTIVITY_TYPES.default.shell,
+      http: PRESET_ACTIVITY_TYPES.default.httpRequest,
+      db: PRESET_ACTIVITY_TYPES.default.databaseQuery,
+      mcp: PRESET_ACTIVITY_TYPES.default.mcpToolCall,
     });
   });
 

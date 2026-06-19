@@ -14,6 +14,7 @@
 // the org's.
 
 import { OpenBoxCoreClient, type GovernanceVerdictResponse } from '../core-client/index.js';
+import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import { recallAgentKey } from '../file-tokens/agent-keys.js';
 import { resolveAgentIdentity, resolveConnection } from '../env/index.js';
 import {
@@ -28,7 +29,7 @@ export type { SpanType } from './spans.js';
 export interface CheckGovernanceOptions {
   /** Agent ID for resolving a cached runtime key. */
   agentId?: string;
-  /** Span/activity type. Drives `ACTIVITY_TYPE_MAP` and `buildSpan`. */
+  /** Span/activity type. Drives generated default activity mapping and `buildSpan`. */
   spanType: SpanType;
   /** Action input. Examples: `{prompt}`, `{file_path,content}`, `{command}`. */
   activityInput: Record<string, unknown>;
@@ -38,15 +39,17 @@ export interface CheckGovernanceOptions {
   coreUrl?: string;
 }
 
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+
 const ACTIVITY_TYPE_MAP: Record<SpanType, string> = {
-  llm: 'PromptSubmission',
-  file_read: 'FileRead',
-  file_write: 'FileEdit',
-  file_delete: 'FileDelete',
-  shell: 'ShellExecution',
-  http: 'HTTPRequest',
-  db: 'DatabaseQuery',
-  mcp: 'MCPToolCall',
+  llm: defaultActivity.prompt,
+  file_read: defaultActivity.read,
+  file_write: defaultActivity.write,
+  file_delete: defaultActivity.fileDelete,
+  shell: defaultActivity.shell,
+  http: defaultActivity.httpRequest,
+  db: defaultActivity.databaseQuery,
+  mcp: defaultActivity.mcpToolCall,
 };
 
 function hex(len: number): string {

@@ -19,6 +19,7 @@ import {
   rememberCompletionActivity,
 } from '../dedup.js';
 import { stampSource } from '../../../approvals/source.js';
+import { ACTIVITY_TYPES } from '../activity-types.js';
 
 /**
  * beforeShellExecution: govern shell command before Cursor runs it.
@@ -67,7 +68,7 @@ export async function handleBeforeShellExecution(
 
   const payload = buildBeforeShellExecutionPayload(env);
   const isDelete = isFileDeleteCommand(command);
-  const activityType = isDelete ? 'FileDelete' : BEFORE_SHELL_EXECUTION_ACTIVITY_TYPE;
+  const activityType = isDelete ? ACTIVITY_TYPES.FILE_DELETE : BEFORE_SHELL_EXECUTION_ACTIVITY_TYPE;
   const span = buildSpan('cursor', isDelete ? 'file_delete' : 'shell', {
     command,
     cwd: env.cwd,

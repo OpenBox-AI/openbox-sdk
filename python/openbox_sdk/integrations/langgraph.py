@@ -7,9 +7,10 @@ from typing import Any, TypeVar
 
 from openbox_sdk._govern_runtime import BaseGovernedSession, WorkflowVerdict
 from openbox_sdk.clients import AsyncOpenBoxCoreClient
-from openbox_sdk.generated.govern import presets
+from openbox_sdk.generated.govern import PRESET_ACTIVITY_TYPES, presets
 
 T = TypeVar("T")
+DEFAULT_ACTIVITY_TYPES = PRESET_ACTIVITY_TYPES["default"]
 
 
 class OpenBoxLangGraphMiddleware:
@@ -85,7 +86,7 @@ class OpenBoxLangGraphMiddleware:
         handler: Callable[[Any], Awaitable[T] | T],
     ) -> T:
         activity_id = _request_id(request)
-        activity_type = _request_name(request, "ToolCall")
+        activity_type = _request_name(request, DEFAULT_ACTIVITY_TYPES["agentAction"])
         plain_request = _plain_request(request)
         tool_input = _tool_input(request)
         opened = await self.session.open_activity(

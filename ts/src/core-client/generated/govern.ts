@@ -2510,7 +2510,7 @@ function toolActivityTypeFromPayload(payload: GovernedPayload): string {
     if (name) return name;
   }
 
-  return 'ToolCall';
+  return 'AgentAction';
 }
 
 function namedToolFromRecord(value: unknown): string | undefined {
