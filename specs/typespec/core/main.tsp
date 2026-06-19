@@ -180,6 +180,9 @@ model GovernanceEventPayload {
   /** LLM model identifier for SDKs that observe usage outside provider HTTP spans. */
   llm_model?: string;
 
+  /** Core model alias for SDKs that surface usage as `model` instead of `llm_model`. */
+  `model`?: string;
+
   /** Prompt/input token count observed by the SDK. */
   input_tokens?: int64;
 
@@ -298,6 +301,15 @@ model SpanData {
 
   /** Free-form payload. Map for attestation; string for file ops. */
   data?: unknown;
+
+  /** SDK-level model ID when not present in the provider response body. */
+  `model`?: string;
+
+  /** SDK-level input token count when not present in the provider response body. */
+  input_tokens?: int64;
+
+  /** SDK-level output token count when not present in the provider response body. */
+  output_tokens?: int64;
 
   /** SDK v2 hook source. */
   hook_type?: "http_request" | "db_query" | "file_operation" | "function_call";

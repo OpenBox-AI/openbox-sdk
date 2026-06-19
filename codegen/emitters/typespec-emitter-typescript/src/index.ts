@@ -2193,6 +2193,7 @@ type TelemetryEventFields = Pick<
   GovernanceEventPayload,
   | 'session_id'
   | 'llm_model'
+  | 'model'
   | 'input_tokens'
   | 'output_tokens'
   | 'total_tokens'
@@ -2211,6 +2212,7 @@ function telemetryEventFields(payload: GovernedPayload): Partial<TelemetryEventF
   return {
     session_id: payload.sessionId,
     llm_model: payload.llmModel,
+    model: payload.model,
     input_tokens: payload.inputTokens,
     output_tokens: payload.outputTokens,
     total_tokens: payload.totalTokens,

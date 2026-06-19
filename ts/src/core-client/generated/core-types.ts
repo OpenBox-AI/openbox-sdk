@@ -33,6 +33,7 @@ export interface GovernanceEventPayload {
   activity_output?: unknown;
   session_id?: string;
   llm_model?: string;
+  model?: string;
   input_tokens?: number;
   output_tokens?: number;
   total_tokens?: number;
@@ -74,6 +75,9 @@ export interface SpanData {
   semantic_type?: string;
   stage?: "started" | "completed";
   data?: unknown;
+  model?: string;
+  input_tokens?: number;
+  output_tokens?: number;
   hook_type?: "http_request" | "db_query" | "file_operation" | "function_call";
   attribute_key_identifiers?: string[];
   error?: string;
