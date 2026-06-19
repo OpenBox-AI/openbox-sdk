@@ -540,8 +540,9 @@ export function buildSpan(
     case 'llm':
       // The LLM classifier requires `http.method` of POST and an
       // `http.url` that matches a known LLM domain. IDE and agent
-      // hosts abstract the underlying model call, so tag a generic
-      // OpenAI-shaped URL. See `span-reference.md`.
+      // hosts abstract the underlying model call, so infer the closest
+      // provider URL from the model and fall back to OpenAI-compatible.
+      // See `span-reference.md`.
       const usage = normalizeUsage(input.usage);
       const inputTokens = toPositiveInteger(
         usage?.input_tokens ?? usage?.prompt_tokens,
