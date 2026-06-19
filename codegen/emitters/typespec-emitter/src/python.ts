@@ -262,6 +262,7 @@ function emitCapabilityMatrix(program: Program): string {
     ...arrayOfRecords(matrix.publicIntegrations).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.goalSignalGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.hitlCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.guardrailCapabilityGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.policyEvaluationGuards).map((entry) => String(entry.tier ?? '')),
   ]).filter(Boolean);
   return `${PYTHON_BANNER}# Generated from TypeSpec capability contracts.
@@ -275,6 +276,7 @@ PROVIDER_PLUGIN_COMPONENTS = ${py(matrix.pluginComponents)}
 PUBLIC_INTEGRATION_SUPPORT = ${py(matrix.publicIntegrations)}
 GOAL_SIGNAL_GUARDS = ${py(matrix.goalSignalGuards)}
 HITL_CAPABILITY_GUARDS = ${py(matrix.hitlCapabilityGuards)}
+GUARDRAIL_CAPABILITY_GUARDS = ${py(matrix.guardrailCapabilityGuards)}
 POLICY_EVALUATION_GUARDS = ${py(matrix.policyEvaluationGuards)}
 MCP_TOOL_SURFACES = ${py(matrix.mcpTools)}
 MCP_PROMPT_SURFACES = ${py(matrix.mcpPrompts)}
@@ -740,11 +742,26 @@ function snakeToCamel(value: string): string {
   return value.replace(/_([a-z0-9])/g, (_, char: string) => char.toUpperCase());
 }
 
-function py(value: unknown): string {
-  return JSON.stringify(value, null, 2)
-    .replace(/\btrue\b/g, 'True')
-    .replace(/\bfalse\b/g, 'False')
-    .replace(/\bnull\b/g, 'None');
+function py(value: unknown, indent = 0): string {
+  const pad = ' '.repeat(indent);
+  const childPad = ' '.repeat(indent + 2);
+  if (value === null || value === undefined) return 'None';
+  if (typeof value === 'boolean') return value ? 'True' : 'False';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'None';
+  if (typeof value === 'string') return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '[]';
+    return `[\n${value.map((item) => `${childPad}${py(item, indent + 2)}`).join(',\n')}\n${pad}]`;
+  }
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined);
+    if (entries.length === 0) return '{}';
+    return `{\n${entries
+      .map(([key, entry]) => `${childPad}${JSON.stringify(key)}: ${py(entry, indent + 2)}`)
+      .join(',\n')}\n${pad}}`;
+  }
+  return 'None';
 }
 
 function findNamespace(program: Program, name: string): Namespace | undefined {

@@ -1186,10 +1186,10 @@ HITL_CAPABILITY_GUARDS = [
     "tier": "native",
     "requireApprovalSurface": "beforeShellExecution and beforeSubmitPrompt",
     "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
-    "nativeSurface": "Cursor notification with deny/continue:False hook output",
+    "nativeSurface": "Cursor notification with deny/continue:false hook output",
     "fallbackSurface": "Core polling plus MCP/CLI approval tools",
     "guardTest": "tests/contract/cursor-hook-contract.test.ts#cursor-permission require_approval (poll timed out) -> deny (ask is silently no-op in Cursor; deny is the only working gate)",
-    "failClosedBehavior": "Cursor returns deny or continue:False when approval remains pending."
+    "failClosedBehavior": "Cursor returns deny or continue:false when approval remains pending."
   },
   {
     "provider": "claude-code",
@@ -1250,6 +1250,80 @@ HITL_CAPABILITY_GUARDS = [
     "fallbackSurface": "Core polling plus MCP/CLI approval tools",
     "guardTest": "tests/unit/govern-invariants.test.ts#n8n pre-execute approvals keep source attribution through Core polling",
     "failClosedBehavior": "n8n pre-execute gates poll Core and preserve n8n source attribution."
+  }
+]
+GUARDRAIL_CAPABILITY_GUARDS = [
+  {
+    "provider": "codex",
+    "tier": "native",
+    "governedSurfaces": "UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse",
+    "coreContract": "Codex hook payloads are sent to OpenBox Core guardrails before continuation and returned verdicts are projected into Codex hook decisions.",
+    "redactionBehavior": "Prompt redaction that Codex cannot safely replace blocks; supported tool/output redaction is returned through the host output shape.",
+    "failClosedBehavior": "Unsupported or failed redaction blocks or denies continuation instead of allowing the original payload through.",
+    "guardTest": "tests/unit/codex-runtime.test.ts#fails closed when submitted prompt redaction cannot be applied by Codex"
+  },
+  {
+    "provider": "cursor",
+    "tier": "native",
+    "governedSurfaces": "beforeSubmitPrompt, beforeShellExecution, beforeReadFile, beforeMCPExecution, assistant output hooks",
+    "coreContract": "Cursor hook payloads and spans are sent to OpenBox Core guardrails; hook decisions enforce the returned verdict.",
+    "redactionBehavior": "Prompt and tool input redaction must arrive as a host-compatible replacement, otherwise Cursor returns deny or continue:false.",
+    "failClosedBehavior": "Field-only or unsupported redaction fails closed with deny/continue:false instead of passing the unredacted action.",
+    "guardTest": "tests/unit/runtime-adapters.test.ts#cursor-continue prompt field-only redaction fails closed"
+  },
+  {
+    "provider": "claude-code",
+    "tier": "native",
+    "governedSurfaces": "UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse",
+    "coreContract": "Claude Code hook activities send prompt/tool/output payloads to OpenBox Core guardrails and enforce the returned verdict.",
+    "redactionBehavior": "Decision-block prompt redaction requires a host-compatible replacement; unsupported redaction becomes a block.",
+    "failClosedBehavior": "Unsupported guardrail transforms block the Claude Code decision surface before unsafe continuation.",
+    "guardTest": "tests/unit/runtime-adapters.test.ts#decision-block prompt constrain with redaction fails closed"
+  },
+  {
+    "provider": "mcp",
+    "tier": "native",
+    "governedSurfaces": "check_governance tool plus guardrail review resources/prompts",
+    "coreContract": "check_governance sends caller-provided spans and activity payloads to OpenBox Core guardrails and returns the Core verdict.",
+    "redactionBehavior": "MCP exposes Core redaction fields in the verdict and does not mutate or reinterpret guardrail results locally.",
+    "failClosedBehavior": "MCP callers halt on block, halt, failed guardrails, or require_approval until Core returns a safe terminal decision.",
+    "guardTest": "tests/unit/mcp-server-coverage.test.ts#check_governance still emits the hook span when the parent verdict blocks"
+  },
+  {
+    "provider": "openai-agents-sdk",
+    "tier": "native",
+    "governedSurfaces": "input, output, tool input, and tool output guardrail helpers",
+    "coreContract": "OpenAI Agents SDK guardrail helpers send native guardrail payloads to OpenBox Core and project Core verdicts into native guardrail outcomes.",
+    "redactionBehavior": "Tool input/output redaction must provide a replacement payload that the SDK helper can return; field-only replacements are rejected.",
+    "failClosedBehavior": "Unsupported redaction throws or trips the guardrail instead of executing the original tool payload.",
+    "guardTest": "tests/unit/openai-agents-sdk.test.ts#fails closed when constrained tool input has field-only redaction"
+  },
+  {
+    "provider": "anthropic-agent-sdk",
+    "tier": "native",
+    "governedSurfaces": "UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, Elicitation",
+    "coreContract": "Anthropic Agent SDK hook payloads and message observations are sent to OpenBox Core guardrails; Core verdicts drive hook outcomes.",
+    "redactionBehavior": "Prompt/tool redaction must be represented as updated prompt/tool output when supported; field-only prompt redaction blocks.",
+    "failClosedBehavior": "Unsupported redaction blocks or denies the Anthropic Agent SDK hook surface before unsafe continuation.",
+    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#fails closed on field-only prompt redaction without replacement input"
+  },
+  {
+    "provider": "copilotkit",
+    "tier": "native",
+    "governedSurfaces": "prompt gates, tool gates, output gates, AG-UI interrupt/HITL flow",
+    "coreContract": "CopilotKit adapters send prompt/tool/output activities to OpenBox Core guardrails and map Core verdicts into runtime and interruption results.",
+    "redactionBehavior": "Output transforms use Core-provided redacted content without legacy placeholders; failed guardrails interrupt or block execution.",
+    "failClosedBehavior": "Failed guardrails or unsupported transforms fail closed by skipping execution, interrupting, or returning blocked results.",
+    "guardTest": "tests/unit/copilotkit-adapter.test.ts#treats Core output guardrail transforms as constrained without legacy placeholders"
+  },
+  {
+    "provider": "n8n",
+    "tier": "native",
+    "governedSurfaces": "emitN8nNodePreExecute, emitN8nNodePostExecute, emitN8nLlmCompletion, OpenBox Guardrails node descriptor",
+    "coreContract": "n8n helper payloads and node/LLM spans are sent to OpenBox Core guardrails; n8n nodes/templates enforce the returned verdict.",
+    "redactionBehavior": "Core redacted input/output is preserved on the WorkflowVerdict while source-attributed n8n payloads remain available for audit.",
+    "failClosedBehavior": "n8n pre/post helpers block, halt, or require approval from Core instead of continuing after failed guardrails.",
+    "guardTest": "tests/unit/govern-invariants.test.ts#n8n pre-execute guardrail constraints keep redaction and source attribution"
   }
 ]
 POLICY_EVALUATION_GUARDS = [
