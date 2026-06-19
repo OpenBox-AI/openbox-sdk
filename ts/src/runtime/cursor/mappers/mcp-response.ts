@@ -102,6 +102,7 @@ export async function handleAfterMCPExecution(
     toolType: 'mcp',
     spans: [
       buildSpan('cursor', 'mcp', {
+        stage: 'completed',
         tool_name: toolName,
         tool_input: env.tool_input,
         tool_output: payload.tool_output,

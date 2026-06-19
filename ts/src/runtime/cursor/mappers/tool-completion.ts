@@ -178,7 +178,7 @@ export async function handlePostToolUse(
     llmModel: env.model,
     toolName: env.tool_name,
     toolType,
-    spans: [buildSpan('cursor', toolType, spanInput(env))],
+    spans: [buildSpan('cursor', toolType, { ...spanInput(env), stage: 'completed' })],
   });
   return undefined;
 }
@@ -207,7 +207,7 @@ export async function handlePostToolUseFailure(
     toolName: env.tool_name,
     toolType,
     finishReason: stringFrom(env.failure_type) ?? 'failed',
-    spans: [buildSpan('cursor', toolType, spanInput(env))],
+    spans: [buildSpan('cursor', toolType, { ...spanInput(env), stage: 'completed' })],
   });
   return undefined;
 }

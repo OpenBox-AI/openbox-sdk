@@ -428,7 +428,7 @@ async function handlePostToolUse(
     output: toolOutput,
     durationMs: numberFrom(env.duration_ms),
     ...toolTelemetryFields(toolName, toolInput),
-    spans: toolSpan(toolName, toolInput, toolOutput),
+    spans: toolSpan(toolName, toolInput, toolOutput, 'completed'),
   };
   const verdict =
     (await deps.manager.completeToolActivity(
@@ -457,7 +457,7 @@ async function handlePostToolUseFailure(
     output: compactPayload(env, 'tool_failure'),
     durationMs: numberFrom(env.duration_ms),
     ...toolTelemetryFields(toolName, toolInput),
-    spans: toolSpan(toolName, toolInput, env.error),
+    spans: toolSpan(toolName, toolInput, env.error, 'completed'),
   };
   const verdict =
     (await deps.manager.completeToolActivity(

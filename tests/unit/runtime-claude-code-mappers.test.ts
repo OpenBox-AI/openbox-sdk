@@ -187,6 +187,10 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     expect(completed?.args[2].input).toContainEqual({
       __openbox: { tool_type: 'shell' },
     });
+    expect(completed?.args[2].spans?.[0]).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'internal',
+    });
   });
 
   it('session-start workflowStarted + START activity', async () => {

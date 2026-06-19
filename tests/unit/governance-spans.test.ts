@@ -417,6 +417,18 @@ describe('LLM completion spans', () => {
     });
   });
 
+  test('completed operation spans carry completed phase timestamps', () => {
+    const span = buildSpan('cursor', 'shell', {
+      stage: 'completed',
+      tool_name: 'Shell',
+      command: 'npm test',
+    });
+
+    expect(span.stage).toBe('completed');
+    expect(typeof span.end_time).toBe('number');
+    expect(span.duration_ns).toBe(0);
+  });
+
   test('activity metadata matches LangGraph __openbox marker shape', () => {
     expect(openBoxActivityMetadata({ toolType: ' file_read ' })).toEqual({
       __openbox: { tool_type: 'file_read' },

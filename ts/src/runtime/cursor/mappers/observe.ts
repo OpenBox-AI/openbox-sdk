@@ -329,6 +329,7 @@ export async function handleAfterShellExecution(
     toolType: 'shell',
     spans: [
       buildSpan('cursor', 'shell', {
+        stage: 'completed',
         command,
         cwd: env.cwd,
         tool_name: 'Shell',
@@ -384,6 +385,7 @@ export async function handleAfterFileEdit(
     toolType: 'file_write',
     spans: [
       buildSpan('cursor', 'file_write', {
+        stage: 'completed',
         file_path: filePath,
         tool_name: 'FileEdit',
         tool_input: { edits: payload.edits },

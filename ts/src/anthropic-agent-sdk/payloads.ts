@@ -68,11 +68,13 @@ export function toolSpan(
   toolName: string,
   toolInput: Record<string, unknown>,
   toolOutput?: unknown,
+  stage: 'started' | 'completed' = 'started',
 ): SpanData[] | undefined {
   const spanType = spanTypeFor(toolName, toolInput);
   if (!spanType) return undefined;
   return [
     buildSpan('anthropic-agent-sdk', spanType, {
+      stage,
       file_path: filePathFor(toolInput),
       command: stringFrom(toolInput.command),
       cwd: stringFrom(toolInput.cwd),

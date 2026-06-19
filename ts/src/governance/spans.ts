@@ -36,17 +36,18 @@ interface SpanBase {
   error: null;
 }
 
-function base(): SpanBase {
+function base(stage: 'started' | 'completed' = 'started'): SpanBase {
+  const now = Date.now() * 1_000_000;
   return {
     span_id: hex(16),
     trace_id: hex(32),
     parent_span_id: null,
     kind: 'CLIENT',
     span_type: 'function',
-    stage: 'started',
-    start_time: Date.now() * 1_000_000,
-    end_time: null,
-    duration_ns: null,
+    stage,
+    start_time: now,
+    end_time: stage === 'completed' ? now : null,
+    duration_ns: stage === 'completed' ? 0 : null,
     status: { code: 'OK', description: null },
     events: [],
     error: null,
@@ -64,6 +65,7 @@ export type SpanType =
   | 'db';
 
 export interface SpanInput {
+  stage?: 'started' | 'completed';
   prompt?: string;
   response?: string;
   model?: string;
@@ -594,7 +596,7 @@ export function buildSpan(
   type: SpanType,
   input: SpanInput,
 ): Record<string, unknown> {
-  const b = base();
+  const b = base(input.stage);
   switch (type) {
     case 'llm':
       // The LLM classifier requires `http.method` of POST and an

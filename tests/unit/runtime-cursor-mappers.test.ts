@@ -286,6 +286,7 @@ describe('runtime/cursor/mappers; drive every handler', () => {
       server_name: 'fs',
       tool_name: 'read_file',
       tool_input: { path: '/tmp/x' },
+      result_json: { content: [{ type: 'text', text: 'data' }] },
       response: { content: [{ type: 'text', text: 'data' }] },
     } as any;
     if (typeof mcp.handleBeforeMCPExecution === 'function') await mcp.handleBeforeMCPExecution(env, session, cfg);
@@ -295,6 +296,16 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     );
     expect(mcpGate?.args[1].input).toContainEqual({
       __openbox: { tool_type: 'mcp' },
+    });
+    const mcpCompleted = session.calls.find(
+      (call: any) =>
+        call.method === 'activity' &&
+        call.args[0] === 'ActivityCompleted' &&
+        call.args[1] === 'MCPToolCall',
+    );
+    expect(mcpCompleted?.args[2].spans?.[0]).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'mcp_tool_call',
     });
   });
 });

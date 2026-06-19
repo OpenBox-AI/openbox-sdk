@@ -87,6 +87,7 @@ export async function handlePostToolUse(
   const spans = effectiveSpanType
     ? [
         buildSpan('claude-code', effectiveSpanType, {
+          stage: 'completed',
           file_path: (toolInput.file_path ?? toolInput.filePath ?? toolInput.path ?? toolInput.notebook_path) as string | undefined,
           command: toolInput.command as string | undefined,
           cwd: toolInput.cwd as string | undefined,
@@ -139,6 +140,7 @@ export async function handlePostToolUseFailure(
   const spans = effectiveSpanType
     ? [
         buildSpan('claude-code', effectiveSpanType, {
+          stage: 'completed',
           file_path: filePath || undefined,
           command: toolInput.command as string | undefined,
           cwd: toolInput.cwd as string | undefined,

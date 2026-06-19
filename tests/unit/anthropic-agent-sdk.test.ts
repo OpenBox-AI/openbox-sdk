@@ -636,6 +636,16 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(completed?.activity_input).toContainEqual({
       __openbox: { tool_type: 'shell' },
     });
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'ShellExecution' &&
+        event.hook_trigger === true,
+    );
+    expect(completedHook?.spans?.[0]).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'internal',
+    });
   });
 
   it('marks Agent/Task and subagent hooks as a2a activity metadata', async () => {
