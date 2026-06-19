@@ -51,6 +51,15 @@ function errorDescription(value: unknown): string | undefined {
   }
 }
 
+function spanStatusOrDefault(
+  status: unknown,
+  error: string | undefined,
+): { code: string; description?: string | null } {
+  return status && typeof status === 'object' && !Array.isArray(status)
+    ? (status as { code: string; description?: string | null })
+    : { code: error ? 'ERROR' : 'UNSET', description: error ?? null };
+}
+
 function base(
   stage: 'started' | 'completed' = 'started',
   error?: unknown,
@@ -619,7 +628,12 @@ export function buildLLMCompletionSpan(
 ): SpanData {
   const now = Date.now() * 1_000_000;
   const source = input.span ?? {};
-  const sourceRecord = source as SpanData & { durationNs?: unknown };
+  const sourceRecord = source as SpanData & {
+    durationNs?: unknown;
+    error?: unknown;
+    parent_span_id?: string | null;
+  };
+  const spanError = errorDescription(sourceRecord.error);
   const rawStartTime = input.startTime ?? source.start_time;
   const rawEndTime = input.endTime ?? source.end_time;
   const sourceStartTime =
@@ -673,6 +687,7 @@ export function buildLLMCompletionSpan(
     ...source,
     span_id: source.span_id ?? hex(16),
     trace_id: source.trace_id ?? hex(32),
+    parent_span_id: sourceRecord.parent_span_id ?? null,
     name: input.name ?? source.name ?? 'llm.chat.completion',
     kind: input.kind ?? source.kind ?? 'CLIENT',
     start_time: startTime,
@@ -686,6 +701,9 @@ export function buildLLMCompletionSpan(
     span_type: 'function',
     stage: 'completed',
     semantic_type: 'llm_completion',
+    status: spanStatusOrDefault(source.status, spanError),
+    events: Array.isArray(source.events) ? source.events : [],
+    error: spanError ?? null,
     attributes: {
       'gen_ai.system': input.system ?? 'openbox-sdk',
       ...(input.model ? { 'gen_ai.request.model': input.model } : {}),

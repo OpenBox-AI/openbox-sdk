@@ -69,6 +69,7 @@ describe('LLM completion spans', () => {
     expect(span).toMatchObject({
       span_id: 'span-1',
       trace_id: 'trace-1',
+      parent_span_id: null,
       name: 'openbox.copilotkit.assistant_output',
       kind: 'llm',
       start_time: 100_000_000,
@@ -76,6 +77,9 @@ describe('LLM completion spans', () => {
       duration_ns: 100,
       stage: 'completed',
       semantic_type: 'llm_completion',
+      status: { code: 'UNSET', description: null },
+      events: [],
+      error: null,
       attributes: {
         'gen_ai.system': 'openbox-sdk',
         'http.method': 'POST',
@@ -87,6 +91,43 @@ describe('LLM completion spans', () => {
     expect(extractAssistantContentLikeCore([span])).toBe(
       'The queue has two governed requests ready.',
     );
+  });
+
+  test('preserves source LLM span status, events, parent id, and error root fields', () => {
+    const span = buildLLMCompletionSpan({
+      content: 'failed',
+      span: {
+        span_id: 'span-1',
+        trace_id: 'trace-1',
+        parent_span_id: 'parent-1',
+        name: 'source',
+        start_time: 1,
+        end_time: 2,
+        duration_ns: 1,
+        status: { code: 'ERROR', description: 'model failed' },
+        events: [
+          {
+            name: 'exception',
+            timestamp: 2,
+            attributes: { message: 'model failed' },
+          },
+        ],
+        error: 'model failed',
+      } as SpanData & { error: string },
+    });
+
+    expect(span).toMatchObject({
+      parent_span_id: 'parent-1',
+      status: { code: 'ERROR', description: 'model failed' },
+      events: [
+        {
+          name: 'exception',
+          timestamp: 2,
+          attributes: { message: 'model failed' },
+        },
+      ],
+      error: 'model failed',
+    });
   });
 
   test('includes Core model-usage fields when provider metadata is present', () => {
