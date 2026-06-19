@@ -86,25 +86,20 @@ class OpenBoxLangGraphMiddleware:
     ) -> T:
         activity_id = _request_id(request)
         activity_type = _request_name(request, "ToolCall")
-        started = await self.start_activity(
+        opened = await self.session.open_activity(
             activity_type,
-            {"input": [_plain_request(request)]},
-            activity_id=activity_id,
+            {"activity_id": activity_id, "input": [_plain_request(request)]},
         )
-        self._enforce_verdict(started)
+        self._enforce_verdict(opened.verdict)
         try:
             result = await _maybe_await(handler(request))
         except BaseException as exc:
-            await self.complete_activity(
-                activity_type,
+            await opened.complete(
                 {"input": [_plain_request(request)], "output": {"error": str(exc)}},
-                activity_id=activity_id,
             )
             raise
-        completed = await self.complete_activity(
-            activity_type,
+        completed = await opened.complete(
             {"input": [_plain_request(request)], "output": result},
-            activity_id=activity_id,
         )
         self._enforce_verdict(completed)
         return result
@@ -115,17 +110,15 @@ class OpenBoxLangGraphMiddleware:
         handler: Callable[[Any], Awaitable[T] | T],
     ) -> T:
         activity_id = _request_id(request)
-        started = await self.start_activity(
+        opened = await self.session.open_activity(
             "on_chat_model_start",
-            {"input": [_plain_request(request)]},
-            activity_id=activity_id,
+            {"activity_id": activity_id, "input": [_plain_request(request)]},
         )
-        self._enforce_verdict(started)
+        self._enforce_verdict(opened.verdict)
         result = await _maybe_await(handler(request))
-        completed = await self.complete_activity(
-            "on_chat_model_end",
+        completed = await opened.complete(
             {"input": [_plain_request(request)], "output": result},
-            activity_id=activity_id,
+            "on_chat_model_end",
         )
         self._enforce_verdict(completed)
         return result
@@ -134,7 +127,7 @@ class OpenBoxLangGraphMiddleware:
         if not self.strict:
             return
         arm = verdict.get("arm")
-        if arm in {"block", "halt"}:
+        if arm in {"block", "halt", "require_approval"}:
             raise RuntimeError(str(verdict.get("reason") or f"OpenBox governance {arm}"))
 
 
