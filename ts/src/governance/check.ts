@@ -109,7 +109,7 @@ export async function checkGovernance(
   const coreUrl = resolveCoreUrl(opts.coreUrl);
   const span = buildSpan('sdk', opts.spanType, opts.activityInput as SpanInput);
   const payload = {
-    source: 'sdk',
+    source: 'workflow-telemetry',
     event_type: 'ActivityStarted',
     workflow_id: hex(32),
     run_id: hex(32),

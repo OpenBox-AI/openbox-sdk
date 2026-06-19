@@ -65,7 +65,7 @@ describe('governance/check', () => {
       { apiUrl: 'https://core.dev.test/ob', apiKey: runtimeKey('test') },
     ]);
     expect(state.payloads[0]).toMatchObject({
-      source: 'sdk',
+      source: 'workflow-telemetry',
       event_type: 'ActivityStarted',
       activity_type: 'FileEdit',
       activity_input: [{ file_path: '/tmp/a.txt', content: 'x' }],
@@ -74,7 +74,7 @@ describe('governance/check', () => {
     expect(state.payloads[0].spans).toBeUndefined();
     expect(state.payloads[0].span_count).toBeUndefined();
     expect(state.payloads[1]).toMatchObject({
-      source: 'sdk',
+      source: 'workflow-telemetry',
       event_type: 'ActivityStarted',
       activity_type: 'FileEdit',
       activity_input: [{ file_path: '/tmp/a.txt', content: 'x' }],
