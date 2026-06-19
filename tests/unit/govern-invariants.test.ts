@@ -1223,6 +1223,151 @@ describe('BaseGovernedSession.activity (cross-preset escape)', () => {
       ),
     ).toHaveLength(0);
   });
+
+  test('openActivity polls remote approval before returning an allowed split-stage verdict', async () => {
+    const expiresAt = new Date(Date.now() + 500).toISOString();
+    const mock = createMockCore('allow');
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      if (payload.event_type === 'ActivityStarted') {
+        return {
+          governance_event_id: 'evt_open_activity_approval',
+          verdict: 'require_approval',
+          action: 'require_approval',
+          approval_id: 'approval-open-activity',
+          approval_expiration_time: expiresAt,
+          risk_score: 0,
+        } as GovernanceVerdictResponse;
+      }
+      return {
+        governance_event_id: 'evt_test',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+      } as GovernanceVerdictResponse;
+    });
+    mock.pollApproval = vi.fn(async () => ({
+      id: 'approval-open-activity',
+      action: 'allow',
+      approval_expiration_time: expiresAt,
+      reason: 'approved split-stage start',
+    }));
+    const pending = vi.fn();
+    const resolved = vi.fn();
+
+    await govern(
+      {
+        ...baseConfig(mock),
+        preset: presets.langchain,
+        approvalPollIntervalMs: 1,
+        approvalPollBackoffFactor: 1,
+        approvalPollJitter: 0,
+        onPendingApproval: pending,
+        onApprovalResolved: resolved,
+      },
+      async (session) => {
+        const opened = await session.openActivity('on_tool_start', {
+          activityId: 'tool-approval-1',
+          startTime: 1_000,
+          input: [{ tool: 'crm_lookup' }],
+        });
+        expect(opened.activityId).toBe('tool-approval-1');
+        expect(opened.verdict.arm).toBe('allow');
+        expect(opened.verdict.reason).toBe('approved split-stage start');
+        await opened.complete({ output: { rows: 3 }, endTime: 1_250 }, 'on_tool_end');
+      },
+    );
+
+    expect(mock.pollApproval).toHaveBeenCalledWith({
+      workflow_id: mock.events[0]?.workflow_id,
+      run_id: mock.events[0]?.run_id,
+      activity_id: 'tool-approval-1',
+    });
+    expect(pending).toHaveBeenCalledWith(expect.objectContaining({
+      approvalId: 'approval-open-activity',
+      governanceEventId: 'evt_open_activity_approval',
+      activityId: 'tool-approval-1',
+      activityType: 'on_tool_start',
+      expiresAt,
+    }));
+    expect(resolved).toHaveBeenCalledWith(expect.objectContaining({
+      approvalId: 'approval-open-activity',
+      activityId: 'tool-approval-1',
+      activityType: 'on_tool_start',
+      arm: 'allow',
+    }));
+    const completed = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'on_tool_end',
+    );
+    expect(completed?.activity_id).toBe('tool-approval-1');
+    expect(completed?.start_time).toBe(1_000);
+    expect(completed?.end_time).toBe(1_250);
+    expect(completed?.duration_ms).toBe(250);
+  });
+
+  test('openActivity leaves inline approval pending for host-native dialogs', async () => {
+    const expiresAt = new Date(Date.now() + 500).toISOString();
+    const mock = createMockCore('allow');
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      if (payload.event_type === 'ActivityStarted') {
+        return {
+          governance_event_id: 'evt_inline_open_activity',
+          verdict: 'require_approval',
+          action: 'require_approval',
+          approval_id: 'approval-inline-open-activity',
+          approval_expiration_time: expiresAt,
+          risk_score: 0,
+        } as GovernanceVerdictResponse;
+      }
+      return {
+        governance_event_id: 'evt_test',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+      } as GovernanceVerdictResponse;
+    });
+    const pending = vi.fn();
+    const resolved = vi.fn();
+
+    await govern(
+      {
+        ...baseConfig(mock),
+        preset: presets.langchain,
+        inlineApproval: true,
+        approvalPollIntervalMs: 1,
+        onPendingApproval: pending,
+        onApprovalResolved: resolved,
+      },
+      async (session) => {
+        const opened = await session.openActivity('on_tool_start', {
+          activityId: 'tool-inline-approval-1',
+          input: [{ tool: 'crm_lookup' }],
+        });
+        expect(opened.activityId).toBe('tool-inline-approval-1');
+        expect(opened.verdict.arm).toBe('require_approval');
+      },
+    );
+
+    expect(mock.pollApproval).not.toHaveBeenCalled();
+    expect(pending).toHaveBeenCalledWith(expect.objectContaining({
+      approvalId: 'approval-inline-open-activity',
+      governanceEventId: 'evt_inline_open_activity',
+      activityId: 'tool-inline-approval-1',
+      activityType: 'on_tool_start',
+      expiresAt,
+    }));
+    expect(resolved).not.toHaveBeenCalled();
+    expect(
+      mock.events.filter(
+        (event) =>
+          event.event_type === 'ActivityCompleted' &&
+          event.activity_type === 'on_tool_start',
+      ),
+    ).toHaveLength(0);
+  });
 });
 
 describe('CustomSession (free-form activity)', () => {

@@ -1475,9 +1475,11 @@ export class BaseGovernedSession {
    * the input gate and the output gate (e.g. governed tools that gate the
    * produced artifact). Emits ActivityStarted and returns the gate verdict
    * plus a `complete()` bound to the same activity id, so the pair cannot
-   * drift apart. Stopped starts (block/halt) and pending approvals are
-   * canonically left unpaired; the caller resolves them via the workflow
-   * terminal or approval resume (ActivityCompleted with this activity id).
+   * drift apart. Stopped starts (block/halt) are canonically left
+   * unpaired. Remote approvals are resolved before returning so the
+   * caller only runs business logic after an allow/block/halt decision;
+   * inline/defer approvals still return `require_approval` for the host
+   * native dialog path.
    */
   async openActivity(
     activityType: string,
@@ -1497,7 +1499,7 @@ export class BaseGovernedSession {
     this.activityStartsMs.set(activityId, startTime);
     this.inFlight.add(activityId);
     try {
-      const verdict = await this.emitWithSpanHook({
+      let verdict = await this.emitWithSpanHook({
         event_type: 'ActivityStarted',
         activity_id: activityId,
         activity_type: activityType,
@@ -1507,6 +1509,35 @@ export class BaseGovernedSession {
         ...telemetryEventFields(payload),
       });
       verdict.activityId = activityId;
+      if (verdict.arm === 'require_approval') {
+        const approvalId = verdict.approvalId ?? activityId;
+        if (this.onPendingApproval) {
+          try {
+            await this.onPendingApproval({
+              approvalId,
+              governanceEventId: verdict.governanceEventId,
+              activityId,
+              activityType,
+              expiresAt: verdict.approvalExpiresAt,
+              reason: verdict.reason,
+            });
+          } catch { /* observability hook; never blocks */ }
+        }
+        if (!this.inlineApproval) {
+          verdict = await this.pollApproval(activityId, activityType, verdict);
+          verdict.activityId = activityId;
+          if (this.onApprovalResolved) {
+            try {
+              await this.onApprovalResolved({
+                approvalId,
+                activityId,
+                activityType,
+                arm: verdict.arm,
+              });
+            } catch { /* observability hook */ }
+          }
+        }
+      }
       if (verdict.arm !== 'allow' && verdict.arm !== 'constrain') {
         this.activityStartsMs.delete(activityId);
       }
