@@ -122,6 +122,16 @@ export interface PolicyEvaluationGuardEntry {
   guardTest: string;
 }
 
+export interface InstallDoctorCapabilityGuardEntry {
+  provider: OpenBoxProviderId;
+  tier: OpenBoxSupportTier;
+  installSurface: string;
+  doctorSurface: string;
+  scopeBoundary: string;
+  generatedOrPackagedSurface: string;
+  guardTest: string;
+}
+
 export interface McpToolSurfaceEntry {
   name: string;
   title: string;
@@ -1670,6 +1680,80 @@ export const POLICY_EVALUATION_GUARDS = [
     "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
   }
 ] as const satisfies readonly PolicyEvaluationGuardEntry[];
+export const INSTALL_DOCTOR_CAPABILITY_GUARDS = [
+  {
+    "provider": "codex",
+    "tier": "native",
+    "installSurface": "openbox install codex, Codex plugin export/install, repo skill install, and trusted MCP config install",
+    "doctorSurface": "verifyCodexInstall, verifyCodexPlugin, and codex_doctor MCP tool",
+    "scopeBoundary": "project-local only; no global or user-level host config mutation",
+    "generatedOrPackagedSurface": ".codex-plugin/plugin.json, hooks/hooks.json, .mcp.json, AGENTS.md, .codex/config.toml, .agents/skills/openbox, and plugin skills/openbox",
+    "guardTest": "tests/unit/codex-install-spec.test.ts#exports and installs Codex plugin, repo skill, and marketplace surfaces"
+  },
+  {
+    "provider": "cursor",
+    "tier": "native",
+    "installSurface": "Cursor plugin mode plus cloud-compatible repo mode",
+    "doctorSurface": "verifyCursorPlugin, verifyCursorRepoMode, verifyCursorInstall, and cursor_doctor MCP tool",
+    "scopeBoundary": "project-local plugin or repo files only; no user-level Cursor writes",
+    "generatedOrPackagedSurface": ".cursor-plugin/plugin.json, workspaceOpen.json, hooks/hooks.json, mcp.json, .cursor/hooks.json, .cursor/mcp.json, .cursor/rules/openbox-governance.mdc, and .agents/skills/openbox",
+    "guardTest": "tests/unit/cursor-plugin.test.ts#installs and uninstalls cloud-compatible repo mode files"
+  },
+  {
+    "provider": "claude-code",
+    "tier": "native",
+    "installSurface": "Claude Code plugin export/install through project scope",
+    "doctorSurface": "verifyClaudeCodeInstall, verifyClaudeCodePlugin, openbox-plugin-doctor, and claude_code_doctor MCP tool",
+    "scopeBoundary": "project-local plugin target and runtime config only; monitors opt-in and LSP out-of-scope",
+    "generatedOrPackagedSurface": ".claude-plugin/plugin.json, hooks/hooks.json, .mcp.json, commands, agents, skills/openbox, diagnostics, and bin/openbox-plugin-doctor",
+    "guardTest": "tests/hook-integration/claude-code-install.test.ts#claude-code plugin install --scope project writes a complete native plugin folder"
+  },
+  {
+    "provider": "mcp",
+    "tier": "native",
+    "installSurface": "openbox mcp serve over stdio or Streamable HTTP plus host MCP config entries",
+    "doctorSurface": "openbox_status, codex_doctor, cursor_doctor, and claude_code_doctor MCP tools",
+    "scopeBoundary": "project-local reads and backend readiness diagnostics; MCP tools do not mutate global host config",
+    "generatedOrPackagedSurface": "MCP tool annotations, prompts, resource templates, and doctor tool metadata from TypeSpec",
+    "guardTest": "tests/unit/mcp-server-coverage.test.ts#registers spec-driven MCP tool annotations, prompts, and resource templates"
+  },
+  {
+    "provider": "openai-agents-sdk",
+    "tier": "diagnose-only",
+    "installSurface": "No host install surface; consumers import SDK helpers",
+    "doctorSurface": "public export and configuration diagnostics only",
+    "scopeBoundary": "diagnose-only runtime library checks; no files installed",
+    "generatedOrPackagedSurface": "public integration support exports generated from the capability matrix",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins public SDK integrations to intended support tiers and exports"
+  },
+  {
+    "provider": "anthropic-agent-sdk",
+    "tier": "diagnose-only",
+    "installSurface": "No host install surface; consumers import SDK helpers",
+    "doctorSurface": "public export and runtime configuration diagnostics only",
+    "scopeBoundary": "diagnose-only runtime library checks; no files installed",
+    "generatedOrPackagedSurface": "public integration support exports generated from the capability matrix",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins public SDK integrations to intended support tiers and exports"
+  },
+  {
+    "provider": "copilotkit",
+    "tier": "diagnose-only",
+    "installSurface": "No host install surface; consumers wire runtime adapters and approval routes",
+    "doctorSurface": "runtime readiness and approval route diagnostics only",
+    "scopeBoundary": "diagnose-only application wiring checks; no host plugin files installed",
+    "generatedOrPackagedSurface": "public integration support exports generated from the capability matrix",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins public SDK integrations to intended support tiers and exports"
+  },
+  {
+    "provider": "n8n",
+    "tier": "diagnose-only",
+    "installSurface": "Operator-owned n8n package installation; OpenBox ships descriptors and templates",
+    "doctorSurface": "packaged descriptor and workflow template inspection only",
+    "scopeBoundary": "diagnose-only and operator-owned installation boundary; OpenBox does not mutate n8n instances",
+    "generatedOrPackagedSurface": "OpenBox credentials, Governance node, Guardrails node, Approval/HITL node, governed AI Agent template, and MCP examples",
+    "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
+  }
+] as const satisfies readonly InstallDoctorCapabilityGuardEntry[];
 export const MCP_TOOL_SURFACES = [
   {
     "name": "get_profile",

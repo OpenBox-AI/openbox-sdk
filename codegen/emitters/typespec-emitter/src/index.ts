@@ -1109,6 +1109,7 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     ...arrayOfRecords(matrix.hitlCapabilityGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.guardrailCapabilityGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.policyEvaluationGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.installDoctorCapabilityGuards).map((entry) => String(entry.tier ?? '')),
   ]).filter(Boolean);
 
   out.addStatements([
@@ -1208,6 +1209,16 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  guardTest: string;`,
     `}`,
     '',
+    `export interface InstallDoctorCapabilityGuardEntry {`,
+    `  provider: OpenBoxProviderId;`,
+    `  tier: OpenBoxSupportTier;`,
+    `  installSurface: string;`,
+    `  doctorSurface: string;`,
+    `  scopeBoundary: string;`,
+    `  generatedOrPackagedSurface: string;`,
+    `  guardTest: string;`,
+    `}`,
+    '',
     `export interface McpToolSurfaceEntry {`,
     `  name: string;`,
     `  title: string;`,
@@ -1262,6 +1273,8 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `export const GUARDRAIL_CAPABILITY_GUARDS = ${literalTs(matrix.guardrailCapabilityGuards)} as const satisfies readonly GuardrailCapabilityGuardEntry[];`,
     '',
     `export const POLICY_EVALUATION_GUARDS = ${literalTs(matrix.policyEvaluationGuards)} as const satisfies readonly PolicyEvaluationGuardEntry[];`,
+    '',
+    `export const INSTALL_DOCTOR_CAPABILITY_GUARDS = ${literalTs(matrix.installDoctorCapabilityGuards)} as const satisfies readonly InstallDoctorCapabilityGuardEntry[];`,
     '',
     `export const MCP_TOOL_SURFACES = ${literalTs(matrix.mcpTools)} as const satisfies readonly McpToolSurfaceEntry[];`,
     '',
