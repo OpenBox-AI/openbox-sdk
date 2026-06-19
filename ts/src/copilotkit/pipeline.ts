@@ -13,6 +13,7 @@ import {
 } from '../governance/assistant-output.js';
 import {
   errorMessage,
+  nowUnixNano,
   sameJson,
   swallow,
 } from './internal-utils.js';
@@ -597,7 +598,7 @@ function toolCallSpan(
   activityType: string,
   payload: unknown,
 ): SpanData {
-  const now = Date.now();
+  const now = nowUnixNano();
   const stage = kind === 'tool_input' ? 'started' : 'completed';
   const toolName = activityType || 'call';
   return {
@@ -631,7 +632,7 @@ function pipelineSpan(
   activityType: string,
   payload: unknown,
 ): SpanData {
-  const now = Date.now();
+  const now = nowUnixNano();
   const span = {
     span_id: randomBytes(8).toString('hex'),
     trace_id: randomBytes(16).toString('hex'),

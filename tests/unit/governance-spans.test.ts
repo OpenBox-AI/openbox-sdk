@@ -90,6 +90,7 @@ describe('LLM completion spans', () => {
   });
 
   test('includes Core model-usage fields when provider metadata is present', () => {
+    const beforeNs = Date.now() * 1_000_000;
     const span = buildLLMCompletionSpan({
       content: 'The governed request is ready.',
       model: 'gpt-4o-mini',
@@ -98,6 +99,12 @@ describe('LLM completion spans', () => {
         completionTokens: 35,
       },
     });
+    const afterNs = Date.now() * 1_000_000;
+
+    expect(Number(span.start_time)).toBeGreaterThanOrEqual(beforeNs - 1_000_000);
+    expect(Number(span.start_time)).toBeLessThanOrEqual(afterNs + 1_000_000);
+    expect(Number(span.end_time)).toBeGreaterThanOrEqual(beforeNs - 1_000_000);
+    expect(Number(span.end_time)).toBeLessThanOrEqual(afterNs + 1_000_000);
 
     expect(JSON.parse(String(span.response_body))).toEqual({
       choices: [
@@ -328,6 +335,19 @@ describe('LLM completion spans', () => {
       'openbox.model.id': 'claude-opus-4-8',
       'openbox.model.provider': 'anthropic',
     });
+  });
+
+  test('normalizes Date.now-style explicit LLM span timestamps to nanoseconds', () => {
+    const span = buildLLMCompletionSpan({
+      content: 'done',
+      startTime: 1_700_000_000_000,
+      endTime: 1_700_000_000_125,
+      durationNs: 125_000_000,
+    });
+
+    expect(span.start_time).toBe(1_700_000_000_000_000_000);
+    expect(span.end_time).toBe(1_700_000_000_125_000_000);
+    expect(span.duration_ns).toBe(125_000_000);
   });
 
   test('default classifier URL does not create a provider alias by itself', () => {

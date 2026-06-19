@@ -186,6 +186,16 @@ function toPositiveInteger(value: unknown): number | undefined {
   return Math.trunc(numberValue);
 }
 
+function normalizeSpanTimestamp(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isFinite(value)) return undefined;
+  const timestamp = Math.trunc(value);
+  // JavaScript Date.now() values are currently 13 digits. Span timestamps
+  // are Unix nanoseconds in the Python SDK hooks and Core span storage.
+  return timestamp > 0 && timestamp < 100_000_000_000_000
+    ? timestamp * 1_000_000
+    : timestamp;
+}
+
 export function llmTokenUsageFromRecord(value: unknown): LLMTokenUsage | undefined {
   const record = objectRecord(value);
   const promptTokens = toPositiveInteger(
@@ -476,7 +486,7 @@ function buildLLMCompletionRequestBody(metadata: {
 export function buildLLMCompletionSpan(
   input: LLMCompletionSpanInput,
 ): SpanData {
-  const now = Date.now();
+  const now = Date.now() * 1_000_000;
   const source = input.span ?? {};
   const usage = normalizeUsage(input.usage);
   const inputTokens = toPositiveInteger(
@@ -504,8 +514,8 @@ export function buildLLMCompletionSpan(
     trace_id: source.trace_id ?? hex(32),
     name: input.name ?? source.name ?? 'llm.chat.completion',
     kind: input.kind ?? source.kind ?? 'CLIENT',
-    start_time: input.startTime ?? source.start_time ?? now,
-    end_time: input.endTime ?? source.end_time ?? now,
+    start_time: normalizeSpanTimestamp(input.startTime) ?? source.start_time ?? now,
+    end_time: normalizeSpanTimestamp(input.endTime) ?? source.end_time ?? now,
     duration_ns: input.durationNs ?? source.duration_ns ?? 0,
     span_type: 'function',
     stage: 'completed',
