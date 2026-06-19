@@ -30,6 +30,12 @@ from openbox_sdk._govern_runtime import SessionAlreadyTerminatedError, map_verdi
 from openbox_sdk._utils import normalize_api_url, parse_datetime, render_path, retry_backoff_seconds
 from openbox_sdk.generated.backend_client import BACKEND_ENDPOINT_MANIFEST
 from openbox_sdk.generated.capability_matrix import (
+    GOAL_SIGNAL_GUARDS,
+    GUARDRAIL_CAPABILITY_GUARDS,
+    HITL_CAPABILITY_GUARDS,
+    HOOK_CAPABILITY_GUARDS,
+    INSTALL_DOCTOR_CAPABILITY_GUARDS,
+    MCP_CAPABILITY_GUARDS,
     MCP_PROMPT_SURFACES,
     MCP_RESOURCE_TEMPLATE_SURFACES,
     MCP_TOOL_SURFACES,
@@ -37,10 +43,17 @@ from openbox_sdk.generated.capability_matrix import (
     OPENBOX_CAPABILITY_IDS,
     OPENBOX_PROVIDER_IDS,
     OPENBOX_SUPPORT_TIERS,
+    PLUGIN_CAPABILITY_GUARDS,
+    POLICY_EVALUATION_GUARDS,
     PROVIDER_CAPABILITY_MATRIX,
     PROVIDER_EVENT_CATALOG,
     PROVIDER_PLUGIN_COMPONENTS,
     PUBLIC_INTEGRATION_SUPPORT,
+    RULES_INSTRUCTION_CAPABILITY_GUARDS,
+    SKILL_CAPABILITY_GUARDS,
+    SUBAGENTS_AGENTS_CAPABILITY_GUARDS,
+    TRACING_CAPABILITY_GUARDS,
+    USAGE_COST_CAPABILITY_GUARDS,
 )
 from openbox_sdk.generated.core_client import CORE_ENDPOINT_MANIFEST
 from openbox_sdk.generated.govern import PRESET_MANIFEST
@@ -363,6 +376,34 @@ def test_generated_python_matches_typescript_capability_matrix() -> None:
     assert PROVIDER_EVENT_CATALOG == _ts_const(matrix_ts, "PROVIDER_EVENT_CATALOG")
     assert PROVIDER_PLUGIN_COMPONENTS == _ts_const(matrix_ts, "PROVIDER_PLUGIN_COMPONENTS")
     assert PUBLIC_INTEGRATION_SUPPORT == _ts_const(matrix_ts, "PUBLIC_INTEGRATION_SUPPORT")
+    assert GOAL_SIGNAL_GUARDS == _ts_const(matrix_ts, "GOAL_SIGNAL_GUARDS")
+    assert USAGE_COST_CAPABILITY_GUARDS == _ts_const(
+        matrix_ts,
+        "USAGE_COST_CAPABILITY_GUARDS",
+    )
+    assert TRACING_CAPABILITY_GUARDS == _ts_const(matrix_ts, "TRACING_CAPABILITY_GUARDS")
+    assert HITL_CAPABILITY_GUARDS == _ts_const(matrix_ts, "HITL_CAPABILITY_GUARDS")
+    assert GUARDRAIL_CAPABILITY_GUARDS == _ts_const(
+        matrix_ts,
+        "GUARDRAIL_CAPABILITY_GUARDS",
+    )
+    assert POLICY_EVALUATION_GUARDS == _ts_const(matrix_ts, "POLICY_EVALUATION_GUARDS")
+    assert RULES_INSTRUCTION_CAPABILITY_GUARDS == _ts_const(
+        matrix_ts,
+        "RULES_INSTRUCTION_CAPABILITY_GUARDS",
+    )
+    assert HOOK_CAPABILITY_GUARDS == _ts_const(matrix_ts, "HOOK_CAPABILITY_GUARDS")
+    assert SUBAGENTS_AGENTS_CAPABILITY_GUARDS == _ts_const(
+        matrix_ts,
+        "SUBAGENTS_AGENTS_CAPABILITY_GUARDS",
+    )
+    assert PLUGIN_CAPABILITY_GUARDS == _ts_const(matrix_ts, "PLUGIN_CAPABILITY_GUARDS")
+    assert SKILL_CAPABILITY_GUARDS == _ts_const(matrix_ts, "SKILL_CAPABILITY_GUARDS")
+    assert MCP_CAPABILITY_GUARDS == _ts_const(matrix_ts, "MCP_CAPABILITY_GUARDS")
+    assert INSTALL_DOCTOR_CAPABILITY_GUARDS == _ts_const(
+        matrix_ts,
+        "INSTALL_DOCTOR_CAPABILITY_GUARDS",
+    )
     assert MCP_TOOL_SURFACES == _ts_const(matrix_ts, "MCP_TOOL_SURFACES")
     assert MCP_PROMPT_SURFACES == _ts_const(matrix_ts, "MCP_PROMPT_SURFACES")
     assert MCP_RESOURCE_TEMPLATE_SURFACES == _ts_const(
