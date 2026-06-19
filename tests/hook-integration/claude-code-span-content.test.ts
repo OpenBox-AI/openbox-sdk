@@ -116,13 +116,13 @@ describe('buildSpan content per SpanType', () => {
     expect(post.module).toBe('claude-code');
   });
 
-  it('common span shape: span_id + trace_id are 16/32 hex chars, status OK', () => {
+  it('common span shape: span_id + trace_id are 16/32 hex chars, status UNSET', () => {
     const span = buildSpan('claude-code', 'llm', { prompt: 'x' });
     expect(typeof span.span_id).toBe('string');
     expect((span.span_id as string).length).toBe(16);
     expect((span.trace_id as string).length).toBe(32);
     const status = span.status as { code: string };
-    expect(status.code).toBe('OK');
+    expect(status.code).toBe('UNSET');
   });
 });
 

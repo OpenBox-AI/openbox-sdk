@@ -142,7 +142,7 @@ describe('low-branch utility coverage', () => {
       expect(span.name).toBe(name);
       expect(String(span.span_id)).toMatch(/^[0-9a-f]{16}$/);
       expect(String(span.trace_id)).toMatch(/^[0-9a-f]{32}$/);
-      expect(span.status).toEqual({ code: 'OK', description: null });
+      expect(span.status).toEqual({ code: 'UNSET', description: null });
     }
 
     expect(buildMcpGovernanceSpan('http', {}).name).toBe('GET ');

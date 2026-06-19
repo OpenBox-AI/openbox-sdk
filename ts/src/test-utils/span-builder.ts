@@ -117,7 +117,7 @@ function buildSpan(
     start_time: nowNs,
     end_time: null,
     duration_ns: null,
-    status: { code: 'OK', description: null },
+    status: { code: 'UNSET', description: null },
     events: [],
     error: null,
   };

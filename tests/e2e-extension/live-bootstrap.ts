@@ -80,7 +80,7 @@ function span(spanType: SpanType, input: Record<string, unknown>): Record<string
     start_time: Date.now() * 1_000_000,
     end_time: null,
     duration_ns: null,
-    status: { code: 'OK', description: null },
+    status: { code: 'UNSET', description: null },
     events: [],
     error: null,
   };

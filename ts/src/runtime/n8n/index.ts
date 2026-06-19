@@ -166,7 +166,7 @@ function nodeExecutionSpan(input: N8nNodePostExecutePayloadInput) {
     duration_ns: input.durationMs !== undefined
       ? Math.max(0, Math.trunc(input.durationMs * 1_000_000))
       : Math.max(0, endTime - startTime),
-    status: { code: error ? 'ERROR' : 'OK', description: error ?? null },
+    status: { code: error ? 'ERROR' : 'UNSET', description: error ?? null },
     error: error ?? null,
     stage: 'completed',
     semantic_type: 'llm_tool_call',

@@ -67,7 +67,7 @@ function base(
     start_time: now,
     end_time: stage === 'completed' ? now : null,
     duration_ns: stage === 'completed' ? 0 : null,
-    status: { code: description ? 'ERROR' : 'OK', description: description ?? null },
+    status: { code: description ? 'ERROR' : 'UNSET', description: description ?? null },
     events: [],
     error: description ?? null,
   };
