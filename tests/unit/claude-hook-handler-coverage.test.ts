@@ -5,6 +5,7 @@ let coreClientOptions: any;
 let stdinIteratorSpy: any;
 let mockHitlMaxWait = 2;
 let mockApprovalMode: 'remote' | 'inline' | 'defer' = 'remote';
+// Mock-only raw 32-byte Ed25519 key encoded at runtime; not a real credential.
 const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
 
 vi.mock('../../ts/src/cli/env-source.js', () => ({
