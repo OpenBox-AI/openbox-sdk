@@ -188,7 +188,7 @@ export class OpenBoxCoreClient {
         ? payload
         : { ...payload, sdk_version: OPENBOX_SDK_VERSION };
     return this.request('POST', '/api/v1/governance/evaluate', {
-      data: versionedPayload,
+      data: makeGovernancePayloadJsonSafe(versionedPayload),
       retryable: false,
     }) as Promise<GovernanceVerdictResponse>;
   }
@@ -383,6 +383,31 @@ function appendQuery(path: string, params: Record<string, unknown> | undefined):
   const query = search.toString();
   if (!query) return path;
   return `${path}${path.includes('?') ? '&' : '?'}${query}`;
+}
+
+function makeGovernancePayloadJsonSafe(
+  payload: GovernanceEventPayload,
+): GovernanceEventPayload {
+  return JSON.parse(
+    JSON.stringify(payload, governancePayloadReplacer()),
+  ) as GovernanceEventPayload;
+}
+
+function governancePayloadReplacer(): (key: string, value: unknown) => unknown {
+  const seen = new WeakSet<object>();
+  return (_key: string, value: unknown): unknown => {
+    if (typeof value === 'bigint') return value.toString();
+    if (typeof value === 'function' || typeof value === 'symbol') return String(value);
+    if (value instanceof Error) {
+      return value.name ? `${value.name}: ${value.message}` : value.message;
+    }
+    if (!value || typeof value !== 'object') return value;
+    if (seen.has(value)) return '[Circular]';
+    seen.add(value);
+    if (value instanceof Map) return Object.fromEntries(value.entries());
+    if (value instanceof Set) return Array.from(value.values());
+    return value;
+  };
 }
 
 function withClientExpiredApproval<T extends ApprovalStatusResponse>(

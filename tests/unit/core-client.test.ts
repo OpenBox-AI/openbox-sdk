@@ -339,6 +339,42 @@ describe('OpenBoxCoreClient', () => {
         sdk_version: '9.8.7',
       });
     });
+
+    it('sanitizes non-JSON governance payload values before sending', async () => {
+      const client = createClient();
+      fetchMock.mockResolvedValueOnce(
+        mockResponse(200, { verdict: 'ALLOW', action: 'allow' }),
+      );
+      const circular: Record<string, unknown> = {
+        count: 42n,
+        error: new Error('model failed'),
+        labels: new Set(['a', 'b']),
+        metadata: new Map([['k', 'v']]),
+      };
+      circular.self = circular;
+
+      await client.evaluate({
+        event_type: 'ActivityStarted',
+        workflow_id: 'wf-1',
+        run_id: 'run-1',
+        workflow_type: 'unit-test',
+        task_queue: 'langchain',
+        source: 'workflow-telemetry',
+        timestamp: new Date().toISOString(),
+        activity_id: 'act-1',
+        activity_type: 'my-activity',
+        activity_input: [circular],
+      });
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.activity_input[0]).toMatchObject({
+        count: '42',
+        error: 'Error: model failed',
+        labels: ['a', 'b'],
+        metadata: { k: 'v' },
+        self: '[Circular]',
+      });
+    });
   });
 
   describe('pollApproval', () => {
