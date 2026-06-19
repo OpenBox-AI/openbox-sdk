@@ -304,6 +304,7 @@ extern dec hookEventLabel(target: Operation, label: valueof string);
  *     policyEvaluationGuards: #[#{ provider, tier, authority, sdkResponsibility, allowedLocalWork, forbiddenLocalWork, guardTest }, ...],
  *     rulesInstructionCapabilityGuards: #[#{ provider, tier, projectionSurface, sourceOfTruth, allowedProjectionWork, forbiddenLocalWork, hostBoundary, guardTest }, ...],
  *     hookCapabilityGuards: #[#{ provider, tier, hookSurface, eventCoverage, enforcementBoundary, fallbackOrOutOfScope, guardTest }, ...],
+ *     subagentsAgentsCapabilityGuards: #[#{ provider, tier, agentSurface, lifecycleCoverage, ownershipBoundary, guardTest }, ...],
  *     pluginCapabilityGuards: #[#{ provider, tier, packageSurface, componentCoverage, installSurface, scopeBoundary, guardTest }, ...],
  *     skillCapabilityGuards: #[#{ provider, tier, skillSurface, installSurface, discoverySurface, hostBoundary, guardTest }, ...],
  *     mcpCapabilityGuards: #[#{ provider, tier, serverSurface, configSurface, toolResourcePromptCoverage, hostBoundary, guardTest }, ...],

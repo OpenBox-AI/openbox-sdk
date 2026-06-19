@@ -1704,6 +1704,72 @@ HOOK_CAPABILITY_GUARDS = [
     "guardTest": "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans"
   }
 ]
+SUBAGENTS_AGENTS_CAPABILITY_GUARDS = [
+  {
+    "provider": "codex",
+    "tier": "observe-only",
+    "agentSurface": "Codex Agent/Task-style tool calls are observed as tool or a2a metadata when surfaced by Codex spans.",
+    "lifecycleCoverage": "Codex hook events do not expose a dedicated subagent lifecycle; OpenBox records available agent/task spans where present.",
+    "ownershipBoundary": "Observe-only; Codex owns subagent orchestration and OpenBox does not package Codex subagent templates.",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins subagents-agents support claims to explicit agent ownership coverage"
+  },
+  {
+    "provider": "cursor",
+    "tier": "native",
+    "agentSurface": "Cursor subagentStart/subagentStop hooks plus bundled agents/openbox-reviewer.md agent template.",
+    "lifecycleCoverage": "CURSOR_HOOK_SPEC and PROVIDER_EVENT_CATALOG include subagentStart and subagentStop, with subagentStart mapped to SubagentStart activity and a2a metadata.",
+    "ownershipBoundary": "Native host surface; Cursor owns model orchestration while OpenBox governs/observes subagent hook lifecycle through Core.",
+    "guardTest": "tests/unit/cursor-activity-type-drift.test.ts#subagentStart fires SubagentStart"
+  },
+  {
+    "provider": "claude-code",
+    "tier": "native",
+    "agentSurface": "Claude Code SubagentStart/SubagentStop/TaskCreated/TaskCompleted hooks plus bundled agents/openbox-reviewer.md agent template.",
+    "lifecycleCoverage": "CLAUDE_HOOK_SPEC and PROVIDER_EVENT_CATALOG include subagent and task lifecycle events; mapper tests pin AGENT_SPAWN activities and assistant-output spans.",
+    "ownershipBoundary": "Native host surface; Claude Code owns orchestration while OpenBox governs/observes subagent and task hook lifecycle through Core.",
+    "guardTest": "tests/unit/runtime-claude-code-mappers.test.ts#subagent-start + subagent-stop fire AGENT_SPAWN activities"
+  },
+  {
+    "provider": "mcp",
+    "tier": "observe-only",
+    "agentSurface": "MCP list_agents, get_agent, and openbox://agent/{agent_id} resources inspect OpenBox agents.",
+    "lifecycleCoverage": "MCP can inspect agents and approvals but does not spawn subagents or own multi-agent lifecycle events.",
+    "ownershipBoundary": "Observe-only; MCP exposes inspection/governance tools while host clients own agent orchestration.",
+    "guardTest": "tests/unit/mcp-server-coverage.test.ts#registers spec-driven MCP tool annotations, prompts, and resource templates"
+  },
+  {
+    "provider": "openai-agents-sdk",
+    "tier": "observe-only",
+    "agentSurface": "OpenAI Agents SDK handoffs and agents-as-tools are observed through AgentHooks and tracing processor spans.",
+    "lifecycleCoverage": "Tracing processor observes handoff spans, hosted tools, built-in tools, MCP tools, generations, and usage after the host SDK produces them.",
+    "ownershipBoundary": "Observe-only for multi-agent orchestration; OpenAI Agents SDK owns handoffs/agents-as-tools and OpenBox records spans where available.",
+    "guardTest": "tests/unit/openai-agents-sdk.test.ts#observes OpenAI trace spans for generations, handoffs, guardrails, and tools"
+  },
+  {
+    "provider": "anthropic-agent-sdk",
+    "tier": "observe-only",
+    "agentSurface": "Anthropic Agent SDK Task/Agent tool events and subagent metadata are observed through hook payloads.",
+    "lifecycleCoverage": "Official TaskCreated/TaskCompleted/SubagentStart/SubagentStop hooks and Agent/Task tool payloads are normalized with a2a metadata.",
+    "ownershipBoundary": "Observe-only for agent orchestration; Anthropic Agent SDK/Claude owns tasks and subagents while OpenBox records/governs exposed hooks.",
+    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#marks Agent/Task and subagent hooks as a2a activity metadata"
+  },
+  {
+    "provider": "copilotkit",
+    "tier": "observe-only",
+    "agentSurface": "CopilotKit agent runner lifecycle and a2a tool metadata are observed through runtime, middleware, and AG-UI adapters.",
+    "lifecycleCoverage": "CopilotKit AG-UI/run lifecycle and governed tool calls map subagent_type/tool metadata to OpenBox activities when surfaced.",
+    "ownershipBoundary": "Observe-only for orchestration; CopilotKit/application code owns agent runners while OpenBox observes/gates exposed prompt/tool/runtime events.",
+    "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits workflow/tool lifecycle events around a governed tool"
+  },
+  {
+    "provider": "n8n",
+    "tier": "observe-only",
+    "agentSurface": "n8n governed AI Agent workflow template and node descriptors expose AI Agent workflow surfaces.",
+    "lifecycleCoverage": "OpenBox Governance, Guardrails, Approval/HITL, and governed AI Agent descriptors observe node/tool/LLM lifecycle around n8n AI Agent workflows.",
+    "ownershipBoundary": "Observe-only for orchestration; n8n owns AI Agent workflow execution while OpenBox nodes/helpers govern exposed workflow surfaces.",
+    "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
+  }
+]
 PLUGIN_CAPABILITY_GUARDS = [
   {
     "provider": "codex",
