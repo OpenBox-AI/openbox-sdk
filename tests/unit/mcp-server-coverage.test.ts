@@ -681,6 +681,73 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
     });
   });
 
+  it('check_governance normalizes caller LLM usage into the emitted hook span', async () => {
+    await withMcpEnv(async () => {
+      const bodies: string[] = [];
+      vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+        if (String(url).includes('/api/v1/governance/evaluate')) {
+          bodies.push(String(init?.body ?? ''));
+          return new Response(JSON.stringify({ verdict: 'allow', action: 'allow' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ status: 200, data: { data: [] } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      });
+      const { runMcpServer } = await import('../../ts/src/runtime/mcp');
+      await runMcpServer();
+      const tool = captured.find((t) => t.name === 'check_governance')!;
+      await tool.cb({
+        agent_id: 'agent-1',
+        span_type: 'llm',
+        activity_input: {
+          prompt: 'Summarize the request.',
+          response: 'Done.',
+          model: 'gpt-4o-mini',
+          usage: {
+            promptTokenCount: 5,
+            candidatesTokenCount: 3,
+            totalTokenCount: 8,
+            costUSD: 0.002,
+          },
+        },
+      });
+
+      expect(bodies).toHaveLength(2);
+      const hook = JSON.parse(bodies[1]);
+      expect(hook).toMatchObject({
+        event_type: 'ActivityStarted',
+        activity_type: 'PromptSubmission',
+        hook_trigger: true,
+        span_count: 1,
+      });
+      const span = hook.spans[0];
+      expect(span).toMatchObject({
+        semantic_type: 'llm_completion',
+        model: 'gpt-4o-mini',
+        input_tokens: 5,
+        output_tokens: 3,
+        total_tokens: 8,
+        cost_usd: 0.002,
+        attributes: expect.objectContaining({
+          'gen_ai.usage.input_tokens': 5,
+          'gen_ai.usage.output_tokens': 3,
+          'gen_ai.usage.total_tokens': 8,
+          'openbox.usage.cost_usd': 0.002,
+        }),
+      });
+      expect(JSON.parse(String(span.response_body)).usage).toMatchObject({
+        input_tokens: 5,
+        output_tokens: 3,
+        total_tokens: 8,
+        cost_usd: 0.002,
+      });
+    });
+  });
+
   it('check_governance treats uppercase continue parent verdicts as allowish', async () => {
     await withMcpEnv(async () => {
       const bodies: string[] = [];

@@ -23,6 +23,7 @@ import {
   PROVIDER_EVENT_CATALOG,
   PROVIDER_PLUGIN_COMPONENTS,
   PUBLIC_INTEGRATION_SUPPORT,
+  USAGE_COST_CAPABILITY_GUARDS,
   type OpenBoxProviderId,
 } from '../../ts/src/governance/capability-matrix.js';
 
@@ -120,6 +121,35 @@ describe('provider capability matrix', () => {
       expect(guard.governedSurfaces.length, `${guard.provider} governedSurfaces`).toBeGreaterThan(10);
       expect(guard.redactionBehavior.length, `${guard.provider} redactionBehavior`).toBeGreaterThan(30);
       expect(guard.failClosedBehavior, `${guard.provider} failClosedBehavior`).toMatch(/fail|block|deny|halt|throw/i);
+      expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+    }
+  });
+
+  it('pins usage-cost support claims to explicit usage guard coverage', () => {
+    const supportedCapabilityProviders = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) => entry.capability === 'usage-cost')
+      .map((entry) => entry.provider)
+      .sort();
+    const guardProviders = USAGE_COST_CAPABILITY_GUARDS
+      .map((entry) => entry.provider)
+      .sort();
+
+    expect(guardProviders).toEqual(supportedCapabilityProviders);
+    expect(new Set(guardProviders).size).toBe(guardProviders.length);
+
+    const tierByProvider = new Map(
+      PROVIDER_CAPABILITY_MATRIX
+        .filter((entry) => entry.capability === 'usage-cost')
+        .map((entry) => [entry.provider, entry.tier]),
+    );
+    for (const guard of USAGE_COST_CAPABILITY_GUARDS) {
+      expect(guard.tier, `${guard.provider} tier`).toBe(tierByProvider.get(guard.provider));
+      expect(guard.usageSurface.length, `${guard.provider} usageSurface`).toBeGreaterThan(20);
+      expect(guard.normalizedFields, `${guard.provider} normalizedFields`).toContain('input_tokens');
+      expect(guard.normalizedFields, `${guard.provider} normalizedFields`).toContain('output_tokens');
+      expect(guard.normalizedFields, `${guard.provider} normalizedFields`).toContain('total_tokens');
+      expect(guard.sharedNormalizer, `${guard.provider} sharedNormalizer`).toMatch(/normalizeOpenBoxUsage|openBoxUsageTelemetryFields|buildSpan|buildAssistantOutputSpan|assistantOutputTelemetryFields/);
+      expect(guard.costPolicyBoundary, `${guard.provider} costPolicyBoundary`).toContain('OpenBox Core');
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
     }
   });
