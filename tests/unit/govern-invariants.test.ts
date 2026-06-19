@@ -696,6 +696,50 @@ describe('activity pairing', () => {
     });
   });
 
+  test('n8n pre-execute approvals keep source attribution through Core polling', async () => {
+    const mock = createMockCore('require_approval', {
+      approval_id: 'approval-n8n-node',
+    });
+
+    await govern(
+      {
+        ...baseConfig(mock),
+        preset: presets.n8n,
+        approvalPollIntervalMs: 1,
+        approvalPollBackoffFactor: 1,
+        approvalPollJitter: 0,
+      },
+      async (session) => {
+        const verdict = await emitN8nNodePreExecute(session, {
+          input: { operation: 'refund' },
+          nodeName: 'Approval Node',
+          sessionId: 'n8n-approval-1',
+          prompt: 'Refund the order.',
+        });
+        expect(verdict.arm).toBe('allow');
+      },
+    );
+
+    const started = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'node-pre-execute',
+    );
+    expect(started?.activity_input).toContainEqual(
+      expect.objectContaining({
+        operation: 'refund',
+        event_category: 'node_pre_execute',
+        node_name: 'Approval Node',
+        _openbox_source: 'n8n',
+      }),
+    );
+    expect(mock.pollApproval).toHaveBeenCalledWith({
+      workflow_id: started?.workflow_id,
+      run_id: started?.run_id,
+      activity_id: started?.activity_id,
+    });
+  });
+
   test('n8n generic node completion emits paired parent plus tool hook span', async () => {
     const mock = createMockCore('allow');
     await govern(

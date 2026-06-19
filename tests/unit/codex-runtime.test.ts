@@ -224,6 +224,34 @@ describe('Codex runtime adapter', () => {
     });
   });
 
+  it('maps approval-required PreToolUse verdicts to Codex permission ask', async () => {
+    const stdout: string[] = [];
+    const env: CodexEnvelope = {
+      hook_event_name: 'PreToolUse',
+      session_id: 'codex-session',
+      tool_name: 'Shell',
+      tool_input: { command: 'deploy production' },
+    };
+    await createCodexAdapter({
+      core: {} as never,
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        preToolUse: async () => ({
+          arm: 'require_approval',
+          reason: 'review deployment',
+          riskScore: 0.9,
+        }),
+      },
+      ...adapterIO(stdout, JSON.stringify(env)),
+    }).run();
+
+    const out = JSON.parse(stdout[0]);
+    expect(out.hookSpecificOutput).toMatchObject({
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'ask',
+    });
+  });
+
   it('maps constrained PostToolUse output redaction without requiring a reason', async () => {
     const stdout: string[] = [];
     const env: CodexEnvelope = {
