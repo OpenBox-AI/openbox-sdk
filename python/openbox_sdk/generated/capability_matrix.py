@@ -1170,6 +1170,80 @@ GOAL_SIGNAL_GUARDS = [
     "orderGuarantee": "SignalReceived user_prompt precedes node-pre-execute"
   }
 ]
+USAGE_COST_CAPABILITY_GUARDS = [
+  {
+    "provider": "codex",
+    "tier": "observe-only",
+    "usageSurface": "Codex hook envelopes when upstream exposes usage metadata; current hook contracts are not metering surfaces.",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
+    "sharedNormalizer": "No host usage fields yet; observe-only record prevents native claims until normalizeOpenBoxUsage can consume upstream usage.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; Codex never computes spend locally.",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins usage-cost support claims to explicit usage guard coverage"
+  },
+  {
+    "provider": "cursor",
+    "tier": "observe-only",
+    "usageSurface": "afterAgentResponse and afterAgentThought assistant telemetry when Cursor exposes usage metadata",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
+    "sharedNormalizer": "Cursor assistant-output mappers route usage through normalizeOpenBoxUsage and buildAssistantOutputSpan.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; Cursor observation never enforces spend locally.",
+    "guardTest": "tests/unit/cursor-spans.test.ts#afterAgentResponse emits completed assistant-output span"
+  },
+  {
+    "provider": "claude-code",
+    "tier": "native",
+    "usageSurface": "Claude transcript assistant turns, Stop, MessageDisplay, and final batch usage signals",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache_read_input_tokens, cache_creation_input_tokens, web_search_requests, cost_usd",
+    "sharedNormalizer": "Claude transcript extraction combines records with combineOpenBoxUsage and emits spans through buildAssistantOutputSpan.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; Claude Code only normalizes telemetry.",
+    "guardTest": "tests/unit/runtime-claude-code-mappers.test.ts#message-display aggregates unique Claude assistant message usage without double-counting duplicate transcript rows"
+  },
+  {
+    "provider": "mcp",
+    "tier": "observe-only",
+    "usageSurface": "check_governance caller-supplied llm activity_input usage",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
+    "sharedNormalizer": "MCP check_governance builds spans with buildSpan, which normalizes llm usage through the shared usage facade.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; MCP does not meter hosts directly.",
+    "guardTest": "tests/unit/mcp-server-coverage.test.ts#check_governance normalizes caller LLM usage into the emitted hook span"
+  },
+  {
+    "provider": "openai-agents-sdk",
+    "tier": "native",
+    "usageSurface": "run results, rawResponses, tracing processor generations, hosted/built-in tool observation",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd",
+    "sharedNormalizer": "OpenAI Agents SDK payload helpers route rawResponses through normalizeOpenBoxUsage and buildAssistantOutputSpan.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; SDK helpers only report telemetry.",
+    "guardTest": "tests/unit/openai-agents-sdk.test.ts#normalizes raw response usage through the shared usage facade"
+  },
+  {
+    "provider": "anthropic-agent-sdk",
+    "tier": "native",
+    "usageSurface": "query result messages, usage_EXPERIMENTAL messages, per-model result telemetry",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache_read_input_tokens, cache_creation_input_tokens, web_search_requests, cost_usd",
+    "sharedNormalizer": "Anthropic Agent SDK payload helpers route usage and modelUsage through normalizeOpenBoxUsage and combineOpenBoxUsage.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; SDK helpers only normalize telemetry.",
+    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#emits per-model synthetic usage spans for multi-model result telemetry"
+  },
+  {
+    "provider": "copilotkit",
+    "tier": "observe-only",
+    "usageSurface": "LangChain/CopilotKit model end events and AG-UI runtime events when usage metadata is present",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
+    "sharedNormalizer": "CopilotKit middleware routes usageMetadata through openBoxUsageTelemetryFields and buildAssistantOutputSpan.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; CopilotKit only observes model usage.",
+    "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits Core-extractable assistant output spans for goal alignment"
+  },
+  {
+    "provider": "n8n",
+    "tier": "native",
+    "usageSurface": "emitN8nLlmCompletion and packaged OpenBox governed AI Agent workflow telemetry",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
+    "sharedNormalizer": "n8n helpers route LLM completion usage through assistantOutputTelemetryFields and buildAssistantOutputSpan.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; n8n nodes only normalize telemetry.",
+    "guardTest": "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans"
+  }
+]
 HITL_CAPABILITY_GUARDS = [
   {
     "provider": "codex",
