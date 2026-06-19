@@ -16,6 +16,21 @@ export {
   type CodexInstallCheckStatus,
   type VerifyCodexInstallOptions,
 } from './install.js';
+export {
+  codexMarketplaceFile,
+  codexPluginTargetDir,
+  codexRepoSkillTargetDir,
+  exportCodexPlugin,
+  installCodexPlugin,
+  uninstallCodexPlugin,
+  verifyCodexPlugin,
+  type CodexPluginCheck,
+  type CodexPluginCheckStatus,
+  type ExportCodexPluginOptions,
+  type InstallCodexPluginOptions,
+  type UninstallCodexPluginOptions,
+  type VerifyCodexPluginOptions,
+} from './plugin.js';
 
 import { makeHookLog } from '../../logging/hook-log.js';
 

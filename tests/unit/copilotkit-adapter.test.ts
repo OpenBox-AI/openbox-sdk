@@ -5,7 +5,9 @@ import {
   createOpenBoxRuntimeHooks,
   createGovernedCopilotTool,
   createOpenBoxCopilotKitAdapter,
+  createOpenBoxAGUIAdapter,
   createOpenBoxApprovalRoute,
+  createOpenBoxHeadlessApprovalClient,
   createOpenBoxReadinessCheck,
   OpenBoxCopilotKitError,
   type OpenBoxCopilotActionInput,
@@ -431,6 +433,108 @@ describe('CopilotKit OpenBox adapter', () => {
     } finally {
       globalThis.fetch = originalFetch;
       restoreEnv(previous);
+    }
+  });
+
+  it('maps AG-UI run, tool, message, state, error, and interrupt events through OpenBox gates', async () => {
+    const safe = (payload: unknown) => ({
+      safe: payload,
+      verdict: { arm: 'allow' as const, reason: 'allowed' },
+      status: 'executed' as const,
+      changed: false,
+      rawBlocked: false,
+      reason: 'allowed',
+      message: 'allowed',
+      workflowId: 'workflow-agui',
+      runId: 'run-agui',
+      activityId: 'activity-agui',
+    });
+    const adapter = {
+      governPrompt: vi.fn(async ({ payload }) => safe(payload)),
+      governToolInput: vi.fn(async ({ payload }) => safe(payload)),
+      governToolOutput: vi.fn(async ({ payload }) => safe(payload)),
+      governAssistantOutput: vi.fn(async ({ payload }) => safe(payload)),
+    };
+    const agui = createOpenBoxAGUIAdapter({
+      adapter: adapter as any,
+      sessionKey: (event) => event.threadId ?? 'agui-thread',
+    });
+
+    await agui.handleEvent({ type: 'RUN_STARTED', threadId: 'thread-1', input: { prompt: 'hi' } });
+    await agui.handleEvent({ type: 'TOOL_CALL_START', threadId: 'thread-1', toolCallId: 'tool-1', toolName: 'lookup', input: { q: 'x' } });
+    await agui.handleEvent({ type: 'TOOL_CALL_RESULT', threadId: 'thread-1', toolCallId: 'tool-1', toolName: 'lookup', output: { ok: true } });
+    await agui.handleEvent({ type: 'TEXT_MESSAGE_CONTENT', threadId: 'thread-1', messageId: 'msg-1', delta: 'hello' });
+    await agui.handleEvent({ type: 'STATE_DELTA', threadId: 'thread-1', state: { selected: 1 } });
+    await agui.handleEvent({ type: 'RUN_ERROR', threadId: 'thread-1', error: new Error('boom') });
+    const interrupt = await agui.handleEvent({
+      type: 'INTERRUPT',
+      threadId: 'thread-1',
+      payload: { governanceEventId: 'event-1' },
+    });
+
+    expect(adapter.governPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionKey: 'thread-1',
+        ensureWorkflowStarted: true,
+      }),
+    );
+    expect(adapter.governToolInput).toHaveBeenCalledTimes(2);
+    expect(adapter.governToolOutput).toHaveBeenCalledTimes(1);
+    expect(adapter.governAssistantOutput).toHaveBeenCalledTimes(3);
+    expect(interrupt).toMatchObject({
+      kind: 'interrupt',
+      eventType: 'INTERRUPT',
+      sessionKey: 'thread-1',
+    });
+  });
+
+  it('resolves OpenBox approvals from headless non-React callers', async () => {
+    const originalFetch = globalThis.fetch;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: () => Promise.resolve({ data: {} }),
+        text: () => Promise.resolve(JSON.stringify({ data: {} })),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: () => Promise.resolve({ data: { id: 'event-headless' } }),
+        text: () => Promise.resolve(JSON.stringify({ data: { id: 'event-headless' } })),
+      } as Response);
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    try {
+      const client = createOpenBoxHeadlessApprovalClient({
+        apiUrl: 'https://api.openbox.test',
+        backendApiKey: `obx_key_${'b'.repeat(48)}`,
+        agentId: 'agent-1',
+      });
+
+      const result = await client.approve({
+        result: {
+          governanceEventId: 'event-headless',
+          workflowId: 'workflow-1',
+          runId: 'run-1',
+          activityId: 'activity-1',
+        },
+      });
+
+      expect(result).toEqual({
+        ok: true,
+        decision: 'approve',
+        eventId: 'event-headless',
+      });
+      expect(fetchMock.mock.calls[1][0]).toBe(
+        'https://api.openbox.test/agent/agent-1/approvals/event-headless/decide?action=approve',
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
     }
   });
 

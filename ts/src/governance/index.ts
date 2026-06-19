@@ -17,6 +17,8 @@
 //     of an agent's behavior rules.
 //   * `hookEventLabel` / `HOOK_EVENT_LABELS` map hook event names to
 //     human-readable display strings.
+//   * `PROVIDER_CAPABILITY_MATRIX` records provider parity tiers and
+//     intentional exclusions so unsupported surfaces are explicit.
 
 export {
   checkGovernance,
@@ -40,6 +42,12 @@ export {
   buildAssistantOutputSpan,
   type AssistantOutputTelemetryInput,
 } from './assistant-output.js';
+export {
+  combineOpenBoxUsage,
+  normalizeOpenBoxUsage,
+  openBoxUsageTelemetryFields,
+  type NormalizedOpenBoxUsage,
+} from './usage.js';
 export { EVENT } from './events.js';
 export {
   REDACT_PATH_CONTENT_PATTERNS,
@@ -55,4 +63,26 @@ export {
   type RuleSeverity,
   type FetchProjectionOpts,
 } from './rules-projection.js';
+export {
+  OPENBOX_CAPABILITY_IDS,
+  PROVIDER_CAPABILITY_MATRIX,
+  PROVIDER_EVENT_CATALOG,
+  PROVIDER_PLUGIN_COMPONENTS,
+  PUBLIC_INTEGRATION_SUPPORT,
+  MCP_PROMPT_SURFACES,
+  MCP_RESOURCE_TEMPLATE_SURFACES,
+  MCP_TOOL_SURFACES,
+  N8N_INTEGRATION_SURFACE,
+  type OpenBoxCapabilityId,
+  type OpenBoxProviderId,
+  type OpenBoxSupportTier,
+  type McpPromptSurfaceEntry,
+  type McpResourceTemplateSurfaceEntry,
+  type McpToolSurfaceEntry,
+  type N8nIntegrationSurface,
+  type ProviderCapabilityEntry,
+  type ProviderEventCatalogEntry,
+  type ProviderPluginComponentCatalogEntry,
+  type PublicIntegrationSupportEntry,
+} from './capability-matrix.js';
 export { hookEventLabel, HOOK_EVENT_LABELS } from './hook-event-labels.js';

@@ -49,6 +49,8 @@ export {
   OpenBoxAnthropicAgentSDKError,
 } from './config.js';
 export {
+  OPENBOX_ANTHROPIC_AGENT_DEFAULT_HOOK_EVENTS,
+  OPENBOX_ANTHROPIC_AGENT_OPT_IN_HOOK_EVENTS,
   createOpenBoxAnthropicAgentHooks,
   withOpenBoxAnthropicAgentOptions,
 } from './hooks.js';

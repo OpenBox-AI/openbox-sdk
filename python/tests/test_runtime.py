@@ -4,7 +4,6 @@ import ast
 import asyncio
 import base64
 import json
-import re
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -30,6 +29,19 @@ from openbox_sdk import (
 from openbox_sdk._govern_runtime import SessionAlreadyTerminatedError, map_verdict
 from openbox_sdk._utils import normalize_api_url, parse_datetime, render_path, retry_backoff_seconds
 from openbox_sdk.generated.backend_client import BACKEND_ENDPOINT_MANIFEST
+from openbox_sdk.generated.capability_matrix import (
+    MCP_PROMPT_SURFACES,
+    MCP_RESOURCE_TEMPLATE_SURFACES,
+    MCP_TOOL_SURFACES,
+    N8N_INTEGRATION_SURFACE,
+    OPENBOX_CAPABILITY_IDS,
+    OPENBOX_PROVIDER_IDS,
+    OPENBOX_SUPPORT_TIERS,
+    PROVIDER_CAPABILITY_MATRIX,
+    PROVIDER_EVENT_CATALOG,
+    PROVIDER_PLUGIN_COMPONENTS,
+    PUBLIC_INTEGRATION_SUPPORT,
+)
 from openbox_sdk.generated.core_client import CORE_ENDPOINT_MANIFEST
 from openbox_sdk.generated.govern import PRESET_MANIFEST
 from openbox_sdk.integrations.copilotkit import openbox_copilotkit_middleware
@@ -71,11 +83,21 @@ def _future_iso(seconds: int = 30) -> str:
     return (datetime.now(tz=UTC) + timedelta(seconds=seconds)).isoformat().replace("+00:00", "Z")
 
 
-def _ts_array(file: Path, const_name: str) -> list[dict[str, Any]]:
+def _ts_const(file: Path, const_name: str) -> Any:
     source = file.read_text()
-    match = re.search(rf"const {const_name}\s*=\s*(\[.*?\])\s+as const", source, re.S)
-    assert match is not None
-    return json.loads(match.group(1))
+    marker = f"const {const_name}"
+    start = source.index(marker)
+    equals = source.index("=", start)
+    literal_start = equals + 1
+    while literal_start < len(source) and source[literal_start].isspace():
+        literal_start += 1
+    return json.JSONDecoder().raw_decode(source[literal_start:])[0]
+
+
+def _ts_array(file: Path, const_name: str) -> list[dict[str, Any]]:
+    value = _ts_const(file, const_name)
+    assert isinstance(value, list)
+    return value
 
 
 @pytest.mark.asyncio
@@ -328,6 +350,26 @@ def test_generated_python_matches_typescript_manifests() -> None:
     assert hasattr(AsyncOpenBoxCoreClient, "evaluate_governance")
     assert hasattr(presets.claude_code, "pre_tool_use")
     assert hasattr(presets.langgraph, "node_start")
+
+
+def test_generated_python_matches_typescript_capability_matrix() -> None:
+    repo = Path(__file__).parents[2]
+    matrix_ts = repo / "ts/src/governance/generated/capability-matrix.ts"
+
+    assert OPENBOX_CAPABILITY_IDS == _ts_const(matrix_ts, "OPENBOX_CAPABILITY_IDS")
+    assert OPENBOX_PROVIDER_IDS == _ts_const(matrix_ts, "OPENBOX_PROVIDER_IDS")
+    assert OPENBOX_SUPPORT_TIERS == _ts_const(matrix_ts, "OPENBOX_SUPPORT_TIERS")
+    assert PROVIDER_CAPABILITY_MATRIX == _ts_const(matrix_ts, "PROVIDER_CAPABILITY_MATRIX")
+    assert PROVIDER_EVENT_CATALOG == _ts_const(matrix_ts, "PROVIDER_EVENT_CATALOG")
+    assert PROVIDER_PLUGIN_COMPONENTS == _ts_const(matrix_ts, "PROVIDER_PLUGIN_COMPONENTS")
+    assert PUBLIC_INTEGRATION_SUPPORT == _ts_const(matrix_ts, "PUBLIC_INTEGRATION_SUPPORT")
+    assert MCP_TOOL_SURFACES == _ts_const(matrix_ts, "MCP_TOOL_SURFACES")
+    assert MCP_PROMPT_SURFACES == _ts_const(matrix_ts, "MCP_PROMPT_SURFACES")
+    assert MCP_RESOURCE_TEMPLATE_SURFACES == _ts_const(
+        matrix_ts,
+        "MCP_RESOURCE_TEMPLATE_SURFACES",
+    )
+    assert N8N_INTEGRATION_SURFACE == _ts_const(matrix_ts, "N8N_INTEGRATION_SURFACE")
 
 
 @pytest.mark.asyncio

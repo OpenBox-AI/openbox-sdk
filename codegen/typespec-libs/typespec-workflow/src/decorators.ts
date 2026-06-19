@@ -670,3 +670,45 @@ export function getHookEventLabel(
 ): string | undefined {
   return program.stateMap(stateKeys.hookEventLabel).get(target);
 }
+
+// ─── Provider capability matrix ──────────────────────────────────────
+// Cross-host parity declarations live in TypeSpec so generated
+// language SDKs consume the same support tiers, plugin components,
+// event catalogs, and public integration exports.
+
+export type ProviderCapabilitiesBinding = Record<string, unknown>;
+
+export function $providerCapabilities(
+  context: DecoratorContext,
+  target: Namespace,
+  raw: unknown,
+): void {
+  const value = unwrapTspValue(raw);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-provider-capabilities',
+      format: { reason: 'expected a record literal' },
+      target,
+    });
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of ['capabilityIds', 'providers', 'capabilities', 'eventCatalog', 'pluginComponents', 'publicIntegrations']) {
+    if (!(key in record)) {
+      reportDiagnostic(context.program, {
+        code: 'invalid-provider-capabilities',
+        format: { reason: `missing ${key}` },
+        target,
+      });
+      return;
+    }
+  }
+  context.program.stateMap(stateKeys.providerCapabilities).set(target, record);
+}
+
+export function getProviderCapabilities(
+  program: Program,
+  target: Namespace,
+): ProviderCapabilitiesBinding | undefined {
+  return program.stateMap(stateKeys.providerCapabilities).get(target);
+}

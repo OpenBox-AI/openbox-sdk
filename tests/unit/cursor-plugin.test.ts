@@ -4,8 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   exportCursorPlugin,
+  installCursorRepoMode,
   installCursorPlugin,
+  uninstallCursorRepoMode,
   uninstallCursorPlugin,
+  verifyCursorRepoMode,
   verifyCursorPlugin,
 } from '../../ts/src/runtime/cursor/plugin.js';
 
@@ -33,6 +36,7 @@ describe('Cursor plugin asset', () => {
 
     expect(fs.existsSync(path.join(out, '.cursor-plugin', 'plugin.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, '.cursor-plugin', 'marketplace.json'))).toBe(true);
+    expect(fs.existsSync(path.join(out, 'workspaceOpen.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'skills', 'openbox', 'SKILL.md'))).toBe(true);
     expect(fs.readdirSync(path.join(out, 'commands')).sort()).toEqual([
       'openbox-check.md',
@@ -50,6 +54,12 @@ describe('Cursor plugin asset', () => {
 
     const mcp = JSON.parse(fs.readFileSync(path.join(out, 'mcp.json'), 'utf-8'));
     expect(mcp.mcpServers.openbox).toEqual({ command: 'openbox', args: ['mcp', 'serve'] });
+    const workspaceOpen = JSON.parse(fs.readFileSync(path.join(out, 'workspaceOpen.json'), 'utf-8'));
+    expect(workspaceOpen.workspaceOpen.plugins[0]).toMatchObject({
+      name: 'openbox',
+      path: '.cursor/plugins/local/openbox',
+      activation: 'workspaceOpen',
+    });
 
     const checks = verifyCursorPlugin({ target: out });
     expect(checks.every((check) => check.status === 'pass')).toBe(true);
@@ -78,5 +88,26 @@ describe('Cursor plugin asset', () => {
     expect(() => installCursorPlugin({ cwd, target: path.join(tempDir(), 'outside') })).toThrow(
       'Cursor plugin install target must be inside the project',
     );
+  });
+
+  it('installs and uninstalls cloud-compatible repo mode files', () => {
+    const cwd = tempDir();
+    const root = installCursorRepoMode({
+      cwd,
+      matchers: {
+        beforeShellExecution: '\\b(rm|sudo)\\b',
+      },
+    });
+    expect(root).toBe(path.join(cwd, '.cursor'));
+    const hooks = JSON.parse(fs.readFileSync(path.join(cwd, '.cursor', 'hooks.json'), 'utf-8'));
+    expect(hooks.hooks.beforeShellExecution[0].matcher).toBe('\\b(rm|sudo)\\b');
+    expect(fs.existsSync(path.join(cwd, '.cursor', 'mcp.json'))).toBe(true);
+    expect(fs.existsSync(path.join(cwd, '.cursor', 'rules', 'openbox-governance.mdc'))).toBe(true);
+    expect(fs.existsSync(path.join(cwd, '.agents', 'skills', 'openbox', 'SKILL.md'))).toBe(true);
+    expect(verifyCursorRepoMode({ cwd }).every((check) => check.status === 'pass')).toBe(true);
+
+    uninstallCursorRepoMode({ cwd, removeSkill: true });
+    expect(fs.existsSync(path.join(cwd, '.cursor', 'hooks.json'))).toBe(false);
+    expect(fs.existsSync(path.join(cwd, '.agents', 'skills', 'openbox'))).toBe(false);
   });
 });

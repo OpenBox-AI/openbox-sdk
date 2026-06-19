@@ -19,6 +19,9 @@
 //
 //   - Cursor reads `mcpServers` from `<cwd>/.cursor/mcp.json`.
 //   - Claude Code reads `mcpServers` from `<cwd>/.mcp.json`.
+//   - Codex reads `[mcp_servers.<name>]` from trusted
+//     `<cwd>/.codex/config.toml`; plugin bundles can still carry
+//     `.mcp.json`.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -99,7 +102,7 @@ export function resolveInstallPaths(
       scope,
       hooksFile: path.join(cwd, '.codex', 'hooks.json'),
       configDir: path.join(cwd, '.codex-hooks'),
-      mcpFile: path.join(cwd, '.codex', 'mcp.json'),
+      mcpFile: path.join(cwd, '.codex', 'config.toml'),
       mcpKey: 'mcpServers',
     };
   }
@@ -127,6 +130,11 @@ function loadJson(file: string): Record<string, unknown> {
 function saveJson(file: string, value: Record<string, unknown>): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n', 'utf-8');
+}
+
+function saveText(file: string, value: string): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, value, 'utf-8');
 }
 
 interface ClaudeInnerHook {
@@ -288,6 +296,12 @@ export function installMcpEntry(
   options: InstallOptions = {},
 ): string {
   const paths = resolveInstallPaths(spec, options);
+  if (spec.style === 'codex-array') {
+    installCodexMcpToml(paths.mcpFile, serverName, serverEntry);
+    // eslint-disable-next-line no-console
+    console.log(`Registered MCP server '${serverName}' in ${paths.mcpFile}`);
+    return paths.mcpFile;
+  }
   const cfg = loadJson(paths.mcpFile);
   const servers = (cfg[paths.mcpKey] as Record<string, unknown>) ?? {};
   servers[serverName] = serverEntry as unknown as Record<string, unknown>;
@@ -308,6 +322,16 @@ export function uninstallMcpEntry(
   options: InstallOptions = {},
 ): string {
   const paths = resolveInstallPaths(spec, options);
+  if (spec.style === 'codex-array') {
+    const removed = uninstallCodexMcpToml(paths.mcpFile, serverName);
+    // eslint-disable-next-line no-console
+    console.log(
+      removed
+        ? `Removed MCP server '${serverName}' from ${paths.mcpFile}`
+        : `No MCP server '${serverName}' in ${paths.mcpFile}. Nothing to remove.`,
+    );
+    return paths.mcpFile;
+  }
   const cfg = loadJson(paths.mcpFile);
   const servers = cfg[paths.mcpKey] as Record<string, unknown> | undefined;
   if (!servers || servers[serverName] === undefined) {
@@ -323,4 +347,55 @@ export function uninstallMcpEntry(
   // eslint-disable-next-line no-console
   console.log(`Removed MCP server '${serverName}' from ${paths.mcpFile}`);
   return paths.mcpFile;
+}
+
+function installCodexMcpToml(
+  file: string,
+  serverName: string,
+  serverEntry: McpServerEntry,
+): void {
+  const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf-8') : '';
+  const stripped = removeTomlSection(before, `mcp_servers.${serverName}`);
+  const block = [
+    `[mcp_servers.${serverName}]`,
+    `command = ${JSON.stringify(serverEntry.command)}`,
+    ...(serverEntry.args ? [`args = ${tomlStringArray(serverEntry.args)}`] : []),
+    '',
+  ].join('\n');
+  const next = [stripped.trimEnd(), block].filter(Boolean).join('\n\n');
+  saveText(file, `${next.trimEnd()}\n`);
+}
+
+function uninstallCodexMcpToml(file: string, serverName: string): boolean {
+  if (!fs.existsSync(file)) return false;
+  const before = fs.readFileSync(file, 'utf-8');
+  const after = removeTomlSection(before, `mcp_servers.${serverName}`);
+  if (after === before) return false;
+  saveText(file, after.trimEnd() ? `${after.trimEnd()}\n` : '');
+  return true;
+}
+
+function removeTomlSection(text: string, sectionName: string): string {
+  const lines = text.split(/\r?\n/);
+  const out: string[] = [];
+  let skipping = false;
+  let removed = false;
+  const header = `[${sectionName}]`;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === header) {
+      skipping = true;
+      removed = true;
+      continue;
+    }
+    if (skipping && trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      skipping = false;
+    }
+    if (!skipping) out.push(line);
+  }
+  return removed ? out.join('\n').replace(/\n{3,}/g, '\n\n') : text;
+}
+
+function tomlStringArray(values: string[]): string {
+  return `[${values.map((value) => JSON.stringify(value)).join(', ')}]`;
 }

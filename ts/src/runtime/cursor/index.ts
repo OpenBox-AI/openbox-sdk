@@ -27,15 +27,22 @@ export {
 } from './install.js';
 export {
   cursorPluginTargetDir,
+  cursorRepoSkillTargetDir,
   exportCursorPlugin,
+  installCursorRepoMode,
   installCursorPlugin,
+  uninstallCursorRepoMode,
   uninstallCursorPlugin,
+  verifyCursorRepoMode,
   verifyCursorPlugin,
   type CursorPluginCheck,
   type CursorPluginCheckStatus,
   type ExportCursorPluginOptions,
+  type InstallCursorRepoOptions,
   type InstallCursorPluginOptions,
+  type UninstallCursorRepoOptions,
   type UninstallCursorPluginOptions,
+  type VerifyCursorRepoOptions,
   type VerifyCursorPluginOptions,
 } from './plugin.js';
 

@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   OpenBoxAgentsSDKError,
+  createOpenBoxAgentHooks,
+  createOpenBoxTracingProcessor,
   createOpenBoxAgentsTool,
+  openBoxInputGuardrail,
+  openBoxToolInputGuardrail,
   runWithOpenBox,
 } from '@openbox-ai/openbox-sdk/openai-agents-sdk';
 import type {
@@ -465,6 +469,180 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
       input_tokens: 12,
       output_tokens: 7,
       total_tokens: 19,
+    });
+  });
+
+  it('creates native AgentHooks lifecycle handlers backed by OpenBox sessions', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const hooks = createOpenBoxAgentHooks({
+      core: mock.core,
+      sessionId: 'hooks-session',
+    }) as any;
+
+    await hooks.onAgentStart({}, { name: 'Planner' }, [{ role: 'user', content: 'hi' }]);
+    await hooks.onAgentToolStart(
+      {},
+      { name: 'Planner' },
+      { name: 'Shell' },
+      {
+        toolCall: {
+          callId: 'hook-call-1',
+          name: 'Shell',
+          namespace: 'local',
+          arguments: '{"command":"pwd"}',
+        },
+      },
+    );
+    await hooks.onAgentToolEnd(
+      {},
+      { name: 'Planner' },
+      { name: 'Shell' },
+      'ok',
+      {
+        toolCall: {
+          callId: 'hook-call-1',
+          name: 'Shell',
+          arguments: '{"command":"pwd"}',
+        },
+      },
+    );
+    await hooks.onAgentHandoff({}, { name: 'Planner' }, { name: 'Reviewer' });
+    await hooks.onAgentEnd({}, { name: 'Planner' }, { output: 'done' });
+
+    expect(mock.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ event_type: 'WorkflowStarted' }),
+        expect.objectContaining({
+          activity_id: 'hook-call-1',
+          activity_type: 'ShellExecution',
+        }),
+        expect.objectContaining({
+          activity_type: 'AgentHandoff',
+          from_agent_did: 'Planner',
+        }),
+        expect.objectContaining({ event_type: 'WorkflowCompleted' }),
+      ]),
+    );
+  });
+
+  it('observes OpenAI trace spans for generations, handoffs, guardrails, and tools', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const processor = createOpenBoxTracingProcessor({
+      core: mock.core,
+      sessionId: 'trace-session',
+    });
+    const trace = {
+      traceId: 'trace-1',
+      name: 'agent trace',
+      toJSON: () => ({ traceId: 'trace-1', name: 'agent trace' }),
+    };
+
+    await processor.onTraceStart(trace);
+    await processor.onSpanEnd({
+      spanId: 'gen-span',
+      traceId: 'trace-1',
+      spanData: {
+        type: 'generation',
+        model: 'gpt-4.1-mini',
+        usage: { input_tokens: 4, output_tokens: 6 },
+      },
+    });
+    await processor.onSpanEnd({
+      spanId: 'handoff-span',
+      traceId: 'trace-1',
+      spanData: { type: 'handoff', from_agent: 'Planner', to_agent: 'Reviewer' },
+    });
+    await processor.onSpanEnd({
+      spanId: 'guardrail-span',
+      traceId: 'trace-1',
+      spanData: { type: 'guardrail', name: 'safety', triggered: false },
+    });
+    await processor.onSpanEnd({
+      spanId: 'tool-span',
+      traceId: 'trace-1',
+      spanData: {
+        type: 'function',
+        name: 'MCPFetch',
+        input: '{"url":"https://example.test"}',
+        output: '{"ok":true}',
+        mcp_data: '{"server":"demo"}',
+      },
+    });
+    await processor.onTraceEnd(trace);
+
+    expect(mock.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          activity_type: 'AgentHandoff',
+          from_agent_did: 'Planner',
+        }),
+        expect.objectContaining({
+          activity_type: 'GuardrailEvaluation',
+        }),
+        expect.objectContaining({
+          activity_id: 'tool-span',
+          activity_type: 'HTTPRequest',
+          tool_name: 'MCPFetch',
+        }),
+        expect.objectContaining({
+          event_type: 'ActivityCompleted',
+          activity_type: 'OpenAIAgentsSDKRun',
+          input_tokens: 4,
+          output_tokens: 6,
+          total_tokens: 10,
+        }),
+      ]),
+    );
+  });
+
+  it('maps OpenBox guardrail verdicts to native OpenAI guardrail shapes', async () => {
+    const mock = createMockCore(() =>
+      verdict('block', {
+        reason: 'unsafe input',
+      }),
+    );
+    const inputGuardrail = openBoxInputGuardrail({
+      core: mock.core,
+      sessionId: 'input-guardrail-session',
+    });
+
+    const result = await inputGuardrail.execute({ input: 'unsafe' });
+    expect(result).toMatchObject({
+      tripwireTriggered: true,
+      outputInfo: {
+        openbox: {
+          arm: 'block',
+          reason: 'unsafe input',
+        },
+      },
+    });
+  });
+
+  it('maps OpenBox tool guardrail verdicts to fail-closed tool behavior', async () => {
+    const mock = createMockCore(() =>
+      verdict('require_approval', {
+        reason: 'needs review',
+      }),
+    );
+    const guardrail = openBoxToolInputGuardrail({
+      core: mock.core,
+      sessionId: 'tool-guardrail-session',
+    });
+
+    const result = await guardrail.run({
+      toolCall: {
+        name: 'Shell',
+        arguments: '{"command":"deploy"}',
+      },
+    });
+    expect(result).toMatchObject({
+      behavior: { type: 'throwException' },
+      outputInfo: {
+        openbox: {
+          arm: 'require_approval',
+          reason: 'needs review',
+        },
+      },
     });
   });
 });

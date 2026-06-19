@@ -8,6 +8,7 @@ const outDir = path.join(root, "python", "openbox_sdk", "generated");
 const backendManifestPath = path.join(root, "ts", "src", "client", "generated", "endpoint-manifest.ts");
 const coreManifestPath = path.join(root, "ts", "src", "core-client", "generated", "endpoint-manifest.ts");
 const governManifestPath = path.join(root, "ts", "src", "core-client", "generated", "govern.ts");
+const capabilityMatrixPath = path.join(root, "ts", "src", "governance", "generated", "capability-matrix.ts");
 const methodNamesPath = path.join(root, "codegen", "method-names.json");
 const methodPermissionsPath = path.join(root, "codegen", "method-permissions.json");
 const backendOpenApiPath = path.join(root, "specs", "generated", "openapi3", "OpenboxBackend.json");
@@ -69,16 +70,25 @@ function readText(file) {
 }
 
 function extractArray(file, constName) {
+  const value = extractConstJson(file, constName);
+  if (!Array.isArray(value)) throw new Error(`${constName} in ${file} is not an array`);
+  return value;
+}
+
+function extractConstJson(file, constName) {
   const source = fs.readFileSync(file, "utf8");
   const marker = `const ${constName}`;
   const start = source.indexOf(marker);
   if (start < 0) throw new Error(`Could not find ${constName} in ${file}`);
-  const open = source.indexOf("[", start);
-  if (open < 0) throw new Error(`Could not find ${constName} array in ${file}`);
+  const equals = source.indexOf("=", start);
+  if (equals < 0) throw new Error(`Could not find ${constName} assignment in ${file}`);
+  const open = source.slice(equals + 1).search(/[\[{]/);
+  if (open < 0) throw new Error(`Could not find ${constName} JSON literal in ${file}`);
+  const literalStart = equals + 1 + open;
   let depth = 0;
   let inString = false;
   let escaped = false;
-  for (let i = open; i < source.length; i += 1) {
+  for (let i = literalStart; i < source.length; i += 1) {
     const char = source[i];
     if (inString) {
       if (escaped) {
@@ -91,13 +101,13 @@ function extractArray(file, constName) {
       continue;
     }
     if (char === '"') inString = true;
-    if (char === "[") depth += 1;
-    if (char === "]") {
+    if (char === "[" || char === "{") depth += 1;
+    if (char === "]" || char === "}") {
       depth -= 1;
-      if (depth === 0) return JSON.parse(source.slice(open, i + 1));
+      if (depth === 0) return JSON.parse(source.slice(literalStart, i + 1));
     }
   }
-  throw new Error(`Unclosed ${constName} array in ${file}`);
+  throw new Error(`Unclosed ${constName} JSON literal in ${file}`);
 }
 
 function extractBlock(source, keyword, name) {
@@ -508,6 +518,22 @@ function emitSchemas() {
   return `${banner}from pydantic import BaseModel, ConfigDict\n\n\nclass OpenBoxGeneratedModel(BaseModel):\n    model_config = ConfigDict(extra=\"allow\", populate_by_name=True)\n\n\n${classes}\n__all__ = ${py(["OpenBoxGeneratedModel", ...unique])}\n`;
 }
 
+function emitCapabilityMatrix() {
+  const capabilityIds = extractArray(capabilityMatrixPath, "OPENBOX_CAPABILITY_IDS");
+  const providerIds = extractArray(capabilityMatrixPath, "OPENBOX_PROVIDER_IDS");
+  const supportTiers = extractArray(capabilityMatrixPath, "OPENBOX_SUPPORT_TIERS");
+  const capabilityMatrix = extractArray(capabilityMatrixPath, "PROVIDER_CAPABILITY_MATRIX");
+  const eventCatalog = extractArray(capabilityMatrixPath, "PROVIDER_EVENT_CATALOG");
+  const pluginComponents = extractArray(capabilityMatrixPath, "PROVIDER_PLUGIN_COMPONENTS");
+  const publicIntegrations = extractArray(capabilityMatrixPath, "PUBLIC_INTEGRATION_SUPPORT");
+  const mcpTools = extractArray(capabilityMatrixPath, "MCP_TOOL_SURFACES");
+  const mcpPrompts = extractArray(capabilityMatrixPath, "MCP_PROMPT_SURFACES");
+  const mcpResourceTemplates = extractArray(capabilityMatrixPath, "MCP_RESOURCE_TEMPLATE_SURFACES");
+  const n8nIntegration = extractConstJson(capabilityMatrixPath, "N8N_INTEGRATION_SURFACE");
+
+  return `${banner}# Generated from TypeSpec capability contracts via ts/src/governance/generated/capability-matrix.ts.\n\nOPENBOX_CAPABILITY_IDS = ${py(capabilityIds)}\nOPENBOX_PROVIDER_IDS = ${py(providerIds)}\nOPENBOX_SUPPORT_TIERS = ${py(supportTiers)}\nPROVIDER_CAPABILITY_MATRIX = ${py(capabilityMatrix)}\nPROVIDER_EVENT_CATALOG = ${py(eventCatalog)}\nPROVIDER_PLUGIN_COMPONENTS = ${py(pluginComponents)}\nPUBLIC_INTEGRATION_SUPPORT = ${py(publicIntegrations)}\nMCP_TOOL_SURFACES = ${py(mcpTools)}\nMCP_PROMPT_SURFACES = ${py(mcpPrompts)}\nMCP_RESOURCE_TEMPLATE_SURFACES = ${py(mcpResourceTemplates)}\nN8N_INTEGRATION_SURFACE = ${py(n8nIntegration)}\n`;
+}
+
 function emitGovern(governManifest) {
   const classes = [];
   const registry = [];
@@ -583,6 +609,7 @@ write(
   emitPermissions(backendManifest, methodNames, methodPermissions),
 );
 write(path.join(outDir, "schemas.py"), emitSchemas());
+write(path.join(outDir, "capability_matrix.py"), emitCapabilityMatrix());
 write(path.join(outDir, "govern.py"), emitGovern(governManifest));
 write(path.join(outDir, "runtime_contract.py"), emitRuntimeContract());
 console.log(`Generated Python SDK files in ${path.relative(root, outDir)}`);

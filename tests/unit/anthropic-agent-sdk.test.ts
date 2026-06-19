@@ -1,3 +1,6 @@
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { HOOK_EVENTS as ANTHROPIC_AGENT_HOOK_EVENTS } from '@anthropic-ai/claude-agent-sdk';
 import type {
@@ -8,6 +11,8 @@ import type {
   SDKMessage,
 } from '@anthropic-ai/claude-agent-sdk';
 import {
+  OPENBOX_ANTHROPIC_AGENT_DEFAULT_HOOK_EVENTS,
+  OPENBOX_ANTHROPIC_AGENT_OPT_IN_HOOK_EVENTS,
   createOpenBoxAnthropicAgentHooks,
   createOpenBoxAnthropicAgentSDK,
   withOpenBoxAnthropicAgentOptions,
@@ -104,7 +109,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(wrapped.hooks?.PreToolUse?.[1]).toBe(userMatcher);
   });
 
-  it('registers every official Agent SDK hook except WorktreeCreate', () => {
+  it('registers every official Agent SDK hook except WorktreeCreate by default', () => {
     const mock = createMockCore(() => verdict('allow'));
     const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
     const registered = Object.keys(hooks).sort();
@@ -114,7 +119,53 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       .sort();
 
     expect(registered).toEqual(expected);
+    expect(registered).toEqual([...OPENBOX_ANTHROPIC_AGENT_DEFAULT_HOOK_EVENTS].sort());
     expect((hooks as Record<string, unknown>).WorktreeCreate).toBeUndefined();
+  });
+
+  it('registers WorktreeCreate only when opt-in and returns a managed path', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'openbox-anthropic-worktrees-'));
+    try {
+      const mock = createMockCore(() => verdict('allow'));
+      const hooks = createOpenBoxAnthropicAgentHooks({
+        core: mock.core,
+        includeOptInHooks: true,
+        worktreeRoot: root,
+      });
+
+      expect(Object.keys(hooks).sort()).toEqual(
+        [...OPENBOX_ANTHROPIC_AGENT_DEFAULT_HOOK_EVENTS, ...OPENBOX_ANTHROPIC_AGENT_OPT_IN_HOOK_EVENTS].sort(),
+      );
+
+      const output = await runHook(hooks, 'WorktreeCreate', {
+        ...baseInput,
+        hook_event_name: 'WorktreeCreate',
+        name: 'feature/test branch',
+      });
+      const hookOutput = (output as Record<string, unknown>).hookSpecificOutput as Record<string, unknown>;
+      const worktreePath = String(hookOutput.worktreePath);
+
+      expect(hookOutput.hookEventName).toBe('WorktreeCreate');
+      expect(worktreePath).toContain(root);
+      expect(worktreePath).toContain('feature-test-branch');
+      expect(existsSync(worktreePath)).toBe(true);
+      expect(mock.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event_type: 'ActivityStarted',
+            activity_type: 'AnthropicAgentSDKWorkspaceChange',
+            activity_input: [
+              expect.objectContaining({
+                event_category: 'worktree_create',
+                worktree_path: worktreePath,
+              }),
+            ],
+          }),
+        ]),
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('observes generic Agent SDK hooks without decision output', async () => {

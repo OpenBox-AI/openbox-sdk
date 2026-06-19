@@ -283,3 +283,20 @@ extern dec activityLabels(target: Namespace, table: valueof Record<string>);
  *              `"File read"`.
  */
 extern dec hookEventLabel(target: Operation, label: valueof string);
+
+/**
+ * Cross-provider OpenBox capability matrix. This is a language-agnostic
+ * spec artifact consumed by SDK emitters; runtime packages should render
+ * or enforce this data, not re-author it in each language.
+ *
+ * Shape:
+ *   #{
+ *     capabilityIds: #[...],
+ *     providers: #[...],
+ *     capabilities: #[#{ provider, capability, tier, rationale }, ...],
+ *     eventCatalog: #[...],
+ *     pluginComponents: #[...],
+ *     publicIntegrations: #[...],
+ *   }
+ */
+extern dec providerCapabilities(target: Namespace, matrix: valueof Record<unknown>);

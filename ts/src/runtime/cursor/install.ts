@@ -8,7 +8,7 @@ import { loadDotenv, loadJsonConfig } from '../../config/host-config.js';
 import { listConfig, configStorePath } from '../../config/index.js';
 import { resolveAgentIdentity, resolveConnection, validateApiKeyFormat } from '../../env/index.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
-import { verifyCursorPlugin } from './plugin.js';
+import { verifyCursorPlugin, verifyCursorRepoMode } from './plugin.js';
 
 export type CursorInstallCheckStatus = 'pass' | 'fail' | 'skip';
 
@@ -24,6 +24,8 @@ export interface VerifyCursorInstallOptions {
   cwd?: string;
   /** Cursor project-local plugin target. Defaults to <cwd>/.cursor/plugins/local/openbox. */
   pluginTarget?: string;
+  /** Surface to verify. Defaults to plugin for backward compatibility. */
+  mode?: 'plugin' | 'repo' | 'both';
   /** Include hook runtime readiness checks. Install flows keep this
    *  false so they can lay down files before a runtime key exists. */
   includeRuntime?: boolean;
@@ -126,7 +128,16 @@ export function verifyCursorInstall(
   opts: VerifyCursorInstallOptions = {},
 ): CursorInstallCheck[] | Promise<CursorInstallCheck[]> {
   const checks: CursorInstallCheck[] = [
-    ...verifyCursorPlugin({ cwd: opts.cwd, target: opts.pluginTarget }),
+    ...(
+      opts.mode === 'repo'
+        ? verifyCursorRepoMode({ cwd: opts.cwd })
+        : opts.mode === 'both'
+          ? [
+              ...verifyCursorPlugin({ cwd: opts.cwd, target: opts.pluginTarget }),
+              ...verifyCursorRepoMode({ cwd: opts.cwd }),
+            ]
+          : verifyCursorPlugin({ cwd: opts.cwd, target: opts.pluginTarget })
+    ),
   ];
 
   if (opts.includeRuntime || opts.validateRuntime) {

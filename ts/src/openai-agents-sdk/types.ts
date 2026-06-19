@@ -39,6 +39,19 @@ export interface OpenBoxAgentsRunOptions extends OpenBoxAgentsSDKConfig {
   input?: unknown;
 }
 
+export interface OpenBoxAgentsAgentHooksOptions extends OpenBoxAgentsSDKConfig {
+  sessionId?: string;
+}
+
+export interface OpenBoxAgentsTracingProcessorOptions extends OpenBoxAgentsSDKConfig {
+  sessionId?: string;
+}
+
+export interface OpenBoxAgentsGuardrailOptions extends OpenBoxAgentsSDKConfig {
+  name?: string;
+  sessionId?: string;
+}
+
 export interface OpenBoxAgentsToolCallDetails {
   toolCall?: {
     id?: string;

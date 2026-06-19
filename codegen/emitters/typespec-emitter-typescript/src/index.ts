@@ -48,6 +48,7 @@ import {
   getActivityVariants,
   getActivityLabels,
   getHookEventLabel,
+  getProviderCapabilities,
   type CanonicalEventType,
   type VerdictShape,
   type PayloadShapeBinding,
@@ -71,6 +72,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitEndpointManifest(program, project, repoRoot, 'OpenboxCore', 'CORE_ENDPOINT_MANIFEST', 'ts/src/core-client/generated/endpoint-manifest.ts');
   emitNamespaceTypes(program, project, repoRoot, 'OpenboxCore', 'ts/src/core-client/generated/core-types.ts');
   emitGovernProtocol(program, project, repoRoot);
+  emitProviderCapabilities(program, project, repoRoot);
   emitAdapters(program, project, repoRoot);
   emitWrapperMethods(program, project, repoRoot, {
     namespaceName: 'OpenboxBackend',
@@ -93,6 +95,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
     resolvePath(repoRoot, 'ts', 'src', 'cli', 'generated', 'cli-bindings.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'cli', 'generated', 'cli-maturity.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'govern.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'governance', 'generated', 'capability-matrix.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'core-types.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'claude-code.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'codex.ts'),
@@ -1041,6 +1044,115 @@ interface PresetEntry {
   methods: PresetMethod[];
   /** True for the special `custom` preset. */
   isCustom: boolean;
+}
+
+function emitProviderCapabilities(program: Program, project: Project, repoRoot: string): void {
+  const ns = findNamespace(program, 'OpenboxGovern');
+  if (!ns) return;
+  const matrix = getProviderCapabilities(program, ns);
+  if (!matrix) return;
+
+  const out = project.createSourceFile(
+    resolvePath(repoRoot, 'ts/src/governance/generated/capability-matrix.ts'),
+    '',
+    { overwrite: true },
+  );
+  out.insertText(0, BANNER + '\n\n');
+
+  const capabilityIds = arrayOfStrings(matrix.capabilityIds);
+  const providers = arrayOfStrings(matrix.providers);
+  const supportTiers = uniqueStrings([
+    ...arrayOfRecords(matrix.capabilities).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.publicIntegrations).map((entry) => String(entry.tier ?? '')),
+  ]).filter(Boolean);
+
+  out.addStatements([
+    `export const OPENBOX_CAPABILITY_IDS = ${literalTs(capabilityIds)} as const;`,
+    `export type OpenBoxCapabilityId = typeof OPENBOX_CAPABILITY_IDS[number];`,
+    '',
+    `export const OPENBOX_PROVIDER_IDS = ${literalTs(providers)} as const;`,
+    `export type OpenBoxProviderId = typeof OPENBOX_PROVIDER_IDS[number];`,
+    '',
+    `export const OPENBOX_SUPPORT_TIERS = ${literalTs(supportTiers)} as const;`,
+    `export type OpenBoxSupportTier = typeof OPENBOX_SUPPORT_TIERS[number];`,
+    '',
+    `export interface ProviderCapabilityEntry {`,
+    `  provider: OpenBoxProviderId;`,
+    `  capability: OpenBoxCapabilityId;`,
+    `  tier: OpenBoxSupportTier;`,
+    `  rationale: string;`,
+    `}`,
+    '',
+    `export interface ProviderEventCatalogEntry {`,
+    `  provider: OpenBoxProviderId;`,
+    `  upstreamKnownEvents: readonly string[];`,
+    `  generatedAdapterEvents: readonly string[];`,
+    `  intentionalExclusions: readonly { event: string; tier: OpenBoxSupportTier; reason: string }[];`,
+    `}`,
+    '',
+    `export interface ProviderPluginComponentCatalogEntry {`,
+    `  provider: OpenBoxProviderId;`,
+    `  components: readonly { name: string; tier: OpenBoxSupportTier; path?: string; reason: string }[];`,
+    `}`,
+    '',
+    `export interface PublicIntegrationSupportEntry {`,
+    `  integration: OpenBoxProviderId;`,
+    `  tier: OpenBoxSupportTier;`,
+    `  exports: readonly string[];`,
+    `  notes: string;`,
+    `}`,
+    '',
+    `export interface McpToolSurfaceEntry {`,
+    `  name: string;`,
+    `  title: string;`,
+    `  risk: string;`,
+    `  approval: string;`,
+    `  sideEffects: string;`,
+    `  readOnlyHint: boolean;`,
+    `  destructiveHint: boolean;`,
+    `  idempotentHint: boolean;`,
+    `  openWorldHint: boolean;`,
+    `}`,
+    '',
+    `export interface McpPromptSurfaceEntry {`,
+    `  name: string;`,
+    `  title: string;`,
+    `  description: string;`,
+    `  args: readonly { name: string; description: string; required: boolean }[];`,
+    `  instructions: string;`,
+    `}`,
+    '',
+    `export interface McpResourceTemplateSurfaceEntry {`,
+    `  name: string;`,
+    `  title: string;`,
+    `  uriTemplate: string;`,
+    `  description: string;`,
+    `  mimeType: string;`,
+    `}`,
+    '',
+    `export interface N8nIntegrationSurface {`,
+    `  credentials: readonly Record<string, unknown>[];`,
+    `  nodes: readonly Record<string, unknown>[];`,
+    `  workflowTemplates: readonly Record<string, unknown>[];`,
+    `  examples: readonly Record<string, unknown>[];`,
+    `}`,
+    '',
+    `export const PROVIDER_CAPABILITY_MATRIX = ${literalTs(matrix.capabilities)} as const satisfies readonly ProviderCapabilityEntry[];`,
+    '',
+    `export const PROVIDER_EVENT_CATALOG = ${literalTs(matrix.eventCatalog)} as const satisfies readonly ProviderEventCatalogEntry[];`,
+    '',
+    `export const PROVIDER_PLUGIN_COMPONENTS = ${literalTs(matrix.pluginComponents)} as const satisfies readonly ProviderPluginComponentCatalogEntry[];`,
+    '',
+    `export const PUBLIC_INTEGRATION_SUPPORT = ${literalTs(matrix.publicIntegrations)} as const satisfies readonly PublicIntegrationSupportEntry[];`,
+    '',
+    `export const MCP_TOOL_SURFACES = ${literalTs(matrix.mcpTools)} as const satisfies readonly McpToolSurfaceEntry[];`,
+    '',
+    `export const MCP_PROMPT_SURFACES = ${literalTs(matrix.mcpPrompts)} as const satisfies readonly McpPromptSurfaceEntry[];`,
+    '',
+    `export const MCP_RESOURCE_TEMPLATE_SURFACES = ${literalTs(matrix.mcpResourceTemplates)} as const satisfies readonly McpResourceTemplateSurfaceEntry[];`,
+    '',
+    `export const N8N_INTEGRATION_SURFACE = ${literalTs(matrix.n8nIntegration)} as const satisfies N8nIntegrationSurface;`,
+  ]);
 }
 
 function emitGovernProtocol(program: Program, project: Project, repoRoot: string): void {
@@ -3356,6 +3468,29 @@ function firstNonEmptyString(...values: unknown[]): string | undefined {
   return undefined;
 }
 `;
+}
+
+function literalTs(value: unknown): string {
+  return JSON.stringify(value, null, 2);
+}
+
+function arrayOfStrings(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+}
+
+function arrayOfRecords(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (entry): entry is Record<string, unknown> =>
+          entry !== null && typeof entry === 'object' && !Array.isArray(entry),
+      )
+    : [];
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 /**

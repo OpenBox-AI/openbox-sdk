@@ -127,11 +127,12 @@ describe('openbox install cursor; project-local plugin bundle', () => {
     const r = runCLI(['cursor', 'doctor', '--json', '--surface-only']);
     expect(r.status, r.err).toBe(0);
     const payload = JSON.parse(r.out);
-    expect(payload.summary).toEqual({ pass: 9, skip: 0, fail: 0 });
+    expect(payload.summary).toEqual({ pass: 10, skip: 0, fail: 0 });
     expect(payload.checks.map((c: any) => c.name)).toEqual([
       'plugin',
       'plugin-manifest',
       'plugin-marketplace',
+      'plugin-workspace-open',
       'plugin-skill',
       'plugin-commands',
       'plugin-rules',
@@ -146,6 +147,7 @@ describe('openbox install cursor; project-local plugin bundle', () => {
     const r = runCLI(['cursor', 'plugin', 'export', '--out', out]);
     expect(r.status, r.err).toBe(0);
     expect(existsSync(join(out, '.cursor-plugin', 'plugin.json'))).toBe(true);
+    expect(existsSync(join(out, 'workspaceOpen.json'))).toBe(true);
     expect(existsSync(join(out, 'hooks', 'hooks.json'))).toBe(true);
     expect(existsSync(join(out, 'mcp.json'))).toBe(true);
     expect(existsSync(join(out, 'skills', 'openbox', 'SKILL.md'))).toBe(true);

@@ -34,6 +34,7 @@ export type OpenBoxAnthropicAgentHookEvent = Extract<
   | 'ConfigChange'
   | 'CwdChanged'
   | 'FileChanged'
+  | 'WorktreeCreate'
   | 'WorktreeRemove'
   | 'PreCompact'
   | 'PostCompact'
@@ -61,6 +62,16 @@ export interface OpenBoxAnthropicAgentSDKConfig {
   /** @deprecated Compatibility no-op. Decision-capable hooks always fail closed. */
   failClosed?: boolean;
   hookTimeoutSeconds?: number;
+  /**
+   * Register side-effectful opt-in hooks such as WorktreeCreate.
+   * These hooks are disabled by default because they replace host behavior.
+   */
+  includeOptInHooks?: boolean;
+  /**
+   * Root directory for managed WorktreeCreate paths.
+   * Defaults to .openbox/worktrees under the current process cwd.
+   */
+  worktreeRoot?: string;
   clientName?: string;
   query?: (params: OpenBoxAnthropicAgentQueryParams) => Query;
 }

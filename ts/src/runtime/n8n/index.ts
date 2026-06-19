@@ -15,7 +15,10 @@ import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
 } from '../../governance/assistant-output.js';
+import { N8N_INTEGRATION_SURFACE } from '../../governance/capability-matrix.js';
 import { stampSource } from '../../approvals/source.js';
+
+export const OPENBOX_N8N_INTEGRATION = N8N_INTEGRATION_SURFACE;
 
 export interface N8nUserPromptSignalOptions {
   nodeName?: string;

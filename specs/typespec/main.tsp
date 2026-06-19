@@ -13,3 +13,5 @@ import "./env/main.tsp";
 import "./cli/main.tsp";
 import "./govern/main.tsp";
 import "./govern/adapters.tsp";
+import "./govern/rules-projection.tsp";
+import "./govern/capabilities.tsp";

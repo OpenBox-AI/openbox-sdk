@@ -58,6 +58,10 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   // inspect, agent audit, and verify for protocol-conformance checks.
   '../../core-client/generated/govern.js':
     'spec-driven canonical event_type / activity_type / verdict-arm sets.',
+  '../../core-client/generated/runtime/codex.js':
+    'spec-driven Codex HOOK_SPEC used by unified install/uninstall to write the matching MCP entry.',
+  '../../install/from-spec.js':
+    'spec-driven install writer shared by CLI host commands for project-local MCP entries.',
   // Env-binding constants (spec-driven, no HTTP).
   '../../env/index.js': 'ENV_VAR_BINDINGS for canonical env-var name lookups.',
   // Per-runtime adapter install/hook entrypoints; claude-code/cursor/
