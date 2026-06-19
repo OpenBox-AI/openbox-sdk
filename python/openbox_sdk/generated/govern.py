@@ -765,6 +765,41 @@ PRESET_MANIFEST = [
     ]
   },
   {
+    "preset": "openai-agents-sdk",
+    "methods": [
+      {
+        "name": "runStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "OpenAIAgentsSDKRun"
+      },
+      {
+        "name": "runCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "OpenAIAgentsSDKRun"
+      },
+      {
+        "name": "toolStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "ToolStarted"
+      },
+      {
+        "name": "toolCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "ToolCompleted"
+      },
+      {
+        "name": "handoff",
+        "eventType": "Handoff",
+        "activityType": "AgentHandoff"
+      },
+      {
+        "name": "guardrail",
+        "eventType": "ActivityStarted",
+        "activityType": "GuardrailEvaluation"
+      }
+    ]
+  },
+  {
     "preset": "pagerduty",
     "methods": [
       {
@@ -1421,6 +1456,26 @@ class N8nSession(BaseGovernedSession):
         return await self.run_activity("ActivityCompleted", "error-trigger", payload or {})
 
 
+class OpenaiAgentsSdkSession(BaseGovernedSession):
+    async def run_started(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "OpenAIAgentsSDKRun", payload or {})
+
+    async def run_completed(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityCompleted", "OpenAIAgentsSDKRun", payload or {})
+
+    async def tool_started(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "ToolStarted", payload or {})
+
+    async def tool_completed(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityCompleted", "ToolCompleted", payload or {})
+
+    async def handoff(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("Handoff", "AgentHandoff", payload or {})
+
+    async def guardrail(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "GuardrailEvaluation", payload or {})
+
+
 class PagerdutySession(BaseGovernedSession):
     async def incident_triggered(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
         return await self.run_activity("ActivityStarted", "incident.triggered", payload or {})
@@ -1564,6 +1619,7 @@ PRESET_CLASSES = {
     "mastra": MastraSession,
     "modern_treasury": ModernTreasurySession,
     "n8n": N8nSession,
+    "openai_agents_sdk": OpenaiAgentsSdkSession,
     "pagerduty": PagerdutySession,
     "pydantic_ai": PydanticAiSession,
     "semantic_kernel": SemanticKernelSession,
@@ -1572,4 +1628,4 @@ PRESET_CLASSES = {
 }
 presets = SimpleNamespace(**PRESET_CLASSES)
 
-__all__ = ["PRESET_MANIFEST", "PRESET_CLASSES", "presets", "AirflowSession", "AnthropicAgentSdkSession", "ArgocdSession", "AutogenSession", "ClaudeCodeSession", "ClineSession", "CodexSession", "CopilotSession", "CrewaiSession", "CursorSession", "CustomSession", "DefaultSession", "LangchainSession", "LanggraphSession", "LlamaindexSession", "MastraSession", "ModernTreasurySession", "N8nSession", "PagerdutySession", "PydanticAiSession", "SemanticKernelSession", "TemporalSession", "VercelAiSession"]
+__all__ = ["PRESET_MANIFEST", "PRESET_CLASSES", "presets", "AirflowSession", "AnthropicAgentSdkSession", "ArgocdSession", "AutogenSession", "ClaudeCodeSession", "ClineSession", "CodexSession", "CopilotSession", "CrewaiSession", "CursorSession", "CustomSession", "DefaultSession", "LangchainSession", "LanggraphSession", "LlamaindexSession", "MastraSession", "ModernTreasurySession", "N8nSession", "OpenaiAgentsSdkSession", "PagerdutySession", "PydanticAiSession", "SemanticKernelSession", "TemporalSession", "VercelAiSession"]

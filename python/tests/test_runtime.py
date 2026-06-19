@@ -519,8 +519,50 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
 
     result = await middleware.wrap_tool_call({"id": "tool-1", "name": "lookup"}, handler)
     assert result == {"handled": "lookup"}
-    model_result = await middleware.wrap_model_call({"run_id": "model-1"}, lambda _req: "answer")
-    assert model_result == "answer"
+    tool_events = [event for event in core.events if event.get("activity_id") == "tool-1"]
+    assert tool_events[0]["event_type"] == "ActivityStarted"
+    assert tool_events[0]["hook_trigger"] is False
+    assert "spans" not in tool_events[0]
+    assert tool_events[1]["event_type"] == "ActivityStarted"
+    assert tool_events[1]["hook_trigger"] is True
+    assert tool_events[1]["spans"][0]["stage"] == "started"
+    assert tool_events[1]["spans"][0]["attributes"]["openbox.tool.name"] == "lookup"
+    assert tool_events[1]["spans"][0]["attributes"]["tool.name"] == "lookup"
+    completed_tool_hook = next(
+        event
+        for event in tool_events
+        if event["event_type"] == "ActivityStarted"
+        and event["hook_trigger"] is True
+        and event["spans"][0]["stage"] == "completed"
+    )
+    assert completed_tool_hook["span_count"] == 1
+
+    model_payload = {
+        "content": "answer",
+        "usage_metadata": {"input_tokens": 8, "output_tokens": 3},
+        "response_metadata": {"model_name": "gpt-4.1-mini", "finish_reason": "stop"},
+    }
+    model_result = await middleware.wrap_model_call(
+        {
+            "run_id": "model-1",
+            "model": "gpt-4.1-mini",
+            "messages": [{"role": "user", "content": "say hi"}],
+        },
+        lambda _req: model_payload,
+    )
+    assert model_result == model_payload
+    model_events = [event for event in core.events if event.get("activity_id") == "model-1"]
+    assert not [event for event in model_events if event["hook_trigger"] is True]
+    model_completed = next(
+        event for event in model_events if event["event_type"] == "ActivityCompleted"
+    )
+    assert model_completed["llm_model"] == "gpt-4.1-mini"
+    assert model_completed["input_tokens"] == 8
+    assert model_completed["output_tokens"] == 3
+    assert model_completed["total_tokens"] == 11
+    assert model_completed["has_tool_calls"] is False
+    assert model_completed["finish_reason"] == "stop"
+    assert model_completed["completion"] == "answer"
 
     approval_core = FakeCore(
         evals=[
