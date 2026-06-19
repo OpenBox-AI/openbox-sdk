@@ -429,6 +429,7 @@ async function handlePostToolUse(
     durationMs: numberFrom(env.duration_ms),
     ...toolTelemetryFields(toolName, toolInput),
     spans: toolSpan(toolName, toolInput, toolOutput, 'completed'),
+    hookSpanParentEventType: 'ActivityStarted' as const,
   };
   const verdict =
     (await deps.manager.completeToolActivity(
@@ -458,6 +459,7 @@ async function handlePostToolUseFailure(
     durationMs: numberFrom(env.duration_ms),
     ...toolTelemetryFields(toolName, toolInput),
     spans: toolSpan(toolName, toolInput, env.error, 'completed'),
+    hookSpanParentEventType: 'ActivityStarted' as const,
   };
   const verdict =
     (await deps.manager.completeToolActivity(
@@ -507,6 +509,8 @@ async function handleStop(
     output: content ? { content } : undefined,
     ...assistantOutputTelemetry(assistant),
     spans: assistantOutputSpan(assistant),
+    hookSpanParentEventType: 'ActivityStarted',
+    ensureHookSpanParent: true,
   });
   if (verdict.arm === 'allow' || verdict.arm === 'constrain') {
     await deps.manager.complete(sessionId);
@@ -535,6 +539,8 @@ async function handleStopFailure(
       output: stopFailureOutput(env, content),
       ...assistantOutputTelemetry(assistant),
       spans: assistantOutputSpan(assistant),
+      hookSpanParentEventType: 'ActivityStarted',
+      ensureHookSpanParent: true,
     });
   } catch {
     // best-effort failure telemetry; StopFailure cannot safely block the host.
@@ -570,6 +576,8 @@ async function handleSubagentStop(
     output: env.last_assistant_message,
     ...assistantOutputTelemetry(assistant),
     spans: assistantOutputSpan(assistant),
+    hookSpanParentEventType: 'ActivityStarted',
+    ensureHookSpanParent: true,
   });
   return renderContinueBlock(verdict);
 }
@@ -598,6 +606,8 @@ async function handleMessageDisplay(
     output: content,
     ...assistantOutputTelemetry(assistant),
     spans: assistantOutputSpan(assistant),
+    hookSpanParentEventType: 'ActivityStarted',
+    ensureHookSpanParent: true,
   });
   return {};
 }

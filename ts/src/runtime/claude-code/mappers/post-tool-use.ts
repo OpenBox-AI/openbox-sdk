@@ -129,6 +129,7 @@ export async function handlePostToolUse(
     toolName,
     toolType: effectiveSpanType ?? undefined,
     spans,
+    hookSpanParentEventType: spans ? 'ActivityStarted' : undefined,
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;
@@ -184,6 +185,7 @@ export async function handlePostToolUseFailure(
     toolName,
     toolType: effectiveSpanType ?? undefined,
     spans,
+    hookSpanParentEventType: spans ? 'ActivityStarted' : undefined,
   });
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);
   return verdict;

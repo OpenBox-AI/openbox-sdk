@@ -638,9 +638,10 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     });
     const completedHook = mock.events.find(
       (event) =>
-        event.event_type === 'ActivityCompleted' &&
+        event.event_type === 'ActivityStarted' &&
         event.activity_type === 'ShellExecution' &&
-        event.hook_trigger === true,
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
     );
     expect(completedHook?.spans?.[0]).toMatchObject({
       stage: 'completed',
@@ -770,8 +771,15 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         event.event_type === 'ActivityCompleted' &&
         event.activity_type === 'AnthropicAgentSDKSession',
     );
-    expect(sessionEvents).toHaveLength(2);
-    const [parent, hook] = sessionEvents;
+    expect(sessionEvents).toHaveLength(1);
+    const [parent] = sessionEvents;
+    const hook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'AnthropicAgentSDKSession' &&
+        event.hook_trigger === true &&
+        event.activity_id === parent?.activity_id,
+    );
     expect(parent.hook_trigger).toBe(false);
     expect(parent.spans).toBeUndefined();
     expect(parent.span_count).toBeUndefined();
@@ -794,14 +802,14 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       }),
     );
     expect(parent.completion).toBe('partial assistant answer');
-    expect(hook.hook_trigger).toBe(true);
-    expect(hook.event_type).toBe(parent.event_type);
-    expect(hook.workflow_id).toBe(parent.workflow_id);
-    expect(hook.run_id).toBe(parent.run_id);
-    expect(hook.activity_id).toBe(parent.activity_id);
-    expect(hook.activity_type).toBe(parent.activity_type);
-    expect(hook.span_count).toBe(1);
-    const span = hook.spans?.[0] as any;
+    expect(hook?.hook_trigger).toBe(true);
+    expect(hook?.event_type).toBe('ActivityStarted');
+    expect(hook?.workflow_id).toBe(parent.workflow_id);
+    expect(hook?.run_id).toBe(parent.run_id);
+    expect(hook?.activity_id).toBe(parent.activity_id);
+    expect(hook?.activity_type).toBe(parent.activity_type);
+    expect(hook?.span_count).toBe(1);
+    const span = hook?.spans?.[0] as any;
     expect(span).toMatchObject({
       name: 'openbox.anthropic-agent-sdk.assistant_output',
       stage: 'completed',
@@ -951,8 +959,15 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         event.event_type === 'ActivityCompleted' &&
         event.activity_type === 'LLMCompleted',
     );
-    expect(assistantEvents).toHaveLength(2);
-    const [assistantParent, assistantHook] = assistantEvents;
+    expect(assistantEvents).toHaveLength(1);
+    const [assistantParent] = assistantEvents;
+    const assistantHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'LLMCompleted' &&
+        event.hook_trigger === true &&
+        event.activity_id === assistantParent?.activity_id,
+    );
     expect(assistantParent.hook_trigger).toBe(false);
     expect(assistantParent.spans).toBeUndefined();
     expect(assistantParent.span_count).toBeUndefined();
@@ -963,14 +978,14 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       has_tool_calls: false,
       completion: 'Done.',
     });
-    expect(assistantHook.hook_trigger).toBe(true);
-    expect(assistantHook.event_type).toBe(assistantParent.event_type);
-    expect(assistantHook.workflow_id).toBe(assistantParent.workflow_id);
-    expect(assistantHook.run_id).toBe(assistantParent.run_id);
-    expect(assistantHook.activity_id).toBe(assistantParent.activity_id);
-    expect(assistantHook.activity_type).toBe(assistantParent.activity_type);
-    expect(assistantHook.span_count).toBe(1);
-    expect(assistantHook.spans?.[0]).toMatchObject({
+    expect(assistantHook?.hook_trigger).toBe(true);
+    expect(assistantHook?.event_type).toBe('ActivityStarted');
+    expect(assistantHook?.workflow_id).toBe(assistantParent.workflow_id);
+    expect(assistantHook?.run_id).toBe(assistantParent.run_id);
+    expect(assistantHook?.activity_id).toBe(assistantParent.activity_id);
+    expect(assistantHook?.activity_type).toBe(assistantParent.activity_type);
+    expect(assistantHook?.span_count).toBe(1);
+    expect(assistantHook?.spans?.[0]).toMatchObject({
       name: 'openbox.anthropic-agent-sdk.assistant_output',
       stage: 'completed',
       semantic_type: 'llm_completion',
@@ -1034,8 +1049,17 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         event.event_type === 'ActivityCompleted' &&
         event.activity_type === 'LLMCompleted',
     );
-    expect(assistantEvents).toHaveLength(4);
-    const [assistantParent, contentHook, ...syntheticHooks] = assistantEvents;
+    expect(assistantEvents).toHaveLength(1);
+    const [assistantParent] = assistantEvents;
+    const hookEvents = mock.events.filter(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'LLMCompleted' &&
+        event.hook_trigger === true &&
+        event.activity_id === assistantParent?.activity_id,
+    );
+    expect(hookEvents).toHaveLength(3);
+    const [contentHook, ...syntheticHooks] = hookEvents;
     expect(assistantParent).toMatchObject({
       input_tokens: 30,
       output_tokens: 12,
@@ -1043,9 +1067,9 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       completion: 'Done with multiple models.',
     });
     expect(assistantParent.llm_model).toBeUndefined();
-    expect(contentHook.hook_trigger).toBe(true);
-    expect(contentHook.activity_id).toBe(assistantParent.activity_id);
-    expect(contentHook.spans?.[0]).toMatchObject({
+    expect(contentHook?.hook_trigger).toBe(true);
+    expect(contentHook?.activity_id).toBe(assistantParent.activity_id);
+    expect(contentHook?.spans?.[0]).toMatchObject({
       name: 'openbox.anthropic-agent-sdk.assistant_output',
       semantic_type: 'llm_completion',
     });
@@ -1054,7 +1078,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(syntheticHooks).toHaveLength(2);
     for (const hook of syntheticHooks) {
       expect(hook.hook_trigger).toBe(true);
-      expect(hook.event_type).toBe(assistantParent.event_type);
+      expect(hook.event_type).toBe('ActivityStarted');
       expect(hook.workflow_id).toBe(assistantParent.workflow_id);
       expect(hook.run_id).toBe(assistantParent.run_id);
       expect(hook.activity_id).toBe(assistantParent.activity_id);

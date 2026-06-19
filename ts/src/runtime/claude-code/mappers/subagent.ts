@@ -114,6 +114,8 @@ export async function handleSubagentStop(
         event: 'SubagentStop',
         fallbackText: env.last_assistant_message,
       }),
+      hookSpanParentEventType: 'ActivityStarted',
+      ensureHookSpanParent: !pending,
     },
   );
   if (verdict.arm === 'halt') markHalted(env.session_id, cfg);

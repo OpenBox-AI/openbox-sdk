@@ -108,6 +108,7 @@ export async function handleAfterMCPExecution(
         tool_output: payload.tool_output,
       }),
     ],
+    hookSpanParentEventType: 'ActivityStarted',
   });
   return undefined;
 }

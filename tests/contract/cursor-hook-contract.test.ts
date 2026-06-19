@@ -447,13 +447,18 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     }).run();
 
     expect(JSON.parse(responseCap.stdout[0])).toEqual({});
-    expect(responsePayloads).toHaveLength(2);
+    expect(responsePayloads).toHaveLength(3);
     expect(responsePayloads[0]).toMatchObject({
-      event_type: 'ActivityCompleted',
+      event_type: 'ActivityStarted',
       activity_type: 'LLMCompleted',
     });
     expect(responsePayloads[1]).toMatchObject({
       event_type: 'ActivityCompleted',
+      activity_type: 'LLMCompleted',
+      hook_trigger: false,
+    });
+    expect(responsePayloads[2]).toMatchObject({
+      event_type: 'ActivityStarted',
       activity_type: 'LLMCompleted',
       hook_trigger: true,
     });
@@ -462,8 +467,14 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
         payload.event_type === 'ActivityCompleted' &&
         payload.activity_type === 'LLMCompleted',
     );
-    expect(responseCompletes).toHaveLength(2);
-    const [responseParent, responseHook] = responseCompletes;
+    expect(responseCompletes).toHaveLength(1);
+    const [responseParent] = responseCompletes;
+    const responseHook = responsePayloads.find(
+      (payload) =>
+        payload.event_type === 'ActivityStarted' &&
+        payload.activity_type === 'LLMCompleted' &&
+        payload.hook_trigger === true,
+    );
     expect(responseParent).toMatchObject({
       workflow_id: 'wf-cursor-contract',
       run_id: 'run-cursor-contract',
@@ -475,16 +486,17 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     expect(responseParent.hook_trigger).toBe(false);
     expect(responseParent.spans).toBeUndefined();
     expect(responseParent.span_count).toBeUndefined();
+    expect(responseHook).toBeDefined();
     expect(responseHook).toMatchObject({
       workflow_id: responseParent.workflow_id,
       run_id: responseParent.run_id,
       activity_id: responseParent.activity_id,
-      event_type: responseParent.event_type,
+      event_type: 'ActivityStarted',
       activity_type: responseParent.activity_type,
       hook_trigger: true,
       span_count: 1,
     });
-    expect(responseHook.spans?.[0]).toMatchObject({
+    expect(responseHook!.spans?.[0]).toMatchObject({
       name: 'openbox.cursor.assistant_output',
       semantic_type: 'llm_completion',
       stage: 'completed',
@@ -548,7 +560,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     expect(hook).toMatchObject({
       workflow_id: parent.workflow_id,
       run_id: parent.run_id,
-      event_type: parent.event_type,
+      event_type: 'ActivityStarted',
       activity_type: parent.activity_type,
       activity_id: parent.activity_id,
       hook_trigger: true,
@@ -610,7 +622,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     expect(hook).toMatchObject({
       workflow_id: parent.workflow_id,
       run_id: parent.run_id,
-      event_type: parent.event_type,
+      event_type: 'ActivityStarted',
       activity_type: parent.activity_type,
       activity_id: parent.activity_id,
       hook_trigger: true,
@@ -671,7 +683,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     expect(hook).toMatchObject({
       workflow_id: parent.workflow_id,
       run_id: parent.run_id,
-      event_type: parent.event_type,
+      event_type: 'ActivityStarted',
       activity_type: parent.activity_type,
       activity_id: parent.activity_id,
       hook_trigger: true,
@@ -731,7 +743,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     expect(hook).toMatchObject({
       workflow_id: parent.workflow_id,
       run_id: parent.run_id,
-      event_type: parent.event_type,
+      event_type: 'ActivityStarted',
       activity_type: parent.activity_type,
       activity_id: parent.activity_id,
       hook_trigger: true,

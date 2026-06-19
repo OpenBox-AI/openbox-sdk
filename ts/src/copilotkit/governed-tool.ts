@@ -222,6 +222,7 @@ export function createGovernedCopilotTool<
                   spans: [
                     toolSpan(definition, startedRedaction.input, 'completed'),
                   ],
+                  hookSpanParentEventType: 'ActivityStarted',
                 },
                 definition.toolName,
               );
@@ -252,6 +253,7 @@ export function createGovernedCopilotTool<
               spans: [
                 toolSpan(definition, startedRedaction.input, 'completed'),
               ],
+              hookSpanParentEventType: 'ActivityStarted',
             },
             definition.toolName,
           ),
@@ -449,6 +451,7 @@ export function createGovernedCopilotTool<
             ]),
             output: toolOutputForGovernance(result),
             spans: [approvalResumeSpan(definition, normalizedInput)],
+            hookSpanParentEventType: 'ActivityStarted',
           }),
       );
 

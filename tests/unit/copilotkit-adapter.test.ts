@@ -573,7 +573,7 @@ describe('CopilotKit OpenBox adapter', () => {
       'ActivityStarted',
       'ActivityStarted',
       'ActivityCompleted',
-      'ActivityCompleted',
+      'ActivityStarted',
       'WorkflowCompleted',
     ]);
     const startedParent = events.find(
@@ -590,8 +590,9 @@ describe('CopilotKit OpenBox adapter', () => {
     );
     const completedHook = events.find(
       (event) =>
-        event.event_type === 'ActivityCompleted' &&
+        event.event_type === 'ActivityStarted' &&
         event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed' &&
         event.activity_id === completedParent?.activity_id,
     );
     expect(startedParent?.spans).toBeUndefined();
@@ -663,7 +664,7 @@ describe('CopilotKit OpenBox adapter', () => {
       'ActivityStarted',
       'ActivityStarted',
       'ActivityCompleted',
-      'ActivityCompleted',
+      'ActivityStarted',
       'WorkflowFailed',
     ]);
     const completedParent = mock.events.find(
@@ -671,8 +672,9 @@ describe('CopilotKit OpenBox adapter', () => {
     );
     const completedHook = mock.events.find(
       (event) =>
-        event.event_type === 'ActivityCompleted' &&
+        event.event_type === 'ActivityStarted' &&
         event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed' &&
         event.activity_id === completedParent?.activity_id,
     );
     expect(completedParent?.activity_output).toEqual({
@@ -761,8 +763,9 @@ describe('CopilotKit OpenBox adapter', () => {
     );
     const completionHook = events.find(
       (event) =>
-        event.event_type === 'ActivityCompleted' &&
+        event.event_type === 'ActivityStarted' &&
         event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed' &&
         event.activity_id === completionParent?.activity_id,
     );
     const activityInputJson = JSON.stringify(completionParent?.activity_input);
@@ -776,7 +779,7 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(JSON.stringify(completionParent?.activity_output)).toContain('7,500');
     expect(events.map((event) => event.event_type)).toEqual([
       'ActivityCompleted',
-      'ActivityCompleted',
+      'ActivityStarted',
       'WorkflowCompleted',
     ]);
     expect(completionParent?.hook_trigger).toBe(false);
@@ -1527,9 +1530,10 @@ describe('CopilotKit OpenBox adapter', () => {
     );
     const completed = mock.events.find(
       (event) =>
-        event.event_type === 'ActivityCompleted' &&
+        event.event_type === 'ActivityStarted' &&
         event.activity_type === 'on_llm_end' &&
-        event.hook_trigger,
+        event.hook_trigger &&
+        event.spans?.[0]?.stage === 'completed',
     );
     expect(completedParent).toMatchObject({
       llm_model: 'gpt-4o-mini',
@@ -1541,7 +1545,7 @@ describe('CopilotKit OpenBox adapter', () => {
     });
     expect(completedParent?.spans).toBeUndefined();
     expect(completedParent?.span_count).toBeUndefined();
-    expect(completed?.status).toBe('completed');
+    expect(completedParent?.status).toBe('completed');
     expect(completed?.span_count).toBe(1);
     const span = completed?.spans?.[0] as Record<string, any> | undefined;
     expect(span).toMatchObject({
@@ -1631,9 +1635,10 @@ describe('CopilotKit OpenBox adapter', () => {
     );
     const completed = mock.events.find(
       (event) =>
-        event.event_type === 'ActivityCompleted' &&
+        event.event_type === 'ActivityStarted' &&
         event.activity_type === 'crm_lookup' &&
         event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed' &&
         event.activity_id === startedParent?.activity_id,
     );
 
@@ -1678,7 +1683,7 @@ describe('CopilotKit OpenBox adapter', () => {
         'tool.name': 'crm_lookup',
       }),
     });
-    expect(completed?.activity_output).toEqual({
+    expect(completedParent?.activity_output).toEqual({
       ok: true,
       accountTier: 'enterprise',
     });

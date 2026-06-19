@@ -481,6 +481,20 @@ model GovernedPayload {
    * `skill/references/span-reference.md` for span shapes by semantic type.
    */
   spans?: unknown[];
+
+  /**
+   * SDK-internal span persistence hint. When a completion/observe event carries
+   * spans, the runtime re-evaluates those spans against the existing
+   * ActivityStarted parent row instead of attaching them to the completion row.
+   */
+  hookSpanParentEventType?: "ActivityStarted";
+
+  /**
+   * SDK-internal span persistence hint for observe-only outputs that do not
+   * have a natural pre/start hook. When true, the runtime emits a minimal
+   * ActivityStarted parent before sending hook spans.
+   */
+  ensureHookSpanParent?: boolean;
 }
 
 // ---------------------------------------------------------------------------

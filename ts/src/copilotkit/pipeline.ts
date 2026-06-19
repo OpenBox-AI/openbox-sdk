@@ -74,6 +74,15 @@ async function evaluateGate<T>(
     input.workflowType,
     input.taskQueue,
   );
+  const spanParent =
+    completed && spans && spans.length > 0
+      ? {
+          hookSpanParentEventType: 'ActivityStarted' as const,
+          ...(input.kind === 'assistant_output'
+            ? { ensureHookSpanParent: true }
+            : {}),
+        }
+      : {};
   if (input.kind === 'tool_input') {
     const opened = await session.openActivity(activityType, {
       activityId: ids.activityId,
@@ -92,6 +101,7 @@ async function evaluateGate<T>(
           output: input.payload,
           ...telemetry,
           spans,
+          ...spanParent,
         }
       : {
           activityId: ids.activityId,

@@ -608,8 +608,15 @@ describe('activity pairing', () => {
         event.event_type === 'ActivityCompleted' &&
         event.activity_type === 'node-post-execute',
     );
-    expect(completedEvents).toHaveLength(2);
-    const [completedParent, completedHook] = completedEvents;
+    expect(completedEvents).toHaveLength(1);
+    const [completedParent] = completedEvents;
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'node-post-execute' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
+    );
     expect(completedParent.hook_trigger).toBe(false);
     expect(completedParent.spans).toBeUndefined();
     expect(completedParent.span_count).toBeUndefined();
@@ -639,14 +646,14 @@ describe('activity pairing', () => {
     expect(completedParent.activity_input).toContainEqual({
       __openbox: { tool_type: 'n8n_node' },
     });
-    expect(completedHook.hook_trigger).toBe(true);
-    expect(completedHook.event_type).toBe(completedParent.event_type);
-    expect(completedHook.workflow_id).toBe(completedParent.workflow_id);
-    expect(completedHook.run_id).toBe(completedParent.run_id);
-    expect(completedHook.activity_id).toBe(completedParent.activity_id);
-    expect(completedHook.activity_type).toBe(completedParent.activity_type);
-    expect(completedHook.span_count).toBe(1);
-    const span = completedHook.spans?.[0] as Record<string, unknown> | undefined;
+    expect(completedHook?.hook_trigger).toBe(true);
+    expect(completedHook?.event_type).toBe('ActivityStarted');
+    expect(completedHook?.workflow_id).toBe(completedParent.workflow_id);
+    expect(completedHook?.run_id).toBe(completedParent.run_id);
+    expect(completedHook?.activity_id).toBe(completedParent.activity_id);
+    expect(completedHook?.activity_type).toBe(completedParent.activity_type);
+    expect(completedHook?.span_count).toBe(1);
+    const span = completedHook?.spans?.[0] as Record<string, unknown> | undefined;
     expect(span).toMatchObject({
       name: 'openbox.n8n.assistant_output',
       stage: 'completed',
@@ -716,8 +723,15 @@ describe('activity pairing', () => {
         event.event_type === 'ActivityCompleted' &&
         event.activity_type === 'node-post-execute',
     );
-    expect(completedEvents).toHaveLength(2);
-    const [completedParent, completedHook] = completedEvents;
+    expect(completedEvents).toHaveLength(1);
+    const [completedParent] = completedEvents;
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'node-post-execute' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
+    );
     expect(completedParent.activity_id).toBe(started?.activity_id);
     expect(completedParent.hook_trigger).toBe(false);
     expect(completedParent.spans).toBeUndefined();
@@ -735,10 +749,10 @@ describe('activity pairing', () => {
         _openbox_source: 'n8n',
       }),
     });
-    expect(completedHook.hook_trigger).toBe(true);
-    expect(completedHook.activity_id).toBe(completedParent.activity_id);
-    expect(completedHook.span_count).toBe(1);
-    expect(completedHook.spans?.[0]).toMatchObject({
+    expect(completedHook?.hook_trigger).toBe(true);
+    expect(completedHook?.activity_id).toBe(completedParent.activity_id);
+    expect(completedHook?.span_count).toBe(1);
+    expect(completedHook?.spans?.[0]).toMatchObject({
       activity_id: completedParent.activity_id,
       name: 'n8n.CRM Upsert',
       stage: 'completed',
@@ -791,10 +805,15 @@ describe('activity pairing', () => {
         event.event_type === 'ActivityCompleted' &&
         event.activity_type === 'LLMCompleted',
     );
-    expect(completedEvents).toHaveLength(2);
+    expect(completedEvents).toHaveLength(1);
     expect(completedEvents[0]?.spans).toBeUndefined();
-    expect(completedEvents[1]?.hook_trigger).toBe(true);
-    expect(completedEvents[1]?.spans).toHaveLength(1);
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'LLMCompleted' &&
+        event.hook_trigger === true,
+    );
+    expect(completedHook?.spans).toHaveLength(1);
     expect(mock.pollApproval).not.toHaveBeenCalled();
   });
 });
@@ -1530,8 +1549,15 @@ describe('BaseGovernedSession.activity (cross-preset escape)', () => {
     const completedEvents = mock.events.filter(
       (e) => e.event_type === 'ActivityCompleted' && e.activity_type === 'on_tool_end',
     );
-    expect(completedEvents).toHaveLength(2);
-    const [completed, completedHook] = completedEvents;
+    expect(completedEvents).toHaveLength(1);
+    const [completed] = completedEvents;
+    const completedHook = mock.events.find(
+      (e) =>
+        e.event_type === 'ActivityStarted' &&
+        e.activity_type === 'on_tool_end' &&
+        e.hook_trigger === true &&
+        e.spans?.[0]?.stage === 'completed',
+    );
     expect(started?.activity_id).toBe('tool-activity-1');
     expect(started?.start_time).toBe(1_000);
     expect(completed?.activity_id).toBe('tool-activity-1');

@@ -300,6 +300,7 @@ export async function emitActivityHookSpanUpdate(
     activityId: ids.activityId,
     output,
     spans,
+    hookSpanParentEventType: 'ActivityStarted',
   });
 }
 

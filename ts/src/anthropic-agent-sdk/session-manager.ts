@@ -166,6 +166,8 @@ export class AnthropicAgentSessionManager {
         output: message.subtype === 'success' ? message.result : undefined,
         ...assistantOutputTelemetry(assistantEvent),
         spans,
+        hookSpanParentEventType: 'ActivityStarted',
+        ensureHookSpanParent: true,
       });
     }
 

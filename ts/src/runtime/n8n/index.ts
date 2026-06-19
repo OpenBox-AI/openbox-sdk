@@ -420,6 +420,7 @@ export async function emitN8nNodePostExecute(
     activityId,
     spans: payload.spans?.map((span) => withSpanActivityId(span, activityId)),
     startTime: pending?.startTime ?? input.startTime,
+    hookSpanParentEventType: payload.spans?.length ? 'ActivityStarted' : undefined,
   });
 }
 
@@ -435,5 +436,7 @@ export async function emitN8nLlmCompletion(
     activityId,
     spans: payload.spans?.map((span) => withSpanActivityId(span, activityId)),
     startTime: pending?.startTime,
+    hookSpanParentEventType: payload.spans?.length ? 'ActivityStarted' : undefined,
+    ensureHookSpanParent: !pending,
   });
 }

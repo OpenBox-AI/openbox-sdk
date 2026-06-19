@@ -143,6 +143,8 @@ export async function handleMessageDisplay(
             preferTranscriptContent: true,
           })
         : undefined,
+      hookSpanParentEventType: env.final === true ? 'ActivityStarted' : undefined,
+      ensureHookSpanParent: env.final === true,
     });
   } catch {
     // MessageDisplay is observe-only; never disturb Claude Code output.

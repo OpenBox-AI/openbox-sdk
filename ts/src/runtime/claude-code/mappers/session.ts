@@ -142,6 +142,8 @@ export async function handleStop(
         event: 'Stop',
         fallbackText: env.last_assistant_message,
       }),
+      hookSpanParentEventType: 'ActivityStarted',
+      ensureHookSpanParent: !pending,
     });
   } catch {
     return failClosedStopVerdict(

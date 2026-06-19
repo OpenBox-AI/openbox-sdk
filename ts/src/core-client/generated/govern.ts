@@ -63,6 +63,8 @@ export interface GovernedPayload {
   signalName?: string;
   signalArgs?: unknown;
   spans?: unknown[];
+  hookSpanParentEventType?: "ActivityStarted";
+  ensureHookSpanParent?: boolean;
 }
 export type CanonicalVerdict = WorkflowVerdict;
 /** Spec-driven manifest of every preset + its method envelopes. */
@@ -1285,6 +1287,7 @@ export class BaseGovernedSession {
   private readonly autoOpenSuppressed: boolean;
   private readonly inFlight = new Set<string>();
   private readonly activityStartsMs = new Map<string, number>();
+  private readonly activityParents = new Set<string>();
   private readonly exitHandlerCleanup: Array<() => void> = [];
   protected readonly onPendingApproval?: GovernedSessionConfig['onPendingApproval'];
   protected readonly onApprovalResolved?: GovernedSessionConfig['onApprovalResolved'];
@@ -1462,7 +1465,7 @@ export class BaseGovernedSession {
         startedVerdict.activityId = activityId;
         return startedVerdict;
       }
-      return this.emitCompleted(activityId, activityType, payload, {
+      return this.emitCompleted(activityId, activityType, observeCompletedSpanPayload(payload), {
         pollApprovals: false,
       });
     } finally {
@@ -1540,6 +1543,7 @@ export class BaseGovernedSession {
       }
       if (verdict.arm !== 'allow' && verdict.arm !== 'constrain') {
         this.activityStartsMs.delete(activityId);
+        this.activityParents.delete(activityId);
       }
       return {
         activityId,
@@ -1548,7 +1552,11 @@ export class BaseGovernedSession {
           this.runActivity(
             'ActivityCompleted',
             completionActivityType ?? activityType,
-            { ...completionPayload, activityId },
+            {
+              ...completionPayload,
+              activityId,
+              hookSpanParentEventType: completionPayload.hookSpanParentEventType ?? 'ActivityStarted',
+            },
           ),
       };
     } finally {
@@ -1630,6 +1638,7 @@ export class BaseGovernedSession {
         }
         if (startedVerdict.arm !== 'allow') {
           this.activityStartsMs.delete(activityId);
+          this.activityParents.delete(activityId);
           // Pre-stage block; never emit ActivityCompleted, but if the
           // gate said require_approval, poll for the approval decision.
           // pollApproval keys on workflow_id + run_id + activity_id;
@@ -1712,9 +1721,12 @@ export class BaseGovernedSession {
       end_time: endTime,
       duration_ms: durationMs,
       spans: payload.spans as unknown as GovernanceEventPayload['spans'],
+      hook_span_parent_event_type: payload.hookSpanParentEventType,
+      ensure_hook_span_parent: payload.ensureHookSpanParent,
       ...telemetryEventFields(payload),
     });
     this.activityStartsMs.delete(activityId);
+    this.activityParents.delete(activityId);
     completedVerdict.activityId = activityId;
     if (completedVerdict.arm === 'require_approval' && options.pollApprovals !== false) {
       // See comment in runActivity: poll on activity_id even if the
@@ -1753,15 +1765,43 @@ export class BaseGovernedSession {
     event: Pick<
       GovernanceEventPayload,
       'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms' | keyof TelemetryEventFields
-    >,
+    > & {
+      hook_span_parent_event_type?: 'ActivityStarted';
+      ensure_hook_span_parent?: boolean;
+    },
   ): Promise<WorkflowVerdict> {
     const hasActivitySpans =
-      (event.event_type === 'ActivityStarted' ||
-        event.event_type === 'ActivityCompleted') &&
+      (event.event_type === 'ActivityStarted' || event.hook_span_parent_event_type === 'ActivityStarted') &&
       Array.isArray(event.spans) &&
       event.spans.some(isPersistableHookSpan);
-    const parentEvent = { ...event, spans: undefined } as typeof event;
+    const parentEvent = withoutSpanRuntimeHints({ ...event, spans: undefined }) as typeof event;
+    const hookParentEvent = event.hook_span_parent_event_type === 'ActivityStarted'
+      ? ({
+          ...parentEvent,
+          event_type: 'ActivityStarted',
+          status: undefined,
+          activity_output: undefined,
+          end_time: undefined,
+          duration_ms: undefined,
+        } as typeof event)
+      : parentEvent;
+    if (
+      hasActivitySpans &&
+      hookParentEvent.event_type === 'ActivityStarted' &&
+      event.ensure_hook_span_parent === true &&
+      event.activity_id &&
+      !this.activityParents.has(event.activity_id)
+    ) {
+      await this.emit(withoutSpanRuntimeHints(hookParentEvent));
+      this.activityParents.add(event.activity_id);
+      if (typeof event.start_time === 'number') {
+        this.activityStartsMs.set(event.activity_id, event.start_time);
+      }
+    }
     const parentVerdict = await this.emit(parentEvent);
+    if (parentEvent.event_type === 'ActivityStarted' && event.activity_id) {
+      this.activityParents.add(event.activity_id);
+    }
     if (!hasActivitySpans) return parentVerdict;
 
     let hookVerdict = parentVerdict;
@@ -1769,7 +1809,7 @@ export class BaseGovernedSession {
     for (const span of persistableSpans) {
       const hookSpan = withSpanHookContext(span, event);
       hookVerdict = stricterVerdict(hookVerdict, await this.emit({
-        ...parentEvent,
+        ...hookParentEvent,
         attempt: event.attempt ?? 1,
         hook_trigger: true,
         spans: [hookSpan],
@@ -1996,6 +2036,23 @@ export class BaseGovernedSession {
     }
     this.exitHandlerCleanup.length = 0;
   }
+}
+
+function withoutSpanRuntimeHints<T extends Record<string, unknown>>(event: T): T {
+  const next = { ...event };
+  delete next.hook_span_parent_event_type;
+  delete next.ensure_hook_span_parent;
+  return next;
+}
+
+function observeCompletedSpanPayload(payload: GovernedPayload): GovernedPayload {
+  if (!Array.isArray(payload.spans) || payload.spans.length === 0) return payload;
+  if (payload.hookSpanParentEventType) return payload;
+  return {
+    ...payload,
+    hookSpanParentEventType: 'ActivityStarted',
+    ensureHookSpanParent: payload.ensureHookSpanParent ?? true,
+  };
 }
 
 function activityCompletionStatus(activityType: string): 'completed' | 'failed' {
@@ -3075,7 +3132,33 @@ function stricterVerdict(
   base: WorkflowVerdict,
   hook: WorkflowVerdict,
 ): WorkflowVerdict {
-  return verdictRank(hook.arm) >= verdictRank(base.arm) ? hook : base;
+  const hookRank = verdictRank(hook.arm);
+  const baseRank = verdictRank(base.arm);
+  if (hookRank > baseRank) return hook;
+  if (hookRank < baseRank) return base;
+  return mergePeerVerdicts(base, hook);
+}
+
+function mergePeerVerdicts(
+  base: WorkflowVerdict,
+  hook: WorkflowVerdict,
+): WorkflowVerdict {
+  return {
+    ...hook,
+    ...base,
+    riskScore: Math.max(base.riskScore ?? 0, hook.riskScore ?? 0),
+    trustTier: base.trustTier ?? hook.trustTier,
+    alignmentScore: base.alignmentScore ?? hook.alignmentScore,
+    policyId: base.policyId ?? hook.policyId,
+    behavioralViolations: base.behavioralViolations ?? hook.behavioralViolations,
+    constraints: base.constraints ?? hook.constraints,
+    metadata: hook.metadata || base.metadata
+      ? { ...(hook.metadata ?? {}), ...(base.metadata ?? {}) }
+      : undefined,
+    fallbackUsed: base.fallbackUsed ?? hook.fallbackUsed,
+    guardrailsResult: base.guardrailsResult ?? hook.guardrailsResult,
+    ageResult: base.ageResult ?? hook.ageResult,
+  };
 }
 
 function isPersistableHookSpan(span: unknown): boolean {

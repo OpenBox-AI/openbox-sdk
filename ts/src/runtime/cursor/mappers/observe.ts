@@ -270,6 +270,8 @@ export async function handleAfterAgentResponse(
         generation_id: env.generation_id,
       },
     }),
+    hookSpanParentEventType: 'ActivityStarted',
+    ensureHookSpanParent: true,
   });
   return undefined;
 }
@@ -336,6 +338,7 @@ export async function handleAfterShellExecution(
         tool_output: output,
       }),
     ],
+    hookSpanParentEventType: 'ActivityStarted',
   });
   return undefined;
 }
@@ -391,6 +394,7 @@ export async function handleAfterFileEdit(
         tool_input: { edits: payload.edits },
       }),
     ],
+    hookSpanParentEventType: 'ActivityStarted',
   });
   return undefined;
 }
