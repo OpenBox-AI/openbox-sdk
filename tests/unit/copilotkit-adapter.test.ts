@@ -777,6 +777,18 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completionParent?.spans).toBeUndefined();
     expect(completionHook?.hook_trigger).toBe(true);
     expect(completionHook?.span_count).toBe(1);
+    expect(completionHook?.spans?.[0]).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'llm_tool_call',
+      span_type: 'function',
+      attributes: expect.objectContaining({
+        'openbox.semantic_type': 'llm_tool_call',
+        'openbox.span_type': 'function',
+        'openbox.tool.name': 'openbox_governed_action',
+        'tool.name': 'openbox_governed_action',
+        tool_name: 'openbox_governed_action',
+      }),
+    });
   });
 
   it('retries CopilotKit poll failures until the server approval expiration', async () => {
