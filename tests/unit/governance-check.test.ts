@@ -128,8 +128,11 @@ describe('governance/check', () => {
     expect(state.payloads[1].run_id).toBe(state.payloads[0].run_id);
     expect(state.payloads[1].activity_id).toBe(state.payloads[0].activity_id);
     expect(state.payloads[1].spans[0]).toMatchObject({
-      semantic_type: 'llm_tool_call',
+      semantic_type: 'mcp_tool_call',
       attributes: {
+        'mcp.method': 'callTool',
+        'mcp.operation': 'danger_tool',
+        'mcp.server_id': 'unknown',
         'openbox.tool.name': 'danger_tool',
         'tool.name': 'danger_tool',
       },
@@ -182,7 +185,7 @@ describe('governance/check', () => {
       ['http', { method: 'get', url: 'https://example.test' }, 'HTTPRequest', 'GET https://example.test'],
       ['db', { operation: 'insert', statement: 'insert 1' }, 'DatabaseQuery', 'INSERT'],
       ['db', { query: 'SELECT 1' }, 'DatabaseQuery', 'SELECT'],
-      ['mcp', { tool: 'read' }, 'MCPToolCall', 'tool.read'],
+      ['mcp', { tool: 'read' }, 'MCPToolCall', 'MCP callTool read'],
     ] as const;
 
     for (const [spanType, activityInput, activityType, spanName] of cases) {
@@ -197,9 +200,12 @@ describe('governance/check', () => {
       expect(payload.spans[0].name).toBe(spanName);
       if (spanType === 'mcp') {
         expect(payload.spans[0]).toMatchObject({
-          semantic_type: 'llm_tool_call',
+          semantic_type: 'mcp_tool_call',
           span_type: 'mcp_tool_call',
           attributes: {
+            'mcp.method': 'callTool',
+            'mcp.operation': 'read',
+            'mcp.server_id': 'unknown',
             'openbox.tool.name': 'read',
             'tool.name': 'read',
           },

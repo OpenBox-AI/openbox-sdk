@@ -75,6 +75,11 @@ export interface SpanInput {
   tool?: string;
   tool_input?: unknown;
   tool_output?: unknown;
+  server?: string;
+  server_id?: string;
+  mcp_server_id?: string;
+  mcp_method?: string;
+  mcp_operation?: string;
   url?: string;
   method?: string;
   db_system?: string;
@@ -339,6 +344,30 @@ function toolNameAttributes(input: SpanInput): JsonRecord {
     'openbox.tool.name': toolName,
     'tool.name': toolName,
     tool_name: toolName,
+  };
+}
+
+function mcpIdentity(input: SpanInput): {
+  method: string;
+  operation: string;
+  serverId: string;
+} {
+  const toolName = input.tool_name ?? input.tool ?? 'call';
+  const parts = toolName.split('__');
+  const serverFromClaudeName =
+    parts.length >= 3 && parts[0] === 'mcp' ? parts[1] : undefined;
+  const operationFromClaudeName =
+    parts.length >= 3 && parts[0] === 'mcp' ? parts.slice(2).join('__') : undefined;
+  return {
+    method: firstTrimmed(input.mcp_method) ?? 'callTool',
+    operation: firstTrimmed(input.mcp_operation, operationFromClaudeName, toolName) ?? 'call',
+    serverId:
+      firstTrimmed(
+        input.mcp_server_id,
+        input.server_id,
+        input.server,
+        serverFromClaudeName,
+      ) ?? 'unknown',
   };
 }
 
@@ -636,20 +665,23 @@ export function buildSpan(
         result: null,
       };
     case 'mcp':
-      // Behavior rules use the generic tool-call semantic type; platform
-      // observability uses the MCP span type and tool name fields.
+      // Core classifies MCP calls from `mcp.method=callTool`.
+      // Keep this transport-agnostic so MCP does not get counted as
+      // provider LLM traffic merely because a host routes it through an LLM.
       const toolName = input.tool_name ?? input.tool ?? 'call';
+      const mcp = mcpIdentity(input);
       return {
         ...b,
-        name: `tool.${toolName}`,
+        name: `MCP ${mcp.method} ${mcp.operation}`,
         span_type: 'mcp_tool_call',
         hook_type: 'function_call',
-        semantic_type: 'llm_tool_call',
+        semantic_type: 'mcp_tool_call',
         attributes: {
-          'gen_ai.system': 'mcp',
-          'http.method': 'POST',
-          'http.url': 'https://api.openai.com/v1/chat/completions',
-          'openbox.semantic_type': 'llm_tool_call',
+          'mcp.method': mcp.method,
+          'mcp.operation': mcp.operation,
+          'mcp.server_id': mcp.serverId,
+          'mcp.input': input.tool_input ?? {},
+          'openbox.semantic_type': 'mcp_tool_call',
           'openbox.span_type': 'mcp_tool_call',
           'openbox.tool.name': toolName,
           'tool.name': toolName,

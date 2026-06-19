@@ -383,7 +383,7 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
     // `.claude-hooks/`. The openbox hooks live in WORKSPACE; from
     // a clean cwd the walk-up resolver finds nothing and claude
     // runs without the governance gate firing on the MCP call.
-    // The governance gate on `llm_tool_call` is exercised in the
+    // The governance gate on `mcp_tool_call` is exercised in the
     // headless matrix; here we are pinning the MCP load + call
     // path on its own.
     const cleanCwd = path.dirname(mcpConfigPath);

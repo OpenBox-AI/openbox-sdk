@@ -524,8 +524,11 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       expect(hook.run_id).toBe(parent.run_id);
       expect(hook.activity_id).toBe(parent.activity_id);
       expect(hook.spans[0]).toMatchObject({
-        semantic_type: 'llm_tool_call',
+        semantic_type: 'mcp_tool_call',
         attributes: {
+          'mcp.method': 'callTool',
+          'mcp.operation': 'danger_tool',
+          'mcp.server_id': 'unknown',
           'openbox.tool.name': 'danger_tool',
           'tool.name': 'danger_tool',
         },

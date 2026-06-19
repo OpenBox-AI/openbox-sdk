@@ -123,7 +123,7 @@ describe('low-branch utility coverage', () => {
       ['shell', { command: 'echo ok', cwd: '/repo' }, 'ShellExecution'],
       ['http', { method: 'get', url: 'https://example.test' }, 'GET https://example.test'],
       ['db', { operation: 'insert', statement: 'insert 1' }, 'INSERT'],
-      ['mcp', { tool_name: 'search' }, 'tool.search'],
+      ['mcp', { tool_name: 'search' }, 'MCP callTool search'],
     ] as const;
 
     for (const [spanType, input, name] of cases) {

@@ -655,9 +655,11 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
       span_count: 1,
     });
     expect(hook.spans?.[0]).toMatchObject({
-      semantic_type: 'llm_tool_call',
+      semantic_type: 'mcp_tool_call',
       attributes: {
-        'gen_ai.system': 'mcp',
+        'mcp.method': 'callTool',
+        'mcp.operation': toolName,
+        'mcp.server_id': 'unknown',
         'openbox.tool.name': toolName,
       },
     });

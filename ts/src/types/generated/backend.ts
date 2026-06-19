@@ -2212,9 +2212,9 @@ export interface components {
              * @description Trigger event
              * @enum {string}
              */
-            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
             /** @description States (multiple select) */
-            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
+            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
             /**
              * Format: uuid
              * @description The base_rule_id of the rule that this rule depends on (must be within the same agent)
@@ -2972,9 +2972,9 @@ export interface components {
              * @description Trigger event
              * @enum {string}
              */
-            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
             /** @description States (multiple select) */
-            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
+            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
             /**
              * Format: uuid
              * @description The base_rule_id of the rule that this rule depends on (must be within the same agent)
@@ -3635,7 +3635,7 @@ export interface operations {
                 /** @description Filter by status */
                 is_active?: boolean;
                 /** @description Filter by trigger */
-                trigger?: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+                trigger?: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
             };
             header?: never;
             path: {

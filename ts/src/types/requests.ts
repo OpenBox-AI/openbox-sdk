@@ -132,37 +132,11 @@ export type UpdateGuardrailDto = Schema<'UpdateGuardrailDto'>;
 export type CreatePolicyDto = Schema<'CreatePolicyDto'>;
 export type UpdatePolicyDto = Schema<'UpdatePolicyDto'>;
 
-// BehaviorTrigger / BehaviorVerdict aren't typed in the OpenAPI today.
-// Kept hand-written until a backend proposal tightens those enums.
-export type BehaviorTrigger =
-  | 'http_request'
-  | 'db_query'
-  | 'file_operation'
-  | 'function_call'
-  | 'on_workflow_completed'
-  | 'on_workflow_failed'
-  | 'on_workflow_started'
-  | 'on_signal_received'
-  | 'temporal_workflow_event'
-  | 'on_activity_started'
-  | 'on_activity_completed'
-  | 'on_activity_input'
-  | 'on_activity_output'
-  | 'on_signal'
-  | 'on_query'
-  | 'on_timer'
-  | 'on_message'
-  | 'on_error'
-  | 'on_state_change'
-  | 'shell_execution'
-  | 'internal'
-  | 'mcp_tool_call';
-
-export type BehaviorVerdict = 0 | 1 | 2 | 3 | 4;
-
 export type CreateBehaviorRuleDto = Schema<'CreateBehaviorRuleDto'>;
 export type UpdateBehavioralRuleDto = Schema<'UpdateBehavioralRuleDto'>;
 export type UpdateBehaviorRuleDto = UpdateBehavioralRuleDto;
+export type BehaviorTrigger = CreateBehaviorRuleDto['trigger'];
+export type BehaviorVerdict = CreateBehaviorRuleDto['verdict'];
 
 export type TestGuardrailDto = Schema<'TestGuardrailDto'>;
 export type EvaluateRegoDto = Schema<'EvaluateRegoDto'>;

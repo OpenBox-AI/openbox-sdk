@@ -143,7 +143,7 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     expect(captured[0]?.activityType).toBe('FileDelete');
   });
 
-  test('beforeMCPExecution → llm_tool_call span with gen_ai.system+http.url', async () => {
+  test('beforeMCPExecution -> mcp_tool_call span with Core MCP classifier fields', async () => {
     const captured: ActivityCall[] = [];
     await handleBeforeMCPExecution(
       { conversation_id: 'c', tool_name: 'fetch', tool_input: {} } as never,
@@ -151,9 +151,10 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
       cfg,
     );
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
-    expect(span.semantic_type).toBe('llm_tool_call');
-    expect(span.attributes?.['http.method']).toBe('POST');
-    expect(span.attributes?.['gen_ai.system']).toBe('mcp');
+    expect(span.semantic_type).toBe('mcp_tool_call');
+    expect(span.attributes?.['mcp.method']).toBe('callTool');
+    expect(span.attributes?.['mcp.operation']).toBe('fetch');
+    expect(span.attributes?.['mcp.server_id']).toBe('unknown');
     expect(span.attributes?.['openbox.tool.name']).toBe('fetch');
     expect(span.attributes?.['tool.name']).toBe('fetch');
   });
@@ -370,8 +371,10 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
       },
     });
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
-    expect(span.semantic_type).toBe('llm_tool_call');
-    expect(span.attributes?.['gen_ai.system']).toBe('mcp');
+    expect(span.semantic_type).toBe('mcp_tool_call');
+    expect(span.attributes?.['mcp.method']).toBe('callTool');
+    expect(span.attributes?.['mcp.operation']).toBe(`openbox.lookup_${suffix}`);
+    expect(span.attributes?.['mcp.server_id']).toBe('unknown');
     expect(span.attributes?.['openbox.tool.name']).toBe(`openbox.lookup_${suffix}`);
     expect(span.attributes?.['tool.name']).toBe(`openbox.lookup_${suffix}`);
     expect(captured[0]?.payload.output).toMatchObject({

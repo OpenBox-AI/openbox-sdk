@@ -93,6 +93,8 @@ describe('validators/index; extra surface', () => {
     expect(v.validateInt('42', 'n')).toBe(42);
     expect(v.validateEnum('a', ['a', 'b'] as const, 'mode')).toBe('a');
     expect(v.validateBehaviorTrigger('http_post')).toBe('http_post');
+    expect(v.validateBehaviorTrigger('llm_gen_ai')).toBe('llm_gen_ai');
+    expect(v.validateBehaviorTrigger('mcp_tool_call')).toBe('mcp_tool_call');
     // validateRegoSource requires both a package decl AND a `result := {...}`
     // assignment (core reads only result.decision / result.reason).
     expect(() =>

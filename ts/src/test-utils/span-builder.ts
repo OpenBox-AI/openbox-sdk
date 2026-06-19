@@ -283,14 +283,16 @@ function buildSpan(
         activityInput: input,
         span: {
           ...base,
-          name: `tool.${toolName}`,
+          name: `MCP callTool ${toolName}`,
           hook_type: 'function_call',
-          semantic_type: 'llm_tool_call',
+          semantic_type: 'mcp_tool_call',
           attributes: {
-            'gen_ai.system': 'mcp',
-            // Core currently classifies tool-call spans from HTTP attributes.
-            'http.method': 'POST',
-            'http.url': 'https://api.openai.com/v1/chat/completions',
+            'mcp.method': 'callTool',
+            'mcp.operation': toolName,
+            'mcp.server_id': serverName,
+            'mcp.input': input.tool_input,
+            'openbox.semantic_type': 'mcp_tool_call',
+            'openbox.span_type': 'mcp_tool_call',
           },
           function: `mcp.${toolName}`,
           module: 'activity',

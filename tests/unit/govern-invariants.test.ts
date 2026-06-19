@@ -243,8 +243,11 @@ describe('activity pairing', () => {
       }),
     });
     expect(secondHook.spans?.[0]).toMatchObject({
-      semantic_type: 'llm_tool_call',
+      semantic_type: 'mcp_tool_call',
       attributes: expect.objectContaining({
+        'mcp.method': 'callTool',
+        'mcp.operation': 'read',
+        'mcp.server_id': 'filesystem',
         'openbox.tool.name': 'mcp__filesystem__read',
       }),
     });

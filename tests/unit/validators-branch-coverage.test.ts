@@ -100,8 +100,10 @@ describe('validators branch coverage', () => {
 
   it('behavior rule validators cover string and array state parsing', () => {
     expect(validateBehaviorTrigger('http_post')).toBe('http_post');
+    expect(validateBehaviorTrigger('llm_gen_ai')).toBe('llm_gen_ai');
+    expect(validateBehaviorTrigger('mcp_tool_call')).toBe('mcp_tool_call');
     expect(validateBehaviorStates('http_get, http_post')).toEqual(['http_get', 'http_post']);
-    expect(validateBehaviorStates(['file_read', 'file_write'])).toEqual(['file_read', 'file_write']);
+    expect(validateBehaviorStates(['file_read', 'file_write', 'mcp_tool_call'])).toEqual(['file_read', 'file_write', 'mcp_tool_call']);
     expect(() => validateBehaviorStates(42)).toThrow(ValidationError);
     expect(() => validateBehaviorStates('')).toThrow(ValidationError);
     expect(validateVerdict('4')).toBe(4);

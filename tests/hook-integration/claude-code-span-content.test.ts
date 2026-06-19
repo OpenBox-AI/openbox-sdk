@@ -91,15 +91,18 @@ describe('buildSpan content per SpanType', () => {
     expect(attrs['shell.cwd']).toBe('/tmp');
   });
 
-  it('mcp spans classify as llm_tool_call with gen_ai.system=mcp', () => {
+  it('mcp spans classify with Core MCP callTool fields', () => {
     const span = buildSpan('claude-code', 'mcp', {
       tool_name: 'check_governance',
       tool_input: { foo: 'bar' },
     });
-    expect(span.semantic_type).toBe('llm_tool_call');
+    expect(span.semantic_type).toBe('mcp_tool_call');
     expect(span.module).toBe('claude-code');
     const attrs = span.attributes as Record<string, unknown>;
-    expect(attrs['gen_ai.system']).toBe('mcp');
+    expect(attrs['mcp.method']).toBe('callTool');
+    expect(attrs['mcp.operation']).toBe('check_governance');
+    expect(attrs['mcp.server_id']).toBe('unknown');
+    expect(attrs['mcp.input']).toEqual({ foo: 'bar' });
   });
 
   it('http spans set semantic_type per method and stamp the URL', () => {

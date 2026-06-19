@@ -293,18 +293,21 @@ describe('LLM completion spans', () => {
     expect(span.attributes).not.toHaveProperty('openbox.model.provider');
   });
 
-  test('MCP spans expose behavior and platform tool telemetry fields', () => {
+  test('MCP spans expose Core classifier and platform tool telemetry fields', () => {
     const span = buildSpan('cursor', 'mcp', {
       tool_name: 'read_customer_file',
       tool_input: { path: 'customer.md' },
     });
 
-    expect(span.semantic_type).toBe('llm_tool_call');
+    expect(span.semantic_type).toBe('mcp_tool_call');
     expect(span.span_type).toBe('mcp_tool_call');
-    expect(span.name).toBe('tool.read_customer_file');
+    expect(span.name).toBe('MCP callTool read_customer_file');
     expect(span.attributes).toMatchObject({
-      'gen_ai.system': 'mcp',
-      'openbox.semantic_type': 'llm_tool_call',
+      'mcp.method': 'callTool',
+      'mcp.operation': 'read_customer_file',
+      'mcp.server_id': 'unknown',
+      'mcp.input': { path: 'customer.md' },
+      'openbox.semantic_type': 'mcp_tool_call',
       'openbox.span_type': 'mcp_tool_call',
       'openbox.tool.name': 'read_customer_file',
       'tool.name': 'read_customer_file',
