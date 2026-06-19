@@ -421,6 +421,13 @@ describe('activity pairing', () => {
     expect(started?.spans).toBeUndefined();
     expect(started?.span_count).toBeUndefined();
     expect(mock.events.indexOf(signal!)).toBeLessThan(mock.events.indexOf(started!));
+    expect(
+      mock.events.filter(
+        (event) =>
+          event.event_type === 'ActivityCompleted' &&
+          event.activity_type === 'node-pre-execute',
+      ),
+    ).toHaveLength(0);
 
     const completedEvents = mock.events.filter(
       (event) =>
@@ -432,6 +439,8 @@ describe('activity pairing', () => {
     expect(completedParent.hook_trigger).toBeUndefined();
     expect(completedParent.spans).toBeUndefined();
     expect(completedParent.span_count).toBeUndefined();
+    expect(completedParent.activity_id).toBe(started?.activity_id);
+    expect(completedParent.start_time).toBe(started?.start_time);
     expect(completedParent).toMatchObject({
       llm_model: 'gemini-2.5-flash',
       input_tokens: 18,

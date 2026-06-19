@@ -16,6 +16,7 @@ export interface N8nUserPromptSignalOptions {
 }
 
 export interface N8nNodePreExecutePayloadInput {
+  activityId?: string;
   input?: Record<string, unknown>;
   nodeName?: string;
   sessionId?: string;
@@ -23,6 +24,7 @@ export interface N8nNodePreExecutePayloadInput {
 }
 
 export interface N8nLlmCompletionPayloadInput {
+  activityId?: string;
   text: string;
   input?: Record<string, unknown>;
   prompt?: string;
@@ -42,13 +44,71 @@ export interface N8nLlmCompletionPayloadInput {
 }
 
 type SignalCapableN8nSession = Pick<N8nSession, 'activity'>;
-type NodePreExecuteCapableN8nSession = Pick<N8nSession, 'activity' | 'nodePreExecute'>;
+type NodePreExecuteCapableN8nSession = Pick<N8nSession, 'activity' | 'openActivity'>;
 type NodePostExecuteCapableN8nSession = Pick<N8nSession, 'nodePostExecute'>;
+
+interface PendingNodeActivity {
+  activityId: string;
+  startTime: number;
+}
+
+const pendingNodeActivities = new WeakMap<object, Map<string, PendingNodeActivity>>();
 
 function cleanRecord(value: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(value).filter(([, entry]) => entry !== undefined),
   );
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  const obj = value as Record<string, unknown>;
+  return `{${Object.keys(obj)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(obj[key])}`)
+    .join(',')}}`;
+}
+
+function nodeActivityKey(input: {
+  activityId?: string;
+  sessionId?: string;
+  nodeName?: string;
+  prompt?: string;
+  input?: Record<string, unknown>;
+}): string {
+  if (input.activityId?.trim()) return `activity:${input.activityId.trim()}`;
+  return [
+    input.sessionId?.trim() || 'no-session',
+    input.nodeName?.trim() || 'no-node',
+    input.prompt?.trim() || 'no-prompt',
+    stableStringify(input.input ?? null),
+  ].join(':');
+}
+
+function rememberNodeActivity(
+  session: object,
+  input: N8nNodePreExecutePayloadInput,
+  activity: PendingNodeActivity,
+): void {
+  let store = pendingNodeActivities.get(session);
+  if (!store) {
+    store = new Map();
+    pendingNodeActivities.set(session, store);
+  }
+  store.set(nodeActivityKey(input), activity);
+}
+
+function takeNodeActivity(
+  session: object,
+  input: N8nLlmCompletionPayloadInput,
+): PendingNodeActivity | null {
+  const store = pendingNodeActivities.get(session);
+  if (!store) return null;
+  const key = nodeActivityKey(input);
+  const activity = store.get(key) ?? null;
+  store.delete(key);
+  return activity;
 }
 
 export async function emitN8nUserPromptSignal(
@@ -105,7 +165,23 @@ export async function emitN8nNodePreExecute(
     nodeName: input.nodeName,
     sessionId: input.sessionId,
   });
-  return session.nodePreExecute(buildN8nNodePreExecutePayload(input));
+  const startTime = Date.now();
+  const opened = await session.openActivity('node-pre-execute', {
+    ...buildN8nNodePreExecutePayload(input),
+    activityId: input.activityId,
+    startTime,
+  });
+  if (
+    opened.verdict.arm === 'allow' ||
+    opened.verdict.arm === 'constrain' ||
+    opened.verdict.arm === 'require_approval'
+  ) {
+    rememberNodeActivity(session, input, {
+      activityId: opened.activityId,
+      startTime,
+    });
+  }
+  return opened.verdict;
 }
 
 export function buildN8nLlmCompletionPayload(
@@ -173,5 +249,10 @@ export async function emitN8nLlmCompletion(
   session: NodePostExecuteCapableN8nSession,
   input: N8nLlmCompletionPayloadInput,
 ): Promise<WorkflowVerdict> {
-  return session.nodePostExecute(buildN8nLlmCompletionPayload(input));
+  const pending = takeNodeActivity(session, input);
+  return session.nodePostExecute({
+    ...buildN8nLlmCompletionPayload(input),
+    activityId: pending?.activityId ?? input.activityId,
+    startTime: pending?.startTime,
+  });
 }
