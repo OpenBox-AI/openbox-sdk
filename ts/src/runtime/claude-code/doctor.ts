@@ -92,7 +92,7 @@ export function claudeCodeRuntimeDiagnostics(cwd = process.cwd()): Record<string
     failMode: runtime.governancePolicy,
     approvalMode: runtime.approvalMode,
     unsupportedOrOptInSurfaces: {
-      worktreeCreate: 'explicit_out_of_scope_replaces_default_git_behavior',
+      worktreeCreate: 'opt_in_managed_worktree_creator',
       sessionEnd: 'opt_in_shutdown_telemetry',
       monitors: 'opt_in_unsandboxed_not_project_scope',
       lsp: 'out_of_scope_no_openbox_language_server',

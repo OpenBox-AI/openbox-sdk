@@ -57,9 +57,12 @@ describe('provider capability matrix', () => {
 
     for (const catalog of PROVIDER_EVENT_CATALOG) {
       expect(generated[catalog.provider]).toEqual(catalog.generatedAdapterEvents);
+      const intentionalExclusions = catalog.intentionalExclusions as readonly {
+        event: string;
+      }[];
       const generatedPlusIntentionalExclusions = [
         ...catalog.generatedAdapterEvents,
-        ...catalog.intentionalExclusions.map((entry) => entry.event),
+        ...intentionalExclusions.map((entry) => entry.event),
       ].sort();
       expect(generatedPlusIntentionalExclusions).toEqual([...catalog.upstreamKnownEvents].sort());
     }

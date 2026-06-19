@@ -815,6 +815,7 @@ type Shape =
   | 'elicitation-response'
   | 'continue-block'
   | 'additional-context'
+  | 'worktree-path'
   | 'cursor-permission'
   | 'cursor-observe'
   | 'cursor-continue'
@@ -1130,6 +1131,26 @@ function renderVerdictOutput(
           hookEventName: env.hook_event_name ?? 'PostToolUseFailure',
           additionalContext: reason || '[OpenBox] blocked by policy',
         },
+      };
+    }
+    case 'worktree-path': {
+      const eventName = env.hook_event_name ?? 'WorktreeCreate';
+      const worktreePath = typeof (env as Record<string, unknown>).worktree_path === 'string'
+        ? ((env as Record<string, unknown>).worktree_path as string).trim()
+        : '';
+      if ((arm === 'allow' || arm === 'constrain') && worktreePath) {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            worktreePath,
+          },
+        };
+      }
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+        },
+        systemMessage: reason || '[OpenBox] worktree creation blocked.',
       };
     }
     case 'cursor-permission': {

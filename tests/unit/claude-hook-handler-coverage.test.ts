@@ -1,3 +1,4 @@
+import { existsSync, rmSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let adapterOptions: any;
@@ -5,6 +6,7 @@ let coreClientOptions: any;
 let stdinIteratorSpy: any;
 let mockHitlMaxWait = 2;
 let mockApprovalMode: 'remote' | 'inline' | 'defer' = 'remote';
+let mockWorktreeRoot = '/tmp/openbox-claude-hook-handler-test/worktrees';
 // Mock-only raw 32-byte Ed25519 key encoded at runtime; not a real credential.
 const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
 
@@ -65,6 +67,7 @@ vi.mock('../../ts/src/runtime/claude-code/config.js', () => ({
     sendStartEvent: true,
     sendActivityStartEvent: true,
     maxBodySize: null,
+    worktreeRoot: mockWorktreeRoot,
   })),
 }));
 
@@ -86,6 +89,8 @@ beforeEach(() => {
   coreClientOptions = undefined;
   mockHitlMaxWait = 2;
   mockApprovalMode = 'remote';
+  mockWorktreeRoot = '/tmp/openbox-claude-hook-handler-test/worktrees';
+  rmSync(mockWorktreeRoot, { recursive: true, force: true });
   process.env.OPENBOX_API_KEY = 'obx_test_claude_handler';
   delete process.env.OPENBOX_AGENT_DID;
   delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
@@ -98,6 +103,7 @@ afterEach(() => {
   delete process.env.OPENBOX_API_KEY;
   delete process.env.OPENBOX_AGENT_DID;
   delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
+  rmSync(mockWorktreeRoot, { recursive: true, force: true });
 });
 
 describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
@@ -162,10 +168,75 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
       'configChange',
       'cwdChanged',
       'fileChanged',
+      'worktreeCreate',
       'worktreeRemove',
       'elicitation',
       'elicitationResult',
     ]));
+  });
+
+  it('creates an opt-in managed WorktreeCreate path after Core allows it', async () => {
+    mockHookStdin();
+    const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
+
+    await runClaudeHook();
+    const env: Record<string, any> = {
+      ...baseEnv,
+      hook_event_name: 'WorktreeCreate',
+      name: 'Feature Auth!*',
+    };
+    const session = {
+      activity: vi.fn(async () => ({ arm: 'allow', riskScore: 0 })),
+    };
+
+    await expect(
+      adapterOptions.handlers.worktreeCreate(env, session),
+    ).resolves.toMatchObject({ arm: 'allow' });
+
+    expect(env.worktree_path).toMatch(
+      /^\/tmp\/openbox-claude-hook-handler-test\/worktrees\/Feature-Auth-[a-z0-9]+$/,
+    );
+    expect(existsSync(env.worktree_path)).toBe(true);
+    expect(session.activity).toHaveBeenCalledWith(
+      'ActivityStarted',
+      'ClaudeCodeWorkspaceChange',
+      expect.objectContaining({
+        input: [
+          expect.objectContaining({
+            _openbox_source: 'claude-code',
+            event_category: 'worktree_create',
+            name: 'Feature Auth!*',
+            worktree_path: env.worktree_path,
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('does not create a WorktreeCreate path when Core blocks it', async () => {
+    mockHookStdin();
+    const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
+
+    await runClaudeHook();
+    const env: Record<string, any> = {
+      ...baseEnv,
+      hook_event_name: 'WorktreeCreate',
+      name: 'blocked-worktree',
+    };
+    const session = {
+      activity: vi.fn(async () => ({
+        arm: 'block',
+        reason: 'blocked',
+        riskScore: 1,
+      })),
+    };
+
+    await expect(
+      adapterOptions.handlers.worktreeCreate(env, session),
+    ).resolves.toMatchObject({ arm: 'block' });
+
+    expect(env.worktree_path).toBeUndefined();
+    expect(existsSync(mockWorktreeRoot)).toBe(false);
   });
 
   it('decision-capable handler errors return a fail-closed verdict', async () => {

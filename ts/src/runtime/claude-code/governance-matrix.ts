@@ -78,7 +78,7 @@ export const CLAUDE_CODE_HOOK_MATRIX: readonly ClaudeCodeHookMatrixEntry[] = [
   { event: 'ConfigChange', status: 'implement_now', defaultInstall: true, decisionSurface: 'decision-block', notes: 'Blocks non-managed config changes from applying.' },
   { event: 'CwdChanged', status: 'observe_only', defaultInstall: true, decisionSurface: 'none', notes: 'Working-directory telemetry.' },
   { event: 'FileChanged', status: 'observe_only', defaultInstall: true, decisionSurface: 'none', notes: 'Watched-file telemetry; cannot block the file change.' },
-  { event: 'WorktreeCreate', status: 'explicit_out_of_scope', defaultInstall: false, decisionSurface: 'worktree-path', notes: 'Invasive hook replaces Claude Code git worktree creation and must create/return a real path.' },
+  { event: 'WorktreeCreate', status: 'implement_now', defaultInstall: false, decisionSurface: 'worktree-path', notes: 'Opt-in managed worktree creator; disabled by default because it replaces Claude Code git behavior and must return a real path.' },
   { event: 'WorktreeRemove', status: 'observe_only', defaultInstall: true, decisionSurface: 'none', notes: 'Worktree removal telemetry.' },
   { event: 'PreCompact', status: 'implement_now', defaultInstall: true, decisionSurface: 'decision-block', notes: 'Blocks unsafe compaction requests before context rewrite.' },
   { event: 'PostCompact', status: 'observe_only', defaultInstall: true, decisionSurface: 'none', notes: 'Compaction summary telemetry.' },

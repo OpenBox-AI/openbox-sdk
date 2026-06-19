@@ -51,7 +51,7 @@ describe('Claude Code governance matrix drift guard', () => {
     const matrixAll = CLAUDE_CODE_HOOK_MATRIX.map((entry) => entry.event).sort();
 
     expect(matrixAll).toEqual(officialHookEvents);
-    expect(generatedAll).toEqual(officialHookEvents.filter((event) => event !== 'WorktreeCreate'));
+    expect(generatedAll).toEqual(officialHookEvents);
 
     const generated = HOOK_SPEC.events
       .filter((event) => event.installDefault !== false)
@@ -61,6 +61,7 @@ describe('Claude Code governance matrix drift guard', () => {
 
     expect(generated).toEqual(defaults);
     expect(generated).not.toContain('WorktreeCreate');
+    expect(HOOK_SPEC.events.find((event) => event.name === 'WorktreeCreate')?.installDefault).toBe(false);
     expect(HOOK_SPEC.events.find((event) => event.name === 'SessionEnd')?.installDefault).toBe(false);
     expect(optInClaudeCodeHookEvents()).toEqual(['WorktreeCreate', 'SessionEnd']);
   });
