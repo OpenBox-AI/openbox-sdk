@@ -73,6 +73,16 @@ describe('LLM completion spans', () => {
       totalTokens: 10,
       costUsd: 0.30000000000000004,
     });
+    expect(
+      combineOpenBoxUsage(
+        { input_tokens: 1, output_tokens: 2, total_tokens: 1 },
+        { promptTokens: 3, completionTokens: 4 },
+      )?.raw,
+    ).toMatchObject({
+      inputTokens: 4,
+      outputTokens: 6,
+      totalTokens: 10,
+    });
   });
 
   test('response body matches Core goal-alignment assistant extraction', () => {
