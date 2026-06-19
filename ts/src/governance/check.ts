@@ -86,7 +86,15 @@ function resolveCoreUrl(coreUrlOverride?: string): string {
 
 function isAllowishVerdict(response: GovernanceVerdictResponse): boolean {
   const arm: unknown = response.verdict ?? response.action;
-  return arm === 'allow' || arm === 'constrain' || arm === 0 || arm === 1;
+  const normalized =
+    typeof arm === 'string' ? arm.trim().toLowerCase().replace(/-/g, '_') : arm;
+  return (
+    normalized === 'allow' ||
+    normalized === 'continue' ||
+    normalized === 'constrain' ||
+    normalized === 0 ||
+    normalized === 1
+  );
 }
 
 /**

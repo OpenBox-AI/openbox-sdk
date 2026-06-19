@@ -3024,16 +3024,18 @@ function normalizeArm(value: string | number | undefined): VerdictArm {
         return 'allow';
     }
   }
-  switch (value) {
+  const normalized =
+    typeof value === 'string'
+      ? value.trim().toLowerCase().replace(/-/g, '_')
+      : value;
+  switch (normalized) {
     case 'allow':
     case 'continue':
       return 'allow';
     case 'constrain':
       return 'constrain';
     case 'require_approval':
-    case 'require-approval':
     case 'request_approval':
-    case 'request-approval':
       return 'require_approval';
     case 'block':
       return 'block';

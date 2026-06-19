@@ -91,6 +91,28 @@ describe('governance/check', () => {
     });
   });
 
+  it('treats uppercase continue/constrain parent verdicts as allowish before returning hook verdict', async () => {
+    state.responses.push(
+      { verdict: ' CONTINUE ', action: 'CONTINUE', reason: 'parent allowed' },
+      { verdict: 'block', action: 'block', reason: 'hook blocked' },
+    );
+    const { checkGovernance } = await import('../../ts/src/governance/check.ts');
+
+    const result = await checkGovernance({
+      agentId: 'agent-1',
+      spanType: 'shell',
+      activityInput: { command: 'rm -rf dist', cwd: '/tmp' },
+      apiKey: runtimeKey('test'),
+      coreUrl: 'https://core.dev.test/ob',
+    });
+
+    expect(result).toMatchObject({
+      verdict: 'block',
+      reason: 'hook blocked',
+    });
+    expect(state.payloads).toHaveLength(2);
+  });
+
   it('still emits the hook span when the parent verdict blocks', async () => {
     state.responses.push(
       { verdict: 'block', action: 'block', reason: 'parent blocked' },

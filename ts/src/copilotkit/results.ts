@@ -507,23 +507,20 @@ export function normalizeArm(value: unknown): WorkflowVerdict['arm'] {
         return 'allow';
     }
   }
+  const normalized =
+    typeof value === 'string' ? value.trim().toLowerCase().replace(/-/g, '_') : value;
   if (
-    value === 'allow' ||
-    value === 'constrain' ||
-    value === 'require_approval' ||
-    value === 'block' ||
-    value === 'halt'
+    normalized === 'allow' ||
+    normalized === 'constrain' ||
+    normalized === 'require_approval' ||
+    normalized === 'block' ||
+    normalized === 'halt'
   ) {
-    return value;
+    return normalized;
   }
-  if (value === 'continue') return 'allow';
-  if (value === 'stop') return 'halt';
-  if (
-    value === 'require-approval' ||
-    value === 'request_approval' ||
-    value === 'request-approval'
-  )
-    return 'require_approval';
+  if (normalized === 'continue') return 'allow';
+  if (normalized === 'stop') return 'halt';
+  if (normalized === 'request_approval') return 'require_approval';
   return 'block';
 }
 

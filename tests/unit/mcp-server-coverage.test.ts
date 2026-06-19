@@ -535,4 +535,41 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       });
     });
   });
+
+  it('check_governance treats uppercase continue parent verdicts as allowish', async () => {
+    await withMcpEnv(async () => {
+      const bodies: string[] = [];
+      vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+        if (String(url).includes('/api/v1/governance/evaluate')) {
+          bodies.push(String(init?.body ?? ''));
+          const verdict =
+            bodies.length === 1
+              ? { verdict: ' CONTINUE ', action: 'CONTINUE', reason: 'parent allowed' }
+              : { verdict: 'block', action: 'block', reason: 'hook blocked' };
+          return new Response(JSON.stringify(verdict), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ status: 200, data: { data: [] } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      });
+      const { runMcpServer } = await import('../../ts/src/runtime/mcp');
+      await runMcpServer();
+      const tool = captured.find((t) => t.name === 'check_governance')!;
+      const out = await tool.cb({
+        agent_id: 'agent-1',
+        span_type: 'shell',
+        activity_input: { command: 'rm -rf dist', cwd: '/tmp' },
+      });
+
+      expect(JSON.parse(out.content[0].text)).toMatchObject({
+        verdict: 'block',
+        reason: 'hook blocked',
+      });
+      expect(bodies).toHaveLength(2);
+    });
+  });
 });

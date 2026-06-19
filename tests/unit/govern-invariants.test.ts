@@ -690,8 +690,8 @@ describe('approval polling bounds', () => {
       if (payload.event_type === 'ActivityStarted') {
         return {
           governance_event_id: 'evt_test',
-          verdict: 'request_approval',
-          action: 'request-approval',
+          verdict: ' REQUEST-APPROVAL ',
+          action: 'REQUEST_APPROVAL',
           approval_id: 'apr_xxx',
           approval_expiration_time: expiresAt,
           risk_score: 0,
@@ -708,13 +708,13 @@ describe('approval polling bounds', () => {
       .fn()
       .mockResolvedValueOnce({
         id: 'apr_xxx',
-        action: 'request-approval',
+        action: 'REQUEST-APPROVAL',
         reason: 'approval still pending',
         approval_expiration_time: expiresAt,
       })
       .mockResolvedValueOnce({
         id: 'apr_xxx',
-        action: 'allow',
+        action: ' ALLOW ',
         reason: 'approved after alias status',
         approval_expiration_time: expiresAt,
       });
