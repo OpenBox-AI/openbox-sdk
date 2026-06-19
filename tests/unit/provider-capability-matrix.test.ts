@@ -9,6 +9,7 @@ import { HOOK_SPEC as CODEX_HOOK_SPEC } from '../../ts/src/core-client/generated
 import { HOOK_SPEC as CURSOR_HOOK_SPEC } from '../../ts/src/core-client/generated/runtime/cursor.js';
 import {
   GOAL_SIGNAL_GUARDS,
+  HITL_CAPABILITY_GUARDS,
   OPENBOX_CAPABILITY_IDS,
   MCP_PROMPT_SURFACES,
   MCP_RESOURCE_TEMPLATE_SURFACES,
@@ -42,6 +43,37 @@ describe('provider capability matrix', () => {
       for (const entry of entries) {
         expect(entry.rationale.length, `${provider}/${entry.capability} rationale`).toBeGreaterThan(20);
       }
+    }
+  });
+
+  it('pins approvals-hitl support claims to explicit HITL guard coverage', () => {
+    const supportedCapabilityProviders = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) =>
+        entry.capability === 'approvals-hitl' &&
+        (entry.tier === 'native' || entry.tier === 'wrapped'))
+      .map((entry) => entry.provider)
+      .sort();
+    const guardProviders = HITL_CAPABILITY_GUARDS
+      .map((entry) => entry.provider)
+      .sort();
+
+    expect(guardProviders).toEqual(supportedCapabilityProviders);
+    expect(new Set(guardProviders).size).toBe(guardProviders.length);
+
+    const tierByProvider = new Map(
+      PROVIDER_CAPABILITY_MATRIX
+        .filter((entry) => entry.capability === 'approvals-hitl')
+        .map((entry) => [entry.provider, entry.tier]),
+    );
+    for (const guard of HITL_CAPABILITY_GUARDS) {
+      expect(guard.tier, `${guard.provider} tier`).toBe(tierByProvider.get(guard.provider));
+      expect(guard.requireApprovalSurface.length, `${guard.provider} requireApprovalSurface`).toBeGreaterThan(0);
+      expect(guard.sourceAttribution, `${guard.provider} sourceAttribution`).toContain('metadata.source');
+      expect(guard.sourceAttribution, `${guard.provider} sourceAttribution`).toContain('_openbox_source');
+      expect(guard.nativeSurface.length, `${guard.provider} nativeSurface`).toBeGreaterThan(0);
+      expect(guard.fallbackSurface.length, `${guard.provider} fallbackSurface`).toBeGreaterThan(0);
+      expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+      expect(guard.failClosedBehavior.length, `${guard.provider} failClosedBehavior`).toBeGreaterThan(20);
     }
   });
 

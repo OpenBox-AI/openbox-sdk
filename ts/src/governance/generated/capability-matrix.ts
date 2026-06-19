@@ -71,6 +71,17 @@ export interface GoalSignalGuardEntry {
   orderGuarantee: string;
 }
 
+export interface HitlCapabilityGuardEntry {
+  provider: OpenBoxProviderId;
+  tier: OpenBoxSupportTier;
+  requireApprovalSurface: string;
+  sourceAttribution: string;
+  nativeSurface: string;
+  fallbackSurface: string;
+  guardTest: string;
+  failClosedBehavior: string;
+}
+
 export interface McpToolSurfaceEntry {
   name: string;
   title: string;
@@ -1241,6 +1252,88 @@ export const GOAL_SIGNAL_GUARDS = [
     "orderGuarantee": "SignalReceived user_prompt precedes node-pre-execute"
   }
 ] as const satisfies readonly GoalSignalGuardEntry[];
+export const HITL_CAPABILITY_GUARDS = [
+  {
+    "provider": "codex",
+    "tier": "native",
+    "requireApprovalSurface": "PreToolUse permission gate",
+    "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+    "nativeSurface": "Codex permission ask/defer hook output",
+    "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+    "guardTest": "tests/unit/codex-runtime.test.ts#maps approval-required PreToolUse verdicts to Codex permission ask",
+    "failClosedBehavior": "Permission gates ask/defer when available and otherwise deny or block unsafe continuation."
+  },
+  {
+    "provider": "cursor",
+    "tier": "native",
+    "requireApprovalSurface": "beforeShellExecution and beforeSubmitPrompt",
+    "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+    "nativeSurface": "Cursor notification with deny/continue:false hook output",
+    "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+    "guardTest": "tests/contract/cursor-hook-contract.test.ts#cursor-permission require_approval (poll timed out) -> deny (ask is silently no-op in Cursor; deny is the only working gate)",
+    "failClosedBehavior": "Cursor returns deny or continue:false when approval remains pending."
+  },
+  {
+    "provider": "claude-code",
+    "tier": "native",
+    "requireApprovalSurface": "PreToolUse and PermissionRequest",
+    "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+    "nativeSurface": "Claude Code permissionDecision ask/defer",
+    "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+    "guardTest": "tests/unit/runtime-adapters.test.ts#permission-decision require_approval -> permissionDecision:\"ask\"",
+    "failClosedBehavior": "Claude Code asks/defer on permission gates and blocks decision-block surfaces while approval is pending."
+  },
+  {
+    "provider": "mcp",
+    "tier": "native",
+    "requireApprovalSurface": "check_governance",
+    "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+    "nativeSurface": "list_pending_approvals and decide_approval MCP tools",
+    "fallbackSurface": "Core approval rows",
+    "guardTest": "tests/unit/mcp-server-coverage.test.ts#stamps Cursor MCP governance approvals with cursor-mcp source",
+    "failClosedBehavior": "MCP callers halt on require_approval until decide_approval resolves the Core row."
+  },
+  {
+    "provider": "openai-agents-sdk",
+    "tier": "wrapped",
+    "requireApprovalSurface": "input, output, tool input, and tool output guardrails",
+    "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+    "nativeSurface": "OpenBox guardrail outputInfo or throwException behavior",
+    "fallbackSurface": "Caller-managed interruption or Core polling",
+    "guardTest": "tests/unit/openai-agents-sdk.test.ts#maps OpenBox tool guardrail verdicts to fail-closed tool behavior",
+    "failClosedBehavior": "Guardrails surface require_approval in outputInfo and throw for tool execution."
+  },
+  {
+    "provider": "anthropic-agent-sdk",
+    "tier": "wrapped",
+    "requireApprovalSurface": "PreToolUse",
+    "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+    "nativeSurface": "Anthropic hook permissionDecision ask/defer",
+    "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#maps approval-required PreToolUse verdicts to ask or defer",
+    "failClosedBehavior": "Anthropic Agent SDK asks/defer on permission gates and blocks unsupported continuation."
+  },
+  {
+    "provider": "copilotkit",
+    "tier": "native",
+    "requireApprovalSurface": "governed tool resume and pollApproval",
+    "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+    "nativeSurface": "React renderers, headless approval client, and approval route",
+    "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+    "guardTest": "tests/unit/copilotkit-adapter.test.ts#does not reopen approval after an approved resume completes the tool",
+    "failClosedBehavior": "CopilotKit interrupts/polls until approval resolves and does not reopen completed approvals."
+  },
+  {
+    "provider": "n8n",
+    "tier": "native",
+    "requireApprovalSurface": "emitN8nNodePreExecute",
+    "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
+    "nativeSurface": "OpenBox Approval/HITL node",
+    "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+    "guardTest": "tests/unit/govern-invariants.test.ts#n8n pre-execute approvals keep source attribution through Core polling",
+    "failClosedBehavior": "n8n pre-execute gates poll Core and preserve n8n source attribution."
+  }
+] as const satisfies readonly HitlCapabilityGuardEntry[];
 export const MCP_TOOL_SURFACES = [
   {
     "name": "get_profile",
