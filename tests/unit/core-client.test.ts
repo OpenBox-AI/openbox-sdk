@@ -298,7 +298,7 @@ describe('OpenBoxCoreClient', () => {
         workflow_id: 'wf-1',
         run_id: 'run-1',
         workflow_type: 'unit-test',
-        task_queue: 'generic',
+        task_queue: 'langchain',
         source: 'workflow-telemetry',
         timestamp: new Date().toISOString(),
         activity_id: 'act-1',
@@ -312,6 +312,7 @@ describe('OpenBoxCoreClient', () => {
       expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
         event_type: 'ActivityStarted',
         workflow_id: 'wf-1',
+        task_queue: 'langchain',
         sdk_version: expect.stringMatching(/^\d+\.\d+\.\d+/),
       });
       expect(result.verdict).toBe('ALLOW');
@@ -377,7 +378,8 @@ describe('OpenBoxCoreClient', () => {
           activity_id: 'act-1',
         });
 
-        expect(result).toMatchObject({ expired: true });
+        const expired: boolean | undefined = result.expired;
+        expect(expired).toBe(true);
       } finally {
         vi.useRealTimers();
       }

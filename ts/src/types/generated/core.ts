@@ -241,11 +241,8 @@ export interface components {
             run_id: string;
             /** @description Implementation-specific workflow class name. */
             workflow_type: string;
-            /**
-             * @description Originating SDK / runtime.
-             * @enum {string}
-             */
-            task_queue: "langgraph" | "temporal" | "mastra" | "claude-code" | "cursor" | "generic";
+            /** @description Originating SDK / runtime. */
+            task_queue: string;
             /** Format: date-time */
             timestamp: string;
             /**

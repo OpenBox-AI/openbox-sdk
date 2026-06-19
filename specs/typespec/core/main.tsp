@@ -129,7 +129,7 @@ model GovernanceEventPayload {
   workflow_type: string;
 
   /** Originating SDK / runtime. */
-  task_queue: "langgraph" | "temporal" | "mastra" | "claude-code" | "cursor" | "generic";
+  task_queue: string;
 
   timestamp: utcDateTime;
 

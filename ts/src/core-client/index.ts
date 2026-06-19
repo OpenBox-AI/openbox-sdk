@@ -9,7 +9,11 @@ export {
   signAgentIdentityRequest,
   validateAgentIdentityConfig,
 } from './core-client.js';
-export type { AgentIdentityConfig, CoreClientConfig } from './core-client.js';
+export type {
+  AgentIdentityConfig,
+  ApprovalStatusResponseWithClientExpiry,
+  CoreClientConfig,
+} from './core-client.js';
 export type {
   EventType,
   Verdict,

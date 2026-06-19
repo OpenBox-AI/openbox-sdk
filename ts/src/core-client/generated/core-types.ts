@@ -21,7 +21,7 @@ export interface GovernanceEventPayload {
   workflow_id: string;
   run_id: string;
   workflow_type: string;
-  task_queue: "langgraph" | "temporal" | "mastra" | "claude-code" | "cursor" | "generic";
+  task_queue: string;
   timestamp: string;
   sdk_version?: string;
   parent_workflow_id?: string;

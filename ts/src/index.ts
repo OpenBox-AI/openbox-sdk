@@ -22,6 +22,7 @@ export {
   type CoreClientConfig,
   type ApprovalStatusRequest,
   type ApprovalStatusResponse,
+  type ApprovalStatusResponseWithClientExpiry,
 
   // Spec-driven workflow runtime. `govern()` opens a workflow envelope,
   // exposes a typed session matching the chosen `preset`, and finalizes
