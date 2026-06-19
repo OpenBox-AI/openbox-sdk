@@ -9,6 +9,8 @@
 // that with a runtime assertion that each manifest entry's method is a
 // `function` on the right Session prototype.
 
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { describe, expect, test } from 'vitest';
 import {
   PRESET_MANIFEST,
@@ -17,6 +19,20 @@ import {
   CustomSession,
 } from '../../ts/src/core-client/generated/govern.js';
 import * as corePublic from '../../ts/src/core-client/index.js';
+
+function readSdkManifestFixture(): {
+  generatedBy: string;
+  sources: string[];
+  governPresetManifest: unknown;
+} {
+  return JSON.parse(
+    readFileSync(resolve(process.cwd(), 'codegen/fixtures/sdk-manifests.json'), 'utf8'),
+  ) as {
+    generatedBy: string;
+    sources: string[];
+    governPresetManifest: unknown;
+  };
+}
 
 const PRESET_TO_CAMEL: Record<string, keyof typeof presets> = {
   airflow: 'airflow',
@@ -44,6 +60,16 @@ const PRESET_TO_CAMEL: Record<string, keyof typeof presets> = {
   temporal: 'temporal',
   'vercel-ai': 'vercelAi',
 };
+
+describe('TypeSpec govern manifest conformance fixture', () => {
+  test('generated preset manifest matches the SDK fixture', () => {
+    const fixture = readSdkManifestFixture();
+
+    expect(fixture.generatedBy).toBe('codegen/emitters/typespec-emitter');
+    expect(fixture.sources).toContain('specs/typespec/govern/main.tsp');
+    expect(PRESET_MANIFEST).toEqual(fixture.governPresetManifest);
+  });
+});
 
 // Pascal-case the preset name the same way the emitter does (drops dashes,
 // title-cases each segment, appends "Session"). Keeps the index re-export
