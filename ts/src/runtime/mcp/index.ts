@@ -380,11 +380,15 @@ async function coreEvaluate(
     apiKey,
     agentIdentity,
   });
+  const {
+    spans: _parentSpans,
+    span_count: _parentSpanCount,
+    hook_trigger: _parentHookTrigger,
+    ...parentFields
+  } = payload;
   const parentPayload = {
-    ...payload,
+    ...parentFields,
     hook_trigger: false,
-    spans: undefined,
-    span_count: undefined,
   };
   const parentVerdict = await client.evaluate(
     parentPayload as unknown as Parameters<typeof client.evaluate>[0],

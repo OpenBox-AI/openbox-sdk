@@ -969,8 +969,8 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         event.activity_id === assistantParent?.activity_id,
     );
     expect(assistantParent.hook_trigger).toBe(false);
-    expect(assistantParent.spans).toBeUndefined();
-    expect(assistantParent.span_count).toBeUndefined();
+    expect(assistantParent).not.toHaveProperty('spans');
+    expect(assistantParent).not.toHaveProperty('span_count');
     expect(assistantParent).toMatchObject({
       llm_model: 'claude-sonnet-4-5',
       input_tokens: 10,

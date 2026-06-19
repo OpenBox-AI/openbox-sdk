@@ -71,8 +71,8 @@ describe('governance/check', () => {
       activity_input: [{ file_path: '/tmp/a.txt', content: 'x' }],
     });
     expect(state.payloads[0].hook_trigger).toBe(false);
-    expect(state.payloads[0].spans).toBeUndefined();
-    expect(state.payloads[0].span_count).toBeUndefined();
+    expect(state.payloads[0]).not.toHaveProperty('spans');
+    expect(state.payloads[0]).not.toHaveProperty('span_count');
     expect(state.payloads[1]).toMatchObject({
       source: 'workflow-telemetry',
       event_type: 'ActivityStarted',
@@ -138,9 +138,9 @@ describe('governance/check', () => {
       event_type: 'ActivityStarted',
       activity_type: 'MCPToolCall',
       hook_trigger: false,
-      spans: undefined,
-      span_count: undefined,
     });
+    expect(state.payloads[0]).not.toHaveProperty('spans');
+    expect(state.payloads[0]).not.toHaveProperty('span_count');
     expect(state.payloads[1]).toMatchObject({
       event_type: 'ActivityStarted',
       activity_type: 'MCPToolCall',

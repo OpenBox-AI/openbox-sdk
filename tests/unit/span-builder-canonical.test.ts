@@ -23,6 +23,32 @@ const KNOWN_NON_CANONICAL: Partial<Record<SpanType, string>> = {
 };
 
 describe('span-builder activity_type drift guard', () => {
+  test('buildTestPayload defaults to an activity parent without inline span fields', () => {
+    const payload = buildTestPayload({ type: 'http' });
+
+    expect(payload).toMatchObject({
+      event_type: 'ActivityStarted',
+      hook_trigger: false,
+    });
+    expect(payload).not.toHaveProperty('spans');
+    expect(payload).not.toHaveProperty('span_count');
+  });
+
+  test('buildTestPayload emits exactly one span for explicit hook payloads', () => {
+    const payload = buildTestPayload({ type: 'http', hookTrigger: true });
+
+    expect(payload).toMatchObject({
+      event_type: 'ActivityStarted',
+      hook_trigger: true,
+      span_count: 1,
+    });
+    expect(payload.spans).toHaveLength(1);
+    expect(payload.spans?.[0]).toMatchObject({
+      activity_id: payload.activity_id,
+      stage: 'started',
+    });
+  });
+
   for (const type of SPAN_TYPES) {
     test(`SPAN_TYPES['${type}'] emits a canonical activity_type`, () => {
       const payload = buildTestPayload({ type: type as SpanType });

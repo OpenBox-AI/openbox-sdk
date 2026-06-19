@@ -28,13 +28,11 @@ export interface SpanOptions {
   type: SpanType;
   // Override the default activity_type, e.g. "PromptSubmission" or "FileRead".
   activityType?: string;
-  /** Match the official temporal-sdk-python convention: hook-level
-   *  events from `hook_governance.py` set `hook_trigger: true`;
-   *  activity-level events from `activity_interceptor.py` do not. The
-   *  hook path
-   *  triggers `CheckApprovalCacheActivity` server-side which hits Redis.
-   *  Default to false here so test payloads match the activity-level
-   *  convention; flip to true when explicitly testing hook flows. */
+  /** Match the official SDK convention: activity parent events omit
+   *  span fields; hook-level events set `hook_trigger: true` and carry
+   *  exactly one span. Default to false so test payloads match the
+   *  activity-level convention; flip to true when explicitly testing
+   *  hook flows. */
   hookTrigger?: boolean;
   // LLM
   prompt?: string;
@@ -71,8 +69,8 @@ interface BuiltPayload {
   timestamp: string;
   hook_trigger: boolean;
   activity_input: unknown[];
-  spans: Record<string, unknown>[];
-  span_count: number;
+  spans?: Record<string, unknown>[];
+  span_count?: number;
 }
 
 export function buildTestPayload(opts: SpanOptions): BuiltPayload {
@@ -85,7 +83,7 @@ export function buildTestPayload(opts: SpanOptions): BuiltPayload {
 
   const { activityType: defaultActivityType, activityInput, span } = buildSpan(opts, spanId, traceId, nowNs);
 
-  return {
+  const payload: BuiltPayload = {
     source: 'workflow-telemetry',
     event_type: 'ActivityStarted',
     workflow_id: workflowId,
@@ -98,9 +96,15 @@ export function buildTestPayload(opts: SpanOptions): BuiltPayload {
     timestamp: new Date().toISOString(),
     hook_trigger: opts.hookTrigger ?? false,
     activity_input: [activityInput],
-    spans: [withSpanActivityId(span, activityId)],
-    span_count: 1,
   };
+  if (opts.hookTrigger === true) {
+    return {
+      ...payload,
+      spans: [withSpanActivityId(span, activityId)],
+      span_count: 1,
+    };
+  }
+  return payload;
 }
 
 function buildSpan(

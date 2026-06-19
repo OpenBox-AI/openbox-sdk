@@ -80,6 +80,14 @@ const baseConfig = (mock: MockCore) => ({
   registerExitHandlers: false,
 });
 
+function expectNoInlineSpanFields(
+  event: GovernanceEventPayload | undefined,
+): asserts event is GovernanceEventPayload {
+  expect(event).toBeDefined();
+  expect(event).not.toHaveProperty('spans');
+  expect(event).not.toHaveProperty('span_count');
+}
+
 describe('govern() lifecycle invariants', () => {
   test('success path emits exactly one WorkflowStarted + WorkflowCompleted', async () => {
     const mock = createMockCore('allow');
@@ -193,8 +201,7 @@ describe('activity pairing', () => {
     expect(signalEvents).toHaveLength(1);
     expect(signalEvents[0].activity_type).toBe('interrupt');
     expect(signalEvents[0].hook_trigger).toBe(false);
-    expect(signalEvents[0].spans).toBeUndefined();
-    expect(signalEvents[0].span_count).toBeUndefined();
+    expectNoInlineSpanFields(signalEvents[0]);
   });
 
   test('ActivityStarted spans are emitted as parent plus per-span hook re-evaluations', async () => {
@@ -226,8 +233,7 @@ describe('activity pairing', () => {
     expect(startedEvents).toHaveLength(3);
     const [parent, firstHook, secondHook] = startedEvents;
     expect(parent.hook_trigger).toBe(false);
-    expect(parent.spans).toBeUndefined();
-    expect(parent.span_count).toBeUndefined();
+    expectNoInlineSpanFields(parent);
     for (const hook of [firstHook, secondHook]) {
       expect(hook.hook_trigger).toBe(true);
       expect(hook.event_type).toBe(parent.event_type);
@@ -387,6 +393,7 @@ describe('activity pairing', () => {
     expect(startedEvents).toHaveLength(2);
     const [parent, hook] = startedEvents;
     expect(parent.hook_trigger).toBe(false);
+    expectNoInlineSpanFields(parent);
     expect(hook.hook_trigger).toBe(true);
     expect(hook.span_count).toBe(1);
     expect(hook.spans?.[0]).toMatchObject({

@@ -1837,8 +1837,12 @@ export class BaseGovernedSession {
       multi_agent_session_id: event.multi_agent_session_id ?? this.multiAgentSessionId,
       timestamp: new Date().toISOString(),
       hook_trigger: event.hook_trigger ?? false,
-      span_count: event.spans?.length,
     } as unknown as GovernanceEventPayload;
+    if (Array.isArray(event.spans)) {
+      payload.span_count = event.spans.length;
+    } else {
+      delete payload.spans;
+    }
     const response = await this.core.evaluate(payload);
     return mapVerdict(response);
   }

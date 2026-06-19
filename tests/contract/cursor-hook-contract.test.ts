@@ -484,8 +484,8 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
       total_tokens: 5,
     });
     expect(responseParent.hook_trigger).toBe(false);
-    expect(responseParent.spans).toBeUndefined();
-    expect(responseParent.span_count).toBeUndefined();
+    expect(responseParent).not.toHaveProperty('spans');
+    expect(responseParent).not.toHaveProperty('span_count');
     expect(responseHook).toBeDefined();
     expect(responseHook).toMatchObject({
       workflow_id: responseParent.workflow_id,

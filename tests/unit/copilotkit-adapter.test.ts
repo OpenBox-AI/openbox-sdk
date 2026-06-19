@@ -1543,8 +1543,8 @@ describe('CopilotKit OpenBox adapter', () => {
       has_tool_calls: true,
       completion: 'The queue has two governed requests ready.',
     });
-    expect(completedParent?.spans).toBeUndefined();
-    expect(completedParent?.span_count).toBeUndefined();
+    expect(completedParent).not.toHaveProperty('spans');
+    expect(completedParent).not.toHaveProperty('span_count');
     expect(completedParent?.status).toBe('completed');
     expect(completed?.span_count).toBe(1);
     const span = completed?.spans?.[0] as Record<string, any> | undefined;
