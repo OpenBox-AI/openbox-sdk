@@ -1852,6 +1852,34 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(mock.events[0].workflow_id).toBe(mock.events[2].workflow_id);
     expect(mock.events[0].run_id).toBe(mock.events[2].run_id);
     expect(mock.events[0].run_id).not.toBe(mock.events[0].workflow_id);
+
+    const outputMock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const outputAdapter = createOpenBoxCopilotKitAdapter({ core: outputMock.core as any });
+    await outputAdapter.governToolOutput({
+      payload: { toolName: 'crm_lookup', ok: true },
+      sessionKey: 'missing-tool-state',
+      activityId: 'standalone-tool-output',
+    });
+    const outputEvents = outputMock.events.filter(
+      (event) => event.activity_id === 'standalone-tool-output',
+    );
+    expect(outputEvents.map((event) => [event.event_type, event.hook_trigger])).toEqual([
+      ['ActivityStarted', false],
+      ['ActivityCompleted', false],
+      ['ActivityStarted', true],
+    ]);
+    expect(outputEvents[0].spans).toBeUndefined();
+    expect(outputEvents[2].spans?.[0]).toMatchObject({
+      activity_id: 'standalone-tool-output',
+      stage: 'completed',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'crm_lookup',
+        'tool.name': 'crm_lookup',
+      }),
+    });
   });
 
   it('skips empty prompt activity gates after opening the workflow', async () => {

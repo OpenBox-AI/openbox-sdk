@@ -647,6 +647,74 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       stage: 'completed',
       semantic_type: 'internal',
     });
+
+    const fallbackMock = createMockCore(() => verdict('allow'));
+    const fallbackHooks = createOpenBoxAnthropicAgentHooks({ core: fallbackMock.core });
+    await runHook(fallbackHooks, 'PostToolUse', {
+      ...baseInput,
+      hook_event_name: 'PostToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'npm test' },
+      tool_response: { stdout: 'ok' },
+      tool_use_id: 'missing_pre_tool',
+      duration_ms: 42,
+    });
+    const fallbackCompleted = fallbackMock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'ShellExecution',
+    );
+    const fallbackEvents = fallbackMock.events.filter(
+      (event) => event.activity_id === fallbackCompleted?.activity_id,
+    );
+    expect(fallbackEvents.map((event) => [event.event_type, event.hook_trigger])).toEqual([
+      ['ActivityStarted', false],
+      ['ActivityCompleted', false],
+      ['ActivityStarted', true],
+    ]);
+    expect(fallbackEvents[0].spans).toBeUndefined();
+    expect(fallbackEvents[2].spans?.[0]).toMatchObject({
+      activity_id: fallbackCompleted?.activity_id,
+      stage: 'completed',
+      semantic_type: 'internal',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'Bash',
+        'tool.name': 'Bash',
+      }),
+    });
+
+    const failureMock = createMockCore(() => verdict('allow'));
+    const failureHooks = createOpenBoxAnthropicAgentHooks({ core: failureMock.core });
+    await runHook(failureHooks, 'PostToolUseFailure', {
+      ...baseInput,
+      hook_event_name: 'PostToolUseFailure',
+      tool_name: 'Bash',
+      tool_input: { command: 'npm test' },
+      error: 'exit 1',
+      tool_use_id: 'missing_pre_failure',
+      duration_ms: 42,
+    });
+    const failureCompleted = failureMock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'PostToolUseFailure',
+    );
+    const failureEvents = failureMock.events.filter(
+      (event) => event.activity_id === failureCompleted?.activity_id,
+    );
+    expect(failureEvents.map((event) => [event.event_type, event.hook_trigger])).toEqual([
+      ['ActivityStarted', false],
+      ['ActivityCompleted', false],
+      ['ActivityStarted', true],
+    ]);
+    expect(failureEvents[2].spans?.[0]).toMatchObject({
+      activity_id: failureCompleted?.activity_id,
+      stage: 'completed',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'Bash',
+        'tool.name': 'Bash',
+      }),
+    });
   });
 
   it('marks Agent/Task and subagent hooks as a2a activity metadata', async () => {

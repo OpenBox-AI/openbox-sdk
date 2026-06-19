@@ -784,6 +784,38 @@ describe('activity pairing', () => {
         error: 'CRM timeout',
       }),
     });
+
+    const orphanMock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(orphanMock), preset: presets.n8n },
+      async (session) => {
+        await emitN8nNodePostExecute(session, {
+          activityId: 'node-without-pre',
+          input: { operation: 'sync' },
+          output: { updated: true },
+          nodeName: 'CRM Upsert',
+          sessionId: 'n8n-node-2',
+          durationMs: 25,
+        });
+      },
+    );
+    const orphanEvents = orphanMock.events.filter(
+      (event) => event.activity_id === 'node-without-pre',
+    );
+    expect(orphanEvents.map((event) => [event.event_type, event.hook_trigger])).toEqual([
+      ['ActivityStarted', false],
+      ['ActivityCompleted', false],
+      ['ActivityStarted', true],
+    ]);
+    expect(orphanEvents[0].spans).toBeUndefined();
+    expect(orphanEvents[2].spans?.[0]).toMatchObject({
+      activity_id: 'node-without-pre',
+      stage: 'completed',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'CRM Upsert',
+        'tool.name': 'CRM Upsert',
+      }),
+    });
   });
 
   test('observeActivity emits parent plus hook span without approval polling', async () => {

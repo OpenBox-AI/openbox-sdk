@@ -438,7 +438,10 @@ async function handlePostToolUse(
       activityType,
       payload,
     )) ??
-    (await deps.manager.activity(sessionId, EVENT.COMPLETE, activityType, payload));
+    (await deps.manager.activity(sessionId, EVENT.COMPLETE, activityType, {
+      ...payload,
+      ensureHookSpanParent: true,
+    }));
   return renderDecisionBlock('PostToolUse', verdict, toolOutput);
 }
 
@@ -472,7 +475,10 @@ async function handlePostToolUseFailure(
       sessionId,
       EVENT.COMPLETE,
       ANTHROPIC_AGENT_ACTIVITY_TYPES.TOOL_FAILURE,
-      payload,
+      {
+        ...payload,
+        ensureHookSpanParent: true,
+      },
     ));
   return renderAdditionalContext('PostToolUseFailure', verdict);
 }

@@ -421,6 +421,7 @@ export async function emitN8nNodePostExecute(
     spans: payload.spans?.map((span) => withSpanActivityId(span, activityId)),
     startTime: pending?.startTime ?? input.startTime,
     hookSpanParentEventType: payload.spans?.length ? 'ActivityStarted' : undefined,
+    ensureHookSpanParent: !pending,
   });
 }
 

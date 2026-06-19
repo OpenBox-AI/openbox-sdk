@@ -78,9 +78,7 @@ async function evaluateGate<T>(
     completed && spans && spans.length > 0
       ? {
           hookSpanParentEventType: 'ActivityStarted' as const,
-          ...(input.kind === 'assistant_output'
-            ? { ensureHookSpanParent: true }
-            : {}),
+          ensureHookSpanParent: true,
         }
       : {};
   if (input.kind === 'tool_input') {
