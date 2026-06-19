@@ -21,7 +21,7 @@ under `specs/generated/openapi3/`.
 ## How a code change flows
 
 1. Edit a `.tsp` file in `specs/typespec/`.
-2. Run `npm run specs:all`. TypeSpec compiles, and the OpenBox emitter writes
+2. Run `npm run generate:sdks`. TypeSpec compiles, and the OpenBox emitter writes
    TypeScript, Python, and wire-type SDK artifacts from the same contract.
 3. Run `npm run check:generated-drift` to assert every generated path
    is committed. Catches "I forgot to regen and commit".
@@ -60,7 +60,7 @@ ts/src/<package>/
 **Authoring rule.** If you find yourself wanting to add a public type
 or runtime function signature to a hand-written file, add it to the
 spec at `specs/typespec/<package>/main.tsp` and rerun
-`npm run specs:all` instead. Hand-written files implement the
+`npm run generate:sdks` instead. Hand-written files implement the
 contract; they do not extend it.
 
 ## What's spec-driven vs hand-coded

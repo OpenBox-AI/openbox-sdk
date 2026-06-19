@@ -1145,6 +1145,17 @@ MCP_TOOL_SURFACES = [
     "openWorldHint": True
   },
   {
+    "name": "codex_doctor",
+    "title": "Codex Doctor",
+    "risk": "low",
+    "approval": "never requires approval",
+    "sideEffects": "reads project-local Codex/OpenBox hook files and optionally validates runtime connectivity",
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": True
+  },
+  {
     "name": "cursor_doctor",
     "title": "Cursor Doctor",
     "risk": "low",

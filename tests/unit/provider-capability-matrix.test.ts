@@ -105,8 +105,13 @@ describe('provider capability matrix', () => {
 
   it('declares MCP protocol surfaces from the canonical spec', () => {
     expect(MCP_TOOL_SURFACES.map((entry) => entry.name)).toEqual(
-      expect.arrayContaining(['check_governance', 'decide_approval', 'openbox_status']),
+      expect.arrayContaining(['check_governance', 'decide_approval', 'openbox_status', 'codex_doctor']),
     );
+    expect(MCP_TOOL_SURFACES.find((entry) => entry.name === 'codex_doctor')).toMatchObject({
+      title: 'Codex Doctor',
+      risk: 'low',
+      readOnlyHint: true,
+    });
     expect(MCP_TOOL_SURFACES.find((entry) => entry.name === 'check_governance')).toMatchObject({
       risk: 'medium',
       readOnlyHint: false,
