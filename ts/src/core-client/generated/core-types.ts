@@ -151,7 +151,7 @@ export interface GuardrailsVerdictResult {
 export interface GuardrailFieldResult {
   field: string;
   order: number;
-  status: "allowed" | "blocked" | "redacted" | "skipped";
+  status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
   reason?: string;
 }
 export interface AGEResult {

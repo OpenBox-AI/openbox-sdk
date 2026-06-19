@@ -3331,7 +3331,7 @@ function mapGuardrailsResult(
   };
 }
 
-function normalizeGuardrailFieldStatus(value: string | undefined): 'allowed' | 'blocked' | 'redacted' | 'skipped' {
+function normalizeGuardrailFieldStatus(value: string | undefined): 'allowed' | 'blocked' | 'redacted' | 'transformed' | 'skipped' {
   switch (value) {
     case 'allowed':
     case 'allow':
@@ -3340,8 +3340,9 @@ function normalizeGuardrailFieldStatus(value: string | undefined): 'allowed' | '
     case 'block':
       return 'blocked';
     case 'redacted':
-    case 'transformed':
       return 'redacted';
+    case 'transformed':
+      return 'transformed';
     case 'skipped':
     default:
       return 'skipped';

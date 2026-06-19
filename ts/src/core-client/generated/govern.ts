@@ -5,7 +5,7 @@ export type ActivityStage = "pre" | "post";
 export type VerdictArm = "allow" | "constrain" | "require_approval" | "block" | "halt";
 export interface GuardrailFieldVerdict {
   field: string;
-  status: "allowed" | "blocked" | "redacted" | "skipped";
+  status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
   reason?: string;
 }
 export interface GuardrailReasonRef {
@@ -2911,7 +2911,7 @@ function mapGuardrailsResult(
   };
 }
 
-function normalizeGuardrailFieldStatus(value: string | undefined): 'allowed' | 'blocked' | 'redacted' | 'skipped' {
+function normalizeGuardrailFieldStatus(value: string | undefined): 'allowed' | 'blocked' | 'redacted' | 'transformed' | 'skipped' {
   switch (value) {
     case 'allowed':
     case 'allow':
@@ -2920,8 +2920,9 @@ function normalizeGuardrailFieldStatus(value: string | undefined): 'allowed' | '
     case 'block':
       return 'blocked';
     case 'redacted':
-    case 'transformed':
       return 'redacted';
+    case 'transformed':
+      return 'transformed';
     case 'skipped':
     default:
       return 'skipped';

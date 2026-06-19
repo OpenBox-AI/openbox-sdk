@@ -404,7 +404,7 @@ export interface components {
             /** Format: int32 */
             order: number;
             /** @enum {string} */
-            status: "allowed" | "blocked" | "redacted" | "skipped";
+            status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
             reason?: string;
         };
         GuardrailReason: {

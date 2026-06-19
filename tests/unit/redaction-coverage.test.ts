@@ -230,7 +230,7 @@ describe('guardrail redaction helpers', () => {
         validationPassed: true,
         reasons: [],
         fieldResults: [{ field: 'output.artifact.body', status: 'transformed' }],
-      } as any),
+      }),
     ).toBe(true);
   });
 
@@ -266,7 +266,7 @@ describe('guardrail redaction helpers', () => {
       reasons: [],
       fieldResults: [
         { field: 'output.a', status: 'redacted' },
-        { field: 'output.b', status: 'transformed' as any },
+        { field: 'output.b', status: 'transformed' },
         { field: 'output.c', status: 'redacted' },
         { field: 'output.d', status: 'redacted' },
         { field: 'output.e', status: 'redacted' },
@@ -284,7 +284,7 @@ describe('guardrail redaction helpers', () => {
       reasons: [],
       fieldResults: [
         { field: 'input.0.args.request', status: 'redacted' },
-        { field: 'input.0.args.request', status: 'transformed' as any },
+        { field: 'input.0.args.request', status: 'transformed' },
       ],
     });
 

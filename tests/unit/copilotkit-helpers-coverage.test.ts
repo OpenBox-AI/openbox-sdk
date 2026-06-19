@@ -501,7 +501,7 @@ describe('copilotkit helper coverage', () => {
       reasons: [{ type: 'pii', field: undefined, reason: '' }],
       fieldResults: [
         { field: 'a', status: 'blocked', reason: 'bad' },
-        { field: 'b', status: 'redacted', reason: undefined },
+        { field: 'b', status: 'transformed', reason: undefined },
         { field: 'c', status: 'allowed', reason: undefined },
       ],
     });
@@ -627,7 +627,7 @@ describe('copilotkit helper coverage', () => {
         redactedInput: { output: { artifact: { body: '[REDACTED]' } } },
         validationPassed: true,
         reasons: [],
-        fieldResults: [{ field: 'artifact.body', status: 'transformed' as any }],
+        fieldResults: [{ field: 'artifact.body', status: 'transformed' }],
       },
     });
     const completed = applyCompletedRedaction(

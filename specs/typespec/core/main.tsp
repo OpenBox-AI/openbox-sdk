@@ -446,7 +446,7 @@ model GuardrailsVerdictResult {
 model GuardrailFieldResult {
   field: string;
   order: int32;
-  status: "allowed" | "blocked" | "redacted" | "skipped";
+  status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
   reason?: string;
 }
 

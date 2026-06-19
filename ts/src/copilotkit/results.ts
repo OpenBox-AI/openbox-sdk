@@ -585,9 +585,10 @@ function toolInputForRedaction<
 
 function normalizeGuardrailStatus(
   value: unknown,
-): 'allowed' | 'blocked' | 'redacted' | 'skipped' {
+): 'allowed' | 'blocked' | 'redacted' | 'transformed' | 'skipped' {
   if (value === 'blocked' || value === 'block') return 'blocked';
-  if (value === 'redacted' || value === 'transformed') return 'redacted';
+  if (value === 'redacted') return 'redacted';
+  if (value === 'transformed') return 'transformed';
   if (value === 'allowed' || value === 'allow') return 'allowed';
   return 'skipped';
 }
