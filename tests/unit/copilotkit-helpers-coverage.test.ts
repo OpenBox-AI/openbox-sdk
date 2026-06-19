@@ -273,6 +273,7 @@ describe('copilotkit helper coverage', () => {
       reason: 'allowed',
       riskScore: 0.1,
       trustTier: 2,
+      alignmentScore: 0.85,
       policyId: 'policy-abc',
       behavioralViolations: ['rule-a'],
       constraints: ['mask field'],
@@ -292,6 +293,7 @@ describe('copilotkit helper coverage', () => {
       verdict: 'constrain',
       riskScore: 0.1,
       trustTier: 2,
+      alignmentScore: 0.85,
       policyId: 'policy-abc',
       behavioralViolations: ['rule-a'],
       constraints: ['mask field'],
@@ -366,6 +368,7 @@ describe('copilotkit helper coverage', () => {
     expect(verdictMetadata(undefined)).toEqual({
       riskScore: undefined,
       trustTier: undefined,
+      alignmentScore: undefined,
       policyId: undefined,
       behavioralViolations: undefined,
       constraints: undefined,
@@ -380,6 +383,7 @@ describe('copilotkit helper coverage', () => {
         {
           riskScore: 0.4,
           trustTier: 'silver',
+          alignmentScore: 0.75,
           policyId: 'policy-existing',
           behavioralViolations: ['existing-rule'],
           constraints: ['existing-constraint'],
@@ -393,6 +397,7 @@ describe('copilotkit helper coverage', () => {
     ).toMatchObject({
       riskScore: 0.4,
       trustTier: 'silver',
+      alignmentScore: 0.75,
       policyId: 'policy-existing',
       behavioralViolations: ['existing-rule'],
       constraints: ['existing-constraint'],

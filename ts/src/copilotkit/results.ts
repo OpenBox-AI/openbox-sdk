@@ -408,6 +408,7 @@ export function verdictMetadata(
   return {
     riskScore: verdict?.riskScore,
     trustTier: verdict?.trustTier,
+    alignmentScore: verdict?.alignmentScore,
     policyId: verdict?.policyId,
     behavioralViolations: verdict?.behavioralViolations,
     constraints: verdict?.constraints,
@@ -427,6 +428,7 @@ export function mergedVerdictMetadata(
   return {
     riskScore: verdict.riskScore ?? result.riskScore,
     trustTier: verdict.trustTier ?? result.trustTier,
+    alignmentScore: verdict.alignmentScore ?? result.alignmentScore,
     policyId: verdict.policyId ?? result.policyId,
     behavioralViolations: verdict.behavioralViolations ?? result.behavioralViolations,
     constraints: verdict.constraints ?? result.constraints,
