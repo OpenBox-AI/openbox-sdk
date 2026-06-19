@@ -12,6 +12,8 @@ const methodNamesPath = path.join(root, "codegen", "method-names.json");
 const methodPermissionsPath = path.join(root, "codegen", "method-permissions.json");
 const backendOpenApiPath = path.join(root, "specs", "generated", "openapi3", "OpenboxBackend.json");
 const coreOpenApiPath = path.join(root, "specs", "generated", "openapi3", "OpenboxCore.json");
+const coreTypeSpecPath = path.join(root, "specs", "typespec", "core", "main.tsp");
+const governTypeSpecPath = path.join(root, "specs", "typespec", "govern", "main.tsp");
 
 const PYTHON_KEYWORDS = new Set([
   "False",
@@ -62,6 +64,10 @@ function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
+function readText(file) {
+  return fs.readFileSync(file, "utf8");
+}
+
 function extractArray(file, constName) {
   const source = fs.readFileSync(file, "utf8");
   const marker = `const ${constName}`;
@@ -92,6 +98,55 @@ function extractArray(file, constName) {
     }
   }
   throw new Error(`Unclosed ${constName} array in ${file}`);
+}
+
+function extractBlock(source, keyword, name) {
+  const marker = `${keyword} ${name}`;
+  const start = source.indexOf(marker);
+  if (start < 0) throw new Error(`Could not find ${keyword} ${name}`);
+  const open = source.indexOf("{", start);
+  if (open < 0) throw new Error(`Could not find ${keyword} ${name} block`);
+  let depth = 0;
+  for (let i = open; i < source.length; i += 1) {
+    const char = source[i];
+    if (char === "{") depth += 1;
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(open + 1, i);
+    }
+  }
+  throw new Error(`Unclosed ${keyword} ${name} block`);
+}
+
+function extractEnumValues(file, enumName) {
+  const body = extractBlock(readText(file), "enum", enumName);
+  return body
+    .split("\n")
+    .map((line) => line.replace(/\/\/.*$/, "").trim())
+    .filter(Boolean)
+    .flatMap((line) => {
+      const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)(?:\s*:\s*"([^"]+)")?\s*,?/);
+      if (!match) return [];
+      return [match[2] || match[1]];
+    });
+}
+
+function extractModelProperties(file, modelName) {
+  const body = extractBlock(readText(file), "model", modelName);
+  const properties = [];
+  for (const match of body.matchAll(/^\s*([A-Za-z_][A-Za-z0-9_]*)\??\s*:/gm)) {
+    properties.push(match[1]);
+  }
+  return properties;
+}
+
+function extractPropertyStringLiterals(file, modelName, propertyName) {
+  const body = extractBlock(readText(file), "model", modelName);
+  const match = body.match(
+    new RegExp(`\\b${propertyName}\\??\\s*:\\s*([^;]+);`),
+  );
+  if (!match) throw new Error(`Could not find ${modelName}.${propertyName}`);
+  return [...match[1].matchAll(/"([^"]+)"/g)].map((entry) => entry[1]);
 }
 
 function snakeCase(name) {
@@ -130,6 +185,101 @@ function py(value) {
     .replace(/\btrue\b/g, "True")
     .replace(/\bfalse\b/g, "False")
     .replace(/\bnull\b/g, "None");
+}
+
+function snakeToCamel(value) {
+  return value.replace(/_([a-z0-9])/g, (_, char) => char.toUpperCase());
+}
+
+function assertSubset(values, allowed, label) {
+  const missing = values.filter((value) => !allowed.includes(value));
+  if (missing.length > 0) {
+    throw new Error(`${label} references fields not present in TypeSpec: ${missing.join(", ")}`);
+  }
+}
+
+function emitRuntimeContract() {
+  const verdictArms = extractEnumValues(governTypeSpecPath, "VerdictArm");
+  const eventTypes = extractEnumValues(coreTypeSpecPath, "EventType");
+  const guardrailInputTypes = extractPropertyStringLiterals(
+    governTypeSpecPath,
+    "GuardrailsVerdict",
+    "inputType",
+  );
+  const guardrailFieldStatuses = extractPropertyStringLiterals(
+    governTypeSpecPath,
+    "GuardrailFieldVerdict",
+    "status",
+  );
+  const governedPayloadFields = extractModelProperties(governTypeSpecPath, "GovernedPayload");
+  const governanceEventFields = extractModelProperties(coreTypeSpecPath, "GovernanceEventPayload");
+  const spanFields = extractModelProperties(coreTypeSpecPath, "SpanData");
+  const spanStatusCodes = extractPropertyStringLiterals(coreTypeSpecPath, "SpanStatus", "code");
+  const hookParentEventTypes = extractPropertyStringLiterals(
+    governTypeSpecPath,
+    "GovernedPayload",
+    "hookSpanParentEventType",
+  );
+  const telemetryFieldAliases = [
+    ["session_id", "sessionId"],
+    ["llm_model", "llmModel"],
+    ["input_tokens", "inputTokens"],
+    ["output_tokens", "outputTokens"],
+    ["total_tokens", "totalTokens"],
+    ["has_tool_calls", "hasToolCalls"],
+    ["finish_reason", "finishReason"],
+    ["prompt", "prompt"],
+    ["completion", "completion"],
+    ["tool_name", "toolName"],
+    ["tool_type", "toolType"],
+    ["parent_run_id", "parentRunId"],
+    ["multi_agent_session_id", "multiAgentSessionId"],
+    ["from_agent_did", "fromAgentDid"],
+  ];
+  assertSubset(
+    telemetryFieldAliases.map(([snake]) => snake),
+    governanceEventFields,
+    "TELEMETRY_FIELD_ALIASES core side",
+  );
+  assertSubset(
+    telemetryFieldAliases.map(([, camel]) => camel),
+    governedPayloadFields,
+    "TELEMETRY_FIELD_ALIASES governed side",
+  );
+  const spanAliasSnakeFields = [
+    "span_id",
+    "trace_id",
+    "parent_span_id",
+    "start_time",
+    "end_time",
+    "duration_ns",
+    "semantic_type",
+    "hook_type",
+    "request_body",
+    "response_body",
+    "request_headers",
+    "response_headers",
+  ];
+  assertSubset(spanAliasSnakeFields, spanFields, "SPAN_ALIAS_FIELDS");
+  const spanRootStringFields = [
+    "semantic_type",
+    "hook_type",
+    "http_url",
+    "http_method",
+    "file_path",
+    "file_operation",
+    "db_statement",
+    "db_operation",
+    "db_system",
+  ];
+  assertSubset(spanRootStringFields, spanFields, "SPAN_PERSISTABLE_ROOT_STRING_FIELDS");
+  const runtimeHintCamelFields = ["hookSpanParentEventType", "ensureHookSpanParent"];
+  assertSubset(runtimeHintCamelFields, governedPayloadFields, "SPAN_RUNTIME_HINT_FIELDS");
+  const runtimeHintFields = runtimeHintCamelFields.flatMap((field) => [
+    field.replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`),
+    field,
+  ]);
+  return `${banner}# Generated from TypeSpec governance/core contract inputs by scripts/generate-python-sdk.mjs.\n\nEVENT_TYPES = ${py(eventTypes)}\nACTIVITY_STARTED_EVENT_TYPE = "ActivityStarted"\nACTIVITY_COMPLETED_EVENT_TYPE = "ActivityCompleted"\nVERDICT_ARMS = ${py(verdictArms)}\nVERDICT_ARM_RANK = ${py(Object.fromEntries(verdictArms.map((arm, index) => [arm, index])))}\nGUARDRAIL_INPUT_TYPES = ${py(guardrailInputTypes)}\nDEFAULT_GUARDRAIL_INPUT_TYPE = ${py(guardrailInputTypes[0] || null)}\nGUARDRAIL_INPUT_LIKE_TYPES = ${py(guardrailInputTypes.filter((value) => value !== "activity_output"))}\nGUARDRAIL_OUTPUT_TYPE = "activity_output"\nGUARDRAIL_FIELD_STATUSES = ${py(guardrailFieldStatuses)}\nDEFAULT_GUARDRAIL_FIELD_STATUS = "skipped"\nGUARDRAIL_REDACTION_STATUSES = ${py(["redacted", "transformed"].filter((value) => guardrailFieldStatuses.includes(value)))}\nHOOK_SPAN_PARENT_EVENT_TYPES = ${py(hookParentEventTypes)}\nDEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE = ${py(hookParentEventTypes[0] || null)}\nTELEMETRY_FIELD_ALIASES = ${py(Object.fromEntries(telemetryFieldAliases.map(([snake, camel]) => [snake, [snake, camel]])))}\nSPAN_ALIAS_FIELDS = ${py(spanAliasSnakeFields.map((field) => [field, snakeToCamel(field)]))}\nSPAN_PERSISTABLE_ROOT_STRING_FIELDS = ${py(spanRootStringFields)}\nSPAN_PERSISTABLE_ATTRIBUTE_FIELDS = ${py(["url.full", "http.url", "http.method", "file.path", "file.operation", "db.statement", "db.operation", "db.system", "shell.command", "mcp.method", "openbox.tool.name", "tool.name", "tool_name", "gen_ai.system"])}\nSPAN_RUNTIME_HINT_FIELDS = ${py(runtimeHintFields)}\nSPAN_STATUS_CODES = ${py(spanStatusCodes)}\n`;
 }
 
 function emitClientModule({ className, manifestName, manifest, methodNames }) {
@@ -259,4 +409,5 @@ write(
 );
 write(path.join(outDir, "schemas.py"), emitSchemas());
 write(path.join(outDir, "govern.py"), emitGovern(governManifest));
+write(path.join(outDir, "runtime_contract.py"), emitRuntimeContract());
 console.log(`Generated Python SDK files in ${path.relative(root, outDir)}`);

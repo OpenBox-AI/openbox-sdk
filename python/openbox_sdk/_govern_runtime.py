@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import random
 import re
 import time
@@ -10,6 +11,21 @@ from dataclasses import dataclass
 from typing import Any, Literal, TypeAlias, TypeVar
 
 from ._utils import maybe_await, parse_datetime, utc_now
+from .generated.runtime_contract import (
+    ACTIVITY_COMPLETED_EVENT_TYPE,
+    ACTIVITY_STARTED_EVENT_TYPE,
+    DEFAULT_GUARDRAIL_FIELD_STATUS,
+    DEFAULT_GUARDRAIL_INPUT_TYPE,
+    DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE,
+    GUARDRAIL_FIELD_STATUSES,
+    GUARDRAIL_INPUT_TYPES,
+    SPAN_ALIAS_FIELDS,
+    SPAN_PERSISTABLE_ATTRIBUTE_FIELDS,
+    SPAN_PERSISTABLE_ROOT_STRING_FIELDS,
+    SPAN_RUNTIME_HINT_FIELDS,
+    TELEMETRY_FIELD_ALIASES,
+    VERDICT_ARM_RANK,
+)
 
 EventType: TypeAlias = Literal[
     "WorkflowStarted",
@@ -31,13 +47,7 @@ ExternalDecisionHook: TypeAlias = Callable[[Mapping[str, Any]], Awaitable[str | 
 
 T = TypeVar("T")
 
-_TERMINAL_RANK: dict[str, int] = {
-    "allow": 0,
-    "constrain": 1,
-    "require_approval": 2,
-    "block": 3,
-    "halt": 4,
-}
+_TERMINAL_RANK: dict[str, int] = dict(VERDICT_ARM_RANK)
 
 
 class SessionAlreadyTerminatedError(RuntimeError):
@@ -175,7 +185,7 @@ class BaseGovernedSession:
         try:
             verdict = await self.emit_with_span_hook(
                 {
-                    "event_type": "ActivityStarted",
+                    "event_type": ACTIVITY_STARTED_EVENT_TYPE,
                     "activity_id": activity_id,
                     "activity_type": activity_type,
                     "activity_input": source_payload.get("input"),
@@ -195,9 +205,12 @@ class BaseGovernedSession:
                 completion_activity_type: str | None = None,
             ) -> WorkflowVerdict:
                 next_payload = {**dict(completion_payload or {}), "activity_id": activity_id}
-                next_payload.setdefault("hook_span_parent_event_type", "ActivityStarted")
+                next_payload.setdefault(
+                    "hook_span_parent_event_type",
+                    DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE,
+                )
                 return await self.run_activity(
-                    "ActivityCompleted",
+                    ACTIVITY_COMPLETED_EVENT_TYPE,
                     completion_activity_type or activity_type,
                     next_payload,
                 )
@@ -238,7 +251,7 @@ class BaseGovernedSession:
                     activity_type,
                     source_payload,
                 )
-            if event_type == "ActivityCompleted":
+            if event_type == ACTIVITY_COMPLETED_EVENT_TYPE:
                 return await self.emit_completed(
                     activity_id,
                     activity_type,
@@ -249,7 +262,7 @@ class BaseGovernedSession:
             self._activity_starts_ms[activity_id] = start_time
             started = await self.emit_with_span_hook(
                 {
-                    "event_type": "ActivityStarted",
+                    "event_type": ACTIVITY_STARTED_EVENT_TYPE,
                     "activity_id": activity_id,
                     "activity_type": activity_type,
                     "activity_input": source_payload.get("input"),
@@ -303,8 +316,8 @@ class BaseGovernedSession:
             **_telemetry_fields(payload, self.multi_agent_session_id),
         }
         if event_type == "SignalReceived":
-            event["signal_name"] = payload.get("signal_name") or payload.get("signalName")
-            event["signal_args"] = payload.get("signal_args") or payload.get("signalArgs")
+            event["signal_name"] = _pick(payload, "signal_name", "signalName")
+            event["signal_args"] = _pick(payload, "signal_args", "signalArgs")
         verdict = await self.emit(event)
         verdict["activityId"] = activity_id
         return verdict
@@ -318,14 +331,16 @@ class BaseGovernedSession:
         poll_approvals: bool = True,
     ) -> WorkflowVerdict:
         source_payload = dict(payload or {})
-        start_time = source_payload.get("start_time") or self._activity_starts_ms.get(activity_id)
+        start_time = _pick(source_payload, "start_time")
+        if start_time is None:
+            start_time = self._activity_starts_ms.get(activity_id)
         end_time = _coerce_int(source_payload.get("end_time"), _now_ms())
         duration_ms = source_payload.get("duration_ms")
         if duration_ms is None and isinstance(start_time, int):
             duration_ms = max(0, end_time - start_time)
         completed = await self.emit_with_span_hook(
             {
-                "event_type": "ActivityCompleted",
+                "event_type": ACTIVITY_COMPLETED_EVENT_TYPE,
                 "activity_id": activity_id,
                 "activity_type": activity_type,
                 "status": _activity_completion_status(activity_type),
@@ -335,10 +350,16 @@ class BaseGovernedSession:
                 "end_time": end_time,
                 "duration_ms": duration_ms,
                 "spans": source_payload.get("spans"),
-                "hook_span_parent_event_type": source_payload.get("hook_span_parent_event_type")
-                or source_payload.get("hookSpanParentEventType"),
-                "ensure_hook_span_parent": source_payload.get("ensure_hook_span_parent")
-                or source_payload.get("ensureHookSpanParent"),
+                "hook_span_parent_event_type": _pick(
+                    source_payload,
+                    "hook_span_parent_event_type",
+                    "hookSpanParentEventType",
+                ),
+                "ensure_hook_span_parent": _pick(
+                    source_payload,
+                    "ensure_hook_span_parent",
+                    "ensureHookSpanParent",
+                ),
                 **_telemetry_fields(source_payload, self.multi_agent_session_id),
             }
         )
@@ -351,20 +372,19 @@ class BaseGovernedSession:
 
     async def emit_with_span_hook(self, event: Mapping[str, Any]) -> WorkflowVerdict:
         spans = event.get("spans")
-        hook_parent_type = event.get("hook_span_parent_event_type") or event.get(
-            "hookSpanParentEventType"
-        )
+        hook_parent_type = _pick(event, "hook_span_parent_event_type", "hookSpanParentEventType")
         parent_event = _without_span_runtime_hints(event)
         hook_parent_event = (
-            {**parent_event, "event_type": "ActivityStarted"}
-            if hook_parent_type == "ActivityStarted"
+            {**parent_event, "event_type": DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE}
+            if hook_parent_type == DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE
             else parent_event
         )
-        if hook_parent_type == "ActivityStarted":
+        if hook_parent_type == DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE:
             for key in ("status", "activity_output", "end_time", "duration_ms"):
                 hook_parent_event.pop(key, None)
         has_activity_spans = (
-            event.get("event_type") == "ActivityStarted" or hook_parent_type == "ActivityStarted"
+            event.get("event_type") == DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE
+            or hook_parent_type == DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE
         ) and isinstance(spans, list)
         persistable_spans = (
             [span for span in spans or [] if _is_persistable_hook_span(span)]
@@ -373,7 +393,7 @@ class BaseGovernedSession:
         )
         if (
             persistable_spans
-            and hook_parent_event.get("event_type") == "ActivityStarted"
+            and hook_parent_event.get("event_type") == DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE
             and event.get("ensure_hook_span_parent") is True
             and isinstance(event.get("activity_id"), str)
             and event["activity_id"] not in self._activity_parents
@@ -381,7 +401,7 @@ class BaseGovernedSession:
             await self.emit(_without_span_runtime_hints(hook_parent_event))
             self._activity_parents.add(event["activity_id"])
         parent_verdict = await self.emit(parent_event)
-        if parent_event.get("event_type") == "ActivityStarted" and isinstance(
+        if parent_event.get("event_type") == DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE and isinstance(
             event.get("activity_id"), str
         ):
             self._activity_parents.add(event["activity_id"])
@@ -390,10 +410,11 @@ class BaseGovernedSession:
         hook_verdict = parent_verdict
         for span in persistable_spans:
             hook_span = _with_span_hook_context(span, event)
+            attempt = _pick(event, "attempt")
             next_verdict = await self.emit(
                 {
                     **hook_parent_event,
-                    "attempt": event.get("attempt") or 1,
+                    "attempt": attempt if attempt is not None else 1,
                     "hook_trigger": True,
                     "spans": [hook_span],
                 }
@@ -555,29 +576,31 @@ class BaseGovernedSession:
 
 def map_verdict(response: Any) -> WorkflowVerdict:
     raw = dict(response or {}) if isinstance(response, Mapping) else {}
-    guardrails = _map_guardrails_result(raw.get("guardrails_result") or raw.get("guardrailsResult"))
+    guardrails = _map_guardrails_result(_pick(raw, "guardrails_result", "guardrailsResult"))
     guardrails_failed = isinstance(guardrails, dict) and guardrails.get("validationPassed") is False
-    wire_arm = normalize_arm(raw.get("verdict") or raw.get("action") or "allow")
+    wire_arm = normalize_arm(_pick(raw, "verdict", "action") or "allow")
     arm = (
         wire_arm if wire_arm in {"halt", "block"} else ("block" if guardrails_failed else wire_arm)
     )
+    reason = _pick(raw, "reason")
     return {
         "arm": arm,
-        "approvalId": raw.get("approval_id") or raw.get("approvalId"),
-        "governanceEventId": raw.get("governance_event_id") or raw.get("governanceEventId"),
-        "approvalExpiresAt": raw.get("approval_expiration_time") or raw.get("approvalExpiresAt"),
-        "reason": raw.get("reason")
-        or (_guardrail_failure_reason(guardrails) if guardrails_failed else None),
-        "riskScore": raw.get("risk_score") or raw.get("riskScore") or 0,
-        "trustTier": raw.get("trust_tier") or raw.get("trustTier"),
-        "alignmentScore": raw.get("alignment_score") or raw.get("alignmentScore"),
-        "policyId": raw.get("policy_id") or raw.get("policyId"),
-        "behavioralViolations": raw.get("behavioral_violations") or raw.get("behavioralViolations"),
+        "approvalId": _pick(raw, "approval_id", "approvalId"),
+        "governanceEventId": _pick(raw, "governance_event_id", "governanceEventId"),
+        "approvalExpiresAt": _pick(raw, "approval_expiration_time", "approvalExpiresAt"),
+        "reason": reason
+        if reason is not None
+        else (_guardrail_failure_reason(guardrails) if guardrails_failed else None),
+        "riskScore": _pick(raw, "risk_score", "riskScore") or 0,
+        "trustTier": _pick(raw, "trust_tier", "trustTier"),
+        "alignmentScore": _pick(raw, "alignment_score", "alignmentScore"),
+        "policyId": _pick(raw, "policy_id", "policyId"),
+        "behavioralViolations": _pick(raw, "behavioral_violations", "behavioralViolations"),
         "constraints": raw.get("constraints"),
         "metadata": raw.get("metadata"),
-        "fallbackUsed": raw.get("fallback_used") or raw.get("fallbackUsed"),
+        "fallbackUsed": _pick(raw, "fallback_used", "fallbackUsed"),
         "guardrailsResult": guardrails,
-        "ageResult": raw.get("age_result") or raw.get("ageResult"),
+        "ageResult": _pick(raw, "age_result", "ageResult"),
     }
 
 
@@ -632,24 +655,8 @@ async def _swallow_hook(hook: ApprovalHook | None, info: Mapping[str, Any]) -> N
 def _telemetry_fields(
     payload: Mapping[str, Any], default_multi_agent_session_id: str | None
 ) -> JsonDict:
-    aliases = {
-        "session_id": ("session_id", "sessionId"),
-        "llm_model": ("llm_model", "llmModel"),
-        "input_tokens": ("input_tokens", "inputTokens"),
-        "output_tokens": ("output_tokens", "outputTokens"),
-        "total_tokens": ("total_tokens", "totalTokens"),
-        "has_tool_calls": ("has_tool_calls", "hasToolCalls"),
-        "finish_reason": ("finish_reason", "finishReason"),
-        "prompt": ("prompt",),
-        "completion": ("completion",),
-        "tool_name": ("tool_name", "toolName"),
-        "tool_type": ("tool_type", "toolType"),
-        "parent_run_id": ("parent_run_id", "parentRunId"),
-        "multi_agent_session_id": ("multi_agent_session_id", "multiAgentSessionId"),
-        "from_agent_did": ("from_agent_did", "fromAgentDid"),
-    }
     fields: JsonDict = {}
-    for target, names in aliases.items():
+    for target, names in TELEMETRY_FIELD_ALIASES.items():
         for name in names:
             if name in payload and payload[name] is not None:
                 fields[target] = payload[name]
@@ -663,7 +670,7 @@ def _pick(source: Any, *keys: str) -> Any:
     if not isinstance(source, Mapping):
         return None
     for key in keys:
-        if key in source:
+        if key in source and source[key] is not None:
             return source[key]
     return None
 
@@ -693,11 +700,11 @@ def _map_guardrails_result(raw: Any) -> JsonDict | None:
         raw.get("validation_passed") if "validation_passed" in raw else raw.get("validationPassed")
     )
     return {
-        "inputType": raw.get("input_type") or raw.get("inputType") or "activity_input",
-        "redactedInput": raw.get("redacted_input") or raw.get("redactedInput"),
-        "redactedOutput": raw.get("redacted_output") or raw.get("redactedOutput"),
+        "inputType": _normalize_guardrails_input_type(_pick(raw, "input_type", "inputType")),
+        "redactedInput": _pick(raw, "redacted_input", "redactedInput"),
+        "redactedOutput": _pick(raw, "redacted_output", "redactedOutput"),
         "validationPassed": validation_passed is not False,
-        "rawLogs": raw.get("raw_logs") or raw.get("rawLogs"),
+        "rawLogs": _pick(raw, "raw_logs", "rawLogs"),
         "reasons": [
             {
                 "type": str(reason.get("type") or ""),
@@ -715,12 +722,19 @@ def _guardrail_failure_reason(result: JsonDict | None) -> str:
     if result is None:
         return "Guardrails validation failed"
     reasons = result.get("reasons")
+    cleaned_reasons: list[str] = []
     if isinstance(reasons, list):
         for reason in reasons:
             if isinstance(reason, Mapping) and isinstance(reason.get("reason"), str):
                 cleaned = _clean_guardrail_reason(reason["reason"])
                 if cleaned:
-                    return cleaned
+                    cleaned_reasons.append(cleaned)
+    if cleaned_reasons:
+        if result.get("inputType") == "activity_output":
+            return "; ".join(cleaned_reasons)
+        return cleaned_reasons[0]
+    if result.get("inputType") == "activity_output":
+        return "Guardrails output validation failed"
     return "Guardrails validation failed"
 
 
@@ -741,13 +755,21 @@ def _stricter_verdict(current: WorkflowVerdict, candidate: WorkflowVerdict) -> W
 
 
 def _map_guardrail_field_results(raw: Mapping[str, Any]) -> list[JsonDict]:
-    direct = raw.get("field_results") or raw.get("fieldResults")
+    direct = _pick(raw, "field_results", "fieldResults")
+    mapped: list[JsonDict] = []
     if isinstance(direct, list):
-        return [dict(item) for item in direct if isinstance(item, Mapping)]
+        mapped.extend(
+            {
+                "field": str(item.get("field") or ""),
+                "status": _normalize_guardrail_field_status(item.get("status")),
+                "reason": item.get("reason"),
+            }
+            for item in direct
+            if isinstance(item, Mapping)
+        )
     nested = raw.get("results")
     if not isinstance(nested, list):
-        return []
-    mapped: list[JsonDict] = []
+        return mapped
     for group in nested:
         if not isinstance(group, Mapping) or not isinstance(group.get("results"), list):
             continue
@@ -764,62 +786,40 @@ def _map_guardrail_field_results(raw: Mapping[str, Any]) -> list[JsonDict]:
     return mapped
 
 
+def _normalize_guardrails_input_type(value: Any) -> str:
+    normalized = str(value or "").strip()
+    if normalized in GUARDRAIL_INPUT_TYPES:
+        return normalized
+    return str(DEFAULT_GUARDRAIL_INPUT_TYPE)
+
+
 def _normalize_guardrail_field_status(value: Any) -> str:
     normalized = str(value or "").strip().lower()
     if normalized in {"allowed", "allow"}:
         return "allowed"
     if normalized in {"blocked", "block"}:
         return "blocked"
-    if normalized == "redacted":
-        return "redacted"
-    if normalized == "transformed":
-        return "transformed"
-    return "skipped"
+    if normalized in GUARDRAIL_FIELD_STATUSES:
+        return normalized
+    return str(DEFAULT_GUARDRAIL_FIELD_STATUS)
 
 
 def _is_persistable_hook_span(span: Any) -> bool:
     if not isinstance(span, Mapping):
         return False
-    if _has_non_empty_string(span, "semantic_type", "semanticType"):
-        return True
-    if _has_non_empty_string(span, "hook_type", "hookType"):
+    if _has_non_empty_string(span, *SPAN_PERSISTABLE_ROOT_STRING_FIELDS):
         return True
     raw_attributes = span.get("attributes")
     attributes: Mapping[str, Any] = raw_attributes if isinstance(raw_attributes, Mapping) else {}
-    return (
-        _has_non_empty_string(span, "http_url", "httpUrl")
-        or _has_non_empty_string(span, "http_method", "httpMethod")
-        or _has_non_empty_string(span, "file_path", "filePath")
-        or _has_non_empty_string(span, "file_operation", "fileOperation")
-        or _has_non_empty_string(span, "db_statement", "dbStatement")
-        or _has_non_empty_string(span, "db_operation", "dbOperation")
-        or _has_non_empty_string(span, "db_system", "dbSystem")
-        or isinstance(attributes.get("url.full"), str)
-        or isinstance(attributes.get("http.url"), str)
-        or isinstance(attributes.get("http.method"), str)
-        or isinstance(attributes.get("file.path"), str)
-        or isinstance(attributes.get("file.operation"), str)
-        or isinstance(attributes.get("db.statement"), str)
-        or isinstance(attributes.get("db.operation"), str)
-        or isinstance(attributes.get("db.system"), str)
-        or isinstance(attributes.get("shell.command"), str)
-        or isinstance(attributes.get("mcp.method"), str)
-        or isinstance(attributes.get("openbox.tool.name"), str)
-        or isinstance(attributes.get("tool.name"), str)
-        or isinstance(attributes.get("tool_name"), str)
-        or isinstance(attributes.get("gen_ai.system"), str)
+    return any(
+        isinstance(attributes.get(attribute), str)
+        for attribute in SPAN_PERSISTABLE_ATTRIBUTE_FIELDS
     )
 
 
 def _without_span_runtime_hints(event: Mapping[str, Any]) -> JsonDict:
     result = dict(event)
-    for key in (
-        "spans",
-        "hook_span_parent_event_type",
-        "hookSpanParentEventType",
-        "ensure_hook_span_parent",
-        "ensureHookSpanParent",
-    ):
+    for key in ("spans", *SPAN_RUNTIME_HINT_FIELDS):
         result.pop(key, None)
     return result
 
@@ -839,10 +839,10 @@ def _with_span_hook_context(span: Any, event: Mapping[str, Any]) -> Any:
             duration_ns = max(0, end_time - start_time)
         if start_time is not None:
             result["start_time"] = start_time
-        if event.get("event_type") == "ActivityStarted":
+        if event.get("event_type") == DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE:
             result["end_time"] = None
             result["duration_ns"] = None
-        elif event.get("event_type") == "ActivityCompleted":
+        elif event.get("event_type") == ACTIVITY_COMPLETED_EVENT_TYPE:
             if end_time is not None:
                 result["end_time"] = end_time
             if duration_ns is not None:
@@ -862,23 +862,82 @@ def _normalize_hook_span_aliases(span: Mapping[str, Any]) -> JsonDict:
     result = dict(span)
     if attributes is not None:
         result["attributes"] = attributes
-    for snake, camel in (
-        ("span_id", "spanId"),
-        ("trace_id", "traceId"),
-        ("parent_span_id", "parentSpanId"),
-        ("start_time", "startTime"),
-        ("end_time", "endTime"),
-        ("duration_ns", "durationNs"),
-        ("semantic_type", "semanticType"),
-        ("hook_type", "hookType"),
-        ("request_body", "requestBody"),
-        ("response_body", "responseBody"),
-        ("request_headers", "requestHeaders"),
-        ("response_headers", "responseHeaders"),
-    ):
-        if result.get(snake) is None and result.get(camel) is not None:
+    for snake, camel in SPAN_ALIAS_FIELDS:
+        if snake not in result and camel in result:
             result[snake] = result[camel]
+    if "events" in result:
+        result["events"] = _normalize_hook_span_events(result["events"])
+    if "status" in result:
+        status = _normalize_hook_span_status(result["status"])
+        if status is None:
+            result.pop("status", None)
+        else:
+            result["status"] = status
+    _normalize_hook_span_header_field(result, "request_headers")
+    _normalize_hook_span_header_field(result, "response_headers")
     return result
+
+
+def _normalize_hook_span_events(events: Any) -> list[JsonDict]:
+    if not isinstance(events, list):
+        return []
+    normalized: list[JsonDict] = []
+    for event in events:
+        record = _plain_record(event)
+        timestamp = record.get("timestamp")
+        normalized.append(
+            {
+                "attributes": _plain_record(record.get("attributes")),
+                "name": record["name"] if isinstance(record.get("name"), str) else "",
+                "timestamp": timestamp
+                if isinstance(timestamp, (int, float)) and math.isfinite(timestamp)
+                else 0,
+            }
+        )
+    return normalized
+
+
+def _normalize_hook_span_status(status: Any) -> JsonDict | None:
+    record = _plain_record(status)
+    code = record.get("code") if isinstance(record.get("code"), str) else None
+    raw_description = record.get("description")
+    has_description = isinstance(raw_description, str) or (
+        "description" in record and raw_description is None
+    )
+    if not code and not has_description:
+        return None
+    return {
+        **({"code": code} if code else {}),
+        **({"description": raw_description} if has_description else {}),
+    }
+
+
+def _normalize_hook_span_header_field(
+    record: JsonDict,
+    key: Literal["request_headers", "response_headers"],
+) -> None:
+    if key not in record:
+        return
+    value = record[key]
+    if value is None:
+        return
+    headers = _string_record(value)
+    if headers:
+        record[key] = headers
+    else:
+        record.pop(key, None)
+
+
+def _string_record(value: Any) -> dict[str, str] | None:
+    record = _plain_record(value)
+    entries = {key: entry for key, entry in record.items() if isinstance(entry, str)}
+    return entries or None
+
+
+def _plain_record(value: Any) -> JsonDict:
+    if not isinstance(value, Mapping):
+        return {}
+    return dict(value)
 
 
 def _has_non_empty_string(source: Mapping[str, Any], *keys: str) -> bool:
@@ -886,21 +945,22 @@ def _has_non_empty_string(source: Mapping[str, Any], *keys: str) -> bool:
 
 
 def _has_useful_span_duration(span: Mapping[str, Any]) -> bool:
-    return any(isinstance(span.get(key), (int, float)) for key in ("start_time", "duration_ns"))
+    duration = span.get("duration_ns")
+    return isinstance(duration, (int, float)) and math.isfinite(duration) and duration > 0
 
 
 def _to_span_timestamp_ns(value: Any) -> int | None:
-    if not isinstance(value, (int, float)):
+    if not isinstance(value, (int, float)) or not math.isfinite(value):
         return None
-    if value > 1_000_000_000_000_000:
+    if value >= 1_000_000_000_000_000:
         return int(value)
-    if value > 1_000_000_000_000:
-        return int(value * 1_000_000)
-    return int(value)
+    return int(value * 1_000_000)
 
 
 def _duration_ms_to_ns(value: Any) -> int | None:
-    return int(value * 1_000_000) if isinstance(value, (int, float)) else None
+    if not isinstance(value, (int, float)) or not math.isfinite(value):
+        return None
+    return max(0, int(value * 1_000_000))
 
 
 def _activity_completion_status(activity_type: str) -> str:

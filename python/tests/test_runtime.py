@@ -247,6 +247,23 @@ def test_signing_redaction_and_utility_helpers() -> None:
     assert apply_input_redaction(original, verdict)["nested"]["secret"] == "[redacted]"
     assert apply_output_redaction(original, verdict)["items"] == [{"x": 2}, {"x": 3}]
     assert original["nested"]["secret"] == "raw"
+    snake_verdict = {
+        "guardrails_result": {
+            "input_type": "activity_input",
+            "redacted_input": {"input": [{"nested": {"secret": "[snake]"}}]},
+        }
+    }
+    assert apply_input_redaction([original], snake_verdict)[0]["nested"]["secret"] == "[snake]"
+    output_fallback_verdict = {
+        "guardrails_result": {
+            "input_type": "activity_output",
+            "redacted_input": {"output": {"nested": {"secret": "[output]"}}},
+        }
+    }
+    assert (
+        apply_output_redaction(original, output_fallback_verdict)["nested"]["secret"]
+        == "[output]"
+    )
     assert normalize_api_url("https://api.example/") == "https://api.example"
     with pytest.raises(ValueError):
         normalize_api_url("")
@@ -278,6 +295,12 @@ def test_signing_redaction_and_utility_helpers() -> None:
     }
     assert has_guardrail_redaction(redaction_verdict) is True
     assert summarize_guardrail_redaction(redaction_verdict) == ["secret"]
+    assert (
+        has_guardrail_redaction(
+            {"guardrails_result": {"input_type": "activity_input", "redacted_input": []}}
+        )
+        is True
+    )
     assert apply_input_redaction({"a": 1}, {}) == {"a": 1}
     assert apply_output_redaction({"a": 1}, {"guardrailsResult": {}}) == {"a": 1}
 
@@ -374,10 +397,22 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
         "ToolStarted",
         {
             "activity_id": "act_1",
+            "start_time": 1_700_000_000_000,
             "spans": [
                 {
                     "stage": "started",
-                    "semantic_type": "http_get",
+                    "semanticType": "http_get",
+                    "startTime": 1_700_000_000_000,
+                    "durationNs": 0,
+                    "events": [
+                        {
+                            "attributes": {"keep": "yes"},
+                            "name": 42,
+                            "timestamp": "bad",
+                        }
+                    ],
+                    "status": {"code": 42},
+                    "requestHeaders": {"authorization": "Bearer test", "n": 1},
                     "attributes": {"url.full": "https://example.com"},
                 }
             ],
@@ -389,8 +424,18 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
     assert span_core.events[-1]["hook_trigger"] is True
     assert span_core.events[-1]["span_count"] == 1
     assert span_core.events[-1]["activity_id"] == "act_1"
-    assert span_core.events[-1]["spans"][0]["activity_id"] == "act_1"
-    assert span_core.events[-1]["spans"][0]["attributes"]["http.url"] == "https://example.com"
+    started_hook_span = span_core.events[-1]["spans"][0]
+    assert started_hook_span["activity_id"] == "act_1"
+    assert started_hook_span["semantic_type"] == "http_get"
+    assert started_hook_span["start_time"] == 1_700_000_000_000_000_000
+    assert started_hook_span["end_time"] is None
+    assert started_hook_span["duration_ns"] is None
+    assert "status" not in started_hook_span
+    assert started_hook_span["events"] == [
+        {"attributes": {"keep": "yes"}, "name": "", "timestamp": 0}
+    ]
+    assert started_hook_span["request_headers"] == {"authorization": "Bearer test"}
+    assert started_hook_span["attributes"]["http.url"] == "https://example.com"
 
     handle = await span_session.open_activity(
         "ToolStarted",
@@ -499,6 +544,55 @@ async def test_govern_runtime_edge_paths() -> None:
         ]
         is True
     )
+    alias_verdict = map_verdict(
+        {
+            "verdict": "constrain",
+            "risk_score": 0,
+            "trust_tier": 0,
+            "alignment_score": 0,
+            "behavioral_violations": [],
+            "fallback_used": False,
+            "age_result": {},
+            "guardrails_result": {
+                "input_type": "activity_input",
+                "redacted_output": {},
+                "raw_logs": {},
+                "field_results": [
+                    {"field": "direct_cmd", "status": "transformed", "reason": "direct row"}
+                ],
+                "results": [
+                    {
+                        "guardrail_type": "pii",
+                        "results": [{"field": "cmd", "status": "block", "reason": "token"}],
+                    }
+                ],
+            },
+        }
+    )
+    assert alias_verdict["riskScore"] == 0
+    assert alias_verdict["trustTier"] == 0
+    assert alias_verdict["alignmentScore"] == 0
+    assert alias_verdict["behavioralViolations"] == []
+    assert alias_verdict["fallbackUsed"] is False
+    assert alias_verdict["ageResult"] == {}
+    assert alias_verdict["guardrailsResult"]["redactedOutput"] == {}
+    assert alias_verdict["guardrailsResult"]["rawLogs"] == {}
+    assert alias_verdict["guardrailsResult"]["fieldResults"] == [
+        {"field": "direct_cmd", "status": "transformed", "reason": "direct row"},
+        {"field": "cmd", "status": "blocked", "reason": "token"},
+    ]
+    output_guardrail = map_verdict(
+        {
+            "verdict": "allow",
+            "guardrails_result": {
+                "validation_passed": False,
+                "input_type": "activity_output",
+                "reasons": [{"reason": "first"}, {"reason": "second"}],
+            },
+        }
+    )
+    assert output_guardrail["arm"] == "block"
+    assert output_guardrail["reason"] == "first; second"
 
 
 @pytest.mark.asyncio
