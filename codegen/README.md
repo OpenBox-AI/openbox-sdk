@@ -2,9 +2,9 @@
 
 Spec-driven code-generation pipeline. TypeSpec sources at
 `specs/typespec/` are the contract. Emitters under
-`codegen/emitters/` turn them into generated TypeScript source under
-`ts/src/**/generated/` and generated API contracts under
-`specs/generated/openapi3/`.
+`codegen/emitters/` turn them into generated SDK artifacts under
+language package `generated/` directories and generated API contracts
+under `specs/generated/openapi3/`.
 
 ## What goes where
 
@@ -13,7 +13,7 @@ Spec-driven code-generation pipeline. TypeSpec sources at
 | `typespec-libs/typespec-workflow/` | Decorator library: `@verdict`, `@preset`, `@maps_to`, `@adapter`, `@hookEvent`, `@verdictShape`, `@activityRouting` |
 | `typespec-libs/typespec-cli/` | Decorator library: `@cli_command`, `@cli_flag`, etc. Drives CLI binding emit |
 | `typespec-libs/typespec-env/` | Decorator library: `@env_var`, `@token_format`, `@os_path` |
-| `emitters/typespec-emitter-typescript/` | TypeSpec emitter using `ts-morph`. Walks the program, writes TS source |
+| `emitters/typespec-emitter-openbox/` | OpenBox TypeSpec emitter. Walks the program, writes TypeScript and Python generated SDK artifacts |
 | `fixtures/` | Conformance test inputs in JSON. Future SDK target branches should replay the same fixtures |
 | `method-permissions.json` | Mirrored `@Permissions` map from the live backend controllers, keyed by `operationId` to required perms |
 | `method-names.json` | OpenAPI `operationId` to CLI method name mapping. Used by the wrapper-method emitter |
@@ -21,10 +21,10 @@ Spec-driven code-generation pipeline. TypeSpec sources at
 ## How a code change flows
 
 1. Edit a `.tsp` file in `specs/typespec/`.
-2. Run `npm run specs:all`. TypeSpec compiles, the TS emitter writes
-   `ts/src/**/generated/*.ts`, and `openapi-typescript` regenerates
-   `ts/src/types/generated/backend.ts` and
-   `ts/src/types/generated/core.ts` from the emitted OpenAPI3.
+2. Run `npm run specs:all`. TypeSpec compiles, the OpenBox emitter writes
+   TypeScript and Python generated SDK artifacts, and
+   `openapi-typescript` regenerates `ts/src/types/generated/backend.ts`
+   and `ts/src/types/generated/core.ts` from the emitted OpenAPI3.
 3. Run `npm run check:generated-drift` to assert every generated path
    is committed. Catches "I forgot to regen and commit".
 4. Run `npm test`. Vitest snapshot tests catch unintended emitter

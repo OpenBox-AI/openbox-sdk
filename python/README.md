@@ -18,5 +18,5 @@ Generated files live under `openbox_sdk/generated/` and are emitted directly by
 the monorepo TypeSpec emitter. Regenerate them from the repo root with:
 
 ```bash
-npm run generate:python
+npm run generate:sdks
 ```

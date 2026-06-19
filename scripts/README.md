@@ -6,14 +6,12 @@ canonical TypeSpec contract.
 
 ## Emitter-Owned
 
-- `generate:python` is a compatibility command for `npm run specs:compile`; the
-  Python SDK generated package is emitted by
-  `codegen/emitters/typespec-emitter-typescript`.
 - `check:generated-drift` reruns the TypeSpec compiler and OpenAPI type
   generation, then checks generated TypeScript, Python, and OpenAPI artifacts
   for drift.
-- `check:python-generated-drift` reruns the TypeSpec compiler and checks only
-  `python/openbox_sdk/generated`.
+- `generate:sdks` is the generic SDK artifact generation command; it delegates
+  to `npm run specs:compile`, where the OpenBox TypeSpec emitter writes every
+  generated SDK artifact for every language target.
 
 ## Operational Scripts
 

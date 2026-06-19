@@ -153,11 +153,11 @@
   ],
   "workspaces": [
     "codegen/typespec-libs/*",
-    "codegen/emitters/typespec-emitter-typescript",
+    "codegen/emitters/typespec-emitter-openbox",
     "apps/*"
   ],
   "scripts": {
-    "build:codegen": "npm run build -w typespec-env -w typespec-cli -w typespec-workflow -w typespec-emitter-typescript",
+    "build:codegen": "npm run build -w typespec-env -w typespec-cli -w typespec-workflow -w typespec-emitter-openbox",
     "build:bundle": "tsup && node --experimental-strip-types scripts/sync-runtime-assets.ts",
     "build": "npm run build:codegen && npm run specs:compile && npm run generate:types && npm run build:bundle",
     "prepublishOnly": "npm run build",
@@ -173,8 +173,7 @@
     "generate:types:backend": "openapi-typescript specs/generated/openapi3/OpenboxBackend.json -o ts/src/types/generated/backend.ts",
     "generate:types:core": "openapi-typescript specs/generated/openapi3/OpenboxCore.json    -o ts/src/types/generated/core.ts",
     "generate:types": "npm run generate:types:backend && npm run generate:types:core",
-    "generate:python": "npm run specs:compile",
-    "check:python-generated-drift": "node scripts/check-python-generated-drift.mjs",
+    "generate:sdks": "npm run specs:compile",
     "specs:compile": "tsp compile specs/typespec",
     "specs:all": "npm run build:codegen && npm run specs:compile && npm run generate:types",
     "specs:watch": "tsp compile specs/typespec --watch",
