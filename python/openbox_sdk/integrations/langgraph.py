@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, overload
 
 from openbox_sdk._govern_runtime import BaseGovernedSession, WorkflowVerdict
 from openbox_sdk.clients import AsyncOpenBoxCoreClient
@@ -14,6 +14,7 @@ from openbox_sdk.generated.runtime_contract import (
 )
 
 T = TypeVar("T")
+R = TypeVar("R")
 DEFAULT_ACTIVITY_TYPES = PRESET_ACTIVITY_TYPES["default"]
 
 
@@ -84,10 +85,24 @@ class OpenBoxLangGraphMiddleware:
         }
         return await self.session.emit(payload)
 
+    @overload
     async def wrap_tool_call(
         self,
-        request: Any,
-        handler: Callable[[Any], Awaitable[T] | T],
+        request: R,
+        handler: Callable[[R], Awaitable[T]],
+    ) -> T: ...
+
+    @overload
+    async def wrap_tool_call(
+        self,
+        request: R,
+        handler: Callable[[R], T],
+    ) -> T: ...
+
+    async def wrap_tool_call(
+        self,
+        request: R,
+        handler: Callable[[R], Awaitable[T] | T],
     ) -> T:
         activity_id = _request_id(request)
         activity_type = _request_name(request, DEFAULT_ACTIVITY_TYPES["agentAction"])
@@ -143,10 +158,24 @@ class OpenBoxLangGraphMiddleware:
         self._enforce_verdict(completed)
         return result
 
+    @overload
     async def wrap_model_call(
         self,
-        request: Any,
-        handler: Callable[[Any], Awaitable[T] | T],
+        request: R,
+        handler: Callable[[R], Awaitable[T]],
+    ) -> T: ...
+
+    @overload
+    async def wrap_model_call(
+        self,
+        request: R,
+        handler: Callable[[R], T],
+    ) -> T: ...
+
+    async def wrap_model_call(
+        self,
+        request: R,
+        handler: Callable[[R], Awaitable[T] | T],
     ) -> T:
         activity_id = _request_id(request)
         plain_request = _plain_request(request)
