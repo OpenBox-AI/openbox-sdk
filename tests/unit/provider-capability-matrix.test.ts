@@ -13,6 +13,7 @@ import {
   GOAL_SIGNAL_GUARDS,
   GUARDRAIL_CAPABILITY_GUARDS,
   HITL_CAPABILITY_GUARDS,
+  INSTALL_DOCTOR_CAPABILITY_GUARDS,
   OPENBOX_CAPABILITY_IDS,
   POLICY_EVALUATION_GUARDS,
   MCP_PROMPT_SURFACES,
@@ -178,6 +179,35 @@ describe('provider capability matrix', () => {
       expect(guard.spanCoverage, `${guard.provider} spanCoverage`).toMatch(/span/i);
       expect(guard.spanEmission, `${guard.provider} spanEmission`).toMatch(/hook_trigger|observed spans|pre-gated|span-free/i);
       expect(guard.sourceAttribution, `${guard.provider} sourceAttribution`).toContain('_openbox_source');
+      expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+    }
+  });
+
+  it('pins install-doctor support claims to explicit install and doctor guard coverage', () => {
+    const installDoctorCapabilityProviders = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) => entry.capability === 'install-doctor')
+      .map((entry) => entry.provider)
+      .sort();
+    const guardProviders = INSTALL_DOCTOR_CAPABILITY_GUARDS
+      .map((entry) => entry.provider)
+      .sort();
+
+    expect(guardProviders).toEqual(installDoctorCapabilityProviders);
+    expect(new Set(guardProviders).size).toBe(guardProviders.length);
+
+    const tierByProvider = new Map(
+      PROVIDER_CAPABILITY_MATRIX
+        .filter((entry) => entry.capability === 'install-doctor')
+        .map((entry) => [entry.provider, entry.tier]),
+    );
+    for (const guard of INSTALL_DOCTOR_CAPABILITY_GUARDS) {
+      expect(guard.tier, `${guard.provider} tier`).toBe(tierByProvider.get(guard.provider));
+      expect(guard.installSurface.length, `${guard.provider} installSurface`).toBeGreaterThan(20);
+      expect(guard.doctorSurface.length, `${guard.provider} doctorSurface`).toBeGreaterThan(20);
+      expect(guard.scopeBoundary, `${guard.provider} scopeBoundary`).toMatch(
+        /project-local|diagnose-only|operator-owned|no files|global host config/i,
+      );
+      expect(guard.generatedOrPackagedSurface.length, `${guard.provider} generatedOrPackagedSurface`).toBeGreaterThan(20);
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
     }
   });
