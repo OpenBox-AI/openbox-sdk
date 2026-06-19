@@ -337,6 +337,18 @@ function modelTelemetryFields(
   };
 }
 
+function providerUrlForLLM(provider: string | undefined): string {
+  switch (provider) {
+    case 'anthropic':
+      return 'https://api.anthropic.com/v1/messages';
+    case 'google':
+      return 'https://generativelanguage.googleapis.com/v1beta/models/generateContent';
+    case 'openai':
+    default:
+      return 'https://api.openai.com/v1/chat/completions';
+  }
+}
+
 function toolNameAttributes(input: SpanInput): JsonRecord {
   const toolName = (input.tool_name ?? input.tool)?.trim();
   if (!toolName) return {};
@@ -539,6 +551,15 @@ export function buildSpan(
       );
       const totalTokens = toPositiveInteger(usage?.total_tokens);
       const modelTelemetry = modelTelemetryFields(input.model, undefined, undefined);
+      const llmHttpUrl = providerUrlForLLM(modelTelemetry.provider);
+      const llmRequestBody = {
+        ...(input.model ? { model: input.model } : {}),
+        ...(input.prompt
+          ? { messages: [{ role: 'user', content: input.prompt }] }
+          : {}),
+      };
+      const llmResponseContent =
+        typeof input.response === 'string' ? input.response : '';
       return {
         ...b,
         name: 'llm.chat.completion',
@@ -565,7 +586,7 @@ export function buildSpan(
             ? { 'gen_ai.usage.total_tokens': totalTokens }
             : {}),
           'http.method': 'POST',
-          'http.url': 'https://api.openai.com/v1/chat/completions',
+          'http.url': llmHttpUrl,
           'openbox.semantic_type': 'llm_completion',
           'openbox.span_type': 'function',
         },
@@ -581,6 +602,15 @@ export function buildSpan(
         module: host,
         args: input,
         result: input.response ?? null,
+        http_method: 'POST',
+        http_url: llmHttpUrl,
+        ...(Object.keys(llmRequestBody).length > 0
+          ? { request_body: stringifyBody(llmRequestBody) }
+          : {}),
+        response_body: buildLLMCompletionResponseBody(llmResponseContent, {
+          model: input.model,
+          usage: input.usage,
+        }),
       };
     case 'file_read':
       return {

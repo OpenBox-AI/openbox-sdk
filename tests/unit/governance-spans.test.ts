@@ -150,6 +150,8 @@ describe('LLM completion spans', () => {
   test('generic LLM spans expose derived total tokens for backend metrics', () => {
     const span = buildSpan('cursor', 'llm', {
       model: 'gemini-2.5-flash',
+      prompt: 'Summarize the changed files.',
+      response: 'The changed files update telemetry.',
       usage: {
         input_tokens: 11,
         output_tokens: 7,
@@ -165,13 +167,35 @@ describe('LLM completion spans', () => {
       input_tokens: 11,
       output_tokens: 7,
       total_tokens: 18,
+      http_method: 'POST',
+      http_url: 'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
       attributes: {
+        'http.method': 'POST',
+        'http.url': 'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
         'gen_ai.usage.input_tokens': 11,
         'gen_ai.usage.output_tokens': 7,
         'gen_ai.usage.total_tokens': 18,
         'openbox.model.id': 'gemini-2.5-flash',
         'openbox.model.provider': 'google',
       },
+    });
+
+    expect(JSON.parse(span.request_body as string)).toMatchObject({
+      model: 'gemini-2.5-flash',
+      messages: [{ role: 'user', content: 'Summarize the changed files.' }],
+    });
+    expect(JSON.parse(span.response_body as string)).toMatchObject({
+      model: 'gemini-2.5-flash',
+      usage: {
+        input_tokens: 11,
+        output_tokens: 7,
+        total_tokens: 18,
+      },
+      choices: [
+        {
+          message: { content: 'The changed files update telemetry.' },
+        },
+      ],
     });
   });
 
