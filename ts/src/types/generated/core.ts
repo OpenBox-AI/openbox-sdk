@@ -368,7 +368,7 @@ export interface components {
             action: components["schemas"]["LegacyAction"];
             /**
              * Format: int32
-             * @description Agent trust tier at the moment of evaluation.
+             * @description Agent trust tier at the moment of evaluation. 0 means untrusted.
              */
             trust_tier?: number;
             /**

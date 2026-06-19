@@ -381,8 +381,8 @@ model GovernanceVerdictResponse {
 
   action: LegacyAction;
 
-  /** Agent trust tier at the moment of evaluation. */
-  @minValue(1) @maxValue(4) trust_tier?: int32;
+  /** Agent trust tier at the moment of evaluation. 0 means untrusted. */
+  @minValue(0) @maxValue(4) trust_tier?: int32;
 
   /** Top-level goal-alignment score returned by older Core/AGE response paths. */
   @minValue(0) @maxValue(1) alignment_score?: float64;
@@ -486,7 +486,7 @@ model AGEResult {
 
 model AGETrustScore {
   trust_score: float64;
-  @minValue(1) @maxValue(4) trust_tier: int32;
+  @minValue(0) @maxValue(4) trust_tier: int32;
   behavioral_compliance: float64;
   alignment_consistency: float64;
   aivss_baseline: float64;

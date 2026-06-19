@@ -1359,7 +1359,7 @@ describe('WorkflowVerdict.guardrailsResult', () => {
       constraints: ['redact command before display'],
       metadata: { evaluator: 'opa', rule: 'shell' },
       fallback_used: true,
-      trust_tier: 3,
+      trust_tier: 0,
       reason: 'Constrained by behavior rule',
     });
     type WV = import('../../ts/src/core-client/generated/govern.js').WorkflowVerdict;
@@ -1380,7 +1380,7 @@ describe('WorkflowVerdict.guardrailsResult', () => {
       constraints: ['redact command before display'],
       metadata: { evaluator: 'opa', rule: 'shell' },
       fallbackUsed: true,
-      trustTier: 3,
+      trustTier: 0,
       reason: 'Constrained by behavior rule',
     });
   });
