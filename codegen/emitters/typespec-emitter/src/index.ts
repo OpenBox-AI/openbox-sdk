@@ -245,10 +245,9 @@ try {
   // operationId-stripping heuristic below.
 }
 
-// operationId → required permissions. Extracted from backend NestJS
-// controllers' @Permissions(PermissionEnum.X) decorators by
-// scripts/extract-perms.mjs. Drives the generated pre-flight check on
-// the backend wrapper class.
+// operationId → required permissions. Backend-owned mirror of NestJS
+// controllers' @Permissions(PermissionEnum.X) decorators. Drives the
+// generated pre-flight check on the backend wrapper class.
 let METHOD_PERMISSIONS_MAP: Record<string, string[]> = {};
 try {
   const raw = readFileSync(

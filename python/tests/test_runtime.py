@@ -4,6 +4,7 @@ import ast
 import asyncio
 import base64
 import json
+import re
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -57,6 +58,7 @@ from openbox_sdk.generated.capability_matrix import (
 )
 from openbox_sdk.generated.core_client import CORE_ENDPOINT_MANIFEST
 from openbox_sdk.generated.govern import PRESET_MANIFEST
+from openbox_sdk.generated.permissions import PATH_PERMISSION_RULES
 from openbox_sdk.integrations.copilotkit import openbox_copilotkit_middleware
 from openbox_sdk.integrations.langgraph import (
     OpenBoxLangGraphMiddleware,
@@ -120,6 +122,41 @@ def _endpoint_manifest_for_fixture(manifest: list[dict[str, Any]]) -> list[dict[
         }
         for item in manifest
     ]
+
+
+def _codegen_json(name: str) -> dict[str, Any]:
+    repo = Path(__file__).parents[2]
+    data = json.loads((repo / "codegen" / name).read_text())
+    assert isinstance(data, dict)
+    return cast(dict[str, Any], data)
+
+
+def _permission_regex_for_path_pattern(path_pattern: str) -> str:
+    escaped = re.sub(r"([.*+?^${}()|\[\]\\])", r"\\\1", path_pattern)
+    escaped = escaped.replace("\\{x\\}", "[^/]+")
+    return f"^{escaped}$"
+
+
+def _expected_python_permission_rules() -> list[list[Any]]:
+    permissions_by_operation = _codegen_json("method-permissions.json")
+    operations = {entry["operation_id"] for entry in BACKEND_ENDPOINT_MANIFEST}
+    missing_operations = sorted(set(permissions_by_operation) - operations)
+    assert missing_operations == []
+
+    expected: list[list[Any]] = []
+    for entry in BACKEND_ENDPOINT_MANIFEST:
+        permissions = permissions_by_operation.get(entry["operation_id"])
+        if not isinstance(permissions, list) or not permissions:
+            continue
+        expected.append(
+            [
+                entry["verb"],
+                _permission_regex_for_path_pattern(str(entry["path_pattern"])),
+                entry["method_name"],
+                permissions,
+            ]
+        )
+    return expected
 
 
 @pytest.mark.asyncio
@@ -396,6 +433,10 @@ def test_generated_python_matches_typespec_capability_fixture() -> None:
     assert MCP_PROMPT_SURFACES == fixture["mcpPromptSurfaces"]
     assert MCP_RESOURCE_TEMPLATE_SURFACES == fixture["mcpResourceTemplateSurfaces"]
     assert N8N_INTEGRATION_SURFACE == fixture["n8nIntegrationSurface"]
+
+
+def test_generated_python_permission_rules_match_backend_permission_map() -> None:
+    assert PATH_PERMISSION_RULES == _expected_python_permission_rules()
 
 
 @pytest.mark.asyncio
