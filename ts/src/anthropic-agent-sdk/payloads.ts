@@ -102,6 +102,21 @@ export function toolActivityInput(
   }) as unknown[];
 }
 
+export function toolTelemetryFields(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+): { toolName: string; toolType?: string } {
+  const subagentName = subagentNameForTool(toolName, toolInput);
+  const toolType =
+    toolName === 'Agent' || toolName === 'Task' || subagentName
+      ? 'a2a'
+      : spanTypeFor(toolName, toolInput);
+  return {
+    toolName,
+    ...(toolType ? { toolType } : {}),
+  };
+}
+
 export function subagentActivityInput(
   env: Record<string, unknown>,
   payload: Record<string, unknown>,

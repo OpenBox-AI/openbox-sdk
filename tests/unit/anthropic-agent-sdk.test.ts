@@ -368,8 +368,16 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     );
 
     expect(parent?.activity_id).toBeDefined();
+    expect(parent).toMatchObject({
+      tool_name: 'Bash',
+      tool_type: 'shell',
+    });
     expect(completed?.activity_id).toBe(parent?.activity_id);
     expect(completed?.duration_ms).toBe(25);
+    expect(completed).toMatchObject({
+      tool_name: 'Bash',
+      tool_type: 'shell',
+    });
   });
 
   it('treats failClosed false as a compatibility no-op for decision-capable hooks', async () => {
@@ -450,6 +458,10 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     );
     expect(permissionEvent?.activity_input).toContainEqual({
       __openbox: { tool_type: 'shell' },
+    });
+    expect(permissionEvent).toMatchObject({
+      tool_name: 'Bash',
+      tool_type: 'shell',
     });
     expect(permissionEvent?.activity_input).toContainEqual(
       expect.objectContaining({
@@ -578,8 +590,16 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         event.activity_type === 'ShellExecution',
     );
     expect(started?.activity_id).toBeDefined();
+    expect(started).toMatchObject({
+      tool_name: 'Bash',
+      tool_type: 'shell',
+    });
     expect(completed?.activity_id).toBe(started?.activity_id);
     expect(completed?.duration_ms).toBe(42);
+    expect(completed).toMatchObject({
+      tool_name: 'Bash',
+      tool_type: 'shell',
+    });
     expect(started?.activity_input).toContainEqual({
       __openbox: { tool_type: 'shell' },
     });
@@ -611,6 +631,10 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     );
     expect(taskStarted?.activity_input).toContainEqual({
       __openbox: { tool_type: 'a2a', subagent_name: 'researcher' },
+    });
+    expect(taskStarted).toMatchObject({
+      tool_name: 'Task',
+      tool_type: 'a2a',
     });
     const subagentStarted = mock.events.find(
       (event) =>

@@ -23,6 +23,7 @@ import {
   subagentActivityInput,
   toolActivityInput,
   toolActivityType,
+  toolTelemetryFields,
   toolSpan,
 } from './payloads.js';
 import { AnthropicAgentSessionManager } from './session-manager.js';
@@ -297,6 +298,7 @@ async function handlePreToolUse(
       toolInput,
       compactPayload({ ...env, tool_name: toolName, tool_input: toolInput }, 'tool_input'),
     ),
+    ...toolTelemetryFields(toolName, toolInput),
     spans: toolSpan(toolName, toolInput),
   });
   deps.manager.rememberToolActivity(
@@ -321,6 +323,7 @@ async function handlePermissionRequest(
       toolInput,
       compactPayload({ ...env, tool_name: toolName, tool_input: toolInput }, 'permission_request'),
     ),
+    ...toolTelemetryFields(toolName, toolInput),
     spans: toolSpan(toolName, toolInput),
   });
   return renderPermissionRequest(verdict);
@@ -339,6 +342,7 @@ async function handlePermissionDenied(
       toolInput,
       compactPayload({ ...env, tool_name: toolName, tool_input: toolInput }, 'permission_denied'),
     ),
+    ...toolTelemetryFields(toolName, toolInput),
     spans: toolSpan(toolName, toolInput, env.reason),
   });
   return renderPermissionDenied(verdict);
@@ -423,6 +427,7 @@ async function handlePostToolUse(
     ),
     output: toolOutput,
     durationMs: numberFrom(env.duration_ms),
+    ...toolTelemetryFields(toolName, toolInput),
     spans: toolSpan(toolName, toolInput, toolOutput),
   };
   const verdict =
@@ -451,6 +456,7 @@ async function handlePostToolUseFailure(
     ),
     output: compactPayload(env, 'tool_failure'),
     durationMs: numberFrom(env.duration_ms),
+    ...toolTelemetryFields(toolName, toolInput),
     spans: toolSpan(toolName, toolInput, env.error),
   };
   const verdict =
