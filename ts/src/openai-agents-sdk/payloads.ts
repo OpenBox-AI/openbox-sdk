@@ -3,11 +3,14 @@ import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import { stampSource } from '../approvals/source.js';
 import {
   buildSpan,
-  llmTokenUsageFromRecord,
   withOpenBoxActivityMetadata,
-  type LLMTokenUsage,
   type SpanType,
 } from '../governance/spans.js';
+import {
+  combineOpenBoxUsage,
+  normalizeOpenBoxUsage,
+  type NormalizedOpenBoxUsage,
+} from '../governance/usage.js';
 import { buildAssistantOutputSpan } from '../governance/assistant-output.js';
 import type { OpenBoxAgentsToolCallDetails } from './types.js';
 
@@ -141,14 +144,14 @@ export function runTelemetryFields(
   const resultRecord = objectRecord(result);
   const rawResponses = arrayFrom(resultRecord.rawResponses);
   const usage =
-    usageFrom(objectRecord(objectRecord(resultRecord.runContext).usage)) ??
-    usageFrom(objectRecord(objectRecord(resultRecord.state).usage)) ??
+    normalizeOpenBoxUsage(objectRecord(objectRecord(resultRecord.runContext).usage)) ??
+    normalizeOpenBoxUsage(objectRecord(objectRecord(resultRecord.state).usage)) ??
     aggregateRawResponseUsage(rawResponses);
   return {
     llmModel: modelFromResult(resultRecord, rawResponses),
-    inputTokens: inputTokens(usage),
-    outputTokens: outputTokens(usage),
-    totalTokens: totalTokens(usage),
+    inputTokens: usage?.inputTokens,
+    outputTokens: usage?.outputTokens,
+    totalTokens: usage?.totalTokens,
     hasToolCalls: rawResponses.some(responseHasToolCalls),
     finishReason: finishReasonFromResult(resultRecord, rawResponses),
   };
@@ -161,8 +164,8 @@ export function runAssistantOutputSpan(
   const resultRecord = objectRecord(result);
   const rawResponses = arrayFrom(resultRecord.rawResponses);
   const usage =
-    usageFrom(objectRecord(objectRecord(resultRecord.runContext).usage)) ??
-    usageFrom(objectRecord(objectRecord(resultRecord.state).usage)) ??
+    normalizeOpenBoxUsage(objectRecord(objectRecord(resultRecord.runContext).usage)) ??
+    normalizeOpenBoxUsage(objectRecord(objectRecord(resultRecord.state).usage)) ??
     aggregateRawResponseUsage(rawResponses);
   const finishReason = finishReasonFromResult(resultRecord, rawResponses);
   return buildAssistantOutputSpan({
@@ -171,7 +174,7 @@ export function runAssistantOutputSpan(
     span: { module: 'openai-agents-sdk' },
     name: 'openbox.openai-agents-sdk.assistant_output',
     model: modelFromResult(resultRecord, rawResponses),
-    usage,
+    usage: usage?.raw,
     hasToolCalls: rawResponses.some(responseHasToolCalls),
     attributes: {
       'openbox.openai_agents_sdk.event': 'run_complete',
@@ -308,56 +311,12 @@ function toolCallAttributes(
   };
 }
 
-function usageFrom(value: unknown): LLMTokenUsage | undefined {
-  return llmTokenUsageFromRecord(value);
-}
-
-function inputTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  return usage?.promptTokens ?? usage?.inputTokens;
-}
-
-function outputTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  return usage?.completionTokens ?? usage?.outputTokens;
-}
-
-function totalTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  if (!usage) return undefined;
-  if (usage.totalTokens !== undefined) return usage.totalTokens;
-  const input = inputTokens(usage);
-  const output = outputTokens(usage);
-  return input !== undefined || output !== undefined
-    ? (input ?? 0) + (output ?? 0)
-    : undefined;
-}
-
 function aggregateRawResponseUsage(
   rawResponses: unknown[],
-): LLMTokenUsage | undefined {
-  let input: number | undefined;
-  let output: number | undefined;
-  let total: number | undefined;
-  for (const response of rawResponses) {
-    const usage = usageFrom(objectRecord(response).usage);
-    input = addTokenValue(input, inputTokens(usage));
-    output = addTokenValue(output, outputTokens(usage));
-    total = addTokenValue(total, totalTokens(usage));
-  }
-  return input !== undefined || output !== undefined || total !== undefined
-    ? {
-        promptTokens: input,
-        inputTokens: input,
-        completionTokens: output,
-        outputTokens: output,
-        totalTokens: total,
-      }
-    : undefined;
-}
-
-function addTokenValue(
-  left: number | undefined,
-  right: number | undefined,
-): number | undefined {
-  return right === undefined ? left : (left ?? 0) + right;
+): NormalizedOpenBoxUsage | undefined {
+  return combineOpenBoxUsage(
+    ...rawResponses.map((response) => objectRecord(response).usage),
+  );
 }
 
 function modelFromResult(
