@@ -488,6 +488,14 @@ export function buildLLMCompletionSpan(
 ): SpanData {
   const now = Date.now() * 1_000_000;
   const source = input.span ?? {};
+  const sourceStartTime =
+    typeof source.start_time === 'number'
+      ? normalizeSpanTimestamp(source.start_time)
+      : undefined;
+  const sourceEndTime =
+    typeof source.end_time === 'number'
+      ? normalizeSpanTimestamp(source.end_time)
+      : undefined;
   const usage = normalizeUsage(input.usage);
   const inputTokens = toPositiveInteger(
     usage?.input_tokens ?? usage?.prompt_tokens,
@@ -514,8 +522,8 @@ export function buildLLMCompletionSpan(
     trace_id: source.trace_id ?? hex(32),
     name: input.name ?? source.name ?? 'llm.chat.completion',
     kind: input.kind ?? source.kind ?? 'CLIENT',
-    start_time: normalizeSpanTimestamp(input.startTime) ?? source.start_time ?? now,
-    end_time: normalizeSpanTimestamp(input.endTime) ?? source.end_time ?? now,
+    start_time: normalizeSpanTimestamp(input.startTime) ?? sourceStartTime ?? now,
+    end_time: normalizeSpanTimestamp(input.endTime) ?? sourceEndTime ?? now,
     duration_ns: input.durationNs ?? source.duration_ns ?? 0,
     span_type: 'function',
     stage: 'completed',

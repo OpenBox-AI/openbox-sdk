@@ -71,8 +71,8 @@ describe('LLM completion spans', () => {
       trace_id: 'trace-1',
       name: 'openbox.copilotkit.assistant_output',
       kind: 'llm',
-      start_time: 100,
-      end_time: 200,
+      start_time: 100_000_000,
+      end_time: 200_000_000,
       duration_ns: 100,
       stage: 'completed',
       semantic_type: 'llm_completion',
@@ -348,6 +348,21 @@ describe('LLM completion spans', () => {
     expect(span.start_time).toBe(1_700_000_000_000_000_000);
     expect(span.end_time).toBe(1_700_000_000_125_000_000);
     expect(span.duration_ns).toBe(125_000_000);
+  });
+
+  test('normalizes Date.now-style source LLM span timestamps to nanoseconds', () => {
+    const span = buildLLMCompletionSpan({
+      content: 'done',
+      span: {
+        start_time: 1_700_000_000_000,
+        end_time: 1_700_000_000_250,
+        duration_ns: 250_000_000,
+      },
+    });
+
+    expect(span.start_time).toBe(1_700_000_000_000_000_000);
+    expect(span.end_time).toBe(1_700_000_000_250_000_000);
+    expect(span.duration_ns).toBe(250_000_000);
   });
 
   test('default classifier URL does not create a provider alias by itself', () => {
