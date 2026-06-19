@@ -1105,6 +1105,7 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     ...arrayOfRecords(matrix.publicIntegrations).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.goalSignalGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.hitlCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.policyEvaluationGuards).map((entry) => String(entry.tier ?? '')),
   ]).filter(Boolean);
 
   out.addStatements([
@@ -1164,6 +1165,16 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  failClosedBehavior: string;`,
     `}`,
     '',
+    `export interface PolicyEvaluationGuardEntry {`,
+    `  provider: OpenBoxProviderId;`,
+    `  tier: OpenBoxSupportTier;`,
+    `  authority: string;`,
+    `  sdkResponsibility: string;`,
+    `  allowedLocalWork: string;`,
+    `  forbiddenLocalWork: string;`,
+    `  guardTest: string;`,
+    `}`,
+    '',
     `export interface McpToolSurfaceEntry {`,
     `  name: string;`,
     `  title: string;`,
@@ -1210,6 +1221,8 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `export const GOAL_SIGNAL_GUARDS = ${literalTs(matrix.goalSignalGuards)} as const satisfies readonly GoalSignalGuardEntry[];`,
     '',
     `export const HITL_CAPABILITY_GUARDS = ${literalTs(matrix.hitlCapabilityGuards)} as const satisfies readonly HitlCapabilityGuardEntry[];`,
+    '',
+    `export const POLICY_EVALUATION_GUARDS = ${literalTs(matrix.policyEvaluationGuards)} as const satisfies readonly PolicyEvaluationGuardEntry[];`,
     '',
     `export const MCP_TOOL_SURFACES = ${literalTs(matrix.mcpTools)} as const satisfies readonly McpToolSurfaceEntry[];`,
     '',
