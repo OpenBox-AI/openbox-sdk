@@ -24,6 +24,7 @@ import {
   PROVIDER_EVENT_CATALOG,
   PROVIDER_PLUGIN_COMPONENTS,
   PUBLIC_INTEGRATION_SUPPORT,
+  RULES_INSTRUCTION_CAPABILITY_GUARDS,
   TRACING_CAPABILITY_GUARDS,
   USAGE_COST_CAPABILITY_GUARDS,
   type OpenBoxProviderId,
@@ -208,6 +209,37 @@ describe('provider capability matrix', () => {
         /project-local|diagnose-only|operator-owned|no files|global host config/i,
       );
       expect(guard.generatedOrPackagedSurface.length, `${guard.provider} generatedOrPackagedSurface`).toBeGreaterThan(20);
+      expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+    }
+  });
+
+  it('pins rules-instructions support claims to explicit projection boundary coverage', () => {
+    const rulesInstructionCapabilityProviders = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) => entry.capability === 'rules-instructions')
+      .map((entry) => entry.provider)
+      .sort();
+    const guardProviders = RULES_INSTRUCTION_CAPABILITY_GUARDS
+      .map((entry) => entry.provider)
+      .sort();
+
+    expect(guardProviders).toEqual(rulesInstructionCapabilityProviders);
+    expect(new Set(guardProviders).size).toBe(guardProviders.length);
+
+    const tierByProvider = new Map(
+      PROVIDER_CAPABILITY_MATRIX
+        .filter((entry) => entry.capability === 'rules-instructions')
+        .map((entry) => [entry.provider, entry.tier]),
+    );
+    for (const guard of RULES_INSTRUCTION_CAPABILITY_GUARDS) {
+      expect(guard.tier, `${guard.provider} tier`).toBe(tierByProvider.get(guard.provider));
+      expect(guard.projectionSurface.length, `${guard.provider} projectionSurface`).toBeGreaterThan(30);
+      expect(guard.sourceOfTruth, `${guard.provider} sourceOfTruth`).toContain('Core/backend');
+      expect(guard.allowedProjectionWork, `${guard.provider} allowedProjectionWork`).toMatch(
+        /render|project|wrap|expose|ship|build/i,
+      );
+      expect(guard.forbiddenLocalWork, `${guard.provider} forbiddenLocalWork`).toContain('OPA/Rego evaluation');
+      expect(guard.forbiddenLocalWork, `${guard.provider} forbiddenLocalWork`).toMatch(/behavior-rule matching|local policy/i);
+      expect(guard.hostBoundary, `${guard.provider} hostBoundary`).toContain('Core');
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
     }
   });
