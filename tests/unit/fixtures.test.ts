@@ -8,6 +8,11 @@ import {
   makeUpdateAivssConfigDto,
   makeGoalAlignmentConfigDto,
 } from '../helpers/fixtures';
+import type { components } from '../../ts/src/types/generated/backend';
+
+type GeneratedCreateBehaviorRuleDto =
+  components['schemas']['CreateBehaviorRuleDto'];
+type GeneratedBehaviorRule = components['schemas']['BehaviorRule'];
 
 describe('Test Fixtures', () => {
   describe('makeCreateAgentDto', () => {
@@ -63,6 +68,44 @@ describe('Test Fixtures', () => {
       expect(dto.time_window).toBeGreaterThan(0);
       expect(dto.verdict).toBeGreaterThanOrEqual(0);
       expect(dto.reject_message).toBeTruthy();
+    });
+
+    it('generated behavior rule types support trigger and state predicates', () => {
+      const dto: GeneratedCreateBehaviorRuleDto = {
+        rule_name: 'state-predicate',
+        priority: 50,
+        trigger: 'http_post',
+        trigger_match: [{ field: 'http_url', op: 'contains', value: 'api' }],
+        states: [
+          {
+            semantic_type: 'file_read',
+            match: [{ field: 'file_path', op: 'contains', value: '/private' }],
+          },
+          'mcp_tool_call',
+        ],
+        time_window: 60,
+        verdict: 2,
+        reject_message: 'approval required',
+        approval_timeout: 300,
+        trust_impact: 'none',
+      };
+      const rule: GeneratedBehaviorRule = {
+        id: 'rule-1',
+        rule_name: dto.rule_name,
+        priority: dto.priority,
+        trigger: dto.trigger,
+        trigger_match: dto.trigger_match,
+        states: dto.states,
+        time_window: dto.time_window,
+        verdict: dto.verdict,
+        reject_message: dto.reject_message,
+        approval_timeout: dto.approval_timeout,
+        is_active: true,
+      };
+
+      expect(rule.trigger_match?.[0]?.field).toBe('http_url');
+      expect(rule.states[0]).toMatchObject({ semantic_type: 'file_read' });
+      expect(rule.states[1]).toBe('mcp_tool_call');
     });
   });
 

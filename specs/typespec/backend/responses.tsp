@@ -159,19 +159,61 @@ model Policy {
 // Behavior Rule
 // ---------------------------------------------------------------------------
 
+alias BehaviorRuleTrigger =
+  "http_get"
+  | "http_post"
+  | "http_put"
+  | "http_patch"
+  | "http_delete"
+  | "http"
+  | "llm_completion"
+  | "llm_embedding"
+  | "llm_tool_call"
+  | "llm_gen_ai"
+  | "mcp_tool_call"
+  | "database_select"
+  | "database_insert"
+  | "database_update"
+  | "database_delete"
+  | "database_query"
+  | "file_read"
+  | "file_write"
+  | "file_open"
+  | "file_delete"
+  | "internal";
+
+model BehaviorRuleMatchCondition {
+  "field": string;
+  "op": string;
+  value?: unknown;
+}
+
+model BehaviorRuleStateCondition {
+  semantic_type: BehaviorRuleTrigger;
+  match?: BehaviorRuleMatchCondition[];
+}
+
+alias BehaviorRuleStateInput = BehaviorRuleTrigger | BehaviorRuleStateCondition;
+
 model BehaviorRule {
   id: string;
   rule_name: string;
   description?: string;
   priority: int32;
-  trigger: string;
-  states: string[];
+  trigger: BehaviorRuleTrigger;
+  trigger_match?: BehaviorRuleMatchCondition[] | null;
+  states: BehaviorRuleStateInput[];
   time_window: int32;
   verdict: int32;
   reject_message: string;
+  approval_timeout?: int32;
   is_active: boolean;
+  base_rule_id?: string;
+  dependency_base_rule_id?: string;
   group_id?: string;
   version?: int32;
+  trust_impact?: "none" | "low" | "medium" | "high";
+  trust_threshold?: int32 | null;
   ...Record<unknown>;
 }
 

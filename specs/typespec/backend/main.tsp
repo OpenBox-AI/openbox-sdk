@@ -335,52 +335,13 @@ model CreateBehaviorRuleDto {
   @minValue(1) @maxValue(100) priority: numeric;
 
   /** Trigger event */
-  trigger:
-    | "http_get"
-    | "http_post"
-    | "http_put"
-    | "http_patch"
-    | "http_delete"
-    | "http"
-    | "llm_completion"
-    | "llm_embedding"
-    | "llm_tool_call"
-    | "llm_gen_ai"
-    | "mcp_tool_call"
-    | "database_select"
-    | "database_insert"
-    | "database_update"
-    | "database_delete"
-    | "database_query"
-    | "file_read"
-    | "file_write"
-    | "file_open"
-    | "file_delete"
-    | "internal";
+  trigger: BehaviorRuleTrigger;
+
+  /** Trigger predicate conditions on the trigger span. Omit for type-only triggers. */
+  trigger_match?: BehaviorRuleMatchCondition[];
 
   /** States (multiple select) */
-  states: (
-    | "http_get"
-    | "http_post"
-    | "http_put"
-    | "http_patch"
-    | "http_delete"
-    | "http"
-    | "llm_completion"
-    | "llm_embedding"
-    | "llm_tool_call"
-    | "llm_gen_ai"
-    | "mcp_tool_call"
-    | "database_select"
-    | "database_insert"
-    | "database_update"
-    | "database_delete"
-    | "database_query"
-    | "file_read"
-    | "file_write"
-    | "file_open"
-    | "file_delete"
-    | "internal")[];
+  states: BehaviorRuleStateInput[];
 
   /** The base_rule_id of the rule that this rule depends on (must be within the same agent) */
   @format("uuid") dependency_base_rule_id?: string;
@@ -425,52 +386,13 @@ model UpdateBehavioralRuleDto {
   @minValue(1) @maxValue(100) priority: numeric;
 
   /** Trigger event */
-  trigger:
-    | "http_get"
-    | "http_post"
-    | "http_put"
-    | "http_patch"
-    | "http_delete"
-    | "http"
-    | "llm_completion"
-    | "llm_embedding"
-    | "llm_tool_call"
-    | "llm_gen_ai"
-    | "mcp_tool_call"
-    | "database_select"
-    | "database_insert"
-    | "database_update"
-    | "database_delete"
-    | "database_query"
-    | "file_read"
-    | "file_write"
-    | "file_open"
-    | "file_delete"
-    | "internal";
+  trigger: BehaviorRuleTrigger;
+
+  /** Trigger predicate conditions on the trigger span. Omit for type-only triggers. */
+  trigger_match?: BehaviorRuleMatchCondition[];
 
   /** States (multiple select) */
-  states: (
-    | "http_get"
-    | "http_post"
-    | "http_put"
-    | "http_patch"
-    | "http_delete"
-    | "http"
-    | "llm_completion"
-    | "llm_embedding"
-    | "llm_tool_call"
-    | "llm_gen_ai"
-    | "mcp_tool_call"
-    | "database_select"
-    | "database_insert"
-    | "database_update"
-    | "database_delete"
-    | "database_query"
-    | "file_read"
-    | "file_write"
-    | "file_open"
-    | "file_delete"
-    | "internal")[];
+  states: BehaviorRuleStateInput[];
 
   /** The base_rule_id of the rule that this rule depends on (must be within the same agent) */
   @format("uuid") dependency_base_rule_id?: string;
@@ -1355,28 +1277,7 @@ op AgentController_getBehaviorRuleList(
   @query(#{ explode: true }) is_active?: boolean,
 
   /** Filter by trigger */
-  @query(#{ explode: true }) trigger?:
-    | "http_get"
-    | "http_post"
-    | "http_put"
-    | "http_patch"
-    | "http_delete"
-    | "http"
-    | "llm_completion"
-    | "llm_embedding"
-    | "llm_tool_call"
-    | "llm_gen_ai"
-    | "mcp_tool_call"
-    | "database_select"
-    | "database_insert"
-    | "database_update"
-    | "database_delete"
-    | "database_query"
-    | "file_read"
-    | "file_write"
-    | "file_open"
-    | "file_delete"
-    | "internal",
+  @query(#{ explode: true }) trigger?: BehaviorRuleTrigger,
 ): Body<PaginatedResponse<BehaviorRule>>;
 
 @tag("Agent")
