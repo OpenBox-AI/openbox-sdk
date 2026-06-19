@@ -1929,6 +1929,13 @@ function promptRedactionBlockReason(reason: string): string {
   );
 }
 
+function cursorInputRedactionBlockReason(reason: string): string {
+  const detail = reason.replace(/[.]+$/, '');
+  return detail
+    ? detail + '. Cursor cannot replace this hook input, so OpenBox blocked the original action.'
+    : '[OpenBox] redacted this action input, but Cursor cannot replace this hook input. Rewrite the action with redacted content and retry.';
+}
+
 function objectRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   return value as Record<string, unknown>;
@@ -2108,7 +2115,18 @@ function renderVerdictOutput(
       //     beforeTabFileRead, the validator rejects \`ask\` outright.
       // We always return \`deny\` for require_approval and surface our
       // own toast / panel as the actual gate.
-      if (arm === 'allow' || arm === 'constrain') return { permission: 'allow' };
+      if (arm === 'allow') return { permission: 'allow' };
+      if (arm === 'constrain') {
+        if (hasInputRedaction(v)) {
+          const message = cursorInputRedactionBlockReason(reason);
+          return {
+            permission: 'deny',
+            user_message: message,
+            agent_message: message,
+          };
+        }
+        return { permission: 'allow' };
+      }
       if (arm === 'require_approval') {
         const r = reason.replace(/^\\[OpenBox\\] /, '').trim();
         // Reaching this branch means Core still reports

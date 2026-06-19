@@ -726,6 +726,9 @@ interface ClaudeCodeAdapter {
 //     / beforeMCPExecution): stdout `{ permission: "allow"|"deny"|"ask",
 //     user_message?: string }`. Field names are **snake_case**;
 //     emitting `userMessage` silently no-ops the user-facing message.
+//     No documented output field replaces the hook input. Therefore a
+//     `constrain` verdict with guardrail-redacted input must deny/block
+//     the original action rather than allowing unredacted input through.
 //   * `beforeSubmitPrompt`: distinct shape; stdout `{ continue: bool,
 //     user_message?: string, agent_message?: string }`. Cursor does NOT
 //     accept `permission` here; emitting it causes the prompt to fall

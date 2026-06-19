@@ -613,6 +613,34 @@ describe('createCursorAdapter', () => {
     expect(out.user_message).toMatch(/^\[OpenBox\] HALT:/);
   });
 
+  test('cursor-permission constrain with input redaction fails closed', async () => {
+    const cap = capture();
+    await createCursorAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        beforeShellExecution: async () => verdict('constrain', 'command redacted', {
+          guardrailsResult: {
+            inputType: 'activity_input',
+            redactedInput: [{ command: 'echo [redacted]' }],
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [],
+          },
+        }),
+      },
+      ...adapterIO(cap, JSON.stringify(baseEnv)),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out).toEqual({
+      permission: 'deny',
+      user_message:
+        '[OpenBox] command redacted. Cursor cannot replace this hook input, so OpenBox blocked the original action.',
+      agent_message:
+        '[OpenBox] command redacted. Cursor cannot replace this hook input, so OpenBox blocked the original action.',
+    });
+  });
+
   test('cursor-continue prompt constrain with redaction fails closed', async () => {
     const cap = capture();
     await createCursorAdapter({
