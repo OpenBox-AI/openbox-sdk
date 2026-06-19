@@ -427,9 +427,50 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
       'hello',
       undefined,
     );
+    const workflowStarted = mock.events.find(
+      (event) => event.event_type === 'WorkflowStarted',
+    );
+    const goalSignal = mock.events.find(
+      (event) =>
+        event.event_type === 'SignalReceived' &&
+        event.activity_type === 'user_prompt',
+    );
+    const runStarted = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'OpenAIAgentsSDKRun' &&
+        event.hook_trigger !== true,
+    );
+    expect(goalSignal).toMatchObject({
+      event_type: 'SignalReceived',
+      activity_type: 'user_prompt',
+      signal_name: 'user_prompt',
+      signal_args: 'hello',
+      session_id: 'run-session',
+      prompt: 'hello',
+    });
+    const goalActivityInput = goalSignal?.activity_input as
+      | unknown[]
+      | undefined;
+    expect(goalActivityInput?.[0]).toMatchObject({
+      _openbox_source: 'openai-agents-sdk',
+      event_category: 'agent_goal',
+      session_id: 'run-session',
+      input: 'hello',
+    });
+    expect(mock.events.indexOf(goalSignal!)).toBeGreaterThan(
+      mock.events.indexOf(workflowStarted!),
+    );
+    expect(mock.events.indexOf(goalSignal!)).toBeLessThan(
+      mock.events.indexOf(runStarted!),
+    );
     expect(mock.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ event_type: 'WorkflowStarted' }),
+        expect.objectContaining({
+          event_type: 'SignalReceived',
+          activity_type: 'user_prompt',
+        }),
         expect.objectContaining({
           event_type: 'ActivityStarted',
           activity_type: 'OpenAIAgentsSDKRun',
@@ -509,9 +550,38 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
     await hooks.onAgentHandoff({}, { name: 'Planner' }, { name: 'Reviewer' });
     await hooks.onAgentEnd({}, { name: 'Planner' }, { output: 'done' });
 
+    const goalSignal = mock.events.find(
+      (event) =>
+        event.event_type === 'SignalReceived' &&
+        event.activity_type === 'user_prompt',
+    );
+    const runStarted = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'OpenAIAgentsSDKRun' &&
+        event.hook_trigger !== true,
+    );
+    expect(goalSignal?.signal_name).toBe('user_prompt');
+    expect(goalSignal?.signal_args).toEqual([{ role: 'user', content: 'hi' }]);
+    const goalActivityInput = goalSignal?.activity_input as
+      | unknown[]
+      | undefined;
+    expect(goalActivityInput?.[0]).toMatchObject({
+      _openbox_source: 'openai-agents-sdk',
+      event_category: 'agent_goal',
+      session_id: 'hooks-session',
+      input: [{ role: 'user', content: 'hi' }],
+    });
+    expect(mock.events.indexOf(goalSignal!)).toBeLessThan(
+      mock.events.indexOf(runStarted!),
+    );
     expect(mock.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ event_type: 'WorkflowStarted' }),
+        expect.objectContaining({
+          event_type: 'SignalReceived',
+          activity_type: 'user_prompt',
+        }),
         expect.objectContaining({
           activity_id: 'hook-call-1',
           activity_type: 'ShellExecution',
@@ -570,8 +640,46 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
     });
     await processor.onTraceEnd(trace);
 
+    const goalSignal = mock.events.find(
+      (event) =>
+        event.event_type === 'SignalReceived' &&
+        event.activity_type === 'user_prompt',
+    );
+    const runStarted = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'OpenAIAgentsSDKRun' &&
+        event.hook_trigger !== true,
+    );
+    expect(goalSignal).toMatchObject({
+      signal_name: 'user_prompt',
+      session_id: 'trace-session',
+      signal_args: expect.objectContaining({
+        trace_id: 'trace-1',
+        name: 'agent trace',
+      }),
+    });
+    const goalActivityInput = goalSignal?.activity_input as
+      | unknown[]
+      | undefined;
+    expect(goalActivityInput?.[0]).toMatchObject({
+      _openbox_source: 'openai-agents-sdk',
+      event_category: 'agent_goal',
+      session_id: 'trace-session',
+      input: expect.objectContaining({
+        trace_id: 'trace-1',
+        name: 'agent trace',
+      }),
+    });
+    expect(mock.events.indexOf(goalSignal!)).toBeLessThan(
+      mock.events.indexOf(runStarted!),
+    );
     expect(mock.events).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          event_type: 'SignalReceived',
+          activity_type: 'user_prompt',
+        }),
         expect.objectContaining({
           activity_type: 'AgentHandoff',
           from_agent_did: 'Planner',

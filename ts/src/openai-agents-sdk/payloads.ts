@@ -15,6 +15,7 @@ const defaultActivity = PRESET_ACTIVITY_TYPES.default;
 const openAIAgentsActivity = PRESET_ACTIVITY_TYPES['openai-agents-sdk'];
 
 export const OPENAI_AGENTS_ACTIVITY_TYPES = {
+  GOAL_SIGNAL: defaultActivity.goalSignal,
   RUN: openAIAgentsActivity.runStarted,
   TOOL_STARTED: openAIAgentsActivity.toolStarted,
   TOOL_COMPLETED: openAIAgentsActivity.toolCompleted,

@@ -5,6 +5,7 @@ import {
   type OpenaiAgentsSdkSession,
   type WorkflowVerdict,
 } from '../core-client/index.js';
+import { EVENT } from '../governance/events.js';
 import type { OpenBoxAgentsRuntimeContext } from './config.js';
 import {
   OPENAI_AGENTS_ACTIVITY_TYPES,
@@ -22,6 +23,7 @@ import {
 interface ManagedSession {
   session: OpenaiAgentsSdkSession;
   started: boolean;
+  goalSignaled: boolean;
   terminal: boolean;
   runActivity?: OpenedActivity;
 }
@@ -67,6 +69,7 @@ export class OpenBoxAgentsSessionManager {
         inlineApproval: this.context.approvalMode === 'error',
       }),
       started: false,
+      goalSignaled: false,
       terminal: false,
     } satisfies ManagedSession;
     this.sessions.set(sessionId, managed);
@@ -87,6 +90,7 @@ export class OpenBoxAgentsSessionManager {
 
   async startRun(sessionId: string, input?: unknown): Promise<WorkflowVerdict> {
     const managed = await this.ensureStarted(sessionId);
+    await this.emitGoalSignal(managed, sessionId, input);
     if (!managed.runActivity) {
       managed.runActivity = await managed.session.openActivity(
         OPENAI_AGENTS_ACTIVITY_TYPES.RUN,
@@ -99,6 +103,29 @@ export class OpenBoxAgentsSessionManager {
       );
     }
     return managed.runActivity.verdict;
+  }
+
+  private async emitGoalSignal(
+    managed: ManagedSession,
+    sessionId: string,
+    input: unknown,
+  ): Promise<void> {
+    if (managed.goalSignaled) return;
+    const prompt = typeof input === 'string' ? input.trim() : undefined;
+    await managed.session.activity(
+      EVENT.SIGNAL,
+      OPENAI_AGENTS_ACTIVITY_TYPES.GOAL_SIGNAL,
+      {
+        input: [
+          compactPayload({ session_id: sessionId, input }, 'agent_goal'),
+        ],
+        signalName: OPENAI_AGENTS_ACTIVITY_TYPES.GOAL_SIGNAL,
+        signalArgs: prompt || input,
+        sessionId,
+        ...(prompt ? { prompt } : {}),
+      },
+    );
+    managed.goalSignaled = true;
   }
 
   async complete(
