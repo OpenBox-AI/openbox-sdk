@@ -524,6 +524,7 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       expect(hook.run_id).toBe(parent.run_id);
       expect(hook.activity_id).toBe(parent.activity_id);
       expect(hook.spans[0]).toMatchObject({
+        activity_id: parent.activity_id,
         semantic_type: 'mcp_tool_call',
         attributes: {
           'mcp.method': 'callTool',

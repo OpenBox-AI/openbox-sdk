@@ -2975,11 +2975,12 @@ export class BaseGovernedSession {
     let hookVerdict = parentVerdict;
     const persistableSpans = (event.spans ?? []).filter(isPersistableHookSpan);
     for (const span of persistableSpans) {
+      const hookSpan = withSpanActivityId(span, event.activity_id);
       hookVerdict = stricterVerdict(hookVerdict, await this.emit({
         ...parentEvent,
         attempt: event.attempt ?? 1,
         hook_trigger: true,
-        spans: [span],
+        spans: [hookSpan],
       } as typeof event & { hook_trigger: true }));
     }
     if (parentVerdict.arm !== 'allow' && parentVerdict.arm !== 'constrain') {
@@ -3635,6 +3636,20 @@ function isPersistableHookSpan(span: unknown): boolean {
     typeof attributes.tool_name === 'string' ||
     typeof attributes['gen_ai.system'] === 'string'
   );
+}
+
+function withSpanActivityId<T>(span: T, activityId?: string): T {
+  if (!activityId || !span || typeof span !== 'object' || Array.isArray(span)) {
+    return span;
+  }
+  const record = span as Record<string, unknown>;
+  if (typeof record.activity_id === 'string' && record.activity_id.trim() !== '') {
+    return span;
+  }
+  return {
+    ...record,
+    activity_id: activityId,
+  } as T;
 }
 
 function errorInfoFrom(value: unknown): { type: string; message: string } | undefined {

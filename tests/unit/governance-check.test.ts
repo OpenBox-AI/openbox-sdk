@@ -85,6 +85,7 @@ describe('governance/check', () => {
     expect(state.payloads[1].run_id).toBe(state.payloads[0].run_id);
     expect(state.payloads[1].activity_id).toBe(state.payloads[0].activity_id);
     expect(state.payloads[1].spans[0]).toMatchObject({
+      activity_id: state.payloads[0].activity_id,
       name: 'file.write',
       semantic_type: 'file_write',
       file_path: '/tmp/a.txt',

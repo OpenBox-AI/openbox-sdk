@@ -5,7 +5,10 @@ import type {
   WorkflowVerdict,
 } from '../../core-client/index.js';
 import type { LLMTokenUsage } from '../../governance/spans.js';
-import { withOpenBoxActivityMetadata } from '../../governance/spans.js';
+import {
+  withOpenBoxActivityMetadata,
+  withSpanActivityId,
+} from '../../governance/spans.js';
 import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
@@ -408,9 +411,12 @@ export async function emitN8nNodePostExecute(
   input: N8nNodePostExecutePayloadInput,
 ): Promise<WorkflowVerdict> {
   const pending = takeNodeActivity(session, input);
+  const activityId = pending?.activityId ?? input.activityId;
+  const payload = buildN8nNodePostExecutePayload(input);
   return session.nodePostExecute({
-    ...buildN8nNodePostExecutePayload(input),
-    activityId: pending?.activityId ?? input.activityId,
+    ...payload,
+    activityId,
+    spans: payload.spans?.map((span) => withSpanActivityId(span, activityId)),
     startTime: pending?.startTime ?? input.startTime,
   });
 }
@@ -420,9 +426,12 @@ export async function emitN8nLlmCompletion(
   input: N8nLlmCompletionPayloadInput,
 ): Promise<WorkflowVerdict> {
   const pending = takeNodeActivity(session, input);
+  const activityId = pending?.activityId ?? input.activityId;
+  const payload = buildN8nLlmCompletionPayload(input);
   return session.nodePostExecute({
-    ...buildN8nLlmCompletionPayload(input),
-    activityId: pending?.activityId ?? input.activityId,
+    ...payload,
+    activityId,
+    spans: payload.spans?.map((span) => withSpanActivityId(span, activityId)),
     startTime: pending?.startTime,
   });
 }

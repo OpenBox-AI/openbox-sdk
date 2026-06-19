@@ -34,7 +34,7 @@ import {
 } from "../claude-code/doctor.js";
 import { buildMcpGovernanceSpan, MCP_ACTIVITY_TYPE_MAP } from "./governance-span.js";
 import { claudeCodeGovernanceSummary } from "../claude-code/governance-matrix.js";
-import type { SpanType } from "../../governance/spans.js";
+import { withSpanActivityId, type SpanType } from "../../governance/spans.js";
 
 export async function runMcpServer(): Promise<void> {
   const server = new McpServer({ name: "openbox", version: "0.1.0" });
@@ -347,7 +347,11 @@ async function coreEvaluate(
   source: string,
   agentIdentity?: AgentIdentityConfig,
 ) {
-  const span = buildMcpGovernanceSpan(spanType as SpanType, activityInput);
+  const activityId = crypto.randomUUID();
+  const span = withSpanActivityId(
+    buildMcpGovernanceSpan(spanType as SpanType, activityInput),
+    activityId,
+  );
   const payload = {
     source,
     event_type: "ActivityStarted",
@@ -355,7 +359,7 @@ async function coreEvaluate(
     run_id: crypto.randomUUID(),
     workflow_type: "MCPCheck",
     task_queue: "mcp",
-    activity_id: crypto.randomUUID(),
+    activity_id: activityId,
     activity_type: MCP_ACTIVITY_TYPE_MAP[spanType] || spanType,
     activity_input: [stampSource(activityInput, source)],
     timestamp: new Date().toISOString(),

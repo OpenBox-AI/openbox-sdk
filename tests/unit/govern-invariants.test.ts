@@ -237,6 +237,9 @@ describe('activity pairing', () => {
       expect(hook.activity_type).toBe(parent.activity_type);
       expect(hook.span_count).toBe(1);
       expect(hook.spans).toHaveLength(1);
+      expect(
+        (hook.spans?.[0] as Record<string, unknown> | undefined)?.activity_id,
+      ).toBe(parent.activity_id);
     }
     expect(firstHook.spans?.[0]).toMatchObject({
       semantic_type: 'internal',
@@ -318,9 +321,9 @@ describe('activity pairing', () => {
       expect(hook.spans).toHaveLength(1);
     }
     expect(hooks.map((hook) => hook.spans?.[0])).toEqual([
-      httpSpan,
-      fileSpan,
-      dbSpan,
+      { ...httpSpan, activity_id: parent.activity_id },
+      { ...fileSpan, activity_id: parent.activity_id },
+      { ...dbSpan, activity_id: parent.activity_id },
     ]);
   });
 
@@ -640,6 +643,7 @@ describe('activity pairing', () => {
     expect(completedHook.activity_id).toBe(completedParent.activity_id);
     expect(completedHook.span_count).toBe(1);
     expect(completedHook.spans?.[0]).toMatchObject({
+      activity_id: completedParent.activity_id,
       name: 'n8n.CRM Upsert',
       stage: 'completed',
       semantic_type: 'llm_tool_call',

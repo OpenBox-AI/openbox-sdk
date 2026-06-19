@@ -3,6 +3,7 @@
  * Handles all gate attributes, semantic type detection workarounds, and
  * payload structure so callers don't need to know the internals.
  */
+import { withSpanActivityId } from '../governance/spans.js';
 
 function hex(len: number): string {
   return Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join('');
@@ -97,7 +98,7 @@ export function buildTestPayload(opts: SpanOptions): BuiltPayload {
     timestamp: new Date().toISOString(),
     hook_trigger: opts.hookTrigger ?? false,
     activity_input: [activityInput],
-    spans: [span],
+    spans: [withSpanActivityId(span, activityId)],
     span_count: 1,
   };
 }

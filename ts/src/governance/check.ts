@@ -18,6 +18,7 @@ import { recallAgentKey } from '../file-tokens/agent-keys.js';
 import { resolveAgentIdentity, resolveConnection } from '../env/index.js';
 import {
   buildSpan,
+  withSpanActivityId,
   type SpanInput,
   type SpanType,
 } from './spans.js';
@@ -115,7 +116,11 @@ export async function checkGovernance(
 ): Promise<GovernanceVerdictResponse> {
   const apiKey = resolveApiKey(opts);
   const coreUrl = resolveCoreUrl(opts.coreUrl);
-  const span = buildSpan('sdk', opts.spanType, opts.activityInput as SpanInput);
+  const activityId = hex(32);
+  const span = withSpanActivityId(
+    buildSpan('sdk', opts.spanType, opts.activityInput as SpanInput),
+    activityId,
+  );
   const payload = {
     source: 'workflow-telemetry',
     event_type: 'ActivityStarted',
@@ -123,7 +128,7 @@ export async function checkGovernance(
     run_id: hex(32),
     workflow_type: 'SdkCheck',
     task_queue: 'sdk',
-    activity_id: hex(32),
+    activity_id: activityId,
     activity_type: ACTIVITY_TYPE_MAP[opts.spanType] || opts.spanType,
     activity_input: [opts.activityInput],
     timestamp: new Date().toISOString(),

@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { OpenBoxCoreClient, type AgentIdentityConfig } from '../../ts/src/core-client/index.js';
+import { withSpanActivityId } from '../../ts/src/governance/spans.js';
 
 const BACKEND_KEY_PREFIX = /^obx_key_/;
 const RUNTIME_KEY_PREFIX = /^obx_(?:test|live)_/;
@@ -144,6 +145,7 @@ function span(spanType: SpanType, input: Record<string, unknown>): Record<string
 }
 
 function governancePayload(spanType: SpanType, input: Record<string, unknown>): Record<string, unknown> {
+  const activityId = hex(16);
   return {
     source: 'sdk',
     event_type: 'ActivityStarted',
@@ -151,12 +153,12 @@ function governancePayload(spanType: SpanType, input: Record<string, unknown>): 
     run_id: hex(16),
     workflow_type: 'ExtensionE2E',
     task_queue: 'sdk',
-    activity_id: hex(16),
+    activity_id: activityId,
     activity_type: activityType(spanType),
     activity_input: [input],
     timestamp: new Date().toISOString(),
     hook_trigger: true,
-    spans: [span(spanType, input)],
+    spans: [withSpanActivityId(span(spanType, input), activityId)],
     span_count: 1,
     attempt: 1,
   };

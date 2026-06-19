@@ -166,6 +166,20 @@ export interface LLMTokenUsage {
   total_token_count?: number;
 }
 
+export function withSpanActivityId<T>(span: T, activityId?: string): T {
+  if (!activityId || !span || typeof span !== 'object' || Array.isArray(span)) {
+    return span;
+  }
+  const record = span as Record<string, unknown>;
+  if (typeof record.activity_id === 'string' && record.activity_id.trim() !== '') {
+    return span;
+  }
+  return {
+    ...record,
+    activity_id: activityId,
+  } as T;
+}
+
 type JsonRecord = Record<string, unknown>;
 export interface OpenBoxActivityMetadataInput {
   toolType?: string | null;
