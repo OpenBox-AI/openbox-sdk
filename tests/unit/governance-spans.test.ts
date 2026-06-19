@@ -350,6 +350,18 @@ describe('LLM completion spans', () => {
     expect(span.duration_ns).toBe(125_000_000);
   });
 
+  test('derives LLM span duration from explicit start and end timestamps', () => {
+    const span = buildLLMCompletionSpan({
+      content: 'done',
+      startTime: 1_700_000_000_000,
+      endTime: 1_700_000_000_125,
+    });
+
+    expect(span.start_time).toBe(1_700_000_000_000_000_000);
+    expect(span.end_time).toBe(1_700_000_000_125_000_000);
+    expect(span.duration_ns).toBe(125_000_000);
+  });
+
   test('normalizes Date.now-style source LLM span timestamps to nanoseconds', () => {
     const span = buildLLMCompletionSpan({
       content: 'done',
@@ -357,6 +369,21 @@ describe('LLM completion spans', () => {
         start_time: 1_700_000_000_000,
         end_time: 1_700_000_000_250,
         duration_ns: 250_000_000,
+      },
+    });
+
+    expect(span.start_time).toBe(1_700_000_000_000_000_000);
+    expect(span.end_time).toBe(1_700_000_000_250_000_000);
+    expect(span.duration_ns).toBe(250_000_000);
+  });
+
+  test('derives LLM span duration when source span has placeholder zero duration', () => {
+    const span = buildLLMCompletionSpan({
+      content: 'done',
+      span: {
+        start_time: 1_700_000_000_000,
+        end_time: 1_700_000_000_250,
+        duration_ns: 0,
       },
     });
 

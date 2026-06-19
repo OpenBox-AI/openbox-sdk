@@ -257,6 +257,41 @@ function normalizeSpanTimestamp(value: number | undefined): number | undefined {
     : timestamp;
 }
 
+function isDateNowTimestamp(value: number): boolean {
+  return value > 0 && value < 100_000_000_000_000;
+}
+
+function normalizeDurationNs(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.max(0, Math.trunc(value));
+}
+
+function deriveDurationNs(
+  startTime: number | undefined,
+  endTime: number | undefined,
+): number | undefined {
+  if (startTime === undefined || endTime === undefined) return undefined;
+  return Math.max(0, endTime - startTime);
+}
+
+function deriveDurationNsFromRawTimestamps(
+  startTime: number | undefined,
+  endTime: number | undefined,
+): number | undefined {
+  if (
+    startTime === undefined ||
+    endTime === undefined ||
+    !Number.isFinite(startTime) ||
+    !Number.isFinite(endTime)
+  ) {
+    return undefined;
+  }
+  if (isDateNowTimestamp(startTime) && isDateNowTimestamp(endTime)) {
+    return Math.max(0, Math.trunc((endTime - startTime) * 1_000_000));
+  }
+  return Math.max(0, Math.trunc(endTime - startTime));
+}
+
 export function llmTokenUsageFromRecord(value: unknown): LLMTokenUsage | undefined {
   const record = objectRecord(value);
   const promptTokens = toPositiveInteger(
@@ -584,6 +619,9 @@ export function buildLLMCompletionSpan(
 ): SpanData {
   const now = Date.now() * 1_000_000;
   const source = input.span ?? {};
+  const sourceRecord = source as SpanData & { durationNs?: unknown };
+  const rawStartTime = input.startTime ?? source.start_time;
+  const rawEndTime = input.endTime ?? source.end_time;
   const sourceStartTime =
     typeof source.start_time === 'number'
       ? normalizeSpanTimestamp(source.start_time)
@@ -592,6 +630,19 @@ export function buildLLMCompletionSpan(
     typeof source.end_time === 'number'
       ? normalizeSpanTimestamp(source.end_time)
       : undefined;
+  const startTime = normalizeSpanTimestamp(input.startTime) ?? sourceStartTime ?? now;
+  const endTime = normalizeSpanTimestamp(input.endTime) ?? sourceEndTime ?? now;
+  const explicitDurationNs = normalizeDurationNs(input.durationNs);
+  const sourceDurationNs = normalizeDurationNs(
+    sourceRecord.duration_ns ?? sourceRecord.durationNs,
+  );
+  const usefulSourceDurationNs =
+    sourceDurationNs !== undefined && sourceDurationNs > 0
+      ? sourceDurationNs
+      : undefined;
+  const derivedDurationNs =
+    deriveDurationNsFromRawTimestamps(rawStartTime, rawEndTime) ??
+    deriveDurationNs(startTime, endTime);
   const usage = normalizeUsage(input.usage);
   const inputTokens = toPositiveInteger(
     usage?.input_tokens ?? usage?.prompt_tokens,
@@ -624,9 +675,14 @@ export function buildLLMCompletionSpan(
     trace_id: source.trace_id ?? hex(32),
     name: input.name ?? source.name ?? 'llm.chat.completion',
     kind: input.kind ?? source.kind ?? 'CLIENT',
-    start_time: normalizeSpanTimestamp(input.startTime) ?? sourceStartTime ?? now,
-    end_time: normalizeSpanTimestamp(input.endTime) ?? sourceEndTime ?? now,
-    duration_ns: input.durationNs ?? source.duration_ns ?? 0,
+    start_time: startTime,
+    end_time: endTime,
+    duration_ns:
+      explicitDurationNs ??
+      usefulSourceDurationNs ??
+      derivedDurationNs ??
+      sourceDurationNs ??
+      0,
     span_type: 'function',
     stage: 'completed',
     semantic_type: 'llm_completion',
