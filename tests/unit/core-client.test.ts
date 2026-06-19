@@ -411,6 +411,33 @@ describe('OpenBoxCoreClient', () => {
         invalidBytes: '//4=',
       });
     });
+
+    it('does not collapse repeated non-circular payload values as circular', async () => {
+      const client = createClient();
+      fetchMock.mockResolvedValueOnce(
+        mockResponse(200, { verdict: 'ALLOW', action: 'allow' }),
+      );
+      const repeated = { prompt: 'shared prompt value' };
+
+      await client.evaluate({
+        event_type: 'ActivityStarted',
+        workflow_id: 'wf-1',
+        run_id: 'run-1',
+        workflow_type: 'unit-test',
+        task_queue: 'langchain',
+        source: 'workflow-telemetry',
+        timestamp: new Date().toISOString(),
+        activity_id: 'act-1',
+        activity_type: 'my-activity',
+        activity_input: [{ first: repeated, second: repeated }],
+      });
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.activity_input[0]).toMatchObject({
+        first: { prompt: 'shared prompt value' },
+        second: { prompt: 'shared prompt value' },
+      });
+    });
   });
 
   describe('pollApproval', () => {

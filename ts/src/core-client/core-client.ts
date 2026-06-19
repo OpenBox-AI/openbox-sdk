@@ -405,34 +405,39 @@ function toGovernanceJsonSafe(value: unknown, seen = new WeakSet<object>()): unk
   if (value instanceof ArrayBuffer) return serializeBinaryBytes(new Uint8Array(value));
   if (seen.has(value)) return '[Circular]';
   seen.add(value);
-  if (value instanceof Map) {
+
+  try {
+    if (value instanceof Map) {
+      return Object.fromEntries(
+        Array.from(value.entries()).map(([entryKey, entryValue]) => [
+          String(entryKey),
+          toGovernanceJsonSafe(entryValue, seen),
+        ]),
+      );
+    }
+    if (value instanceof Set) {
+      return Array.from(value.values()).map((entry) => toGovernanceJsonSafe(entry, seen));
+    }
+    if (Array.isArray(value)) {
+      return value.map((entry) => toGovernanceJsonSafe(entry, seen));
+    }
+    const toJSON = (value as { toJSON?: unknown }).toJSON;
+    if (typeof toJSON === 'function') {
+      try {
+        return toGovernanceJsonSafe(toJSON.call(value), seen);
+      } catch {
+        return String(value);
+      }
+    }
     return Object.fromEntries(
-      Array.from(value.entries()).map(([entryKey, entryValue]) => [
-        String(entryKey),
+      Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => [
+        entryKey,
         toGovernanceJsonSafe(entryValue, seen),
       ]),
     );
+  } finally {
+    seen.delete(value);
   }
-  if (value instanceof Set) {
-    return Array.from(value.values()).map((entry) => toGovernanceJsonSafe(entry, seen));
-  }
-  if (Array.isArray(value)) {
-    return value.map((entry) => toGovernanceJsonSafe(entry, seen));
-  }
-  const toJSON = (value as { toJSON?: unknown }).toJSON;
-  if (typeof toJSON === 'function') {
-    try {
-      return toGovernanceJsonSafe(toJSON.call(value), seen);
-    } catch {
-      return String(value);
-    }
-  }
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => [
-      entryKey,
-      toGovernanceJsonSafe(entryValue, seen),
-    ]),
-  );
 }
 
 function serializeDataView(value: DataView): string {
