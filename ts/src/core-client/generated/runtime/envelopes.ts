@@ -65,6 +65,32 @@ export interface ClaudeCodeEnvelope {
   compact?: unknown;
   instructions?: string;
 }
+export interface CodexEnvelope {
+  hook_event_name: string;
+  session_id?: string;
+  conversation_id?: string;
+  turn_id?: string;
+  tool_name?: string;
+  tool_input?: unknown;
+  tool_output?: unknown;
+  tool_use_id?: string;
+  call_id?: string;
+  tool_call_id?: string;
+  duration_ms?: number;
+  cwd?: string;
+  prompt?: string;
+  model?: string;
+  command?: string;
+  args?: unknown;
+  file_path?: string;
+  content?: unknown;
+  response?: unknown;
+  error?: string;
+  reason?: string;
+  approval_id?: string;
+  sandbox?: string;
+  metadata?: unknown;
+}
 export interface CursorEnvelope {
   hook_event_name: string;
   conversation_id: string;
@@ -100,9 +126,3 @@ export interface CursorEnvelope {
   is_parallel_worker?: boolean;
   git_branch?: string;
 }
-
-
-
-
-
-

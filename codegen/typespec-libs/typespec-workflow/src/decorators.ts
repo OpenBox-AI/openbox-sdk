@@ -466,7 +466,7 @@ export function isNoPayload(program: Program, target: Operation): boolean {
 // Host hook metadata: where the hook-event block lives for hosts that
 // read config directly, plus how each event's JSON entry is shaped.
 
-export type HookStyle = 'claude-array' | 'cursor-keyed';
+export type HookStyle = 'claude-array' | 'codex-array' | 'cursor-keyed';
 
 export interface HookTargetBinding {
   readonly file: string;
@@ -476,7 +476,7 @@ export interface HookTargetBinding {
   readonly configDir: string;
 }
 
-const HOOK_STYLES: ReadonlySet<HookStyle> = new Set(['claude-array', 'cursor-keyed']);
+const HOOK_STYLES: ReadonlySet<HookStyle> = new Set(['claude-array', 'codex-array', 'cursor-keyed']);
 
 export function $hookTarget(
   context: DecoratorContext,

@@ -203,13 +203,13 @@ extern dec noPayload(target: Operation);
  *   #{
  *     file: ".claude/settings.json",       // resolved under project cwd
  *     key: "hooks",                         // top-level key under settings
- *     style: "claude-array" | "cursor-keyed",
+ *     style: "claude-array" | "codex-array" | "cursor-keyed",
  *     command: "openbox claude-code hook",  // bin command for each event
  *     configDir: ".claude-hooks",          // project config drop dir
  *   }
  *
  * `style` controls the per-event JSON shape:
- *   claude-array: events[evt] = [{ matcher?, hooks: [{ type, command, timeout? }] }]
+ *   claude-array/codex-array: events[evt] = [{ matcher?, hooks: [{ type, command, timeout? }] }]
  *   cursor-keyed: events[evt] = { command }
  */
 extern dec hookTarget(target: Interface, target_: valueof Record<unknown>);

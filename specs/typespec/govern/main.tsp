@@ -61,6 +61,9 @@ using OpenBox.Workflow;
   MCPToolCall: "MCP Tool Call",
   AgentSpawn: "Agent Spawn",
   AgentAction: "Agent Action",
+  OpenAIAgentsSDKRun: "OpenAI Agents SDK Run",
+  AgentHandoff: "Agent Handoff",
+  GuardrailEvaluation: "Guardrail Evaluation",
 
   // --- Coding agents -----------------------------------------------------
   PreToolUse: "Pre-Tool Use",
@@ -634,6 +637,27 @@ interface CodexPreset {
 
   @maps_to("ActivityCompleted", "Stop")
   stop(payload: GovernedPayload): WorkflowVerdict;
+}
+
+@preset("openai-agents-sdk")
+interface OpenAIAgentsSDKPreset {
+  @maps_to("ActivityStarted", "OpenAIAgentsSDKRun")
+  runStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "OpenAIAgentsSDKRun")
+  runCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "ToolStarted")
+  toolStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "ToolCompleted")
+  toolCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("Handoff", "AgentHandoff")
+  handoff(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "GuardrailEvaluation")
+  guardrail(payload: GovernedPayload): WorkflowVerdict;
 }
 
 @preset("copilot")

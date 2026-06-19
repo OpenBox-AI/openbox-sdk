@@ -28,7 +28,7 @@ export type InstallScope = 'project';
 export interface HookSpec {
   file: string;
   key: string;
-  style: 'claude-array' | 'cursor-keyed';
+  style: 'claude-array' | 'codex-array' | 'cursor-keyed';
   command: string;
   configDir: string;
   events: Array<{
@@ -94,6 +94,16 @@ export function resolveInstallPaths(
     };
   }
 
+  if (spec.style === 'codex-array') {
+    return {
+      scope,
+      hooksFile: path.join(cwd, '.codex', 'hooks.json'),
+      configDir: path.join(cwd, '.codex-hooks'),
+      mcpFile: path.join(cwd, '.codex', 'mcp.json'),
+      mcpKey: 'mcpServers',
+    };
+  }
+
   return {
     scope,
     hooksFile: path.join(cwd, '.cursor', 'hooks.json'),
@@ -134,7 +144,8 @@ function ruleIsOpenBox(rule: ClaudeRuleEntry, command: string): boolean {
     (h) =>
       h.command === command ||
       h.command?.includes('openbox claude-code') ||
-      h.command?.includes('openbox cursor'),
+      h.command?.includes('openbox cursor') ||
+      h.command?.includes('openbox codex'),
   ) ?? false;
 }
 
@@ -171,7 +182,7 @@ export function installAdapter(spec: HookSpec, options: InstallOptions = {}): vo
   const paths = resolveInstallPaths(spec, options);
   const settings = loadJson(paths.hooksFile);
 
-  if (spec.style === 'claude-array') {
+  if (spec.style === 'claude-array' || spec.style === 'codex-array') {
     let hooksBlock = settings[spec.key] as Record<string, ClaudeRuleEntry[]> | undefined;
     if (!hooksBlock) {
       hooksBlock = {};
@@ -233,7 +244,7 @@ export function uninstallAdapter(spec: HookSpec, options: InstallOptions = {}): 
   }
 
   let removed = 0;
-  if (spec.style === 'claude-array') {
+  if (spec.style === 'claude-array' || spec.style === 'codex-array') {
     const block = hooksBlock as Record<string, ClaudeRuleEntry[]>;
     for (const evt of Object.keys(block)) {
       const before = block[evt].length;
