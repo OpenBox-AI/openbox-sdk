@@ -947,6 +947,37 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(core.pollApproval).toHaveBeenCalledTimes(1);
   });
 
+  it('falls back to allow for unrecognized CopilotKit approval verdict strings', async () => {
+    const core = {
+      evaluate: vi.fn(),
+      pollApproval: vi.fn(async () => ({
+        verdict: 'future_verdict_value',
+        action: 'require_approval',
+        reason: 'unknown verdict is compatibility-allowed',
+      })),
+    };
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: core as any,
+      workflowType: 'CopilotKitTestWorkflow',
+      taskQueue: 'langgraph',
+    });
+    const { pollApproval } = await import(
+      '../../ts/src/copilotkit/workflow-session'
+    );
+
+    await expect(
+      pollApproval(adapter, {
+        workflowId: 'workflow-approval',
+        runId: 'run-approval',
+        activityId: 'activity-approval',
+      }),
+    ).resolves.toMatchObject({
+      arm: 'allow',
+      reason: 'unknown verdict is compatibility-allowed',
+    });
+    expect(core.pollApproval).toHaveBeenCalledTimes(1);
+  });
+
   it('fails closed when CopilotKit approval polling receives failed guardrails', async () => {
     const core = {
       evaluate: vi.fn(),

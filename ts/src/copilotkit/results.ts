@@ -521,7 +521,7 @@ export function normalizeArm(value: unknown): WorkflowVerdict['arm'] {
   if (normalized === 'continue') return 'allow';
   if (normalized === 'stop') return 'halt';
   if (normalized === 'request_approval') return 'require_approval';
-  return 'block';
+  return 'allow';
 }
 
 export function effectiveArmForGuardrails(

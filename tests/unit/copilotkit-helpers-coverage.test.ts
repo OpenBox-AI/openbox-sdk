@@ -536,7 +536,7 @@ describe('copilotkit helper coverage', () => {
     expect(normalizeArm(2)).toBe('require_approval');
     expect(normalizeArm(3)).toBe('block');
     expect(normalizeArm(4)).toBe('halt');
-    expect(normalizeArm('ask')).toBe('block');
+    expect(normalizeArm('ask')).toBe('allow');
     expect(normalizeArm('halt')).toBe('halt');
     expect(normalizeArm('HALT')).toBe('halt');
     expect(isAllowed('allow')).toBe(true);
