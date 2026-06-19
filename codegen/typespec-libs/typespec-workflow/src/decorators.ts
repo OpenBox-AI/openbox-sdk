@@ -220,6 +220,7 @@ export type VerdictShape =
   | 'elicitation-response' // Elicitation/ElicitationResult: { hookSpecificOutput: { action, content? } }
   | 'continue-block' // Task/teammate lifecycle: { continue: false, stopReason? }
   | 'additional-context' // Failure/observe hooks that can feed context back
+  | 'worktree-path' // WorktreeCreate: { hookSpecificOutput: { worktreePath } }
   | 'cursor-permission' // cursor-hooks beforeXxx: { permission: 'allow'|'deny'|'ask', user_message? }
   | 'cursor-observe' // cursor-hooks afterXxx: telemetry-only, no verdict gate
   | 'cursor-continue' // cursor-hooks beforeSubmitPrompt: { continue: bool, user_message? }
@@ -233,6 +234,7 @@ const VERDICT_SHAPES: ReadonlySet<VerdictShape> = new Set([
   'elicitation-response',
   'continue-block',
   'additional-context',
+  'worktree-path',
   'cursor-permission',
   'cursor-observe',
   'cursor-continue',

@@ -67,7 +67,7 @@ export function registerClaudeCodeCommands(program: Command) {
       collectPair,
       [],
     )
-    .option('--include-opt-in-hooks', 'Also install opt-in hook events such as SessionEnd; WorktreeCreate remains diagnostic-only')
+    .option('--include-opt-in-hooks', 'Also install opt-in hook events such as SessionEnd and WorktreeCreate')
     .action(async (opts: { out: string; matcher: string[]; includeOptInHooks?: boolean }) => {
       const { exportClaudeCodePlugin, verifyClaudeCodePlugin } = await import(
         '../../runtime/claude-code/index.js'
@@ -102,7 +102,7 @@ export function registerClaudeCodeCommands(program: Command) {
       collectPair,
       [],
     )
-    .option('--include-opt-in-hooks', 'Also install opt-in hook events such as SessionEnd; WorktreeCreate remains diagnostic-only')
+    .option('--include-opt-in-hooks', 'Also install opt-in hook events such as SessionEnd and WorktreeCreate')
     .action(
       async (opts: {
         scope?: string;

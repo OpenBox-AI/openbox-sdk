@@ -53,6 +53,7 @@ import {
   handleGenericClaudeEvent,
   observeGenericClaudeEvent,
 } from './mappers/generic.js';
+import { handleWorktreeCreate } from './mappers/worktree.js';
 import { ACTIVITY_TYPES, EVENT } from './activity-types.js';
 import { CLAUDE_CODE_HOOK_MATRIX } from './governance-matrix.js';
 import type { ClaudeCodeConfig } from './config.js';
@@ -357,6 +358,8 @@ export async function runClaudeHook(): Promise<void> {
         eventKind: EVENT.SIGNAL,
         eventCategory: 'file_changed',
       })),
+    worktreeCreate: guarded(cfg, 'worktreeCreate', 'permission',
+      async (env, s) => handleWorktreeCreate(env, s, cfg)),
     worktreeRemove: guarded(cfg, 'worktreeRemove', 'observe',
       async (env, s) => observeGenericClaudeEvent(env, s, cfg, {
         activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,

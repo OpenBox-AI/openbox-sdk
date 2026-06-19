@@ -308,7 +308,7 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       expect(parsed.mcpReadiness.approvalMode).toBe('remote');
       expect(parsed.mcpReadiness.unsupportedOrOptInSurfaces.worktreeCreate).toBe('opt_in');
       expect(parsed.claudeCodeRuntimeReadiness.projectScoped).toBe(true);
-      expect(parsed.claudeCodeRuntimeReadiness.unsupportedOrOptInSurfaces.worktreeCreate).toContain('explicit_out_of_scope');
+      expect(parsed.claudeCodeRuntimeReadiness.unsupportedOrOptInSurfaces.worktreeCreate).toBe('opt_in_managed_worktree_creator');
       expect(parsed.claudeCodeGovernance.defaultHookCount).toBeGreaterThan(10);
       expect(parsed.claudeCodeGovernance.optInHooks).toContain('WorktreeCreate');
       expect(parsed.claudeCodeGovernance.optInHooks).toContain('SessionEnd');

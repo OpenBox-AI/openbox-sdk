@@ -505,6 +505,60 @@ describe('createClaudeCodeAdapter', () => {
     expect(out.hookSpecificOutput.action).toBe('cancel');
   });
 
+  test('worktree-path allow → hookSpecificOutput.worktreePath', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        worktreeCreate: async (env) => {
+          (env as unknown as Record<string, unknown>).worktree_path =
+            '/tmp/openbox/worktrees/feature-auth';
+          return verdict('allow');
+        },
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({
+          ...baseEnv,
+          hook_event_name: 'WorktreeCreate',
+          name: 'feature-auth',
+        }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'WorktreeCreate',
+        worktreePath: '/tmp/openbox/worktrees/feature-auth',
+      },
+    });
+  });
+
+  test('worktree-path block → no worktreePath', async () => {
+    const cap = capture();
+    await createClaudeCodeAdapter({
+      core: makeMockCore(),
+      resolveSession: async () => ({ workflowId: 'w', runId: 'r' }),
+      handlers: {
+        worktreeCreate: async () => verdict('block', 'worktree denied'),
+      },
+      ...adapterIO(
+        cap,
+        JSON.stringify({
+          ...baseEnv,
+          hook_event_name: 'WorktreeCreate',
+          name: 'feature-auth',
+        }),
+      ),
+    }).run();
+    const out = JSON.parse(cap.stdout[0]);
+    expect(out.hookSpecificOutput).toEqual({
+      hookEventName: 'WorktreeCreate',
+    });
+    expect(out.systemMessage).toBe('[OpenBox] worktree denied');
+  });
+
   test('none-shape (SessionStart) → no stdout, exit 0', async () => {
     const cap = capture();
     await createClaudeCodeAdapter({

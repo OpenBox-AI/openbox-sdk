@@ -300,6 +300,7 @@ function writeRuntimeConfigTemplate(configDir: string): void {
   const example = {
     hitlEnabled: true,
     hitlMaxWait: 300,
+    worktreeRoot: '.openbox/worktrees',
     verbose: false,
   };
   writeFileSync(file, JSON.stringify(example, null, 2) + '\n', {

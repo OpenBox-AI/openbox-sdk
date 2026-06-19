@@ -62,6 +62,11 @@ export interface ClaudeCodeConfig {
   sendStartEvent: boolean;
   sendActivityStartEvent: boolean;
   maxBodySize: number | null;
+  /**
+   * Root for opt-in managed WorktreeCreate directories. Relative values
+   * resolve against the hook envelope cwd.
+   */
+  worktreeRoot?: string;
 }
 
 /** Load config: env vars > config.json > .env > defaults */
@@ -109,6 +114,7 @@ export function loadConfig(): ClaudeCodeConfig {
     maxBodySize: getSetting('maxBodySize')
       ? (parseInt(getSetting('maxBodySize'), 10) || null)
       : null,
+    worktreeRoot: getSetting('worktreeRoot') || undefined,
   };
 }
 

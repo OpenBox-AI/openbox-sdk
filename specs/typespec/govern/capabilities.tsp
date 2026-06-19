@@ -263,8 +263,8 @@ namespace OpenboxGovern.Capabilities {
     #{
       provider: "claude-code",
       upstreamKnownEvents: #["Setup", "SessionStart", "InstructionsLoaded", "UserPromptSubmit", "UserPromptExpansion", "MessageDisplay", "PreToolUse", "PermissionRequest", "PermissionDenied", "PostToolUse", "PostToolUseFailure", "PostToolBatch", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "Stop", "StopFailure", "TeammateIdle", "Notification", "ConfigChange", "CwdChanged", "FileChanged", "WorktreeCreate", "WorktreeRemove", "PreCompact", "PostCompact", "SessionEnd", "Elicitation", "ElicitationResult"],
-      generatedAdapterEvents: #["PreToolUse", "PostToolUse", "PostToolUseFailure", "PostToolBatch", "UserPromptSubmit", "UserPromptExpansion", "PermissionRequest", "PermissionDenied", "Setup", "InstructionsLoaded", "PreCompact", "PostCompact", "SessionStart", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "Stop", "StopFailure", "TeammateIdle", "Notification", "MessageDisplay", "ConfigChange", "CwdChanged", "FileChanged", "WorktreeRemove", "Elicitation", "ElicitationResult"],
-      intentionalExclusions: #[#{ event: "WorktreeCreate", tier: "diagnose-only", reason: "It is opt-in because it must create and return a real worktree path." }],
+      generatedAdapterEvents: #["PreToolUse", "PostToolUse", "PostToolUseFailure", "PostToolBatch", "UserPromptSubmit", "UserPromptExpansion", "PermissionRequest", "PermissionDenied", "Setup", "InstructionsLoaded", "PreCompact", "PostCompact", "SessionStart", "SessionEnd", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "Stop", "StopFailure", "TeammateIdle", "Notification", "MessageDisplay", "ConfigChange", "CwdChanged", "FileChanged", "WorktreeCreate", "WorktreeRemove", "Elicitation", "ElicitationResult"],
+      intentionalExclusions: #[],
     },
     #{
       provider: "anthropic-agent-sdk",

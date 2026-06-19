@@ -868,6 +868,21 @@ interface ClaudeCodeAdapter {
   })
   fileChanged(input: ClaudeCodeEnvelope): unknown;
 
+  @hookEvent("WorktreeCreate")
+  @hookEventLabel("Worktree create")
+  @installTimeout(86400)
+  @installDefault(false)
+  @verdictShape("worktree-path")
+  @payloadShape(#{
+    default: #{
+      name: #{ from: "name", fallback: "worktree_name" },
+      cwd: #{ from: "cwd" },
+      worktree_path: #{ from: "worktree_path" },
+      event_category: #{ literal: "worktree_create" },
+    },
+  })
+  worktreeCreate(input: ClaudeCodeEnvelope): unknown;
+
   @hookEvent("WorktreeRemove")
   @hookEventLabel("Worktree remove")
   @verdictShape("none")
@@ -875,6 +890,7 @@ interface ClaudeCodeAdapter {
     default: #{
       name: #{ from: "name" },
       cwd: #{ from: "cwd" },
+      worktree_path: #{ from: "worktree_path" },
       event_category: #{ literal: "workspace_change" },
     },
   })

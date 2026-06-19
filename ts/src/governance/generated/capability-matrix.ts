@@ -850,17 +850,12 @@ export const PROVIDER_EVENT_CATALOG = [
       "ConfigChange",
       "CwdChanged",
       "FileChanged",
+      "WorktreeCreate",
       "WorktreeRemove",
       "Elicitation",
       "ElicitationResult"
     ],
-    "intentionalExclusions": [
-      {
-        "event": "WorktreeCreate",
-        "tier": "diagnose-only",
-        "reason": "It is opt-in because it must create and return a real worktree path."
-      }
-    ]
+    "intentionalExclusions": []
   },
   {
     "provider": "anthropic-agent-sdk",

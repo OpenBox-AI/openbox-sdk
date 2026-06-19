@@ -111,6 +111,7 @@ export const HOOK_EVENT_LABELS: Record<string, string> = {
   "ConfigChange": "Config change",
   "CwdChanged": "CWD changed",
   "FileChanged": "File changed",
+  "WorktreeCreate": "Worktree create",
   "WorktreeRemove": "Worktree remove",
   "Elicitation": "MCP elicitation",
   "ElicitationResult": "MCP elicitation result"
@@ -217,6 +218,11 @@ export const HOOK_SPEC: HookSpec = {
     },
     {
       "name": "FileChanged"
+    },
+    {
+      "name": "WorktreeCreate",
+      "timeout": 86400,
+      "installDefault": false
     },
     {
       "name": "WorktreeRemove"
@@ -692,12 +698,24 @@ export function buildFileChangedPayload(env: ClaudeCodeEnvelope): Record<string,
     };
 }
 
+export function buildWorktreeCreatePayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "name": (getPath(env, "name") ?? getPath(env, "worktree_name")),
+      "cwd": getPath(env, "cwd"),
+      "worktree_path": getPath(env, "worktree_path"),
+      "event_category": "worktree_create",
+    };
+}
+
 export function buildWorktreeRemovePayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
   /* no side effects */
 
   return {
       "name": getPath(env, "name"),
       "cwd": getPath(env, "cwd"),
+      "worktree_path": getPath(env, "worktree_path"),
       "event_category": "workspace_change",
     };
 }
@@ -762,6 +780,7 @@ export interface ClaudeCodeAdapterHandlers {
   configChange?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   cwdChanged?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   fileChanged?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  worktreeCreate?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   worktreeRemove?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   elicitation?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   elicitationResult?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
@@ -1135,6 +1154,15 @@ async function dispatch(
       writeVerdict("none", verdict, env);
       return;
     }
+    case "WorktreeCreate": {
+      if (!handlers.worktreeCreate) {
+        writeFallback("worktree-path", undefined, env);
+        return;
+      }
+      const verdict = await handlers.worktreeCreate(env, session);
+      writeVerdict("worktree-path", verdict, env);
+      return;
+    }
     case "WorktreeRemove": {
       if (!handlers.worktreeRemove) {
         writeFallback("none", undefined, env);
@@ -1202,6 +1230,7 @@ type Shape =
   | 'elicitation-response'
   | 'continue-block'
   | 'additional-context'
+  | 'worktree-path'
   | 'cursor-permission'
   | 'cursor-observe'
   | 'cursor-continue'
@@ -1517,6 +1546,26 @@ function renderVerdictOutput(
           hookEventName: env.hook_event_name ?? 'PostToolUseFailure',
           additionalContext: reason || '[OpenBox] blocked by policy',
         },
+      };
+    }
+    case 'worktree-path': {
+      const eventName = env.hook_event_name ?? 'WorktreeCreate';
+      const worktreePath = typeof (env as Record<string, unknown>).worktree_path === 'string'
+        ? ((env as Record<string, unknown>).worktree_path as string).trim()
+        : '';
+      if ((arm === 'allow' || arm === 'constrain') && worktreePath) {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            worktreePath,
+          },
+        };
+      }
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+        },
+        systemMessage: reason || '[OpenBox] worktree creation blocked.',
       };
     }
     case 'cursor-permission': {
