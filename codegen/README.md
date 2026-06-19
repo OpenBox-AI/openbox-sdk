@@ -13,7 +13,7 @@ under `specs/generated/openapi3/`.
 | `typespec-libs/typespec-workflow/` | Decorator library: `@verdict`, `@preset`, `@maps_to`, `@adapter`, `@hookEvent`, `@verdictShape`, `@activityRouting` |
 | `typespec-libs/typespec-cli/` | Decorator library: `@cli_command`, `@cli_flag`, etc. Drives CLI binding emit |
 | `typespec-libs/typespec-env/` | Decorator library: `@env_var`, `@token_format`, `@os_path` |
-| `emitters/typespec-emitter-openbox/` | OpenBox TypeSpec emitter. Walks the program, writes TypeScript and Python generated SDK artifacts |
+| `emitters/typespec-emitter/` | OpenBox TypeSpec emitter. Walks the program, writes TypeScript and Python generated SDK artifacts |
 | `fixtures/` | Conformance test inputs in JSON. Future SDK target branches should replay the same fixtures |
 | `method-permissions.json` | Mirrored `@Permissions` map from the live backend controllers, keyed by `operationId` to required perms |
 | `method-names.json` | OpenAPI `operationId` to CLI method name mapping. Used by the wrapper-method emitter |
@@ -95,7 +95,8 @@ No → hand-code.
 Add it on a branch or in a separate package track first. A target
 should only come back to `main` when it has:
 
-- an emitter under `codegen/emitters/typespec-emitter-<lang>/`,
+- a language writer under the shared `codegen/emitters/typespec-emitter/`
+  emitter, or a documented reason to split into a separate emitter,
 - a target-native build and test gate,
 - conformance coverage against `codegen/fixtures/`,
 - a release story independent from the TypeScript npm package.

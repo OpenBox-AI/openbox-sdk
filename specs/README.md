@@ -18,7 +18,7 @@ npm run specs:all          # build:codegen + specs:compile + generate:types
 ```
 
 The OpenBox emitter under
-`codegen/emitters/typespec-emitter-openbox/` writes generated SDK
+`codegen/emitters/typespec-emitter/` writes generated SDK
 artifacts for language targets such as TypeScript and Python. The
 hand-written files only consume those generated artifacts.
 

@@ -153,11 +153,11 @@
   ],
   "workspaces": [
     "codegen/typespec-libs/*",
-    "codegen/emitters/typespec-emitter-openbox",
+    "codegen/emitters/typespec-emitter",
     "apps/*"
   ],
   "scripts": {
-    "build:codegen": "npm run build -w typespec-env -w typespec-cli -w typespec-workflow -w typespec-emitter-openbox",
+    "build:codegen": "npm run build -w typespec-env -w typespec-cli -w typespec-workflow -w typespec-emitter",
     "build:bundle": "tsup && node --experimental-strip-types scripts/sync-runtime-assets.ts",
     "build": "npm run build:codegen && npm run specs:compile && npm run generate:types && npm run build:bundle",
     "prepublishOnly": "npm run build",

@@ -5,7 +5,7 @@
 | Source | Reproduces |
 |---|---|
 | `specs/typespec/backend/main.tsp` (compiled via `@typespec/http`'s `listHttpOperationsIn`) | `endpoint-manifest.ts` (`BACKEND_ENDPOINT_MANIFEST`): array of every (path, verb, operationId, pathPattern) tuple |
-| `codegen/emitters/typespec-emitter-openbox/src/index.ts` | the emit logic |
+| `codegen/emitters/typespec-emitter/src/index.ts` | the emit logic |
 
 Regenerate with `npm run specs:compile`.
 

@@ -1,5 +1,5 @@
 {
-  "name": "typespec-emitter-openbox",
+  "name": "typespec-emitter",
   "version": "0.0.0",
   "description": "TypeSpec emitter that generates OpenBox TypeScript and Python SDK artifacts from the OpenBox programming-model specs",
   "private": true,
