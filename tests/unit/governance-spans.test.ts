@@ -119,17 +119,20 @@ describe('LLM completion spans', () => {
     expect(span.http_url).toBe('https://api.openai.com/v1/chat/completions');
     expect(span.http_method).toBe('POST');
     const observed = span as typeof span & {
+      model?: string;
       model_id?: string;
       provider?: string;
       model_provider?: string;
+      input_tokens?: number;
+      output_tokens?: number;
       total_tokens?: number;
     };
-    expect(span.model).toBe('gpt-4o-mini');
+    expect(observed.model).toBe('gpt-4o-mini');
     expect(observed.model_id).toBe('gpt-4o-mini');
     expect(observed.provider).toBe('openai');
     expect(observed.model_provider).toBe('openai');
-    expect(span.input_tokens).toBe(120);
-    expect(span.output_tokens).toBe(35);
+    expect(observed.input_tokens).toBe(120);
+    expect(observed.output_tokens).toBe(35);
     expect(observed.total_tokens).toBe(155);
     expect(span.attributes).toMatchObject({
       'gen_ai.request.model': 'gpt-4o-mini',

@@ -406,9 +406,6 @@ model GovernedPayload {
   /** LLM model identifier for normal ActivityStarted/ActivityCompleted telemetry. */
   llmModel?: string;
 
-  /** Core model alias for runtimes that expose usage as `model`. */
-  `model`?: string;
-
   /** Prompt/input token count observed by the SDK. */
   inputTokens?: numeric;
 

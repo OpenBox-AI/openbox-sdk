@@ -284,8 +284,6 @@ export interface components {
             session_id?: string;
             /** @description LLM model identifier for SDKs that observe usage outside provider HTTP spans. */
             llm_model?: string;
-            /** @description Core model alias for SDKs that surface usage as `model` instead of `llm_model`. */
-            model?: string;
             /**
              * Format: int64
              * @description Prompt/input token count observed by the SDK.
@@ -504,18 +502,6 @@ export interface components {
             stage: "started" | "completed";
             /** @description Free-form payload. Map for attestation; string for file ops. */
             data?: unknown;
-            /** @description SDK-level model ID when not present in the provider response body. */
-            model?: string;
-            /**
-             * Format: int64
-             * @description SDK-level input token count when not present in the provider response body.
-             */
-            input_tokens?: number;
-            /**
-             * Format: int64
-             * @description SDK-level output token count when not present in the provider response body.
-             */
-            output_tokens?: number;
             /**
              * @description SDK v2 hook source.
              * @enum {string}

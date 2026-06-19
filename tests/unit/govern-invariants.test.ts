@@ -323,7 +323,6 @@ describe('activity pairing', () => {
           output: { content: 'done' },
           sessionId: 'chat-1',
           llmModel: 'claude-opus-4-8',
-          model: 'claude-opus-4-8',
           inputTokens: 123,
           outputTokens: 45,
           totalTokens: 168,
@@ -340,7 +339,6 @@ describe('activity pairing', () => {
     expect(completed).toMatchObject({
       session_id: 'chat-1',
       llm_model: 'claude-opus-4-8',
-      model: 'claude-opus-4-8',
       input_tokens: 123,
       output_tokens: 45,
       total_tokens: 168,
