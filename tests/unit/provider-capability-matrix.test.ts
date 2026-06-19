@@ -8,6 +8,7 @@ import { HOOK_SPEC as CLAUDE_HOOK_SPEC } from '../../ts/src/core-client/generate
 import { HOOK_SPEC as CODEX_HOOK_SPEC } from '../../ts/src/core-client/generated/runtime/codex.js';
 import { HOOK_SPEC as CURSOR_HOOK_SPEC } from '../../ts/src/core-client/generated/runtime/cursor.js';
 import {
+  GOAL_SIGNAL_GUARDS,
   OPENBOX_CAPABILITY_IDS,
   MCP_PROMPT_SURFACES,
   MCP_RESOURCE_TEMPLATE_SURFACES,
@@ -41,6 +42,29 @@ describe('provider capability matrix', () => {
       for (const entry of entries) {
         expect(entry.rationale.length, `${provider}/${entry.capability} rationale`).toBeGreaterThan(20);
       }
+    }
+  });
+
+  it('pins native goal-signal capability claims to explicit guard coverage', () => {
+    const nativeCapabilityProviders = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) => entry.capability === 'goal-signals' && entry.tier === 'native')
+      .map((entry) => entry.provider)
+      .sort();
+    const nativeGuardProviders = GOAL_SIGNAL_GUARDS
+      .filter((entry) => entry.tier === 'native')
+      .map((entry) => entry.provider)
+      .sort();
+
+    expect(nativeGuardProviders).toEqual(nativeCapabilityProviders);
+    expect(new Set(nativeGuardProviders).size).toBe(nativeGuardProviders.length);
+    expect(nativeGuardProviders).not.toContain('mcp');
+
+    for (const guard of GOAL_SIGNAL_GUARDS) {
+      expect(guard.signalActivity).toBe('user_prompt');
+      expect(guard.entrySurface.length, `${guard.provider} entrySurface`).toBeGreaterThan(0);
+      expect(guard.firstGovernedSurface.length, `${guard.provider} firstGovernedSurface`).toBeGreaterThan(0);
+      expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+      expect(guard.orderGuarantee, `${guard.provider} orderGuarantee`).toContain('precedes');
     }
   });
 

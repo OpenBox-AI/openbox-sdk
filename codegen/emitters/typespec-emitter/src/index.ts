@@ -1103,6 +1103,7 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
   const supportTiers = uniqueStrings([
     ...arrayOfRecords(matrix.capabilities).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.publicIntegrations).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.goalSignalGuards).map((entry) => String(entry.tier ?? '')),
   ]).filter(Boolean);
 
   out.addStatements([
@@ -1139,6 +1140,16 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  tier: OpenBoxSupportTier;`,
     `  exports: readonly string[];`,
     `  notes: string;`,
+    `}`,
+    '',
+    `export interface GoalSignalGuardEntry {`,
+    `  provider: OpenBoxProviderId;`,
+    `  tier: OpenBoxSupportTier;`,
+    `  entrySurface: string;`,
+    `  signalActivity: string;`,
+    `  firstGovernedSurface: string;`,
+    `  guardTest: string;`,
+    `  orderGuarantee: string;`,
     `}`,
     '',
     `export interface McpToolSurfaceEntry {`,
@@ -1183,6 +1194,8 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `export const PROVIDER_PLUGIN_COMPONENTS = ${literalTs(matrix.pluginComponents)} as const satisfies readonly ProviderPluginComponentCatalogEntry[];`,
     '',
     `export const PUBLIC_INTEGRATION_SUPPORT = ${literalTs(matrix.publicIntegrations)} as const satisfies readonly PublicIntegrationSupportEntry[];`,
+    '',
+    `export const GOAL_SIGNAL_GUARDS = ${literalTs(matrix.goalSignalGuards)} as const satisfies readonly GoalSignalGuardEntry[];`,
     '',
     `export const MCP_TOOL_SURFACES = ${literalTs(matrix.mcpTools)} as const satisfies readonly McpToolSurfaceEntry[];`,
     '',

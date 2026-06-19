@@ -1105,6 +1105,71 @@ PUBLIC_INTEGRATION_SUPPORT = [
     "notes": "Low-level primitives plus packaged credentials, nodes, and workflow template descriptors."
   }
 ]
+GOAL_SIGNAL_GUARDS = [
+  {
+    "provider": "codex",
+    "tier": "native",
+    "entrySurface": "UserPromptSubmit",
+    "signalActivity": "user_prompt",
+    "firstGovernedSurface": "PromptSubmission",
+    "guardTest": "tests/unit/codex-runtime.test.ts#opens the workflow once when Codex starts from a prompt hook",
+    "orderGuarantee": "SignalReceived user_prompt precedes PromptSubmission"
+  },
+  {
+    "provider": "cursor",
+    "tier": "native",
+    "entrySurface": "beforeSubmitPrompt",
+    "signalActivity": "user_prompt",
+    "firstGovernedSurface": "PromptSubmission",
+    "guardTest": "tests/contract/cursor-hook-contract.test.ts#real CursorSession sends spans as parent-plus-hook payloads",
+    "orderGuarantee": "SignalReceived user_prompt precedes PromptSubmission"
+  },
+  {
+    "provider": "claude-code",
+    "tier": "native",
+    "entrySurface": "UserPromptSubmit",
+    "signalActivity": "user_prompt",
+    "firstGovernedSurface": "PromptSubmission",
+    "guardTest": "tests/unit/runtime-claude-code-mappers.test.ts#user-prompt-submit fires PromptSubmission activity",
+    "orderGuarantee": "SignalReceived user_prompt precedes PromptSubmission"
+  },
+  {
+    "provider": "openai-agents-sdk",
+    "tier": "native",
+    "entrySurface": "runWithOpenBox",
+    "signalActivity": "user_prompt",
+    "firstGovernedSurface": "OpenAIAgentsSDKRun",
+    "guardTest": "tests/unit/openai-agents-sdk.test.ts#wraps run() with workflow lifecycle and usage events",
+    "orderGuarantee": "SignalReceived user_prompt precedes OpenAIAgentsSDKRun"
+  },
+  {
+    "provider": "anthropic-agent-sdk",
+    "tier": "native",
+    "entrySurface": "UserPromptSubmit",
+    "signalActivity": "user_prompt",
+    "firstGovernedSurface": "PromptSubmission",
+    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#emits prompt submit gate after the goal signal without prompt spans",
+    "orderGuarantee": "SignalReceived user_prompt precedes PromptSubmission"
+  },
+  {
+    "provider": "copilotkit",
+    "tier": "native",
+    "entrySurface": "governed tool execute",
+    "signalActivity": "user_prompt",
+    "firstGovernedSurface": "openbox_governed_action",
+    "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits workflow/tool lifecycle events around a governed tool",
+    "orderGuarantee": "SignalReceived user_prompt precedes first governed tool activity"
+  },
+  {
+    "provider": "n8n",
+    "tier": "native",
+    "entrySurface": "emitN8nNodePreExecute",
+    "signalActivity": "user_prompt",
+    "firstGovernedSurface": "node-pre-execute",
+    "guardTest": "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans",
+    "orderGuarantee": "SignalReceived user_prompt precedes node-pre-execute"
+  }
+]
 MCP_TOOL_SURFACES = [
   {
     "name": "get_profile",
