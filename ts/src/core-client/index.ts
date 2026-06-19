@@ -109,6 +109,7 @@ export {
   CANONICAL_EVENT_TYPES,
   CANONICAL_ACTIVITY_TYPES,
   CANONICAL_ACTIVITY_LABELS,
+  PRESET_ACTIVITY_TYPES,
 } from './generated/govern.js';
 
 // Guardrail redaction helpers; apply `verdict.guardrailsResult.redactedInput`

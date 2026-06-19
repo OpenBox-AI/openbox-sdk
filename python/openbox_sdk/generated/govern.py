@@ -603,6 +603,11 @@ PRESET_MANIFEST = [
         "activityType": "Stop"
       },
       {
+        "name": "userPromptSubmit",
+        "eventType": "ActivityStarted",
+        "activityType": "UserPromptSubmit"
+      },
+      {
         "name": "prompt",
         "eventType": "ActivityStarted",
         "activityType": "PromptSubmission"
@@ -1305,6 +1310,7 @@ PRESET_ACTIVITY_TYPES = {
     "goalSignal": "user_prompt",
     "sessionStart": "SessionStart",
     "stop": "Stop",
+    "userPromptSubmit": "UserPromptSubmit",
     "prompt": "PromptSubmission",
     "llm": "LLMCompleted",
     "tool": "ToolStarted",
@@ -1782,6 +1788,9 @@ class DefaultSession(BaseGovernedSession):
 
     async def stop(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
         return await self.run_activity("ActivityCompleted", "Stop", payload or {})
+
+    async def user_prompt_submit(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "UserPromptSubmit", payload or {})
 
     async def prompt(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
         return await self.run_activity("ActivityStarted", "PromptSubmission", payload or {})

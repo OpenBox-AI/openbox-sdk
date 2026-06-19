@@ -4,6 +4,7 @@ import type {
   N8nSession,
   WorkflowVerdict,
 } from '../../core-client/index.js';
+import { PRESET_ACTIVITY_TYPES } from '../../core-client/generated/govern.js';
 import type { LLMTokenUsage } from '../../governance/spans.js';
 import {
   withOpenBoxActivityMetadata,
@@ -72,6 +73,8 @@ interface PendingNodeActivity {
 }
 
 const N8N_NODE_TOOL_TYPE = 'n8n_node';
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const n8nActivity = PRESET_ACTIVITY_TYPES.n8n;
 const pendingNodeActivities = new WeakMap<object, Map<string, PendingNodeActivity>>();
 
 function cleanRecord(value: Record<string, unknown>): Record<string, unknown> {
@@ -252,7 +255,7 @@ export async function emitN8nUserPromptSignal(
 ): Promise<WorkflowVerdict | undefined> {
   const signalArgs = prompt?.trim();
   if (!signalArgs) return undefined;
-  return session.activity('SignalReceived', 'user_prompt', {
+  return session.activity('SignalReceived', defaultActivity.goalSignal, {
     input: [
       stampSource(
         cleanRecord({
@@ -263,7 +266,7 @@ export async function emitN8nUserPromptSignal(
         'n8n',
       ),
     ],
-    signalName: 'user_prompt',
+    signalName: defaultActivity.goalSignal,
     signalArgs,
     sessionId: options.sessionId,
     prompt: signalArgs,
@@ -296,7 +299,7 @@ export async function emitN8nNodePreExecute(
     sessionId: input.sessionId,
   });
   const startTime = Date.now();
-  const opened = await session.openActivity('node-pre-execute', {
+  const opened = await session.openActivity(n8nActivity.nodePreExecute, {
     ...buildN8nNodePreExecutePayload(input),
     activityId: input.activityId,
     startTime,

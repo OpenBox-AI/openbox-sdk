@@ -667,6 +667,11 @@ export const PRESET_MANIFEST = [
         "activityType": "Stop"
       },
       {
+        "name": "userPromptSubmit",
+        "eventType": "ActivityStarted",
+        "activityType": "UserPromptSubmit"
+      },
+      {
         "name": "prompt",
         "eventType": "ActivityStarted",
         "activityType": "PromptSubmission"
@@ -1372,6 +1377,7 @@ export const PRESET_ACTIVITY_TYPES = {
     "goalSignal": "user_prompt",
     "sessionStart": "SessionStart",
     "stop": "Stop",
+    "userPromptSubmit": "UserPromptSubmit",
     "prompt": "PromptSubmission",
     "llm": "LLMCompleted",
     "tool": "ToolStarted",
@@ -3023,6 +3029,10 @@ export class DefaultSession extends BaseGovernedSession {
 
   async stop(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityCompleted", "Stop", payload);
+  }
+
+  async userPromptSubmit(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "UserPromptSubmit", payload);
   }
 
   async prompt(payload: GovernedPayload): Promise<WorkflowVerdict> {

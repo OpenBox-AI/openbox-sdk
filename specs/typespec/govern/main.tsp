@@ -1223,6 +1223,9 @@ interface DefaultPreset {
   @maps_to("ActivityCompleted", "Stop")
   stop(payload: GovernedPayload): WorkflowVerdict;
 
+  @maps_to("ActivityStarted", "UserPromptSubmit")
+  userPromptSubmit(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "PromptSubmission")
   prompt(payload: GovernedPayload): WorkflowVerdict;
 

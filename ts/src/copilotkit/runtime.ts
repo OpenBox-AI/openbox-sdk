@@ -5,6 +5,7 @@ import {
   OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION,
   OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY,
 } from './constants.js';
+import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import {
   isRecord,
   mergeMessageContent,
@@ -27,6 +28,8 @@ import {
   type OpenBoxCopilotRuntimeResponseHookContext,
 } from './types.js';
 import { completeWorkflow, failWorkflow } from './workflow-session.js';
+
+const langchainActivity = PRESET_ACTIVITY_TYPES.langchain;
 
 type AdapterFactory = () => OpenBoxCopilotKitAdapter;
 
@@ -180,7 +183,7 @@ export function createOpenBoxRuntimeHooks(
         sessionKey,
         workflowId: ids.workflowId,
         runId: ids.runId,
-        activityType: 'on_chat_model_start',
+        activityType: langchainActivity.onChatModelStart,
         ensureWorkflowStarted: true,
       });
       if (shouldStopForGate(promptGate)) {
@@ -275,7 +278,7 @@ async function governRunPrompt(
     payload: { messages: summarizeMessages(input.messages ?? []) },
     sessionKey,
     ...freshRuntimeWorkflowIdsFromInput(input),
-    activityType: 'on_chat_model_start',
+    activityType: langchainActivity.onChatModelStart,
     ensureWorkflowStarted: true,
   });
   if (shouldStopForGate(promptGate)) {
@@ -473,7 +476,7 @@ function pipeGovernedEvents(
               payload: { content: buffer.content },
               sessionKey,
               ...ids,
-              activityType: 'on_llm_end',
+              activityType: langchainActivity.onLlmEnd,
             });
             if (shouldStopForGate(gate)) {
               terminalized = true;
@@ -507,7 +510,7 @@ function pipeGovernedEvents(
               payload: finalPayload.payload,
               sessionKey,
               ...ids,
-              activityType: 'on_llm_end',
+              activityType: langchainActivity.onLlmEnd,
             });
             if (shouldStopForGate(gate)) {
               terminalized = true;

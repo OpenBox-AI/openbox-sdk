@@ -6,6 +6,7 @@ import {
 import { stampSource } from '../approvals/source.js';
 import { parseApprovalExpirationMs } from '../core-client/approval-time.js';
 import {
+  PRESET_ACTIVITY_TYPES,
   presets,
   type BaseGovernedSession,
   type WorkflowVerdict,
@@ -27,6 +28,8 @@ import type {
 const startedWorkflowRuns = new Set<string>();
 const TERMINAL_EVENT_TIMEOUT_MS = 5_000;
 const APPROVAL_POLL_INTERVAL_MS = 750;
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const langchainActivity = PRESET_ACTIVITY_TYPES.langchain;
 
 // One user task should map to one OpenBox session. The runtime gate (or the
 // middleware, when no runtime gate exists) opens the workflow and registers
@@ -277,14 +280,14 @@ export async function emitUserPromptSignal(
 
   await createWorkflowSession(adapter, ids, workflowType, taskQueue, {
     attached: true,
-  }).activity('SignalReceived', 'user_prompt', {
+  }).activity('SignalReceived', defaultActivity.goalSignal, {
     input: [
       stampSource(
         { prompt: signalArgs, event_category: 'agent_goal' },
         'copilotkit',
       ),
     ],
-    signalName: 'user_prompt',
+    signalName: defaultActivity.goalSignal,
     signalArgs,
     sessionId,
     prompt: signalArgs,
@@ -302,7 +305,7 @@ export async function emitActivityHookSpanUpdate(
 ): Promise<WorkflowVerdict> {
   return createWorkflowSession(adapter, ids, workflowType, taskQueue, {
     attached: true,
-  }).activity('ActivityCompleted', activityType ?? 'assistant_output', {
+  }).activity('ActivityCompleted', activityType ?? langchainActivity.onLlmEnd, {
     activityId: ids.activityId,
     output,
     spans,
