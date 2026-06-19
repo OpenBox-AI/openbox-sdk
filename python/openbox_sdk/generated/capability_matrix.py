@@ -1630,6 +1630,80 @@ RULES_INSTRUCTION_CAPABILITY_GUARDS = [
     "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
   }
 ]
+PLUGIN_CAPABILITY_GUARDS = [
+  {
+    "provider": "codex",
+    "tier": "native",
+    "packageSurface": "Codex plugin bundle with .codex-plugin/plugin.json plus repo-local .agents/plugins/marketplace.json metadata.",
+    "componentCoverage": "Codex plugin components include manifest, marketplace, hooks/hooks.json, plugin .mcp.json, skills/openbox/SKILL.md, AGENTS.md, and exact-prefix .codex/rules/openbox.rules.",
+    "installSurface": "exportCodexPlugin/installCodexPlugin and openbox install codex write project-local plugin and marketplace surfaces.",
+    "scopeBoundary": "Project-local only; OpenBox does not mutate global or user-level Codex plugin configuration.",
+    "guardTest": "tests/unit/codex-install-spec.test.ts#exports and installs Codex plugin, repo skill, and marketplace surfaces"
+  },
+  {
+    "provider": "cursor",
+    "tier": "native",
+    "packageSurface": "Cursor plugin bundle with .cursor-plugin/plugin.json, .cursor-plugin/marketplace.json, and workspaceOpen.json metadata.",
+    "componentCoverage": "Cursor plugin components include hooks, mcp.json, rules/openbox.mdc, commands, agents, skills/openbox/SKILL.md, and workspaceOpen discovery metadata.",
+    "installSurface": "exportCursorPlugin/installCursorPlugin install local plugin mode; installCursorRepoMode covers cloud-compatible repo mode separately.",
+    "scopeBoundary": "Project-local plugin or repo files only; OpenBox does not mutate user-level Cursor plugin configuration.",
+    "guardTest": "tests/unit/cursor-plugin.test.ts#exports a complete marketplace-ready plugin folder"
+  },
+  {
+    "provider": "claude-code",
+    "tier": "native",
+    "packageSurface": "Claude Code plugin bundle with .claude-plugin/plugin.json and .claude-plugin/marketplace.json metadata.",
+    "componentCoverage": "Claude Code plugin components include hooks, .mcp.json, commands, agents, skills/openbox/SKILL.md, diagnostics, bin runner, opt-in monitors metadata, and explicit LSP exclusion.",
+    "installSurface": "exportClaudeCodePlugin/installClaudeCodePlugin install the project-local plugin target without direct settings writes.",
+    "scopeBoundary": "Project-local plugin target and runtime config only; monitors are opt-in and LSP remains out of scope.",
+    "guardTest": "tests/unit/claude-code-plugin.test.ts#exports a complete marketplace-ready plugin folder"
+  },
+  {
+    "provider": "mcp",
+    "tier": "out-of-scope",
+    "packageSurface": "No MCP plugin package is emitted; MCP is the server protocol surface used by host plugins.",
+    "componentCoverage": "Plugin component catalogs are owned by Codex, Cursor, and Claude Code adapters, not the MCP server.",
+    "installSurface": "No plugin install surface; openbox mcp serve exposes protocol tools/resources/prompts only.",
+    "scopeBoundary": "Out-of-scope for plugins because host adapters own plugin packaging and installation.",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
+  },
+  {
+    "provider": "openai-agents-sdk",
+    "tier": "out-of-scope",
+    "packageSurface": "No OpenAI Agents SDK plugin package is emitted; consumers import public SDK helpers.",
+    "componentCoverage": "Public integration exports cover helper functions; host plugin components are intentionally out of scope.",
+    "installSurface": "No plugin install surface for OpenAI Agents SDK helpers.",
+    "scopeBoundary": "Out-of-scope for plugins because OpenAI Agents SDK does not consume host plugin bundles.",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
+  },
+  {
+    "provider": "anthropic-agent-sdk",
+    "tier": "out-of-scope",
+    "packageSurface": "No Anthropic Agent SDK plugin package is emitted; consumers import hook/options helpers.",
+    "componentCoverage": "Claude Code plugin packaging is covered under claude-code, not Anthropic Agent SDK.",
+    "installSurface": "No plugin install surface for Anthropic Agent SDK helpers.",
+    "scopeBoundary": "Out-of-scope for plugins because Anthropic Agent SDK usage is runtime-only.",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
+  },
+  {
+    "provider": "copilotkit",
+    "tier": "out-of-scope",
+    "packageSurface": "No CopilotKit plugin package is emitted; consumers wire runtime adapters and UI helpers.",
+    "componentCoverage": "Public integration exports cover CopilotKit adapters and approval helpers; host plugin components are intentionally out of scope.",
+    "installSurface": "No plugin install surface for CopilotKit helpers.",
+    "scopeBoundary": "Out-of-scope for plugins because CopilotKit does not consume host plugin bundles.",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
+  },
+  {
+    "provider": "n8n",
+    "tier": "wrapped",
+    "packageSurface": "Packaged n8n integration descriptor surface, not a Codex/Cursor/Claude host plugin folder.",
+    "componentCoverage": "N8N_INTEGRATION_SURFACE covers OpenBox credentials, Governance node, Guardrails node, Approval/HITL node, governed AI Agent template, and examples.",
+    "installSurface": "Operator-owned n8n package installation consumes generated descriptors/templates; OpenBox does not mutate n8n instances.",
+    "scopeBoundary": "Wrapped descriptor/template surface; n8n installation remains operator-owned and Core/backend remains authoritative for governance.",
+    "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
+  }
+]
 SKILL_CAPABILITY_GUARDS = [
   {
     "provider": "codex",

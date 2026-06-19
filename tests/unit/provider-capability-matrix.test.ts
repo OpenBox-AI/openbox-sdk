@@ -21,6 +21,7 @@ import {
   MCP_RESOURCE_TEMPLATE_SURFACES,
   MCP_TOOL_SURFACES,
   N8N_INTEGRATION_SURFACE,
+  PLUGIN_CAPABILITY_GUARDS,
   PROVIDER_CAPABILITY_MATRIX,
   PROVIDER_EVENT_CATALOG,
   PROVIDER_PLUGIN_COMPONENTS,
@@ -270,6 +271,56 @@ describe('provider capability matrix', () => {
       expect(guard.toolResourcePromptCoverage, `${guard.provider} toolResourcePromptCoverage`).toMatch(/MCP|mcp/);
       expect(guard.hostBoundary, `${guard.provider} hostBoundary`).toContain('Core');
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+    }
+  });
+
+  it('pins plugin support claims to explicit packaged component coverage', () => {
+    const pluginCapabilityProviders = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) => entry.capability === 'plugins')
+      .map((entry) => entry.provider)
+      .sort();
+    const guardProviders = PLUGIN_CAPABILITY_GUARDS
+      .map((entry) => entry.provider)
+      .sort();
+
+    expect(guardProviders).toEqual(pluginCapabilityProviders);
+    expect(new Set(guardProviders).size).toBe(guardProviders.length);
+
+    const tierByProvider = new Map(
+      PROVIDER_CAPABILITY_MATRIX
+        .filter((entry) => entry.capability === 'plugins')
+        .map((entry) => [entry.provider, entry.tier]),
+    );
+    const pluginComponentsByProvider = new Map(
+      PROVIDER_PLUGIN_COMPONENTS.map((entry) => [entry.provider, entry.components]),
+    );
+    for (const guard of PLUGIN_CAPABILITY_GUARDS) {
+      expect(guard.tier, `${guard.provider} tier`).toBe(tierByProvider.get(guard.provider));
+      expect(guard.packageSurface.length, `${guard.provider} packageSurface`).toBeGreaterThan(30);
+      expect(guard.componentCoverage.length, `${guard.provider} componentCoverage`).toBeGreaterThan(30);
+      expect(guard.installSurface.length, `${guard.provider} installSurface`).toBeGreaterThan(20);
+      expect(guard.scopeBoundary.length, `${guard.provider} scopeBoundary`).toBeGreaterThan(20);
+      expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+
+      if (guard.provider === 'codex' || guard.provider === 'cursor' || guard.provider === 'claude-code') {
+        const componentNames = pluginComponentsByProvider.get(guard.provider)?.map((entry) => entry.name);
+        expect(componentNames, `${guard.provider} componentNames`).toEqual(
+          expect.arrayContaining(['hooks', 'mcp', 'skills']),
+        );
+        expect(componentNames?.some((name) => name.includes('manifest'))).toBe(true);
+        expect(guard.packageSurface, `${guard.provider} packageSurface`).toMatch(/plugin/i);
+        expect(guard.scopeBoundary, `${guard.provider} scopeBoundary`).toMatch(/project-local|Project-local/);
+      } else if (guard.provider === 'n8n') {
+        expect(guard.tier).toBe('wrapped');
+        expect(N8N_INTEGRATION_SURFACE.credentials.length).toBeGreaterThan(0);
+        expect(N8N_INTEGRATION_SURFACE.nodes.length).toBeGreaterThan(0);
+        expect(N8N_INTEGRATION_SURFACE.workflowTemplates.length).toBeGreaterThan(0);
+        expect(guard.componentCoverage).toMatch(/credentials|nodes|template/i);
+      } else {
+        expect(guard.tier, `${guard.provider} tier`).toBe('out-of-scope');
+        expect(guard.installSurface, `${guard.provider} installSurface`).toMatch(/No plugin install surface/);
+        expect(guard.scopeBoundary, `${guard.provider} scopeBoundary`).toContain('Out-of-scope');
+      }
     }
   });
 
