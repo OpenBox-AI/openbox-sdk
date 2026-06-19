@@ -31,12 +31,16 @@ export function normalizeOpenBoxUsage(
     usage.output_tokens,
     usage.completion_tokens,
   );
+  const explicitTotalTokens = firstNumber(usage.totalTokens, usage.total_tokens);
+  const calculatedTotalTokens = derivedTotal(inputTokens, outputTokens);
+  const totalTokens =
+    explicitTotalTokens !== undefined && calculatedTotalTokens !== undefined
+      ? Math.max(explicitTotalTokens, calculatedTotalTokens)
+      : explicitTotalTokens ?? calculatedTotalTokens;
   return {
     inputTokens,
     outputTokens,
-    totalTokens:
-      firstNumber(usage.totalTokens, usage.total_tokens) ??
-      derivedTotal(inputTokens, outputTokens),
+    totalTokens,
     cacheReadInputTokens: firstNumber(
       usage.cacheReadInputTokens,
       usage.cache_read_input_tokens,
@@ -50,7 +54,7 @@ export function normalizeOpenBoxUsage(
       usage.web_search_requests,
     ),
     costUsd: firstNumber(usage.costUsd, usage.costUSD, usage.cost_usd),
-    raw: usage,
+    raw: withCanonicalTotal(usage, totalTokens),
   };
 }
 
@@ -127,6 +131,19 @@ function derivedTotal(
   return inputTokens !== undefined || outputTokens !== undefined
     ? (inputTokens ?? 0) + (outputTokens ?? 0)
     : undefined;
+}
+
+function withCanonicalTotal(
+  usage: LLMTokenUsage,
+  totalTokens: number | undefined,
+): LLMTokenUsage {
+  if (totalTokens === undefined || usage.totalTokens === totalTokens) {
+    return usage;
+  }
+  return {
+    ...usage,
+    totalTokens,
+  };
 }
 
 function firstNumber(...values: unknown[]): number | undefined {
