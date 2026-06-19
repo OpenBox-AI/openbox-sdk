@@ -14,6 +14,7 @@ import {
   GUARDRAIL_CAPABILITY_GUARDS,
   HITL_CAPABILITY_GUARDS,
   INSTALL_DOCTOR_CAPABILITY_GUARDS,
+  MCP_CAPABILITY_GUARDS,
   OPENBOX_CAPABILITY_IDS,
   POLICY_EVALUATION_GUARDS,
   MCP_PROMPT_SURFACES,
@@ -239,6 +240,33 @@ describe('provider capability matrix', () => {
       );
       expect(guard.forbiddenLocalWork, `${guard.provider} forbiddenLocalWork`).toContain('OPA/Rego evaluation');
       expect(guard.forbiddenLocalWork, `${guard.provider} forbiddenLocalWork`).toMatch(/behavior-rule matching|local policy/i);
+      expect(guard.hostBoundary, `${guard.provider} hostBoundary`).toContain('Core');
+      expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+    }
+  });
+
+  it('pins mcp support claims to explicit server, config, and surface coverage', () => {
+    const mcpCapabilityProviders = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) => entry.capability === 'mcp')
+      .map((entry) => entry.provider)
+      .sort();
+    const guardProviders = MCP_CAPABILITY_GUARDS
+      .map((entry) => entry.provider)
+      .sort();
+
+    expect(guardProviders).toEqual(mcpCapabilityProviders);
+    expect(new Set(guardProviders).size).toBe(guardProviders.length);
+
+    const tierByProvider = new Map(
+      PROVIDER_CAPABILITY_MATRIX
+        .filter((entry) => entry.capability === 'mcp')
+        .map((entry) => [entry.provider, entry.tier]),
+    );
+    for (const guard of MCP_CAPABILITY_GUARDS) {
+      expect(guard.tier, `${guard.provider} tier`).toBe(tierByProvider.get(guard.provider));
+      expect(guard.serverSurface, `${guard.provider} serverSurface`).toMatch(/MCP|mcp/);
+      expect(guard.configSurface.length, `${guard.provider} configSurface`).toBeGreaterThan(30);
+      expect(guard.toolResourcePromptCoverage, `${guard.provider} toolResourcePromptCoverage`).toMatch(/MCP|mcp/);
       expect(guard.hostBoundary, `${guard.provider} hostBoundary`).toContain('Core');
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
     }
