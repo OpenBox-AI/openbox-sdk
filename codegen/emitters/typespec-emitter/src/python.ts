@@ -260,6 +260,7 @@ function emitCapabilityMatrix(program: Program): string {
   const supportTiers = uniqueStrings([
     ...arrayOfRecords(matrix.capabilities).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.publicIntegrations).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.goalSignalGuards).map((entry) => String(entry.tier ?? '')),
   ]).filter(Boolean);
   return `${PYTHON_BANNER}# Generated from TypeSpec capability contracts.
 
@@ -270,6 +271,7 @@ PROVIDER_CAPABILITY_MATRIX = ${py(matrix.capabilities)}
 PROVIDER_EVENT_CATALOG = ${py(matrix.eventCatalog)}
 PROVIDER_PLUGIN_COMPONENTS = ${py(matrix.pluginComponents)}
 PUBLIC_INTEGRATION_SUPPORT = ${py(matrix.publicIntegrations)}
+GOAL_SIGNAL_GUARDS = ${py(matrix.goalSignalGuards)}
 MCP_TOOL_SURFACES = ${py(matrix.mcpTools)}
 MCP_PROMPT_SURFACES = ${py(matrix.mcpPrompts)}
 MCP_RESOURCE_TEMPLATE_SURFACES = ${py(matrix.mcpResourceTemplates)}
