@@ -5,6 +5,7 @@ const codexActivity = PRESET_ACTIVITY_TYPES.codex;
 
 export const CODEX_ACTIVITY_TYPES = {
   PROMPT: defaultActivity.prompt,
+  GOAL_SIGNAL: defaultActivity.goalSignal,
   SESSION: codexActivity.sessionCompleted,
   TOOL_INPUT: codexActivity.preToolUse,
   TOOL_OUTPUT: codexActivity.postToolUse,

@@ -23,10 +23,12 @@ export const ACTIVITY_TYPES = {
   MCP_CALL: defaultActivity.mcpToolCall,
   AGENT_SPAWN: defaultActivity.agentSpawn,
   AGENT_ACTION: defaultActivity.agentAction,
+  GOAL_SIGNAL: defaultActivity.goalSignal,
   SESSION: claudeCodeActivity.sessionActivityStarted,
   CONFIG_CHANGE: claudeCodeActivity.configChangeActivity,
   WORKSPACE_CHANGE: claudeCodeActivity.workspaceChangeSignal,
   MCP_ELICITATION: claudeCodeActivity.mcpElicitationStarted,
   TASK: claudeCodeActivity.taskActivityStarted,
   MESSAGE: claudeCodeActivity.messageActivityStarted,
+  USAGE_SIGNAL: claudeCodeActivity.claudeUsageSignal,
 } as const;

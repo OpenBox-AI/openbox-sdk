@@ -76,9 +76,9 @@ async function emitClaudeUsageSignal(
       model: usage.model,
       usage: usage.usage,
     }, 'claude-code');
-    await session.activity(EVENT.SIGNAL, 'claude_usage', {
+    await session.activity(EVENT.SIGNAL, ACTIVITY_TYPES.USAGE_SIGNAL, {
       input: [usagePayload],
-      signalName: 'claude_usage',
+      signalName: ACTIVITY_TYPES.USAGE_SIGNAL,
       signalArgs: [usagePayload],
     });
   } catch {

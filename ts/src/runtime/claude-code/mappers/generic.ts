@@ -5,7 +5,7 @@ import type {
 import type { ClaudeCodeEnvelope } from '../../../core-client/generated/runtime/claude-code.js';
 import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
-import { EVENT } from '../activity-types.js';
+import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
 import {
   buildClaudeAssistantOutputSpan,
@@ -156,9 +156,9 @@ export async function handleMessageDisplay(
         model: usage.model,
         usage: usage.usage,
       }, 'claude-code');
-      await session.activity(EVENT.SIGNAL, 'claude_usage', {
+      await session.activity(EVENT.SIGNAL, ACTIVITY_TYPES.USAGE_SIGNAL, {
         input: [usagePayload],
-        signalName: 'claude_usage',
+        signalName: ACTIVITY_TYPES.USAGE_SIGNAL,
         signalArgs: [usagePayload],
       });
     } catch {

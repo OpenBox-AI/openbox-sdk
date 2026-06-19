@@ -16,6 +16,7 @@ const cursorActivity = PRESET_ACTIVITY_TYPES.cursor;
 
 export const ACTIVITY_TYPES = {
   PROMPT: cursorActivity.beforeSubmitPrompt,
+  GOAL_SIGNAL: defaultActivity.goalSignal,
   COMPLETION: cursorActivity.afterAgentResponse,
   FILE_READ: cursorActivity.beforeReadFile,
   FILE_WRITE: cursorActivity.afterFileEdit,

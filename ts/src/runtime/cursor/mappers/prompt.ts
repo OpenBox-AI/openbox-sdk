@@ -9,7 +9,7 @@ import {
 } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
-import { EVENT } from '../activity-types.js';
+import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
 
 /** beforeSubmitPrompt: fire goal signal + govern the prompt as input. */
@@ -21,9 +21,9 @@ export async function handleBeforeSubmitPrompt(
   const prompt = (env.prompt ?? '').trim();
   if (!prompt) return undefined;
 
-  await session.activity(EVENT.SIGNAL, 'user_prompt', {
+  await session.activity(EVENT.SIGNAL, ACTIVITY_TYPES.GOAL_SIGNAL, {
     input: [stampSource({ prompt, event_category: 'agent_goal' }, 'cursor')],
-    signalName: 'user_prompt',
+    signalName: ACTIVITY_TYPES.GOAL_SIGNAL,
     signalArgs: prompt,
     sessionId: env.conversation_id,
     prompt,

@@ -19,9 +19,9 @@ export async function handleUserPromptSubmit(
   if (!prompt) return undefined;
   const sessionId = codexSessionKey(env);
 
-  await session.activity(EVENT.SIGNAL, 'user_prompt', {
+  await session.activity(EVENT.SIGNAL, CODEX_ACTIVITY_TYPES.GOAL_SIGNAL, {
     input: [stampSource({ prompt, event_category: 'agent_goal' }, 'codex')],
-    signalName: 'user_prompt',
+    signalName: CODEX_ACTIVITY_TYPES.GOAL_SIGNAL,
     signalArgs: prompt,
     sessionId,
     prompt,
