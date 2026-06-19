@@ -10,7 +10,8 @@
 // alongside @typespec/openapi3; same compile pass, separate output
 // dirs.
 
-import { readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { dirname } from 'path';
 import { Project, IndentationText, NewLineKind, QuoteKind } from 'ts-morph';
 import openapiTS, { astToString } from 'openapi-typescript';
 import type {
@@ -1085,11 +1086,45 @@ interface PresetEntry {
   isCustom: boolean;
 }
 
+type ProviderCapabilities = NonNullable<ReturnType<typeof getProviderCapabilities>>;
+
+interface ProviderCapabilityConformancePayload {
+  generatedBy: string;
+  source: string;
+  regenerate: string;
+  capabilityIds: string[];
+  providerIds: string[];
+  supportTiers: string[];
+  providerCapabilityMatrix: unknown;
+  providerEventCatalog: unknown;
+  providerPluginComponents: unknown;
+  publicIntegrationSupport: unknown;
+  goalSignalGuards: unknown;
+  usageCostCapabilityGuards: unknown;
+  tracingCapabilityGuards: unknown;
+  hitlCapabilityGuards: unknown;
+  guardrailCapabilityGuards: unknown;
+  policyEvaluationGuards: unknown;
+  rulesInstructionCapabilityGuards: unknown;
+  hookCapabilityGuards: unknown;
+  subagentsAgentsCapabilityGuards: unknown;
+  pluginCapabilityGuards: unknown;
+  skillCapabilityGuards: unknown;
+  mcpCapabilityGuards: unknown;
+  installDoctorCapabilityGuards: unknown;
+  mcpToolSurfaces: unknown;
+  mcpPromptSurfaces: unknown;
+  mcpResourceTemplateSurfaces: unknown;
+  n8nIntegrationSurface: unknown;
+}
+
 function emitProviderCapabilities(program: Program, project: Project, repoRoot: string): void {
   const ns = findNamespace(program, 'OpenboxGovern');
   if (!ns) return;
   const matrix = getProviderCapabilities(program, ns);
   if (!matrix) return;
+  const conformance = providerCapabilityConformancePayload(matrix);
+  writeProviderCapabilityConformanceFixture(repoRoot, conformance);
 
   const out = project.createSourceFile(
     resolvePath(repoRoot, 'ts/src/governance/generated/capability-matrix.ts'),
@@ -1098,25 +1133,9 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
   );
   out.insertText(0, BANNER + '\n\n');
 
-  const capabilityIds = arrayOfStrings(matrix.capabilityIds);
-  const providers = arrayOfStrings(matrix.providers);
-  const supportTiers = uniqueStrings([
-    ...arrayOfRecords(matrix.capabilities).map((entry) => String(entry.tier ?? '')),
-    ...arrayOfRecords(matrix.publicIntegrations).map((entry) => String(entry.tier ?? '')),
-    ...arrayOfRecords(matrix.goalSignalGuards).map((entry) => String(entry.tier ?? '')),
-    ...arrayOfRecords(matrix.usageCostCapabilityGuards).map((entry) => String(entry.tier ?? '')),
-    ...arrayOfRecords(matrix.tracingCapabilityGuards).map((entry) => String(entry.tier ?? '')),
-    ...arrayOfRecords(matrix.hitlCapabilityGuards).map((entry) => String(entry.tier ?? '')),
-    ...arrayOfRecords(matrix.guardrailCapabilityGuards).map((entry) => String(entry.tier ?? '')),
-    ...arrayOfRecords(matrix.policyEvaluationGuards).map((entry) => String(entry.tier ?? '')),
-    ...arrayOfRecords(matrix.rulesInstructionCapabilityGuards).map((entry) => String(entry.tier ?? '')),
-    ...arrayOfRecords(matrix.hookCapabilityGuards).map((entry) => String(entry.tier ?? '')),
-    ...arrayOfRecords(matrix.subagentsAgentsCapabilityGuards).map((entry) => String(entry.tier ?? '')),
-    ...arrayOfRecords(matrix.pluginCapabilityGuards).map((entry) => String(entry.tier ?? '')),
-    ...arrayOfRecords(matrix.skillCapabilityGuards).map((entry) => String(entry.tier ?? '')),
-    ...arrayOfRecords(matrix.mcpCapabilityGuards).map((entry) => String(entry.tier ?? '')),
-    ...arrayOfRecords(matrix.installDoctorCapabilityGuards).map((entry) => String(entry.tier ?? '')),
-  ]).filter(Boolean);
+  const capabilityIds = conformance.capabilityIds;
+  const providers = conformance.providerIds;
+  const supportTiers = conformance.supportTiers;
 
   out.addStatements([
     `export const OPENBOX_CAPABILITY_IDS = ${literalTs(capabilityIds)} as const;`,
@@ -1320,48 +1339,111 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  examples: readonly Record<string, unknown>[];`,
     `}`,
     '',
-    `export const PROVIDER_CAPABILITY_MATRIX = ${literalTs(matrix.capabilities)} as const satisfies readonly ProviderCapabilityEntry[];`,
+    `export const PROVIDER_CAPABILITY_MATRIX = ${literalTs(conformance.providerCapabilityMatrix)} as const satisfies readonly ProviderCapabilityEntry[];`,
     '',
-    `export const PROVIDER_EVENT_CATALOG = ${literalTs(matrix.eventCatalog)} as const satisfies readonly ProviderEventCatalogEntry[];`,
+    `export const PROVIDER_EVENT_CATALOG = ${literalTs(conformance.providerEventCatalog)} as const satisfies readonly ProviderEventCatalogEntry[];`,
     '',
-    `export const PROVIDER_PLUGIN_COMPONENTS = ${literalTs(matrix.pluginComponents)} as const satisfies readonly ProviderPluginComponentCatalogEntry[];`,
+    `export const PROVIDER_PLUGIN_COMPONENTS = ${literalTs(conformance.providerPluginComponents)} as const satisfies readonly ProviderPluginComponentCatalogEntry[];`,
     '',
-    `export const PUBLIC_INTEGRATION_SUPPORT = ${literalTs(matrix.publicIntegrations)} as const satisfies readonly PublicIntegrationSupportEntry[];`,
+    `export const PUBLIC_INTEGRATION_SUPPORT = ${literalTs(conformance.publicIntegrationSupport)} as const satisfies readonly PublicIntegrationSupportEntry[];`,
     '',
-    `export const GOAL_SIGNAL_GUARDS = ${literalTs(matrix.goalSignalGuards)} as const satisfies readonly GoalSignalGuardEntry[];`,
+    `export const GOAL_SIGNAL_GUARDS = ${literalTs(conformance.goalSignalGuards)} as const satisfies readonly GoalSignalGuardEntry[];`,
     '',
-    `export const USAGE_COST_CAPABILITY_GUARDS = ${literalTs(matrix.usageCostCapabilityGuards)} as const satisfies readonly UsageCostCapabilityGuardEntry[];`,
+    `export const USAGE_COST_CAPABILITY_GUARDS = ${literalTs(conformance.usageCostCapabilityGuards)} as const satisfies readonly UsageCostCapabilityGuardEntry[];`,
     '',
-    `export const TRACING_CAPABILITY_GUARDS = ${literalTs(matrix.tracingCapabilityGuards)} as const satisfies readonly TracingCapabilityGuardEntry[];`,
+    `export const TRACING_CAPABILITY_GUARDS = ${literalTs(conformance.tracingCapabilityGuards)} as const satisfies readonly TracingCapabilityGuardEntry[];`,
     '',
-    `export const HITL_CAPABILITY_GUARDS = ${literalTs(matrix.hitlCapabilityGuards)} as const satisfies readonly HitlCapabilityGuardEntry[];`,
+    `export const HITL_CAPABILITY_GUARDS = ${literalTs(conformance.hitlCapabilityGuards)} as const satisfies readonly HitlCapabilityGuardEntry[];`,
     '',
-    `export const GUARDRAIL_CAPABILITY_GUARDS = ${literalTs(matrix.guardrailCapabilityGuards)} as const satisfies readonly GuardrailCapabilityGuardEntry[];`,
+    `export const GUARDRAIL_CAPABILITY_GUARDS = ${literalTs(conformance.guardrailCapabilityGuards)} as const satisfies readonly GuardrailCapabilityGuardEntry[];`,
     '',
-    `export const POLICY_EVALUATION_GUARDS = ${literalTs(matrix.policyEvaluationGuards)} as const satisfies readonly PolicyEvaluationGuardEntry[];`,
+    `export const POLICY_EVALUATION_GUARDS = ${literalTs(conformance.policyEvaluationGuards)} as const satisfies readonly PolicyEvaluationGuardEntry[];`,
     '',
-    `export const RULES_INSTRUCTION_CAPABILITY_GUARDS = ${literalTs(matrix.rulesInstructionCapabilityGuards)} as const satisfies readonly RulesInstructionCapabilityGuardEntry[];`,
+    `export const RULES_INSTRUCTION_CAPABILITY_GUARDS = ${literalTs(conformance.rulesInstructionCapabilityGuards)} as const satisfies readonly RulesInstructionCapabilityGuardEntry[];`,
     '',
-    `export const HOOK_CAPABILITY_GUARDS = ${literalTs(matrix.hookCapabilityGuards)} as const satisfies readonly HookCapabilityGuardEntry[];`,
+    `export const HOOK_CAPABILITY_GUARDS = ${literalTs(conformance.hookCapabilityGuards)} as const satisfies readonly HookCapabilityGuardEntry[];`,
     '',
-    `export const SUBAGENTS_AGENTS_CAPABILITY_GUARDS = ${literalTs(matrix.subagentsAgentsCapabilityGuards)} as const satisfies readonly SubagentsAgentsCapabilityGuardEntry[];`,
+    `export const SUBAGENTS_AGENTS_CAPABILITY_GUARDS = ${literalTs(conformance.subagentsAgentsCapabilityGuards)} as const satisfies readonly SubagentsAgentsCapabilityGuardEntry[];`,
     '',
-    `export const PLUGIN_CAPABILITY_GUARDS = ${literalTs(matrix.pluginCapabilityGuards)} as const satisfies readonly PluginCapabilityGuardEntry[];`,
+    `export const PLUGIN_CAPABILITY_GUARDS = ${literalTs(conformance.pluginCapabilityGuards)} as const satisfies readonly PluginCapabilityGuardEntry[];`,
     '',
-    `export const SKILL_CAPABILITY_GUARDS = ${literalTs(matrix.skillCapabilityGuards)} as const satisfies readonly SkillCapabilityGuardEntry[];`,
+    `export const SKILL_CAPABILITY_GUARDS = ${literalTs(conformance.skillCapabilityGuards)} as const satisfies readonly SkillCapabilityGuardEntry[];`,
     '',
-    `export const MCP_CAPABILITY_GUARDS = ${literalTs(matrix.mcpCapabilityGuards)} as const satisfies readonly McpCapabilityGuardEntry[];`,
+    `export const MCP_CAPABILITY_GUARDS = ${literalTs(conformance.mcpCapabilityGuards)} as const satisfies readonly McpCapabilityGuardEntry[];`,
     '',
-    `export const INSTALL_DOCTOR_CAPABILITY_GUARDS = ${literalTs(matrix.installDoctorCapabilityGuards)} as const satisfies readonly InstallDoctorCapabilityGuardEntry[];`,
+    `export const INSTALL_DOCTOR_CAPABILITY_GUARDS = ${literalTs(conformance.installDoctorCapabilityGuards)} as const satisfies readonly InstallDoctorCapabilityGuardEntry[];`,
     '',
-    `export const MCP_TOOL_SURFACES = ${literalTs(matrix.mcpTools)} as const satisfies readonly McpToolSurfaceEntry[];`,
+    `export const MCP_TOOL_SURFACES = ${literalTs(conformance.mcpToolSurfaces)} as const satisfies readonly McpToolSurfaceEntry[];`,
     '',
-    `export const MCP_PROMPT_SURFACES = ${literalTs(matrix.mcpPrompts)} as const satisfies readonly McpPromptSurfaceEntry[];`,
+    `export const MCP_PROMPT_SURFACES = ${literalTs(conformance.mcpPromptSurfaces)} as const satisfies readonly McpPromptSurfaceEntry[];`,
     '',
-    `export const MCP_RESOURCE_TEMPLATE_SURFACES = ${literalTs(matrix.mcpResourceTemplates)} as const satisfies readonly McpResourceTemplateSurfaceEntry[];`,
+    `export const MCP_RESOURCE_TEMPLATE_SURFACES = ${literalTs(conformance.mcpResourceTemplateSurfaces)} as const satisfies readonly McpResourceTemplateSurfaceEntry[];`,
     '',
-    `export const N8N_INTEGRATION_SURFACE = ${literalTs(matrix.n8nIntegration)} as const satisfies N8nIntegrationSurface;`,
+    `export const N8N_INTEGRATION_SURFACE = ${literalTs(conformance.n8nIntegrationSurface)} as const satisfies N8nIntegrationSurface;`,
   ]);
+}
+
+function providerCapabilityConformancePayload(
+  matrix: ProviderCapabilities,
+): ProviderCapabilityConformancePayload {
+  const capabilityIds = arrayOfStrings(matrix.capabilityIds);
+  const providerIds = arrayOfStrings(matrix.providers);
+  const supportTiers = uniqueStrings([
+    ...arrayOfRecords(matrix.capabilities).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.publicIntegrations).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.goalSignalGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.usageCostCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.tracingCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.hitlCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.guardrailCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.policyEvaluationGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.rulesInstructionCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.hookCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.subagentsAgentsCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.pluginCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.skillCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.mcpCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.installDoctorCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+  ]).filter(Boolean);
+
+  return {
+    generatedBy: 'codegen/emitters/typespec-emitter',
+    source: 'specs/typespec/govern/capabilities.tsp',
+    regenerate: 'npm run specs:compile',
+    capabilityIds,
+    providerIds,
+    supportTiers,
+    providerCapabilityMatrix: matrix.capabilities,
+    providerEventCatalog: matrix.eventCatalog,
+    providerPluginComponents: matrix.pluginComponents,
+    publicIntegrationSupport: matrix.publicIntegrations,
+    goalSignalGuards: matrix.goalSignalGuards,
+    usageCostCapabilityGuards: matrix.usageCostCapabilityGuards,
+    tracingCapabilityGuards: matrix.tracingCapabilityGuards,
+    hitlCapabilityGuards: matrix.hitlCapabilityGuards,
+    guardrailCapabilityGuards: matrix.guardrailCapabilityGuards,
+    policyEvaluationGuards: matrix.policyEvaluationGuards,
+    rulesInstructionCapabilityGuards: matrix.rulesInstructionCapabilityGuards,
+    hookCapabilityGuards: matrix.hookCapabilityGuards,
+    subagentsAgentsCapabilityGuards: matrix.subagentsAgentsCapabilityGuards,
+    pluginCapabilityGuards: matrix.pluginCapabilityGuards,
+    skillCapabilityGuards: matrix.skillCapabilityGuards,
+    mcpCapabilityGuards: matrix.mcpCapabilityGuards,
+    installDoctorCapabilityGuards: matrix.installDoctorCapabilityGuards,
+    mcpToolSurfaces: matrix.mcpTools,
+    mcpPromptSurfaces: matrix.mcpPrompts,
+    mcpResourceTemplateSurfaces: matrix.mcpResourceTemplates,
+    n8nIntegrationSurface: matrix.n8nIntegration,
+  };
+}
+
+function writeProviderCapabilityConformanceFixture(
+  repoRoot: string,
+  payload: ProviderCapabilityConformancePayload,
+): void {
+  const file = resolvePath(repoRoot, 'codegen/fixtures/provider-capabilities.json');
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify(payload, null, 2)}\n`);
 }
 
 function emitGovernProtocol(program: Program, project: Project, repoRoot: string): void {

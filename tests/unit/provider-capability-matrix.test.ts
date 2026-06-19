@@ -25,6 +25,8 @@ import {
   PLUGIN_CAPABILITY_GUARDS,
   PROVIDER_CAPABILITY_MATRIX,
   PROVIDER_EVENT_CATALOG,
+  OPENBOX_PROVIDER_IDS,
+  OPENBOX_SUPPORT_TIERS,
   PROVIDER_PLUGIN_COMPONENTS,
   PUBLIC_INTEGRATION_SUPPORT,
   RULES_INSTRUCTION_CAPABILITY_GUARDS,
@@ -35,16 +37,13 @@ import {
   type OpenBoxProviderId,
 } from '../../ts/src/governance/capability-matrix.js';
 
-const PROVIDERS: readonly OpenBoxProviderId[] = [
-  'codex',
-  'cursor',
-  'claude-code',
-  'mcp',
-  'openai-agents-sdk',
-  'anthropic-agent-sdk',
-  'copilotkit',
-  'n8n',
-];
+const PROVIDERS: readonly OpenBoxProviderId[] = OPENBOX_PROVIDER_IDS;
+
+function readProviderCapabilityFixture(): Record<string, unknown> {
+  return JSON.parse(
+    readFileSync(resolve(process.cwd(), 'codegen/fixtures/provider-capabilities.json'), 'utf8'),
+  ) as Record<string, unknown>;
+}
 
 const GUARD_COVERAGE_GROUPS = [
   { name: 'approvals-hitl', guards: HITL_CAPABILITY_GUARDS },
@@ -73,6 +72,41 @@ function normalizeGuardProofText(value: string): string {
 }
 
 describe('provider capability matrix', () => {
+  it('matches the TypeSpec-emitted provider capability conformance fixture', () => {
+    const fixture = readProviderCapabilityFixture();
+
+    expect(fixture.generatedBy).toBe('codegen/emitters/typespec-emitter');
+    expect(fixture.source).toBe('specs/typespec/govern/capabilities.tsp');
+    expect(OPENBOX_CAPABILITY_IDS).toEqual(fixture.capabilityIds);
+    expect(OPENBOX_PROVIDER_IDS).toEqual(fixture.providerIds);
+    expect(OPENBOX_SUPPORT_TIERS).toEqual(fixture.supportTiers);
+    expect(PROVIDER_CAPABILITY_MATRIX).toEqual(fixture.providerCapabilityMatrix);
+    expect(PROVIDER_EVENT_CATALOG).toEqual(fixture.providerEventCatalog);
+    expect(PROVIDER_PLUGIN_COMPONENTS).toEqual(fixture.providerPluginComponents);
+    expect(PUBLIC_INTEGRATION_SUPPORT).toEqual(fixture.publicIntegrationSupport);
+    expect(GOAL_SIGNAL_GUARDS).toEqual(fixture.goalSignalGuards);
+    expect(USAGE_COST_CAPABILITY_GUARDS).toEqual(fixture.usageCostCapabilityGuards);
+    expect(TRACING_CAPABILITY_GUARDS).toEqual(fixture.tracingCapabilityGuards);
+    expect(HITL_CAPABILITY_GUARDS).toEqual(fixture.hitlCapabilityGuards);
+    expect(GUARDRAIL_CAPABILITY_GUARDS).toEqual(fixture.guardrailCapabilityGuards);
+    expect(POLICY_EVALUATION_GUARDS).toEqual(fixture.policyEvaluationGuards);
+    expect(RULES_INSTRUCTION_CAPABILITY_GUARDS).toEqual(
+      fixture.rulesInstructionCapabilityGuards,
+    );
+    expect(HOOK_CAPABILITY_GUARDS).toEqual(fixture.hookCapabilityGuards);
+    expect(SUBAGENTS_AGENTS_CAPABILITY_GUARDS).toEqual(
+      fixture.subagentsAgentsCapabilityGuards,
+    );
+    expect(PLUGIN_CAPABILITY_GUARDS).toEqual(fixture.pluginCapabilityGuards);
+    expect(SKILL_CAPABILITY_GUARDS).toEqual(fixture.skillCapabilityGuards);
+    expect(MCP_CAPABILITY_GUARDS).toEqual(fixture.mcpCapabilityGuards);
+    expect(INSTALL_DOCTOR_CAPABILITY_GUARDS).toEqual(fixture.installDoctorCapabilityGuards);
+    expect(MCP_TOOL_SURFACES).toEqual(fixture.mcpToolSurfaces);
+    expect(MCP_PROMPT_SURFACES).toEqual(fixture.mcpPromptSurfaces);
+    expect(MCP_RESOURCE_TEMPLATE_SURFACES).toEqual(fixture.mcpResourceTemplateSurfaces);
+    expect(N8N_INTEGRATION_SURFACE).toEqual(fixture.n8nIntegrationSurface);
+  });
+
   it('declares every required capability for every provider', () => {
     for (const provider of PROVIDERS) {
       const entries = PROVIDER_CAPABILITY_MATRIX.filter((entry) => entry.provider === provider);
