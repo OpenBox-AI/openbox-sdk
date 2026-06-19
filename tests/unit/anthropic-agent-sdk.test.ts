@@ -543,7 +543,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
           reason: 'redacted elicitation response',
           guardrails_result: {
             input_type: 'activity_input',
-            redacted_input: { answer: '[redacted]' },
+            redacted_input: [{ answer: '[redacted]' }],
             validation_passed: true,
             reasons: [],
             results: [],

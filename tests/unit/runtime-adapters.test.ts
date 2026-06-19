@@ -445,7 +445,7 @@ describe('createClaudeCodeAdapter', () => {
         elicitationResult: async () => verdict('constrain', 'redacted answer', {
           guardrailsResult: {
             inputType: 'activity_input',
-            redactedInput: { answer: '[redacted]' },
+            redactedInput: [{ answer: '[redacted]' }],
             validationPassed: true,
             reasons: [],
             fieldResults: [],

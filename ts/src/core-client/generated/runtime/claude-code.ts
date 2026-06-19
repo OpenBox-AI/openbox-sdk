@@ -1447,7 +1447,7 @@ function renderVerdictOutput(
           hookSpecificOutput: {
             hookEventName: eventName,
             action: 'accept',
-            content: redactedInput(v) ?? env.response ?? env.content ?? {},
+            content: redactedInputRecord(v) ?? objectRecord(env.response) ?? objectRecord(env.content) ?? {},
           },
         };
       }
