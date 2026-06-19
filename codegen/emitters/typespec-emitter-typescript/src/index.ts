@@ -3450,6 +3450,8 @@ function normalizeArm(value: string | number | undefined): VerdictArm {
       return 'constrain';
     case 'require_approval':
     case 'require-approval':
+    case 'request_approval':
+    case 'request-approval':
       return 'require_approval';
     case 'block':
       return 'block';

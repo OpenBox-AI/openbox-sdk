@@ -518,7 +518,11 @@ export function normalizeArm(value: unknown): WorkflowVerdict['arm'] {
   }
   if (value === 'continue') return 'allow';
   if (value === 'stop') return 'halt';
-  if (value === 'require-approval' || value === 'request_approval')
+  if (
+    value === 'require-approval' ||
+    value === 'request_approval' ||
+    value === 'request-approval'
+  )
     return 'require_approval';
   return 'block';
 }

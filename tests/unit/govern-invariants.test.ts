@@ -682,6 +682,60 @@ describe('approval polling bounds', () => {
     expect(mock.pollApproval).toHaveBeenCalledTimes(2);
   });
 
+  test('polling treats request_approval aliases like require_approval', async () => {
+    const mock = createMockCore('allow');
+    const expiresAt = new Date(Date.now() + 500).toISOString();
+    mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      mock.events.push(payload);
+      if (payload.event_type === 'ActivityStarted') {
+        return {
+          governance_event_id: 'evt_test',
+          verdict: 'request_approval',
+          action: 'request-approval',
+          approval_id: 'apr_xxx',
+          approval_expiration_time: expiresAt,
+          risk_score: 0,
+        } as unknown as GovernanceVerdictResponse;
+      }
+      return {
+        governance_event_id: 'evt_test',
+        verdict: 'allow',
+        action: 'allow',
+        risk_score: 0,
+      } as GovernanceVerdictResponse;
+    });
+    mock.pollApproval = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: 'apr_xxx',
+        action: 'request-approval',
+        reason: 'approval still pending',
+        approval_expiration_time: expiresAt,
+      })
+      .mockResolvedValueOnce({
+        id: 'apr_xxx',
+        action: 'allow',
+        reason: 'approved after alias status',
+        approval_expiration_time: expiresAt,
+      });
+
+    await govern(
+      {
+        ...baseConfig(mock),
+        preset: presets.claudeCode,
+        approvalPollIntervalMs: 10,
+        approvalPollBackoffFactor: 1,
+        approvalPollJitter: 0,
+      },
+      async (session) => {
+        const verdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(verdict.arm).toBe('allow');
+        expect(verdict.reason).toBe('approved after alias status');
+      },
+    );
+    expect(mock.pollApproval).toHaveBeenCalledTimes(2);
+  });
+
   test('polling stops at server-supplied approvalExpiresAt even if config max-wait is longer', async () => {
     const mock = createMockCore('allow');
     // Override the response with require_approval + a tight expiry.
