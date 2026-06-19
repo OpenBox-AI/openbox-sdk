@@ -396,6 +396,14 @@ model WorkflowVerdict {
   guardrailsResult?: GuardrailsVerdict;
 
   /**
+   * Core AGE/governance evaluator output. This mirrors the core wire
+   * response's `age_result` field and is intentionally free-form here
+   * because the govern programming model does not import the Core HTTP
+   * namespace.
+   */
+  ageResult?: unknown;
+
+  /**
    * The activity id this verdict was evaluated under. Callers that need
    * cross-request correlation (for example HITL approval resume, which
    * polls on workflow_id + run_id + activity_id) read it from here.

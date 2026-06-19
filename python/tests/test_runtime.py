@@ -464,6 +464,42 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
     assert "span_count" not in completed_parent
     assert completed_hook["span_count"] == 1
 
+    camel_handle = await span_session.open_activity(
+        "ToolStarted",
+        {
+            "activityId": "act_camel",
+            "startTime": 1_700_000_000_000,
+            "spans": [{"stage": "started", "semantic_type": "internal"}],
+        },
+    )
+    await camel_handle.complete(
+        {
+            "endTime": 1_700_000_000_025,
+            "durationMs": 25,
+            "hookSpanParentEventType": "ActivityStarted",
+            "spans": [{"stage": "completed", "semantic_type": "internal"}],
+        }
+    )
+    camel_completed_parent = next(
+        event
+        for event in span_core.events
+        if event.get("activity_id") == "act_camel"
+        and event["event_type"] == "ActivityCompleted"
+        and event["hook_trigger"] is False
+    )
+    camel_completed_hook = next(
+        event
+        for event in span_core.events
+        if event.get("activity_id") == "act_camel"
+        and event["event_type"] == "ActivityStarted"
+        and event["hook_trigger"] is True
+        and event["spans"][0]["stage"] == "completed"
+    )
+    assert camel_completed_parent["start_time"] == 1_700_000_000_000
+    assert camel_completed_parent["end_time"] == 1_700_000_000_025
+    assert camel_completed_parent["duration_ms"] == 25
+    assert camel_completed_hook["span_count"] == 1
+
     attached = govern.attach(
         {"core": FakeCore(), "preset": presets.default, "workflow_id": "w", "run_id": "r"}
     )

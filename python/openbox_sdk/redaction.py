@@ -7,6 +7,8 @@ from typing import Any, TypeVar, cast
 from .generated.runtime_contract import (
     GUARDRAIL_OUTPUT_TYPE,
     GUARDRAIL_REDACTION_STATUSES,
+    GUARDRAILS_RESULT_FIELD_ALIASES,
+    GUARDRAILS_RESULT_RESPONSE_ALIASES,
 )
 
 T = TypeVar("T")
@@ -35,7 +37,7 @@ def _merge(base: Any, patch: Any) -> Any:
 
 
 def _guardrails_result(verdict: Mapping[str, Any]) -> Mapping[str, Any] | None:
-    raw = _pick(verdict, "guardrailsResult", "guardrails_result")
+    raw = _pick_alias(verdict, GUARDRAILS_RESULT_RESPONSE_ALIASES)
     return raw if isinstance(raw, Mapping) else None
 
 
@@ -49,8 +51,8 @@ def has_guardrail_redaction(verdict: Mapping[str, Any]) -> bool:
         for field in field_results
     )
     has_redaction_payload = any(
-        _pick(result, key) is not None
-        for key in ("redactedInput", "redacted_input", "redactedOutput", "redacted_output")
+        _pick_alias(result, GUARDRAILS_RESULT_FIELD_ALIASES[key]) is not None
+        for key in ("redactedInput", "redactedOutput")
     )
     return has_redacted_field or has_redaction_payload
 
@@ -71,7 +73,7 @@ def apply_input_redaction(value: T, verdict: Mapping[str, Any]) -> T:
     result = _guardrails_result(verdict)
     if result is None:
         return deepcopy(value)
-    redacted = _pick(result, "redactedInput", "redacted_input")
+    redacted = _pick_alias(result, GUARDRAILS_RESULT_FIELD_ALIASES["redactedInput"])
     if redacted is None:
         return deepcopy(value)
     return _apply_activity_input_redaction(value, _unwrap_activity_input_redaction(redacted))
@@ -81,13 +83,13 @@ def apply_output_redaction(value: T, verdict: Mapping[str, Any]) -> T:
     result = _guardrails_result(verdict)
     if result is None:
         return deepcopy(value)
-    input_type = _pick(result, "inputType", "input_type")
-    redacted_output = _pick(result, "redactedOutput", "redacted_output")
+    input_type = _pick_alias(result, GUARDRAILS_RESULT_FIELD_ALIASES["inputType"])
+    redacted_output = _pick_alias(result, GUARDRAILS_RESULT_FIELD_ALIASES["redactedOutput"])
     if input_type not in (None, GUARDRAIL_OUTPUT_TYPE) and redacted_output is None:
         return deepcopy(value)
     redacted = redacted_output
     if redacted is None:
-        redacted = _pick(result, "redactedInput", "redacted_input")
+        redacted = _pick_alias(result, GUARDRAILS_RESULT_FIELD_ALIASES["redactedInput"])
     if redacted is None:
         return deepcopy(value)
     unwrapped = _unwrap_activity_output_redaction(redacted, value)
@@ -101,8 +103,12 @@ def _pick(source: Mapping[str, Any], *keys: str) -> Any:
     return None
 
 
+def _pick_alias(source: Mapping[str, Any], aliases: list[str]) -> Any:
+    return _pick(source, *aliases)
+
+
 def _field_results(result: Mapping[str, Any]) -> list[Any]:
-    field_results = _pick(result, "fieldResults", "field_results")
+    field_results = _pick_alias(result, GUARDRAILS_RESULT_FIELD_ALIASES["fieldResults"])
     return list(field_results) if isinstance(field_results, Sequence) else []
 
 

@@ -22,6 +22,7 @@ from ._version import __version__
 from .generated.backend_client import BackendOperationsMixin
 from .generated.core_client import CoreOperationsMixin
 from .generated.permissions import PATH_PERMISSION_RULES
+from .generated.runtime_contract import APPROVAL_EXPIRY_ALIASES
 from .identity import AgentIdentityConfig, sign_agent_identity_request
 
 JsonMapping = Mapping[str, Any]
@@ -446,16 +447,18 @@ def _normalize_approval_expiry(payload: Any) -> Any:
     if not isinstance(payload, dict):
         return payload
     normalized = dict(payload)
-    expires_at = (
-        normalized.get("expires_at")
-        or normalized.get("approval_expiration_time")
-        or normalized.get("expiresAt")
-        or normalized.get("approvalExpiresAt")
-    )
+    expires_at = _pick_first(normalized, APPROVAL_EXPIRY_ALIASES)
     parsed = parse_datetime(expires_at)
     if parsed is not None and parsed <= utc_now():
         normalized["expired"] = True
     return normalized
+
+
+def _pick_first(source: Mapping[str, Any], aliases: list[str]) -> Any:
+    for alias in aliases:
+        if alias in source and source[alias] is not None:
+            return source[alias]
+    return None
 
 
 class OpenBoxClient:

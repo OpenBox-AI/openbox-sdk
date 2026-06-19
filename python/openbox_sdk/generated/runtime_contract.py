@@ -55,6 +55,146 @@ HOOK_SPAN_PARENT_EVENT_TYPES = [
   "ActivityStarted"
 ]
 DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE = "ActivityStarted"
+GOVERNED_PAYLOAD_FIELD_ALIASES = {
+  "activity_id": [
+    "activity_id",
+    "activityId"
+  ],
+  "start_time": [
+    "start_time",
+    "startTime"
+  ],
+  "end_time": [
+    "end_time",
+    "endTime"
+  ],
+  "duration_ms": [
+    "duration_ms",
+    "durationMs"
+  ],
+  "signal_name": [
+    "signal_name",
+    "signalName"
+  ],
+  "signal_args": [
+    "signal_args",
+    "signalArgs"
+  ],
+  "hook_span_parent_event_type": [
+    "hookSpanParentEventType",
+    "hook_span_parent_event_type"
+  ],
+  "ensure_hook_span_parent": [
+    "ensureHookSpanParent",
+    "ensure_hook_span_parent"
+  ]
+}
+WORKFLOW_VERDICT_FIELD_ALIASES = {
+  "arm": [
+    "verdict",
+    "action",
+    "arm"
+  ],
+  "approvalId": [
+    "approval_id",
+    "approvalId"
+  ],
+  "governanceEventId": [
+    "governance_event_id",
+    "governanceEventId"
+  ],
+  "approvalExpiresAt": [
+    "approval_expiration_time",
+    "approvalExpiresAt"
+  ],
+  "reason": [
+    "reason"
+  ],
+  "riskScore": [
+    "risk_score",
+    "riskScore"
+  ],
+  "trustTier": [
+    "trust_tier",
+    "trustTier"
+  ],
+  "alignmentScore": [
+    "alignment_score",
+    "alignmentScore"
+  ],
+  "policyId": [
+    "policy_id",
+    "policyId"
+  ],
+  "behavioralViolations": [
+    "behavioral_violations",
+    "behavioralViolations"
+  ],
+  "fallbackUsed": [
+    "fallback_used",
+    "fallbackUsed"
+  ],
+  "guardrailsResult": [
+    "guardrails_result",
+    "guardrailsResult"
+  ],
+  "ageResult": [
+    "age_result",
+    "ageResult"
+  ]
+}
+GUARDRAILS_RESULT_RESPONSE_ALIASES = [
+  "guardrails_result",
+  "guardrailsResult"
+]
+GUARDRAILS_RESULT_FIELD_ALIASES = {
+  "inputType": [
+    "input_type",
+    "inputType"
+  ],
+  "redactedInput": [
+    "redacted_input",
+    "redactedInput"
+  ],
+  "redactedOutput": [
+    "redacted_output",
+    "redactedOutput"
+  ],
+  "validationPassed": [
+    "validation_passed",
+    "validationPassed"
+  ],
+  "rawLogs": [
+    "raw_logs",
+    "rawLogs"
+  ],
+  "reasons": [
+    "reasons"
+  ],
+  "fieldResults": [
+    "field_results",
+    "fieldResults"
+  ]
+}
+APPROVAL_STATUS_FIELD_ALIASES = {
+  "arm": [
+    "action",
+    "verdict"
+  ],
+  "approvalExpiresAt": [
+    "approval_expiration_time",
+    "approvalExpiresAt"
+  ],
+  "reason": [
+    "reason"
+  ]
+}
+APPROVAL_EXPIRY_ALIASES = [
+  "approval_expiration_time",
+  "approvalExpiresAt",
+  "expires_at",
+  "expiresAt"
+]
 TELEMETRY_FIELD_ALIASES = {
   "session_id": [
     "session_id",

@@ -37,8 +37,8 @@ export interface WorkflowVerdict {
   metadata?: Record<string, unknown>;
   fallbackUsed?: boolean;
   guardrailsResult?: GuardrailsVerdict;
-  activityId?: string;
   ageResult?: GovernanceVerdictResponse['age_result'];
+  activityId?: string;
 }
 export interface GovernedPayload {
   input?: unknown[];

@@ -14,17 +14,24 @@ from ._utils import maybe_await, parse_datetime, utc_now
 from .generated.runtime_contract import (
     ACTIVITY_COMPLETED_EVENT_TYPE,
     ACTIVITY_STARTED_EVENT_TYPE,
+    APPROVAL_EXPIRY_ALIASES,
+    APPROVAL_STATUS_FIELD_ALIASES,
     DEFAULT_GUARDRAIL_FIELD_STATUS,
     DEFAULT_GUARDRAIL_INPUT_TYPE,
     DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE,
+    GOVERNED_PAYLOAD_FIELD_ALIASES,
     GUARDRAIL_FIELD_STATUSES,
     GUARDRAIL_INPUT_TYPES,
+    GUARDRAIL_OUTPUT_TYPE,
+    GUARDRAILS_RESULT_FIELD_ALIASES,
+    GUARDRAILS_RESULT_RESPONSE_ALIASES,
     SPAN_ALIAS_FIELDS,
     SPAN_PERSISTABLE_ATTRIBUTE_FIELDS,
     SPAN_PERSISTABLE_ROOT_STRING_FIELDS,
     SPAN_RUNTIME_HINT_FIELDS,
     TELEMETRY_FIELD_ALIASES,
     VERDICT_ARM_RANK,
+    WORKFLOW_VERDICT_FIELD_ALIASES,
 )
 
 EventType: TypeAlias = Literal[
@@ -178,8 +185,8 @@ class BaseGovernedSession:
     ) -> OpenActivityHandle:
         await self._ensure_activity_allowed()
         source_payload = dict(payload or {})
-        activity_id = str(source_payload.get("activity_id") or uuid.uuid4())
-        start_time = _coerce_int(source_payload.get("start_time"), _now_ms())
+        activity_id = str(_pick_payload_field(source_payload, "activity_id") or uuid.uuid4())
+        start_time = _coerce_int(_pick_payload_field(source_payload, "start_time"), _now_ms())
         self._activity_starts_ms[activity_id] = start_time
         self._in_flight.add(activity_id)
         try:
@@ -233,8 +240,8 @@ class BaseGovernedSession:
     ) -> WorkflowVerdict:
         await self._ensure_activity_allowed()
         source_payload = dict(payload or {})
-        activity_id = str(source_payload.get("activity_id") or uuid.uuid4())
-        start_time = _coerce_int(source_payload.get("start_time"), _now_ms())
+        activity_id = str(_pick_payload_field(source_payload, "activity_id") or uuid.uuid4())
+        start_time = _coerce_int(_pick_payload_field(source_payload, "start_time"), _now_ms())
         self._in_flight.add(activity_id)
         try:
             if event_type == "Handoff":
@@ -316,8 +323,8 @@ class BaseGovernedSession:
             **_telemetry_fields(payload, self.multi_agent_session_id),
         }
         if event_type == "SignalReceived":
-            event["signal_name"] = _pick(payload, "signal_name", "signalName")
-            event["signal_args"] = _pick(payload, "signal_args", "signalArgs")
+            event["signal_name"] = _pick_payload_field(payload, "signal_name")
+            event["signal_args"] = _pick_payload_field(payload, "signal_args")
         verdict = await self.emit(event)
         verdict["activityId"] = activity_id
         return verdict
@@ -331,11 +338,11 @@ class BaseGovernedSession:
         poll_approvals: bool = True,
     ) -> WorkflowVerdict:
         source_payload = dict(payload or {})
-        start_time = _pick(source_payload, "start_time")
+        start_time = _pick_payload_field(source_payload, "start_time")
         if start_time is None:
             start_time = self._activity_starts_ms.get(activity_id)
-        end_time = _coerce_int(source_payload.get("end_time"), _now_ms())
-        duration_ms = source_payload.get("duration_ms")
+        end_time = _coerce_int(_pick_payload_field(source_payload, "end_time"), _now_ms())
+        duration_ms = _pick_payload_field(source_payload, "duration_ms")
         if duration_ms is None and isinstance(start_time, int):
             duration_ms = max(0, end_time - start_time)
         completed = await self.emit_with_span_hook(
@@ -350,15 +357,13 @@ class BaseGovernedSession:
                 "end_time": end_time,
                 "duration_ms": duration_ms,
                 "spans": source_payload.get("spans"),
-                "hook_span_parent_event_type": _pick(
+                "hook_span_parent_event_type": _pick_payload_field(
                     source_payload,
                     "hook_span_parent_event_type",
-                    "hookSpanParentEventType",
                 ),
-                "ensure_hook_span_parent": _pick(
+                "ensure_hook_span_parent": _pick_payload_field(
                     source_payload,
                     "ensure_hook_span_parent",
-                    "ensureHookSpanParent",
                 ),
                 **_telemetry_fields(source_payload, self.multi_agent_session_id),
             }
@@ -372,7 +377,7 @@ class BaseGovernedSession:
 
     async def emit_with_span_hook(self, event: Mapping[str, Any]) -> WorkflowVerdict:
         spans = event.get("spans")
-        hook_parent_type = _pick(event, "hook_span_parent_event_type", "hookSpanParentEventType")
+        hook_parent_type = _pick_payload_field(event, "hook_span_parent_event_type")
         parent_event = _without_span_runtime_hints(event)
         hook_parent_event = (
             {**parent_event, "event_type": DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE}
@@ -394,7 +399,7 @@ class BaseGovernedSession:
         if (
             persistable_spans
             and hook_parent_event.get("event_type") == DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE
-            and event.get("ensure_hook_span_parent") is True
+            and _pick_payload_field(event, "ensure_hook_span_parent") is True
             and isinstance(event.get("activity_id"), str)
             and event["activity_id"] not in self._activity_parents
         ):
@@ -500,19 +505,22 @@ class BaseGovernedSession:
                     interval = self._next_poll_interval(interval, external_signaled)
                     continue
                 status_deadline = _approval_deadline(
-                    _pick(status, "approval_expiration_time", "approvalExpiresAt")
+                    _pick(status, *APPROVAL_EXPIRY_ALIASES)
                 )
                 if status_deadline != float("inf"):
                     deadline = min(deadline, status_deadline)
                 if bool(_pick(status, "expired")) or time.time() >= deadline:
                     return _expired_verdict(initial, activity_type, status)
-                arm = normalize_arm(_pick(status, "verdict", "action"))
+                arm = normalize_arm(_pick_alias(status, APPROVAL_STATUS_FIELD_ALIASES["arm"]))
                 if arm in {"allow", "block", "halt"}:
                     return {
                         **initial,
                         "arm": arm,
-                        "approvalExpiresAt": _pick(status, "approval_expiration_time"),
-                        "reason": _pick(status, "reason"),
+                        "approvalExpiresAt": _pick_alias(
+                            status,
+                            APPROVAL_STATUS_FIELD_ALIASES["approvalExpiresAt"],
+                        ),
+                        "reason": _pick_alias(status, APPROVAL_STATUS_FIELD_ALIASES["reason"]),
                     }
                 interval = self._next_poll_interval(interval, external_signaled)
             return {
@@ -576,31 +584,40 @@ class BaseGovernedSession:
 
 def map_verdict(response: Any) -> WorkflowVerdict:
     raw = dict(response or {}) if isinstance(response, Mapping) else {}
-    guardrails = _map_guardrails_result(_pick(raw, "guardrails_result", "guardrailsResult"))
+    guardrails = _map_guardrails_result(_pick_alias(raw, GUARDRAILS_RESULT_RESPONSE_ALIASES))
     guardrails_failed = isinstance(guardrails, dict) and guardrails.get("validationPassed") is False
-    wire_arm = normalize_arm(_pick(raw, "verdict", "action") or "allow")
+    wire_arm = normalize_arm(_pick_alias(raw, WORKFLOW_VERDICT_FIELD_ALIASES["arm"]) or "allow")
     arm = (
         wire_arm if wire_arm in {"halt", "block"} else ("block" if guardrails_failed else wire_arm)
     )
-    reason = _pick(raw, "reason")
+    reason = _pick_alias(raw, WORKFLOW_VERDICT_FIELD_ALIASES["reason"])
     return {
         "arm": arm,
-        "approvalId": _pick(raw, "approval_id", "approvalId"),
-        "governanceEventId": _pick(raw, "governance_event_id", "governanceEventId"),
-        "approvalExpiresAt": _pick(raw, "approval_expiration_time", "approvalExpiresAt"),
+        "approvalId": _pick_alias(raw, WORKFLOW_VERDICT_FIELD_ALIASES["approvalId"]),
+        "governanceEventId": _pick_alias(
+            raw,
+            WORKFLOW_VERDICT_FIELD_ALIASES["governanceEventId"],
+        ),
+        "approvalExpiresAt": _pick_alias(
+            raw,
+            WORKFLOW_VERDICT_FIELD_ALIASES["approvalExpiresAt"],
+        ),
         "reason": reason
         if reason is not None
         else (_guardrail_failure_reason(guardrails) if guardrails_failed else None),
-        "riskScore": _pick(raw, "risk_score", "riskScore") or 0,
-        "trustTier": _pick(raw, "trust_tier", "trustTier"),
-        "alignmentScore": _pick(raw, "alignment_score", "alignmentScore"),
-        "policyId": _pick(raw, "policy_id", "policyId"),
-        "behavioralViolations": _pick(raw, "behavioral_violations", "behavioralViolations"),
+        "riskScore": _pick_alias(raw, WORKFLOW_VERDICT_FIELD_ALIASES["riskScore"]) or 0,
+        "trustTier": _pick_alias(raw, WORKFLOW_VERDICT_FIELD_ALIASES["trustTier"]),
+        "alignmentScore": _pick_alias(raw, WORKFLOW_VERDICT_FIELD_ALIASES["alignmentScore"]),
+        "policyId": _pick_alias(raw, WORKFLOW_VERDICT_FIELD_ALIASES["policyId"]),
+        "behavioralViolations": _pick_alias(
+            raw,
+            WORKFLOW_VERDICT_FIELD_ALIASES["behavioralViolations"],
+        ),
         "constraints": raw.get("constraints"),
         "metadata": raw.get("metadata"),
-        "fallbackUsed": _pick(raw, "fallback_used", "fallbackUsed"),
+        "fallbackUsed": _pick_alias(raw, WORKFLOW_VERDICT_FIELD_ALIASES["fallbackUsed"]),
         "guardrailsResult": guardrails,
-        "ageResult": _pick(raw, "age_result", "ageResult"),
+        "ageResult": _pick_alias(raw, WORKFLOW_VERDICT_FIELD_ALIASES["ageResult"]),
     }
 
 
@@ -675,6 +692,14 @@ def _pick(source: Any, *keys: str) -> Any:
     return None
 
 
+def _pick_alias(source: Any, aliases: list[str]) -> Any:
+    return _pick(source, *aliases)
+
+
+def _pick_payload_field(source: Any, field: str) -> Any:
+    return _pick_alias(source, GOVERNED_PAYLOAD_FIELD_ALIASES[field])
+
+
 def _approval_deadline(value: Any) -> float:
     parsed = parse_datetime(value)
     if parsed is None:
@@ -686,8 +711,12 @@ def _expired_verdict(initial: WorkflowVerdict, activity_type: str, status: Any) 
     return {
         **initial,
         "arm": "block",
-        "approvalExpiresAt": _pick(status, "approval_expiration_time", "approvalExpiresAt"),
-        "reason": _pick(status, "reason") or f"Approval expired for {activity_type}",
+        "approvalExpiresAt": _pick_alias(
+            status,
+            APPROVAL_STATUS_FIELD_ALIASES["approvalExpiresAt"],
+        ),
+        "reason": _pick_alias(status, APPROVAL_STATUS_FIELD_ALIASES["reason"])
+        or f"Approval expired for {activity_type}",
     }
 
 
@@ -697,21 +726,25 @@ def _map_guardrails_result(raw: Any) -> JsonDict | None:
     if len(raw) == 0:
         return None
     validation_passed = (
-        raw.get("validation_passed") if "validation_passed" in raw else raw.get("validationPassed")
+        _pick_alias(raw, GUARDRAILS_RESULT_FIELD_ALIASES["validationPassed"])
+        if any(key in raw for key in GUARDRAILS_RESULT_FIELD_ALIASES["validationPassed"])
+        else None
     )
     return {
-        "inputType": _normalize_guardrails_input_type(_pick(raw, "input_type", "inputType")),
-        "redactedInput": _pick(raw, "redacted_input", "redactedInput"),
-        "redactedOutput": _pick(raw, "redacted_output", "redactedOutput"),
+        "inputType": _normalize_guardrails_input_type(
+            _pick_alias(raw, GUARDRAILS_RESULT_FIELD_ALIASES["inputType"])
+        ),
+        "redactedInput": _pick_alias(raw, GUARDRAILS_RESULT_FIELD_ALIASES["redactedInput"]),
+        "redactedOutput": _pick_alias(raw, GUARDRAILS_RESULT_FIELD_ALIASES["redactedOutput"]),
         "validationPassed": validation_passed is not False,
-        "rawLogs": _pick(raw, "raw_logs", "rawLogs"),
+        "rawLogs": _pick_alias(raw, GUARDRAILS_RESULT_FIELD_ALIASES["rawLogs"]),
         "reasons": [
             {
                 "type": str(reason.get("type") or ""),
                 "field": reason.get("field"),
                 "reason": str(reason.get("reason") or ""),
             }
-            for reason in raw.get("reasons") or []
+            for reason in _pick_alias(raw, GUARDRAILS_RESULT_FIELD_ALIASES["reasons"]) or []
             if isinstance(reason, Mapping)
         ],
         "fieldResults": _map_guardrail_field_results(raw),
@@ -730,10 +763,10 @@ def _guardrail_failure_reason(result: JsonDict | None) -> str:
                 if cleaned:
                     cleaned_reasons.append(cleaned)
     if cleaned_reasons:
-        if result.get("inputType") == "activity_output":
+        if result.get("inputType") == GUARDRAIL_OUTPUT_TYPE:
             return "; ".join(cleaned_reasons)
         return cleaned_reasons[0]
-    if result.get("inputType") == "activity_output":
+    if result.get("inputType") == GUARDRAIL_OUTPUT_TYPE:
         return "Guardrails output validation failed"
     return "Guardrails validation failed"
 
@@ -755,7 +788,7 @@ def _stricter_verdict(current: WorkflowVerdict, candidate: WorkflowVerdict) -> W
 
 
 def _map_guardrail_field_results(raw: Mapping[str, Any]) -> list[JsonDict]:
-    direct = _pick(raw, "field_results", "fieldResults")
+    direct = _pick_alias(raw, GUARDRAILS_RESULT_FIELD_ALIASES["fieldResults"])
     mapped: list[JsonDict] = []
     if isinstance(direct, list):
         mapped.extend(

@@ -4058,10 +4058,11 @@ function emitInterface(
   const lines: string[] = [`export interface ${name} {`];
   for (const [propName, prop] of model.properties) {
     const optional = prop.optional ? '?' : '';
-    lines.push(`  ${quoteIdent(propName)}${optional}: ${tspTypeToTs(prop.type)};`);
-  }
-  if (options.terminalVerdict) {
-    lines.push(`  ageResult?: GovernanceVerdictResponse['age_result'];`);
+    const propType =
+      options.terminalVerdict && propName === 'ageResult'
+        ? `GovernanceVerdictResponse['age_result']`
+        : tspTypeToTs(prop.type);
+    lines.push(`  ${quoteIdent(propName)}${optional}: ${propType};`);
   }
   lines.push('}');
   return lines.join('\n');

@@ -134,7 +134,9 @@ function extractEnumValues(file, enumName) {
 function extractModelProperties(file, modelName) {
   const body = extractBlock(readText(file), "model", modelName);
   const properties = [];
-  for (const match of body.matchAll(/^\s*([A-Za-z_][A-Za-z0-9_]*)\??\s*:/gm)) {
+  for (const match of body.matchAll(
+    /^\s*(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*([A-Za-z_][A-Za-z0-9_]*)\??\s*:/gm,
+  )) {
     properties.push(match[1]);
   }
   return properties;
@@ -198,6 +200,45 @@ function assertSubset(values, allowed, label) {
   }
 }
 
+function requireValue(values, expected, label) {
+  if (!values.includes(expected)) {
+    throw new Error(`${label} is missing expected value ${expected}`);
+  }
+  return expected;
+}
+
+function requireValues(values, expected, label) {
+  for (const value of expected) {
+    requireValue(values, value, label);
+  }
+  return expected;
+}
+
+function asArray(value) {
+  if (value === undefined || value === null) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function unique(values) {
+  return [...new Set(values.filter((value) => value !== undefined && value !== null))];
+}
+
+function validatedAliasMap(entries, fieldGroups, label) {
+  const byGroup = Object.fromEntries(fieldGroups.map((group) => [group.name, group.fields]));
+  const result = {};
+  for (const entry of entries) {
+    const aliases = [];
+    for (const groupName of Object.keys(byGroup)) {
+      const values = asArray(entry[groupName]);
+      assertSubset(values, byGroup[groupName], `${label}.${entry.target} ${groupName}`);
+      aliases.push(...values);
+    }
+    aliases.push(...asArray(entry.extra));
+    result[entry.target] = unique(aliases);
+  }
+  return result;
+}
+
 function emitRuntimeContract() {
   const verdictArms = extractEnumValues(governTypeSpecPath, "VerdictArm");
   const eventTypes = extractEnumValues(coreTypeSpecPath, "EventType");
@@ -213,12 +254,42 @@ function emitRuntimeContract() {
   );
   const governedPayloadFields = extractModelProperties(governTypeSpecPath, "GovernedPayload");
   const governanceEventFields = extractModelProperties(coreTypeSpecPath, "GovernanceEventPayload");
+  const workflowVerdictFields = extractModelProperties(governTypeSpecPath, "WorkflowVerdict");
+  const governanceVerdictFields = extractModelProperties(
+    coreTypeSpecPath,
+    "GovernanceVerdictResponse",
+  );
+  const guardrailsVerdictFields = extractModelProperties(governTypeSpecPath, "GuardrailsVerdict");
+  const guardrailsResultFields = extractModelProperties(coreTypeSpecPath, "GuardrailsResult");
+  const approvalStatusFields = extractModelProperties(coreTypeSpecPath, "ApprovalStatusResponse");
   const spanFields = extractModelProperties(coreTypeSpecPath, "SpanData");
   const spanStatusCodes = extractPropertyStringLiterals(coreTypeSpecPath, "SpanStatus", "code");
   const hookParentEventTypes = extractPropertyStringLiterals(
     governTypeSpecPath,
     "GovernedPayload",
     "hookSpanParentEventType",
+  );
+  const activityStartedEventType = requireValue(eventTypes, "ActivityStarted", "EventType");
+  const activityCompletedEventType = requireValue(eventTypes, "ActivityCompleted", "EventType");
+  const defaultGuardrailInputType = requireValue(
+    guardrailInputTypes,
+    "activity_input",
+    "GuardrailsVerdict.inputType",
+  );
+  const guardrailOutputType = requireValue(
+    guardrailInputTypes,
+    "activity_output",
+    "GuardrailsVerdict.inputType",
+  );
+  const defaultGuardrailFieldStatus = requireValue(
+    guardrailFieldStatuses,
+    "skipped",
+    "GuardrailFieldVerdict.status",
+  );
+  const guardrailRedactionStatuses = requireValues(
+    guardrailFieldStatuses,
+    ["redacted", "transformed"],
+    "GuardrailFieldVerdict.status",
   );
   const telemetryFieldAliases = [
     ["session_id", "sessionId"],
@@ -246,6 +317,91 @@ function emitRuntimeContract() {
     governedPayloadFields,
     "TELEMETRY_FIELD_ALIASES governed side",
   );
+  const governedPayloadFieldAliases = validatedAliasMap(
+    [
+      { target: "activity_id", core: "activity_id", govern: "activityId" },
+      { target: "start_time", core: "start_time", govern: "startTime" },
+      { target: "end_time", core: "end_time", govern: "endTime" },
+      { target: "duration_ms", core: "duration_ms", govern: "durationMs" },
+      { target: "signal_name", core: "signal_name", govern: "signalName" },
+      { target: "signal_args", core: "signal_args", govern: "signalArgs" },
+      {
+        target: "hook_span_parent_event_type",
+        govern: "hookSpanParentEventType",
+        extra: "hook_span_parent_event_type",
+      },
+      {
+        target: "ensure_hook_span_parent",
+        govern: "ensureHookSpanParent",
+        extra: "ensure_hook_span_parent",
+      },
+    ],
+    [
+      { name: "core", fields: governanceEventFields },
+      { name: "govern", fields: governedPayloadFields },
+    ],
+    "GOVERNED_PAYLOAD_FIELD_ALIASES",
+  );
+  const workflowVerdictFieldAliases = validatedAliasMap(
+    [
+      { target: "arm", core: ["verdict", "action"], govern: "arm" },
+      { target: "approvalId", core: "approval_id", govern: "approvalId" },
+      {
+        target: "governanceEventId",
+        core: "governance_event_id",
+        govern: "governanceEventId",
+      },
+      {
+        target: "approvalExpiresAt",
+        core: "approval_expiration_time",
+        govern: "approvalExpiresAt",
+      },
+      { target: "reason", core: "reason", govern: "reason" },
+      { target: "riskScore", core: "risk_score", govern: "riskScore" },
+      { target: "trustTier", core: "trust_tier", govern: "trustTier" },
+      { target: "alignmentScore", core: "alignment_score", govern: "alignmentScore" },
+      { target: "policyId", core: "policy_id", govern: "policyId" },
+      {
+        target: "behavioralViolations",
+        core: "behavioral_violations",
+        govern: "behavioralViolations",
+      },
+      { target: "fallbackUsed", core: "fallback_used", govern: "fallbackUsed" },
+      { target: "guardrailsResult", core: "guardrails_result", govern: "guardrailsResult" },
+      { target: "ageResult", core: "age_result", govern: "ageResult" },
+    ],
+    [
+      { name: "core", fields: governanceVerdictFields },
+      { name: "govern", fields: workflowVerdictFields },
+    ],
+    "WORKFLOW_VERDICT_FIELD_ALIASES",
+  );
+  const guardrailsResultFieldAliases = validatedAliasMap(
+    [
+      { target: "inputType", core: "input_type", govern: "inputType" },
+      { target: "redactedInput", core: "redacted_input", govern: "redactedInput" },
+      { target: "redactedOutput", core: "redacted_output", govern: "redactedOutput" },
+      { target: "validationPassed", core: "validation_passed", govern: "validationPassed" },
+      { target: "rawLogs", core: "raw_logs", govern: "rawLogs" },
+      { target: "reasons", core: "reasons", govern: "reasons" },
+      { target: "fieldResults", core: "field_results", govern: "fieldResults" },
+    ],
+    [
+      { name: "core", fields: guardrailsResultFields },
+      { name: "govern", fields: guardrailsVerdictFields },
+    ],
+    "GUARDRAILS_RESULT_FIELD_ALIASES",
+  );
+  const approvalStatusFieldAliases = validatedAliasMap(
+    [
+      { target: "arm", core: "action", extra: "verdict" },
+      { target: "approvalExpiresAt", core: "approval_expiration_time", extra: "approvalExpiresAt" },
+      { target: "reason", core: "reason" },
+    ],
+    [{ name: "core", fields: approvalStatusFields }],
+    "APPROVAL_STATUS_FIELD_ALIASES",
+  );
+  assertSubset(["verdict"], governanceVerdictFields, "APPROVAL_STATUS_FIELD_ALIASES arm fallback");
   const spanAliasSnakeFields = [
     "span_id",
     "trace_id",
@@ -279,7 +435,7 @@ function emitRuntimeContract() {
     field.replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`),
     field,
   ]);
-  return `${banner}# Generated from TypeSpec governance/core contract inputs by scripts/generate-python-sdk.mjs.\n\nEVENT_TYPES = ${py(eventTypes)}\nACTIVITY_STARTED_EVENT_TYPE = "ActivityStarted"\nACTIVITY_COMPLETED_EVENT_TYPE = "ActivityCompleted"\nVERDICT_ARMS = ${py(verdictArms)}\nVERDICT_ARM_RANK = ${py(Object.fromEntries(verdictArms.map((arm, index) => [arm, index])))}\nGUARDRAIL_INPUT_TYPES = ${py(guardrailInputTypes)}\nDEFAULT_GUARDRAIL_INPUT_TYPE = ${py(guardrailInputTypes[0] || null)}\nGUARDRAIL_INPUT_LIKE_TYPES = ${py(guardrailInputTypes.filter((value) => value !== "activity_output"))}\nGUARDRAIL_OUTPUT_TYPE = "activity_output"\nGUARDRAIL_FIELD_STATUSES = ${py(guardrailFieldStatuses)}\nDEFAULT_GUARDRAIL_FIELD_STATUS = "skipped"\nGUARDRAIL_REDACTION_STATUSES = ${py(["redacted", "transformed"].filter((value) => guardrailFieldStatuses.includes(value)))}\nHOOK_SPAN_PARENT_EVENT_TYPES = ${py(hookParentEventTypes)}\nDEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE = ${py(hookParentEventTypes[0] || null)}\nTELEMETRY_FIELD_ALIASES = ${py(Object.fromEntries(telemetryFieldAliases.map(([snake, camel]) => [snake, [snake, camel]])))}\nSPAN_ALIAS_FIELDS = ${py(spanAliasSnakeFields.map((field) => [field, snakeToCamel(field)]))}\nSPAN_PERSISTABLE_ROOT_STRING_FIELDS = ${py(spanRootStringFields)}\nSPAN_PERSISTABLE_ATTRIBUTE_FIELDS = ${py(["url.full", "http.url", "http.method", "file.path", "file.operation", "db.statement", "db.operation", "db.system", "shell.command", "mcp.method", "openbox.tool.name", "tool.name", "tool_name", "gen_ai.system"])}\nSPAN_RUNTIME_HINT_FIELDS = ${py(runtimeHintFields)}\nSPAN_STATUS_CODES = ${py(spanStatusCodes)}\n`;
+  return `${banner}# Generated from TypeSpec governance/core contract inputs by scripts/generate-python-sdk.mjs.\n\nEVENT_TYPES = ${py(eventTypes)}\nACTIVITY_STARTED_EVENT_TYPE = ${py(activityStartedEventType)}\nACTIVITY_COMPLETED_EVENT_TYPE = ${py(activityCompletedEventType)}\nVERDICT_ARMS = ${py(verdictArms)}\nVERDICT_ARM_RANK = ${py(Object.fromEntries(verdictArms.map((arm, index) => [arm, index])))}\nGUARDRAIL_INPUT_TYPES = ${py(guardrailInputTypes)}\nDEFAULT_GUARDRAIL_INPUT_TYPE = ${py(defaultGuardrailInputType)}\nGUARDRAIL_INPUT_LIKE_TYPES = ${py(guardrailInputTypes.filter((value) => value !== guardrailOutputType))}\nGUARDRAIL_OUTPUT_TYPE = ${py(guardrailOutputType)}\nGUARDRAIL_FIELD_STATUSES = ${py(guardrailFieldStatuses)}\nDEFAULT_GUARDRAIL_FIELD_STATUS = ${py(defaultGuardrailFieldStatus)}\nGUARDRAIL_REDACTION_STATUSES = ${py(guardrailRedactionStatuses)}\nHOOK_SPAN_PARENT_EVENT_TYPES = ${py(hookParentEventTypes)}\nDEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE = ${py(hookParentEventTypes[0] || null)}\nGOVERNED_PAYLOAD_FIELD_ALIASES = ${py(governedPayloadFieldAliases)}\nWORKFLOW_VERDICT_FIELD_ALIASES = ${py(workflowVerdictFieldAliases)}\nGUARDRAILS_RESULT_RESPONSE_ALIASES = ${py(workflowVerdictFieldAliases.guardrailsResult)}\nGUARDRAILS_RESULT_FIELD_ALIASES = ${py(guardrailsResultFieldAliases)}\nAPPROVAL_STATUS_FIELD_ALIASES = ${py(approvalStatusFieldAliases)}\nAPPROVAL_EXPIRY_ALIASES = ${py(unique([...approvalStatusFieldAliases.approvalExpiresAt, "expires_at", "expiresAt"]))}\nTELEMETRY_FIELD_ALIASES = ${py(Object.fromEntries(telemetryFieldAliases.map(([snake, camel]) => [snake, [snake, camel]])))}\nSPAN_ALIAS_FIELDS = ${py(spanAliasSnakeFields.map((field) => [field, snakeToCamel(field)]))}\nSPAN_PERSISTABLE_ROOT_STRING_FIELDS = ${py(spanRootStringFields)}\nSPAN_PERSISTABLE_ATTRIBUTE_FIELDS = ${py(["url.full", "http.url", "http.method", "file.path", "file.operation", "db.statement", "db.operation", "db.system", "shell.command", "mcp.method", "openbox.tool.name", "tool.name", "tool_name", "gen_ai.system"])}\nSPAN_RUNTIME_HINT_FIELDS = ${py(runtimeHintFields)}\nSPAN_STATUS_CODES = ${py(spanStatusCodes)}\n`;
 }
 
 function emitClientModule({ className, manifestName, manifest, methodNames }) {
