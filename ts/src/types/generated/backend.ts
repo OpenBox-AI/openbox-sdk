@@ -2270,14 +2270,20 @@ export interface components {
             trust_threshold?: Record<string, never>;
         };
         CreateGuardrailDto: {
-            /** @description Guardrail Type */
-            guardrail_type: string;
+            /**
+             * @description Guardrail type ID: "1"=PII, "2"=NSFW, "3"=Toxicity, "4"=BanList, "5"=Regex.
+             * @enum {string}
+             */
+            guardrail_type: "1" | "2" | "3" | "4" | "5";
             /** @description Name of the guardrail */
             name: string;
             /** @description Description of the guardrail */
             description?: string;
-            /** @description Processing stage of the guardrail */
-            processing_stage: string;
+            /**
+             * @description Processing stage: "0"=input/ActivityStarted, "1"=output/ActivityCompleted.
+             * @enum {string}
+             */
+            processing_stage: "0" | "1";
             /** @description Parameters for the guardrail */
             params?: {
                 [key: string]: unknown;
@@ -3034,14 +3040,20 @@ export interface components {
             change_log: string;
         };
         UpdateGuardrailDto: {
-            /** @description Guardrail Type */
-            guardrail_type?: string;
+            /**
+             * @description Guardrail type ID: "1"=PII, "2"=NSFW, "3"=Toxicity, "4"=BanList, "5"=Regex.
+             * @enum {string}
+             */
+            guardrail_type?: "1" | "2" | "3" | "4" | "5";
             /** @description Name of the guardrail */
             name?: string;
             /** @description Description of the guardrail */
             description?: string;
-            /** @description Processing stage of the guardrail */
-            processing_stage?: string;
+            /**
+             * @description Processing stage: "0"=input/ActivityStarted, "1"=output/ActivityCompleted.
+             * @enum {string}
+             */
+            processing_stage?: "0" | "1";
             /** @description Active status of the guardrail */
             is_active?: boolean;
             /** @description Parameters for the guardrail */

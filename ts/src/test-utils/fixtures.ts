@@ -11,6 +11,10 @@
 //     the same default shape the e2e suite asserts on
 //   - any consumer that needs a sensible default for backend writes
 
+import type { components } from '../types/generated/backend.js';
+
+type CreateGuardrailDto = components['schemas']['CreateGuardrailDto'];
+
 let counter = 0;
 const ts = () => `${Date.now().toString(36)}${(counter++).toString(36)}`;
 
@@ -55,7 +59,7 @@ export function makeCreateAgentDto(teamIds: string[], overrides: Record<string, 
   };
 }
 
-export function makeCreateGuardrailDto(overrides: Record<string, any> = {}) {
+export function makeCreateGuardrailDto(overrides: Partial<CreateGuardrailDto> = {}): CreateGuardrailDto {
   return {
     name: `test-guardrail-${ts()}`,
     guardrail_type: '1',

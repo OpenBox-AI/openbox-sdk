@@ -11,6 +11,12 @@ using OpenAPI;
 @info(#{ version: "1.0", contact: #{} })
 namespace OpenboxBackend;
 
+/** Guardrail type IDs accepted by the agent guardrail create/update DTOs. */
+alias GuardrailType = "1" | "2" | "3" | "4" | "5";
+
+/** Guardrail stage IDs accepted by the agent guardrail create/update DTOs. */
+alias ProcessingStage = "0" | "1";
+
 model LoginDto {
   realm: string;
   username: string;
@@ -232,8 +238,8 @@ model UpdateAgentAivssConfigDto {
 }
 
 model CreateGuardrailDto {
-  /** Guardrail Type */
-  guardrail_type: string;
+  /** Guardrail type ID: "1"=PII, "2"=NSFW, "3"=Toxicity, "4"=BanList, "5"=Regex. */
+  guardrail_type: GuardrailType;
 
   /** Name of the guardrail */
   name: string;
@@ -241,8 +247,8 @@ model CreateGuardrailDto {
   /** Description of the guardrail */
   description?: string;
 
-  /** Processing stage of the guardrail */
-  processing_stage: string;
+  /** Processing stage: "0"=input/ActivityStarted, "1"=output/ActivityCompleted. */
+  processing_stage: ProcessingStage;
 
   /** Parameters for the guardrail */
   params?: Record<unknown>;
@@ -258,8 +264,8 @@ model CreateGuardrailDto {
 }
 
 model UpdateGuardrailDto {
-  /** Guardrail Type */
-  guardrail_type?: string;
+  /** Guardrail type ID: "1"=PII, "2"=NSFW, "3"=Toxicity, "4"=BanList, "5"=Regex. */
+  guardrail_type?: GuardrailType;
 
   /** Name of the guardrail */
   name?: string;
@@ -267,8 +273,8 @@ model UpdateGuardrailDto {
   /** Description of the guardrail */
   description?: string;
 
-  /** Processing stage of the guardrail */
-  processing_stage?: string;
+  /** Processing stage: "0"=input/ActivityStarted, "1"=output/ActivityCompleted. */
+  processing_stage?: ProcessingStage;
 
   /** Active status of the guardrail */
   is_active?: boolean;

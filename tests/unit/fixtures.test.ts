@@ -13,6 +13,10 @@ import type { components } from '../../ts/src/types/generated/backend';
 type GeneratedCreateBehaviorRuleDto =
   components['schemas']['CreateBehaviorRuleDto'];
 type GeneratedBehaviorRule = components['schemas']['BehaviorRule'];
+type GeneratedCreateGuardrailDto =
+  components['schemas']['CreateGuardrailDto'];
+type GeneratedUpdateGuardrailDto =
+  components['schemas']['UpdateGuardrailDto'];
 
 describe('Test Fixtures', () => {
   describe('makeCreateAgentDto', () => {
@@ -42,10 +46,17 @@ describe('Test Fixtures', () => {
   describe('makeCreateGuardrailDto', () => {
     it('generates valid guardrail DTO', () => {
       const dto = makeCreateGuardrailDto();
+      const typed: GeneratedCreateGuardrailDto = dto;
+      const update: GeneratedUpdateGuardrailDto = {
+        guardrail_type: dto.guardrail_type,
+        processing_stage: dto.processing_stage,
+      };
       expect(dto.name).toMatch(/^test-guardrail-/);
       expect(dto.guardrail_type).toBe('1');
       expect(dto.processing_stage).toBe('1');
       expect(dto.trust_impact).toBeTruthy();
+      expect(typed.guardrail_type).toBe('1');
+      expect(update.processing_stage).toBe('1');
     });
   });
 
