@@ -44,20 +44,8 @@ jobs:
       - name: Compile TypeSpec sources
         run: npx tsp compile specs/typespec
 
-      - name: Regenerate hand-written types from emitted OpenAPI
-        run: npm run generate:types
-
       - name: Assert no uncommitted codegen drift
-        run: |
-          # Anything generated/* is reproducible from the .tsp + .json
-          # sources, so a diff means someone forgot to run the pipeline.
-          if ! git diff --quiet --exit-code -- ts/ specs/generated/; then
-            echo "::error::Generated code is out of sync with sources."
-            echo ""
-            echo "Run \`npm run specs:all\` locally and commit the diff."
-            git diff --stat -- ts/ specs/generated/
-            exit 1
-          fi
+        run: npm run check:generated-drift
 
       - name: Lint generated/ banners
         run: npm run lint:generated-banners

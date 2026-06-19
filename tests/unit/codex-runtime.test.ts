@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Readable } from 'node:stream';
+import { Command } from 'commander';
 import type {
   GovernanceEventPayload,
   GovernanceVerdictResponse,
@@ -12,11 +14,16 @@ import {
   type CodexEnvelope,
 } from '../../ts/src/core-client/generated/runtime/codex.js';
 import {
+  handlePermissionRequest,
   handlePostToolUse,
   handlePreToolUse,
 } from '../../ts/src/runtime/codex/mappers/tool.js';
 import { handleUserPromptSubmit } from '../../ts/src/runtime/codex/mappers/prompt.js';
 import { resolveSession } from '../../ts/src/runtime/codex/session-resolver.js';
+import { sideEffects } from '../../ts/src/runtime/codex/side-effects.js';
+import { parseApprovalExpirationMs } from '../../ts/src/core-client/approval-time.js';
+import { registerCodexCommands } from '../../ts/src/cli/commands/codex.js';
+import { registerMcpCommands } from '../../ts/src/cli/commands/mcp.js';
 
 function createMockCore(
   resolve: (payload: GovernanceEventPayload) => Partial<GovernanceVerdictResponse>,
@@ -53,6 +60,103 @@ function adapterIO(stdout: string[], stdin: string) {
 const cfg = {
   sessionDir: '/tmp/openbox-codex-runtime-test',
 } as never;
+
+const originalCwd = process.cwd();
+const originalOpenboxHome = process.env.OPENBOX_HOME;
+const originalStdoutWrite = process.stdout.write;
+const originalStdinDescriptor = Object.getOwnPropertyDescriptor(process, 'stdin');
+const originalExit = process.exit;
+const originalExitCode = process.exitCode;
+const originalConsoleError = console.error;
+
+afterEach(() => {
+  process.chdir(originalCwd);
+  if (originalOpenboxHome === undefined) delete process.env.OPENBOX_HOME;
+  else process.env.OPENBOX_HOME = originalOpenboxHome;
+  if (originalStdinDescriptor) Object.defineProperty(process, 'stdin', originalStdinDescriptor);
+  Object.defineProperty(process.stdout, 'write', {
+    value: originalStdoutWrite,
+    configurable: true,
+    writable: true,
+  });
+  process.exit = originalExit;
+  process.exitCode = originalExitCode;
+  console.error = originalConsoleError;
+  vi.restoreAllMocks();
+  vi.resetModules();
+});
+
+function programWith(register: (program: Command) => void): Command {
+  const program = new Command();
+  program.exitOverride();
+  program.configureOutput({
+    writeOut: () => undefined,
+    writeErr: () => undefined,
+  });
+  register(program);
+  return program;
+}
+
+async function run(program: Command, args: string[]): Promise<void> {
+  await program.parseAsync(args, { from: 'user' });
+}
+
+function stubHookProcess(stdin: string): string[] {
+  const stdout: string[] = [];
+  Object.defineProperty(process, 'stdin', {
+    value: Readable.from([Buffer.from(stdin)]),
+    configurable: true,
+  });
+  Object.defineProperty(process.stdout, 'write', {
+    value: (chunk: string | Uint8Array) => {
+      stdout.push(String(chunk));
+      return true;
+    },
+    configurable: true,
+    writable: true,
+  });
+  process.exit = ((code?: number) => {
+    throw new Error(`exit:${code ?? 0}`);
+  }) as never;
+  console.error = vi.fn();
+  return stdout;
+}
+
+async function runCodexHookWithConfig(
+  config: Record<string, unknown>,
+  stdin: string,
+): Promise<string[]> {
+  const root = mkdtempSync(join(tmpdir(), 'openbox-codex-hook-'));
+  const oldApiKey = process.env.OPENBOX_API_KEY;
+  const oldCoreUrl = process.env.OPENBOX_CORE_URL;
+  const oldAgentDid = process.env.OPENBOX_AGENT_DID;
+  const oldAgentPrivateKey = process.env.OPENBOX_AGENT_PRIVATE_KEY;
+  mkdirSync(join(root, '.codex-hooks'), { recursive: true });
+  writeFileSync(join(root, '.codex-hooks', 'config.json'), JSON.stringify(config));
+  process.chdir(root);
+  delete process.env.OPENBOX_HOME;
+  delete process.env.OPENBOX_API_KEY;
+  delete process.env.OPENBOX_CORE_URL;
+  delete process.env.OPENBOX_AGENT_DID;
+  delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
+  vi.resetModules();
+  const stdout = stubHookProcess(stdin);
+  try {
+    const { runCodexHook } = await import('../../ts/src/runtime/codex/hook-handler.js');
+    await expect(runCodexHook()).rejects.toThrow('exit:0');
+    return stdout;
+  } finally {
+    if (oldApiKey === undefined) delete process.env.OPENBOX_API_KEY;
+    else process.env.OPENBOX_API_KEY = oldApiKey;
+    if (oldCoreUrl === undefined) delete process.env.OPENBOX_CORE_URL;
+    else process.env.OPENBOX_CORE_URL = oldCoreUrl;
+    if (oldAgentDid === undefined) delete process.env.OPENBOX_AGENT_DID;
+    else process.env.OPENBOX_AGENT_DID = oldAgentDid;
+    if (oldAgentPrivateKey === undefined) delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
+    else process.env.OPENBOX_AGENT_PRIVATE_KEY = oldAgentPrivateKey;
+    rmSync(root, { recursive: true, force: true });
+  }
+}
 
 describe('Codex runtime adapter', () => {
   it('renders a PreToolUse block as a Codex permission denial', async () => {
@@ -291,5 +395,342 @@ describe('Codex runtime adapter', () => {
       stage: 'completed',
       semantic_type: 'internal',
     });
+  });
+
+  it('routes Codex tool mapper branches for files, HTTP, MCP, database, and halt verdicts', async () => {
+    const sessionDir = mkdtempSync(join(tmpdir(), 'openbox-codex-tool-routes-'));
+    try {
+      const runtimeCfg = { sessionDir } as never;
+      const mock = createMockCore((payload) =>
+        payload.tool_name === 'Delete'
+          ? { verdict: 'halt', action: 'halt', reason: 'stop requested' }
+          : { verdict: 'allow', action: 'allow' },
+      );
+      const { presets } = await import('../../ts/src/core-client/index.js');
+      const session = new presets.codex({
+        core: mock.core,
+        workflowId: 'codex-route-workflow',
+        runId: 'codex-route-run',
+        registerExitHandlers: false,
+        attached: true,
+      });
+
+      await handlePreToolUse(
+        {
+          hook_event_name: 'PreToolUse',
+          session_id: 'codex-route-read',
+          tool_use_id: 'read-1',
+          tool_name: 'Read',
+          tool_input: { file_path: 'README.md' },
+        },
+        session,
+        runtimeCfg,
+      );
+      await handlePreToolUse(
+        {
+          hook_event_name: 'PreToolUse',
+          session_id: 'codex-route-write',
+          tool_use_id: 'write-1',
+          tool_name: 'Write',
+          tool_input: { path: 'out.txt' },
+        },
+        session,
+        runtimeCfg,
+      );
+      await handlePreToolUse(
+        {
+          hook_event_name: 'PreToolUse',
+          session_id: 'codex-route-mcp',
+          tool_use_id: 'mcp-1',
+          tool_name: 'mcp__filesystem__read',
+          tool_input: { path: '/tmp/a.txt' },
+        },
+        session,
+        runtimeCfg,
+      );
+      await handlePermissionRequest(
+        {
+          hook_event_name: 'PermissionRequest',
+          session_id: 'codex-route-db',
+          tool_name: 'mcp__postgres__query_database',
+          tool_input: { sql: 'select 1', db_system: 'postgresql' },
+        },
+        session,
+        runtimeCfg,
+      );
+      await handlePostToolUse(
+        {
+          hook_event_name: 'PostToolUse',
+          session_id: 'codex-route-http',
+          tool_use_id: 'http-1',
+          tool_name: 'WebFetch',
+          tool_input: { url: 'https://example.com/a', method: 'post' },
+          response: 'ok',
+          duration_ms: 25,
+        },
+        session,
+        runtimeCfg,
+      );
+      await handlePostToolUse(
+        {
+          hook_event_name: 'PostToolUse',
+          session_id: 'codex-route-custom',
+          tool_use_id: 'custom-1',
+          tool_name: 'CustomTool',
+          tool_input: {},
+          tool_output: { ok: true },
+          duration_ms: Number.NaN,
+        },
+        session,
+        runtimeCfg,
+      );
+
+      const haltEnv: CodexEnvelope = {
+        hook_event_name: 'PreToolUse',
+        session_id: 'codex-route-halt',
+        tool_use_id: 'delete-1',
+        tool_name: 'Delete',
+        tool_input: { path: 'out.txt' },
+      };
+      const idsBeforeHalt = await resolveSession(haltEnv, runtimeCfg);
+      const haltVerdict = await handlePreToolUse(haltEnv, session, runtimeCfg);
+      expect(haltVerdict?.arm).toBe('halt');
+      expect(await resolveSession(haltEnv, runtimeCfg)).not.toEqual(idsBeforeHalt);
+
+      const nonHookEvents = mock.events.filter((event) => event.hook_trigger !== true);
+      expect(nonHookEvents.map((event) => event.activity_type)).toEqual(
+        expect.arrayContaining([
+          'FileRead',
+          'FileEdit',
+          'MCPToolCall',
+          'DatabaseQuery',
+          'HTTPRequest',
+          'AgentAction',
+          'FileDelete',
+        ]),
+      );
+      expect(
+        nonHookEvents.map((event) => ({
+          activityType: event.activity_type,
+          toolName: event.tool_name,
+          toolType: event.tool_type,
+        })),
+      ).toEqual(
+        expect.arrayContaining([
+          { activityType: 'FileRead', toolName: 'Read', toolType: 'file_read' },
+          { activityType: 'FileEdit', toolName: 'Write', toolType: 'file_write' },
+          { activityType: 'MCPToolCall', toolName: 'mcp__filesystem__read', toolType: 'mcp' },
+          { activityType: 'DatabaseQuery', toolName: 'mcp__postgres__query_database', toolType: 'db' },
+          { activityType: 'HTTPRequest', toolName: 'WebFetch', toolType: 'http' },
+          { activityType: 'AgentAction', toolName: 'CustomTool', toolType: undefined },
+          { activityType: 'FileDelete', toolName: 'Delete', toolType: 'file_delete' },
+        ]),
+      );
+    } finally {
+      rmSync(sessionDir, { recursive: true, force: true });
+    }
+  });
+
+  it('resolves Codex hook config upward and falls back to the start directory', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'openbox-codex-config-'));
+    const fallbackRoot = mkdtempSync(join(tmpdir(), 'openbox-codex-config-fallback-'));
+    try {
+      const nested = join(root, 'a', 'b');
+      mkdirSync(join(root, '.codex-hooks'), { recursive: true });
+      mkdirSync(nested, { recursive: true });
+      writeFileSync(join(root, '.codex-hooks', 'config.json'), '{}');
+
+      vi.resetModules();
+      const { resolveConfigDir } = await import('../../ts/src/runtime/codex/config.js');
+      expect(resolveConfigDir(nested)).toBe(join(root, '.codex-hooks'));
+      expect(resolveConfigDir(fallbackRoot)).toBe(join(fallbackRoot, '.codex-hooks'));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(fallbackRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('loads Codex config from file, env file, and runtime environment with normalized settings', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'openbox-codex-config-load-'));
+    const oldKey = process.env.OPENBOX_API_KEY;
+    const oldCore = process.env.OPENBOX_CORE_URL;
+    try {
+      mkdirSync(join(root, '.codex-hooks'), { recursive: true });
+      writeFileSync(
+        join(root, '.codex-hooks', 'config.json'),
+        JSON.stringify({
+          OPENBOX_API_KEY: 'obx_file_' + 'a'.repeat(48),
+          OPENBOX_CORE_URL: 'https://file-core.example',
+          governanceTimeout: '0',
+          sessionDir: 'sessions-file',
+          logFile: '',
+          verbose: '1',
+          hitlEnabled: 'false',
+          hitlPollInterval: '0',
+          hitlMaxWait: '0',
+          approvalMode: 'inline',
+          sendStartEvent: 'false',
+          sendActivityStartEvent: 'false',
+          maxBodySize: '1234',
+        }),
+      );
+      writeFileSync(
+        join(root, '.codex-hooks', '.env'),
+        ['taskQueue=codex-env', 'approvalMode=defer'].join('\n'),
+      );
+      process.chdir(root);
+      process.env.OPENBOX_API_KEY = 'obx_env_' + 'b'.repeat(48);
+      process.env.OPENBOX_CORE_URL = 'https://env-core.example';
+      vi.resetModules();
+
+      const { loadConfig } = await import('../../ts/src/runtime/codex/config.js');
+      const loaded = loadConfig();
+
+      expect(loaded).toMatchObject({
+        openboxApiKey: 'obx_env_' + 'b'.repeat(48),
+        openboxEndpoint: 'https://env-core.example',
+        governancePolicy: 'fail_closed',
+        governanceTimeout: 15,
+        sessionDir: 'sessions-file',
+        logFile: null,
+        verbose: true,
+        hitlEnabled: false,
+        hitlPollInterval: 5,
+        hitlMaxWait: 300,
+        approvalMode: 'inline',
+        taskQueue: 'codex-env',
+        sendStartEvent: false,
+        sendActivityStartEvent: false,
+        maxBodySize: 1234,
+      });
+      expect(loaded.agentIdentity).toBeUndefined();
+    } finally {
+      if (oldKey === undefined) delete process.env.OPENBOX_API_KEY;
+      else process.env.OPENBOX_API_KEY = oldKey;
+      if (oldCore === undefined) delete process.env.OPENBOX_CORE_URL;
+      else process.env.OPENBOX_CORE_URL = oldCore;
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('fails Codex hook decisions closed when runtime configuration is missing', async () => {
+    const env: CodexEnvelope = {
+      hook_event_name: 'PreToolUse',
+      session_id: 'codex-missing-config',
+      tool_name: 'Shell',
+      tool_input: { command: 'rm -rf /tmp/x' },
+    };
+
+    const missingKey = await runCodexHookWithConfig(
+      { OPENBOX_CORE_URL: 'https://core.example', verbose: 'true' },
+      JSON.stringify(env),
+    );
+    expect(JSON.parse(missingKey.join(''))).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: '[OpenBox] missing OPENBOX_API_KEY',
+      },
+    });
+
+    const missingCore = await runCodexHookWithConfig(
+      { OPENBOX_API_KEY: 'obx_live_' + 'c'.repeat(48), verbose: 'true' },
+      JSON.stringify({ ...env, hook_event_name: 'PermissionRequest' }),
+    );
+    expect(JSON.parse(missingCore.join(''))).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PermissionRequest',
+        decision: {
+          behavior: 'deny',
+          message: '[OpenBox] missing OPENBOX_CORE_URL',
+        },
+      },
+    });
+
+    const invalidJson = await runCodexHookWithConfig(
+      { OPENBOX_CORE_URL: 'https://core.example' },
+      '{not-json',
+    );
+    expect(invalidJson).toEqual([]);
+  });
+
+  it('reads Codex side-effect file content with redaction and fallbacks', () => {
+    const root = mkdtempSync(join(tmpdir(), 'openbox-codex-side-effects-'));
+    try {
+      const file = join(root, 'plain.txt');
+      const secret = join(root, '.env');
+      writeFileSync(file, 'hello');
+      writeFileSync(secret, 'TOKEN=secret');
+
+      expect(sideEffects.readFile?.(undefined)).toBe('');
+      expect(sideEffects.readFile?.('')).toBe('');
+      expect(sideEffects.readFile?.(file)).toBe('hello');
+      expect(sideEffects.readFile?.(secret)).toBe('[OpenBox redacted file content]');
+      expect(sideEffects.readFile?.(join(root, 'missing.txt'))).toBe('');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('parses approval expiration timestamps defensively', () => {
+    expect(parseApprovalExpirationMs(undefined)).toBeUndefined();
+    expect(parseApprovalExpirationMs(null)).toBeUndefined();
+    expect(parseApprovalExpirationMs('   ')).toBeUndefined();
+    expect(parseApprovalExpirationMs('not-a-date')).toBeUndefined();
+    expect(parseApprovalExpirationMs('2026-06-20 12:00:00')).toBe(Date.parse('2026-06-20T12:00:00Z'));
+    expect(parseApprovalExpirationMs('2026-06-20T12:00:00+07:00')).toBe(Date.parse('2026-06-20T12:00:00+07:00'));
+  });
+
+  it('covers Codex and MCP command validation branches', async () => {
+    const codex = programWith(registerCodexCommands);
+    const mcp = programWith(registerMcpCommands);
+    const exported = mkdtempSync(join(tmpdir(), 'openbox-codex-export-parent-'));
+    const project = mkdtempSync(join(tmpdir(), 'openbox-codex-project-'));
+    try {
+      await expect(
+        run(codex, ['codex', 'plugin', 'export', '--out', join(exported, 'bad'), '--matcher', 'missing-equals']),
+      ).rejects.toThrow();
+
+      await run(codex, [
+        'codex',
+        'plugin',
+        'export',
+        '--out',
+        join(exported, 'plugin'),
+        '--matcher',
+        'PreToolUse=.*',
+      ]);
+      await run(codex, [
+        'codex',
+        'plugin',
+        'install',
+        '--cwd',
+        project,
+        '--target',
+        join(project, '.agents', 'plugins', 'openbox'),
+        '--skip-repo-skill',
+        '--skip-marketplace',
+      ]);
+      await run(codex, ['codex', 'install', '--cwd', project]);
+      await run(codex, ['codex', 'doctor', '--cwd', project, '--surface-only', '--json']);
+      await run(codex, [
+        'codex',
+        'plugin',
+        'uninstall',
+        '--cwd',
+        project,
+        '--remove-repo-skill',
+        '--remove-marketplace-entry',
+      ]);
+
+      await run(mcp, ['mcp', 'serve', '--transport', 'bad']);
+      expect(process.exitCode).toBe(1);
+      process.exitCode = undefined;
+      await run(mcp, ['mcp', 'serve', '--transport', 'http', '--port', '0']);
+      expect(process.exitCode).toBe(1);
+    } finally {
+      rmSync(exported, { recursive: true, force: true });
+      rmSync(project, { recursive: true, force: true });
+    }
   });
 });
