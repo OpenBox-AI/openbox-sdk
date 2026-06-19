@@ -143,6 +143,16 @@ export interface RulesInstructionCapabilityGuardEntry {
   guardTest: string;
 }
 
+export interface HookCapabilityGuardEntry {
+  provider: OpenBoxProviderId;
+  tier: OpenBoxSupportTier;
+  hookSurface: string;
+  eventCoverage: string;
+  enforcementBoundary: string;
+  fallbackOrOutOfScope: string;
+  guardTest: string;
+}
+
 export interface PluginCapabilityGuardEntry {
   provider: OpenBoxProviderId;
   tier: OpenBoxSupportTier;
@@ -1803,6 +1813,80 @@ export const RULES_INSTRUCTION_CAPABILITY_GUARDS = [
     "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
   }
 ] as const satisfies readonly RulesInstructionCapabilityGuardEntry[];
+export const HOOK_CAPABILITY_GUARDS = [
+  {
+    "provider": "codex",
+    "tier": "native",
+    "hookSurface": "Codex hooks/hooks.json in plugin mode and project .codex/hooks.json invoke openbox codex hook.",
+    "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match CODEX_HOOK_SPEC events for UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, and Stop.",
+    "enforcementBoundary": "Codex prompt/tool/output hooks send spans to Core and enforce returned verdicts fail-closed.",
+    "fallbackOrOutOfScope": "Project-local install only; no global Codex hook configuration is mutated.",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins generated hook events to the event catalog"
+  },
+  {
+    "provider": "cursor",
+    "tier": "native",
+    "hookSurface": "Cursor plugin hooks/hooks.json and repo .cursor/hooks.json invoke openbox cursor hook.",
+    "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match CURSOR_HOOK_SPEC events including prompt, file, shell, MCP, subagent, compaction, and stop surfaces.",
+    "enforcementBoundary": "Cursor pre-action hooks send spans to Core and enforce guardrail/policy verdicts fail-closed; post hooks observe outputs.",
+    "fallbackOrOutOfScope": "Project-local plugin or repo-mode install only; user-level Cursor hook configuration is not mutated.",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins generated hook events to the event catalog"
+  },
+  {
+    "provider": "claude-code",
+    "tier": "native",
+    "hookSurface": "Claude Code plugin hooks/hooks.json invokes the project-local OpenBox CLI runner for default and opt-in hook events.",
+    "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match CLAUDE_HOOK_SPEC and the official hook matrix, with WorktreeCreate and SessionEnd opt-in by default.",
+    "enforcementBoundary": "Claude Code prompt/tool/permission hooks send spans to Core and enforce returned verdicts fail-closed; opt-in worktree hooks are disabled by default.",
+    "fallbackOrOutOfScope": "Project-local plugin install only; monitors are opt-in and direct settings writes are avoided.",
+    "guardTest": "tests/unit/claude-code-governance-matrix.test.ts#keeps generated HOOK_SPEC aligned with the checked-in official hook matrix"
+  },
+  {
+    "provider": "mcp",
+    "tier": "out-of-scope",
+    "hookSurface": "No host hook surface exists for MCP itself; MCP is a server protocol.",
+    "eventCoverage": "MCP exposes tools, prompts, and resources rather than upstream hook events.",
+    "enforcementBoundary": "MCP check_governance sends spans to Core when called; there is no host hook lifecycle to pre-gate.",
+    "fallbackOrOutOfScope": "Out-of-scope for hooks because plugin adapters or clients own hook installation.",
+    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins hook support claims to explicit hook surface coverage"
+  },
+  {
+    "provider": "openai-agents-sdk",
+    "tier": "native",
+    "hookSurface": "createOpenBoxAgentHooks returns native OpenAI AgentHooks lifecycle handlers backed by OpenBox sessions.",
+    "eventCoverage": "AgentHooks lifecycle covers agent start/end/error, tool start/end/error, and model/output observation through tracing processor helpers.",
+    "enforcementBoundary": "Native hook callbacks open sessions and emit Core spans; tracing observes hosted/built-in/MCP tool use that cannot always be pre-gated.",
+    "fallbackOrOutOfScope": "No host hook files are installed; consumers import SDK helpers and wire them into OpenAI Agents SDK runs.",
+    "guardTest": "tests/unit/openai-agents-sdk.test.ts#creates native AgentHooks lifecycle handlers backed by OpenBox sessions"
+  },
+  {
+    "provider": "anthropic-agent-sdk",
+    "tier": "native",
+    "hookSurface": "createOpenBoxAnthropicAgentHooks and withOpenBoxAnthropicAgentOptions register Anthropic Agent SDK hook handlers.",
+    "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match official HOOK_EVENTS, with WorktreeCreate opt-in by default.",
+    "enforcementBoundary": "Anthropic Agent SDK hooks send prompt/tool/permission/workspace spans to Core and enforce returned verdicts.",
+    "fallbackOrOutOfScope": "No host plugin files are installed; hook helpers are runtime SDK configuration.",
+    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#registers every official Agent SDK hook except WorktreeCreate by default"
+  },
+  {
+    "provider": "copilotkit",
+    "tier": "wrapped",
+    "hookSurface": "createOpenBoxCopilotKitAdapter wraps CopilotKit runtime, LangChain middleware, tool, prompt, output, and AG-UI surfaces.",
+    "eventCoverage": "Wrapped CopilotKit hooks map run lifecycle, messages, tool calls/results, shared state, errors, interrupts, and middleware callbacks to OpenBox activities.",
+    "enforcementBoundary": "Wrapped prompt/tool/output gates send spans to Core and project returned verdicts into CopilotKit continuation, interruption, or terminal results.",
+    "fallbackOrOutOfScope": "No host hook files are installed; application runtime wiring owns adapter registration.",
+    "guardTest": "tests/unit/copilotkit-adapter.test.ts#pauses on approval-required prompt verdict without calling the model"
+  },
+  {
+    "provider": "n8n",
+    "tier": "wrapped",
+    "hookSurface": "emitN8nUserPromptSignal, emitN8nNodePreExecute, emitN8nNodePostExecute, and emitN8nLlmCompletion provide hook-equivalent gates.",
+    "eventCoverage": "Wrapped n8n helpers map node pre/post execution and LLM completion to OpenBox lifecycle and activity spans.",
+    "enforcementBoundary": "n8n helper calls send spans to Core and project returned verdicts into node/template behavior.",
+    "fallbackOrOutOfScope": "No n8n instance mutation; operator-owned workflows consume packaged node/template descriptors.",
+    "guardTest": "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans"
+  }
+] as const satisfies readonly HookCapabilityGuardEntry[];
 export const PLUGIN_CAPABILITY_GUARDS = [
   {
     "provider": "codex",
