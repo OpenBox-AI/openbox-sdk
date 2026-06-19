@@ -695,7 +695,7 @@ export function $providerCapabilities(
     return;
   }
   const record = value as Record<string, unknown>;
-  for (const key of ['capabilityIds', 'providers', 'capabilities', 'goalSignalGuards', 'usageCostCapabilityGuards', 'tracingCapabilityGuards', 'hitlCapabilityGuards', 'guardrailCapabilityGuards', 'policyEvaluationGuards', 'rulesInstructionCapabilityGuards', 'skillCapabilityGuards', 'mcpCapabilityGuards', 'installDoctorCapabilityGuards', 'eventCatalog', 'pluginComponents', 'publicIntegrations']) {
+  for (const key of ['capabilityIds', 'providers', 'capabilities', 'goalSignalGuards', 'usageCostCapabilityGuards', 'tracingCapabilityGuards', 'hitlCapabilityGuards', 'guardrailCapabilityGuards', 'policyEvaluationGuards', 'rulesInstructionCapabilityGuards', 'pluginCapabilityGuards', 'skillCapabilityGuards', 'mcpCapabilityGuards', 'installDoctorCapabilityGuards', 'eventCatalog', 'pluginComponents', 'publicIntegrations']) {
     if (!(key in record)) {
       reportDiagnostic(context.program, {
         code: 'invalid-provider-capabilities',

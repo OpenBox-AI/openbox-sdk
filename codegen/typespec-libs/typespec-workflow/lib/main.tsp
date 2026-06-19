@@ -303,6 +303,7 @@ extern dec hookEventLabel(target: Operation, label: valueof string);
  *     guardrailCapabilityGuards: #[#{ provider, tier, governedSurfaces, coreContract, redactionBehavior, failClosedBehavior, guardTest }, ...],
  *     policyEvaluationGuards: #[#{ provider, tier, authority, sdkResponsibility, allowedLocalWork, forbiddenLocalWork, guardTest }, ...],
  *     rulesInstructionCapabilityGuards: #[#{ provider, tier, projectionSurface, sourceOfTruth, allowedProjectionWork, forbiddenLocalWork, hostBoundary, guardTest }, ...],
+ *     pluginCapabilityGuards: #[#{ provider, tier, packageSurface, componentCoverage, installSurface, scopeBoundary, guardTest }, ...],
  *     skillCapabilityGuards: #[#{ provider, tier, skillSurface, installSurface, discoverySurface, hostBoundary, guardTest }, ...],
  *     mcpCapabilityGuards: #[#{ provider, tier, serverSurface, configSurface, toolResourcePromptCoverage, hostBoundary, guardTest }, ...],
  *     installDoctorCapabilityGuards: #[#{ provider, tier, installSurface, doctorSurface, scopeBoundary, generatedOrPackagedSurface, guardTest }, ...],
