@@ -13,6 +13,10 @@ import type {
   GovernanceVerdictResponse,
   OpenBoxCoreClient,
 } from '../../ts/src/core-client/index.js';
+import {
+  runAssistantOutputSpan,
+  runTelemetryFields,
+} from '../../ts/src/openai-agents-sdk/payloads.js';
 
 type VerdictArm = NonNullable<GovernanceVerdictResponse['verdict']>;
 
@@ -701,6 +705,46 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
         }),
       ]),
     );
+  });
+
+  it('normalizes raw response usage through the shared usage facade', () => {
+    const result = {
+      rawResponses: [
+        {
+          providerData: { model: 'gpt-4o-mini' },
+          usage: { input_tokens: 4, output_tokens: 6, cost_usd: 0.01 },
+          output: [{ type: 'message', text: 'first response' }],
+        },
+        {
+          usage: { promptTokens: 3, completionTokens: 2, costUSD: 0.02 },
+          finishReason: 'stop',
+        },
+      ],
+    };
+
+    expect(runTelemetryFields(result)).toMatchObject({
+      llmModel: 'gpt-4o-mini',
+      inputTokens: 7,
+      outputTokens: 8,
+      totalTokens: 15,
+      hasToolCalls: false,
+      finishReason: 'stop',
+    });
+
+    const span = runAssistantOutputSpan(result, 'usage-session')?.[0] as
+      | Record<string, any>
+      | undefined;
+    expect(span).toMatchObject({
+      model: 'gpt-4o-mini',
+      input_tokens: 7,
+      output_tokens: 8,
+      total_tokens: 15,
+      cost_usd: 0.03,
+    });
+    expect(span?.attributes).toMatchObject({
+      'openbox.usage.cost_usd': 0.03,
+      'openbox.cost.usd': 0.03,
+    });
   });
 
   it('maps OpenBox guardrail verdicts to native OpenAI guardrail shapes', async () => {
