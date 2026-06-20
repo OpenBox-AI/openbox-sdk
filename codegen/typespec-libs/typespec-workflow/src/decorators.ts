@@ -715,6 +715,45 @@ export function getProviderCapabilities(
   return program.stateMap(stateKeys.providerCapabilities).get(target);
 }
 
+// ─── Govern protocol conformance fixture ────────────────────────────
+// Cross-language lifecycle scenarios belong in TypeSpec so every
+// language runner consumes the same "bible" fixture.
+
+export type GovernProtocolFixtureBinding = Record<string, unknown>;
+
+export function $governProtocol(
+  context: DecoratorContext,
+  target: Namespace,
+  raw: unknown,
+): void {
+  const value = unwrapTspValue(raw);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-govern-protocol',
+      format: { reason: 'expected a record literal' },
+      target,
+    });
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  if (!Array.isArray(record.cases) || record.cases.length === 0) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-govern-protocol',
+      format: { reason: 'cases must be a non-empty array' },
+      target,
+    });
+    return;
+  }
+  context.program.stateMap(stateKeys.governProtocol).set(target, record);
+}
+
+export function getGovernProtocol(
+  program: Program,
+  target: Namespace,
+): GovernProtocolFixtureBinding | undefined {
+  return program.stateMap(stateKeys.governProtocol).get(target);
+}
+
 // ─── Backend permissions ─────────────────────────────────────────────
 // Backend RBAC metadata belongs in the TypeSpec contract so generated
 // SDKs share the same preflight rules across languages. The map is keyed

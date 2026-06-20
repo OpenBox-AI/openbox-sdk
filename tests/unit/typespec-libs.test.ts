@@ -23,6 +23,7 @@ let getValidator: typeof import('../../codegen/typespec-libs/typespec-cli/src/de
 let getMapsTo: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getMapsTo;
 let getPreset: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getPreset;
 let getVerdictModel: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getVerdictModel;
+let getGovernProtocol: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getGovernProtocol;
 
 beforeAll(async () => {
   const root = resolvePath(import.meta.dirname, '..', '..');
@@ -44,7 +45,7 @@ beforeAll(async () => {
     getFlag,
     getValidator,
   } = cliDecorators);
-  ({ getMapsTo, getPreset, getVerdictModel } = workflowDecorators);
+  ({ getMapsTo, getPreset, getVerdictModel, getGovernProtocol } = workflowDecorators);
   const main = resolvePath(root, 'specs', 'typespec', 'main.tsp');
   program = await compile(NodeHost, main, {
     noEmit: true,
@@ -224,5 +225,13 @@ describe('typespec-workflow', () => {
   test('@verdict singleton resolves', () => {
     const verdict = getVerdictModel(program);
     expect(verdict?.name).toBe('WorkflowVerdict');
+  });
+
+  test('@governProtocol attaches the shared lifecycle fixture', () => {
+    const govern = [...walkNamespaces(program)].find((ns) => ns.name === 'OpenboxGovern');
+    expect(govern).toBeDefined();
+    const fixture = getGovernProtocol(program, govern!);
+    expect(fixture?.name).toBe('govern-protocol');
+    expect((fixture?.cases as unknown[] | undefined)?.length).toBe(3);
   });
 });

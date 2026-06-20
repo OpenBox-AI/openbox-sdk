@@ -317,6 +317,21 @@ extern dec hookEventLabel(target: Operation, label: valueof string);
 extern dec providerCapabilities(target: Namespace, matrix: valueof Record<unknown>);
 
 /**
+ * Cross-language governance lifecycle conformance fixture. Emitters
+ * materialize this record as `codegen/fixtures/govern-protocol.json`.
+ * Each language runner consumes the same scenario cases instead of
+ * hand-authoring lifecycle expectations per SDK.
+ *
+ * Shape:
+ *   #{
+ *     name: "govern-protocol",
+ *     description: "...",
+ *     cases: #[#{ name, scenario, expectedEvents, note? }, ...],
+ *   }
+ */
+extern dec governProtocol(target: Namespace, fixture: valueof Record<unknown>);
+
+/**
  * Backend operationId → required RBAC permission strings. This is the
  * canonical SDK-side mirror of backend controller `@Permissions(...)`
  * decorators. Emitters use it to generate preflight permission tables

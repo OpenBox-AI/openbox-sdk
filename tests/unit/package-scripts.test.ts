@@ -12,6 +12,7 @@ describe('package scripts', () => {
 
     expect(cleanGenerated).toContain('codegen/method-names.json');
     expect(cleanGenerated).toContain('codegen/method-permissions.json');
+    expect(cleanGenerated).toContain('codegen/fixtures/govern-protocol.json');
     expect(cleanGenerated).toContain('codegen/fixtures/provider-capabilities.json');
     expect(cleanGenerated).toContain('codegen/fixtures/sdk-manifests.json');
   });
