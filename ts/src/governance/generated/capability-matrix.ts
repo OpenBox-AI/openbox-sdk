@@ -57,6 +57,7 @@ export interface ProviderPluginComponentCatalogEntry {
 export interface PublicIntegrationSupportEntry {
   integration: OpenBoxProviderId;
   tier: OpenBoxSupportTier;
+  packageSubpath: string;
   exports: readonly string[];
   notes: string;
 }
@@ -1294,6 +1295,7 @@ export const PUBLIC_INTEGRATION_SUPPORT = [
   {
     "integration": "openai-agents-sdk",
     "tier": "native",
+    "packageSubpath": "./openai-agents-sdk",
     "exports": [
       "createOpenBoxAgentHooks",
       "createOpenBoxTracingProcessor",
@@ -1309,6 +1311,7 @@ export const PUBLIC_INTEGRATION_SUPPORT = [
   {
     "integration": "anthropic-agent-sdk",
     "tier": "native",
+    "packageSubpath": "./anthropic-agent-sdk",
     "exports": [
       "createOpenBoxAnthropicAgentHooks",
       "withOpenBoxAnthropicAgentOptions",
@@ -1319,6 +1322,7 @@ export const PUBLIC_INTEGRATION_SUPPORT = [
   {
     "integration": "copilotkit",
     "tier": "wrapped",
+    "packageSubpath": "./copilotkit",
     "exports": [
       "createOpenBoxCopilotKitAdapter",
       "createOpenBoxAGUIAdapter",
@@ -1330,6 +1334,7 @@ export const PUBLIC_INTEGRATION_SUPPORT = [
   {
     "integration": "n8n",
     "tier": "wrapped",
+    "packageSubpath": "./runtime/n8n",
     "exports": [
       "emitN8nUserPromptSignal",
       "emitN8nNodePreExecute",

@@ -19,13 +19,6 @@ const PUBLIC_INTEGRATION_MODULES: Partial<Record<OpenBoxProviderId, PublicModule
   n8n,
 };
 
-const PUBLIC_INTEGRATION_SUBPATHS: Partial<Record<OpenBoxProviderId, string>> = {
-  'openai-agents-sdk': './openai-agents-sdk',
-  'anthropic-agent-sdk': './anthropic-agent-sdk',
-  copilotkit: './copilotkit',
-  n8n: './runtime/n8n',
-};
-
 describe('public SDK integration exports', () => {
   it('declares package subpaths for every public integration', () => {
     const packageJson = JSON.parse(
@@ -33,8 +26,7 @@ describe('public SDK integration exports', () => {
     ) as { exports?: Record<string, unknown> };
     const packageExports = packageJson.exports ?? {};
     const missingSubpaths = PUBLIC_INTEGRATION_SUPPORT
-      .map((entry) => PUBLIC_INTEGRATION_SUBPATHS[entry.integration])
-      .filter((subpath): subpath is string => !!subpath)
+      .map((entry) => entry.packageSubpath)
       .filter((subpath) => !(subpath in packageExports));
 
     expect(missingSubpaths).toEqual([]);

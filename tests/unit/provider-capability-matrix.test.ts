@@ -669,6 +669,7 @@ describe('provider capability matrix', () => {
     );
 
     expect(byIntegration.get('openai-agents-sdk')?.tier).toBe('native');
+    expect(byIntegration.get('openai-agents-sdk')?.packageSubpath).toBe('./openai-agents-sdk');
     expect(byIntegration.get('openai-agents-sdk')?.exports).toEqual(
       expect.arrayContaining([
         'createOpenBoxAgentHooks',
@@ -679,7 +680,10 @@ describe('provider capability matrix', () => {
         'openBoxToolOutputGuardrail',
       ]),
     );
+    expect(byIntegration.get('anthropic-agent-sdk')?.packageSubpath).toBe('./anthropic-agent-sdk');
+    expect(byIntegration.get('copilotkit')?.packageSubpath).toBe('./copilotkit');
     expect(byIntegration.get('copilotkit')?.exports).toContain('createOpenBoxAGUIAdapter');
+    expect(byIntegration.get('n8n')?.packageSubpath).toBe('./runtime/n8n');
     expect(byIntegration.get('n8n')?.exports).toContain('OPENBOX_N8N_INTEGRATION');
     expect(byIntegration.get('n8n')?.exports).toEqual(
       expect.arrayContaining([

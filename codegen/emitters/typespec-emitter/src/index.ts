@@ -1169,6 +1169,7 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `export interface PublicIntegrationSupportEntry {`,
     `  integration: OpenBoxProviderId;`,
     `  tier: OpenBoxSupportTier;`,
+    `  packageSubpath: string;`,
     `  exports: readonly string[];`,
     `  notes: string;`,
     `}`,
