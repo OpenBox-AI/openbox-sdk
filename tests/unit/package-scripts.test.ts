@@ -8,6 +8,7 @@ const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json
 };
 const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runtime-assets.ts'), 'utf8');
 const cleanScript = readFileSync(resolve(process.cwd(), 'scripts/clean.mjs'), 'utf8');
+const localCiScript = readFileSync(resolve(process.cwd(), 'scripts/run-local-ci.mjs'), 'utf8');
 const cleanGeneratedScript = readFileSync(resolve(process.cwd(), 'scripts/clean-generated.mjs'), 'utf8');
 const generatedDriftScript = readFileSync(resolve(process.cwd(), 'scripts/check-generated-drift.ts'), 'utf8');
 const checkSdksScript = readFileSync(resolve(process.cwd(), 'scripts/check-sdks.mjs'), 'utf8');
@@ -45,6 +46,14 @@ describe('package scripts', () => {
       /^(generate|check):(typescript|javascript|python|ts|js|py)$/.test(name),
     );
     expect(languageSpecificGenerationCommands).toEqual([]);
+  });
+
+  test('local CI reads the TypeSpec-emitted pipeline', () => {
+    expect(packageJson.scripts['ci:local']).toBe('node scripts/run-local-ci.mjs');
+    expect(packageJson.scripts['ci:local']).not.toContain('vitest');
+    expect(packageJson.scripts['ci:local']).not.toContain('spectral');
+    expect(localCiScript).toContain('localCi.steps');
+    expect(localCiScript).toContain('codegen/fixtures/sdk-targets.json');
   });
 
   test('generic SDK check validates spec-bound extension manifests', () => {

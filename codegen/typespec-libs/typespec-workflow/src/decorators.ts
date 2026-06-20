@@ -992,6 +992,55 @@ function validateSecurityAuditRecord(
   return true;
 }
 
+function validateLocalCiRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawLocalCi: unknown,
+): boolean {
+  if (!rawLocalCi || typeof rawLocalCi !== 'object' || Array.isArray(rawLocalCi)) {
+    reportInvalidSdkTargets(context, target, 'localCi must be a record');
+    return false;
+  }
+
+  const localCi = rawLocalCi as Record<string, unknown>;
+  if (!Array.isArray(localCi.steps) || localCi.steps.length === 0) {
+    reportInvalidSdkTargets(context, target, 'localCi.steps must be a non-empty array');
+    return false;
+  }
+
+  for (const [index, rawStep] of localCi.steps.entries()) {
+    if (!rawStep || typeof rawStep !== 'object' || Array.isArray(rawStep)) {
+      reportInvalidSdkTargets(context, target, `localCi.steps ${index} must be a record`);
+      return false;
+    }
+    const step = rawStep as Record<string, unknown>;
+    for (const field of ['id', 'label', 'command', 'workingDirectory']) {
+      if (!isNonEmptyString(step[field])) {
+        reportInvalidSdkTargets(context, target, `localCi.steps ${index}.${field} must be a non-empty string`);
+        return false;
+      }
+    }
+    if (step.args !== undefined && !isStringArray(step.args)) {
+      reportInvalidSdkTargets(context, target, `localCi.steps ${index}.args must be a string array`);
+      return false;
+    }
+    if (step.env !== undefined) {
+      if (!step.env || typeof step.env !== 'object' || Array.isArray(step.env)) {
+        reportInvalidSdkTargets(context, target, `localCi.steps ${index}.env must be a record`);
+        return false;
+      }
+      for (const [name, value] of Object.entries(step.env as Record<string, unknown>)) {
+        if (!isNonEmptyString(name) || typeof value !== 'string') {
+          reportInvalidSdkTargets(context, target, `localCi.steps ${index}.env must map strings to strings`);
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
 function validateCleanArtifactsRecord(
   context: DecoratorContext,
   target: Namespace,
@@ -1107,6 +1156,12 @@ export function $sdkTargets(
 
   if (record.securityAudit !== undefined) {
     if (!validateSecurityAuditRecord(context, target, record.securityAudit)) {
+      return;
+    }
+  }
+
+  if (record.localCi !== undefined) {
+    if (!validateLocalCiRecord(context, target, record.localCi)) {
       return;
     }
   }

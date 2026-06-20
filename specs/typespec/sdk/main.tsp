@@ -60,6 +60,25 @@ using OpenBox.Workflow;
       #{ path: "tests/unit/runtime-cursor-mappers.test.ts", reason: "Runtime mapper fixture intentionally contains deterministic non-secret tokens." },
     ],
   },
+  localCi: #{
+    steps: #[
+      #{ id: "check-sdks", label: "SDK target validation", command: "npm", args: #["run", "check:sdks"], workingDirectory: "." },
+      #{
+        id: "coverage",
+        label: "Vitest coverage",
+        command: "npx",
+        args: #["vitest", "run", "--coverage", "--project", "unit", "--project", "contract", "--project", "hook-integration", "--coverage.reporter=lcov"],
+        workingDirectory: ".",
+        env: #{ OPENBOX_CLI: "./scripts/openbox-cli-dev.mjs" },
+      },
+      #{ id: "build", label: "Bundle build", command: "npm", args: #["run", "build"], workingDirectory: ".", env: #{ NODE_OPTIONS: "--max-old-space-size=4096" } },
+      #{ id: "generated-drift", label: "Generated drift", command: "npm", args: #["run", "check:generated-drift"], workingDirectory: "." },
+      #{ id: "generated-banners", label: "Generated banners", command: "npm", args: #["run", "lint:generated-banners"], workingDirectory: "." },
+      #{ id: "openapi-lint", label: "OpenAPI lint", command: "npx", args: #["--yes", "@stoplight/spectral-cli", "lint", "specs/generated/openapi3/*.json"], workingDirectory: "." },
+      #{ id: "npm-audit", label: "Root npm audit", command: "npm", args: #["audit", "--audit-level=high"], workingDirectory: "." },
+      #{ id: "security-audit", label: "Security audit", command: "npm", args: #["run", "audit:security"], workingDirectory: "." },
+    ],
+  },
   targets: #[
     #{
       id: "typescript",

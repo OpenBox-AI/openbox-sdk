@@ -63,6 +63,7 @@ from openbox_sdk.generated.permissions import PATH_PERMISSION_RULES
 from openbox_sdk.generated.sdk_targets import (
     CLEAN_ARTIFACTS,
     GENERATED_ARTIFACTS,
+    LOCAL_CI,
     SDK_TARGET_IDS,
     SDK_TARGET_MANIFEST,
     SDK_TARGETS,
@@ -460,11 +461,13 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
     assert SDK_TARGET_MANIFEST == {
         "cleanArtifacts": fixture["cleanArtifacts"],
         "generatedArtifacts": fixture["generatedArtifacts"],
+        "localCi": fixture["localCi"],
         "securityAudit": fixture["securityAudit"],
         "targets": fixture["targets"],
     }
     assert CLEAN_ARTIFACTS == fixture["cleanArtifacts"]
     assert GENERATED_ARTIFACTS == fixture["generatedArtifacts"]
+    assert LOCAL_CI == fixture["localCi"]
     assert SECURITY_AUDIT == fixture["securityAudit"]
     assert SDK_TARGETS == fixture["targets"]
     assert SDK_TARGET_IDS == [target["id"] for target in fixture["targets"]]

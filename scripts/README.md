@@ -35,6 +35,9 @@ canonical TypeSpec contract.
   secret-scan excludes. Add new audited package roots or fixture exclusions in
   `specs/typespec/sdk/main.tsp`; do not hard-code package-specific audit steps
   or unreasoned scan allowlists in `scripts/security-audit.mjs`.
+- `ci:local` reads the TypeSpec-emitted `localCi.steps` pipeline and executes
+  those commands in order. Add or reorder local CI gates in
+  `specs/typespec/sdk/main.tsp`, not in `package.json`.
 - Spec-bound apps currently include the VS Code extension and n8n custom-node
   package. The VS Code extension declares its package manifest surface in
   `specs/typespec/sdk/main.tsp`, and `check:sdks` compares that spec to
@@ -43,9 +46,9 @@ canonical TypeSpec contract.
 
 ## Local CI
 
-- `ci:local` composes the full local PR/release gate: `check:sdks`, coverage,
-  bundle build, generated drift, generated banners, OpenAPI lint, npm audit, and
-  the repository security audit.
+- `ci:local` composes the full local PR/release gate declared in the SDK target
+  manifest: `check:sdks`, coverage, bundle build, generated drift, generated
+  banners, OpenAPI lint, npm audit, and the repository security audit.
 
 ## Operational Scripts
 

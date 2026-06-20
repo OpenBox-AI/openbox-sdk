@@ -303,7 +303,7 @@ function emitSdkTargets(program: Program): string {
   const ns = findNamespace(program, 'OpenboxSdk');
   const manifest = ns ? getSdkTargets(program, ns) : undefined;
   if (!manifest) {
-    return `${PYTHON_BANNER}SDK_TARGET_MANIFEST = {}\nGENERATED_ARTIFACTS = {}\nCLEAN_ARTIFACTS = {}\nSECURITY_AUDIT = {}\nSDK_TARGETS = []\nSDK_TARGET_IDS = []\n`;
+    return `${PYTHON_BANNER}SDK_TARGET_MANIFEST = {}\nGENERATED_ARTIFACTS = {}\nCLEAN_ARTIFACTS = {}\nSECURITY_AUDIT = {}\nLOCAL_CI = {}\nSDK_TARGETS = []\nSDK_TARGET_IDS = []\n`;
   }
   return `${PYTHON_BANNER}# Generated from TypeSpec SDK target contracts.
 
@@ -311,10 +311,11 @@ SDK_TARGET_MANIFEST = ${py(manifest)}
 GENERATED_ARTIFACTS = SDK_TARGET_MANIFEST.get("generatedArtifacts", {})
 CLEAN_ARTIFACTS = SDK_TARGET_MANIFEST.get("cleanArtifacts", {})
 SECURITY_AUDIT = SDK_TARGET_MANIFEST.get("securityAudit", {})
+LOCAL_CI = SDK_TARGET_MANIFEST.get("localCi", {})
 SDK_TARGETS = SDK_TARGET_MANIFEST.get("targets", [])
 SDK_TARGET_IDS = [target["id"] for target in SDK_TARGETS]
 
-__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "SDK_TARGETS", "SDK_TARGET_IDS"]
+__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]
 `;
 }
 

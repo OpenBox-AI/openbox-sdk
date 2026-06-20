@@ -40,6 +40,16 @@ interface SdkTargetsFixture {
       reason: string;
     }>;
   };
+  localCi: {
+    steps: Array<{
+      id: string;
+      label: string;
+      command: string;
+      args?: string[];
+      workingDirectory: string;
+      env?: Record<string, string>;
+    }>;
+  };
   targets: Array<{
     id: string;
     label: string;
@@ -143,6 +153,28 @@ describe('SDK target validation manifest', () => {
       ]),
     );
     expect(fixture.securityAudit.secretScanExcludes.every((entry) => entry.reason.length > 20)).toBe(true);
+  });
+
+  test('declares local CI as a target-neutral pipeline', () => {
+    const fixture = readSdkTargetsFixture();
+
+    expect(fixture.localCi.steps.map((step) => step.id)).toEqual([
+      'check-sdks',
+      'coverage',
+      'build',
+      'generated-drift',
+      'generated-banners',
+      'openapi-lint',
+      'npm-audit',
+      'security-audit',
+    ]);
+    expect(fixture.localCi.steps.find((step) => step.id === 'coverage')?.env).toEqual({
+      OPENBOX_CLI: './scripts/openbox-cli-dev.mjs',
+    });
+    expect(fixture.localCi.steps.find((step) => step.id === 'build')?.env).toEqual({
+      NODE_OPTIONS: '--max-old-space-size=4096',
+    });
+    expect(fixture.localCi.steps.every((step) => step.workingDirectory === '.')).toBe(true);
   });
 
   test('keeps root validation generic while target commands remain native', () => {

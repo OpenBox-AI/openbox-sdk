@@ -383,6 +383,9 @@ extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown
  *       commands: #[#{ id, label, command, args, workingDirectory }, ...],
  *       secretScanExcludes: #[#{ path, reason }, ...],
  *     },
+ *     localCi: #{
+ *       steps: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *     },
  *     targets: #[
  *       #{
  *         id: "typescript",

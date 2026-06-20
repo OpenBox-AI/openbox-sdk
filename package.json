@@ -172,7 +172,7 @@
     "test:hook-integration": "vitest run --project hook-integration",
     "generate:sdks": "npm run build:codegen && npm run specs:compile",
     "check:sdks": "npm run generate:sdks && node scripts/check-sdks.mjs",
-    "ci:local": "npm run check:sdks && OPENBOX_CLI=./scripts/openbox-cli-dev.mjs npx vitest run --coverage --project unit --project contract --project hook-integration --coverage.reporter=lcov && NODE_OPTIONS=--max-old-space-size=4096 npm run build && npm run check:generated-drift && npm run lint:generated-banners && npx --yes @stoplight/spectral-cli lint specs/generated/openapi3/*.json && npm audit --audit-level=high && npm run audit:security",
+    "ci:local": "node scripts/run-local-ci.mjs",
     "specs:compile": "tsp compile specs/typespec",
     "specs:all": "npm run generate:sdks",
     "specs:watch": "tsp compile specs/typespec --watch",

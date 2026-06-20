@@ -274,6 +274,12 @@ describe('typespec-workflow', () => {
             secretScanExcludes: Array<{ path: string; reason: string }>;
           }
         | undefined;
+    const localCi =
+      fixture?.localCi as
+        | {
+            steps: Array<{ id: string; command: string; workingDirectory: string; env?: Record<string, string> }>;
+          }
+        | undefined;
     const targets =
       fixture?.targets as
         | Array<{
@@ -319,5 +325,18 @@ describe('typespec-workflow', () => {
       'example/n8n/custom-node',
     ]);
     expect(securityAudit?.secretScanExcludes.every((entry) => entry.reason.length > 20)).toBe(true);
+    expect(localCi?.steps.map((entry) => entry.id)).toEqual([
+      'check-sdks',
+      'coverage',
+      'build',
+      'generated-drift',
+      'generated-banners',
+      'openapi-lint',
+      'npm-audit',
+      'security-audit',
+    ]);
+    expect(localCi?.steps.find((entry) => entry.id === 'coverage')?.env?.OPENBOX_CLI).toBe(
+      './scripts/openbox-cli-dev.mjs',
+    );
   });
 });
