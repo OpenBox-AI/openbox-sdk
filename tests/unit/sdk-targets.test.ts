@@ -14,6 +14,16 @@ interface SdkTargetsFixture {
       suffixes: string[];
     }>;
   };
+  codegenBuild: {
+    steps: Array<{
+      id: string;
+      label: string;
+      command: string;
+      args?: string[];
+      workingDirectory: string;
+      env?: Record<string, string>;
+    }>;
+  };
   packageSurface: {
     packageName: string;
     bin: Array<{
@@ -119,6 +129,48 @@ describe('SDK target validation manifest', () => {
     ]);
     expect(fixture.generatedArtifacts.nestedGeneratedFiles).toEqual([
       { root: 'ts/src', suffixes: ['.ts', '.d.ts'] },
+    ]);
+  });
+
+  test('declares the codegen build pipeline without package-script workspace lists', () => {
+    const fixture = readSdkTargetsFixture();
+    const packageJson = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
+    ) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts['build:codegen']).toBe('node scripts/build-codegen.mjs');
+    expect(packageJson.scripts['build:codegen']).not.toContain('-w typespec-');
+    expect(fixture.codegenBuild.steps).toEqual([
+      {
+        id: 'typespec-env',
+        label: 'TypeSpec env library',
+        command: 'npm',
+        args: ['run', 'build', '-w', 'typespec-env'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'typespec-cli',
+        label: 'TypeSpec CLI library',
+        command: 'npm',
+        args: ['run', 'build', '-w', 'typespec-cli'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'typespec-workflow',
+        label: 'TypeSpec workflow library',
+        command: 'npm',
+        args: ['run', 'build', '-w', 'typespec-workflow'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'typespec-emitter',
+        label: 'OpenBox TypeSpec emitter',
+        command: 'npm',
+        args: ['run', 'build', '-w', 'typespec-emitter'],
+        workingDirectory: '.',
+      },
     ]);
   });
 

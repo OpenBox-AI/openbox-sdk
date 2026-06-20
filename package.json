@@ -157,7 +157,7 @@
     "apps/*"
   ],
   "scripts": {
-    "build:codegen": "npm run build -w typespec-env -w typespec-cli -w typespec-workflow -w typespec-emitter",
+    "build:codegen": "node scripts/build-codegen.mjs",
     "build:bundle": "tsup && node --experimental-strip-types scripts/sync-runtime-assets.ts",
     "build": "npm run generate:sdks && npm run build:bundle",
     "prepublishOnly": "npm run build",

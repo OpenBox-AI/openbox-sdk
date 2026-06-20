@@ -276,6 +276,12 @@ describe('typespec-workflow', () => {
             exports: Array<{ subpath: string; types: string; importPath: string }>;
           }
         | undefined;
+    const codegenBuild =
+      fixture?.codegenBuild as
+        | {
+            steps: Array<{ id: string; command: string; workingDirectory: string }>;
+          }
+        | undefined;
     const securityAudit =
       fixture?.securityAudit as
         | {
@@ -331,6 +337,13 @@ describe('typespec-workflow', () => {
     expect(packageSurface?.exports.map((entry) => entry.subpath)).toEqual(
       expect.arrayContaining(['.', './runtime/n8n', './openai-agents-sdk']),
     );
+    expect(codegenBuild?.steps.map((entry) => entry.id)).toEqual([
+      'typespec-env',
+      'typespec-cli',
+      'typespec-workflow',
+      'typespec-emitter',
+    ]);
+    expect(codegenBuild?.steps.every((entry) => entry.command === 'npm')).toBe(true);
     expect(securityAudit?.commands.map((entry) => entry.id)).toEqual([
       'root-npm-audit',
       'n8n-npm-audit',

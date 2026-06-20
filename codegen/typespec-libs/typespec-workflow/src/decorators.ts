@@ -884,6 +884,50 @@ function reportInvalidSdkTargets(
   });
 }
 
+function validateCommandStepArray(
+  context: DecoratorContext,
+  target: Namespace,
+  fieldPath: string,
+  rawSteps: unknown,
+): boolean {
+  if (!Array.isArray(rawSteps) || rawSteps.length === 0) {
+    reportInvalidSdkTargets(context, target, `${fieldPath} must be a non-empty array`);
+    return false;
+  }
+
+  for (const [index, rawStep] of rawSteps.entries()) {
+    if (!rawStep || typeof rawStep !== 'object' || Array.isArray(rawStep)) {
+      reportInvalidSdkTargets(context, target, `${fieldPath} ${index} must be a record`);
+      return false;
+    }
+    const step = rawStep as Record<string, unknown>;
+    for (const field of ['id', 'label', 'command', 'workingDirectory']) {
+      if (!isNonEmptyString(step[field])) {
+        reportInvalidSdkTargets(context, target, `${fieldPath} ${index}.${field} must be a non-empty string`);
+        return false;
+      }
+    }
+    if (step.args !== undefined && !isStringArray(step.args)) {
+      reportInvalidSdkTargets(context, target, `${fieldPath} ${index}.args must be a string array`);
+      return false;
+    }
+    if (step.env !== undefined) {
+      if (!step.env || typeof step.env !== 'object' || Array.isArray(step.env)) {
+        reportInvalidSdkTargets(context, target, `${fieldPath} ${index}.env must be a record`);
+        return false;
+      }
+      for (const [name, value] of Object.entries(step.env as Record<string, unknown>)) {
+        if (!isNonEmptyString(name) || typeof value !== 'string') {
+          reportInvalidSdkTargets(context, target, `${fieldPath} ${index}.env must map strings to strings`);
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
 function validateExtensionManifestRecord(
   context: DecoratorContext,
   target: Namespace,
@@ -930,43 +974,8 @@ function validateSecurityAuditRecord(
   }
 
   const securityAudit = rawSecurityAudit as Record<string, unknown>;
-  if (!Array.isArray(securityAudit.commands) || securityAudit.commands.length === 0) {
-    reportInvalidSdkTargets(context, target, 'securityAudit.commands must be a non-empty array');
+  if (!validateCommandStepArray(context, target, 'securityAudit.commands', securityAudit.commands)) {
     return false;
-  }
-
-  for (const [index, rawCommand] of securityAudit.commands.entries()) {
-    if (!rawCommand || typeof rawCommand !== 'object' || Array.isArray(rawCommand)) {
-      reportInvalidSdkTargets(context, target, `securityAudit.commands ${index} must be a record`);
-      return false;
-    }
-    const command = rawCommand as Record<string, unknown>;
-    for (const field of ['id', 'label', 'command', 'workingDirectory']) {
-      if (!isNonEmptyString(command[field])) {
-        reportInvalidSdkTargets(context, target, `securityAudit.commands ${index}.${field} must be a non-empty string`);
-        return false;
-      }
-    }
-    if (command.args !== undefined && !isStringArray(command.args)) {
-      reportInvalidSdkTargets(context, target, `securityAudit.commands ${index}.args must be a string array`);
-      return false;
-    }
-    if (command.env !== undefined) {
-      if (!command.env || typeof command.env !== 'object' || Array.isArray(command.env)) {
-        reportInvalidSdkTargets(context, target, `securityAudit.commands ${index}.env must be a record`);
-        return false;
-      }
-      for (const [name, value] of Object.entries(command.env as Record<string, unknown>)) {
-        if (!isNonEmptyString(name) || typeof value !== 'string') {
-          reportInvalidSdkTargets(
-            context,
-            target,
-            `securityAudit.commands ${index}.env must map strings to strings`,
-          );
-          return false;
-        }
-      }
-    }
   }
 
   if (!Array.isArray(securityAudit.secretScanExcludes)) {
@@ -1003,42 +1012,21 @@ function validateLocalCiRecord(
   }
 
   const localCi = rawLocalCi as Record<string, unknown>;
-  if (!Array.isArray(localCi.steps) || localCi.steps.length === 0) {
-    reportInvalidSdkTargets(context, target, 'localCi.steps must be a non-empty array');
+  return validateCommandStepArray(context, target, 'localCi.steps', localCi.steps);
+}
+
+function validateCodegenBuildRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawCodegenBuild: unknown,
+): boolean {
+  if (!rawCodegenBuild || typeof rawCodegenBuild !== 'object' || Array.isArray(rawCodegenBuild)) {
+    reportInvalidSdkTargets(context, target, 'codegenBuild must be a record');
     return false;
   }
 
-  for (const [index, rawStep] of localCi.steps.entries()) {
-    if (!rawStep || typeof rawStep !== 'object' || Array.isArray(rawStep)) {
-      reportInvalidSdkTargets(context, target, `localCi.steps ${index} must be a record`);
-      return false;
-    }
-    const step = rawStep as Record<string, unknown>;
-    for (const field of ['id', 'label', 'command', 'workingDirectory']) {
-      if (!isNonEmptyString(step[field])) {
-        reportInvalidSdkTargets(context, target, `localCi.steps ${index}.${field} must be a non-empty string`);
-        return false;
-      }
-    }
-    if (step.args !== undefined && !isStringArray(step.args)) {
-      reportInvalidSdkTargets(context, target, `localCi.steps ${index}.args must be a string array`);
-      return false;
-    }
-    if (step.env !== undefined) {
-      if (!step.env || typeof step.env !== 'object' || Array.isArray(step.env)) {
-        reportInvalidSdkTargets(context, target, `localCi.steps ${index}.env must be a record`);
-        return false;
-      }
-      for (const [name, value] of Object.entries(step.env as Record<string, unknown>)) {
-        if (!isNonEmptyString(name) || typeof value !== 'string') {
-          reportInvalidSdkTargets(context, target, `localCi.steps ${index}.env must map strings to strings`);
-          return false;
-        }
-      }
-    }
-  }
-
-  return true;
+  const codegenBuild = rawCodegenBuild as Record<string, unknown>;
+  return validateCommandStepArray(context, target, 'codegenBuild.steps', codegenBuild.steps);
 }
 
 function validatePackageSurfaceRecord(
@@ -1219,6 +1207,12 @@ export function $sdkTargets(
 
   if (record.packageSurface !== undefined) {
     if (!validatePackageSurfaceRecord(context, target, record.packageSurface)) {
+      return;
+    }
+  }
+
+  if (record.codegenBuild !== undefined) {
+    if (!validateCodegenBuildRecord(context, target, record.codegenBuild)) {
       return;
     }
   }

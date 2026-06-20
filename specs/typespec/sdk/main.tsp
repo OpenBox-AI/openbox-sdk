@@ -31,6 +31,14 @@ using OpenBox.Workflow;
       #{ root: "ts/src", suffixes: #[".ts", ".d.ts"] },
     ],
   },
+  codegenBuild: #{
+    steps: #[
+      #{ id: "typespec-env", label: "TypeSpec env library", command: "npm", args: #["run", "build", "-w", "typespec-env"], workingDirectory: "." },
+      #{ id: "typespec-cli", label: "TypeSpec CLI library", command: "npm", args: #["run", "build", "-w", "typespec-cli"], workingDirectory: "." },
+      #{ id: "typespec-workflow", label: "TypeSpec workflow library", command: "npm", args: #["run", "build", "-w", "typespec-workflow"], workingDirectory: "." },
+      #{ id: "typespec-emitter", label: "OpenBox TypeSpec emitter", command: "npm", args: #["run", "build", "-w", "typespec-emitter"], workingDirectory: "." },
+    ],
+  },
   packageSurface: #{
     packageName: "@openbox-ai/openbox-sdk",
     bin: #[

@@ -10,6 +10,11 @@ canonical TypeSpec contract.
   the TypeSpec decorator libraries and shared emitter, then compiles the
   canonical TypeSpec contract. TypeScript, Python, OpenAPI, JSON Schema, and
   future language targets must all hang off this command.
+- `build:codegen` reads the TypeSpec-emitted `codegenBuild.steps` pipeline from
+  `codegen/fixtures/sdk-targets.json` and builds the TypeSpec decorator
+  libraries plus shared emitter. If generated fixtures were cleaned, it falls
+  back to codegen workspace package metadata only long enough to regenerate the
+  canonical manifest.
 - `check:generated-drift` reruns `npm run generate:sdks`, then checks generated
   TypeScript, Python, OpenAPI, JSON Schema, TypeSpec-emitted contract metadata
   maps, CLI/env/lifecycle fixtures, and conformance fixture artifacts for drift.

@@ -31,6 +31,58 @@ SDK_TARGET_MANIFEST = {
       }
     ]
   },
+  "codegenBuild": {
+    "steps": [
+      {
+        "id": "typespec-env",
+        "label": "TypeSpec env library",
+        "command": "npm",
+        "args": [
+          "run",
+          "build",
+          "-w",
+          "typespec-env"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "typespec-cli",
+        "label": "TypeSpec CLI library",
+        "command": "npm",
+        "args": [
+          "run",
+          "build",
+          "-w",
+          "typespec-cli"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "typespec-workflow",
+        "label": "TypeSpec workflow library",
+        "command": "npm",
+        "args": [
+          "run",
+          "build",
+          "-w",
+          "typespec-workflow"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "typespec-emitter",
+        "label": "OpenBox TypeSpec emitter",
+        "command": "npm",
+        "args": [
+          "run",
+          "build",
+          "-w",
+          "typespec-emitter"
+        ],
+        "workingDirectory": "."
+      }
+    ]
+  },
   "packageSurface": {
     "packageName": "@openbox-ai/openbox-sdk",
     "bin": [
@@ -572,6 +624,7 @@ SDK_TARGET_MANIFEST = {
   ]
 }
 GENERATED_ARTIFACTS = SDK_TARGET_MANIFEST.get("generatedArtifacts", {})
+CODEGEN_BUILD = SDK_TARGET_MANIFEST.get("codegenBuild", {})
 PACKAGE_SURFACE = SDK_TARGET_MANIFEST.get("packageSurface", {})
 CLEAN_ARTIFACTS = SDK_TARGET_MANIFEST.get("cleanArtifacts", {})
 SECURITY_AUDIT = SDK_TARGET_MANIFEST.get("securityAudit", {})
@@ -579,4 +632,4 @@ LOCAL_CI = SDK_TARGET_MANIFEST.get("localCi", {})
 SDK_TARGETS = SDK_TARGET_MANIFEST.get("targets", [])
 SDK_TARGET_IDS = [target["id"] for target in SDK_TARGETS]
 
-__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]
+__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]

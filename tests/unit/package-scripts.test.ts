@@ -7,6 +7,7 @@ const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json
   scripts: Record<string, string>;
 };
 const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runtime-assets.ts'), 'utf8');
+const buildCodegenScript = readFileSync(resolve(process.cwd(), 'scripts/build-codegen.mjs'), 'utf8');
 const cleanScript = readFileSync(resolve(process.cwd(), 'scripts/clean.mjs'), 'utf8');
 const localCiScript = readFileSync(resolve(process.cwd(), 'scripts/run-local-ci.mjs'), 'utf8');
 const cleanGeneratedScript = readFileSync(resolve(process.cwd(), 'scripts/clean-generated.mjs'), 'utf8');
@@ -15,6 +16,18 @@ const checkSdksScript = readFileSync(resolve(process.cwd(), 'scripts/check-sdks.
 const securityAuditScript = readFileSync(resolve(process.cwd(), 'scripts/security-audit.mjs'), 'utf8');
 
 describe('package scripts', () => {
+  test('codegen build reads the TypeSpec-emitted pipeline', () => {
+    expect(packageJson.scripts['build:codegen']).toBe('node scripts/build-codegen.mjs');
+    expect(packageJson.scripts['build:codegen']).not.toContain('-w typespec-');
+    expect(buildCodegenScript).toContain('codegenBuild.steps');
+    expect(buildCodegenScript).toContain('codegen/fixtures/sdk-targets.json');
+    expect(buildCodegenScript).toContain('deriveBootstrapSteps');
+    expect(buildCodegenScript).not.toContain("'typespec-env'");
+    expect(buildCodegenScript).not.toContain('"typespec-env"');
+    expect(buildCodegenScript).not.toContain("'typespec-emitter'");
+    expect(buildCodegenScript).not.toContain('"typespec-emitter"');
+  });
+
   test('root clean reads TypeSpec-emitted clean artifact inventory', () => {
     expect(packageJson.scripts.clean).toBe('node scripts/clean.mjs');
     expect(packageJson.scripts.clean).not.toContain('rm -rf');

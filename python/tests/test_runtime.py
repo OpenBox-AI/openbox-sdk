@@ -62,6 +62,7 @@ from openbox_sdk.generated.govern import PRESET_MANIFEST
 from openbox_sdk.generated.permissions import PATH_PERMISSION_RULES
 from openbox_sdk.generated.sdk_targets import (
     CLEAN_ARTIFACTS,
+    CODEGEN_BUILD,
     GENERATED_ARTIFACTS,
     LOCAL_CI,
     PACKAGE_SURFACE,
@@ -461,6 +462,7 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
     assert fixture["source"] == "specs/typespec/sdk/main.tsp"
     assert SDK_TARGET_MANIFEST == {
         "cleanArtifacts": fixture["cleanArtifacts"],
+        "codegenBuild": fixture["codegenBuild"],
         "generatedArtifacts": fixture["generatedArtifacts"],
         "localCi": fixture["localCi"],
         "packageSurface": fixture["packageSurface"],
@@ -468,6 +470,7 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
         "targets": fixture["targets"],
     }
     assert CLEAN_ARTIFACTS == fixture["cleanArtifacts"]
+    assert CODEGEN_BUILD == fixture["codegenBuild"]
     assert GENERATED_ARTIFACTS == fixture["generatedArtifacts"]
     assert LOCAL_CI == fixture["localCi"]
     assert PACKAGE_SURFACE == fixture["packageSurface"]
