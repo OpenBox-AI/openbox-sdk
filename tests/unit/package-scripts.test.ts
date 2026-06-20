@@ -8,6 +8,7 @@ const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json
 };
 const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runtime-assets.ts'), 'utf8');
 const buildCodegenScript = readFileSync(resolve(process.cwd(), 'scripts/build-codegen.mjs'), 'utf8');
+const runBundleBuildScript = readFileSync(resolve(process.cwd(), 'scripts/run-bundle-build.mjs'), 'utf8');
 const cleanScript = readFileSync(resolve(process.cwd(), 'scripts/clean.mjs'), 'utf8');
 const localCiScript = readFileSync(resolve(process.cwd(), 'scripts/run-local-ci.mjs'), 'utf8');
 const runTestsScript = readFileSync(resolve(process.cwd(), 'scripts/run-tests.mjs'), 'utf8');
@@ -29,6 +30,14 @@ describe('package scripts', () => {
     expect(buildCodegenScript).not.toContain('"typespec-env"');
     expect(buildCodegenScript).not.toContain("'typespec-emitter'");
     expect(buildCodegenScript).not.toContain('"typespec-emitter"');
+  });
+
+  test('bundle build reads the TypeSpec-emitted pipeline', () => {
+    expect(packageJson.scripts['build:bundle']).toBe('node scripts/run-bundle-build.mjs');
+    expect(packageJson.scripts['build:bundle']).not.toContain('tsup');
+    expect(packageJson.scripts['build:bundle']).not.toContain('sync-runtime-assets');
+    expect(runBundleBuildScript).toContain('bundleBuild.steps');
+    expect(runBundleBuildScript).toContain("from './lib/spec-steps.mjs'");
   });
 
   test('root clean reads TypeSpec-emitted clean artifact inventory', () => {

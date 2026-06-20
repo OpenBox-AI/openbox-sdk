@@ -128,6 +128,29 @@ SDK_TARGET_MANIFEST = {
       }
     ]
   },
+  "bundleBuild": {
+    "steps": [
+      {
+        "id": "tsup",
+        "label": "TypeScript bundle",
+        "command": "npx",
+        "args": [
+          "tsup"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "runtime-assets",
+        "label": "Runtime asset sync",
+        "command": "node",
+        "args": [
+          "--experimental-strip-types",
+          "scripts/sync-runtime-assets.ts"
+        ],
+        "workingDirectory": "."
+      }
+    ]
+  },
   "packageSurface": {
     "packageName": "@openbox-ai/openbox-sdk",
     "bin": [
@@ -671,6 +694,7 @@ SDK_TARGET_MANIFEST = {
 GENERATED_ARTIFACTS = SDK_TARGET_MANIFEST.get("generatedArtifacts", {})
 CODEGEN_BUILD = SDK_TARGET_MANIFEST.get("codegenBuild", {})
 TEST_SUITES = SDK_TARGET_MANIFEST.get("testSuites", {})
+BUNDLE_BUILD = SDK_TARGET_MANIFEST.get("bundleBuild", {})
 PACKAGE_SURFACE = SDK_TARGET_MANIFEST.get("packageSurface", {})
 CLEAN_ARTIFACTS = SDK_TARGET_MANIFEST.get("cleanArtifacts", {})
 SECURITY_AUDIT = SDK_TARGET_MANIFEST.get("securityAudit", {})
@@ -678,4 +702,4 @@ LOCAL_CI = SDK_TARGET_MANIFEST.get("localCi", {})
 SDK_TARGETS = SDK_TARGET_MANIFEST.get("targets", [])
 SDK_TARGET_IDS = [target["id"] for target in SDK_TARGETS]
 
-__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "TEST_SUITES", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]
+__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "TEST_SUITES", "BUNDLE_BUILD", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]

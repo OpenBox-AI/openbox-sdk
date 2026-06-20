@@ -387,6 +387,9 @@ extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown
  *       defaultSuites: #[...],
  *       suites: #[#{ id, label, command, args, workingDirectory, env }, ...],
  *     },
+ *     bundleBuild: #{
+ *       steps: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *     },
  *     cleanArtifacts: #{
  *       paths: #[...],
  *       nestedNames: #[#{ root, names }, ...],

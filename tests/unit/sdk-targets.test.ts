@@ -35,6 +35,16 @@ interface SdkTargetsFixture {
       env?: Record<string, string>;
     }>;
   };
+  bundleBuild: {
+    steps: Array<{
+      id: string;
+      label: string;
+      command: string;
+      args?: string[];
+      workingDirectory: string;
+      env?: Record<string, string>;
+    }>;
+  };
   packageSurface: {
     packageName: string;
     bin: Array<{
@@ -224,6 +234,33 @@ describe('SDK target validation manifest', () => {
         label: 'Hook integration tests',
         command: 'npx',
         args: ['vitest', 'run', '--project', 'hook-integration'],
+        workingDirectory: '.',
+      },
+    ]);
+  });
+
+  test('declares bundle build stages outside package scripts', () => {
+    const fixture = readSdkTargetsFixture();
+    const packageJson = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
+    ) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts['build:bundle']).toBe('node scripts/run-bundle-build.mjs');
+    expect(fixture.bundleBuild.steps).toEqual([
+      {
+        id: 'tsup',
+        label: 'TypeScript bundle',
+        command: 'npx',
+        args: ['tsup'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'runtime-assets',
+        label: 'Runtime asset sync',
+        command: 'node',
+        args: ['--experimental-strip-types', 'scripts/sync-runtime-assets.ts'],
         workingDirectory: '.',
       },
     ]);

@@ -15,6 +15,9 @@ canonical TypeSpec contract.
   libraries plus shared emitter. If generated fixtures were cleaned, it falls
   back to codegen workspace package metadata only long enough to regenerate the
   canonical manifest.
+- `build:bundle` reads the TypeSpec-emitted `bundleBuild.steps` pipeline for
+  bundling and runtime asset sync. Add build-stage changes in
+  `specs/typespec/sdk/main.tsp`, not in the root package script.
 - `check:generated-drift` reruns `npm run generate:sdks`, then checks generated
   TypeScript, Python, OpenAPI, JSON Schema, TypeSpec-emitted contract metadata
   maps, CLI/env/lifecycle fixtures, and conformance fixture artifacts for drift.
@@ -62,8 +65,8 @@ canonical TypeSpec contract.
 ## Operational Scripts
 
 - `sync-runtime-assets.ts` copies runtime templates and exports built plugin
-  bundles after `tsup`; this depends on built runtime code and is not a spec
-  emitter.
+  bundles after the bundle step; this depends on built runtime code and is not
+  a spec emitter.
 - `lib/spec-steps.mjs` is the shared runner framework for TypeSpec-emitted
   command pipelines.
 - `openbox-cli-dev.mjs` is a local developer launcher for the TypeScript CLI.

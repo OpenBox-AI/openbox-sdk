@@ -158,7 +158,7 @@
   ],
   "scripts": {
     "build:codegen": "node scripts/build-codegen.mjs",
-    "build:bundle": "tsup && node --experimental-strip-types scripts/sync-runtime-assets.ts",
+    "build:bundle": "node scripts/run-bundle-build.mjs",
     "build": "npm run generate:sdks && npm run build:bundle",
     "prepublishOnly": "npm run build",
     "clean": "node scripts/clean.mjs",

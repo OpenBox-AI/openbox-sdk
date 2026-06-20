@@ -289,6 +289,12 @@ describe('typespec-workflow', () => {
             suites: Array<{ id: string; command: string; workingDirectory: string }>;
           }
         | undefined;
+    const bundleBuild =
+      fixture?.bundleBuild as
+        | {
+            steps: Array<{ id: string; command: string; workingDirectory: string }>;
+          }
+        | undefined;
     const securityAudit =
       fixture?.securityAudit as
         | {
@@ -358,6 +364,8 @@ describe('typespec-workflow', () => {
       'hook-integration',
     ]);
     expect(testSuites?.suites.every((entry) => entry.command === 'npx')).toBe(true);
+    expect(bundleBuild?.steps.map((entry) => entry.id)).toEqual(['tsup', 'runtime-assets']);
+    expect(bundleBuild?.steps.map((entry) => entry.command)).toEqual(['npx', 'node']);
     expect(securityAudit?.commands.map((entry) => entry.id)).toEqual([
       'root-npm-audit',
       'n8n-npm-audit',

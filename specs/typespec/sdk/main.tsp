@@ -47,6 +47,12 @@ using OpenBox.Workflow;
       #{ id: "hook-integration", label: "Hook integration tests", command: "npx", args: #["vitest", "run", "--project", "hook-integration"], workingDirectory: "." },
     ],
   },
+  bundleBuild: #{
+    steps: #[
+      #{ id: "tsup", label: "TypeScript bundle", command: "npx", args: #["tsup"], workingDirectory: "." },
+      #{ id: "runtime-assets", label: "Runtime asset sync", command: "node", args: #["--experimental-strip-types", "scripts/sync-runtime-assets.ts"], workingDirectory: "." },
+    ],
+  },
   packageSurface: #{
     packageName: "@openbox-ai/openbox-sdk",
     bin: #[
