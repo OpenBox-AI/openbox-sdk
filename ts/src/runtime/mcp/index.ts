@@ -580,8 +580,8 @@ registerOpenBoxTool("check_governance", "Evaluate an action against governance r
 function promptArgsSchema(prompt: McpPromptSurfaceEntry): Record<string, any> {
   const schema: Record<string, any> = {};
   for (const arg of prompt.args) {
-    const base = z.string().describe(arg.description);
-    schema[arg.name] = arg.required ? base : base.optional();
+    const base = arg.required ? z.string() : z.string().optional();
+    schema[arg.name] = base.describe(arg.description);
   }
   return schema;
 }

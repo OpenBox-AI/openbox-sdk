@@ -48,6 +48,7 @@ export type {
   SkillCapabilityGuardEntry,
   McpCapabilityGuardEntry,
   InstallDoctorCapabilityGuardEntry,
+  McpPromptArgEntry,
   McpPromptSurfaceEntry,
   McpResourceTemplateSurfaceEntry,
   McpSkillReferenceSurfaceEntry,

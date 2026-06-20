@@ -34,6 +34,11 @@ interface CapturedPrompt {
   cb: (args: any) => Promise<any>;
 }
 
+interface PromptArgSchema {
+  description?: string;
+  safeParse: (value: unknown) => { success: boolean };
+}
+
 interface CapturedResource {
   name: string;
   uriOrTemplate: any;
@@ -282,6 +287,12 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
         expect(Object.keys(promptEntry!.config.argsSchema)).toEqual(
           surface.args.map((arg) => arg.name),
         );
+        for (const arg of surface.args) {
+          const schema = promptEntry!.config.argsSchema[arg.name] as PromptArgSchema;
+          expect(schema.description).toBe(arg.description);
+          expect(schema.safeParse(undefined).success).toBe(!arg.required);
+          expect(schema.safeParse('value').success).toBe(true);
+        }
       }
       const prompt = capturedPrompts.find((entry) => entry.name === 'governance_check')!;
       expect(Object.keys(prompt.config.argsSchema)).toEqual(['agent_id', 'span_type', 'activity_input']);

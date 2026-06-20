@@ -220,11 +220,17 @@ export interface McpToolSurfaceEntry {
   openWorldHint: boolean;
 }
 
+export interface McpPromptArgEntry {
+  name: string;
+  description: string;
+  required: boolean;
+}
+
 export interface McpPromptSurfaceEntry {
   name: string;
   title: string;
   description: string;
-  args: readonly { name: string; description: string; required: boolean }[];
+  args: readonly McpPromptArgEntry[];
   instructions: string;
 }
 

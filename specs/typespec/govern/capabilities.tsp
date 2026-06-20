@@ -231,11 +231,17 @@ namespace OpenboxGovern.Capabilities {
     openWorldHint: boolean;
   }
 
+  model McpPromptArgEntry {
+    name: string;
+    description: string;
+    required: boolean;
+  }
+
   model McpPromptSurfaceEntry {
     name: string;
     title: string;
     description: string;
-    args: Record<unknown>[];
+    args: McpPromptArgEntry[];
     instructions: string;
   }
 
