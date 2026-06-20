@@ -1055,6 +1055,38 @@ SDK_TARGET_MANIFEST = {
         "packageName": "openbox",
         "publisher": "openbox",
         "displayName": "OpenBox",
+        "metadata": {
+          "description": "OpenBox Extension",
+          "icon": "media/icon.png",
+          "license": "MIT",
+          "homepage": "https://openbox.ai",
+          "repository": {
+            "type": "git",
+            "url": "https://github.com/OpenBox-AI/openbox-sdk.git"
+          },
+          "bugs": {
+            "url": "https://github.com/OpenBox-AI/openbox-sdk/issues"
+          },
+          "keywords": [
+            "ai",
+            "ai-governance",
+            "guardrails",
+            "policy",
+            "opa",
+            "approvals",
+            "hitl",
+            "agent-trace",
+            "cursor",
+            "claude-code"
+          ],
+          "engines": {
+            "vscode": "^1.85.0"
+          },
+          "categories": [
+            "AI",
+            "Other"
+          ]
+        },
         "main": "./dist/extension.js",
         "activationEvents": [
           "onStartupFinished",

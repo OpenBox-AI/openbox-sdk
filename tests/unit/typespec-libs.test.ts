@@ -349,6 +349,10 @@ describe('typespec-workflow', () => {
             commands: unknown[];
             extensionManifest?: {
               packageName: string;
+              metadata?: {
+                license?: string;
+                engines?: { vscode?: string };
+              };
               activationEvents: string[];
               views: string[];
               commands: string[];
@@ -366,6 +370,8 @@ describe('typespec-workflow', () => {
     expect(targets?.every((target) => target.commands.length > 0)).toBe(true);
     const extension = targets?.find((target) => target.id === 'extension');
     expect(extension?.extensionManifest?.packageName).toBe('openbox');
+    expect(extension?.extensionManifest?.metadata?.license).toBe('MIT');
+    expect(extension?.extensionManifest?.metadata?.engines?.vscode).toBe('^1.85.0');
     expect(extension?.extensionManifest?.activationEvents).toContain('onStartupFinished');
     expect(extension?.extensionManifest?.views).toContain('openbox.approvals');
     expect(extension?.extensionManifest?.commands).toContain('openbox.approve');

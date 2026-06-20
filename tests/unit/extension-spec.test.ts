@@ -10,6 +10,15 @@ interface ExtensionPackageJson {
   name: string;
   publisher: string;
   displayName: string;
+  description: string;
+  icon: string;
+  license: string;
+  homepage: string;
+  repository: { type: string; url: string };
+  bugs: { url: string };
+  keywords: string[];
+  engines: Record<string, string>;
+  categories: string[];
   main: string;
   activationEvents: string[];
   contributes: {
@@ -97,6 +106,17 @@ describe('extension TypeSpec target surface', () => {
     expect(packageJson.name).toBe(OPENBOX_EXTENSION_MANIFEST.packageName);
     expect(packageJson.publisher).toBe(OPENBOX_EXTENSION_MANIFEST.publisher);
     expect(packageJson.displayName).toBe(OPENBOX_EXTENSION_MANIFEST.displayName);
+    expect({
+      description: packageJson.description,
+      icon: packageJson.icon,
+      license: packageJson.license,
+      homepage: packageJson.homepage,
+      repository: packageJson.repository,
+      bugs: packageJson.bugs,
+      keywords: packageJson.keywords,
+      engines: packageJson.engines,
+      categories: packageJson.categories,
+    }).toEqual(OPENBOX_EXTENSION_MANIFEST.metadata);
     expect(packageJson.main).toBe(OPENBOX_EXTENSION_MANIFEST.main);
     expect(packageJson.activationEvents).toEqual([
       ...OPENBOX_EXTENSION_MANIFEST.activationEvents,

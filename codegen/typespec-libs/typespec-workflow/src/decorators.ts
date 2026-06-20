@@ -954,6 +954,69 @@ function validateExtensionManifestRecord(
       return false;
     }
   }
+  if (!isRecord(manifest.metadata)) {
+    reportInvalidSdkTargets(
+      context,
+      target,
+      `${targetId} extensionManifest.metadata must be a record`,
+    );
+    return false;
+  }
+  const metadata = manifest.metadata as Record<string, unknown>;
+  for (const field of ['description', 'icon', 'license', 'homepage']) {
+    if (!isNonEmptyString(metadata[field])) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.metadata.${field} must be a non-empty string`,
+      );
+      return false;
+    }
+  }
+  if (!isRecord(metadata.repository)) {
+    reportInvalidSdkTargets(
+      context,
+      target,
+      `${targetId} extensionManifest.metadata.repository must be a record`,
+    );
+    return false;
+  }
+  for (const field of ['type', 'url']) {
+    if (!isNonEmptyString((metadata.repository as Record<string, unknown>)[field])) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.metadata.repository.${field} must be a non-empty string`,
+      );
+      return false;
+    }
+  }
+  if (!isRecord(metadata.bugs) || !isNonEmptyString((metadata.bugs as Record<string, unknown>).url)) {
+    reportInvalidSdkTargets(
+      context,
+      target,
+      `${targetId} extensionManifest.metadata.bugs.url must be a non-empty string`,
+    );
+    return false;
+  }
+  if (!isRecord(metadata.engines) || !isNonEmptyString((metadata.engines as Record<string, unknown>).vscode)) {
+    reportInvalidSdkTargets(
+      context,
+      target,
+      `${targetId} extensionManifest.metadata.engines.vscode must be a non-empty string`,
+    );
+    return false;
+  }
+  for (const field of ['keywords', 'categories']) {
+    if (!isStringArray(metadata[field])) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.metadata.${field} must be a string array`,
+      );
+      return false;
+    }
+  }
 
   for (const field of ['activationEvents', 'views', 'commands', 'configurationKeys']) {
     if (!isStringArray(manifest[field])) {
