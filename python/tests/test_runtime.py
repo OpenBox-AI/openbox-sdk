@@ -61,6 +61,7 @@ from openbox_sdk.generated.core_client import CORE_ENDPOINT_MANIFEST
 from openbox_sdk.generated.govern import PRESET_MANIFEST
 from openbox_sdk.generated.permissions import PATH_PERMISSION_RULES
 from openbox_sdk.generated.sdk_targets import (
+    CLEAN_ARTIFACTS,
     GENERATED_ARTIFACTS,
     SDK_TARGET_IDS,
     SDK_TARGET_MANIFEST,
@@ -457,10 +458,12 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
     assert fixture["generatedBy"] == "codegen/emitters/typespec-emitter"
     assert fixture["source"] == "specs/typespec/sdk/main.tsp"
     assert SDK_TARGET_MANIFEST == {
+        "cleanArtifacts": fixture["cleanArtifacts"],
         "generatedArtifacts": fixture["generatedArtifacts"],
         "securityAudit": fixture["securityAudit"],
         "targets": fixture["targets"],
     }
+    assert CLEAN_ARTIFACTS == fixture["cleanArtifacts"]
     assert GENERATED_ARTIFACTS == fixture["generatedArtifacts"]
     assert SECURITY_AUDIT == fixture["securityAudit"]
     assert SDK_TARGETS == fixture["targets"]

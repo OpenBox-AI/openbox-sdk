@@ -161,7 +161,7 @@
     "build:bundle": "tsup && node --experimental-strip-types scripts/sync-runtime-assets.ts",
     "build": "npm run generate:sdks && npm run build:bundle",
     "prepublishOnly": "npm run build",
-    "clean": "rm -rf dist dist-pack codegen/**/dist codegen/**/tsconfig.tsbuildinfo specs/generated apps/extension/dist apps/extension/openbox-*.vsix && npm run clean:generated",
+    "clean": "node scripts/clean.mjs",
     "clean:generated": "node scripts/clean-generated.mjs",
     "check:generated-drift": "node --experimental-strip-types scripts/check-generated-drift.ts",
     "lint": "eslint ts/src",

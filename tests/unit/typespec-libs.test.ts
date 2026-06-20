@@ -259,6 +259,14 @@ describe('typespec-workflow', () => {
     const sdk = [...walkNamespaces(program)].find((ns) => ns.name === 'OpenboxSdk');
     expect(sdk).toBeDefined();
     const fixture = getSdkTargets(program, sdk!);
+    const cleanArtifacts =
+      fixture?.cleanArtifacts as
+        | {
+            paths: string[];
+            nestedNames: Array<{ root: string; names: string[] }>;
+            filePatterns: Array<{ root: string; prefix: string; suffix: string }>;
+          }
+        | undefined;
     const securityAudit =
       fixture?.securityAudit as
         | {
@@ -295,6 +303,13 @@ describe('typespec-workflow', () => {
     expect(extension?.extensionManifest?.views).toContain('openbox.approvals');
     expect(extension?.extensionManifest?.commands).toContain('openbox.approve');
     expect(extension?.extensionManifest?.configurationKeys).toContain('openbox.agentId');
+    expect(cleanArtifacts?.paths).toEqual(['dist', 'dist-pack', 'apps/extension/dist']);
+    expect(cleanArtifacts?.nestedNames).toEqual([
+      { root: 'codegen', names: ['dist', 'tsconfig.tsbuildinfo'] },
+    ]);
+    expect(cleanArtifacts?.filePatterns).toEqual([
+      { root: 'apps/extension', prefix: 'openbox-', suffix: '.vsix' },
+    ]);
     expect(securityAudit?.commands.map((entry) => entry.id)).toEqual([
       'root-npm-audit',
       'n8n-npm-audit',

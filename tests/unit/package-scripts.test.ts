@@ -7,12 +7,22 @@ const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json
   scripts: Record<string, string>;
 };
 const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runtime-assets.ts'), 'utf8');
+const cleanScript = readFileSync(resolve(process.cwd(), 'scripts/clean.mjs'), 'utf8');
 const cleanGeneratedScript = readFileSync(resolve(process.cwd(), 'scripts/clean-generated.mjs'), 'utf8');
 const generatedDriftScript = readFileSync(resolve(process.cwd(), 'scripts/check-generated-drift.ts'), 'utf8');
 const checkSdksScript = readFileSync(resolve(process.cwd(), 'scripts/check-sdks.mjs'), 'utf8');
 const securityAuditScript = readFileSync(resolve(process.cwd(), 'scripts/security-audit.mjs'), 'utf8');
 
 describe('package scripts', () => {
+  test('root clean reads TypeSpec-emitted clean artifact inventory', () => {
+    expect(packageJson.scripts.clean).toBe('node scripts/clean.mjs');
+    expect(packageJson.scripts.clean).not.toContain('rm -rf');
+    expect(packageJson.scripts.clean).not.toContain('apps/extension');
+    expect(cleanScript).toContain('cleanArtifacts');
+    expect(cleanScript).toContain('codegen/fixtures/sdk-targets.json');
+    expect(cleanScript).toContain('scripts/clean-generated.mjs');
+  });
+
   test('generated cleanup and drift checks read the TypeSpec-emitted artifact inventory', () => {
     expect(packageJson.scripts['clean:generated']).toBe('node scripts/clean-generated.mjs');
     expect(packageJson.scripts['clean:generated']).not.toContain('python');

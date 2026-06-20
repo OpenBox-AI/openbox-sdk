@@ -29,6 +29,29 @@
       }
     ]
   },
+  "cleanArtifacts": {
+    "paths": [
+      "dist",
+      "dist-pack",
+      "apps/extension/dist"
+    ],
+    "nestedNames": [
+      {
+        "root": "codegen",
+        "names": [
+          "dist",
+          "tsconfig.tsbuildinfo"
+        ]
+      }
+    ],
+    "filePatterns": [
+      {
+        "root": "apps/extension",
+        "prefix": "openbox-",
+        "suffix": ".vsix"
+      }
+    ]
+  },
   "securityAudit": {
     "commands": [
       {

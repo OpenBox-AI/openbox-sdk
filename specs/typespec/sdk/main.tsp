@@ -31,6 +31,19 @@ using OpenBox.Workflow;
       #{ root: "ts/src", suffixes: #[".ts", ".d.ts"] },
     ],
   },
+  cleanArtifacts: #{
+    paths: #[
+      "dist",
+      "dist-pack",
+      "apps/extension/dist",
+    ],
+    nestedNames: #[
+      #{ root: "codegen", names: #["dist", "tsconfig.tsbuildinfo"] },
+    ],
+    filePatterns: #[
+      #{ root: "apps/extension", prefix: "openbox-", suffix: ".vsix" },
+    ],
+  },
   securityAudit: #{
     commands: #[
       #{ id: "root-npm-audit", label: "root npm audit", command: "npm", args: #["audit"], workingDirectory: "." },

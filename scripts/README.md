@@ -19,6 +19,10 @@ canonical TypeSpec contract.
 - `clean:generated` reads the same TypeSpec-emitted artifact inventory and
   removes generated roots/files without carrying language-specific path lists in
   `package.json`.
+- `clean` reads the TypeSpec-emitted `cleanArtifacts` inventory from the same
+  SDK target manifest, removes root/package build artifacts, and then delegates
+  generated-file cleanup to `clean:generated`. Add new build artifact paths in
+  `specs/typespec/sdk/main.tsp`, not in `package.json`.
 - `check:sdks` is the generic target-native validation gate. It regenerates the
   TypeSpec-owned artifacts, then reads `codegen/fixtures/sdk-targets.json` and
   validates declared app manifests before running each target's native

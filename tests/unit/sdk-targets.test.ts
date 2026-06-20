@@ -14,6 +14,18 @@ interface SdkTargetsFixture {
       suffixes: string[];
     }>;
   };
+  cleanArtifacts: {
+    paths: string[];
+    nestedNames: Array<{
+      root: string;
+      names: string[];
+    }>;
+    filePatterns: Array<{
+      root: string;
+      prefix: string;
+      suffix: string;
+    }>;
+  };
   securityAudit: {
     commands: Array<{
       id: string;
@@ -84,6 +96,22 @@ describe('SDK target validation manifest', () => {
     ]);
     expect(fixture.generatedArtifacts.nestedGeneratedFiles).toEqual([
       { root: 'ts/src', suffixes: ['.ts', '.d.ts'] },
+    ]);
+  });
+
+  test('declares root clean artifacts without package-script path lists', () => {
+    const fixture = readSdkTargetsFixture();
+
+    expect(fixture.cleanArtifacts.paths).toEqual([
+      'dist',
+      'dist-pack',
+      'apps/extension/dist',
+    ]);
+    expect(fixture.cleanArtifacts.nestedNames).toEqual([
+      { root: 'codegen', names: ['dist', 'tsconfig.tsbuildinfo'] },
+    ]);
+    expect(fixture.cleanArtifacts.filePatterns).toEqual([
+      { root: 'apps/extension', prefix: 'openbox-', suffix: '.vsix' },
     ]);
   });
 

@@ -992,6 +992,59 @@ function validateSecurityAuditRecord(
   return true;
 }
 
+function validateCleanArtifactsRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawCleanArtifacts: unknown,
+): boolean {
+  if (!rawCleanArtifacts || typeof rawCleanArtifacts !== 'object' || Array.isArray(rawCleanArtifacts)) {
+    reportInvalidSdkTargets(context, target, 'cleanArtifacts must be a record');
+    return false;
+  }
+
+  const cleanArtifacts = rawCleanArtifacts as Record<string, unknown>;
+  if (!isStringArray(cleanArtifacts.paths)) {
+    reportInvalidSdkTargets(context, target, 'cleanArtifacts.paths must be a string array');
+    return false;
+  }
+
+  if (!Array.isArray(cleanArtifacts.nestedNames)) {
+    reportInvalidSdkTargets(context, target, 'cleanArtifacts.nestedNames must be an array');
+    return false;
+  }
+  for (const [index, rawNested] of cleanArtifacts.nestedNames.entries()) {
+    if (!rawNested || typeof rawNested !== 'object' || Array.isArray(rawNested)) {
+      reportInvalidSdkTargets(context, target, `cleanArtifacts.nestedNames ${index} must be a record`);
+      return false;
+    }
+    const nested = rawNested as Record<string, unknown>;
+    if (!isNonEmptyString(nested.root) || !isStringArray(nested.names)) {
+      reportInvalidSdkTargets(context, target, `cleanArtifacts.nestedNames ${index} requires root and names`);
+      return false;
+    }
+  }
+
+  if (!Array.isArray(cleanArtifacts.filePatterns)) {
+    reportInvalidSdkTargets(context, target, 'cleanArtifacts.filePatterns must be an array');
+    return false;
+  }
+  for (const [index, rawPattern] of cleanArtifacts.filePatterns.entries()) {
+    if (!rawPattern || typeof rawPattern !== 'object' || Array.isArray(rawPattern)) {
+      reportInvalidSdkTargets(context, target, `cleanArtifacts.filePatterns ${index} must be a record`);
+      return false;
+    }
+    const pattern = rawPattern as Record<string, unknown>;
+    for (const field of ['root', 'prefix', 'suffix']) {
+      if (!isNonEmptyString(pattern[field])) {
+        reportInvalidSdkTargets(context, target, `cleanArtifacts.filePatterns ${index}.${field} must be a non-empty string`);
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 export function $sdkTargets(
   context: DecoratorContext,
   target: Namespace,
@@ -1043,6 +1096,12 @@ export function $sdkTargets(
           return;
         }
       }
+    }
+  }
+
+  if (record.cleanArtifacts !== undefined) {
+    if (!validateCleanArtifactsRecord(context, target, record.cleanArtifacts)) {
+      return;
     }
   }
 

@@ -31,6 +31,29 @@ SDK_TARGET_MANIFEST = {
       }
     ]
   },
+  "cleanArtifacts": {
+    "paths": [
+      "dist",
+      "dist-pack",
+      "apps/extension/dist"
+    ],
+    "nestedNames": [
+      {
+        "root": "codegen",
+        "names": [
+          "dist",
+          "tsconfig.tsbuildinfo"
+        ]
+      }
+    ],
+    "filePatterns": [
+      {
+        "root": "apps/extension",
+        "prefix": "openbox-",
+        "suffix": ".vsix"
+      }
+    ]
+  },
   "securityAudit": {
     "commands": [
       {
@@ -294,8 +317,9 @@ SDK_TARGET_MANIFEST = {
   ]
 }
 GENERATED_ARTIFACTS = SDK_TARGET_MANIFEST.get("generatedArtifacts", {})
+CLEAN_ARTIFACTS = SDK_TARGET_MANIFEST.get("cleanArtifacts", {})
 SECURITY_AUDIT = SDK_TARGET_MANIFEST.get("securityAudit", {})
 SDK_TARGETS = SDK_TARGET_MANIFEST.get("targets", [])
 SDK_TARGET_IDS = [target["id"] for target in SDK_TARGETS]
 
-__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "SECURITY_AUDIT", "SDK_TARGETS", "SDK_TARGET_IDS"]
+__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "SDK_TARGETS", "SDK_TARGET_IDS"]
