@@ -91,6 +91,12 @@ using OpenBox.Workflow;
       #{ id: "format", label: "Root TypeScript format", command: "npx", args: #["prettier", "--write", "ts/src"], workingDirectory: "." },
     ],
   },
+  generatedChecks: #{
+    commands: #[
+      #{ id: "drift", label: "Generated drift", command: "node", args: #["--experimental-strip-types", "scripts/check-generated-drift.ts"], workingDirectory: "." },
+      #{ id: "banners", label: "Generated banners", command: "node", args: #["--experimental-strip-types", "scripts/check-generated-banners.ts"], workingDirectory: "." },
+    ],
+  },
   packageSurface: #{
     packageName: "@openbox-ai/openbox-sdk",
     bin: #[

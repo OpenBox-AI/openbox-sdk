@@ -65,6 +65,7 @@ from openbox_sdk.generated.sdk_targets import (
     CLEAN_ARTIFACTS,
     CODEGEN_BUILD,
     GENERATED_ARTIFACTS,
+    GENERATED_CHECKS,
     LOCAL_CI,
     PACKAGE_SURFACE,
     QUALITY_COMMANDS,
@@ -471,6 +472,7 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
         "cleanArtifacts": fixture["cleanArtifacts"],
         "codegenBuild": fixture["codegenBuild"],
         "generatedArtifacts": fixture["generatedArtifacts"],
+        "generatedChecks": fixture["generatedChecks"],
         "localCi": fixture["localCi"],
         "packageSurface": fixture["packageSurface"],
         "qualityCommands": fixture["qualityCommands"],
@@ -485,6 +487,7 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
     assert CLEAN_ARTIFACTS == fixture["cleanArtifacts"]
     assert CODEGEN_BUILD == fixture["codegenBuild"]
     assert GENERATED_ARTIFACTS == fixture["generatedArtifacts"]
+    assert GENERATED_CHECKS == fixture["generatedChecks"]
     assert LOCAL_CI == fixture["localCi"]
     assert PACKAGE_SURFACE == fixture["packageSurface"]
     assert QUALITY_COMMANDS == fixture["qualityCommands"]

@@ -16,6 +16,7 @@ const cleanScript = readFileSync(resolve(process.cwd(), 'scripts/clean.mjs'), 'u
 const localCiScript = readFileSync(resolve(process.cwd(), 'scripts/run-local-ci.mjs'), 'utf8');
 const runTestsScript = readFileSync(resolve(process.cwd(), 'scripts/run-tests.mjs'), 'utf8');
 const runQualityScript = readFileSync(resolve(process.cwd(), 'scripts/run-quality.mjs'), 'utf8');
+const runGeneratedCheckScript = readFileSync(resolve(process.cwd(), 'scripts/run-generated-check.mjs'), 'utf8');
 const specStepsScript = readFileSync(resolve(process.cwd(), 'scripts/lib/spec-steps.mjs'), 'utf8');
 const cleanGeneratedScript = readFileSync(resolve(process.cwd(), 'scripts/clean-generated.mjs'), 'utf8');
 const generatedDriftScript = readFileSync(resolve(process.cwd(), 'scripts/check-generated-drift.ts'), 'utf8');
@@ -90,10 +91,18 @@ describe('package scripts', () => {
     expect(packageJson.scripts['clean:generated']).toBe('node scripts/clean-generated.mjs');
     expect(packageJson.scripts['clean:generated']).not.toContain('python');
     expect(packageJson.scripts['clean:generated']).not.toContain('apps/extension');
+    expect(packageJson.scripts['check:generated-drift']).toBe(
+      'node scripts/run-generated-check.mjs drift',
+    );
+    expect(packageJson.scripts['lint:generated-banners']).toBe(
+      'node scripts/run-generated-check.mjs banners',
+    );
     expect(cleanGeneratedScript).toContain('generatedArtifacts');
     expect(cleanGeneratedScript).toContain('codegen/fixtures/sdk-targets.json');
     expect(generatedDriftScript).toContain('generatedArtifacts');
     expect(generatedDriftScript).toContain('codegen/fixtures/sdk-targets.json');
+    expect(runGeneratedCheckScript).toContain('generatedChecks.commands');
+    expect(runGeneratedCheckScript).toContain("from './lib/spec-steps.mjs'");
   });
 
   test('SDK generation stays behind the generic TypeSpec command', () => {

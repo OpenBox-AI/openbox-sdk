@@ -322,6 +322,12 @@ describe('typespec-workflow', () => {
             commands: Array<{ id: string; command: string; workingDirectory: string }>;
           }
         | undefined;
+    const generatedChecks =
+      fixture?.generatedChecks as
+        | {
+            commands: Array<{ id: string; command: string; workingDirectory: string }>;
+          }
+        | undefined;
     const securityAudit =
       fixture?.securityAudit as
         | {
@@ -407,6 +413,8 @@ describe('typespec-workflow', () => {
     expect(bundleBuild?.steps.map((entry) => entry.command)).toEqual(['npx', 'node']);
     expect(qualityCommands?.commands.map((entry) => entry.id)).toEqual(['lint', 'format']);
     expect(qualityCommands?.commands.every((entry) => entry.command === 'npx')).toBe(true);
+    expect(generatedChecks?.commands.map((entry) => entry.id)).toEqual(['drift', 'banners']);
+    expect(generatedChecks?.commands.every((entry) => entry.command === 'node')).toBe(true);
     expect(securityAudit?.commands.map((entry) => entry.id)).toEqual([
       'root-npm-audit',
       'n8n-npm-audit',

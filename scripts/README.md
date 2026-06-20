@@ -31,6 +31,9 @@ canonical TypeSpec contract.
   The artifact inventory comes from the TypeSpec-emitted
   `codegen/fixtures/sdk-targets.json` manifest, not from a script-local target
   list.
+- `lint:generated-banners` and `check:generated-drift` are routed by the
+  TypeSpec-emitted `generatedChecks` table, so generated-artifact checks are
+  declared alongside their generated artifact inventory.
 - `clean:generated` reads the same TypeSpec-emitted artifact inventory and
   removes generated roots/files without carrying language-specific path lists in
   `package.json`.

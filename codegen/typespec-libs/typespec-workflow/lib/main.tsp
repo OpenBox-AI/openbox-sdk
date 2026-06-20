@@ -402,6 +402,9 @@ extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown
  *     qualityCommands: #{
  *       commands: #[#{ id, label, command, args, workingDirectory, env }, ...],
  *     },
+ *     generatedChecks: #{
+ *       commands: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *     },
  *     cleanArtifacts: #{
  *       paths: #[...],
  *       nestedNames: #[#{ root, names }, ...],

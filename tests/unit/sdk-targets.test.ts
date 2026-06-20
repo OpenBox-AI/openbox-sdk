@@ -89,6 +89,16 @@ interface SdkTargetsFixture {
       env?: Record<string, string>;
     }>;
   };
+  generatedChecks: {
+    commands: Array<{
+      id: string;
+      label: string;
+      command: string;
+      args?: string[];
+      workingDirectory: string;
+      env?: Record<string, string>;
+    }>;
+  };
   packageSurface: {
     packageName: string;
     bin: Array<{
@@ -426,6 +436,38 @@ describe('SDK target validation manifest', () => {
         label: 'Root TypeScript format',
         command: 'npx',
         args: ['prettier', '--write', 'ts/src'],
+        workingDirectory: '.',
+      },
+    ]);
+  });
+
+  test('declares generated checks outside package scripts', () => {
+    const fixture = readSdkTargetsFixture();
+    const packageJson = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
+    ) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts['check:generated-drift']).toBe(
+      'node scripts/run-generated-check.mjs drift',
+    );
+    expect(packageJson.scripts['lint:generated-banners']).toBe(
+      'node scripts/run-generated-check.mjs banners',
+    );
+    expect(fixture.generatedChecks.commands).toEqual([
+      {
+        id: 'drift',
+        label: 'Generated drift',
+        command: 'node',
+        args: ['--experimental-strip-types', 'scripts/check-generated-drift.ts'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'banners',
+        label: 'Generated banners',
+        command: 'node',
+        args: ['--experimental-strip-types', 'scripts/check-generated-banners.ts'],
         workingDirectory: '.',
       },
     ]);

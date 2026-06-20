@@ -282,6 +282,30 @@ SDK_TARGET_MANIFEST = {
       }
     ]
   },
+  "generatedChecks": {
+    "commands": [
+      {
+        "id": "drift",
+        "label": "Generated drift",
+        "command": "node",
+        "args": [
+          "--experimental-strip-types",
+          "scripts/check-generated-drift.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "banners",
+        "label": "Generated banners",
+        "command": "node",
+        "args": [
+          "--experimental-strip-types",
+          "scripts/check-generated-banners.ts"
+        ],
+        "workingDirectory": "."
+      }
+    ]
+  },
   "packageSurface": {
     "packageName": "@openbox-ai/openbox-sdk",
     "bin": [
@@ -830,6 +854,7 @@ ROOT_PIPELINES = SDK_TARGET_MANIFEST.get("rootPipelines", {})
 TEST_SUITES = SDK_TARGET_MANIFEST.get("testSuites", {})
 BUNDLE_BUILD = SDK_TARGET_MANIFEST.get("bundleBuild", {})
 QUALITY_COMMANDS = SDK_TARGET_MANIFEST.get("qualityCommands", {})
+GENERATED_CHECKS = SDK_TARGET_MANIFEST.get("generatedChecks", {})
 PACKAGE_SURFACE = SDK_TARGET_MANIFEST.get("packageSurface", {})
 CLEAN_ARTIFACTS = SDK_TARGET_MANIFEST.get("cleanArtifacts", {})
 SECURITY_AUDIT = SDK_TARGET_MANIFEST.get("securityAudit", {})
@@ -837,4 +862,4 @@ LOCAL_CI = SDK_TARGET_MANIFEST.get("localCi", {})
 SDK_TARGETS = SDK_TARGET_MANIFEST.get("targets", [])
 SDK_TARGET_IDS = [target["id"] for target in SDK_TARGETS]
 
-__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "SDK_GENERATION", "SPEC_COMMANDS", "ROOT_PIPELINES", "TEST_SUITES", "BUNDLE_BUILD", "QUALITY_COMMANDS", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]
+__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "SDK_GENERATION", "SPEC_COMMANDS", "ROOT_PIPELINES", "TEST_SUITES", "BUNDLE_BUILD", "QUALITY_COMMANDS", "GENERATED_CHECKS", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]
