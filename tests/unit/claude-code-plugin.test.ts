@@ -10,6 +10,7 @@ import {
   uninstallClaudeCodePlugin,
   verifyClaudeCodePlugin,
 } from '../../ts/src/runtime/claude-code/plugin.js';
+import { PROVIDER_PLUGIN_COMPONENTS } from '../../ts/src/governance/capability-matrix.js';
 
 const temps: string[] = [];
 
@@ -17,6 +18,23 @@ function tempDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'openbox-claude-code-plugin-'));
   temps.push(dir);
   return dir;
+}
+
+const CLAUDE_CODE_COMPONENTS = PROVIDER_PLUGIN_COMPONENTS.find(
+  (entry) => entry.provider === 'claude-code',
+)!.components;
+
+function assertSpecComponentPathsExist(root: string): void {
+  for (const component of CLAUDE_CODE_COMPONENTS) {
+    if (component.tier === 'out-of-scope') {
+      expect('path' in component, `Claude Code out-of-scope component ${component.name}`).toBe(false);
+      continue;
+    }
+    expect('path' in component, `Claude Code plugin component ${component.name} path`).toBe(true);
+    const componentPath = 'path' in component ? component.path : undefined;
+    expect(componentPath, `Claude Code plugin component ${component.name} path`).toBeTruthy();
+    expect(fs.existsSync(path.join(root, componentPath!)), component.name).toBe(true);
+  }
 }
 
 afterEach(() => {
@@ -33,6 +51,7 @@ describe('Claude Code plugin asset', () => {
       },
     });
 
+    assertSpecComponentPathsExist(out);
     expect(fs.existsSync(path.join(out, '.claude-plugin', 'plugin.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, '.claude-plugin', 'marketplace.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'skills', 'openbox', 'SKILL.md'))).toBe(true);

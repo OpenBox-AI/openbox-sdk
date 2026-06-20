@@ -11,6 +11,7 @@ import {
   verifyCursorRepoMode,
   verifyCursorPlugin,
 } from '../../ts/src/runtime/cursor/plugin.js';
+import { PROVIDER_PLUGIN_COMPONENTS } from '../../ts/src/governance/capability-matrix.js';
 
 const temps: string[] = [];
 
@@ -18,6 +19,17 @@ function tempDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'openbox-cursor-plugin-'));
   temps.push(dir);
   return dir;
+}
+
+const CURSOR_COMPONENTS = PROVIDER_PLUGIN_COMPONENTS.find(
+  (entry) => entry.provider === 'cursor',
+)!.components;
+
+function assertSpecComponentPathsExist(root: string): void {
+  for (const component of CURSOR_COMPONENTS) {
+    expect(component.path, `Cursor plugin component ${component.name} path`).toBeTruthy();
+    expect(fs.existsSync(path.join(root, component.path!)), component.name).toBe(true);
+  }
 }
 
 afterEach(() => {
@@ -34,6 +46,7 @@ describe('Cursor plugin asset', () => {
       },
     });
 
+    assertSpecComponentPathsExist(out);
     expect(fs.existsSync(path.join(out, '.cursor-plugin', 'plugin.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, '.cursor-plugin', 'marketplace.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'workspaceOpen.json'))).toBe(true);

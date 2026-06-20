@@ -13,6 +13,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOOK_SPEC } from '../../core-client/generated/runtime/codex.js';
+import {
+  renderCodexAgentsMarkdown,
+  renderCodexCommandRules,
+  type RulesProjection,
+} from '../../governance/rules-projection.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,6 +26,7 @@ const EXPECTED_PLUGIN_FILES = [
   '.codex-plugin/plugin.json',
   '.mcp.json',
   'AGENTS.md',
+  '.codex/rules/openbox.rules',
   'hooks/hooks.json',
   'skills/openbox/SKILL.md',
 ] as const;
@@ -43,6 +49,7 @@ export interface ExportCodexPluginOptions {
   out: string;
   force?: boolean;
   matchers?: Record<string, string>;
+  rulesProjection?: RulesProjection;
 }
 
 export interface InstallCodexPluginOptions {
@@ -50,6 +57,7 @@ export interface InstallCodexPluginOptions {
   target?: string;
   symlink?: string;
   matchers?: Record<string, string>;
+  rulesProjection?: RulesProjection;
   skipRepoSkill?: boolean;
   skipMarketplace?: boolean;
 }
@@ -218,17 +226,24 @@ function marketplaceManifest(version: string): Record<string, unknown> {
   };
 }
 
-function agentsMarkdown(): string {
-  return [
-    '# OpenBox Governance',
-    '',
-    'OpenBox Core is the source of truth for guardrails, OPA/Rego policies, behavior rules, trust, approvals, usage, cost, and goal alignment.',
-    '',
-    'Use the `$openbox` skill when reviewing OpenBox governance, approvals, policies, guardrails, or behavior-rule behavior in this repository.',
-    '',
-    'Do not locally evaluate OPA/Rego or behavior rules. Send complete spans and source-attributed inputs to OpenBox Core and enforce returned verdicts fail-closed.',
-    '',
-  ].join('\n');
+function defaultRulesProjection(): RulesProjection {
+  return {
+    agentId: 'openbox-core',
+    fetchedAt: 'plugin-template',
+    version: 1,
+    rules: [],
+  };
+}
+
+function agentsMarkdown(projection = defaultRulesProjection()): string {
+  return renderCodexAgentsMarkdown(projection, {
+    title: 'OpenBox Governance',
+    skillName: 'openbox',
+  });
+}
+
+function commandRules(projection = defaultRulesProjection()): string {
+  return renderCodexCommandRules(projection);
 }
 
 export function exportCodexPlugin(options: ExportCodexPluginOptions): string {
@@ -242,11 +257,14 @@ export function exportCodexPlugin(options: ExportCodexPluginOptions): string {
   mkdirSync(out, { recursive: true });
 
   const version = packageVersion();
+  const projection = options.rulesProjection ?? defaultRulesProjection();
   writeJson(path.join(out, '.codex-plugin', 'plugin.json'), pluginManifest(version));
   copyDir(findSkillDir(), path.join(out, 'skills', 'openbox'));
   writeJson(path.join(out, 'hooks', 'hooks.json'), codexHooksJson(options.matchers));
   writeJson(path.join(out, '.mcp.json'), mcpJson());
-  writeFileSync(path.join(out, 'AGENTS.md'), agentsMarkdown(), 'utf-8');
+  writeFileSync(path.join(out, 'AGENTS.md'), agentsMarkdown(projection), 'utf-8');
+  mkdirSync(path.join(out, '.codex', 'rules'), { recursive: true });
+  writeFileSync(path.join(out, '.codex', 'rules', 'openbox.rules'), commandRules(projection), 'utf-8');
   return out;
 }
 
@@ -265,6 +283,7 @@ export function installCodexPlugin(options: InstallCodexPluginOptions = {}): str
     exportCodexPlugin({
       out: target,
       matchers: options.matchers,
+      rulesProjection: options.rulesProjection,
     });
   }
   if (!options.skipRepoSkill) {
