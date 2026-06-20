@@ -26,6 +26,7 @@ import {
   PLUGIN_CAPABILITY_GUARDS,
   PROVIDER_CAPABILITY_MATRIX,
   REFERENCE_PROVIDER_PARITY_CLOSURES,
+  REFERENCE_PROVIDER_RUNTIME_AUDIT,
   PROVIDER_EVENT_CATALOG,
   OPENBOX_PROVIDER_IDS,
   OPENBOX_SUPPORT_TIERS,
@@ -38,6 +39,8 @@ import {
   USAGE_COST_CAPABILITY_GUARDS,
   USAGE_NORMALIZATION_SURFACE,
   type OpenBoxProviderId,
+  type ReferenceProviderParityClosureStatus,
+  type ReferenceProviderRuntimePromotionDecision,
 } from '../../ts/src/governance/capability-matrix.js';
 
 const PROVIDERS: readonly OpenBoxProviderId[] = OPENBOX_PROVIDER_IDS;
@@ -99,6 +102,7 @@ describe('provider capability matrix', () => {
     expect(REFERENCE_PROVIDER_PARITY_CLOSURES).toEqual(
       fixture.referenceProviderParityClosures,
     );
+    expect(REFERENCE_PROVIDER_RUNTIME_AUDIT).toEqual(fixture.referenceProviderRuntimeAudit);
     expect(PROVIDER_EVENT_CATALOG).toEqual(fixture.providerEventCatalog);
     expect(PROVIDER_PLUGIN_COMPONENTS).toEqual(fixture.providerPluginComponents);
     expect(PUBLIC_INTEGRATION_SUPPORT).toEqual(fixture.publicIntegrationSupport);
@@ -184,6 +188,76 @@ describe('provider capability matrix', () => {
         /\b(todo|planned|future|unclosed)\b/i,
       );
       expectGuardTestResolves(`reference-closure/${claim}`, closure.guardTest);
+    }
+  });
+
+  it('pins runtime promotion audits to every reference provider parity closure', () => {
+    const expectedDecisionsByStatus: Record<
+      ReferenceProviderParityClosureStatus,
+      readonly ReferenceProviderRuntimePromotionDecision[]
+    > = {
+      'implemented-through-wrapper': ['max-through-wrapper'],
+      'host-owned-observe-only': ['retain-host-owned-boundary'],
+      'runtime-diagnostic-only': ['implemented-runtime-diagnostic'],
+      'host-unsupported': ['retain-package-boundary', 'retain-protocol-boundary'],
+    };
+    const closureClaims = REFERENCE_PROVIDER_PARITY_CLOSURES
+      .map((entry) => `${entry.provider}/${entry.capability}`)
+      .sort();
+    const auditClaims = REFERENCE_PROVIDER_RUNTIME_AUDIT
+      .map((entry) => `${entry.provider}/${entry.capability}`)
+      .sort();
+    const closureByClaim = new Map(
+      REFERENCE_PROVIDER_PARITY_CLOSURES.map((entry) => [
+        `${entry.provider}/${entry.capability}`,
+        entry,
+      ]),
+    );
+
+    expect(auditClaims).toEqual(closureClaims);
+    expect(new Set(auditClaims).size).toBe(auditClaims.length);
+
+    for (const audit of REFERENCE_PROVIDER_RUNTIME_AUDIT) {
+      const claim = `${audit.provider}/${audit.capability}`;
+      const closure = closureByClaim.get(claim);
+      expect(closure, `${claim} closure`).toBeDefined();
+      expect(audit.tier, `${claim} tier`).toBe(closure?.tier);
+      expect(audit.status, `${claim} status`).toBe(closure?.status);
+      expect(audit.guardTest, `${claim} guardTest`).toBe(closure?.guardTest);
+      expect(
+        expectedDecisionsByStatus[audit.status].includes(audit.promotionDecision),
+        `${claim} promotionDecision`,
+      ).toBe(true);
+      expect(audit.runtimeEvidence.length, `${claim} runtimeEvidence`).toBeGreaterThan(60);
+      expect(audit.technicalBoundary.length, `${claim} technicalBoundary`).toBeGreaterThan(60);
+      expect(`${audit.runtimeEvidence} ${audit.technicalBoundary}`, `${claim} audit text`).not.toMatch(
+        /\b(todo|planned|future|unclosed|maybe)\b/i,
+      );
+      expectGuardTestResolves(`runtime-audit/${claim}`, audit.guardTest);
+
+      if (audit.status === 'implemented-through-wrapper') {
+        expect(audit.runtimeEvidence, `${claim} wrapper evidence`).toMatch(
+          /\b(wraps?|wrappers?|project|projects|emits?|maps?|renders?|ships?|generates?|helper|helpers|spans?)\b/i,
+        );
+      }
+      if (audit.status === 'host-owned-observe-only') {
+        expect(audit.technicalBoundary, `${claim} observe boundary`).toMatch(
+          /\b(host|provider|Codex|Cursor|MCP|OpenAI|Anthropic|CopilotKit|n8n).*\b(own|owns|orchestration|configuration|metering|scheduling|observe|observes)\b/i,
+        );
+      }
+      if (audit.status === 'runtime-diagnostic-only') {
+        expect(audit.runtimeEvidence, `${claim} diagnostic evidence`).toMatch(
+          /verifyOpenBox|createOpenBoxReadinessCheck/,
+        );
+        expect(audit.technicalBoundary, `${claim} diagnostic boundary`).toMatch(
+          /\b(no host install surface|never mutate|operator-owned|no files installed|without host file mutation)\b/i,
+        );
+      }
+      if (audit.status === 'host-unsupported') {
+        expect(audit.technicalBoundary, `${claim} unsupported boundary`).toMatch(
+          /\b(protocol|package|plugin|skill|surface|contract)\b/i,
+        );
+      }
     }
   });
 

@@ -40,6 +40,7 @@ function rel(path: string): string {
 
 function isIgnored(path: string): boolean {
   const normalized = rel(path);
+  if (normalized.split('/').includes('node_modules')) return true;
   return [...ignoredDirs].some((ignored) =>
     normalized === ignored || normalized.startsWith(`${ignored}/`));
 }

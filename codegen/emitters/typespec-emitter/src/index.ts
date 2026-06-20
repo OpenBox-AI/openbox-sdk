@@ -1099,6 +1099,7 @@ interface ProviderCapabilityConformancePayload {
   supportTiers: string[];
   providerCapabilityMatrix: unknown;
   referenceProviderParityClosures: unknown;
+  referenceProviderRuntimeAudit: unknown;
   providerEventCatalog: unknown;
   providerPluginComponents: unknown;
   publicIntegrationSupport: unknown;
@@ -1159,6 +1160,13 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  | 'runtime-diagnostic-only'`,
     `  | 'host-unsupported';`,
     '',
+    `export type ReferenceProviderRuntimePromotionDecision =`,
+    `  | 'implemented-runtime-diagnostic'`,
+    `  | 'max-through-wrapper'`,
+    `  | 'retain-host-owned-boundary'`,
+    `  | 'retain-protocol-boundary'`,
+    `  | 'retain-package-boundary';`,
+    '',
     `export interface ProviderCapabilityEntry {`,
     `  provider: OpenBoxProviderId;`,
     `  capability: OpenBoxCapabilityId;`,
@@ -1174,6 +1182,17 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  referenceSurface: string;`,
     `  openboxSurface: string;`,
     `  closureDecision: string;`,
+    `  guardTest: string;`,
+    `}`,
+    '',
+    `export interface ReferenceProviderRuntimeAuditEntry {`,
+    `  provider: OpenBoxProviderId;`,
+    `  capability: OpenBoxCapabilityId;`,
+    `  tier: OpenBoxSupportTier;`,
+    `  status: ReferenceProviderParityClosureStatus;`,
+    `  promotionDecision: ReferenceProviderRuntimePromotionDecision;`,
+    `  runtimeEvidence: string;`,
+    `  technicalBoundary: string;`,
     `  guardTest: string;`,
     `}`,
     '',
@@ -1470,6 +1489,8 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     '',
     `export const REFERENCE_PROVIDER_PARITY_CLOSURES = ${literalTs(conformance.referenceProviderParityClosures)} as const satisfies readonly ReferenceProviderParityClosureEntry[];`,
     '',
+    `export const REFERENCE_PROVIDER_RUNTIME_AUDIT = ${literalTs(conformance.referenceProviderRuntimeAudit)} as const satisfies readonly ReferenceProviderRuntimeAuditEntry[];`,
+    '',
     `export const PROVIDER_EVENT_CATALOG = ${literalTs(conformance.providerEventCatalog)} as const satisfies readonly ProviderEventCatalogEntry[];`,
     '',
     `export const PROVIDER_PLUGIN_COMPONENTS = ${literalTs(conformance.providerPluginComponents)} as const satisfies readonly ProviderPluginComponentCatalogEntry[];`,
@@ -1671,6 +1692,7 @@ function providerCapabilityConformancePayload(
   const supportTiers = uniqueStrings([
     ...arrayOfRecords(matrix.capabilities).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.referenceProviderParityClosures).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.referenceProviderRuntimeAudit).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.publicIntegrations).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.goalSignalGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.usageCostCapabilityGuards).map((entry) => String(entry.tier ?? '')),
@@ -1696,6 +1718,7 @@ function providerCapabilityConformancePayload(
     supportTiers,
     providerCapabilityMatrix: matrix.capabilities,
     referenceProviderParityClosures: matrix.referenceProviderParityClosures,
+    referenceProviderRuntimeAudit: matrix.referenceProviderRuntimeAudit,
     providerEventCatalog: matrix.eventCatalog,
     providerPluginComponents: matrix.pluginComponents,
     publicIntegrationSupport: matrix.publicIntegrations,
