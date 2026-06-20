@@ -80,6 +80,7 @@ describe('Claude Code governance matrix drift guard', () => {
         'skills',
         'commands',
         'agents',
+        'instructions',
         'MCP',
         'plugin settings',
         'monitors',

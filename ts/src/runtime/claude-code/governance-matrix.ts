@@ -92,6 +92,7 @@ export const CLAUDE_CODE_SURFACE_MATRIX: readonly ClaudeCodeSurfaceMatrixEntry[]
   { surface: 'skills', status: 'implement_now', notes: 'OpenBox skill ships under plugin skills/openbox.' },
   { surface: 'commands', status: 'implement_now', notes: 'Compatibility command markdown files remain for Claude slash entrypoints.' },
   { surface: 'agents', status: 'implement_now', notes: 'OpenBox reviewer agent ships in the plugin.' },
+  { surface: 'instructions', status: 'implement_now', notes: 'CLAUDE/AGENTS-style governance instructions are rendered from the shared OpenBox rules projection renderer.' },
   { surface: 'MCP', status: 'implement_now', notes: 'OpenBox MCP server exposes status, doctor, approvals, agents, rules, policies, and governance checks.' },
   { surface: 'plugin settings', status: 'diagnose_only', notes: 'Only agent/subagentStatusLine are currently supported by Claude Code plugin settings.' },
   { surface: 'monitors', status: 'diagnose_only', notes: 'Documented as opt-in because monitors run unsandboxed and project-scope plugins do not load them.' },
