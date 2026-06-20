@@ -283,6 +283,90 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
     });
   });
 
+  it('reads every spec-driven MCP resource template callback', async () => {
+    await withMcpEnv(async () => {
+      const seenUrls: string[] = [];
+      vi.stubGlobal('fetch', async (url: string) => {
+        const u = String(url);
+        seenUrls.push(u);
+        const json = (data: unknown) =>
+          new Response(JSON.stringify({ status: 200, data }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+
+        if (u.includes('/agent/agent-1/guardrails/guardrail-1')) {
+          return json({ id: 'guardrail-1', kind: 'guardrail' });
+        }
+        if (u.includes('/agent/agent-1/policies/policy-1')) {
+          return json({ id: 'policy-1', kind: 'policy' });
+        }
+        if (u.includes('/agent/agent-1/behavior-rule/rule-1')) {
+          return json({ id: 'rule-1', kind: 'behavior-rule' });
+        }
+        if (u.includes('/agent/agent-1/approvals/pending')) {
+          return json({ approvals: { data: [{ id: 'approval-1', status: 'pending' }] } });
+        }
+        if (u.match(/\/agent\/agent-1$/)) {
+          return json({ id: 'agent-1', agent_name: 'Resource Agent' });
+        }
+        return json({});
+      });
+
+      const resourceInputs: Record<string, { uri: URL; variables: Record<string, string> }> = {
+        agent: {
+          uri: new URL('openbox://agent/agent-1'),
+          variables: { agent_id: 'agent-1' },
+        },
+        guardrail: {
+          uri: new URL('openbox://agent/agent-1/guardrail/guardrail-1'),
+          variables: { agent_id: 'agent-1', guardrail_id: 'guardrail-1' },
+        },
+        policy: {
+          uri: new URL('openbox://agent/agent-1/policy/policy-1'),
+          variables: { agent_id: 'agent-1', policy_id: 'policy-1' },
+        },
+        'behavior-rule': {
+          uri: new URL('openbox://agent/agent-1/behavior-rule/rule-1'),
+          variables: { agent_id: 'agent-1', behavior_rule_id: 'rule-1' },
+        },
+        approval: {
+          uri: new URL('openbox://agent/agent-1/approval/approval-1'),
+          variables: { agent_id: 'agent-1', approval_id: 'approval-1' },
+        },
+        'skill-reference': {
+          uri: new URL('openbox://skill/governance-flow'),
+          variables: { name: 'governance-flow' },
+        },
+      };
+
+      const { runMcpServer } = await import('../../ts/src/runtime/mcp');
+      await runMcpServer();
+
+      for (const surface of MCP_RESOURCE_TEMPLATE_SURFACES) {
+        const resource = capturedResources.find((entry) => entry.name === surface.name);
+        expect(resource, `missing MCP resource ${surface.name}`).toBeDefined();
+        const input = resourceInputs[surface.name];
+        expect(input, `missing MCP resource test input for ${surface.name}`).toBeDefined();
+
+        const out = await resource!.cb(input.uri, input.variables);
+        expect(out.contents).toHaveLength(1);
+        expect(out.contents[0].uri).toBe(String(input.uri));
+        expect(out.contents[0].text.length).toBeGreaterThan(0);
+        if (surface.mimeType === 'application/json') {
+          expect(out.contents[0].mimeType).toBe('application/json');
+          const parsed = JSON.parse(out.contents[0].text);
+          expect(parsed).toBeDefined();
+        }
+      }
+
+      expect(seenUrls.some((u) => u.includes('/agent/agent-1/guardrails/guardrail-1'))).toBe(true);
+      expect(seenUrls.some((u) => u.includes('/agent/agent-1/policies/policy-1'))).toBe(true);
+      expect(seenUrls.some((u) => u.includes('/agent/agent-1/behavior-rule/rule-1'))).toBe(true);
+      expect(seenUrls.some((u) => u.includes('/agent/agent-1/approvals/pending'))).toBe(true);
+    });
+  });
+
   it('cursor_status gives slash commands a non-shell backend ping path', async () => {
     await withMcpEnv(async () => {
       const { runMcpServer } = await import('../../ts/src/runtime/mcp');
