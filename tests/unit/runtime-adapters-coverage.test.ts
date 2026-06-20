@@ -206,6 +206,12 @@ describe('runtime/n8n integration descriptor', () => {
         expect.arrayContaining([gate.pass, gate.fail]),
       );
     }
+    for (const identity of showcase.requiredNodeIdentities ?? []) {
+      const node = showcaseNodeByName.get(identity.name);
+      expect(node, identity.name).toBeDefined();
+      expect(node?.id, `${identity.name}.id`).toBe(identity.id);
+      expect(node?.type, `${identity.name}.type`).toBe(identity.type);
+    }
     for (const flag of showcase.requiredNodeBooleanFlags ?? []) {
       const node = showcaseNodeByName.get(flag.node);
       expect(node, flag.node).toBeDefined();
@@ -251,6 +257,9 @@ describe('runtime/n8n integration descriptor', () => {
     }
     const showcaseJson = JSON.stringify(showcaseWorkflow);
     expect(showcaseJson).toContain(showcase.terminalLogTable);
+    for (const forbidden of showcase.forbiddenWorkflowText ?? []) {
+      expect(showcaseJson, `showcase must not contain ${forbidden}`).not.toContain(forbidden);
+    }
     for (const stage of showcase.approvalStages) {
       expect(showcaseJson).toContain(stage);
     }

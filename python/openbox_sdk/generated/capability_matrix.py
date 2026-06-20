@@ -3030,6 +3030,48 @@ N8N_INTEGRATION_SURFACE = {
           "fail": "Package OpenBox Terminal Output"
         }
       ],
+      "requiredNodeIdentities": [
+        {
+          "name": "OpenBox: Prompt Safety Wall",
+          "id": "openbox-input-wall",
+          "type": "n8n-nodes-openbox-hook.openboxLlm"
+        },
+        {
+          "name": "OpenBox: Context Privacy Check",
+          "id": "openbox-context-privacy-check",
+          "type": "n8n-nodes-openbox-hook.openboxLlm"
+        },
+        {
+          "name": "OpenBox: Governed LLM Draft",
+          "id": "openbox-llm",
+          "type": "n8n-nodes-openbox-hook.openboxLlm"
+        },
+        {
+          "name": "OpenBox: Channel Output Check",
+          "id": "openbox-channel-output-check",
+          "type": "n8n-nodes-openbox-hook.openboxLlm"
+        },
+        {
+          "name": "HubSpot CRM Configured?",
+          "id": "hubspot-crm-configured",
+          "type": "n8n-nodes-base.if"
+        },
+        {
+          "name": "Upsert HubSpot Contact (Optional)",
+          "id": "upsert-hubspot-contact",
+          "type": "n8n-nodes-base.hubspot"
+        },
+        {
+          "name": "When Slack Approval Action Received",
+          "id": "slack-approval-action-webhook",
+          "type": "n8n-nodes-base.webhook"
+        },
+        {
+          "name": "Acknowledge Slack Approval Decision",
+          "id": "ack-slack-approval-decision",
+          "type": "n8n-nodes-base.httpRequest"
+        }
+      ],
       "requiredNodeBooleanFlags": [
         {
           "node": "OpenBox: Prompt Safety Wall",
@@ -3208,6 +3250,13 @@ N8N_INTEGRATION_SURFACE = {
         "demo-postgres-placeholder",
         "demo-slack-api-placeholder",
         "demo-hubspot-app-token"
+      ],
+      "forbiddenWorkflowText": [
+        "webhook-configured",
+        "post-webhook",
+        "jiraDescription",
+        "webhook payload summary",
+        "final webhook/chat response"
       ],
       "terminalLogTable": "demo.triage_events"
     }

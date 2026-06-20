@@ -265,6 +265,12 @@ namespace OpenboxGovern.Capabilities {
     fail: string;
   }
 
+  model N8nWorkflowNodeIdentitySpec {
+    name: string;
+    id: string;
+    type: string;
+  }
+
   model N8nNodeBooleanFlagSpec {
     node: string;
     flag: string;
@@ -297,6 +303,7 @@ namespace OpenboxGovern.Capabilities {
     requiredTerminalNodes: string[];
     requiredEntryEdges: N8nWorkflowEdgeSpec[];
     checkpointGates: N8nCheckpointGateSpec[];
+    requiredNodeIdentities: N8nWorkflowNodeIdentitySpec[];
     requiredNodeBooleanFlags: N8nNodeBooleanFlagSpec[];
     expressionSourceChecks: N8nExpressionSourceCheckSpec[];
     requiredOpenBoxNodeParameterChecks: N8nNodeParameterCheckSpec[];
@@ -305,6 +312,7 @@ namespace OpenboxGovern.Capabilities {
     requiredPathLogSteps: string[];
     requiredTerminalEventTypes: string[];
     allowedCredentialPlaceholders: string[];
+    forbiddenWorkflowText: string[];
     terminalLogTable: string;
   }
 
@@ -815,6 +823,16 @@ namespace OpenboxGovern.Capabilities {
           #{ checkpoint: "OpenBox: Governed LLM Draft", gate: "Draft Governance Passed?", pass: "Record Draft Governance", fail: "Package OpenBox Terminal Output" },
           #{ checkpoint: "OpenBox: Channel Output Check", gate: "Channel Check Passed?", pass: "Record Channel Check", fail: "Package OpenBox Terminal Output" },
         ],
+        requiredNodeIdentities: #[
+          #{ name: "OpenBox: Prompt Safety Wall", id: "openbox-input-wall", type: "n8n-nodes-openbox-hook.openboxLlm" },
+          #{ name: "OpenBox: Context Privacy Check", id: "openbox-context-privacy-check", type: "n8n-nodes-openbox-hook.openboxLlm" },
+          #{ name: "OpenBox: Governed LLM Draft", id: "openbox-llm", type: "n8n-nodes-openbox-hook.openboxLlm" },
+          #{ name: "OpenBox: Channel Output Check", id: "openbox-channel-output-check", type: "n8n-nodes-openbox-hook.openboxLlm" },
+          #{ name: "HubSpot CRM Configured?", id: "hubspot-crm-configured", type: "n8n-nodes-base.if" },
+          #{ name: "Upsert HubSpot Contact (Optional)", id: "upsert-hubspot-contact", type: "n8n-nodes-base.hubspot" },
+          #{ name: "When Slack Approval Action Received", id: "slack-approval-action-webhook", type: "n8n-nodes-base.webhook" },
+          #{ name: "Acknowledge Slack Approval Decision", id: "ack-slack-approval-decision", type: "n8n-nodes-base.httpRequest" },
+        ],
         requiredNodeBooleanFlags: #[
           #{ node: "OpenBox: Prompt Safety Wall", flag: "continueOnFail", expected: true },
           #{ node: "OpenBox: Prompt Safety Wall", flag: "alwaysOutputData", expected: true },
@@ -902,6 +920,7 @@ namespace OpenboxGovern.Capabilities {
         requiredPathLogSteps: #["input", "slack-input", "prompt-wall", "customer-lookup", "context-check", "draft-governance", "channel-check", "review-package", "chat-output", "slack-output", "hubspot-output", "backend-final-log"],
         requiredTerminalEventTypes: #["planned-path", "chat-output", "slack-output", "hubspot-output", "approval-decision"],
         allowedCredentialPlaceholders: #["demo-postgres-placeholder", "demo-slack-api-placeholder", "demo-hubspot-app-token"],
+        forbiddenWorkflowText: #["webhook-configured", "post-webhook", "jiraDescription", "webhook payload summary", "final webhook/chat response"],
         terminalLogTable: "demo.triage_events",
       },
     ],

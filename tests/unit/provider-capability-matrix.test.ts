@@ -833,6 +833,12 @@ describe('provider capability matrix', () => {
       expect(hasEdge(gate.gate, gate.pass)).toBe(true);
       expect(hasEdge(gate.gate, gate.fail)).toBe(true);
     }
+    for (const identity of showcase!.requiredNodeIdentities ?? []) {
+      const node = showcaseNodeByName.get(identity.name);
+      expect(node, identity.name).toBeDefined();
+      expect(node?.id, `${identity.name}.id`).toBe(identity.id);
+      expect(node?.type, `${identity.name}.type`).toBe(identity.type);
+    }
     for (const flag of showcase!.requiredNodeBooleanFlags ?? []) {
       const node = showcaseNodeByName.get(flag.node);
       expect(node, flag.node).toBeDefined();
@@ -880,6 +886,9 @@ describe('provider capability matrix', () => {
     expect(missingConnectionRefs).toEqual([]);
     const showcaseJson = JSON.stringify(showcaseWorkflow);
     expect(showcaseJson).toContain(showcase!.terminalLogTable);
+    for (const forbidden of showcase!.forbiddenWorkflowText ?? []) {
+      expect(showcaseJson, `showcase must not contain ${forbidden}`).not.toContain(forbidden);
+    }
     for (const stage of showcase!.approvalStages) {
       expect(showcaseJson).toContain(`'${stage}'`);
     }

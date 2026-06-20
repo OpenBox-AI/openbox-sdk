@@ -57,6 +57,12 @@ export interface OpenBoxN8nCheckpointGateSpec {
   fail: string;
 }
 
+export interface OpenBoxN8nWorkflowNodeIdentitySpec {
+  name: string;
+  id: string;
+  type: string;
+}
+
 export interface OpenBoxN8nNodeBooleanFlagSpec {
   node: string;
   flag: string;
@@ -89,6 +95,7 @@ export interface OpenBoxN8nShowcaseWorkflowSpec {
   requiredTerminalNodes: readonly string[];
   requiredEntryEdges: readonly OpenBoxN8nWorkflowEdgeSpec[];
   checkpointGates: readonly OpenBoxN8nCheckpointGateSpec[];
+  requiredNodeIdentities: readonly OpenBoxN8nWorkflowNodeIdentitySpec[];
   requiredNodeBooleanFlags: readonly OpenBoxN8nNodeBooleanFlagSpec[];
   expressionSourceChecks: readonly OpenBoxN8nExpressionSourceCheckSpec[];
   requiredOpenBoxNodeParameterChecks: readonly OpenBoxN8nNodeParameterCheckSpec[];
@@ -97,6 +104,7 @@ export interface OpenBoxN8nShowcaseWorkflowSpec {
   requiredPathLogSteps: readonly string[];
   requiredTerminalEventTypes: readonly string[];
   allowedCredentialPlaceholders: readonly string[];
+  forbiddenWorkflowText: readonly string[];
   terminalLogTable: string;
 }
 
@@ -624,6 +632,48 @@ export const OPENBOX_N8N_INTEGRATION = {
           "fail": "Package OpenBox Terminal Output"
         }
       ],
+      "requiredNodeIdentities": [
+        {
+          "name": "OpenBox: Prompt Safety Wall",
+          "id": "openbox-input-wall",
+          "type": "n8n-nodes-openbox-hook.openboxLlm"
+        },
+        {
+          "name": "OpenBox: Context Privacy Check",
+          "id": "openbox-context-privacy-check",
+          "type": "n8n-nodes-openbox-hook.openboxLlm"
+        },
+        {
+          "name": "OpenBox: Governed LLM Draft",
+          "id": "openbox-llm",
+          "type": "n8n-nodes-openbox-hook.openboxLlm"
+        },
+        {
+          "name": "OpenBox: Channel Output Check",
+          "id": "openbox-channel-output-check",
+          "type": "n8n-nodes-openbox-hook.openboxLlm"
+        },
+        {
+          "name": "HubSpot CRM Configured?",
+          "id": "hubspot-crm-configured",
+          "type": "n8n-nodes-base.if"
+        },
+        {
+          "name": "Upsert HubSpot Contact (Optional)",
+          "id": "upsert-hubspot-contact",
+          "type": "n8n-nodes-base.hubspot"
+        },
+        {
+          "name": "When Slack Approval Action Received",
+          "id": "slack-approval-action-webhook",
+          "type": "n8n-nodes-base.webhook"
+        },
+        {
+          "name": "Acknowledge Slack Approval Decision",
+          "id": "ack-slack-approval-decision",
+          "type": "n8n-nodes-base.httpRequest"
+        }
+      ],
       "requiredNodeBooleanFlags": [
         {
           "node": "OpenBox: Prompt Safety Wall",
@@ -802,6 +852,13 @@ export const OPENBOX_N8N_INTEGRATION = {
         "demo-postgres-placeholder",
         "demo-slack-api-placeholder",
         "demo-hubspot-app-token"
+      ],
+      "forbiddenWorkflowText": [
+        "webhook-configured",
+        "post-webhook",
+        "jiraDescription",
+        "webhook payload summary",
+        "final webhook/chat response"
       ],
       "terminalLogTable": "demo.triage_events"
     }
