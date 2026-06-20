@@ -314,32 +314,33 @@ function deriveDurationNsFromRawTimestamps(
 
 export function llmTokenUsageFromRecord(value: unknown): LLMTokenUsage | undefined {
   const record = objectRecord(value);
+  const records = usageCandidateRecords(record);
   const promptTokens = firstUsageIntegerForAliases(
-    record,
+    records,
     USAGE_NORMALIZATION_SURFACE.inputTokenAliases,
   );
   const completionTokens = firstUsageIntegerForAliases(
-    record,
+    records,
     USAGE_NORMALIZATION_SURFACE.outputTokenAliases,
   );
   const totalTokens = firstUsageIntegerForAliases(
-    record,
+    records,
     USAGE_NORMALIZATION_SURFACE.totalTokenAliases,
   );
   const cacheReadInputTokens = firstUsageIntegerForAliases(
-    record,
+    records,
     USAGE_NORMALIZATION_SURFACE.cacheReadInputTokenAliases,
   );
   const cacheCreationInputTokens = firstUsageIntegerForAliases(
-    record,
+    records,
     USAGE_NORMALIZATION_SURFACE.cacheCreationInputTokenAliases,
   );
   const webSearchRequests = firstUsageIntegerForAliases(
-    record,
+    records,
     USAGE_NORMALIZATION_SURFACE.webSearchRequestAliases,
   );
   const costUsd = firstUsageNumberForAliases(
-    record,
+    records,
     USAGE_NORMALIZATION_SURFACE.costUsdAliases,
   );
   const usage: LLMTokenUsage = {
@@ -360,25 +361,54 @@ export function llmTokenUsageFromRecord(value: unknown): LLMTokenUsage | undefin
 }
 
 function firstUsageIntegerForAliases(
-  record: JsonRecord,
+  recordOrRecords: JsonRecord | readonly JsonRecord[],
   aliases: readonly string[],
 ): number | undefined {
-  for (const alias of aliases) {
-    const value = toUsageInteger(record[alias]);
-    if (value !== undefined) return value;
+  const records = Array.isArray(recordOrRecords) ? recordOrRecords : [recordOrRecords];
+  for (const record of records) {
+    for (const alias of aliases) {
+      const value = toUsageInteger(valueAtPath(record, alias));
+      if (value !== undefined) return value;
+    }
   }
   return undefined;
 }
 
 function firstUsageNumberForAliases(
-  record: JsonRecord,
+  recordOrRecords: JsonRecord | readonly JsonRecord[],
   aliases: readonly string[],
 ): number | undefined {
-  for (const alias of aliases) {
-    const value = toUsageNumber(record[alias]);
-    if (value !== undefined) return value;
+  const records = Array.isArray(recordOrRecords) ? recordOrRecords : [recordOrRecords];
+  for (const record of records) {
+    for (const alias of aliases) {
+      const value = toUsageNumber(valueAtPath(record, alias));
+      if (value !== undefined) return value;
+    }
   }
   return undefined;
+}
+
+function usageCandidateRecords(record: JsonRecord): JsonRecord[] {
+  const candidates = [record];
+  for (const container of USAGE_NORMALIZATION_SURFACE.providerUsageContainers) {
+    const nested = objectRecord(valueAtPath(record, container));
+    if (Object.keys(nested).length > 0) candidates.push(nested);
+  }
+  return candidates;
+}
+
+function valueAtPath(record: JsonRecord, path: string): unknown {
+  if (Object.prototype.hasOwnProperty.call(record, path)) return record[path];
+  if (!path.includes('.')) return record[path];
+  let current: unknown = record;
+  for (const part of path.split('.')) {
+    const currentRecord = objectRecord(current);
+    if (!Object.prototype.hasOwnProperty.call(currentRecord, part)) {
+      return undefined;
+    }
+    current = currentRecord[part];
+  }
+  return current;
 }
 
 function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {

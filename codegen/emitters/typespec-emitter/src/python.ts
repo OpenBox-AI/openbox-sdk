@@ -261,6 +261,7 @@ function emitCapabilityMatrix(program: Program): string {
   const providers = arrayOfStrings(matrix.providers);
   const supportTiers = uniqueStrings([
     ...arrayOfRecords(matrix.capabilities).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.referenceProviderParityClosures).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.publicIntegrations).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.goalSignalGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.usageCostCapabilityGuards).map((entry) => String(entry.tier ?? '')),
@@ -282,6 +283,7 @@ OPENBOX_CAPABILITY_IDS = ${py(capabilityIds)}
 OPENBOX_PROVIDER_IDS = ${py(providers)}
 OPENBOX_SUPPORT_TIERS = ${py(supportTiers)}
 PROVIDER_CAPABILITY_MATRIX = ${py(matrix.capabilities)}
+REFERENCE_PROVIDER_PARITY_CLOSURES = ${py(matrix.referenceProviderParityClosures)}
 PROVIDER_EVENT_CATALOG = ${py(matrix.eventCatalog)}
 PROVIDER_PLUGIN_COMPONENTS = ${py(matrix.pluginComponents)}
 PUBLIC_INTEGRATION_SUPPORT = ${py(matrix.publicIntegrations)}

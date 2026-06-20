@@ -1098,6 +1098,7 @@ interface ProviderCapabilityConformancePayload {
   providerIds: string[];
   supportTiers: string[];
   providerCapabilityMatrix: unknown;
+  referenceProviderParityClosures: unknown;
   providerEventCatalog: unknown;
   providerPluginComponents: unknown;
   publicIntegrationSupport: unknown;
@@ -1152,11 +1153,28 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `export const OPENBOX_SUPPORT_TIERS = ${literalTs(supportTiers)} as const;`,
     `export type OpenBoxSupportTier = typeof OPENBOX_SUPPORT_TIERS[number];`,
     '',
+    `export type ReferenceProviderParityClosureStatus =`,
+    `  | 'implemented-through-wrapper'`,
+    `  | 'host-owned-observe-only'`,
+    `  | 'runtime-diagnostic-only'`,
+    `  | 'host-unsupported';`,
+    '',
     `export interface ProviderCapabilityEntry {`,
     `  provider: OpenBoxProviderId;`,
     `  capability: OpenBoxCapabilityId;`,
     `  tier: OpenBoxSupportTier;`,
     `  rationale: string;`,
+    `}`,
+    '',
+    `export interface ReferenceProviderParityClosureEntry {`,
+    `  provider: OpenBoxProviderId;`,
+    `  capability: OpenBoxCapabilityId;`,
+    `  tier: OpenBoxSupportTier;`,
+    `  status: ReferenceProviderParityClosureStatus;`,
+    `  referenceSurface: string;`,
+    `  openboxSurface: string;`,
+    `  closureDecision: string;`,
+    `  guardTest: string;`,
     `}`,
     '',
     `export interface ProviderEventCatalogEntry {`,
@@ -1450,6 +1468,8 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     '',
     `export const PROVIDER_CAPABILITY_MATRIX = ${literalTs(conformance.providerCapabilityMatrix)} as const satisfies readonly ProviderCapabilityEntry[];`,
     '',
+    `export const REFERENCE_PROVIDER_PARITY_CLOSURES = ${literalTs(conformance.referenceProviderParityClosures)} as const satisfies readonly ReferenceProviderParityClosureEntry[];`,
+    '',
     `export const PROVIDER_EVENT_CATALOG = ${literalTs(conformance.providerEventCatalog)} as const satisfies readonly ProviderEventCatalogEntry[];`,
     '',
     `export const PROVIDER_PLUGIN_COMPONENTS = ${literalTs(conformance.providerPluginComponents)} as const satisfies readonly ProviderPluginComponentCatalogEntry[];`,
@@ -1650,6 +1670,7 @@ function providerCapabilityConformancePayload(
   const providerIds = arrayOfStrings(matrix.providers);
   const supportTiers = uniqueStrings([
     ...arrayOfRecords(matrix.capabilities).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.referenceProviderParityClosures).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.publicIntegrations).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.goalSignalGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.usageCostCapabilityGuards).map((entry) => String(entry.tier ?? '')),
@@ -1674,6 +1695,7 @@ function providerCapabilityConformancePayload(
     providerIds,
     supportTiers,
     providerCapabilityMatrix: matrix.capabilities,
+    referenceProviderParityClosures: matrix.referenceProviderParityClosures,
     providerEventCatalog: matrix.eventCatalog,
     providerPluginComponents: matrix.pluginComponents,
     publicIntegrationSupport: matrix.publicIntegrations,

@@ -951,6 +951,44 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
     assert model_completed["finish_reason"] == "stop"
     assert model_completed["completion"] == "answer"
 
+    nested_usage_payload = {
+        "content": "nested answer",
+        "response_metadata": {
+            "model_name": "gpt-4.1-mini",
+            "token_usage": {
+                "prompt_tokens": "8",
+                "completion_tokens": "3",
+                "input_tokens_details": {"cached_tokens": "2"},
+                "total_cost_usd": "0.025",
+            },
+        },
+    }
+    nested_usage_request: Mapping[str, Any] = {
+        "run_id": "model-nested-usage",
+        "model": "gpt-4.1-mini",
+        "messages": [{"role": "user", "content": "nested usage"}],
+    }
+    await middleware.wrap_model_call(
+        nested_usage_request,
+        lambda _req: nested_usage_payload,
+    )
+    nested_usage_completed = next(
+        event
+        for event in core.events
+        if event.get("activity_id") == "model-nested-usage"
+        and event["event_type"] == "ActivityCompleted"
+    )
+    assert "response_metadata.token_usage" in USAGE_NORMALIZATION_SURFACE[
+        "providerUsageContainers"
+    ]
+    assert "input_tokens_details.cached_tokens" in USAGE_NORMALIZATION_SURFACE[
+        "cacheReadInputTokenAliases"
+    ]
+    assert nested_usage_completed["input_tokens"] == 8
+    assert nested_usage_completed["output_tokens"] == 3
+    assert nested_usage_completed["total_tokens"] == 11
+    assert nested_usage_completed["cost_usd"] == 0.025
+
     zero_usage_payload = {
         "content": "cached answer",
         "usage_metadata": {
