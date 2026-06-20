@@ -1,66 +1,20 @@
 #!/usr/bin/env node
 // Build TypeSpec libraries and emitters from the TypeSpec-declared codegen pipeline.
 
-import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-
-const repoRoot = process.cwd();
-const fixturePath = resolve(repoRoot, 'codegen/fixtures/sdk-targets.json');
-
-function assertString(value, field) {
-  if (typeof value !== 'string' || value.length === 0) {
-    throw new Error(`${field} must be a non-empty string`);
-  }
-}
-
-function assertStringArray(value, field) {
-  if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string')) {
-    throw new Error(`${field} must be a string array`);
-  }
-}
-
-function assertRecord(value, field) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${field} must be a record`);
-  }
-}
-
-function normalizeSteps(rawSteps, field) {
-  if (!Array.isArray(rawSteps) || rawSteps.length === 0) {
-    throw new Error(`${field} must be a non-empty array`);
-  }
-
-  return rawSteps.map((step, index) => {
-    assertRecord(step, `${field}[${index}]`);
-    for (const stepField of ['id', 'label', 'command', 'workingDirectory']) {
-      assertString(step[stepField], `${field}[${index}].${stepField}`);
-    }
-    if (step.args !== undefined) {
-      assertStringArray(step.args, `${field}[${index}].args`);
-    }
-    if (step.env !== undefined) {
-      assertRecord(step.env, `${field}[${index}].env`);
-      for (const [name, value] of Object.entries(step.env)) {
-        assertString(name, `${field}[${index}].env key`);
-        if (typeof value !== 'string') {
-          throw new Error(`${field}[${index}].env.${name} must be a string`);
-        }
-      }
-    }
-    return {
-      id: step.id,
-      label: step.label,
-      command: step.command,
-      args: step.args ?? [],
-      cwd: resolve(repoRoot, step.workingDirectory),
-      env: step.env ?? {},
-    };
-  });
-}
+import {
+  assertRecord,
+  assertStringArray,
+  normalizeCommandSteps,
+  readJsonFile,
+  repoRoot,
+  runSteps,
+  sdkTargetsFixturePath,
+} from './lib/spec-steps.mjs';
 
 function readPackageJson(path) {
-  return JSON.parse(readFileSync(path, 'utf8'));
+  return readJsonFile(path);
 }
 
 function expandWorkspacePattern(pattern) {
@@ -111,9 +65,13 @@ function deriveBootstrapSteps() {
   assertStringArray(workspaces, 'package.json workspaces');
 
   const workspaceDirs = [...new Set(workspaces.flatMap(expandWorkspacePattern))].sort();
-  const packages = workspaceDirs
-    .map((directory) => {
-      const packageJson = readPackageJson(resolve(repoRoot, directory, 'package.json'));
+  const workspacePackages = workspaceDirs.map((directory) => ({
+    directory,
+    packageJson: readPackageJson(resolve(repoRoot, directory, 'package.json')),
+  }));
+  const packageNames = new Set(workspacePackages.map((pkg) => pkg.packageJson.name));
+  const packages = workspacePackages
+    .map(({ directory, packageJson }) => {
       const dependencies = {
         ...(packageJson.dependencies ?? {}),
         ...(packageJson.devDependencies ?? {}),
@@ -122,12 +80,7 @@ function deriveBootstrapSteps() {
         directory,
         name: packageJson.name,
         hasBuild: typeof packageJson.scripts?.build === 'string',
-        internalDependencies: Object.keys(dependencies).filter((name) =>
-          workspaceDirs.some((entry) => {
-            const entryPackage = readPackageJson(resolve(repoRoot, entry, 'package.json'));
-            return entryPackage.name === name;
-          }),
-        ),
+        internalDependencies: Object.keys(dependencies).filter((name) => packageNames.has(name)),
       };
     })
     .filter((pkg) => pkg.hasBuild);
@@ -150,41 +103,17 @@ function deriveBootstrapSteps() {
 }
 
 function readCodegenBuildSteps() {
-  if (!existsSync(fixturePath)) {
+  if (!existsSync(sdkTargetsFixturePath)) {
     return deriveBootstrapSteps();
   }
 
-  const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
+  const fixture = readJsonFile(sdkTargetsFixturePath);
   assertRecord(fixture, 'sdk-targets fixture');
   if (fixture.codegenBuild === undefined) {
     return deriveBootstrapSteps();
   }
   assertRecord(fixture.codegenBuild, 'codegenBuild');
-  return normalizeSteps(fixture.codegenBuild.steps, 'codegenBuild.steps');
+  return normalizeCommandSteps(fixture.codegenBuild.steps, 'codegenBuild.steps');
 }
 
-function commandForPlatform(command) {
-  if (process.platform !== 'win32') return command;
-  if (command === 'npm' || command === 'npx') return `${command}.cmd`;
-  return command;
-}
-
-function runStep(step) {
-  process.stderr.write(`\n==> ${step.label}\n`);
-  const result = spawnSync(commandForPlatform(step.command), step.args, {
-    cwd: step.cwd,
-    env: { ...process.env, ...step.env },
-    stdio: 'inherit',
-  });
-  if (result.error?.code === 'ENOENT') {
-    process.stderr.write(`${step.command} is required for ${step.label} but was not found on PATH\n`);
-    process.exit(1);
-  }
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-  }
-}
-
-for (const step of readCodegenBuildSteps()) {
-  runStep(step);
-}
+runSteps(readCodegenBuildSteps());

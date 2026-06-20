@@ -35,6 +35,10 @@ canonical TypeSpec contract.
   targets should join `specs/typespec/sdk/main.tsp` instead of adding
   root-level `check:<language>`, `check:<app>`, or `generate:<language>` entry
   points.
+- `test`, `test:unit`, `test:contract`, and `test:hook-integration` read the
+  TypeSpec-emitted `testSuites` routing table and execute the declared suite
+  commands. Add, remove, or rename root test suites in
+  `specs/typespec/sdk/main.tsp`, not in `package.json`.
 - `audit:security` reads the TypeSpec-emitted security audit section in
   `codegen/fixtures/sdk-targets.json` for package audit commands and annotated
   secret-scan excludes. Add new audited package roots or fixture exclusions in
@@ -60,6 +64,8 @@ canonical TypeSpec contract.
 - `sync-runtime-assets.ts` copies runtime templates and exports built plugin
   bundles after `tsup`; this depends on built runtime code and is not a spec
   emitter.
+- `lib/spec-steps.mjs` is the shared runner framework for TypeSpec-emitted
+  command pipelines.
 - `openbox-cli-dev.mjs` is a local developer launcher for the TypeScript CLI.
 - `security-audit.mjs` orchestrates TypeSpec-declared package audits and secret
   scanning.

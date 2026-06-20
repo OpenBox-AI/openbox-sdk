@@ -83,6 +83,51 @@ SDK_TARGET_MANIFEST = {
       }
     ]
   },
+  "testSuites": {
+    "defaultSuites": [
+      "unit",
+      "contract",
+      "hook-integration"
+    ],
+    "suites": [
+      {
+        "id": "unit",
+        "label": "Unit tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "unit"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "contract",
+        "label": "Contract tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "contract"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "hook-integration",
+        "label": "Hook integration tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration"
+        ],
+        "workingDirectory": "."
+      }
+    ]
+  },
   "packageSurface": {
     "packageName": "@openbox-ai/openbox-sdk",
     "bin": [
@@ -625,6 +670,7 @@ SDK_TARGET_MANIFEST = {
 }
 GENERATED_ARTIFACTS = SDK_TARGET_MANIFEST.get("generatedArtifacts", {})
 CODEGEN_BUILD = SDK_TARGET_MANIFEST.get("codegenBuild", {})
+TEST_SUITES = SDK_TARGET_MANIFEST.get("testSuites", {})
 PACKAGE_SURFACE = SDK_TARGET_MANIFEST.get("packageSurface", {})
 CLEAN_ARTIFACTS = SDK_TARGET_MANIFEST.get("cleanArtifacts", {})
 SECURITY_AUDIT = SDK_TARGET_MANIFEST.get("securityAudit", {})
@@ -632,4 +678,4 @@ LOCAL_CI = SDK_TARGET_MANIFEST.get("localCi", {})
 SDK_TARGETS = SDK_TARGET_MANIFEST.get("targets", [])
 SDK_TARGET_IDS = [target["id"] for target in SDK_TARGETS]
 
-__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]
+__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "TEST_SUITES", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]

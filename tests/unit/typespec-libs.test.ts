@@ -282,6 +282,13 @@ describe('typespec-workflow', () => {
             steps: Array<{ id: string; command: string; workingDirectory: string }>;
           }
         | undefined;
+    const testSuites =
+      fixture?.testSuites as
+        | {
+            defaultSuites: string[];
+            suites: Array<{ id: string; command: string; workingDirectory: string }>;
+          }
+        | undefined;
     const securityAudit =
       fixture?.securityAudit as
         | {
@@ -344,6 +351,13 @@ describe('typespec-workflow', () => {
       'typespec-emitter',
     ]);
     expect(codegenBuild?.steps.every((entry) => entry.command === 'npm')).toBe(true);
+    expect(testSuites?.defaultSuites).toEqual(['unit', 'contract', 'hook-integration']);
+    expect(testSuites?.suites.map((entry) => entry.id)).toEqual([
+      'unit',
+      'contract',
+      'hook-integration',
+    ]);
+    expect(testSuites?.suites.every((entry) => entry.command === 'npx')).toBe(true);
     expect(securityAudit?.commands.map((entry) => entry.id)).toEqual([
       'root-npm-audit',
       'n8n-npm-audit',

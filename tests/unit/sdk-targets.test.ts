@@ -24,6 +24,17 @@ interface SdkTargetsFixture {
       env?: Record<string, string>;
     }>;
   };
+  testSuites: {
+    defaultSuites: string[];
+    suites: Array<{
+      id: string;
+      label: string;
+      command: string;
+      args?: string[];
+      workingDirectory: string;
+      env?: Record<string, string>;
+    }>;
+  };
   packageSurface: {
     packageName: string;
     bin: Array<{
@@ -169,6 +180,50 @@ describe('SDK target validation manifest', () => {
         label: 'OpenBox TypeSpec emitter',
         command: 'npm',
         args: ['run', 'build', '-w', 'typespec-emitter'],
+        workingDirectory: '.',
+      },
+    ]);
+  });
+
+  test('declares root test suite routing outside package scripts', () => {
+    const fixture = readSdkTargetsFixture();
+    const packageJson = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
+    ) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts.test).toBe('node scripts/run-tests.mjs');
+    expect(packageJson.scripts['test:unit']).toBe('node scripts/run-tests.mjs unit');
+    expect(packageJson.scripts['test:contract']).toBe('node scripts/run-tests.mjs contract');
+    expect(packageJson.scripts['test:hook-integration']).toBe(
+      'node scripts/run-tests.mjs hook-integration',
+    );
+    expect(fixture.testSuites.defaultSuites).toEqual([
+      'unit',
+      'contract',
+      'hook-integration',
+    ]);
+    expect(fixture.testSuites.suites).toEqual([
+      {
+        id: 'unit',
+        label: 'Unit tests',
+        command: 'npx',
+        args: ['vitest', 'run', '--project', 'unit'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'contract',
+        label: 'Contract tests',
+        command: 'npx',
+        args: ['vitest', 'run', '--project', 'contract'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'hook-integration',
+        label: 'Hook integration tests',
+        command: 'npx',
+        args: ['vitest', 'run', '--project', 'hook-integration'],
         workingDirectory: '.',
       },
     ]);

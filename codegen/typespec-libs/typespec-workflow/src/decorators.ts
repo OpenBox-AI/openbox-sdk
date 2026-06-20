@@ -1015,6 +1015,37 @@ function validateLocalCiRecord(
   return validateCommandStepArray(context, target, 'localCi.steps', localCi.steps);
 }
 
+function validateTestSuitesRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawTestSuites: unknown,
+): boolean {
+  if (!rawTestSuites || typeof rawTestSuites !== 'object' || Array.isArray(rawTestSuites)) {
+    reportInvalidSdkTargets(context, target, 'testSuites must be a record');
+    return false;
+  }
+
+  const testSuites = rawTestSuites as Record<string, unknown>;
+  const defaultSuites = testSuites.defaultSuites;
+  if (!isStringArray(defaultSuites) || defaultSuites.length === 0) {
+    reportInvalidSdkTargets(context, target, 'testSuites.defaultSuites must be a non-empty string array');
+    return false;
+  }
+  if (!validateCommandStepArray(context, target, 'testSuites.suites', testSuites.suites)) {
+    return false;
+  }
+
+  const suiteIds = new Set((testSuites.suites as Array<Record<string, unknown>>).map((suite) => suite.id as string));
+  for (const suiteId of defaultSuites) {
+    if (!suiteIds.has(suiteId)) {
+      reportInvalidSdkTargets(context, target, `testSuites.defaultSuites references unknown suite ${suiteId}`);
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function validateCodegenBuildRecord(
   context: DecoratorContext,
   target: Namespace,
@@ -1213,6 +1244,12 @@ export function $sdkTargets(
 
   if (record.codegenBuild !== undefined) {
     if (!validateCodegenBuildRecord(context, target, record.codegenBuild)) {
+      return;
+    }
+  }
+
+  if (record.testSuites !== undefined) {
+    if (!validateTestSuitesRecord(context, target, record.testSuites)) {
       return;
     }
   }

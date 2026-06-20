@@ -10,6 +10,8 @@ const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runt
 const buildCodegenScript = readFileSync(resolve(process.cwd(), 'scripts/build-codegen.mjs'), 'utf8');
 const cleanScript = readFileSync(resolve(process.cwd(), 'scripts/clean.mjs'), 'utf8');
 const localCiScript = readFileSync(resolve(process.cwd(), 'scripts/run-local-ci.mjs'), 'utf8');
+const runTestsScript = readFileSync(resolve(process.cwd(), 'scripts/run-tests.mjs'), 'utf8');
+const specStepsScript = readFileSync(resolve(process.cwd(), 'scripts/lib/spec-steps.mjs'), 'utf8');
 const cleanGeneratedScript = readFileSync(resolve(process.cwd(), 'scripts/clean-generated.mjs'), 'utf8');
 const generatedDriftScript = readFileSync(resolve(process.cwd(), 'scripts/check-generated-drift.ts'), 'utf8');
 const checkSdksScript = readFileSync(resolve(process.cwd(), 'scripts/check-sdks.mjs'), 'utf8');
@@ -20,8 +22,9 @@ describe('package scripts', () => {
     expect(packageJson.scripts['build:codegen']).toBe('node scripts/build-codegen.mjs');
     expect(packageJson.scripts['build:codegen']).not.toContain('-w typespec-');
     expect(buildCodegenScript).toContain('codegenBuild.steps');
-    expect(buildCodegenScript).toContain('codegen/fixtures/sdk-targets.json');
     expect(buildCodegenScript).toContain('deriveBootstrapSteps');
+    expect(buildCodegenScript).toContain("from './lib/spec-steps.mjs'");
+    expect(specStepsScript).toContain('codegen/fixtures/sdk-targets.json');
     expect(buildCodegenScript).not.toContain("'typespec-env'");
     expect(buildCodegenScript).not.toContain('"typespec-env"');
     expect(buildCodegenScript).not.toContain("'typespec-emitter'");
@@ -66,7 +69,24 @@ describe('package scripts', () => {
     expect(packageJson.scripts['ci:local']).not.toContain('vitest');
     expect(packageJson.scripts['ci:local']).not.toContain('spectral');
     expect(localCiScript).toContain('localCi.steps');
-    expect(localCiScript).toContain('codegen/fixtures/sdk-targets.json');
+    expect(localCiScript).toContain("from './lib/spec-steps.mjs'");
+    expect(specStepsScript).toContain('codegen/fixtures/sdk-targets.json');
+  });
+
+  test('root test scripts read the TypeSpec-emitted suite routing table', () => {
+    expect(packageJson.scripts.test).toBe('node scripts/run-tests.mjs');
+    expect(packageJson.scripts['test:unit']).toBe('node scripts/run-tests.mjs unit');
+    expect(packageJson.scripts['test:contract']).toBe('node scripts/run-tests.mjs contract');
+    expect(packageJson.scripts['test:hook-integration']).toBe(
+      'node scripts/run-tests.mjs hook-integration',
+    );
+    for (const name of ['test', 'test:unit', 'test:contract', 'test:hook-integration']) {
+      expect(packageJson.scripts[name]).not.toContain('vitest');
+    }
+    expect(runTestsScript).toContain('testSuites');
+    expect(runTestsScript).toContain('testSuites.defaultSuites');
+    expect(runTestsScript).toContain('testSuites.suites');
+    expect(runTestsScript).toContain("from './lib/spec-steps.mjs'");
   });
 
   test('generic SDK check validates spec-bound extension manifests', () => {

@@ -39,6 +39,14 @@ using OpenBox.Workflow;
       #{ id: "typespec-emitter", label: "OpenBox TypeSpec emitter", command: "npm", args: #["run", "build", "-w", "typespec-emitter"], workingDirectory: "." },
     ],
   },
+  testSuites: #{
+    defaultSuites: #["unit", "contract", "hook-integration"],
+    suites: #[
+      #{ id: "unit", label: "Unit tests", command: "npx", args: #["vitest", "run", "--project", "unit"], workingDirectory: "." },
+      #{ id: "contract", label: "Contract tests", command: "npx", args: #["vitest", "run", "--project", "contract"], workingDirectory: "." },
+      #{ id: "hook-integration", label: "Hook integration tests", command: "npx", args: #["vitest", "run", "--project", "hook-integration"], workingDirectory: "." },
+    ],
+  },
   packageSurface: #{
     packageName: "@openbox-ai/openbox-sdk",
     bin: #[
