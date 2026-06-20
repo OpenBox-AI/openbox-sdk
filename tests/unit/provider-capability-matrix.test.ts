@@ -659,6 +659,18 @@ describe('provider capability matrix', () => {
     );
     expect(byIntegration.get('copilotkit')?.exports).toContain('createOpenBoxAGUIAdapter');
     expect(byIntegration.get('n8n')?.exports).toContain('OPENBOX_N8N_INTEGRATION');
+    expect(byIntegration.get('n8n')?.exports).toEqual(
+      expect.arrayContaining([
+        'listOpenBoxN8nCredentials',
+        'listOpenBoxN8nNodes',
+        'listOpenBoxN8nWorkflowTemplates',
+        'listOpenBoxN8nExamples',
+        'getOpenBoxN8nCredential',
+        'getOpenBoxN8nNode',
+        'getOpenBoxN8nWorkflowTemplate',
+        'getOpenBoxN8nExample',
+      ]),
+    );
   });
 
   it('declares MCP protocol surfaces from the canonical spec', () => {

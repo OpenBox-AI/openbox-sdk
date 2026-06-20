@@ -1100,7 +1100,15 @@ PUBLIC_INTEGRATION_SUPPORT = [
       "emitN8nNodePreExecute",
       "emitN8nNodePostExecute",
       "emitN8nLlmCompletion",
-      "OPENBOX_N8N_INTEGRATION"
+      "OPENBOX_N8N_INTEGRATION",
+      "listOpenBoxN8nCredentials",
+      "listOpenBoxN8nNodes",
+      "listOpenBoxN8nWorkflowTemplates",
+      "listOpenBoxN8nExamples",
+      "getOpenBoxN8nCredential",
+      "getOpenBoxN8nNode",
+      "getOpenBoxN8nWorkflowTemplate",
+      "getOpenBoxN8nExample"
     ],
     "notes": "Low-level primitives plus packaged credentials, nodes, and workflow template descriptors."
   }
