@@ -1102,6 +1102,448 @@
       "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
     }
   ],
+  "referenceProviderRuntimeAudit": [
+    {
+      "provider": "codex",
+      "capability": "rules-instructions",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "Rules projection renders AGENTS.md/OpenBox skill governance summaries and exact .codex/rules command-prefix policy backed by the rules projection coverage test.",
+      "technicalBoundary": "Core remains policy authority; Codex receives projected instructions and rules only, so SDK runtime cannot evaluate or mutate provider-internal policy state.",
+      "guardTest": "tests/unit/rules-projection-coverage.test.ts#renders instruction projections and exact Codex command rules without local policy evaluation"
+    },
+    {
+      "provider": "codex",
+      "capability": "subagents-agents",
+      "tier": "observe-only",
+      "status": "host-owned-observe-only",
+      "promotionDecision": "retain-host-owned-boundary",
+      "runtimeEvidence": "Codex runtime maps available Agent or Task-style tool spans into tool or a2a metadata when hook and span payloads expose them.",
+      "technicalBoundary": "Codex owns subagent orchestration and exposes no dedicated subagent lifecycle hook, so OpenBox can only observe surfaced telemetry.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins subagents-agents support claims to explicit agent ownership coverage"
+    },
+    {
+      "provider": "codex",
+      "capability": "usage-cost",
+      "tier": "observe-only",
+      "status": "host-owned-observe-only",
+      "promotionDecision": "retain-host-owned-boundary",
+      "runtimeEvidence": "Codex usage guards and normalizeOpenBoxUsage consume direct and nested provider usage aliases when upstream hook envelopes expose usage metadata.",
+      "technicalBoundary": "Codex hook contracts are not metering APIs; the host owns model execution and cost collection, so OpenBox cannot meter locally.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins usage-cost support claims to explicit usage guard coverage"
+    },
+    {
+      "provider": "codex",
+      "capability": "tracing",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "Codex runtime emits paired shell, file, HTTP, MCP, database, agent/action, and assistant-output spans with codex source attribution.",
+      "technicalBoundary": "OpenBox wraps Codex hook payloads and span mapping but does not control Codex internal trace collection or orchestration.",
+      "guardTest": "tests/unit/codex-runtime.test.ts#stamps Codex source and shell spans in paired tool mappers"
+    },
+    {
+      "provider": "cursor",
+      "capability": "usage-cost",
+      "tier": "observe-only",
+      "status": "host-owned-observe-only",
+      "promotionDecision": "retain-host-owned-boundary",
+      "runtimeEvidence": "Cursor assistant-output mappers route afterAgentResponse and afterAgentThought usage metadata through normalizeOpenBoxUsage and buildAssistantOutputSpan.",
+      "technicalBoundary": "Cursor owns model execution and cost telemetry; OpenBox observes exposed assistant metadata and leaves spend enforcement to Core.",
+      "guardTest": "tests/unit/cursor-spans.test.ts#afterAgentResponse emits completed assistant-output span"
+    },
+    {
+      "provider": "cursor",
+      "capability": "tracing",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "Cursor hook mappers emit file, shell, MCP, LLM, HTTP, and assistant-output spans while keeping one activity id across paired lifecycle events.",
+      "technicalBoundary": "OpenBox projects tracing through Cursor hook extensions but cannot claim ownership of Cursor's internal session or trace collector.",
+      "guardTest": "tests/unit/cursor-spans.test.ts#before/after shell execution keeps one activity id across the tool lifecycle"
+    },
+    {
+      "provider": "claude-code",
+      "capability": "rules-instructions",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "Claude Code plugin export ships reviewer, command, skill, and instruction assets rendered from the shared governance instruction projection.",
+      "technicalBoundary": "OpenBox packages provider-native assets but Core remains the evaluator; local plugin instructions do not replace Claude Code internals.",
+      "guardTest": "tests/unit/claude-code-plugin.test.ts#exports a complete marketplace-ready plugin folder"
+    },
+    {
+      "provider": "mcp",
+      "capability": "hooks",
+      "tier": "out-of-scope",
+      "status": "host-unsupported",
+      "promotionDecision": "retain-protocol-boundary",
+      "runtimeEvidence": "MCP check_governance emits Core spans when clients call the server, proving runtime behavior exists only at the protocol tool boundary.",
+      "technicalBoundary": "MCP is a server protocol without host hook lifecycle; there is no OpenBox-owned pre or post hook surface to implement.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins hook support claims to explicit hook surface coverage"
+    },
+    {
+      "provider": "mcp",
+      "capability": "plugins",
+      "tier": "out-of-scope",
+      "status": "host-unsupported",
+      "promotionDecision": "retain-protocol-boundary",
+      "runtimeEvidence": "Plugin component catalogs deliberately assign packaged plugin assets to Codex, Cursor, and Claude Code adapters rather than the MCP server.",
+      "technicalBoundary": "MCP exposes tools, resources, and prompts and is consumed by host plugins; the protocol has no plugin package surface to emit.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
+    },
+    {
+      "provider": "mcp",
+      "capability": "subagents-agents",
+      "tier": "observe-only",
+      "status": "host-owned-observe-only",
+      "promotionDecision": "retain-host-owned-boundary",
+      "runtimeEvidence": "MCP list_agents, get_agent, and openbox://agent/{agent_id} resources inspect OpenBox agents and approvals through the server runtime.",
+      "technicalBoundary": "Host runtimes own subagent orchestration; MCP can inspect OpenBox-owned agent records but does not spawn or schedule host subagent lifecycles.",
+      "guardTest": "tests/unit/mcp-server-coverage.test.ts#registers spec-driven MCP tool annotations, prompts, and resource templates"
+    },
+    {
+      "provider": "mcp",
+      "capability": "usage-cost",
+      "tier": "observe-only",
+      "status": "host-owned-observe-only",
+      "promotionDecision": "retain-host-owned-boundary",
+      "runtimeEvidence": "MCP check_governance builds spans from caller-supplied LLM activity_input and normalizes usage through the shared usage facade.",
+      "technicalBoundary": "MCP callers own model execution and metering; the server observes submitted usage payloads and never meters hosts directly.",
+      "guardTest": "tests/unit/mcp-server-coverage.test.ts#check_governance normalizes caller LLM usage into the emitted hook span"
+    },
+    {
+      "provider": "mcp",
+      "capability": "goal-signals",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "MCP prompt templates project goal-signal guidance while server tools govern concrete actions and send Core activities.",
+      "technicalBoundary": "Goal signals are expressed through prompts and tool calls because MCP has no ambient host session lifecycle owned by OpenBox.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins reference provider parity closures to every non-native capability claim"
+    },
+    {
+      "provider": "mcp",
+      "capability": "tracing",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "MCP check_governance emits span-free parents plus hook_trigger span re-evaluations for LLM, shell, file, HTTP, database, and MCP payloads.",
+      "technicalBoundary": "The server can trace submitted payloads but cannot observe host work that clients do not send through the MCP protocol.",
+      "guardTest": "tests/unit/mcp-server-coverage.test.ts#check_governance still emits the hook span when the parent verdict blocks"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "plugins",
+      "tier": "out-of-scope",
+      "status": "host-unsupported",
+      "promotionDecision": "retain-package-boundary",
+      "runtimeEvidence": "Public integration support exports the OpenAI Agents SDK helper surface instead of plugin package assets.",
+      "technicalBoundary": "OpenAI Agents SDK is a runtime library import surface with no OpenBox-owned plugin package contract.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "skills",
+      "tier": "out-of-scope",
+      "status": "host-unsupported",
+      "promotionDecision": "retain-package-boundary",
+      "runtimeEvidence": "OpenAI Agents SDK consumers import generated public helpers; no host skill file is generated for this runtime library surface.",
+      "technicalBoundary": "The provider exposes code-level SDK helpers rather than a discoverable skill folder, so skill assets remain host-package out of scope.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "mcp",
+      "tier": "observe-only",
+      "status": "host-owned-observe-only",
+      "promotionDecision": "retain-host-owned-boundary",
+      "runtimeEvidence": "OpenAI tracing processor observes MCP tool spans, hosted tools, generations, handoffs, guardrails, and usage when the host SDK exposes them.",
+      "technicalBoundary": "Host applications own MCP server and client configuration; OpenBox SDK helpers do not install or pre-gate that host-owned MCP setup.",
+      "guardTest": "tests/unit/openai-agents-sdk.test.ts#observes OpenAI trace spans for generations, handoffs, guardrails, and tools"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "rules-instructions",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "OpenAI Agents SDK wrappers send input, output, tool, and run lifecycle payloads to Core and map verdicts into native guardrail results.",
+      "technicalBoundary": "OpenBox can wrap native callbacks and helpers but cannot own the provider's internal agent planner or tool scheduler.",
+      "guardTest": "tests/unit/openai-agents-sdk.test.ts#maps OpenBox tool guardrail verdicts to fail-closed tool behavior"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "subagents-agents",
+      "tier": "observe-only",
+      "status": "host-owned-observe-only",
+      "promotionDecision": "retain-host-owned-boundary",
+      "runtimeEvidence": "OpenAI tracing observes handoff spans, agents-as-tools, hosted tools, generation spans, and usage after the SDK produces them.",
+      "technicalBoundary": "OpenAI Agents SDK owns handoff orchestration and hosted tool execution; OpenBox receives trace observations where exposed.",
+      "guardTest": "tests/unit/openai-agents-sdk.test.ts#observes OpenAI trace spans for generations, handoffs, guardrails, and tools"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "approvals-hitl",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "OpenAI Agents SDK guardrail wrappers surface require_approval in outputInfo and fail closed for governed tool execution.",
+      "technicalBoundary": "The SDK offers guardrail callbacks rather than a provider-owned approval UI, so OpenBox projects Core verdicts into wrapper outcomes.",
+      "guardTest": "tests/unit/openai-agents-sdk.test.ts#maps OpenBox tool guardrail verdicts to fail-closed tool behavior"
+    },
+    {
+      "provider": "openai-agents-sdk",
+      "capability": "install-doctor",
+      "tier": "diagnose-only",
+      "status": "runtime-diagnostic-only",
+      "promotionDecision": "implemented-runtime-diagnostic",
+      "runtimeEvidence": "verifyOpenBoxAgentsSDKConfig validates runtime enablement, key class, Core URL, signed identity, and defaults without host file mutation.",
+      "technicalBoundary": "There is no host install surface for the runtime library; diagnostics validate configuration and never mutate host state or files.",
+      "guardTest": "tests/unit/openai-agents-sdk.test.ts#diagnoses runtime-only OpenAI Agents SDK configuration without host file mutation"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "plugins",
+      "tier": "out-of-scope",
+      "status": "host-unsupported",
+      "promotionDecision": "retain-package-boundary",
+      "runtimeEvidence": "Public integration support exports Anthropic Agent SDK hook/options helpers instead of a plugin package.",
+      "technicalBoundary": "Anthropic Agent SDK is a runtime library surface; Claude Code plugin packaging is covered by the claude-code provider instead.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "skills",
+      "tier": "out-of-scope",
+      "status": "host-unsupported",
+      "promotionDecision": "retain-package-boundary",
+      "runtimeEvidence": "Anthropic Agent SDK consumers import hook/options helpers; no OpenBox skill folder is generated for the library integration.",
+      "technicalBoundary": "The library exposes hooks and options rather than host skill discovery, so file-based skills remain outside this provider surface.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "mcp",
+      "tier": "observe-only",
+      "status": "host-owned-observe-only",
+      "promotionDecision": "retain-host-owned-boundary",
+      "runtimeEvidence": "Anthropic Agent SDK hooks map MCP elicitation and permission events into OpenBox activities when surfaced by the SDK.",
+      "technicalBoundary": "Host applications own MCP client and server configuration; OpenBox helpers observe exposed events but do not install MCP config.",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#maps task, config, and elicitation verdicts to Agent SDK outputs"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "rules-instructions",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "Anthropic Agent SDK hook and message wrappers send payloads to Core and project verdicts into permission decisions and hook outputs.",
+      "technicalBoundary": "OpenBox controls wrapper projection at hook boundaries but not the provider's internal agent planning or message stream ownership.",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#maps approval-required PreToolUse verdicts to ask or defer"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "subagents-agents",
+      "tier": "observe-only",
+      "status": "host-owned-observe-only",
+      "promotionDecision": "retain-host-owned-boundary",
+      "runtimeEvidence": "Anthropic Agent SDK maps Agent/Task tool payloads and official subagent hooks into a2a activity metadata.",
+      "technicalBoundary": "The provider owns task and subagent orchestration; OpenBox observes emitted lifecycle payloads and cannot spawn or schedule subagents.",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#marks Agent/Task and subagent hooks as a2a activity metadata"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "approvals-hitl",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "Anthropic PreToolUse and MCP elicitation wrappers map approval-required Core verdicts to ask or defer permission outcomes.",
+      "technicalBoundary": "OpenBox can project approval decisions through hook outputs but cannot provide a native provider approval surface beyond those callbacks.",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#maps approval-required PreToolUse verdicts to ask or defer"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "tracing",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "Anthropic Agent SDK emits prompt, tool, assistant-output, session, synthetic model-usage, and failure spans with provider source attribution.",
+      "technicalBoundary": "OpenBox normalizes hook and message telemetry it receives; provider-owned trace events not exposed by hooks remain outside SDK control.",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#records StopFailure as observe-only failed workflow telemetry"
+    },
+    {
+      "provider": "anthropic-agent-sdk",
+      "capability": "install-doctor",
+      "tier": "diagnose-only",
+      "status": "runtime-diagnostic-only",
+      "promotionDecision": "implemented-runtime-diagnostic",
+      "runtimeEvidence": "verifyOpenBoxAnthropicAgentSDKConfig validates runtime enablement, key class, Core URL, signed identity, opt-in hook mode, and defaults.",
+      "technicalBoundary": "There is no host install surface for the runtime library; diagnostics validate configuration and never mutate host state or files.",
+      "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#diagnoses runtime-only Anthropic Agent SDK configuration without host file mutation"
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "hooks",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "createOpenBoxCopilotKitAdapter wraps runtime, LangChain middleware, tools, prompts, outputs, and AG-UI surfaces with Core gates.",
+      "technicalBoundary": "OpenBox wraps exposed CopilotKit extension points but does not own CopilotKit's internal runtime scheduler or model execution.",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#pauses on approval-required prompt verdict without calling the model"
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "plugins",
+      "tier": "out-of-scope",
+      "status": "host-unsupported",
+      "promotionDecision": "retain-package-boundary",
+      "runtimeEvidence": "Public integration support exports CopilotKit adapters, approval helpers, and readiness checks instead of plugin package assets.",
+      "technicalBoundary": "CopilotKit exposes runtime and UI integration APIs, not a provider plugin package contract owned by OpenBox.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "skills",
+      "tier": "out-of-scope",
+      "status": "host-unsupported",
+      "promotionDecision": "retain-package-boundary",
+      "runtimeEvidence": "CopilotKit consumers wire adapters and approval UI helpers; no OpenBox skill file surface is generated for this integration.",
+      "technicalBoundary": "The provider integrates through app code and UI routes rather than host skill discovery, so skills are outside this package surface.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "mcp",
+      "tier": "observe-only",
+      "status": "host-owned-observe-only",
+      "promotionDecision": "retain-host-owned-boundary",
+      "runtimeEvidence": "CopilotKit AG-UI runtime events map run, tool, message, state, error, and interrupt events into OpenBox governed activities.",
+      "technicalBoundary": "Host applications own MCP-like client/server configuration; OpenBox observes surfaced AG-UI tool events and does not install MCP resources.",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#maps AG-UI run, tool, message, state, error, and interrupt events through OpenBox gates"
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "rules-instructions",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "CopilotKit prompt, tool, output, AG-UI, and approval helper wrappers project Core verdicts into native runtime results.",
+      "technicalBoundary": "OpenBox can wrap application-provided CopilotKit surfaces but cannot own the host application's route, UI, or runtime wiring.",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits workflow/tool lifecycle events around a governed tool"
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "subagents-agents",
+      "tier": "observe-only",
+      "status": "host-owned-observe-only",
+      "promotionDecision": "retain-host-owned-boundary",
+      "runtimeEvidence": "CopilotKit AG-UI and governed tool flows map subagent_type and tool metadata to OpenBox activities when the runtime surfaces them.",
+      "technicalBoundary": "CopilotKit and the host app own agent runner orchestration; OpenBox observes exposed lifecycle and tool metadata only.",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits workflow/tool lifecycle events around a governed tool"
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "usage-cost",
+      "tier": "observe-only",
+      "status": "host-owned-observe-only",
+      "promotionDecision": "retain-host-owned-boundary",
+      "runtimeEvidence": "CopilotKit middleware and AG-UI run completion events route model usage and cost fields through openBoxUsageTelemetryFields.",
+      "technicalBoundary": "LangChain and CopilotKit own model calls and billing metadata; OpenBox normalizes surfaced usage but does not meter spend locally.",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#normalizes usage and cost from AG-UI run completion events"
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "tracing",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "CopilotKit adapters emit LLM, tool, AG-UI lifecycle, interrupt, and assistant-output spans with Core-extractable telemetry.",
+      "technicalBoundary": "Tracing is complete for wrapped middleware and AG-UI events; host application work outside those adapters remains host-owned.",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits Core-extractable assistant output spans for goal alignment"
+    },
+    {
+      "provider": "copilotkit",
+      "capability": "install-doctor",
+      "tier": "diagnose-only",
+      "status": "runtime-diagnostic-only",
+      "promotionDecision": "implemented-runtime-diagnostic",
+      "runtimeEvidence": "createOpenBoxReadinessCheck validates runtime Core wiring, backend inventory reachability, approval route dependencies, and capability readiness.",
+      "technicalBoundary": "CopilotKit has no OpenBox-owned install surface; diagnostics inspect app wiring and never mutate host routes or files.",
+      "guardTest": "tests/unit/copilotkit-adapter.test.ts#readiness treats backend inventory config as optional when Core runtime is configured"
+    },
+    {
+      "provider": "n8n",
+      "capability": "hooks",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "n8n helper calls emit user prompt, node pre-execute, node post-execute, and LLM completion events to Core.",
+      "technicalBoundary": "OpenBox wraps n8n node helper execution but cannot own the operator-managed n8n scheduler or workflow engine.",
+      "guardTest": "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans"
+    },
+    {
+      "provider": "n8n",
+      "capability": "plugins",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "N8N_INTEGRATION_SURFACE generates packaged credentials, Governance, Guardrails, Approval/HITL nodes, templates, examples, and showcase specs.",
+      "technicalBoundary": "OpenBox emits package descriptors and templates while n8n installation, activation, and runtime execution remain operator-owned.",
+      "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
+    },
+    {
+      "provider": "n8n",
+      "capability": "skills",
+      "tier": "out-of-scope",
+      "status": "host-unsupported",
+      "promotionDecision": "retain-package-boundary",
+      "runtimeEvidence": "N8N_INTEGRATION_SURFACE documents credentials, nodes, templates, examples, and showcase workflows rather than host skill files.",
+      "technicalBoundary": "n8n consumes node descriptors and workflow packages, not OpenBox skill folders, so skill installation has no provider surface.",
+      "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
+    },
+    {
+      "provider": "n8n",
+      "capability": "rules-instructions",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "n8n Governance, Guardrails, Approval/HITL, and governed AI Agent descriptors project Core verdicts into workflow behavior.",
+      "technicalBoundary": "OpenBox packages nodes and templates but does not own operator workflow design or n8n's internal execution model.",
+      "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
+    },
+    {
+      "provider": "n8n",
+      "capability": "subagents-agents",
+      "tier": "observe-only",
+      "status": "host-owned-observe-only",
+      "promotionDecision": "retain-host-owned-boundary",
+      "runtimeEvidence": "n8n governed AI Agent workflow descriptors observe node, tool, and LLM lifecycle around AI Agent workflows.",
+      "technicalBoundary": "n8n owns AI Agent orchestration and scheduling; OpenBox observes package-described lifecycle events and helper spans only.",
+      "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
+    },
+    {
+      "provider": "n8n",
+      "capability": "tracing",
+      "tier": "wrapped",
+      "status": "implemented-through-wrapper",
+      "promotionDecision": "max-through-wrapper",
+      "runtimeEvidence": "n8n node, LLM, assistant-output, tool, error, and workflow telemetry spans are emitted by pre/post and completion helpers.",
+      "technicalBoundary": "OpenBox normalizes helper-emitted telemetry but cannot capture n8n workflow work that bypasses OpenBox nodes or helpers.",
+      "guardTest": "tests/unit/govern-invariants.test.ts#n8n generic node completion emits paired parent plus tool hook span"
+    },
+    {
+      "provider": "n8n",
+      "capability": "install-doctor",
+      "tier": "diagnose-only",
+      "status": "runtime-diagnostic-only",
+      "promotionDecision": "implemented-runtime-diagnostic",
+      "runtimeEvidence": "verifyOpenBoxN8nIntegrationSurface validates packaged credentials, nodes, templates, examples, package ids, and showcase specs.",
+      "technicalBoundary": "n8n installation is operator-owned; diagnostics validate generated descriptors and never mutate n8n instances.",
+      "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
+    }
+  ],
   "providerEventCatalog": [
     {
       "provider": "codex",
