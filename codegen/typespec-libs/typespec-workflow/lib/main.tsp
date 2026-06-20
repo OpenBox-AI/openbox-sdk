@@ -312,6 +312,18 @@ extern dec hookEventLabel(target: Operation, label: valueof string);
  *     eventCatalog: #[...],
  *     pluginComponents: #[...],
  *     publicIntegrations: #[...],
+ *     mcpTools: #[...],
+ *     mcpPrompts: #[...],
+ *     mcpResourceTemplates: #[...],
+ *     mcpSkillReferences: #[...],
+ *     n8nIntegration: #{
+ *       packageManifest: #{...},
+ *       credentials: #[...],
+ *       nodes: #[...],
+ *       workflowTemplates: #[...],
+ *       examples: #[...],
+ *       showcaseWorkflows: #[#{ id, path, requiredEntryEdges, checkpointGates, ... }],
+ *     },
  *   }
  */
 extern dec providerCapabilities(target: Namespace, matrix: valueof Record<unknown>);

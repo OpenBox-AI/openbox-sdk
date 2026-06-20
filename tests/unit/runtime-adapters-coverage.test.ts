@@ -163,9 +163,24 @@ describe('runtime/n8n integration descriptor', () => {
     expect(showcase).toBeDefined();
     const showcaseWorkflow = JSON.parse(
       readFileSync(join(process.cwd(), showcase.path), 'utf8'),
-    ) as { name: string; nodes: Array<{ name: string; type: string }>; connections: Record<string, any> };
+    ) as {
+      name: string;
+      nodes: Array<{
+        name: string;
+        type: string;
+        parameters?: Record<string, any>;
+        credentials?: Record<string, { id?: string; name?: string }>;
+      }>;
+      connections: Record<string, any>;
+    };
     const showcaseNodeNames = new Set(showcaseWorkflow.nodes.map((node) => node.name));
     const showcaseNodeTypes = new Set(showcaseWorkflow.nodes.map((node) => node.type));
+    const showcaseNodeByName = new Map(showcaseWorkflow.nodes.map((node) => [node.name, node]));
+    const connectedNodeNames = (source: string): string[] =>
+      Object.values(showcaseWorkflow.connections[source] ?? {}).flatMap((branches: any) =>
+        branches.flatMap((branch: any[]) => branch.map((edge) => edge.node)),
+      );
+
     expect(showcaseWorkflow.name).toBe(showcase.name);
     for (const type of showcase.requiredOpenBoxNodeTypes) {
       expect(showcaseNodeTypes.has(type)).toBe(true);
@@ -178,6 +193,17 @@ describe('runtime/n8n integration descriptor', () => {
     }
     for (const terminalNode of showcase.requiredTerminalNodes) {
       expect(showcaseNodeNames.has(terminalNode)).toBe(true);
+    }
+    for (const edge of showcase.requiredEntryEdges) {
+      expect(connectedNodeNames(edge.from), `${edge.from} -> ${edge.to}`).toContain(edge.to);
+    }
+    for (const gate of showcase.checkpointGates) {
+      expect(connectedNodeNames(gate.checkpoint), `${gate.checkpoint} -> ${gate.gate}`).toContain(
+        gate.gate,
+      );
+      expect(connectedNodeNames(gate.gate), `${gate.gate} pass/fail branches`).toEqual(
+        expect.arrayContaining([gate.pass, gate.fail]),
+      );
     }
     for (const [source, outputs] of Object.entries(showcaseWorkflow.connections)) {
       expect(showcaseNodeNames.has(source)).toBe(true);
@@ -194,6 +220,27 @@ describe('runtime/n8n integration descriptor', () => {
     for (const stage of showcase.approvalStages) {
       expect(showcaseJson).toContain(stage);
     }
+    for (const actionId of showcase.requiredApprovalActionIds) {
+      expect(showcaseJson).toContain(actionId);
+    }
+    for (const eventType of showcase.requiredTerminalEventTypes) {
+      expect(showcaseJson).toContain(eventType);
+    }
+    const buildFinalLogCode = String(
+      showcaseNodeByName.get('Build Final Log')?.parameters?.jsCode ?? '',
+    );
+    for (const step of showcase.requiredPathLogSteps) {
+      expect(buildFinalLogCode).toContain(`step: '${step}'`);
+    }
+    const credentialIds = new Set<string>();
+    for (const node of showcaseWorkflow.nodes) {
+      for (const credential of Object.values(node.credentials ?? {})) {
+        if (typeof credential.id === 'string') credentialIds.add(credential.id);
+      }
+    }
+    expect([...credentialIds].sort()).toEqual(
+      [...showcase.allowedCredentialPlaceholders].sort(),
+    );
 
     expect(packageJson.n8n).toEqual(OPENBOX_N8N_INTEGRATION.packageManifest);
     expect(packageJson.scripts['smoke:load']).toContain('OPENBOX_N8N_PACKAGE_MANIFEST');

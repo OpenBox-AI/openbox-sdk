@@ -5,34 +5,26 @@
 // keeping root package scripts target-neutral as new SDK and app targets are
 // added.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
-
-const repoRoot = process.cwd();
-const fixturePath = resolve(repoRoot, 'codegen/fixtures/sdk-targets.json');
+import {
+  assertRecord,
+  assertString,
+  assertStringArray,
+  readJsonFile,
+  readSdkTargetsFixture,
+  repoRoot,
+  runStep,
+} from './lib/spec-steps.mjs';
 
 function readFixture() {
-  const raw = JSON.parse(readFileSync(fixturePath, 'utf8'));
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new Error('sdk-targets fixture must be a JSON object');
-  }
+  const raw = readSdkTargetsFixture(
+    'Missing codegen/fixtures/sdk-targets.json. Run npm run generate:sdks before target validation.',
+  );
   if (!Array.isArray(raw.targets) || raw.targets.length === 0) {
     throw new Error('sdk-targets fixture must contain a non-empty targets array');
   }
   return raw;
-}
-
-function assertStringArray(value, field) {
-  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
-    throw new Error(`${field} must be a string array`);
-  }
-}
-
-function assertRecord(value, field) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${field} must be an object`);
-  }
 }
 
 function readJson(relPath, label) {
@@ -40,13 +32,7 @@ function readJson(relPath, label) {
   if (!existsSync(file)) {
     throw new Error(`${label} does not exist: ${relPath}`);
   }
-  return JSON.parse(readFileSync(file, 'utf8'));
-}
-
-function assertString(value, field) {
-  if (typeof value !== 'string' || value.length === 0) {
-    throw new Error(`${field} must be a non-empty string`);
-  }
+  return readJsonFile(file);
 }
 
 function assertSameStringArray(actual, expected, field) {
@@ -60,14 +46,11 @@ function assertSameStringArray(actual, expected, field) {
 }
 
 function validateCommand(target, command, index) {
-  if (typeof command.command !== 'string' || command.command.length === 0) {
-    throw new Error(`${target.id}.commands[${index}].command must be a non-empty string`);
-  }
+  assertRecord(command, `${target.id}.commands[${index}]`);
+  assertString(command.command, `${target.id}.commands[${index}].command`);
   if (command.args !== undefined) assertStringArray(command.args, `${target.id}.${command.command}.args`);
   if (command.env !== undefined) {
-    if (!command.env || typeof command.env !== 'object' || Array.isArray(command.env)) {
-      throw new Error(`${target.id}.${command.command}.env must be an object`);
-    }
+    assertRecord(command.env, `${target.id}.${command.command}.env`);
     for (const [name, value] of Object.entries(command.env)) {
       if (typeof value !== 'string') {
         throw new Error(`${target.id}.${command.command}.env.${name} must be a string`);
@@ -147,12 +130,6 @@ function validateTarget(target) {
   validateExtensionManifest(target);
 }
 
-function commandForPlatform(command) {
-  if (process.platform !== 'win32') return command;
-  if (command === 'npm' || command === 'npx') return `${command}.cmd`;
-  return command;
-}
-
 function runTargetCommand(target, command) {
   const cwd = resolve(repoRoot, target.workingDirectory ?? '.');
   if (!existsSync(cwd)) {
@@ -160,15 +137,14 @@ function runTargetCommand(target, command) {
   }
 
   const args = command.args ?? [];
-  console.log(`\n[${target.id}] ${command.command} ${args.join(' ')}`.trimEnd());
-  const result = spawnSync(commandForPlatform(command.command), args, {
+  runStep({
+    id: `${target.id}:${command.command}`,
+    label: `[${target.id}] ${command.command} ${args.join(' ')}`.trimEnd(),
+    command: command.command,
+    args,
     cwd,
-    env: { ...process.env, ...(command.env ?? {}) },
-    stdio: 'inherit',
+    env: command.env ?? {},
   });
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-  }
 }
 
 try {

@@ -695,7 +695,7 @@ export function $providerCapabilities(
     return;
   }
   const record = value as Record<string, unknown>;
-  for (const key of ['capabilityIds', 'providers', 'capabilities', 'goalSignalGuards', 'usageCostCapabilityGuards', 'tracingCapabilityGuards', 'hitlCapabilityGuards', 'guardrailCapabilityGuards', 'policyEvaluationGuards', 'rulesInstructionCapabilityGuards', 'hookCapabilityGuards', 'subagentsAgentsCapabilityGuards', 'pluginCapabilityGuards', 'skillCapabilityGuards', 'mcpCapabilityGuards', 'installDoctorCapabilityGuards', 'eventCatalog', 'pluginComponents', 'publicIntegrations']) {
+  for (const key of ['capabilityIds', 'providers', 'capabilities', 'goalSignalGuards', 'usageCostCapabilityGuards', 'tracingCapabilityGuards', 'hitlCapabilityGuards', 'guardrailCapabilityGuards', 'policyEvaluationGuards', 'rulesInstructionCapabilityGuards', 'hookCapabilityGuards', 'subagentsAgentsCapabilityGuards', 'pluginCapabilityGuards', 'skillCapabilityGuards', 'mcpCapabilityGuards', 'installDoctorCapabilityGuards', 'eventCatalog', 'pluginComponents', 'publicIntegrations', 'mcpTools', 'mcpPrompts', 'mcpResourceTemplates', 'mcpSkillReferences', 'n8nIntegration']) {
     if (!(key in record)) {
       reportDiagnostic(context.program, {
         code: 'invalid-provider-capabilities',

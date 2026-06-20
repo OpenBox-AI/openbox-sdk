@@ -47,7 +47,9 @@ compact importable workflow artifacts for the governed AI Agent template and
 the AI Agent tool review, Guardrails interop, MCP Client Tool, and MCP Server
 Trigger examples. It also declares the richer `workflows/sdk-showcase.json`
 as the local showcase workflow and audits its required OpenBox checkpoints,
-triggers, terminal nodes, approval stages, and log table.
+triggers, entry edges, fail-closed checkpoint gates, terminal nodes, approval
+actions, path-log steps, placeholder credentials, terminal event types, and log
+table.
 
 Local defaults can use Ollama:
 

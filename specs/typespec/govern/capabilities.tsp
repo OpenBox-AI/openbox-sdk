@@ -238,13 +238,45 @@ namespace OpenboxGovern.Capabilities {
     description: string;
   }
 
+  model N8nWorkflowEdgeSpec {
+    from: string;
+    to: string;
+  }
+
+  model N8nCheckpointGateSpec {
+    checkpoint: string;
+    gate: string;
+    pass: string;
+    fail: string;
+  }
+
+  model N8nShowcaseWorkflowSpec {
+    name: string;
+    id: string;
+    path: string;
+    description: string;
+    requiredOpenBoxNodeIds: string[];
+    requiredOpenBoxNodeTypes: string[];
+    requiredTriggerTypes: string[];
+    requiredCheckpoints: string[];
+    requiredTerminalNodes: string[];
+    requiredEntryEdges: N8nWorkflowEdgeSpec[];
+    checkpointGates: N8nCheckpointGateSpec[];
+    approvalStages: string[];
+    requiredApprovalActionIds: string[];
+    requiredPathLogSteps: string[];
+    requiredTerminalEventTypes: string[];
+    allowedCredentialPlaceholders: string[];
+    terminalLogTable: string;
+  }
+
   model N8nIntegrationSurface {
     packageManifest: Record<unknown>;
     credentials: Record<unknown>[];
     nodes: Record<unknown>[];
     workflowTemplates: Record<unknown>[];
     examples: Record<unknown>[];
-    showcaseWorkflows: Record<unknown>[];
+    showcaseWorkflows: N8nShowcaseWorkflowSpec[];
   }
 }
 
@@ -717,7 +749,25 @@ namespace OpenboxGovern.Capabilities {
         requiredTriggerTypes: #["@n8n/n8n-nodes-langchain.chatTrigger", "n8n-nodes-base.slackTrigger", "n8n-nodes-base.webhook"],
         requiredCheckpoints: #["OpenBox: Prompt Safety Wall", "OpenBox: Context Privacy Check", "OpenBox: Governed LLM Draft", "OpenBox: Channel Output Check"],
         requiredTerminalNodes: #["Package OpenBox Terminal Output", "Build Final Log", "Record Planned Path Log", "Return Chat Summary"],
+        requiredEntryEdges: #[
+          #{ from: "When Chat Message Received", to: "OpenBox: Prompt Safety Wall" },
+          #{ from: "When Slack Agent Message Received", to: "Normalize Slack Agent Input" },
+          #{ from: "Normalize Slack Agent Input", to: "OpenBox: Prompt Safety Wall" },
+          #{ from: "When Slack Approval Action Received", to: "Parse Slack Approval Action" },
+          #{ from: "Parse Slack Approval Action", to: "Record Slack Approval Decision" },
+          #{ from: "Record Slack Approval Decision", to: "Acknowledge Slack Approval Decision" },
+        ],
+        checkpointGates: #[
+          #{ checkpoint: "OpenBox: Prompt Safety Wall", gate: "Prompt Wall Passed?", pass: "Prepare Ticket Context", fail: "Package OpenBox Terminal Output" },
+          #{ checkpoint: "OpenBox: Context Privacy Check", gate: "Context Check Passed?", pass: "Record Context Check", fail: "Package OpenBox Terminal Output" },
+          #{ checkpoint: "OpenBox: Governed LLM Draft", gate: "Draft Governance Passed?", pass: "Record Draft Governance", fail: "Package OpenBox Terminal Output" },
+          #{ checkpoint: "OpenBox: Channel Output Check", gate: "Channel Check Passed?", pass: "Record Channel Check", fail: "Package OpenBox Terminal Output" },
+        ],
         approvalStages: #["prompt-wall", "draft-governance", "channel-output"],
+        requiredApprovalActionIds: #["openbox_prompt_false_positive", "openbox_prompt_keep_blocked", "openbox_draft_approve", "openbox_draft_reject", "openbox_send_approve", "openbox_send_reject", "openbox_send_rewrite"],
+        requiredPathLogSteps: #["input", "slack-input", "prompt-wall", "customer-lookup", "context-check", "draft-governance", "channel-check", "review-package", "chat-output", "slack-output", "hubspot-output", "backend-final-log"],
+        requiredTerminalEventTypes: #["planned-path", "chat-output", "slack-output", "hubspot-output", "approval-decision"],
+        allowedCredentialPlaceholders: #["demo-postgres-placeholder", "demo-slack-api-placeholder", "demo-hubspot-app-token"],
         terminalLogTable: "demo.triage_events",
       },
     ],

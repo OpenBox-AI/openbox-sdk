@@ -177,10 +177,13 @@ describe('package scripts', () => {
   });
 
   test('generic SDK check validates spec-bound extension manifests', () => {
+    expect(checkSdksScript).toContain("from './lib/spec-steps.mjs'");
     expect(checkSdksScript).toContain('extensionManifest');
     expect(checkSdksScript).toContain('contributes.views');
     expect(checkSdksScript).toContain('contributes.configuration.properties');
     expect(checkSdksScript).toContain('does not match TypeSpec manifest');
+    expect(checkSdksScript).not.toContain('node:child_process');
+    expect(checkSdksScript).not.toContain('spawnSync');
   });
 
   test('security audit reads TypeSpec-emitted audit commands and annotated exclusions', () => {

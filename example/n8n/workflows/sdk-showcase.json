@@ -106,7 +106,7 @@
       "continueOnFail": false,
       "credentials": {
         "postgres": {
-          "id": "u61urO4zdAMO6LAK",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       }
@@ -189,7 +189,7 @@
       ],
       "credentials": {
         "slackApi": {
-          "id": "jGDU9PB4P0F9sEBQ",
+          "id": "demo-slack-api-placeholder",
           "name": "Demo Slack API Placeholder"
         }
       },
@@ -382,7 +382,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "u61urO4zdAMO6LAK",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       },
@@ -411,7 +411,7 @@
       ],
       "credentials": {
         "slackApi": {
-          "id": "jGDU9PB4P0F9sEBQ",
+          "id": "demo-slack-api-placeholder",
           "name": "Demo Slack API Placeholder"
         }
       },
@@ -685,7 +685,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "u61urO4zdAMO6LAK",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       }
@@ -706,7 +706,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "u61urO4zdAMO6LAK",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       }
@@ -727,7 +727,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "u61urO4zdAMO6LAK",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       }
@@ -748,7 +748,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "u61urO4zdAMO6LAK",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       }
@@ -769,7 +769,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "u61urO4zdAMO6LAK",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       }
@@ -857,7 +857,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "={{ $env.N8N_POSTGRES_CREDENTIAL_ID }}",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       }

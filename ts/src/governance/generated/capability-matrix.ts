@@ -235,13 +235,45 @@ export interface N8nPackageManifestSurface {
   openboxSpecNodeIds: readonly string[];
 }
 
+export interface N8nWorkflowEdgeSurface {
+  from: string;
+  to: string;
+}
+
+export interface N8nCheckpointGateSurface {
+  checkpoint: string;
+  gate: string;
+  pass: string;
+  fail: string;
+}
+
+export interface N8nShowcaseWorkflowSurface {
+  name: string;
+  id: string;
+  path: string;
+  description: string;
+  requiredOpenBoxNodeIds: readonly string[];
+  requiredOpenBoxNodeTypes: readonly string[];
+  requiredTriggerTypes: readonly string[];
+  requiredCheckpoints: readonly string[];
+  requiredTerminalNodes: readonly string[];
+  requiredEntryEdges: readonly N8nWorkflowEdgeSurface[];
+  checkpointGates: readonly N8nCheckpointGateSurface[];
+  approvalStages: readonly string[];
+  requiredApprovalActionIds: readonly string[];
+  requiredPathLogSteps: readonly string[];
+  requiredTerminalEventTypes: readonly string[];
+  allowedCredentialPlaceholders: readonly string[];
+  terminalLogTable: string;
+}
+
 export interface N8nIntegrationSurface {
   packageManifest: N8nPackageManifestSurface;
   credentials: readonly Record<string, unknown>[];
   nodes: readonly Record<string, unknown>[];
   workflowTemplates: readonly Record<string, unknown>[];
   examples: readonly Record<string, unknown>[];
-  showcaseWorkflows: readonly Record<string, unknown>[];
+  showcaseWorkflows: readonly N8nShowcaseWorkflowSurface[];
 }
 
 export const PROVIDER_CAPABILITY_MATRIX = [
@@ -3105,10 +3137,97 @@ export const N8N_INTEGRATION_SURFACE = {
         "Record Planned Path Log",
         "Return Chat Summary"
       ],
+      "requiredEntryEdges": [
+        {
+          "from": "When Chat Message Received",
+          "to": "OpenBox: Prompt Safety Wall"
+        },
+        {
+          "from": "When Slack Agent Message Received",
+          "to": "Normalize Slack Agent Input"
+        },
+        {
+          "from": "Normalize Slack Agent Input",
+          "to": "OpenBox: Prompt Safety Wall"
+        },
+        {
+          "from": "When Slack Approval Action Received",
+          "to": "Parse Slack Approval Action"
+        },
+        {
+          "from": "Parse Slack Approval Action",
+          "to": "Record Slack Approval Decision"
+        },
+        {
+          "from": "Record Slack Approval Decision",
+          "to": "Acknowledge Slack Approval Decision"
+        }
+      ],
+      "checkpointGates": [
+        {
+          "checkpoint": "OpenBox: Prompt Safety Wall",
+          "gate": "Prompt Wall Passed?",
+          "pass": "Prepare Ticket Context",
+          "fail": "Package OpenBox Terminal Output"
+        },
+        {
+          "checkpoint": "OpenBox: Context Privacy Check",
+          "gate": "Context Check Passed?",
+          "pass": "Record Context Check",
+          "fail": "Package OpenBox Terminal Output"
+        },
+        {
+          "checkpoint": "OpenBox: Governed LLM Draft",
+          "gate": "Draft Governance Passed?",
+          "pass": "Record Draft Governance",
+          "fail": "Package OpenBox Terminal Output"
+        },
+        {
+          "checkpoint": "OpenBox: Channel Output Check",
+          "gate": "Channel Check Passed?",
+          "pass": "Record Channel Check",
+          "fail": "Package OpenBox Terminal Output"
+        }
+      ],
       "approvalStages": [
         "prompt-wall",
         "draft-governance",
         "channel-output"
+      ],
+      "requiredApprovalActionIds": [
+        "openbox_prompt_false_positive",
+        "openbox_prompt_keep_blocked",
+        "openbox_draft_approve",
+        "openbox_draft_reject",
+        "openbox_send_approve",
+        "openbox_send_reject",
+        "openbox_send_rewrite"
+      ],
+      "requiredPathLogSteps": [
+        "input",
+        "slack-input",
+        "prompt-wall",
+        "customer-lookup",
+        "context-check",
+        "draft-governance",
+        "channel-check",
+        "review-package",
+        "chat-output",
+        "slack-output",
+        "hubspot-output",
+        "backend-final-log"
+      ],
+      "requiredTerminalEventTypes": [
+        "planned-path",
+        "chat-output",
+        "slack-output",
+        "hubspot-output",
+        "approval-decision"
+      ],
+      "allowedCredentialPlaceholders": [
+        "demo-postgres-placeholder",
+        "demo-slack-api-placeholder",
+        "demo-hubspot-app-token"
       ],
       "terminalLogTable": "demo.triage_events"
     }
