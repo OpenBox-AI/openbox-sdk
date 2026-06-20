@@ -26,6 +26,7 @@ for (const asset of assets) {
 
 const { exportCursorPlugin } = await import('../dist/runtime/cursor/index.js');
 const { exportClaudeCodePlugin } = await import('../dist/runtime/claude-code/index.js');
+const { exportCodexPlugin } = await import('../dist/runtime/codex/index.js');
 
 exportCursorPlugin({
   out: resolve(root, 'dist/runtime/cursor/plugin/openbox'),
@@ -33,4 +34,8 @@ exportCursorPlugin({
 
 exportClaudeCodePlugin({
   out: resolve(root, 'dist/runtime/claude-code/plugin/openbox'),
+});
+
+exportCodexPlugin({
+  out: resolve(root, 'dist/runtime/codex/plugin/openbox'),
 });

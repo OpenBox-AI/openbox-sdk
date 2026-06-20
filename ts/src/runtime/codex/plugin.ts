@@ -27,6 +27,7 @@ const EXPECTED_PLUGIN_FILES = [
   '.mcp.json',
   'AGENTS.md',
   '.codex/rules/openbox.rules',
+  'assets',
   'hooks/hooks.json',
   'skills/openbox/SKILL.md',
 ] as const;
@@ -265,6 +266,7 @@ export function exportCodexPlugin(options: ExportCodexPluginOptions): string {
   writeFileSync(path.join(out, 'AGENTS.md'), agentsMarkdown(projection), 'utf-8');
   mkdirSync(path.join(out, '.codex', 'rules'), { recursive: true });
   writeFileSync(path.join(out, '.codex', 'rules', 'openbox.rules'), commandRules(projection), 'utf-8');
+  mkdirSync(path.join(out, 'assets'), { recursive: true });
   return out;
 }
 

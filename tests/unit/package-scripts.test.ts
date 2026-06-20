@@ -1,10 +1,12 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { describe, expect, test } from 'vitest';
+import { PROVIDER_PLUGIN_COMPONENTS } from '../../ts/src/governance/capability-matrix.js';
 
 const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
   scripts: Record<string, string>;
 };
+const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runtime-assets.ts'), 'utf8');
 
 describe('package scripts', () => {
   test('generated cleanup covers TypeSpec-emitted contract metadata', () => {
@@ -32,5 +34,23 @@ describe('package scripts', () => {
       /^(generate|check):(typescript|javascript|python|ts|js|py)$/.test(name),
     );
     expect(languageSpecificGenerationCommands).toEqual([]);
+  });
+
+  test('runtime plugin bundle export follows the TypeSpec provider component catalog', () => {
+    const pluginProviders = PROVIDER_PLUGIN_COMPONENTS.map((entry) => entry.provider);
+    expect(pluginProviders).toEqual(['codex', 'cursor', 'claude-code']);
+
+    const expectedExports: Record<(typeof pluginProviders)[number], string> = {
+      codex: 'exportCodexPlugin',
+      cursor: 'exportCursorPlugin',
+      'claude-code': 'exportClaudeCodePlugin',
+    };
+
+    for (const provider of pluginProviders) {
+      expect(syncRuntimeAssets, `${provider} exporter`).toContain(expectedExports[provider]);
+      expect(syncRuntimeAssets, `${provider} dist plugin bundle`).toContain(
+        `dist/runtime/${provider}/plugin/openbox`,
+      );
+    }
   });
 });

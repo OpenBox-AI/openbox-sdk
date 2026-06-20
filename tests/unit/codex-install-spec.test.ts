@@ -37,6 +37,22 @@ function componentPath(name: string): string {
   return component!.path!;
 }
 
+function assertExportedSpecComponentPathsExist(root: string): void {
+  for (const component of CODEX_COMPONENTS) {
+    expect(component.path, `Codex plugin component ${component.name} path`).toBeTruthy();
+    if (component.path!.startsWith('.agents/')) continue;
+    expect(existsSync(path.join(root, component.path!)), component.name).toBe(true);
+  }
+}
+
+function assertInstalledSpecComponentPathsExist(cwd: string, pluginRoot: string): void {
+  for (const component of CODEX_COMPONENTS) {
+    expect(component.path, `Codex plugin component ${component.name} path`).toBeTruthy();
+    const root = component.path!.startsWith('.agents/') ? cwd : pluginRoot;
+    expect(existsSync(path.join(root, component.path!)), component.name).toBe(true);
+  }
+}
+
 describe('codex HOOK_SPEC', () => {
   it('exposes the project-local Codex hook events in spec order', () => {
     expect(HOOK_SPEC.events.map((event) => event.name)).toEqual(EXPECTED_EVENTS);
@@ -94,9 +110,7 @@ describe('codex HOOK_SPEC', () => {
       },
     });
 
-    for (const name of ['manifest', 'skills', 'hooks', 'mcp', 'agents-md', 'rules']) {
-      expect(existsSync(path.join(out, componentPath(name))), name).toBe(true);
-    }
+    assertExportedSpecComponentPathsExist(out);
 
     const agents = readFileSync(path.join(out, componentPath('agents-md')), 'utf-8');
     expect(agents).toContain('OpenBox Core is the source of truth');
@@ -113,6 +127,7 @@ describe('codex HOOK_SPEC', () => {
 
     const target = installCodexPlugin({ cwd });
     expect(target).toBe(codexPluginTargetDir(cwd));
+    assertInstalledSpecComponentPathsExist(cwd, target);
     expect(existsSync(path.join(cwd, componentPath('repo-skill')))).toBe(true);
     expect(existsSync(path.join(cwd, componentPath('marketplace')))).toBe(true);
     expect(readFileSync(codexMarketplaceFile(cwd), 'utf-8')).toContain('"openbox"');
