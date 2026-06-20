@@ -60,6 +60,7 @@ import {
   getGovernProtocol,
   getBackendPermissions,
   getSdkMethodNames,
+  getSdkTargets,
   type CanonicalEventType,
   type VerdictShape,
   type PayloadShapeBinding,
@@ -88,6 +89,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitEnvConformanceFixture(program, repoRoot);
   emitCliConformanceFixture(program, repoRoot);
   emitGovernProtocolConformanceFixture(program, repoRoot);
+  emitSdkTargetsFixture(program, repoRoot);
   emitSdkManifestConformanceFixture(program, repoRoot);
   emitBackendMethodNameFixture(program, repoRoot);
   emitBackendPermissionFixture(program, repoRoot);
@@ -1473,6 +1475,18 @@ function emitGovernProtocolConformanceFixture(program: Program, repoRoot: string
     source: 'specs/typespec/govern/main.tsp',
     regenerate: 'npm run specs:compile',
     ...fixture,
+  });
+}
+
+function emitSdkTargetsFixture(program: Program, repoRoot: string): void {
+  const ns = findNamespace(program, 'OpenboxSdk');
+  const manifest = ns ? getSdkTargets(program, ns) : undefined;
+  if (!manifest) return;
+  writeJsonFixture(repoRoot, 'codegen/fixtures/sdk-targets.json', {
+    generatedBy: 'codegen/emitters/typespec-emitter',
+    source: 'specs/typespec/sdk/main.tsp',
+    regenerate: 'npm run specs:compile',
+    ...manifest,
   });
 }
 

@@ -21,6 +21,7 @@ const GENERATED_FILES = [
   'codegen/fixtures/govern-protocol.json',
   'codegen/fixtures/provider-capabilities.json',
   'codegen/fixtures/sdk-manifests.json',
+  'codegen/fixtures/sdk-targets.json',
 ];
 
 function run(command: string, args: string[], stdio: 'pipe' | 'inherit' = 'inherit'): string {

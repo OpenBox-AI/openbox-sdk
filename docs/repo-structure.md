@@ -11,7 +11,7 @@ TypeSpec emitter.
 | `specs/typespec/` | Canonical TypeSpec contract for backend/core APIs, governance protocol, adapters, capabilities, env config, and CLI metadata |
 | `codegen/typespec-libs/` | TypeSpec decorator libraries consumed by the canonical contract |
 | `codegen/emitters/typespec-emitter/` | Shared OpenBox emitter that writes generated SDK artifacts for every language target |
-| `codegen/fixtures/` | Cross-target conformance fixtures |
+| `codegen/fixtures/` | Cross-target conformance fixtures, including SDK validation target manifests |
 
 ## SDK targets
 
@@ -43,8 +43,8 @@ TypeSpec emitter.
 
 - Use `npm run generate:sdks` for all generated SDK/API artifacts.
 - Use `npm run check:sdks` for target-native validation across every language
-  SDK. Future targets join that generic gate; they do not get bespoke root
-  commands.
+  SDK. Future targets join `specs/typespec/sdk/main.tsp`; they do not get
+  bespoke root commands.
 - Add new language targets inside `codegen/emitters/typespec-emitter/` unless
   there is a documented reason to split the emitter.
 - Do not add language-specific generation commands such as

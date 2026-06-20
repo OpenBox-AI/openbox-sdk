@@ -10,7 +10,7 @@ under `specs/generated/openapi3/`.
 
 | Path | Contents |
 |---|---|
-| `typespec-libs/typespec-workflow/` | Decorator library: `@verdict`, `@preset`, `@maps_to`, `@adapter`, `@hookEvent`, `@verdictShape`, `@activityRouting`, `@backendPermissions`, `@sdkMethodNames` |
+| `typespec-libs/typespec-workflow/` | Decorator library: `@verdict`, `@preset`, `@maps_to`, `@adapter`, `@hookEvent`, `@verdictShape`, `@activityRouting`, `@backendPermissions`, `@sdkMethodNames`, `@sdkTargets` |
 | `typespec-libs/typespec-cli/` | Decorator library: `@cli_command`, `@cli_flag`, etc. Drives CLI binding emit |
 | `typespec-libs/typespec-env/` | Decorator library: `@env_var`, `@token_format`, `@os_path` |
 | `emitters/typespec-emitter/` | OpenBox TypeSpec emitter. Walks the program, writes TypeScript and Python generated SDK artifacts |
@@ -25,9 +25,9 @@ under `specs/generated/openapi3/`.
    TypeScript, Python, and wire-type SDK artifacts from the same contract.
 3. Run `npm run check:generated-drift` to assert every generated path
    is committed. Catches "I forgot to regen and commit".
-4. Run `npm run check:sdks`. TypeScript and Python target-native checks consume
-   the regenerated artifacts, and Vitest snapshot tests catch unintended emitter
-   output drift.
+4. Run `npm run check:sdks`. The generic root runner reads the TypeSpec-emitted
+   SDK target manifest, then runs TypeScript and Python target-native checks.
+   Vitest snapshot tests catch unintended emitter output drift.
 5. Commit the spec change and the regenerated files in the same
    commit.
 

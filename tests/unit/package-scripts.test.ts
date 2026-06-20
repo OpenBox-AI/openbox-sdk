@@ -17,10 +17,16 @@ describe('package scripts', () => {
     expect(cleanGenerated).toContain('codegen/fixtures/govern-protocol.json');
     expect(cleanGenerated).toContain('codegen/fixtures/provider-capabilities.json');
     expect(cleanGenerated).toContain('codegen/fixtures/sdk-manifests.json');
+    expect(cleanGenerated).toContain('codegen/fixtures/sdk-targets.json');
   });
 
   test('SDK generation stays behind the generic TypeSpec command', () => {
     expect(packageJson.scripts['generate:sdks']).toBe('npm run build:codegen && npm run specs:compile');
+    expect(packageJson.scripts['check:sdks']).toBe(
+      'npm run generate:sdks && node scripts/check-sdks.mjs',
+    );
+    expect(packageJson.scripts['check:sdks']).not.toContain('cd python');
+    expect(packageJson.scripts['check:sdks']).not.toContain('uv run');
 
     const languageSpecificGenerationCommands = Object.keys(packageJson.scripts).filter((name) =>
       /^(generate|check):(typescript|javascript|python|ts|js|py)$/.test(name),

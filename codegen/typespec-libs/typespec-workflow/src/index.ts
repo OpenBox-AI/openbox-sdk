@@ -22,6 +22,7 @@ import {
   $governProtocol,
   $backendPermissions,
   $sdkMethodNames,
+  $sdkTargets,
 } from './decorators.js';
 export {
   getActivityType,
@@ -30,6 +31,7 @@ export {
   getGovernProtocol,
   getProviderCapabilities,
   getSdkMethodNames,
+  getSdkTargets,
 } from './decorators.js';
 
 export { $lib } from './lib.js';
@@ -56,5 +58,6 @@ export const $decorators = {
     governProtocol: $governProtocol,
     backendPermissions: $backendPermissions,
     sdkMethodNames: $sdkMethodNames,
+    sdkTargets: $sdkTargets,
   },
 };

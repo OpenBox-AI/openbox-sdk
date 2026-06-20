@@ -1,0 +1,85 @@
+{
+  "generatedBy": "codegen/emitters/typespec-emitter",
+  "source": "specs/typespec/sdk/main.tsp",
+  "regenerate": "npm run specs:compile",
+  "targets": [
+    {
+      "id": "typescript",
+      "label": "TypeScript SDK",
+      "workingDirectory": ".",
+      "commands": [
+        {
+          "command": "npm",
+          "args": [
+            "run",
+            "lint"
+          ]
+        },
+        {
+          "command": "npx",
+          "args": [
+            "tsc",
+            "--noEmit"
+          ]
+        },
+        {
+          "command": "npm",
+          "args": [
+            "run",
+            "test"
+          ],
+          "env": {
+            "OPENBOX_CLI": "./scripts/openbox-cli-dev.mjs"
+          }
+        }
+      ]
+    },
+    {
+      "id": "python",
+      "label": "Python SDK",
+      "workingDirectory": "python",
+      "commands": [
+        {
+          "command": "uv",
+          "args": [
+            "run",
+            "--locked",
+            "--extra",
+            "dev",
+            "ruff",
+            "check",
+            "."
+          ]
+        },
+        {
+          "command": "uv",
+          "args": [
+            "run",
+            "--locked",
+            "--extra",
+            "dev",
+            "mypy",
+            "openbox_sdk",
+            "tests"
+          ]
+        },
+        {
+          "command": "uv",
+          "args": [
+            "run",
+            "--locked",
+            "--extra",
+            "dev",
+            "pytest"
+          ]
+        },
+        {
+          "command": "uv",
+          "args": [
+            "build"
+          ]
+        }
+      ]
+    }
+  ]
+}

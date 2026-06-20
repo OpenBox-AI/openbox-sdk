@@ -14,9 +14,10 @@ canonical TypeSpec contract.
   TypeScript, Python, OpenAPI, JSON Schema, TypeSpec-emitted contract metadata
   maps, CLI/env/lifecycle fixtures, and conformance fixture artifacts for drift.
 - `check:sdks` is the generic target-native validation gate. It regenerates the
-  TypeSpec-owned artifacts, then runs TypeScript and Python lint/type/test/build
-  checks from their emitted contracts. Future language targets should join this
-  command instead of adding root-level `check:<language>` or
+  TypeSpec-owned artifacts, then reads `codegen/fixtures/sdk-targets.json` and
+  runs each target's native lint/type/test/build commands. Future language
+  targets should join `specs/typespec/sdk/main.tsp` instead of adding root-level
+  `check:<language>` or
   `generate:<language>` entry points.
 
 ## Local CI

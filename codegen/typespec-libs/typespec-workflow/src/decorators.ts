@@ -857,3 +857,127 @@ export function getSdkMethodNames(
 ): SdkMethodNamesBinding | undefined {
   return program.stateMap(stateKeys.sdkMethodNames).get(target);
 }
+
+// ─── SDK validation targets ─────────────────────────────────────────
+// The root check command is generic; language targets and their native
+// validation commands live in TypeSpec and are emitted as a fixture.
+
+export type SdkTargetsBinding = Record<string, unknown>;
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+export function $sdkTargets(
+  context: DecoratorContext,
+  target: Namespace,
+  raw: unknown,
+): void {
+  const value = unwrapTspValue(raw);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-sdk-targets',
+      format: { reason: 'expected a record literal' },
+      target,
+    });
+    return;
+  }
+
+  const record = value as Record<string, unknown>;
+  const targets = record.targets;
+  if (!Array.isArray(targets) || targets.length === 0) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-sdk-targets',
+      format: { reason: 'targets must be a non-empty array' },
+      target,
+    });
+    return;
+  }
+
+  for (const [index, rawTarget] of targets.entries()) {
+    if (!rawTarget || typeof rawTarget !== 'object' || Array.isArray(rawTarget)) {
+      reportDiagnostic(context.program, {
+        code: 'invalid-sdk-targets',
+        format: { reason: `target ${index} must be a record` },
+        target,
+      });
+      return;
+    }
+    const sdkTarget = rawTarget as Record<string, unknown>;
+    if (!isNonEmptyString(sdkTarget.id)) {
+      reportDiagnostic(context.program, {
+        code: 'invalid-sdk-targets',
+        format: { reason: `target ${index} is missing id` },
+        target,
+      });
+      return;
+    }
+    if (!Array.isArray(sdkTarget.commands) || sdkTarget.commands.length === 0) {
+      reportDiagnostic(context.program, {
+        code: 'invalid-sdk-targets',
+        format: { reason: `${sdkTarget.id} commands must be a non-empty array` },
+        target,
+      });
+      return;
+    }
+
+    for (const [commandIndex, rawCommand] of sdkTarget.commands.entries()) {
+      if (!rawCommand || typeof rawCommand !== 'object' || Array.isArray(rawCommand)) {
+        reportDiagnostic(context.program, {
+          code: 'invalid-sdk-targets',
+          format: { reason: `${sdkTarget.id} command ${commandIndex} must be a record` },
+          target,
+        });
+        return;
+      }
+      const command = rawCommand as Record<string, unknown>;
+      if (!isNonEmptyString(command.command)) {
+        reportDiagnostic(context.program, {
+          code: 'invalid-sdk-targets',
+          format: { reason: `${sdkTarget.id} command ${commandIndex} is missing command` },
+          target,
+        });
+        return;
+      }
+      if (command.args !== undefined) {
+        if (!Array.isArray(command.args) || !command.args.every((arg) => typeof arg === 'string')) {
+          reportDiagnostic(context.program, {
+            code: 'invalid-sdk-targets',
+            format: { reason: `${sdkTarget.id} ${command.command} args must be a string array` },
+            target,
+          });
+          return;
+        }
+      }
+      if (command.env !== undefined) {
+        if (!command.env || typeof command.env !== 'object' || Array.isArray(command.env)) {
+          reportDiagnostic(context.program, {
+            code: 'invalid-sdk-targets',
+            format: { reason: `${sdkTarget.id} ${command.command} env must be a record` },
+            target,
+          });
+          return;
+        }
+        for (const [name, value] of Object.entries(command.env as Record<string, unknown>)) {
+          if (!isNonEmptyString(name) || typeof value !== 'string') {
+            reportDiagnostic(context.program, {
+              code: 'invalid-sdk-targets',
+              format: { reason: `${sdkTarget.id} ${command.command} env must map strings to strings` },
+              target,
+            });
+            return;
+          }
+        }
+      }
+    }
+  }
+
+  context.program.stateMap(stateKeys.sdkTargets).set(target, record);
+}
+
+export function getSdkTargets(
+  program: Program,
+  target: Namespace,
+): SdkTargetsBinding | undefined {
+  return program.stateMap(stateKeys.sdkTargets).get(target);
+}

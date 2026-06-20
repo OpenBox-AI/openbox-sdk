@@ -26,6 +26,7 @@ let getMapsTo: typeof import('../../codegen/typespec-libs/typespec-workflow/src/
 let getPreset: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getPreset;
 let getVerdictModel: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getVerdictModel;
 let getGovernProtocol: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getGovernProtocol;
+let getSdkTargets: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getSdkTargets;
 
 beforeAll(async () => {
   const root = resolvePath(import.meta.dirname, '..', '..');
@@ -48,7 +49,7 @@ beforeAll(async () => {
     getValidator,
     getCliConformance,
   } = cliDecorators);
-  ({ getMapsTo, getPreset, getVerdictModel, getGovernProtocol } = workflowDecorators);
+  ({ getMapsTo, getPreset, getVerdictModel, getGovernProtocol, getSdkTargets } = workflowDecorators);
   const main = resolvePath(root, 'specs', 'typespec', 'main.tsp');
   program = await compile(NodeHost, main, {
     noEmit: true,
@@ -252,5 +253,14 @@ describe('typespec-workflow', () => {
     const fixture = getGovernProtocol(program, govern!);
     expect(fixture?.name).toBe('govern-protocol');
     expect((fixture?.cases as unknown[] | undefined)?.length).toBe(3);
+  });
+
+  test('@sdkTargets attaches the shared SDK validation manifest', () => {
+    const sdk = [...walkNamespaces(program)].find((ns) => ns.name === 'OpenboxSdk');
+    expect(sdk).toBeDefined();
+    const fixture = getSdkTargets(program, sdk!);
+    const targets = fixture?.targets as Array<{ id: string; commands: unknown[] }> | undefined;
+    expect(targets?.map((target) => target.id)).toEqual(['typescript', 'python']);
+    expect(targets?.every((target) => target.commands.length > 0)).toBe(true);
   });
 });
