@@ -14,7 +14,7 @@ package-local runners as they join the shared TypeSpec emitter.
 | `govern-protocol.json` | TypeSpec-emitted scripted lifecycle cases where `WorkflowStarted`, `ActivityStarted`, and `ActivityCompleted` events fire in the same order with the same canonical `activity_type` strings |
 | `provider-capabilities.json` | TypeSpec-emitted provider capability, guard, MCP, plugin, public integration, and n8n conformance data used by SDK parity tests |
 | `sdk-manifests.json` | TypeSpec-emitted backend/core endpoint manifests and govern preset manifest used by SDK parity tests |
-| `sdk-targets.json` | TypeSpec-emitted SDK/app validation target manifest, codegen build pipeline, bundle build pipeline, root test-suite routing, package export surface, generated-artifact inventory, clean-artifact inventory, local CI pipeline, and security-audit manifest consumed by generic root build, test, check, drift, cleanup, CI, and audit runners |
+| `sdk-targets.json` | TypeSpec-emitted SDK/app validation target manifest, codegen build pipeline, bundle build pipeline, root test-suite routing, quality commands, package export surface, generated-artifact inventory, clean-artifact inventory, local CI pipeline, and security-audit manifest consumed by generic root build, test, check, drift, cleanup, CI, and audit runners |
 
 ## How a target wires up
 
@@ -52,6 +52,9 @@ directly. Regenerate them with `npm run generate:sdks`.
   pipeline from this fixture for bundling and runtime asset sync.
 - Test suites: root `test:*` scripts read the `testSuites` routing table from
   this fixture, so suite names and native test commands stay in the canonical
+  SDK target manifest.
+- Quality commands: root `lint` and `format` scripts read the
+  `qualityCommands` table from this fixture, so path/tool changes stay in the
   SDK target manifest.
 - Local CI: the root `ci:local` runner reads the `localCi.steps` pipeline from
   this fixture, so new local gates are added once in TypeSpec.

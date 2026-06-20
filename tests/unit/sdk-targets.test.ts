@@ -45,6 +45,16 @@ interface SdkTargetsFixture {
       env?: Record<string, string>;
     }>;
   };
+  qualityCommands: {
+    commands: Array<{
+      id: string;
+      label: string;
+      command: string;
+      args?: string[];
+      workingDirectory: string;
+      env?: Record<string, string>;
+    }>;
+  };
   packageSurface: {
     packageName: string;
     bin: Array<{
@@ -261,6 +271,34 @@ describe('SDK target validation manifest', () => {
         label: 'Runtime asset sync',
         command: 'node',
         args: ['--experimental-strip-types', 'scripts/sync-runtime-assets.ts'],
+        workingDirectory: '.',
+      },
+    ]);
+  });
+
+  test('declares quality commands outside package scripts', () => {
+    const fixture = readSdkTargetsFixture();
+    const packageJson = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
+    ) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts.lint).toBe('node scripts/run-quality.mjs lint');
+    expect(packageJson.scripts.format).toBe('node scripts/run-quality.mjs format');
+    expect(fixture.qualityCommands.commands).toEqual([
+      {
+        id: 'lint',
+        label: 'Root TypeScript lint',
+        command: 'npx',
+        args: ['eslint', 'ts/src'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'format',
+        label: 'Root TypeScript format',
+        command: 'npx',
+        args: ['prettier', '--write', 'ts/src'],
         workingDirectory: '.',
       },
     ]);

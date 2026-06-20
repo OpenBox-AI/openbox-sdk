@@ -1074,6 +1074,20 @@ function validateBundleBuildRecord(
   return validateCommandStepArray(context, target, 'bundleBuild.steps', bundleBuild.steps);
 }
 
+function validateQualityCommandsRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawQualityCommands: unknown,
+): boolean {
+  if (!rawQualityCommands || typeof rawQualityCommands !== 'object' || Array.isArray(rawQualityCommands)) {
+    reportInvalidSdkTargets(context, target, 'qualityCommands must be a record');
+    return false;
+  }
+
+  const qualityCommands = rawQualityCommands as Record<string, unknown>;
+  return validateCommandStepArray(context, target, 'qualityCommands.commands', qualityCommands.commands);
+}
+
 function validatePackageSurfaceRecord(
   context: DecoratorContext,
   target: Namespace,
@@ -1264,6 +1278,12 @@ export function $sdkTargets(
 
   if (record.bundleBuild !== undefined) {
     if (!validateBundleBuildRecord(context, target, record.bundleBuild)) {
+      return;
+    }
+  }
+
+  if (record.qualityCommands !== undefined) {
+    if (!validateQualityCommandsRecord(context, target, record.qualityCommands)) {
       return;
     }
   }

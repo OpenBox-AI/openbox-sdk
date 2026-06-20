@@ -42,6 +42,9 @@ canonical TypeSpec contract.
   TypeSpec-emitted `testSuites` routing table and execute the declared suite
   commands. Add, remove, or rename root test suites in
   `specs/typespec/sdk/main.tsp`, not in `package.json`.
+- `lint` and `format` read the TypeSpec-emitted `qualityCommands` table. Add
+  quality command path or tool changes in `specs/typespec/sdk/main.tsp`, not in
+  `package.json`.
 - `audit:security` reads the TypeSpec-emitted security audit section in
   `codegen/fixtures/sdk-targets.json` for package audit commands and annotated
   secret-scan excludes. Add new audited package roots or fixture exclusions in

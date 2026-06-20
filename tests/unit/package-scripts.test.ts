@@ -12,6 +12,7 @@ const runBundleBuildScript = readFileSync(resolve(process.cwd(), 'scripts/run-bu
 const cleanScript = readFileSync(resolve(process.cwd(), 'scripts/clean.mjs'), 'utf8');
 const localCiScript = readFileSync(resolve(process.cwd(), 'scripts/run-local-ci.mjs'), 'utf8');
 const runTestsScript = readFileSync(resolve(process.cwd(), 'scripts/run-tests.mjs'), 'utf8');
+const runQualityScript = readFileSync(resolve(process.cwd(), 'scripts/run-quality.mjs'), 'utf8');
 const specStepsScript = readFileSync(resolve(process.cwd(), 'scripts/lib/spec-steps.mjs'), 'utf8');
 const cleanGeneratedScript = readFileSync(resolve(process.cwd(), 'scripts/clean-generated.mjs'), 'utf8');
 const generatedDriftScript = readFileSync(resolve(process.cwd(), 'scripts/check-generated-drift.ts'), 'utf8');
@@ -96,6 +97,15 @@ describe('package scripts', () => {
     expect(runTestsScript).toContain('testSuites.defaultSuites');
     expect(runTestsScript).toContain('testSuites.suites');
     expect(runTestsScript).toContain("from './lib/spec-steps.mjs'");
+  });
+
+  test('quality scripts read the TypeSpec-emitted command table', () => {
+    expect(packageJson.scripts.lint).toBe('node scripts/run-quality.mjs lint');
+    expect(packageJson.scripts.format).toBe('node scripts/run-quality.mjs format');
+    expect(packageJson.scripts.lint).not.toContain('ts/src');
+    expect(packageJson.scripts.format).not.toContain('ts/src');
+    expect(runQualityScript).toContain('qualityCommands.commands');
+    expect(runQualityScript).toContain("from './lib/spec-steps.mjs'");
   });
 
   test('generic SDK check validates spec-bound extension manifests', () => {

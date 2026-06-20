@@ -53,6 +53,12 @@ using OpenBox.Workflow;
       #{ id: "runtime-assets", label: "Runtime asset sync", command: "node", args: #["--experimental-strip-types", "scripts/sync-runtime-assets.ts"], workingDirectory: "." },
     ],
   },
+  qualityCommands: #{
+    commands: #[
+      #{ id: "lint", label: "Root TypeScript lint", command: "npx", args: #["eslint", "ts/src"], workingDirectory: "." },
+      #{ id: "format", label: "Root TypeScript format", command: "npx", args: #["prettier", "--write", "ts/src"], workingDirectory: "." },
+    ],
+  },
   packageSurface: #{
     packageName: "@openbox-ai/openbox-sdk",
     bin: #[

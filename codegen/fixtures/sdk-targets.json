@@ -149,6 +149,31 @@
       }
     ]
   },
+  "qualityCommands": {
+    "commands": [
+      {
+        "id": "lint",
+        "label": "Root TypeScript lint",
+        "command": "npx",
+        "args": [
+          "eslint",
+          "ts/src"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "format",
+        "label": "Root TypeScript format",
+        "command": "npx",
+        "args": [
+          "prettier",
+          "--write",
+          "ts/src"
+        ],
+        "workingDirectory": "."
+      }
+    ]
+  },
   "packageSurface": {
     "packageName": "@openbox-ai/openbox-sdk",
     "bin": [

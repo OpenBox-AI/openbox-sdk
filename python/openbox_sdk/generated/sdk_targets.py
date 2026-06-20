@@ -151,6 +151,31 @@ SDK_TARGET_MANIFEST = {
       }
     ]
   },
+  "qualityCommands": {
+    "commands": [
+      {
+        "id": "lint",
+        "label": "Root TypeScript lint",
+        "command": "npx",
+        "args": [
+          "eslint",
+          "ts/src"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "format",
+        "label": "Root TypeScript format",
+        "command": "npx",
+        "args": [
+          "prettier",
+          "--write",
+          "ts/src"
+        ],
+        "workingDirectory": "."
+      }
+    ]
+  },
   "packageSurface": {
     "packageName": "@openbox-ai/openbox-sdk",
     "bin": [
@@ -695,6 +720,7 @@ GENERATED_ARTIFACTS = SDK_TARGET_MANIFEST.get("generatedArtifacts", {})
 CODEGEN_BUILD = SDK_TARGET_MANIFEST.get("codegenBuild", {})
 TEST_SUITES = SDK_TARGET_MANIFEST.get("testSuites", {})
 BUNDLE_BUILD = SDK_TARGET_MANIFEST.get("bundleBuild", {})
+QUALITY_COMMANDS = SDK_TARGET_MANIFEST.get("qualityCommands", {})
 PACKAGE_SURFACE = SDK_TARGET_MANIFEST.get("packageSurface", {})
 CLEAN_ARTIFACTS = SDK_TARGET_MANIFEST.get("cleanArtifacts", {})
 SECURITY_AUDIT = SDK_TARGET_MANIFEST.get("securityAudit", {})
@@ -702,4 +728,4 @@ LOCAL_CI = SDK_TARGET_MANIFEST.get("localCi", {})
 SDK_TARGETS = SDK_TARGET_MANIFEST.get("targets", [])
 SDK_TARGET_IDS = [target["id"] for target in SDK_TARGETS]
 
-__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "TEST_SUITES", "BUNDLE_BUILD", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]
+__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "TEST_SUITES", "BUNDLE_BUILD", "QUALITY_COMMANDS", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]
