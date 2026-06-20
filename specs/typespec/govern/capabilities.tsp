@@ -93,6 +93,21 @@ namespace OpenboxGovern.Capabilities {
     guardTest: string;
   }
 
+  model UsageNormalizationSurface {
+    canonicalFields: string[];
+    inputTokenAliases: string[];
+    outputTokenAliases: string[];
+    totalTokenAliases: string[];
+    cacheReadInputTokenAliases: string[];
+    cacheCreationInputTokenAliases: string[];
+    webSearchRequestAliases: string[];
+    costUsdAliases: string[];
+    providerUsageContainers: string[];
+    providerModelFields: string[];
+    providerFinishReasonFields: string[];
+    policyBoundary: string;
+  }
+
   model TracingCapabilityGuardEntry {
     provider: OpenBoxProviderId;
     tier: OpenBoxSupportTier;
@@ -438,6 +453,20 @@ namespace OpenboxGovern.Capabilities {
     #{ provider: "copilotkit", tier: "observe-only", usageSurface: "LangChain/CopilotKit model end events and AG-UI runtime events when usage metadata is present", normalizedFields: "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present", sharedNormalizer: "CopilotKit middleware routes usageMetadata through openBoxUsageTelemetryFields and buildAssistantOutputSpan.", costPolicyBoundary: "OpenBox Core remains the source of truth for usage/cost policy; CopilotKit only observes model usage.", guardTest: "tests/unit/copilotkit-adapter.test.ts#emits Core-extractable assistant output spans for goal alignment" },
     #{ provider: "n8n", tier: "native", usageSurface: "emitN8nLlmCompletion and packaged OpenBox governed AI Agent workflow telemetry", normalizedFields: "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present", sharedNormalizer: "n8n helpers route LLM completion usage through assistantOutputTelemetryFields and buildAssistantOutputSpan.", costPolicyBoundary: "OpenBox Core remains the source of truth for usage/cost policy; n8n nodes only normalize telemetry.", guardTest: "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans" },
   ],
+  usageNormalization: #{
+    canonicalFields: #["input_tokens", "output_tokens", "total_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "web_search_requests", "cost_usd"],
+    inputTokenAliases: #["inputTokens", "promptTokens", "input_tokens", "prompt_tokens", "inputTokenCount", "promptTokenCount", "input_token_count", "prompt_token_count"],
+    outputTokenAliases: #["outputTokens", "completionTokens", "output_tokens", "completion_tokens", "outputTokenCount", "candidatesTokenCount", "responseTokenCount", "output_token_count", "candidates_token_count", "response_token_count"],
+    totalTokenAliases: #["totalTokens", "total_tokens", "totalTokenCount", "total_token_count"],
+    cacheReadInputTokenAliases: #["cacheReadInputTokens", "cache_read_input_tokens"],
+    cacheCreationInputTokenAliases: #["cacheCreationInputTokens", "cache_creation_input_tokens"],
+    webSearchRequestAliases: #["webSearchRequests", "web_search_requests"],
+    costUsdAliases: #["costUsd", "costUSD", "cost_usd", "total_cost_usd"],
+    providerUsageContainers: #["usage_metadata", "usageMetadata", "usage", "token_usage", "response_metadata.usage", "response_metadata.token_usage", "llm_output.token_usage"],
+    providerModelFields: #["model", "model_name", "modelName", "response_metadata.model", "response_metadata.model_name", "response_metadata.modelName", "llm_output.model"],
+    providerFinishReasonFields: #["finish_reason", "finishReason", "response_metadata.finish_reason", "response_metadata.finishReason"],
+    policyBoundary: "OpenBox Core remains the source of truth for usage/cost policy. SDKs normalize telemetry fields only and never locally enforce spend.",
+  },
   tracingCapabilityGuards: #[
     #{ provider: "codex", tier: "wrapped", traceSurface: "UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, Stop", spanCoverage: "Codex shell, file, HTTP, MCP, database, agent/action, and assistant-output spans", spanEmission: "Parent activities omit spans; hook_trigger re-evaluations carry span_count=1 and per-span payloads.", sourceAttribution: "metadata.source, activity input _openbox_source, and span module are stamped as codex.", guardTest: "tests/unit/codex-runtime.test.ts#stamps Codex source and shell spans in paired tool mappers" },
     #{ provider: "cursor", tier: "wrapped", traceSurface: "before/after prompt, shell, file, MCP, assistant response, thought, and subagent hooks", spanCoverage: "Cursor file_read, file_write, shell/internal, MCP, LLM, HTTP, and assistant-output spans", spanEmission: "Tool/assistant spans are emitted on hook_trigger payloads while parent lifecycle events remain span-free where required.", sourceAttribution: "metadata.source, activity input _openbox_source, and span module are stamped as cursor.", guardTest: "tests/unit/cursor-spans.test.ts#before/after shell execution keeps one activity id across the tool lifecycle" },

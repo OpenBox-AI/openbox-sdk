@@ -56,6 +56,7 @@ from openbox_sdk.generated.capability_matrix import (
     SUBAGENTS_AGENTS_CAPABILITY_GUARDS,
     TRACING_CAPABILITY_GUARDS,
     USAGE_COST_CAPABILITY_GUARDS,
+    USAGE_NORMALIZATION_SURFACE,
 )
 from openbox_sdk.generated.core_client import CORE_ENDPOINT_MANIFEST
 from openbox_sdk.generated.govern import PRESET_MANIFEST
@@ -445,6 +446,7 @@ def test_generated_python_matches_typespec_capability_fixture() -> None:
     assert PUBLIC_INTEGRATION_SUPPORT == fixture["publicIntegrationSupport"]
     assert GOAL_SIGNAL_GUARDS == fixture["goalSignalGuards"]
     assert USAGE_COST_CAPABILITY_GUARDS == fixture["usageCostCapabilityGuards"]
+    assert USAGE_NORMALIZATION_SURFACE == fixture["usageNormalizationSurface"]
     assert TRACING_CAPABILITY_GUARDS == fixture["tracingCapabilityGuards"]
     assert HITL_CAPABILITY_GUARDS == fixture["hitlCapabilityGuards"]
     assert GUARDRAIL_CAPABILITY_GUARDS == fixture["guardrailCapabilityGuards"]
@@ -869,7 +871,7 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
 
     model_payload = {
         "content": "answer",
-        "usage_metadata": {"input_tokens": 8, "output_tokens": 3},
+        "usage_metadata": {"input_tokens": 8, "output_tokens": 3, "total_cost_usd": 0.025},
         "response_metadata": {"model_name": "gpt-4.1-mini", "finish_reason": "stop"},
     }
     model_request: Mapping[str, Any] = {
@@ -891,6 +893,7 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
     assert model_completed["input_tokens"] == 8
     assert model_completed["output_tokens"] == 3
     assert model_completed["total_tokens"] == 11
+    assert model_completed["cost_usd"] == 0.025
     assert model_completed["has_tool_calls"] is False
     assert model_completed["finish_reason"] == "stop"
     assert model_completed["completion"] == "answer"

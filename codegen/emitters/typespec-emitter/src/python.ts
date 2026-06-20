@@ -280,6 +280,7 @@ PROVIDER_PLUGIN_COMPONENTS = ${py(matrix.pluginComponents)}
 PUBLIC_INTEGRATION_SUPPORT = ${py(matrix.publicIntegrations)}
 GOAL_SIGNAL_GUARDS = ${py(matrix.goalSignalGuards)}
 USAGE_COST_CAPABILITY_GUARDS = ${py(matrix.usageCostCapabilityGuards)}
+USAGE_NORMALIZATION_SURFACE = ${py(matrix.usageNormalization)}
 TRACING_CAPABILITY_GUARDS = ${py(matrix.tracingCapabilityGuards)}
 HITL_CAPABILITY_GUARDS = ${py(matrix.hitlCapabilityGuards)}
 GUARDRAIL_CAPABILITY_GUARDS = ${py(matrix.guardrailCapabilityGuards)}
@@ -469,6 +470,7 @@ function emitRuntimeContract(program: Program): string {
     ['input_tokens', 'inputTokens'],
     ['output_tokens', 'outputTokens'],
     ['total_tokens', 'totalTokens'],
+    ['cost_usd', 'costUsd'],
     ['has_tool_calls', 'hasToolCalls'],
     ['finish_reason', 'finishReason'],
     ['prompt', 'prompt'],

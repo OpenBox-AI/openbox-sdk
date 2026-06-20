@@ -82,6 +82,21 @@ export interface UsageCostCapabilityGuardEntry {
   guardTest: string;
 }
 
+export interface UsageNormalizationSurface {
+  canonicalFields: readonly string[];
+  inputTokenAliases: readonly string[];
+  outputTokenAliases: readonly string[];
+  totalTokenAliases: readonly string[];
+  cacheReadInputTokenAliases: readonly string[];
+  cacheCreationInputTokenAliases: readonly string[];
+  webSearchRequestAliases: readonly string[];
+  costUsdAliases: readonly string[];
+  providerUsageContainers: readonly string[];
+  providerModelFields: readonly string[];
+  providerFinishReasonFields: readonly string[];
+  policyBoundary: string;
+}
+
 export interface TracingCapabilityGuardEntry {
   provider: OpenBoxProviderId;
   tier: OpenBoxSupportTier;
@@ -1540,6 +1555,88 @@ export const USAGE_COST_CAPABILITY_GUARDS = [
     "guardTest": "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans"
   }
 ] as const satisfies readonly UsageCostCapabilityGuardEntry[];
+export const USAGE_NORMALIZATION_SURFACE = {
+  "canonicalFields": [
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+    "web_search_requests",
+    "cost_usd"
+  ],
+  "inputTokenAliases": [
+    "inputTokens",
+    "promptTokens",
+    "input_tokens",
+    "prompt_tokens",
+    "inputTokenCount",
+    "promptTokenCount",
+    "input_token_count",
+    "prompt_token_count"
+  ],
+  "outputTokenAliases": [
+    "outputTokens",
+    "completionTokens",
+    "output_tokens",
+    "completion_tokens",
+    "outputTokenCount",
+    "candidatesTokenCount",
+    "responseTokenCount",
+    "output_token_count",
+    "candidates_token_count",
+    "response_token_count"
+  ],
+  "totalTokenAliases": [
+    "totalTokens",
+    "total_tokens",
+    "totalTokenCount",
+    "total_token_count"
+  ],
+  "cacheReadInputTokenAliases": [
+    "cacheReadInputTokens",
+    "cache_read_input_tokens"
+  ],
+  "cacheCreationInputTokenAliases": [
+    "cacheCreationInputTokens",
+    "cache_creation_input_tokens"
+  ],
+  "webSearchRequestAliases": [
+    "webSearchRequests",
+    "web_search_requests"
+  ],
+  "costUsdAliases": [
+    "costUsd",
+    "costUSD",
+    "cost_usd",
+    "total_cost_usd"
+  ],
+  "providerUsageContainers": [
+    "usage_metadata",
+    "usageMetadata",
+    "usage",
+    "token_usage",
+    "response_metadata.usage",
+    "response_metadata.token_usage",
+    "llm_output.token_usage"
+  ],
+  "providerModelFields": [
+    "model",
+    "model_name",
+    "modelName",
+    "response_metadata.model",
+    "response_metadata.model_name",
+    "response_metadata.modelName",
+    "llm_output.model"
+  ],
+  "providerFinishReasonFields": [
+    "finish_reason",
+    "finishReason",
+    "response_metadata.finish_reason",
+    "response_metadata.finishReason"
+  ],
+  "policyBoundary": "OpenBox Core remains the source of truth for usage/cost policy. SDKs normalize telemetry fields only and never locally enforce spend."
+} as const satisfies UsageNormalizationSurface;
 export const TRACING_CAPABILITY_GUARDS = [
   {
     "provider": "codex",

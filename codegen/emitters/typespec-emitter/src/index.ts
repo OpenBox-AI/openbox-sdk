@@ -1100,6 +1100,7 @@ interface ProviderCapabilityConformancePayload {
   publicIntegrationSupport: unknown;
   goalSignalGuards: unknown;
   usageCostCapabilityGuards: unknown;
+  usageNormalizationSurface: unknown;
   tracingCapabilityGuards: unknown;
   hitlCapabilityGuards: unknown;
   guardrailCapabilityGuards: unknown;
@@ -1193,6 +1194,21 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  sharedNormalizer: string;`,
     `  costPolicyBoundary: string;`,
     `  guardTest: string;`,
+    `}`,
+    '',
+    `export interface UsageNormalizationSurface {`,
+    `  canonicalFields: readonly string[];`,
+    `  inputTokenAliases: readonly string[];`,
+    `  outputTokenAliases: readonly string[];`,
+    `  totalTokenAliases: readonly string[];`,
+    `  cacheReadInputTokenAliases: readonly string[];`,
+    `  cacheCreationInputTokenAliases: readonly string[];`,
+    `  webSearchRequestAliases: readonly string[];`,
+    `  costUsdAliases: readonly string[];`,
+    `  providerUsageContainers: readonly string[];`,
+    `  providerModelFields: readonly string[];`,
+    `  providerFinishReasonFields: readonly string[];`,
+    `  policyBoundary: string;`,
     `}`,
     '',
     `export interface TracingCapabilityGuardEntry {`,
@@ -1401,6 +1417,8 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     '',
     `export const USAGE_COST_CAPABILITY_GUARDS = ${literalTs(conformance.usageCostCapabilityGuards)} as const satisfies readonly UsageCostCapabilityGuardEntry[];`,
     '',
+    `export const USAGE_NORMALIZATION_SURFACE = ${literalTs(conformance.usageNormalizationSurface)} as const satisfies UsageNormalizationSurface;`,
+    '',
     `export const TRACING_CAPABILITY_GUARDS = ${literalTs(conformance.tracingCapabilityGuards)} as const satisfies readonly TracingCapabilityGuardEntry[];`,
     '',
     `export const HITL_CAPABILITY_GUARDS = ${literalTs(conformance.hitlCapabilityGuards)} as const satisfies readonly HitlCapabilityGuardEntry[];`,
@@ -1586,6 +1604,7 @@ function providerCapabilityConformancePayload(
     publicIntegrationSupport: matrix.publicIntegrations,
     goalSignalGuards: matrix.goalSignalGuards,
     usageCostCapabilityGuards: matrix.usageCostCapabilityGuards,
+    usageNormalizationSurface: matrix.usageNormalization,
     tracingCapabilityGuards: matrix.tracingCapabilityGuards,
     hitlCapabilityGuards: matrix.hitlCapabilityGuards,
     guardrailCapabilityGuards: matrix.guardrailCapabilityGuards,

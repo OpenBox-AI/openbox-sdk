@@ -221,6 +221,10 @@ TELEMETRY_FIELD_ALIASES = {
     "total_tokens",
     "totalTokens"
   ],
+  "cost_usd": [
+    "cost_usd",
+    "costUsd"
+  ],
   "has_tool_calls": [
     "has_tool_calls",
     "hasToolCalls"

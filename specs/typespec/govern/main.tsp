@@ -523,6 +523,9 @@ model GovernedPayload {
   /** Total token count observed by the SDK. */
   totalTokens?: numeric;
 
+  /** Estimated provider/API cost in USD observed by the SDK. */
+  costUsd?: numeric;
+
   /** True when the LLM completion requested tool calls. */
   hasToolCalls?: boolean;
 

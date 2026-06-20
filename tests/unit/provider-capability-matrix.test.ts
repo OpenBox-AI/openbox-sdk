@@ -35,6 +35,7 @@ import {
   SUBAGENTS_AGENTS_CAPABILITY_GUARDS,
   TRACING_CAPABILITY_GUARDS,
   USAGE_COST_CAPABILITY_GUARDS,
+  USAGE_NORMALIZATION_SURFACE,
   type OpenBoxProviderId,
 } from '../../ts/src/governance/capability-matrix.js';
 
@@ -87,6 +88,7 @@ describe('provider capability matrix', () => {
     expect(PUBLIC_INTEGRATION_SUPPORT).toEqual(fixture.publicIntegrationSupport);
     expect(GOAL_SIGNAL_GUARDS).toEqual(fixture.goalSignalGuards);
     expect(USAGE_COST_CAPABILITY_GUARDS).toEqual(fixture.usageCostCapabilityGuards);
+    expect(USAGE_NORMALIZATION_SURFACE).toEqual(fixture.usageNormalizationSurface);
     expect(TRACING_CAPABILITY_GUARDS).toEqual(fixture.tracingCapabilityGuards);
     expect(HITL_CAPABILITY_GUARDS).toEqual(fixture.hitlCapabilityGuards);
     expect(GUARDRAIL_CAPABILITY_GUARDS).toEqual(fixture.guardrailCapabilityGuards);
@@ -238,6 +240,16 @@ describe('provider capability matrix', () => {
       expect(guard.costPolicyBoundary, `${guard.provider} costPolicyBoundary`).toContain('OpenBox Core');
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
     }
+    expect(USAGE_NORMALIZATION_SURFACE.canonicalFields).toEqual(
+      expect.arrayContaining(['input_tokens', 'output_tokens', 'total_tokens', 'cost_usd']),
+    );
+    expect(USAGE_NORMALIZATION_SURFACE.inputTokenAliases).toEqual(
+      expect.arrayContaining(['inputTokens', 'input_tokens', 'promptTokenCount']),
+    );
+    expect(USAGE_NORMALIZATION_SURFACE.costUsdAliases).toEqual(
+      expect.arrayContaining(['costUSD', 'cost_usd', 'total_cost_usd']),
+    );
+    expect(USAGE_NORMALIZATION_SURFACE.policyBoundary).toContain('OpenBox Core');
   });
 
   it('pins tracing support claims to explicit tracing guard coverage', () => {

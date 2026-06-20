@@ -189,6 +189,9 @@ model GovernanceEventPayload {
   /** Total token count observed by the SDK. */
   total_tokens?: int64;
 
+  /** Estimated provider/API cost in USD observed by the SDK. */
+  cost_usd?: float64;
+
   /** True when the LLM completion requested tool calls. */
   has_tool_calls?: boolean;
 

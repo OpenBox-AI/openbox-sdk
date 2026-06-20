@@ -80,6 +80,7 @@ export {
   MCP_SKILL_REFERENCE_SURFACES,
   MCP_TOOL_SURFACES,
   N8N_INTEGRATION_SURFACE,
+  USAGE_NORMALIZATION_SURFACE,
   type OpenBoxCapabilityId,
   type OpenBoxProviderId,
   type OpenBoxSupportTier,
@@ -92,5 +93,6 @@ export {
   type ProviderEventCatalogEntry,
   type ProviderPluginComponentCatalogEntry,
   type PublicIntegrationSupportEntry,
+  type UsageNormalizationSurface,
 } from './capability-matrix.js';
 export { hookEventLabel, HOOK_EVENT_LABELS } from './hook-event-labels.js';

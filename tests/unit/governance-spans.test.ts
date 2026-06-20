@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { SpanData } from '../../ts/src/core-client/index.js';
 import { assistantOutputTelemetryFields } from '../../ts/src/governance/assistant-output.js';
+import { USAGE_NORMALIZATION_SURFACE } from '../../ts/src/governance/capability-matrix.js';
 import {
   combineOpenBoxUsage,
   normalizeOpenBoxUsage,
@@ -41,7 +42,7 @@ describe('LLM completion spans', () => {
         completionTokens: 4,
         cache_read_input_tokens: 2,
         webSearchRequests: 1,
-        cost_usd: 0.012,
+        total_cost_usd: 0.012,
       }),
     ).toMatchObject({
       inputTokens: 3,
@@ -62,6 +63,7 @@ describe('LLM completion spans', () => {
       totalTokens: 11,
       costUsd: undefined,
     });
+    expect(USAGE_NORMALIZATION_SURFACE.costUsdAliases).toContain('total_cost_usd');
     expect(
       combineOpenBoxUsage(
         { input_tokens: 1, output_tokens: 2, cost_usd: 0.1 },

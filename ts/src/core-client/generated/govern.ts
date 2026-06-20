@@ -48,6 +48,7 @@ export interface GovernedPayload {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+  costUsd?: number;
   hasToolCalls?: boolean;
   finishReason?: string;
   prompt?: string;
