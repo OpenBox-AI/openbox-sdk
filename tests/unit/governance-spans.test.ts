@@ -109,6 +109,74 @@ describe('LLM completion spans', () => {
     });
   });
 
+  test('normalizes nested provider usage containers and dotted aliases', () => {
+    expect(USAGE_NORMALIZATION_SURFACE.providerUsageContainers).toContain(
+      'response_metadata.token_usage',
+    );
+    expect(USAGE_NORMALIZATION_SURFACE.cacheReadInputTokenAliases).toContain(
+      'input_tokens_details.cached_tokens',
+    );
+
+    const usage = normalizeOpenBoxUsage({
+      response_metadata: {
+        token_usage: {
+          prompt_tokens: 8,
+          completion_tokens: 5,
+          input_tokens_details: {
+            cached_tokens: 3,
+          },
+          total_cost_usd: 0.02,
+        },
+      },
+    });
+
+    expect(usage).toMatchObject({
+      inputTokens: 8,
+      outputTokens: 5,
+      totalTokens: 13,
+      cacheReadInputTokens: 3,
+      costUsd: 0.02,
+    });
+
+    const span = buildSpan('mcp', 'llm', {
+      response: 'Nested usage works.',
+      usage: {
+        response_metadata: {
+          token_usage: {
+            prompt_tokens: 8,
+            completion_tokens: 5,
+            input_tokens_details: {
+              cached_tokens: 3,
+            },
+            total_cost_usd: 0.02,
+          },
+        },
+      } as any,
+    });
+
+    expect(span).toMatchObject({
+      input_tokens: 8,
+      output_tokens: 5,
+      total_tokens: 13,
+      cache_read_input_tokens: 3,
+      cost_usd: 0.02,
+      attributes: expect.objectContaining({
+        'gen_ai.usage.input_tokens': 8,
+        'gen_ai.usage.output_tokens': 5,
+        'gen_ai.usage.total_tokens': 13,
+        'gen_ai.usage.cache_read_input_tokens': 3,
+        'openbox.usage.cost_usd': 0.02,
+      }),
+    });
+    expect(JSON.parse(String(span.response_body)).usage).toMatchObject({
+      input_tokens: 8,
+      output_tokens: 5,
+      total_tokens: 13,
+      cache_read_input_tokens: 3,
+      cost_usd: 0.02,
+    });
+  });
+
   test('preserves explicit zero usage in completed and generic LLM spans', () => {
     const usage = {
       input_tokens: 0,

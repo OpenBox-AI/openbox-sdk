@@ -477,21 +477,16 @@ def _token_value(source: Mapping[str, Any] | None, keys: list[str]) -> int | Non
         return None
     minimum = _usage_minimum_value()
     for key in keys:
-        value = source.get(key)
-        if isinstance(value, bool):
-            continue
-        if isinstance(value, int) and value >= minimum:
-            return value
+        number_value = _usage_number_value(_field_value(source, key))
         if (
-            isinstance(value, float)
-            and math.isfinite(value)
-            and value >= minimum
+            number_value is not None
+            and number_value >= minimum
             and (
                 not USAGE_NORMALIZATION_SURFACE.get("tokenValuesRequireIntegers", True)
-                or value.is_integer()
+                or number_value.is_integer()
             )
         ):
-            return int(value)
+            return int(number_value)
     return None
 
 
@@ -500,14 +495,23 @@ def _number_value(source: Mapping[str, Any] | None, keys: list[str]) -> float | 
         return None
     minimum = _usage_minimum_value()
     for key in keys:
-        value = source.get(key)
-        if (
-            not isinstance(value, bool)
-            and isinstance(value, int | float)
-            and math.isfinite(value)
-            and value >= minimum
-        ):
-            return float(value)
+        value = _usage_number_value(_field_value(source, key))
+        if value is not None and value >= minimum:
+            return value
+    return None
+
+
+def _usage_number_value(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return float(value) if math.isfinite(value) else None
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = float(value)
+        except ValueError:
+            return None
+        return parsed if math.isfinite(parsed) else None
     return None
 
 

@@ -25,6 +25,7 @@ import {
   N8N_INTEGRATION_SURFACE,
   PLUGIN_CAPABILITY_GUARDS,
   PROVIDER_CAPABILITY_MATRIX,
+  REFERENCE_PROVIDER_PARITY_CLOSURES,
   PROVIDER_EVENT_CATALOG,
   OPENBOX_PROVIDER_IDS,
   OPENBOX_SUPPORT_TIERS,
@@ -73,6 +74,18 @@ function normalizeGuardProofText(value: string): string {
     .toLowerCase();
 }
 
+function expectGuardTestResolves(label: string, guardTest: string): void {
+  const [file, anchor] = guardTest.split('#');
+  expect(file, `${label} guardTest file`).toMatch(/^tests\/.+\.test\.ts$/);
+  expect(anchor, `${label} guardTest anchor`).toBeTruthy();
+
+  const source = readFileSync(resolve(process.cwd(), file), 'utf8');
+  expect(
+    normalizeGuardProofText(source),
+    `${label} guardTest anchor ${guardTest}`,
+  ).toContain(normalizeGuardProofText(anchor));
+}
+
 describe('provider capability matrix', () => {
   it('matches the TypeSpec-emitted provider capability conformance fixture', () => {
     const fixture = readProviderCapabilityFixture();
@@ -83,6 +96,9 @@ describe('provider capability matrix', () => {
     expect(OPENBOX_PROVIDER_IDS).toEqual(fixture.providerIds);
     expect(OPENBOX_SUPPORT_TIERS).toEqual(fixture.supportTiers);
     expect(PROVIDER_CAPABILITY_MATRIX).toEqual(fixture.providerCapabilityMatrix);
+    expect(REFERENCE_PROVIDER_PARITY_CLOSURES).toEqual(
+      fixture.referenceProviderParityClosures,
+    );
     expect(PROVIDER_EVENT_CATALOG).toEqual(fixture.providerEventCatalog);
     expect(PROVIDER_PLUGIN_COMPONENTS).toEqual(fixture.providerPluginComponents);
     expect(PUBLIC_INTEGRATION_SUPPORT).toEqual(fixture.publicIntegrationSupport);
@@ -126,16 +142,48 @@ describe('provider capability matrix', () => {
   it('resolves every capability guardTest to a checked-in test phrase', () => {
     for (const group of GUARD_COVERAGE_GROUPS) {
       for (const guard of group.guards) {
-        const [file, anchor] = guard.guardTest.split('#');
-        expect(file, `${group.name}/${guard.provider} guardTest file`).toMatch(/^tests\/.+\.test\.ts$/);
-        expect(anchor, `${group.name}/${guard.provider} guardTest anchor`).toBeTruthy();
-
-        const source = readFileSync(resolve(process.cwd(), file), 'utf8');
-        expect(
-          normalizeGuardProofText(source),
-          `${group.name}/${guard.provider} guardTest anchor ${guard.guardTest}`,
-        ).toContain(normalizeGuardProofText(anchor));
+        expectGuardTestResolves(`${group.name}/${guard.provider}`, guard.guardTest);
       }
+    }
+  });
+
+  it('pins reference provider parity closures to every non-native capability claim', () => {
+    const statusByTier = new Map([
+      ['wrapped', 'implemented-through-wrapper'],
+      ['observe-only', 'host-owned-observe-only'],
+      ['diagnose-only', 'runtime-diagnostic-only'],
+      ['out-of-scope', 'host-unsupported'],
+    ]);
+    const nonNativeCapabilityClaims = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) => entry.tier !== 'native')
+      .map((entry) => `${entry.provider}/${entry.capability}`)
+      .sort();
+    const closureClaims = REFERENCE_PROVIDER_PARITY_CLOSURES
+      .map((entry) => `${entry.provider}/${entry.capability}`)
+      .sort();
+
+    expect(closureClaims).toEqual(nonNativeCapabilityClaims);
+    expect(new Set(closureClaims).size).toBe(closureClaims.length);
+
+    const matrixByClaim = new Map(
+      PROVIDER_CAPABILITY_MATRIX.map((entry) => [
+        `${entry.provider}/${entry.capability}`,
+        entry,
+      ]),
+    );
+    for (const closure of REFERENCE_PROVIDER_PARITY_CLOSURES) {
+      const claim = `${closure.provider}/${closure.capability}`;
+      const matrixEntry = matrixByClaim.get(claim);
+      expect(matrixEntry, `${claim} matrix entry`).toBeDefined();
+      expect(closure.tier, `${claim} tier`).toBe(matrixEntry?.tier);
+      expect(closure.status, `${claim} status`).toBe(statusByTier.get(closure.tier));
+      expect(closure.referenceSurface.length, `${claim} referenceSurface`).toBeGreaterThan(20);
+      expect(closure.openboxSurface.length, `${claim} openboxSurface`).toBeGreaterThan(20);
+      expect(closure.closureDecision, `${claim} closureDecision`).toMatch(/^Closed as /);
+      expect(closure.closureDecision, `${claim} closureDecision`).not.toMatch(
+        /\b(todo|planned|future|unclosed)\b/i,
+      );
+      expectGuardTestResolves(`reference-closure/${claim}`, closure.guardTest);
     }
   });
 
