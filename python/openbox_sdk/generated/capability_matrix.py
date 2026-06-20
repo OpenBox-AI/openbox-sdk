@@ -1285,9 +1285,9 @@ USAGE_COST_CAPABILITY_GUARDS = [
     "tier": "observe-only",
     "usageSurface": "LangChain/CopilotKit model end events and AG-UI runtime events when usage metadata is present",
     "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
-    "sharedNormalizer": "CopilotKit middleware routes usageMetadata through openBoxUsageTelemetryFields and buildAssistantOutputSpan.",
+    "sharedNormalizer": "CopilotKit middleware and AG-UI events route usage metadata through openBoxUsageTelemetryFields and buildAssistantOutputSpan.",
     "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; CopilotKit only observes model usage.",
-    "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits Core-extractable assistant output spans for goal alignment"
+    "guardTest": "tests/unit/copilotkit-adapter.test.ts#normalizes usage and cost from AG-UI run completion events"
   },
   {
     "provider": "n8n",
