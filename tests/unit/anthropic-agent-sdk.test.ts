@@ -984,7 +984,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     });
   });
 
-  it('prefers Core redacted_output for constrained Anthropic tool output', async () => {
+  it('prefers compatibility redacted_output for constrained Anthropic tool output', async () => {
     const mock = createMockCore((payload) => {
       if (payload.event_type === 'ActivityCompleted') {
         return verdict('constrain', {
@@ -996,7 +996,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
             reasons: [],
             field_results: [{ field: 'output.stdout', status: 'redacted' }],
             raw_logs: {},
-          },
+          } as never,
         });
       }
       return verdict('allow');

@@ -137,7 +137,6 @@ export interface GovernanceVerdictResponse {
 export interface GuardrailsResult {
   input_type: "activity_input" | "activity_output" | "signal_args";
   redacted_input?: unknown;
-  redacted_output?: unknown;
   raw_logs?: Record<string, unknown>;
   validation_passed?: boolean;
   reasons?: GuardrailReason[];

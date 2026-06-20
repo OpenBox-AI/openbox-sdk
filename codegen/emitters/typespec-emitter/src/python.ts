@@ -489,6 +489,8 @@ function emitRuntimeContract(program: Program): string {
   const governanceEventPayload = requireModel(core, 'GovernanceEventPayload');
   const governanceVerdictResponse = requireModel(core, 'GovernanceVerdictResponse');
   const guardrailsResult = requireModel(core, 'GuardrailsResult');
+  const guardrailsVerdictResult = requireModel(core, 'GuardrailsVerdictResult');
+  const guardrailFieldResult = requireModel(core, 'GuardrailFieldResult');
   const approvalStatusResponse = requireModel(core, 'ApprovalStatusResponse');
   const spanData = requireModel(core, 'SpanData');
   const sourceAttribution = requireModel(govern, 'SourceAttributionContract');
@@ -636,7 +638,7 @@ function emitRuntimeContract(program: Program): string {
     [
       { target: 'inputType', core: 'input_type', govern: 'inputType' },
       { target: 'redactedInput', core: 'redacted_input', govern: 'redactedInput' },
-      { target: 'redactedOutput', core: 'redacted_output', govern: 'redactedOutput' },
+      { target: 'redactedOutput', govern: 'redactedOutput', extra: 'redacted_output' },
       { target: 'validationPassed', core: 'validation_passed', govern: 'validationPassed' },
       { target: 'rawLogs', core: 'raw_logs', govern: 'rawLogs' },
       { target: 'reasons', core: 'reasons', govern: 'reasons' },
@@ -647,6 +649,28 @@ function emitRuntimeContract(program: Program): string {
       { name: 'govern', fields: modelPropertyNames(guardrailsVerdict) },
     ],
     'GUARDRAILS_RESULT_FIELD_ALIASES',
+  );
+  const guardrailFieldResultFieldAliases = validatedAliasMap(
+    [
+      { target: 'field', core: 'field', govern: 'field' },
+      { target: 'guardrailType', govern: 'guardrailType', extra: 'guardrail_type' },
+      { target: 'order', core: 'order', govern: 'order' },
+      { target: 'status', core: 'status', govern: 'status' },
+      { target: 'reason', core: 'reason', govern: 'reason' },
+    ],
+    [
+      { name: 'core', fields: modelPropertyNames(guardrailFieldResult) },
+      { name: 'govern', fields: modelPropertyNames(guardrailFieldVerdict) },
+    ],
+    'GUARDRAIL_FIELD_RESULT_FIELD_ALIASES',
+  );
+  const guardrailsResultGroupFieldAliases = validatedAliasMap(
+    [
+      { target: 'guardrailType', core: 'guardrail_type', extra: 'guardrailType' },
+      { target: 'results', core: 'results' },
+    ],
+    [{ name: 'core', fields: modelPropertyNames(guardrailsVerdictResult) }],
+    'GUARDRAILS_RESULT_GROUP_FIELD_ALIASES',
   );
   const approvalStatusFieldAliases = validatedAliasMap(
     [
@@ -718,6 +742,8 @@ GOVERNED_PAYLOAD_FIELD_ALIASES = ${py(governedPayloadFieldAliases)}
 WORKFLOW_VERDICT_FIELD_ALIASES = ${py(workflowVerdictFieldAliases)}
 GUARDRAILS_RESULT_RESPONSE_ALIASES = ${py(workflowVerdictFieldAliases.guardrailsResult)}
 GUARDRAILS_RESULT_FIELD_ALIASES = ${py(guardrailsResultFieldAliases)}
+GUARDRAIL_FIELD_RESULT_FIELD_ALIASES = ${py(guardrailFieldResultFieldAliases)}
+GUARDRAILS_RESULT_GROUP_FIELD_ALIASES = ${py(guardrailsResultGroupFieldAliases)}
 APPROVAL_STATUS_FIELD_ALIASES = ${py(approvalStatusFieldAliases)}
 APPROVAL_EXPIRY_ALIASES = ${py(uniqueStrings([...approvalStatusFieldAliases.approvalExpiresAt, 'expires_at', 'expiresAt']))}
 TELEMETRY_FIELD_ALIASES = ${py(Object.fromEntries(telemetryFieldAliases.map(([snake, camel]) => [snake, [snake, camel]])))}

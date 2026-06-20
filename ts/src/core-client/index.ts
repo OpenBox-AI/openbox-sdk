@@ -62,6 +62,7 @@ export {
   PRESET_MANIFEST,
   BaseGovernedSession,
   SessionAlreadyTerminatedError,
+  mapGuardrailsResult,
 } from './generated/govern.js';
 export type {
   PresetName,

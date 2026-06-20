@@ -377,6 +377,10 @@ enum VerdictArm {
  */
 model GuardrailFieldVerdict {
   field: string;
+  /** Guardrail group/type that produced this field outcome, when Core returns grouped results. */
+  guardrailType?: string;
+  /** Field evaluation order from Core's GuardrailFieldResult. */
+  order?: int32;
   status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
   reason?: string;
 }
@@ -411,10 +415,11 @@ model GuardrailsVerdict {
   redactedInput?: unknown;
 
   /**
-   * Output-specific redacted payload. Some backend/Core paths expose
-   * output transforms separately from `redactedInput`; SDKs should
-   * prefer this value for `activity_output` redaction and fall back to
-   * `redactedInput` for older Core responses.
+   * Output-specific redacted payload for SDK/provider compatibility.
+   * Core's public GuardrailsResult uses `redacted_input` as the
+   * canonical validated payload, including `activity_output`; adapters
+   * may still prefer this value when a provider bridge supplies it and
+   * fall back to `redactedInput` for Core responses.
    */
   redactedOutput?: unknown;
 

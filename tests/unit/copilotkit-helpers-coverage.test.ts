@@ -488,9 +488,10 @@ describe('copilotkit helper coverage', () => {
       field_results: [{ field: 'aa', status: 'redacted', reason: 'direct' }],
       results: [
         {
+          guardrail_type: 'pii',
           results: [
-            { field: 'b', status: 'transformed' },
-            { field: 'c', status: 'allow' },
+            { field: 'b', order: 0, status: 'transformed' },
+            { field: 'c', order: 1, status: 'allow' },
           ],
         },
       ],
@@ -505,8 +506,8 @@ describe('copilotkit helper coverage', () => {
       fieldResults: [
         { field: 'a', status: 'blocked', reason: 'bad' },
         { field: 'aa', status: 'redacted', reason: 'direct' },
-        { field: 'b', status: 'transformed', reason: undefined },
-        { field: 'c', status: 'allowed', reason: undefined },
+        { field: 'b', guardrailType: 'pii', order: 0, status: 'transformed', reason: undefined },
+        { field: 'c', guardrailType: 'pii', order: 1, status: 'allowed', reason: undefined },
       ],
     });
     expect(mapGuardrailsResult(null)).toBeUndefined();

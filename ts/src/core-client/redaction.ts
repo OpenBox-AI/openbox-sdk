@@ -4,8 +4,8 @@
 // writing a redacted file or sending a redacted prompt to an LLM.
 //
 // The input shape `GuardrailsVerdict` is the spec-driven verdict
-// envelope. The camelCase `inputType`, `redactedInput`, and
-// `redactedOutput` are the canonical field names.
+// envelope. `redactedInput` is the Core-canonical validated payload;
+// `redactedOutput` is retained as an SDK/provider compatibility alias.
 import type { WorkflowVerdict } from './generated/govern.js';
 
 type GuardrailsVerdict = NonNullable<WorkflowVerdict['guardrailsResult']>;
@@ -105,9 +105,9 @@ export function applyInputRedaction<T = unknown>(
 }
 
 /**
- * Apply core's output redaction over the ORIGINAL activity output. Newer
- * responses may set `redactedOutput`; older Core paths still put output
- * transforms in `redactedInput`, so keep that fallback.
+ * Apply core's output redaction over the ORIGINAL activity output. Provider
+ * bridges may set `redactedOutput`; Core puts output transforms in
+ * `redactedInput`, so keep that fallback.
  */
 export function applyOutputRedaction<T = unknown>(
   originalOutput: T,
