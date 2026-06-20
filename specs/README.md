@@ -1,7 +1,7 @@
 # specs/
 
-The TypeSpec contract source for the TypeScript SDK and any future
-SDK tracks.
+The canonical TypeSpec contract source for OpenBox SDK language tracks,
+including the current TypeScript and Python SDKs and future targets.
 
 | File or dir | Role |
 |---|---|
@@ -18,9 +18,10 @@ npm run specs:all          # compatibility alias for generate:sdks
 ```
 
 The OpenBox emitter under
-`codegen/emitters/typespec-emitter/` writes generated SDK
-artifacts for language targets such as TypeScript and Python. The
-hand-written files only consume those generated artifacts.
+`codegen/emitters/typespec-emitter/` writes generated SDK artifacts and
+contract metadata maps for language targets such as TypeScript and Python.
+Hand-written runtime files consume those generated artifacts; they do not
+redefine public contract shapes locally.
 
 ## Drift detection
 
