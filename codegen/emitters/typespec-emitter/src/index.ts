@@ -1160,7 +1160,7 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     '',
     `export interface ProviderPluginComponentCatalogEntry {`,
     `  provider: OpenBoxProviderId;`,
-    `  components: readonly { name: string; tier: OpenBoxSupportTier; path?: string; reason: string }[];`,
+    `  components: readonly { name: string; tier: OpenBoxSupportTier; surface?: string; path?: string; reason: string }[];`,
     `}`,
     '',
     `export interface PublicIntegrationSupportEntry {`,

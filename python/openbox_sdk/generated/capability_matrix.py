@@ -931,56 +931,93 @@ PROVIDER_PLUGIN_COMPONENTS = [
       {
         "name": "plugin-manifest",
         "tier": "native",
+        "surface": "plugin",
         "path": ".cursor-plugin/plugin.json",
         "reason": "Cursor local plugin metadata."
       },
       {
         "name": "marketplace",
         "tier": "native",
+        "surface": "plugin",
         "path": ".cursor-plugin/marketplace.json",
         "reason": "Cursor marketplace-style metadata."
       },
       {
         "name": "hooks",
         "tier": "native",
+        "surface": "plugin",
         "path": "hooks/hooks.json",
-        "reason": "Plugin hook config; repo mode writes .cursor/hooks.json."
+        "reason": "Plugin hook config."
       },
       {
         "name": "mcp",
         "tier": "native",
+        "surface": "plugin",
         "path": "mcp.json",
-        "reason": "Plugin MCP config; repo mode writes .cursor/mcp.json."
+        "reason": "Plugin MCP config."
       },
       {
         "name": "rules",
         "tier": "native",
+        "surface": "plugin",
         "path": "rules/openbox.mdc",
         "reason": "Cursor .mdc governance projection."
       },
       {
         "name": "commands",
         "tier": "native",
+        "surface": "plugin",
         "path": "commands/",
         "reason": "Cursor slash command markdown files."
       },
       {
         "name": "agents",
         "tier": "native",
+        "surface": "plugin",
         "path": "agents/openbox-reviewer.md",
         "reason": "Cursor agent template."
       },
       {
         "name": "skills",
         "tier": "native",
+        "surface": "plugin",
         "path": "skills/openbox/SKILL.md",
-        "reason": "Plugin skill bundle; repo mode writes .agents/skills/openbox."
+        "reason": "Plugin skill bundle."
       },
       {
         "name": "workspaceOpen",
         "tier": "wrapped",
+        "surface": "plugin",
         "path": "workspaceOpen.json",
         "reason": "Metadata hint for workspace plugin discovery/loading."
+      },
+      {
+        "name": "repo-hooks",
+        "tier": "native",
+        "surface": "repo",
+        "path": ".cursor/hooks.json",
+        "reason": "Cloud-compatible repo hook config."
+      },
+      {
+        "name": "repo-mcp",
+        "tier": "native",
+        "surface": "repo",
+        "path": ".cursor/mcp.json",
+        "reason": "Cloud-compatible repo MCP config."
+      },
+      {
+        "name": "repo-rules",
+        "tier": "native",
+        "surface": "repo",
+        "path": ".cursor/rules/openbox-governance.mdc",
+        "reason": "Cloud-compatible repo .mdc governance projection."
+      },
+      {
+        "name": "repo-skill",
+        "tier": "native",
+        "surface": "repo",
+        "path": ".agents/skills/openbox/SKILL.md",
+        "reason": "Project-local skill install for repo-mode discovery."
       }
     ]
   },

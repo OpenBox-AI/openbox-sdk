@@ -635,8 +635,30 @@ describe('provider capability matrix', () => {
       expect.arrayContaining(['manifest', 'marketplace', 'skills', 'repo-skill', 'hooks', 'mcp', 'agents-md', 'rules']),
     );
     expect(byProvider.get('cursor')?.map((entry) => entry.name)).toEqual(
-      expect.arrayContaining(['plugin-manifest', 'hooks', 'mcp', 'rules', 'commands', 'agents', 'skills', 'workspaceOpen']),
+      expect.arrayContaining([
+        'plugin-manifest',
+        'hooks',
+        'mcp',
+        'rules',
+        'commands',
+        'agents',
+        'skills',
+        'workspaceOpen',
+        'repo-hooks',
+        'repo-mcp',
+        'repo-rules',
+        'repo-skill',
+      ]),
     );
+    const cursorRepoComponents = (byProvider.get('cursor') ?? []).filter(
+      (entry) => (entry as { surface?: string }).surface === 'repo',
+    );
+    expect(cursorRepoComponents.map((entry) => (entry as { path?: string }).path)).toEqual([
+      '.cursor/hooks.json',
+      '.cursor/mcp.json',
+      '.cursor/rules/openbox-governance.mdc',
+      '.agents/skills/openbox/SKILL.md',
+    ]);
     expect(byProvider.get('claude-code')?.find((entry) => entry.name === 'lsp')?.tier).toBe('out-of-scope');
     expect(byProvider.get('claude-code')?.find((entry) => entry.name === 'monitors')?.tier).toBe('diagnose-only');
   });

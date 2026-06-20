@@ -24,9 +24,19 @@ function tempDir(): string {
 const CURSOR_COMPONENTS = PROVIDER_PLUGIN_COMPONENTS.find(
   (entry) => entry.provider === 'cursor',
 )!.components;
+type CursorComponent = (typeof CURSOR_COMPONENTS)[number];
+const CURSOR_PLUGIN_COMPONENTS = CURSOR_COMPONENTS.filter(
+  (component) => component.surface !== 'repo',
+) as readonly CursorComponent[];
+const CURSOR_REPO_COMPONENTS = CURSOR_COMPONENTS.filter(
+  (component) => component.surface === 'repo',
+) as readonly CursorComponent[];
 
-function assertSpecComponentPathsExist(root: string): void {
-  for (const component of CURSOR_COMPONENTS) {
+function assertSpecComponentPathsExist(
+  root: string,
+  components: readonly CursorComponent[] = CURSOR_PLUGIN_COMPONENTS,
+): void {
+  for (const component of components) {
     expect(component.path, `Cursor plugin component ${component.name} path`).toBeTruthy();
     expect(fs.existsSync(path.join(root, component.path!)), component.name).toBe(true);
   }
@@ -117,6 +127,7 @@ describe('Cursor plugin asset', () => {
     expect(fs.existsSync(path.join(cwd, '.cursor', 'mcp.json'))).toBe(true);
     expect(fs.existsSync(path.join(cwd, '.cursor', 'rules', 'openbox-governance.mdc'))).toBe(true);
     expect(fs.existsSync(path.join(cwd, '.agents', 'skills', 'openbox', 'SKILL.md'))).toBe(true);
+    assertSpecComponentPathsExist(cwd, CURSOR_REPO_COMPONENTS);
     expect(verifyCursorRepoMode({ cwd }).every((check) => check.status === 'pass')).toBe(true);
 
     uninstallCursorRepoMode({ cwd, removeSkill: true });
