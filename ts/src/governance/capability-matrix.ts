@@ -26,6 +26,7 @@ export {
   MCP_TOOL_SURFACES,
   MCP_PROMPT_SURFACES,
   MCP_RESOURCE_TEMPLATE_SURFACES,
+  MCP_SKILL_REFERENCE_SURFACES,
   N8N_INTEGRATION_SURFACE,
 } from './generated/capability-matrix.js';
 export type {
@@ -47,6 +48,7 @@ export type {
   InstallDoctorCapabilityGuardEntry,
   McpPromptSurfaceEntry,
   McpResourceTemplateSurfaceEntry,
+  McpSkillReferenceSurfaceEntry,
   McpToolSurfaceEntry,
   N8nIntegrationSurface,
   ProviderCapabilityEntry,

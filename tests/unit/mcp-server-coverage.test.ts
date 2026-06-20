@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import {
   MCP_PROMPT_SURFACES,
   MCP_RESOURCE_TEMPLATE_SURFACES,
+  MCP_SKILL_REFERENCE_SURFACES,
   MCP_TOOL_SURFACES,
 } from '../../ts/src/governance/capability-matrix.js';
 
@@ -40,9 +41,17 @@ interface CapturedResource {
   cb: (...args: any[]) => Promise<any>;
 }
 
+interface CapturedStaticResource {
+  name: string;
+  uri: string;
+  meta: any;
+  cb: (...args: any[]) => Promise<any>;
+}
+
 const captured: CapturedTool[] = [];
 const capturedPrompts: CapturedPrompt[] = [];
 const capturedResources: CapturedResource[] = [];
+const capturedStaticResources: CapturedStaticResource[] = [];
 const realFetch = globalThis.fetch;
 const mockState = vi.hoisted(() => ({
   clientName: 'mock-mcp-client',
@@ -85,9 +94,8 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => {
       registerResource(name: string, uriOrTemplate: any, config: any, cb: any) {
         capturedResources.push({ name, uriOrTemplate, config, cb });
       }
-      resource(_name: string, _uri: string, _meta: any, _cb: any) {
-        // not exercised in coverage; but accept calls so registration
-        // doesn't throw.
+      resource(name: string, uri: string, meta: any, cb: any) {
+        capturedStaticResources.push({ name, uri, meta, cb });
       }
       async connect(_t: any) {
         // No-op; the real connect would block on stdio.
@@ -123,6 +131,7 @@ beforeEach(() => {
   captured.length = 0;
   capturedPrompts.length = 0;
   capturedResources.length = 0;
+  capturedStaticResources.length = 0;
   mockState.clientName = 'mock-mcp-client';
   mockState.httpHandled = 0;
   mockState.httpClosed = 0;
@@ -302,6 +311,16 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
         mimeType: 'application/json',
       });
       expect(agentResource.uriOrTemplate.uriTemplate.toString()).toBe('openbox://agent/{agent_id}');
+
+      expect(capturedStaticResources.map((resource) => resource.name)).toEqual(
+        MCP_SKILL_REFERENCE_SURFACES.map((surface) => surface.name),
+      );
+      for (const surface of MCP_SKILL_REFERENCE_SURFACES) {
+        const resource = capturedStaticResources.find((entry) => entry.name === surface.name);
+        expect(resource, `missing MCP skill reference ${surface.name}`).toBeDefined();
+        expect(resource!.uri).toBe(`openbox://skill/${surface.name}`);
+        expect(resource!.meta.description).toBe(surface.description);
+      }
     });
   });
 

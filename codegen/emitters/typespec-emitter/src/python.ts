@@ -294,6 +294,7 @@ INSTALL_DOCTOR_CAPABILITY_GUARDS = ${py(matrix.installDoctorCapabilityGuards)}
 MCP_TOOL_SURFACES = ${py(matrix.mcpTools)}
 MCP_PROMPT_SURFACES = ${py(matrix.mcpPrompts)}
 MCP_RESOURCE_TEMPLATE_SURFACES = ${py(matrix.mcpResourceTemplates)}
+MCP_SKILL_REFERENCE_SURFACES = ${py(matrix.mcpSkillReferences)}
 N8N_INTEGRATION_SURFACE = ${py(matrix.n8nIntegration)}
 `;
 }

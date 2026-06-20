@@ -2386,6 +2386,53 @@ MCP_RESOURCE_TEMPLATE_SURFACES = [
     "mimeType": "text/markdown"
   }
 ]
+MCP_SKILL_REFERENCE_SURFACES = [
+  {
+    "name": "governance-flow",
+    "path": "references/governance-flow.md",
+    "description": "Event protocol, wire format, verdicts, approval polling, spec-vs-implementation mismatches"
+  },
+  {
+    "name": "guardrails",
+    "path": "references/guardrails.md",
+    "description": "Guardrail configuration: numeric IDs, stage gating, legacy binding no-ops, per-field status, backend validation gaps"
+  },
+  {
+    "name": "behaviors",
+    "path": "references/behaviors.md",
+    "description": "Behavior rules: trigger/states enum, time_window, priority, active toggle, shell-as-internal"
+  },
+  {
+    "name": "backend-api",
+    "path": "references/backend-api.md",
+    "description": "Backend conventions: {status,data} envelope, X-Openbox-Client header, /auth/refresh caveats, OpenAPI availability"
+  },
+  {
+    "name": "rego-reference",
+    "path": "references/rego-reference.md",
+    "description": "Rego policy syntax, input fields, example policies, policy lifecycle gotchas"
+  },
+  {
+    "name": "span-reference",
+    "path": "references/span-reference.md",
+    "description": "Span types, gate attributes, semantic type detection"
+  },
+  {
+    "name": "commands",
+    "path": "references/commands.md",
+    "description": "Full CLI command reference"
+  },
+  {
+    "name": "claude-code-governance",
+    "path": "references/claude-code-governance.md",
+    "description": "Claude Code hook/plugin/MCP governance surface audit and coverage matrix"
+  },
+  {
+    "name": "existing-sdks",
+    "path": "references/existing-sdks.md",
+    "description": "Available SDKs and installation"
+  }
+]
 N8N_INTEGRATION_SURFACE = {
   "credentials": [
     {

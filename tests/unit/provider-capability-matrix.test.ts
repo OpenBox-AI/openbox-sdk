@@ -20,6 +20,7 @@ import {
   POLICY_EVALUATION_GUARDS,
   MCP_PROMPT_SURFACES,
   MCP_RESOURCE_TEMPLATE_SURFACES,
+  MCP_SKILL_REFERENCE_SURFACES,
   MCP_TOOL_SURFACES,
   N8N_INTEGRATION_SURFACE,
   PLUGIN_CAPABILITY_GUARDS,
@@ -104,6 +105,7 @@ describe('provider capability matrix', () => {
     expect(MCP_TOOL_SURFACES).toEqual(fixture.mcpToolSurfaces);
     expect(MCP_PROMPT_SURFACES).toEqual(fixture.mcpPromptSurfaces);
     expect(MCP_RESOURCE_TEMPLATE_SURFACES).toEqual(fixture.mcpResourceTemplateSurfaces);
+    expect(MCP_SKILL_REFERENCE_SURFACES).toEqual(fixture.mcpSkillReferenceSurfaces);
     expect(N8N_INTEGRATION_SURFACE).toEqual(fixture.n8nIntegrationSurface);
   });
 

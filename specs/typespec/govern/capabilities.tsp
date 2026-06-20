@@ -232,6 +232,12 @@ namespace OpenboxGovern.Capabilities {
     mimeType: string;
   }
 
+  model McpSkillReferenceSurfaceEntry {
+    name: string;
+    path: string;
+    description: string;
+  }
+
   model N8nIntegrationSurface {
     credentials: Record<unknown>[];
     nodes: Record<unknown>[];
@@ -575,6 +581,17 @@ namespace OpenboxGovern.Capabilities {
     #{ name: "behavior-rule", title: "OpenBox Behavior Rule", uriTemplate: "openbox://agent/{agent_id}/behavior-rule/{behavior_rule_id}", description: "OpenBox behavior-rule record for an agent.", mimeType: "application/json" },
     #{ name: "approval", title: "OpenBox Approval", uriTemplate: "openbox://agent/{agent_id}/approval/{approval_id}", description: "OpenBox pending or historical approval record.", mimeType: "application/json" },
     #{ name: "skill-reference", title: "OpenBox Skill Reference", uriTemplate: "openbox://skill/{name}", description: "OpenBox skill reference markdown installed by host plugins.", mimeType: "text/markdown" },
+  ],
+  mcpSkillReferences: #[
+    #{ name: "governance-flow", path: "references/governance-flow.md", description: "Event protocol, wire format, verdicts, approval polling, spec-vs-implementation mismatches" },
+    #{ name: "guardrails", path: "references/guardrails.md", description: "Guardrail configuration: numeric IDs, stage gating, legacy binding no-ops, per-field status, backend validation gaps" },
+    #{ name: "behaviors", path: "references/behaviors.md", description: "Behavior rules: trigger/states enum, time_window, priority, active toggle, shell-as-internal" },
+    #{ name: "backend-api", path: "references/backend-api.md", description: "Backend conventions: {status,data} envelope, X-Openbox-Client header, /auth/refresh caveats, OpenAPI availability" },
+    #{ name: "rego-reference", path: "references/rego-reference.md", description: "Rego policy syntax, input fields, example policies, policy lifecycle gotchas" },
+    #{ name: "span-reference", path: "references/span-reference.md", description: "Span types, gate attributes, semantic type detection" },
+    #{ name: "commands", path: "references/commands.md", description: "Full CLI command reference" },
+    #{ name: "claude-code-governance", path: "references/claude-code-governance.md", description: "Claude Code hook/plugin/MCP governance surface audit and coverage matrix" },
+    #{ name: "existing-sdks", path: "references/existing-sdks.md", description: "Available SDKs and installation" },
   ],
   n8nIntegration: #{
     credentials: #[

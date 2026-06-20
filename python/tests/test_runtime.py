@@ -39,6 +39,7 @@ from openbox_sdk.generated.capability_matrix import (
     MCP_CAPABILITY_GUARDS,
     MCP_PROMPT_SURFACES,
     MCP_RESOURCE_TEMPLATE_SURFACES,
+    MCP_SKILL_REFERENCE_SURFACES,
     MCP_TOOL_SURFACES,
     N8N_INTEGRATION_SURFACE,
     OPENBOX_CAPABILITY_IDS,
@@ -445,6 +446,7 @@ def test_generated_python_matches_typespec_capability_fixture() -> None:
     assert MCP_TOOL_SURFACES == fixture["mcpToolSurfaces"]
     assert MCP_PROMPT_SURFACES == fixture["mcpPromptSurfaces"]
     assert MCP_RESOURCE_TEMPLATE_SURFACES == fixture["mcpResourceTemplateSurfaces"]
+    assert MCP_SKILL_REFERENCE_SURFACES == fixture["mcpSkillReferenceSurfaces"]
     assert N8N_INTEGRATION_SURFACE == fixture["n8nIntegrationSurface"]
 
 

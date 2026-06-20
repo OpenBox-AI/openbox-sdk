@@ -1114,6 +1114,7 @@ interface ProviderCapabilityConformancePayload {
   mcpToolSurfaces: unknown;
   mcpPromptSurfaces: unknown;
   mcpResourceTemplateSurfaces: unknown;
+  mcpSkillReferenceSurfaces: unknown;
   n8nIntegrationSurface: unknown;
 }
 
@@ -1333,6 +1334,12 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  mimeType: string;`,
     `}`,
     '',
+    `export interface McpSkillReferenceSurfaceEntry {`,
+    `  name: string;`,
+    `  path: string;`,
+    `  description: string;`,
+    `}`,
+    '',
     `export interface N8nIntegrationSurface {`,
     `  credentials: readonly Record<string, unknown>[];`,
     `  nodes: readonly Record<string, unknown>[];`,
@@ -1379,6 +1386,8 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `export const MCP_PROMPT_SURFACES = ${literalTs(conformance.mcpPromptSurfaces)} as const satisfies readonly McpPromptSurfaceEntry[];`,
     '',
     `export const MCP_RESOURCE_TEMPLATE_SURFACES = ${literalTs(conformance.mcpResourceTemplateSurfaces)} as const satisfies readonly McpResourceTemplateSurfaceEntry[];`,
+    '',
+    `export const MCP_SKILL_REFERENCE_SURFACES = ${literalTs(conformance.mcpSkillReferenceSurfaces)} as const satisfies readonly McpSkillReferenceSurfaceEntry[];`,
     '',
     `export const N8N_INTEGRATION_SURFACE = ${literalTs(conformance.n8nIntegrationSurface)} as const satisfies N8nIntegrationSurface;`,
   ]);
@@ -1496,6 +1505,7 @@ function providerCapabilityConformancePayload(
     mcpToolSurfaces: matrix.mcpTools,
     mcpPromptSurfaces: matrix.mcpPrompts,
     mcpResourceTemplateSurfaces: matrix.mcpResourceTemplates,
+    mcpSkillReferenceSurfaces: matrix.mcpSkillReferences,
     n8nIntegrationSurface: matrix.n8nIntegration,
   };
 }
