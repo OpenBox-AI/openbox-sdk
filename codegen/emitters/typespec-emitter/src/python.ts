@@ -114,7 +114,13 @@ export function emitPythonSdk(program: Program, repoRoot: string): void {
   writePythonFile(resolvePath(outDir, 'capability_matrix.py'), emitCapabilityMatrix(program));
   writePythonFile(resolvePath(outDir, 'sdk_targets.py'), emitSdkTargets(program));
   writePythonFile(resolvePath(outDir, 'govern.py'), emitGovern(governManifest));
-  writePythonFile(resolvePath(outDir, 'rules_projection.py'), emitRulesProjection(program));
+  writePythonFile(
+    resolvePath(outDir, 'rules_projection.py'),
+    emitPythonNamespaceTypes(program, {
+      namespaceName: 'OpenboxGovern.RulesProjection',
+      sourceComment: 'Generated from TypeSpec rules projection contracts.',
+    }),
+  );
   writePythonFile(resolvePath(outDir, 'runtime_contract.py'), emitRuntimeContract(program));
 }
 
@@ -331,15 +337,23 @@ __all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "SDK_G
 `;
 }
 
-function emitRulesProjection(program: Program): string {
-  const ns = findNamespace(program, 'OpenboxGovern.RulesProjection');
+interface PythonNamespaceTypesOptions {
+  namespaceName: string;
+  sourceComment: string;
+}
+
+function emitPythonNamespaceTypes(
+  program: Program,
+  opts: PythonNamespaceTypesOptions,
+): string {
+  const ns = findNamespace(program, opts.namespaceName);
   if (!ns) {
     return `${PYTHON_BANNER}__all__: list[str] = []\n`;
   }
 
   const lines = [
     PYTHON_BANNER.trimEnd(),
-    '# Generated from TypeSpec rules projection contracts.',
+    `# ${opts.sourceComment}`,
     'from typing import Any, Literal, NotRequired, TypedDict',
     '',
   ];

@@ -40,6 +40,14 @@ describe('governance rules projection coverage', () => {
     expect(runtime).not.toContain('hand-mirrored from the TypeSpec model');
   });
 
+  it('emits Python rules projection from the shared namespace type emitter', () => {
+    const emitter = readFileSync('codegen/emitters/typespec-emitter/src/python.ts', 'utf-8');
+    expect(emitter).toContain('function emitPythonNamespaceTypes');
+    expect(emitter).toContain("namespaceName: 'OpenboxGovern.RulesProjection'");
+    expect(emitter).toContain("resolvePath(outDir, 'rules_projection.py')");
+    expect(emitter).not.toContain('function emitRulesProjection');
+  });
+
   it('projects active guardrails and policies from backend envelopes', async () => {
     const { fetchRulesProjection } = await import(
       '../../ts/src/governance/rules-projection.ts'
