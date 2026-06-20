@@ -57,11 +57,17 @@ export {
 } from './skip-patterns.js';
 export {
   fetchRulesProjection,
+  renderClaudeInstructionsMarkdown,
+  renderCodexAgentsMarkdown,
+  renderCodexCommandRules,
   type ProjectedRule,
   type RulesProjection,
   type RuleTrigger,
   type RuleSeverity,
   type FetchProjectionOpts,
+  type ClaudeInstructionsRenderOptions,
+  type CodexInstructionRenderOptions,
+  type CodexCommandRulesRenderOptions,
 } from './rules-projection.js';
 export {
   OPENBOX_CAPABILITY_IDS,
