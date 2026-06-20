@@ -1564,7 +1564,7 @@
       "allowedProjectionWork": "Render instruction summaries, skill references, source counts, and exact shell command-prefix execution policy only.",
       "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or broad policy translation in SDK/runtime code",
       "hostBoundary": "AGENTS.md and skills are advisory instruction surfaces; .codex/rules is limited to command-prefix execution policy and Core verdicts remain enforcement.",
-      "guardTest": "tests/unit/rules-projection-coverage.test.ts#renders Codex AGENTS instructions and exact shell-prefix command rules without local policy evaluation"
+      "guardTest": "tests/unit/rules-projection-coverage.test.ts#renders instruction projections and exact Codex command rules without local policy evaluation"
     },
     {
       "provider": "cursor",

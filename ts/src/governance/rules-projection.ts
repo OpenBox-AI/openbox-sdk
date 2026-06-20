@@ -38,6 +38,11 @@ export interface CodexCommandRulesRenderOptions {
   header?: string;
 }
 
+export interface ClaudeInstructionsRenderOptions {
+  commandPrefix?: string;
+  title?: string;
+}
+
 const PROJECTION_VERSION = 1;
 
 interface BackendGuardrail {
@@ -280,13 +285,7 @@ export function renderCodexAgentsMarkdown(
 ): string {
   const skillName = options.skillName ?? 'openbox';
   const title = options.title ?? 'OpenBox Governance';
-  const counts = projection.rules.reduce<Record<ProjectedRule['source'], number>>(
-    (acc, rule) => {
-      acc[rule.source] += 1;
-      return acc;
-    },
-    { guardrail: 0, policy: 0, 'behavior-rule': 0 },
-  );
+  const counts = projectionCounts(projection);
   return [
     `# ${title}`,
     '',
@@ -303,6 +302,41 @@ export function renderCodexAgentsMarkdown(
     `- Guardrails: ${counts.guardrail}`,
     `- Policies: ${counts.policy}`,
     `- Behavior rules: ${counts['behavior-rule']}`,
+    '',
+  ].join('\n');
+}
+
+export function renderClaudeInstructionsMarkdown(
+  projection: RulesProjection,
+  options: ClaudeInstructionsRenderOptions = {},
+): string {
+  const title = options.title ?? 'OpenBox Governance for Claude Code';
+  const commandPrefix = options.commandPrefix ?? '/openbox';
+  const counts = projectionCounts(projection);
+  return [
+    `# ${title}`,
+    '',
+    'OpenBox Core/backend is the source of truth for guardrails, OPA/Rego policies, behavior rules, trust, approvals, cost, usage, and goal alignment.',
+    '',
+    'Use the OpenBox Claude Code plugin, MCP tools, or slash commands before advising or executing governed work:',
+    '',
+    `- \`${commandPrefix}-status\`: inspect backend, MCP, and plugin readiness.`,
+    `- \`${commandPrefix}-check\`: send a proposed action to Core before execution.`,
+    `- \`${commandPrefix}-pending\`: inspect HITL approvals and preserve source attribution.`,
+    '',
+    'Do not evaluate OPA/Rego, behavior-rule predicates, guardrail logic, or approval policy locally. Send complete spans and source-attributed inputs to OpenBox Core and enforce the returned verdict fail-closed.',
+    '',
+    'Projection summary:',
+    '',
+    `- Agent: \`${projection.agentId}\``,
+    `- Fetched: \`${projection.fetchedAt}\``,
+    `- Guardrails: ${counts.guardrail}`,
+    `- Policies: ${counts.policy}`,
+    `- Behavior rules: ${counts['behavior-rule']}`,
+    '',
+    ...renderClaudeRuleSection('Guardrails', rulesBySource(projection, 'guardrail')),
+    ...renderClaudeRuleSection('Policies', rulesBySource(projection, 'policy')),
+    ...renderClaudeRuleSection('Behavior Rules', rulesBySource(projection, 'behavior-rule')),
     '',
   ].join('\n');
 }
@@ -327,6 +361,39 @@ export function renderCodexCommandRules(
     lines.push('');
   }
   return lines.join('\n');
+}
+
+function projectionCounts(projection: RulesProjection): Record<ProjectedRule['source'], number> {
+  return projection.rules.reduce<Record<ProjectedRule['source'], number>>(
+    (acc, rule) => {
+      acc[rule.source] += 1;
+      return acc;
+    },
+    { guardrail: 0, policy: 0, 'behavior-rule': 0 },
+  );
+}
+
+function rulesBySource(
+  projection: RulesProjection,
+  source: ProjectedRule['source'],
+): ProjectedRule[] {
+  return projection.rules.filter((rule) => rule.source === source);
+}
+
+function renderClaudeRuleSection(title: string, rules: ProjectedRule[]): string[] {
+  const lines = [`## ${title}`, ''];
+  if (rules.length === 0) {
+    lines.push('- None projected.');
+    return lines;
+  }
+  for (const rule of rules) {
+    lines.push(`- [${rule.severity}] ${rule.description} (${rule.id})`);
+    if (rule.trigger === 'globMatch' && rule.globs?.length) {
+      lines.push(`  - Files: ${rule.globs.map((glob) => `\`${glob}\``).join(', ')}`);
+    }
+    lines.push(`  - Trigger: \`${rule.trigger}\``);
+  }
+  return lines;
 }
 
 function commandRuleFromProjection(

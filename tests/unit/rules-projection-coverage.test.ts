@@ -172,8 +172,12 @@ describe('governance rules projection coverage', () => {
     });
   });
 
-  it('renders Codex AGENTS instructions and exact shell-prefix command rules without local policy evaluation', async () => {
-    const { renderCodexAgentsMarkdown, renderCodexCommandRules } = await import(
+  it('renders instruction projections and exact Codex command rules without local policy evaluation', async () => {
+    const {
+      renderClaudeInstructionsMarkdown,
+      renderCodexAgentsMarkdown,
+      renderCodexCommandRules,
+    } = await import(
       '../../ts/src/governance/rules-projection.ts'
     );
     const projection: RulesProjection = {
@@ -225,6 +229,18 @@ describe('governance rules projection coverage', () => {
     expect(agents).toContain('- Guardrails: 1');
     expect(agents).toContain('- Policies: 1');
     expect(agents).toContain('- Behavior rules: 2');
+
+    const claude = renderClaudeInstructionsMarkdown(projection);
+    expect(claude).toContain('OpenBox Governance for Claude Code');
+    expect(claude).toContain('Use the OpenBox Claude Code plugin, MCP tools, or slash commands');
+    expect(claude).toContain('Do not evaluate OPA/Rego, behavior-rule predicates');
+    expect(claude).toContain('## Guardrails');
+    expect(claude).toContain('- [warn] Prompt guard (guardrail/gr-a)');
+    expect(claude).toContain('## Behavior Rules');
+    expect(claude).toContain('- [block] Block package publish (behavior-rule/br-publish)');
+    expect(claude).toContain('`/openbox-check`');
+    expect(claude).not.toContain('prefix_rule(');
+    expect(claude).not.toContain('pattern = ["npm", "publish"]');
 
     const commandRules = renderCodexCommandRules(projection);
     expect(commandRules).toContain('Only exact shell command-prefix execution policy is projected here');
