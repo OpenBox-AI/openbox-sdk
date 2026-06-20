@@ -14,7 +14,7 @@ package-local runners as they join the shared TypeSpec emitter.
 | `govern-protocol.json` | TypeSpec-emitted scripted lifecycle cases where `WorkflowStarted`, `ActivityStarted`, and `ActivityCompleted` events fire in the same order with the same canonical `activity_type` strings |
 | `provider-capabilities.json` | TypeSpec-emitted provider capability, guard, MCP, plugin, public integration, and n8n conformance data used by SDK parity tests |
 | `sdk-manifests.json` | TypeSpec-emitted backend/core endpoint manifests and govern preset manifest used by SDK parity tests |
-| `sdk-targets.json` | TypeSpec-emitted SDK/app validation target manifest consumed by the generic root `check:sdks` runner |
+| `sdk-targets.json` | TypeSpec-emitted SDK/app validation target manifest and generated-artifact inventory consumed by generic root check, drift, and cleanup runners |
 
 ## How a target wires up
 

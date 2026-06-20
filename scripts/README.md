@@ -13,6 +13,12 @@ canonical TypeSpec contract.
 - `check:generated-drift` reruns `npm run generate:sdks`, then checks generated
   TypeScript, Python, OpenAPI, JSON Schema, TypeSpec-emitted contract metadata
   maps, CLI/env/lifecycle fixtures, and conformance fixture artifacts for drift.
+  The artifact inventory comes from the TypeSpec-emitted
+  `codegen/fixtures/sdk-targets.json` manifest, not from a script-local target
+  list.
+- `clean:generated` reads the same TypeSpec-emitted artifact inventory and
+  removes generated roots/files without carrying language-specific path lists in
+  `package.json`.
 - `check:sdks` is the generic target-native validation gate. It regenerates the
   TypeSpec-owned artifacts, then reads `codegen/fixtures/sdk-targets.json` and
   runs each target's native lint/type/test/build commands. Future language SDKs

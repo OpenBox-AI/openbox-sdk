@@ -6,6 +6,14 @@ interface SdkTargetsFixture {
   generatedBy: string;
   source: string;
   regenerate: string;
+  generatedArtifacts: {
+    generatedRoots: string[];
+    generatedFiles: string[];
+    nestedGeneratedFiles: Array<{
+      root: string;
+      suffixes: string[];
+    }>;
+  };
   targets: Array<{
     id: string;
     label: string;
@@ -39,6 +47,30 @@ describe('SDK target validation manifest', () => {
       'n8n-custom-node',
     ]);
     expect(fixture.targets.map((target) => target.kind)).toEqual(['sdk', 'sdk', 'app', 'app']);
+  });
+
+  test('declares generated artifact cleanup and drift inventory', () => {
+    const fixture = readSdkTargetsFixture();
+
+    expect(fixture.generatedArtifacts.generatedRoots).toEqual([
+      'specs/generated',
+      'python/openbox_sdk/generated',
+      'apps/extension/src/generated',
+      'example/n8n/custom-node/src/generated',
+    ]);
+    expect(fixture.generatedArtifacts.generatedFiles).toEqual([
+      'codegen/method-names.json',
+      'codegen/method-permissions.json',
+      'codegen/fixtures/cli-auth.json',
+      'codegen/fixtures/env-resolution.json',
+      'codegen/fixtures/govern-protocol.json',
+      'codegen/fixtures/provider-capabilities.json',
+      'codegen/fixtures/sdk-manifests.json',
+      'codegen/fixtures/sdk-targets.json',
+    ]);
+    expect(fixture.generatedArtifacts.nestedGeneratedFiles).toEqual([
+      { root: 'ts/src', suffixes: ['.ts', '.d.ts'] },
+    ]);
   });
 
   test('keeps root validation generic while target commands remain native', () => {

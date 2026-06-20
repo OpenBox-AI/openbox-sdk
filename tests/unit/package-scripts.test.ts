@@ -7,21 +7,18 @@ const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json
   scripts: Record<string, string>;
 };
 const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runtime-assets.ts'), 'utf8');
+const cleanGeneratedScript = readFileSync(resolve(process.cwd(), 'scripts/clean-generated.mjs'), 'utf8');
+const generatedDriftScript = readFileSync(resolve(process.cwd(), 'scripts/check-generated-drift.ts'), 'utf8');
 
 describe('package scripts', () => {
-  test('generated cleanup covers TypeSpec-emitted contract metadata', () => {
-    const cleanGenerated = packageJson.scripts['clean:generated'];
-
-    expect(cleanGenerated).toContain('codegen/method-names.json');
-    expect(cleanGenerated).toContain('codegen/method-permissions.json');
-    expect(cleanGenerated).toContain('codegen/fixtures/cli-auth.json');
-    expect(cleanGenerated).toContain('codegen/fixtures/env-resolution.json');
-    expect(cleanGenerated).toContain('codegen/fixtures/govern-protocol.json');
-    expect(cleanGenerated).toContain('codegen/fixtures/provider-capabilities.json');
-    expect(cleanGenerated).toContain('codegen/fixtures/sdk-manifests.json');
-    expect(cleanGenerated).toContain('codegen/fixtures/sdk-targets.json');
-    expect(cleanGenerated).toContain('apps/extension/src/generated');
-    expect(cleanGenerated).toContain('example/n8n/custom-node/src/generated');
+  test('generated cleanup and drift checks read the TypeSpec-emitted artifact inventory', () => {
+    expect(packageJson.scripts['clean:generated']).toBe('node scripts/clean-generated.mjs');
+    expect(packageJson.scripts['clean:generated']).not.toContain('python');
+    expect(packageJson.scripts['clean:generated']).not.toContain('apps/extension');
+    expect(cleanGeneratedScript).toContain('generatedArtifacts');
+    expect(cleanGeneratedScript).toContain('codegen/fixtures/sdk-targets.json');
+    expect(generatedDriftScript).toContain('generatedArtifacts');
+    expect(generatedDriftScript).toContain('codegen/fixtures/sdk-targets.json');
   });
 
   test('SDK generation stays behind the generic TypeSpec command', () => {

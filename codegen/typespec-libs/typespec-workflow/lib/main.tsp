@@ -362,12 +362,18 @@ extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown
 
 /**
  * Target-native validation manifest. The root `check:sdks` command reads the
- * emitted fixture and runs each target's native validation commands; new
- * language SDK ports and spec-bound apps should add a TypeSpec target here
- * instead of adding root-level target-specific scripts.
+ * emitted fixture and runs each target's native validation commands; generated
+ * drift and cleanup scripts read the emitted artifact inventory. New language
+ * SDK ports and spec-bound apps should add TypeSpec records here instead of
+ * adding root-level target-specific scripts.
  *
  * Shape:
  *   #{
+ *     generatedArtifacts: #{
+ *       generatedRoots: #[...],
+ *       generatedFiles: #[...],
+ *       nestedGeneratedFiles: #[#{ root, suffixes }, ...],
+ *     },
  *     targets: #[
  *       #{
  *         id: "typescript",

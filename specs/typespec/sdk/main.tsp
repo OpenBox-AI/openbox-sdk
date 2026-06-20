@@ -1,14 +1,36 @@
 // specs/typespec/sdk/main.tsp; canonical target-native validation surfaces.
 //
 // Root package scripts stay target-neutral. Per-target native
-// lint/type/test/build commands live here and are emitted into
-// `codegen/fixtures/sdk-targets.json` for the generic check runner.
+// lint/type/test/build commands and generated-artifact inventories live here
+// and are emitted into `codegen/fixtures/sdk-targets.json` for the generic
+// check, drift, and cleanup runners.
 
 import "typespec-workflow";
 
 using OpenBox.Workflow;
 
 @sdkTargets(#{
+  generatedArtifacts: #{
+    generatedRoots: #[
+      "specs/generated",
+      "python/openbox_sdk/generated",
+      "apps/extension/src/generated",
+      "example/n8n/custom-node/src/generated",
+    ],
+    generatedFiles: #[
+      "codegen/method-names.json",
+      "codegen/method-permissions.json",
+      "codegen/fixtures/cli-auth.json",
+      "codegen/fixtures/env-resolution.json",
+      "codegen/fixtures/govern-protocol.json",
+      "codegen/fixtures/provider-capabilities.json",
+      "codegen/fixtures/sdk-manifests.json",
+      "codegen/fixtures/sdk-targets.json",
+    ],
+    nestedGeneratedFiles: #[
+      #{ root: "ts/src", suffixes: #[".ts", ".d.ts"] },
+    ],
+  },
   targets: #[
     #{
       id: "typescript",

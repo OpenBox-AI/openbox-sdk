@@ -46,6 +46,9 @@ TypeSpec emitter.
 - Use `npm run check:sdks` for target-native validation across every language
   SDK and spec-bound app surface. Future targets join
   `specs/typespec/sdk/main.tsp`; they do not get bespoke root commands.
+- Keep generated cleanup and drift inventories in
+  `specs/typespec/sdk/main.tsp`; root scripts must consume the emitted manifest
+  instead of duplicating language or app paths.
 - Add new language targets inside `codegen/emitters/typespec-emitter/` unless
   there is a documented reason to split the emitter.
 - Do not add language-specific generation commands such as

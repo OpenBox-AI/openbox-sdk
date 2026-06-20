@@ -868,6 +868,10 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+}
+
 export function $sdkTargets(
   context: DecoratorContext,
   target: Namespace,
@@ -884,6 +888,60 @@ export function $sdkTargets(
   }
 
   const record = value as Record<string, unknown>;
+  if (record.generatedArtifacts !== undefined) {
+    if (!record.generatedArtifacts || typeof record.generatedArtifacts !== 'object' || Array.isArray(record.generatedArtifacts)) {
+      reportDiagnostic(context.program, {
+        code: 'invalid-sdk-targets',
+        format: { reason: 'generatedArtifacts must be a record' },
+        target,
+      });
+      return;
+    }
+
+    const artifacts = record.generatedArtifacts as Record<string, unknown>;
+    for (const field of ['generatedRoots', 'generatedFiles']) {
+      if (!isStringArray(artifacts[field])) {
+        reportDiagnostic(context.program, {
+          code: 'invalid-sdk-targets',
+          format: { reason: `generatedArtifacts.${field} must be a string array` },
+          target,
+        });
+        return;
+      }
+    }
+
+    const nested = artifacts.nestedGeneratedFiles;
+    if (nested !== undefined) {
+      if (!Array.isArray(nested)) {
+        reportDiagnostic(context.program, {
+          code: 'invalid-sdk-targets',
+          format: { reason: 'generatedArtifacts.nestedGeneratedFiles must be an array' },
+          target,
+        });
+        return;
+      }
+      for (const [index, rawNested] of nested.entries()) {
+        if (!rawNested || typeof rawNested !== 'object' || Array.isArray(rawNested)) {
+          reportDiagnostic(context.program, {
+            code: 'invalid-sdk-targets',
+            format: { reason: `generatedArtifacts.nestedGeneratedFiles ${index} must be a record` },
+            target,
+          });
+          return;
+        }
+        const nestedEntry = rawNested as Record<string, unknown>;
+        if (!isNonEmptyString(nestedEntry.root) || !isStringArray(nestedEntry.suffixes)) {
+          reportDiagnostic(context.program, {
+            code: 'invalid-sdk-targets',
+            format: { reason: `generatedArtifacts.nestedGeneratedFiles ${index} requires root and suffixes` },
+            target,
+          });
+          return;
+        }
+      }
+    }
+  }
+
   const targets = record.targets;
   if (!Array.isArray(targets) || targets.length === 0) {
     reportDiagnostic(context.program, {
