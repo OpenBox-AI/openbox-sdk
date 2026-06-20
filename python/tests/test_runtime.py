@@ -74,6 +74,7 @@ from openbox_sdk.generated.sdk_targets import (
     SDK_TARGET_MANIFEST,
     SDK_TARGETS,
     SECURITY_AUDIT,
+    SPEC_COMMANDS,
     TEST_SUITES,
 )
 from openbox_sdk.integrations.copilotkit import openbox_copilotkit_middleware
@@ -476,6 +477,7 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
         "rootPipelines": fixture["rootPipelines"],
         "securityAudit": fixture["securityAudit"],
         "sdkGeneration": fixture["sdkGeneration"],
+        "specCommands": fixture["specCommands"],
         "targets": fixture["targets"],
         "testSuites": fixture["testSuites"],
     }
@@ -489,6 +491,7 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
     assert ROOT_PIPELINES == fixture["rootPipelines"]
     assert SECURITY_AUDIT == fixture["securityAudit"]
     assert SDK_GENERATION == fixture["sdkGeneration"]
+    assert SPEC_COMMANDS == fixture["specCommands"]
     assert TEST_SUITES == fixture["testSuites"]
     assert SDK_TARGETS == fixture["targets"]
     assert SDK_TARGET_IDS == [target["id"] for target in fixture["targets"]]

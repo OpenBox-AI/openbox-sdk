@@ -107,6 +107,33 @@ SDK_TARGET_MANIFEST = {
       }
     ]
   },
+  "specCommands": {
+    "commands": [
+      {
+        "id": "compile",
+        "label": "TypeSpec contract compile",
+        "command": "npx",
+        "args": [
+          "tsp",
+          "compile",
+          "specs/typespec"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "watch",
+        "label": "TypeSpec contract watch",
+        "command": "npx",
+        "args": [
+          "tsp",
+          "compile",
+          "specs/typespec",
+          "--watch"
+        ],
+        "workingDirectory": "."
+      }
+    ]
+  },
   "rootPipelines": {
     "pipelines": [
       {
@@ -798,6 +825,7 @@ SDK_TARGET_MANIFEST = {
 GENERATED_ARTIFACTS = SDK_TARGET_MANIFEST.get("generatedArtifacts", {})
 CODEGEN_BUILD = SDK_TARGET_MANIFEST.get("codegenBuild", {})
 SDK_GENERATION = SDK_TARGET_MANIFEST.get("sdkGeneration", {})
+SPEC_COMMANDS = SDK_TARGET_MANIFEST.get("specCommands", {})
 ROOT_PIPELINES = SDK_TARGET_MANIFEST.get("rootPipelines", {})
 TEST_SUITES = SDK_TARGET_MANIFEST.get("testSuites", {})
 BUNDLE_BUILD = SDK_TARGET_MANIFEST.get("bundleBuild", {})
@@ -809,4 +837,4 @@ LOCAL_CI = SDK_TARGET_MANIFEST.get("localCi", {})
 SDK_TARGETS = SDK_TARGET_MANIFEST.get("targets", [])
 SDK_TARGET_IDS = [target["id"] for target in SDK_TARGETS]
 
-__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "SDK_GENERATION", "ROOT_PIPELINES", "TEST_SUITES", "BUNDLE_BUILD", "QUALITY_COMMANDS", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]
+__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "SDK_GENERATION", "SPEC_COMMANDS", "ROOT_PIPELINES", "TEST_SUITES", "BUNDLE_BUILD", "QUALITY_COMMANDS", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]

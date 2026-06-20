@@ -1074,6 +1074,20 @@ function validateSdkGenerationRecord(
   return validateCommandStepArray(context, target, 'sdkGeneration.steps', sdkGeneration.steps);
 }
 
+function validateSpecCommandsRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawSpecCommands: unknown,
+): boolean {
+  if (!rawSpecCommands || typeof rawSpecCommands !== 'object' || Array.isArray(rawSpecCommands)) {
+    reportInvalidSdkTargets(context, target, 'specCommands must be a record');
+    return false;
+  }
+
+  const specCommands = rawSpecCommands as Record<string, unknown>;
+  return validateCommandStepArray(context, target, 'specCommands.commands', specCommands.commands);
+}
+
 function validateRootPipelinesRecord(
   context: DecoratorContext,
   target: Namespace,
@@ -1334,6 +1348,12 @@ export function $sdkTargets(
 
   if (record.sdkGeneration !== undefined) {
     if (!validateSdkGenerationRecord(context, target, record.sdkGeneration)) {
+      return;
+    }
+  }
+
+  if (record.specCommands !== undefined) {
+    if (!validateSpecCommandsRecord(context, target, record.specCommands)) {
       return;
     }
   }

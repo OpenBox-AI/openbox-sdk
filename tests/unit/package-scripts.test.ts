@@ -7,6 +7,7 @@ const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json
   scripts: Record<string, string>;
 };
 const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runtime-assets.ts'), 'utf8');
+const runSpecCommandScript = readFileSync(resolve(process.cwd(), 'scripts/run-spec-command.mjs'), 'utf8');
 const runRootPipelineScript = readFileSync(resolve(process.cwd(), 'scripts/run-root-pipeline.mjs'), 'utf8');
 const runSdkGenerationScript = readFileSync(resolve(process.cwd(), 'scripts/run-sdk-generation.mjs'), 'utf8');
 const buildCodegenScript = readFileSync(resolve(process.cwd(), 'scripts/build-codegen.mjs'), 'utf8');
@@ -41,6 +42,18 @@ describe('package scripts', () => {
     expect(runRootPipelineScript).toContain('rootPipelines');
     expect(runRootPipelineScript).toContain('fallbackPipelines');
     expect(runRootPipelineScript).toContain("from './lib/spec-steps.mjs'");
+  });
+
+  test('TypeSpec commands read the TypeSpec-emitted command table', () => {
+    expect(packageJson.scripts['specs:compile']).toBe(
+      'node scripts/run-spec-command.mjs compile',
+    );
+    expect(packageJson.scripts['specs:watch']).toBe('node scripts/run-spec-command.mjs watch');
+    expect(packageJson.scripts['specs:compile']).not.toContain('tsp compile');
+    expect(packageJson.scripts['specs:watch']).not.toContain('--watch');
+    expect(runSpecCommandScript).toContain('specCommands.commands');
+    expect(runSpecCommandScript).toContain('fallbackCommands');
+    expect(runSpecCommandScript).toContain("from './lib/spec-steps.mjs'");
   });
 
   test('codegen build reads the TypeSpec-emitted pipeline', () => {

@@ -11,6 +11,9 @@ canonical TypeSpec contract.
   OpenAPI, JSON Schema, and future language targets must all hang off this
   command. If generated fixtures were cleaned, it falls back to the bootstrap
   generation sequence long enough to regenerate the canonical manifest.
+- `specs:compile` and `specs:watch` read the TypeSpec-emitted `specCommands`
+  table. These low-level TypeSpec commands keep a bootstrap fallback because
+  SDK generation may need them before the emitted fixture exists.
 - `build:codegen` reads the TypeSpec-emitted `codegenBuild.steps` pipeline from
   `codegen/fixtures/sdk-targets.json` and builds the TypeSpec decorator
   libraries plus shared emitter. If generated fixtures were cleaned, it falls

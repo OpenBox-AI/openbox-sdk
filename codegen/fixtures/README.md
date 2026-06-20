@@ -14,7 +14,7 @@ package-local runners as they join the shared TypeSpec emitter.
 | `govern-protocol.json` | TypeSpec-emitted scripted lifecycle cases where `WorkflowStarted`, `ActivityStarted`, and `ActivityCompleted` events fire in the same order with the same canonical `activity_type` strings |
 | `provider-capabilities.json` | TypeSpec-emitted provider capability, guard, MCP, plugin, public integration, and n8n conformance data used by SDK parity tests |
 | `sdk-manifests.json` | TypeSpec-emitted backend/core endpoint manifests and govern preset manifest used by SDK parity tests |
-| `sdk-targets.json` | TypeSpec-emitted SDK/app validation target manifest, root package pipelines, SDK generation pipeline, codegen build pipeline, bundle build pipeline, root test-suite routing, quality commands, package export surface, generated-artifact inventory, clean-artifact inventory, local CI pipeline, and security-audit manifest consumed by generic root build, test, check, drift, cleanup, CI, and audit runners |
+| `sdk-targets.json` | TypeSpec-emitted SDK/app validation target manifest, root package pipelines, SDK generation pipeline, TypeSpec command routing, codegen build pipeline, bundle build pipeline, root test-suite routing, quality commands, package export surface, generated-artifact inventory, clean-artifact inventory, local CI pipeline, and security-audit manifest consumed by generic root build, test, check, drift, cleanup, CI, and audit runners |
 
 ## How a target wires up
 
@@ -51,6 +51,9 @@ directly. Regenerate them with `npm run generate:sdks`.
 - SDK generation: the root `generate:sdks` runner reads the
   `sdkGeneration.steps` pipeline from this fixture, with a bootstrap fallback
   for cleaned or older generated fixtures.
+- TypeSpec commands: `specs:compile` and `specs:watch` read the `specCommands`
+  table from this fixture, with bootstrap fallbacks for cleaned or older
+  generated fixtures.
 - Root pipelines: `build` and `check:sdks` read the `rootPipelines` table from
   this fixture, with bootstrap fallbacks for cleaned or older generated
   fixtures.

@@ -34,6 +34,16 @@ interface SdkTargetsFixture {
       env?: Record<string, string>;
     }>;
   };
+  specCommands: {
+    commands: Array<{
+      id: string;
+      label: string;
+      command: string;
+      args?: string[];
+      workingDirectory: string;
+      env?: Record<string, string>;
+    }>;
+  };
   rootPipelines: {
     pipelines: Array<{
       id: string;
@@ -251,6 +261,36 @@ describe('SDK target validation manifest', () => {
         label: 'TypeSpec contract compile',
         command: 'npm',
         args: ['run', 'specs:compile'],
+        workingDirectory: '.',
+      },
+    ]);
+  });
+
+  test('declares TypeSpec commands outside package scripts', () => {
+    const fixture = readSdkTargetsFixture();
+    const packageJson = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
+    ) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts['specs:compile']).toBe(
+      'node scripts/run-spec-command.mjs compile',
+    );
+    expect(packageJson.scripts['specs:watch']).toBe('node scripts/run-spec-command.mjs watch');
+    expect(fixture.specCommands.commands).toEqual([
+      {
+        id: 'compile',
+        label: 'TypeSpec contract compile',
+        command: 'npx',
+        args: ['tsp', 'compile', 'specs/typespec'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'watch',
+        label: 'TypeSpec contract watch',
+        command: 'npx',
+        args: ['tsp', 'compile', 'specs/typespec', '--watch'],
         workingDirectory: '.',
       },
     ]);

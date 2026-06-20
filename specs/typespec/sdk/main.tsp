@@ -45,6 +45,12 @@ using OpenBox.Workflow;
       #{ id: "specs-compile", label: "TypeSpec contract compile", command: "npm", args: #["run", "specs:compile"], workingDirectory: "." },
     ],
   },
+  specCommands: #{
+    commands: #[
+      #{ id: "compile", label: "TypeSpec contract compile", command: "npx", args: #["tsp", "compile", "specs/typespec"], workingDirectory: "." },
+      #{ id: "watch", label: "TypeSpec contract watch", command: "npx", args: #["tsp", "compile", "specs/typespec", "--watch"], workingDirectory: "." },
+    ],
+  },
   rootPipelines: #{
     pipelines: #[
       #{

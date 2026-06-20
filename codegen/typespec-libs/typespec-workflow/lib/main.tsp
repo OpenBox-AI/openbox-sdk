@@ -386,6 +386,9 @@ extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown
  *     sdkGeneration: #{
  *       steps: #[#{ id, label, command, args, workingDirectory, env }, ...],
  *     },
+ *     specCommands: #{
+ *       commands: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *     },
  *     rootPipelines: #{
  *       pipelines: #[#{ id, label, steps }, ...],
  *     },

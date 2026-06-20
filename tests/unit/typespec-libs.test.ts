@@ -288,6 +288,12 @@ describe('typespec-workflow', () => {
             steps: Array<{ id: string; command: string; workingDirectory: string }>;
           }
         | undefined;
+    const specCommands =
+      fixture?.specCommands as
+        | {
+            commands: Array<{ id: string; command: string; workingDirectory: string }>;
+          }
+        | undefined;
     const rootPipelines =
       fixture?.rootPipelines as
         | {
@@ -383,6 +389,8 @@ describe('typespec-workflow', () => {
       'specs-compile',
     ]);
     expect(sdkGeneration?.steps.every((entry) => entry.command === 'npm')).toBe(true);
+    expect(specCommands?.commands.map((entry) => entry.id)).toEqual(['compile', 'watch']);
+    expect(specCommands?.commands.every((entry) => entry.command === 'npx')).toBe(true);
     expect(rootPipelines?.pipelines.map((entry) => entry.id)).toEqual(['build', 'check-sdks']);
     expect(rootPipelines?.pipelines.find((entry) => entry.id === 'build')?.steps.map((entry) => entry.id)).toEqual([
       'generate-sdks',

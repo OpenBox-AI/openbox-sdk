@@ -173,9 +173,9 @@
     "generate:sdks": "node scripts/run-sdk-generation.mjs",
     "check:sdks": "node scripts/run-root-pipeline.mjs check-sdks",
     "ci:local": "node scripts/run-local-ci.mjs",
-    "specs:compile": "tsp compile specs/typespec",
+    "specs:compile": "node scripts/run-spec-command.mjs compile",
     "specs:all": "npm run generate:sdks",
-    "specs:watch": "tsp compile specs/typespec --watch",
+    "specs:watch": "node scripts/run-spec-command.mjs watch",
     "lint:generated-banners": "node --experimental-strip-types scripts/check-generated-banners.ts",
     "audit:security": "node scripts/security-audit.mjs"
   },
