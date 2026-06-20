@@ -56,7 +56,7 @@ using OpenBox.Workflow;
       kind: "app",
       workingDirectory: "example/n8n/custom-node",
       commands: #[
-        #{ command: "npm", args: #["ci"] },
+        #{ command: "npm", args: #["ci", "--ignore-scripts"] },
         #{ command: "npm", args: #["run", "build"] },
         #{ command: "npm", args: #["run", "smoke:load"] },
       ],

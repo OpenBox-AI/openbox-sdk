@@ -114,7 +114,8 @@
         {
           "command": "npm",
           "args": [
-            "ci"
+            "ci",
+            "--ignore-scripts"
           ]
         },
         {

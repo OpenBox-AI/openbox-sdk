@@ -71,7 +71,7 @@ describe('SDK target validation manifest', () => {
 
     expect(byTarget['n8n-custom-node']?.workingDirectory).toBe('example/n8n/custom-node');
     expect(byTarget['n8n-custom-node']?.commands).toEqual([
-      { command: 'npm', args: ['ci'] },
+      { command: 'npm', args: ['ci', '--ignore-scripts'] },
       { command: 'npm', args: ['run', 'build'] },
       { command: 'npm', args: ['run', 'smoke:load'] },
     ]);
