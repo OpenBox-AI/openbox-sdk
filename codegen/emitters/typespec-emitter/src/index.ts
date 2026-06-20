@@ -133,6 +133,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'capability_matrix.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'govern.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'runtime_contract.py'),
+    resolvePath(repoRoot, 'example', 'n8n', 'custom-node', 'src', 'generated', 'openbox-n8n-spec.ts'),
   ]);
 }
 
@@ -1120,6 +1121,7 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
   if (!matrix) return;
   const conformance = providerCapabilityConformancePayload(matrix);
   writeProviderCapabilityConformanceFixture(repoRoot, conformance);
+  emitN8nCustomNodeSpec(project, repoRoot, conformance.n8nIntegrationSurface);
 
   const out = project.createSourceFile(
     resolvePath(repoRoot, 'ts/src/governance/generated/capability-matrix.ts'),
@@ -1375,6 +1377,68 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `export const MCP_RESOURCE_TEMPLATE_SURFACES = ${literalTs(conformance.mcpResourceTemplateSurfaces)} as const satisfies readonly McpResourceTemplateSurfaceEntry[];`,
     '',
     `export const N8N_INTEGRATION_SURFACE = ${literalTs(conformance.n8nIntegrationSurface)} as const satisfies N8nIntegrationSurface;`,
+  ]);
+}
+
+function emitN8nCustomNodeSpec(project: Project, repoRoot: string, surface: unknown): void {
+  const out = project.createSourceFile(
+    resolvePath(repoRoot, 'example/n8n/custom-node/src/generated/openbox-n8n-spec.ts'),
+    '',
+    { overwrite: true },
+  );
+  out.insertText(0, BANNER + '\n\n');
+  out.addStatements([
+    `export interface OpenBoxN8nCredentialSpec {`,
+    `  name: string;`,
+    `  id: string;`,
+    `  properties: readonly string[];`,
+    `  reason: string;`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nNodeSpec {`,
+    `  name: string;`,
+    `  id: string;`,
+    `  tier: string;`,
+    `  description: string;`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nWorkflowTemplateSpec {`,
+    `  name: string;`,
+    `  id: string;`,
+    `  nodes: readonly string[];`,
+    `  description: string;`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nExampleSpec {`,
+    `  name: string;`,
+    `  id: string;`,
+    `  description: string;`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nIntegrationSpec {`,
+    `  credentials: readonly OpenBoxN8nCredentialSpec[];`,
+    `  nodes: readonly OpenBoxN8nNodeSpec[];`,
+    `  workflowTemplates: readonly OpenBoxN8nWorkflowTemplateSpec[];`,
+    `  examples: readonly OpenBoxN8nExampleSpec[];`,
+    `}`,
+    '',
+    `export const OPENBOX_N8N_INTEGRATION = ${literalTs(surface)} as const satisfies OpenBoxN8nIntegrationSpec;`,
+    '',
+    `export function getOpenBoxN8nCredentialSpec(id: string): OpenBoxN8nCredentialSpec | undefined {`,
+    `  return OPENBOX_N8N_INTEGRATION.credentials.find((entry) => entry.id === id);`,
+    `}`,
+    '',
+    `export function getOpenBoxN8nNodeSpec(id: string): OpenBoxN8nNodeSpec | undefined {`,
+    `  return OPENBOX_N8N_INTEGRATION.nodes.find((entry) => entry.id === id);`,
+    `}`,
+    '',
+    `export function getOpenBoxN8nWorkflowTemplateSpec(id: string): OpenBoxN8nWorkflowTemplateSpec | undefined {`,
+    `  return OPENBOX_N8N_INTEGRATION.workflowTemplates.find((entry) => entry.id === id);`,
+    `}`,
+    '',
+    `export function getOpenBoxN8nExampleSpec(id: string): OpenBoxN8nExampleSpec | undefined {`,
+    `  return OPENBOX_N8N_INTEGRATION.examples.find((entry) => entry.id === id);`,
+    `}`,
   ]);
 }
 

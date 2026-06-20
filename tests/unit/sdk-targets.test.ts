@@ -26,14 +26,19 @@ function readSdkTargetsFixture(): SdkTargetsFixture {
 }
 
 describe('SDK target validation manifest', () => {
-  test('is emitted from TypeSpec and covers every language target', () => {
+  test('is emitted from TypeSpec and covers every target', () => {
     const fixture = readSdkTargetsFixture();
 
     expect(fixture.generatedBy).toBe('codegen/emitters/typespec-emitter');
     expect(fixture.source).toBe('specs/typespec/sdk/main.tsp');
     expect(fixture.regenerate).toBe('npm run specs:compile');
-    expect(fixture.targets.map((target) => target.id)).toEqual(['typescript', 'python', 'extension']);
-    expect(fixture.targets.map((target) => target.kind)).toEqual(['sdk', 'sdk', 'app']);
+    expect(fixture.targets.map((target) => target.id)).toEqual([
+      'typescript',
+      'python',
+      'extension',
+      'n8n-custom-node',
+    ]);
+    expect(fixture.targets.map((target) => target.kind)).toEqual(['sdk', 'sdk', 'app', 'app']);
   });
 
   test('keeps root validation generic while target commands remain native', () => {
@@ -62,6 +67,13 @@ describe('SDK target validation manifest', () => {
     expect(byTarget.extension?.commands).toEqual([
       { command: 'npm', args: ['run', 'build'] },
       { command: 'npm', args: ['run', 'test'] },
+    ]);
+
+    expect(byTarget['n8n-custom-node']?.workingDirectory).toBe('example/n8n/custom-node');
+    expect(byTarget['n8n-custom-node']?.commands).toEqual([
+      { command: 'npm', args: ['ci'] },
+      { command: 'npm', args: ['run', 'build'] },
+      { command: 'npm', args: ['run', 'smoke:load'] },
     ]);
   });
 });

@@ -104,6 +104,34 @@
           ]
         }
       ]
+    },
+    {
+      "id": "n8n-custom-node",
+      "label": "n8n Custom Node",
+      "kind": "app",
+      "workingDirectory": "example/n8n/custom-node",
+      "commands": [
+        {
+          "command": "npm",
+          "args": [
+            "ci"
+          ]
+        },
+        {
+          "command": "npm",
+          "args": [
+            "run",
+            "build"
+          ]
+        },
+        {
+          "command": "npm",
+          "args": [
+            "run",
+            "smoke:load"
+          ]
+        }
+      ]
     }
   ]
 }

@@ -12,7 +12,11 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const GENERATED_ROOTS = ['specs/generated', 'python/openbox_sdk/generated'];
+const GENERATED_ROOTS = [
+  'specs/generated',
+  'python/openbox_sdk/generated',
+  'example/n8n/custom-node/src/generated',
+];
 const GENERATED_FILES = [
   'codegen/method-names.json',
   'codegen/method-permissions.json',
@@ -47,6 +51,7 @@ function trackedAndUntrackedFiles(): string[] {
       'ts/src',
       'specs/generated',
       'python/openbox_sdk/generated',
+      'example/n8n/custom-node/src/generated',
       ...GENERATED_FILES,
     ],
     'pipe',

@@ -1,9 +1,9 @@
 # Conformance fixtures
 
-Shared test inputs for SDK contract behavior. TypeScript, Python, and the
-extension validation target consume these fixtures today; additional language
-tracks or spec-bound apps should add package-local runners as they join the
-shared TypeSpec emitter.
+Shared test inputs for SDK contract behavior. TypeScript, Python, the
+extension validation target, and the n8n custom-node target consume these
+fixtures today; additional language tracks or spec-bound apps should add
+package-local runners as they join the shared TypeSpec emitter.
 
 ## Layout
 
@@ -34,3 +34,6 @@ directly. Regenerate them with `npm run generate:sdks`.
   manifest parity.
 - Extension: `apps/extension` build/test commands are declared in
   `specs/typespec/sdk/main.tsp` and run through the generic target manifest.
+- n8n custom node: `example/n8n/custom-node` build/smoke commands are declared
+  in `specs/typespec/sdk/main.tsp`; node and credential descriptors consume the
+  TypeSpec-emitted `src/generated/openbox-n8n-spec.ts`.

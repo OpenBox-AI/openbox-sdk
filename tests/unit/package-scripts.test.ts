@@ -20,6 +20,7 @@ describe('package scripts', () => {
     expect(cleanGenerated).toContain('codegen/fixtures/provider-capabilities.json');
     expect(cleanGenerated).toContain('codegen/fixtures/sdk-manifests.json');
     expect(cleanGenerated).toContain('codegen/fixtures/sdk-targets.json');
+    expect(cleanGenerated).toContain('example/n8n/custom-node/src/generated');
   });
 
   test('SDK generation stays behind the generic TypeSpec command', () => {

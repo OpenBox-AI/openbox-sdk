@@ -58,3 +58,6 @@ TypeSpec emitter.
 - `apps/extension/` is validated through the same TypeSpec-emitted target
   manifest as the SDKs; do not add one-off extension CI scripts outside that
   manifest.
+- `example/n8n/custom-node/` is also a spec-bound app target. Its node and
+  credential descriptors consume `src/generated/openbox-n8n-spec.ts`, emitted
+  from `specs/typespec/govern/capabilities.tsp`.

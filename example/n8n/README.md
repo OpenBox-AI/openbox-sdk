@@ -2,7 +2,7 @@
 
 A self-contained n8n example for OpenBox-governed support triage. It uses
 built-in n8n nodes for chat, optional Slack, Postgres logging, optional
-HubSpot, and one custom OpenBox LLM node.
+HubSpot, and custom OpenBox nodes.
 
 This checked-in example is local-only. Keep deployment-specific runbooks,
 network config, and real infrastructure hostnames outside the SDK repo.
@@ -34,8 +34,15 @@ Open `http://localhost:5678`, import or open `OpenBox Governed Support
 Triage`, then use the chat trigger URL shown by the workflow.
 
 The local stack provisions a default OpenBox agent through the `seed`
-service unless you override `OPENBOX_API_KEY` in `.env`. The custom node
-supports Ollama and OpenRouter-compatible chat completion providers.
+service unless you override `OPENBOX_API_KEY` in `.env`. The custom package
+ships the spec-backed OpenBox credentials, Governance, Guardrails,
+Approval/HITL, Governed AI Agent, and demo LLM nodes. The LLM node supports
+Ollama and OpenRouter-compatible chat completion providers.
+
+The n8n package is validated by the root `check:sdks` target manifest. Its
+node and credential descriptors consume the generated
+`custom-node/src/generated/openbox-n8n-spec.ts`, emitted from
+`specs/typespec/govern/capabilities.tsp`.
 
 Local defaults can use Ollama:
 
@@ -171,7 +178,13 @@ example/n8n/
     package.json
     tsconfig.json
     entrypoint.sh
+    src/OpenBoxCredentials.credentials.ts
+    src/OpenBoxGovernance.node.ts
+    src/OpenBoxGuardrails.node.ts
+    src/OpenBoxApproval.node.ts
+    src/OpenBoxGovernedAiAgent.node.ts
     src/OpenboxLlm.node.ts
+    src/generated/openbox-n8n-spec.ts
     assets/OB_logomark.png
 ```
 

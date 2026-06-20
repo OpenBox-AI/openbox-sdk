@@ -260,8 +260,13 @@ describe('typespec-workflow', () => {
     expect(sdk).toBeDefined();
     const fixture = getSdkTargets(program, sdk!);
     const targets = fixture?.targets as Array<{ id: string; kind?: string; commands: unknown[] }> | undefined;
-    expect(targets?.map((target) => target.id)).toEqual(['typescript', 'python', 'extension']);
-    expect(targets?.map((target) => target.kind)).toEqual(['sdk', 'sdk', 'app']);
+    expect(targets?.map((target) => target.id)).toEqual([
+      'typescript',
+      'python',
+      'extension',
+      'n8n-custom-node',
+    ]);
+    expect(targets?.map((target) => target.kind)).toEqual(['sdk', 'sdk', 'app', 'app']);
     expect(targets?.every((target) => target.commands.length > 0)).toBe(true);
   });
 });

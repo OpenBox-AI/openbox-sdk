@@ -19,6 +19,9 @@ canonical TypeSpec contract.
   and spec-bound app targets should join `specs/typespec/sdk/main.tsp` instead
   of adding root-level `check:<language>`, `check:<app>`, or
   `generate:<language>` entry points.
+- Spec-bound apps currently include the VS Code extension and n8n custom-node
+  package. The n8n package also consumes a generated manifest emitted from
+  `specs/typespec/govern/capabilities.tsp`.
 
 ## Local CI
 

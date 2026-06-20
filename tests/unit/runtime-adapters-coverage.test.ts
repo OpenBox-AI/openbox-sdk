@@ -7,7 +7,7 @@
 // Real session-vs-core behavior is covered by e2e.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -91,6 +91,16 @@ describe('runtime/claude-code/config', () => {
 
 describe('runtime/n8n integration descriptor', () => {
   it('exports the spec-generated packaged n8n integration surface', async () => {
+    const packageJson = JSON.parse(
+      readFileSync(join(process.cwd(), 'example/n8n/custom-node/package.json'), 'utf8'),
+    ) as {
+      n8n?: {
+        credentials?: string[];
+        nodes?: string[];
+        openboxSpecNodeIds?: string[];
+        openboxSpecSource?: string;
+      };
+    };
     const {
       OPENBOX_N8N_INTEGRATION,
       getOpenBoxN8nCredential,
@@ -102,6 +112,9 @@ describe('runtime/n8n integration descriptor', () => {
       listOpenBoxN8nNodes,
       listOpenBoxN8nWorkflowTemplates,
     } = await import('../../ts/src/runtime/n8n');
+    const customNodeSpec = await import('../../example/n8n/custom-node/src/generated/openbox-n8n-spec');
+
+    expect(customNodeSpec.OPENBOX_N8N_INTEGRATION).toEqual(OPENBOX_N8N_INTEGRATION);
     expect(OPENBOX_N8N_INTEGRATION.credentials[0].id).toBe('openboxCredentials');
     expect(OPENBOX_N8N_INTEGRATION.nodes.map((node: any) => node.id)).toEqual(
       expect.arrayContaining([
@@ -123,6 +136,20 @@ describe('runtime/n8n integration descriptor', () => {
     );
     expect(getOpenBoxN8nExample('mcp-client-tool')?.name).toBe('MCP Client Tool');
     expect(getOpenBoxN8nNode('unknown-node')).toBeUndefined();
+
+    expect(packageJson.n8n?.openboxSpecSource).toBe('specs/typespec/govern/capabilities.tsp');
+    expect(packageJson.n8n?.credentials).toEqual(['dist/OpenBoxCredentials.credentials.js']);
+    expect(packageJson.n8n?.openboxSpecNodeIds).toEqual(
+      OPENBOX_N8N_INTEGRATION.nodes.map((node: any) => node.id),
+    );
+    expect(packageJson.n8n?.nodes).toEqual(
+      expect.arrayContaining([
+        'dist/OpenBoxGovernance.node.js',
+        'dist/OpenBoxGuardrails.node.js',
+        'dist/OpenBoxApproval.node.js',
+        'dist/OpenBoxGovernedAiAgent.node.js',
+      ]),
+    );
   });
 });
 
