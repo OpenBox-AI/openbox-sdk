@@ -1571,6 +1571,7 @@ type TelemetryEventFields = Pick<
   | 'input_tokens'
   | 'output_tokens'
   | 'total_tokens'
+  | 'cost_usd'
   | 'has_tool_calls'
   | 'finish_reason'
   | 'prompt'
@@ -1589,6 +1590,7 @@ function telemetryEventFields(payload: GovernedPayload): Partial<TelemetryEventF
     input_tokens: payload.inputTokens,
     output_tokens: payload.outputTokens,
     total_tokens: payload.totalTokens,
+    cost_usd: payload.costUsd,
     has_tool_calls: payload.hasToolCalls,
     finish_reason: payload.finishReason,
     prompt: payload.prompt,

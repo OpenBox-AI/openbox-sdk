@@ -786,25 +786,55 @@ describe('provider capability matrix', () => {
     expect(showcase).toBeDefined();
     const showcaseWorkflow = JSON.parse(
       readFileSync(resolve(process.cwd(), showcase!.path), 'utf8'),
-    ) as { name: string; nodes: Array<{ name: string; type: string }>; connections: Record<string, any> };
+    ) as {
+      name: string;
+      nodes: Array<{
+        id?: string;
+        name: string;
+        type: string;
+        credentials?: Record<string, { id?: unknown }>;
+      }>;
+      connections: Record<string, Record<string, Array<Array<{ node: string }>>>>;
+    };
     const showcaseNodeNames = new Set(showcaseWorkflow.nodes.map((node) => node.name));
     const showcaseNodeTypes = new Set(showcaseWorkflow.nodes.map((node) => node.type));
+    const connectedNodes = (source: string): string[] =>
+      Object.values(showcaseWorkflow.connections[source] ?? {}).flatMap(
+        (branches) => branches.flatMap((branch) => branch.map((edge) => edge.node)),
+      );
+    const hasEdge = (from: string, to: string): boolean =>
+      connectedNodes(from).includes(to);
     expect(showcaseWorkflow.name).toBe(showcase!.name);
-    expect(showcaseNodeTypes.has('n8n-nodes-openbox-hook.openboxLlm')).toBe(true);
+    for (const openboxNodeId of showcase!.requiredOpenBoxNodeIds) {
+      expect(N8N_INTEGRATION_SURFACE.packageManifest.openboxSpecNodeIds).toContain(openboxNodeId);
+    }
+    for (const type of showcase!.requiredOpenBoxNodeTypes) {
+      expect(showcaseNodeTypes.has(type)).toBe(true);
+    }
     for (const type of showcase!.requiredTriggerTypes) {
       expect(showcaseNodeTypes.has(type)).toBe(true);
     }
     for (const checkpoint of showcase!.requiredCheckpoints) {
       expect(showcaseNodeNames.has(checkpoint)).toBe(true);
+      const node = showcaseWorkflow.nodes.find((entry) => entry.name === checkpoint);
+      expect(showcase!.requiredOpenBoxNodeTypes).toContain(node?.type);
     }
     for (const terminalNode of showcase!.requiredTerminalNodes) {
       expect(showcaseNodeNames.has(terminalNode)).toBe(true);
     }
+    for (const edge of showcase!.requiredEntryEdges) {
+      expect(hasEdge(edge.from, edge.to)).toBe(true);
+    }
+    for (const gate of showcase!.checkpointGates) {
+      expect(hasEdge(gate.checkpoint, gate.gate)).toBe(true);
+      expect(hasEdge(gate.gate, gate.pass)).toBe(true);
+      expect(hasEdge(gate.gate, gate.fail)).toBe(true);
+    }
     const missingConnectionRefs: string[] = [];
     for (const [source, outputs] of Object.entries(showcaseWorkflow.connections)) {
       if (!showcaseNodeNames.has(source)) missingConnectionRefs.push(source);
-      for (const branches of Object.values(outputs as Record<string, any>)) {
-        for (const branch of branches as any[]) {
+      for (const branches of Object.values(outputs)) {
+        for (const branch of branches) {
           for (const edge of branch) {
             if (!showcaseNodeNames.has(edge.node)) missingConnectionRefs.push(edge.node);
           }
@@ -815,7 +845,23 @@ describe('provider capability matrix', () => {
     const showcaseJson = JSON.stringify(showcaseWorkflow);
     expect(showcaseJson).toContain(showcase!.terminalLogTable);
     for (const stage of showcase!.approvalStages) {
-      expect(showcaseJson).toContain(stage);
+      expect(showcaseJson).toContain(`'${stage}'`);
     }
+    for (const actionId of showcase!.requiredApprovalActionIds) {
+      expect(showcaseJson).toContain(`'${actionId}'`);
+    }
+    for (const step of showcase!.requiredPathLogSteps) {
+      expect(showcaseJson).toContain(`step: '${step}'`);
+    }
+    for (const eventType of showcase!.requiredTerminalEventTypes) {
+      expect(showcaseJson).toContain(`eventType: '${eventType}'`);
+    }
+    const credentialIds = new Set<string>();
+    for (const node of showcaseWorkflow.nodes) {
+      for (const credential of Object.values(node.credentials ?? {})) {
+        if (typeof credential.id === 'string') credentialIds.add(credential.id);
+      }
+    }
+    expect([...credentialIds].sort()).toEqual([...showcase!.allowedCredentialPlaceholders].sort());
   });
 });

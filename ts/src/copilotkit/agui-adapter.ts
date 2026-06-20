@@ -96,10 +96,19 @@ function kindForEvent(eventType: string): OpenBoxAGUIActivityKind {
   if (normalized.includes('state')) return 'state';
   if (normalized.includes('error')) return 'error';
   if (normalized.includes('message') || normalized.includes('text')) return 'message';
+  if (
+    normalized.includes('run') &&
+    (normalized.includes('finish') ||
+      normalized.includes('complete') ||
+      normalized.includes('end'))
+  ) {
+    return 'message';
+  }
   return 'run';
 }
 
 function payloadForEvent(event: OpenBoxAGUIEvent): Record<string, unknown> {
+  const nestedPayload = objectRecord(event.payload);
   return {
     event_type: eventTypeOf(event),
     thread_id: stringValue(event.threadId),
@@ -110,9 +119,24 @@ function payloadForEvent(event: OpenBoxAGUIEvent): Record<string, unknown> {
     payload: event.payload,
     input: event.input,
     output: event.output ?? event.result,
+    content: firstValue(
+      event.content,
+      event.output,
+      event.result,
+      event.delta,
+      nestedPayload.content,
+    ),
     delta: event.delta,
     state: event.state,
     error: errorPayload(event.error),
+    model: firstValue(event.model, nestedPayload.model),
+    modelName: firstValue(event.modelName, nestedPayload.modelName),
+    model_name: firstValue(event.model_name, nestedPayload.model_name),
+    usage: firstValue(event.usage, nestedPayload.usage),
+    usageMetadata: firstValue(event.usageMetadata, nestedPayload.usageMetadata),
+    usage_metadata: firstValue(event.usage_metadata, nestedPayload.usage_metadata),
+    responseMetadata: firstValue(event.responseMetadata, nestedPayload.responseMetadata),
+    response_metadata: firstValue(event.response_metadata, nestedPayload.response_metadata),
     raw: event,
   };
 }
@@ -153,4 +177,8 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0
     ? value.trim()
     : undefined;
+}
+
+function firstValue(...values: unknown[]): unknown {
+  return values.find((value) => value !== undefined && value !== null);
 }

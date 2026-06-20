@@ -13,6 +13,7 @@ type AssistantTelemetryFields = Pick<
   | 'inputTokens'
   | 'outputTokens'
   | 'totalTokens'
+  | 'costUsd'
   | 'hasToolCalls'
   | 'completion'
 >;
@@ -61,6 +62,7 @@ export function assistantOutputTelemetryFields(
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
     totalTokens: usage.totalTokens,
+    costUsd: usage.costUsd,
     hasToolCalls: input.hasToolCalls,
     completion: firstText(input.content),
   };
