@@ -319,6 +319,7 @@ namespace OpenboxGovern.Capabilities {
     requiredTerminalEventTypes: string[];
     allowedCredentialPlaceholders: string[];
     forbiddenWorkflowText: string[];
+    forbiddenWorkflowRegexes: string[];
     terminalLogTable: string;
   }
 
@@ -834,6 +835,8 @@ namespace OpenboxGovern.Capabilities {
           #{ name: "OpenBox: Context Privacy Check", id: "openbox-context-privacy-check", type: "n8n-nodes-openbox-hook.openboxLlm" },
           #{ name: "OpenBox: Governed LLM Draft", id: "openbox-llm", type: "n8n-nodes-openbox-hook.openboxLlm" },
           #{ name: "OpenBox: Channel Output Check", id: "openbox-channel-output-check", type: "n8n-nodes-openbox-hook.openboxLlm" },
+          #{ name: "When Slack Agent Message Received", id: "slack-agent-trigger", type: "n8n-nodes-base.slackTrigger" },
+          #{ name: "Normalize Slack Agent Input", id: "normalize-slack-agent-input", type: "n8n-nodes-base.set" },
           #{ name: "HubSpot CRM Configured?", id: "hubspot-crm-configured", type: "n8n-nodes-base.if" },
           #{ name: "Upsert HubSpot Contact (Optional)", id: "upsert-hubspot-contact", type: "n8n-nodes-base.hubspot" },
           #{ name: "When Slack Approval Action Received", id: "slack-approval-action-webhook", type: "n8n-nodes-base.webhook" },
@@ -854,6 +857,53 @@ namespace OpenboxGovern.Capabilities {
           #{ node: "Upsert HubSpot Contact (Optional)", flag: "alwaysOutputData", expected: true },
         ],
         expressionSourceChecks: #[
+          #{
+            node: "When Slack Agent Message Received",
+            requiredContains: #[
+              "$env.SLACK_CHANNEL_ID",
+            ],
+            forbiddenContains: #[],
+          },
+          #{
+            node: "Prompt Wall Passed?",
+            requiredContains: #[
+              "Boolean($json._openbox?.governed)",
+              "!$json._openbox?.blocked",
+              "!$json._openbox?.providerError",
+              "!$json.error",
+            ],
+            forbiddenContains: #[],
+          },
+          #{
+            node: "Context Check Passed?",
+            requiredContains: #[
+              "Boolean($json._openbox?.governed)",
+              "!$json._openbox?.blocked",
+              "!$json._openbox?.providerError",
+              "!$json.error",
+            ],
+            forbiddenContains: #[],
+          },
+          #{
+            node: "Draft Governance Passed?",
+            requiredContains: #[
+              "Boolean($json._openbox?.governed)",
+              "!$json._openbox?.blocked",
+              "!$json._openbox?.providerError",
+              "!$json.error",
+            ],
+            forbiddenContains: #[],
+          },
+          #{
+            node: "Channel Check Passed?",
+            requiredContains: #[
+              "Boolean($json._openbox?.governed)",
+              "!$json._openbox?.blocked",
+              "!$json._openbox?.providerError",
+              "!$json.error",
+            ],
+            forbiddenContains: #[],
+          },
           #{
             node: "Post to Slack",
             requiredContains: #[
@@ -885,6 +935,25 @@ namespace OpenboxGovern.Capabilities {
           },
         ],
         requiredOpenBoxNodeParameterChecks: #[
+          #{
+            nodeType: "n8n-nodes-openbox-hook.openboxLlm",
+            parameter: "apiEndpoint",
+            requiredContains: #[
+              "OPENBOX_API_URL",
+              "host.docker.internal:8086",
+            ],
+            forbiddenContains: #[],
+            forbiddenValues: #[],
+          },
+          #{
+            nodeType: "n8n-nodes-openbox-hook.openboxLlm",
+            parameter: "apiKey",
+            requiredContains: #[
+              "OPENBOX_API_KEY",
+            ],
+            forbiddenContains: #[],
+            forbiddenValues: #[],
+          },
           #{
             nodeType: "n8n-nodes-openbox-hook.openboxLlm",
             parameter: "llmProvider",
@@ -927,6 +996,7 @@ namespace OpenboxGovern.Capabilities {
         requiredTerminalEventTypes: #["planned-path", "chat-output", "slack-output", "hubspot-output", "approval-decision"],
         allowedCredentialPlaceholders: #["demo-postgres-placeholder", "demo-slack-api-placeholder", "demo-hubspot-app-token"],
         forbiddenWorkflowText: #["webhook-configured", "post-webhook", "jiraDescription", "webhook payload summary", "final webhook/chat response"],
+        forbiddenWorkflowRegexes: #["\"value\":\"[CDG][A-Z0-9]{8,}\""],
         terminalLogTable: "demo.triage_events",
       },
     ],

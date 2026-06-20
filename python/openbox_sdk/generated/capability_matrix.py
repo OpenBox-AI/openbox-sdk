@@ -3052,6 +3052,16 @@ N8N_INTEGRATION_SURFACE = {
           "type": "n8n-nodes-openbox-hook.openboxLlm"
         },
         {
+          "name": "When Slack Agent Message Received",
+          "id": "slack-agent-trigger",
+          "type": "n8n-nodes-base.slackTrigger"
+        },
+        {
+          "name": "Normalize Slack Agent Input",
+          "id": "normalize-slack-agent-input",
+          "type": "n8n-nodes-base.set"
+        },
+        {
           "name": "HubSpot CRM Configured?",
           "id": "hubspot-crm-configured",
           "type": "n8n-nodes-base.if"
@@ -3136,6 +3146,53 @@ N8N_INTEGRATION_SURFACE = {
       ],
       "expressionSourceChecks": [
         {
+          "node": "When Slack Agent Message Received",
+          "requiredContains": [
+            "$env.SLACK_CHANNEL_ID"
+          ],
+          "forbiddenContains": []
+        },
+        {
+          "node": "Prompt Wall Passed?",
+          "requiredContains": [
+            "Boolean($json._openbox?.governed)",
+            "!$json._openbox?.blocked",
+            "!$json._openbox?.providerError",
+            "!$json.error"
+          ],
+          "forbiddenContains": []
+        },
+        {
+          "node": "Context Check Passed?",
+          "requiredContains": [
+            "Boolean($json._openbox?.governed)",
+            "!$json._openbox?.blocked",
+            "!$json._openbox?.providerError",
+            "!$json.error"
+          ],
+          "forbiddenContains": []
+        },
+        {
+          "node": "Draft Governance Passed?",
+          "requiredContains": [
+            "Boolean($json._openbox?.governed)",
+            "!$json._openbox?.blocked",
+            "!$json._openbox?.providerError",
+            "!$json.error"
+          ],
+          "forbiddenContains": []
+        },
+        {
+          "node": "Channel Check Passed?",
+          "requiredContains": [
+            "Boolean($json._openbox?.governed)",
+            "!$json._openbox?.blocked",
+            "!$json._openbox?.providerError",
+            "!$json.error"
+          ],
+          "forbiddenContains": []
+        },
+        {
           "node": "Post to Slack",
           "requiredContains": [
             "$('Build Final Log').item.json.channelPayloads?.slack?.channelId",
@@ -3166,6 +3223,25 @@ N8N_INTEGRATION_SURFACE = {
         }
       ],
       "requiredOpenBoxNodeParameterChecks": [
+        {
+          "nodeType": "n8n-nodes-openbox-hook.openboxLlm",
+          "parameter": "apiEndpoint",
+          "requiredContains": [
+            "OPENBOX_API_URL",
+            "host.docker.internal:8086"
+          ],
+          "forbiddenContains": [],
+          "forbiddenValues": []
+        },
+        {
+          "nodeType": "n8n-nodes-openbox-hook.openboxLlm",
+          "parameter": "apiKey",
+          "requiredContains": [
+            "OPENBOX_API_KEY"
+          ],
+          "forbiddenContains": [],
+          "forbiddenValues": []
+        },
         {
           "nodeType": "n8n-nodes-openbox-hook.openboxLlm",
           "parameter": "llmProvider",
@@ -3257,6 +3333,9 @@ N8N_INTEGRATION_SURFACE = {
         "jiraDescription",
         "webhook payload summary",
         "final webhook/chat response"
+      ],
+      "forbiddenWorkflowRegexes": [
+        "\"value\":\"[CDG][A-Z0-9]{8,}\""
       ],
       "terminalLogTable": "demo.triage_events"
     }

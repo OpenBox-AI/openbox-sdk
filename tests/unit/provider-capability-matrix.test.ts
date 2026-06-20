@@ -889,6 +889,11 @@ describe('provider capability matrix', () => {
     for (const forbidden of showcase!.forbiddenWorkflowText ?? []) {
       expect(showcaseJson, `showcase must not contain ${forbidden}`).not.toContain(forbidden);
     }
+    for (const forbiddenPattern of showcase!.forbiddenWorkflowRegexes ?? []) {
+      expect(showcaseJson, `showcase must not match ${forbiddenPattern}`).not.toMatch(
+        new RegExp(forbiddenPattern),
+      );
+    }
     for (const stage of showcase!.approvalStages) {
       expect(showcaseJson).toContain(`'${stage}'`);
     }
