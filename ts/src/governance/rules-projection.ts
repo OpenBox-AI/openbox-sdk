@@ -2,32 +2,23 @@
 // policies, and behavior rules and normalizes them into the `ProjectedRule` shape
 // declared in specs/typespec/govern/rules-projection.tsp.
 //
-// The projection output shape is hand-mirrored from the TypeSpec model.
-// Backend behavior-rule inputs use generated types so v2 state predicates
-// stay aligned with the API contract.
+// The projection output shape is generated from TypeSpec. Backend
+// behavior-rule inputs also use generated types so v2 state predicates stay
+// aligned with the API contract.
 import { createApi } from '../runtime/mcp/config.js';
 import type { components } from '../types/generated/backend.js';
+import type {
+  ProjectedRule,
+  RulesProjection,
+  RuleSeverity,
+} from './generated/rules-projection.js';
 
-export type RuleTrigger = 'always' | 'globMatch' | 'agentRequested' | 'manual';
-export type RuleSeverity = 'block' | 'warn' | 'info';
-
-export interface ProjectedRule {
-  id: string;
-  source: 'guardrail' | 'policy' | 'behavior-rule';
-  description: string;
-  body: string;
-  trigger: RuleTrigger;
-  severity: RuleSeverity;
-  globs?: string[];
-  rendererHints?: Record<string, unknown>;
-}
-
-export interface RulesProjection {
-  agentId: string;
-  fetchedAt: string;
-  version: number;
-  rules: ProjectedRule[];
-}
+export type {
+  ProjectedRule,
+  RulesProjection,
+  RuleSeverity,
+  RuleTrigger,
+} from './generated/rules-projection.js';
 
 export interface CodexInstructionRenderOptions {
   skillName?: string;

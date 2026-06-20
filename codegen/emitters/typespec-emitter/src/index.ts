@@ -84,6 +84,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitEndpointManifest(program, project, repoRoot, 'OpenboxBackend', 'BACKEND_ENDPOINT_MANIFEST', 'ts/src/client/generated/endpoint-manifest.ts');
   emitEndpointManifest(program, project, repoRoot, 'OpenboxCore', 'CORE_ENDPOINT_MANIFEST', 'ts/src/core-client/generated/endpoint-manifest.ts');
   emitNamespaceTypes(program, project, repoRoot, 'OpenboxCore', 'ts/src/core-client/generated/core-types.ts');
+  emitNamespaceTypes(program, project, repoRoot, 'OpenboxGovern.RulesProjection', 'ts/src/governance/generated/rules-projection.ts');
   emitGovernProtocol(program, project, repoRoot);
   emitProviderCapabilities(program, project, repoRoot);
   emitEnvConformanceFixture(program, repoRoot);
@@ -119,6 +120,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
     resolvePath(repoRoot, 'ts', 'src', 'cli', 'generated', 'cli-maturity.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'govern.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'governance', 'generated', 'capability-matrix.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'governance', 'generated', 'rules-projection.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'core-types.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'claude-code.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'codex.ts'),
@@ -134,6 +136,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'capability_matrix.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'sdk_targets.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'govern.py'),
+    resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'rules_projection.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'runtime_contract.py'),
     resolvePath(repoRoot, 'apps', 'extension', 'src', 'generated', 'openbox-extension-spec.ts'),
     resolvePath(repoRoot, 'example', 'n8n', 'custom-node', 'src', 'generated', 'openbox-n8n-spec.ts'),
@@ -1388,6 +1391,14 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  forbiddenContains: readonly string[];`,
     `}`,
     '',
+    `export interface N8nNodeParameterCheckSurface {`,
+    `  nodeType: string;`,
+    `  parameter: string;`,
+    `  requiredContains: readonly string[];`,
+    `  forbiddenContains: readonly string[];`,
+    `  forbiddenValues: readonly string[];`,
+    `}`,
+    '',
     `export interface N8nShowcaseWorkflowSurface {`,
     `  name: string;`,
     `  id: string;`,
@@ -1402,6 +1413,7 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  checkpointGates: readonly N8nCheckpointGateSurface[];`,
     `  requiredNodeBooleanFlags: readonly N8nNodeBooleanFlagSurface[];`,
     `  expressionSourceChecks: readonly N8nExpressionSourceCheckSurface[];`,
+    `  requiredOpenBoxNodeParameterChecks: readonly N8nNodeParameterCheckSurface[];`,
     `  approvalStages: readonly string[];`,
     `  requiredApprovalActionIds: readonly string[];`,
     `  requiredPathLogSteps: readonly string[];`,
@@ -1544,6 +1556,14 @@ function emitN8nCustomNodeSpec(project: Project, repoRoot: string, surface: unkn
     `  forbiddenContains: readonly string[];`,
     `}`,
     '',
+    `export interface OpenBoxN8nNodeParameterCheckSpec {`,
+    `  nodeType: string;`,
+    `  parameter: string;`,
+    `  requiredContains: readonly string[];`,
+    `  forbiddenContains: readonly string[];`,
+    `  forbiddenValues: readonly string[];`,
+    `}`,
+    '',
     `export interface OpenBoxN8nShowcaseWorkflowSpec {`,
     `  name: string;`,
     `  id: string;`,
@@ -1558,6 +1578,7 @@ function emitN8nCustomNodeSpec(project: Project, repoRoot: string, surface: unkn
     `  checkpointGates: readonly OpenBoxN8nCheckpointGateSpec[];`,
     `  requiredNodeBooleanFlags: readonly OpenBoxN8nNodeBooleanFlagSpec[];`,
     `  expressionSourceChecks: readonly OpenBoxN8nExpressionSourceCheckSpec[];`,
+    `  requiredOpenBoxNodeParameterChecks: readonly OpenBoxN8nNodeParameterCheckSpec[];`,
     `  approvalStages: readonly string[];`,
     `  requiredApprovalActionIds: readonly string[];`,
     `  requiredPathLogSteps: readonly string[];`,

@@ -114,6 +114,7 @@ export function emitPythonSdk(program: Program, repoRoot: string): void {
   writePythonFile(resolvePath(outDir, 'capability_matrix.py'), emitCapabilityMatrix(program));
   writePythonFile(resolvePath(outDir, 'sdk_targets.py'), emitSdkTargets(program));
   writePythonFile(resolvePath(outDir, 'govern.py'), emitGovern(governManifest));
+  writePythonFile(resolvePath(outDir, 'rules_projection.py'), emitRulesProjection(program));
   writePythonFile(resolvePath(outDir, 'runtime_contract.py'), emitRuntimeContract(program));
 }
 
@@ -328,6 +329,50 @@ SDK_TARGET_IDS = [target["id"] for target in SDK_TARGETS]
 
 __all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "SDK_GENERATION", "SPEC_COMMANDS", "ROOT_PIPELINES", "TEST_SUITES", "BUNDLE_BUILD", "QUALITY_COMMANDS", "GENERATED_CHECKS", "PACKAGE_SURFACE", "PACKAGE_SCRIPTS", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]
 `;
+}
+
+function emitRulesProjection(program: Program): string {
+  const ns = findNamespace(program, 'OpenboxGovern.RulesProjection');
+  if (!ns) {
+    return `${PYTHON_BANNER}__all__: list[str] = []\n`;
+  }
+
+  const lines = [
+    PYTHON_BANNER.trimEnd(),
+    '# Generated from TypeSpec rules projection contracts.',
+    'from typing import Any, Literal, NotRequired, TypedDict',
+    '',
+  ];
+  const exported: string[] = [];
+
+  for (const [enumName, enumType] of ns.enums) {
+    const members = [...enumType.members.values()].map((member) =>
+      JSON.stringify(member.value ?? member.name),
+    );
+    lines.push(`${enumName} = Literal[${members.join(', ')}]`);
+    exported.push(enumName);
+  }
+
+  if (ns.enums.size > 0 && ns.models.size > 0) lines.push('');
+
+  for (const [modelName, model] of ns.models) {
+    if (modelName === 'Array' || modelName === 'Record') continue;
+    lines.push(`class ${modelName}(TypedDict):`);
+    if (model.properties.size === 0) {
+      lines.push('    pass');
+    } else {
+      for (const [propName, prop] of model.properties) {
+        const typeName = pythonTypeFromType(prop.type);
+        const renderedType = prop.optional ? `NotRequired[${typeName}]` : typeName;
+        lines.push(`    ${pythonFieldName(propName)}: ${renderedType}`);
+      }
+    }
+    lines.push('');
+    exported.push(modelName);
+  }
+
+  lines.push(`__all__ = ${py(exported)}`);
+  return `${lines.join('\n')}\n`;
 }
 
 function collectGovernManifest(program: Program): PythonPresetEntry[] {
@@ -752,6 +797,59 @@ function asArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String) : [String(value)];
 }
 
+function pythonTypeFromType(type: Type): string {
+  switch (type.kind) {
+    case 'Scalar': {
+      const name = type.name;
+      if (
+        name === 'string' ||
+        name === 'url' ||
+        name === 'utcDateTime' ||
+        name === 'offsetDateTime' ||
+        name === 'plainDate'
+      ) return 'str';
+      if (name === 'boolean') return 'bool';
+      if (name === 'numeric' || name === 'int8' || name === 'int16' || name === 'int32' || name === 'int64') return 'int';
+      if (name === 'float' || name === 'float32' || name === 'float64' || name === 'decimal') return 'float';
+      if (name === 'unknown') return 'Any';
+      return 'str';
+    }
+    case 'Enum':
+      return type.name || 'str';
+    case 'Model': {
+      if (type.name === 'Array' && type.templateMapper?.args.length) {
+        return `list[${pythonTypeFromType(type.templateMapper.args[0] as Type)}]`;
+      }
+      if (type.name === 'Record' && type.templateMapper?.args.length) {
+        return `dict[str, ${pythonTypeFromType(type.templateMapper.args[0] as Type)}]`;
+      }
+      return type.name || 'dict[str, Any]';
+    }
+    case 'String':
+      return `Literal[${JSON.stringify((type as { value: string }).value)}]`;
+    case 'Number':
+      return `Literal[${String((type as { value: number }).value)}]`;
+    case 'Boolean':
+      return `Literal[${String((type as { value: boolean }).value)}]`;
+    case 'Union': {
+      const variants = [...type.variants.values()].map((variant) => pythonTypeFromType(variant.type));
+      const unique = [...new Set(variants)];
+      if (unique.every((entry) => entry.startsWith('Literal[') && entry.endsWith(']'))) {
+        const values = unique.map((entry) => entry.slice('Literal['.length, -1));
+        return `Literal[${values.join(', ')}]`;
+      }
+      return unique.join(' | ');
+    }
+    case 'Tuple':
+      return `tuple[${(type as { values: Type[] }).values.map(pythonTypeFromType).join(', ')}]`;
+    case 'Intrinsic':
+      if (type.name === 'null' || type.name === 'void') return 'None';
+      return 'Any';
+    default:
+      return 'Any';
+  }
+}
+
 function arrayOfStrings(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === 'string')
@@ -780,6 +878,13 @@ function snakeCase(name: string): string {
     .toLowerCase();
   if (!value) return 'operation';
   return PYTHON_KEYWORDS.has(value) ? `${value}_` : value;
+}
+
+function pythonFieldName(name: string): string {
+  if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    return PYTHON_KEYWORDS.has(name) ? `${name}_` : name;
+  }
+  return snakeCase(name);
 }
 
 function pythonPascalCase(name: string): string {

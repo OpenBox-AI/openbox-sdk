@@ -277,6 +277,14 @@ namespace OpenboxGovern.Capabilities {
     forbiddenContains: string[];
   }
 
+  model N8nNodeParameterCheckSpec {
+    nodeType: string;
+    parameter: string;
+    requiredContains: string[];
+    forbiddenContains: string[];
+    forbiddenValues: string[];
+  }
+
   model N8nShowcaseWorkflowSpec {
     name: string;
     id: string;
@@ -291,6 +299,7 @@ namespace OpenboxGovern.Capabilities {
     checkpointGates: N8nCheckpointGateSpec[];
     requiredNodeBooleanFlags: N8nNodeBooleanFlagSpec[];
     expressionSourceChecks: N8nExpressionSourceCheckSpec[];
+    requiredOpenBoxNodeParameterChecks: N8nNodeParameterCheckSpec[];
     approvalStages: string[];
     requiredApprovalActionIds: string[];
     requiredPathLogSteps: string[];
@@ -849,6 +858,43 @@ namespace OpenboxGovern.Capabilities {
             forbiddenContains: #[
               "$json.channelPayloads.hubspot",
             ],
+          },
+        ],
+        requiredOpenBoxNodeParameterChecks: #[
+          #{
+            nodeType: "n8n-nodes-openbox-hook.openboxLlm",
+            parameter: "llmProvider",
+            requiredContains: #[
+              "LLM_PROVIDER_API_KEY",
+              "LLM7_API_KEY",
+              "OPENROUTER_API_KEY",
+              "openrouter",
+              "ollama",
+            ],
+            forbiddenContains: #[],
+            forbiddenValues: #["openrouter", "ollama"],
+          },
+          #{
+            nodeType: "n8n-nodes-openbox-hook.openboxLlm",
+            parameter: "model",
+            requiredContains: #[
+              "LLM_PROVIDER_MODEL",
+              "OPENROUTER_MODEL",
+              "OLLAMA_MODEL",
+            ],
+            forbiddenContains: #["\"default\""],
+            forbiddenValues: #["default"],
+          },
+          #{
+            nodeType: "n8n-nodes-openbox-hook.openboxLlm",
+            parameter: "openRouterBaseUrl",
+            requiredContains: #[
+              "LLM_PROVIDER_BASE_URL",
+              "OPENROUTER_BASE_URL",
+              "https://openrouter.ai/api/v1",
+            ],
+            forbiddenContains: #["api.llm7.io"],
+            forbiddenValues: #[],
           },
         ],
         approvalStages: #["prompt-wall", "draft-governance", "channel-output"],

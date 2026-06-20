@@ -274,6 +274,14 @@ export interface N8nExpressionSourceCheckSurface {
   forbiddenContains: readonly string[];
 }
 
+export interface N8nNodeParameterCheckSurface {
+  nodeType: string;
+  parameter: string;
+  requiredContains: readonly string[];
+  forbiddenContains: readonly string[];
+  forbiddenValues: readonly string[];
+}
+
 export interface N8nShowcaseWorkflowSurface {
   name: string;
   id: string;
@@ -288,6 +296,7 @@ export interface N8nShowcaseWorkflowSurface {
   checkpointGates: readonly N8nCheckpointGateSurface[];
   requiredNodeBooleanFlags: readonly N8nNodeBooleanFlagSurface[];
   expressionSourceChecks: readonly N8nExpressionSourceCheckSurface[];
+  requiredOpenBoxNodeParameterChecks: readonly N8nNodeParameterCheckSurface[];
   approvalStages: readonly string[];
   requiredApprovalActionIds: readonly string[];
   requiredPathLogSteps: readonly string[];
@@ -3391,6 +3400,52 @@ export const N8N_INTEGRATION_SURFACE = {
           "forbiddenContains": [
             "$json.channelPayloads.hubspot"
           ]
+        }
+      ],
+      "requiredOpenBoxNodeParameterChecks": [
+        {
+          "nodeType": "n8n-nodes-openbox-hook.openboxLlm",
+          "parameter": "llmProvider",
+          "requiredContains": [
+            "LLM_PROVIDER_API_KEY",
+            "LLM7_API_KEY",
+            "OPENROUTER_API_KEY",
+            "openrouter",
+            "ollama"
+          ],
+          "forbiddenContains": [],
+          "forbiddenValues": [
+            "openrouter",
+            "ollama"
+          ]
+        },
+        {
+          "nodeType": "n8n-nodes-openbox-hook.openboxLlm",
+          "parameter": "model",
+          "requiredContains": [
+            "LLM_PROVIDER_MODEL",
+            "OPENROUTER_MODEL",
+            "OLLAMA_MODEL"
+          ],
+          "forbiddenContains": [
+            "\"default\""
+          ],
+          "forbiddenValues": [
+            "default"
+          ]
+        },
+        {
+          "nodeType": "n8n-nodes-openbox-hook.openboxLlm",
+          "parameter": "openRouterBaseUrl",
+          "requiredContains": [
+            "LLM_PROVIDER_BASE_URL",
+            "OPENROUTER_BASE_URL",
+            "https://openrouter.ai/api/v1"
+          ],
+          "forbiddenContains": [
+            "api.llm7.io"
+          ],
+          "forbiddenValues": []
         }
       ],
       "approvalStages": [

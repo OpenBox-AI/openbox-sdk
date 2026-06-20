@@ -56,12 +56,12 @@
     },
     {
       "parameters": {
-        "llmProvider": "openrouter",
-        "model": "={{ $env.LLM_PROVIDER_MODEL || $env.OPENROUTER_MODEL || \"default\" }}",
+        "llmProvider": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? \"openrouter\" : \"ollama\" }}",
+        "model": "={{ $env.LLM_PROVIDER_MODEL || ($env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? ($env.OPENROUTER_MODEL || \"liquid/lfm-2.5-1.2b-instruct:free\") : ($env.OLLAMA_MODEL || \"tinyllama\")) }}",
         "systemPrompt": "You are a prompt safety classifier for a support automation workflow. Do not solve the customer issue. Check the raw user prompt for PII, secrets, NSFW content, abuse, security risk, and policy-sensitive content. Return one concise line: PROMPT_SAFE, PROMPT_NEEDS_REVIEW, or PROMPT_BLOCKED with the reason.",
         "apiKey": "={{ $env.OPENBOX_API_KEY }}",
         "openRouterApiKey": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY }}",
-        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://api.llm7.io/v1\" }}"
+        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://openrouter.ai/api/v1\" }}"
       },
       "id": "openbox-input-wall",
       "name": "OpenBox: Prompt Safety Wall",
@@ -128,12 +128,12 @@
     },
     {
       "parameters": {
-        "llmProvider": "openrouter",
-        "model": "={{ $env.LLM_PROVIDER_MODEL || $env.OPENROUTER_MODEL || \"default\" }}",
+        "llmProvider": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? \"openrouter\" : \"ollama\" }}",
+        "model": "={{ $env.LLM_PROVIDER_MODEL || ($env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? ($env.OPENROUTER_MODEL || \"liquid/lfm-2.5-1.2b-instruct:free\") : ($env.OLLAMA_MODEL || \"tinyllama\")) }}",
         "systemPrompt": "You are a senior customer support operations analyst. Create concise escalation triage output. Do not invent account facts, payment outcomes, legal commitments, refunds, security conclusions, or SLA promises. When the issue touches billing, security, privacy, refunds, or blocked account access, require human review.",
         "apiKey": "={{ $env.OPENBOX_API_KEY }}",
         "openRouterApiKey": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY }}",
-        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://api.llm7.io/v1\" }}"
+        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://openrouter.ai/api/v1\" }}"
       },
       "id": "openbox-llm",
       "name": "OpenBox: Governed LLM Draft",
@@ -284,12 +284,12 @@
     },
     {
       "parameters": {
-        "llmProvider": "openrouter",
-        "model": "={{ $env.LLM_PROVIDER_MODEL || $env.OPENROUTER_MODEL || \"default\" }}",
+        "llmProvider": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? \"openrouter\" : \"ollama\" }}",
+        "model": "={{ $env.LLM_PROVIDER_MODEL || ($env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? ($env.OPENROUTER_MODEL || \"liquid/lfm-2.5-1.2b-instruct:free\") : ($env.OLLAMA_MODEL || \"tinyllama\")) }}",
         "systemPrompt": "You are a context privacy and data-minimization reviewer. Inspect the enriched support prompt before it is sent for drafting. Check for unnecessary PII, secrets, excessive account detail, NSFW content, and unsupported sensitive attributes. Return one concise line: CONTEXT_OK, CONTEXT_NEEDS_REVIEW, or CONTEXT_BLOCKED with the reason.",
         "apiKey": "={{ $env.OPENBOX_API_KEY }}",
         "openRouterApiKey": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY }}",
-        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://api.llm7.io/v1\" }}"
+        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://openrouter.ai/api/v1\" }}"
       },
       "id": "openbox-context-privacy-check",
       "type": "n8n-nodes-openbox-hook.openboxLlm",
@@ -334,12 +334,12 @@
     },
     {
       "parameters": {
-        "llmProvider": "openrouter",
-        "model": "={{ $env.LLM_PROVIDER_MODEL || $env.OPENROUTER_MODEL || \"default\" }}",
+        "llmProvider": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? \"openrouter\" : \"ollama\" }}",
+        "model": "={{ $env.LLM_PROVIDER_MODEL || ($env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? ($env.OPENROUTER_MODEL || \"liquid/lfm-2.5-1.2b-instruct:free\") : ($env.OLLAMA_MODEL || \"tinyllama\")) }}",
         "systemPrompt": "You are an outbound channel policy reviewer. Inspect the prepared chat, Slack, and webhook payload summary before delivery. Check that optional channels are only used when configured and that outbound text does not leak secrets, unnecessary PII, unsafe claims, NSFW content, or unapproved account actions. Return one concise line: CHANNELS_OK, CHANNELS_NEED_REVIEW, or CHANNELS_BLOCKED with the reason.",
         "apiKey": "={{ $env.OPENBOX_API_KEY }}",
         "openRouterApiKey": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY }}",
-        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://api.llm7.io/v1\" }}"
+        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://openrouter.ai/api/v1\" }}"
       },
       "id": "openbox-channel-output-check",
       "type": "n8n-nodes-openbox-hook.openboxLlm",

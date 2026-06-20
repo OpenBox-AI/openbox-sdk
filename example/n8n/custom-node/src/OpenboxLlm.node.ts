@@ -246,7 +246,8 @@ export class OpenboxLlm implements INodeType {
           { name: 'OpenRouter', value: 'openrouter' },
           { name: 'Ollama', value: 'ollama' },
         ],
-        default: '={{ $env["OPENROUTER_API_KEY"] ? "openrouter" : "ollama" }}',
+        default:
+          '={{ $env["LLM_PROVIDER_API_KEY"] || $env["LLM7_API_KEY"] || $env["OPENROUTER_API_KEY"] ? "openrouter" : "ollama" }}',
         description: 'Choose the runtime LLM provider. Hosted demos can use an OpenRouter-compatible provider; local demos can use Ollama.',
       },
       {
@@ -289,7 +290,7 @@ export class OpenboxLlm implements INodeType {
         name: 'model',
         type: 'string',
         default:
-          '={{ $env["LLM_PROVIDER_MODEL"] || $env["OPENROUTER_MODEL"] || $env["OLLAMA_MODEL"] || "liquid/lfm-2.5-1.2b-instruct:free" }}',
+          '={{ $env["LLM_PROVIDER_MODEL"] || ($env["LLM_PROVIDER_API_KEY"] || $env["LLM7_API_KEY"] || $env["OPENROUTER_API_KEY"] ? ($env["OPENROUTER_MODEL"] || "liquid/lfm-2.5-1.2b-instruct:free") : ($env["OLLAMA_MODEL"] || "tinyllama")) }}',
       },
       {
         displayName: 'System Prompt',

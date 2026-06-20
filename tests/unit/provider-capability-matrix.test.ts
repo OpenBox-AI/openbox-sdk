@@ -847,6 +847,25 @@ describe('provider capability matrix', () => {
         expect(nodeText, `${check.node} must not contain ${forbidden}`).not.toContain(forbidden);
       }
     }
+    for (const check of showcase!.requiredOpenBoxNodeParameterChecks ?? []) {
+      const nodes = showcaseWorkflow.nodes.filter((node) => node.type === check.nodeType);
+      expect(nodes.length, `${check.nodeType} nodes`).toBeGreaterThan(0);
+      for (const node of nodes) {
+        const value = String(node.parameters?.[check.parameter] ?? '');
+        expect(value, `${node.name}.${check.parameter}`).not.toBe('');
+        for (const required of check.requiredContains) {
+          expect(value, `${node.name}.${check.parameter} must contain ${required}`).toContain(required);
+        }
+        for (const forbidden of check.forbiddenContains) {
+          expect(value, `${node.name}.${check.parameter} must not contain ${forbidden}`).not.toContain(
+            forbidden,
+          );
+        }
+        expect(check.forbiddenValues, `${node.name}.${check.parameter} exact value`).not.toContain(
+          value,
+        );
+      }
+    }
     const missingConnectionRefs: string[] = [];
     for (const [source, outputs] of Object.entries(showcaseWorkflow.connections)) {
       if (!showcaseNodeNames.has(source)) missingConnectionRefs.push(source);

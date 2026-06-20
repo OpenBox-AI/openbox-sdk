@@ -69,6 +69,14 @@ export interface OpenBoxN8nExpressionSourceCheckSpec {
   forbiddenContains: readonly string[];
 }
 
+export interface OpenBoxN8nNodeParameterCheckSpec {
+  nodeType: string;
+  parameter: string;
+  requiredContains: readonly string[];
+  forbiddenContains: readonly string[];
+  forbiddenValues: readonly string[];
+}
+
 export interface OpenBoxN8nShowcaseWorkflowSpec {
   name: string;
   id: string;
@@ -83,6 +91,7 @@ export interface OpenBoxN8nShowcaseWorkflowSpec {
   checkpointGates: readonly OpenBoxN8nCheckpointGateSpec[];
   requiredNodeBooleanFlags: readonly OpenBoxN8nNodeBooleanFlagSpec[];
   expressionSourceChecks: readonly OpenBoxN8nExpressionSourceCheckSpec[];
+  requiredOpenBoxNodeParameterChecks: readonly OpenBoxN8nNodeParameterCheckSpec[];
   approvalStages: readonly string[];
   requiredApprovalActionIds: readonly string[];
   requiredPathLogSteps: readonly string[];
@@ -706,6 +715,52 @@ export const OPENBOX_N8N_INTEGRATION = {
           "forbiddenContains": [
             "$json.channelPayloads.hubspot"
           ]
+        }
+      ],
+      "requiredOpenBoxNodeParameterChecks": [
+        {
+          "nodeType": "n8n-nodes-openbox-hook.openboxLlm",
+          "parameter": "llmProvider",
+          "requiredContains": [
+            "LLM_PROVIDER_API_KEY",
+            "LLM7_API_KEY",
+            "OPENROUTER_API_KEY",
+            "openrouter",
+            "ollama"
+          ],
+          "forbiddenContains": [],
+          "forbiddenValues": [
+            "openrouter",
+            "ollama"
+          ]
+        },
+        {
+          "nodeType": "n8n-nodes-openbox-hook.openboxLlm",
+          "parameter": "model",
+          "requiredContains": [
+            "LLM_PROVIDER_MODEL",
+            "OPENROUTER_MODEL",
+            "OLLAMA_MODEL"
+          ],
+          "forbiddenContains": [
+            "\"default\""
+          ],
+          "forbiddenValues": [
+            "default"
+          ]
+        },
+        {
+          "nodeType": "n8n-nodes-openbox-hook.openboxLlm",
+          "parameter": "openRouterBaseUrl",
+          "requiredContains": [
+            "LLM_PROVIDER_BASE_URL",
+            "OPENROUTER_BASE_URL",
+            "https://openrouter.ai/api/v1"
+          ],
+          "forbiddenContains": [
+            "api.llm7.io"
+          ],
+          "forbiddenValues": []
         }
       ],
       "approvalStages": [

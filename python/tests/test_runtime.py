@@ -8,7 +8,7 @@ import re
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, cast, get_args
 
 import httpx
 import pytest
@@ -61,6 +61,12 @@ from openbox_sdk.generated.capability_matrix import (
 from openbox_sdk.generated.core_client import CORE_ENDPOINT_MANIFEST
 from openbox_sdk.generated.govern import PRESET_MANIFEST
 from openbox_sdk.generated.permissions import PATH_PERMISSION_RULES
+from openbox_sdk.generated.rules_projection import (
+    ProjectedRule,
+    RuleSeverity,
+    RulesProjection,
+    RuleTrigger,
+)
 from openbox_sdk.generated.runtime_contract import (
     DEFAULT_SDK_SOURCE,
     SOURCE_INPUT_KEY,
@@ -497,6 +503,32 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
     assert TEST_SUITES == fixture["testSuites"]
     assert SDK_TARGETS == fixture["targets"]
     assert SDK_TARGET_IDS == [target["id"] for target in fixture["targets"]]
+
+
+def test_generated_python_rules_projection_contract_matches_typespec_shape() -> None:
+    assert get_args(RuleTrigger) == (
+        "always",
+        "globMatch",
+        "agentRequested",
+        "manual",
+    )
+    assert get_args(RuleSeverity) == ("block", "warn", "info")
+    assert set(ProjectedRule.__annotations__) == {
+        "id",
+        "source",
+        "description",
+        "body",
+        "trigger",
+        "severity",
+        "globs",
+        "rendererHints",
+    }
+    assert set(RulesProjection.__annotations__) == {
+        "agentId",
+        "fetchedAt",
+        "version",
+        "rules",
+    }
 
 
 def test_generated_python_permission_rules_match_backend_permission_map() -> None:
