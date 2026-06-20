@@ -130,6 +130,21 @@ describe('runtime/n8n integration descriptor', () => {
       ]),
     );
     expect(OPENBOX_N8N_INTEGRATION.workflowTemplates[0].id).toBe('openbox-governed-ai-agent');
+    expect(OPENBOX_N8N_INTEGRATION.workflowTemplates[0].workflow.nodes.map((node: any) => node.type)).toEqual(
+      expect.arrayContaining([
+        'n8n-nodes-openbox-hook.openboxGovernance',
+        '@n8n/n8n-nodes-langchain.agent',
+        'n8n-nodes-openbox-hook.openboxGuardrails',
+        'n8n-nodes-openbox-hook.openboxApproval',
+      ]),
+    );
+    expect(OPENBOX_N8N_INTEGRATION.examples.every((entry: any) => entry.workflow?.nodes?.length > 0)).toBe(true);
+    expect(getOpenBoxN8nExample('mcp-client-tool')?.workflow.nodes.map((node: any) => node.type)).toContain(
+      '@n8n/n8n-nodes-langchain.toolmcp',
+    );
+    expect(getOpenBoxN8nExample('mcp-server-trigger')?.workflow.nodes.map((node: any) => node.type)).toContain(
+      '@n8n/n8n-nodes-langchain.mcptrigger',
+    );
     expect(listOpenBoxN8nCredentials()).toBe(OPENBOX_N8N_INTEGRATION.credentials);
     expect(listOpenBoxN8nNodes()).toBe(OPENBOX_N8N_INTEGRATION.nodes);
     expect(listOpenBoxN8nWorkflowTemplates()).toBe(OPENBOX_N8N_INTEGRATION.workflowTemplates);
@@ -144,6 +159,8 @@ describe('runtime/n8n integration descriptor', () => {
 
     expect(packageJson.n8n).toEqual(OPENBOX_N8N_INTEGRATION.packageManifest);
     expect(packageJson.scripts['smoke:load']).toContain('OPENBOX_N8N_PACKAGE_MANIFEST');
+    expect(packageJson.scripts['smoke:load']).toContain('OPENBOX_N8N_INTEGRATION');
+    expect(packageJson.scripts['smoke:load']).toContain('workflowTemplates');
     expect(packageJson.scripts['smoke:load']).not.toContain('OpenBoxGovernance.node');
   });
 });

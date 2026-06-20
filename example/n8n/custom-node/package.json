@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && cp assets/OB_logomark.png dist/OB_logomark.png",
-    "smoke:load": "node -e \"const { OPENBOX_N8N_PACKAGE_MANIFEST: m } = require('./dist/generated/openbox-n8n-spec.js'); for (const file of [...m.nodes, ...m.credentials]) require('./' + file); console.log('node-load-ok')\""
+    "smoke:load": "node -e \"const { OPENBOX_N8N_INTEGRATION: i, OPENBOX_N8N_PACKAGE_MANIFEST: m } = require('./dist/generated/openbox-n8n-spec.js'); for (const file of [...m.nodes, ...m.credentials]) require('./' + file); for (const entry of [...i.workflowTemplates, ...i.examples]) { if (!entry.workflow?.nodes?.length) throw new Error('missing workflow: ' + entry.id); } console.log('node-load-ok')\""
   },
   "dependencies": {
     "@openbox-ai/openbox-sdk": "0.1.1"

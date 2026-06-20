@@ -738,6 +738,15 @@ describe('provider capability matrix', () => {
       ]),
     );
     expect(N8N_INTEGRATION_SURFACE.workflowTemplates[0].id).toBe('openbox-governed-ai-agent');
+    expect((N8N_INTEGRATION_SURFACE.workflowTemplates[0].workflow as { nodes?: readonly unknown[] }).nodes?.length).toBeGreaterThan(0);
+    expect((N8N_INTEGRATION_SURFACE.workflowTemplates[0].workflow as { nodes: ReadonlyArray<{ type: string }> }).nodes.map((node) => node.type)).toEqual(
+      expect.arrayContaining([
+        'n8n-nodes-openbox-hook.openboxGovernance',
+        '@n8n/n8n-nodes-langchain.agent',
+        'n8n-nodes-openbox-hook.openboxGuardrails',
+        'n8n-nodes-openbox-hook.openboxApproval',
+      ]),
+    );
     expect(N8N_INTEGRATION_SURFACE.examples.map((entry) => entry.id)).toEqual(
       expect.arrayContaining([
         'ai-agent-tool-review',
@@ -746,5 +755,17 @@ describe('provider capability matrix', () => {
         'mcp-server-trigger',
       ]),
     );
+    expect(N8N_INTEGRATION_SURFACE.examples.every((entry) =>
+      Array.isArray((entry.workflow as { nodes?: readonly unknown[] }).nodes))).toBe(true);
+    expect(N8N_INTEGRATION_SURFACE.examples.find((entry) => entry.id === 'mcp-client-tool')?.workflow).toMatchObject({
+      nodes: expect.arrayContaining([
+        expect.objectContaining({ type: '@n8n/n8n-nodes-langchain.toolmcp' }),
+      ]),
+    });
+    expect(N8N_INTEGRATION_SURFACE.examples.find((entry) => entry.id === 'mcp-server-trigger')?.workflow).toMatchObject({
+      nodes: expect.arrayContaining([
+        expect.objectContaining({ type: '@n8n/n8n-nodes-langchain.mcptrigger' }),
+      ]),
+    });
   });
 });

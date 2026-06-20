@@ -42,7 +42,11 @@ Ollama and OpenRouter-compatible chat completion providers.
 The n8n package is validated by the root `check:sdks` target manifest. Its
 node and credential descriptors consume the generated
 `custom-node/src/generated/openbox-n8n-spec.ts`, emitted from
-`specs/typespec/govern/capabilities.tsp`.
+`specs/typespec/govern/capabilities.tsp`. The same generated spec includes
+compact importable workflow artifacts for the governed AI Agent template and
+the AI Agent tool review, Guardrails interop, MCP Client Tool, and MCP Server
+Trigger examples. The richer `workflows/sdk-showcase.json` remains the local
+demo workflow.
 
 Local defaults can use Ollama:
 

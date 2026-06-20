@@ -612,13 +612,97 @@ namespace OpenboxGovern.Capabilities {
       #{ name: "OpenBox Governed AI Agent", id: "openboxGovernedAiAgent", tier: "wrapped", description: "Template node composition for a governed n8n AI Agent workflow." },
     ],
     workflowTemplates: #[
-      #{ name: "OpenBox Governed AI Agent", id: "openbox-governed-ai-agent", nodes: #["openboxGovernance", "n8nAiAgent", "openboxGuardrails", "openboxApproval"], description: "Govern prompt, review tool calls, enforce guardrails, and resolve HITL approvals around an n8n AI Agent." },
+      #{
+        name: "OpenBox Governed AI Agent",
+        id: "openbox-governed-ai-agent",
+        nodes: #["openboxGovernance", "n8nAiAgent", "openboxGuardrails", "openboxApproval"],
+        description: "Govern prompt, review tool calls, enforce guardrails, and resolve HITL approvals around an n8n AI Agent.",
+        workflow: #{
+          name: "OpenBox Governed AI Agent",
+          nodes: #[
+            #{ id: "openbox-governance", name: "openboxGovernance", type: "n8n-nodes-openbox-hook.openboxGovernance", typeVersion: 1, position: #[0, 0], parameters: #{ prompt: "={{ $json.chatInput || $json.prompt || $json.text || \"\" }}" } },
+            #{ id: "n8n-ai-agent", name: "n8nAiAgent", type: "@n8n/n8n-nodes-langchain.agent", typeVersion: 2, position: #[300, 0], parameters: #{ agent: "toolsAgent" } },
+            #{ id: "openbox-guardrails", name: "openboxGuardrails", type: "n8n-nodes-openbox-hook.openboxGuardrails", typeVersion: 1, position: #[600, 0], parameters: #{ text: "={{ $json.output || $json.text || \"\" }}" } },
+            #{ id: "openbox-approval", name: "openboxApproval", type: "n8n-nodes-openbox-hook.openboxApproval", typeVersion: 1, position: #[900, 0], parameters: #{ approvalReason: "={{ $json.approvalReason || \"Review governed AI agent output.\" }}" } },
+          ],
+          connections: #{
+            openboxGovernance: #{ main: #[#[#{ node: "n8nAiAgent", type: "main", index: 0 }]] },
+            n8nAiAgent: #{ main: #[#[#{ node: "openboxGuardrails", type: "main", index: 0 }]] },
+            openboxGuardrails: #{ main: #[#[#{ node: "openboxApproval", type: "main", index: 0 }]] },
+          },
+          settings: #{ executionOrder: "v1" },
+        },
+      },
     ],
     examples: #[
-      #{ name: "AI Agent Tool Review", id: "ai-agent-tool-review", description: "Pre/post tool review around an n8n AI Agent tool call." },
-      #{ name: "Guardrails Node Interop", id: "guardrails-node-interop", description: "OpenBox guardrail wrapper around the native n8n Guardrails node." },
-      #{ name: "MCP Client Tool", id: "mcp-client-tool", description: "OpenBox-governed n8n MCP Client Tool invocation." },
-      #{ name: "MCP Server Trigger", id: "mcp-server-trigger", description: "OpenBox-governed n8n MCP Server Trigger workflow entrypoint." },
+      #{
+        name: "AI Agent Tool Review",
+        id: "ai-agent-tool-review",
+        description: "Pre/post tool review around an n8n AI Agent tool call.",
+        workflow: #{
+          name: "OpenBox AI Agent Tool Review",
+          nodes: #[
+            #{ id: "openbox-governance", name: "openboxGovernance", type: "n8n-nodes-openbox-hook.openboxGovernance", typeVersion: 1, position: #[0, 0], parameters: #{ prompt: "={{ $json.toolRequest || $json.chatInput || \"\" }}" } },
+            #{ id: "n8n-ai-agent", name: "n8nAiAgent", type: "@n8n/n8n-nodes-langchain.agent", typeVersion: 2, position: #[300, 0], parameters: #{ agent: "toolsAgent" } },
+            #{ id: "openbox-approval", name: "openboxApproval", type: "n8n-nodes-openbox-hook.openboxApproval", typeVersion: 1, position: #[600, 0], parameters: #{ approvalReason: "={{ $json.approvalReason || \"Review proposed AI Agent tool call.\" }}" } },
+          ],
+          connections: #{
+            openboxGovernance: #{ main: #[#[#{ node: "n8nAiAgent", type: "main", index: 0 }]] },
+            n8nAiAgent: #{ main: #[#[#{ node: "openboxApproval", type: "main", index: 0 }]] },
+          },
+          settings: #{ executionOrder: "v1" },
+        },
+      },
+      #{
+        name: "Guardrails Node Interop",
+        id: "guardrails-node-interop",
+        description: "OpenBox guardrail wrapper around the native n8n Guardrails node.",
+        workflow: #{
+          name: "OpenBox Guardrails Node Interop",
+          nodes: #[
+            #{ id: "openbox-governance", name: "openboxGovernance", type: "n8n-nodes-openbox-hook.openboxGovernance", typeVersion: 1, position: #[0, 0], parameters: #{ prompt: "={{ $json.prompt || $json.chatInput || \"\" }}" } },
+            #{ id: "openbox-guardrails", name: "openboxGuardrails", type: "n8n-nodes-openbox-hook.openboxGuardrails", typeVersion: 1, position: #[300, 0], parameters: #{ text: "={{ $json.output || $json.text || \"\" }}" } },
+          ],
+          connections: #{
+            openboxGovernance: #{ main: #[#[#{ node: "openboxGuardrails", type: "main", index: 0 }]] },
+          },
+          settings: #{ executionOrder: "v1" },
+        },
+      },
+      #{
+        name: "MCP Client Tool",
+        id: "mcp-client-tool",
+        description: "OpenBox-governed n8n MCP Client Tool invocation.",
+        workflow: #{
+          name: "OpenBox MCP Client Tool",
+          nodes: #[
+            #{ id: "openbox-governance", name: "openboxGovernance", type: "n8n-nodes-openbox-hook.openboxGovernance", typeVersion: 1, position: #[0, 0], parameters: #{ prompt: "={{ $json.mcpRequest || $json.chatInput || \"\" }}" } },
+            #{ id: "mcp-client-tool", name: "mcpClientTool", type: "@n8n/n8n-nodes-langchain.toolmcp", typeVersion: 1, position: #[300, 180], parameters: #{ serverUrl: "={{ $env.OPENBOX_MCP_URL || \"http://localhost:3000/mcp\" }}" } },
+            #{ id: "n8n-ai-agent", name: "n8nAiAgent", type: "@n8n/n8n-nodes-langchain.agent", typeVersion: 2, position: #[600, 0], parameters: #{ agent: "toolsAgent" } },
+          ],
+          connections: #{
+            openboxGovernance: #{ main: #[#[#{ node: "n8nAiAgent", type: "main", index: 0 }]] },
+            mcpClientTool: #{ ai_tool: #[#[#{ node: "n8nAiAgent", type: "ai_tool", index: 0 }]] },
+          },
+          settings: #{ executionOrder: "v1" },
+        },
+      },
+      #{
+        name: "MCP Server Trigger",
+        id: "mcp-server-trigger",
+        description: "OpenBox-governed n8n MCP Server Trigger workflow entrypoint.",
+        workflow: #{
+          name: "OpenBox MCP Server Trigger",
+          nodes: #[
+            #{ id: "mcp-server-trigger", name: "mcpServerTrigger", type: "@n8n/n8n-nodes-langchain.mcptrigger", typeVersion: 1, position: #[0, 0], parameters: #{ path: "openbox-governed" } },
+            #{ id: "openbox-governance", name: "openboxGovernance", type: "n8n-nodes-openbox-hook.openboxGovernance", typeVersion: 1, position: #[300, 0], parameters: #{ prompt: "={{ $json.prompt || $json.input || \"\" }}" } },
+          ],
+          connections: #{
+            mcpServerTrigger: #{ main: #[#[#{ node: "openboxGovernance", type: "main", index: 0 }]] },
+          },
+          settings: #{ executionOrder: "v1" },
+        },
+      },
     ],
   },
 })
